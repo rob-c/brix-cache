@@ -18,7 +18,7 @@
  *       diverged from stock (54=NotFound) and tripped scripts that branch on $?.
  */
 #include "xrdc.h"
-#include "compat/crypto.h"
+#include "core/compat/crypto.h"
 
 #include <fcntl.h>
 #include <stdio.h>

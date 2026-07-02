@@ -10,8 +10,8 @@
  *       exhaustive per-code table is deferred to the M9/M10 conformance work).
  */
 #include "xrdc.h"
-#include "compat/kxr_names.h"      /* shared kXR error-name table (libxrdproto) */
-#include "compat/error_mapping.h"  /* shared kXR↔errno canonical table (libxrdproto) */
+#include "core/compat/kxr_names.h"      /* shared kXR error-name table (libxrdproto) */
+#include "core/compat/error_mapping.h"  /* shared kXR↔errno canonical table (libxrdproto) */
 
 #include <errno.h>
 #include <stdio.h>

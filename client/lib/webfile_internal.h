@@ -6,8 +6,8 @@
 #define XROOTD_WEBFILE_INTERNAL_H
 
 #include "xrdc.h"
-#include "compat/uri.h"
-#include "compat/host_format.h"
+#include "core/compat/uri.h"
+#include "core/compat/host_format.h"
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>

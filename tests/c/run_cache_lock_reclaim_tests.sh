@@ -24,7 +24,7 @@ fi
 
 INCS=(-I "${NGX_SRC}/src/core" -I "${NGX_SRC}/src/event"
       -I "${NGX_SRC}/src/event/modules" -I "${NGX_SRC}/src/os/unix"
-      -I "${OBJS_DIR}" -I "${NGX_SRC}/src/protocols/root/stream" -I "${NGX_SRC}/src/http"
+      -I "${OBJS_DIR}" -I "${NGX_SRC}/src/stream" -I "${NGX_SRC}/src/http"
       -I "${NGX_SRC}/src/http/modules" -I "${REPO}/src")
 
 cc -O -Wall "${INCS[@]}" -o "${BIN}" \

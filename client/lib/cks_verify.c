@@ -19,8 +19,8 @@
  *       then recompute each distinct algorithm once over the file (xrdc_cksum_fd)
  *       and compare. The on-disk binary records (XrdCksData, .cinfo, .meta) are
  *       mirrored here as fixed-layout structs — kept byte-compatible with their
- *       canonical definitions in src/compat/integrity_info.c, src/cache/cinfo.h
- *       and src/cache/meta.h (same x86-64 ABI, read verbatim).
+ *       canonical definitions in src/core/compat/integrity_info.c, src/fs/cache/cinfo.h
+ *       and src/fs/cache/meta.h (same x86-64 ABI, read verbatim).
  */
 
 #include "xrdc.h"
@@ -40,7 +40,7 @@
 
 /* mirrors of the canonical on-disk layouts (must stay byte-compatible) -- */
 
-/* src/compat/integrity_info.c struct xrd_cks_data (stock XrdCks/XrdCksData.hh). */
+/* src/core/compat/integrity_info.c struct xrd_cks_data (stock XrdCks/XrdCksData.hh). */
 struct ckv_cksdata {
     char      Name[16];
     long long fmTime;
@@ -51,7 +51,7 @@ struct ckv_cksdata {
     char      Value[64];
 };
 
-/* src/cache/meta.h xrootd_cache_meta_t. */
+/* src/fs/cache/meta.h xrootd_cache_meta_t. */
 struct ckv_meta {
     uint64_t mtime;
     uint64_t size;
@@ -67,7 +67,7 @@ struct ckv_meta {
     char     cks_hex[129];
 };
 
-/* src/cache/cinfo.h xrootd_cache_cinfo_t (header only; bitmap follows on disk). */
+/* src/fs/cache/cinfo.h xrootd_cache_cinfo_t (header only; bitmap follows on disk). */
 struct ckv_cinfo {
     uint32_t magic;
     uint16_t version;

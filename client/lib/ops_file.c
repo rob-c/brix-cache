@@ -76,7 +76,7 @@ xrdc_file_open_opaque(xrdc_conn *c, const char *path, const char *opaque,
      * dirs (mkpath). */
     options = xrootd_open_options_build(write, force, posc, /*mkpath=*/1);
 
-    /* The server splits "<path>?<opaque>" — open_extract_opaque (src/read).
+    /* The server splits "<path>?<opaque>" — open_extract_opaque (src/protocols/root/read).
      * Heap-size to the actual lengths; no opaque ⇒ bare path (open_read/write). */
     need = strlen(path) + 1 + (opaque ? strlen(opaque) : 0) + 1;
     payload = (char *) malloc(need);

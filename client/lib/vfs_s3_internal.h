@@ -12,7 +12,7 @@
 
 #include "vfs.h"
 #include "xrdc.h"
-#include "compat/host_format.h"
+#include "core/compat/host_format.h"
 #include "fs/backend/s3/sd_s3.h"            /* the shared S3 driver */
 #include "fs/backend/s3/sd_s3_transport.h"
 #include <errno.h>

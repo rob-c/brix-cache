@@ -1,6 +1,6 @@
 /*
  * codec_edge_test.c — edge/adversarial unit test for the shared codec kernel
- * (src/compat/codec_core.h API). Builds ngx-free, sibling to codec_test.c which
+ * (src/core/compat/codec_core.h API). Builds ngx-free, sibling to codec_test.c which
  * covers the happy-path round-trip matrix; this file deliberately attacks the
  * boundaries: lookups (mixed-case tokens / unknown), the dense descriptor table
  * (no holes), unavailable/out-of-range open, empty + 1-byte streams pumped a byte
@@ -8,7 +8,7 @@
  * absolute out_cap), and per-codec truncated-stream corruption.
  *
  * Build (from repo root):
- *   cc -std=c11 -Wall -Wextra -I src/compat tests/c/codec_edge_test.c \
+ *   cc -std=c11 -Wall -Wextra -I src/core/compat tests/c/codec_edge_test.c \
  *      shared/xrdproto/libxrdproto.a \
  *      -lz -lzstd -llzma -lbrotlienc -lbrotlidec -lbz2 -lcrypto \
  *      -o /tmp/codec_edge_test && /tmp/codec_edge_test

@@ -38,8 +38,8 @@
 #include "posix_map.h"       /* shared statinfo→stat / Qspace / listxattr xlate */
 #include "iobuf.h"           /* shared read-ahead / write-back engine */
 #include "fuse_ops.h"        /* shared pooled meta-op runner + op thunks */
-#include "compat/crypto.h"   /* xrootd_crypto_init (libxrdproto SHA/HMAC kernels) */
-#include "protocol/open_flags.h" /* shared POSIX-flags -> open `force` tri-state */
+#include "core/compat/crypto.h"   /* xrootd_crypto_init (libxrdproto SHA/HMAC kernels) */
+#include "protocols/root/protocol/open_flags.h" /* shared POSIX-flags -> open `force` tri-state */
 
 #include <fuse3/fuse.h>
 

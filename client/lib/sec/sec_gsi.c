@@ -13,14 +13,14 @@
  *       plus the two client-specific bits: loading the proxy PEM and AES-encrypting
  *       the inner buffer. signing_key = SHA256(secret) via libxrdproto's xrootd_sha256.
  *
- * Clean-room: every wire fact is the inverse of our own server code under src/gsi.
+ * Clean-room: every wire fact is the inverse of our own server code under src/auth/gsi.
  */
 #include "sec.h"
 #include "../cred.h"
-#include "gsi/gsi_core.h"     /* shared GSI crypto + bucket kernels (-I src) */
-#include "gsi/proxy_req.h"    /* xrootd_gsi_sign_pxyreq (X.509 delegation)   */
-#include "protocol/gsi.h"     /* kXGS_pxyreq / kXGC_sigpxy / kXRS_* constants */
-#include "compat/crypto.h"    /* xrootd_sha256 (libxrdproto) */
+#include "auth/gsi/gsi_core.h"     /* shared GSI crypto + bucket kernels (-I src) */
+#include "auth/gsi/proxy_req.h"    /* xrootd_gsi_sign_pxyreq (X.509 delegation)   */
+#include "protocols/root/protocol/gsi.h"     /* kXGS_pxyreq / kXGC_sigpxy / kXRS_* constants */
+#include "core/compat/crypto.h"    /* xrootd_sha256 (libxrdproto) */
 
 #include <stdio.h>
 #include <stdlib.h>

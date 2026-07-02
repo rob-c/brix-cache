@@ -13,7 +13,7 @@
  * Clean-room: composes the public libxrdc API only.
  */
 #include "xrdc.h"
-#include "compat/crypto.h"
+#include "core/compat/crypto.h"
 
 #include <stdio.h>
 #include <stdlib.h>

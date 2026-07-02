@@ -6,7 +6,7 @@
 #define XROOTD_HTTP_INTERNAL_H
 
 #include "xrdc.h"
-#include "compat/host_format.h"   
+#include "core/compat/host_format.h"   
 #include <errno.h>
 #include <poll.h>
 #include <stdio.h>

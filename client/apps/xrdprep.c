@@ -8,7 +8,7 @@
  * HOW:  xrdc_endpoint_parse → xrdc_connect → xrdc_prepare(options, optionX, prty).
  */
 #include "xrdc.h"
-#include "compat/crypto.h"
+#include "core/compat/crypto.h"
 
 #include <stdio.h>
 #include <stdlib.h>

@@ -10,14 +10,14 @@
  *       produce the AP-REQ. The server principal comes from the advertised
  *       "&P=krb5,<principal>" parameter when present, else xrootd/<host> derived
  *       from the connection. Payload = the 4 bytes "krb5" + the raw AP-REQ — the
- *       exact framing src/krb5/auth.c expects (prefix check + krb5_rd_req on the
+ *       exact framing src/auth/krb5/auth.c expects (prefix check + krb5_rd_req on the
  *       bytes past offset 4). Single round.
  *
  * Compile-gated on XROOTD_HAVE_KRB5 (pkg-config krb5). When absent the accessor
  * returns NULL so the auth driver simply skips krb5 and the build still succeeds.
  *
  * wire: XProtocol.hh kXR_auth credtype "krb5"; payload "krb5" + AP-REQ
- *       (src/krb5/auth.c xrootd_handle_krb5_auth).
+ *       (src/auth/krb5/auth.c xrootd_handle_krb5_auth).
  */
 #include "sec.h"
 
@@ -115,7 +115,7 @@ krb5_acquire(krb5_context ctx, xrdc_conn *c, const char *parms,
         xrdc_status_set(st, XRDC_EAUTH, 0, "krb5: out of memory");
         return -1;
     }
-    memcpy(p, "krb5", 4);                       /* the prefix src/krb5 checks */
+    memcpy(p, "krb5", 4);                       /* the prefix src/auth/krb5 checks */
     memcpy(p + 4, apreq->data, apreq->length);
     *payload = p;
     *plen = (uint32_t) (4 + apreq->length);

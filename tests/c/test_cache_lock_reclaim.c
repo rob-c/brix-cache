@@ -3,7 +3,7 @@
  * must be reclaimed, not stall the entry forever ("stuck after many reboots").
  *
  * THE BUG
- *   The per-file cache fill lock is an O_CREAT|O_EXCL lock FILE (src/cache/lock.c)
+ *   The per-file cache fill lock is an O_CREAT|O_EXCL lock FILE (src/fs/cache/lock.c)
  *   with the owner's pid written in. It is unlinked at every normal fill exit —
  *   but a worker SIGKILLed/crashed mid-fill (e.g. at reload's
  *   worker_shutdown_timeout) leaves it orphaned. Nothing reclaims it:
@@ -25,7 +25,7 @@
  *   2. live-owner lock  -> NOT reclaimed, honoured to timeout      [no over-reclaim]
  *   3. no lock present  -> acquired immediately (owned=1)          [sanity]
  */
-#include "cache/cache_internal.h"
+#include "fs/cache/cache_internal.h"
 
 #include <stdio.h>
 #include <stdlib.h>

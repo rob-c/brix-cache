@@ -18,7 +18,7 @@
  * Wire reference: docs/refactor/phase-52-pwd-wire-spec.md.
  */
 #include "sec.h"
-#include "gsi/gsi_core.h"     /* shared DH + cipher + bucket kernels (-I src) */
+#include "auth/gsi/gsi_core.h"     /* shared DH + cipher + bucket kernels (-I src) */
 
 #include <stdio.h>
 #include <stdlib.h>

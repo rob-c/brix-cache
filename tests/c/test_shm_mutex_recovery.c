@@ -29,7 +29,7 @@
  */
 #include <ngx_config.h>
 #include <ngx_core.h>
-#include "compat/shm_slots.h"
+#include "core/compat/shm_slots.h"
 
 #include <stdio.h>
 #include <stdlib.h>

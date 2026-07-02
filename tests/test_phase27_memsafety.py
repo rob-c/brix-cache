@@ -128,7 +128,7 @@ def test_w7_fuzz_safe_size_builds_and_runs(tmp_path):
     out = tmp_path / "fuzz_safe_size"
     rc = subprocess.run(
         [clang, "-O1", "-g", "-fsanitize=fuzzer,address,undefined",
-         "-I", str(ROOT / "src/shared"),
+         "-I", str(ROOT / "src/core/compat"),
          str(ROOT / "tests/fuzz/fuzz_safe_size.c"), "-o", str(out)],
         capture_output=True, text=True)
     assert rc.returncode == 0, rc.stderr

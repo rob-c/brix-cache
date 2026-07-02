@@ -18,9 +18,9 @@
  * returns; it must never crash `explain`. Clean-room: standard JWT/RFC + OpenSSL.
  */
 #include "xrdc.h"
-#include "token/b64url.h"   /* shared base64url decode + JWS splitter (libxrdproto) */
-#include "token/scopes.h"   /* shared WLCG scope parser (libxrdproto) */
-#include "compat/json_min.h" /* shared dependency-free JSON value extractor */
+#include "auth/token/b64url.h"   /* shared base64url decode + JWS splitter (libxrdproto) */
+#include "auth/token/scopes.h"   /* shared WLCG scope parser (libxrdproto) */
+#include "core/compat/json_min.h" /* shared dependency-free JSON value extractor */
 
 #include <stdio.h>
 #include <stdlib.h>

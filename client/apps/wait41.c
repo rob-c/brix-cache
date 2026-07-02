@@ -9,7 +9,7 @@
  *       sleeping 1s between attempts.
  */
 #include "xrdc.h"
-#include "compat/crypto.h"
+#include "core/compat/crypto.h"
 
 #include <stdio.h>
 #include <stdlib.h>

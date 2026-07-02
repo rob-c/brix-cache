@@ -32,7 +32,7 @@ fi
 INCS=(
     -I"$NGINX_SRC/src/core" -I"$NGINX_SRC/src/event"
     -I"$NGINX_SRC/src/event/modules" -I"$NGINX_SRC/src/os/unix"
-    -I"$NGINX_SRC/objs" -I"$NGINX_SRC/src/protocols/root/stream" -I"$IMP"
+    -I"$NGINX_SRC/objs" -I"$NGINX_SRC/src/stream" -I"$IMP" -I"$REPO/src"
 )
 
 echo "==> building $OUT"

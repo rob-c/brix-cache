@@ -7,7 +7,7 @@
  * HOW:  xrdc_endpoint_parse → xrdc_connect → xrdc_query(infotype, args).
  */
 #include "xrdc.h"
-#include "compat/crypto.h"
+#include "core/compat/crypto.h"
 
 #include <stdio.h>
 #include <string.h>

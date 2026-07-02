@@ -20,13 +20,13 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(HERE))
 NGINX_SRC = os.environ.get("TEST_NGINX_SRC", "/tmp/nginx-1.28.3")
 CC = os.environ.get("CC", "cc")
-IMP = os.path.join(REPO, "src", "impersonate")
+IMP = os.path.join(REPO, "src", "auth", "impersonate")
 
 
 def _inc_flags():
     subs = ["src/core", "src/event", "src/event/modules", "src/os/unix",
-            "objs", "src/protocols/root/stream"]
-    return [f"-I{os.path.join(NGINX_SRC, s)}" for s in subs] + [f"-I{IMP}"]
+            "objs", "src/stream"]
+    return [f"-I{os.path.join(NGINX_SRC, s)}" for s in subs] + [f"-I{IMP}", f"-I{os.path.join(REPO, 'src')}"]
 
 
 @pytest.mark.timeout(60)

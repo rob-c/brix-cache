@@ -11,8 +11,8 @@
  *       are capped to defend against a server that never finishes.
  */
 #include "sec/sec.h"
-#include "protocol/sec_protocol.h"   /* shared "&P=" security-list parser */
-#include "protocol/codec/wire_codec.h" /* shared per-opcode wire-body codec */
+#include "protocols/root/protocol/sec_protocol.h"   /* shared "&P=" security-list parser */
+#include "protocols/root/protocol/codec/wire_codec.h" /* shared per-opcode wire-body codec */
 
 #include <arpa/inet.h>
 #include <stdlib.h>

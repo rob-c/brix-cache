@@ -5,8 +5,8 @@
  * preload shim) share one implementation. No connection model, no FUSE types.
  */
 #include "posix_map.h"
-#include "protocol/stat_flags.h"   /* shared stat `flags` semantics (decode side) */
-#include "protocol/qspace.h"       /* shared oss.* space-report grammar (parse side) */
+#include "protocols/root/protocol/stat_flags.h"   /* shared stat `flags` semantics (decode side) */
+#include "protocols/root/protocol/qspace.h"       /* shared oss.* space-report grammar (parse side) */
 
 #include <errno.h>
 #include <stdlib.h>

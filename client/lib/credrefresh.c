@@ -21,7 +21,7 @@
  * Clean-room: standard POSIX fork/exec/pipe + the in-tree proxy/token helpers.
  */
 #include "xrdc.h"
-#include "compat/subprocess.h"   /* shared fork/exec stdout capture (libxrdproto) */
+#include "core/compat/subprocess.h"   /* shared fork/exec stdout capture (libxrdproto) */
 
 #include <stdio.h>
 #include <stdlib.h>

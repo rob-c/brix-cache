@@ -1,4 +1,4 @@
-/* Standalone unit test for src/impersonate/idmap.c (phase 40).
+/* Standalone unit test for src/auth/impersonate/idmap.c (phase 40).
  * Links idmap.o; stubs the single nginx runtime symbol (ngx_log_error_core).
  * Exercises grid-mapfile + getpwnam + policy + squash against the real NSS. */
 #include <ngx_config.h>

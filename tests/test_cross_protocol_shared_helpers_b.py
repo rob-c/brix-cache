@@ -112,7 +112,7 @@ def test_phase3_http_read_metadata_uses_vfs():
     _assert_markers(
         "src/protocols/s3/object.c",
         [
-            "../fs/vfs.h",
+            "fs/vfs.h",
             "xrootd_vfs_open(",
             "xrootd_vfs_file_stat(",
             "xrootd_vfs_stat(",
@@ -120,7 +120,7 @@ def test_phase3_http_read_metadata_uses_vfs():
     )
     _assert_markers(
         "src/protocols/webdav/resource.c",
-        ["../fs/vfs.h", "xrootd_vfs_stat("],
+        ["fs/vfs.h", "xrootd_vfs_stat("],
     )
 
 
@@ -167,7 +167,7 @@ def test_phase4_vfs_cache_hooks_are_present():
     _assert_markers(
         "src/fs/vfs_open.c",
         [
-            "../cache/open.h",
+            "fs/cache/open.h",
             "xrootd_cache_open(ctx, flags, &fh)",
             "xrootd_vfs_adopt_fd(",
             "from_cache",
@@ -177,7 +177,7 @@ def test_phase4_vfs_cache_hooks_are_present():
     # serve pipeline; the write-through decision moved into its own cache unit.
     _assert_markers(
         "src/protocols/shared/file_serve.c",
-        ["../cache/open.h", "xrootd_cache_record_access("],
+        ["fs/cache/open.h", "xrootd_cache_record_access("],
     )
     _assert_markers(
         "src/fs/cache/writethrough_decision.c",
@@ -194,8 +194,8 @@ def test_phase4_http_protocols_use_vfs_cache_path():
     _assert_markers(
         "src/protocols/webdav/get.c",
         [
-            "../cache/open.h",
-            "../fs/vfs.h",
+            "fs/cache/open.h",
+            "fs/vfs.h",
             "xrootd_vfs_open(&vctx, XROOTD_VFS_O_READ",
             "xrootd_vfs_ctx_init(",
             "conf->cache_root_canon",
@@ -209,7 +209,7 @@ def test_phase4_http_protocols_use_vfs_cache_path():
     _assert_markers(
         "src/protocols/s3/object.c",
         [
-            "../cache/open.h",
+            "fs/cache/open.h",
             "xrootd_vfs_ctx_init(",
             "cf->cache_root_canon",
         ],
@@ -226,7 +226,7 @@ def test_phase4_http_protocols_use_vfs_cache_path():
     _assert_markers(
         "src/protocols/shared/file_serve.c",
         [
-            "../cache/open.h",
+            "fs/cache/open.h",
             "xrootd_vfs_file_from_cache(",
             "xrootd_cache_record_access(",
         ],
@@ -351,15 +351,15 @@ def test_phase6_unified_metrics_observability_is_wired():
     )
     _assert_markers(
         "src/protocols/webdav/metrics.c",
-        ["../metrics/unified.h", "xrootd_metric_op_done("],
+        ["observability/metrics/unified.h", "xrootd_metric_op_done("],
     )
     _assert_markers(
         "src/protocols/s3/metrics.c",
-        ["../metrics/unified.h", "xrootd_metric_op_done("],
+        ["observability/metrics/unified.h", "xrootd_metric_op_done("],
     )
     _assert_markers(
         "src/tpc/common/metrics.c",
-        ["../../metrics/unified.h", "xrootd_metric_tpc("],
+        ["observability/metrics/unified.h", "xrootd_metric_tpc("],
     )
 
 

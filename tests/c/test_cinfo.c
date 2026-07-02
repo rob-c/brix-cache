@@ -1,12 +1,12 @@
 /*
  * test_cinfo.c — standalone unit tests for the .cinfo block-present bitmap
- * sidecar (src/cache/cinfo.c), Phase-58 §9.
+ * sidecar (src/fs/cache/cinfo.c), Phase-58 §9.
  *
  * Links against the real compiled cinfo.o (no running server, no nginx
  * runtime).  cinfo.o references only libc, so no stubs are needed; this file
  * mirrors the on-disk struct layout and the public prototypes exactly (the
  * struct is read/written verbatim, so the mirror MUST stay byte-compatible with
- * src/cache/cinfo.h).
+ * src/fs/cache/cinfo.h).
  *
  * Build/run via tests/c/run_cinfo_tests.sh (compiled into tests/test_slice_cache.py).
  */
@@ -35,7 +35,7 @@ typedef intptr_t  ngx_int_t;
 #define F_DIRTY    0x0008u
 
 /* Mirror of xrootd_cache_meta_t (only the fields from_meta reads). The trailing
- * layout must match src/cache/meta.h for the struct passed by value. */
+ * layout must match src/fs/cache/meta.h for the struct passed by value. */
 typedef struct {
     uint64_t mtime;
     uint64_t size;
@@ -51,7 +51,7 @@ typedef struct {
     char     cks_hex[129];
 } xrootd_cache_meta_t;
 
-/* Mirror of xrootd_cache_cinfo_t (layout must match src/cache/cinfo.h). */
+/* Mirror of xrootd_cache_cinfo_t (layout must match src/fs/cache/cinfo.h). */
 typedef struct {
     uint32_t magic;
     uint16_t version;

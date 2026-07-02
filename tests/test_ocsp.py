@@ -39,7 +39,7 @@ from settings import (
 # Constants
 # ---------------------------------------------------------------------------
 
-OCSP_SOURCE = Path(__file__).resolve().parents[1] / "src" / "crypto" / "ocsp.c"
+OCSP_SOURCE = Path(__file__).resolve().parents[1] / "src" / "auth" / "crypto" / "ocsp.c"
 
 
 # ---------------------------------------------------------------------------

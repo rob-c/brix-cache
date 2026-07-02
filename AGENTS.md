@@ -1,6 +1,6 @@
-# nginx-xrootd AGENT GUIDE v3.5 [2026-05-16]
+# nginx-xrootd AGENT GUIDE v3.6 [2026-07-02]
 
-**Quick lookup:** OP→FILE → HELPERS → INVARIANTS → BUILD/TEST → FAQ
+**Quick lookup:** SRC TOPOLOGY → OP→FILE → HELPERS → INVARIANTS → BUILD/TEST → FAQ
 **Wire spec:** `/tmp/xrootd-src/src/XProtocol/XProtocol.hh`
 **Core rules:** (1) Use HELPERS — never reimplement path/auth/metrics/framing (2) 3 tests per change: success + error + security-neg (3) **NO `goto`** + write functional/modular code — small single-purpose functions, explicit data flow, early-return
 **Coding standard (MANDATORY, read before editing `src/`, `shared/`, or `client/`):** [`docs/09-developer-guide/coding-standards.md`](docs/09-developer-guide/coding-standards.md) — the authoritative best-practice doc (naming, docs, error handling, allocation, no-goto, functional/modular design, tests). The same formatting and code-style rules apply uniformly across `src/`, `shared/`, and `client/`.
@@ -25,6 +25,26 @@ This file is a **lookup reference**, not memorization material. If your context 
 
 ---
 
+## SRC TOPOLOGY (phase-66, 2026-07-02 — seven concept buckets)
+```
+src/core/           platform primitives: compat/ types/ config/ shm/ aio/ + ngx_xrootd_module.h
+src/protocols/      one subdir per wire protocol: root/ (all root:// machinery incl.
+                    connection/ session/ protocol/ handshake/ read/ write/ zip/ stream/
+                    handoff/ relay/ response/ path/) webdav/ s3/ ssi/ srr/ dig/ shared/
+src/fs/             storage plane (VFS = sole storage truth): vfs_*.c + core/ backend/
+                    tier/ xfer/ path/ cache/ scan/
+src/auth/           identity + authz: gsi/ token/ sss/ krb5/ pwd/ unix/ host/ voms/
+                    crypto/ authz/ (acl + acc engine) impersonate/
+src/net/            clustering/proxying/shadowing: cms/ manager/ upstream/ proxy/
+                    ratelimit/ tap/ mirror/
+src/observability/  metrics/ pmark/ dashboard/ accesslog/
+src/tpc/            cross-plane third-party-copy (kept top-level)
+```
+Cross-dir includes are **src-rooted** (`#include "auth/gsi/parse.h"`); same-dir stay bare.
+Full mapping: [docs/refactor/phase-66-map.tsv](docs/refactor/phase-66-map.tsv).
+
+---
+
 ## ROUTING
 | Proto | Layer | Entry | Test Port |
 |---|---|---|---|
@@ -38,21 +58,21 @@ This file is a **lookup reference**, not memorization material. If your context 
 
 ## OP→FILE (search keywords → get files)
 
-### STREAM (`src/` prefix)
+### STREAM (`src/protocols/root/` prefix unless a full `src/…` path is given)
 | Keyword | Files |
 |---|---|
 | handshake / dispatch | `handshake/dispatch.c`, `dispatch_session.c` |
-| auth (GSI/token/SSS) | `session/login.c`, `gsi/parse.c`, `token/validate.c`, `sss/` |
+| auth (GSI/token/SSS) | `session/login.c`, `src/auth/gsi/parse.c`, `src/auth/token/validate.c`, `src/auth/sss/` |
 | protocol lifecycle | `session/protocol.c`, `lifecycle.c` |
 | bind / session | `session/bind.c`, `registry.c` |
-| acl / policy / voms | `handshake/policy.c`, `path/acl.c`, `authdb.c`, `voms/` |
-| open / close / stat | `read/open.c`, `open_cache.c`, `close.c`, `stat.c`, `statx.c` |
-| read / readv / pgread | `read/read.c`, `readv.c`, `pgread.c`, `aio/` |
+| acl / policy / voms | `handshake/policy.c`, `src/auth/authz/acl.c`, `authdb.c`, `src/auth/voms/` |
+| open / close / stat | `read/open_cache.c`, `close.c`, `stat.c`, `statx.c` |
+| read / readv / pgread | `read/read.c`, `readv.c`, `pgread.c`, `src/core/aio/` |
 | write / pgwrite / sync | `write/write.c`, `pgwrite.c`, `sync.c` |
 | rename / mkdir / rm | `write/mv.c`, `mkdir.c`, `rm.c`, `fattr/` |
 | dirlist / locate / clone | `dirlist/handler.c`, `read/locate.c`, `clone.c` |
-| native tpc | `tpc/key_registry.c`, `launch.c`, `thread.c`, `io.c`, `done.c` |
-| cms / manager / cluster | `manager/registry.c`, `cms/send.c`, `upstream/` |
+| native tpc | `src/tpc/key_registry.c`, `launch.c`, `thread.c`, `io.c`, `done.c` |
+| cms / manager / cluster | `src/net/manager/registry.c`, `src/net/cms/send.c`, `src/net/upstream/` |
 
 ### HTTP (`src/protocols/webdav/` prefix unless noted)
 | Keyword | Files |
@@ -161,26 +181,30 @@ tests/manage_test_servers.sh start|restart|stop
 
 **The build is governed by two things — and only two:**
 
-1. **`src/core/config/config.h`** — the module's source list, config fields, and command declarations.
-   Every new source file or header you add must be registered in `config.h` (`NGX_ADDON_SRCS`).
-   If your change introduces a new `.c` file, `./configure` will not compile it unless it appears here.
-2. **nginx's `./configure`** — the top-level configure script from nginx.org source that picks up
-   this module via `--add-module=$REPO`. It generates Makefiles and object files in the nginx build tree.
+1. **the repo-root `./config`** — the module's source lists (`ngx_module_srcs`), header dep
+   lists, and feature gates. Every new `.c` file must be added to the appropriate
+   `$ngx_addon_dir/src/…` list here or `./configure` will not compile it.
+   (`src/core/config/config.h` holds the module's config STRUCT fields + command
+   declarations — it is NOT the source list.)
+2. **nginx's `./configure`** — the top-level configure script from nginx.org source (the build
+   tree at `/tmp/nginx-1.28.3`) that picks up this module via `--add-module=$REPO`. It
+   generates Makefiles and object files in the nginx build tree.
 
 **What agents should NOT do:**
 - **Do NOT edit generated Makefiles.** They live in `/tmp/nginx-1.28.3/objs/Makefile` (or similar) and are
    fully regenerated by `./configure`. Editing them is a no-op — the next configure run overwrites everything.
-- **Do NOT patch nginx's own source files** (`src/core/`, `src/event/`, `src/http/`, etc.). All module changes stay
-   inside this repository (`src/` directory). If you need to change how nginx behaves, do it through the
-   module's hooks and callbacks — not by modifying nginx's internals.
-- **Do NOT run `./configure` unless** you added a new source file (not in `config.h`), a new top-level config block,
+- **Do NOT patch nginx's own source files** (the NGINX BUILD TREE's `src/core/`, `src/event/`,
+   `src/http/` under `/tmp/nginx-1.28.3` — not to be confused with this repo's `src/core/`).
+   All module changes stay inside this repository. If you need to change how nginx behaves,
+   do it through the module's hooks and callbacks — not by modifying nginx's internals.
+- **Do NOT run `./configure` unless** you added a new source file (not in `./config`), a new top-level config block,
    or changed `--with-*` options. Incremental builds use `make -j$(nproc)` alone.
 
 ---
 
 ## RECIPES (step-by-step implementation patterns)
 **New WebDAV method:** `src/protocols/webdav/op.c` → declare `webdav.h` → register `dispatch.c` → update Allow header test → `make` → 3 tests
-**New XRootD opcode:** `src/<sub>/op.c` → register `handshake/dispatch_<type>.c` → constants `protocol/opcodes.h`/`wire.h` → `./configure`+`make` → 3 tests
+**New XRootD opcode:** `src/protocols/root/<sub>/op.c` → register `protocols/root/handshake/dispatch_<type>.c` → constants `protocols/root/protocol/opcodes.h`/`wire.h` → add to `./config` → `./configure`+`make` → 3 tests
 **New metric:** enum `metrics.h` → field `metrics_internal.h` → export `src/observability/metrics/<sub>.c` → `XROOTD_<TYPE>_METRIC_INC(slot)` at callsite
 **New config directive:** field `src/core/config/config.h` (`NGX_CONF_UNSET`) → `ngx_command_t` `src/core/config/directives.c` → merge in `merge_*_conf()` — no `./configure` unless new top-level block
 

@@ -7,17 +7,17 @@
  *       PKI, no token issuer) — common for intra-site XRootD/CMS traffic.
  * HOW:  Discover the keytab ($XrdSecSSSKT / $XrdSecsssKT / ~/.xrd/sss.keytab),
  *       pick the first live key, and assemble exactly what the server's encoder
- *       produces (src/sss/auth_proxy_credential.c): a 16-byte outer header
+ *       produces (src/auth/sss/auth_proxy_credential.c): a 16-byte outer header
  *       ("sss\0" ver spare kn enc key-id-BE) followed by BF32( 40-byte data
  *       header [32 random + gen_time-BE + USEDATA] + NAME TLV + IEEE-CRC32 ). A
  *       single round (the USEDATA form needs no challenge).
  *
- * wire: XProtocol.hh kXR_auth credtype "sss"; blob per src/sss/sss_internal.h.
+ * wire: XProtocol.hh kXR_auth credtype "sss"; blob per src/auth/sss/sss_internal.h.
  */
 #include "sec.h"
 #include "../cred.h"
 #include "../sss_keytab.h"
-#include "compat/sss_bf.h"   /* xrootd_sss_build_credential — shared with the server */
+#include "core/compat/sss_bf.h"   /* xrootd_sss_build_credential — shared with the server */
 
 #include <arpa/inet.h>
 #include <pwd.h>

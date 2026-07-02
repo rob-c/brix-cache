@@ -4,14 +4,14 @@
  *
  * The security-critical leaf parsers (LE field readers, EOCD/ZIP64 location,
  * ZIP64-extra decode, local-header data-offset resolution) live in the shared,
- * unit-tested zip_kernel.c (src/zip/) — the single copy linked into both the
+ * unit-tested zip_kernel.c (src/protocols/root/zip/) — the single copy linked into both the
  * native client and the nginx module. The functions below are thin client-side
  * adapters that keep the existing zip_internal.h signatures stable (so
  * zip_write.c / copy_zip.c are untouched) and map the kernel's ZIP_K_* codes
  * onto the client's XRDC_ZIP_* enum.
  */
 #include "zip_internal.h"
-#include "zip/zip_kernel.h"
+#include "protocols/root/zip/zip_kernel.h"
 
 /* Map a shared-kernel result code onto the client's XRDC_ZIP_* enum. */
 static int

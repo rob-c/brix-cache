@@ -1,6 +1,6 @@
 /*
  * zcrc32_test.c — standalone unit test for the zcrc32 checksum kernel
- * (src/compat/checksum_core.h XROOTD_CK_ZCRC32 via xrootd_cksum_u32_fd).
+ * (src/core/compat/checksum_core.h XROOTD_CK_ZCRC32 via xrootd_cksum_u32_fd).
  * Builds ngx-free; links against libxrdproto + zlib.
  *
  * WHAT: For several payloads (empty, 1 byte, ~1 MiB pseudo-random, all-zeros)
@@ -17,7 +17,7 @@
  *
  * Build (from repo root):
  *   cc -std=c11 -Wall -Wextra \
- *      -I /home/rcurrie/HEP-x/nginx-xrootd/src/compat \
+ *      -I /home/rcurrie/HEP-x/nginx-xrootd/src/core/compat \
  *      tests/c/zcrc32_test.c \
  *      /home/rcurrie/HEP-x/nginx-xrootd/shared/xrdproto/libxrdproto.a \
  *      -lz -lzstd -llzma -lbrotlienc -lbrotlidec -lbz2 -lcrypto \

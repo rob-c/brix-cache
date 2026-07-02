@@ -7,7 +7,7 @@
  * WHY:  --cksum[:source] needs (a) a digest of the bytes we transferred and (b)
  *       the server's digest of the same file, then asserts they agree.
  * HOW:  The fd compute is delegated to the SHARED kernel xrootd_cksum_*_fd
- *       (src/compat/checksum_core.c, linked via libxrdproto) — the exact same
+ *       (src/core/compat/checksum_core.c, linked via libxrdproto) — the exact same
  *       adler32/crc32c/md5 code the nginx module runs, so client and server agree
  *       by construction (single source). This file only maps the client's algo
  *       enum, hex-encodes, and drives the Qcksum wire query (payload "<algo>
@@ -16,8 +16,8 @@
  * wire: XProtocol.hh kXR_query infotype kXR_Qcksum — body "<algo> <path>" → "<algo> <hex>".
  */
 #include "xrdc.h"
-#include "compat/checksum_core.h"   /* shared fd→checksum kernels (libxrdproto) */
-#include "compat/hex.h"             /* shared lowercase hex encoder (libxrdproto) */
+#include "core/compat/checksum_core.h"   /* shared fd→checksum kernels (libxrdproto) */
+#include "core/compat/hex.h"             /* shared lowercase hex encoder (libxrdproto) */
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -46,7 +46,7 @@ xrdc_cksum_fd(int fd, xrdc_cksum_algo algo, char *hex, size_t hexsz,
               xrdc_status *st)
 {
     /* Delegate the compute to the shared (ngx-free) kernel — the same code the
-     * nginx module uses (src/compat/checksum_core.c via libxrdproto). The kernel
+     * nginx module uses (src/core/compat/checksum_core.c via libxrdproto). The kernel
      * preads from offset 0; callers pass freshly-opened regular-file fds. */
     if (algo == XRDC_CK_MD5) {
         unsigned char dg[64];   /* EVP_MAX_MD_SIZE */

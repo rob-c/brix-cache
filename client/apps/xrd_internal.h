@@ -6,7 +6,7 @@
 #define XROOTD_XRD_INTERNAL_H
 
 #include "xrdc.h"   
-#include "compat/crypto.h"  
+#include "core/compat/crypto.h"  
 #include <ctype.h>      
 #include <errno.h>
 #include <fcntl.h>      

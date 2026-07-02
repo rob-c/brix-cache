@@ -13,11 +13,11 @@
  *       separated name list. The per-attribute rc (a kXR_* code, e.g.
  *       kXR_AttrNotFound) is surfaced via st->kxr so the caller maps it to errno.
  *
- * Clean-room: wire facts from src/protocol headers only (cross-checked vs the
- * module's src/fattr handler). No goto.
+ * Clean-room: wire facts from src/protocols/root/protocol headers only (cross-checked vs the
+ * module's src/protocols/root/fattr handler). No goto.
  */
 #include "xrdc.h"
-#include "compat/fattr_codec.h"   /* shared kXR_fattr nvec parser (libxrdproto) */
+#include "core/compat/fattr_codec.h"   /* shared kXR_fattr nvec parser (libxrdproto) */
 
 #include <arpa/inet.h>
 #include <stdlib.h>

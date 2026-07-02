@@ -1,6 +1,6 @@
 /*
  * sigver.c — client request signing (kXR_sigver), the mirror of the server's
- * src/handshake/sigver.c verifier.
+ * src/protocols/root/handshake/sigver.c verifier.
  *
  * WHAT: When the session has a GSI signing key and the server's advertised
  *       security level requires a signature for an opcode, prepend a kXR_sigver
@@ -18,9 +18,9 @@
  *       clean-room log for the validation gap.
  */
 #include "xrdc.h"
-#include "compat/crypto.h"   /* xrootd_hmac_sha256 (libxrdproto) */
-#include "gsi/gsi_core.h"    /* xrootd_gsi_sigver_required (shared policy) */
-#include "protocol/frame_hdr.h" /* unaligned-safe BE field accessors (libxrdproto) */
+#include "core/compat/crypto.h"   /* xrootd_hmac_sha256 (libxrdproto) */
+#include "auth/gsi/gsi_core.h"    /* xrootd_gsi_sigver_required (shared policy) */
+#include "protocols/root/protocol/frame_hdr.h" /* unaligned-safe BE field accessors (libxrdproto) */
 
 #include <arpa/inet.h>
 #include <endian.h>
