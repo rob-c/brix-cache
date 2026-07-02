@@ -15,10 +15,10 @@ Macros vs New Macros" below): merge functions standardise on nginx's built-in
 `ngx_conf_merge_*` family, and a deliberately small header supplies the three
 patterns nginx does **not** cover.
 
-- **Implemented header:** `src/config/merge_macros.h` (~40 LoC), providing only
+- **Implemented header:** `src/core/config/merge_macros.h` (~40 LoC), providing only
   `XROOTD_MERGE_PTR` (NULL-sentinel pointer inherit), `XROOTD_MERGE_HOSTPORT`
   (paired host+port inherit), and `XROOTD_MERGE_ENUM` (custom-enum sentinel).
-  All three are in active use (`src/config/server_conf.c`, `src/webdav/config.c`).
+  All three are in active use (`src/core/config/server_conf.c`, `src/webdav/config.c`).
 - **Not implemented:** the six-macro sketch below (`XROOTD_MERGE_FLAG/SIZE/MSEC/
   UINT/STR/ARRAY_PTR`) was intentionally dropped — those cases are handled by
   nginx's own `ngx_conf_merge_value/size_value/msec_value/uint_value/
@@ -36,19 +36,19 @@ patterns nginx does **not** cover.
 ### Obsolete component removed
 
 An earlier, superseded attempt at this same goal (the root-level "Phase 2 /
-Code Consolidation" reports dated 2026-06-05) added `src/config/conf_helpers.h`
+Code Consolidation" reports dated 2026-06-05) added `src/core/config/conf_helpers.h`
 — a competing set of `MERGE_VALUE` / `MERGE_*_VALUE` wrapper macros — and wired
 `#include "conf_helpers.h"` into six modules. Adopting Option A removed every one
 of those includes and macro usages, leaving `conf_helpers.h` orphaned (no
-include, no usage, absent from the build and from `src/config/README.md`).
+include, no usage, absent from the build and from `src/core/config/README.md`).
 
-`src/config/conf_helpers.h` has been **deleted**. Verified: zero code
+`src/core/config/conf_helpers.h` has been **deleted**. Verified: zero code
 references before removal, and an incremental `make` relinks cleanly afterward
 (no `./configure` needed — header-only deletion of an unreferenced file).
 
 > Note: the former root-level `PHASE_2_SUMMARY.md`, `PHASE_2_COMPLETE.md`,
 > `PHASE_2_FINAL_REPORT.md`, and `CODE_CONSOLIDATION_IMPLEMENTATION.md` described
-> `conf_helpers.h` (and the already-deleted `src/compat/alloc_helpers.h`) as
+> `conf_helpers.h` (and the already-deleted `src/core/compat/alloc_helpers.h`) as
 > current infrastructure. As stale reports of the superseded approach they have
 > been moved to [`docs/_archive/`](../_archive/).
 
@@ -93,7 +93,7 @@ Each block is 3–4 lines.  A merge function with 20 fields is 60–80 lines of 
 
 ---
 
-## New Macros: `src/config/merge_macros.h` (new, ~60 LoC)
+## New Macros: `src/core/config/merge_macros.h` (new, ~60 LoC)
 
 ```c
 /*
@@ -159,15 +159,15 @@ Each block is 3–4 lines.  A merge function with 20 fields is 60–80 lines of 
 
 | File | Current merge LoC | Projected after | ΔLoC |
 |---|---|---|---|
-| `src/config/merge_stream.c` | ~120 | 60 | −60 |
-| `src/config/merge_http.c` | ~90 | 45 | −45 |
+| `src/core/config/merge_stream.c` | ~120 | 60 | −60 |
+| `src/core/config/merge_http.c` | ~90 | 45 | −45 |
 | `src/webdav/postconfig.c` (merge section) | ~70 | 35 | −35 |
 | `src/s3/config.c` (merge section) | ~60 | 30 | −30 |
 | `src/cache/config.c` (merge section) | ~50 | 25 | −25 |
 | `src/proxy/config.c` (merge section) | ~45 | 22 | −23 |
 | `src/metrics/config.c` (merge section) | ~30 | 15 | −15 |
 | `src/upstream/config.c` (merge section) | ~35 | 17 | −18 |
-| `src/config/merge_macros.h` (new) | 0 | +60 | +60 |
+| `src/core/config/merge_macros.h` (new) | 0 | +60 | +60 |
 | **Net** | | | **−191** |
 
 Estimated −191 to −250 LoC depending on actual merge function sizes (files need to be read precisely before each conversion).

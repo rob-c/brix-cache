@@ -1320,7 +1320,7 @@ git commit -m "test(httpguard): XrdHttp/WebDAV profile parity matrix"
 **Files:**
 - Create: `src/relay/relay_guard.c`
 - Modify: `src/relay/relay.h`, `src/relay/relay.c`
-- Modify: `src/config/*` stream srv-conf (add `guard_enable`, reuse existing audit/ruleset config) + `./config`
+- Modify: `src/core/config/*` stream srv-conf (add `guard_enable`, reuse existing audit/ruleset config) + `./config`
 - Test: `tests/test_stream_guard.py`
 
 **Interfaces:**

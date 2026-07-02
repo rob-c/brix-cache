@@ -406,7 +406,7 @@ The terminating tap proxy's **forwarding** half is complete and compiles (see
 `docs/superpowers/plans/2026-06-30-gsi-delegation-tap-proxy-phase4b.md`):
 
 - `xrootd_tap_proxy_auth gsi` mode + auto-enable of delegation capture
-  (`src/proxy/directives.c`, `src/config/runtime_server.c`).
+  (`src/proxy/directives.c`, `src/core/config/runtime_server.c`).
 - `src/proxy/gsi_upstream.c` — secure-temp writer for the delegated proxy (unit-tested).
 - `src/proxy/gsi_upstream_login.c` — threaded blocking GSI login to the upstream **as the
   user**, reusing the proven cache origin client, then fd-handoff into the async relay.

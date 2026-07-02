@@ -1,4 +1,4 @@
-#include "../../src/compat/xml.h"
+#include "../../src/core/compat/xml.h"
 
 #include <stdio.h>
 #include <string.h>

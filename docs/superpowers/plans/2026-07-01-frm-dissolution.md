@@ -83,7 +83,7 @@ Run: `for h in run_tape_recall_stream run_tape_recall_async run_tape_exec_adapte
 > **INVESTIGATION 2026-07-01 — the engine waiter may need completing (client-visible).** Legacy `frm_waiter` API = `frm_waiter_add(reqid, options, ...)` + `frm_waiter_drop_conn(conn_fd, conn_number)` + `frm_waiter_configure(slots)`. Target: the stage_engine waiter — its header names "the durable queue + waiter", and `xrootd_stage_submit` returns a reqid "the caller may park on it" (`stage_engine.c:361`). BUT `sd_frm.c:501` notes the true async park "on the stage_engine waiter (the deferred async path)" is the DESIGN; the current stub/exec adapters complete synchronously or "park via client retry (§9.2)" — so the genuine async park/wake through the engine waiter may still be a stub and need WIRING here. This is client-visible (the async 202/park path) — `run_tape_recall_async.sh` + `test_frm_async.py` are the hard gate; a parked client MUST wake and receive the recalled bytes.
 
 **Files:**
-- Modify: `src/read/open_request.c` (`frm_waiter_add`), `src/connection/recv.c` (`frm_waiter_drop_conn`), `src/config/postconfiguration.c` (`frm_waiter_configure`)
+- Modify: `src/read/open_request.c` (`frm_waiter_add`), `src/connection/recv.c` (`frm_waiter_drop_conn`), `src/core/config/postconfiguration.c` (`frm_waiter_configure`)
 - Read: `src/frm/waiter.{c,h}`, `src/fs/xfer/stage_engine.c` (its waiter, if present) — the engine already has a park/wake for a slow recall (`sd_frm.h` mentions "the async park/wake of a slow recall via the stage_engine waiter")
 - Test: `run_tape_recall_async.sh`, `test_frm_async.py`
 
@@ -103,7 +103,7 @@ Run: `for h in run_tape_recall_stream run_tape_recall_async run_tape_exec_adapte
 > **INVESTIGATION 2026-07-01 — sd_frm ALREADY does the recall+park.** `sd_frm.c` drives recall through its MSS adapter (`recall_begin`/`recall_poll`): a nearline read "parks the open and polls until the online buffer appears" (SP5 §9.2), with the stub adapter dropping a `.recalling/<key>` marker and the exec adapter running the operator MSS command. So `sd_frm`'s open/pread IS the recall path — `src/frm/stage.c`'s 647-line `stagecmd` subprocess is the redundant LEGACY driver. Task 3 confirms tractable: arm the engine scheduler tick, verify recall runs through `sd_frm` (incl. the exec adapter, `run_tape_exec_adapter.sh`), then delete `frm/stage.c` + the scratch dir.
 
 **Files:**
-- Modify: `src/config/process.c` (`frm_stage_scheduler_register`, `frm_reaper_register`, `frm_migrate_purge_register`)
+- Modify: `src/core/config/process.c` (`frm_stage_scheduler_register`, `frm_reaper_register`, `frm_migrate_purge_register`)
 - Read/DELETE: `src/frm/stage.c` (647 lines — the `stagecmd` subprocess + scratch), `src/frm/reaper.c`, `src/frm/migrate_purge.c`
 - Test: `run_tape_recall_stream.sh`, `run_tape_exec_adapter.sh`
 
@@ -153,7 +153,7 @@ Run: `for h in run_tape_recall_stream run_tape_recall_async run_tape_exec_adapte
 ### Task 5: Re-point config/init off `src/frm/` onto the engine + sd_frm
 
 **Files:**
-- Modify: `src/config/process.c` (`frm_queue_init`), `src/config/postconfiguration.c` (`frm_index_configure`, `frm_queue_get`, `frm_mark_configured`), `src/config/server_conf.c` (`xrootd_frm_conf_init`/`_merge`), `src/stream/module.c` (`xrootd_frm_*` directives)
+- Modify: `src/core/config/process.c` (`frm_queue_init`), `src/core/config/postconfiguration.c` (`frm_index_configure`, `frm_queue_get`, `frm_mark_configured`), `src/core/config/server_conf.c` (`xrootd_frm_conf_init`/`_merge`), `src/stream/module.c` (`xrootd_frm_*` directives)
 - Read: `src/frm/directives.c`, `src/frm/metrics.c`
 - Test: `nginx -t` on a tape config; full gating set
 
@@ -170,7 +170,7 @@ Run: `for h in run_tape_recall_stream run_tape_recall_async run_tape_exec_adapte
 
 ### Task 6: ✅ COMPLETE — `src/frm/` DELETED (2026-07-01)
 
-> **DONE.** `src/frm/` no longer exists (all 15 `.c`/`.h` + README removed; `rmdir` succeeded). Config fold (Task 5): `xrootd_frm_conf_t` + directive helpers relocated to `src/config/tape_stage_conf.{c,h}` (name kept, `queue` field dropped); `frm/metrics.c` → `src/metrics/frm_metrics.c` (only include path changed); the dead FRM worker-init (`frm_queue_init`/`_stage_scheduler_register`/`_migrate_purge_register`/`_reaper_register`) removed from `process.c`, and the FRM queue/index/waiter setup removed from `postconfiguration.c` (kept `xrootd_stage_waiter_configure`). `xfer_reconcile.{c,h}` deleted (only `frm/stage.c` used it). `./config` deregistered all of `src/frm/` + `xfer_reconcile`, registered the two new files. Fixed: the registry journal I/O now routes through the SD posix seam (`xrootd_sd_posix_wrap` + `obj.driver->pread/pwrite`, as the former FRM reqfile did) so `check_vfs_seam.sh` stays GREEN. **VERIFICATION:** clean rebuild `build: 0`; guard GREEN; tape suite 4/4 (`run_tape_recall_stream/async/exec_adapter`, `run_s3_tape_residency`); prepare/staging pytest **114 passed**; `run_stage_reconcile`/`run_root_stage_writeback`/`run_pblock_writethrough`/`run_stage_async_remote_flush` all pass. Only doc-comment references to `src/frm/` history remain. **P6 acceptance met: no `src/frm/` path survives.**
+> **DONE.** `src/frm/` no longer exists (all 15 `.c`/`.h` + README removed; `rmdir` succeeded). Config fold (Task 5): `xrootd_frm_conf_t` + directive helpers relocated to `src/core/config/tape_stage_conf.{c,h}` (name kept, `queue` field dropped); `frm/metrics.c` → `src/metrics/frm_metrics.c` (only include path changed); the dead FRM worker-init (`frm_queue_init`/`_stage_scheduler_register`/`_migrate_purge_register`/`_reaper_register`) removed from `process.c`, and the FRM queue/index/waiter setup removed from `postconfiguration.c` (kept `xrootd_stage_waiter_configure`). `xfer_reconcile.{c,h}` deleted (only `frm/stage.c` used it). `./config` deregistered all of `src/frm/` + `xfer_reconcile`, registered the two new files. Fixed: the registry journal I/O now routes through the SD posix seam (`xrootd_sd_posix_wrap` + `obj.driver->pread/pwrite`, as the former FRM reqfile did) so `check_vfs_seam.sh` stays GREEN. **VERIFICATION:** clean rebuild `build: 0`; guard GREEN; tape suite 4/4 (`run_tape_recall_stream/async/exec_adapter`, `run_s3_tape_residency`); prepare/staging pytest **114 passed**; `run_stage_reconcile`/`run_root_stage_writeback`/`run_pblock_writethrough`/`run_stage_async_remote_flush` all pass. Only doc-comment references to `src/frm/` history remain. **P6 acceptance met: no `src/frm/` path survives.**
 
 ### Task 6 (original): Delete `src/frm/` + deregister; final verification
 

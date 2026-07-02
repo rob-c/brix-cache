@@ -137,12 +137,12 @@ Notes:
 ## Implementation pointers
 
 - Drain/teardown: self-rearming background timers are `!ngx_exiting`-guarded (or
-  `cancelable`) so draining workers exit promptly — see `src/config/process.c`,
+  `cancelable`) so draining workers exit promptly — see `src/core/config/process.c`,
   `src/token/refresh.c`, `src/acc/config.c`, `src/cms/connect.c`.
 - Config version/generation: published in `xrootd_config_version_publish()`
   (`src/metrics/config.c`), called from the module's `init_module` hook
   (`src/impersonate/lifecycle.c`); read by `/healthz` (`src/metrics/health.c`).
-- SHM resize warning: `xrootd_shm_zone_warn_on_resize()` (`src/compat/shm_slots.c`),
+- SHM resize warning: `xrootd_shm_zone_warn_on_resize()` (`src/core/compat/shm_slots.c`),
   called from the registry declarations (`src/session/registry.c`,
   `src/manager/registry.c`).
 - Tests: `tests/test_reload.py` (self-contained; success + robustness +

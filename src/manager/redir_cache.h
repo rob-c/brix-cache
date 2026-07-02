@@ -15,7 +15,7 @@
  *   xrootd_redir_cache_insert()    — stores a resolved redirect with TTL.
  */
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 
 #define XROOTD_REDIR_CACHE_SLOTS  512
 

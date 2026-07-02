@@ -21,7 +21,7 @@
 #ifndef XROOTD_MIRROR_STREAM_MIRROR_IO_H
 #define XROOTD_MIRROR_STREAM_MIRROR_IO_H
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 
 /* Upper bound on a shadow response body, so a hostile/buggy shadow cannot make
  * us allocate an arbitrary buffer. */

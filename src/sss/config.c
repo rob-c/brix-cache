@@ -1,5 +1,5 @@
-#include "config/config.h"
-#include "compat/log_diag.h"
+#include "core/config/config.h"
+#include "core/compat/log_diag.h"
 #include "sss_keytab_kernel.h"   /* shared keytab line grammar + mode check */
 
 #include <ctype.h>

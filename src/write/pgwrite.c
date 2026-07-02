@@ -2,11 +2,11 @@
  * pgwrite.c — kXR_pgwrite opcode.  See each function's docblock below.
  */
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "cache/writethrough_metrics.h"
 #include "wrts_journal.h"
 #include "pgw_fob.h"          /* CSE uncorrected-page registry */
-#include "compat/pgio.h"   /* shared kXR page-mode decode (libxrdproto) */
+#include "core/compat/pgio.h"   /* shared kXR page-mode decode (libxrdproto) */
 
 /* pgwrite_retry_spans_multiple_pages()
  * A kXR_pgRetry resend must correct exactly one page.  Mirrors stock

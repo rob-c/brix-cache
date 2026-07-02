@@ -1,9 +1,9 @@
 #include "s3.h"
 #include "s3_auth_internal.h"
-#include "compat/hex.h"
-#include "compat/crypto.h"
-#include "compat/uri.h"
-#include "compat/sigv4.h"   /* shared SigV4 signing-key derive (libxrdproto) */
+#include "core/compat/hex.h"
+#include "core/compat/crypto.h"
+#include "core/compat/uri.h"
+#include "core/compat/sigv4.h"   /* shared SigV4 signing-key derive (libxrdproto) */
 #include "metrics/unified.h"
 
 #include <ctype.h>

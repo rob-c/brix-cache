@@ -5,7 +5,7 @@ and strace-verified; W3 deliberately deferred (§2 W3). Built clean (`-Werror`);
 WebDAV + integrity tests pass, 5 FRM-staging tests pass (W2b with FRM enabled). **Two
 latent bugs found and fixed while implementing W1a** — see the status table below.
 **Scope:** `src/s3/` write path + two shared seams (`src/frm/residency.c`,
-`src/config/postconfiguration.c`). **No wire/format changes** — responses, XML, ETags,
+`src/core/config/postconfiguration.c`). **No wire/format changes** — responses, XML, ETags,
 headers, and continuation tokens are byte-identical, so xrootd / XrdHttp / xrootd-S3
 (XrdClS3) compatibility holds by construction.
 **Next free number** (45 is `phase-45-s3-data-plane-performance.md`, implemented).

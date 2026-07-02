@@ -13,7 +13,7 @@ Successfully implemented Phase 1 of the high-priority code consolidation plan. C
 
 ### 1. Memory Allocation Helpers ✓
 
-**File:** `src/compat/alloc_helpers.h`  
+**File:** `src/core/compat/alloc_helpers.h`  
 **Purpose:** Consolidate malloc + NULL check patterns  
 **Macros Created:** 6 total
 
@@ -71,7 +71,7 @@ return webdav_send_empty_response(r, NGX_HTTP_NO_CONTENT);
 
 ### 3. Configuration Merge Helpers ✓
 
-**File:** `src/config/conf_helpers.h`  
+**File:** `src/core/config/conf_helpers.h`  
 **Purpose:** Simplify ngx_conf_merge_* calls  
 **Macros Created:** 9 total
 
@@ -106,7 +106,7 @@ MERGE_STR_VALUE(path, "/");
 
 ### 4. Address Parsing Helper ✓
 
-**Files:** `src/config/addr_parse.c` and `src/config/addr_parse.h`  
+**Files:** `src/core/config/addr_parse.c` and `src/core/config/addr_parse.h`  
 **Purpose:** Consolidate host:port parsing logic  
 **Function:** `xrootd_parse_address()`
 
@@ -179,7 +179,7 @@ Reduction: 24 - 9 = 15 LoC in single file
 Files to migrate:
 - src/tpc_config.c (address parsing)
 - src/upstream/directives.c (allocations + address parsing)
-- src/config/* (allocation patterns)
+- src/core/config/* (allocation patterns)
 - Multiple module merge_conf functions
 
 ### Priority 2b: WebDAV Response Pattern Migration (Est. -120 LoC)
@@ -224,7 +224,7 @@ Files to migrate (14+ modules):
 ### Step 3: Migrate config merge patterns
 ```bash
 # In each module's merge_*_conf() function:
-# 1. #include "src/config/conf_helpers.h"
+# 1. #include "src/core/config/conf_helpers.h"
 # 2. Replace ngx_conf_merge_* call sequences with macros
 # Estimate: -200 LoC total
 ```
@@ -232,7 +232,7 @@ Files to migrate (14+ modules):
 ### Step 4: Migrate other allocation patterns
 ```bash
 # In config files, directive setters, etc.:
-# 1. #include "src/compat/alloc_helpers.h"
+# 1. #include "src/core/compat/alloc_helpers.h"
 # 2. Replace alloc+NULL check with macros
 # Estimate: -60 LoC
 ```
@@ -260,11 +260,11 @@ Files to migrate (14+ modules):
 
 | File | Status | Type | Purpose |
 |------|--------|------|---------|
-| src/compat/alloc_helpers.h | Created | Header | Memory allocation macros |
+| src/core/compat/alloc_helpers.h | Created | Header | Memory allocation macros |
 | src/webdav/response_helpers.h | Created | Header | HTTP response helpers |
-| src/config/conf_helpers.h | Created | Header | Config merge macros |
-| src/config/addr_parse.h | Created | Header | Address parsing declaration |
-| src/config/addr_parse.c | Created | Source | Address parsing implementation |
+| src/core/config/conf_helpers.h | Created | Header | Config merge macros |
+| src/core/config/addr_parse.h | Created | Header | Address parsing declaration |
+| src/core/config/addr_parse.c | Created | Source | Address parsing implementation |
 | src/cache/directives.c | Modified | Source | Migrated 3 allocation patterns |
 
 ---

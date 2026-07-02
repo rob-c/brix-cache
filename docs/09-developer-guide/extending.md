@@ -157,7 +157,7 @@ New directives let operators configure your feature in `nginx.conf`.
 ### Step 1 — Add the config field
 
 Add a typed field to `ngx_stream_xrootd_srv_conf_t` in
-`src/ngx_xrootd_module.h`.  Document the directive name in a square-bracket
+`src/core/ngx_xrootd_module.h`.  Document the directive name in a square-bracket
 comment matching the pattern used by adjacent fields.
 
 ```c
@@ -185,7 +185,7 @@ of `ngx_conf_set_flag_slot`.
 ### Step 3 — Write a parser function (if needed)
 
 If the directive takes more than a simple value, add a parser in
-`src/config/<subsystem>.c` (or in the subsystem directory itself if the
+`src/core/config/<subsystem>.c` (or in the subsystem directory itself if the
 directive is subsystem-specific).  The function signature is:
 
 ```c
@@ -198,12 +198,12 @@ xrootd_conf_set_my_feature(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 }
 ```
 
-Declare it in `src/config/config.h` if other files need to call it, or keep
+Declare it in `src/core/config/config.h` if other files need to call it, or keep
 it static if it is only referenced from `module.c`.
 
 ### Step 4 — Set defaults and merge
 
-`src/config/server_conf.c:ngx_stream_xrootd_create_srv_conf()` initialises
+`src/core/config/server_conf.c:ngx_stream_xrootd_create_srv_conf()` initialises
 every field to a sentinel (`NGX_CONF_UNSET`, `-1`, or `NULL`).  Add yours
 there.  `merge_srv_conf()` in the same file applies inheritance from parent
 blocks; use `ngx_conf_merge_value()` or `ngx_conf_merge_str_value()` as

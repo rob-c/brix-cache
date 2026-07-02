@@ -3,7 +3,7 @@
  */
 
 #include "webdav.h"
-#include "compat/http_body.h"
+#include "core/compat/http_body.h"
 #include "fs/backend/sd.h"   /* route the byte write through the SD backend */
 
 #include <errno.h>

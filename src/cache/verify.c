@@ -10,7 +10,7 @@
 
 #include "verify.h"
 
-#include "compat/checksum.h"
+#include "core/compat/checksum.h"
 
 #include <fcntl.h>
 #include <stdio.h>

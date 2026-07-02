@@ -18,7 +18,7 @@
  */
 
 #include "acc.h"
-#include "compat/alloc_guard.h"
+#include "core/compat/alloc_guard.h"
 
 /*
  * Split a comma-separated string into an array of tokens (pool-owned).  Empty

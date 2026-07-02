@@ -119,7 +119,7 @@ Logic:
 3. Either condition alone is sufficient; both can be required via
    `xrootd_admin_require_both on` directive
 
-New directives (registered in `src/config/directives.c`):
+New directives (registered in `src/core/config/directives.c`):
 
 ```nginx
 xrootd_admin_allow       127.0.0.1  10.0.0.0/8;  # CIDR list
@@ -644,16 +644,16 @@ json_object_set_new(srv, "draining",
 | `src/webdav/webdav.h` | Modify | Add `proxy_pool_zone`, `proxy_pool_enabled`, `proxy_be_id` to ctx |
 | `src/manager/registry.c` | Modify | Add `xrootd_srv_undrain()`; declare in `registry.h` |
 | `src/manager/registry.h` | Modify | Declare `xrootd_srv_undrain()` |
-| `src/config/directives.c` | Modify | Register 3 admin auth directives |
-| `src/types/config.h` | Modify | Add `admin_allow_cidr`, `admin_secret` fields |
-| `src/config/config.h` | Modify | Add `proxy_pool.c` + `api_admin.c` to `NGX_ADDON_SRCS` |
+| `src/core/config/directives.c` | Modify | Register 3 admin auth directives |
+| `src/core/types/config.h` | Modify | Add `admin_allow_cidr`, `admin_secret` fields |
+| `src/core/config/config.h` | Modify | Add `proxy_pool.c` + `api_admin.c` to `NGX_ADDON_SRCS` |
 
 ---
 
 ## Build Registration
 
 Two new source files (`src/webdav/proxy_pool.c`, `src/dashboard/api_admin.c`) must
-be added to `NGX_ADDON_SRCS` in `src/config/config.h` before running `./configure`
+be added to `NGX_ADDON_SRCS` in `src/core/config/config.h` before running `./configure`
 once. All subsequent changes build with `make -j$(nproc)`.
 
 ---

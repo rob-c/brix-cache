@@ -86,7 +86,7 @@ nginx↔nginx and nginx↔reference xrootd transfers.
   `?tpc.key=` / `&tpc.org=` as needed.
 - Manager mode: `kXR_redirect` with `?tpc.key=` (`src/response/control.c`).
 - Configurable TTL: `xrootd_tpc_key_ttl` (default 60s), merged in
-  `src/config/server_conf.c`.
+  `src/core/config/server_conf.c`.
 
 **Remaining gap (parity, not protocol):** The outbound pull client can complete
 ztn or GSI after `kXR_authmore` when configured, but TLS-upgraded origins and
@@ -377,7 +377,7 @@ full M6 plan and per-step status.
 **Status:** Core implementation complete for user, group, host, and all-identity
 rules. Operational caveats are documented below.
 
-**What is implemented** (`src/path/authdb.c`, `src/config/policy.c`):
+**What is implemented** (`src/path/authdb.c`, `src/core/config/policy.c`):
 
 - `xrootd_authdb <path>` directive — registered as `NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1`, requires `xrootd_auth gsi`, `token`, or both
 - Full authdb file parser: `[u|g|p|a] <id> <path> <privs>` line format, comments (`#`), blank lines
@@ -712,7 +712,7 @@ instruments or jobs.
 - `src/cache/writethrough_decision.c` — WT policy evaluation.
 - `src/cache/writethrough_flush.c` — local-to-origin mirror worker.
 - `src/cache/origin_protocol.c` — origin write, truncate, sync, and close helpers.
-- `src/read/open_resolved_file.c`, `src/write/*.c`, `src/aio/write.c`,
+- `src/read/open_resolved_file.c`, `src/write/*.c`, `src/core/aio/write.c`,
   `src/read/close.c`, `src/write/sync.c` — handle state, dirty tracking, and
   flush integration.
 

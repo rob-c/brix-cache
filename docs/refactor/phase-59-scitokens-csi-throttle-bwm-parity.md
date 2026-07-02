@@ -142,11 +142,11 @@ Restated so each PR is self-checkable.
 
 - **Build registration.** New `.c`/`.h` files register in the **top-level
   `./config`** script (`$ngx_addon_dir/src/...c` source lists), *not* in
-  `src/config/config.h` (that's the C header for fields/commands). A new source
+  `src/core/config/config.h` (that's the C header for fields/commands). A new source
   file or new top-level config block requires `./configure` + full `make`; edits
   to existing files use `make -j$(nproc)`. See [`build_source_list_location`].
-- **Config fields** live in `src/types/config.h` (the `ngx_stream_xrootd_srv_conf_t`
-  / loc-conf structs, `NGX_CONF_UNSET*`); directives in `src/config/directives.c`;
+- **Config fields** live in `src/core/types/config.h` (the `ngx_stream_xrootd_srv_conf_t`
+  / loc-conf structs, `NGX_CONF_UNSET*`); directives in `src/core/config/directives.c`;
   merge in the `merge_*_conf()` functions (main→srv→loc).
 - **HARD BLOCKS.** No `goto` anywhere in `src/`; functional/modular C (one job per
   function, explicit `ctx`, pure helpers + side effects at the edges); use HELPERS,
@@ -227,7 +227,7 @@ Full per-issuer key set (verified in `XrdSciTokensAccess.cc` + README):
 
 - **Single issuer.** `config.c::xrootd_configure_token_auth()` validates exactly
   one `token_issuer` + one `token_audience` + one `token_jwks`. Fields in
-  `src/types/config.h:215-229`: `token_jwks`, `token_issuer`, `token_audience`,
+  `src/core/types/config.h:215-229`: `token_jwks`, `token_issuer`, `token_audience`,
   `jwks_keys[XROOTD_MAX_JWKS_KEYS=8]`, `jwks_key_count`, `jwks_mtime`,
   `token_jwks_refresh_interval`.
 - `validate.c::xrootd_token_validate(log, token, len, keys, key_count,
@@ -330,7 +330,7 @@ typedef struct {
 - `webdav/auth_token.c`, `gsi/token.c` — call the registry entry point, pass the
   resolved username into the identity (`types/identity.c`).
 
-**New directives** (fields in `src/types/config.h`, setters in `directives.c`):
+**New directives** (fields in `src/core/types/config.h`, setters in `directives.c`):
 - `xrootd_token_config <path>` — INI registry file (XRootD `scitokens.cfg`-shaped).
 - `xrootd_token_strategy capability|group|mapping [...]` — default strategy.
 - Existing `xrootd_token_issuer/_audience/_jwks` remain as the single-issuer shortcut.
@@ -376,11 +376,11 @@ verify-before-write.
 
 ### W2.2 Current module state
 
-- `src/compat/integrity_info.c` — *file-level* digest at rest (Phase 58 §8),
+- `src/core/compat/integrity_info.c` — *file-level* digest at rest (Phase 58 §8),
   `user.XrdCks.<alg>` xattr, mtime+size-keyed. No per-page granularity.
-- `src/compat/pgio.{c,h}` + `pgread.c`/`pgwrite.c` — per-page CRC32C **on the
+- `src/core/compat/pgio.{c,h}` + `pgread.c`/`pgwrite.c` — per-page CRC32C **on the
   wire** (kXR_pgread/pgwrite), transient.
-- `src/compat/crc32c.{c,h}` — `xrootd_crc32c_value/extend/copy_value` (SSE4.2 HW
+- `src/core/compat/crc32c.{c,h}` — `xrootd_crc32c_value/extend/copy_value` (SSE4.2 HW
   path).
 - `src/fs/vfs_io_core.{c,h}` — `xrootd_vfs_io_execute(job)` dispatches
   READ/WRITE/PGREAD/READV/WRITEV/SYNC/TRUNCATE/OPENDIR on a POD `xrootd_vfs_job_t`
@@ -761,7 +761,7 @@ xrootd_throttle_ioload_over(xrootd_rl_zone_t *zone, const char *user,
 > `±` lines are illustrative against the real functions cited; PRs carry exact
 > context. Existing line numbers from this checkout.
 
-**T-1 `src/types/config.h`** (W1) — add registry fields:
+**T-1 `src/core/types/config.h`** (W1) — add registry fields:
 ```c
      ngx_str_t   token_jwks;
      ngx_str_t   token_issuer;
@@ -841,8 +841,8 @@ ladders).
 monitor}.c`, `src/fs/backend/{csi_tagstore,csi_verify}.c`,
 `src/ratelimit/{throttle_compat,reservation}.c`. Requires `./configure` + `make`.
 
-**T-11 directives** — `src/config/directives.c` setters + merges for all new
-directives (§BB); fields in `src/types/config.h`.
+**T-11 directives** — `src/core/config/directives.c` setters + merges for all new
+directives (§BB); fields in `src/core/types/config.h`.
 
 ---
 
@@ -1158,8 +1158,8 @@ status updated; [`dropin_gap_analysis`] memory touched when a WS lands.
 
 **PR-1 (W1a)** — new: `src/token/ini.{c,h}`, `src/token/issuer_registry.{c,h}`;
 modified: `src/token/validate.c` (+`xrootd_token_validate_registry`, peek_iss,
-aud_ok), `src/types/config.h` (+`token_config`/`token_default_strategy`/
-`token_registry`), `src/config/directives.c` (+2 directives), merge_srv_conf
+aud_ok), `src/core/types/config.h` (+`token_config`/`token_default_strategy`/
+`token_registry`), `src/core/config/directives.c` (+2 directives), merge_srv_conf
 (+registry build), `src/webdav/auth_token.c` + `src/gsi/token.c` (registry branch),
 `./config` (+2 srcs). Tests: `tests/test_token_issuer_registry.py`,
 `tests/fixtures/scitokens.cfg`. Docs: `src/token/README.md`,
@@ -1174,7 +1174,7 @@ modified: `validate.c` (strategy ladder: group/mapping grants), `src/path/authdb
 **PR-3 (W2a)** — new: `src/fs/backend/csi_tagstore.{c,h}`,
 `src/fs/backend/csi_verify.{c,h}`; modified: `src/fs/vfs_io_core.{c,h}` (job
 `csi`/`csi_mismatch`, read/write/pgwrite wiring), `src/fs/backend/sd.h`
-(`CAP_FSCS`), `src/read/read.c` (`csi_mismatch`→`kXR_ChkSumErr`), `src/types/
+(`CAP_FSCS`), `src/read/read.c` (`csi_mismatch`→`kXR_ChkSumErr`), `src/core/types/
 config.h` (+csi fields), `directives.c` (+csi directives), `src/read/open.c`
 (attach `xrootd_csi_t` to the handle when enabled), `./config`. Tests:
 `tests/test_csi_tagstore.py`. Unit: standalone `csi_*` + `crc32c` build.
@@ -2476,7 +2476,7 @@ void xrootd_token_mon_report(int issuer_bucket, xrootd_token_op_e op,
 #endif
 ```
 
-### EE.16 `src/config/directives.c` — directive table additions (W1/W2/W3)
+### EE.16 `src/core/config/directives.c` — directive table additions (W1/W2/W3)
 
 ```c
 /* appended to the ngx_command_t arrays for the stream + http modules */
@@ -3769,11 +3769,11 @@ Official (`/tmp/xrootd-src/src`): `XrdSciTokens/` (`XrdSciTokensAccess.cc`,
 `XrdBwmConfig.cc`, `XrdBwmLogger.{cc,hh}`).
 
 This module (`src/`): `src/token/` (`token.h`, `token_internal.h`, `validate.c`,
-`config.c`, `scopes.c`, `jwks.c`, `json.c`, `refresh.c`); `src/types/config.h`
+`config.c`, `scopes.c`, `jwks.c`, `json.c`, `refresh.c`); `src/core/types/config.h`
 (token fields @215-229); `src/fs/vfs_io_core.{c,h}`, `src/fs/backend/sd.h`
-(caps @75-89), `src/compat/{crc32c,pgio,integrity_info}.{c,h}`;
+(caps @75-89), `src/core/compat/{crc32c,pgio,integrity_info}.{c,h}`;
 `src/ratelimit/` (`ratelimit.{c,h}`, `ratelimit_keys.c`, `ratelimit_zone.c`);
 `src/connection/disconnect.c` (`xrootd_on_disconnect` @288); `src/path/authdb.c`,
 `src/path/auth_gate.c`; callers `src/webdav/auth_token.c`, `src/gsi/token.c`,
-`src/handshake/policy.c`, `src/types/identity.c`. Builds on Phase-58 §8/§9.
+`src/handshake/policy.c`, `src/core/types/identity.c`. Builds on Phase-58 §8/§9.
 </content>

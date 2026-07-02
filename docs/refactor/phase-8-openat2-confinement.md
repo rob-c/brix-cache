@@ -23,13 +23,13 @@ rechecking `src/path/README.md` and the live callers.
 `src/path/beneath.{c,h}` exist (`xrootd_open_beneath`, `xrootd_stat_beneath`,
 `xrootd_unlink_beneath`, `xrootd_mkdir_beneath`, `xrootd_rename_beneath`,
 `xrootd_link_beneath`, `xrootd_beneath_rel`). `int rootfd` lives in the **stream**
-conf (`src/types/config.h:105`), opened per worker at `init_process`.
+conf (`src/core/types/config.h:105`), opened per worker at `init_process`.
 
 **HTTP rootfd infrastructure — ✅ DONE (2026-06-12).** The prerequisite that was
 blocking all WebDAV/S3 migration is now built and tested:
 - `int rootfd` added to the shared HTTP preamble `ngx_http_xrootd_shared_conf_t`
-  (`src/config/shared_conf.h`), initialised to `-1` in `ngx_http_xrootd_shared_init`.
-- New `src/config/http_rootfd.{c,h}`: `xrootd_http_open_rootfd()` opens the
+  (`src/core/config/shared_conf.h`), initialised to `-1` in `ngx_http_xrootd_shared_init`.
+- New `src/core/config/http_rootfd.{c,h}`: `xrootd_http_open_rootfd()` opens the
   O_PATH rootfd right after `root_canon` is canonicalised in `merge_loc_conf`,
   and registers a `cf->pool` cleanup to close it on cycle teardown (reload-safe —
   no fd accumulation). Wired into both `webdav/config.c` and `s3/module.c` merge
@@ -217,7 +217,7 @@ eliminates both.
 | `helpers.c` | 179 | `xrootd_path_component_forbidden`, sanitize log | Reduce to log helper (~40 LoC) |
 | `unified.c` | 663 | `xrootd_path_resolve_cstr()` — the realpath core | **Delete realpath logic** (~400 LoC) |
 
-### `src/compat/` files involved
+### `src/core/compat/` files involved
 
 | File | LoC | Role | Fate |
 |---|---|---|---|
@@ -253,7 +253,7 @@ Remaining direct callers after Phase 3:
 
 ### 1. Persistent rootfd in server config
 
-Add one field to `ngx_stream_xrootd_srv_conf_t` (in `src/config/config.h`):
+Add one field to `ngx_stream_xrootd_srv_conf_t` (in `src/core/config/config.h`):
 
 ```c
 int  rootfd;          /* O_PATH fd on export root; -1 until worker init */
@@ -562,8 +562,8 @@ authoritative as any userspace prefix check.
 | `src/path/normalize.c` | 84 | ~20 | −64 |
 | `src/path/helpers.c` | 179 | ~40 | −139 |
 | `src/path/unified.c` | 663 | ~250 | −413 |
-| `src/compat/namespace_ops.c` | 303 | ~200 | −103 |
-| `src/compat/fs_walk.c` | 326 | ~250 | −76 |
+| `src/core/compat/namespace_ops.c` | 303 | ~200 | −103 |
+| `src/core/compat/fs_walk.c` | 326 | ~250 | −76 |
 | `src/path/beneath.h` (new) | 0 | +45 | +45 |
 | `src/path/beneath.c` (new) | 0 | +80 | +80 |
 | **Net** | | | **−1,575** |
@@ -612,7 +612,7 @@ At nginx configure time, add a feature test in `config.h`'s `ngx_feature_*`
 block:
 
 ```makefile
-# In src/config/config.h, after existing feature tests:
+# In src/core/config/config.h, after existing feature tests:
 ngx_feature="openat2(2) RESOLVE_BENEATH"
 ngx_feature_name="NGX_XROOTD_HAVE_OPENAT2_BENEATH"
 ngx_feature_run=no

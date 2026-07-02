@@ -78,7 +78,7 @@ def test_phase1_jansson_token_adapter_present():
 
 def test_phase1_shared_xml_element_helpers_present():
     _assert_markers(
-        "src/compat/xml.h",
+        "src/core/compat/xml.h",
         [
             "xrootd_xml_text_element_len",
             "xrootd_xml_write_text_element",

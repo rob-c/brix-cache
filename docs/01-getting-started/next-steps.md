@@ -75,7 +75,7 @@ configures. Cross-cutting concerns (config struct allocation, merge, post-config
 hooks, process init) stay in `config/`.
 
 Move the following files. Each move requires:
-1. `git mv src/config/X.c src/Y/config.c`
+1. `git mv src/core/config/X.c src/Y/config.c`
 2. Update the `config` build file: change the source path in `ngx_module_srcs`
 3. Verify the file's `#include` path for `config.h` is still correct
    (`../config/config.h` becomes `config/config.h` in the new location)
@@ -255,18 +255,18 @@ each subsystem. Do not mix other changes in the same commit.
 
 ## Phase 6 — Master header decomposition ✓ DONE
 
-`src/ngx_xrootd_module.h` (719 lines) is included by every `.c` file. Any edit
+`src/core/ngx_xrootd_module.h` (719 lines) is included by every `.c` file. Any edit
 to it triggers a full rebuild. Long-term, split it into focused sub-headers:
 
 | New file | Contents |
 |---|---|
-| `src/types/tunables.h` | `XROOTD_*` size limits, `XROOTD_OP_OK/ERR` macros |
-| `src/types/state.h` | `xrootd_state_t` enum, forward declarations |
-| `src/types/file.h` | `xrootd_file_t` struct |
-| `src/types/context.h` | `xrootd_ctx_t` struct (includes the above) |
-| `src/types/config.h` | `ngx_stream_xrootd_srv_conf_t` struct |
+| `src/core/types/tunables.h` | `XROOTD_*` size limits, `XROOTD_OP_OK/ERR` macros |
+| `src/core/types/state.h` | `xrootd_state_t` enum, forward declarations |
+| `src/core/types/file.h` | `xrootd_file_t` struct |
+| `src/core/types/context.h` | `xrootd_ctx_t` struct (includes the above) |
+| `src/core/types/config.h` | `ngx_stream_xrootd_srv_conf_t` struct |
 
-Keep `src/ngx_xrootd_module.h` as the umbrella include (include all of the
+Keep `src/core/ngx_xrootd_module.h` as the umbrella include (include all of the
 above plus subsystem public headers). Files that only need `xrootd_file_t` can
 include `types/file.h` directly for faster incremental builds.
 

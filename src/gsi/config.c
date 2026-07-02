@@ -1,6 +1,6 @@
-#include "config/config.h"
+#include "core/config/config.h"
 #include "crypto/pki_build.h"
-#include "compat/lifecycle_timing.h"
+#include "core/compat/lifecycle_timing.h"
 
 /*
  * Build (or rebuild) the X509_STORE used for GSI certificate verification.

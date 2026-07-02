@@ -9,10 +9,10 @@
 #include "fs/backend/sd.h"   
 #include "impersonate/lifecycle.h"
 #include "s3_auth_internal.h"
-#include "compat/crypto.h"
-#include "compat/hex.h"
-#include "compat/http_body.h"
-#include "compat/http_headers.h"
+#include "core/compat/crypto.h"
+#include "core/compat/hex.h"
+#include "core/compat/http_body.h"
+#include "core/compat/http_headers.h"
 #include "fs/vfs.h"
 #include "path/path.h"
 #include <jansson.h>
@@ -22,7 +22,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
-#include "compat/alloc_guard.h"
+#include "core/compat/alloc_guard.h"
 #define S3_POST_MAX_BODY    (128 * 1024 * 1024)
 #define S3_POST_MAX_FIELD   4096
 #define S3_POST_MAX_FIELDS  64

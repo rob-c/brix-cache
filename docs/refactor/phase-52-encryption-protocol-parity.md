@@ -230,10 +230,10 @@ check and random-tag signing.
 - GSI cipher/digest (WS-A): `src/gsi/gsi_core.{c,h}` (cipher descriptor + key
   derivation), `src/gsi/parse_crypto_helpers.c` (advertise/parse list),
   `src/gsi/cert_response.c` (server pick), `client/lib/sec/sec_gsi.c` (client
-  pick); directives in `src/config/server_conf.c` + `src/stream/module.c`.
+  pick); directives in `src/core/config/server_conf.c` + `src/stream/module.c`.
 - `pwd` (WS-B): new `src/pwd/`, `client/lib/sec/sec_pwd.c`, dispatcher in
   `src/gsi/auth.c`, advertise in `src/session/protocol.c`, enum in
-  `src/types/tunables.h`, `client/lib/auth.c` order; register new `.c` in `config`
+  `src/core/types/tunables.h`, `client/lib/auth.c` order; register new `.c` in `config`
   + `client/Makefile`, run `./configure`.
 - `host` (WS-C): `src/host/` (or fold into `src/unix/`), `client/lib/sec/sec_host.c`,
   same dispatch/advertise/enum wiring.

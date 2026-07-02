@@ -6,7 +6,7 @@
 
 **Architecture:** A request slot can become *deferred*: when the service does not respond inline, the server captures the submit's stream id, replies `kXR_waitresp`, and arms an event-loop timer that the service's executor fires to deliver the result. All delivery runs in event-loop context (the timer handler) and is guarded by `ctx->destroyed` plus a session generation counter, so a completion targeting a closed connection is dropped. A new built-in `echo-async` service proves the path end-to-end.
 
-**Tech Stack:** C (nginx stream module), `ngx_event_t` timers, `xrootd_send_waitresp` / `xrootd_send_attn_asynresp` (`src/response/`), `ctx->destroyed` guard pattern (`src/aio/resume.c`), standalone-gcc + pytest raw-wire + real `libXrdSsi` client tests.
+**Tech Stack:** C (nginx stream module), `ngx_event_t` timers, `xrootd_send_waitresp` / `xrootd_send_attn_asynresp` (`src/response/`), `ctx->destroyed` guard pattern (`src/core/aio/resume.c`), standalone-gcc + pytest raw-wire + real `libXrdSsi` client tests.
 
 ## Global Constraints
 

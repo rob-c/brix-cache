@@ -29,8 +29,8 @@
 
 #include <ngx_core.h>
 #include <ngx_event.h>
-#include "types/context.h"
-#include "types/state.h"
+#include "core/types/context.h"
+#include "core/types/state.h"
 
 /*
  * Arm c->read's deadline for an in-progress obligation, if we have not already

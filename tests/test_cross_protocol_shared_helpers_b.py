@@ -98,7 +98,7 @@ def test_phase3_vfs_preserves_io_invariants():
     #    owns the sendfile fd's lifetime (no double-close) -> shared/file_serve.c
     #  - read-side CRC -> fs/vfs_io_core.c
     #  - the write byte primitive -> fs/vfs_write.c
-    _assert_markers("src/compat/http_file_response.c", ["b->in_file = 1"])
+    _assert_markers("src/core/compat/http_file_response.c", ["b->in_file = 1"])
     _assert_markers("src/shared/file_serve.c",
                     ["send_fd = dup(fd)", "xrootd_vfs_close(fh"])
     _assert_markers("src/fs/vfs_io_core.c", ["xrootd_crc32c_value("])
@@ -280,14 +280,14 @@ def test_security_level_enforcement_is_linked():
 
 def test_new_shared_helpers_are_wired_into_module_config():
     for marker in (
-        "src/compat/checksum.c",
-        "src/compat/fs_walk.c",
-        "src/compat/http_body.c",
-        "src/compat/http_conditionals.c",
-        "src/compat/http_headers.c",
-        "src/compat/hex.c",
-        "src/compat/staged_file.c",
-        "src/compat/time.c",
+        "src/core/compat/checksum.c",
+        "src/core/compat/fs_walk.c",
+        "src/core/compat/http_body.c",
+        "src/core/compat/http_conditionals.c",
+        "src/core/compat/http_headers.c",
+        "src/core/compat/hex.c",
+        "src/core/compat/staged_file.c",
+        "src/core/compat/time.c",
         "src/cms/frame_io.c",
     ):
         _assert_markers("config", [marker])

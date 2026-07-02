@@ -196,7 +196,7 @@ ngx_int_t xrootd_cache_fetch(xrootd_vfs_ctx_t *ctx,
                               const ngx_str_t *cache_path);
 ```
 
-The origin protocol is determined by the nginx config directive `xrootd_cache_origin_protocol [xrootd|http|s3]` (new directive, registered in `src/config/config.h`).
+The origin protocol is determined by the nginx config directive `xrootd_cache_origin_protocol [xrootd|http|s3]` (new directive, registered in `src/core/config/config.h`).
 
 ---
 
@@ -223,7 +223,7 @@ The origin protocol is determined by the nginx config directive `xrootd_cache_or
 | `src/fs/vfs_write.c` | Call `xrootd_cache_should_writethrough()` |
 | `src/fs/vfs_read.c` | Call `xrootd_cache_record_access()` on cache hit |
 | `src/read/open_cache.c` | **Removed** — replaced by `src/cache/open.c` |
-| `src/config/config.h` | Add `src/cache/open.c`, `src/cache/meta.c` to `NGX_ADDON_SRCS`; new `xrootd_cache_origin_protocol` directive |
+| `src/core/config/config.h` | Add `src/cache/open.c`, `src/cache/meta.c` to `NGX_ADDON_SRCS`; new `xrootd_cache_origin_protocol` directive |
 
 ---
 

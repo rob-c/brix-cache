@@ -33,7 +33,7 @@ NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XRDCRC64 = os.path.join(REPO, "client", "bin", "xrdcrc64")
 
-# Reflected polynomials (must match src/compat/crc64.c).
+# Reflected polynomials (must match src/core/compat/crc64.c).
 _XZ_POLY = 0xC96C5795D7870F42
 _NVME_POLY = 0x9A6C9329AC4BC9B5
 _MASK = (1 << 64) - 1

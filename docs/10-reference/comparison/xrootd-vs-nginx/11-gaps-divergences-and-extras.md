@@ -246,7 +246,7 @@ exists here.
 - **Official:** `XrdSciTokens/` broader issuer/config/helper/monitor model;
   `XrdCks/` plugin framework for site-specific checksum algorithms.
 - **Here:** `src/token/` validates WLCG/JWT + path scopes;
-  `src/compat/checksum.c` + `src/compat/crc64.c` cover adler32, crc32, crc32c,
+  `src/core/compat/checksum.c` + `src/core/compat/crc64.c` cover adler32, crc32, crc32c,
   md5, sha1, sha256, CRC-64/XZ, CRC-64/NVME. No general checksum **plugin
   framework**.
 - **Why it matters / impact:** sites using advanced SciTokens issuer config or a
@@ -292,7 +292,7 @@ beyond "same protocol, different daemon." Each is source-grounded.
 |---|---|---|
 | **S3-compatible REST server** | `src/s3/` (`handler.c`, `auth_sigv4_*`, `get.c`, `put.c`, `list_objects_v2.c`, `multipart_*`, `copy.c`, `delete_objects.c`, browser POST) | A full S3 server endpoint over the same namespace: SigV4 (header + presigned), multipart, CopyObject, DeleteObjects, POST Object, OPTIONS/CORS, conditional GET/PUT, CRC64NVME checksums. Upstream ships `XrdClS3` (a **client** plugin), not an S3 REST server. One of the strongest module-only features. |
 | **Traffic mirroring / shadow replay** | `src/mirror/`, `src/mirror/stream_wmirror.c` | Shadow live reads and (gated) writes to an isolated backend to validate a candidate before cutover, logging divergence. No comparable upstream server subsystem found. A first-class migration tool. |
-| **Inline compression** | `src/compat/codec_{zlib,zstd,brotli,bzip2,lz4,lzma}.c`, `codec_core.c`, `http_compress.c` | gzip/xz/zstd/brotli/bzip2/lz4 across root/WebDAV/S3 and the client, in all four directions (encode/decode on read/write). |
+| **Inline compression** | `src/core/compat/codec_{zlib,zstd,brotli,bzip2,lz4,lzma}.c`, `codec_core.c`, `http_compress.c` | gzip/xz/zstd/brotli/bzip2/lz4 across root/WebDAV/S3 and the client, in all four directions (encode/decode on read/write). |
 | **Prometheus pull metrics** | `src/metrics/`, `/metrics` endpoint | Low-cardinality counters and latency histograms across stream/WebDAV/S3/rate-limit/cache/FRM/mirror/cluster — the intended replacement for UDP XrdMon. |
 | **Leaky-bucket rate / bandwidth / concurrency limiting** | `src/ratelimit/`, `src/metrics/ratelimit.c` | Identity-aware (VO, issuer, DN hash, IP, volume prefix) request-rate, bandwidth, and concurrency shaping across **both** stream and HTTP surfaces — broader and more uniform than per-plugin `XrdThrottle`/`XrdBwm`. |
 | **REST admin + live dashboard** | `src/dashboard/` (`api_admin.c`, `api.c`) | HTTP-inspectable transfer/cluster/cache/rate-limit/config state; admin write API with auth/cookie/HMAC paths; config download with fail-closed redaction. |
@@ -303,7 +303,7 @@ beyond "same protocol, different daemon." Each is source-grounded.
 | **WebDAV beyond upstream XrdHttp's method set** | `src/webdav/lock.c`, `dead_props.c`, `search.c`, `acl.c`, `methods_basic.c` | `LOCK`/`UNLOCK`, `PROPPATCH` + dead-property storage (xattrs), `SEARCH` (RFC 5323), `ACL` discovery — needed by desktop WebDAV clients that treat `501` as fatal. Not found as server methods in the reviewed XrdHttp source. |
 | **Hardened HTTP-TPC** | `src/webdav/tpc_curl.c`, `tpc_cred.c`, `tpc_marker.c`, `tpc_headers.c` | SSRF/DNS-pinning controls, OIDC/RFC-8693 credential delegation, marker streaming, `curl_multi` multistream, dashboard visibility, low-cardinality metrics. Upstream **also** has HTTP-TPC (`XrdHttpTpc`); nginx's edge is hardening + integration, **not** the existence of HTTP-TPC. |
 | **WLCG Tape REST gateway** | `src/webdav/tape_rest.c` + `src/frm/` | FTS/gfal2-friendly HTTP tape control sharing the same durable stage queue as native `prepare`/`open`. |
-| **Path-confinement discipline** | `src/path/`, `src/compat/namespace_ops.c`, `xrootd_open_confined_canon()` | Every wire path resolves/canonicalizes/confines (`openat2(RESOLVE_BENEATH)`) before any syscall — an auditability advantage. |
+| **Path-confinement discipline** | `src/path/`, `src/core/compat/namespace_ops.c`, `xrootd_open_confined_canon()` | Every wire path resolves/canonicalizes/confines (`openat2(RESOLVE_BENEATH)`) before any syscall — an auditability advantage. |
 
 Honesty notes for this section: rate limiting, HTTP-TPC, XrdHttp, krb5, unix
 auth, macaroon delegation, and IPv6 are **not** module-exclusive — upstream has
@@ -454,11 +454,11 @@ nginx-xrootd (`src/` and `client/`):
   `src/path/auth_gate.c`
 - Diagnostics / SSI / ZIP: `src/dig/`, `src/ssi/`, `src/zip/`
 - Storage/cache/path: `src/fs/`, `src/path/`, `src/cache/`,
-  `src/compat/namespace_ops.c`, `src/cache/origin_protocol.c`
+  `src/core/compat/namespace_ops.c`, `src/cache/origin_protocol.c`
 - FRM/tape: `src/frm/`, `src/query/prepare.c`, `src/webdav/tape_rest.c`
 - HTTP/WebDAV/S3: `src/webdav/`, `src/s3/`
 - Extras: `src/mirror/`, `src/metrics/`, `src/ratelimit/`, `src/dashboard/`,
-  `src/srr/`, `src/pmark/`, `src/compat/codec_*.c`, `src/compat/http_compress.c`
+  `src/srr/`, `src/pmark/`, `src/core/compat/codec_*.c`, `src/core/compat/http_compress.c`
 - Client suite: `client/apps/`, `client/lib/`, `client/lib/sigver.c`
 - Conformance fixes: `src/read/stat.c`, `src/dirlist/handler.c`,
   `src/path/find_rule.c`, `xrootd_stat_flags_from_stat`,

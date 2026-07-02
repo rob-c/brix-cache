@@ -62,12 +62,12 @@ sites; this is for deployments that explicitly need on-disk per-user ownership.
   `xrootd_mkdir_beneath`, `xrootd_unlink_beneath`, `xrootd_rename_beneath`,
   `xrootd_link_beneath`) and one core `do_openat2(rootfd, rel, RESOLVE_BENEATH)`
   call (`beneath.c:92`), plus the `xrootd_ns_*` orchestrators
-  (`src/compat/namespace_ops.c`) and the dir walk (`src/compat/fs_walk.c`).
+  (`src/core/compat/namespace_ops.c`) and the dir walk (`src/core/compat/fs_walk.c`).
   **Swapping the *bodies* of these helpers** routes the whole module through the
   broker with no change to their callers.
 - **The data plane needs no impersonation.** `pread`/`pwrite`/`preadv2`/
   `copy_file_range`/`sendfile` (inline in `src/read|write/*`, in the AIO thread
-  pool `src/aio/*`, and `src/compat/copy_range.c`) all run on an **already-open
+  pool `src/core/aio/*`, and `src/core/compat/copy_range.c`) all run on an **already-open
   fd**. Linux checks DAC at `open()`; an open fd is a capability. So only the open
   + namespace + metadata ops must be impersonated.
 - **Proven SHM-safe privileged-helper pattern exists.** The FRM stage agent
@@ -164,7 +164,7 @@ Each phase is independently buildable/testable. New code lives in a new
   request size/relpath length.
 
 ### Phase 2 — Worker client + helper swap (`src/impersonate/client.c`, `src/path/beneath.c`)
-- Worker connects at `init_process` (`src/config/process.c` + `src/config/http_rootfd.c`),
+- Worker connects at `init_process` (`src/core/config/process.c` + `src/core/config/http_rootfd.c`),
   keeps the fd for its lifetime, registered as an nginx event with reconnect-on-EOF
   (mirror `frm_agent_on_reply` / `frm_agent_respawn`).
 - **Per-request "current identity":** the recv/dispatch loop sets a per-connection
@@ -183,7 +183,7 @@ Each phase is independently buildable/testable. New code lives in a new
 - Broker ops for `STAT`/`LSTAT`/`MKDIR`/`UNLINK`/`RENAME`/`LINK`/`CHMOD`/`CHOWN`/
   `TRUNCATE`/`STATVFS`/`XATTR` and a `READDIR` (the broker `opendir`s under
   impersonation and returns entries+stat in one reply, covering
-  `src/compat/fs_walk.c`'s `opendir`/`readdir`/`lstat` traversal).
+  `src/core/compat/fs_walk.c`'s `opendir`/`readdir`/`lstat` traversal).
 - Route the `xrootd_ns_*` orchestrators (`namespace_ops.c`) and `fs_walk.c`
   through these. `fstat` on an already-open fd stays local (worker holds the fd).
 - `xrootd_inherit_parent_group` (`src/path/group_policy.c`) becomes redundant for
@@ -192,7 +192,7 @@ Each phase is independently buildable/testable. New code lives in a new
 
 ### Phase 4 — WebDAV / S3
 - Same broker; HTTP handlers reach the broker via the HTTP `rootfd`
-  (`src/config/http_rootfd.c`) and the WebDAV/S3 identity (`mctx->identity`).
+  (`src/core/config/http_rootfd.c`) and the WebDAV/S3 identity (`mctx->identity`).
   Mostly free because they already call the same `*_beneath` helpers.
 
 ### Phase 5 — Hardening, config, docs, tests
@@ -201,7 +201,7 @@ Each phase is independently buildable/testable. New code lives in a new
   `xrootd_impersonation_socket <path>` (for `map`), `xrootd_gridmap <file>`,
   `xrootd_idmap_default_user <name>` (squash else deny), `xrootd_idmap_min_uid <N>`,
   `xrootd_idmap_cache_ttl <secs>`. Register in `src/stream/module.c` +
-  `src/webdav/module.c`; fields in `src/types/config.h`; config-time mode
+  `src/webdav/module.c`; fields in `src/core/types/config.h`; config-time mode
   validation (fail closed on invalid combinations).
 - Capability/seccomp minimization on the broker; `SO_PEERCRED` gate; reserved-uid
   floor; bounded relpaths; audit logging of every mapping decision.
@@ -214,16 +214,16 @@ Each phase is independently buildable/testable. New code lives in a new
   register all in the repo-root `config` (`./configure` once).
 - **Swap helper bodies (no caller changes):** `src/path/beneath.c` (the ~8
   helpers + `do_openat2`), `src/path/resolve_confined_ops.c` (legacy fallback).
-- **Orchestrators routed through broker ops:** `src/compat/namespace_ops.c`,
-  `src/compat/fs_walk.c`.
-- **Lifecycle hooks:** `src/config/process.c` (`ngx_stream_xrootd_init_process`)
-  + `src/config/http_rootfd.c` (worker connect); a new `init_module` master hook
-  (broker spawn) wired in `src/config/postconfiguration.c` / the module struct.
+- **Orchestrators routed through broker ops:** `src/core/compat/namespace_ops.c`,
+  `src/core/compat/fs_walk.c`.
+- **Lifecycle hooks:** `src/core/config/process.c` (`ngx_stream_xrootd_init_process`)
+  + `src/core/config/http_rootfd.c` (worker connect); a new `init_module` master hook
+  (broker spawn) wired in `src/core/config/postconfiguration.c` / the module struct.
 - **Reuse patterns:** `src/frm/stage.c` (double-fork + socketpair + event reply +
   respawn), `src/acc/groups.c` (`getpwnam`/`getgrouplist`/cache), the SHM-safe
-  zone contract (`src/compat/shm_slots.c`).
-- **Config/directives:** `src/types/config.h`, `src/stream/module.c`,
-  `src/webdav/module.c`, `src/config/server_conf.c` (init/merge).
+  zone contract (`src/core/compat/shm_slots.c`).
+- **Config/directives:** `src/core/types/config.h`, `src/stream/module.c`,
+  `src/webdav/module.c`, `src/core/config/server_conf.c` (init/merge).
 
 ## Verification
 

@@ -15,7 +15,7 @@ This document outlines the strategy for "Deep Unification"—moving core logic i
 ### A. The "Universal" Path Resolver
 Currently, the codebase has two primary path resolvers:
 1.  **Stream Resolver (`src/path/resolve_path_variants.c`):** Integrated with `ngx_str_t`, handles `mkdirpath` logic, and logs via stream context.
-2.  **HTTP/S3 Resolver (`src/compat/path.c`):** Pure C, handles `ENOENT` parent walking for PUT/COPY, and uses numeric return codes.
+2.  **HTTP/S3 Resolver (`src/core/compat/path.c`):** Pure C, handles `ENOENT` parent walking for PUT/COPY, and uses numeric return codes.
 
 #### Proposed Architecture: `xrootd_path_v2`
 A single resolver will be implemented in `src/path/unified.c` with the following signature:
@@ -130,12 +130,12 @@ graph LR
 ```
 
 ### Phase 1: Resolver Consolidation
-- Move `src/compat/path.c` logic into `src/path/unified.c`.
+- Move `src/core/compat/path.c` logic into `src/path/unified.c`.
 - Replace all protocol-specific resolution calls with `xrootd_path_resolve()`.
 - **Validation:** Cross-protocol test suite (`tests/run_cross_compatible_tests.sh`).
 
 ### Phase 2: Identity Abstraction
-- Create `src/types/identity.h` with `xrootd_identity_t`.
+- Create `src/core/types/identity.h` with `xrootd_identity_t`.
 - Refactor `src/token/`, `src/gsi/`, `src/sss/`, and `src/s3/auth_sigv4_verify.c` to populate the identity struct.
 - Update `src/path/acl.c` to consume `xrootd_identity_t *`.
 

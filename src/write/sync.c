@@ -2,7 +2,7 @@
  * sync.c — kXR_sync opcode.  See each function's docblock below.
  */
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "cache/cache_internal.h"
 #include "wrts_journal.h"
 

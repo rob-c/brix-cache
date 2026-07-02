@@ -1,5 +1,5 @@
 #include "handshake.h"
-#include "compat/alloc_guard.h"
+#include "core/compat/alloc_guard.h"
 
 /*
  * xrootd_process_handshake

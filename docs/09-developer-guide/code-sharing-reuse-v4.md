@@ -275,7 +275,7 @@ assembly**, ranked by audit cost (not LoC):
 | Candidate | Client / Server | Status |
 |---|---|---|
 | **SSS credential frame assembly** | `client/lib/sec/sec_sss.c` ↔ `src/sss/auth_proxy_credential.c` | ⚙️ **DONE** — §4.1 |
-| **kXR ↔ errno canonical table** | `client/lib/status.c` ↔ `src/compat/error_mapping.c` | ⚙️ **DONE** — §4.2 |
+| **kXR ↔ errno canonical table** | `client/lib/status.c` ↔ `src/core/compat/error_mapping.c` | ⚙️ **DONE** — §4.2 |
 | **GSI-client handshake** | `client/lib/sec/sec_gsi.c` (on `gsi_core`) **vs** `src/tpc/gsi_outbound_*.c` (raw OpenSSL) | ⚙️ **DONE** — §4.3 (built a TPC-pull-from-GSI-origin gate, then migrated onto `gsi_core`) |
 | **Token JWT split** | `client/lib/credinfo.c` (`xrdjwt_split`) ↔ `src/token/validate.c` (inline `memchr`) | ⚙️ **DONE** — §4.4 (server switched to the shared `xrdjwt_split`) |
 | **Session-bootstrap packing** (handshake + kXR_protocol + kXR_login) | `client/lib/conn.c` ↔ `src/upstream/bootstrap.c` (×2) ↔ `src/tpc/bootstrap.c` | ⚙️ **DONE** — §4.5 (new `protocol/bootstrap_pack.h`, 4 sites → 1) |
@@ -286,7 +286,7 @@ assembly**, ranked by audit cost (not LoC):
 | **stat `flags` field semantics** (flags ↔ `st_mode`) | `src/path/stat_body.c` (encoder) ↔ `client/lib/posix_map.c` (decoder) | ⚙️ **DONE** — §4.9 (new `protocol/stat_flags.h`; completes the stat spec) |
 | **dirlist dstat sentinel** `".\n0 0 0 0\n"` | `src/dirlist/handler.c` (×2 emit) ↔ `client/lib/ops_meta.c` (match) | ⚙️ **DONE** — §4.10 (new `protocol/dirlist_fmt.h`, 3 literals → 1) |
 | **kXR_Qspace `oss.*` grammar** | `src/query/space.c` (emit) ↔ `client/lib/posix_map.c` (parse) | ⚙️ **DONE** — §4.11 (new `protocol/qspace.h`, format + parse co-located) |
-| **checksum algo-name registry** | `client/lib/checksum.c` ↔ `src/compat/checksum.c` | ❌ **NOT A WIN** — §4.12 (three distinct load-bearing enums; compute already shared) |
+| **checksum algo-name registry** | `client/lib/checksum.c` ↔ `src/core/compat/checksum.c` | ❌ **NOT A WIN** — §4.12 (three distinct load-bearing enums; compute already shared) |
 | **`&P=` security-protocol list parser** | `client/lib/auth.c` (anchored) ↔ `src/tpc/gsi_outbound_finish.c` (loose `strstr`) | ⚙️ **DONE** — §4.13 (new `protocol/sec_protocol.h`; also tightened the server's auth selection) |
 | **protocol vocabulary** (`kXR_ExpLogin`/`kXR_FinalResult`/`kXR_PartialResult`, fhandle/sessid lengths) | client `xrdc.h` shadow-defs ↔ comments-only in `src/protocol/` | ⚙️ **DONE** — §4.14 (promoted spec constants to real shared `#define`s; killed shadow-defs + magic numbers) |
 | **kXR_readv segment-header codec** `{fhandle[4],rlen[4],offset[8]}` | `client/lib/ops_file.c` (build+parse) ↔ `src/read/readv.c` (response build) | ⚙️ **DONE** — §4.15 (new `protocol/readv_seg.h`; the readv gap pgio left) |
@@ -470,7 +470,7 @@ count. Verified: stat/dirlist conformance + native-client decode green (part of 
 ### 4.7 `root://` URL authority split — server routed onto the shared `host_split`
 
 The client's URL parser (`client/lib/url.c`) already delegates its authority split to the shared,
-ngx-free **`xrootd_split_host_port()`** (`src/compat/host_split.{c,h}`, libxrdproto). The server's
+ngx-free **`xrootd_split_host_port()`** (`src/core/compat/host_split.{c,h}`, libxrdproto). The server's
 native-TPC source parser (`src/tpc/parse.c`, `tpc_parse_src_spec`) reimplemented the *same*
 bracketed-IPv6-aware `host[:port]` split by hand — its own `tpc_copy_component()` +
 `tpc_parse_port_range()` (~70 LoC).
@@ -543,7 +543,7 @@ hand-written on each side.
 
 ### 4.12 checksum algo-name registry — examined, NOT a clean win
 
-The name→kind tables in `client/lib/checksum.c` and `src/compat/checksum.c` *look* duplicated (same
+The name→kind tables in `client/lib/checksum.c` and `src/core/compat/checksum.c` *look* duplicated (same
 strings: adler32/crc32c/md5/crc64[xz]/crc64nvme/zcrc32), but each maps to a **different,
 load-bearing enum**: the client's public `XRDC_CK_*` (6 values, in its API surface), the server's
 `XROOTD_CHECKSUM_*` (9 values, drives width/hex-vs-base64/is_u64), and `checksum_core`'s own

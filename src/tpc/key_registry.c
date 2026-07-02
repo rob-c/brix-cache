@@ -7,7 +7,7 @@
  */
 
 #include "key_registry.h"
-#include "compat/shm_slots.h"
+#include "core/compat/shm_slots.h"
 
 #include <string.h>
 #include <openssl/crypto.h>   /* CRYPTO_memcmp — constant-time key compare */

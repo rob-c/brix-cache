@@ -35,7 +35,7 @@ The pieces already exist but don't compose into an admin tool:
 |---|---|---|
 | `kXR_Qckscan` (`src/query/`) | server-side recursive checksum of a subtree | **recomputes** every file (no verify-against-stored), **buffers the whole result** in memory, walks **single-threaded**, **no throttle** |
 | `xrootd_vfs_walk()` (`src/fs/vfs_walk.c`) | thread-safe, confined, non-metered recursive walk firing a per-file callback | it's an enabler, not a product — no parallelism, throttle, or streaming around it |
-| `xrootd_integrity_get_fd()` (`src/compat/integrity_info.h`) | checksum lookup (xattr cache) or compute, with cache-update opt | per-file primitive; nothing orchestrates it in bulk |
+| `xrootd_integrity_get_fd()` (`src/core/compat/integrity_info.h`) | checksum lookup (xattr cache) or compute, with cache-update opt | per-file primitive; nothing orchestrates it in bulk |
 | xattr `user.XrdCks.<alg>` + CSI tagstore | checksums-at-rest already on disk | nothing exposes a bulk read of them |
 | dashboard / SRR (`src/dashboard/`, `src/srr/`) | admin-auth HTTP/JSON endpoints, `openat2 RESOLVE_BENEATH` confinement | precedent to reuse for transport + auth |
 
@@ -208,7 +208,7 @@ dashboard file browser).
 
 ---
 
-## 5. Config directives (`src/config`)
+## 5. Config directives (`src/core/config`)
 
 ```nginx
 xrootd_scan            on | off;     # default off — opt-in admin feature
@@ -218,8 +218,8 @@ xrootd_scan_max_rate   <bytes/s>;    # ceiling on read rate (default 0 = unlimit
 xrootd_scan_adaptive   on | off;     # default on
 ```
 
-Field in `src/config/config.h` (`NGX_CONF_UNSET`), `ngx_command_t` in
-`src/config/directives.c`, merged in `merge_*_conf()`. No new top-level block, so
+Field in `src/core/config/config.h` (`NGX_CONF_UNSET`), `ngx_command_t` in
+`src/core/config/directives.c`, merged in `merge_*_conf()`. No new top-level block, so
 no `./configure` needed for the directives themselves (only for the new source
 files).
 

@@ -11,8 +11,8 @@
 #### Headers (3 files, 4 blocks)
 | File | Line(s) | What is guarded | Action |
 |------|---------|-----------------|--------|
-| `src/aio/aio.h` | 68–end of file | AIO struct definitions (`xrootd_aio_ctx_t`) and all function declarations | Remove — always compile |
-| `src/config/config.h` | 315–319 | `thread_pool` + `thread_pool_name` fields in `ngx_stream_xrootd_srv_conf_t` | Remove ifdef wrapper, keep fields |
+| `src/core/aio/aio.h` | 68–end of file | AIO struct definitions (`xrootd_aio_ctx_t`) and all function declarations | Remove — always compile |
+| `src/core/config/config.h` | 315–319 | `thread_pool` + `thread_pool_name` fields in `ngx_stream_xrootd_srv_conf_t` | Remove ifdef wrapper, keep fields |
 | `src/webdav/webdav.h` | 8 | `#include <ngx_thread_pool.h>` | Remove ifdef wrapper, always include |
 | `src/webdav/webdav.h` | 125–130 | `thread_pool` + `thread_pool_name` in `ngx_http_xrootd_webdav_loc_conf_t` | Remove ifdef wrapper, keep fields |
 | `src/webdav/webdav.h` | 304–318 | Thread pool function declarations (`webdav_*_aio_thread`, `_done`) | Remove ifdef wrapper, always declare |
@@ -20,7 +20,7 @@
 #### Source files (22 blocks across 17 files)
 | File | Line(s) | What is guarded | Action |
 |------|---------|-----------------|--------|
-| `src/aio/config.c` | 3–72 | Entire file — thread pool resolution | Remove ifdef wrapper, always compile |
+| `src/core/aio/config.c` | 3–72 | Entire file — thread pool resolution | Remove ifdef wrapper, always compile |
 | `src/connection/fd_table.c` | 295–end | AIO-related cleanup code | Remove ifdef, keep code |
 | `src/stream/module_cache_proxy_directives.c` | 170–end | Thread pool directive parsing | Remove ifdef, keep code |
 | `src/stream/module.c` | 541–end | Postconfiguration thread pool setup | Remove ifdef, always call |
@@ -37,12 +37,12 @@
 | `src/s3/module.c` | 147–151 | Module context postconfig slot (NGX_THREADS/else) | Collapse to single entry: `ngx_http_s3_postconfiguration` |
 | `src/write/pgwrite.c` | 237–255 | pgwrite thread pool path | Remove ifdef, always use aio |
 | `src/write/common.c` | 106–163 | Common write with thread pool | Remove ifdef, keep code |
-| `src/aio/pgread.c` | 14–183 | AIO pgread thread/callback | Remove ifdef wrapper, keep code |
-| `src/aio/readv.c` | 15–134 | AIO readv thread/callback | Remove ifdef wrapper, keep code |
-| `src/aio/resume.c` | 3–139 | AIO resume callback plumbing | Remove ifdef wrapper, keep code |
+| `src/core/aio/pgread.c` | 14–183 | AIO pgread thread/callback | Remove ifdef wrapper, keep code |
+| `src/core/aio/readv.c` | 15–134 | AIO readv thread/callback | Remove ifdef wrapper, keep code |
+| `src/core/aio/resume.c` | 3–139 | AIO resume callback plumbing | Remove ifdef wrapper, keep code |
 | `src/write/writev.c` | 110–175 | writev with thread pool | Remove ifdef, always use aio |
 | `src/write/sync.c` | 73–end | Sync with async fallback via thread pool | Remove ifdef, always compile |
-| `src/aio/dirlist.c` | 63–end | Dirlist async via thread pool | Remove ifdef wrapper, keep code |
+| `src/core/aio/dirlist.c` | 63–end | Dirlist async via thread pool | Remove ifdef wrapper, keep code |
 
 ### Runtime NULL checks (instead of compile-time conditionals)
 
@@ -54,7 +54,7 @@ These `.c` files check `conf->thread_pool == NULL` at runtime — after making t
 | `src/cache/open_or_fill.c` | ~line X | `if (conf->thread_pool == NULL)` | Convert to assert |
 | `src/webdav/postconfig.c` | lines 88–92 | `if (wdcf->thread_pool == NULL) { NGX_LOG_NOTICE }` | Remove — pool always resolved, change log level if needed |
 | `src/s3/module.c` | lines 133–137 | `if (scf->thread_pool == NULL) { NGX_LOG_NOTICE }` | Remove |
-| `src/aio/config.c` | lines 49–61 | Cache-required pool check + fallback notice | Keep cache-required check; remove fallback notice path |
+| `src/core/aio/config.c` | lines 49–61 | Cache-required pool check + fallback notice | Keep cache-required check; remove fallback notice path |
 
 ### Other conditionals related to WebDAV
 
@@ -130,12 +130,12 @@ echo " + xrootd WebDAV: nginx DAV delegation enabled (MKCOL+DELETE → ngx_http_
 
 ### Phase B: Header File Cleanups (5 blocks across 3 files)
 
-#### `src/aio/aio.h` — Remove `#if (NGX_THREADS)` at line 68
+#### `src/core/aio/aio.h` — Remove `#if (NGX_THREADS)` at line 68
 - Delete the `#if (NGX_THREADS)` guard and corresponding `#endif`
 - AIO struct (`xrootd_aio_ctx_t`) and all function declarations always compile
 - Update file header comment: "All code in this directory is compiled unconditionally."
 
-#### `src/config/config.h` — Remove `#if (NGX_THREADS)` at lines 315–319
+#### `src/core/config/config.h` — Remove `#if (NGX_THREADS)` at lines 315–319
 - Keep the `thread_pool` and `thread_pool_name` fields, remove ifdef wrapper
 - Update field comments to drop "(NGX_THREADS only)" qualifier
 - This is the most impactful header change: every .c file that accesses these fields now has them unconditionally
@@ -150,7 +150,7 @@ echo " + xrootd WebDAV: nginx DAV delegation enabled (MKCOL+DELETE → ngx_http_
 For each .c file, remove the `#if (NGX_THREADS)` / `#endif` pair and keep all code. Specific notes per file:
 
 **Files with entire-file guards (remove outermost ifdef):**
-- `src/aio/config.c` — lines 3–72: remove outer `#if (NGX_THREADS)`, function always compiles
+- `src/core/aio/config.c` — lines 3–72: remove outer `#if (NGX_THREADS)`, function always compiles
 - `src/webdav/tpc_thread.c` — lines 17–209: remove outer guard, thread functions always compile
 
 **Files with module context conditional slots:**
@@ -165,7 +165,7 @@ For each .c file, remove the `#if (NGX_THREADS)` / `#endif` pair and keep all co
 - `src/s3/module.c` lines 133–137: same — pool always resolved
 
 **Files with inline thread blocks (remove ifdef pair only):**
-- `src/webdav/tpc.c`, `src/webdav/put.c`, `src/s3/put.c`, `src/write/pgwrite.c`, `src/write/common.c`, `src/aio/pgread.c`, `src/aio/readv.c`, `src/aio/resume.c`, `src/write/writev.c`, `src/write/sync.c`, `src/aio/dirlist.c`: each has a single `#if (NGX_THREADS)` / `#endif` pair wrapping a function or code block — remove the pair, keep the content
+- `src/webdav/tpc.c`, `src/webdav/put.c`, `src/s3/put.c`, `src/write/pgwrite.c`, `src/write/common.c`, `src/core/aio/pgread.c`, `src/core/aio/readv.c`, `src/core/aio/resume.c`, `src/write/writev.c`, `src/write/sync.c`, `src/core/aio/dirlist.c`: each has a single `#if (NGX_THREADS)` / `#endif` pair wrapping a function or code block — remove the pair, keep the content
 
 ### Phase D: WebDAV-specific conditionals (3 files)
 
@@ -191,7 +191,7 @@ For each .c file, remove the `#if (NGX_THREADS)` / `#endif` pair and keep all co
 | `docs/05-operations/operation-status.md` | Line 202 | Remove "is built with --with-threads and a working xrootd_thread_pool is configured" qualifier |
 | `docs/04-protocols/webdav-directives.md` | Line 171 (thread_pool directive) | Remove "(NGX_THREADS only)" note |
 | `src/stream/README.md` | Line 50 | Remove "NGX_THREADS only" from thread_pool directive description |
-| `src/aio/README.md` | Last paragraph ("All code in this directory is compiled only when nginx is built with thread support") | Change to: "All code in this directory is compiled unconditionally." |
+| `src/core/aio/README.md` | Last paragraph ("All code in this directory is compiled only when nginx is built with thread support") | Change to: "All code in this directory is compiled unconditionally." |
 
 ### Phase F: Dockerfile Updates (4 files)
 
@@ -277,7 +277,7 @@ After all phases complete:
 ### `#if (NGX_SSL)` conditionals — NOT in scope
 
 These are separate from the thread/WebDAV plan:
-- `src/config/config.h` lines 180–182, 328–330: guards `upstream_tls_ctx` and `proxy_tls_ctx` fields
+- `src/core/config/config.h` lines 180–182, 328–330: guards `upstream_tls_ctx` and `proxy_tls_ctx` fields
 - These remain as-is (SSL is already required via `--with-http_ssl_module` / `--with-stream_ssl_module`)
 
 ### `__linux__` conditionals — NOT in scope

@@ -124,7 +124,7 @@ configure builds OpenSSL inline from source when given a source path).
 
 ### Step B — QUIC buffer detection helper
 
-**File**: `src/compat/http_file_response.h` / `src/compat/http_file_response.c`
+**File**: `src/core/compat/http_file_response.h` / `src/core/compat/http_file_response.c`
 
 Add one inline helper to centralize the QUIC connection check:
 
@@ -152,7 +152,7 @@ doesn't exist in non-QUIC builds.
 
 ### Step C — Memory-backed file range send (core change)
 
-**File**: `src/compat/http_file_response.c`
+**File**: `src/core/compat/http_file_response.c`
 
 `xrootd_http_send_file_range()` (line 212) and `xrootd_http_chain_append_file_range()`
 (line 26) both set `b->in_file = 1`. This works correctly for TCP (sendfile) but misses

@@ -286,7 +286,7 @@ sequenceDiagram
 | **Connection handling** | `src/connection/handler.c`, `recv.c` | TCP accept, read loop, send events |
 | **XRootD handshake** | `src/handshake/dispatch.c` | Protocol negotiation, session setup |
 | **Session dispatch** | `src/handshake/dispatch_session.c` | Session-level opcode routing |
-| **Read path** | `src/read/`, `src/aio/` | open/read/readv/pgread/stat/locate (frames VFS results onto the wire) |
+| **Read path** | `src/read/`, `src/core/aio/` | open/read/readv/pgread/stat/locate (frames VFS results onto the wire) |
 | **Write path** | `src/write/` | write/writev/pgwrite/sync/truncate (frames VFS results onto the wire) |
 | **WebDAV dispatch** | `src/webdav/dispatch.c` | HTTP method routing, TPC detection |
 | **S3 handler** | `src/s3/handler.c` | REST API entry point and routing |

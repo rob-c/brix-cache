@@ -3,15 +3,15 @@
  *
  * WHY: Multiple fattr sub-code handlers (get, set, del) share common patterns — errno→kXR mapping, rc encoding in network byte order, nvec parsing. Centralizing these helpers avoids duplication and ensures consistent error code translation across all fattr operations. ---- */
 #include "ngx_xrootd_fattr.h"
-#include "compat/error_mapping.h"
-#include "compat/fattr_codec.h"   /* shared nvec entry parser (libxrdproto) */
+#include "core/compat/error_mapping.h"
+#include "core/compat/fattr_codec.h"   /* shared nvec entry parser (libxrdproto) */
 #include <errno.h>
 #include <string.h>
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/xattr.h>
 #include <arpa/inet.h>
-#include "compat/alloc_guard.h"
+#include "core/compat/alloc_guard.h"
 
 uint16_t
 fattr_errno_to_xrd(int err)

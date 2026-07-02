@@ -142,7 +142,7 @@ subsequent file traffic.
 | VOMS AC parsing | `src/voms/loader.c` (dlopen of libvomsapi) |
 | VOMS VO extraction | `src/voms/collect.c:xrootd_collect_voms_vos()` |
 | vomsdir LSC lookup | delegated to libvomsapi |
-| VO path ACL enforcement | `src/path/find_rule.c`, `src/config/policy.c` |
+| VO path ACL enforcement | `src/path/find_rule.c`, `src/core/config/policy.c` |
 | CA bundle load | `src/crypto/pki_load.c` |
 | CRL signature verification | `src/crypto/pki_check.c:xrootd_pki_verify_crls()` |
 | kXR_login challenge string | `src/session/login.c:xrootd_handle_login()` |

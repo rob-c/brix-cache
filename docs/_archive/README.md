@@ -17,7 +17,7 @@ live documentation only contains material that describes current behaviour.
 | Document | Why archived |
 |---|---|
 | `refactoring-proposal.md` | Early refactoring proposal; superseded by the `docs/refactor/phase-*.md` series. |
-| `PHASE_2_SUMMARY.md`, `PHASE_2_COMPLETE.md`, `PHASE_2_FINAL_REPORT.md`, `CODE_CONSOLIDATION_IMPLEMENTATION.md` | Reports of an early "Phase 2 / Code Consolidation" effort (2026-06-05) that introduced `src/config/conf_helpers.h` and `src/compat/alloc_helpers.h`. Both files were later removed — the config-merge consolidation was redone via **Option A** in [`../refactor/phase-5-config-consolidation.md`](../refactor/phase-5-config-consolidation.md) (nginx built-ins + `src/config/merge_macros.h`). These reports reference infrastructure that no longer exists. |
+| `PHASE_2_SUMMARY.md`, `PHASE_2_COMPLETE.md`, `PHASE_2_FINAL_REPORT.md`, `CODE_CONSOLIDATION_IMPLEMENTATION.md` | Reports of an early "Phase 2 / Code Consolidation" effort (2026-06-05) that introduced `src/core/config/conf_helpers.h` and `src/core/compat/alloc_helpers.h`. Both files were later removed — the config-merge consolidation was redone via **Option A** in [`../refactor/phase-5-config-consolidation.md`](../refactor/phase-5-config-consolidation.md) (nginx built-ins + `src/core/config/merge_macros.h`). These reports reference infrastructure that no longer exists. |
 
 ## Point-in-time snapshots & audits
 

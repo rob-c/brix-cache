@@ -158,7 +158,7 @@ Directives are nginx `ngx_command_t` entries declared in the module command
 tables (`src/stream/module.c`, `src/stream/module_core_directives.c`,
 `src/stream/module_cache_proxy_directives.c`, `src/webdav/module.c`,
 `src/s3/module.c`, plus the metrics/dashboard/srr/pmark module tables). They are
-merged main→srv→loc by `src/config/` (`process.c`, `server_conf.c`,
+merged main→srv→loc by `src/core/config/` (`process.c`, `server_conf.c`,
 `postconfiguration.c`, `runtime_server.c`, `merge_macros.h`) and follow nginx
 grammar — `{}` blocks, `;`-terminated directives, `include` files, `if`
 (nginx's own), variables. `root://` lives in `stream{}`; WebDAV / S3 / metrics /
@@ -421,7 +421,7 @@ generator and serves the file out of band; an nginx-xrootd operator turns on
   the high-cardinality fields banned from metric labels.
 - **Per-protocol log files** (from `contrib/xrootd.conf.example`):
   `xrootd_webdav_access.log`, `xrootd_s3_access.log`; the `root://` access log is
-  configured with `xrootd_access_log` (opened in `src/config/runtime_server.c`,
+  configured with `xrootd_access_log` (opened in `src/core/config/runtime_server.c`,
   set `off` to disable). A separate path-layer access log lives in
   `src/path/access_log.c`. nginx's own `error_log` carries diagnostics/debug.
 - **`xrootd_sanitize_log_string()`** (declared `src/path/path.h`, used across
@@ -564,7 +564,7 @@ nginx-xrootd shapes by *identity* (VO/issuer/DN/IP/volume) uniformly across
 |---|---|
 | Metrics / Prometheus | `src/metrics/{handler,stream,writer,unified,webdav,s3,cluster,tracking,stream_proxy,stream_cache,config,module,access_log,health}.c`, `metrics_macros.h`, `metrics.h`, `metrics_internal.h`, `README.md` |
 | Dashboard / admin | `src/dashboard/{module,api,api_admin,config,config_download,auth,events,history,transfer_table,page}.c`, `README.md` |
-| Config model | `src/config/{process,server_conf,postconfiguration,runtime_server}.c`, `merge_macros.h`; directives in `src/stream/module.c`, `module_core_directives.c`, `module_cache_proxy_directives.c`, `src/webdav/module.c`, `src/s3/module.c` |
+| Config model | `src/core/config/{process,server_conf,postconfiguration,runtime_server}.c`, `merge_macros.h`; directives in `src/stream/module.c`, `module_core_directives.c`, `module_cache_proxy_directives.c`, `src/webdav/module.c`, `src/s3/module.c` |
 | SciTags / PMark | `src/pmark/{firefly,flowlabel,scitag,mapping,config,defsfile,sockstats}.c`, `pmark.h`, `README.md` |
 | SRR | `src/srr/{builder,handler,module}.c`, `srr.h`, `README.md` |
 | Logging / sanitize | `src/metrics/access_log.{c,h}`, `src/path/access_log.c`, `src/path/path.h` (`xrootd_sanitize_log_string` decl) + `src/path/{acl,authdb,helpers,resolve_confined_helpers}.c` (uses) |

@@ -36,9 +36,9 @@
  *       callers must never close it afterwards.
  */
 #include "file_serve.h"
-#include "compat/http_file_response.h"
-#include "compat/http_compress.h"
-#include "compat/range.h"
+#include "core/compat/http_file_response.h"
+#include "core/compat/http_compress.h"
+#include "core/compat/range.h"
 #include "dashboard/dashboard_tracking.h"
 #include "cache/open.h"
 #include "webdav/webdav.h"          /* xrootd_tcp_congestion (webdav-owned directive) */

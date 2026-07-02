@@ -1,7 +1,7 @@
 #ifndef XROOTD_GSI_INTERNAL_H
 #define XROOTD_GSI_INTERNAL_H
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 
 /*---- GSI internal header — function declarations for credential authentication ----
  *

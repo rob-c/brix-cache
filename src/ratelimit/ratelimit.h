@@ -28,7 +28,7 @@
 #ifndef XROOTD_RATELIMIT_H
 #define XROOTD_RATELIMIT_H
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include <ngx_http.h>   /* ngx_http_request_t for the HTTP-plane declarations */
 
 /* Key dimensions for a rate-limit lookup. */

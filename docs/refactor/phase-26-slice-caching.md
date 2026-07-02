@@ -748,7 +748,7 @@ failure mode where a file is repacked at the origin mid-transfer.
 
 ## Step F — Configuration Directives
 
-**Added to `src/config/config.h`** (both HTTP loc conf and stream srv conf):
+**Added to `src/core/config/config.h`** (both HTTP loc conf and stream srv conf):
 
 ```c
 size_t     cache_slice_size;      /* NGX_CONF_UNSET_SIZE; 0 = disabled */
@@ -756,7 +756,7 @@ ngx_uint_t cache_slice_prefetch;  /* NGX_CONF_UNSET_UINT; default 1   */
 ngx_msec_t cache_slice_fill_timeout_ms;  /* default 30000              */
 ```
 
-**New directives in `src/config/directives.c`:**
+**New directives in `src/core/config/directives.c`:**
 
 ```nginx
 # Slice size — must be a multiple of XROOTD_CACHE_FETCH_CHUNK (1 MiB).
@@ -881,7 +881,7 @@ bypasses the whole-file cache check before nginx's proxy layer can intercept.
 | `src/cache/slice.c` | 160 | `xrootd_slice_path`, `xrootd_slice_enumerate`, meta helpers |
 | `src/cache/slice_fill.c` | 220 | Thread-pool fill worker + `xrootd_slice_fill_schedule` |
 
-All 3 files must be added to `NGX_ADDON_SRCS` in `src/config/config.h`.
+All 3 files must be added to `NGX_ADDON_SRCS` in `src/core/config/config.h`.
 
 **Modified files:**
 
@@ -892,8 +892,8 @@ All 3 files must be added to `NGX_ADDON_SRCS` in `src/config/config.h`.
 | `src/cache/cache_internal.h` | Add `xrootd_slice_fill_t` struct |
 | `src/cache/evict_candidates.c` | Add paired-eviction logic for slice file sets |
 | `src/cache/paths.c` | Add `xrootd_slice_evict_all()` (glob + unlink) |
-| `src/config/config.h` | Add `cache_slice_size`, `cache_slice_prefetch`, `cache_slice_fill_timeout_ms` |
-| `src/config/directives.c` | Parse new directives; validate slice_size is a multiple of 1 MiB |
+| `src/core/config/config.h` | Add `cache_slice_size`, `cache_slice_prefetch`, `cache_slice_fill_timeout_ms` |
+| `src/core/config/directives.c` | Parse new directives; validate slice_size is a multiple of 1 MiB |
 | `src/metrics/metrics.h` | Add 4 new counters |
 | `src/metrics/cache.c` | Export new Prometheus metrics |
 

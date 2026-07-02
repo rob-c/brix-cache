@@ -1,4 +1,4 @@
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "proxy/proxy.h"
 #include "proxy/proxy_internal.h"
 #include "impersonate/lifecycle.h"

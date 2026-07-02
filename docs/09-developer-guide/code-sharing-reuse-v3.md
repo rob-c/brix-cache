@@ -124,7 +124,7 @@ build response = [allocate] → [set header] → [populate body] → [calculate 
 
 Auth state is stored in protocol-specific contexts but follows identical field layout:
 
-**Stream auth state** (`src/types/context.h` — xrootd_ctx_t fields):
+**Stream auth state** (`src/core/types/context.h` — xrootd_ctx_t fields):
 ```
 sessid                  — session identifier
 logged_in               — login completed flag
@@ -379,12 +379,12 @@ Before planning, audit what is already present to avoid duplicating existing doc
 | §1 Request lifecycle | `docs/09-developer-guide/dev-workflow.md` (290 lines) | Has source layout table + build/test commands | No unified accept→auth→parse→resolve→execute→respond→metric→cleanup diagram |
 | §2 Dispatch routing chain | `src/handshake/README.md` (54 lines) | Has full dispatch chain diagram with CONTINUE semantics | No cross-protocol comparison (WebDAV method table, S3 op table as simpler variants) |
 | §3 Response type selection | `src/response/README.md` | Not audited — read first | Unknown |
-| §4 Auth state management | `src/types/context.h` (273 lines) | Detailed WHAT/WHY/HOW block in header comment; auth fields grouped at lines 59–71 | No canonical "auth state layout" table; no cross-stream/WebDAV comparison note |
-| §5 Namespace translation | `src/compat/README.md` | Lists `path.c` and `namespace_ops.c` | No cross-protocol namespace input → canonicalizer table |
+| §4 Auth state management | `src/core/types/context.h` (273 lines) | Detailed WHAT/WHY/HOW block in header comment; auth fields grouped at lines 59–71 | No canonical "auth state layout" table; no cross-stream/WebDAV comparison note |
+| §5 Namespace translation | `src/core/compat/README.md` | Lists `path.c` and `namespace_ops.c` | No cross-protocol namespace input → canonicalizer table |
 | §6 Proxy handle translation | `src/proxy/README.md` (23 lines) | Sparse file table only | No fh_map lifecycle, state machine, lazy-open sequence |
 | §7 Disconnect cleanup | `src/connection/disconnect.c` (275 lines) | Has `/* ---- Buffer release ----`, `/* ---- Crypto state release ----`, `/* xrootd_disconnect_update_metrics */`, `/* ---- Log open files ----` separators | Separators exist but are inconsistently named; no `connection/README.md` phase summary |
 | §8 Test infrastructure | `docs/09-developer-guide/testing-runbook.md` (173 lines) | Has test philosophy + security policy | No LOCAL/REMOTE mode explanation, no conftest.py fixture hierarchy, no shared port table |
-| §9 Request context objects | `src/types/README.md` (13 lines) | Minimal — file-to-concept table only | No set_ctx/get_module_ctx pattern, no stream vs HTTP context lifecycle comparison |
+| §9 Request context objects | `src/core/types/README.md` (13 lines) | Minimal — file-to-concept table only | No set_ctx/get_module_ctx pattern, no stream vs HTTP context lifecycle comparison |
 | §10 Metrics export pattern | `src/metrics/README.md` (57 lines) | Has usage example | No label schema table, no low-cardinality constraint explanation, no "adding a metric" recipe |
 | Capstone | `docs/10-architecture/cross-protocol-unification.md` (397 lines) | Has shared layer description + gap roadmap | v3 patterns (lifecycle phases, auth state layout, fh_map, disconnect phases) not yet synthesized into it |
 
@@ -399,7 +399,7 @@ Phase 0: Read all target files (no edits — verify current content)
          Mandatory before any other phase; 2 h
 
 Phase 1: Source-adjacent documentation (5 parallel tasks — different files, no ordering)
-         ├── T1: src/types/context.h          — auth state layout table          (2 h)
+         ├── T1: src/core/types/context.h          — auth state layout table          (2 h)
          ├── T2: src/handshake/README.md       — cross-protocol dispatch section  (1 h)
          ├── T3: src/connection/disconnect.c   — standardize phase separators     (1 h)
          │         src/connection/README.md    — three-phase cleanup pattern      (+30 min)
@@ -411,9 +411,9 @@ Phase 2: Higher-level developer docs (4 parallel tasks — blocked by Phase 1 fo
          │         [references T1 auth state, T2 dispatch chain]
          ├── T7: docs/09-developer-guide/testing-runbook.md — LOCAL/REMOTE + conftest.py (1 h)
          │         [references T5 metrics port definitions]
-         ├── T8: src/compat/README.md          — namespace translation section    (1 h)
+         ├── T8: src/core/compat/README.md          — namespace translation section    (1 h)
          │         [references T1 path.c fields in context.h]
-         └── T9: src/types/README.md           — set_ctx pattern + lifecycle      (1 h)
+         └── T9: src/core/types/README.md           — set_ctx pattern + lifecycle      (1 h)
                    [blocked by T1 — references auth state layout added in T1]
 
 Phase 3: Capstone architecture doc (blocked by all of Phase 1 + Phase 2)
@@ -429,7 +429,7 @@ Phase 3: Capstone architecture doc (blocked by all of Phase 1 + Phase 2)
 
 | File to read | Why | Expected size |
 |---|---|---|
-| `src/types/context.h` | Identify exact line numbers of auth state fields (sessid, logged_in, auth_done, dn, vo_list) before adding the layout table | 273 lines |
+| `src/core/types/context.h` | Identify exact line numbers of auth state fields (sessid, logged_in, auth_done, dn, vo_list) before adding the layout table | 273 lines |
 | `src/handshake/README.md` | Find the exact end of the dispatch chain diagram to know where to append the cross-protocol comparison section | 54 lines |
 | `src/connection/disconnect.c` | Map existing section separators; find exact line numbers of buffer/crypto/metrics/log phases to standardize | 275 lines |
 | `src/proxy/README.md` | Identify the 23 existing lines; plan expansion without repeating the file table | 23 lines |
@@ -437,7 +437,7 @@ Phase 3: Capstone architecture doc (blocked by all of Phase 1 + Phase 2)
 | `src/response/README.md` | Check whether the 5-step response pattern (§3) is already documented | unknown |
 | `docs/09-developer-guide/dev-workflow.md` | Find the source layout table position to insert lifecycle diagram immediately after | 290 lines |
 | `docs/09-developer-guide/testing-runbook.md` | Find the test philosophy section end — lifecycle diagram inserts before it | 173 lines |
-| `src/types/README.md` | Understand the 13 lines present; plan expansion without duplicating the file-to-concept table | 13 lines |
+| `src/core/types/README.md` | Understand the 13 lines present; plan expansion without duplicating the file-to-concept table | 13 lines |
 | `docs/10-architecture/cross-protocol-unification.md` | Understand current 397-line structure — plan v3 additions without redundancy | 397 lines |
 
 **Done-when:** Annotated notes on each file's current state; no ambiguity about where each task's additions land.
@@ -450,7 +450,7 @@ Each task touches a different file. No build required for `.md` tasks. `disconne
 
 ---
 
-#### T1: Auth State Layout Table in `src/types/context.h` (2 h)
+#### T1: Auth State Layout Table in `src/core/types/context.h` (2 h)
 
 **Goal:** Add a self-contained "Auth State Layout" table in the context.h header comment so contributors understand what fields are set at each authentication phase without reading the full 273-line struct.
 
@@ -480,7 +480,7 @@ Each task touches a different file. No build required for `.md` tasks. `disconne
  * The fields above are stream-only (per-connection context, not per-request).
 ```
 
-**File modified:** `src/types/context.h`
+**File modified:** `src/core/types/context.h`
 **Lines added:** ~18
 **Lines removed:** 0
 **Compile check:** Not required (comment-only) but run `make -j$(nproc)` once to confirm no accidental edit truncated a field definition.
@@ -512,7 +512,7 @@ The stream 5-phase chain is the most complex variant of a pattern used in all th
 1. Add a new `xrootd_dispatch_<category>_opcode()` function in a new `dispatch_<category>.c`
 2. Add the call between existing dispatchers in `dispatch.c` — respect ordering (session < proxy < read < write < signing)
 3. Add gate calls via `policy.c` helpers before each new handler
-4. Register new `.c` in `src/config/config.h` under `NGX_ADDON_SRCS`
+4. Register new `.c` in `src/core/config/config.h` under `NGX_ADDON_SRCS`
 ```
 
 **File modified:** `src/handshake/README.md`
@@ -700,7 +700,7 @@ These tasks write to `docs/` and `src/*/README.md` files that synthesize the Pha
 ## Request lifecycle
 
 Every request follows the same 8-phase lifecycle regardless of protocol. Protocol-specific
-files handle each phase; the common layer (`src/compat/`) provides shared utilities for
+files handle each phase; the common layer (`src/core/compat/`) provides shared utilities for
 cross-cutting concerns.
 
 | Phase | Stream (`root://`) | WebDAV (`davs://`) | S3 |
@@ -782,7 +782,7 @@ All fixtures are available to every test file without explicit import — pytest
 
 ---
 
-#### T8: Namespace Translation Cross-Protocol Section in `src/compat/README.md` (1 h)
+#### T8: Namespace Translation Cross-Protocol Section in `src/core/compat/README.md` (1 h)
 
 **Goal:** Add a "Cross-protocol namespace translation" section that makes explicit how each protocol's URI format is preprocessed before reaching `xrootd_resolve_path_input()` — the universal canonicalizer that lives in this directory.
 
@@ -809,13 +809,13 @@ format before calling it:
 **Adding a new protocol:** implement the preprocessing steps above as a wrapper function in your protocol's source directory; call `xrootd_resolve_path_input` as the final step. Never reimplement confinement logic — only the URI → normalized_path step is protocol-specific.
 ```
 
-**File modified:** `src/compat/README.md`
+**File modified:** `src/core/compat/README.md`
 **Lines added:** ~30
 **Lines removed:** 0
 
 ---
 
-#### T9: Context Retrieval Pattern in `src/types/README.md` (1 h)
+#### T9: Context Retrieval Pattern in `src/core/types/README.md` (1 h)
 
 **Goal:** Expand the 13-line README to document the set_ctx/get_module_ctx pattern used by all HTTP protocols, the stream variant, and the lifecycle differences between per-connection and per-request contexts.
 
@@ -824,7 +824,7 @@ format before calling it:
 **Content to add** (replace the existing 13-line file with a full reference):
 
 ```markdown
-# src/types — Core type definitions
+# src/core/types — Core type definitions
 
 Focused sub-headers extracted from `ngx_xrootd_module.h`. Each file defines exactly one
 concept so contributors can read just the relevant type without wading through the full
@@ -855,7 +855,7 @@ Each protocol allocates and retrieves its request/connection context differently
 **Rule:** Allocate from `r->pool` (HTTP) or `c->pool` / `ngx_alloc` (stream). Never use `malloc` or raw `mmap` for request/connection state — lifecycle management is the pool's responsibility.
 ```
 
-**File modified:** `src/types/README.md`
+**File modified:** `src/core/types/README.md`
 **Lines added:** ~45 (replaces existing 13 lines)
 **Lines removed:** 13 (existing content preserved verbatim as the file table section)
 
@@ -885,7 +885,7 @@ from scratch.
 accept → authenticate → parse → resolve → execute → respond → metric → cleanup
 
 See `docs/09-developer-guide/dev-workflow.md` §Request lifecycle for the per-protocol file mapping.
-The Resolve phase (path canonicalization via `src/compat/path.c`) is mandatory before any
+The Resolve phase (path canonicalization via `src/core/compat/path.c`) is mandatory before any
 filesystem call in all three protocols — INVARIANT #4.
 
 ### 2. Dispatch: ordered chain of category checkers
@@ -905,13 +905,13 @@ Stream auth is stateful across opcodes in one session. Auth fields are populated
 - `kXR_auth` → `auth_done`, `dn`, `primary_vo`, `vo_list` (GSI) or `token_auth`, `token_scopes` (JWT)
 
 WebDAV and S3 re-verify credentials on every request — no persisted auth state.
-See `src/types/context.h` §Auth State Layout for the canonical field table.
+See `src/core/types/context.h` §Auth State Layout for the canonical field table.
 
 ### 4. Namespace translation
 
 All three protocols use `xrootd_resolve_path_input(root_canon, normalized, out, outsz)` as
 the final confinement step. Only the pre-processing (URI format → normalized path) is
-protocol-specific. See `src/compat/README.md` §Cross-protocol namespace translation.
+protocol-specific. See `src/core/compat/README.md` §Cross-protocol namespace translation.
 
 ### 5. Proxy handle translation (stream proxy only)
 
@@ -933,7 +933,7 @@ See `src/connection/README.md` §Disconnect phases.
 | WebDAV | `r->pool` + `ngx_http_set_ctx` | `ngx_http_get_module_ctx` |
 | S3 | `r->pool` + `ngx_http_set_ctx` | `ngx_http_get_module_ctx` |
 
-See `src/types/README.md` §Context retrieval patterns.
+See `src/core/types/README.md` §Context retrieval patterns.
 
 ### 8. Metric increment
 
@@ -951,15 +951,15 @@ One macro per protocol: `XROOTD_SRV_METRIC_INC(slot)` (stream), `XROOTD_WEBDAV_M
 | Task | Phase | Est. (h) | Blocked by | Files modified | Lines added | Lines removed | Code compile needed? |
 |---|---|---|---|---|---|---|---|
 | Phase 0: Reads | 0 | 2 | — | 0 (read-only) | 0 | 0 | No |
-| T1: context.h auth layout table | 1 | 2 | Phase 0 | `src/types/context.h` | ~18 | 0 | Verify (comment-only) |
+| T1: context.h auth layout table | 1 | 2 | Phase 0 | `src/core/types/context.h` | ~18 | 0 | Verify (comment-only) |
 | T2: handshake dispatch comparison | 1 | 1 | Phase 0 | `src/handshake/README.md` | ~28 | 0 | No |
 | T3: disconnect phase separators | 1 | 1.5 | Phase 0 | `src/connection/disconnect.c`, `src/connection/README.md` | ~27 | 0 | **Yes — mandatory** |
 | T4: proxy fh_map expansion | 1 | 1.5 | Phase 0 | `src/proxy/README.md` | ~60 | 0 | No |
 | T5: metrics label schema | 1 | 1 | Phase 0 | `src/metrics/README.md` | ~45 | 0 | No |
 | T6: lifecycle diagram in dev-workflow | 2 | 2 | T1, T2 | `docs/09-developer-guide/dev-workflow.md` | ~30 | 0 | No |
 | T7: LOCAL/REMOTE + conftest.py | 2 | 1 | T5, Phase 0 | `docs/09-developer-guide/testing-runbook.md` | ~50 | 0 | No |
-| T8: namespace translation in compat | 2 | 1 | T1, Phase 0 | `src/compat/README.md` | ~30 | 0 | No |
-| T9: types/README.md context pattern | 2 | 1 | T1 | `src/types/README.md` | ~45 | 13 | No |
+| T8: namespace translation in compat | 2 | 1 | T1, Phase 0 | `src/core/compat/README.md` | ~30 | 0 | No |
+| T9: types/README.md context pattern | 2 | 1 | T1 | `src/core/types/README.md` | ~45 | 13 | No |
 | T10: cross-protocol-unification capstone | 3 | 3 | T1–T9 | `docs/10-architecture/cross-protocol-unification.md` | ~80 | 0 | No |
 
 **Total estimate: ~16 h (~2 engineer-days)**
@@ -985,14 +985,14 @@ done
 
 # 3. No forward-references in Phase 1 docs (they must not reference T6–T10 content)
 grep -n "dev-workflow\|testing-runbook\|cross-protocol-unification" \
-    src/types/context.h src/handshake/README.md src/connection/disconnect.c \
+    src/core/types/context.h src/handshake/README.md src/connection/disconnect.c \
     src/proxy/README.md src/metrics/README.md
 
 # 4. Port numbers in T7 testing-runbook match conftest.py actual values
 grep "NGINX.*PORT\|S3_PORT\|METRICS_PORT" tests/conftest.py | head -15
 
 # 5. Fact-check: auth fields in T1 table match actual context.h field names
-grep -n "sessid\|logged_in\|auth_done\|dn\[512\]\|vo_list" src/types/context.h | head -10
+grep -n "sessid\|logged_in\|auth_done\|dn\[512\]\|vo_list" src/core/types/context.h | head -10
 ```
 
 **Done-when:** All 5 checks pass and `make -j$(nproc)` exits 0 with no new warnings.

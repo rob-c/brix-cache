@@ -1,11 +1,11 @@
 # Postmortem: Multi-Worker Connection Stall (ngx_shmtx POSIX-semaphore lost-wakeup)
 
-**Status:** Resolved. Single fix in `src/compat/shm_slots.c` — create every module
+**Status:** Resolved. Single fix in `src/core/compat/shm_slots.c` — create every module
 SHM-table mutex in **spin+yield-only** mode (POSIX semaphore disabled).
 **Severity:** High — under concurrent `root://` load on a multi-worker server, a
 random subset of connections stalled **60–450 s** (until the client gave up),
 collapsing aggregate read throughput (n=8 read ≈ 5700 → ≈ 26 MiB/s).
-**Component:** `src/session/handles.c` / `src/compat/shm_slots.c` (cross-worker
+**Component:** `src/session/handles.c` / `src/core/compat/shm_slots.c` (cross-worker
 shared-memory handle table, locked on every `kXR_open`).
 **Trigger surfaced by:** a read/write load benchmark — 8 concurrent `xrdcp` of a
 1 GiB file against a `worker_processes auto` (or any ≥ 2) nginx.
@@ -152,7 +152,7 @@ semaphore is both unnecessary and hazardous.
 
 ## 5. The fix
 
-`src/compat/shm_slots.c` — wrap mutex creation so the semaphore is disabled,
+`src/core/compat/shm_slots.c` — wrap mutex creation so the semaphore is disabled,
 leaving `ngx_shmtx` in **spin-then-`ngx_sched_yield`** mode:
 
 ```c
@@ -172,7 +172,7 @@ xrootd_shm_table_mutex_create(ngx_shmtx_t *mtx, ngx_shmtx_sh_t *addr)
 All three `ngx_shmtx_create()` call sites inside `xrootd_shm_table_alloc()` now
 route through this helper, so the change covers **every** module SHM-table mutex
 created by that allocator (the bind handle table, the session registry, and the
-FRM-converted zones — see `src/compat/shm_slots.c` / `shm_slots.h`, whose
+FRM-converted zones — see `src/core/compat/shm_slots.c` / `shm_slots.h`, whose
 slab-safe allocation also exists to survive `ngx_unlock_mutexes()` on child death).
 
 Why spin+yield is the right call here: these critical sections are tiny,

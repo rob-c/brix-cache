@@ -17,7 +17,7 @@
  * LOG-phase handler stamps the primary's final status for that comparison.
  */
 #include "http_mirror.h"
-#include "compat/http_body.h"
+#include "core/compat/http_body.h"
 
 /* Mirror counters live in the shared root metrics struct (low cardinality, no
  * per-target labels per metrics INVARIANT 8). */

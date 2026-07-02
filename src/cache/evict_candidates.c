@@ -1,7 +1,7 @@
 #include "evict_internal.h"
 #include "cache_storage.h"
 #include "cinfo.h"                 /* dirty-extent guard: never evict un-flushed data */
-#include "shared/safe_size.h"   /* Phase 27 W1: overflow-checked size math */
+#include "core/compat/safe_size.h"   /* Phase 27 W1: overflow-checked size math */
 
 /* Phase 27 F9: upper bound on the eviction-candidate set so the growth loop
  * cannot allocate without limit even if the scanned tree is enormous. */

@@ -18,7 +18,7 @@
  * boundary is RESOLVE_BENEATH at the op.  A path that escapes the export root is
  * rejected by the kernel (EXDEV) when the operation runs.
  */
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "op_path.h"
 #include "beneath.h"
 #include "path_internal.h"

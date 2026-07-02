@@ -2,7 +2,7 @@
  * truncate.c — kXR_truncate opcode.  See each function's docblock below.
  */
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "cache/writethrough_metrics.h"
 #include "fs/vfs.h"   /* path-based truncate via the VFS seam */
 

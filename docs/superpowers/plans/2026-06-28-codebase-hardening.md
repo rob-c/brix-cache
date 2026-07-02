@@ -4,7 +4,7 @@
 
 **Goal:** Close the residual hardening gaps in an already well-defended codebase: adopt the existing overflow-checked allocation helper across wire-driven allocations, add in-process libFuzzer coverage for the highest-risk parsers, default link-time hardening (RELRO/BIND_NOW/PIE), wire a sanitizer CI lane, and lock down privileged subprocess exec + deployment sandboxing.
 
-**Architecture:** Each phase is independently shippable and produces a tested deliverable. No phase depends on another's runtime behaviour, so they can be merged in any order. The work reuses two pieces of infrastructure that already exist but are under-adopted: `src/shared/safe_size.h` (overflow-checked size math, currently used in only 2 files) and `tests/fuzz/` (one libFuzzer target today, with a documented template and target backlog).
+**Architecture:** Each phase is independently shippable and produces a tested deliverable. No phase depends on another's runtime behaviour, so they can be merged in any order. The work reuses two pieces of infrastructure that already exist but are under-adopted: `src/core/compat/safe_size.h` (overflow-checked size math, currently used in only 2 files) and `tests/fuzz/` (one libFuzzer target today, with a documented template and target backlog).
 
 **Tech Stack:** C11 (nginx module + ngx-free client), nginx `./config` add-module build, clang libFuzzer + ASan/UBSan, pytest harness, GCC `__builtin_*_overflow` intrinsics, `readelf`/`checksec` for link verification.
 
@@ -12,9 +12,9 @@
 
 - **No `goto`** anywhere in `src/`, `shared/`, or `client/` — early-return + helper decomposition only.
 - **Functional/modular**: one responsibility per function, pass state explicitly, no new globals.
-- **Use existing helpers** — never reimplement path/auth/metrics/framing; for size math use `src/shared/safe_size.h`.
+- **Use existing helpers** — never reimplement path/auth/metrics/framing; for size math use `src/core/compat/safe_size.h`.
 - **`src/` allocations use `ngx_palloc`/`ngx_pcalloc`/`ngx_alloc`**; `client/` uses libc `malloc`. Never raw `malloc` in `src/` except the documented crypto/codec/thread-context exceptions.
-- **New `.c` files register in the top-level `./config`** (`$ngx_addon_dir/src/...` source lists), NOT `src/config/config.h`; then run `./configure`. No `./configure` for edits to existing files.
+- **New `.c` files register in the top-level `./config`** (`$ngx_addon_dir/src/...` source lists), NOT `src/core/config/config.h`; then run `./configure`. No `./configure` for edits to existing files.
 - **3 tests per behavioural change**: success + error + security-negative.
 - **Never run git stash/reset/checkout/clean/rebase.** Commit only the files each task names.
 - Section-level WHAT/WHY/HOW docblock on every new function.
@@ -219,7 +219,7 @@ git commit -m "harden: default RELRO/BIND_NOW/noexecstack on the dynamic module 
 - Test: `tests/c/safe_size_adoption_test.c` (new standalone unit)
 
 **Interfaces:**
-- Consumes: `xrootd_size_mul`/`xrootd_size_add` from `src/shared/safe_size.h` (standalone mode).
+- Consumes: `xrootd_size_mul`/`xrootd_size_add` from `src/core/compat/safe_size.h` (standalone mode).
 - Produces: `zip_dir.c` allocations that return a clean error (not a truncated buffer) when `cd_size`/`comp_size` derive from a corrupt archive and would overflow when combined with a `+1`/header offset.
 
 - [ ] **Step 1: Write the failing test**
@@ -239,7 +239,7 @@ typedef long ngx_int_t;
 #define NGX_ERROR -1
 #define ngx_inline inline
 /* pool/alloc helpers are not exercised here; only the arithmetic. */
-#include "../../src/shared/safe_size.h"
+#include "../../src/core/compat/safe_size.h"
 
 int main(void) {
     size_t out = 0;

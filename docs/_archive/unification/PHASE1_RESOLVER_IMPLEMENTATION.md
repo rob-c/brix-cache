@@ -13,7 +13,7 @@
 Phase 1 consolidates two separate path resolution implementations into a single, unified resolver. Currently:
 
 - **Stream Path Resolver** (`src/path/resolve_path_variants.c`) - XRootD protocol
-- **HTTP Path Resolver** (`src/compat/path.c`) - WebDAV/S3 protocols
+- **HTTP Path Resolver** (`src/core/compat/path.c`) - WebDAV/S3 protocols
 
 This creates security inconsistencies and maintenance overhead. A unified resolver will:
 - ✅ Guarantee identical path validation across all protocols
@@ -50,7 +50,7 @@ ngx_str_t *xrootd_resolve_path(ngx_str_t *path,
 
 ---
 
-### HTTP Path Resolver (`src/compat/path.c`)
+### HTTP Path Resolver (`src/core/compat/path.c`)
 
 **Characteristics:**
 - Pure C (no nginx-specific memory)
@@ -556,7 +556,7 @@ xrootd_path_get_type(const ngx_str_t *resolved_path)
 
 ### Step 1: Deploy Unified Resolver
 1. Create `src/path/unified.h` and `src/path/unified.c`
-2. Add to `src/config/config.h` build list
+2. Add to `src/core/config/config.h` build list
 3. Compile and run unit tests
 4. Target: No behavior changes, identical output to old resolvers
 

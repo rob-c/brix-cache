@@ -317,7 +317,7 @@ cleaner. The same two-line block needs to be inserted in:
 
 The `xrootd_count_path_depth` function already exists in
 `src/path/helpers.c:128` and `XROOTD_MAX_WALK_DEPTH` is defined in
-`src/types/tunables.h:36`.
+`src/core/types/tunables.h:36`.
 
 ### Tests
 

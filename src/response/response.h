@@ -1,8 +1,8 @@
 #ifndef XROOTD_RESPONSE_H
 #define XROOTD_RESPONSE_H
 
-#include "ngx_xrootd_module.h"
-#include "compat/pgio.h"   /* xrdp_pg_bad_t */
+#include "core/ngx_xrootd_module.h"
+#include "core/compat/pgio.h"   /* xrdp_pg_bad_t */
 
 /* Fill an 8-byte ServerResponseHdr in-place (all fields big-endian). */
 void xrootd_build_resp_hdr(const u_char *streamid, uint16_t status,

@@ -22,7 +22,7 @@ and removes whatever costs the data exposes.
 ### Stage 1 — Instrument & measure (this spec's deliverable, low risk, no behavior change)
 
 1. **Permanent, low-overhead phase logging** baked into the module. A shared
-   monotonic-clock + phase-accumulator helper (`src/compat/lifecycle_timing.{c,h}`)
+   monotonic-clock + phase-accumulator helper (`src/core/compat/lifecycle_timing.{c,h}`)
    emits **one summary line per lifecycle event**, e.g. at the end of per-worker
    `init_process`:
    `xrootd startup[w0]: uring=Xms servers=Yms gsi_keypool=Zms total=Wms`
@@ -77,7 +77,7 @@ Only fixes the data justifies. Pre-identified candidates (not commitments):
 
 ## Results (Stage 1 + Stage 2 — implemented)
 
-**Stage 1 (instrumentation):** `src/compat/lifecycle_timing.{c,h}` emits one NOTICE
+**Stage 1 (instrumentation):** `src/core/compat/lifecycle_timing.{c,h}` emits one NOTICE
 line per lifecycle event; `tests/profile_lifecycle.sh` self-provisions and reports
 cold-start / reload / respawn / shutdown plus the parsed phase breakdown.
 

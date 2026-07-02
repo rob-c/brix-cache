@@ -30,7 +30,7 @@
  *       fallback) and replying with xrootd_send_ok.
  */
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "upstream/upstream.h"
 #include "path/op_path.h"
 #include "manager/registry.h"

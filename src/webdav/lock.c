@@ -14,8 +14,8 @@
 #include "fs/vfs.h"   /* lock-DB namespace ops via the VFS seam */
 #include "impersonate/lifecycle.h"
 #include "webdav/locks/request.h"
-#include "compat/http_xml.h"
-#include "compat/fs_walk.h"
+#include "core/compat/http_xml.h"
+#include "core/compat/fs_walk.h"
 
 #include <openssl/crypto.h>
 #include <openssl/rand.h>

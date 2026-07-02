@@ -130,14 +130,14 @@ The directory walk is bounded by `xrootd_ckscan_depth` (default 32) and
 `xrootd_ckscan_max_files` (default 100000). The response buffer starts at
 256 KiB and grows with `ngx_alloc` as needed.
 
-**Thread pool dispatch** (`src/aio/` pattern)
+**Thread pool dispatch** (`src/core/aio/` pattern)
 
 Ckscan can take seconds on a large directory. It uses `ngx_thread_task_alloc`
 and `xrootd_aio_post_task` to move the file-walking loop off the event loop
 when a stream thread pool is configured. The completion callback queues the
 pre-built response back on the worker.
 
-**`src/types/config.h` / `src/stream/module.c`**
+**`src/core/types/config.h` / `src/stream/module.c`**
 
 Added `xrootd_ckscan_depth` (default 32) and `xrootd_ckscan_max_files`
 (default 100000) to bound runaway scans.
@@ -271,7 +271,7 @@ Important level behavior:
 
 ### Changed files
 
-- `src/types/config.h`, `src/config/server_conf.c`, `src/stream/module.c`
+- `src/core/types/config.h`, `src/core/config/server_conf.c`, `src/stream/module.c`
   carry and parse `security_level`.
 - `src/protocol/flags.h` defines `kXR_secOData` / `kXR_secOFrce`.
 - `src/session/protocol.c` appends the `ServerResponseReqs_Protocol` trailer.

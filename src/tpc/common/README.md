@@ -189,7 +189,7 @@ descriptor used to scope the shared-memory zone.
   `config` source list — both the stream and HTTP `NGX_ADDON_SRCS`/`DEPS` blocks
   reference `src/tpc/common/*` (`config:115-119`, `:218-222`, `:327-331`,
   `:671-672`). Adding a new `.c` here requires editing the top-level `config`,
-  not `src/config/config.h`.
+  not `src/core/config/config.h`.
 
 ## Entry points / extending
 

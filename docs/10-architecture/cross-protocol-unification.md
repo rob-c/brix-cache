@@ -43,7 +43,7 @@ shared helpers.
 ┌────────────────────────────▼───────────────────────────────────────┐
 │                    Shared infrastructure layer                      │
 │                                                                    │
-│  src/compat/path.c      xrootd_http_resolve_path()  [HTTP+S3]     │
+│  src/core/compat/path.c      xrootd_http_resolve_path()  [HTTP+S3]     │
 │  src/path/              xrootd_resolve_path_*()     [stream]      │
 │  src/token/             JWT validate + scope check  [all]         │
 │  src/crypto/            OCSP + PKI load             [all]         │
@@ -51,16 +51,16 @@ shared helpers.
 │  src/metrics/tracking.c VO/user activity accounting [all]         │
 │  src/tpc/key_registry.c SHM TPC key table           [stream+webdav]│
 │  src/session/registry.h bind session table          [stream]       │
-│  src/compat/crc32c.c    CRC32c for pgread/pgwrite   [stream]      │
-│  src/compat/checksum.c  file checksums/digests      [stream+HTTP] │
-│  src/compat/range.c     HTTP Range header parse     [webdav+s3]   │
-│  src/compat/uri.c       percent-decode              [webdav+s3]   │
-│  src/compat/etag.c      ETag generation             [webdav+s3]   │
-│  src/compat/http_*.c    headers/body/conditions     [webdav+s3]   │
-│  src/compat/fs_walk.c   dot-entry/remove-tree       [webdav+s3+query] │
-│  src/compat/staged_file temp open/commit/abort      [webdav+s3]   │
+│  src/core/compat/crc32c.c    CRC32c for pgread/pgwrite   [stream]      │
+│  src/core/compat/checksum.c  file checksums/digests      [stream+HTTP] │
+│  src/core/compat/range.c     HTTP Range header parse     [webdav+s3]   │
+│  src/core/compat/uri.c       percent-decode              [webdav+s3]   │
+│  src/core/compat/etag.c      ETag generation             [webdav+s3]   │
+│  src/core/compat/http_*.c    headers/body/conditions     [webdav+s3]   │
+│  src/core/compat/fs_walk.c   dot-entry/remove-tree       [webdav+s3+query] │
+│  src/core/compat/staged_file temp open/commit/abort      [webdav+s3]   │
 │  src/cms/frame_io.c     CMS send-all + frame build  [cms paths]   │
-│  src/compat/xml.c       minimal XML scanner         [webdav]      │
+│  src/core/compat/xml.c       minimal XML scanner         [webdav]      │
 └────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -83,7 +83,7 @@ call site. Full detail in [`src/fs/README.md`](../../src/fs/README.md),
 [`src/fs/backend/README.md`](../../src/fs/backend/README.md), and the
 [architecture overview](overview.md#the-data-plane-one-path-for-every-byte-proto--vfs--posix).
 
-### Path resolution (`src/compat/path.c`)
+### Path resolution (`src/core/compat/path.c`)
 
 `xrootd_http_resolve_path()` is a pure-C function (no nginx headers) that is the single
 path-resolution implementation for both WebDAV and S3:
@@ -97,7 +97,7 @@ ngx_http_xrootd_webdav_resolve_path()      src/webdav/path.c
     │  strips trailing slashes
     ▼
 xrootd_http_resolve_path(root_canon, decoded, out, outsz)
-    │                                        src/compat/path.c
+    │                                        src/core/compat/path.c
     │  1. reject "." / ".." components
     │  2. snprintf(root_canon + decoded_path) → candidate
     │  3. realpath(candidate) → resolved
@@ -235,7 +235,7 @@ Worker B: xrootd_tpc_key_lookup()      src/tpc/key_registry.c
 WebDAV TPC (`src/webdav/tpc.c` + `tpc_curl.c`) is an entirely separate implementation using
 libcurl rather than the key registry — the two TPC mechanisms are not currently unified.
 
-### Compat utilities (`src/compat/`)
+### Compat utilities (`src/core/compat/`)
 
 | File | Exports | Used by |
 |------|---------|---------|
@@ -260,7 +260,7 @@ libcurl rather than the key registry — the two TPC mechanisms are not currentl
 
 ---
 
-### Temp-file staging (`src/compat/staged_file.c`)
+### Temp-file staging (`src/core/compat/staged_file.c`)
 
 Every write operation that produces a file atomically (a write-then-rename pattern) goes through
 the shared staged-file lifecycle.  This consolidation exists primarily for security: each of the
@@ -330,25 +330,25 @@ HTTP and token-adjacent helpers.
 
 | Area | Shared helper | Callers now using it |
 |------|---------------|----------------------|
-| Blocking writes | `src/compat/io.c` | WebDAV PUT/COPY spooled writes, S3 PUT body writes |
+| Blocking writes | `src/core/compat/io.c` | WebDAV PUT/COPY spooled writes, S3 PUT body writes |
 | HTTP status classes | `src/metrics/http_common.h` | WebDAV metrics, S3 metrics |
 | GSI verification core | `src/crypto/gsi_verify.c` | stream GSI auth, WebDAV client-cert auth |
-| Server-side local copy | `src/compat/copy_range.c` | stream clone/checkpoint, WebDAV COPY, S3 CopyObject |
-| HTTP file/range response | `src/compat/http_file_response.c` | WebDAV GET, S3 GET |
-| HTTP query params | `src/compat/http_query.c` | XrdHttp, S3 list/multipart helpers |
-| XML chain/send helpers | `src/compat/http_xml.c` | WebDAV PROPFIND wrapper, S3 XML errors |
-| HTTP request/response headers | `src/compat/http_headers.c` | WebDAV TPC/CORS, S3 SigV4/CopyObject/util headers |
-| HTTP request bodies | `src/compat/http_body.c` | WebDAV PUT/PROPFIND, S3 PUT/DeleteObjects |
-| HTTP conditionals | `src/compat/http_conditionals.c` | WebDAV GET/PUT/COPY/MOVE |
-| File checksum algorithms | `src/compat/checksum.c` | native Qcksum/Qckscan, dirlist dcksm, XrdHttp Digest |
-| Recursive filesystem mechanics | `src/compat/fs_walk.c` | WebDAV DELETE/access checks, S3 multipart cleanup, Qckscan/PROPFIND dot filtering |
-| Staged temp-file lifecycle | `src/compat/staged_file.c` | S3 PUT/CopyObject, WebDAV file COPY, WebDAV TPC pull |
+| Server-side local copy | `src/core/compat/copy_range.c` | stream clone/checkpoint, WebDAV COPY, S3 CopyObject |
+| HTTP file/range response | `src/core/compat/http_file_response.c` | WebDAV GET, S3 GET |
+| HTTP query params | `src/core/compat/http_query.c` | XrdHttp, S3 list/multipart helpers |
+| XML chain/send helpers | `src/core/compat/http_xml.c` | WebDAV PROPFIND wrapper, S3 XML errors |
+| HTTP request/response headers | `src/core/compat/http_headers.c` | WebDAV TPC/CORS, S3 SigV4/CopyObject/util headers |
+| HTTP request bodies | `src/core/compat/http_body.c` | WebDAV PUT/PROPFIND, S3 PUT/DeleteObjects |
+| HTTP conditionals | `src/core/compat/http_conditionals.c` | WebDAV GET/PUT/COPY/MOVE |
+| File checksum algorithms | `src/core/compat/checksum.c` | native Qcksum/Qckscan, dirlist dcksm, XrdHttp Digest |
+| Recursive filesystem mechanics | `src/core/compat/fs_walk.c` | WebDAV DELETE/access checks, S3 multipart cleanup, Qckscan/PROPFIND dot filtering |
+| Staged temp-file lifecycle | `src/core/compat/staged_file.c` | S3 PUT/CopyObject, WebDAV file COPY, WebDAV TPC pull |
 | CMS frame sending | `src/cms/frame_io.c` | CMS client send path, CMS server send path |
 | Base64url | `src/token/b64url.c` | JWT/macaroons, S3 continuation tokens |
 | Token files | `src/token/file.c` | upstream redirector auth, native TPC outbound auth |
 | OAuth2 token JSON | `src/token/oauth2.c` | native TPC token fetch, WebDAV TPC credential parsing |
-| Filesystem usage | `src/compat/fs_usage.c` | native query, cache metrics, WebDAV quota props |
-| SHM slot bookkeeping | `src/compat/shm_slots.h` | pending locate, TPC key registry |
+| Filesystem usage | `src/core/compat/fs_usage.c` | native query, cache metrics, WebDAV quota props |
+| SHM slot bookkeeping | `src/core/compat/shm_slots.h` | pending locate, TPC key registry |
 
 The main deliberate non-goals are still protocol-policy boundaries: S3 SigV4 stays separate
 from WLCG bearer-token validation, native TPC stays separate from curl-based WebDAV TPC, and
@@ -369,16 +369,16 @@ conflict rules, and side effects while locked.
 
 A third candidate is AIO completion boilerplate. The blocking work itself is operation-specific,
 but destroyed-connection checks, errno-to-response mapping, byte counters, and resume logic still
-repeat across several `src/aio/` handlers.
+repeat across several `src/core/aio/` handlers.
 
 ---
 
 ## Why the path engines stay separate
 
-`src/compat/path.c` (HTTP) and `src/path/` (stream) look similar but serve fundamentally
+`src/core/compat/path.c` (HTTP) and `src/path/` (stream) look similar but serve fundamentally
 different callers:
 
-| Dimension | `src/compat/path.c` | `src/path/` |
+| Dimension | `src/core/compat/path.c` | `src/path/` |
 |-----------|---------------------|-------------|
 | Input | Decoded URI string | Wire reqpath + open fd handle |
 | ENOENT strategy | Walk ancestor, append suffix | Segment-by-segment with depth counter |
@@ -388,7 +388,7 @@ different callers:
 | Caller type | HTTP handler (thread/event) | Stream dispatch (event loop) |
 
 Merging them would add branching complexity that exceeds the benefit. The correct abstraction
-is the one already in place: `src/compat/path.c` is the shared HTTP engine; `src/path/` is
+is the one already in place: `src/core/compat/path.c` is the shared HTTP engine; `src/path/` is
 the stream engine. Both enforce the same invariant (confined to root, no `..`) by different
 mechanisms appropriate to their callers.
 
@@ -405,9 +405,9 @@ consolidations is that security-sensitive mechanics now have one implementation 
 - Malformed OAuth2 JSON is parsed by Jansson-backed `src/token/oauth2.c`, not by ad-hoc
   quote scanners in each protocol.
 - NUL and percent-decoding behavior for HTTP query values is controlled by
-  `src/compat/http_query.c` flags at each call site.
+  `src/core/compat/http_query.c` flags at each call site.
 - Symlink and TOCTOU defenses for atomic file creation are enforced once in
-  `src/compat/staged_file.c`; all four write-then-rename callers inherit them
+  `src/core/compat/staged_file.c`; all four write-then-rename callers inherit them
   automatically (see [code-audit-findings-3.md](../07-security/code-audit-findings-3.md)).
 
 ---
@@ -418,5 +418,5 @@ consolidations is that security-sensitive mechanics now have one implementation 
 - [WebDAV architecture](webdav.md) — method routing, TPC, GSI auth cache
 - [S3 architecture](s3.md) — SigV4, multipart staging
 - `src/metrics/metrics.h` — shared-memory counter layout
-- `src/compat/path.h` — path resolver API contract
+- `src/core/compat/path.h` — path resolver API contract
 - `src/token/token.h` — JWT validation public API

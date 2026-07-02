@@ -21,7 +21,7 @@ Three patterns are pervasive enough to warrant centralised helpers at this phase
 
 ### Pattern A: Unified op result builder
 
-Every handler terminates in one of these two macros (defined in `src/compat/op_result.h` or equivalent):
+Every handler terminates in one of these two macros (defined in `src/core/compat/op_result.h` or equivalent):
 
 ```c
 XROOTD_RETURN_OK(ctx, c, XROOTD_OP_CHMOD, "CHMOD", resolved, "-", 0);
@@ -33,7 +33,7 @@ These already exist.  What does NOT exist is a single place to check: "did this 
 
 ### Pattern B: errno-to-kXR mapping gaps
 
-`src/compat/error_mapping.h` already exports `xrootd_kxr_from_errno(err)`.  But 15+ handlers still hand-roll the mapping inline:
+`src/core/compat/error_mapping.h` already exports `xrootd_kxr_from_errno(err)`.  But 15+ handlers still hand-roll the mapping inline:
 
 ```c
 /* Repeated literally in chmod.c, mkdir.c, truncate.c, mv.c, ... */
@@ -71,7 +71,7 @@ Phase 1 adds an `XROOTD_HTTP_ALLOC(r, ptr, type)` macro that expands to this pat
 
 ## New Files
 
-### `src/compat/err_strings.h` (new, header-only)
+### `src/core/compat/err_strings.h` (new, header-only)
 
 ```c
 /*
@@ -100,7 +100,7 @@ xrootd_kxr_err_string(int err)
 
 **Rationale:** `strerror(EACCES)` returns "Permission denied" (capital P) on Linux, but conformance tests assert lowercase "permission denied".  Centralising avoids any future case/format drift.
 
-### `src/compat/alloc_macros.h` (new, header-only)
+### `src/core/compat/alloc_macros.h` (new, header-only)
 
 ```c
 /*
@@ -143,9 +143,9 @@ No existing `.c` files change in Phase 1.  Only additions:
 
 | File | Change |
 |---|---|
-| `src/compat/err_strings.h` | NEW — 35 LoC |
-| `src/compat/alloc_macros.h` | NEW — 40 LoC |
-| `src/ngx_xrootd_module.h` | Add `#include` for both new headers |
+| `src/core/compat/err_strings.h` | NEW — 35 LoC |
+| `src/core/compat/alloc_macros.h` | NEW — 40 LoC |
+| `src/core/ngx_xrootd_module.h` | Add `#include` for both new headers |
 
 **Net LoC delta for Phase 1 itself:** +75 (new infrastructure).  The −300 reduction happens in Phases 2–6 as handlers adopt these helpers.
 

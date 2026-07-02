@@ -307,7 +307,7 @@ the AES key is the first *keylen* bytes of the DH secret either way.
 
 ### 9c. Configurability — `xrootd_gsi_signed_dh off|auto|require`
 A stream `server{}` directive (`src/stream/module.c`,
-`src/types/config.h` `gsi_signed_dh`):
+`src/core/types/config.h` `gsi_signed_dh`):
 - `off` (default) — always emit unsigned `kXRS_puk`; advertise `v:10000`.
   Interoperates with every official client.
 - `auto` — advertise `v:10600`; sign for clients whose certreq `kXRS_version`

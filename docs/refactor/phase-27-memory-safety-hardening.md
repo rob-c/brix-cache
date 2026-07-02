@@ -106,8 +106,8 @@ Ordered low-risk-infra-first so later, riskier edits land on top of detection.
 
 ### W1 — Checked size arithmetic (foundation)
 
-New header `src/shared/safe_size.h` (header-only, registered in
-`src/config/config.h` includes):
+New header `src/core/compat/safe_size.h` (header-only, registered in
+`src/core/config/config.h` includes):
 
 ```c
 /* Returns 0 and *out=product on success; non-zero on overflow. */
@@ -223,7 +223,7 @@ Heuristic, not sound — its job is to make the *next* F1/F2 visible in review.
 
 | File | Purpose | Registered in |
 |---|---|---|
-| `src/shared/safe_size.h` | overflow-checked size math + array alloc (W1) | `config.h` includes |
+| `src/core/compat/safe_size.h` | overflow-checked size math + array alloc (W1) | `config.h` includes |
 | `src/crypto/scoped.h` | OpenSSL handle destroyers + cleanup idiom (W3) | `config.h` includes |
 | `tests/fuzz/*.c` + `tests/fuzz/README.md` | libFuzzer targets + corpus (W7) | standalone, not in module |
 | `tests/lint_alloc.sh` | alloc/free invariant lint (W8) | CI |
@@ -318,7 +318,7 @@ capped + overflow-checked:
 - `src/proxy/forward_relay_dispatch.c:136`, `forward_rewrite_helpers.c:61,139`
   — `ngx_alloc(total/new_total)` *(verify `XROOTD_PROXY_MAX_BODY`)*
 - `src/webdav/dead_props.c:129,285,321` — XML len-derived *(verify cap)*
-- `src/compat/namespace_ops.c:114` — `list_len` *(verify source)*
+- `src/core/compat/namespace_ops.c:114` — `list_len` *(verify source)*
 - `src/cache/evict_candidates.c:231,237,251` — `realloc` growth *(F9)*
 - `src/tpc/gsi_outbound_exchange.c:222,271,335,404,439` — exchange buffers *(F2)*
 - `src/s3/copy.c:41`, `src/crypto/ocsp.c:524`, `src/write/chkpoint*.c:84,86`
@@ -333,5 +333,5 @@ capped + overflow-checked:
   verify `curl_easy_cleanup` + `curl_slist_free_all` on all returns).
 - jansson: `src/dashboard`, `src/token`, `src/metrics`, `src/query`, `src/s3`,
   `src/gsi` — 10 files; audit borrowed-vs-owned refs.
-- File descriptors: `src/connection/fd_table.c` (F10), `src/compat/staged_file.c`,
+- File descriptors: `src/connection/fd_table.c` (F10), `src/core/compat/staged_file.c`,
   `src/cache`, `src/tpc/io.c`.

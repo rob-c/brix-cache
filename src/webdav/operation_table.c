@@ -11,7 +11,7 @@
  */
 
 #include "webdav.h"
-#include "compat/protocol_caps.h"
+#include "core/compat/protocol_caps.h"
 #include "metrics/metrics.h"
 
 

@@ -70,7 +70,7 @@ These pathways provide interoperability with larger XRootD clusters and optimize
 
 ### C. Advanced I/O (AIO & Page-based)
 - **Logic Flow**:
-  1. `src/aio/`: Offloads blocking I/O to nginx thread pools.
+  1. `src/core/aio/`: Offloads blocking I/O to nginx thread pools.
   2. `src/read/pgread.c` / `src/write/pgwrite.c`: Handles page-aligned transfers with in-wire CRC32c checksumming for data integrity.
   3. `src/read/readv.c` / `src/write/writev.c`: Vectorized I/O for scatter/gather operations.
 

@@ -14,7 +14,7 @@ danger is mis-ordering the macro arguments
 
 ## Background
 
-Two collapse macros were added to `src/types/tunables.h` (lines 142–156) but
+Two collapse macros were added to `src/core/types/tunables.h` (lines 142–156) but
 have not been applied consistently:
 
 ```c
@@ -44,7 +44,7 @@ Net after new macro declarations (~15 LoC): **~430 LoC gross − 15 LoC = ~415 L
 Three structurally different patterns share surface similarity but must be left
 as-is:
 
-**AIO/TPC callback pattern** (`src/aio/write.c`, `src/aio/dirlist.c`,
+**AIO/TPC callback pattern** (`src/core/aio/write.c`, `src/core/aio/dirlist.c`,
 `src/tpc/done.c`, `src/cache/thread.c`, `src/cache/writethrough_flush.c` —
 ~30 instances):
 
@@ -69,7 +69,7 @@ unconditionally before the actual response is decided later in the flow.
 
 ---
 
-## Change A — two new macros in `src/types/tunables.h`
+## Change A — two new macros in `src/core/types/tunables.h`
 
 Add immediately after the existing `XROOTD_RETURN_ERR` block (after line 156):
 
@@ -316,7 +316,7 @@ call is the ground truth — copy the strings exactly.
 All changes are sequential by file; do not edit two files in parallel since
 the pattern verification is per-file.
 
-1. **Add macros to `src/types/tunables.h`** (Change A). Build once to confirm
+1. **Add macros to `src/core/types/tunables.h`** (Change A). Build once to confirm
    they compile cleanly: `make -j$(nproc)`.
 
 2. **Apply by file, heaviest first** (Change B).  For each file:

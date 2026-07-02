@@ -1,4 +1,4 @@
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include <netinet/tcp.h>   /* Phase 39: TCP_USER_TIMEOUT / TCP_KEEPIDLE etc. */
 #include "netopt.h"        /* Phase 50: shared dead-peer setsockopt helper */
 #include "relay/relay.h"   /* transparent pass-through relay engage */

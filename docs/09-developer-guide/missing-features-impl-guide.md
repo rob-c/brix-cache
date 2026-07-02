@@ -77,10 +77,10 @@ credential gaps from the transparent-upstream bootstrap code.
   flag and calls `xrootd_upstream_start_tls()` instead of aborting.
 - `src/upstream/upstream_internal.h` — added `XRD_UP_BS_TLS` phase and
   `xrootd_upstream_build_login()` declaration.
-- `src/types/config.h` — `upstream_tls`, `upstream_tls_ca`, `upstream_tls_name`,
+- `src/core/types/config.h` — `upstream_tls`, `upstream_tls_ca`, `upstream_tls_name`,
   `upstream_tls_ctx` fields.
-- `src/config/server_conf.c` — init + merge for new upstream TLS fields.
-- `src/config/runtime_server.c` — builds `upstream_tls_ctx` SSL_CTX at
+- `src/core/config/server_conf.c` — init + merge for new upstream TLS fields.
+- `src/core/config/runtime_server.c` — builds `upstream_tls_ctx` SSL_CTX at
   postconfiguration when `xrootd_upstream_tls on`.
 - `src/stream/module.c` — `xrootd_upstream_tls`, `xrootd_upstream_tls_ca`,
   `xrootd_upstream_tls_name` directives.
@@ -119,8 +119,8 @@ the client.
   accepts or rejects the server's reply.
 - `src/upstream/upstream_internal.h` — added `XRD_UP_BS_AUTH` phase and
   `authmore_count` field (prevents infinite auth loops).
-- `src/types/config.h` — `upstream_token_file` field.
-- `src/config/server_conf.c` — init + merge for `upstream_token_file`.
+- `src/core/types/config.h` — `upstream_token_file` field.
+- `src/core/config/server_conf.c` — init + merge for `upstream_token_file`.
 - `src/stream/module.c` — `xrootd_upstream_token_file` directive.
 
 **Configuration:**
@@ -197,7 +197,7 @@ deployments use the durable queue and Tape REST gateway described in
 - `src/query/prepare_cmd.c` — `xrootd_prepare_invoke_command()`: `fork()+execv()` fire-and-forget launcher
 - `src/query/prepare.c` — `xrootd_handle_prepare()`: path collection + command dispatch
 - `src/query/query_internal.h` — `XROOTD_PREPARE_CMD_MAX_PATHS 512` constant
-- `src/types/config.h` — `prepare_command` field (`ngx_str_t`)
+- `src/core/types/config.h` — `prepare_command` field (`ngx_str_t`)
 - `src/stream/module.c` — `xrootd_prepare_command` directive registration
 
 **Wire behaviour:**
@@ -206,7 +206,7 @@ deployments use the durable queue and Tape REST gateway described in
 - `kXR_cancel` or `kXR_evict` → no-op returns `kXR_ok` immediately; command is never invoked.
 - Command launch failure is logged at `NGX_LOG_ERR` but does NOT fail the client response.
 
-**Config field** (in `src/types/config.h`):
+**Config field** (in `src/core/types/config.h`):
 ```c
 ngx_str_t  prepare_command;   /* shell command for kXR_stage recall */
 ```
@@ -253,7 +253,7 @@ def test_stage_cancel_skips_command():
 **Status:** ✅ IMPLEMENTED — mtime-poll hot refresh via `xrootd_token_jwks_refresh_interval` directive  
 **Impact:** High for unattended production — WLCG IAM key rotation (≤24 h) causes token auth failures without operator intervention  
 **Effort:** 3–5 days  
-**Implemented in:** `src/token/refresh.c` (new), `src/types/config.h`, `src/config/server_conf.c`, `src/token/config.c`, `src/config/config.h`, `src/stream/module_core_directives.c`, `src/config/process.c`, `config`  
+**Implemented in:** `src/token/refresh.c` (new), `src/core/types/config.h`, `src/core/config/server_conf.c`, `src/token/config.c`, `src/core/config/config.h`, `src/stream/module_core_directives.c`, `src/core/config/process.c`, `config`  
 **Tests:** `tests/test_token_jwks_refresh.py`
 
 ### Problem
@@ -275,9 +275,9 @@ with file-based JWKS (fetched by a cron job or cert-manager sidecar).
 **Files:**
 - `src/token/refresh.c` (new) — `xrootd_token_jwks_schedule_refresh()`
 - `src/token/token.h` — add `time_t jwks_mtime` to `xrootd_jwks_state_t`
-- `src/config/config.h` — add `ngx_msec_t token_jwks_refresh_interval`
+- `src/core/config/config.h` — add `ngx_msec_t token_jwks_refresh_interval`
   (default 60 000 ms)
-- `src/config/directives.c` — add `xrootd_token_jwks_refresh_interval`
+- `src/core/config/directives.c` — add `xrootd_token_jwks_refresh_interval`
   directive (milliseconds)
 - Worker init: call `xrootd_token_jwks_schedule_refresh()` after config merge
 
@@ -621,7 +621,7 @@ New coverage in `tests/test_s3_presigned.py`:
 The codebase now contains the write-through configuration surface, write
 bookkeeping, and origin flush path needed for cache gateway deployments:
 
-- `src/types/config.h`, `src/cache/directives.c`, and `src/stream/module.c`
+- `src/core/types/config.h`, `src/cache/directives.c`, and `src/stream/module.c`
   define `xrootd_write_through`, `xrootd_wt_mode`, `xrootd_wt_origin`,
   `xrootd_wt_deny_prefix`, and `xrootd_wt_allow_prefix`.
 - `src/cache/writethrough_decision.c` evaluates prefix/size policy at
@@ -651,10 +651,10 @@ close remains fail-open while logging WT errors.
 
 | Phase | Files | What |
 |---|---|---|
-| 1 | `src/types/file.h`, `src/types/config.h` | ✅ Config and handle WT state |
+| 1 | `src/core/types/file.h`, `src/core/types/config.h` | ✅ Config and handle WT state |
 | 2 | `src/cache/origin_protocol.c` | ✅ Origin write-open, write, truncate, sync, close |
 | 3 | `src/read/open_resolved_file.c` | ✅ Open-time WT policy cached on the handle |
-| 4 | `src/aio/`, `src/write/*.c` | ✅ Dirty tracking for write, pgwrite, writev, truncate |
+| 4 | `src/core/aio/`, `src/write/*.c` | ✅ Dirty tracking for write, pgwrite, writev, truncate |
 | 5 | `src/cache/writethrough_flush.c`, `src/read/close.c`, `src/write/sync.c` | ✅ Close/sync origin flush |
 
 **Remaining limitations:** the origin path must resolve under `xrootd_root` or
@@ -711,7 +711,7 @@ validation pipeline:
 ### 8c. Authdb `HOST` (`p`) identity type
 
 **Status:** ✅ IMPLEMENTED — exact IP and CIDR host matching  
-**Implemented in:** `src/types/context.h`, `src/connection/handler.c`, `src/path/authdb.c`  
+**Implemented in:** `src/core/types/context.h`, `src/connection/handler.c`, `src/path/authdb.c`  
 **Tests:** `tests/test_authdb.py::test_host_rule_exact_peer_read`, `test_host_rule_cidr_peer_read`, `test_host_rule_nonmatching_peer_denied`
 
 `p` rules in the authdb file now match the remote peer address recorded at

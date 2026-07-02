@@ -38,14 +38,14 @@ CLIENT_BINARIES = ["xrdcp", "xrdfs", "xrootdfs"]
 PHASE42_SOURCES = [
     "src/read/read_compress.c",
     "src/write/write_compress.c",
-    "src/compat/codec_core.c",
-    "src/compat/codec_zlib.c",
-    "src/compat/codec_zstd.c",
-    "src/compat/codec_lzma.c",
-    "src/compat/codec_brotli.c",
-    "src/compat/codec_bzip2.c",
-    "src/compat/codec_lz4.c",
-    "src/compat/http_compress.c",
+    "src/core/compat/codec_core.c",
+    "src/core/compat/codec_zlib.c",
+    "src/core/compat/codec_zstd.c",
+    "src/core/compat/codec_lzma.c",
+    "src/core/compat/codec_brotli.c",
+    "src/core/compat/codec_bzip2.c",
+    "src/core/compat/codec_lz4.c",
+    "src/core/compat/http_compress.c",
     "client/lib/zip.c",
 ]
 

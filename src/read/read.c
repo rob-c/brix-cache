@@ -8,7 +8,7 @@
 #include "zip/zip_member.h"   /* phase-57 W2: ZIP member read dispatch */
 #include "ssi/ssi.h"          /* §7: SSI handle read dispatch */
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "connection/budget.h"
 #include "prefetch.h"
 

@@ -163,7 +163,7 @@ byte-for-byte unchanged (existing cache pytest + `run_pblock_writethrough.sh` +
 ## Files touched (high level)
 
 - `src/cache/cache_storage.{c,h}` (new) — the three role instances + resolution.
-- `src/cache/directives.c`/`module.c`/`src/types/config.h`/`server_conf.c` —
+- `src/cache/directives.c`/`module.c`/`src/core/types/config.h`/`server_conf.c` —
   `xrootd_cache_storage_backend`, `xrootd_cache_wt_stage_backend`,
   `xrootd_cache_wt_stage_root`; state-root validation.
 - `src/cache/fetch.c` — `staged_*` fill + sink + commit-then-verify.

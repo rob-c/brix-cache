@@ -3,8 +3,8 @@
 /* WHY:  The CMS heartbeat subsystem needs a TCP endpoint to send periodic load/avail reports */
 /*       and receive locate redirects from the central CMS manager node. */
 
-#include "config/config.h"
-#include "compat/alloc_guard.h"
+#include "core/config/config.h"
+#include "core/compat/alloc_guard.h"
 
 char *
 xrootd_conf_set_cms_manager(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)

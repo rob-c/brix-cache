@@ -18,7 +18,7 @@ The nginx-xrootd module implements three distinct protocols — XRootD (`root://
           │ wire-path        │ URI-decode       │ key-strip   protocol-specific
           ▼ extract          ▼                  ▼ bucket      pre-processing
    ┌──────────────────────────────────────────────────────┐
-   │  SHARED CORE                                          │  src/compat/, src/path/
+   │  SHARED CORE                                          │  src/core/compat/, src/path/
    │  token validate · scope check · confined ns ops       │  src/token/, src/metrics/
    │  path resolve · error map (errno→kXR / →HTTP)         │
    │  HTTP file response · range · ETag · XML · fs_walk     │  ← WebDAV+S3 reuse
@@ -76,28 +76,28 @@ All three protocols use the same confined filesystem operations from `src/path/`
 
 | Function | File | Used By |
 |---|---|---|
-| `xrootd_ns_local_copy()` | `src/compat/namespace_ops.c` | WebDAV, S3 |
-| `xrootd_ns_delete()` | `src/compat/namespace_ops.c` | WebDAV, S3 |
+| `xrootd_ns_local_copy()` | `src/core/compat/namespace_ops.c` | WebDAV, S3 |
+| `xrootd_ns_delete()` | `src/core/compat/namespace_ops.c` | WebDAV, S3 |
 
-**Current state:** WebDAV and S3 both use the same namespace copy/delete helpers from `src/compat/`. These implement `copy_file_range` with read/write fallback for local transfers. Stream protocol has native TPC via SHM key registry (`src/tpc/`) but could also benefit from these simpler local-copy helpers for non-TPC intra-root moves.
+**Current state:** WebDAV and S3 both use the same namespace copy/delete helpers from `src/core/compat/`. These implement `copy_file_range` with read/write fallback for local transfers. Stream protocol has native TPC via SHM key registry (`src/tpc/`) but could also benefit from these simpler local-copy helpers for non-TPC intra-root moves.
 
 ### 1.4 HTTP Response Building (WebDAV + S3)
 
-All three functions in `src/compat/http_file_response.c` are shared between WebDAV and S3:
+All three functions in `src/core/compat/http_file_response.c` are shared between WebDAV and S3:
 
 | Function | File | Used By |
 |---|---|---|
-| `xrootd_http_send_file_range()` | `src/compat/http_file_response.c` | WebDAV GET, S3 GetObject |
-| `xrootd_http_add_etag_header()` | `src/compat/http_file_response.c` | WebDAV HEAD, S3 HeadObject |
-| `xrootd_http_parse_range()` / `xrootd_http_parse_range_vector()` | `src/compat/range.c`, `range_vector.c` | WebDAV GET, S3 GetObject (Range header) |
+| `xrootd_http_send_file_range()` | `src/core/compat/http_file_response.c` | WebDAV GET, S3 GetObject |
+| `xrootd_http_add_etag_header()` | `src/core/compat/http_file_response.c` | WebDAV HEAD, S3 HeadObject |
+| `xrootd_http_parse_range()` / `xrootd_http_parse_range_vector()` | `src/core/compat/range.c`, `range_vector.c` | WebDAV GET, S3 GetObject (Range header) |
 
-**Current state:** WebDAV and S3 share the same HTTP file response infrastructure — both build `ngx_chain_t` of `ngx_buf_t`, use sendfile for cleartext, memory-backed buffers for TLS. ETag generation via `xrootd_http_etag_str()` from mtime+size is shared in `src/compat/etag.c`.
+**Current state:** WebDAV and S3 share the same HTTP file response infrastructure — both build `ngx_chain_t` of `ngx_buf_t`, use sendfile for cleartext, memory-backed buffers for TLS. ETag generation via `xrootd_http_etag_str()` from mtime+size is shared in `src/core/compat/etag.c`.
 
 ### 1.5 XML Building (WebDAV + S3)
 
 | Function | File | Used By |
 |---|---|---|
-| `xrootd_xml_write_text_element()` | `src/compat/xml.c` | WebDAV PROPFIND, S3 ListObjectsV2, S3 multipart responses |
+| `xrootd_xml_write_text_element()` | `src/core/compat/xml.c` | WebDAV PROPFIND, S3 ListObjectsV2, S3 multipart responses |
 | `xrootd_http_xml_error_builder()` (via XML_APPEND macros) | `src/s3/s3.h`, `src/webdav/propfind.c` | S3 error responses, WebDAV PROPFIND |
 
 **Current state:** Both protocols share the same XML encoding helpers for escaping, element building, and error response generation.
@@ -106,7 +106,7 @@ All three functions in `src/compat/http_file_response.c` are shared between WebD
 
 | Function | File | Used By |
 |---|---|---|
-| `xrootd_fs_walk()` / `xrootd_fs_walk_dir()` | `src/compat/fs_walk.c` | WebDAV PROPFIND, S3 ListObjectsV2 |
+| `xrootd_fs_walk()` / `xrootd_fs_walk_dir()` | `src/core/compat/fs_walk.c` | WebDAV PROPFIND, S3 ListObjectsV2 |
 
 **Current state:** Recursive directory traversal with callback and depth tracking is shared between WebDAV (PROPFIND) and S3 (ListObjectsV2). Stream protocol uses its own dirlist handler in `src/dirlist/handler.c` but could benefit from this unified walk engine.
 
@@ -114,9 +114,9 @@ All three functions in `src/compat/http_file_response.c` are shared between WebD
 
 | Function | File | Used By |
 |---|---|---|
-| `xrootd_kxr_from_errno()` | `src/compat/error_mapping.c` | Stream (XRootD) |
-| `xrootd_http_errno_to_status()` | `src/compat/error_mapping.c` | WebDAV, S3 |
-| `xrootd_http_map_ns_status()` / `xrootd_http_map_errno()` | `src/compat/error_mapping.c` | WebDAV, S3 |
+| `xrootd_kxr_from_errno()` | `src/core/compat/error_mapping.c` | Stream (XRootD) |
+| `xrootd_http_errno_to_status()` | `src/core/compat/error_mapping.c` | WebDAV, S3 |
+| `xrootd_http_map_ns_status()` / `xrootd_http_map_errno()` | `src/core/compat/error_mapping.c` | WebDAV, S3 |
 
 **Current state:** Unified errno→kXR and errno→HTTP mapping consolidates three domains previously split across separate files. This is a well-designed shared layer.
 
@@ -135,7 +135,7 @@ typedef struct {
 } ngx_http_xrootd_shared_conf_t;
 ```
 
-**Current state:** `src/config/shared_conf.h` provides `ngx_http_xrootd_shared_init()`, `ngx_http_xrootd_shared_merge()`, and `ngx_http_xrootd_shared_merge_with_root()` inline helpers that consolidate the common enable/root/allow-write/thread-pool create+merge lifecycle. Stream, WebDAV/XrdHttp, and S3 all use the shared initializer and merge helper while preserving their protocol-specific root defaults.
+**Current state:** `src/core/config/shared_conf.h` provides `ngx_http_xrootd_shared_init()`, `ngx_http_xrootd_shared_merge()`, and `ngx_http_xrootd_shared_merge_with_root()` inline helpers that consolidate the common enable/root/allow-write/thread-pool create+merge lifecycle. Stream, WebDAV/XrdHttp, and S3 all use the shared initializer and merge helper while preserving their protocol-specific root defaults.
 
 ### 1.9 Metrics Infrastructure
 
@@ -149,8 +149,8 @@ typedef struct {
 
 | Function | File | Used By |
 |---|---|---|
-| HMAC-SHA256 (`EVP_MAC` operations) | `src/compat/crypto.c` | Stream (GSI sigver), S3 (SigV4 signing chain) |
-| CRC32c computation | `src/compat/crc32c.c` | Stream (pgread/pgwrite per-page CRC), WebDAV, S3 |
+| HMAC-SHA256 (`EVP_MAC` operations) | `src/core/compat/crypto.c` | Stream (GSI sigver), S3 (SigV4 signing chain) |
+| CRC32c computation | `src/core/compat/crc32c.c` | Stream (pgread/pgwrite per-page CRC), WebDAV, S3 |
 
 **Current state:** Shared crypto operations for HMAC-SHA256 and random nonce generation are used across protocols. CRC32c is shared between stream wire framing and HTTP protocol integrity checks.
 
@@ -172,10 +172,10 @@ These patterns are structurally similar but currently implemented separately. Un
 
 **Key differences:**
 - Stream: extracts path from wire payload, handles CGI suffix stripping via `xrootd_strip_cgi()`
-- WebDAV: URL-decodes HTTP URI → calls `xrootd_http_resolve_path()` (shared in `src/compat/path.c`)
+- WebDAV: URL-decodes HTTP URI → calls `xrootd_http_resolve_path()` (shared in `src/core/compat/path.c`)
 - S3: maps `s3://bucket/key` → filesystem path with bucket name as prefix, handles `$folder$` sentinel
 
-**Implemented:** The core logic — canonicalization + confinement check — now lives behind the protocol-neutral `xrootd_http_resolve_path()` entry point in `src/compat/path.c`. Protocol-specific pre-processing (wire extraction, URI decoding, bucket stripping) remains separate, and WebDAV/S3 call the shared resolver once they have a normalized path.
+**Implemented:** The core logic — canonicalization + confinement check — now lives behind the protocol-neutral `xrootd_http_resolve_path()` entry point in `src/core/compat/path.c`. Protocol-specific pre-processing (wire extraction, URI decoding, bucket stripping) remains separate, and WebDAV/S3 call the shared resolver once they have a normalized path.
 
 **Remaining expansion:** Stream still uses its dedicated wire-path resolver variants. A future cleanup can route any already-normalized stream paths through `xrootd_http_resolve_path()` once the stream-specific CGI stripping and protocol error mapping are kept intact.
 
@@ -216,15 +216,15 @@ location block. VOMS extraction is skipped when either directive is absent.
 ### 2.3 HTTP Body Write — Shared WebDAV/S3 Body Writer
 
 **Current state:** WebDAV and S3 PUT both route request-body writes through
-the shared body helpers in `src/compat/http_body.c`:
+the shared body helpers in `src/core/compat/http_body.c`:
 
 | Protocol | Function | File | Buffer Handling |
 |---|---|---|---|
-| WebDAV | `webdav_put_body_handler()` → async callback after body read | `src/webdav/put.c` | Uses `xrootd_http_body_write_buf()` from `src/compat/http_body.c` |
-| S3 | `s3_put_body_handler()` → async callback after body read | `src/s3/put.c` | Uses `xrootd_http_body_write_to_fd()` from `src/compat/http_body.c` |
+| WebDAV | `webdav_put_body_handler()` → async callback after body read | `src/webdav/put.c` | Uses `xrootd_http_body_write_buf()` from `src/core/compat/http_body.c` |
+| S3 | `s3_put_body_handler()` → async callback after body read | `src/s3/put.c` | Uses `xrootd_http_body_write_to_fd()` from `src/core/compat/http_body.c` |
 
 **Key differences:**
-- WebDAV: uses shared `xrootd_http_body_pwrite_full()` / `xrootd_http_body_write_buf()` helpers from `src/compat/http_body.c`
+- WebDAV: uses shared `xrootd_http_body_pwrite_full()` / `xrootd_http_body_write_buf()` helpers from `src/core/compat/http_body.c`
 - S3: uses `xrootd_http_body_write_to_fd()` so memory-backed and spooled request-body buffers follow the same write path as WebDAV
 
 **Implemented:** S3 no longer needs a private request-body chain iterator for
@@ -237,11 +237,11 @@ retry behavior for both WebDAV and S3.
 
 | Protocol | Function | File | Temp Pattern |
 |---|---|---|---|
-| S3 PUT | `xrootd_staged_open()` / `xrootd_staged_commit()` / `xrootd_staged_abort()` | `src/compat/staged_file.c` + used in `src/s3/put.c` | `.xrd-tmp.{pid}.{random}` |
-| WebDAV PUT | `xrootd_staged_open()` / `xrootd_staged_commit()` / `xrootd_staged_abort()` | `src/compat/staged_file.c` + used in `src/webdav/put.c` | `.xrd-tmp.{pid}.{random}` |
+| S3 PUT | `xrootd_staged_open()` / `xrootd_staged_commit()` / `xrootd_staged_abort()` | `src/core/compat/staged_file.c` + used in `src/s3/put.c` | `.xrd-tmp.{pid}.{random}` |
+| WebDAV PUT | `xrootd_staged_open()` / `xrootd_staged_commit()` / `xrootd_staged_abort()` | `src/core/compat/staged_file.c` + used in `src/webdav/put.c` | `.xrd-tmp.{pid}.{random}` |
 
 **Key differences:**
-- S3: uses shared `xrootd_staged_*()` helpers from `src/compat/staged_file.c` with 16-attempt retry loop
+- S3: uses shared `xrootd_staged_*()` helpers from `src/core/compat/staged_file.c` with 16-attempt retry loop
 - WebDAV: now shares the same staged temp-open/write/rename lifecycle
 
 **Implemented:** WebDAV PUT now uses the same staged file pattern as S3:
@@ -254,7 +254,7 @@ retain the replaced inode.
 
 ### 2.5 Range Header Parsing — Already Shared, Could Expand
 
-**Current state:** `xrootd_http_parse_range()` and `xrootd_http_parse_range_vector()` from `src/compat/range.c` are used by WebDAV GET and S3 GetObject for HTTP Range header parsing. Stream protocol's kXR_read does not support byte ranges (XRootD uses offset+length in wire payload).
+**Current state:** `xrootd_http_parse_range()` and `xrootd_http_parse_range_vector()` from `src/core/compat/range.c` are used by WebDAV GET and S3 GetObject for HTTP Range header parsing. Stream protocol's kXR_read does not support byte ranges (XRootD uses offset+length in wire payload).
 
 **Expansion opportunity:** Add range support to stream kXR_read — this would enable `xrdcp` clients to request partial file downloads, matching WebDAV/S3 behavior. The shared parser infrastructure already exists; only the stream-side framing and dispatch logic needs addition.
 
@@ -342,7 +342,7 @@ formats now carry protocol labels:
 - Stream: `xrootd_access*.log` via `xrootd_log_access()` in
   `src/path/access_log.c`, with `proto=root` appended to each structured line.
 - WebDAV and S3: nginx HTTP `access_log` can use the shared
-  `$xrootd_protocol` variable from `src/compat/http_protocol_vars.c`, which
+  `$xrootd_protocol` variable from `src/core/compat/http_protocol_vars.c`, which
   resolves to `webdav`, `s3`, or `http` from the active location config.
 
 **Implemented:** The shared test configuration writes a single
@@ -431,25 +431,25 @@ compatibility check before moving it into the shared preamble.
 ### 4.3 Shared AIO Thread Pool Infrastructure
 
 **Current state:** All three protocols use nginx thread pools for async I/O but each configures and dispatches independently:
-- Stream: `src/aio/read.c`, `aio/pgread.c`, `aio/write.c` — uses `conf->common.thread_pool`
+- Stream: `src/core/aio/read.c`, `aio/pgread.c`, `aio/write.c` — uses `conf->common.thread_pool`
 - WebDAV: `src/webdav/put.c`, `src/webdav/copy.c` — uses `conf->common.thread_pool` via `ngx_thread_task_post()`
 - S3: `src/s3/put.c` — uses `cf->common.thread_pool` via staged file async
 
 **Partially implemented:** HTTP async PUT jobs now share the lifecycle guard in
-`src/compat/async_job.c`. WebDAV and S3 threaded PUT tasks register staged-file
+`src/core/compat/async_job.c`. WebDAV and S3 threaded PUT tasks register staged-file
 cleanup through `xrootd_async_job_set_cleanup()` and use
 `xrootd_async_job_cleanup_once()` on async write/post-allocation failure paths.
 This centralizes the double-cleanup guard while leaving protocol-specific I/O
 and response finalization in each handler.
 
-**Remaining expansion:** Stream AIO still uses `src/aio/` task helpers directly,
+**Remaining expansion:** Stream AIO still uses `src/core/aio/` task helpers directly,
 and WebDAV COPY/MOVE/TPC still post protocol-specific task structs. A future
 phase can add a protocol-neutral thread-post wrapper if repeated queue-full
 fallback handling continues to drift.
 
 ### 4.4 Shared HTTP Protocol Layer (WebDAV + S3)
 
-**Current state:** WebDAV and S3 are implemented as separate nginx HTTP modules (`ngx_http_xrootd_webdav_module` and `ngx_http_xrootd_s3_module`) with independent config, dispatch, and handlers. They share ~60 functions in `src/compat/` but each module maintains its own entry point.
+**Current state:** WebDAV and S3 are implemented as separate nginx HTTP modules (`ngx_http_xrootd_webdav_module` and `ngx_http_xrootd_s3_module`) with independent config, dispatch, and handlers. They share ~60 functions in `src/core/compat/` but each module maintains its own entry point.
 
 **Consolidation candidate:** Merge WebDAV and S3 into a single HTTP protocol handler that dispatches based on request URI pattern:
 - `/xrootd/` → WebDAV (path-style DAV operations)
@@ -467,7 +467,7 @@ fallback handling continues to drift.
 | **Already Shared** | Document & maintain existing shared functions | Low | High | P0 — ongoing maintenance |
 | Near-Shared | S3 body write → use `xrootd_http_body_write_to_fd()` | Done | Medium | Implemented |
 | Near-Shared | WebDAV PUT staging → use `xrootd_staged_*()` helpers | Done | Medium | Implemented |
-| Near-Shared | Unified path resolver in `src/compat/path.c` | Done | High | Implemented |
+| Near-Shared | Unified path resolver in `src/core/compat/path.c` | Done | High | Implemented |
 | Gap | Read-through cache for HTTP protocols | Done | High | Implemented |
 | Gap | VOMS extraction for WebDAV auth | Done | Medium | Implemented |
 | Gap | S3 WLCG bearer token auth | Deferred | Medium | Blocked by S3 auth invariant |
@@ -503,7 +503,7 @@ These existing invariants from AGENTS.md should be preserved or updated during c
 ### Path Resolution (Section 2.1)
 - `src/path/resolve_path_variants.c` — stream resolver variants
 - `src/webdav/path.c` → URL-decodes then calls `xrootd_http_resolve_path()` — webdav wrapper
-- `src/compat/path.c` → `xrootd_http_resolve_path()` — shared core logic
+- `src/core/compat/path.c` → `xrootd_http_resolve_path()` — shared core logic
 - `src/s3/util.c` → `s3_resolve_key()` — S3 key-to-path mapper
 
 ### Confined Ops (Section 1.2)
@@ -512,12 +512,12 @@ These existing invariants from AGENTS.md should be preserved or updated during c
 - `src/s3/s3.h` — declarations for S3 callers
 
 ### HTTP Response Building (Section 1.4)
-- `src/compat/http_file_response.c` — file response helpers
-- `src/compat/range.c`, `range_vector.c` — range parsing
-- `src/compat/etag.c` — ETag generation
+- `src/core/compat/http_file_response.c` — file response helpers
+- `src/core/compat/range.c`, `range_vector.c` — range parsing
+- `src/core/compat/etag.c` — ETag generation
 
 ### Staged Files (Section 2.4)
-- `src/compat/staged_file.c` — staged file helpers
+- `src/core/compat/staged_file.c` — staged file helpers
 - `src/s3/put.c` — current S3 staging usage
 - `src/webdav/put.c` — current WebDAV inline staging
 
@@ -540,7 +540,7 @@ These existing invariants from AGENTS.md should be preserved or updated during c
 
 ### Access Logging (Section 3.5)
 - `src/path/access_log.c` — stream structured access lines with `proto=root`
-- `src/compat/http_protocol_vars.c` — shared `$xrootd_protocol` HTTP variable
+- `src/core/compat/http_protocol_vars.c` — shared `$xrootd_protocol` HTTP variable
 - `tests/configs/nginx_shared.conf` — shared `http_access.log` format with protocol labels
 - `docs/08-metrics-monitoring/access-logging.md` — operator-facing log format reference
 

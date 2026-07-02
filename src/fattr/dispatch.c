@@ -10,7 +10,7 @@
 #include "fs/vfs.h"   /* confinement check via the VFS seam */
 
 #include <string.h>
-#include "compat/alloc_guard.h"
+#include "core/compat/alloc_guard.h"
 
 /*
  *

@@ -7,7 +7,7 @@
 /*
  * HOW: Includes upstream_internal.h + sys/socket.h → wait timer handler (lines 5-22): ev->data=up pointer, ctx lookup via up->client_ctx, destroy check cleanup return (lines 11-14), info log retry message (lines 16-17), send_request call abort on failure (lines 19-21) → write handler (lines 24-78): wev->data=uconn, up lookup via uconn->data, ctx destroy check (lines 31-34), timeout abort (lines 36-39), connecting state SO_ERROR getsockopt abort/transition to bootstrap with phase reset accumulator (lines 41-64), wbuf partial flush abort on error (lines 66-72), read arm after full write (lines 75-77) → read handler (lines 80-178): rev->data=uconn, up lookup via uconn->data, ctx destroy check/timeout abort (lines 88-96), hdr accumulation loop XRD_RESPONSE_HDR_LEN NGX_AGAIN re-arm/n<=0 close parse ServerResponseHdr status/dlen from ntohs/ntohl (lines 98-141), body allocation cap MAX_PATH+256 pool alloc null terminate pos reset (lines 127-141), body accumulation loop NGX_AGAIN re-arm/n<=0 close pos increment (lines 143-163), state dispatch bootstrap→handle_bootstrap_response request/async→forward_response default abort (lines 165-177). */
 #include "upstream_internal.h"
-#include "compat/log_diag.h"
+#include "core/compat/log_diag.h"
 
 #include <sys/socket.h>
 

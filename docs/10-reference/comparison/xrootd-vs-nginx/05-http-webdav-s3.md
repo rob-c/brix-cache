@@ -170,7 +170,7 @@ Both sides speak the WLCG XrdHttp dialect on top of WebDAV:
   xattr integrity cache) and emitting a `Digest:` header; `adler32` can be folded
   through the body filter, others computed from a full read. Algorithms include the
   project's CRC-64/XZ and CRC-64/NVME (per the CRC64 invariant; engine in
-  `src/compat/crc64.c`).
+  `src/core/compat/crc64.c`).
 - **`X-Xrootd-*` headers and `?xrd.stats`.** `src/webdav/xrdhttp.c` parses `X-Xrootd-Proto`,
   echoes `X-Xrootd-Requuid`, captures `X-Xrootd-Tpc-Token`, and maps HTTP status → `kXR_*`
   opcode in the response filter (`xrdhttp_filter.c`); `?xrd.stats` is served by

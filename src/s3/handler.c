@@ -31,16 +31,16 @@
 #include "s3.h"
 #include "tagging.h"
 #include "impersonate/lifecycle.h"
-#include "compat/http_body.h"
-#include "compat/http_headers.h"
-#include "compat/http_query.h"
+#include "core/compat/http_body.h"
+#include "core/compat/http_headers.h"
+#include "core/compat/http_query.h"
 
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "acc/acc.h"
-#include "compat/alloc_guard.h"
+#include "core/compat/alloc_guard.h"
 
 /* Map an S3 request method to the XrdAcc operation it requires. */
 static xrootd_acc_op_t

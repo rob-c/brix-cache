@@ -4,7 +4,7 @@
  */
 #include "http_cache_fill.h"
 #include "fs/backend/cache/sd_cache.h"   /* xrootd_sd_cache_* */
-#include "aio/aio.h"                      /* xrootd_task_bind */
+#include "core/aio/aio.h"                      /* xrootd_task_bind */
 
 #include <limits.h>                          /* PATH_MAX */
 

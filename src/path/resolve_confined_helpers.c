@@ -29,7 +29,7 @@
  *       forbidden ("." / "..") components at each step so no intermediate symlink
  *       can escape.
  */
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 
 #include <errno.h>
 #include <fcntl.h>

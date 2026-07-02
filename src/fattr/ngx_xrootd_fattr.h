@@ -1,7 +1,7 @@
 #ifndef NGX_XROOTD_FATTR_H
 #define NGX_XROOTD_FATTR_H
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "fs/vfs.h"   /* xrootd_vfs_ctx_t + VFS xattr seam */
 
 /*

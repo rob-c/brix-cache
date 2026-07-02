@@ -6,9 +6,9 @@
  * must therefore have key>=32 and val>=sizeof(xrootd_token_claims_t), which
  * the directive setter enforces.
  */
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "token_cache.h"
-#include "compat/crypto.h"
+#include "core/compat/crypto.h"
 
 #include <time.h>
 

@@ -7,7 +7,7 @@
  */
 #include "scan_engine.h"
 
-#include "compat/integrity_info.h"
+#include "core/compat/integrity_info.h"
 #include "fs/vfs.h"
 #include "protocol/opcodes.h"
 

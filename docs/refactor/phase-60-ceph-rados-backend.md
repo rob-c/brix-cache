@@ -102,7 +102,7 @@ Three facts from the current tree (post-unification):
     call the generic core — i.e. POSIX is re-pinned one frame above the generic loop.
   - the io job (`xrootd_vfs_job_t`, `vfs_io_core.h`) carries `ngx_fd_t fd`, not an
     `xrootd_sd_obj_t *obj`; `xrootd_vfs_job_read_init(job, fd, …)`.
-  - the fd-table slot (`xrootd_file_t`, `src/types/file.h:54`) holds `int fd`, no
+  - the fd-table slot (`xrootd_file_t`, `src/core/types/file.h:54`) holds `int fd`, no
     driver object; the upper handlers pass a raw `ctx->files[idx].fd`.
   - `xrootd_vfs_open()` produces a bare fd; the io-core validity guards key on
     `job->fd == NGX_INVALID_FILE`.
@@ -197,7 +197,7 @@ and store `obj` in the opaque `xrootd_vfs_file_t`. `xrootd_vfs_file_fd()` return
 `CAP_FD|CAP_SENDFILE`, so they correctly return invalid/0 for Ceph.
 
 ### 3.4 The fd-table slot carries the VFS handle
-`xrootd_file_t` (`src/types/file.h`) holds `int fd`. Add:
+`xrootd_file_t` (`src/core/types/file.h`) holds `int fd`. Add:
 ```c
 xrootd_vfs_file_t *vfs;   /* the backend-generic open handle (NULL for legacy fd-only slots) */
 ```
@@ -326,7 +326,7 @@ Connect/keyring/pool failures fail the export closed at worker-init with an
   set up today); never per request. Same model as the CMS heartbeat client / uring
   pools.
 - **Blocking `rados_*` runs on the nginx thread pool.** After W0, the VFS io core
-  dispatches the driver primitive from the same `src/aio` worker-thread job it
+  dispatches the driver primitive from the same `src/core/aio` worker-thread job it
   already uses for POSIX; the event loop never blocks. A **Ceph export REQUIRES a
   `thread_pool`** (enforced at `nginx -t`) — there is no acceptable non-blocking
   fallback for network object I/O (ADR-4).
@@ -501,7 +501,7 @@ struct xrootd_vfs_file_s {
     /* fd field, if any, becomes xrootd_sd_fd(obj) */
 };
 
-/* src/types/file.h — the fd-table slot can carry the VFS handle */
+/* src/core/types/file.h — the fd-table slot can carry the VFS handle */
 typedef struct xrootd_file_s {
     int                 fd;    /* kept for legacy/POSIX + sendfile             */
     xrootd_vfs_file_t  *vfs;   /* NEW: backend-generic handle (NULL = fd-only) */
@@ -594,7 +594,7 @@ For Ceph, `job->fd == NGX_INVALID_FILE` and dispatch rides `job->obj->driver`.
 root:// kXR_read:
   xrootd_handle_read (read/read.c)
    └ xrootd_vfs_job_read_init(job, ctx->files[idx].vfs, off, len, buf)
-   └ thread-pool job → xrootd_vfs_io_execute(job)        [src/aio worker thread]
+   └ thread-pool job → xrootd_vfs_io_execute(job)        [src/core/aio worker thread]
        └ xrootd_vfs_io_execute_read(job)
            └ xrootd_vfs_pread_full(job->obj, ...)
                └ job->obj->driver->pread(obj, ...)
@@ -716,7 +716,7 @@ static const xrootd_sd_driver_t *const sd_drivers[] = {
 #endif
 };
 
-/* src/config/process.c (per-worker init_process) — connect once, store on the
+/* src/core/config/process.c (per-worker init_process) — connect once, store on the
  * export's vfs ctx (xrootd_vfs_ctx_t.sd) */
 if (srv->storage_driver_is_ceph) {
     int e; xrootd_sd_instance_t *inst =

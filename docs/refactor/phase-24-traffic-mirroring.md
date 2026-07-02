@@ -135,8 +135,8 @@ The primary client response is never delayed by the mirror path.
 
 ## Step A — Common Mirror Config
 
-**Files:** `src/mirror/mirror.h` (new), `src/config/directives.c` (extend),
-`src/types/config.h` (stream), `src/webdav/webdav.h` (HTTP)
+**Files:** `src/mirror/mirror.h` (new), `src/core/config/directives.c` (extend),
+`src/core/types/config.h` (stream), `src/webdav/webdav.h` (HTTP)
 
 ### A1 — Shared config types
 
@@ -760,18 +760,18 @@ shadow backend starts behaving differently from production.
 | `src/handshake/dispatch.c` | Modify | Call `xrootd_stream_mirror_maybe()` after read opcode dispatch |
 | `src/webdav/postconfig.c` | Modify | Register `xrootd_http_mirror_handler` in PRECONTENT phase; create internal locations |
 | `src/webdav/webdav.h` | Modify | Add `xrootd_mirror_conf_t mirror` to `ngx_http_xrootd_webdav_loc_conf_t`; add `mirror_fired`, `primary_status` to req ctx |
-| `src/config/directives.c` | Modify | Register `xrootd_mirror_url`, `xrootd_mirror_sample`, `xrootd_mirror_methods`, etc. |
-| `src/types/config.h` | Modify | Add `xrootd_mirror_conf_t mirror` to `ngx_stream_xrootd_srv_conf_t` |
+| `src/core/config/directives.c` | Modify | Register `xrootd_mirror_url`, `xrootd_mirror_sample`, `xrootd_mirror_methods`, etc. |
+| `src/core/types/config.h` | Modify | Add `xrootd_mirror_conf_t mirror` to `ngx_stream_xrootd_srv_conf_t` |
 | `src/metrics/metrics.h` | Modify | Add 8 mirror counter fields |
 | `src/metrics/webdav.c` | Modify | Expose 4 HTTP mirror counters in Prometheus output |
 | `src/metrics/stream.c` | Modify | Expose 4 stream mirror counters |
-| `src/config/config.h` | Modify | Add `http_mirror.c`, `stream_mirror.c` to `NGX_ADDON_SRCS` |
+| `src/core/config/config.h` | Modify | Add `http_mirror.c`, `stream_mirror.c` to `NGX_ADDON_SRCS` |
 
 ---
 
 ## Build Registration
 
-Add to `NGX_ADDON_SRCS` in `src/config/config.h`:
+Add to `NGX_ADDON_SRCS` in `src/core/config/config.h`:
 - `$ngx_addon_dir/src/mirror/http_mirror.c`
 - `$ngx_addon_dir/src/mirror/stream_mirror.c`
 

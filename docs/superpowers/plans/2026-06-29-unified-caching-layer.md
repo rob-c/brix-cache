@@ -44,10 +44,10 @@
 ### Task B2: Watermark config directives
 
 **Files:**
-- Modify: `src/types/config.h` (`cache_high_watermark`, `cache_low_watermark`, `cache_reap_interval` — `ngx_uint_t`, `NGX_CONF_UNSET_UINT`)
+- Modify: `src/core/types/config.h` (`cache_high_watermark`, `cache_low_watermark`, `cache_reap_interval` — `ngx_uint_t`, `NGX_CONF_UNSET_UINT`)
 - Modify: `src/stream/module.c` (3 `ngx_command_t`: `xrootd_cache_high_watermark`, `_low_watermark` as percent parsers → store ppm; `xrootd_cache_reap_interval` seconds)
-- Modify: `src/config/server_conf.c` (init UNSET; merge with defaults: high=`cache_eviction_threshold` if set else 900000 ppm, low=high−50000, interval=60)
-- Modify: `src/config/runtime_server.c` (EMERG validation: `0 < low < high < 1000000`)
+- Modify: `src/core/config/server_conf.c` (init UNSET; merge with defaults: high=`cache_eviction_threshold` if set else 900000 ppm, low=high−50000, interval=60)
+- Modify: `src/core/config/runtime_server.c` (EMERG validation: `0 < low < high < 1000000`)
 
 - [ ] **Step 1: Failing config test.** A `nginx -t` config fixture with `low ≥ high` must fail with the EMERG message; a valid one must pass. (Shell: write conf, run `objs/nginx -t`, assert exit/stderr.)
 - [ ] **Step 2:** Run → FAIL (directive unknown).
@@ -73,7 +73,7 @@
 ### Task B4: Background reaper timer
 
 **Files:**
-- Modify: `src/config/process.c` (add `xrootd_cache_watermark_timer` per worker, mirroring `xrootd_cache_reap_handler`; arm on cache + watermarks configured; re-arm at `cache_reap_interval`)
+- Modify: `src/core/config/process.c` (add `xrootd_cache_watermark_timer` per worker, mirroring `xrootd_cache_reap_handler`; arm on cache + watermarks configured; re-arm at `cache_reap_interval`)
 - Modify: `src/cache/reap_watermark.h` (handler prototype)
 
 - [ ] **Step 1: Failing e2e** (extends B3): without manually invoking, the **timer alone** drives a too-full cache to `≤ low` within ~2 intervals.
@@ -108,7 +108,7 @@
 
 ### Task C1: Staging watermark config
 
-**Files:** `src/types/config.h`, `src/stream/module.c`, `src/config/server_conf.c`, `src/config/runtime_server.c` (validate `0<low<high<1e6`; no-op unless `cache_wt_stage_root` set).
+**Files:** `src/core/types/config.h`, `src/stream/module.c`, `src/core/config/server_conf.c`, `src/core/config/runtime_server.c` (validate `0<low<high<1e6`; no-op unless `cache_wt_stage_root` set).
 
 - [ ] Failing `nginx -t` test (low≥high fails) → implement percent→ppm + merge + validate → PASS.
 

@@ -3,7 +3,7 @@ tests/test_put_content_encoding.py
 
 Coverage gap #4 (test-coverage-gap-audit): Content-Encoding gzip/deflate
 decompress-on-store for PUT bodies (WebDAV src/webdav/put.c + S3 src/s3/put.c,
-both via src/compat/http_body.c::xrootd_http_body_inflate_to_fd).
+both via src/core/compat/http_body.c::xrootd_http_body_inflate_to_fd).
 
 No test exercised this at all.  The contract:
   * PUT with `Content-Encoding: gzip`    (window_bits 31) → stored = ORIGINAL bytes

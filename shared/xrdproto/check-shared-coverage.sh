@@ -2,7 +2,7 @@
 #
 # check-shared-coverage.sh — guard against pure logic being stranded in the module.
 #
-# WHAT: Every ngx-free (no `ngx_` token) source file under src/compat/ must be
+# WHAT: Every ngx-free (no `ngx_` token) source file under src/core/compat/ must be
 #       EITHER compiled into libxrdproto.a (so the native client shares it) OR
 #       listed in the allowlist below with a one-line reason.  A new pure helper
 #       that is neither fails this check.
@@ -11,7 +11,7 @@
 #       the module and the client re-implements it (the exact drift that produced
 #       the old fragile JSON parser).  This makes "share it or justify not sharing
 #       it" a required, reviewed decision instead of an accident.
-# HOW:  For each ngx-free src/compat/*.c, pass iff its object is in the archive
+# HOW:  For each ngx-free src/core/compat/*.c, pass iff its object is in the archive
 #       (ar t) or its basename is allowlisted.  Run from `make check`.
 #
 # Usage: check-shared-coverage.sh [path/to/libxrdproto.a]
@@ -19,14 +19,14 @@ set -eu
 
 here="$(cd "$(dirname "$0")" && pwd)"
 repo="$(cd "$here/../.." && pwd)"
-compat="$repo/src/compat"
+compat="$repo/src/core/compat"
 lib="${1:-$here/libxrdproto.a}"
 
 # Pure (ngx-free) compat files that are INTENTIONALLY module-only.  Keep this list
 # short and justified — adding to it is a deliberate, reviewable decision.
 #   etag — server emits ETag response headers; no native-client consumer.
 #   time — server emits ISO8601; no consumer, and the filename shadows the system
-#          <time.h> when src/compat is on the include path in a standalone build.
+#          <time.h> when src/core/compat is on the include path in a standalone build.
 #   xml  — server-side WebDAV/SRR XML generation (libxml2); the client only parses.
 #   path — depends on src/path/beneath.h (ngx-coupled); not standalone-extractable.
 allowlist="etag time xml path"
@@ -61,13 +61,13 @@ for f in "$compat"/*.c; do
         continue
     fi
 
-    echo "STRANDED: src/compat/$base.c is ngx-free but neither in $(basename "$lib") nor allowlisted."
+    echo "STRANDED: src/core/compat/$base.c is ngx-free but neither in $(basename "$lib") nor allowlisted."
     echo "  -> add '$base' to NAMES in shared/xrdproto/Makefile (share it with the client),"
     echo "     or add '$base' to the allowlist in check-shared-coverage.sh with a one-line reason."
     fail=1
 done
 
 if [ "$fail" -eq 0 ]; then
-    echo "OK: every ngx-free src/compat/*.c is shared in $(basename "$lib") or explicitly allowlisted."
+    echo "OK: every ngx-free src/core/compat/*.c is shared in $(basename "$lib") or explicitly allowlisted."
 fi
 exit "$fail"

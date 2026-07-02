@@ -131,7 +131,7 @@ few MB + ~1 K `lstat`, with **byte-identical XML**.
 - CompleteMultipartUpload concatenates parts with a **read/write loop** in 64 KiB chunks on the
   event loop (`multipart_complete_body.c:178-206`). Switch part→final concatenation to the
   existing zero-copy helper `xrootd_copy_range` / `copy_file_range` (the same one PUT uses,
-  `src/compat/copy_range.c`), falling back to the read/write loop on `EXDEV` / `ENOSYS`. Large
+  `src/core/compat/copy_range.c`), falling back to the read/write loop on `EXDEV` / `ENOSYS`. Large
   multipart objects (multi-GiB) stop round-tripping every byte through userspace.
 - **Risk:** low-medium — must keep the atomic temp+rename and the full-object checksum compute
   intact. **Validation:** `test_s3_multipart.py` (byte-exact reassembly + checksum) stays

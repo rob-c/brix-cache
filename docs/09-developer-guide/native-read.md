@@ -87,10 +87,10 @@ enough that avoiding event-loop blocking is worth the handoff.
 
 Relevant code:
 
-- `src/aio/resume.c`
-- `src/aio/reads.c`
-- `src/aio/readv.c`
-- `src/aio/write.c`
+- `src/core/aio/resume.c`
+- `src/core/aio/reads.c`
+- `src/core/aio/readv.c`
+- `src/core/aio/write.c`
 - `src/write/*.c`
 - `src/webdav/put.c`
 
@@ -180,7 +180,7 @@ encrypted output over pretending sendfile still applies.
 Relevant code:
 
 - `src/read/read.c`
-- `src/aio/buffers.c`
+- `src/core/aio/buffers.c`
 
 ---
 
@@ -243,8 +243,8 @@ Expected benefits:
 
 Relevant code:
 
-- `src/types/tunables.h`
-- `src/aio/buffers.c`
+- `src/core/types/tunables.h`
+- `src/core/aio/buffers.c`
 - `src/read/read.c`
 - `src/read/pgread.c`
 
@@ -303,8 +303,8 @@ reuse the chain objects until the previous response is complete.
 
 Relevant code:
 
-- `src/types/context.h`
-- `src/aio/buffers.c`
+- `src/core/types/context.h`
+- `src/core/aio/buffers.c`
 - `src/connection/write_helpers.c`
 
 ---
@@ -341,7 +341,7 @@ Expected benefits:
 
 Relevant code:
 
-- `src/types/file.h`
+- `src/core/types/file.h`
 - `src/read/open.c`
 - `src/read/read.c`
 - `src/connection/fd_table.c`
@@ -410,7 +410,7 @@ Relevant code:
 - `src/read/prefetch.h`
 - `src/read/prefetch.c`
 - `src/read/read.c`
-- `src/types/file.h`
+- `src/core/types/file.h`
 
 ### Native TLS Extension
 
@@ -484,8 +484,8 @@ Expected benefits:
 Relevant code:
 
 - `src/read/readv.c`
-- `src/aio/readv.c`
-- `src/aio/buffers.c`
+- `src/core/aio/readv.c`
+- `src/core/aio/buffers.c`
 
 ---
 
@@ -528,8 +528,8 @@ Expected benefits:
 Relevant code:
 
 - `src/read/readv.c`
-- `src/aio/readv.c`
-- `src/aio/aio.h`
+- `src/core/aio/readv.c`
+- `src/core/aio/aio.h`
 
 ---
 
@@ -655,7 +655,7 @@ Expected benefits:
 
 Relevant code:
 
-- `src/types/context.h`
+- `src/core/types/context.h`
 - `src/connection/write_helpers.c`
 - `src/connection/chain_helpers.c`
 

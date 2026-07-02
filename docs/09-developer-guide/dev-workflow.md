@@ -5,7 +5,7 @@
 | File | Responsibility |
 |---|---|
 | `src/stream/module.c` | Module entry point, directive table, nginx module context |
-| `src/config/*.c` | Configuration parsing, inheritance, and startup validation |
+| `src/core/config/*.c` | Configuration parsing, inheritance, and startup validation |
 | `src/connection/*.c` | Session state machine, send/recv flow, buffering helpers |
 | `src/handshake/*.c` | Client hello, opcode dispatch, auth/write routing policy |
 | `src/session/*.c` | Protocol negotiation, login, bind, ping/end-session, request signing |
@@ -19,7 +19,7 @@
 | `src/fattr/*.c` | kXR_fattr extended attributes (get / set / del / list via Linux xattrs) |
 | `src/upstream/*.c` | Outbound XRootD redirector client for manager/upstream misses |
 | `src/write/*.c` | Write-side and namespace-mutating operations: write, pgwrite, writev, sync, truncate, mkdir, rm, rmdir, mv, chmod |
-| `src/aio/*.c` | Async I/O response builders and nginx thread-pool callbacks |
+| `src/core/aio/*.c` | Async I/O response builders and nginx thread-pool callbacks |
 | `src/response/*.c` | Response framing, control responses, status responses, CRC32C |
 | `src/path/*.c` | Path extraction, root confinement, policy matching, and log sanitization |
 | `src/cms/*.c` | CMS manager heartbeat: registration, ping/pong, space and load reporting |

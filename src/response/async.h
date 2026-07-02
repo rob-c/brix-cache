@@ -5,7 +5,7 @@
 #ifndef XROOTD_RESPONSE_ASYNC_H
 #define XROOTD_RESPONSE_ASYNC_H
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 
 /* ------------------------------------------------------------------ */
 /* Native kXR_attn generation                                          */

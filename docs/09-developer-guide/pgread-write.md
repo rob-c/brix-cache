@@ -52,7 +52,7 @@ Expected benefits:
 Relevant code:
 
 - `src/read/pgread.c`
-- `src/aio/pgread.c`
+- `src/core/aio/pgread.c`
 - `src/response/crc32c.c`
 
 ---
@@ -194,6 +194,6 @@ Expected benefits:
 
 Relevant code:
 
-- `src/types/context.h`
-- `src/aio/buffers.c`
+- `src/core/types/context.h`
+- `src/core/aio/buffers.c`
 - `src/write/pgwrite.c`

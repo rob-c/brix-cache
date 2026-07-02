@@ -15,7 +15,7 @@
 #ifndef XROOTD_TOKEN_TOKEN_CACHE_H
 #define XROOTD_TOKEN_TOKEN_CACHE_H
 
-#include "shm/kv.h"
+#include "core/shm/kv.h"
 #include "token.h"
 
 /*

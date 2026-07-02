@@ -1,6 +1,6 @@
-#include "ngx_xrootd_module.h"
-#include "compat/alloc_guard.h"
-#include "compat/pgio.h"   /* xrdp_pg_bad_t — CSE bad-page descriptor */
+#include "core/ngx_xrootd_module.h"
+#include "core/compat/alloc_guard.h"
+#include "core/compat/pgio.h"   /* xrdp_pg_bad_t — CSE bad-page descriptor */
 
 /*
  *

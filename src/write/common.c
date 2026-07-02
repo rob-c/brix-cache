@@ -11,7 +11,7 @@
  * (xrootd_write_resolve_existing_path) was retired once those callers migrated
  * and has been removed.
  */
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 
 ngx_int_t
 xrootd_try_post_write_aio(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,

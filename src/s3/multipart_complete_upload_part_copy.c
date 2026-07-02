@@ -19,11 +19,11 @@
 #include "s3.h"
 #include "multipart_internal.h"
 #include "fs/vfs.h"   /* confined source open via the VFS seam */
-#include "compat/http_headers.h"
+#include "core/compat/http_headers.h"
 #include "fs/backend/sd.h"   /* route the part-copy byte move through the SD backend */
 
 #include <string.h>
-#include "compat/alloc_guard.h"
+#include "core/compat/alloc_guard.h"
 
 /*
  * PUT /bucket/key?partNumber=N&uploadId=<id>  +  x-amz-copy-source header

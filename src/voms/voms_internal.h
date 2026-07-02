@@ -1,7 +1,7 @@
 #ifndef XROOTD_VOMS_INTERNAL_H
 #define XROOTD_VOMS_INTERNAL_H
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 
 #include <openssl/x509.h>
 

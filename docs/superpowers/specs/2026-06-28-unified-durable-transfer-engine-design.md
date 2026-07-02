@@ -96,7 +96,7 @@ existing errno→kXR→HTTP table — no new error vocabulary at the edges.
 **Files (new):** `src/fs/xfer/xfer.h`, `xfer_core.c`, `xfer_mover_pump.c`,
 `xfer_mover_agent.c`, `xfer_ledger.c`, `xfer_policy.c`, `xfer_journal.c`,
 `xfer_reconcile.c` + `README.md`. Registered in top-level `./config`
-(`$ngx_addon_dir/src/fs/xfer/*.c`), not `src/config/config.h`.
+(`$ngx_addon_dir/src/fs/xfer/*.c`), not `src/core/config/config.h`.
 
 ## 4. Movers — the crash-safety unification
 

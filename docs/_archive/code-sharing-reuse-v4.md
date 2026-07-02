@@ -112,9 +112,9 @@ These features add significant code but are optional — not required by any XRo
 ---
 ## 2. Custom Reimplementations vs Nginx Builtins
 
-The `src/compat/` module (5,931 lines) bridges XRootD protocol semantics to HTTP nginx internals. Many functions reimplement functionality that nginx provides built-in or can be delegated to standard libraries.
+The `src/core/compat/` module (5,931 lines) bridges XRootD protocol semantics to HTTP nginx internals. Many functions reimplement functionality that nginx provides built-in or can be delegated to standard libraries.
 
-### Path Resolution (`src/compat/path.c`, `src/path/resolve*.c`) — Medium Impact
+### Path Resolution (`src/core/compat/path.c`, `src/path/resolve*.c`) — Medium Impact
 
 **Custom implementation:** `xrootd_resolve_path()` — realpath-based canonicalization with ENOENT-parent strategy, dot/dotdot rejection, root confinement checking via strncmp/boundary check. Three variants: standard read, write destination (parent must exist), and noexist (mkdir). Total across path/ directory: 2,931 lines.
 
@@ -144,7 +144,7 @@ The `src/compat/` module (5,931 lines) bridges XRootD protocol semantics to HTTP
 
 **Impact:** ~400+ lines consolidated into fewer files. Keep Prometheus export; simplify per-protocol counter tables.
 
-### XML Generation (`src/compat/xml.c`, `src/compat/http_xml.c`) — Medium Impact
+### XML Generation (`src/core/compat/xml.c`, `src/core/compat/http_xml.c`) — Medium Impact
 
 **Custom implementation:** XML escaping (& → &amp;, < → &lt;, > → &gt;, " → &quot;, ' → &#39; + control char %XX encoding), text-element generation, lockinfo parsing with libxml2 fallback to strnstr scanner. HTTP chain construction from printf-style formatting. S3 error response building.
 
@@ -154,7 +154,7 @@ The `src/compat/` module (5,931 lines) bridges XRootD protocol semantics to HTTP
 
 **Impact:** ~365 lines in xml.c + ~232 lines in http_xml.c could be reduced by ~15-20%. Replace libxml2 dependency with strnstr-based lockinfo parser; consolidate XML_APPEND macros into structured builder.
 
-### Header Management (`src/compat/http_headers.c` — 413 lines) — Medium Impact
+### Header Management (`src/core/compat/http_headers.c` — 413 lines) — Medium Impact
 
 **Custom implementation:** Case-insensitive header lookup via `ngx_strncasecmp` on linked list traversal, Bearer token extraction with whitespace trimming, control character validation, value comparison with whitespace trim, header setting with pool allocation. Centralises nginx's `ngx_table_elt_t` manipulation.
 
@@ -164,7 +164,7 @@ The `src/compat/` module (5,931 lines) bridges XRootD protocol semantics to HTTP
 
 **Impact:** ~413 lines reduced by ~20-30%. Keep centralised find_header(); inline protocol-specific helpers.
 
-### CRC32C (`src/compat/crc32c.c` — 267 lines) — Low Impact
+### CRC32C (`src/core/compat/crc32c.c` — 267 lines) — Low Impact
 
 **Custom implementation:** Castagnoli polynomial (0x82F63B78) with SSE4.2 hardware acceleration (_mm_crc32_u64/u32/u8) and software fallback. Used by pgread/pgwrite per-page integrity checks and TPC copy+checksum in single pass.
 
@@ -174,7 +174,7 @@ The `src/compat/` module (5,931 lines) bridges XRootD protocol semantics to HTTP
 
 **Impact:** ~0 lines removed. Keep SSE4.2-accelerated CRC32C implementation.
 
-### URL Decoding (`src/compat/uri.c`, `src/compat/http_query.c`) — Medium Impact
+### URL Decoding (`src/core/compat/uri.c`, `src/core/compat/http_query.c`) — Medium Impact
 
 **Custom implementation:** Percent-decoding with NUL rejection, plus-to-space conversion, overflow detection, bounded truncation. Query string parsing with case-sensitive/insensitive key matching and bare-flag detection. Total: ~110 lines in uri.c + ~288 lines in http_query.c.
 
@@ -184,7 +184,7 @@ The `src/compat/` module (5,931 lines) bridges XRootD protocol semantics to HTTP
 
 **Impact:** ~398 lines reduced by ~20-30%. Use nginx's unescaping as base; add NUL rejection and bounded truncation as post-processing wrapper.
 
-### File Staging (`src/compat/staged_file.c`, `src/compat/tmp_path.c`) — Medium Impact
+### File Staging (`src/core/compat/staged_file.c`, `src/core/compat/tmp_path.c`) — Medium Impact
 
 **Custom implementation:** Atomic write lifecycle: temp file creation (O_EXCL, up to 16 retries), commit (rename), abort (close+unlink). Temp path format: `<base>.xrd-tmp.<pid>.<random>` for glob-cleanable orphaned files. Used by S3 PUT, WebDAV PUT for crash-safe writes.
 
@@ -439,14 +439,14 @@ xrootd_file_t fields (from fd_table.c line 266-299):
 | System | Protocol | Files | Lines | Custom? |
 |---|---|---|---|---|
 | Stream wire framing | root:// | `src/response/` (basic.c, status.c, control.c) | ~421 | Custom — ServerResponseHdr + kXR_status frames |
-| HTTP body building | WebDAV/S3 | `src/compat/http_body.c`, `http_file_response.c` | ~300+ | Custom — ngx_chain_t of ngx_buf_t builders |
-| XML generation | S3/WebDAV | `src/compat/xml.c`, `http_xml.c` | ~597 | Custom — XML escaping + chain building |
+| HTTP body building | WebDAV/S3 | `src/core/compat/http_body.c`, `http_file_response.c` | ~300+ | Custom — ngx_chain_t of ngx_buf_t builders |
+| XML generation | S3/WebDAV | `src/core/compat/xml.c`, `http_xml.c` | ~597 | Custom — XML escaping + chain building |
 
 ### Elimination Opportunities
 
 #### HTTP Body Building — Medium Impact
 
-**Current state:** `src/compat/http_body.c` provides chunked, content-length, streaming response builders. Each handler builds `ngx_chain_t` of `ngx_buf_t` manually via ngx_pcalloc → set pos/start/last/end → memory=1/sendfile flags.
+**Current state:** `src/core/compat/http_body.c` provides chunked, content-length, streaming response builders. Each handler builds `ngx_chain_t` of `ngx_buf_t` manually via ngx_pcalloc → set pos/start/last/end → memory=1/sendfile flags.
 
 **nginx builtin:** nginx's `ngx_http_send_file()` handles file-backed sendfile automatically. For in-memory responses, nginx's `ngx_http_write_filter_module` already handles ngx_chain_t delivery without manual buffer building. The custom http_body.c adds parameterized builders (chunked transfer encoding, content-length header setting) on top of these builtins.
 
@@ -499,7 +499,7 @@ Each protocol layer has its own config struct with overlapping fields:
 - WebDAV: `ngx_http_xrootd_webdav_loc_conf_t` (in webdav/webdav.h)
 - S3: `ngx_http_xrootd_s3_loc_conf_t` (in s3/s3.h)
 
-Shared preamble in `src/config/shared_conf.h`: `enable`, `root`, `root_canon`, `allow_write`, `thread_pool`, `cache_root`.
+Shared preamble in `src/core/config/shared_conf.h`: `enable`, `root`, `root_canon`, `allow_write`, `thread_pool`, `cache_root`.
 
 ### Elimination Opportunities
 

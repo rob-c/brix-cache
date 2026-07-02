@@ -1,7 +1,7 @@
 #include "gsi_internal.h"
 #include "gsi_core.h"
 #include "keypool.h"
-#include "compat/alloc_guard.h"
+#include "core/compat/alloc_guard.h"
 
 /*
  * cert_response.c — GSI round 1: reply to kXGC_certreq with kXGS_cert.

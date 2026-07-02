@@ -179,7 +179,7 @@ the `proxy->state` field `abort` leaves stale.
 
 | File | Change |
 |---|---|
-| `src/types/context.h` | New `ngx_uint_t proxy_fail_count` on `xrootd_ctx_t`. |
+| `src/core/types/context.h` | New `ngx_uint_t proxy_fail_count` on `xrootd_ctx_t`. |
 | `src/proxy/proxy_internal.h` | `#define XROOTD_PROXY_MAX_CONN_FAILS 8`. |
 | `src/proxy/forward_relay_dispatch.c` | Stop spawning a new proxy once the per-connection budget is exhausted; count sync connect/selection failures. |
 | `src/proxy/connect_lifecycle.c` | Hard abort increments `proxy_fail_count`. |

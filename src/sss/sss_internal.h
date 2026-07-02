@@ -8,7 +8,7 @@
 #ifndef XROOTD_SSS_SSS_INTERNAL_H
 #define XROOTD_SSS_SSS_INTERNAL_H
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "protocol/sss.h"   /* shared SSS wire constants (single source of truth) */
 
 /*

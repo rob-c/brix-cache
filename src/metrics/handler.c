@@ -1,5 +1,5 @@
 #include "metrics_internal.h"
-#include "compat/http_headers.h"
+#include "core/compat/http_headers.h"
 
 /* File: metrics handler — Prometheus-format endpoint for nginx-xrootd
  * WHAT: Declares the shared memory zone pointer (ngx_shm_zone_t) allocated by stream module postconfiguration. This global variable is NULL until nginx processes any stream {} block containing xrootd_enable directive. Read here at request time to determine whether metrics data exists — if NULL, handler sends informational message indicating no stream servers configured; otherwise exports all collected metrics via xrootd_export_prometheus_metrics(). */

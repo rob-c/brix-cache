@@ -312,13 +312,13 @@ Files confirmed as irreplaceable domain logic.  Do not audit again in future pha
 
 ## Files removed from config.h
 
-Remove from `NGX_ADDON_SRCS` in `src/config/config.h`:
+Remove from `NGX_ADDON_SRCS` in `src/core/config/config.h`:
 
 ```
-$ngx_addon_dir/src/compat/cors.c
-$ngx_addon_dir/src/compat/io.c
-$ngx_addon_dir/src/compat/http_protocol_vars.c
-$ngx_addon_dir/src/compat/log.c
+$ngx_addon_dir/src/core/compat/cors.c
+$ngx_addon_dir/src/core/compat/io.c
+$ngx_addon_dir/src/core/compat/http_protocol_vars.c
+$ngx_addon_dir/src/core/compat/log.c
 ```
 
 `./configure` required once after editing `config.h`.
@@ -369,7 +369,7 @@ type defined in `compat/cors.h` may be referenced by other webdav headers.  Audi
 
 ```bash
 grep -rn "xrootd_cors_conf_t\|cors\.h" src/ --include="*.c" --include="*.h" \
-     | grep -v "src/compat/"
+     | grep -v "src/core/compat/"
 ```
 
 Before deleting `cors.h`, move the type definition into `webdav/cors.h` and update

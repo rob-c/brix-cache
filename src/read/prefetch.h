@@ -23,7 +23,7 @@
  *      XROOTD_READV_PREFETCH_MAX(16MB) — total span cap prevents merging very distant segments
  */
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 
 #define XROOTD_READ_PREFETCH_MIN        (1024 * 1024)
 #define XROOTD_READ_PREFETCH_WINDOW     (32 * 1024 * 1024)

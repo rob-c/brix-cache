@@ -347,7 +347,7 @@ Removal of legacy slots is a follow-up PR after consumers (Grafana dashboards, a
 | `src/dashboard/transfer_table.c` | Add `protocol` and `auth_subject` fields |
 | `src/dashboard/http_tracking.c` | Delegate to unified `transfer_table.c` |
 | `src/dashboard/page.c` | Render "Protocol" column; show auth subject |
-| `src/config/config.h` | Add `src/metrics/unified.c`, `src/metrics/access_log.c` to `NGX_ADDON_SRCS` |
+| `src/core/config/config.h` | Add `src/metrics/unified.c`, `src/metrics/access_log.c` to `NGX_ADDON_SRCS` |
 
 ---
 

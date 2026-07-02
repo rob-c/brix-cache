@@ -47,4 +47,4 @@ Attackers may attempt to bypass scope checks or exploit weak signature verificat
 | **High** | Fuzzing framework | `tests/fuzzing/` |
 | **High** | Walk depth/count limits | `src/query/` |
 | **Medium** | State-machine enforcement | `src/handshake/` |
-| **Medium** | Rate-limiting by ID | `src/config/` |
+| **Medium** | Rate-limiting by ID | `src/core/config/` |

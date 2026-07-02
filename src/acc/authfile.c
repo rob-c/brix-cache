@@ -21,8 +21,8 @@
 #include "acc.h"
 
 #include <limits.h>
-#include "compat/alloc_guard.h"
-#include "compat/log_diag.h"
+#include "core/compat/alloc_guard.h"
+#include "core/compat/log_diag.h"
 
 #define XROOTD_ACC_AUTHDB_MAX  (1024 * 1024)
 

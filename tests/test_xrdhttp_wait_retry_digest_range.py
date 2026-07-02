@@ -263,7 +263,7 @@ def test_digest_on_206_range(server):
 def test_want_digest_adler32_echoed(server):
     """Want-Digest: adler32 → Digest: adler32=<hex> matching the local
     adler32 of the file content.  adler32 is the canonical XrdHttp checksum
-    and is always wired (src/compat/checksum.c, integrity_info.c), so a missing
+    and is always wired (src/core/compat/checksum.c, integrity_info.c), so a missing
     header here is a real regression — assert, don't skip."""
     _sleep_off_throttle()
     resp = requests.get(_url(), headers={"Want-Digest": "adler32"}, timeout=5)

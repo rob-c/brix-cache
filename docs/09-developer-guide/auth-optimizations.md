@@ -61,7 +61,7 @@ Relevant code:
 - `src/gsi/cert_response.c`
 - `src/handshake/sigver.c`
 - `src/session/signing.c`
-- `src/types/context.h`
+- `src/core/types/context.h`
 - `src/connection/disconnect.c`
 
 ---
@@ -135,7 +135,7 @@ Expected benefits:
 
 Relevant code:
 
-- `src/types/file.h`
+- `src/core/types/file.h`
 - `src/connection/fd_table.c`
 - `src/read/*.c`
 - `src/write/*.c`
@@ -165,4 +165,4 @@ Expected benefits:
 Relevant code:
 
 - `src/metrics/*.c`
-- `src/types/tunables.h`
+- `src/core/types/tunables.h`

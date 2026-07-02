@@ -1,4 +1,4 @@
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "cache/writethrough_metrics.h"
 #include "wrts_journal.h"
 

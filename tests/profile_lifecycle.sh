@@ -17,7 +17,7 @@
 #
 # WHY: there was no repeatable way to measure startup/shutdown cost or to compare
 # before/after a fix. This is a measurement tool only — nothing here ships in the
-# module; the permanent instrumentation lives in src/compat/lifecycle_timing.c.
+# module; the permanent instrumentation lives in src/core/compat/lifecycle_timing.c.
 # It self-provisions because the shared /tmp/xrd-test fixtures are transient.
 #
 # HOW: generates a self-signed cert (to exercise the GSI ephemeral-DH keypool warm

@@ -117,7 +117,7 @@ optimization roadmap.
 From Phase 29 / Phase 32 (verified in code):
 
 - **Cleartext sendfile + single/multi-chunk pipelining** — `src/read/read.c:131`,
-  `src/aio/buffers.c:332,550`; `resp_pipelinable=1` for ≤16 MiB and >16 MiB sendfile reads.
+  `src/core/aio/buffers.c:332,550`; `resp_pipelinable=1` for ≤16 MiB and >16 MiB sendfile reads.
 - **Warm-cache inline fast path** — `read.c:312` `preadv2(…,RWF_NOWAIT)`; full page-cache hit
   completes inline without the thread-pool hop.
 - **Per-slot response headers** (WS2) — `XROOTD_SLOT_HDR_MAX`, multi-chunk byte-exact.

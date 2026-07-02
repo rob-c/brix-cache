@@ -1,6 +1,6 @@
 #include "cache_internal.h"
 #include "connection/netconnect.h"   /* shared outbound connect/I/O hardening */
-#include "compat/af_policy.h"        /* xrootd_af_policy_t origin family policy */
+#include "core/compat/af_policy.h"        /* xrootd_af_policy_t origin family policy */
 
 
 #include <fcntl.h>

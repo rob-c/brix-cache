@@ -8,7 +8,7 @@
  * malformed required field.
  */
 #include "sss_keytab_kernel.h"
-#include "compat/hex.h"   /* shared hex nibble decode (libxrdproto) */
+#include "core/compat/hex.h"   /* shared hex nibble decode (libxrdproto) */
 
 #include <errno.h>
 #include <stdlib.h>

@@ -38,7 +38,7 @@
  *
  * WHY: AIO dispatch detaches the payload buffer from ctx->payload_buf so the main thread can safely begin reading the next request header while write happens in a worker thread. PFC write-through dirty state tracking accumulates wt_bytes_written and wt_dirty_offset for future close-time origin propagation — mirroring XrdPfcFile::m_bytesWritten, m_dirtyOffset semantics. Short-write detection catches disk-full conditions before silently truncating client data. */
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "ssi/ssi.h"
 #include "cache/writethrough_metrics.h"
 #include "wrts_journal.h"

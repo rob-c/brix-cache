@@ -1,5 +1,5 @@
 #include "metrics_internal.h"
-#include "config/config.h"
+#include "core/config/config.h"
 
 #include <stdlib.h>
 #include <string.h>

@@ -1,4 +1,4 @@
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "relay.h"
 #include "tap/tap.h"
 

@@ -81,7 +81,7 @@ kXR_open_read = 0x0010
 kXR_open_updt = 0x0020
 kXR_open_new  = 0x0008
 
-# Handler limits (src/protocol/flags.h, src/types/tunables.h)
+# Handler limits (src/protocol/flags.h, src/core/types/tunables.h)
 READV_SEGSIZE = 16
 READV_MAXSEGS = 1024
 # Per-segment readv cap = the server's default xrootd_readv_segment_size, which

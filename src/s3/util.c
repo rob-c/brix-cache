@@ -3,12 +3,12 @@
  */
 
 #include "s3.h"
-#include "compat/etag.h"
-#include "compat/http_headers.h"
-#include "compat/http_xml.h"
-#include "compat/integrity_info.h"
-#include "compat/path.h"
-#include "compat/xml.h"
+#include "core/compat/etag.h"
+#include "core/compat/http_headers.h"
+#include "core/compat/http_xml.h"
+#include "core/compat/integrity_info.h"
+#include "core/compat/path.h"
+#include "core/compat/xml.h"
 
 #include <sys/stat.h>
 #include <limits.h>

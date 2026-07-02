@@ -1,7 +1,7 @@
 #ifndef XROOTD_WRITE_CHKPOINT_XEQ_H
 #define XROOTD_WRITE_CHKPOINT_XEQ_H
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 
 /* Execute a write sub-operation (write/pgwrite/truncate/writev) under an
  * active checkpoint.  Called from xrootd_handle_chkpoint for kXR_ckpXeq.

@@ -115,8 +115,8 @@ mandatory** (the critic verified the underlying UAF/double-free/corruption hazar
 ### 4.1 WS1 — Per-PDU read deadline + handshake deadline
 **Closes:** the single highest-impact gap (no client read timer). Prevents pre-auth and mid-PDU
 resource-holding DoS.
-**Files:** `src/connection/recv.c`, `handler.c`, `disconnect.c`; `src/types/config.h`;
-`src/stream/module.c` (directive registration); `src/config/server_conf.c` (merge).
+**Files:** `src/connection/recv.c`, `handler.c`, `disconnect.c`; `src/core/types/config.h`;
+`src/stream/module.c` (directive registration); `src/core/config/server_conf.c` (merge).
 **Changes:**
 - Add `ngx_msec_t read_timeout` (steady-state per-PDU receive deadline) and `handshake_timeout`
   (pre-login deadline) to `ngx_stream_xrootd_srv_conf_t`. `NGX_CONF_UNSET_MSEC` in create;
@@ -299,7 +299,7 @@ byte-exact with atomic rename.
 **Closes:** STR-6 / KNOB-5 (no raw concurrent-connection cap before identity is known), KNOB-4 (Phase-20
 rate-limit/auth-cache configs not inherited across server scopes — a child block silently gets the feature
 OFF).
-**Files:** `src/config/server_conf.c` (merge inheritance); `src/connection/handler.c` (cap at accept);
+**Files:** `src/core/config/server_conf.c` (merge inheritance); `src/connection/handler.c` (cap at accept);
 `config.h` + `module.c`; `docs/05-operations/*`.
 **Changes:**
 - KNOB-4: add parent→child inheritance for `token_cache_kv` / `auth_cache` / `rate_limit` in

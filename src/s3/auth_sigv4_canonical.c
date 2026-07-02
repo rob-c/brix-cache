@@ -12,7 +12,7 @@
  */
 
 #include "s3.h"
-#include "compat/uri.h"
+#include "core/compat/uri.h"
 
 #include <string.h>
 #include <stdlib.h>

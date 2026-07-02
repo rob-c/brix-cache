@@ -78,7 +78,7 @@ kXR_mkpath    = 0x0100   # create parent directories
 
 # Phase-42 open-reply inline-compression signalling
 # (ServerResponseBody_Open.cpsize == XROOTD_INLINE_CMP_MAGIC ('Z'=0x5A),
-#  cptype[0] == codec ordinal).  zstd is ordinal 3 (src/compat/codec_core.h).
+#  cptype[0] == codec ordinal).  zstd is ordinal 3 (src/core/compat/codec_core.h).
 INLINE_CMP_MAGIC = 0x5A
 CODEC_ZSTD       = 3
 

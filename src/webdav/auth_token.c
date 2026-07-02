@@ -3,7 +3,7 @@
  */
 
 #include "webdav.h"
-#include "compat/http_headers.h"
+#include "core/compat/http_headers.h"
 #include "token/macaroon.h"
 #include "token/token_cache.h"
 #include "token/worker_cache.h"

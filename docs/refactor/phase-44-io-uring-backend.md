@@ -47,7 +47,7 @@ the shape of the entire design:
    (`src/core/`, `src/event/`, `src/http/`). **Therefore server-side io_uring is
    strictly a *disk-I/O* backend** (`pread`/`pwrite`/`preadv`/`pwritev`/`fsync`).
    It replaces the thread-pool workers behind `xrootd_aio_post_task()`
-   (`src/aio/resume.c`), reusing the existing task structs and completion
+   (`src/core/aio/resume.c`), reusing the existing task structs and completion
    callbacks unchanged. TLS `b->memory=1` and cleartext `sendfile` invariants
    are untouched.
 
@@ -116,10 +116,10 @@ code today.
 ### 2.1 Server (`src/`)
 
 The single async dispatch point is **`xrootd_aio_post_task(ctx, c, pool, task,
-fallback_log, posted)`** (`src/aio/resume.c`). Today it calls
+fallback_log, posted)`** (`src/core/aio/resume.c`). Today it calls
 `ngx_thread_task_post()` and, on a full queue, returns `*posted = 0` so every
 caller falls back to an **inline synchronous** `pread`/`pwrite`. The six task
-context structs live in `src/aio/aio.h`:
+context structs live in `src/core/aio/aio.h`:
 
 | Task struct | Worker fn (syscall) | Done callback | Op |
 |---|---|---|---|
@@ -134,7 +134,7 @@ Worker fns run on a pool thread and touch **no** connection state; done callback
 run on the event thread, guard `ctx->destroyed` via
 `xrootd_aio_restore_stream/request()`, build the `ngx_chain_t`, queue the
 response, and call `xrootd_aio_resume()`. Phase-31 windowed reads
-(`xrootd_read_window_pump`, `src/aio/reads.c`) and the phase-32 warm-cache
+(`xrootd_read_window_pump`, `src/core/aio/reads.c`) and the phase-32 warm-cache
 `preadv2(…, RWF_NOWAIT)` probe (`src/read/read.c`) sit *above* this seam and are
 backend-agnostic.
 
@@ -162,7 +162,7 @@ backend-agnostic.
 
 ### A.1 Event-loop integration without patching nginx core
 
-Add one per-worker singleton (file-static in a new `src/aio/uring.c`, reached via
+Add one per-worker singleton (file-static in a new `src/core/aio/uring.c`, reached via
 an accessor `xrootd_uring_worker()`; **no new exported global**):
 
 ```c
@@ -179,7 +179,7 @@ typedef struct {
 } xrootd_uring_t;
 ```
 
-- **Created** in `ngx_stream_xrootd_init_process()` (`src/config/process.c`,
+- **Created** in `ngx_stream_xrootd_init_process()` (`src/core/config/process.c`,
   after `xrootd_imp_init_worker`) — *per worker, after fork*, the same lifetime
   as every other per-worker async resource (`xrootd_proxy_pool_init`,
   `xrootd_gsi_keypool_init`). Sequence: `io_uring_queue_init(depth)` →
@@ -452,14 +452,14 @@ fi
 
 **Critical (build governance):** `-luring` goes into the **stream module's
 `ngx_module_libs`**, NOT `CORE_LIBS` — otherwise the dynamic `.so` fails `dlopen`
-with `undefined symbol: io_uring_*`. New `src/aio/uring.c` + `uring_submit.c` go
+with `undefined symbol: io_uring_*`. New `src/core/aio/uring.c` + `uring_submit.c` go
 in `ngx_module_srcs`, `uring.h` in the stream deps; **a `./configure` re-run is
 required**. `--with-threads` stays hard-required (the thread pool is always the
 fallback tier).
 
 Runtime directive `xrootd_io_uring on|off|auto` (`ngx_conf_set_enum_slot`, merged
 like `xrootd_memory_budget`; default `auto` = enable iff the probe passes),
-optional `xrootd_io_uring_queue_depth N`. Tunables in `src/types/tunables.h`:
+optional `xrootd_io_uring_queue_depth N`. Tunables in `src/core/types/tunables.h`:
 
 ```c
 #define XROOTD_IO_URING_QUEUE_DEPTH       256
@@ -760,11 +760,11 @@ levels, escalating in response time:
 1. **Build-time master-off** — `XROOTD_HAVE_LIBURING` undefined → no `-luring`,
    stubs only (§3, §4). The ultimate off; requires a rebuild.
 2. **Config-off on reload** — `xrootd_io_uring off` + `nginx -s reload`. Workers
-   re-fork through `ngx_stream_xrootd_init_process()` (`src/config/process.c:94`)
+   re-fork through `ngx_stream_xrootd_init_process()` (`src/core/config/process.c:94`)
    and simply don't create a ring. No rebuild, ~0 downtime, but needs a reload.
 3. **Hot kill switch (no reload) — the incident-response path.** A cross-worker
    **SHM atomic** `io_uring_disabled`, allocated in the module's SHM table via
-   `xrootd_shm_table_alloc()` (`src/compat/shm_slots.c:14`) following the exact
+   `xrootd_shm_table_alloc()` (`src/core/compat/shm_slots.c:14`) following the exact
    `ngx_atomic_t` pattern already used for the dashboard transfer table
    (`src/dashboard/dashboard.h:109`, hot-path read at
    `src/dashboard/transfer_table.c:155`, atomic write at `:322`):
@@ -867,14 +867,14 @@ unprivileged and confined. Documented in §9 as a future tier, not first cut.
 
 ## 9. Detailed data structures & types
 
-This section is the implementation reference for every new type introduced by the io_uring backend, on both the server (`src/aio/`) and the client (`client/lib/uring.{c,h}`). It is exhaustive on purpose: field semantics, ownership, write-timing (submit-time vs. reaper vs. done-callback), and concurrency. Two rules govern everything below and are repeated where they bite:
+This section is the implementation reference for every new type introduced by the io_uring backend, on both the server (`src/core/aio/`) and the client (`client/lib/uring.{c,h}`). It is exhaustive on purpose: field semantics, ownership, write-timing (submit-time vs. reaper vs. done-callback), and concurrency. Two rules govern everything below and are repeated where they bite:
 
-1. **No existing struct changes layout.** The six `*_aio_t` task structs in `src/aio/aio.h` and the client `xrdc_aconn` (`client/lib/aio.c`) are reused as-is on the data path. The only additions are *new, separate* objects (`xrootd_uring_t`, the slot table, the client `xrdc_disk_ring`, the engine vtable) plus exactly **one** new scalar field on `xrdc_aconn` (`fd_gen`), justified in §9.7.
+1. **No existing struct changes layout.** The six `*_aio_t` task structs in `src/core/aio/aio.h` and the client `xrdc_aconn` (`client/lib/aio.c`) are reused as-is on the data path. The only additions are *new, separate* objects (`xrootd_uring_t`, the slot table, the client `xrdc_disk_ring`, the engine vtable) plus exactly **one** new scalar field on `xrdc_aconn` (`fd_gen`), justified in §9.7.
 2. **Everything is behind `#if XROOTD_HAVE_LIBURING`.** The macro comes from `pkg-config liburing` at configure time (server `config`, client `Makefile`). When undefined, none of these types are compiled and the dispatcher never references them — the thread-pool/epoll paths are byte-for-byte unchanged.
 
 ### 9.1 Server: the per-worker singleton `xrootd_uring_t`
 
-There is exactly one of these per nginx worker process. It is **not** embedded in any config struct, connection, or ctx — it is a file-scope static inside `src/aio/uring.c`, reached only through the accessor `xrootd_uring_worker()` (the "no new globals" constraint: the symbol is `static`, not exported). It is allocated/initialized in the worker-init hook after fork, and torn down in worker-exit.
+There is exactly one of these per nginx worker process. It is **not** embedded in any config struct, connection, or ctx — it is a file-scope static inside `src/core/aio/uring.c`, reached only through the accessor `xrootd_uring_worker()` (the "no new globals" constraint: the symbol is `static`, not exported). It is allocated/initialized in the worker-init hook after fork, and torn down in worker-exit.
 
 ```c
 #if (XROOTD_HAVE_LIBURING)
@@ -1124,7 +1124,7 @@ The io_uring impl first ships as a **`IORING_OP_POLL_ADD` multishot** drop-in (r
 ### 9.8 ABI, layout, and build notes
 
 - **All new types are behind `#if XROOTD_HAVE_LIBURING` (server) / `#if XRDC_HAVE_LIBURING` (client).** With the macro undefined, the compilation unit `uring.c` is still built but reduces to the probe stub returning "unavailable"; no struct above is referenced by the dispatcher.
-- **No existing struct changes layout on the server.** `xrootd_uring_t` is a *separate per-worker object*, never a member of `xrootd_ctx_t`, the srv conf, or any `*_aio_t`. The `*_aio_t` structs in `src/aio/aio.h` are byte-identical to today. This is mandatory: the task structs are allocated by call sites compiled in many `.c` files, and any size/offset change requires all of them to agree.
+- **No existing struct changes layout on the server.** `xrootd_uring_t` is a *separate per-worker object*, never a member of `xrootd_ctx_t`, the srv conf, or any `*_aio_t`. The `*_aio_t` structs in `src/core/aio/aio.h` are byte-identical to today. This is mandatory: the task structs are allocated by call sites compiled in many `.c` files, and any size/offset change requires all of them to agree.
 - **Mixed-ABI crash hazard (must rebuild fully).** `aio.h` is included across `reads.c`, `write.c`, `readv.c`, `resume.c`, `uring.c`, and the dispatch sites. If a struct *did* change (e.g. a future field added to `xrootd_write_aio_t`), an incremental build that recompiles only some `.c` files leaves objects with **different layouts of the same struct** — the reaper writes `nwritten` at one offset, the done-callback reads it at another: silent corruption or a crash. The single new field on `xrdc_aconn` (`fd_gen`) is the only struct-layout change in the entire phase, and it ships in the same commit as a forced full rebuild. **Rule for implementers: any edit to a struct in `aio.h` or to `xrdc_aconn` requires `touch`-ing the dependent `.c` files (or a clean build), never a partial `make`.** The client `xrdc_disk_ring` is opaque (defined only in `uring.c`), so it carries no cross-TU ABI risk by construction — keep it that way; do not move its definition into a header.
 - **Build wiring.** Server: `config` runs `pkg-config --exists liburing`; on success it appends `-DXROOTD_HAVE_LIBURING` to `CFLAGS` and `-luring` to the link line, and adds `uring.c` to the module sources. Client: the `Makefile` does the same with `XRDC_HAVE_LIBURING` and adds `lib/uring.o` (PIC and static variants, matching the existing dual-build of `lib/*.o`/`lib/*.pic.o`). Absent liburing, neither flag is set and the new objects compile to stubs.
 
@@ -1138,7 +1138,7 @@ The client disk ring **does** add registered-buffer bytes: `nbuf * bufsz`, pinne
 
 ## 10. Server submission cookbook (per opcode)
 
-This section specifies, opcode by opcode, exactly how `xrootd_aio_post_task` (`src/aio/resume.c`) turns a bound `ngx_thread_task_t` into an io_uring SQE, what runs where (submit-time inline vs SQE vs done-callback), how `cqe->res` translates back into the existing OUT fields, and how short/partial I/O reaches the unchanged `kXR_IOError` branch. Every mapped op preserves the Option-A contract from §A.4: the worker fn is bypassed, but the `*_aio_done` callback and wire framing are byte-for-byte unchanged. The submission entry point is a single new helper `xrootd_uring_submit(ctx, c, task, op, posted)` invoked from the selector in §10.7; the per-opcode bodies below are the `switch (op)` arms inside it.
+This section specifies, opcode by opcode, exactly how `xrootd_aio_post_task` (`src/core/aio/resume.c`) turns a bound `ngx_thread_task_t` into an io_uring SQE, what runs where (submit-time inline vs SQE vs done-callback), how `cqe->res` translates back into the existing OUT fields, and how short/partial I/O reaches the unchanged `kXR_IOError` branch. Every mapped op preserves the Option-A contract from §A.4: the worker fn is bypassed, but the `*_aio_done` callback and wire framing are byte-for-byte unchanged. The submission entry point is a single new helper `xrootd_uring_submit(ctx, c, task, op, posted)` invoked from the selector in §10.7; the per-opcode bodies below are the `switch (op)` arms inside it.
 
 ### 10.0 Common submit-time scaffolding (runs for every mapped op)
 
@@ -1210,7 +1210,7 @@ Notes binding the contract:
 
 ### 10.1 READ → `IORING_OP_READ`
 
-Task struct: `xrootd_read_aio_t` (`src/aio/aio.h`). Worker fn bypassed: `xrootd_read_aio_thread` (`src/aio/reads.c`), whose entire body is `pread(t->fd, t->databuf, t->rlen, t->offset)`.
+Task struct: `xrootd_read_aio_t` (`src/core/aio/aio.h`). Worker fn bypassed: `xrootd_read_aio_thread` (`src/core/aio/reads.c`), whose entire body is `pread(t->fd, t->databuf, t->rlen, t->offset)`.
 
 (a) Prep sequence:
 
@@ -1242,7 +1242,7 @@ case XRD_URING_OP_READ:
 
 io_uring returns `-errno` in `cqe->res`, never via `errno`.
 
-(d) Short read / partial completion: a short read is `0 <= cqe->res < t->rlen`. This is the *normal* EOF / end-of-file-region case and is identical to a short `pread`: `t->nread` is the smaller count, and `xrootd_read_window_emit`/`xrootd_read_aio_done` (`src/aio/reads.c`) handle it exactly as today (EOF → `kXR_ok` with the bytes actually read, advancing `rd_win_remaining`). A hard error is `cqe->res < 0` → `t->nread = -1`, which lands on the existing `if (t->nread < 0)` branch in `xrootd_read_aio_done` → `XROOTD_OP_ERR` + `xrootd_send_error(ctx, c, kXR_IOError, strerror(t->io_errno))`. **No new error path is introduced.**
+(d) Short read / partial completion: a short read is `0 <= cqe->res < t->rlen`. This is the *normal* EOF / end-of-file-region case and is identical to a short `pread`: `t->nread` is the smaller count, and `xrootd_read_window_emit`/`xrootd_read_aio_done` (`src/core/aio/reads.c`) handle it exactly as today (EOF → `kXR_ok` with the bytes actually read, advancing `rd_win_remaining`). A hard error is `cqe->res < 0` → `t->nread = -1`, which lands on the existing `if (t->nread < 0)` branch in `xrootd_read_aio_done` → `XROOTD_OP_ERR` + `xrootd_send_error(ctx, c, kXR_IOError, strerror(t->io_errno))`. **No new error path is introduced.**
 
 (e) Fall-through-to-pool conditions for READ: ring disabled, `disabled_flag` (runtime kill switch), `inflight >= queue_depth`, `xrootd_uring_slot_acquire` returns NULL, `io_uring_get_sqe` returns NULL, or `io_uring_submit < 0`. In every case `*posted` stays 0 inside `xrootd_uring_submit`, the selector proceeds to `ngx_thread_task_post`, and if that also fails the window pump's existing inline `pread` (`reads.c`) runs. The op is never dropped.
 
@@ -1256,7 +1256,7 @@ io_uring returns `-errno` in `cqe->res`, never via `errno`.
 
 ### 10.2 WRITE → `IORING_OP_WRITE`
 
-Task struct: `xrootd_write_aio_t`. Worker fn bypassed: `xrootd_write_aio_thread` (`src/aio/write.c`), body `pwrite(t->fd, t->data, t->len, t->offset)`.
+Task struct: `xrootd_write_aio_t`. Worker fn bypassed: `xrootd_write_aio_thread` (`src/core/aio/write.c`), body `pwrite(t->fd, t->data, t->len, t->offset)`.
 
 (a) Prep:
 
@@ -1293,7 +1293,7 @@ case XRD_URING_OP_WRITE:
 
 ### 10.3 READV (single coalesced group) → `IORING_OP_READV`
 
-Task struct: `xrootd_readv_aio_t`. Worker fn bypassed: `xrootd_readv_aio_thread` (`src/aio/readv.c`), which calls `xrootd_readv_read_segments` (validate offsets, coalesce adjacent same-fd segments into `preadv` of ≤64 iovecs, EINTR-retried, write into each `payload_ptr`).
+Task struct: `xrootd_readv_aio_t`. Worker fn bypassed: `xrootd_readv_aio_thread` (`src/core/aio/readv.c`), which calls `xrootd_readv_read_segments` (validate offsets, coalesce adjacent same-fd segments into `preadv` of ≤64 iovecs, EINTR-retried, write into each `payload_ptr`).
 
 **Mappability condition (decided at submit time, by `xrootd_uring_op_for` plus a run-time recheck):** all `segment_count` descriptors share **one** `fd` and coalesce into a **single** `preadv` group (≤64 iovecs). If the plan produces more than one group, or more than one fd, it is **not** a single `IORING_OP_READV` and stays on the pool (§10.6).
 
@@ -1348,7 +1348,7 @@ case XRD_URING_OP_READV:
 
 ### 10.4 WRITEV (single fd) → `IORING_OP_WRITEV` (+ linked `IORING_OP_FSYNC` when `do_sync`)
 
-Task struct: `xrootd_writev_aio_t`. Worker fn bypassed: `xrootd_writev_write_aio_thread` (`src/aio/write.c`) — per-segment `pwrite`, then per-unique-fd `fsync` if `do_sync`.
+Task struct: `xrootd_writev_aio_t`. Worker fn bypassed: `xrootd_writev_write_aio_thread` (`src/core/aio/write.c`) — per-segment `pwrite`, then per-unique-fd `fsync` if `do_sync`.
 
 **Mappability:** all `n_segs` descriptors share one `fd` and are contiguous (offset[i] = offset[i-1] + wlen[i-1]) so a single `pwritev`-equivalent at `segs[0].offset` covers them. Non-contiguous single-fd segments cannot be one `IORING_OP_WRITEV` and stay on the pool (a later tier could submit N linked `IORING_OP_WRITE`s; deferred). Multi-fd → pool (§10.6).
 
@@ -1482,7 +1482,7 @@ xrootd_uring_op_for(ngx_thread_task_t *task)
 | `xrootd_dirlist_aio_thread` | `NONE` | thread pool (not an io_uring op) |
 
 ```c
-/* Modified body of xrootd_aio_post_task (src/aio/resume.c).
+/* Modified body of xrootd_aio_post_task (src/core/aio/resume.c).
  * Single dispatch point; signature unchanged; no goto — early-return + helper. */
 ngx_int_t
 xrootd_aio_post_task(xrootd_ctx_t *ctx, ngx_connection_t *c,
@@ -1532,7 +1532,7 @@ xrootd_aio_post_task(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
 ### 10.8 Warm-cache probe composition (read path only)
 
-The phase-32 `preadv2(fd, &iov, 1, off, RWF_NOWAIT)` probe runs **inline, before** `xrootd_aio_post_task`, in `xrootd_read_window_pump` (`src/aio/reads.c`). Composition:
+The phase-32 `preadv2(fd, &iov, 1, off, RWF_NOWAIT)` probe runs **inline, before** `xrootd_aio_post_task`, in `xrootd_read_window_pump` (`src/core/aio/reads.c`). Composition:
 - **Hit** (`preadv2` returns the full window without blocking): served synchronously, the read never reaches the selector, zero added latency. Reproducing this as an `IOSQE_ASYNC`/`RWF_NOWAIT` SQE was rejected (§A.7) — an SQE still costs one epoll cycle.
 - **Miss** (`EAGAIN`): fall to `xrootd_aio_post_task`, which now prefers io_uring. The probe is therefore a fast-path *in front of* the ring, not replaced by it.
 
@@ -1608,7 +1608,7 @@ xrootd_uring_eventfd_handler(ngx_event_t *ev)
 
 ### 11.2 Why post to `ngx_posted_events` instead of dispatching inline
 
-The reaper **does not** call `slot->done_fn` from inside the harvest loop. Reason: re-entrancy. A done-callback for a windowed read (`xrootd_read_aio_done` → `xrootd_read_window_pump`, `src/aio/reads.c`) **re-submits the next window's SQE** via `xrootd_aio_post_task` → `xrootd_uring_submit` → `io_uring_get_sqe`/`io_uring_submit`. Calling that from inside the harvest loop would mutate the ring's SQ (and `inflight`) while we are iterating the CQ — exactly the footgun core avoids by deferring to `ngx_posted_events`. Posting instead means:
+The reaper **does not** call `slot->done_fn` from inside the harvest loop. Reason: re-entrancy. A done-callback for a windowed read (`xrootd_read_aio_done` → `xrootd_read_window_pump`, `src/core/aio/reads.c`) **re-submits the next window's SQE** via `xrootd_aio_post_task` → `xrootd_uring_submit` → `io_uring_get_sqe`/`io_uring_submit`. Calling that from inside the harvest loop would mutate the ring's SQ (and `inflight`) while we are iterating the CQ — exactly the footgun core avoids by deferring to `ngx_posted_events`. Posting instead means:
 - The harvest loop only reads the CQ and bumps counters; it never touches the SQ.
 - nginx's posted-events drain (which already runs after `ngx_process_events`) invokes each done-callback on a clean stack, where a re-submit is just an ordinary `xrootd_aio_post_task` call — the same as the thread-pool path.
 
@@ -1616,7 +1616,7 @@ This is the §A.2 decision: reuse the core queue; it is both less code and the o
 
 ### 11.3 Slot decode + generation validation
 
-`user_data = (generation << 32) | slot_index`. Decode splits it; `xrootd_uring_slot_at(u, idx)` bounds-checks the index against the slot table size. Validation drops the CQE if the slot is free (`!in_use`) or its `generation` no longer matches — the case where the connection was torn down, the slot freed and reused, and a late CQE arrives for the previous occupant. This guards the **ring slot**. The done-callback's own `xrootd_aio_restore_stream/request()` + `ctx->destroyed` check (`src/aio/resume.c`) remains the authoritative guard for the **connection**. Both layers are retained — the slot generation protects the reaper from dereferencing a recycled `ngx_thread_task_t`; the `ctx->destroyed` guard protects the protocol code from acting on a dead connection. A stale CQE still decrements `inflight` so accounting stays balanced.
+`user_data = (generation << 32) | slot_index`. Decode splits it; `xrootd_uring_slot_at(u, idx)` bounds-checks the index against the slot table size. Validation drops the CQE if the slot is free (`!in_use`) or its `generation` no longer matches — the case where the connection was torn down, the slot freed and reused, and a late CQE arrives for the previous occupant. This guards the **ring slot**. The done-callback's own `xrootd_aio_restore_stream/request()` + `ctx->destroyed` check (`src/core/aio/resume.c`) remains the authoritative guard for the **connection**. Both layers are retained — the slot generation protects the reaper from dereferencing a recycled `ngx_thread_task_t`; the `ctx->destroyed` guard protects the protocol code from acting on a dead connection. A stale CQE still decrements `inflight` so accounting stays balanced.
 
 ### 11.4 Inflight accounting
 
@@ -1641,11 +1641,11 @@ Deferred behind the same probe/off-by-default gating as the base ring.
 
 - **In-flight op when the connection drops:** the CQE still arrives later. The slot's `task->event` is still posted, the done-callback runs, and `xrootd_aio_restore_stream` sees `ctx->destroyed` and returns 0 → the callback touches nothing further (and, for writes, still frees the detached payload). The slot generation prevents a *recycled* slot from being mis-decoded. Two independent guards, as in the thread-pool model.
 - **Worker exit:** `xrootd_exit_process` drains the ring before freeing it: `ngx_del_event(evc->read, NGX_READ_EVENT, 0)`, `ngx_close_connection(evc)`, then `io_uring_unregister_eventfd`, `io_uring_queue_exit(&u->ring)`, `close(u->eventfd)`. `io_uring_queue_exit` waits for / discards in-flight ops; any not-yet-reaped CQEs are abandoned with the ring — safe because their tasks are pool-allocated on connections being torn down at process exit. If a graceful "drain to `inflight == 0` before exit" is desired (so the ring fd disappears only when quiet), spin the posted-events drain until `inflight == 0` first (noted in §A.1 / §9).
-- **Detached write payload:** `payload_to_free` (`xrootd_write_aio_t`) / `payload_buf` (`xrootd_writev_aio_t`) is the SQE's source buffer and is freed **only** in the post-CQE done-callback (`xrootd_write_aio_done` / `xrootd_writev_write_aio_done`, `src/aio/write.c`), which by construction runs after the CQE. The in-flight `IORING_OP_WRITE`/`WRITEV` therefore always reads live memory. This is the exact §A.4 lifetime guarantee, restated for the ring.
+- **Detached write payload:** `payload_to_free` (`xrootd_write_aio_t`) / `payload_buf` (`xrootd_writev_aio_t`) is the SQE's source buffer and is freed **only** in the post-CQE done-callback (`xrootd_write_aio_done` / `xrootd_writev_write_aio_done`, `src/core/aio/write.c`), which by construction runs after the CQE. The in-flight `IORING_OP_WRITE`/`WRITEV` therefore always reads live memory. This is the exact §A.4 lifetime guarantee, restated for the ring.
 
 ### 11.8 End-to-end sequence for a single `kXR_read`
 
-1. **Handler / pump.** `xrootd_read_window_pump` (`src/aio/reads.c`) allocates `read_scratch`, runs `xrootd_budget_sync`, runs the phase-32 `preadv2(RWF_NOWAIT)` probe → miss.
+1. **Handler / pump.** `xrootd_read_window_pump` (`src/core/aio/reads.c`) allocates `read_scratch`, runs `xrootd_budget_sync`, runs the phase-32 `preadv2(RWF_NOWAIT)` probe → miss.
 2. **Selector.** It binds the cached `read_aio_task` to `xrootd_read_aio_thread`/`xrootd_read_aio_done` and calls `xrootd_aio_post_task`. The selector picks Tier 1: `xrootd_uring_op_for` → `OP_READ`, `inflight < queue_depth`, kill switch clear.
 3. **Submit.** `xrootd_uring_submit` acquires slot `idx` (generation `g`), `io_uring_get_sqe`, `io_uring_prep_read(sqe, fd, databuf, rlen, offset)`, `io_uring_sqe_set_data64(sqe, (g<<32)|idx)`, `io_uring_submit`, `inflight++`, `*posted=1`. Selector sets `ctx->state = XRD_ST_AIO`; the pump returns.
 4. **Kernel + eventfd.** Disk read completes; io_uring posts a CQE and signals the registered eventfd; epoll wakes the worker; `evc->read` is readable → `xrootd_uring_eventfd_handler` fires.
@@ -2168,7 +2168,7 @@ Four independent levels (§8.1 lists them; here is the code):
 
 **Level 1 — build-time.** `XROOTD_HAVE_LIBURING` undefined ⇒ the entire backend, its SQE construction, and its syscalls are `#ifdef`'d out. A build that never links liburing cannot reach `io_uring_setup`. This is the strongest level and the recommended default for security-sensitive deployments.
 
-**Level 2 — config.** `xrootd_io_uring off` (default) ⇒ `init_process` never calls `io_uring_queue_init`. Changing it requires a privileged reload. SHM survives reload (slab `->data` re-attach, `xrootd_shm_table_alloc` `src/compat/shm_slots.c:14`), and `init_process` re-reads the directive, so the live decision is re-evaluated per cycle.
+**Level 2 — config.** `xrootd_io_uring off` (default) ⇒ `init_process` never calls `io_uring_queue_init`. Changing it requires a privileged reload. SHM survives reload (slab `->data` re-attach, `xrootd_shm_table_alloc` `src/core/compat/shm_slots.c:14`), and `init_process` re-reads the directive, so the live decision is re-evaluated per cycle.
 
 **Level 3 — hot SHM atomic.** The runtime flip. Add one field to the shared control struct, allocated slab-safe so the slab header survives child death (the contract in `shm_slots.c`: the table's first member is the lock).
 
@@ -2417,10 +2417,10 @@ This block belongs with the other optional pkg-config probes (after the krb5 blo
 |---|---|---|---|
 | `-DXROOTD_HAVE_LIBURING=1` + `--cflags` | `CFLAGS` | Compile gate for `#ifdef` stubs in `uring.c`/`uring_submit.c`; applies to every TU including `aio/config.c` directive merge | Stubs never compile out; `io_uring_*` symbols referenced but unresolved |
 | `XROOTD_URING_LIBS` (`-luring`) | **stream `ngx_module_libs`** (append to the existing `ngx_module_libs=`) | DYNAMIC `.so` (`--with-stream=dynamic`, the RPM path) is linked with `ngx_module_libs`, NOT `CORE_LIBS` | `.so` builds but **`dlopen` fails at nginx start: `undefined symbol: io_uring_queue_init`** — the canonical failure mode this whole convention exists to prevent |
-| `$ngx_addon_dir/src/aio/uring.c` | stream `ngx_module_srcs` | New `.c` → must be listed or `./configure` won't compile it | Symbols `xrootd_uring_*` undefined at link of the `.so` |
-| `$ngx_addon_dir/src/aio/uring_submit.c` | stream `ngx_module_srcs` | Same | Same |
-| `$ngx_addon_dir/src/aio/uring.h` | `ngx_module_deps` (the stream deps list) | Header dep so a touch of `uring.h` triggers recompile of dependents | Stale objects against a changed struct layout → mixed-ABI crash (§15.1.4) |
-| `XROOTD_IO_URING_*` `#define`s | `src/types/tunables.h` (header-only) | Compile-time constants; no new `.c` | — |
+| `$ngx_addon_dir/src/core/aio/uring.c` | stream `ngx_module_srcs` | New `.c` → must be listed or `./configure` won't compile it | Symbols `xrootd_uring_*` undefined at link of the `.so` |
+| `$ngx_addon_dir/src/core/aio/uring_submit.c` | stream `ngx_module_srcs` | Same | Same |
+| `$ngx_addon_dir/src/core/aio/uring.h` | `ngx_module_deps` (the stream deps list) | Header dep so a touch of `uring.h` triggers recompile of dependents | Stale objects against a changed struct layout → mixed-ABI crash (§15.1.4) |
+| `XROOTD_IO_URING_*` `#define`s | `src/core/types/tunables.h` (header-only) | Compile-time constants; no new `.c` | — |
 
 The exact append to the stream module's lib line:
 
@@ -2449,8 +2449,8 @@ ngx_module_libs="-lssl -lcrypto $XROOTD_JANSSON_LIBS $XROOTD_XML2_LIBS \
 #### 15.1.5 "What to add where" checklist
 
 1. `config`: insert the §15.1.1 detection block after the krb5 block.
-2. `config`: append `$ngx_addon_dir/src/aio/uring.c` and `.../uring_submit.c` to stream `ngx_module_srcs`.
-3. `config`: append `$ngx_addon_dir/src/aio/uring.h` to the stream deps list.
+2. `config`: append `$ngx_addon_dir/src/core/aio/uring.c` and `.../uring_submit.c` to stream `ngx_module_srcs`.
+3. `config`: append `$ngx_addon_dir/src/core/aio/uring.h` to the stream deps list.
 4. `config`: append `$XROOTD_URING_LIBS` to stream `ngx_module_libs` (NOT `CORE_LIBS`).
 5. `tunables.h`: add the `XROOTD_IO_URING_*` `#define`s (§15.3).
 6. `config.h`: add the directive fields (`NGX_CONF_UNSET`).
@@ -2459,7 +2459,7 @@ ngx_module_libs="-lssl -lcrypto $XROOTD_JANSSON_LIBS $XROOTD_XML2_LIBS \
 
 ### 15.2 Server directive reference
 
-All directives are **stream → server** context (they live on the `ngx_stream_xrootd_srv_conf_t`, alongside `cache`, `memory_budget`, `thread_pool_name`). Fields are initialized to `NGX_CONF_UNSET` (or `NGX_CONF_UNSET_UINT`) in `create_srv_conf()` and resolved in `merge_srv_conf()`. The `ngx_command_t` rows live with the io_uring backend's config code (`src/aio/config.c`).
+All directives are **stream → server** context (they live on the `ngx_stream_xrootd_srv_conf_t`, alongside `cache`, `memory_budget`, `thread_pool_name`). Fields are initialized to `NGX_CONF_UNSET` (or `NGX_CONF_UNSET_UINT`) in `create_srv_conf()` and resolved in `merge_srv_conf()`. The `ngx_command_t` rows live with the io_uring backend's config code (`src/core/aio/config.c`).
 
 | Directive | Syntax | Context | Setter / type | Default | Valid range | Reload-safe? | Controls | Merge |
 |---|---|---|---|---|---|---|---|---|
@@ -2475,7 +2475,7 @@ All directives are **stream → server** context (they live on the `ngx_stream_x
 
 Three edits, no `./configure` (no new top-level block, no new `.c`):
 
-**1. Field in `src/config/config.h`** (on `ngx_stream_xrootd_srv_conf_t`):
+**1. Field in `src/core/config/config.h`** (on `ngx_stream_xrootd_srv_conf_t`):
 ```c
 ngx_uint_t io_uring;            /* enum: off/on/auto */
 ngx_int_t  io_uring_queue_depth;
@@ -2485,7 +2485,7 @@ ngx_flag_t io_uring_restrict;
 ```
 Set to `NGX_CONF_UNSET` / `NGX_CONF_UNSET_UINT` in `create_srv_conf()`.
 
-**2. `ngx_command_t` row in `src/aio/config.c`** (added to the stream module's `commands[]`):
+**2. `ngx_command_t` row in `src/core/aio/config.c`** (added to the stream module's `commands[]`):
 ```c
 { ngx_string("xrootd_io_uring"),
   NGX_STREAM_SRV_CONF|NGX_CONF_TAKE1,
@@ -2507,7 +2507,7 @@ ngx_conf_merge_value(conf->io_uring_restrict, prev->io_uring_restrict, 1);
 
 The runtime probe `xrootd_uring_runtime_available()` is consulted in `postconfiguration` (alongside `xrootd_configure_thread_pools()`), not at parse time, so the verdict is per-worker-process and seccomp-accurate.
 
-### 15.3 Server tunables reference (`src/types/tunables.h`)
+### 15.3 Server tunables reference (`src/core/types/tunables.h`)
 
 All compile-time, header-only (no `./configure`). They bound runtime allocation and encode kernel version gates.
 
@@ -2973,7 +2973,7 @@ The fault-injection proxy and resilience suites must **all pass with the io_urin
 |---|---|---|
 | `ci-uring-off` (always-green invariant) | full suite with `XROOTD_IO_URING_MODE=off`; build with **and** without liburing | every PR |
 | `ci-uring-auto` | full suite `auto` (production default; degrades on the CI kernel if blocked) | every PR |
-| `ci-parity` | backend-parity matrix (§17.1) over read/write/readv/pgread/dirlist + `test_integrity_matrix.py` across off/on/auto | every PR touching `src/aio/` or `client/lib/uring*` |
+| `ci-parity` | backend-parity matrix (§17.1) over read/write/readv/pgread/dirlist + `test_integrity_matrix.py` across off/on/auto | every PR touching `src/core/aio/` or `client/lib/uring*` |
 | `ci-asan-uring` | UAF/memory suite (§17.6) under ASan/LSan, engine on | every PR touching the backend |
 | `ci-resilience-uring` | §17.7 gate, engine on, + valgrind | required before CB-W4 merges; nightly thereafter |
 | `nightly-uring-on` | full suite `on` (hard-require), low-queue-depth spill cell, fallback matrix, restriction unit tests | nightly |
@@ -3008,16 +3008,16 @@ Effort labels are **rough relative estimates** (person-days, single engineer fam
 
 **Goal.** Land all build plumbing, directives, tunables, and a no-op selector hook so io_uring is a compile-time and config-time concept that does *nothing* yet. `xrootd_uring_worker()` returns NULL; the selector falls straight through to the thread pool.
 
-**Deliverables.** `config` (pkg-config block, `ngx_module_srcs`/`ngx_module_libs`), `src/types/tunables.h` (depth + kernel-min macros), `src/config/*.c` (directive table + merge), NEW `src/aio/uring.h` (types + accessor decl), NEW `src/aio/uring.c` (accessor returns NULL stub).
+**Deliverables.** `config` (pkg-config block, `ngx_module_srcs`/`ngx_module_libs`), `src/core/types/tunables.h` (depth + kernel-min macros), `src/core/config/*.c` (directive table + merge), NEW `src/core/aio/uring.h` (types + accessor decl), NEW `src/core/aio/uring.c` (accessor returns NULL stub).
 
 | # | Sub-task | Concrete change |
 |---|---|---|
 | SB-W1.1 | pkg-config gate | Add the `XROOTD_ENABLE_IO_URING` + `pkg-config --exists liburing` block to `config` (§3.1): set `-DXROOTD_HAVE_LIBURING=1`, `XROOTD_URING_LIBS=$(pkg-config --libs liburing)`. |
-| SB-W1.2 | Module wiring | Put `-luring` into the stream module's `ngx_module_libs` (NOT `CORE_LIBS` — §3.1); add `src/aio/uring.c` (+ `uring_submit.c` placeholder) to `ngx_module_srcs`; `uring.h` to deps. |
+| SB-W1.2 | Module wiring | Put `-luring` into the stream module's `ngx_module_libs` (NOT `CORE_LIBS` — §3.1); add `src/core/aio/uring.c` (+ `uring_submit.c` placeholder) to `ngx_module_srcs`; `uring.h` to deps. |
 | SB-W1.3 | Tunables | Add `XROOTD_IO_URING_QUEUE_DEPTH 256`, `_MIN_KERNEL_MAJOR/MINOR`, `_RESTRICT_KERNEL_MINOR` to `tunables.h`. |
 | SB-W1.4 | Directives | Add `xrootd_io_uring on\|off\|auto` (`ngx_conf_set_enum_slot`) + `xrootd_io_uring_queue_depth N`; add the §8.1 hardening directives as parse-only no-ops (`_panic_file`, `_admin`, `_restrict`) so config files written for later WS already parse. |
 | SB-W1.5 | Type + accessor | Define `xrootd_uring_t` (§9.1) in `uring.h`; in `uring.c` implement `xrootd_uring_worker()` returning NULL and `xrootd_uring_op_for(task)` returning `XRD_URING_OP_NONE`. |
-| SB-W1.6 | Selector hook | Add the §10.7 selector skeleton to `xrootd_aio_post_task` (`src/aio/resume.c`) but with the uring branch guarded by `u && u->enabled` — since `u==NULL`, it is provably dead. Signature unchanged. |
+| SB-W1.6 | Selector hook | Add the §10.7 selector skeleton to `xrootd_aio_post_task` (`src/core/aio/resume.c`) but with the uring branch guarded by `u && u->enabled` — since `u==NULL`, it is provably dead. Signature unchanged. |
 
 **Acceptance.** (a) `./configure` with and without `XROOTD_ENABLE_IO_URING` both succeed; built without it, `nm module.so | grep io_uring` is empty. (b) `xrootd_io_uring auto` parses and starts nginx. (c) Full suite green. (d) `nginx -t` accepts all new directives.
 
@@ -3027,7 +3027,7 @@ Effort labels are **rough relative estimates** (person-days, single engineer fam
 
 **Goal.** Stand up the per-worker ring, the eventfd→epoll bridge, the harvest loop, and the UAF-safe slot table — validated end-to-end with `IORING_OP_NOP` only. **No real data SQE in this WS.** Highest-risk WS; the NOP self-test is the hard gate before SB-W3 emits a single `IORING_OP_READ`.
 
-**Deliverables.** `src/aio/uring.c` (lifecycle + reaper + slot table), `src/aio/uring.h`, `src/config/process.c` (init/exit hooks).
+**Deliverables.** `src/core/aio/uring.c` (lifecycle + reaper + slot table), `src/core/aio/uring.h`, `src/core/config/process.c` (init/exit hooks).
 
 | # | Sub-task | Concrete change |
 |---|---|---|
@@ -3049,7 +3049,7 @@ Effort labels are **rough relative estimates** (person-days, single engineer fam
 
 **Goal.** Read and write actually flow through io_uring, covering single reads and the phase-31 windowed-read pump, with zero pump or done-callback changes.
 
-**Deliverables.** NEW `src/aio/uring_submit.c` (`xrootd_uring_submit`, op_for table), `src/aio/uring.c` (OUT translation in reaper).
+**Deliverables.** NEW `src/core/aio/uring_submit.c` (`xrootd_uring_submit`, op_for table), `src/core/aio/uring.c` (OUT translation in reaper).
 
 | # | Sub-task | Concrete change |
 |---|---|---|
@@ -3103,7 +3103,7 @@ Effort labels are **rough relative estimates** (person-days, single engineer fam
 
 **Goal.** Implement the §8.1 four-level kill switch — cross-worker SHM atomic readable lock-free on the submit hot path, settable via admin API and a watched panic-file, with metrics + audit logging.
 
-**Deliverables.** `src/compat/shm_slots.c` (`io_uring_disabled` atomic), `src/aio/resume.c` (hot-path read), `src/dashboard/api_admin.c` (endpoint), `src/config/process.c` (panic-file timer), `src/metrics/metrics.h` (gauges/counters).
+**Deliverables.** `src/core/compat/shm_slots.c` (`io_uring_disabled` atomic), `src/core/aio/resume.c` (hot-path read), `src/dashboard/api_admin.c` (endpoint), `src/core/config/process.c` (panic-file timer), `src/metrics/metrics.h` (gauges/counters).
 
 | # | Sub-task | Concrete change |
 |---|---|---|
@@ -3124,7 +3124,7 @@ Effort labels are **rough relative estimates** (person-days, single engineer fam
 
 **Goal.** Implement §8.2 / §14.4 containment: lock each ring to fd-only data opcodes, validate fd-provenance, prove interop with Phase-40 impersonation.
 
-**Deliverables.** `src/aio/uring.c` (restricted setup), `src/aio/uring_submit.c` (fd-provenance assertion), interop tests. **Read-only consumers:** `src/impersonate/broker.c`, `src/fs/vfs_open.c`/`vfs.h`, `src/path/beneath.c`.
+**Deliverables.** `src/core/aio/uring.c` (restricted setup), `src/core/aio/uring_submit.c` (fd-provenance assertion), interop tests. **Read-only consumers:** `src/impersonate/broker.c`, `src/fs/vfs_open.c`/`vfs.h`, `src/path/beneath.c`.
 
 | # | Sub-task | Concrete change |
 |---|---|---|
@@ -3424,11 +3424,11 @@ One crisp line each, alphabetical.
 
 ---
 
-## 20. Annotated server source skeletons (`src/aio/uring.{h,c}`, `uring_submit.c`)
+## 20. Annotated server source skeletons (`src/core/aio/uring.{h,c}`, `uring_submit.c`)
 
 This section is the near-final source skeleton for the three NEW server files. The six `*_aio_t` task structs, their `xrootd_*_aio_thread`/`xrootd_*_aio_done` halves, `xrootd_task_bind`, `xrootd_aio_post_task`, and the window pump are **unchanged** — this code is the only new code on the server. Everything below compiles under C11, nginx-idiomatic (`ngx_pcalloc`, `ngx_log_error`, `NGX_OK`/`NGX_ERROR`), no `goto` (early-return + `*_fail()` unwind helpers), and is wholly enclosed in `#if (XROOTD_HAVE_LIBURING)` with an `#else` stub that keeps every caller compiling without liburing. Identifiers match §9–§14; the enum spelled `xrootd_uring_op_e` with members `XRD_URING_OP_READ/WRITE/READV/WRITEV/FSYNC/NONE`.
 
-### 20.1 `src/aio/uring.h`
+### 20.1 `src/core/aio/uring.h`
 
 The full header. Include guard, the liburing guard, all type definitions (the per-worker singleton, the slot, the op enum, the dispatch-table type, the prep-fn typedef), and every public/internal prototype with a one-line purpose. The `#else` arm provides a static-inline `xrootd_uring_worker()` returning `NULL` plus stub macros so callers in `resume.c`/`reads.c` link clean without liburing.
 
@@ -3510,7 +3510,7 @@ typedef struct {
     xrootd_uring_prep_pt  prep;
 } xrootd_uring_dispatch_t;
 
-/* ---- lifecycle (called from src/aio/config.c worker hooks) ------------- */
+/* ---- lifecycle (called from src/core/aio/config.c worker hooks) ------------- */
 
 /* Memoized kernel/liburing capability probe (tri-state static).  Cheap; does
  * NOT open a ring per call.  0 = unavailable on this kernel/seccomp policy. */
@@ -3602,7 +3602,7 @@ static ngx_inline void xrootd_uring_exit_worker(ngx_cycle_t *c) { (void) c; }
 
 Notes for the implementer. The selector in `xrootd_aio_post_task` is the one edit outside these three files, and it must be written so the whole io_uring branch sits behind `if (u != NULL && !xrootd_uring_disabled(u))` where `u = xrootd_uring_worker()`; under the stub that is a compile-time-constant `NULL` so the branch is dead-code-eliminated and `xrootd_uring_submit` is never reached. Keep `pending_cqes` even though the first cut uses a single slot for writev+fsync — it is the hook for two-CQE chains (§9.6) and costs one byte.
 
-### 20.2 `src/aio/uring.c`
+### 20.2 `src/core/aio/uring.c`
 
 File-level doc block, the file-static singleton + accessor, then full skeletons with bodies-as-detailed-pseudocode for the lifecycle, the reaper, the OUT translator, the slot ops, and `xrootd_uring_disabled`. Real liburing calls throughout.
 
@@ -4117,7 +4117,7 @@ xrootd_uring_apply_cqe(xrootd_uring_t *u, xrootd_uring_slot_t *slot,
 
 Implementer notes for `uring.c`. The two-CQE writev+fsync case is intentionally written so `pending_cqes` is the single source of truth for "chain complete": prep sets it (2 for linked, 1 otherwise), `apply_cqe` decrements and only returns 1 at zero. The first cut keeps both SQEs sharing one slot/cookie (so a stray fsync CQE still decodes to the live slot); if a future kernel reports them as separate user_data, the FSYNC arm above already merges into the WRITEV task. The expected-total comparison for the writev short-write (`io_error=2`) needs the summed `wlen` — record it in the task at prep time (a scratch field, or recompute from `segs[]`), since `cqe->res` alone cannot tell short from complete.
 
-### 20.3 `src/aio/uring_submit.c`
+### 20.3 `src/core/aio/uring_submit.c`
 
 The op-mapper, the common submit scaffolding, the per-op prep functions (including the linked-fsync chaining for writev), and the SQE counter. Each carries a WHAT/WHY/HOW block.
 
@@ -4488,23 +4488,23 @@ fi
 **`ngx_module_srcs` — add the two new `.c` files** alongside the existing aio block (`config` lines 680-685):
 
 ```sh
-    $ngx_addon_dir/src/aio/buffers.c \
-    $ngx_addon_dir/src/aio/resume.c \
-    $ngx_addon_dir/src/aio/reads.c \
-    $ngx_addon_dir/src/aio/write.c \
-    $ngx_addon_dir/src/aio/readv.c \
-    $ngx_addon_dir/src/aio/dirlist.c \
-    $ngx_addon_dir/src/aio/uring.c \
-    $ngx_addon_dir/src/aio/uring_submit.c \
+    $ngx_addon_dir/src/core/aio/buffers.c \
+    $ngx_addon_dir/src/core/aio/resume.c \
+    $ngx_addon_dir/src/core/aio/reads.c \
+    $ngx_addon_dir/src/core/aio/write.c \
+    $ngx_addon_dir/src/core/aio/readv.c \
+    $ngx_addon_dir/src/core/aio/dirlist.c \
+    $ngx_addon_dir/src/core/aio/uring.c \
+    $ngx_addon_dir/src/core/aio/uring_submit.c \
 ```
 
 Both files are listed **unconditionally** — they compile to (mostly empty) TUs without liburing, matching the codec pattern where the backend "compiles to an unavailable descriptor". Do not make their inclusion conditional on the gate; that would create the mixed-ABI hazard §9.8 warns about and break incremental builds.
 
-**`ngx_module_deps` — add the new header** to `ngx_xrootd_stream_deps` (alongside `src/aio/aio.h` at line 266):
+**`ngx_module_deps` — add the new header** to `ngx_xrootd_stream_deps` (alongside `src/core/aio/aio.h` at line 266):
 
 ```sh
-                        $ngx_addon_dir/src/aio/aio.h \
-                        $ngx_addon_dir/src/aio/uring.h \
+                        $ngx_addon_dir/src/core/aio/aio.h \
+                        $ngx_addon_dir/src/core/aio/uring.h \
 ```
 
 This forces a rebuild of `resume.c` (the selector edit) and the two new TUs whenever `uring.h` changes — the §9.8 "any edit to a struct in a shared header requires the dependent `.c` rebuilt" rule, enforced by `make` dependency tracking rather than a manual `touch`.
@@ -4810,15 +4810,15 @@ endif
 ```
 **(b) `uring.h` into the stream deps (~line 266):**
 ```diff
-                         $ngx_addon_dir/src/aio/aio.h \
-+                        $ngx_addon_dir/src/aio/uring.h \
+                         $ngx_addon_dir/src/core/aio/aio.h \
++                        $ngx_addon_dir/src/core/aio/uring.h \
 ```
 **(c) `uring.c`+`uring_submit.c` into `ngx_module_srcs` (~line 685):**
 ```diff
-     $ngx_addon_dir/src/aio/reads.c \
-+    $ngx_addon_dir/src/aio/uring.c \
-+    $ngx_addon_dir/src/aio/uring_submit.c \
-     $ngx_addon_dir/src/aio/write.c \
+     $ngx_addon_dir/src/core/aio/reads.c \
++    $ngx_addon_dir/src/core/aio/uring.c \
++    $ngx_addon_dir/src/core/aio/uring_submit.c \
+     $ngx_addon_dir/src/core/aio/write.c \
 ```
 **(d) `$XROOTD_URING_LIBS` into the STREAM `ngx_module_libs` (line 721 — NOT CORE_LIBS on 722):**
 ```diff
@@ -4828,7 +4828,7 @@ endif
 ```
 **configure?** **Yes** — `config` edits only take effect after re-running `./configure … --add-module=…`, which regenerates `objs/Makefile` with the new sources, dep, and the `-luring` link line.
 
-### 22.2 `src/aio/resume.c` — io_uring tier in `xrootd_aio_post_task`
+### 22.2 `src/core/aio/resume.c` — io_uring tier in `xrootd_aio_post_task`
 ```diff
  #include "ngx_xrootd_module.h"
 +#include "aio/uring.h"
@@ -4857,7 +4857,7 @@ endif
 ```
 **configure?** **No** (source edit to a file already in the build; plain `make`). The `-D` gate itself comes from `config`, so a *first* enable needs one `./configure`.
 
-### 22.3 `src/config/process.c` — worker init/exit hooks
+### 22.3 `src/core/config/process.c` — worker init/exit hooks
 ```diff
 @@ ngx_stream_xrootd_init_process(...)
      xrootd_imp_init_worker(cycle);
@@ -4872,7 +4872,7 @@ endif
 ```
 The hooks are no-op inlines when `XROOTD_HAVE_LIBURING` is undefined, so `process.c` needs no `#ifdef`. **configure?** **No.**
 
-### 22.4 `src/types/tunables.h` — `XROOTD_IO_URING_*` defines
+### 22.4 `src/core/types/tunables.h` — `XROOTD_IO_URING_*` defines
 ```diff
  #define XROOTD_PIPELINE_MAX            4
 +/* Phase 44 — io_uring backend tunables (header-only; the runtime probe is
@@ -4884,7 +4884,7 @@ The hooks are no-op inlines when `XROOTD_HAVE_LIBURING` is undefined, so `proces
 ```
 **configure?** **No** (header-only; in `ngx_module_deps`, so `make` recompiles dependents).
 
-### 22.5 `src/types/config.h` — new `ngx_stream_xrootd_srv_conf_t` fields
+### 22.5 `src/core/types/config.h` — new `ngx_stream_xrootd_srv_conf_t` fields
 ```diff
      ngx_flag_t  read_compress;
 +    /* Phase 44 — io_uring disk-I/O backend. */
@@ -4893,7 +4893,7 @@ The hooks are no-op inlines when `XROOTD_HAVE_LIBURING` is undefined, so `proces
 ```
 **configure?** **No** (header in `ngx_module_deps`).
 
-### 22.6 `src/stream/module.c` (commands[]+enum) and `src/config/server_conf.c` (create/merge)
+### 22.6 `src/stream/module.c` (commands[]+enum) and `src/core/config/server_conf.c` (create/merge)
 > The compiled stream module is `src/stream/module.c`; `module_core_directives.c` is **not** in the build — do not edit it.
 ```diff
 +/* Phase 44 — io_uring selector mode. */
@@ -5192,7 +5192,7 @@ Every row with concurrent access has an explicit mechanism (liburing barrier, si
 
 ## 25. liburing API usage reference
 
-Authoritative inventory of every `liburing` symbol the backend touches. "Server" = the per-worker disk ring (`src/aio/uring.c`); "Client-disk" = the `copy.c` registered-buffer ring; "Client-engine" = the optional epoll-replacement ring (`aio.c`). The cardinal fact: **liburing never sets `errno` for a completed op** — the result (bytes, or `-errno`) is in `cqe->res` as a signed 32-bit value. `errno` matters only to the setup/register family.
+Authoritative inventory of every `liburing` symbol the backend touches. "Server" = the per-worker disk ring (`src/core/aio/uring.c`); "Client-disk" = the `copy.c` registered-buffer ring; "Client-engine" = the optional epoll-replacement ring (`aio.c`). The cardinal fact: **liburing never sets `errno` for a completed op** — the result (bytes, or `-errno`) is in `cqe->res` as a signed 32-bit value. `errno` matters only to the setup/register family.
 
 ### 25.1 Master function table
 
@@ -5552,7 +5552,7 @@ Executable CI for §29. All referenced test files/artifacts exist; the seccomp-b
 |---|---|---|---|---|
 | **ci-uring-off** (always-green) | every PR | full suite `MODE=off`, build with **and** without liburing; full `tests/c/*` | 100% green both variants; `nm` shows no `io_uring` in the stub build | **YES (unconditional)** |
 | ci-uring-auto | every PR | full suite `MODE=auto` | green; if probe fails on CI kernel, one NOTICE + clean degrade | YES |
-| **ci-parity** (central gate) | PR touching `src/aio/**` / `client/lib/uring*` / `copy.c` | parity matrix over read/write/readv/pgread/dirlist + `test_integrity_matrix.py`, `uring_mode∈{off,on,auto}` → `test_backend_parity_reconcile` | all three modes byte-identical responses + access-log byte counts | YES |
+| **ci-parity** (central gate) | PR touching `src/core/aio/**` / `client/lib/uring*` / `copy.c` | parity matrix over read/write/readv/pgread/dirlist + `test_integrity_matrix.py`, `uring_mode∈{off,on,auto}` → `test_backend_parity_reconcile` | all three modes byte-identical responses + access-log byte counts | YES |
 | ci-asan-uring | PR touching the backend | §17.6 UAF/memory under ASan/LSan, engine on; `uring_slot_test`, `uring_nop_test` | zero ASan/LSan reports (`tests/lsan.supp`); gen guard drops stale CQE; payload freed once post-CQE | YES (when backend files changed) |
 | ci-resilience-uring | CB-W4 PRs; nightly after | `fault_proxy.c` + `test_client_robustness/xrootdfs_resilience/write_recovery` + `aio_resil/aio_mfile`, engine ON, + valgrind | every fault recovered; bytes==source; buffer lifecycle clean | YES before CB-W4 merges |
 | ci-security | PR touching kill-switch/containment | `kill_*` (`test_phase23_admin_api/security_hardening.py`) + `uring_restrict.c` + `sec_iowq_unprivileged` | authz rejects+audit; restrictions bar path opcodes; panic-file disables fleet-wide+survives reload | YES (realizes G4) |
@@ -5561,7 +5561,7 @@ Executable CI for §29. All referenced test files/artifacts exist; the seccomp-b
 
 ### 30.2 Branch protection
 
-Required on every PR: **ci-uring-off** (no path filter — the invariant that makes reverts safe), **ci-uring-auto**. Path-scoped-required: **ci-parity**, **ci-asan-uring** (when `src/aio/**`/`client/lib/uring*`/`copy.c` change), **ci-security** (kill-switch/containment files — realizes G4), **ci-resilience-uring** (CB-W4 PRs). Gate mapping: G1 via NOP self-test in ci-asan-uring/ci-uring-auto on PR-04; G2 via nightly fallback matrix; G3 via ci-parity byte-exact on PR-23; G4 via ci-security on PR-09/11. Nightly/perf never block an unrelated in-flight PR.
+Required on every PR: **ci-uring-off** (no path filter — the invariant that makes reverts safe), **ci-uring-auto**. Path-scoped-required: **ci-parity**, **ci-asan-uring** (when `src/core/aio/**`/`client/lib/uring*`/`copy.c` change), **ci-security** (kill-switch/containment files — realizes G4), **ci-resilience-uring** (CB-W4 PRs). Gate mapping: G1 via NOP self-test in ci-asan-uring/ci-uring-auto on PR-04; G2 via nightly fallback matrix; G3 via ci-parity byte-exact on PR-23; G4 via ci-security on PR-09/11. Nightly/perf never block an unrelated in-flight PR.
 
 ### 30.3 Test-selection map (abbrev)
 
@@ -6092,15 +6092,15 @@ These are designed-for but **not** in the first cut; each has its own flag:
 
 ## 37. Critical files (no edits in this plan; implementation targets)
 
-**Server:** `src/aio/resume.c` (`xrootd_aio_post_task` selector), `src/aio/aio.h`
-(task structs + `*_aio_done`/`*_aio_thread`), `src/aio/reads.c` (window pump,
-pgread CRC boundary), `src/config/process.c` (worker init/exit hooks), `config`
-(`ngx_module_srcs`/`ngx_module_libs`), `src/types/tunables.h`. **New:**
-`src/aio/uring.{c,h}`, `src/aio/uring_submit.c`.
+**Server:** `src/core/aio/resume.c` (`xrootd_aio_post_task` selector), `src/core/aio/aio.h`
+(task structs + `*_aio_done`/`*_aio_thread`), `src/core/aio/reads.c` (window pump,
+pgread CRC boundary), `src/core/config/process.c` (worker init/exit hooks), `config`
+(`ngx_module_srcs`/`ngx_module_libs`), `src/core/types/tunables.h`. **New:**
+`src/core/aio/uring.{c,h}`, `src/core/aio/uring_submit.c`.
 
 **Server — §8 hardening:** `src/dashboard/api_admin.c` (new
 `POST /xrootd/api/v1/admin/io_uring` handler; reuse `xrootd_admin_check_auth` +
-`admin_audit`), `src/compat/shm_slots.c` + the module SHM table (the
+`admin_audit`), `src/core/compat/shm_slots.c` + the module SHM table (the
 `io_uring_disabled` atomic, `ngx_atomic_t` pattern from `src/dashboard/dashboard.h`),
 `src/metrics/metrics.h` (`io_uring_active`/`ops`/`fallback` gauges). **Reused
 read-only (no edits, just consumed):** the impersonation seam — `src/path/beneath.c`

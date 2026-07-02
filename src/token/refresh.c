@@ -24,7 +24,7 @@
  *      EVP_PKEY_free() on each non-NULL entry.
  */
 
-#include "config/config.h"
+#include "core/config/config.h"
 #include "token.h"
 
 #include <sys/stat.h>

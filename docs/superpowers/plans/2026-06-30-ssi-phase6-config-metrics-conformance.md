@@ -4,7 +4,7 @@
 
 **Goal:** Make the SSI framework operable and observable — config directives to enable services and tune caps, low-cardinality metrics, and a conformance pass that pins wire-compat — then declare the framework + CTA service done.
 
-**Architecture:** Config directives follow the module's directive recipe (field in `src/types/config.h` → `ngx_command_t` in the stream module directives → merge). Metrics use the existing `XROOTD_*_METRIC_INC` machinery with low-cardinality labels. Conformance runs the real `libXrdSsi` client (`tests/ssi_client.cc`) for the generic framework and golden CTA vectors for the protobuf contract.
+**Architecture:** Config directives follow the module's directive recipe (field in `src/core/types/config.h` → `ngx_command_t` in the stream module directives → merge). Metrics use the existing `XROOTD_*_METRIC_INC` machinery with low-cardinality labels. Conformance runs the real `libXrdSsi` client (`tests/ssi_client.cc`) for the generic framework and golden CTA vectors for the protobuf contract.
 
 **Tech Stack:** C (nginx stream config + metrics), pytest, real `libXrdSsi` client.
 
@@ -19,14 +19,14 @@
 ## Consumed interfaces
 
 - Phase 1–5 SSI engine; `xrootd_ssi_max_inflight` cap (Phase 1), provider registry, CTA service + journal.
-- Existing config plumbing: `src/types/config.h` (`ngx_stream_xrootd_srv_conf_t`), the stream module directive table (`grep -rn "ngx_command_t" src/stream/`), metrics enums (`src/metrics/metrics_internal.h`) + `XROOTD_*_METRIC_INC`.
+- Existing config plumbing: `src/core/types/config.h` (`ngx_stream_xrootd_srv_conf_t`), the stream module directive table (`grep -rn "ngx_command_t" src/stream/`), metrics enums (`src/metrics/metrics_internal.h`) + `XROOTD_*_METRIC_INC`.
 
 ---
 
 ### Task 1: Config directives
 
 **Files:**
-- Modify: `src/types/config.h` (add fields)
+- Modify: `src/core/types/config.h` (add fields)
 - Modify: the stream module directive table + merge (`src/stream/module*.c` — `grep` for the existing `xrootd_ssi` directive added in Phase 1)
 - Modify: `src/ssi/*` to read the configured values (cap, enabled services)
 - Test: `tests/test_ssi_config.py`

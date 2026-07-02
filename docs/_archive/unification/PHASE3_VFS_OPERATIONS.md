@@ -14,7 +14,7 @@
 This is the central phase of the unification project. Today each protocol family implements its own open/read/write/stat logic, duplicating:
 
 - Cache hit/miss checks (three copies: `src/read/open_cache.c`, `src/webdav/get.c`, `src/s3/object.c`)
-- AIO thread-pool dispatch (four entry points across `src/aio/`)
+- AIO thread-pool dispatch (four entry points across `src/core/aio/`)
 - Dashboard transfer slot registration (`src/dashboard/transfer_table.c`)
 - Error-to-wire-status translation (errno → kXR → HTTP status scattered everywhere)
 
@@ -31,20 +31,20 @@ Stream kXR_read
   └─ src/read/open_request.c      (open + stat)
   └─ src/read/read.c              (pread → AIO dispatch)
   └─ src/read/open_cache.c        (cache hit check)
-  └─ src/aio/read.c               (thread-pool read)
+  └─ src/core/aio/read.c               (thread-pool read)
   └─ src/dashboard/transfer_table.c (slot tracking)
 
 WebDAV GET
   └─ src/webdav/get.c             (range parse, open, sendfile)
   └─ src/webdav/io.c              (low-level I/O helpers)
   └─ src/webdav/fs/               (fd cache)
-  └─ src/aio/read.c               (same thread-pool, separate call site)
+  └─ src/core/aio/read.c               (same thread-pool, separate call site)
   └─ src/dashboard/http_tracking.c (separate slot tracking)
 
 S3 GetObject
   └─ src/s3/object.c              (range parse, open, send)
   └─ src/s3/util.c                (I/O helpers)
-  └─ src/aio/read.c               (same thread-pool, third call site)
+  └─ src/core/aio/read.c               (same thread-pool, third call site)
 ```
 
 ### Write Path
@@ -53,7 +53,7 @@ S3 GetObject
 Stream kXR_write / kXR_pgwrite
   └─ src/write/write.c
   └─ src/write/pgwrite.c          (CRC32c per page)
-  └─ src/aio/write.c
+  └─ src/core/aio/write.c
 
 WebDAV PUT
   └─ src/webdav/put.c
@@ -62,7 +62,7 @@ WebDAV PUT
 S3 PutObject / UploadPart
   └─ src/s3/put.c
   └─ src/s3/multipart_*.c
-  └─ src/aio/write.c
+  └─ src/core/aio/write.c
 ```
 
 ### Stat / Directory
@@ -406,7 +406,7 @@ Once `src/fs/` is complete:
 | `src/s3/list_objects_v2.c` | Replace opendir with `xrootd_vfs_opendir()` |
 | `src/s3/list_walk.c` | Replace readdir with `xrootd_vfs_readdir()` |
 | `src/dirlist/handler.c` | Replace opendir/readdir with VFS calls |
-| `src/config/config.h` | Add all `src/fs/*.c` to `NGX_ADDON_SRCS` |
+| `src/core/config/config.h` | Add all `src/fs/*.c` to `NGX_ADDON_SRCS` |
 
 ---
 
@@ -458,7 +458,7 @@ After Phase 3 completes, regression must be < 2% on same hardware.
 
 | Risk | Mitigation |
 |:---|:---|
-| AIO event-loop interaction changes | Keep `src/aio/` unchanged; VFS calls it, not the reverse |
+| AIO event-loop interaction changes | Keep `src/core/aio/` unchanged; VFS calls it, not the reverse |
 | Dashboard slot accounting broken | Unit test: open → read → close → assert slot count returns to zero |
 | TLS buffer regression | Explicit test: TLS read must never produce a file-backed `ngx_buf_t` |
 | pgwrite CRC32c broken | Stream integration test with pgwrite enabled |

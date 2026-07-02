@@ -127,7 +127,7 @@ on that worker. In practice that means:
 
 - All client I/O is non-blocking, driven by read/write events.
 - Genuinely blocking work (large disk reads, `copy_file_range`, S3 spooled PUT
-  decode/multipart) is **offloaded to a thread pool** (`src/aio/`), proven via
+  decode/multipart) is **offloaded to a thread pool** (`src/core/aio/`), proven via
   `strace` to run on thread-pool TIDs, never on the loop.
 - A single misbehaving request is contained to its own `ngx_connection_t`; it
   cannot wedge a shared thread or the daemon.

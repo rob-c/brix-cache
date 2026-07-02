@@ -25,7 +25,7 @@
 
 #include "../../lib/vfs.h"
 #include "../../lib/xrdc.h"
-#include "../../src/compat/crypto.h"   /* xrootd_crypto_init — arms SHA-256/HMAC */
+#include "../../src/core/compat/crypto.h"   /* xrootd_crypto_init — arms SHA-256/HMAC */
 
 #include <stdio.h>
 #include <stdlib.h>

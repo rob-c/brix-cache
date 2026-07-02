@@ -120,7 +120,7 @@ kXR_waitresp = 4006
 
 kXR_open_read = 0x0010
 
-# Source-of-truth limits (src/proxy/proxy_internal.h, src/types/tunables.h).
+# Source-of-truth limits (src/proxy/proxy_internal.h, src/core/types/tunables.h).
 XROOTD_PROXY_MAX_WAIT_RETRIES = 5
 XROOTD_MAX_FILES              = 16   # proxy fh_map slot count -> saturation point
 WAIT_SAVE_LIMIT               = 128 * 1024  # rlen < this is saved for retry

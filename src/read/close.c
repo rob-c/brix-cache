@@ -31,10 +31,10 @@
  */
 
 #include "close.h"
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "ratelimit/throttle_compat.h"   /* phase-59 W3a: open-files release */
 #include "cache/cache_internal.h"
-#include "compat/staged_file.h"
+#include "core/compat/staged_file.h"
 #include "fs/xfer/xfer.h"   /* unified transfer audit ledger (root:// STAGE) */
 #include "write/wrts_journal.h"
 #include "write/pgw_fob.h"

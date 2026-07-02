@@ -69,7 +69,7 @@ def test_probe_state_machine_and_timer_present():
     assert "xrootd_hc_timer_handler" in hc
     assert "xrootd_srv_hc_claim" in hc
     # Manager start hooked into init_process.
-    assert "xrootd_hc_manager_start" in _read("src/config/process.c")
+    assert "xrootd_hc_manager_start" in _read("src/core/config/process.c")
 
 
 def test_metrics_present():

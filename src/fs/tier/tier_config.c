@@ -13,7 +13,7 @@
  * (NEEDS_DEV + the closing sub-project), never a hard failure (P1).
  */
 #include "tier.h"
-#include "config/root_prepare.h"   /* xrootd_prepare_export_root */
+#include "core/config/root_prepare.h"   /* xrootd_prepare_export_root */
 
 #include <limits.h>
 #include <stdarg.h>

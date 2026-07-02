@@ -32,9 +32,9 @@
 #include "vfs_backend_registry.h"    /* backend resolve for driver-routed mkpath   */
 #include "path/beneath.h"
 #include "path/path.h"            /* confined-canon open/lstat/mkdir/opendir   */
-#include "compat/fs_walk.h"
-#include "compat/copy_range.h"    /* xrootd_copy_range (copyfile/copytree)     */
-#include "compat/namespace_ops.h" /* xrootd_ns_copy_fattrs                     */
+#include "core/compat/fs_walk.h"
+#include "core/compat/copy_range.h"    /* xrootd_copy_range (copyfile/copytree)     */
+#include "core/compat/namespace_ops.h" /* xrootd_ns_copy_fattrs                     */
 
 #include <dirent.h>
 #include <limits.h>   /* PATH_MAX */

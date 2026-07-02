@@ -22,8 +22,8 @@
 #include "dashboard_http.h"
 #include "dashboard_json.h"
 #include "path/beneath.h"
-#include "compat/http_file_response.h"
-#include "compat/http_headers.h"   /* xrootd_http_source_offer (AGPL sec.13) */
+#include "core/compat/http_file_response.h"
+#include "core/compat/http_headers.h"   /* xrootd_http_source_offer (AGPL sec.13) */
 
 #include <dirent.h>
 #include <errno.h>

@@ -60,7 +60,7 @@ OFF_PORT = L.worker_port(14055)
 # this window is treated as a HANG (test failure), the load-bearing invariant.
 SOCK_TIMEOUT = 5.0
 
-# Path-length boundary (src/compat/path.h XROOTD_PATH_MAX).
+# Path-length boundary (src/core/compat/path.h XROOTD_PATH_MAX).
 MAX_PATH = 4096
 
 

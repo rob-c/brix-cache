@@ -20,7 +20,7 @@
  *       and any non-OK status maps to a 0 (false) return. _noexist() sets
  *       allow_missing_parents + is_write_operation before delegating.
  */
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 
 #include <limits.h>
 

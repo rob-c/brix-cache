@@ -17,7 +17,7 @@
  *       the affected paths first, then reparents each in one transaction.
  */
 #include "sd_pblock_catalog.h"
-#include "compat/snprintf_check.h"
+#include "core/compat/snprintf_check.h"
 
 #include <errno.h>
 #include <stdio.h>

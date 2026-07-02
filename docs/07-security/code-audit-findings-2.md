@@ -323,7 +323,7 @@ access (e.g., `storage.read:/`), in which case one token works across all servic
 during config parse if absent:
 
 ```c
-/* src/config/directives.c — in merge or postconfig */
+/* src/core/config/directives.c — in merge or postconfig */
 if ((xcf->auth == XROOTD_AUTH_TOKEN || xcf->auth == XROOTD_AUTH_BOTH)
     && xcf->token_audience.len == 0)
 {
@@ -621,7 +621,7 @@ The WLCG Token Profile recommends that servers accept a 3-second grace window.
 Add a configurable clock-skew directive (default 30 seconds to be generous):
 
 ```c
-/* src/config/config.h */
+/* src/core/config/config.h */
 ngx_int_t  token_clock_skew;   /* seconds of NBF/EXP tolerance (default 30) */
 ```
 
@@ -685,7 +685,7 @@ G-06 through G-10 are defensive hygiene improvements with minimal effort.
 | G-07 | `src/webdav/lock.c` | Changed `webdav_generate_uuid(char *buf)` → `webdav_generate_uuid(char *buf, size_t bufsz)`; replaced `sprintf` with `snprintf` |
 | G-08 | `src/sss/auth_request.c` | Added `OPENSSL_cleanse(clear, cipher_len)` immediately before `ctx->auth_done = 1` |
 | G-09 | `src/sss/config.c` | Replaced `stat()` + `fopen()` with `open(O_RDONLY\|O_NOFOLLOW\|O_CLOEXEC)` + `fstat()` + `fdopen()` to close the TOCTOU window and prevent symlink substitution |
-| G-10 | `src/types/tunables.h`, `src/token/validate.c` | Defined `XROOTD_TOKEN_CLOCK_SKEW_SECS=30`; `exp` check now allows 30 s grace after expiry, `nbf` check now allows 30 s before the not-before instant |
+| G-10 | `src/core/types/tunables.h`, `src/token/validate.c` | Defined `XROOTD_TOKEN_CLOCK_SKEW_SECS=30`; `exp` check now allows 30 s grace after expiry, `nbf` check now allows 30 s before the not-before instant |
 
 All changes compile cleanly against nginx 1.28.3 and pass the full `tests/test_security_hardening.py` suite.
 

@@ -268,7 +268,7 @@ at ~40/second, saturating the nginx worker's crypto context.
 
 ### Existing Partial Mitigation
 
-`src/types/tunables.h` defines `XROOTD_MAX_AUTH_PAYLOAD (32 * 1024)` which caps the
+`src/core/types/tunables.h` defines `XROOTD_MAX_AUTH_PAYLOAD (32 * 1024)` which caps the
 GSI payload size, preventing OOM from a single oversized auth packet. But there is no
 limit on the *number* of auth attempts per connection.
 
@@ -277,7 +277,7 @@ limit on the *number* of auth attempts per connection.
 Add a per-connection auth failure counter to `xrootd_ctx_t`:
 
 ```c
-/* src/types/context.h — add to xrootd_ctx_t */
+/* src/core/types/context.h — add to xrootd_ctx_t */
 uint8_t     auth_attempts;      /* failed kXR_auth count on this connection */
 ```
 
@@ -315,10 +315,10 @@ stream {
 
 ### Implementation
 
-**`src/types/context.h`** — added `uint8_t auth_fail_count` field adjacent to the
+**`src/core/types/context.h`** — added `uint8_t auth_fail_count` field adjacent to the
 session auth state fields.
 
-**`src/types/tunables.h`** — added `#define XROOTD_MAX_AUTH_ATTEMPTS 10` (allows
+**`src/core/types/tunables.h`** — added `#define XROOTD_MAX_AUTH_ATTEMPTS 10` (allows
 5 full GSI retry cycles, each of which uses 2 rounds: certreq + cert).
 
 **`src/gsi/auth.c`** — the public `xrootd_handle_auth()` entry point was refactored into
@@ -552,7 +552,7 @@ xrootd_openat2_runtime_available(void)
 
 **`src/path/path.h`** — added declaration `int xrootd_openat2_runtime_available(void);`
 
-**`src/config/process.c`** — called the probe at the start of
+**`src/core/config/process.c`** — called the probe at the start of
 `ngx_stream_xrootd_init_process()` and emits `NGX_LOG_WARN` if unavailable:
 
 ```c
@@ -579,7 +579,7 @@ through the path confinement tests (`test_security_hardening.py::test_mkdir_with
 ## F-06: No Per-Connection Memory Budget
 
 **Severity:** Medium  
-**Files:** `src/types/tunables.h`, `src/connection/recv.c:77`
+**Files:** `src/core/types/tunables.h`, `src/connection/recv.c:77`
 
 ### Vulnerability
 
@@ -653,10 +653,10 @@ Option A (per-connection counter at the highest-growth allocation site) was appl
 A full wrapper for every `ngx_palloc` call was not required — the dirlist handler is
 the dominant source of pool growth (~65 KB per call), so the guard was placed there.
 
-**`src/types/tunables.h`** — added `#define XROOTD_MAX_CONN_POOL_BYTES (64 * 1024 * 1024)`
+**`src/core/types/tunables.h`** — added `#define XROOTD_MAX_CONN_POOL_BYTES (64 * 1024 * 1024)`
 (64 MB — allows approximately 1000 dirlist calls before lockout).
 
-**`src/types/context.h`** — added `size_t pool_bytes_used` field to `xrootd_ctx_t`
+**`src/core/types/context.h`** — added `size_t pool_bytes_used` field to `xrootd_ctx_t`
 (adjacent to `auth_fail_count`).
 
 **`src/dirlist/handler.c`** — added a budget check before the chunk allocation:

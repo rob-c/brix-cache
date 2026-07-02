@@ -19,7 +19,7 @@
  * connection; no locking needed.
  */
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "wrts_journal.h"
 #include <string.h>
 

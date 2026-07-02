@@ -1,7 +1,7 @@
 #ifndef XROOTD_CACHE_INTERNAL_H
 #define XROOTD_CACHE_INTERNAL_H
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "fs/backend/sd.h"   /* xrootd_sd_obj_t — driver-backed flush read-back */
 #include "stage_admit.h"        /* xrootd_wt_admit_t + pure band logic */
 

@@ -1,4 +1,4 @@
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "path_internal.h"
 #include "beneath.h"
 #include "impersonate/impersonate.h"

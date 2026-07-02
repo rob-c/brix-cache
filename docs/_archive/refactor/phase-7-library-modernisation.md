@@ -9,7 +9,7 @@
 ## Correction: aio/ premise
 
 The suggestion "Replace aio/ with nginx's ngx_thread_pool" was based on incorrect information.
-Reading `src/aio/resume.c` and `src/aio/config.c` confirms that **aio/ already uses
+Reading `src/core/aio/resume.c` and `src/core/aio/config.c` confirms that **aio/ already uses
 `ngx_thread_pool_get()`, `ngx_thread_task_post()`, and `ngx_thread_task_alloc()`** — it is a
 correct and intentional user of nginx's built-in thread pool, not a reimplementation of it.
 
@@ -90,7 +90,7 @@ Check availability: `pkg-config --modversion libjwt` should return ≥ 2.0.0.
 
 #### Step 1: Dependency declaration
 
-In `src/config/config.h`, add the libjwt pkg-config check:
+In `src/core/config/config.h`, add the libjwt pkg-config check:
 
 ```makefile
 # NGX_ADDON_DEPS — add libjwt flags
@@ -282,7 +282,7 @@ callers outside token/ (30 sites verified with grep) see no change. The internal
 `xrootd_jwks_key_t` becomes a thin wrapper over `jwk_set_t*`; since it is not
 exposed outside token/, no callers need updating.
 
-### Files added to `src/config/config.h`
+### Files added to `src/core/config/config.h`
 
 ```
 $ngx_addon_dir/src/token/jwt_verify.c

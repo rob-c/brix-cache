@@ -28,7 +28,7 @@
  * Requires: types/context.h (xrootd_ctx_t), protocol headers, nginx headers.
  */
 
-#include "ngx_xrootd_module.h"   /* umbrella: nginx + protocol + ctx/conf types */
+#include "core/ngx_xrootd_module.h"   /* umbrella: nginx + protocol + ctx/conf types */
 
 /*
  * Begin accumulating a write-open for the data-write mirror.  Called from the

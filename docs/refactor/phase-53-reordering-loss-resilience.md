@@ -139,7 +139,7 @@ control. This is a **~1000× improvement in loss tolerance** (~0.001% → ≥1%)
 
 ### 3.1 Server data plane
 
-- **`xrootd_pipeline_depth N`** (`src/types/tunables.h`, `context.h`, `config.h`,
+- **`xrootd_pipeline_depth N`** (`src/core/types/tunables.h`, `context.h`, `config.h`,
   `config/server_conf.c`, `stream/module.c`, `connection/handler.c`): the
   per-connection in-flight window (`out_ring` + `rd_pool`) is heap-allocated to a
   runtime depth (default **8**, was a hard-wired 4; clamp [1,64]). A deeper window
@@ -147,7 +147,7 @@ control. This is a **~1000× improvement in loss tolerance** (~0.001% → ≥1%)
   `tunables.h` were added to the addon dep list, **closing a stale-ABI SIGSEGV
   trap** (they were not tracked).
 
-- **Userspace-TLS read pipelining** (`src/aio/buffers.c`, `read/read.c`,
+- **Userspace-TLS read pipelining** (`src/core/aio/buffers.c`, `read/read.c`,
   `aio/reads.c`): memory-backed (`roots://`) reads now use **per-in-flight
   `rd_pool` buffers** + **per-slot headers** instead of the shared
   `read_scratch`/`read_hdr_scratch`, making them safe to pipeline. This wired up
@@ -221,11 +221,11 @@ control. This is a **~1000× improvement in loss tolerance** (~0.001% → ≥1%)
 
 ## 6. Files touched
 
-**Server:** `src/types/tunables.h`, `src/types/context.h`, `src/types/config.h`,
-`src/config/server_conf.c`, `src/stream/module.c`, `src/connection/handler.c`,
+**Server:** `src/core/types/tunables.h`, `src/core/types/context.h`, `src/core/types/config.h`,
+`src/core/config/server_conf.c`, `src/stream/module.c`, `src/connection/handler.c`,
 `src/connection/netopt.h`, `src/connection/recv.c`, `src/connection/write_helpers.c`,
-`src/connection/disconnect.c`, `src/connection/budget.h`, `src/aio/buffers.c`,
-`src/aio/reads.c`, `src/aio/aio.h`, `src/read/read.c`, `src/shared/file_serve.c`,
+`src/connection/disconnect.c`, `src/connection/budget.h`, `src/core/aio/buffers.c`,
+`src/core/aio/reads.c`, `src/core/aio/aio.h`, `src/read/read.c`, `src/shared/file_serve.c`,
 `src/webdav/webdav.h`, `src/webdav/module.c`, `src/webdav/config.c`, `config`.
 
 **Client:** `client/lib/nettmo.c`, `client/lib/http.c`, `client/lib/webfile.c`.

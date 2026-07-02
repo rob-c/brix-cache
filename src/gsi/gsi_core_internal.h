@@ -23,7 +23,7 @@
 #include <openssl/rsa.h>         
 #include "protocol/gsi.h"      
 #include "protocol/opcodes.h"  
-#include "compat/crypto.h"     
+#include "core/compat/crypto.h"     
 
 extern const char xrootd_gsi_dh_params_pem[];
 extern const char *const gsi_cipher_allow[];

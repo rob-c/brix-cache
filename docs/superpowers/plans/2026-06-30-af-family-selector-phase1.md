@@ -23,7 +23,7 @@
 ### Task 1: `xrootd_af_policy_t` type + string parser (header-only, pure)
 
 **Files:**
-- Create: `src/compat/af_policy.h`
+- Create: `src/core/compat/af_policy.h`
 - Test: `tests/af_policy_unittest.c` (standalone gcc, no nginx deps)
 
 **Interfaces:**
@@ -34,10 +34,10 @@
 Create `tests/af_policy_unittest.c`:
 
 ```c
-/* Standalone unit test for src/compat/af_policy.h — gcc, no nginx. */
+/* Standalone unit test for src/core/compat/af_policy.h — gcc, no nginx. */
 #include <assert.h>
 #include <stdio.h>
-#include "../src/compat/af_policy.h"
+#include "../src/core/compat/af_policy.h"
 
 int main(void)
 {
@@ -61,11 +61,11 @@ int main(void)
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `gcc -Wall -Wextra -o /tmp/af_policy_unittest tests/af_policy_unittest.c && /tmp/af_policy_unittest`
-Expected: FAIL — compile error, `src/compat/af_policy.h: No such file or directory`.
+Expected: FAIL — compile error, `src/core/compat/af_policy.h: No such file or directory`.
 
 - [ ] **Step 3: Write minimal implementation**
 
-Create `src/compat/af_policy.h`:
+Create `src/core/compat/af_policy.h`:
 
 ```c
 #ifndef NGX_XROOTD_COMPAT_AF_POLICY_H
@@ -115,7 +115,7 @@ Expected: PASS — `af_policy_unittest: all checks passed`, exit 0, no warnings.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/compat/af_policy.h tests/af_policy_unittest.c
+git add src/core/compat/af_policy.h tests/af_policy_unittest.c
 git commit -m "feat(net): add xrootd_af_policy_t + parser for outbound address-family selection"
 ```
 
@@ -212,11 +212,11 @@ git commit -m "refactor(net): thread af_policy through xrootd_resolve_connect_so
 ### Task 3: `xrootd_cache_origin_family` directive + connect-site enforcement
 
 **Files:**
-- Modify: `src/types/config.h:429` area (add `cache_origin_family` field)
-- Modify: `src/config/server_conf.c:110` area (create default `NGX_CONF_UNSET_UINT`) and `:530` area (merge to `XROOTD_AF_AUTO`)
+- Modify: `src/core/types/config.h:429` area (add `cache_origin_family` field)
+- Modify: `src/core/config/server_conf.c:110` area (create default `NGX_CONF_UNSET_UINT`) and `:530` area (merge to `XROOTD_AF_AUTO`)
 - Modify: `src/stream/module.c:1177` area (register directive in the live command table)
 - Modify: `src/cache/directives.c` (add `xrootd_conf_set_cache_origin_family` handler)
-- Modify: `src/config/config.h` (declare the handler prototype, next to `xrootd_conf_set_cache_origin`)
+- Modify: `src/core/config/config.h` (declare the handler prototype, next to `xrootd_conf_set_cache_origin`)
 - Modify: `src/cache/origin_connection.c:70` (read the policy into `hints.ai_family`)
 
 **Interfaces:**
@@ -281,7 +281,7 @@ Expected: FAIL — every `auto/inet/inet6` line FAILs with `unknown directive "x
 
 - [ ] **Step 3a: Add the config field**
 
-In `src/types/config.h`, immediately after the `cache_origin_tls` line (~429):
+In `src/core/types/config.h`, immediately after the `cache_origin_tls` line (~429):
 
 ```c
     ngx_uint_t  cache_origin_family; /* [xrootd_cache_origin_family auto|inet|inet6]
@@ -291,7 +291,7 @@ In `src/types/config.h`, immediately after the `cache_origin_tls` line (~429):
 
 - [ ] **Step 3b: Create-default + merge**
 
-In `src/config/server_conf.c`, next to `conf->cache_origin_tls = NGX_CONF_UNSET;` (~110):
+In `src/core/config/server_conf.c`, next to `conf->cache_origin_tls = NGX_CONF_UNSET;` (~110):
 
 ```c
     conf->cache_origin_family = NGX_CONF_UNSET_UINT;
@@ -332,7 +332,7 @@ xrootd_conf_set_cache_origin_family(ngx_conf_t *cf, ngx_command_t *cmd,
 }
 ```
 
-Declare its prototype in `src/config/config.h` next to `xrootd_conf_set_cache_origin`:
+Declare its prototype in `src/core/config/config.h` next to `xrootd_conf_set_cache_origin`:
 
 ```c
 char *xrootd_conf_set_cache_origin_family(ngx_conf_t *cf, ngx_command_t *cmd,
@@ -382,8 +382,8 @@ Expected: PASS — `auto/inet/inet6` accepted, `ipv4` rejected.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/types/config.h src/config/server_conf.c src/stream/module.c \
-        src/cache/directives.c src/config/config.h src/cache/origin_connection.c \
+git add src/core/types/config.h src/core/config/server_conf.c src/stream/module.c \
+        src/cache/directives.c src/core/config/config.h src/cache/origin_connection.c \
         tests/run_af_family_conf.sh
 git commit -m "feat(cache): xrootd_cache_origin_family directive constrains origin connect address family"
 ```
@@ -400,7 +400,7 @@ backend registry entry → `sd_xroot` synth.
 **Files:**
 - Modify: `src/fs/vfs_backend_registry.c` (entry field `origin_family`; `set_xroot`, `config_xroot`, and the storage-backend dispatcher gain a `family` arg; pass `e->origin_family` to `create_origin`)
 - Modify: `src/fs/vfs_backend_registry.h` (updated `xrootd_vfs_backend_config_xroot` + dispatcher prototypes)
-- Modify: `src/config/runtime_server.c:383,402` (pass `xcf->cache_origin_family`)
+- Modify: `src/core/config/runtime_server.c:383,402` (pass `xcf->cache_origin_family`)
 - Modify: `src/fs/backend/xroot/sd_xroot.c` (`create_origin` gains `int af_policy`; set `synth->cache_origin_family`)
 - Modify: `src/fs/backend/xroot/sd_xroot.h:57` (updated `xrootd_sd_xroot_create_origin` prototype)
 - Test: `tests/run_cache_af_family.sh` (new, end-to-end)
@@ -568,7 +568,7 @@ argument. Add `int family` to its signature and its prototype in
 
 - [ ] **Step 3c: Source the family from the merged conf**
 
-In `src/config/runtime_server.c`, the two `xrootd_vfs_backend_config(...)` call sites
+In `src/core/config/runtime_server.c`, the two `xrootd_vfs_backend_config(...)` call sites
 (~383, ~402) reach the storage-backend dispatcher with `xcf` in scope. Pass
 `(int) xcf->cache_origin_family` as the new `family` argument through the dispatch
 chain. (At this point — server runtime setup — all directives are parsed and merged,
@@ -620,7 +620,7 @@ Expected: PASS — unchanged.
 
 ```bash
 git add src/fs/vfs_backend_registry.c src/fs/vfs_backend_registry.h \
-        src/config/runtime_server.c src/fs/backend/xroot/sd_xroot.c \
+        src/core/config/runtime_server.c src/fs/backend/xroot/sd_xroot.c \
         src/fs/backend/xroot/sd_xroot.h tests/run_cache_af_family.sh
 git commit -m "feat(cache): honor xrootd_cache_origin_family on the storage_backend root:// (sd_xroot) origin path"
 ```

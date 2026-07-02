@@ -15,7 +15,7 @@
 #include "impersonate.h"
 #include "impersonate_proto.h"
 #include "metrics/metrics.h"   /* xrootd_config_version_publish() */
-#include "compat/log_diag.h"
+#include "core/compat/log_diag.h"
 
 #include <errno.h>
 #include <fcntl.h>

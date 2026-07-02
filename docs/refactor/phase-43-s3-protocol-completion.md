@@ -2,7 +2,7 @@
 
 **Status:** IMPLEMENTED 2026-06-21 (all six workstreams W0–W5; 56 new pytest, full
 S3 suite 230 pass). Two deliberate scope deviations, recorded in §10.
-**Scope:** `src/s3/` only (+ a small amount of shared `src/compat/` checksum reuse). No
+**Scope:** `src/s3/` only (+ a small amount of shared `src/core/compat/` checksum reuse). No
 changes to root:// or WebDAV planes.
 
 ---
@@ -203,8 +203,8 @@ SDKs also send (header form on small PUTs, trailer form on chunked):
 **How:**
 - Generalize `s3_put_crc64nvme_apply` into `s3_put_checksum_apply(r, algo, …)` driven
   by a small descriptor table `{ algo-name, header-name, digest-fn, wire-encoding }`.
-- Compute engines already exist: CRC32C and CRC32 in `src/compat/` (CRC32C is the
-  SSE4.2 path used by pgread/pgwrite), CRC-64 in `src/compat/crc64.c`, SHA-256/SHA-1
+- Compute engines already exist: CRC32C and CRC32 in `src/core/compat/` (CRC32C is the
+  SSE4.2 path used by pgread/pgwrite), CRC-64 in `src/core/compat/crc64.c`, SHA-256/SHA-1
   via OpenSSL (already linked). **Reuse — do not reimplement** (INVARIANT: HELPERS).
 - Wire encoding per AWS: CRC32/CRC32C/CRC64NVME → base64 of the big-endian digest;
   SHA-1/SHA-256 → base64 of the raw digest. Encode at the edge (same rule as
@@ -357,10 +357,10 @@ pre-existing paths are byte-for-byte unchanged.
 | `src/s3/handler.c` | dispatch: streaming detection, bucket-subresource table, V1 vs V2, HeadBucket |
 | `src/s3/tagging.c` / `.h` (new) | object tagging via xattr |
 | `src/s3/s3.h`, `s3_auth_internal.h` | new ctx fields (body_encoding, decoded length), signing-key reuse decl |
-| `src/config/config.h`, `src/s3/module.c`/config | `xrootd_s3_verify_chunk_signatures` directive; reuse `region` field |
+| `src/core/config/config.h`, `src/s3/module.c`/config | `xrootd_s3_verify_chunk_signatures` directive; reuse `region` field |
 | `docs/10-reference/feature-gaps.md`, `docs/10-architecture/s3.md` | update once landed |
 
-New `.c` files must be registered in `src/config/config.h` (`NGX_ADDON_SRCS`) and a
+New `.c` files must be registered in `src/core/config/config.h` (`NGX_ADDON_SRCS`) and a
 `./configure` re-run; pure edits to existing files build with `make -j$(nproc)` alone.
 
 ---

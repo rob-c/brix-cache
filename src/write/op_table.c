@@ -5,10 +5,10 @@
  * are expressed as descriptors here; the interpreter handles the boilerplate.
  * Handlers with non-trivial exec paths remain as explicit handlers.
  */
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "op_table.h"
-#include "compat/namespace_ops.h"
-#include "compat/error_mapping.h"
+#include "core/compat/namespace_ops.h"
+#include "core/compat/error_mapping.h"
 #include "path/path.h"
 #include "fs/vfs.h"   /* chmod/rm/rmdir via the VFS seam */
 

@@ -144,7 +144,13 @@ TEXT_NAMES = ("Makefile", "config", "CLAUDE.md", "Dockerfile")
 
 def tracked_text_files():
     out = subprocess.run(["git", "ls-files"], cwd=REPO, capture_output=True, text=True)
-    for rel in out.stdout.splitlines():
+    rels = out.stdout.splitlines()
+    # load-bearing but untracked (tools/ is gitignored): the seam guard + backlogs
+    for extra_dir in ("tools/ci",):
+        full = os.path.join(REPO, extra_dir)
+        if os.path.isdir(full):
+            rels += [os.path.join(extra_dir, fn) for fn in os.listdir(full)]
+    for rel in rels:
         if rel.startswith("src/") and rel.endswith((".c", ".h")):
             continue
         if rel in TEXT_EXCLUDE:
@@ -154,24 +160,43 @@ def tracked_text_files():
             yield os.path.join(REPO, rel)
 
 
-def do_step(step, dry_run=False):
+def file_map_applied(entries):
+    """Per-file old->new for entries whose mv already happened (walk NEW dirs)."""
+    fmap = {}
+    for kind, old, new in entries:
+        if kind == "file":
+            fmap[old] = new
+        else:
+            root = os.path.join(REPO, new)
+            for dirpath, _, files in os.walk(root):
+                for fn in files:
+                    np = os.path.relpath(os.path.join(dirpath, fn), REPO)
+                    fmap[os.path.join(old, os.path.relpath(os.path.join(dirpath, fn), root))] = np
+    return fmap
+
+
+def do_step(step, dry_run=False, fixup=False):
     steps = load_map()
     entries = steps[step]
-    fmap = file_map_for(entries)  # must run BEFORE the mv (walks old dirs)
+    if fixup:
+        fmap = file_map_applied(entries)
+    else:
+        fmap = file_map_for(entries)  # must run BEFORE the mv (walks old dirs)
     if not fmap:
         sys.exit(f"step {step}: empty file map — already applied?")
 
     # 1. git mv
-    for kind, old, new in entries:
-        if not os.path.exists(os.path.join(REPO, old)):
-            sys.exit(f"step {step}: {old} does not exist — already applied?")
+    if not fixup:
+        for kind, old, new in entries:
+            if not os.path.exists(os.path.join(REPO, old)):
+                sys.exit(f"step {step}: {old} does not exist — already applied?")
+            if dry_run:
+                print(f"git mv {old} {new}")
+                continue
+            os.makedirs(os.path.dirname(os.path.join(REPO, new)), exist_ok=True)
+            subprocess.run(["git", "mv", old, new], cwd=REPO, check=True)
         if dry_run:
-            print(f"git mv {old} {new}")
-            continue
-        os.makedirs(os.path.dirname(os.path.join(REPO, new)), exist_ok=True)
-        subprocess.run(["git", "mv", old, new], cwd=REPO, check=True)
-    if dry_run:
-        return
+            return
 
     # 2. include fixups across src/ + cross-tree C files
     moved = {old: new for old, new in fmap.items()}          # repo-relative
@@ -185,9 +210,13 @@ def do_step(step, dry_run=False):
             if os.path.isfile(os.path.join(d, inc)):
                 return None                                   # still resolves
             # bare include broken by this step: where did it live before?
+            # (a) next to the includer's OLD location, or (b) src-rooted —
+            # a file at the src root itself, e.g. "ngx_xrootd_module.h".
             includer_rel = os.path.relpath(includer, REPO)
             old_includer = rmoved.get(includer_rel, includer_rel)
             inc_repo = os.path.join(os.path.dirname(old_includer), inc)
+            if inc_repo not in moved and "src/" + inc in moved:
+                inc_repo = "src/" + inc
         elif "src/" in inc:                                   # cross-tree ../../src/... form
             tail = inc.split("src/", 1)[1]
             if "src/" + tail in moved:
@@ -269,6 +298,8 @@ def main():
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument("--normalize", action="store_true")
     g.add_argument("--step", choices=STEPS)
+    g.add_argument("--fixup", choices=STEPS,
+                   help="re-run include/text rewrites for an already-moved step")
     g.add_argument("--verify", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
@@ -276,6 +307,8 @@ def main():
         do_normalize()
     elif args.verify:
         do_verify()
+    elif args.fixup:
+        do_step(args.fixup, fixup=True)
     else:
         do_step(args.step, dry_run=args.dry_run)
 

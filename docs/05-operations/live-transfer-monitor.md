@@ -146,7 +146,7 @@ void xrootd_transfer_slot_free_all_for_session(
 
 Each open file handle needs to remember which dashboard slot belongs to it so that read/write handlers can call `slot_update()` by index without scanning the table.
 
-Add one field to `src/types/file.h`:
+Add one field to `src/core/types/file.h`:
 
 ```c
 int32_t  dashboard_slot;  /* index into transfer table; -1 = not tracked */
@@ -354,7 +354,7 @@ extern ngx_shm_zone_t *ngx_xrootd_dashboard_shm_zone;
 
 And include `src/dashboard/dashboard.h` from the umbrella header so that `xrootd_file_t` can reference `dashboard_slot` without extra includes.
 
-### `src/types/file.h`
+### `src/core/types/file.h`
 
 Add one field to `xrootd_file_t`:
 
@@ -364,7 +364,7 @@ int32_t  dashboard_slot;   /* transfer table slot index; -1 = not tracked */
 
 Initialise to `-1` alongside the other fields at the top of `open_resolved_file.c`.
 
-### `src/config/config.c` (or wherever `xrootd_configure_metrics()` is called)
+### `src/core/config/config.c` (or wherever `xrootd_configure_metrics()` is called)
 
 Add `xrootd_configure_dashboard(cf, cmcf)` — registers the transfer table SHM zone exactly as metrics registers its zone. The zone name is `"xrootd_dashboard"`. The init callback zeros the table on first startup and preserves it across reloads (same pattern as metrics).
 
@@ -398,7 +398,7 @@ if (fh->dashboard_slot >= 0 && ngx_xrootd_dashboard_shm_zone) {
 }
 ```
 
-For AIO reads (`src/aio/`), the update goes in the AIO completion callback, after `ctx->destroyed` is checked (same guard as the metrics update there).
+For AIO reads (`src/core/aio/`), the update goes in the AIO completion callback, after `ctx->destroyed` is checked (same guard as the metrics update there).
 
 ### `src/write/write.c`, `writev.c`, `pgwrite.c`
 

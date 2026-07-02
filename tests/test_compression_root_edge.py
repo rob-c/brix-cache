@@ -80,7 +80,7 @@ kXR_error = 4003
 
 kXR_open_read = 0x0010
 
-# Phase-42 W4 open-reply signalling (src/compat/codec_core.h):
+# Phase-42 W4 open-reply signalling (src/core/compat/codec_core.h):
 # ServerResponseBody_Open.cpsize = XROOTD_INLINE_CMP_MAGIC ('Z' = 0x5A) and
 # cptype[0] = <codec id ordinal>.  GZIP ordinal = 1 (zlib is mandatory).
 INLINE_CMP_MAGIC = 0x5A

@@ -19,7 +19,7 @@ timer). Think of it as writing handlers for a single-threaded async framework
 
 - **One worker = one thread = one event loop.** Protocol handlers must **never
   block** (no `sleep`, no blocking `read`, no long CPU). Blocking I/O is offloaded
-  to a thread pool (`ngx_thread_pool_run`, see `src/aio/`); everything else is
+  to a thread pool (`ngx_thread_pool_run`, see `src/core/aio/`); everything else is
   driven by readiness callbacks and timers. A blocked handler freezes every
   connection on that worker.
 - **Per-connection state lives in a context struct**, fetched at the top of each
@@ -102,7 +102,7 @@ function that returns `NGX_AGAIN` has **suspended a coroutine by hand**.
 
 The wire protocol has its own error space (`kXR_*` codes in
 `src/protocol/opcodes.h`); the boundary maps `errno → kXR → HTTP`
-(`src/compat/error_mapping.c`, table in the coding standard).
+(`src/core/compat/error_mapping.c`, table in the coding standard).
 
 ---
 

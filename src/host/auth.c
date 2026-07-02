@@ -1,4 +1,4 @@
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "session/registry.h"
 #include "acc/acc.h"          /* xrootd_acc_resolve_peer (breaker-bounded) */
 

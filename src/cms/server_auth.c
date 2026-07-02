@@ -1,5 +1,5 @@
 #include "server.h"
-#include "compat/net_target.h"
+#include "core/compat/net_target.h"
 #include "sss/sss_internal.h"
 
 /*

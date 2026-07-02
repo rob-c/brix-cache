@@ -17,7 +17,7 @@
 - **VFS seam (INVARIANT 11):** zero raw libc FS calls in `src/scan/`. Use `xrootd_vfs_walk`, `xrootd_vfs_open_fd_at`, `xrootd_vfs_fgetxattr`, `xrootd_integrity_get_fd`. No `rados_*` symbol above `src/fs/backend/`.
 - **Byte-compatible with stock XrdCeph** (`/tmp/xrootd-src/src/XrdCeph`): bytes via `obj->driver->pread` (must be libradosstriper-backed for Ceph verify/fill — gated, Task 8); stored checksum is the binary `XrdCksData` blob in `XrdCks.<alg>` via `xrootd_cksdata_decode/encode`; honor `fmTime` staleness (`stale` ≠ `mismatch`).
 - **3 tests per change:** success + error + security-negative.
-- **Build:** new `.c`/`.h` files register in the top-level `./config` (`$ngx_addon_dir/src/scan/*.c`), NOT `src/config/config.h`. After adding a new source file: `rm -rf objs && ./configure --with-stream --with-stream_ssl_module --with-http_ssl_module --with-http_dav_module --with-threads --add-module=$REPO && make -j$(nproc)`. Incremental edits: `make -j$(nproc)` only. NEVER `./configure` over a stale `objs/` (mixed-ABI SIGSEGV).
+- **Build:** new `.c`/`.h` files register in the top-level `./config` (`$ngx_addon_dir/src/scan/*.c`), NOT `src/core/config/config.h`. After adding a new source file: `rm -rf objs && ./configure --with-stream --with-stream_ssl_module --with-http_ssl_module --with-http_dav_module --with-threads --add-module=$REPO && make -j$(nproc)`. Incremental edits: `make -j$(nproc)` only. NEVER `./configure` over a stale `objs/` (mixed-ABI SIGSEGV).
 - **Metrics:** low-cardinality only — no paths/algorithms/reqids as labels.
 - **NEVER run git** without explicit user instruction. The `git commit` steps below are written for completeness; the executor must obtain the user's go-ahead before running any git command (project hard rule).
 
@@ -33,8 +33,8 @@
 | `src/scan/scan_engine_unittest.c` | Standalone gcc unit test (pattern: `src/fs/backend/csi_unittest.c`). |
 | `src/scan/scan_http.c` | nginx HTTP handler: route, admin auth, param parse, confinement, thread-pool batch drive, chunked NDJSON output. Only ngx-coupled file. |
 | `src/scan/README.md` | Module doc. |
-| `src/config/config.h` | `xrootd_scan*` loc-conf fields. |
-| `src/config/directives.c` | `xrootd_scan*` `ngx_command_t` + merge. |
+| `src/core/config/config.h` | `xrootd_scan*` loc-conf fields. |
+| `src/core/config/directives.c` | `xrootd_scan*` `ngx_command_t` + merge. |
 | `src/dashboard/module.c` | Route `/xrootd/api/v1/scan` → `scan_http` handler. |
 | `client/tools/xrdstorascan.c` | Clean-room client wrapper. |
 | `client/Makefile` | Build `xrdstorascan`. |
@@ -543,7 +543,7 @@ git commit -m "feat(scan): NDJSON record formatters + unit tests"
 - Modify: `src/scan/scan_engine_unittest.c` (action cases against a temp fixture tree), top-level `config`
 
 **Interfaces:**
-- Consumes: `scan_record.h` (status/rec types), `scan_throttle.h`, VFS (`src/fs/vfs.h`: `xrootd_vfs_open_fd_at`, `xrootd_vfs_fgetxattr`), integrity (`src/compat/integrity_info.h`: `xrootd_integrity_get_fd`, `xrootd_cksdata_decode`, `xrootd_integrity_info_t`, `xrootd_integrity_opts_t`).
+- Consumes: `scan_record.h` (status/rec types), `scan_throttle.h`, VFS (`src/fs/vfs.h`: `xrootd_vfs_open_fd_at`, `xrootd_vfs_fgetxattr`), integrity (`src/core/compat/integrity_info.h`: `xrootd_integrity_get_fd`, `xrootd_cksdata_decode`, `xrootd_integrity_info_t`, `xrootd_integrity_opts_t`).
 - Produces:
   - `typedef enum { XROOTD_SCAN_MODE_DUMP, XROOTD_SCAN_MODE_VERIFY, XROOTD_SCAN_MODE_FILL, XROOTD_SCAN_MODE_COMPARE } xrootd_scan_mode_t;`
   - `typedef struct { xrootd_scan_mode_t mode; char alg[16]; int rootfd; } xrootd_scan_action_ctx_t;`
@@ -614,8 +614,8 @@ git commit -m "feat(scan): per-object dump/verify/fill action over VFS + XrdCks 
 ## Task 5: Config directives (`xrootd_scan*`)
 
 **Files:**
-- Modify: `src/config/config.h` (loc-conf fields), `src/config/directives.c` (commands + merge)
-- Reference pattern: `dashboard_http.h` `browse_root` + `browse_root_canon` realpath handling; `src/config/directives.c` existing `xrootd_dashboard_*` entries.
+- Modify: `src/core/config/config.h` (loc-conf fields), `src/core/config/directives.c` (commands + merge)
+- Reference pattern: `dashboard_http.h` `browse_root` + `browse_root_canon` realpath handling; `src/core/config/directives.c` existing `xrootd_dashboard_*` entries.
 
 **Interfaces:**
 - Produces config fields read by `scan_http.c` (Task 6): `scan_enable` (flag), `scan_root` (ngx_str_t) + `scan_root_canon[PATH_MAX]`, `scan_parallel` (ngx_uint_t), `scan_max_rate` (off_t/size), `scan_adaptive` (flag).

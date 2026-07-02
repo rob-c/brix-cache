@@ -23,8 +23,8 @@
  */
 
 #include "metrics_internal.h"
-#include "compat/http_headers.h"
-#include "compat/alloc_guard.h"
+#include "core/compat/http_headers.h"
+#include "core/compat/alloc_guard.h"
 
 
 /* True when the request's query string contains the bare `verbose` flag. */

@@ -22,7 +22,7 @@
 
 #include "gsi_verify.h"
 
-#include "compat/log_diag.h"
+#include "core/compat/log_diag.h"
 
 #include <string.h>
 

@@ -44,7 +44,7 @@ Only the WebDAV/`davs://`/`http://` HTTP protocol path uses this code; the
 
 > Build registration is in the top-level `config` script (`request.h` ~line 225,
 > `request.c` ~line 572 in `NGX_ADDON_SRCS`/`NGX_ADDON_DEPS`), **not** in
-> `src/config/config.h`. A new source file in this directory must be added there
+> `src/core/config/config.h`. A new source file in this directory must be added there
 > and picked up by re-running `./configure`.
 
 ## Key types & data structures
@@ -158,7 +158,7 @@ To add support for a **new LOCK request header or body element**:
    `../../compat/xml.c` over hand-rolling XML parsing here.
 5. If you add a **new `.c` file** in this directory, register it in the
    top-level `config` script (`NGX_ADDON_SRCS`/`NGX_ADDON_DEPS`) and re-run
-   `./configure` — not in `src/config/config.h`.
+   `./configure` — not in `src/core/config/config.h`.
 6. Per the project rule, ship 3 tests with the change: success, error
    (malformed/oversized header or body), and a security-negative
    (e.g. token spoof / XXE / unbounded timeout attempt).

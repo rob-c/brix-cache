@@ -13,7 +13,7 @@
  * See docs/refactor/phase-38-file-size-unix-modularity.md §2.6/§6.10.
  */
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "proxy/proxy.h"
 #include "proxy/proxy_internal.h"
 #include "handoff/handoff.h"
@@ -24,7 +24,7 @@
 #include "ratelimit/ratelimit.h"  /* Phase 25: advanced rate-limit directives */
 #include "impersonate/lifecycle.h" /* Phase 40: impersonation directives */
 #include "cms/cns.h"               /* §6 CNS mode enum */
-#include "config/credential_block.h" /* §14 xrootd_credential block directive */
+#include "core/config/credential_block.h" /* §14 xrootd_credential block directive */
 #include "module_enums.h"   /* directive enum value tables */
 
 /* phase-64: xrootd_stage_flush sync|async value map (0 = sync, 1 = async). */

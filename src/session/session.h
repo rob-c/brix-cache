@@ -1,7 +1,7 @@
 #ifndef XROOTD_SESSION_H
 #define XROOTD_SESSION_H
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 
 /*
  * Session lifecycle — the XRootD login sequence every client must complete:

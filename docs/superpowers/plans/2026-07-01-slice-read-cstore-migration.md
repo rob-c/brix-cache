@@ -25,7 +25,7 @@ Give the stream config an `sd_cache` decorator (source = origin, store = `cache_
 
 **Files:**
 - Modify: `src/cache/cache_storage.c` (build the slice `sd_cache` instance beside `cache_storage_inst`)
-- Modify: `src/types/config.h` (a field to hold it, e.g. `void *cache_slice_inst`)
+- Modify: `src/core/types/config.h` (a field to hold it, e.g. `void *cache_slice_inst`)
 - Test: config validation + a startup smoke (no serve yet)
 
 **Interfaces:**
@@ -85,7 +85,7 @@ Once the new path passes parity, remove `slice_read.c`, `slice_fill.c`, `slice.c
 
 **Files:**
 - Delete: `src/read/slice_read.{c,h}`, `src/cache/slice_fill.c`, `src/cache/slice.{c,h}`
-- Modify: `config` (remove the three `.c` from `NGX_ADDON_SRCS`), `open_cache.c` (drop the fallback), `cache_internal.h` (remove `xrootd_cache_slice_*` decls), `src/read/slice_read.h` includers, `src/types/file.h` (`slice_cache_path`/`slice_clean_path` if now unused)
+- Modify: `config` (remove the three `.c` from `NGX_ADDON_SRCS`), `open_cache.c` (drop the fallback), `cache_internal.h` (remove `xrootd_cache_slice_*` decls), `src/read/slice_read.h` includers, `src/core/types/file.h` (`slice_cache_path`/`slice_clean_path` if now unused)
 - Modify: `src/read/slice_read.c` callers (`src/read/slice_read.c` was called from `open_cache.c` only — confirm)
 
 - [ ] **Step 1: Prove each symbol is dead.** For every exported symbol of the three files (`xrootd_open_slice_handle`, `xrootd_read_from_slices`, `xrootd_cache_slice_fetch_origin`, `xrootd_cache_slice_fill_thread`, and `slice.c`'s exports), `grep -rn` across `src/` → only self-references. Any live caller blocks deletion (migrate it first).

@@ -15,7 +15,7 @@ CC ?= cc
 AR ?= ar
 
 REPO   := ../..
-COMPAT := $(REPO)/src/compat
+COMPAT := $(REPO)/src/core/compat
 PROTO  := $(REPO)/src/protocol
 
 # Hardening flags — mirror the module's ./configure (repo-root `config`).
@@ -60,7 +60,7 @@ else ifeq ($(shell pkg-config --exists liblz4 2>/dev/null && echo y),y)
   CODEC_CFLAGS += -DXROOTD_HAVE_LZ4=1 $(shell pkg-config --cflags liblz4 2>/dev/null)
 endif
 
-# NB: $(COMPAT) (src/compat) is added with -iquote, NOT -I. src/compat/time.h shares
+# NB: $(COMPAT) (src/core/compat) is added with -iquote, NOT -I. src/core/compat/time.h shares
 # its basename with the system <time.h>; under -I it lands in the angle-bracket search
 # path and shadows the real <time.h> (e.g. sd.h's `#include <time.h>` for struct
 # timespec then self-resolves to compat/time.h and time_t goes undefined). -iquote
@@ -198,7 +198,7 @@ $(BUILD):
 	mkdir -p $(BUILD)
 
 # Enforce the ngx-free invariant on the built archive, and that no pure logic is
-# stranded in the module (every ngx-free src/compat/*.c is shared or allowlisted).
+# stranded in the module (every ngx-free src/core/compat/*.c is shared or allowlisted).
 check: $(LIB)
 	./check-ngx-free.sh $(LIB)
 	./check-shared-coverage.sh $(LIB)

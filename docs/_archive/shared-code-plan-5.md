@@ -19,12 +19,12 @@ Already shared and not re-planned here:
 
 | Area | Existing shared code |
 |---|---|
-| Path confinement | `src/compat/path.c`, `src/path/*` |
-| Checksums and digests | `src/compat/checksum.c`, `src/compat/crc32c.c` |
-| HTTP range/ETag/body/query/XML helpers | `src/compat/http_*.c`, `src/compat/etag.c`, `src/compat/xml.c` |
-| Staged file lifecycle | `src/compat/staged_file.c` |
-| POSIX errno mapping | `src/compat/http_errno.c`, `src/compat/kxr_errno.c` |
-| Directory utility pieces | `src/compat/fs_walk.c` |
+| Path confinement | `src/core/compat/path.c`, `src/path/*` |
+| Checksums and digests | `src/core/compat/checksum.c`, `src/core/compat/crc32c.c` |
+| HTTP range/ETag/body/query/XML helpers | `src/core/compat/http_*.c`, `src/core/compat/etag.c`, `src/core/compat/xml.c` |
+| Staged file lifecycle | `src/core/compat/staged_file.c` |
+| POSIX errno mapping | `src/core/compat/http_errno.c`, `src/core/compat/kxr_errno.c` |
+| Directory utility pieces | `src/core/compat/fs_walk.c` |
 | Token parsing and scope checks | `src/token/*` |
 | Metrics storage and status classes | `src/metrics/*` |
 
@@ -67,7 +67,7 @@ unsupported operation.
 
 ### Plan
 
-Add `src/compat/result.h` and `src/compat/result.c`:
+Add `src/core/compat/result.h` and `src/core/compat/result.c`:
 
 ```c
 typedef enum {
@@ -154,7 +154,7 @@ status extraction pattern:
 Only the method enum and counter arrays differ.
 
 `src/webdav/xrdhttp.c` also has local `add_header_str()` and `add_header_num()`
-helpers even though `src/compat/http_headers.c` already owns most response
+helpers even though `src/core/compat/http_headers.c` already owns most response
 header insertion.
 
 ### Plan
@@ -218,7 +218,7 @@ Each surface asks the same questions:
 
 ### Plan
 
-Add `src/compat/resource_info.h` and `src/compat/resource_info.c`:
+Add `src/core/compat/resource_info.h` and `src/core/compat/resource_info.c`:
 
 ```c
 typedef struct {
@@ -247,7 +247,7 @@ Keep wire serialization separate:
 | XRootD stat body | `src/path/stat_body.c` |
 | WebDAV PROPFIND XML | `src/webdav/propfind.c` |
 | S3 XML listing entry | `src/s3/list_objects_v2.c` |
-| HTTP ETag header | `src/compat/http_file_response.c` |
+| HTTP ETag header | `src/core/compat/http_file_response.c` |
 
 The shared struct should stop repeated `stat` interpretation without hiding the
 protocol differences.
@@ -276,7 +276,7 @@ reduction: 80-170 lines.
 
 ### Problem
 
-`src/compat/http_file_response.c` already shares file-backed sendfile output,
+`src/core/compat/http_file_response.c` already shares file-backed sendfile output,
 ETag, and Content-Range header construction. WebDAV GET, XrdHttp GET, and S3
 GET still duplicate the orchestration around it:
 
@@ -366,7 +366,7 @@ But the common concepts can be named once:
 
 ### Plan
 
-Add `src/compat/access_policy.h` with protocol-neutral operation names:
+Add `src/core/compat/access_policy.h` with protocol-neutral operation names:
 
 ```c
 typedef enum {
@@ -439,7 +439,7 @@ larger partial-write failure surface than S3's staged path.
 
 ### Plan
 
-Add `src/compat/http_object_write.h`:
+Add `src/core/compat/http_object_write.h`:
 
 ```c
 typedef struct {
@@ -503,7 +503,7 @@ Directory enumeration is still fragmented:
 | WebDAV PROPFIND | `src/webdav/propfind.c` |
 | S3 ListObjectsV2 | `src/s3/list_walk.c`, `src/s3/list_objects_v2.c` |
 
-`src/compat/fs_walk.c` provides a recursive callback walk, but it does not yet
+`src/core/compat/fs_walk.c` provides a recursive callback walk, but it does not yet
 carry all information needed by every serializer:
 
 | Needed field | Why |
@@ -594,7 +594,7 @@ nginx logs.
 
 ### Plan
 
-Add `src/compat/request_identity.h`:
+Add `src/core/compat/request_identity.h`:
 
 ```c
 typedef enum {
@@ -816,8 +816,8 @@ Every phase should include at least:
 
 Start with Phase 1 because it is low risk and creates useful building blocks:
 
-1. Add `xrootd_http_effective_status()` to `src/compat/http_headers.c/h` or a
-   new `src/compat/http_status.c/h`.
+1. Add `xrootd_http_effective_status()` to `src/core/compat/http_headers.c/h` or a
+   new `src/core/compat/http_status.c/h`.
 2. Add `xrootd_http_set_header_num()`.
 3. Add `xrootd_http_request_header_add()` for XrdHttp injected headers.
 4. Migrate `src/webdav/metrics.c`, `src/s3/metrics.c`, and the local XrdHttp

@@ -752,7 +752,7 @@ def _kxr_oneshot(raw_after_handshake, handshake=None):
 def _crc64nvme(data):
     """CRC-64/NVME (reflected poly 0x9A6C9329AC4BC9B5, init/xorout all-FF, refin/
     refout): the algorithm behind AWS S3 x-amz-checksum-crc64nvme and this module's
-    src/compat/crc64.c.  Returns the 64-bit integer (verify: crc64nvme(b"123456789")
+    src/core/compat/crc64.c.  Returns the 64-bit integer (verify: crc64nvme(b"123456789")
     == 0xAE8B14860A799888, the published check constant)."""
     poly = 0x9A6C9329AC4BC9B5
     crc = 0xFFFFFFFFFFFFFFFF
@@ -24760,7 +24760,7 @@ def run_checksum_digest_oracle(key, data, port, s3port):
         # self-test the helper against the published NVME check constant first.
         ok(_crc64nvme(b"123456789") == 0xAE8B14860A799888,
            "S3 oracle: local CRC-64/NVME matches published check constant "
-           "0xAE8B14860A799888 (engine parity vs src/compat/crc64.c)")
+           "0xAE8B14860A799888 (engine parity vs src/core/compat/crc64.c)")
         # D1: PUT own object WITH a correct crc64nvme -> accepted (server verifies).
         s3_rel = "alice/%s_s3.bin" % TAG
         pst, _ = s3("PUT", s3_rel, s3port, data=A_CONTENT,

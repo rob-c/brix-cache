@@ -1,5 +1,5 @@
 #include "query_internal.h"
-#include "compat/codec_core.h"
+#include "core/compat/codec_core.h"
 
 #include <stdarg.h>
 #include <stdio.h>

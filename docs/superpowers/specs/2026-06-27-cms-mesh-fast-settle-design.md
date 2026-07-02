@@ -47,7 +47,7 @@ profile; excellent automatic defaults plus two operator tunables.
 ### Stage 1 — Measure
 
 - **Per-node instrumentation:** log each node's *time-to-first-CMS-login* using the
-  monotonic helper from the lifecycle work (`src/compat/lifecycle_timing.h`), e.g.
+  monotonic helper from the lifecycle work (`src/core/compat/lifecycle_timing.h`), e.g.
   `xrootd: CMS registered with <mgr> after N ms (attempt K)`. This is permanent,
   low-overhead, and the parse target for the harness.
 - **Mesh-settle harness:** boot a multi-tier same-host mesh and time **full settle**

@@ -100,7 +100,7 @@ All previously identified RFC compliance gaps have been fixed:
 
 | Feature | RFC | Fix |
 |---|---|---|
-| ETag in GET/HEAD responses | RFC 7232 §2.3 | `W/"mtime-size"` weak ETag added by `xrootd_http_add_etag_header()` in `src/compat/http_file_response.c` |
+| ETag in GET/HEAD responses | RFC 7232 §2.3 | `W/"mtime-size"` weak ETag added by `xrootd_http_add_etag_header()` in `src/core/compat/http_file_response.c` |
 | `If-Modified-Since` on GET → 304 | RFC 7232 §3.3 | Direct check in `src/webdav/get.c` before range processing |
 | `If-None-Match: *` on PUT to existing → 412 | RFC 7232 §3.2 | Pre-open check in `src/webdav/put.c` |
 | `If-Match: <wrong>` on PUT → 412 | RFC 7232 §3.1 | Pre-open ETag comparison in `src/webdav/put.c` |

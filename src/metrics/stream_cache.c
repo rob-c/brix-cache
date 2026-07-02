@@ -1,5 +1,5 @@
 #include "metrics_internal.h"
-#include "compat/fs_usage.h"
+#include "core/compat/fs_usage.h"
 
 /*
  * WHAT: Prometheus HTTP exporter for read-through cache metrics — filesystem occupancy, eviction counters,

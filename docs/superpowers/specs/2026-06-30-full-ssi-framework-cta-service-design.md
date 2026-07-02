@@ -55,7 +55,7 @@ and out of scope for this module:
   deferred `kXR_attn + kXR_asynresp` frame for a previously `kXR_waitresp`-acked
   request. This is exactly the unsolicited-response push SSI needs. Companions:
   `xrootd_send_attn_asyncms` (notification → alert) and generic `xrootd_send_attn`.
-- **`src/aio/resume.c`** — posts thread-pool completions back onto the worker event
+- **`src/core/aio/resume.c`** — posts thread-pool completions back onto the worker event
   loop via `ngx_post_event` and guards re-entry with `ctx->destroyed`. This is the
   cross-thread-wakeup + use-after-free discipline async SSI delivery requires.
 
@@ -78,7 +78,7 @@ behind a single delivery primitive.
   │ ssi_rrinfo.c   │   │ (echo + cta registry) │   │ cta_queue.c (FSM)  │
   │ ssi_reply.c    │   └───────────────────────┘   │ cta_exec.c (vtable)│
   └────────────────┘                               └────────────────────┘
-        ▲  reuses src/response/async.c (kXR_attn) + src/aio/resume.c (event-loop post)
+        ▲  reuses src/response/async.c (kXR_attn) + src/core/aio/resume.c (event-loop post)
 ```
 
 ### Approach decision
@@ -276,7 +276,7 @@ UAF guard already used on the write path.
 - Per-request request/response size caps (existing 1 MiB defaults, now configurable).
 - Queue depth cap → `kXR_wait` / over-quota error.
 
-### Config directives (`src/config/`, per the directive recipe)
+### Config directives (`src/core/config/`, per the directive recipe)
 
 - `xrootd_ssi on|off` (exists).
 - `xrootd_ssi_service <name> [args]` — enable a provider.
@@ -349,7 +349,7 @@ mixed-ABI garbage — rebuild clean when the source list changes.
 | `src/ssi/svc_cta/cta_pb.{c,h}` | new | Minimal CTA protobuf codec |
 | `src/ssi/svc_cta/cta_queue.{c,h}` | new | Request-queue state machine + journal |
 | `src/ssi/svc_cta/cta_exec.{c,h}` | new | Pluggable executor (tier/frm + simulated archive) |
-| `src/config/*` | changed | New directives |
+| `src/core/config/*` | changed | New directives |
 | `src/ssi/README.md` | changed | Document the full framework + CTA service |
 | `tests/test_ssi_*.py`, `src/ssi/*_unittest.c`, native test client | new | Per section 8 |
 

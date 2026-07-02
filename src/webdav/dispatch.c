@@ -19,7 +19,7 @@
 #include "webdav.h"
 #include "xrdhttp.h"
 #include "tape_rest.h"
-#include "compat/http_body.h"
+#include "core/compat/http_body.h"
 #include "impersonate/lifecycle.h"
 
 static ngx_int_t webdav_dispatch_inner(ngx_http_request_t *r);

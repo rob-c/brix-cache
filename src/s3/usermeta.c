@@ -18,7 +18,7 @@
 
 #include "s3.h"
 #include "usermeta.h"
-#include "compat/uri.h"
+#include "core/compat/uri.h"
 #include "fs/vfs.h"
 
 #include <errno.h>

@@ -7,7 +7,7 @@
  * single-threaded per connection.
  */
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "pgw_fob.h"
 #include "protocol/flags.h"   /* kXR_pgPageBL, kXR_pgPageSZ */
 #include <string.h>

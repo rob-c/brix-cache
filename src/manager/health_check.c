@@ -16,7 +16,7 @@
 #include "health_check.h"
 #include "registry.h"
 #include "metrics/metrics_macros.h"
-#include "compat/log_diag.h"
+#include "core/compat/log_diag.h"
 
 #include <netdb.h>
 #include <sys/socket.h>

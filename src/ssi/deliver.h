@@ -16,7 +16,7 @@
  *       reuses xrootd_send_attn_asynresp (src/response/async.c).
  */
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "session.h"
 
 typedef enum {

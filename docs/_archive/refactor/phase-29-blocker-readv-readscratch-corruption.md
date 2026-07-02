@@ -8,7 +8,7 @@ build**, NOT a memory-corruption bug in the readv path.
 
 Every "crash" attributed to this blocker was an **incremental build against a
 changed struct layout**. The Phase-1 output-queue refactor enlarges/reorders
-`xrootd_ctx_t` (`src/types/context.h`). nginx's `--add-module` build does **not**
+`xrootd_ctx_t` (`src/core/types/context.h`). nginx's `--add-module` build does **not**
 track header dependencies, so `make` recompiled only the `.c` files that were
 edited (`buffers.c`, `write_helpers.c`) and left every other object
 (`recv.o`, `readv.o`, `aio/*.o`, …) compiled against the **old** struct layout.
@@ -49,7 +49,7 @@ present, the worker SIGSEGVs in the readv build loop (`read_scratch` is a
 freed/undersized buffer). So `xrootd_trim_scratch()` (added by the concurrent
 "Phase 31 — Memory-budget streaming" work) is the cause.
 
-`xrootd_trim_one()` (`src/aio/buffers.c`) does `ngx_pfree(read_scratch)` then
+`xrootd_trim_one()` (`src/core/aio/buffers.c`) does `ngx_pfree(read_scratch)` then
 `ngx_palloc(XROOTD_READ_WINDOW)` at the top of each new request (`recv.c`,
 `REQ_HEADER`, `hdr_pos==0`). Its in-function bookkeeping is self-consistent
 (pointer + size updated together), so the corruption is a **pool/lifecycle
@@ -217,7 +217,7 @@ same server-side `xrootd_ctx_t`, sharing `read_scratch`.)
    repro — ASAN will report the *first* out-of-bounds write with the exact
    allocation, immediately localizing the corruption (read path vs readv path).
 2. Likely candidates to inspect once ASAN points the way:
-   - whether the large-read path (`src/read/read.c`, `src/aio/buffers.c`
+   - whether the large-read path (`src/read/read.c`, `src/core/aio/buffers.c`
      `build_sendfile_chain`/`build_chunked_chain`) ever writes `read_scratch` /
      mutates `read_scratch_size`;
    - whether a stalled large-read response leaves a chain referencing

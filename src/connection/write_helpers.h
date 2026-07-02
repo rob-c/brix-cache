@@ -1,7 +1,7 @@
 #ifndef XROOTD_CONN_WRITE_HELPERS_H
 #define XROOTD_CONN_WRITE_HELPERS_H
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "event_sched.h"
 
 /*

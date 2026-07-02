@@ -13,7 +13,7 @@
 #ifndef XROOTD_MANAGER_HEALTH_CHECK_H
 #define XROOTD_MANAGER_HEALTH_CHECK_H
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 
 #define XROOTD_HC_TYPE_PING  0   /* kXR_ping  — protocol-level liveness */
 #define XROOTD_HC_TYPE_STAT  1   /* kXR_stat "/" — exercises path/stat chain */

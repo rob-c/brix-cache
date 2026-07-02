@@ -21,7 +21,7 @@
 #include "protocol/gsi.h"
 #include "response/response.h"
 #include "connection/write_helpers.h"
-#include "compat/alloc_guard.h"
+#include "core/compat/alloc_guard.h"
 
 #include <string.h>
 #include <stdlib.h>

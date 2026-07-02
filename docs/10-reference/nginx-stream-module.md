@@ -62,7 +62,7 @@ The stream module is the right fit because it exposes:
 The module registers a single content handler (`ngx_stream_xrootd_handler`)
 that manages the entire connection lifecycle, from initial handshake through
 request dispatch. It is installed for a server block when `xrootd on;` is set —
-see `src/config/server_conf.c`:
+see `src/core/config/server_conf.c`:
 
 ```c
 cscf->handler = ngx_stream_xrootd_handler;

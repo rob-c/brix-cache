@@ -18,7 +18,7 @@
 #include "macaroon.h"
 #include "issuer_registry.h"
 #include "subject_map.h"
-#include "types/tunables.h"
+#include "core/types/tunables.h"
 
 #include <stdlib.h>
 #include <string.h>

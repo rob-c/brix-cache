@@ -200,7 +200,7 @@ Equivalence to XRootD: `xrootd_pmark_firefly_dest` ≡ `pmark ffdest`,
 `xrootd_pmark_echo` ≡ `pmark ffecho`, `xrootd_pmark_domain` ≡ `pmark domain`,
 `xrootd_pmark_scitag_cgi` ≡ `pmark use scitag`, `xrootd_pmark_flowlabel` ≡ `pmark use flowlabel`.
 
-**Conf fields** (new, in `ngx_stream_xrootd_srv_conf_t` at `src/types/config.h`, and mirrored
+**Conf fields** (new, in `ngx_stream_xrootd_srv_conf_t` at `src/core/types/config.h`, and mirrored
 in the WebDAV/S3 loc confs):
 ```c
 ngx_flag_t    pmark_enable;          /* NGX_CONF_UNSET */
@@ -264,7 +264,7 @@ request/connection
 ### 6.1 root:// (stream) — primary
 - **Where:** mirror XRootD "begin on open". Hook in `src/read/open_request.c` (`xrootd_handle_open`,
   ~`:140`) **after** the auth gate, where path + `ctx->identity` + `is_write` are known.
-- Store `xrootd_pmark_flow_t *pmark_flow` on `xrootd_ctx_t` (`src/types/context.h:142` area) plus a
+- Store `xrootd_pmark_flow_t *pmark_flow` on `xrootd_ctx_t` (`src/core/types/context.h:142` area) plus a
   `pmark_done` flag (one flow per connection, like XRootD's `pmHandle`/`pmDone`).
 - **fd:** `c->fd` directly. **activity:** read vs write from the open mode; map via `mapping.c`.
 - **Identity timing gotcha** (from research): identity is only complete post-`kXR_auth`; do not
@@ -392,7 +392,7 @@ site may run flow-label-only, firefly-only, or (default) both — matching XRoot
 ## 7. Identity → (experiment, activity) mapping
 
 `mapping.c getCodes()` replicates XRootD priority using **our** unified identity
-(`src/types/identity.h`): `vo_list`/`primary_vo` for the VO rule, `dn`/`subject` for the user
+(`src/core/types/identity.h`): `vo_list`/`primary_vo` for the VO rule, `dn`/`subject` for the user
 rule, FQAN role for the role rule, request path for the path rule, and `scitag.flow` (CGI/header)
 as the top-priority override. Output `(exp,act)` validated against ranges (1..1023 / 1..63);
 invalid ⇒ no marking (fail-open: never break a transfer because of SciTags).

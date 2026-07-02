@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <crypt.h>
 #include <ctype.h>
-#include "compat/alloc_guard.h"
+#include "core/compat/alloc_guard.h"
 
 /*
  * dashboard/auth.c — single-admin-user authentication for the live monitor.

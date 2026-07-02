@@ -20,7 +20,7 @@
 
 #include "dashboard/dashboard_http.h"
 #include "path/beneath.h"
-#include "compat/http_headers.h"   /* xrootd_http_source_offer (AGPL sec.13) */
+#include "core/compat/http_headers.h"   /* xrootd_http_source_offer (AGPL sec.13) */
 #include "protocol/opcodes.h"
 #include "fs/vfs.h"                  /* xrootd_sd_caps, xrootd_vfs_enumerate_catalog */
 #include "fs/vfs_backend_registry.h" /* xrootd_vfs_backend_resolve (export→instance) */

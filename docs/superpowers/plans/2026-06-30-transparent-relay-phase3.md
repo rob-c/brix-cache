@@ -261,7 +261,7 @@ Expected: PASS — `tap_unittest: all checks passed`.
 
 **Files:**
 - Create: `src/relay/relay.h`, `src/relay/relay.c`
-- Modify: `src/types/config.h` (relay addr/name fields), `src/config/server_conf.c` (init+merge), `src/stream/module.c` (directive), `src/connection/handler.c` (engage seam)
+- Modify: `src/core/types/config.h` (relay addr/name fields), `src/core/config/server_conf.c` (init+merge), `src/stream/module.c` (directive), `src/connection/handler.c` (engage seam)
 - Modify: `config` (register `src/relay/relay.c`)
 
 **Interfaces:**
@@ -322,8 +322,8 @@ exit $fail
 `chmod +x`. Run: `tests/run_transparent_relay.sh` → FAIL (`unknown directive "xrootd_transparent_proxy"`).
 
 - [ ] **Step 2: Config field + directive + merge.**
-  - `src/types/config.h`: near `http_handoff_addr`, add `ngx_addr_t *relay_addr; ngx_str_t relay_name;`.
-  - `src/config/server_conf.c`: init `conf->relay_addr = NULL;`; merge-inherit like `http_handoff_addr` (copy from prev if unset).
+  - `src/core/types/config.h`: near `http_handoff_addr`, add `ngx_addr_t *relay_addr; ngx_str_t relay_name;`.
+  - `src/core/config/server_conf.c`: init `conf->relay_addr = NULL;`; merge-inherit like `http_handoff_addr` (copy from prev if unset).
   - `src/stream/module.c`: register `{ ngx_string("xrootd_transparent_proxy"), NGX_STREAM_SRV_CONF|NGX_CONF_TAKE1, xrootd_conf_set_transparent_proxy, NGX_STREAM_SRV_CONF_OFFSET, 0, NULL }`.
   - Directive handler `xrootd_conf_set_transparent_proxy` (in `relay.c`): `ngx_parse_url` the arg (host:port), store `ngx_addr_t*` in `conf->relay_addr`, name in `conf->relay_name` (mirror `xrootd_conf_set_http_handoff` in handoff.c exactly). Declare its prototype in `relay.h`.
 

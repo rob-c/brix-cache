@@ -45,7 +45,7 @@ These were verified during the Phase 28 audit and require no further work:
 - **Kernel path confinement** — `openat2(RESOLVE_BENEATH|RESOLVE_NO_MAGICLINKS)` via
   `src/path/beneath.c`; the `*at()` parent-confinement fix closes mkdir/rename/unlink escapes.
 - **Native root:// TPC SSRF gating** — `src/tpc/connect.c`, `src/tpc/launch.c` via
-  `src/compat/net_target.c` (blocks loopback / link-local / 169.254 / RFC-1918 / ULA, gated
+  `src/core/compat/net_target.c` (blocks loopback / link-local / 169.254 / RFC-1918 / ULA, gated
   by `tpc_allow_local` / `tpc_allow_private`).
 - **S3 SigV4** — constant-time `CRYPTO_memcmp` signature compare; replay window enforced.
 - **Admin API** — `CRYPTO_memcmp` secret, CIDR ACL, 64 KB body cap, structured audit log.

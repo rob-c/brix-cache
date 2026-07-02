@@ -1,7 +1,7 @@
 # Shared-Code Plan 3: Compat Consolidation (May 2026 Audit)
 
 This plan documents the third audit pass over `src/` for duplicate or
-near-duplicate logic that should live in `src/compat/`.  Plans 1 and 2 drove
+near-duplicate logic that should live in `src/core/compat/`.  Plans 1 and 2 drove
 the original compat layer into existence; this plan picks up what remains after
 those phases landed.
 
@@ -12,7 +12,7 @@ required in N files when one thing changes).
 
 ---
 
-## Current state of `src/compat/`
+## Current state of `src/core/compat/`
 
 | File | Purpose |
 |---|---|
@@ -60,8 +60,8 @@ to `xrootd_kxr_from_errno()` in `compat/kxr_errno.c`.
 
 | Copy | File | Lines |
 |---|---|---|
-| Inline switch | `src/aio/dirlist.c` | ~315–332 |
-| Canonical function | `src/compat/kxr_errno.c` | — |
+| Inline switch | `src/core/aio/dirlist.c` | ~315–332 |
+| Canonical function | `src/core/compat/kxr_errno.c` | — |
 
 The switch maps `ENOENT → kXR_NotFound`, `EACCES/EPERM → kXR_NotAuthorized`,
 `ENOTDIR → kXR_NotFile`, default `→ kXR_IOError`.  All four cases are already
@@ -232,7 +232,7 @@ Each site has its own case-sensitivity choice and its own error path.  The
 `ngx_strncmp` (case-sensitive).  RFC 7235 requires case-insensitive scheme
 matching, so the `auth_token.c` version has a latent correctness bug.
 
-**Change:** Add to `src/compat/http_headers.c`:
+**Change:** Add to `src/core/compat/http_headers.c`:
 
 ```c
 /*
@@ -270,7 +270,7 @@ existing S3 wire format with fixed zero milliseconds:
 and calls it from five S3 files.  `src/webdav/propfind.c` formats a similar
 UTC ISO-8601 creationdate inline with `gmtime_r` + `strftime`.
 
-**Change:** Move `s3_iso8601` to `src/compat/time.c` as
+**Change:** Move `s3_iso8601` to `src/core/compat/time.c` as
 `xrootd_format_iso8601(time_t t, char *buf, size_t bufsz)`.  Update the
 five S3 call sites and the WebDAV propfind inline.  Remove the private copy
 from `s3/util.c`.
@@ -294,15 +294,15 @@ nibble ↔ ASCII hex character conversion:
 | File | Function | Direction |
 |---|---|---|
 | `src/path/helpers.c` | `xrootd_hex_digit(u_char v)` | nibble → uppercase ASCII |
-| `src/compat/xml.c` | `xrootd_xml_hex_digit(unsigned char v)` | nibble → uppercase ASCII |
+| `src/core/compat/xml.c` | `xrootd_xml_hex_digit(unsigned char v)` | nibble → uppercase ASCII |
 | `src/token/macaroon.c` | `hex_to_int(char c)` | ASCII → nibble |
-| `src/compat/uri.c` | `hex_val(unsigned char c, unsigned char *out)` | ASCII → nibble |
+| `src/core/compat/uri.c` | `hex_val(unsigned char c, unsigned char *out)` | ASCII → nibble |
 
-Additionally, `src/compat/checksum.c` has `xrootd_checksum_hex_encode(in, len, out)`
+Additionally, `src/core/compat/checksum.c` has `xrootd_checksum_hex_encode(in, len, out)`
 and `src/s3/auth_sigv4_canonical.c` has a private `hex_encode(in, len, out)` — both
 performing byte-array → lowercase hex string conversion.
 
-**Change:** Create `src/compat/hex.c` / `compat/hex.h` exporting:
+**Change:** Create `src/core/compat/hex.c` / `compat/hex.h` exporting:
 
 ```c
 /* nibble (0-15) to ASCII uppercase hex character */
@@ -343,7 +343,7 @@ performance — it should **not** be unified with the S3 helper; the cached form
 is architecturally different.
 
 **Change:** Move the S3 `hmac_sha256()` and the adjacent `sha256()` helper to a
-new `src/compat/crypto.c` / `compat/crypto.h` as:
+new `src/core/compat/crypto.c` / `compat/crypto.h` as:
 
 ```c
 /* Single-shot HMAC-SHA256.  Returns 1 on success, 0 on failure. */

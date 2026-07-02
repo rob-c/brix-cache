@@ -92,7 +92,7 @@ copy commit, self-copy checks, xattr preservation, and errno mapping.
 
 ### Plan
 
-Add `src/compat/namespace_ops.h` and `src/compat/namespace_ops.c`.
+Add `src/core/compat/namespace_ops.h` and `src/core/compat/namespace_ops.c`.
 
 The helpers should operate on already-resolved, confined paths. They must not
 parse wire paths, check tokens, check authdb, check VO ACLs, or check WebDAV
@@ -207,7 +207,7 @@ The module now has three related range paths:
 
 | Surface | File | Current behavior |
 |---|---|---|
-| HTTP single range | `src/compat/range.c` | parses one `Range: bytes=...` value |
+| HTTP single range | `src/core/compat/range.c` | parses one `Range: bytes=...` value |
 | XrdHttp multi-range | `src/webdav/xrdhttp_multipart.c` | local parser for comma-separated ranges |
 | Native readv | `src/read/readv.c` | validates wire segments and coalesces adjacent reads |
 
@@ -225,7 +225,7 @@ read paths.
 
 ### Plan
 
-Add `src/compat/range_vector.h` and `src/compat/range_vector.c`.
+Add `src/core/compat/range_vector.h` and `src/core/compat/range_vector.c`.
 
 ```c
 typedef struct {
@@ -266,12 +266,12 @@ Keep serialization protocol-specific:
 |---|---|
 | Native readv wire body | `src/read/readv.c` |
 | XrdHttp multipart/byteranges chain | `src/webdav/xrdhttp_multipart.c` |
-| WebDAV/S3 single-range response headers | `src/compat/http_file_response.c` |
+| WebDAV/S3 single-range response headers | `src/core/compat/http_file_response.c` |
 
 ### First Migration Targets
 
 1. Replace `parse_multi_ranges()` in `src/webdav/xrdhttp_multipart.c`.
-2. Let `src/compat/range.c` become a thin max-one wrapper around the vector
+2. Let `src/core/compat/range.c` become a thin max-one wrapper around the vector
    parser.
 3. Move the contiguous-run logic from `src/read/readv.c` into the coalescer
    while preserving native readv response layout.
@@ -317,7 +317,7 @@ remote-copy or presigned-fetch feature should not grow a third policy.
 ### Plan
 
 Move the address classification and DNS preflight from `src/tpc/connect.c` into
-`src/compat/net_target.h` and `src/compat/net_target.c`.
+`src/core/compat/net_target.h` and `src/core/compat/net_target.c`.
 
 ```c
 typedef struct {
@@ -398,7 +398,7 @@ line-count play.
 
 ### Problem
 
-Checksum computation is already shared in `src/compat/checksum.c`, but checksum
+Checksum computation is already shared in `src/core/compat/checksum.c`, but checksum
 metadata policy is still split:
 
 | Surface | Current behavior |
@@ -420,7 +420,7 @@ The important duplication is not the checksum algorithm itself. It is:
 
 ### Plan
 
-Add `src/compat/integrity_info.h` and `src/compat/integrity_info.c`.
+Add `src/core/compat/integrity_info.h` and `src/core/compat/integrity_info.c`.
 
 ```c
 typedef struct {
@@ -459,7 +459,7 @@ existing safe-log helper for errors. It should not invent new digest algorithms.
 ### First Migration Targets
 
 1. Move the dcksm xattr cache helpers from `src/dirlist/dcksm.c` into
-   `src/compat/integrity_info.c`.
+   `src/core/compat/integrity_info.c`.
 2. Use `xrootd_integrity_get_fd()` in XrdHttp `xrdhttp_add_checksum_header()`.
 3. Use the same helper in `kXR_Qcksum` handle mode.
 4. Add invalidation hooks to native write/truncate/pgwrite/writev, WebDAV PUT,
@@ -508,7 +508,7 @@ read-only capability view that can drive user-visible method/capability lists.
 
 ### Plan
 
-Add a small generic descriptor shape in `src/compat/protocol_caps.h`.
+Add a small generic descriptor shape in `src/core/compat/protocol_caps.h`.
 
 ```c
 typedef enum {
@@ -584,7 +584,7 @@ Export-root validation and canonicalization are done in at least three places:
 
 | Surface | Current path |
 |---|---|
-| native stream | `src/config/runtime_server.c` and stream config |
+| native stream | `src/core/config/runtime_server.c` and stream config |
 | WebDAV/XrdHttp | `src/webdav/config.c` |
 | S3 | `src/s3/module.c` |
 
@@ -595,7 +595,7 @@ setup is part of the confinement boundary.
 
 ### Plan
 
-Add `src/config/root_prepare.h` and `src/config/root_prepare.c`.
+Add `src/core/config/root_prepare.h` and `src/core/config/root_prepare.c`.
 
 ```c
 typedef struct {
@@ -649,7 +649,7 @@ Several features run work outside the main request path:
 
 | Feature | Current owner |
 |---|---|
-| native read/write AIO | `src/aio/*`, `src/read/readv.c` |
+| native read/write AIO | `src/core/aio/*`, `src/read/readv.c` |
 | native TPC pull | `src/tpc/thread.c`, `done.c`, `source.c` |
 | WebDAV HTTP-TPC curl thread | `src/webdav/tpc_thread.c`, `tpc_marker.c` |
 | Qckscan checksum scan | `src/query/checksum_ckscan_async.c` |
@@ -818,7 +818,7 @@ Every implementation PR should include:
 Start with export-root preparation because it is small, easy to validate with
 `nginx -t`, and improves the confinement boundary before larger refactors:
 
-1. Add `src/config/root_prepare.c/h`.
+1. Add `src/core/config/root_prepare.c/h`.
 2. Migrate S3 root canonicalization.
 3. Migrate WebDAV root canonicalization.
 4. Migrate native stream root preparation.

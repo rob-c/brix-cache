@@ -67,7 +67,7 @@ Replace `ngx_http_dav_module` delegation for `MKCOL` and `DELETE` with native im
 ### Implemented
 1.  **Dispatch**: `src/webdav/dispatch.c` routes `MKCOL` and `DELETE` to native handlers.
 2.  **Handlers**: `src/webdav/namespace.c` owns native namespace operations using confined path resolution and lock checks.
-3.  **Shared Copy Metadata**: `src/compat/namespace_ops.c` preserves XRootD-mapped `user.U.*` extended attributes when WebDAV COPY requests metadata preservation.
+3.  **Shared Copy Metadata**: `src/core/compat/namespace_ops.c` preserves XRootD-mapped `user.U.*` extended attributes when WebDAV COPY requests metadata preservation.
 
 ### Test Coverage
 - **Test Case**: Execute `MKCOL` on a non-existent path.

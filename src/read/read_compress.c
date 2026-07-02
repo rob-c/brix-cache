@@ -28,8 +28,8 @@
 
 #include "read.h"
 
-#include "ngx_xrootd_module.h"
-#include "compat/codec_core.h"
+#include "core/ngx_xrootd_module.h"
+#include "core/compat/codec_core.h"
 #include "response/response.h"
 #include "prefetch.h"
 

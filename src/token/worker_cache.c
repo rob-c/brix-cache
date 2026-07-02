@@ -8,7 +8,7 @@
  */
 
 #include "worker_cache.h"
-#include "compat/crypto.h"   /* xrootd_sha256 */
+#include "core/compat/crypto.h"   /* xrootd_sha256 */
 
 #include <time.h>
 

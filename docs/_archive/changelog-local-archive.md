@@ -26,7 +26,7 @@ with a further 23 files modified and 8 untracked in the working tree.
 | `226f991` | `proxy:` upstream proxy pool (`src/proxy/connect.c`, `pool.c`, `events.c`) |
 | `0ec306e` | `k8s-tests:` initial full scaffold — Dockerfiles, Helm charts, k8s manifests, PKI scripts, test runner |
 | `2777d0d` | `k8s-tests/PLAN.md:` restructure |
-| `2df98ad` | `k8s-tests/PLAN.md` + `src/config/process.c` |
+| `2df98ad` | `k8s-tests/PLAN.md` + `src/core/config/process.c` |
 | `3ff2ca4` | `k8s-tests:` minikube setup, network policy, resource quota, test-runner improvements |
 | `270e307` | `k8s-tests:` GitHub Actions CI, cluster setup/teardown scripts, Keycloak templates, aggregate results script; `docs/deployment-guide.md` |
 
@@ -42,7 +42,7 @@ into dedicated subdirectories:
 | Deleted file | Moved into |
 |---|---|
 | `src/ngx_xrootd_connection.c` | `src/connection/` |
-| `src/ngx_xrootd_config.c` | `src/config/` |
+| `src/ngx_xrootd_config.c` | `src/core/config/` |
 | `src/ngx_xrootd_read_handlers.c` | `src/read/` (20 files) |
 | `src/ngx_xrootd_write_handlers.c` | `src/write/` (17 files) |
 | `src/ngx_xrootd_query.c` | `src/query/` |
@@ -51,7 +51,7 @@ into dedicated subdirectories:
 | `src/ngx_xrootd_token.c` | `src/token/` (16 files) |
 | `src/ngx_xrootd_upstream.c` | `src/upstream/` |
 | `src/ngx_xrootd_voms.c` | `src/voms/` |
-| `src/ngx_xrootd_aio.c` | `src/aio/` |
+| `src/ngx_xrootd_aio.c` | `src/core/aio/` |
 | `src/ngx_xrootd_cms_heartbeat.c` | `src/cms/` |
 | `src/ngx_xrootd_handshake.c` | `src/handshake/` (10 files) |
 | `src/ngx_xrootd_session.c` | `src/session/` |
@@ -61,7 +61,7 @@ into dedicated subdirectories:
 | `src/xrootd_protocol.h` | `src/protocol/wire.h` + companion headers |
 | `src/ngx_xrootd_metrics.h` | `src/metrics/metrics.h` |
 
-`src/ngx_xrootd_module.h` kept but substantially reorganised (−715 /+821 lines
+`src/core/ngx_xrootd_module.h` kept but substantially reorganised (−715 /+821 lines
 net).
 
 ### 2.2 New protocol features
