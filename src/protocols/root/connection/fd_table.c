@@ -33,6 +33,25 @@ xrootd_alloc_fhandle(xrootd_ctx_t *ctx)
     return -1;
 }
 
+/* xrootd_ctx_has_open_file — 1 if any handle slot is occupied (fd >= 0), else 0.
+ * Used by the recv-loop drain gate: a connection with an open file is mid-transfer
+ * (a streaming read parked between kXR_read chunks), so a draining worker must let
+ * it finish rather than fast-teardown at the request boundary — a forced mid-stream
+ * reconnect loses the in-flight fill. Single-owner per connection (event thread). */
+int
+xrootd_ctx_has_open_file(const xrootd_ctx_t *ctx)
+{
+    int handle_index;
+
+    for (handle_index = 0; handle_index < XROOTD_MAX_FILES; handle_index++) {
+        if (ctx->files[handle_index].fd >= 0) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 /* xrootd_set_fhandle_path — store a heap copy (ngx_alloc, NOT pool, so it outlives
  * the kXR_open request) of the canonical path in the slot, freeing any prior path
  * first; xrootd_free_fhandle owns the free. NGX_OK, or NGX_ERROR on bad bounds or

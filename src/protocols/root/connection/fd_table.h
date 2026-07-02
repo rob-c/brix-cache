@@ -60,6 +60,16 @@ void xrootd_free_fhandle(xrootd_ctx_t *ctx, int handle_index);
 void xrootd_close_all_files(xrootd_ctx_t *ctx);
 
 /*
+ * xrootd_ctx_has_open_file — 1 if any handle slot is occupied (fd >= 0), else 0.
+ *
+ * A connection holding an open file is mid-transfer (e.g. a streaming read parked
+ * between kXR_read chunks). The recv-loop drain gate uses this so a worker draining
+ * after a reload lets such a connection finish on the old worker instead of a
+ * fast-teardown that forces a fragile mid-stream reconnect.
+ */
+int xrootd_ctx_has_open_file(const xrootd_ctx_t *ctx);
+
+/*
  * xrootd_ensure_read_handle — prepare a handle for read-side I/O.
  *
  * For primary connections this is just a local table check.  For kXR_bind
