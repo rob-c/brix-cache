@@ -195,6 +195,22 @@ cvmfs_tier_get(ngx_http_request_t *r, ngx_http_xrootd_cvmfs_loc_conf_t *lcf)
     return rc;
 }
 
+/* Request-finalization observer: fires once when the request pool is torn
+ * down, with the FINAL response status — the one place every serve path
+ * (inline open, off-loop fill, passthrough) converges, so the negative
+ * memo (T13) sees every 404 regardless of which path produced it. */
+static void
+cvmfs_finalize_observe(void *data)
+{
+    ngx_http_request_t               *r = data;
+    ngx_http_xrootd_cvmfs_loc_conf_t *lcf =
+        ngx_http_get_module_loc_conf(r, ngx_http_xrootd_cvmfs_module);
+
+    if (lcf != NULL) {
+        xrootd_cvmfs_notify_status(r, lcf, r->headers_out.status);
+    }
+}
+
 ngx_int_t
 ngx_http_xrootd_cvmfs_handler(ngx_http_request_t *r)
 {
@@ -203,11 +219,25 @@ ngx_http_xrootd_cvmfs_handler(ngx_http_request_t *r)
     ngx_http_xrootd_cvmfs_ctx_t      *ctx;
     ngx_int_t                         rc;
 
-    ctx = ngx_pcalloc(r->pool, sizeof(*ctx));
+    /* Re-entry after an off-loop fill runs the handler again on the same
+     * request — the existing ctx marks the observer as already registered. */
+    ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_cvmfs_module);
     if (ctx == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        ngx_pool_cleanup_t *cln;
+
+        ctx = ngx_pcalloc(r->pool, sizeof(*ctx));
+        if (ctx == NULL) {
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
+        ngx_http_set_ctx(r, ctx, ngx_http_xrootd_cvmfs_module);
+
+        cln = ngx_pool_cleanup_add(r->pool, 0);
+        if (cln == NULL) {
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
+        cln->handler = cvmfs_finalize_observe;
+        cln->data    = r;
     }
-    ngx_http_set_ctx(r, ctx, ngx_http_xrootd_cvmfs_module);
 
     rc = ngx_http_discard_request_body(r);          /* GET/HEAD only proto */
     if (rc != NGX_OK) {

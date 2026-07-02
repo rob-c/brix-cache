@@ -70,6 +70,12 @@ ngx_int_t xrootd_cvmfs_gate(ngx_http_request_t *r,
 ngx_int_t xrootd_cvmfs_geo_passthrough(ngx_http_request_t *r,
     ngx_http_xrootd_cvmfs_loc_conf_t *lcf);
 
+/* Final-status observer (T13): records 404s in the per-worker negative memo.
+ * Invoked from the handler's request-finalization hook, so every 404 path —
+ * inline open, off-loop fill, future hold/retry — feeds the memo. */
+void xrootd_cvmfs_notify_status(ngx_http_request_t *r,
+    ngx_http_xrootd_cvmfs_loc_conf_t *lcf, ngx_uint_t status);
+
 /* Metric slots (Task 16 wires the macro body; call sites are placed now). */
 #define XROOTD_CVMFS_METRIC_INC(slot) /* wired in phase-4 (T16) */
 

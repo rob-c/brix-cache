@@ -17,6 +17,7 @@ typedef struct {
     xrootd_http_cache_reenter_pt  reenter;
     void                         *reenter_data;
     ngx_int_t                     result;     /* NGX_OK / NGX_DECLINED / NGX_ERROR */
+    int                           err;        /* errno captured from the fill */
     char                          key[PATH_MAX];
 } xrootd_http_cache_fill_ctx_t;
 
@@ -27,7 +28,9 @@ xrootd_http_cache_fill_thread(void *data, ngx_log_t *log)
     xrootd_http_cache_fill_ctx_t *t = data;
 
     (void) log;
+    errno = 0;
     t->result = xrootd_sd_cache_fill_key(t->inst, t->key);
+    t->err = errno;
 }
 
 /* Event loop: re-enter the handler (now a cache hit) on success, else finalize
@@ -50,8 +53,13 @@ xrootd_http_cache_fill_done(ngx_event_t *ev)
             "remote-source streaming is not yet supported) - returning 502",
             t->key);
         rc = NGX_HTTP_BAD_GATEWAY;
+    } else if (t->err == ENOENT || t->err == ENOTDIR) {
+        /* The origin's definitive answer: the object does not exist. */
+        rc = NGX_HTTP_NOT_FOUND;
+    } else if (t->err == EACCES || t->err == EPERM) {
+        rc = NGX_HTTP_FORBIDDEN;
     } else {
-        ngx_log_error(NGX_LOG_ERR, c->log, ngx_errno,
+        ngx_log_error(NGX_LOG_ERR, c->log, t->err,
             "xrootd: cache fill failed for \"%s\" - returning 502", t->key);
         rc = NGX_HTTP_BAD_GATEWAY;
     }

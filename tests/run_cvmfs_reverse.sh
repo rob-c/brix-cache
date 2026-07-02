@@ -82,4 +82,15 @@ C3="$(curl -s -o /dev/null -w '%{http_code}' -X PUT --data x \
 [ "$C2" = 403 ] && ok "non-class path rejected" || bad "non-class: $C2"
 [ "$C3" = 405 ] && ok "write method rejected" || bad "PUT: $C3"
 
+# negative cache: 2 misses for the same bogus CAS name → 1 origin probe
+# (origin existence probes are HEADs; the mock logs them at /ctl/heads)
+BOGUS="/cvmfs/test.cern.ch/data/aa/$(python3 -c 'print("ab"*19)')"
+CN1="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$CPORT$BOGUS")"
+NB1="$(curl -s "http://127.0.0.1:$MPORT/ctl/heads" | grep -c "$BOGUS")"
+CN2="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$CPORT$BOGUS")"
+NB2="$(curl -s "http://127.0.0.1:$MPORT/ctl/heads" | grep -c "$BOGUS")"
+[ "$CN1" = 404 ] && [ "$CN2" = 404 ] && [ "$NB1" -ge 1 ] && [ "$NB1" = "$NB2" ] \
+    && ok "negative cache absorbed repeat 404" \
+    || bad "negative cache: codes=$CN1/$CN2 origin-probes=$NB1→$NB2"
+
 exit $fail
