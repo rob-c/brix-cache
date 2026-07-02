@@ -31,6 +31,7 @@
 #include "core/config/root_prepare.h"
 #include "core/config/http_rootfd.h"
 #include "core/compat/alloc_guard.h"
+#include "fs/cache/verify.h"               /* xrootd_cache_verify_mode_e */
 #include "fs/vfs/vfs_backend_registry.h"
 
 static ngx_int_t ngx_http_xrootd_cvmfs_postconfiguration(ngx_conf_t *cf);
@@ -61,6 +62,7 @@ ngx_http_xrootd_cvmfs_create_loc_conf(ngx_conf_t *cf)
     c->common.cache_batch_cinfo = NGX_CONF_UNSET_UINT;
     c->common.cache_index_cache = NGX_CONF_UNSET_SIZE;
     c->common.cache_slice_size  = NGX_CONF_UNSET_SIZE;
+    c->common.cache_verify_mode = NGX_CONF_UNSET_UINT;
     c->common.pblock_block_size = NGX_CONF_UNSET_SIZE;
     c->common.rootfd            = -1;
 
@@ -120,6 +122,9 @@ ngx_http_xrootd_cvmfs_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
                               prev->common.cache_index_cache, 0);
     ngx_conf_merge_size_value(conf->common.cache_slice_size,
                               prev->common.cache_slice_size, 0);
+    ngx_conf_merge_uint_value(conf->common.cache_verify_mode,
+                              prev->common.cache_verify_mode,
+                              XROOTD_CACHE_VERIFY_OFF);
     if (xrootd_pmark_conf_merge(cf, &prev->common.pmark, &conf->common.pmark)
         != NGX_CONF_OK)
     {
@@ -180,6 +185,9 @@ ngx_http_xrootd_cvmfs_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
         {
             return NGX_CONF_ERROR;
         }
+
+        /* Verify-mismatch evidence lands in the protocol's quarantine dir. */
+        conf->common.cache_quarantine_dir = conf->cvmfs.quarantine_dir;
 
         /* Phase-64: compose the cache/stage tiers over the backend. */
         if (xrootd_tier_register_stores(cf, &conf->common) != NGX_OK) {
@@ -265,7 +273,25 @@ ngx_http_xrootd_cvmfs_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
  * Directives
  */
 
+/* xrootd_cache_verify (HTTP form): the composed tier verifies fills against a
+ * digest. Only the self-verifying cvmfs-cas mode is meaningful on the HTTP
+ * plane today (best-effort/require need an origin-digest hook the sd_http
+ * fill does not have). The stream plane registers its own directive of the
+ * same name — different block types, no conflict. */
+static ngx_conf_enum_t  xrootd_cvmfs_verify_enum[] = {
+    { ngx_string("off"),       XROOTD_CACHE_VERIFY_OFF },
+    { ngx_string("cvmfs-cas"), XROOTD_CACHE_VERIFY_CVMFS_CAS },
+    { ngx_null_string, 0 }
+};
+
 static ngx_command_t ngx_http_xrootd_cvmfs_commands[] = {
+
+    { ngx_string("xrootd_cache_verify"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_cvmfs_loc_conf_t, common.cache_verify_mode),
+      xrootd_cvmfs_verify_enum },
 
     { ngx_string("xrootd_cvmfs"),
       NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
@@ -335,14 +361,6 @@ static ngx_command_t ngx_http_xrootd_cvmfs_commands[] = {
 
     ngx_null_command
 };
-
-/* Task-8 stub — Task 9 moves the symbol into handler.c and deletes this. */
-ngx_int_t
-ngx_http_xrootd_cvmfs_handler(ngx_http_request_t *r)
-{
-    (void) r;
-    return NGX_HTTP_NOT_IMPLEMENTED;
-}
 
 ngx_module_t ngx_http_xrootd_cvmfs_module = {
     NGX_MODULE_V1,

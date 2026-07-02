@@ -99,6 +99,15 @@ void xrootd_vfs_backend_set_staging(const char *root_canon, int on);
 xrootd_sd_instance_t *xrootd_vfs_backend_resolve(const char *root_canon,
     ngx_log_t *log);
 
+/* Return the HTTP endpoint of the http/https backend registered at `root_canon`,
+ * or -1 for any other backend kind (or no registration). Pointers alias the
+ * registry's stable per-process storage (valid for the process lifetime);
+ * callers must not free or modify them. Consumed by protocol-side uncached
+ * passthroughs (phase-68 cvmfs geo/manifest) that talk to the same origin the
+ * tier fills from. */
+int xrootd_vfs_backend_http_endpoint(const char *root_canon,
+    const char **host, int *port, int *tls, const char **base);
+
 /* Resolve the bound backend for an ABSOLUTE path by longest-prefix match against
  * the registered export roots (so a staged-file commit can find the export a
  * final path belongs to without the caller threading root_canon). On a match,
