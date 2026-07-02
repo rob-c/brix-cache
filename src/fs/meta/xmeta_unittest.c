@@ -49,7 +49,8 @@ build_sample(xrootd_xmeta_t *m)
     m->last_flush    = 1751400500;
     m->bytes_flushed = 4096;
     m->filled_at     = 1751400600;
-    m->state_flags   = XROOTD_XMETA_F_VERIFIED;
+    m->expires_at    = 1751401500;
+    m->state_flags   = XROOTD_XMETA_F_VERIFIED | XROOTD_XMETA_F_EXPIRES;
     m->etag_len = 8;      memcpy(m->etag, "\"abc123\"", 8);
     m->cks_alg_len = 7;   memcpy(m->cks_alg, "adler32", 7);
     m->cks_len = 8;       memcpy(m->cks_hex, "0badcafe", 8);
@@ -83,9 +84,10 @@ main(int argc, char **argv)
     CHECK(d.have_state && d.origin_mtime == 1751400000 && d.mode == 0644
           && d.dirty_lo == 100 && d.dirty_hi == 200 && d.flush_gen == 7
           && d.last_flush == 1751400500 && d.bytes_flushed == 4096
-          && d.filled_at == 1751400600
-          && d.state_flags == XROOTD_XMETA_F_VERIFIED,
-          "STATE section round-trips");
+          && d.filled_at == 1751400600 && d.expires_at == 1751401500
+          && d.state_flags == (XROOTD_XMETA_F_VERIFIED
+                               | XROOTD_XMETA_F_EXPIRES),
+          "STATE section round-trips (incl. cvmfs manifest TTL)");
     CHECK(d.etag_len == 8 && memcmp(d.etag, "\"abc123\"", 8) == 0
           && d.cks_alg_len == 7 && memcmp(d.cks_alg, "adler32", 7) == 0
           && d.cks_len == 8 && memcmp(d.cks_hex, "0badcafe", 8) == 0,

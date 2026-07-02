@@ -33,6 +33,7 @@ typedef intptr_t  ngx_int_t;
 #define F_PARTIAL  0x0002u
 #define F_VERIFIED 0x0004u
 #define F_DIRTY    0x0008u
+#define F_EXPIRES  0x0010u
 
 /* Mirror of xrootd_cache_meta_t (only the fields from_meta reads). The trailing
  * layout must match src/fs/cache/meta.h for the struct passed by value. */
@@ -110,6 +111,8 @@ uint64_t xrootd_cache_cinfo_present_count(const uint8_t *bitmap, uint64_t nblock
 void     xrootd_cache_cinfo_refresh_flags(xrootd_cache_cinfo_t *hdr,
              const uint8_t *bitmap);
 int      xrootd_cache_cinfo_path(char *dst, size_t dstsz, const char *cache_path);
+void xrootd_cache_cinfo_set_expires(xrootd_cache_cinfo_t *ci, time_t when);
+int  xrootd_cache_cinfo_expired(const xrootd_cache_cinfo_t *ci, time_t now);
 ngx_int_t xrootd_cache_cinfo_load(const char *cache_path,
              xrootd_cache_cinfo_t *hdr, uint8_t **bitmap, size_t *bitmap_len);
 ngx_int_t xrootd_cache_cinfo_store(const char *cache_path,
@@ -526,6 +529,46 @@ test_present_and_dirty_coexist(void)
     free(rbm);
 }
 
+/* ---- phase-68 manifest-TTL fields (cvmfs site cache) ----------------------
+ * expires_at / filled_at / F_EXPIRES ride the record's STATE section (after
+ * the stock cinfo prefix) and MUST round-trip: the cvmfs revalidation flow
+ * (sd_cache expired()/set_expires()) is keyed entirely on them. */
+static void
+test_p68_ttl_roundtrip(void)
+{
+    xrootd_cache_cinfo_t h, r;
+    uint8_t *rbm = NULL;
+    size_t   rlen = 0;
+    char     c[PATH_MAX];
+
+    snprintf(c, sizeof(c), "%s/ttl.bin", g_dir);
+    memset(&h, 0, sizeof(h));
+    h.block_size = BS;
+    h.size = 4096;
+    h.mtime = 111;
+    h.nblocks = 1;
+    h.filled_at = 1751400000;
+    xrootd_cache_cinfo_set_expires(&h, (time_t) 1751400900);
+    CHECK(h.flags & F_EXPIRES, "set_expires arms F_EXPIRES");
+
+    CHECK(xrootd_cache_cinfo_store(c, &h, NULL, 0) == NGX_OK, "ttl store");
+    CHECK(xrootd_cache_cinfo_load(c, &r, &rbm, &rlen) == NGX_OK, "ttl load");
+    free(rbm);
+    CHECK(r.expires_at == 1751400900, "expires_at survives the record");
+    CHECK(r.filled_at == 1751400000, "filled_at survives the record");
+    CHECK(r.flags & F_EXPIRES, "F_EXPIRES survives the record");
+    CHECK(xrootd_cache_cinfo_expired(&r, (time_t) 1751400010) == 0,
+          "fresh before the TTL");
+    CHECK(xrootd_cache_cinfo_expired(&r, (time_t) 1751401000) == 1,
+          "expired after the TTL");
+
+    /* no expiry recorded -> -1 (immutable entry) */
+    memset(&h, 0, sizeof(h));
+    h.block_size = BS; h.size = 1; h.nblocks = 1;
+    CHECK(xrootd_cache_cinfo_expired(&h, (time_t) 1751401000) == -1,
+          "no TTL recorded reads as immutable");
+}
+
 int
 main(void)
 {
@@ -544,6 +587,7 @@ main(void)
     test_v2_loads_present_only();
     test_dirty_lifecycle();
     test_present_and_dirty_coexist();
+    test_p68_ttl_roundtrip();
 
     printf("cinfo unit tests: %d passed, %d failed\n", g_pass, g_fail);
     return g_fail == 0 ? 0 : 1;
