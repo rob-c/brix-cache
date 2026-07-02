@@ -71,6 +71,14 @@ import urllib3
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+# This matrix drives stateful mesh/cluster/proxy/mirror topologies (cluster-cms
+# redirector, 3-tier chaos mesh, mirror front/sink, proxy chains). Under the
+# parallel bulk lane those shared backends are contended by co-executing suites,
+# which flaked TestMirrorTopology and the cluster-cms endpoint (both pass in
+# isolation). Mark the module `serial` so conftest pins it to the isolated serial
+# lane — the same pattern test_conformance_topologies / test_cms_mesh_interop use.
+pytestmark = [pytest.mark.serial]
+
 NGINX_BIN = os.environ.get("TEST_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 
 # Deterministic-but-distinct payloads.  Sizes chosen to span multiple read

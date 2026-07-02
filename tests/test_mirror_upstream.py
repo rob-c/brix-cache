@@ -37,6 +37,12 @@ from XRootD.client.flags import DirListFlags, OpenFlags, QueryCode
 
 from settings import SERVER_HOST, HOST, free_port
 
+# Self-provisions a stateful mirror front/sink + upstream mesh. Parallel
+# co-execution with other suites contended the shared backends and flaked
+# TestMirrorFrontServes (passes in isolation), so pin the module to the isolated
+# serial lane — the pattern the other mesh/topology suites already use.
+pytestmark = [pytest.mark.serial]
+
 NGINX_BIN  = os.environ.get("TEST_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 XROOTD_BIN = os.environ.get("TEST_XROOTD_BIN", "/usr/bin/xrootd")
 H = SERVER_HOST
