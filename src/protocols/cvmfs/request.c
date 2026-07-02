@@ -25,12 +25,23 @@ xrootd_cvmfs_proxy_target(ngx_http_request_t *r, const xrootd_cvmfs_conf_t *cc,
 
     /* cleartext only on cvmfs://: WLCG proxy traffic is plain HTTP; an
      * https target means a misconfigured client, not a feature request.
-     * (scvmfs://, T22, lifts this on secure listeners: ctx->secure allows
-     * https authorities and TLS upstream connects.) */
-    if (r->schema_end - r->schema_start != 4
-        || ngx_strncasecmp(r->schema_start, (u_char *) "http", 4) != 0)
+     * scvmfs:// (T22) lifts this on secure listeners: ctx->secure allows
+     * https authorities (and TLS upstream connects). */
     {
-        return NGX_HTTP_FORBIDDEN;
+        ngx_http_xrootd_cvmfs_ctx_t *ctx =
+            ngx_http_get_module_ctx(r, ngx_http_xrootd_cvmfs_module);
+        size_t sl = (size_t) (r->schema_end - r->schema_start);
+        int is_http  = (sl == 4
+            && ngx_strncasecmp(r->schema_start, (u_char *) "http", 4) == 0);
+        int is_https = (sl == 5
+            && ngx_strncasecmp(r->schema_start, (u_char *) "https", 5) == 0);
+
+        if (!is_http && !is_https) {
+            return NGX_HTTP_FORBIDDEN;
+        }
+        if (is_https && (ctx == NULL || !ctx->secure)) {
+            return NGX_HTTP_FORBIDDEN;
+        }
     }
 
     host->data = r->host_start;

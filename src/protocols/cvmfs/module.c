@@ -35,6 +35,7 @@
 #include "fs/vfs/vfs_backend_registry.h"
 #include "origin_geo.h"
 #include "fs/backend/http/sd_http.h"       /* SD_HTTP_EP_MAX */
+#include "auth/token/issuer_registry.h"    /* scvmfs bearer registry (T22) */
 
 #include <stdlib.h>                        /* strtod (coord parsing) */
 
@@ -80,6 +81,10 @@ ngx_http_xrootd_cvmfs_create_loc_conf(ngx_conf_t *cf)
     c->cvmfs.origin_select  = NGX_CONF_UNSET_UINT;
     c->cvmfs.origin_coords  = NGX_CONF_UNSET_PTR;
     c->cvmfs.rtt_interval   = NGX_CONF_UNSET;
+    c->cvmfs.client_hold    = NGX_CONF_UNSET;
+    c->cvmfs.fill_max_life  = NGX_CONF_UNSET;
+    c->scvmfs               = NGX_CONF_UNSET;
+    c->scvmfs_authz         = NGX_CONF_UNSET_UINT;
 
     return c;
 }
@@ -312,6 +317,47 @@ ngx_http_xrootd_cvmfs_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_str_value(conf->cvmfs.here, prev->cvmfs.here, "");
     ngx_conf_merge_sec_value(conf->cvmfs.rtt_interval, prev->cvmfs.rtt_interval,
                              60);
+    ngx_conf_merge_sec_value(conf->cvmfs.client_hold, prev->cvmfs.client_hold,
+                             25);
+    ngx_conf_merge_sec_value(conf->cvmfs.fill_max_life,
+                             prev->cvmfs.fill_max_life, 300);
+    ngx_conf_merge_value(conf->scvmfs, prev->scvmfs, 0);
+    ngx_conf_merge_uint_value(conf->scvmfs_authz, prev->scvmfs_authz,
+                              XROOTD_SCVMFS_AUTHZ_NONE);
+    ngx_conf_merge_str_value(conf->scvmfs_token_issuers,
+                             prev->scvmfs_token_issuers, "");
+    if (conf->scvmfs_registry == NULL) {
+        conf->scvmfs_registry = prev->scvmfs_registry;
+    }
+
+    /* scvmfs (T22, EXPERIMENTAL) is a LAYER on cvmfs — structural, checked
+     * at config time. Bearer mode needs the issuer registry to exist. */
+    if (conf->scvmfs) {
+        if (!conf->cvmfs.enable) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "xrootd_scvmfs requires xrootd_cvmfs on");
+            return NGX_CONF_ERROR;
+        }
+        if (conf->scvmfs_authz == XROOTD_SCVMFS_AUTHZ_BEARER) {
+            if (conf->scvmfs_token_issuers.len == 0) {
+                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                    "xrootd_scvmfs_authz bearer requires "
+                    "xrootd_scvmfs_token_issuers <scitokens.cfg>");
+                return NGX_CONF_ERROR;
+            }
+            if (conf->scvmfs_registry == NULL) {
+                xrootd_token_registry_t *reg = NULL;
+
+                if (xrootd_token_registry_build(cf,
+                        (const char *) conf->scvmfs_token_issuers.data,
+                        XROOTD_AUTHZ_CAPABILITY, &reg) != NGX_OK)
+                {
+                    return NGX_CONF_ERROR;
+                }
+                conf->scvmfs_registry = reg;
+            }
+        }
+    }
 
     if (conf->cvmfs.enable) {
         xrootd_export_root_opts_t root_opts;
@@ -360,6 +406,9 @@ ngx_http_xrootd_cvmfs_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
          * MANIFEST-class fills get the protocol's TTL stamped (T12). */
         conf->common.cache_quarantine_dir = conf->cvmfs.quarantine_dir;
         conf->common.cache_manifest_ttl   = conf->cvmfs.manifest_ttl;
+        /* T20 never-drop deadlines for the shared fill machinery */
+        conf->common.cache_client_hold    = conf->cvmfs.client_hold;
+        conf->common.cache_fill_max_life  = conf->cvmfs.fill_max_life;
 
         /* Phase-64: compose the cache/stage tiers over the backend. */
         if (xrootd_tier_register_stores(cf, &conf->common) != NGX_OK) {
@@ -469,6 +518,12 @@ static ngx_conf_enum_t  xrootd_cvmfs_verify_enum[] = {
     { ngx_null_string, 0 }
 };
 
+static ngx_conf_enum_t  xrootd_scvmfs_authz_enum[] = {
+    { ngx_string("none"),   XROOTD_SCVMFS_AUTHZ_NONE },
+    { ngx_string("bearer"), XROOTD_SCVMFS_AUTHZ_BEARER },
+    { ngx_null_string, 0 }
+};
+
 static ngx_conf_enum_t  xrootd_cvmfs_select_enum[] = {
     { ngx_string("static"), XROOTD_CVMFS_SELECT_STATIC },
     { ngx_string("geo"),    XROOTD_CVMFS_SELECT_GEO },
@@ -499,11 +554,48 @@ static ngx_command_t ngx_http_xrootd_cvmfs_commands[] = {
       offsetof(ngx_http_xrootd_cvmfs_loc_conf_t, cvmfs.here),
       NULL },
 
+    { ngx_string("xrootd_cvmfs_client_hold"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_sec_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_cvmfs_loc_conf_t, cvmfs.client_hold),
+      NULL },
+
+    { ngx_string("xrootd_cvmfs_fill_max_life"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_sec_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_cvmfs_loc_conf_t, cvmfs.fill_max_life),
+      NULL },
+
     { ngx_string("xrootd_cvmfs_rtt_interval"),
       NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_sec_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_xrootd_cvmfs_loc_conf_t, cvmfs.rtt_interval),
+      NULL },
+
+    /* ---- scvmfs:// (T22, EXPERIMENTAL) — the secure layer ON cvmfs ---- */
+
+    { ngx_string("xrootd_scvmfs"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_cvmfs_loc_conf_t, scvmfs),
+      NULL },
+
+    { ngx_string("xrootd_scvmfs_authz"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_cvmfs_loc_conf_t, scvmfs_authz),
+      xrootd_scvmfs_authz_enum },
+
+    { ngx_string("xrootd_scvmfs_token_issuers"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_cvmfs_loc_conf_t, scvmfs_token_issuers),
       NULL },
 
     { ngx_string("xrootd_cache_verify"),
