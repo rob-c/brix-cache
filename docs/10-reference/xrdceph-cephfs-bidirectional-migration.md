@@ -16,7 +16,17 @@ Companion operational runbooks:
 > migration tools" section of [`tests/ceph/README.md`](../../tests/ceph/README.md)).
 > They add `--json` machine output, a resumable `--state` manifest,
 > `--prefix`/`--match` worklist filters, progress reporting, and an O(N)
-> source-pool index. e2e coverage: `tests/ceph/run_py_migrate.sh`. Two fixes
+> source-pool index.
+>
+> **Site-profile config (all four tools):** `--config PATH` (or
+> `$XRDCEPH_MIGRATE_CONF`) reads a flat `key = value` profile
+> (`striper_pool meta_pool data_pool conf client fs_name dest_prefix strip`;
+> unknown key = hard error). Precedence: explicit CLI > file > default; give
+> the full positional arity or none. This also makes the ceph **client id**
+> (previously hardcoded `admin`) and the CephFS **fs name** (multi-fs
+> clusters, forward direction) configurable. C++ parser:
+> `tests/ceph/xrdceph_migrate_config.h`; Python:
+> `pymigrate.common.load_tool_config`. e2e coverage: `tests/ceph/run_py_migrate.sh`. Two fixes
 > beyond C++ parity: forced re-migrate/rollback detach stubs via a
 > **data-pool ino index** (the source-index detach loses stubs once sources
 > are gone — [HAZARD] the async MDS purge then delete-throughs into
