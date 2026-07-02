@@ -67,6 +67,48 @@ def filter_worklist(items: "list[str]", list_file: Optional[str],
     return items
 
 
+# Site-profile config file (--config / $XRDCEPH_MIGRATE_CONF): flat
+# `key = value` lines, '#' comments (inline allowed), blank lines ignored.
+# The key set is CLOSED — an unknown key is a hard error, because a typo'd
+# pool name in a tool that can delete data must fail loudly, not silently
+# fall back to a default.
+CONFIG_KEYS = ("striper_pool", "meta_pool", "data_pool", "conf",
+               "client", "fs_name", "dest_prefix", "strip")
+
+
+def load_tool_config(path: str) -> "dict[str, str]":
+    """Parse a site-profile config file. Returns only the keys that carry a
+    non-empty value; raises ValueError on an unknown key or a malformed line
+    (typo protection — see CONFIG_KEYS)."""
+    out = {}
+    with open(path, "r") as f:
+        for lineno, raw in enumerate(f, 1):
+            line = raw.split("#", 1)[0].strip()
+            if not line:
+                continue
+            if "=" not in line:
+                raise ValueError("%s:%d: expected 'key = value', got %r"
+                                 % (path, lineno, raw.rstrip("\n")))
+            key, val = (s.strip() for s in line.split("=", 1))
+            if key not in CONFIG_KEYS:
+                raise ValueError("%s:%d: unknown config key %r (known: %s)"
+                                 % (path, lineno, key, ", ".join(CONFIG_KEYS)))
+            if val:
+                out[key] = val
+    return out
+
+
+def resolve_setting(cli_value: Optional[str], config: "dict[str, str]",
+                    key: str, default: Optional[str] = None) -> Optional[str]:
+    """Explicit CLI > config file > built-in default. An empty/None CLI value
+    counts as unset."""
+    if cli_value:
+        return cli_value
+    if key in config:
+        return config[key]
+    return default
+
+
 class StateManifest:
     """Append-only JSONL manifest of per-soid outcomes for resumable runs.
 
