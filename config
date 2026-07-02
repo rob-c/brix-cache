@@ -1222,6 +1222,17 @@ ngx_module_libs="-lssl -lcrypto $XROOTD_XML2_LIBS $XROOTD_JANSSON_LIBS"
 xrd_emit_module
 
 ngx_module_type=HTTP
+ngx_module_name=ngx_http_xrootd_cvmfs_module
+ngx_module_srcs="$ngx_addon_dir/src/protocols/cvmfs/module.c"
+ngx_module_deps="$ngx_addon_dir/src/protocols/cvmfs/cvmfs.h \
+                 $ngx_addon_dir/src/protocols/cvmfs/classify.h \
+                 $ngx_addon_dir/src/core/config/shared_conf.h \
+                 $ngx_addon_dir/src/fs/backend/sd.h \
+                 $ngx_addon_dir/src/fs/vfs/vfs_backend_registry.h"
+ngx_module_libs=
+xrd_emit_module
+
+ngx_module_type=HTTP
 ngx_module_name=ngx_http_xrootd_dashboard_module
 ngx_module_srcs="$ngx_addon_dir/src/observability/dashboard/module.c \
                  $ngx_addon_dir/src/observability/dashboard/auth.c \
@@ -1295,6 +1306,7 @@ if [ "$ngx_module_link" = DYNAMIC ]; then
                      ngx_http_xrootd_srr_module \
                      ngx_http_xrootd_webdav_module \
                      ngx_http_xrootd_s3_module \
+                     ngx_http_xrootd_cvmfs_module \
                      ngx_http_xrootd_dashboard_module \
                      ngx_stream_xrootd_cms_srv_module"
     ngx_module_incs="$ngx_addon_dir/src"
