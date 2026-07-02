@@ -288,7 +288,7 @@ def test_dest_pulls_as_user_via_delegation(gate):
     Mechanism: because the dest holds the delegated proxy it opens the source file
     DIRECTLY as the user — the anonymous tpc.key rendezvous (which the source
     answers with kXR_waitresp until a client-side authorization that the delegate
-    flow never issues) is skipped for delegated pulls (src/tpc/source.c)."""
+    flow never issues) is skipped for delegated pulls (src/tpc/outbound/source.c)."""
     out = Path(gate["base"]) / "dstdata" / "pulled.txt"
     out.unlink(missing_ok=True)
     # Mark the log boundary so we only inspect THIS transfer's DNs.

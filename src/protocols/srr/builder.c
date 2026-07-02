@@ -32,6 +32,7 @@
 
 #include "srr.h"
 #include "core/compat/fs_usage.h"
+#include "core/ident.h"
 
 #include <jansson.h>
 #include <stdint.h>
@@ -175,9 +176,11 @@ ngx_http_xrootd_srr_build_json(ngx_http_request_t *r,
         json_object_set_new(svc, "id", SRR_JSTR(lcf->name));
     }
     json_object_set_new(svc, "servicetype", json_string("disk"));
-    json_object_set_new(svc, "implementation", json_string("nginx-xrootd"));
+    json_object_set_new(svc, "implementation",
+        json_string(XROOTD_SERVER_NAME));
     json_object_set_new(svc, "implementationversion",
-        lcf->version.len ? SRR_JSTR(lcf->version) : json_string("1.0"));
+        lcf->version.len ? SRR_JSTR(lcf->version)
+                         : json_string(XROOTD_SERVER_VERSION_BARE));
     json_object_set_new(svc, "qualitylevel",
         lcf->quality.len ? SRR_JSTR(lcf->quality) : json_string("production"));
     json_object_set_new(svc, "latestupdate", json_integer((json_int_t) now));

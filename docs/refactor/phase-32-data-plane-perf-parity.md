@@ -83,7 +83,7 @@ overhead the old fast path didn't have.
    `compat/http_file_response.c` sets `b->in_file=1`). So on TLS the response is
    *already* a file buf — nginx will use `SSL_sendfile` **iff kTLS is enabled**,
    else it falls back to read()+`SSL_write`. **kTLS is the lever, not a rewrite.**
-5. **`src/fs/vfs_read.c:199` forces a userspace memory chain whenever
+5. **`src/fs/vfs/vfs_read.c:199` forces a userspace memory chain whenever
    `fh->is_tls`** (`ngx_pnalloc(length)`+`pread`). This VFS read API is a second
    serve path; on any TLS path that uses it, it both defeats `SSL_sendfile` and
    adds a full copy+alloc. Must be gated to `want_pgcrc` only.
@@ -125,7 +125,7 @@ instead of userspace read+`SSL_write`.
   is safe to ship on.
 - code side — **remove the TLS memory-forcing** so a file buf actually reaches
   nginx's output filter:
-  - `src/fs/vfs_read.c:199` — change
+  - `src/fs/vfs/vfs_read.c:199` — change
     `if (fh->is_tls || (fh->ctx && fh->ctx->want_pgcrc))` →
     `if (fh->ctx && fh->ctx->want_pgcrc)`. Only the CRC path (`want_pgcrc`, which
     must see plaintext bytes) needs a memory chain; plain TLS GET must use

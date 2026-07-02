@@ -214,7 +214,7 @@ Each protocol's config struct contains `ngx_xrootd_common_conf_t common` as a pr
 
 **Current state:** Two separate response building systems:
 - **Stream wire framing:** `src/protocols/root/response/` — builds ServerResponseHdr, kXR_status frames, CRC32c wrapping (`basic.c`, `status.c`, `control.c`)
-- **HTTP response building:** `src/core/compat/http_body.c`, `http_file_response.c` — builds ngx_chain_t of ngx_buf_t for HTTP responses
+- **HTTP response building:** `src/core/http/http_body.c`, `http_file_response.c` — builds ngx_chain_t of ngx_buf_t for HTTP responses
 
 **Gap:** Stream handlers that serve HTTP-compatible responses (e.g., `/metrics` endpoint, dashboard) bridge between these systems manually. The wire framing system doesn't know about ngx_chain_t; the HTTP body system doesn't know about kXR_status frames.
 
@@ -235,7 +235,7 @@ This bridges the two systems so stream handlers can build HTTP responses without
 
 ### 8. XML Response Generation (Already Shared — Verify Usage)
 
-**Current state:** `src/core/compat/http_xml.c` provides shared XML generation for S3 ListObjectsV2 and WebDAV PROPFIND. This is good existing consolidation.
+**Current state:** `src/core/http/http_xml.c` provides shared XML generation for S3 ListObjectsV2 and WebDAV PROPFIND. This is good existing consolidation.
 
 **Opportunity:** Verify that ALL XML responses across both protocols use this helper:
 - S3 errors: `s3_send_xml_error()` → should delegate to `http_xml.c`
@@ -243,7 +243,7 @@ This bridges the two systems so stream handlers can build HTTP responses without
 - WebDAV PROPFIND: `propfind.c` → should use shared XML builders
 - WebDAV response headers → `http_headers.c` already shared
 
-**Proposal:** Audit all XML-producing files to ensure they delegate to `src/core/compat/http_xml.c` rather than building XML inline. Any remaining inline XML builders should be replaced with shared helpers. This ensures new contributors understand ONE XML generation pattern for both protocols.
+**Proposal:** Audit all XML-producing files to ensure they delegate to `src/core/http/http_xml.c` rather than building XML inline. Any remaining inline XML builders should be replaced with shared helpers. This ensures new contributors understand ONE XML generation pattern for both protocols.
 
 ---
 
@@ -270,7 +270,7 @@ S3 put.c loses ~5 lines of duplicated temp path generation. One shared pattern f
 
 ### 10. ETag Generation (Already Shared — Verify Usage)
 
-**Current state:** `src/core/compat/etag.c` provides ETag computation from file metadata (size + mtime). S3 PUT calls this for the ETag header. WebDAV GET also uses it.
+**Current state:** `src/core/http/etag.c` provides ETag computation from file metadata (size + mtime). S3 PUT calls this for the ETag header. WebDAV GET also uses it.
 
 **Good existing consolidation.** No action needed — verify both protocols consistently use this helper and no inline ETag builders remain.
 
@@ -350,11 +350,11 @@ Low-risk grep-and-fix passes. Run before any structural changes so the audit res
 
 #### Task A: XML inline-builder audit (1 h)
 
-**Goal:** Verify every XML-producing callsite delegates to `src/core/compat/http_xml.c`; replace any remaining inline builders.
+**Goal:** Verify every XML-producing callsite delegates to `src/core/http/http_xml.c`; replace any remaining inline builders.
 
 **Files to read first:**
-- `src/core/compat/http_xml.c` — understand the full API surface
-- `src/core/compat/http_xml.h`
+- `src/core/http/http_xml.c` — understand the full API surface
+- `src/core/http/http_xml.h`
 
 **Grep commands:**
 ```bash
@@ -373,9 +373,9 @@ grep -rn "s3_send_xml_error\|xrootd_http_send_xml_error" src/ --include="*.c"
 
 #### Task B: ETag inline-builder audit (30 min)
 
-**Goal:** Confirm every ETag response header goes through `src/core/compat/etag.c`.
+**Goal:** Confirm every ETag response header goes through `src/core/http/etag.c`.
 
-**Files to read first:** `src/core/compat/etag.c`, `src/core/compat/etag.h`
+**Files to read first:** `src/core/http/etag.c`, `src/core/http/etag.h`
 
 **Grep command:**
 ```bash
@@ -496,8 +496,8 @@ PYTHONPATH=tests pytest tests/ -k "test_metrics" -v
 - `src/protocols/root/response/basic.c` — `xrootd_build_resp_hdr`, `xrootd_send_ok`, `xrootd_send_error`
 - `src/protocols/root/response/status.c` — `xrootd_send_pgwrite_status`, kXR_status framing
 - `src/protocols/root/response/response.h` — current wire-response API surface
-- `src/core/compat/http_body.c` — `ngx_chain_t` building API
-- `src/core/compat/http_body.h`
+- `src/core/http/http_body.c` — `ngx_chain_t` building API
+- `src/core/http/http_body.h`
 - `src/observability/metrics/stream.c` — check whether it manually bridges wire→HTTP today
 - `src/observability/metrics/writer.c`
 
@@ -557,7 +557,7 @@ These tasks depend on Phase 1 outputs. Start only after the relevant Phase 1 tas
 - `src/protocols/s3/put.c` — full file (541 lines); trace `s3_put_body_handler()`
 - `src/core/compat/staged_file.h` — understand `xrootd_staged_file_t` API (already in use by both)
 - `src/core/compat/async_job.h` — async job dispatch API used by S3 PUT for thread-pool path
-- `src/core/compat/etag.h`
+- `src/core/http/etag.h`
 
 **Files created:**
 - `src/core/compat/http_put_async.c` (~200 lines):
@@ -763,10 +763,10 @@ Clear boundary: "common does X, protocol adds Y." A new contributor can learn th
 
 - CRC32c: `src/core/compat/crc32c.c` with SSE4.2 fallback — complete
 - Error mapping (errno→kXR, errno→HTTP): `src/core/compat/error_mapping.c` — complete
-- XML generation: `src/core/compat/http_xml.c` — complete (verify in Phase 0)
-- ETag computation: `src/core/compat/etag.c` — complete (verify in Phase 0)
+- XML generation: `src/core/http/http_xml.c` — complete (verify in Phase 0)
+- ETag computation: `src/core/http/etag.c` — complete (verify in Phase 0)
 - Staged file atomic write: `src/core/compat/staged_file.c` — complete; adopted by WebDAV PUT, TPC, S3 PUT
 - Temp path generation: `src/core/compat/tmp_path.c` — complete; adopted by all write paths
-- HTTP header building: `src/core/compat/http_headers.c` — complete
+- HTTP header building: `src/core/http/http_headers.c` — complete
 - Structured access logging: `src/core/compat/log.c` — complete
 - Shared config preamble: `src/core/config/shared_conf.h` (`enable`, `root`, `root_canon`, `allow_write`, `thread_pool`, `cache_root`) — complete

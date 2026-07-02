@@ -29,12 +29,12 @@ The module has already consolidated a significant shared layer — path resoluti
 │  src/auth/token/             JWT validate + scope check  [all]         │
 │  src/auth/crypto/            OCSP + PKI load             [all]         │
 │  src/observability/metrics/metrics.h  shared-memory layout        [all]         │
-│  src/tpc/key_registry.c SHM TPC key table           [stream+webdav]│
+│  src/tpc/engine/key_registry.c SHM TPC key table           [stream+webdav]│
 │  src/core/compat/crc32c.c    CRC32c for pgread/pgwrite   [stream]      │
 │  src/core/compat/checksum.c  file checksums/digests      [stream+HTTP] │
 │  src/core/compat/range.c     HTTP Range header parse     [webdav+s3]   │
 │  src/core/compat/uri.c       percent-decode              [webdav+s3]   │
-│  src/core/compat/etag.c      ETag generation             [webdav+s3]   │
+│  src/core/http/etag.c      ETag generation             [webdav+s3]   │
 │  src/core/compat/http_*.c    headers/body/conditions     [webdav+s3]   │
 │  src/core/compat/fs_walk.c   dot-entry/remove-tree       [webdav+s3+query] │
 │  src/core/compat/staged_file temp open/commit/abort      [webdav+s3]   │
@@ -78,9 +78,9 @@ Both read the same file types (CA certs + CRLs), use OpenSSL APIs (`X509_STORE_a
 | WebDAV | `src/protocols/webdav/headers.c`, `tpc_headers.c` | Same set of headers plus TPC Source/Credential header lookup |
 | Stream | No HTTP headers — wire protocol framing only |
 
-`src/core/compat/http_headers.c` already provides request-header lookup, value comparison, and response header set functions. But S3 still builds many headers inline rather than calling the compat helpers. WebDAV uses some but has its own `webdav_tpc_find_header()` for TPC-specific lookups alongside.
+`src/core/http/http_headers.c` already provides request-header lookup, value comparison, and response header set functions. But S3 still builds many headers inline rather than calling the compat helpers. WebDAV uses some but has its own `webdav_tpc_find_header()` for TPC-specific lookups alongside.
 
-**Opportunity:** Audit every callsite in S3 and WebDAV where a standard HTTP header is set (Content-Type, Content-Length, ETag, Last-Modified, Range, Accept-Ranges). Replace inline construction with `src/core/compat/http_headers.c` helpers. Consolidate TPC header lookup into the compat layer.
+**Opportunity:** Audit every callsite in S3 and WebDAV where a standard HTTP header is set (Content-Type, Content-Length, ETag, Last-Modified, Range, Accept-Ranges). Replace inline construction with `src/core/http/http_headers.c` helpers. Consolidate TPC header lookup into the compat layer.
 
 ### 4. File I/O boilerplate — sync pread(2) everywhere, async wrappers per protocol
 
@@ -92,7 +92,7 @@ Both read the same file types (CA certs + CRLs), use OpenSSL APIs (`X509_STORE_a
 
 Both HTTP protocols (WebDAV, S3) share the exact same response-building pattern: `ngx_chain_t` of `ngx_buf_t`, memory-backed for TLS, file-backed+sendfile for cleartext. But each has its own buffer allocation boilerplate, chain assembly loops, and sendfile setup.
 
-**Opportunity:** Extract a shared HTTP file-response builder from `src/core/compat/http_file_response.c` (already partially exists) that handles: allocate chain → fill buffers from fd → set memory/file flags → attach to response. Both S3 and WebDAV GET paths call it instead of inline assembly.
+**Opportunity:** Extract a shared HTTP file-response builder from `src/core/http/http_file_response.c` (already partially exists) that handles: allocate chain → fill buffers from fd → set memory/file flags → attach to response. Both S3 and WebDAV GET paths call it instead of inline assembly.
 
 ### 5. Error response XML builders — similar structures, separate implementations
 
@@ -104,7 +104,7 @@ Both HTTP protocols (WebDAV, S3) share the exact same response-building pattern:
 
 S3 and WebDAV both build XML error/respone chains. S3's builder is more structured (single Error element). WebDAV has ad-hoc inline escaping (`webdav_escape_xml_text()`) mixed with compat helpers. Both use the same `xrootd_xml_write_text_element()` from `src/core/compat/xml.c` but wrap it differently.
 
-**Opportunity:** Extend `src/core/compat/http_xml.c` with a generic XML error builder function that both S3 and WebDAV can call for standard error responses (AccessDenied, NoSuchKey, Conflict, etc.). WebDAV keeps its Multi-Status builder separate since it has protocol-specific structure.
+**Opportunity:** Extend `src/core/http/http_xml.c` with a generic XML error builder function that both S3 and WebDAV can call for standard error responses (AccessDenied, NoSuchKey, Conflict, etc.). WebDAV keeps its Multi-Status builder separate since it has protocol-specific structure.
 
 ### 6. Path validation constants — WEBDAV_PATH_* vs XROOTD_PATH_*
 
@@ -138,7 +138,7 @@ WebDAV CORS handling is the only protocol with origin/credentials/max-age config
 
 Both HTTP protocols call `ngx_http_read_client_request_body()` but each has its own callback implementation, body-mode checks, and error handling. The nginx built-in function is the same; the wrapper boilerplate differs.
 
-**Opportunity:** Create a shared request-body handler in `src/core/compat/http_body.c` (already partially exists with `xrootd_http_body_summary()`, `xrootd_http_body_write_to_fd()`). Both S3 and WebDAV PUT paths use it instead of inline callback setup.
+**Opportunity:** Create a shared request-body handler in `src/core/http/http_body.c` (already partially exists with `xrootd_http_body_summary()`, `xrootd_http_body_write_to_fd()`). Both S3 and WebDAV PUT paths use it instead of inline callback setup.
 
 ### 9. Checksum calculation — pgread/pgwrite CRC32c vs S3 multipart CRC
 
@@ -275,8 +275,8 @@ Stream uses CRC32c via `src/core/compat/crc32c.c`. S3 uses MD5 for multipart ETa
 |----------|------|--------|--------|-------|
 | **P0** | Config shared preamble (`src/core/config/shared_conf.h`) | ~60 merge calls → ~30 | Low | Same fields, different structs. Embed common struct in each protocol config. |
 | **P0** | CA store builder (`src/auth/crypto/pki_build.c`) | Eliminates duplicated X509_STORE build | Medium | Both protocols read same files, use same OpenSSL APIs. |
-| **P1** | HTTP header helpers audit → compat layer adoption | Reduces inline header assembly across S3/WebDAV | Low | `src/core/compat/http_headers.c` already exists. Just replace callsites. |
-| **P1** | Request body handler (`src/core/compat/http_body.c`) expansion | Unifies WebDAV PUT/S3 PUT body reading | Medium | Both use same nginx callback pattern with different wrappers. |
+| **P1** | HTTP header helpers audit → compat layer adoption | Reduces inline header assembly across S3/WebDAV | Low | `src/core/http/http_headers.c` already exists. Just replace callsites. |
+| **P1** | Request body handler (`src/core/http/http_body.c`) expansion | Unifies WebDAV PUT/S3 PUT body reading | Medium | Both use same nginx callback pattern with different wrappers. |
 | **P2** | Error response XML builder extension | S3 + WebDAV share standard error XML format | Low | `src/core/compat/xml.c` already has text element helpers. Add structured error builder. |
 | **P2** | Path validation constants unification | Eliminates WEBDAV_PATH_* vs XROOTD_PATH_* confusion | Trivial | Same filesystem limits, different names. Shared header. |
 | **P3** | Chunked checksum iterator (`src/core/compat/checksum.c`) | Unifies pgread CRC32c + S3 multipart MD5 loop boilerplate | Medium | Different algorithms but same chunk-reading pattern. |
@@ -295,8 +295,8 @@ Stream uses CRC32c via `src/core/compat/crc32c.c`. S3 uses MD5 for multipart ETa
 
 ## Non-goals (deliberately kept separate)
 
-### Stream path resolution stays in `src/path/`
-See [cross-protocol-unification.md](cross-protocol-unification.md#why-the-path-engines-stay-separate). HTTP (`src/core/compat/path.c`) and stream (`src/path/`) serve fundamentally different callers (decoded URI vs wire reqpath+handle, different ENOENT strategies, handle tracking). Merging adds branching complexity exceeding benefit.
+### Stream path resolution stays in `src/fs/path/`
+See [cross-protocol-unification.md](cross-protocol-unification.md#why-the-path-engines-stay-separate). HTTP (`src/core/compat/path.c`) and stream (`src/fs/path/`) serve fundamentally different callers (decoded URI vs wire reqpath+handle, different ENOENT strategies, handle tracking). Merging adds branching complexity exceeding benefit.
 
 ### S3 SigV4 stays separate from WLCG bearer-token
 S3 Signature Version 4 uses HMAC-SHA256 over request components with AWS credential scope. WLCG JWT uses RSA/ECDSA signature verification over claims. Different algorithms, different input structures, different scope semantics. Not worth merging.
@@ -315,7 +315,7 @@ Stream XRootD uses length-prefix binary wire framing (kXR_status responses). HTT
 - [Stream architecture](stream.md) — state machine, dispatch, read/write paths
 - [WebDAV architecture](webdav.md) — method routing, TPC, GSI auth cache
 - [S3 architecture](s3.md) — SigV4, multipart staging
-- `src/core/compat/http_headers.c` — shared HTTP header helpers (currently underutilized by S3)
+- `src/core/http/http_headers.c` — shared HTTP header helpers (currently underutilized by S3)
 - `src/core/compat/xml.c` — minimal XML scanner (could be extended for error response builder)
 - `src/core/config/server_conf.c` — Stream config directives (~60 merge calls)
 - `src/protocols/webdav/config.c` — WebDAV config directives (~30 merge calls + CA store build)

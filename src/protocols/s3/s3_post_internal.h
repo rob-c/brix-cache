@@ -11,9 +11,9 @@
 #include "s3_auth_internal.h"
 #include "core/compat/crypto.h"
 #include "core/compat/hex.h"
-#include "core/compat/http_body.h"
-#include "core/compat/http_headers.h"
-#include "fs/vfs.h"
+#include "core/http/http_body.h"
+#include "core/http/http_headers.h"
+#include "fs/vfs/vfs.h"
 #include "fs/path/path.h"
 #include <jansson.h>
 #include <openssl/crypto.h>

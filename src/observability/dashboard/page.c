@@ -1,5 +1,6 @@
 #include "dashboard_http.h"
 #include "core/compat/alloc_guard.h"
+#include "core/ident.h"
 
 /*
  * dashboard/page.c - embedded dashboard UI.
@@ -25,7 +26,7 @@
 "<!DOCTYPE html>\n"
 "<html lang=\"en\">\n"
 "<head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n"
-"<title>nginx-xrootd Dashboard</title>\n"
+"<title>" XROOTD_SERVER_NAME " Dashboard</title>\n"
 "<style>\n"
 "*{box-sizing:border-box}body{margin:0;background:#0f1419;color:#d8dee9;font:13px ui-monospace,SFMono-Regular,Consolas,monospace}\n"
 "header{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.8rem 1rem;background:#151b23;border-bottom:1px solid #303842;position:sticky;top:0;z-index:2}\n"
@@ -41,7 +42,7 @@
 "@media(prefers-reduced-motion:reduce){#detail-panel{transition:none}}\n"
 "</style></head>\n"
 /* static asset: page chrome (header, toolbar, cards, table, panels) */"<body>\n"
-"<header><h1>nginx-xrootd Dashboard</h1><div><button id=\"download-config\" type=\"button\" title=\"Download the running config (secrets redacted)\">Config</button> <button id=\"export-snapshot\" type=\"button\">Export</button> <span id=\"status\" class=\"status bad\" aria-live=\"polite\">connecting</span></div></header>\n"
+"<header><h1>" XROOTD_SERVER_NAME " Dashboard</h1><div><button id=\"download-config\" type=\"button\" title=\"Download the running config (secrets redacted)\">Config</button> <button id=\"export-snapshot\" type=\"button\">Export</button> <span id=\"status\" class=\"status bad\" aria-live=\"polite\">connecting</span></div></header>\n"
 "<div id=\"anon-banner\" role=\"status\" hidden style=\"padding:.5rem 1rem;background:#3a2d10;color:#ffd479;border-bottom:1px solid #5a4a1a;font-size:.85rem\">Anonymous read-only view \xe2\x80\x94 client identities, paths and other sensitive data are hidden. <a href=\"/xrootd/login\" style=\"color:#8cc8ff\">Sign in</a> for full details.</div>\n"
 "<section class=\"toolbar\" aria-label=\"Transfer filters\">\n"
 "<label for=\"protocol-filter\">Protocol<select id=\"protocol-filter\"><option value=\"\">All</option><option>root</option><option>webdav</option><option>s3</option></select></label>\n"

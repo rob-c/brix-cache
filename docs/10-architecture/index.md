@@ -63,7 +63,7 @@ TFile::Open("root://host//store/a.root");
 
 or through `xrdcp`. In both cases the XRootD client library emits the same
 wire-level operations: `kXR_open`, `kXR_read`, `kXR_stat`, `kXR_close`, and
-occasionally `kXR_readv` or paged-read/write operations. nginx-xrootd implements
+occasionally `kXR_readv` or paged-read/write operations. gnuBall implements
 the storage protocol; it does not inspect the ROOT object model.
 
 WebDAV is different. `davs://` clients use HTTP methods:

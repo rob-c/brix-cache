@@ -102,6 +102,28 @@ typedef struct {
     uint32_t   cur_dlen;        /* payload length that follows the header */
 
     /*
+     * Trailing body streamed after the dlen-framed payload (stock wire
+     * framing).
+     *
+     * For kXR_writev the header dlen covers ONLY the 16-byte write_list
+     * descriptor block; the segment data is streamed after the frame and its
+     * length is sum(wlen) over the descriptors.  Once the descriptor block is
+     * fully received, the recv framing validates it and extends the expected
+     * body by cur_body_extra so descriptors + data land contiguously in
+     * payload_buf.
+     *
+     * For kXR_chkpoint/kXR_ckpXeq the header dlen covers ONLY the embedded
+     * 24-byte sub-request header; the sub-request body streams after the
+     * frame and the extension runs in up to two stages (embedded header ->
+     * sub_dlen bytes; for an embedded kXR_writev the descriptor block then
+     * extends again by sum(wlen)).  cur_body_extended counts the completed
+     * extension stages (2 = no further extension); both fields reset when
+     * the next request header is parsed.
+     */
+    uint32_t   cur_body_extra;    /* streamed data bytes beyond cur_dlen */
+    unsigned   cur_body_extended:2; /* completed extension stages (2 = done) */
+
+    /*
      * Payload accumulation.
      *
      * payload points at payload_buf while a request is being read/dispatched.

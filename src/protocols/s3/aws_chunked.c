@@ -8,9 +8,9 @@
  */
 
 #include "aws_chunked.h"
-#include "fs/vfs.h"   /* xrootd_vfs_pread_full / pwrite_full (storage seam) */
+#include "fs/vfs/vfs.h"   /* xrootd_vfs_pread_full / pwrite_full (storage seam) */
 #include "s3.h"
-#include "core/compat/http_headers.h"
+#include "core/http/http_headers.h"
 #include "core/compat/crypto.h"
 #include "core/compat/hex.h"
 

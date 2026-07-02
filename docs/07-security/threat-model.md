@@ -1,6 +1,6 @@
 # Threat Model & Security Posture
 
-This document records the adversarial threat model for the nginx-xrootd gateway, the
+This document records the adversarial threat model for the gnuBall gateway, the
 controls already in place, the hardening delivered in **Phase 28**, and the items
 explicitly deferred. It is the companion to `docs/refactor/phase-28-adversarial-hardening.md`.
 
@@ -44,7 +44,7 @@ These were verified during the Phase 28 audit and require no further work:
 
 - **Kernel path confinement** — `openat2(RESOLVE_BENEATH|RESOLVE_NO_MAGICLINKS)` via
   `src/fs/path/beneath.c`; the `*at()` parent-confinement fix closes mkdir/rename/unlink escapes.
-- **Native root:// TPC SSRF gating** — `src/tpc/connect.c`, `src/tpc/launch.c` via
+- **Native root:// TPC SSRF gating** — `src/tpc/outbound/connect.c`, `src/tpc/engine/launch.c` via
   `src/core/compat/net_target.c` (blocks loopback / link-local / 169.254 / RFC-1918 / ULA, gated
   by `tpc_allow_local` / `tpc_allow_private`).
 - **S3 SigV4** — constant-time `CRYPTO_memcmp` signature compare; replay window enforced.
@@ -108,7 +108,7 @@ single, multi-stream, and HEAD paths.
 
 `oidc-token`'s client-derived host argument is rejected if it begins with `-`
 (`src/protocols/webdav/tpc_cred.c`); the curl token-exchange builders place a `--` end-of-options
-terminator before the endpoint URL in `tpc_cred.c` and `src/tpc/tpc_token.c`.
+terminator before the endpoint URL in `tpc_cred.c` and `src/tpc/outbound/tpc_token.c`.
 
 ### W4 — STATX authorization parity (MEDIUM)
 

@@ -98,7 +98,7 @@ What each flag does:
 | `--with-stream_ssl_module` | Recommended | TLS for the stream (XRootD) protocol |
 | `--with-http_ssl_module` | Recommended | TLS for HTTP modules: WebDAV and S3-compatible HTTPS |
 | `--with-threads` | **Strongly recommended** | Enables nginx thread pools for async file I/O. Without this, slow disk/network I/O paths may fall back to synchronous work on a worker process. |
-| `--add-module=<path>` | **Yes** | Points to the nginx-xrootd source directory |
+| `--add-module=<path>` | **Yes** | Points to the gnuBall source directory |
 
 ```text
    nginx source tree          this repo

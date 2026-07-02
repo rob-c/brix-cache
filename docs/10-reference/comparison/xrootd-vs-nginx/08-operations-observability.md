@@ -1,11 +1,11 @@
-# Operations & Observability: official XRootD vs nginx-xrootd
+# Operations & Observability: official XRootD vs gnuBall
 
-> Part of the [XRootD vs nginx-xrootd comparison set](./README.md).
+> Part of the [XRootD vs gnuBall comparison set](./README.md).
 
 ## Scope
 
 This document compares how the **official XRootD** server and the
-**nginx-xrootd** module are *run and watched* by an operator. It covers six
+**gnuBall** module are *run and watched* by an operator. It covers six
 operational surfaces:
 
 1. **Configuration model** — directive grammar, scoping, and reload behavior.
@@ -22,7 +22,7 @@ design decision** by the maintainer, is the monitoring *paradigm*:
 
 > Official XRootD observability is **push-over-UDP** (the XrdMon detail/f/g
 > streams plus the `xrd.report` summary feed), consumed by separate collectors.
-> nginx-xrootd deliberately does **not** implement UDP monitoring; it exposes
+> gnuBall deliberately does **not** implement UDP monitoring; it exposes
 > **pull-over-HTTP** observability — Prometheus `/metrics`, a JSON SRR endpoint,
 > a REST dashboard/admin API, and JSON access logs.
 
@@ -80,9 +80,9 @@ HTTP health/readiness probe, and a built-in WLCG SRR endpoint (SRR is provided
 by external tooling). Core config is **restart-only** — there is no SIGHUP
 config reload.
 
-## In nginx-xrootd
+## In gnuBall
 
-nginx-xrootd is a single nginx process tree (master + workers) configured from
+gnuBall is a single nginx process tree (master + workers) configured from
 `nginx.conf` using `xrootd_*` directives inside `stream{}` (for `root://`) and
 `http{}` (for WebDAV / S3 / metrics / dashboard / SRR / health). Observability
 is consolidated into one shared-memory metrics spine plus several HTTP
@@ -152,7 +152,7 @@ own timers (e.g. GSI CRL/GMAP, the VOMS mapfile in `XrdVomsMapfile.cc`) — not
 the config file. Changing a server directive means a daemon restart
 (operationally, a systemd `restart` of `xrootd@<instance>`).
 
-### nginx-xrootd: nginx blocks with `xrootd_*` directives
+### gnuBall: nginx blocks with `xrootd_*` directives
 
 Directives are nginx `ngx_command_t` entries declared in the module command
 tables (`src/protocols/root/stream/module.c`, `src/protocols/root/stream/module_core_directives.c`,
@@ -171,7 +171,7 @@ reload.
 
 ### Common-knob mapping table
 
-| Operator knob | Official XRootD directive | nginx-xrootd directive | Notes |
+| Operator knob | Official XRootD directive | gnuBall directive | Notes |
 |---|---|---|---|
 | Listen port | `xrd.port <n>` (or `-p`) | `listen` in `server{}` + `xrootd_listen_port` | nginx port is the `listen` line; module advertises via `xrootd_listen_port` |
 | Export / namespace root | `all.export <path>` / `oss.localroot` | `xrootd_root <path>` | Confinement root |
@@ -194,7 +194,7 @@ reload.
 
 ## Metrics & monitoring
 
-This is the **paradigm difference**: official push-UDP vs nginx-xrootd
+This is the **paradigm difference**: official push-UDP vs gnuBall
 pull-HTTP.
 
 ### Official XRootD — UDP XrdMon streams + `xrd.report`
@@ -250,7 +250,7 @@ pipelines all consume these UDP feeds out-of-process. The server only *emits*
 UDP; aggregation, retention, and dashboards live downstream. Operators must run
 and secure a collector, and the per-transfer detail stream is high-volume.
 
-### nginx-xrootd — Prometheus `/metrics` (pull) + dashboard REST
+### gnuBall — Prometheus `/metrics` (pull) + dashboard REST
 
 **Model:** lock-free SHM atomic counters (write side, every worker) read back as
 Prometheus text-exposition (`text/plain; version=0.0.4`) by a dedicated HTTP
@@ -306,7 +306,7 @@ live operator view:
 
 **Operator view contrast:** an XRootD operator runs and watches a UDP collector
 (shoveler/MonaLisa) and reads `<statistics>` XML / per-transfer records; an
-nginx-xrootd operator points Prometheus at `/metrics`, builds Grafana panels,
+gnuBall operator points Prometheus at `/metrics`, builds Grafana panels,
 and watches the live dashboard — no extra daemon to run.
 
 ---
@@ -335,7 +335,7 @@ implementations encode the same `(experiment, activity)` and are fail-open
   GET/PUT, and HTTP-TPC (`XrdHttpTpcPMarkManager.cc`, one Firefly handle per
   stream).
 
-### nginx-xrootd — `src/observability/pmark/` (Firefly UDP **and** IPv6 flow-label)
+### gnuBall — `src/observability/pmark/` (Firefly UDP **and** IPv6 flow-label)
 
 - **Firefly UDP** (`firefly.c`): RFC5424-syslog-wrapped JSON `start`/`ongoing`/
   `end` docs, default UDP port 10514, byte-compatible with `XrdNetPMarkFF`.
@@ -357,7 +357,7 @@ implementations encode the same `(experiment, activity)` and are fail-open
   `_defsfile`, `_map_experiment`, `_map_activity`, `_http_plain`, `_scitag_cgi`,
   `_domain`, `_echo`, `_appname`.
 
-**Net difference:** both ecosystems do Firefly UDP; nginx-xrootd additionally
+**Net difference:** both ecosystems do Firefly UDP; gnuBall additionally
 ships working IPv6 in-band flow-label marking (not "firefly-only"), which the
 official core leaves as a TODO.
 
@@ -373,7 +373,7 @@ JSON document harvested by CRIC.
   nothing in the daemon; the only WLCG-named code is the **SciTokens** authz
   plugin (`src/XrdSciTokens/`), which is unrelated. SRR for XRootD sites is
   produced by **external tooling**, not the server process.
-- **nginx-xrootd:** a built-in HTTP/JSON sub-module, `src/protocols/srr/`
+- **gnuBall:** a built-in HTTP/JSON sub-module, `src/protocols/srr/`
   (`builder.c` + `handler.c` + `module.c`). It serves the WLCG `storageservice`
   schema (GET/HEAD, `application/json`), conventionally at
   `location = /.well-known/wlcg-storage-resource-reporting`, unauthenticated by
@@ -387,7 +387,7 @@ JSON document harvested by CRIC.
   [vos]`, `xrootd_srr_endpoint <name> <iftype> <url>`.
 
 **Operator view:** an XRootD site operator scripts/installs a separate SRR
-generator and serves the file out of band; an nginx-xrootd operator turns on
+generator and serves the file out of band; an gnuBall operator turns on
 `xrootd_srr` and registers the URL in CRIC.
 
 ---
@@ -410,7 +410,7 @@ generator and serves the file out of band; an nginx-xrootd operator turns on
   `ofs.trace`, …). There is **no separate structured access-log file** in core;
   the access-log equivalent is the UDP feed.
 
-### nginx-xrootd
+### gnuBall
 
 - **JSON access log** (`src/observability/metrics/access_log.c`, `access_log.h`):
   `xrootd_access_log_emit()` writes one JSON record per VFS op — timestamp,
@@ -431,7 +431,7 @@ generator and serves the file out of band; an nginx-xrootd operator turns on
   by CLAUDE.md ("Log strings from wire").
 
 **Operator view:** XRootD logs ship as text with logger-managed rotation, and
-transfer accounting comes off the UDP monitor; nginx-xrootd logs ship as
+transfer accounting comes off the UDP monitor; gnuBall logs ship as
 nginx-native JSON/text that drops straight into existing nginx log-shipping
 (logrotate, Loki/ELK), with transfer detail in the JSON access log and
 aggregate counts in Prometheus.
@@ -440,7 +440,7 @@ aggregate counts in Prometheus.
 
 ## Health, packaging, deployment
 
-| Concern | Official XRootD | nginx-xrootd |
+| Concern | Official XRootD | gnuBall |
 |---|---|---|
 | Health / readiness probe | **Not in core** — liveness inferred from systemd / UDP feeds; no HTTP probe | `/healthz` (`src/observability/metrics/health.c`, `xrootd_health on;`): `{"status":"ok","service":"nginx-xrootd"}`, `?verbose` adds `metrics_shm`/`worker_pid`/`nginx_version`; wires directly to k8s `livenessProbe` |
 | RPM packaging | `xrootd.spec` — many sub-packages (`xrootd-server`, `-libs`, `-client`, `-scitokens`, `-fuse`, `python3-xrootd`, …) | `packaging/rpm/nginx-mod-xrootd.spec` — **3 packages**: `nginx-mod-xrootd` (dynamic modules), `nginx-xrootd-client` (native xrdcp/xrdfs/xrootdfs), `nginx-xrootd-tests` (conformance suite) |
@@ -452,7 +452,7 @@ aggregate counts in Prometheus.
 | Runbooks | XRootD project docs | `docs/09-developer-guide/testing-runbook.md` |
 
 **Operator view:** an XRootD operator manages multiple systemd-templated daemons
-and an external monitoring pipeline; an nginx-xrootd operator manages one nginx
+and an external monitoring pipeline; an gnuBall operator manages one nginx
 service plus drop-in Grafana/alerts/logrotate artifacts and an HTTP liveness
 probe.
 
@@ -473,7 +473,7 @@ model and adds identity awareness across protocols.
 These are plugins configured via their own directives; they are not identity
 (VO/issuer/DN)-aware in the same first-class way.
 
-### nginx-xrootd — `src/net/ratelimit/`
+### gnuBall — `src/net/ratelimit/`
 
 A **leaky-bucket** core (`ratelimit.c`, modeled on
 `ngx_http_limit_req_module`): per-principal `xrootd_rl_node_t` slab-allocated in
@@ -498,32 +498,32 @@ reload`. Request units are stored ×1000; `req_excess` is the bucket.
   Prometheus (`src/observability/metrics/ratelimit.c`).
 
 **Net difference:** XRootD shapes per-server (throttle/BWM plugins);
-nginx-xrootd shapes by *identity* (VO/issuer/DN/IP/volume) uniformly across
+gnuBall shapes by *identity* (VO/issuer/DN/IP/volume) uniformly across
 `root://`, WebDAV, and S3, with both `kXR_wait` and HTTP `429` backpressure.
 
 ---
 
 ## Parity, divergences, and design choices
 
-| Capability | Official XRootD | nginx-xrootd | Assessment |
+| Capability | Official XRootD | gnuBall | Assessment |
 |---|---|---|---|
 | Config grammar | `XrdOuc` (if/set/continue, prefix-scoped) | nginx blocks + `xrootd_*` | Different but comparable |
-| **Config reload** | **Restart-only** (no SIGHUP) | **`nginx -s reload`** graceful | nginx-xrootd advantage |
+| **Config reload** | **Restart-only** (no SIGHUP) | **`nginx -s reload`** graceful | gnuBall advantage |
 | Per-transfer monitoring | XrdMon detail/f stream (UDP push) | JSON access log + dashboard transfers (HTTP pull) | Paradigm difference (deliberate) |
 | Aggregate metrics | `xrd.report` XML/JSON (UDP push) | Prometheus `/metrics` (HTTP pull) | Paradigm difference (deliberate) |
 | Generic monitoring channel | g-stream (pluggable providers) | metric families per subsystem | Different model |
-| External collector required | Yes (shoveler / MonaLisa) | No (Prometheus scrapes directly) | nginx-xrootd simpler ops |
-| Live operator dashboard | external | built-in REST + UI (`src/observability/dashboard/`) | nginx-xrootd advantage |
+| External collector required | Yes (shoveler / MonaLisa) | No (Prometheus scrapes directly) | gnuBall simpler ops |
+| Live operator dashboard | external | built-in REST + UI (`src/observability/dashboard/`) | gnuBall advantage |
 | Admin write API | admin tooling / `xrootd.admin` socket | `/api/v1/admin` (CIDR+secret, audited) | Different surface |
 | SciTags Firefly UDP | Yes (`XrdNetPMarkFF`) | Yes (`firefly.c`, byte-compatible) | Parity |
-| SciTags IPv6 flow-label | **TODO (not implemented)** | **Implemented** (`flowlabel.c`) | nginx-xrootd advantage |
-| WLCG SRR endpoint | Not in core (external tool) | Built-in `src/protocols/srr/` JSON | nginx-xrootd advantage |
+| SciTags IPv6 flow-label | **TODO (not implemented)** | **Implemented** (`flowlabel.c`) | gnuBall advantage |
+| WLCG SRR endpoint | Not in core (external tool) | Built-in `src/protocols/srr/` JSON | gnuBall advantage |
 | Access log | Text + UDP monitor | JSON access log (sanitized) | Different; nginx-native |
 | Log sanitization | logger escaping | `xrootd_sanitize_log_string()` | Parity-ish |
 | Log rotation | logger-managed (daily/FIFO) | logrotate (`contrib/`) | Different mechanism |
-| HTTP health probe | **Not in core** | `/healthz` | nginx-xrootd advantage |
+| HTTP health probe | **Not in core** | `/healthz` | gnuBall advantage |
 | Packaging | many sub-RPMs + systemd templates | 3 RPMs + nginx service | Different shape |
-| Rate / bandwidth / concurrency | XrdThrottle, XrdBwm (per-server) | `src/net/ratelimit/` (identity-aware, cross-protocol) | Parity / nginx-xrootd+ |
+| Rate / bandwidth / concurrency | XrdThrottle, XrdBwm (per-server) | `src/net/ratelimit/` (identity-aware, cross-protocol) | Parity / gnuBall+ |
 
 **Deliberate design choices to call out:**
 
@@ -558,7 +558,7 @@ nginx-xrootd shapes by *identity* (VO/issuer/DN/IP/volume) uniformly across
 | Throttle / BWM | `src/XrdThrottle`, `src/XrdBwm` |
 | Packaging | `xrootd.spec`, `systemd/*.service`/`*.socket`, `config/xrootd.logrotate`, `config/xrootd-*.cfg` |
 
-### nginx-xrootd (`/home/rcurrie/HEP-x/nginx-xrootd`)
+### gnuBall (`/home/rcurrie/HEP-x/nginx-xrootd`)
 
 | Area | Files |
 |---|---|
@@ -567,7 +567,7 @@ nginx-xrootd shapes by *identity* (VO/issuer/DN/IP/volume) uniformly across
 | Config model | `src/core/config/{process,server_conf,postconfiguration,runtime_server}.c`, `merge_macros.h`; directives in `src/protocols/root/stream/module.c`, `module_core_directives.c`, `module_cache_proxy_directives.c`, `src/protocols/webdav/module.c`, `src/protocols/s3/module.c` |
 | SciTags / PMark | `src/observability/pmark/{firefly,flowlabel,scitag,mapping,config,defsfile,sockstats}.c`, `pmark.h`, `README.md` |
 | SRR | `src/protocols/srr/{builder,handler,module}.c`, `srr.h`, `README.md` |
-| Logging / sanitize | `src/observability/metrics/access_log.{c,h}`, `src/observability/accesslog/access_log.c`, `src/fs/path/path.h` (`xrootd_sanitize_log_string` decl) + `src/path/{acl,authdb,helpers,resolve_confined_helpers}.c` (uses) |
+| Logging / sanitize | `src/observability/metrics/access_log.{c,h}`, `src/observability/accesslog/access_log.c`, `src/fs/path/path.h` (`xrootd_sanitize_log_string` decl) + `src/auth/authz/{acl,authdb}.c`, `src/fs/path/{helpers,resolve_confined_helpers}.c` (uses) |
 | Health | `src/observability/metrics/health.c` |
 | Rate limiting | `src/net/ratelimit/{ratelimit,ratelimit_keys,ratelimit_zone,ratelimit_http,ratelimit_stream}.c`, `ratelimit.h`, `README.md`; `src/observability/metrics/ratelimit.c` |
 | Packaging / ops | `packaging/rpm/nginx-mod-xrootd.spec`; `contrib/{grafana-dashboard.json,prometheus-alerts.yml,logrotate.d/nginx-xrootd,xrootd.conf.example}`; `docs/09-developer-guide/testing-runbook.md` |

@@ -18,8 +18,8 @@
  */
 #include "s3.h"
 #include "multipart_internal.h"
-#include "fs/vfs.h"   /* confined source open via the VFS seam */
-#include "core/compat/http_headers.h"
+#include "fs/vfs/vfs.h"   /* confined source open via the VFS seam */
+#include "core/http/http_headers.h"
 #include "fs/backend/sd.h"   /* route the part-copy byte move through the SD backend */
 
 #include <string.h>

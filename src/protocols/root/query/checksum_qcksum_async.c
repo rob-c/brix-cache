@@ -16,7 +16,7 @@
 #include "core/compat/integrity_info.h"
 #include "protocols/root/response/response.h"
 #include "core/aio/aio.h"
-#include "fs/vfs.h"   /* xrootd_vfs_close — release the path-based read handle */
+#include "fs/vfs/vfs.h"   /* xrootd_vfs_close — release the path-based read handle */
 
 
 /*

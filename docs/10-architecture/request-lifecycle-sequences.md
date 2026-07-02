@@ -632,7 +632,7 @@ INVARIANT CHECKLIST
 
 
 Flow A (Registration): A data node establishes a persistent TCP connection to
-the nginx-xrootd CMS server port (default 1213). The handler accepts it
+the gnuBall CMS server port (default 1213). The handler accepts it
 (server_handler.c line 21), checks CIDR allowlist (server_auth.c line 31),
 optionally challenges the node with SSS authentication (server_send.c line 39,
 server_auth.c line 62), then parses the kYR_login frame (server_recv.c line 440)

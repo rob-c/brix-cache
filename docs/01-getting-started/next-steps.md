@@ -40,7 +40,7 @@ as part of the current documentation expansion effort:
 
 - [x] **`docs/comparison-with-xrootd.md`** — Added "Developer investment —
   estimated hours" section covering per-subsystem hour estimates for
-  nginx-xrootd (~4,500–6,250 hours, $680K–$1.56M replacement cost),
+  gnuBall (~4,500–6,250 hours, $680K–$1.56M replacement cost),
   official XRootD cumulative investment (~141K–256K hours, $14M–$46M), and a
   contributor comparison table. Fixed stale production replacement checklist:
   kXR_bind, Macaroon tokens, LOCK/UNLOCK, server-side COPY all now marked as

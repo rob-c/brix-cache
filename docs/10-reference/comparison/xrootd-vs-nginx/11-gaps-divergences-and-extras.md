@@ -1,11 +1,11 @@
 # Gaps, Divergences, and Extras — the candid ledger
 
-> Part of the [XRootD vs nginx-xrootd comparison set](./README.md).
+> Part of the [XRootD vs gnuBall comparison set](./README.md).
 
 This is the honest accounting document of the comparison set. It states three
 things plainly, each grounded in source on both sides:
 
-1. What **official XRootD** has that this nginx-xrootd module does **not**.
+1. What **official XRootD** has that this gnuBall module does **not**.
 2. What this module has that **official XRootD does not** (or does not ship as a
    server feature).
 3. The catalogue of **known protocol/behavior divergences** surfaced by
@@ -59,7 +59,7 @@ section — there is no single yes/no answer.
 
 ---
 
-## Official-only features (gaps in nginx-xrootd)
+## Official-only features (gaps in gnuBall)
 
 Each item below was confirmed present in the official source tree and **not**
 found as a comparable implementation in `src/`. For each: what it is, why it
@@ -121,9 +121,11 @@ exists here.
 - **Official:** `XrdFrm/` is a complete daemon ecosystem (`frm_admin`,
   `frm_purged`, `frm_xfrd`, `frm_xfragent`, migrate/purge/transfer queue), plus
   `XrdOssArc/` archive integration and MSS driver abstractions.
-- **Here:** `src/frm/` is a durable staging queue (file = truth + SHM cache),
-  residency xattrs, stage worker, scheduler, metrics, and a WLCG Tape REST
-  gateway (`src/protocols/webdav/tape_rest.c`). Migrate/purge is scaffold/stub per docs.
+- **Here:** the `src/fs/xfer/` stage engine (which absorbed the former `src/frm/`
+  subsystem in phase-64) is a durable staging queue (file = truth + SHM cache),
+  with residency xattrs + recall in the `src/fs/backend/frm/` nearline driver,
+  metrics, and a WLCG Tape REST gateway (`src/protocols/webdav/tape_rest.c`).
+  Migrate/purge is not implemented in-process (delegated to MSS/operator).
   `kXR_prepare`/`kXR_QPrep` work in both an FRM-off legacy mode and an FRM-on
   durable-reqid mode.
 - **Why it matters / impact:** this is a serious tape **gateway**, not the full
@@ -155,7 +157,7 @@ exists here.
   logical-to-physical name translation layer (LFN↔PFN), used by many sites to
   decouple the exported namespace from on-disk layout.
 - **Here:** **not verified present.** The module uses confined-path resolution
-  (`src/path/`, `ngx_http_xrootd_webdav_resolve_path()`) and per-export root
+  (`src/fs/path/`, `ngx_http_xrootd_webdav_resolve_path()`) and per-export root
   prefixing, but no general pluggable N2N translation layer was found.
 - **Why it matters / impact:** sites that rely on an N2N plugin to remap names
   (e.g. hash-spread directory layouts) need to reproduce that mapping by export
@@ -299,11 +301,11 @@ beyond "same protocol, different daemon." Each is source-grounded.
 | **WLCG Storage Resource Reporting (SRR)** | `src/protocols/srr/` (`builder.c`, `handler.c`, `module.c`) | First-class HTTP/JSON SRR endpoint for site accounting/discovery; no core upstream server equivalent in the reviewed tree. |
 | **Resilient pure-C native client suite + FUSE** | `client/apps/` (`xrdcp`, `xrdfs`, `xrddiag`, `xrdmapc`, `xrdprep`, `xrdgsiproxy`, `xrdadler32`, `xrdcrc32c`, `xrdcrc64`, `xrdsssadmin`, …), `client/lib/`, `xrootdfs*` FUSE | A clean-room `libxrdc`-based client + FUSE driver with connect-vs-IO timeouts, fast-fail on permanent errors, IPv6→IPv4 auto-downgrade, atomic/cancellable transfers. Independent of `libXrdCl`. (Server-replacement scope aside, this is a genuine module-family extra.) |
 | **HTTP-based SciTags packet marking** | `src/observability/pmark/` (`firefly.c`, `flowlabel.c`, `scitag.c`, `mapping.c`) | Firefly UDP + IPv6 flow-label packet marking integrated with WebDAV/TPC; an HTTP-native marking path rather than a separate daemon. (Upstream also has `XrdNetPMark`; the surfaces differ.) |
-| **Unified multi-protocol namespace under nginx** | shared `src/path/` + `src/protocols/root/read/` + `src/protocols/webdav/` + `src/protocols/s3/` | One export serves `root://`, `davs://`/XrdHttp, and S3 with **common confinement and policy rules** and one set of nginx operational tooling (certs, reload, logging, reverse proxy). |
+| **Unified multi-protocol namespace under nginx** | shared `src/fs/path/` + `src/protocols/root/read/` + `src/protocols/webdav/` + `src/protocols/s3/` | One export serves `root://`, `davs://`/XrdHttp, and S3 with **common confinement and policy rules** and one set of nginx operational tooling (certs, reload, logging, reverse proxy). |
 | **WebDAV beyond upstream XrdHttp's method set** | `src/protocols/webdav/lock.c`, `dead_props.c`, `search.c`, `acl.c`, `methods_basic.c` | `LOCK`/`UNLOCK`, `PROPPATCH` + dead-property storage (xattrs), `SEARCH` (RFC 5323), `ACL` discovery — needed by desktop WebDAV clients that treat `501` as fatal. Not found as server methods in the reviewed XrdHttp source. |
 | **Hardened HTTP-TPC** | `src/protocols/webdav/tpc_curl.c`, `tpc_cred.c`, `tpc_marker.c`, `tpc_headers.c` | SSRF/DNS-pinning controls, OIDC/RFC-8693 credential delegation, marker streaming, `curl_multi` multistream, dashboard visibility, low-cardinality metrics. Upstream **also** has HTTP-TPC (`XrdHttpTpc`); nginx's edge is hardening + integration, **not** the existence of HTTP-TPC. |
-| **WLCG Tape REST gateway** | `src/protocols/webdav/tape_rest.c` + `src/frm/` | FTS/gfal2-friendly HTTP tape control sharing the same durable stage queue as native `prepare`/`open`. |
-| **Path-confinement discipline** | `src/path/`, `src/core/compat/namespace_ops.c`, `xrootd_open_confined_canon()` | Every wire path resolves/canonicalizes/confines (`openat2(RESOLVE_BENEATH)`) before any syscall — an auditability advantage. |
+| **WLCG Tape REST gateway** | `src/protocols/webdav/tape_rest.c` + `src/fs/xfer/` | FTS/gfal2-friendly HTTP tape control sharing the same durable stage queue as native `prepare`/`open`. |
+| **Path-confinement discipline** | `src/fs/path/`, `src/core/compat/namespace_ops.c`, `xrootd_open_confined_canon()` | Every wire path resolves/canonicalizes/confines (`openat2(RESOLVE_BENEATH)`) before any syscall — an auditability advantage. |
 
 Honesty notes for this section: rate limiting, HTTP-TPC, XrdHttp, krb5, unix
 auth, macaroon delegation, and IPv6 are **not** module-exclusive — upstream has
@@ -445,7 +447,7 @@ Official XRootD (`/tmp/xrootd-src/src`):
 - Checksums: `XrdCks/`, `XrdVersionPlugin.hh`
 - Client: `XrdCl/`, `XrdClS3/` (client S3 plugin), `XrdPosix/`
 
-nginx-xrootd (`src/` and `client/`):
+gnuBall (`src/` and `client/`):
 
 - Protocol/dispatch: `src/protocols/root/protocol/opcodes.h`, `src/protocols/root/protocol/flags.h`,
   `src/protocols/root/handshake/dispatch*.c`, `src/protocols/root/session/protocol.c`, `src/protocols/root/session/signing.c`
@@ -453,9 +455,9 @@ nginx-xrootd (`src/` and `client/`):
   `src/auth/pwd/`, `src/auth/host/`, `src/auth/voms/`, `src/auth/authz/authdb.c`,
   `src/auth/authz/auth_gate.c`
 - Diagnostics / SSI / ZIP: `src/protocols/dig/`, `src/protocols/ssi/`, `src/protocols/root/zip/`
-- Storage/cache/path: `src/fs/`, `src/path/`, `src/fs/cache/`,
+- Storage/cache/path: `src/fs/`, `src/fs/path/`, `src/fs/cache/`,
   `src/core/compat/namespace_ops.c`, `src/fs/cache/origin_protocol.c`
-- FRM/tape: `src/frm/`, `src/protocols/root/query/prepare.c`, `src/protocols/webdav/tape_rest.c`
+- FRM/tape: `src/fs/xfer/`, `src/fs/backend/frm/`, `src/protocols/root/query/prepare.c`, `src/protocols/webdav/tape_rest.c`
 - HTTP/WebDAV/S3: `src/protocols/webdav/`, `src/protocols/s3/`
 - Extras: `src/net/mirror/`, `src/observability/metrics/`, `src/net/ratelimit/`, `src/observability/dashboard/`,
   `src/protocols/srr/`, `src/observability/pmark/`, `src/core/compat/codec_*.c`, `src/core/compat/http_compress.c`

@@ -47,13 +47,13 @@
 
 #include "observability/metrics/metrics.h"
 #include "core/compat/protocol_caps.h"
-#include "fs/vfs.h"             /* xrootd_vfs_ctx_t for s3_build_vfs_ctx() */
+#include "fs/vfs/vfs.h"             /* xrootd_vfs_ctx_t for s3_build_vfs_ctx() */
 #include "core/config/shared_conf.h"
 #include "core/compat/namespace_ops.h"
 #include "auth/authz/acc/acc.h"
-#include "core/compat/etag.h"
+#include "core/http/etag.h"
 #include "core/compat/error_mapping.h"
-#include "core/compat/http_xml.h"
+#include "core/http/http_xml.h"
 #include "core/compat/log.h"
 #include "core/compat/range.h"
 #include "core/compat/time.h"
@@ -343,11 +343,6 @@ ngx_int_t s3_handle_head(ngx_http_request_t *r,
  * and the returned rc must be propagated by the caller.
  */
 ngx_int_t s3_handle_conditional(ngx_http_request_t *r, time_t mtime, off_t size);
-
-/* Low-level precondition verdict: NGX_OK (proceed), NGX_HTTP_NOT_MODIFIED, or
- * NGX_HTTP_PRECONDITION_FAILED.  etag includes its surrounding quotes. */
-ngx_int_t s3_eval_preconditions(ngx_http_request_t *r, const char *etag,
-                          time_t mtime);
 
 /*
  * Evaluate If-None-Match / If-Match on a PutObject before the body is read

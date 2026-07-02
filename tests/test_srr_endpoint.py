@@ -120,7 +120,7 @@ def test_srr_document_is_schema_valid(srr_server):
     svc = doc["storageservice"]
 
     # identity
-    assert svc["implementation"] == "nginx-xrootd"
+    assert svc["implementation"] == "GNUBall"
     assert svc["implementationversion"] == "3.5"
     assert svc["name"] == "TEST-SE"
     assert svc["qualitylevel"] == "production"

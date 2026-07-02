@@ -86,7 +86,7 @@ graph TB
 
 ## 📦 Choose Your Deployment Mode
 
-Three patterns. Pick the one that matches where nginx-xrootd lives in your stack:
+Three patterns. Pick the one that matches where gnuBall lives in your stack:
 
 ```mermaid
 graph TD
@@ -146,7 +146,7 @@ All three modes run inside a single nginx instance. Details: [Deployment Modes](
 | [Configuration Reference](03-configuration/config-reference.md) | All directives with defaults (complete reference) |
 | [TLS Configuration](03-configuration/tls-config.md) | `root://` upgrade, `roots://`, HTTPS setup |
 | [Production Deployment](03-configuration/production-deployment.md) | Production deployment patterns and best practices |
-| [Deployment Configuration Reference](10-reference/comparison/deployment-reference.md) | Side-by-side nginx-xrootd and vanilla XRootD snippets for root, HTTP, token, GSI, packet marking, user mapping, cache, TPC, monitoring, mirroring, staging, and traffic-control deployments |
+| [Deployment Configuration Reference](10-reference/comparison/deployment-reference.md) | Side-by-side gnuBall and vanilla XRootD snippets for root, HTTP, token, GSI, packet marking, user mapping, cache, TPC, monitoring, mirroring, staging, and traffic-control deployments |
 
 ### Protocols & Clients
 *What actually happens on the wire — how each protocol and client type behaves.*
@@ -253,6 +253,7 @@ Contributing code? Start here. Everything you need to navigate the source tree, 
 | [Coding Standards](09-developer-guide/coding-standards.md) | C style, naming, documentation, and review expectations |
 | [XrdSecgsi Handshake](09-developer-guide/xrdsecgsi-handshake.md) | The real GSI handshake (client & server) — protocol, exact wire formats, and every gotcha; how `./client/xrdfs` authenticates to stock EOS |
 | [Lessons — TPC + VFS](09-developer-guide/lessons-tpc-vfs.md) | Field guide from the native-TPC (GSI/async/TLS/delegation) and VFS storage-driver work — the non-obvious things that cost real time (GSI interop traps, gate-first testing, build/test gotchas) |
+| [Lessons — The Migration Era (2026)](09-developer-guide/lessons-migration-era-2026.md) | Synthesis of the phase 55–66 structural migrations: map-driven move mechanics and their limits (splits/dissolutions), gate-first migration, guard+backlog discipline, build-system traps, the writev wire-parity case study, and the consolidated pre-merge checklist |
 | [Testing Runbook](09-developer-guide/testing-runbook.md) | Running tests, cross-compatible test harness, troubleshooting |
 | [Test ↔ Protocol Mapping](09-developer-guide/test-protocol-mapping.md) | Which test files cover which protocol areas |
 | [Adversarial Hardening Tests](09-developer-guide/adversarial-testing.md) | Evil-actor suites (worker-crash hunt, race detection, hostile wire parsing) — what they attack and how the codebase defends |
@@ -280,12 +281,12 @@ Contributing code? Start here. Everything you need to navigate the source tree, 
 | [Quirks & Compromises](10-reference/quirks.md) | Design mismatches and trade-offs with official xrootd |
 | [Handler Reference](10-reference/handler-reference.md) | Function signatures and call patterns |
 | [Core Types](10-reference/types.md) | Struct definitions used throughout the codebase |
-| [Design Rationale](10-reference/design-rationale.md) | Why nginx-xrootd exists, comparison with official xrootd |
+| [Design Rationale](10-reference/design-rationale.md) | Why gnuBall exists, comparison with official xrootd |
 | [Gaps vs Official XRootD](10-reference/gaps-vs-xrootd.md) | Features in official xrootd not yet implemented |
 | [Protocol Gap Analysis](10-reference/protocol-gaps-vs-xrootd.md) | Per-opcode/plugin gap comparison against reference xrootd v5.2 |
 | [XRootD Feature Matrix](10-reference/xrootd-feature-matrix.md) | Cross-reference of every XRootD feature, plugin, and interop surface |
 | [Feature Gaps](10-reference/feature-gaps.md) | Incomplete features and corner cases across the three protocols |
-| [nginx-xrootd vs Canonical xrootd](10-reference/comparison-nginx-xrootd-vs-canonical.md) | Detailed behavioural comparison with the reference daemon |
+| [gnuBall vs Canonical xrootd](10-reference/comparison-nginx-xrootd-vs-canonical.md) | Detailed behavioural comparison with the reference daemon |
 
 ---
 

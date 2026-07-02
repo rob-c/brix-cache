@@ -6,7 +6,7 @@
 
 **Architecture:** A new `cache_storage.{c,h}` resolves a per-role `xrootd_sd_instance_t` (read cache, write-staging) via the existing backend registry — the POSIX driver bound automatically when no backend is named. Fill uses `staged_open/write/commit`; hit-serve uses `driver->open` + `vfs_adopt_obj` + memory-serve; eviction/reaper enumerate the driver namespace; sidecar bytes go through the (POSIX) driver. Write-through stages a copy into the write-staging cache and the flush mirrors from it.
 
-**Tech Stack:** C (nginx stream module), the SD driver vtable (`src/fs/backend/sd.h`), the backend registry (`src/fs/vfs_backend_registry.h`), pblock (`sd_pblock.c`), standalone C unit tests + shell e2e.
+**Tech Stack:** C (nginx stream module), the SD driver vtable (`src/fs/backend/sd.h`), the backend registry (`src/fs/vfs/vfs_backend_registry.h`), pblock (`sd_pblock.c`), standalone C unit tests + shell e2e.
 
 ## Global Constraints
 
@@ -33,9 +33,9 @@
   - `xrootd_sd_instance_t *xrootd_cache_state_storage(const ngx_stream_xrootd_srv_conf_t *conf);` — the POSIX instance for the sidecar tree (`cache_state_root`, else `cache_root`).
   - `int xrootd_cache_key(const ngx_stream_xrootd_srv_conf_t *conf, const char *resolved, char *dst, size_t dstsz);` — the export-relative cache key (delegates to `xrootd_cache_path_for_resolved` then strips `cache_root` → a leading-slash logical key; mirrors `xrootd_vfs_export_relative_root`). 0/-1.
 
-- [ ] **Step 1: Confirm `xrootd_vfs_backend_resolve` POSIX fallback.** Read `src/fs/vfs_backend_registry.c`: does `xrootd_vfs_backend_resolve(root, log)` return a POSIX instance for an *unregistered* root, or NULL? Note the answer — it decides whether `cache_storage.c` must call `xrootd_sd_posix_borrow_instance` itself.
+- [ ] **Step 1: Confirm `xrootd_vfs_backend_resolve` POSIX fallback.** Read `src/fs/vfs/vfs_backend_registry.c`: does `xrootd_vfs_backend_resolve(root, log)` return a POSIX instance for an *unregistered* root, or NULL? Note the answer — it decides whether `cache_storage.c` must call `xrootd_sd_posix_borrow_instance` itself.
 
-Run: `grep -n 'posix_borrow\|return NULL\|default_driver\|resolve(' src/fs/vfs_backend_registry.c`
+Run: `grep -n 'posix_borrow\|return NULL\|default_driver\|resolve(' src/fs/vfs/vfs_backend_registry.c`
 Expected: you can state "resolve returns POSIX for unregistered" OR "resolve returns NULL → bind POSIX in cache_storage".
 
 - [ ] **Step 2: Write the failing unit test** — `tests/c/test_cache_storage.c`. It exercises only `xrootd_cache_key` (the instance resolvers need nginx conf, tested via e2e later).

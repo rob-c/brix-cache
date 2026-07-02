@@ -22,6 +22,27 @@ ngx_int_t xrootd_handle_pgwrite(xrootd_ctx_t *ctx, ngx_connection_t *c);
 /* kXR_writev — multi-segment scatter write, one pwrite per segment. */
 ngx_int_t xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c);
 
+/* kXR_writev stock framing helper — validate the dlen-framed write_list
+ * descriptor block and report sum(wlen), the segment-data byte count the
+ * client streams AFTER the request frame.  Used by the recv framing to extend
+ * the read obligation before dispatch.  NGX_OK + *extra, or NGX_DECLINED on a
+ * contract violation (caller chooses the error). */
+ngx_int_t xrootd_writev_body_extra(const u_char *desc, uint32_t dlen,
+    uint32_t *extra);
+
+/* kXR_chkpoint/kXR_ckpXeq stock framing helper — the outer frame's dlen
+ * covers ONLY the embedded 24-byte sub-request header; the sub-request body
+ * streams after it (and, for an embedded kXR_writev, the segment data streams
+ * after the descriptor block).  Called by the recv framing each time the
+ * current read obligation completes: `have` is the body byte count received
+ * so far (24 = embedded header just landed; 24 + sub_dlen = embedded writev
+ * descriptors landed).  NGX_OK + *extra (bytes still to stream) + *final
+ * (0 = call again after the extension completes), or NGX_DECLINED when the
+ * embedded request violates the contract — no extension; the handler emits
+ * the error and drops the link.  Defined in chkpoint_xeq.c. */
+ngx_int_t xrootd_ckpxeq_body_extra(const u_char *body, uint32_t have,
+    uint32_t *extra, unsigned *final);
+
 /* kXR_sync — fsync(2) the file referenced by the handle. */
 ngx_int_t xrootd_handle_sync(xrootd_ctx_t *ctx, ngx_connection_t *c);
 

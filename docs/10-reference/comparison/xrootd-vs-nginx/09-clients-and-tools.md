@@ -1,18 +1,18 @@
-# Client Tooling — Official XRootD vs. nginx-xrootd Native Suite
+# Client Tooling — Official XRootD vs. gnuBall Native Suite
 
-> Part of the [XRootD vs nginx-xrootd comparison set](./README.md).
+> Part of the [XRootD vs gnuBall comparison set](./README.md).
 
 This document compares the **official XRootD client tooling** (the `XrdCl` C++
 library, the `xrdcp` / `xrdfs` apps, the `XrdClHttp` plugin, the `XrdFfs`
 `xrootdfs` FUSE driver, and the `pyxrootd` Python bindings) against the
-**nginx-xrootd native client suite**: a clean-room, pure-C set of tools built on
+**gnuBall native client suite**: a clean-room, pure-C set of tools built on
 `libxrdc` and the project's shared `libxrdproto`, with **no dependency on
 `libXrdCl` / `libXrdSec*`**.
 
 Every claim below is grounded in source. The official side cites
 `/tmp/xrootd-src/src/XrdCl/` (the C++ library), `XrdApps/` (the `xrdcp` /
 `xrdfs` config + driver), `XrdClHttp/` (the HTTP transport plugin), `XrdFfs/`
-(the FUSE driver), and `python/` (the bindings). The nginx-xrootd side cites
+(the FUSE driver), and `python/` (the bindings). The gnuBall side cites
 this repository's `client/` tree (`apps/`, `lib/`) and `shared/xrdproto/`.
 Where behaviour was already verified by earlier work, this doc reuses the facts
 from the companion documents and the source-verified comparison rather than
@@ -85,7 +85,7 @@ a separate, synchronous, single-transport codepath.
 
 ---
 
-## In nginx-xrootd (native pure-C suite)
+## In gnuBall (native pure-C suite)
 
 The native suite is a **clean-room, pure-C** reimplementation built directly on
 the project's own wire vocabulary.
@@ -345,7 +345,7 @@ tools during this session. Some are fixed; the rest are documented for parity.
 | `xrdfs` | **Superset** of the stock subcommand set, with both chmod mode forms and a large POSIX-style toolbox; only `cache` is genuinely absent; `cp`/`spaceinfo` exist under other names. Output-format edge cases (`ls <file>`, `xattr` framing) remain. |
 | `xrootdfs` (FUSE) | Functional parity on the op set, **ahead** on async transport, mid-transfer resume, and an alternate HTTP/WebDAV transport; behind on maturity. |
 | `libxrdc` vs `libXrdCl` | Different shape: small dependency-light C library vs. large async C++ stack. Native is easier to static-link/embed; official is more featureful and the wire reference. |
-| Interop | Native clients interoperate with **real EOS** (GSI x509 proxy, cap-opaque host split, `Qcksum`), and aim at stock-xrootd / dCache; stock `xrdcp`/`xrdfs`/`pyxrootd` interoperate with the nginx-xrootd server (the conformance suite drives both directions). |
+| Interop | Native clients interoperate with **real EOS** (GSI x509 proxy, cap-opaque host split, `Qcksum`), and aim at stock-xrootd / dCache; stock `xrdcp`/`xrdfs`/`pyxrootd` interoperate with the gnuBall server (the conformance suite drives both directions). |
 
 ---
 
@@ -360,7 +360,7 @@ tools during this session. Some are fixed; the rest are documented for parity.
 - `XrdFfs/XrdFfsXrootdfs.cc`, `XrdFfsWcache.{cc,hh}`, `XrdFfsQueue.{cc,hh}`, `XrdFfsPosix.{cc,hh}` — FUSE driver (sync, root:// only, write cache).
 - `python/PyXRootDModule.cc` + `python/libs/client/` — `pyxrootd` bindings.
 
-**nginx-xrootd (`client/` + `shared/`):**
+**gnuBall (`client/` + `shared/`):**
 - `client/lib/xrdc.h` — the `libxrdc` public API (conn/file/fs/copy/pool/auth/diagnostics).
 - `client/apps/xrdcp.c` — copy tool (multi-protocol, batch/glob/manifest, web→web relay, parallel jobs).
 - `client/apps/xrdfs.c` — filesystem tool + REPL (`parse_chmod_mode`, the subcommand table, the power-tool handlers).

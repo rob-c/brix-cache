@@ -31,7 +31,7 @@ the write semantics — both driven by the **same** `xrootd_vfs_staged_*` seam:
   xrootd_storage_backend root://host:port      ← remote primary backend
   xrootd_storage_staging /local/scratch        ← OPTIONAL local staging store
 
-                       VFS staged-write seam (src/fs/vfs_staged.c)
+                       VFS staged-write seam (src/fs/vfs/vfs_staged.c)
             ┌──────────────────────────┴───────────────────────────┐
    NO staging store                                   staging store configured
    = transparent WRITE-THROUGH                         = WRITE-BACK

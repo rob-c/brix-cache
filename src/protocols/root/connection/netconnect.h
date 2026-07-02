@@ -10,7 +10,7 @@
  *     - xrootd_connect_fd_deadline()      — a non-blocking connect(2) bounded by
  *                                           poll(POLLOUT) + getsockopt(SO_ERROR).
  *
- * WHY: native TPC (src/tpc/connect.c), the read-through cache origin fill
+ * WHY: native TPC (src/tpc/outbound/connect.c), the read-through cache origin fill
  *   (src/cache/origin_connection.c) and OCSP fetching (src/crypto/ocsp.c) each
  *   grew their OWN copy of the same hardening dance, with the same Linux caveat:
  *   SO_SNDTIMEO does not reliably bound connect(2), so an unreachable/black-holed

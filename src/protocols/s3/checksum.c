@@ -23,10 +23,10 @@
  */
 
 #include "s3.h"
-#include "core/compat/http_headers.h"
-#include "core/compat/http_query.h"
+#include "core/http/http_headers.h"
+#include "core/http/http_query.h"
 #include "core/compat/integrity_info.h"
-#include "fs/vfs.h"
+#include "fs/vfs/vfs.h"
 
 #include <fcntl.h>
 #include <string.h>

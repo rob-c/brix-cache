@@ -485,7 +485,7 @@ driver_conf, err_out)`; `xrootd_sd_fd(obj)` / `xrootd_sd_posix_wrap(obj, fd)`
 ## A.1 W0 — struct changes (3 fields, all backend-neutral)
 
 ```c
-/* src/fs/vfs_io_core.h — the job gains the bound backend object */
+/* src/fs/vfs/vfs_io_core.h — the job gains the bound backend object */
 typedef struct {
     ...
     ngx_fd_t          fd;     /* kept: POSIX fast paths (sendfile/uring) only */
@@ -520,7 +520,7 @@ typedef struct xrootd_file_s {
 > block below as "the loop is done; thread the obj into it."
 
 ```c
-/* src/fs/vfs_read.c — BEFORE: fd in, posix-wrap inside */
+/* src/fs/vfs/vfs_read.c — BEFORE: fd in, posix-wrap inside */
 ngx_int_t xrootd_vfs_pread_full(ngx_fd_t fd, u_char *buf, size_t len,
                                 off_t off, size_t *out) {
     xrootd_sd_obj_t obj; xrootd_sd_posix_wrap(&obj, fd);
@@ -532,9 +532,9 @@ ngx_int_t xrootd_vfs_pread_full(xrootd_sd_obj_t *obj, u_char *buf, size_t len,
     ... n = obj->driver->pread(obj, buf, len - done, off + done); ...
     /* identical EINTR / short-read accounting; only the target generalized */
 }
-/* src/fs/vfs_write.c — same shape for xrootd_vfs_pwrite_full(obj, ...) */
+/* src/fs/vfs/vfs_write.c — same shape for xrootd_vfs_pwrite_full(obj, ...) */
 
-/* src/fs/vfs_io_core.c — callers pass job->obj instead of job->fd */
+/* src/fs/vfs/vfs_io_core.c — callers pass job->obj instead of job->fd */
 -   if (xrootd_vfs_pread_full(job->fd,  job->buf, job->length, job->offset, &n) ...)
 +   if (xrootd_vfs_pread_full(job->obj, job->buf, job->length, job->offset, &n) ...)
 -   xrootd_sd_posix_wrap(&obj, job->fd);  xrootd_sd_posix_driver.fsync(&obj);
@@ -550,7 +550,7 @@ strings `sd_posix_` and `xrootd_sd_posix_wrap` appear **nowhere** in
 ## A.3 W0 — bind the driver object at open
 
 ```c
-/* src/fs/vfs_open.c */
+/* src/fs/vfs/vfs_open.c */
 xrootd_vfs_file_t *
 xrootd_vfs_open(xrootd_vfs_ctx_t *ctx, int sdflags, mode_t mode, int *err) {
     const xrootd_sd_driver_t *drv =

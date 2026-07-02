@@ -7,7 +7,7 @@
  */
 
 #include "ngx_xrootd_fattr.h"
-#include "fs/vfs.h"   /* confinement check via the VFS seam */
+#include "fs/vfs/vfs.h"   /* confinement check via the VFS seam */
 
 #include <string.h>
 #include "core/compat/alloc_guard.h"

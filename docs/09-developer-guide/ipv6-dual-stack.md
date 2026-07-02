@@ -10,7 +10,7 @@ in XRootD wire responses.
 
 **Why now**: HEP federations are gradually deploying IPv6. Clients on IPv6-only networks
 cannot reach servers that only listen on IPv4 or return IPv4-only redirect addresses.
-The reference `xrootd` daemon has supported dual-stack for years; nginx-xrootd has
+The reference `xrootd` daemon has supported dual-stack for years; gnuBall has
 partial but inconsistent support.
 
 ---
@@ -58,14 +58,14 @@ Understanding dual-stack support requires tracing IP addresses through three lay
 
 | File | What it does | Why it's OK |
 |------|-------------|-------------|
-| `src/tpc/connect.c` | TPC outbound TCP connect | `getaddrinfo(AF_UNSPEC)`, iterates all addrinfo entries, IPv6 SSRF checks in `tpc_addr_is_prohibited()` |
+| `src/tpc/outbound/connect.c` | TPC outbound TCP connect | `getaddrinfo(AF_UNSPEC)`, iterates all addrinfo entries, IPv6 SSRF checks in `tpc_addr_is_prohibited()` |
 | `src/fs/cache/origin_connection.c` | Cache-fill origin connect | `getaddrinfo(AF_UNSPEC)`, iterates all addrinfo entries |
 | `src/net/cms/config.c` | CMS manager address parsing | Uses `ngx_parse_url()` which handles IPv6 literals via nginx's internal resolver |
 | `src/net/upstream/directives.c` | `xrootd_upstream host:port` parsing | Lines 24–54: checks for `[` prefix, extracts IPv6 address between brackets |
 | `src/core/config/manager_map.c` | `xrootd_manager_map prefix host:port` parsing | Lines 49–77: same bracket-aware IPv6 parsing |
 | `src/fs/cache/directives.c` | `xrootd_cache_origin host:port` parsing | Lines 62–90: same bracket-aware IPv6 parsing, handles `root://` and `roots://` prefixes |
 | `src/protocols/root/connection/handler.c` (lines 93–106) | Port extraction from `c->local_sockaddr` | Lines 93–106: checks `sa_family` and casts to correct type for `AF_INET` and `AF_INET6` |
-| `src/tpc/launch.c` (lines 82–86) | Client address for TPC logging | `getnameinfo()` with `NI_NAMEREQD` — dual-stack safe |
+| `src/tpc/engine/launch.c` (lines 82–86) | Client address for TPC logging | `getnameinfo()` with `NI_NAMEREQD` — dual-stack safe |
 | `src/observability/accesslog/access_log.c` | Access log client IP | Uses `c->addr_text` — nginx's pre-formatted address string which includes brackets for IPv6 |
 | `src/net/cms/server_handler.c` (line 23) | Server address logging | `ngx_sock_ntop()` — nginx's dual-stack address formatter |
 
@@ -185,7 +185,7 @@ and `cache/directives.c` which all correctly handle bracketed IPv6.
 
 ### 3.5 SSRF guard — already dual-stack (model for others)
 
-`src/tpc/connect.c::tpc_addr_is_prohibited()` (lines 29–126) is the reference
+`src/tpc/outbound/connect.c::tpc_addr_is_prohibited()` (lines 29–126) is the reference
 implementation for dual-stack address classification:
 
 - **IPv4**: checks 127/8, 169.254/16, 10/8, 172.16/12, 192.168/16
@@ -433,7 +433,7 @@ doesn't use `inet_ntop()`.
 
 | Test | Description |
 |------|-------------|
-| `test_locate_ipv6_conformance` | Compare `kXR_locate` response between nginx-xrootd and reference xrootd on IPv6 |
+| `test_locate_ipv6_conformance` | Compare `kXR_locate` response between gnuBall and reference xrootd on IPv6 |
 | `test_stats_ipv6_conformance` | Compare XML stats format on IPv6 listener |
 | `test_xrdcp_ipv6` | `xrdcp` transfers over IPv6 — compare data integrity with reference xrootd |
 | `test_xrdcp_ipv6_redirect` | xrdcp follows IPv6 redirect — compare with reference xrootd behavior |
@@ -575,7 +575,7 @@ the chosen endpoint in a `struct sockaddr_storage`.
 **Reference implementations in this codebase**:
 - `src/net/upstream/start.c` — upstream redirector connect (dual-stack)
 - `src/net/proxy/connect_upstream.c` — proxy upstream connect (dual-stack)
-- `src/tpc/connect.c` — TPC connect
+- `src/tpc/outbound/connect.c` — TPC connect
 - `src/fs/cache/origin_connection.c` — cache origin connect
 
 ### 7.2 P1 — Fix kXR_locate IPv6 response
@@ -662,7 +662,7 @@ Add `AF_INET6` branch alongside existing `AF_INET` check.
 
 ## 8. Comparison with Reference XRootD
 
-| Behavior | Reference xrootd | nginx-xrootd current | Gap |
+| Behavior | Reference xrootd | gnuBall current | Gap |
 |----------|-----------------|---------------------|-----|
 | Listen on dual-stack | Yes (`IPV6_V6ONLY` configurable) | Depends on nginx default + OS | Documented, testable |
 | `kXR_locate` IPv6 response | Bracketed `[addr]:port` | `"localhost"` for IPv6 | **P1** |

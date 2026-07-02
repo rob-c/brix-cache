@@ -101,14 +101,14 @@ driver slot with `xrootd_vfs_export_relative(ctx, path)`; else the POSIX helper.
 
 | File | Current (POSIX) | → Driver slot | Unblocks |
 |---|---|---|---|
-| `src/fs/vfs_stat.c` | `xrootd_lstat_confined_canon` | `driver->stat` | root:// `kXR_stat`/`statx`, WebDAV **HEAD/PROPFIND**, conditional GET/PUT |
-| `src/fs/vfs_dir.c` | `xrootd_opendir_confined_canon` + per-child `lstat` | `driver->opendir/readdir/closedir` (+ `stat`) | root:// `kXR_dirlist`, WebDAV **PROPFIND** depth:1 |
-| `src/fs/vfs_mkdir.c` | `xrootd_ns_mkdir` (+ `xrootd_chmod_confined_canon`) | `driver->mkdir` | root:// `kXR_mkdir`, WebDAV **MKCOL** |
-| `src/fs/vfs_unlink.c` | `xrootd_ns_delete` | `driver->unlink` | root:// `kXR_rm`/`kXR_rmdir`, WebDAV **DELETE** |
-| `src/fs/vfs_rename.c` | `xrootd_ns_rename` | `driver->rename` | root:// `kXR_mv`, WebDAV **MOVE** |
-| `src/fs/vfs_xattr.c` | `xrootd_*xattr_confined_canon` | `driver->getxattr/listxattr/setxattr/removexattr` | WebDAV **PROPPATCH/LOCK** dead-props, checksum xattrs |
-| `src/fs/vfs_copy.c` | `xrootd_ns_local_copy` | `driver->server_copy` | root:// clone, WebDAV **COPY** |
-| `src/fs/vfs_sync.c` | (data-plane fsync) | `driver->fsync` via the obj | `kXR_sync` durability |
+| `src/fs/vfs/vfs_stat.c` | `xrootd_lstat_confined_canon` | `driver->stat` | root:// `kXR_stat`/`statx`, WebDAV **HEAD/PROPFIND**, conditional GET/PUT |
+| `src/fs/vfs/vfs_dir.c` | `xrootd_opendir_confined_canon` + per-child `lstat` | `driver->opendir/readdir/closedir` (+ `stat`) | root:// `kXR_dirlist`, WebDAV **PROPFIND** depth:1 |
+| `src/fs/vfs/vfs_mkdir.c` | `xrootd_ns_mkdir` (+ `xrootd_chmod_confined_canon`) | `driver->mkdir` | root:// `kXR_mkdir`, WebDAV **MKCOL** |
+| `src/fs/vfs/vfs_unlink.c` | `xrootd_ns_delete` | `driver->unlink` | root:// `kXR_rm`/`kXR_rmdir`, WebDAV **DELETE** |
+| `src/fs/vfs/vfs_rename.c` | `xrootd_ns_rename` | `driver->rename` | root:// `kXR_mv`, WebDAV **MOVE** |
+| `src/fs/vfs/vfs_xattr.c` | `xrootd_*xattr_confined_canon` | `driver->getxattr/listxattr/setxattr/removexattr` | WebDAV **PROPPATCH/LOCK** dead-props, checksum xattrs |
+| `src/fs/vfs/vfs_copy.c` | `xrootd_ns_local_copy` | `driver->server_copy` | root:// clone, WebDAV **COPY** |
+| `src/fs/vfs/vfs_sync.c` | (data-plane fsync) | `driver->fsync` via the obj | `kXR_sync` durability |
 
 *Risk:* low — gated; the POSIX path is byte-for-byte unchanged.
 *Effort:* ~7 small files, one branch each.
@@ -134,13 +134,13 @@ only **block 0** (or `NGX_INVALID_FILE`), so read/write are wrong/short.
 
 - **3a. Carrier.** Add an `xrootd_sd_obj_t` (driver + per-open state) to the
   open-file slot `xrootd_file_t` (`src/core/types/file.h`) and to the `io_core` job
-  (`src/fs/vfs_io_core.h`), beside the existing `fd`.
+  (`src/fs/vfs/vfs_io_core.h`), beside the existing `fd`.
 - **3b. Open → handle.** `read/open_resolved_file.c` uses `xrootd_vfs_open_fd_at`
   (bare fd). Route it through `xrootd_vfs_open` (handle) and store `fh->obj` in the
   slot. Same migration for the bare-fd helpers `xrootd_vfs_open_fd[_at]`
   (`vfs_walk.c`) used by **S3 PUT** (`s3/put.c:237`), **TPC** (`tpc/launch.c`,
   `webdav/tpc_curl.c`), **CMS** (`cms/recv.c`).
-- **3c. io_core dispatch.** `src/fs/vfs_io_core.c` (`read/write/readv/pgread/writev/
+- **3c. io_core dispatch.** `src/fs/vfs/vfs_io_core.c` (`read/write/readv/pgread/writev/
   sync/truncate`) currently `xrootd_sd_posix_wrap(job->fd)`. Dispatch through the
   job's obj `driver` instead. Callers to pass the obj: `read/read.c`, `read/readv.c`,
   `read/pgread.c`, `write/write.c`, `write/pgwrite.c`, `write/sync.c`,

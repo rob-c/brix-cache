@@ -5,7 +5,7 @@
 #include <ngx_core.h>
 #include <ngx_http.h>
 
-#include "codec_core.h"
+#include "core/compat/codec_core.h"
 
 /* Default decompression-bomb expansion-ratio ceiling for inbound (PUT) decode of
  * untrusted bodies: reject once output/input exceeds this (engages after 64 KiB

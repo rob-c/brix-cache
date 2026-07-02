@@ -171,10 +171,10 @@ impersonation behaviour explicitly.
    ├── LIVE metadata:      vfs_stat / vfs_copy / vfs_opendir+readdir / vfs_io_execute OPENDIR
    │
    ▼
- VFS public API (src/fs/vfs_*.c)
+ VFS public API (src/fs/vfs/vfs_*.c)
    │  confinement re-check · write gate · cache integration · metrics · access log
    ▼
- VFS I/O core (src/fs/vfs_io_core.c) — POD jobs, NO pool/metrics/log/cache (thread-safe)
+ VFS I/O core (src/fs/vfs/vfs_io_core.c) — POD jobs, NO pool/metrics/log/cache (thread-safe)
    │  xrootd_vfs_pread_full / pwrite_full / pgread_encode / readv_segments
    ▼
  Storage Driver seam (src/fs/backend/sd.h) — capability-typed vtable
@@ -382,8 +382,8 @@ while (done < len) {
 1. The three helpers **hard-code the `xrootd_sd_posix_driver` symbol** — they do
    *not* dispatch through `obj->driver`. So they are POSIX-only by construction;
    the indirection exercises **no** backend pluggability. (Verified: `grep -n
-   'driver\.\|driver->' src/fs/vfs_read.c src/fs/vfs_write.c
-   src/fs/vfs_io_core.c` shows only the literal `xrootd_sd_posix_driver.` form.)
+   'driver\.\|driver->' src/fs/vfs/vfs_read.c src/fs/vfs/vfs_write.c
+   src/fs/vfs/vfs_io_core.c` shows only the literal `xrootd_sd_posix_driver.` form.)
 2. They are the per-chunk inner loop on every funnel. `write_file_buf` and the
    stream offloads iterate in 64 KB chunks (`XROOTD_VFS_COPY_CHUNK = 65536`,
    `vfs_internal.h:45`). A 1 GB transfer ⇒ ~16 384 iterations, each paying: a
@@ -1596,23 +1596,23 @@ ngx_int_t (*statx_batch)(xrootd_sd_dir_t *d, int dfd, const char *const *names,
 A concrete starting point for the lowest-risk steps. Each is behaviour- or
 metrics-identical; full text lives in the cited functions.
 
-- **`src/fs/vfs_read.c` — `xrootd_vfs_pread_full` (A-1):** delete the
+- **`src/fs/vfs/vfs_read.c` — `xrootd_vfs_pread_full` (A-1):** delete the
   `xrootd_sd_obj_t obj; xrootd_sd_posix_wrap(&obj, fd);` lines and replace
   `xrootd_sd_posix_driver.pread(&obj, buf+done, len-done, off+done)` with
   `pread(fd, buf+done, len-done, offset+(off_t)done)`. Drop the now-unused
   `#include "backend/sd.h"` if nothing else needs it.
-- **`src/fs/vfs_write.c` — `xrootd_vfs_pwrite_full` (A-1):** symmetric, `pwrite`.
-- **`src/fs/vfs_io_core.c` — `xrootd_vfs_io_write_counted` (A-1):** drop the
+- **`src/fs/vfs/vfs_write.c` — `xrootd_vfs_pwrite_full` (A-1):** symmetric, `pwrite`.
+- **`src/fs/vfs/vfs_io_core.c` — `xrootd_vfs_io_write_counted` (A-1):** drop the
   `obj`/`wrap`; replace the `xrootd_sd_posix_driver.pwrite(&obj, …)` call with
   `pwrite(fd, …)`. Leave `_execute_sync`/`_execute_truncate` routing through the
   seam as-is (those are single ops, not inner loops — the indirection cost is
   irrelevant and the seam reads cleaner; or convert them too for consistency).
-- **`src/fs/vfs_open.c` — `xrootd_vfs_open` rootfd≥0 branch (B-1):** gate the
+- **`src/fs/vfs/vfs_open.c` — `xrootd_vfs_open` rootfd≥0 branch (B-1):** gate the
   `driver->open` dispatch on `ctx->sd != NULL && ctx->sd->driver !=
   &xrootd_sd_posix_driver`; else `fd = xrootd_open_beneath(ctx->rootfd, path,
   oflags, 0644);`. Remove the unconditional `xrootd_sd_posix_borrow_instance`
   call.
-- **`src/fs/vfs_internal.h` — add `xrootd_vfs_now_ns()` (D-1)** and change
+- **`src/fs/vfs/vfs_internal.h` — add `xrootd_vfs_now_ns()` (D-1)** and change
   `xrootd_vfs_observe_*` to take `uint64_t start_ns`; `xrootd_vfs_elapsed_usec`
   becomes `(now_ns - start_ns)/1000`. Update the ~7 ctx-op call sites
   (`vfs_stat/copy/rename/unlink/mkdir/dir/staged`) to capture `start_ns` instead
@@ -1632,15 +1632,15 @@ metrics-identical; full text lives in the cited functions.
 
 ## 16. Files in scope (reference index)
 
-**VFS public + internal:** `src/fs/vfs.h`, `src/fs/vfs_internal.h`,
-`src/fs/vfs_open.c` (B-1, B-3, B-4), `src/fs/vfs_read.c` (A-1; E-1 **dead body**),
-`src/fs/vfs_write.c` (A-1; E-2, E-3 **dead body**), `src/fs/vfs_stat.c` (C-2),
-`src/fs/vfs_dir.c` (C-1, C-5), `src/fs/vfs_copy.c` (B-5), `src/fs/vfs_staged.c`
-(B-5, D-1), `src/fs/vfs_rename.c` / `vfs_unlink.c` / `vfs_mkdir.c` / `vfs_xattr.c`
+**VFS public + internal:** `src/fs/vfs/vfs.h`, `src/fs/vfs/vfs_internal.h`,
+`src/fs/vfs/vfs_open.c` (B-1, B-3, B-4), `src/fs/vfs/vfs_read.c` (A-1; E-1 **dead body**),
+`src/fs/vfs/vfs_write.c` (A-1; E-2, E-3 **dead body**), `src/fs/vfs/vfs_stat.c` (C-2),
+`src/fs/vfs/vfs_dir.c` (C-1, C-5), `src/fs/vfs/vfs_copy.c` (B-5), `src/fs/vfs/vfs_staged.c`
+(B-5, D-1), `src/fs/vfs/vfs_rename.c` / `vfs_unlink.c` / `vfs_mkdir.c` / `vfs_xattr.c`
 (D-1 observers).
 
-**I/O core:** `src/fs/vfs_io_core.c` (A-1 `write_counted`; C-3/C-4 dirlist; D-2
-COMPLETE), `src/fs/vfs_io_core.h`.
+**I/O core:** `src/fs/vfs/vfs_io_core.c` (A-1 `write_counted`; C-3/C-4 dirlist; D-2
+COMPLETE), `src/fs/vfs/vfs_io_core.h`.
 
 **Storage Driver seam:** `src/fs/backend/sd.h` (C-1 dirent, B-2/C-3 new slots),
 `src/fs/backend/sd_posix.c` (A-1 raw slots, B-1 borrow, B-2 fadvise, C-1 d_type),

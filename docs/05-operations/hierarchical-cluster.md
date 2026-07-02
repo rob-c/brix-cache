@@ -1,7 +1,7 @@
 # Full Hierarchical CMS Cluster
 
 The XRootD CMS cluster protocol from first principles: what it is, where it
-appears in HEP deployments, what nginx-xrootd implements today, and which
+appears in HEP deployments, what gnuBall implements today, and which
 gateway/proxy extensions remain outside the completed native redirect path.
 
 See [cluster-mode.md](cluster-management.md) for the existing two-tier configuration
@@ -96,7 +96,7 @@ origin.
 The Open Science Grid (DOMA storage task force) federates over 100 sites under
 a common namespace. No single redirector can hold registry entries for every
 storage node at every site — the hierarchy is essential for scale. Sites running
-nginx-xrootd as a sub-manager can use live CMS escalation for native redirect
+gnuBall as a sub-manager can use live CMS escalation for native redirect
 workflows; static `xrootd_manager_map` remains available for simple fixed-prefix
 routing.
 
@@ -113,7 +113,7 @@ classify the replica as unavailable.
 
 Both dCache and EOS expose an XRootD door that registers each storage pool as
 a data server. They interoperate with an external redirector that acts as the
-sub-manager for a site. When nginx-xrootd is that external redirector, it
+sub-manager for a site. When gnuBall is that external redirector, it
 needs to accept registrations from dCache / EOS pool managers and in turn
 report to a site-level or experiment-level parent.
 

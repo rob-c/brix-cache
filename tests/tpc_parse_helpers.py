@@ -2,7 +2,7 @@
 tpc_parse_helpers.py — Python reimplementation of the native TPC opaque
 parameter parser for testing.
 
-Mirrors the C parser in src/tpc/parse.c so Python tests can verify the
+Mirrors the C parser in src/tpc/engine/parse.c so Python tests can verify the
 opaque parameter parsing logic without starting an nginx server.
 """
 
@@ -43,7 +43,7 @@ def parse_tpc_opaque(opaque: str) -> TpcOpaqueResult:
     """
     Parse tpc.* parameters from an opaque query string.
 
-    Mirrors the C parser in src/tpc/parse.c.
+    Mirrors the C parser in src/tpc/engine/parse.c.
     Returns a TpcOpaqueResult with populated fields.
     """
     out = TpcOpaqueResult()

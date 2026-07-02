@@ -1,4 +1,4 @@
-# nginx-xrootd Logical Pathways: Tier 1 & Tier 2
+# gnuBall Logical Pathways: Tier 1 & Tier 2
 
 This document maps the architectural pathways within the `nginx-xrootd` module, categorizing them into **Tier 1** (Core Data & Security) and **Tier 2** (Clustering & Advanced Features).
 
@@ -64,8 +64,8 @@ These pathways provide interoperability with larger XRootD clusters and optimize
 
 ### B. Third-Party Copy (TPC)
 - **Logic Flow**:
-  1. `src/tpc/launch.c`: Initiates a transfer between two remote servers.
-  2. `src/tpc/key_registry.c`: Manages SHM-based authorization keys for native XRootD TPC.
+  1. `src/tpc/engine/launch.c`: Initiates a transfer between two remote servers.
+  2. `src/tpc/engine/key_registry.c`: Manages SHM-based authorization keys for native XRootD TPC.
   3. `src/protocols/webdav/tpc.c`: Handles HTTP-based TPC pull/push using libcurl.
 
 ### C. Advanced I/O (AIO & Page-based)

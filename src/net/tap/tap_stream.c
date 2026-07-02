@@ -11,7 +11,7 @@
  */
 
 #include "tap.h"
-#include "protocols/root/protocol/opcodes.h"   /* kXR_writev */
+#include "protocols/root/protocol/opcodes.h"   /* kXR_writev, kXR_chkpoint */
 
 #include <string.h>
 
@@ -53,6 +53,17 @@ tap_stream_on_header(xrootd_tap_stream_t *st)
                        && st->cur.dlen % 16 == 0);
     st->wv_desc_got = 0;
     st->wv_extra    = 0;
+
+    /* kXR_chkpoint/ckpXeq stock framing: dlen covers only the embedded
+     * 24-byte sub-request header; the sub-request body streams after the
+     * frame (see chkpoint_xeq.c).  Capture the embedded header as it passes
+     * so the trailing byte count can be recovered once the frame completes.
+     * The ckpXeq opcode byte sits at header offset 19 (kXR_ckpXeq == 4). */
+    st->ckp_active  = (st->dir == XROOTD_TAP_C2U
+                       && st->cur.opcode == kXR_chkpoint
+                       && st->hdr[19] == 4
+                       && st->cur.dlen == 24);
+    st->ckp_hdr_got = 0;
 
     /* The path lives in the payload that follows the header (not in our 24B hdr
      * buffer), so decide path-capture from the opcode and capture it ourselves. */
@@ -119,6 +130,15 @@ xrootd_tap_stream_feed(xrootd_tap_stream_t *st, const uint8_t *buf, size_t len)
                 st->path_got += cap;
             }
 
+            /* ckpXeq embedded-header pass: capture the 24-byte sub-request
+             * header (it is the entire dlen-framed payload). */
+            if (st->ckp_active && st->ckp_hdr_got < sizeof(st->ckp_hdr)) {
+                size_t cap = sizeof(st->ckp_hdr) - st->ckp_hdr_got;
+                if (cap > take) { cap = take; }
+                memcpy(st->ckp_hdr + st->ckp_hdr_got, buf, cap);
+                st->ckp_hdr_got += cap;
+            }
+
             /* writev descriptor pass: fold each completed 16-byte descriptor's
              * big-endian wlen (offset 4) into the trailing-data total. */
             if (st->wv_active) {
@@ -156,6 +176,43 @@ xrootd_tap_stream_feed(xrootd_tap_stream_t *st, const uint8_t *buf, size_t len)
                 st->emitted = 1;
             }
             if (st->payload_left == 0) {
+                /* ckpXeq embedded header done: the sub-request body
+                 * (sub_dlen bytes) streams next.  Mirror the server framing
+                 * (xrootd_ckpxeq_body_extra): only extend for the embeds and
+                 * bounds the server itself accepts — anything else makes the
+                 * server drop the link, which tears the relay down too.
+                 * An embedded writev extends by its descriptor block and
+                 * arms the wv_* machinery, which then extends again by
+                 * sum(wlen) exactly like a standalone writev. */
+                if (st->ckp_active) {
+                    uint16_t sub_reqid = ((uint16_t) st->ckp_hdr[2] << 8)
+                                       |  (uint16_t) st->ckp_hdr[3];
+                    uint64_t sub_dlen  = ((uint64_t) st->ckp_hdr[20] << 24)
+                                       | ((uint64_t) st->ckp_hdr[21] << 16)
+                                       | ((uint64_t) st->ckp_hdr[22] << 8)
+                                       |  (uint64_t) st->ckp_hdr[23];
+
+                    st->ckp_active = 0;
+                    if (sub_dlen > 0 && st->ckp_hdr_got == sizeof(st->ckp_hdr)) {
+                        if ((sub_reqid == kXR_write || sub_reqid == kXR_pgwrite)
+                            && sub_dlen <= 16u * 1024 * 1024) /* MAX_WRITE_PAYLOAD */
+                        {
+                            st->payload_left = sub_dlen;
+                            continue;
+                        }
+                        if (sub_reqid == kXR_writev
+                            && sub_dlen % 16 == 0
+                            && sub_dlen <= 1024 * 16)  /* MAXSEGS * SEGSIZE */
+                        {
+                            st->payload_left = sub_dlen;
+                            st->wv_active    = 1;
+                            st->wv_desc_got  = 0;
+                            st->wv_extra     = 0;
+                            continue;
+                        }
+                    }
+                }
+
                 /* Descriptors done: the segment data (sum(wlen) bytes) streams
                  * next — extend consumption instead of closing the frame. */
                 if (st->wv_active) {

@@ -20,6 +20,7 @@
 
 #include "pelican_register.h"
 #include "auth/token/jwt_sign.h"
+#include "core/ident.h"
 
 #include <ngx_thread_pool.h>
 #include <curl/curl.h>
@@ -125,7 +126,8 @@ xrootd_pelican_build_ad(ngx_stream_xrootd_srv_conf_t *conf, time_t now)
                         json_string(conf->cache_advertise_instance));
     json_object_set_new(ad, "generationID",
                         json_integer((json_int_t) conf->cache_advertise_gen));
-    json_object_set_new(ad, "version", json_string("nginx-xrootd"));
+    json_object_set_new(ad, "version",
+                        json_string(XROOTD_SERVER_NAME " " XROOTD_SERVER_VERSION));
     json_object_set_new(ad, "expiry", json_string(expiry));
 
     json_object_set_new(ad, "serverId", json_string(site));

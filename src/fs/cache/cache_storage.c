@@ -5,7 +5,7 @@
 #include "cache_storage.h"
 #include "cache_internal.h"               /* xrootd_cache_build_origin (shared read-origin map) */
 #include "cstore.h"                       /* policy-layer cstore adapter */
-#include "fs/vfs_backend_registry.h"   /* xrootd_vfs_backend_resolve */
+#include "fs/vfs/vfs_backend_registry.h"   /* xrootd_vfs_backend_resolve */
 #include "fs/backend/xroot/sd_xroot.h" /* xrootd_sd_xroot_create_origin (§6.5) */
 #include "fs/backend/cache/sd_cache.h" /* xrootd_sd_cache_create (slice decorator) */
 #include "fs/backend/stage/sd_stage.h" /* xrootd_sd_stage_create (write-through) */

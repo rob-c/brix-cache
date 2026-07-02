@@ -26,7 +26,7 @@
 
 > **RESULT: GO.** Baseline: the 4 self-contained tape harnesses (`run_tape_recall_stream/async/exec_adapter`, `run_s3_tape_residency`) ALL PASS; the frm pytest is blocked by a conftest `start-all` fleet-setup failure (environment, not a code result).
 >
-> **Residency (Task 1) — already seam-backed.** `xrootd_vfs_residency` (`src/fs/vfs_stat.c:147`) ALREADY dispatches to `inst->driver->residency` (the `sd_frm` slot), NOT `frm_residency_probe`. Task 1 is small: migrate the DIRECT callers `open_request.c` (`frm_residency_probe`) and `tape_rest.c` (`frm_file_locality`) onto the seam, then drop `frm_residency*`.
+> **Residency (Task 1) — already seam-backed.** `xrootd_vfs_residency` (`src/fs/vfs/vfs_stat.c:147`) ALREADY dispatches to `inst->driver->residency` (the `sd_frm` slot), NOT `frm_residency_probe`. Task 1 is small: migrate the DIRECT callers `open_request.c` (`frm_residency_probe`) and `tape_rest.c` (`frm_file_locality`) onto the seam, then drop `frm_residency*`.
 >
 > **Waiter (Task 2) — engine has the anchor.** The engine's durable record (`stage_engine.h:66`) carries `open_options` "echoed to a parked open on wake" + `state` — the park/wake substrate exists; Task 2 wires `open_request`/`recv` onto it.
 >
@@ -37,7 +37,7 @@
 ### Task 0 (original): SPIKE — baseline + confirm sd_frm/engine can back all four FRM capabilities (GATES EVERYTHING)
 
 **Files:**
-- Read: `src/fs/backend/frm/sd_frm.{c,h}`, `src/fs/xfer/stage_engine.{c,h}`, `src/frm/frm.h`, `src/fs/vfs.h:200-212` (`xrootd_vfs_residency`), `src/fs/vfs_backend_registry.c:929-935` (`xrootd_sd_frm_create`)
+- Read: `src/fs/backend/frm/sd_frm.{c,h}`, `src/fs/xfer/stage_engine.{c,h}`, `src/frm/frm.h`, `src/fs/vfs/vfs.h:200-212` (`xrootd_vfs_residency`), `src/fs/vfs/vfs_backend_registry.c:929-935` (`xrootd_sd_frm_create`)
 - Test: the full gating set
 
 **Interfaces:**
@@ -48,7 +48,7 @@
 
 Run: `for h in run_tape_recall_stream run_tape_recall_async run_tape_exec_adapter run_s3_tape_residency; do bash tests/$h.sh; done` and `PYTHONPATH=tests pytest tests/test_frm_async.py tests/test_frm_control_locality.py -q -p no:cacheprovider`.
 
-- [ ] **Step 2: Confirm the residency seam is sd_frm-backed.** Trace `xrootd_vfs_residency` — does it call `frm_residency_probe` (the FRM path) or dispatch to the resolved SD instance's residency slot (`sd_frm`)? Grep `grep -n 'frm_residency\|residency\|driver->residency\|sd_frm' src/fs/vfs_residency*.c src/fs/vfs.h`. Record which, since Task 1 flips it to the driver slot.
+- [ ] **Step 2: Confirm the residency seam is sd_frm-backed.** Trace `xrootd_vfs_residency` — does it call `frm_residency_probe` (the FRM path) or dispatch to the resolved SD instance's residency slot (`sd_frm`)? Grep `grep -n 'frm_residency\|residency\|driver->residency\|sd_frm' src/fs/vfs_residency*.c src/fs/vfs/vfs.h`. Record which, since Task 1 flips it to the driver slot.
 
 - [ ] **Step 3: Decide the QUEUE STRATEGY.** Compare `frm_queue`'s operations (`frm_request_add/get/set_status/delete/owner_check/find_by_path/list/cancel/claim`, reqid gen) against `stage_engine`'s `xrootd_stage_queue_t` + `xrootd_stage_submit`. Record: (A) the engine journal already carries per-request records with an id/owner/status the tape API can enumerate → re-home directly; or (B) a thin `stage_request_registry` (reqid/owner/list/cancel over the engine's records) must be added. Write the decision into this plan's header.
 

@@ -8,8 +8,8 @@
 
 #include "webdav.h"
 #include "fs/path/path.h"
-#include "fs/vfs.h"
-#include "core/compat/http_xml.h"
+#include "fs/vfs/vfs.h"
+#include "core/http/http_xml.h"
 #include "core/compat/namespace_ops.h"
 
 #include <errno.h>

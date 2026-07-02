@@ -13,7 +13,7 @@
 
 #include <stdio.h>
 #include <string.h>
-#include "alloc_guard.h"
+#include "core/compat/alloc_guard.h"
 
 /*
  * xrootd_http_chain_append_file_range - append one file-backed ngx_buf_t to a chain.

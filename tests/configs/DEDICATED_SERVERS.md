@@ -55,7 +55,7 @@ All dedicated instances are managed by `manage_test_servers.sh start-all` at ses
 ### 4. Root TPC — **HIGH priority**
 
 **Config:** `tests/configs/nginx_root_tpc.conf`
-**What it does:** XRootD stream with `xrootd_stream_allow_write on` and root directory set to a writable temp dir. Tests native TPC (`kXR_locate2`) transfers from the root directory — source and destination are both xrootd servers, transfer via shared memory key registry (`src/tpc/key_registry.c`).
+**What it does:** XRootD stream with `xrootd_stream_allow_write on` and root directory set to a writable temp dir. Tests native TPC (`kXR_locate2`) transfers from the root directory — source and destination are both xrootd servers, transfer via shared memory key registry (`src/tpc/engine/key_registry.c`).
 **Why dedicated:** Native TPC requires two stable server ports (source + dest) communicating via SHM. Tests need consistent ports across multiple TPC scenarios (same-server, cross-server, partial failure). The shared instance's root is `/tmp/xrd-test/data` which may not be writable for all tests.
 **Recommended ports:** `11123` (source), `11124` (dest)
 

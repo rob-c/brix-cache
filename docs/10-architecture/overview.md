@@ -302,4 +302,4 @@ For the complete operation-to-file mapping, see [AGENTS.md](../../AGENTS.md).
 - **[What Is This Project?](../01-getting-started/what-is-this.md)** — Plain English explanation of what this module does
 - **[Deployment Modes](../02-concepts/deployment-modes.md)** — Which deployment pattern fits your needs
 - **[Architecture Deep Dive](../09-developer-guide/architecture-overview.md)** — Code paths, state machines, internals
-- **[XRootD Basics](../02-concepts/xrootd-basics.md)** — Understanding the XRootD protocol before diving into nginx-xrootd
+- **[XRootD Basics](../02-concepts/xrootd-basics.md)** — Understanding the XRootD protocol before diving into gnuBall

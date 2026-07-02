@@ -36,8 +36,8 @@
  *       callers must never close it afterwards.
  */
 #include "file_serve.h"
-#include "core/compat/http_file_response.h"
-#include "core/compat/http_compress.h"
+#include "core/http/http_file_response.h"
+#include "core/http/http_compress.h"
 #include "core/compat/range.h"
 #include "observability/dashboard/dashboard_tracking.h"
 #include "fs/cache/open.h"

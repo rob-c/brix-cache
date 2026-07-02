@@ -16,13 +16,13 @@
 */
 
 #include "http_body.h"
-#include "copy_range.h"
-#include "codec_core.h"
-#include "fs/vfs.h"   /* xrootd_vfs_pread_full / pwrite_full (storage seam) */
+#include "core/compat/copy_range.h"
+#include "core/compat/codec_core.h"
+#include "fs/vfs/vfs.h"   /* xrootd_vfs_pread_full / pwrite_full (storage seam) */
 
 #include <errno.h>
 #include <unistd.h>
-#include "alloc_guard.h"
+#include "core/compat/alloc_guard.h"
 
 #define XROOTD_INFLATE_OUT_BUFSZ  (64 * 1024)
 #define XROOTD_INFLATE_IN_BUFSZ   (64 * 1024)

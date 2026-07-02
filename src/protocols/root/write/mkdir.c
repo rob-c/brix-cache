@@ -4,8 +4,8 @@
 
 #include "core/ngx_xrootd_module.h"
 #include "core/compat/error_mapping.h"
-#include "fs/vfs.h"   /* mkdir via the VFS seam */
-#include "fs/vfs_backend_registry.h"   /* POSIX-vs-driver export check for group policy */
+#include "fs/vfs/vfs.h"   /* mkdir via the VFS seam */
+#include "fs/vfs/vfs_backend_registry.h"   /* POSIX-vs-driver export check for group policy */
 
 /*
  * xrootd_handle_mkdir â create a directory within the export root.

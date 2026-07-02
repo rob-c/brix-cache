@@ -86,6 +86,51 @@ xrootd_ensure_payload_buffer(xrootd_ctx_t *ctx, ngx_connection_t *c,
     return NGX_OK;
 }
 
+/* xrootd_grow_payload_buffer — enlarge payload_buf PRESERVING received bytes
+ * WHAT: Grows the payload buffer to hold dlen (+1 NUL guard) bytes while keeping
+ * the payload_pos bytes already accumulated. Used mid-request by the kXR_writev
+ * body extension, which raises the expected body length AFTER the descriptor
+ * block has been received into the buffer.
+ * WHY: xrootd_ensure_payload_buffer free-then-allocs on resize (it only runs at
+ * request start, when the buffer is empty), which would discard the descriptor
+ * block here. The caller has already bounded dlen (descriptors + data <=
+ * XROOTD_MAX_WRITE_PAYLOAD), so the allocation cannot be attacker-inflated. */
+static ngx_int_t
+xrootd_grow_payload_buffer(xrootd_ctx_t *ctx, ngx_connection_t *c,
+    uint32_t dlen)
+{
+    u_char  *buf;
+    size_t   need;
+
+    if (dlen > (uint32_t) (SIZE_MAX - 1)) {
+        return NGX_ERROR;
+    }
+    need = (size_t) dlen + 1;
+
+    if (ctx->payload_buf != NULL && ctx->payload_buf_size >= need) {
+        ctx->payload = ctx->payload_buf;
+        ctx->payload[dlen] = '\0';
+        return NGX_OK;
+    }
+
+    buf = ngx_alloc(need, c->log);
+    if (buf == NULL) {
+        return NGX_ERROR;
+    }
+
+    if (ctx->payload_buf != NULL) {
+        ngx_memcpy(buf, ctx->payload_buf, ctx->payload_pos);
+        ngx_free(ctx->payload_buf);
+    }
+
+    ctx->payload_buf = buf;
+    ctx->payload_buf_size = need;
+    ctx->payload = buf;
+    ctx->payload[dlen] = '\0';
+
+    return NGX_OK;
+}
+
  /*
  *
  * WHAT: The core async recv loop that drives the XRootD protocol lifecycle on each TCP connection. Called by nginx whenever data is available or timeout fires.
@@ -346,8 +391,19 @@ ngx_stream_xrootd_recv(ngx_event_t *rev)
                      * also catches a connection that finished its current op
                      * *after* the quit began (which ngx_close_idle_connections,
                      * a one-shot at quit, would have missed).
+                     *
+                     * BUT only when no file is open: a connection holding an open
+                     * handle is mid-transfer (a streaming read parked between
+                     * kXR_read chunks, or a cache slice-fill in progress). Forcing
+                     * a reconnect there loses the in-flight fill and surfaces as a
+                     * spurious kXR_NotFound to the client — especially through a
+                     * proxy/cache tier, where the reconnect must re-open and resume
+                     * mid-stream. Standard graceful-reload semantics: let the
+                     * active transfer finish on the old worker (bounded by nginx's
+                     * worker_shutdown_timeout backstop); tear down only once it is
+                     * a true idle keepalive with no open handles.
                      */
-                    if (ngx_exiting) {
+                    if (ngx_exiting && !xrootd_ctx_has_open_file(ctx)) {
                         xrootd_on_disconnect(ctx, c);
                         xrootd_close_all_files(ctx);
                         ngx_stream_finalize_session(s, NGX_STREAM_OK);
@@ -359,16 +415,23 @@ ngx_stream_xrootd_recv(ngx_event_t *rev)
                      * drops this parked keepalive connection immediately instead
                      * of leaving it open until the worker finally exits.  Cleared
                      * at the top of this handler the moment we service it again.
+                     * An open handle means an active transfer, not a keepalive
+                     * idle — leave it un-idle so the reload lets it complete.
                      */
-                    c->idle = 1;
+                    c->idle = xrootd_ctx_has_open_file(ctx) ? 0 : 1;
                 }
             }
             dest = ctx->hdr_buf + ctx->hdr_pos;
             need = XRD_REQUEST_HDR_LEN - ctx->hdr_pos;
 
         } else {
+            /* cur_body_extra is non-zero only for kXR_writev (segment data
+             * streams after the dlen-framed descriptor block) and for
+             * kXR_chkpoint/ckpXeq (the sub-request body streams after the
+             * dlen-framed embedded sub-header). */
             dest = ctx->payload + ctx->payload_pos;
-            need = ctx->cur_dlen - ctx->payload_pos;
+            need = (size_t) ctx->cur_dlen + ctx->cur_body_extra
+                   - ctx->payload_pos;
         }
 
         if (need > 0) {
@@ -482,6 +545,8 @@ ngx_stream_xrootd_recv(ngx_event_t *rev)
             ctx->cur_reqid = ntohs(hdr->requestid);
             ngx_memcpy(ctx->cur_body, hdr->body, 16);
             ctx->cur_dlen = (uint32_t) ntohl(hdr->dlen);
+            ctx->cur_body_extra = 0;
+            ctx->cur_body_extended = 0;
             XROOTD_SRV_METRIC_INC(ctx, request_frames_total);
             XROOTD_SRV_METRIC_ADD(ctx, request_payload_bytes_total,
                                   ctx->cur_dlen);
@@ -595,6 +660,81 @@ ngx_stream_xrootd_recv(ngx_event_t *rev)
             }
 
         } else {
+            /*
+             * kXR_writev stock wire framing: the header dlen covers ONLY the
+             * 16-byte write_list descriptor block; sum(wlen) bytes of segment
+             * data stream after the frame (XrdXrootdProtocol::do_WriteV +
+             * do_WriteVec — the reference client sends dlen = 16*N).  The
+             * descriptor block just completed, so validate it and extend the
+             * read obligation by the trailing data length; descriptors + data
+             * then land contiguously in payload_buf before dispatch.  A
+             * malformed block is deliberately NOT rejected here: dispatch must
+             * still run the login/auth/write gates first, and the handler then
+             * emits the stock-parity error and drops the link (once the
+             * descriptor framing is in doubt no resync is possible anyway).
+             * xrootd_writev_body_extra caps descriptors + data at
+             * XROOTD_MAX_WRITE_PAYLOAD, so the grow below is bounded.
+             */
+            if (ctx->cur_reqid == kXR_writev && !ctx->cur_body_extended) {
+                uint32_t extra;
+
+                ctx->cur_body_extended = 2;
+
+                if (xrootd_writev_body_extra(ctx->payload, ctx->cur_dlen,
+                                             &extra) == NGX_OK
+                    && extra > 0)
+                {
+                    if (xrootd_grow_payload_buffer(ctx, c,
+                            ctx->cur_dlen + extra) != NGX_OK)
+                    {
+                        break;
+                    }
+                    ctx->cur_body_extra = extra;
+                    continue;   /* keep receiving the streamed segment data */
+                }
+            }
+
+            /*
+             * kXR_chkpoint/kXR_ckpXeq stock wire framing: the header dlen
+             * covers ONLY the embedded 24-byte sub-request header (stock
+             * do_ChkPntXeq rejects any other dlen); the sub-request body
+             * streams after the frame, exactly like the raw data of a plain
+             * write (XrdCl::MessageUtils marks ckpXeq write/pgwrite/writev
+             * as raw-body requests).  The extension runs in up to two
+             * stages — embedded header -> sub_dlen bytes, then for an
+             * embedded kXR_writev the descriptor block -> sum(wlen) data —
+             * so cur_body_extended counts stages (2 = done).  As with plain
+             * writev, a contract violation is NOT rejected here: dispatch
+             * must run the auth gates first, and the handler then emits the
+             * stock-parity error and drops the link (the un-extended
+             * trailing bytes make resync impossible).  Both stages are
+             * bounded (XROOTD_MAX_WRITE_PAYLOAD), so the grow is safe.
+             */
+            if (ctx->cur_reqid == kXR_chkpoint
+                && ctx->cur_body[15] == kXR_ckpXeq
+                && ctx->cur_dlen == XRD_REQUEST_HDR_LEN
+                && ctx->cur_body_extended < 2)
+            {
+                uint32_t extra = 0;
+                unsigned final = 1;
+
+                (void) xrootd_ckpxeq_body_extra(ctx->payload,
+                           ctx->cur_dlen + ctx->cur_body_extra,
+                           &extra, &final);
+                ctx->cur_body_extended = final ? 2 : 1;
+
+                if (extra > 0) {
+                    if (xrootd_grow_payload_buffer(ctx, c,
+                            ctx->cur_dlen + ctx->cur_body_extra + extra)
+                        != NGX_OK)
+                    {
+                        break;
+                    }
+                    ctx->cur_body_extra += extra;
+                    continue;   /* keep receiving the streamed sub-body */
+                }
+            }
+
             /*
              * Phase 29 drain barrier (extended for write pipelining): kXR_read
              * and kXR_write both pipeline, so they are NOT deferred.  Every other

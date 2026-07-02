@@ -59,7 +59,7 @@ these need to be written. nginx handles them all.
 For comparison: the official XRootD daemon has its own process manager
 (`XrdSupervisor`), its own signal handling, its own config reload logic, and
 its own privilege-dropping code. That is thousands of lines of infrastructure
-code that nginx-xrootd simply does not need.
+code that gnuBall simply does not need.
 
 ---
 

@@ -242,13 +242,32 @@ gen_tpc_key(char *out, size_t outsz)
 
 
 /*
- * Server-side third-party copy (root://), source-first rendezvous:
- *   1. open SRC read with tpc.key=K & tpc.dst=root://dest//dpath  → registers K
- *   2. open DST write with tpc.src=root://src//spath & tpc.key=K  → dest = puller
- *   3. kXR_sync DST (arm "tpc-arm"), then kXR_sync DST again (trigger the pull;
- *      its reply is deferred until the transfer completes).
+ * Server-side third-party copy (root://) in the STOCK XRootD dialect
+ * (XrdOucTPC cgiC2Dst/cgiC2Src + the XrdCl ThirdPartyCopyJob control order),
+ * which BOTH a stock XRootD destination and nginx-xrootd accept:
+ *   1. connect SRC + kXR_stat  → size for oss.asize; the session has followed
+ *      any cluster redirect, so its live host:port names the actual source
+ *      data server (the client-side "placement" step).
+ *   2. open DST write with  tpc.key=K &tpc.src=<shost:sport> &tpc.lfn=<spath>
+ *      &tpc.stage=copy &oss.asize=N &tpc.dlg/spr/tpr/dlgon   → dest = puller
+ *   3. kXR_sync DST — rendezvous setup (stock) / arm (nginx).
+ *   4. open SRC read with  tpc.key=K &tpc.dst=<dhost> &tpc.stage=copy
+ *      → the source authorizes the upcoming pull (stock authQ / nginx SHM
+ *      key registry). nginx defers this open's reply until the pull completes
+ *      (tpc_coord_defer surfaces the kXR_waitresp); stock replies immediately.
+ *   5. kXR_sync DST — trigger the pull and await completion (the reply may be
+ *      deferred via kXR_waitresp → kXR_attn(asynresp); xrdc_recv unwraps it).
  * The destination server connects to the source itself and pulls the bytes — no
  * data transits this client (unlike copy_remote_to_remote).
+ *
+ * Dialect note: the legacy nginx-only form (tpc.src=root://host:port/path as a
+ * full URL, no tpc.lfn/tpc.stage, source opened BEFORE the destination) is NOT
+ * emitted any more — a stock destination cannot parse it ("Invalid address"),
+ * and a stock source cannot Match() its tpc.dst full-URL against the puller's
+ * hostname. nginx-xrootd parses both forms (src/tpc/engine/parse.c normalizes bare
+ * host[:port] + tpc.lfn), so the stock dialect is the one that works against
+ * every server. tpc.token_mode is an nginx extension; unknown tpc.* keys are
+ * ignored by both servers.
  */
 /*
  * WHAT: Tear down whatever the TPC rendezvous acquired — the two opaque request
@@ -288,67 +307,103 @@ int
 copy_tpc(const xrdc_url *su, const xrdc_url *du, const xrdc_copy_opts *o,
          const xrdc_opts *co, xrdc_status *st)
 {
-    xrdc_conn   sc, dc;
-    xrdc_file   sf, df;
-    char        key[40];
-    char       *src_opaque = NULL, *dst_opaque = NULL;
-    size_t      need;
-    const char *tok = (o->tpc_token_mode && o->tpc_token_mode[0])
-                      ? o->tpc_token_mode : NULL;
+    xrdc_conn     sc, dc;
+    xrdc_file     sf, df;
+    xrdc_statinfo si;
+    char          key[40];
+    char          src_hp[XRDC_HOSTPORT_MAX];
+    char         *src_opaque = NULL, *dst_opaque = NULL;
+    size_t        need;
+    const char   *tok = (o->tpc_token_mode && o->tpc_token_mode[0])
+                        ? o->tpc_token_mode : NULL;
 
     if (gen_tpc_key(key, sizeof(key)) != 0) {
         xrdc_status_set(st, XRDC_ESOCK, 0, "cannot generate TPC key");
         return -1;
     }
+
+    /* 1. Source session + stat: learn the size for oss.asize and let the
+     * session follow any cluster redirect so src_hp names the actual source
+     * data server (the client-side equivalent of the stock placement step).
+     * The stat is BEST-EFFORT, like XrdCl's facultative placement stat — a
+     * minimal source that cannot answer kXR_stat must not kill the copy (the
+     * pull itself will surface any real problem); only a definitive "no such
+     * file" fails fast, before the destination is created. */
+    if (xrdc_connect(&sc, su, co, st) != 0) {
+        return -1;
+    }
+    si.size = -1;
+    if (xrdc_stat(&sc, su->path, &si, st) != 0) {
+        if (st->kxr == kXR_NotFound) {
+            return tpc_teardown(&sc, &dc, &sf, &df, NULL, NULL,
+                                1, 0, 0, 0, -1, st);
+        }
+        si.size = -1;   /* size unknown → oss.asize omitted below */
+    }
+    xrootd_format_host_port(sc.host, (uint16_t) sc.port, src_hp, sizeof(src_hp));
+
     /* Heap-size the opaque strings to the actual host/path/key/token lengths. */
-    need = strlen(su->host) + strlen(su->path) + strlen(du->host)
-           + strlen(du->path) + sizeof(key) + (tok ? strlen(tok) : 0) + 128;
+    need = sizeof(src_hp) + strlen(su->host) + strlen(su->path)
+           + strlen(du->host) + strlen(du->path) + sizeof(key)
+           + (tok ? strlen(tok) : 0) + 192;
     src_opaque = (char *) malloc(need);
     dst_opaque = (char *) malloc(need);
     if (src_opaque == NULL || dst_opaque == NULL) {
-        free(src_opaque); free(dst_opaque);
         xrdc_status_set(st, XRDC_EPROTO, 0, "out of memory");
-        return -1;
-    }
-    snprintf(src_opaque, need,
-             "tpc.key=%s&tpc.dst=root://%s:%d/%s%s%s", key,
-             du->host, du->port, du->path,
-             tok ? "&tpc.token_mode=" : "", tok ? tok : "");
-    snprintf(dst_opaque, need,
-             "tpc.src=root://%s:%d/%s&tpc.key=%s%s%s",
-             su->host, su->port, su->path, key,
-             tok ? "&tpc.token_mode=" : "", tok ? tok : "");
-
-    if (xrdc_connect(&sc, su, co, st) != 0) {
-        return tpc_teardown(&sc, &dc, &sf, &df, src_opaque, dst_opaque,
-                            0, 0, 0, 0, -1, st);
-    }
-    /* The source open is the TPC COORDINATOR: it registers the rendezvous key, and
-     * the source defers its open reply (kXR_waitresp) until the pull completes. Let
-     * xrdc_recv surface that deferral rather than block — we still have to open the
-     * destination and trigger the pull that satisfies this very wait, so blocking
-     * here would deadlock the rendezvous. The source connection stays open through
-     * the transfer so the registration remains live. */
-    sc.tpc_coord_defer = 1;
-    if (xrdc_file_open_opaque(&sc, su->path, src_opaque, 0, 0, 0, &sf, st) != 0) {
         return tpc_teardown(&sc, &dc, &sf, &df, src_opaque, dst_opaque,
                             1, 0, 0, 0, -1, st);
     }
 
+    /* 2. Destination open, stock cgiC2Dst field order. tpc.dlg names the
+     * originally-requested source endpoint and is inert while tpc.dlgon=0
+     * (this client never delegates); emitted for wire parity with XrdCl.
+     * oss.asize is only sent when the best-effort stat learned the size. */
+    {
+        char asize[48];
+        asize[0] = '\0';
+        if (si.size >= 0) {
+            snprintf(asize, sizeof(asize), "&oss.asize=%lld",
+                     (long long) si.size);
+        }
+        snprintf(dst_opaque, need,
+                 "tpc.key=%s&tpc.src=%s&tpc.lfn=%s&tpc.dlg=%s:%d&tpc.spr=root"
+                 "&tpc.tpr=root&tpc.dlgon=0%s&tpc.stage=copy%s%s",
+                 key, src_hp, su->path, su->host, su->port, asize,
+                 tok ? "&tpc.token_mode=" : "", tok ? tok : "");
+    }
+
     if (xrdc_connect(&dc, du, co, st) != 0) {
         return tpc_teardown(&sc, &dc, &sf, &df, src_opaque, dst_opaque,
-                            1, 0, 1, 0, -1, st);
+                            1, 0, 0, 0, -1, st);
     }
     if (xrdc_file_open_opaque(&dc, du->path, dst_opaque, 1, o->force, o->posc,
                               &df, st) != 0) {
         return tpc_teardown(&sc, &dc, &sf, &df, src_opaque, dst_opaque,
-                            1, 1, 1, 0, -1, st);
+                            1, 1, 0, 0, -1, st);
     }
 
-    if (xrdc_file_sync(&dc, &df, st) != 0) {     /* arm → "tpc-arm" */
+    if (xrdc_file_sync(&dc, &df, st) != 0) {     /* rendezvous setup / arm */
         return tpc_teardown(&sc, &dc, &sf, &df, src_opaque, dst_opaque,
-                            1, 1, 1, 1, -1, st);
+                            1, 1, 0, 1, -1, st);
     }
+
+    /* 3. Source open, stock cgiC2Src form (tpc.dst = destination HOSTNAME as
+     * the source will see the puller connect — dc.host is the post-redirect
+     * endpoint). This registers/authorizes the key at the source. On nginx the
+     * source defers this open's reply (kXR_waitresp) until the pull completes;
+     * let xrdc_recv surface that deferral rather than block — the pull that
+     * satisfies it is only triggered by the sync below, so blocking here would
+     * deadlock the rendezvous. The source connection stays open through the
+     * transfer so the registration remains live. */
+    snprintf(src_opaque, need, "tpc.key=%s&tpc.dst=%s&tpc.stage=copy%s%s",
+             key, dc.host,
+             tok ? "&tpc.token_mode=" : "", tok ? tok : "");
+    sc.tpc_coord_defer = 1;
+    if (xrdc_file_open_opaque(&sc, su->path, src_opaque, 0, 0, 0, &sf, st) != 0) {
+        return tpc_teardown(&sc, &dc, &sf, &df, src_opaque, dst_opaque,
+                            1, 1, 0, 1, -1, st);
+    }
+
     if (dc.io.timeout_ms < 300000) {
         dc.io.timeout_ms = 300000;               /* 5 min for the deferred pull */
     }

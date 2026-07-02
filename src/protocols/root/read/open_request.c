@@ -6,14 +6,14 @@
 #include "net/manager/pending.h"
 #include "fs/xfer/stage_request_registry.h"
 #include "fs/xfer/stage_waiter.h"
-#include "fs/vfs.h"                   /* xrootd_vfs_residency (sd_frm seam) */
+#include "fs/vfs/vfs.h"                   /* xrootd_vfs_residency (sd_frm seam) */
 #include "protocols/root/session/registry.h"
 #include "net/cms/cms_internal.h"
 #include "core/compat/codec_core.h"
 #include "protocols/root/protocol/open_flags.h"   /* shared kXR_open option-bit semantics */
 #include "protocols/root/zip/zip_member.h"        /* phase-57 W2: ZIP member access */
-#include "fs/vfs_backend_registry.h" /* Layer 3: per-export storage driver */
-#include "fs/vfs_internal.h"         /* xrootd_vfs_export_relative_root */
+#include "fs/vfs/vfs_backend_registry.h" /* Layer 3: per-export storage driver */
+#include "fs/vfs/vfs_internal.h"         /* xrootd_vfs_export_relative_root */
 #include "fs/backend/sd.h"           /* driver stat for read existence check */
 #include "fs/backend/cache/sd_cache.h" /* slow-tier miss offload probe (SP2) */
 

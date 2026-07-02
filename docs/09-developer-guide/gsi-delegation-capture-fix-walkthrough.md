@@ -393,7 +393,7 @@ file from the source *as the user*. That failed with the client error
 
 ### 9.1 Diagnosis
 
-The dest's pull runs on a thread-pool worker (`src/tpc/thread.c`):
+The dest's pull runs on a thread-pool worker (`src/tpc/outbound/thread.c`):
 `tpc_connect` → `tpc_bootstrap` (handshake/protocol/login + GSI auth) → `tpc_pull_from_source`
 (`source.c`: open → read → sync → close). Evidence, layer by layer:
 
@@ -417,7 +417,7 @@ pre-registers on the source, and the source holds the open in `kXR_waitresp` unt
 client-side authorization lands. In the **delegate** flow the client never issues that
 authorization (it delegates instead), so the source waits forever and the dest times out.
 
-### 9.2 The fix (`src/tpc/source.c`)
+### 9.2 The fix (`src/tpc/outbound/source.c`)
 
 When the pull holds a delegated credential, the dest is *authenticated as the user* and can open
 the source file **directly** — the rendezvous key is neither needed nor correct:

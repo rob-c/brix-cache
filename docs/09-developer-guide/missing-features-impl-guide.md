@@ -12,7 +12,7 @@ edge cases.
 
 | Item | Status | Notes |
 |---|---|---|
-| 1. Outbound upstream auth | ✅ Partial complete | Transparent upstream bootstrap supports TLS upgrade and ztn token `kXR_authmore`; cache/write-through origin supports optional TLS but still uses anonymous login and fails on `kXR_authmore`. Transparent-upstream GSI and credentialed cache-origin auth remain. Native TPC outbound ztn/GSI is implemented separately in `src/tpc/gsi_outbound_*`. |
+| 1. Outbound upstream auth | ✅ Partial complete | Transparent upstream bootstrap supports TLS upgrade and ztn token `kXR_authmore`; cache/write-through origin supports optional TLS but still uses anonymous login and fails on `kXR_authmore`. Transparent-upstream GSI and credentialed cache-origin auth remain. Native TPC outbound ztn/GSI is implemented separately in `src/tpc/gsi/gsi_outbound_*`. |
 | 2. Prepare/stage tape dispatch | ✅ Implemented / partial parity | FRM durable queue, real request IDs, cancel/QPrep state, and Tape REST gateway exist; full upstream XrdFrm/MSS parity remains site-specific. Legacy `xrootd_prepare_command` fallback remains for FRM-off mode. |
 | 3. JWKS hot refresh | ✅ Implemented | File mtime polling via `xrootd_token_jwks_refresh_interval`. |
 | 4. PROPFIND `Depth: infinity` | ✅ Implemented | Recursive walk with a 10,000-entry cap. |
@@ -65,7 +65,7 @@ if (up->resp_status == kXR_authmore) {
 ```
 
 Those stubs are now replaced for upstream TLS and ztn token auth. Native TPC
-uses separate ztn/GSI paths in `src/tpc/gsi_outbound_*`; do not infer native TPC
+uses separate ztn/GSI paths in `src/tpc/gsi/gsi_outbound_*`; do not infer native TPC
 credential gaps from the transparent-upstream bootstrap code.
 
 ### Phase 1 — Outbound TLS upgrade (`kXR_gotoTLS`) ✅ IMPLEMENTED
@@ -147,7 +147,7 @@ supported and triggers an abort.
 ### Phase 3 — Transparent-upstream / cache-origin credentialed auth
 
 Still open for transparent-upstream GSI and for credentialed cache/write-through
-origin bootstrap. Native TPC already uses `src/tpc/gsi_outbound_certreq.c`,
+origin bootstrap. Native TPC already uses `src/tpc/gsi/gsi_outbound_certreq.c`,
 `gsi_outbound_common.c`, and `gsi_outbound_exchange.c` for the DH + X.509
 exchange. A future upstream/cache implementation should reuse or extract those
 helpers instead of reimplementing GSI.
@@ -181,7 +181,7 @@ semantics against their storage manager.
 
 Before the FRM work, `src/protocols/root/query/prepare.c` validated paths, checked auth and VO
 ACLs, then returned `kXR_ok` with a disk-only present/missing response. With
-`xrootd_frm on`, `src/frm/` now owns durable queue records, host-qualified
+`xrootd_frm on`, the `src/fs/xfer/` stage engine now owns durable queue records, host-qualified
 request IDs, cancel handling, and queue-backed `kXR_QPrep` state. FRM-off mode
 keeps the legacy disk-only behavior.
 
@@ -189,7 +189,7 @@ keeps the legacy disk-only behavior.
 
 A **script-hook interface** remains available as the FRM-off fallback. FRM-on
 deployments use the durable queue and Tape REST gateway described in
-[`../../src/frm/README.md`](../../src/frm/README.md).
+[`../../src/fs/xfer/README.md`](../../src/fs/xfer/README.md).
 
 **New directive:** `xrootd_prepare_command /usr/local/bin/xrootd-stage.sh;`
 

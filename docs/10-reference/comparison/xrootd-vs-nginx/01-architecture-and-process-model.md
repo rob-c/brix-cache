@@ -1,8 +1,8 @@
-> Part of the [XRootD vs nginx-xrootd comparison set](./README.md).
+> Part of the [XRootD vs gnuBall comparison set](./README.md).
 
-# Architecture & Process Model — Official XRootD vs. nginx-xrootd
+# Architecture & Process Model — Official XRootD vs. gnuBall
 
-This document compares the **official XRootD C++** server with the **nginx-xrootd**
+This document compares the **official XRootD C++** server with the **gnuBall**
 module on five axes: overall architecture, the process/concurrency model, the
 per-request lifecycle, the memory model, and the build/config model. Every claim
 is grounded in source read on both sides. Where a fact could not be verified from
@@ -36,7 +36,7 @@ starting points:
   storage behavior as **`.so` plugins** selected by `xrootd.cfg` directives.
   Clustering and tape staging are **separate companion daemons** (`cmsd`, `frmd`).
 
-- **nginx-xrootd** is **not a daemon at all** — it is an **nginx module**. nginx
+- **gnuBall** is **not a daemon at all** — it is an **nginx module**. nginx
   owns `main()`, the listening sockets, the worker-process model, and the
   per-worker **event loop**; the module contributes a **stream handler** (for
   `root://`) and an **HTTP handler** (for WebDAV/S3/metrics) plus a thread pool
@@ -127,7 +127,7 @@ The wire behavior lives in dynamically loaded `.so` protocol plugins, not in the
   `int (XrdXrootdProtocol::*Resume)()` (`XrdXrootdProtocol.hh:589`). A handler that
   cannot finish (short read, offloaded I/O) stashes a continuation in `Resume` and
   returns; `DoIt()` re-invokes `(*this.*Resume)()` when rescheduled. This is
-  XRootD's hand-rolled coroutine — conceptually the same trick nginx-xrootd uses
+  XRootD's hand-rolled coroutine — conceptually the same trick gnuBall uses
   with `NGX_AGAIN` + `XRD_ST_*` suspend states (see below).
 - **`XrdHttp/`** — the HTTP/WebDAV protocol plugin (`XrdHttpProtocol`), another
   `XrdProtocol` implementation, loaded on its own port.
@@ -204,11 +204,11 @@ object owns its own memory and is responsible for releasing it.
 
 ---
 
-## In nginx-xrootd
+## In gnuBall
 
 ### Architecture: a module, not a daemon
 
-nginx-xrootd ships as an nginx **add-on module** (`ngx_addon_name =
+gnuBall ships as an nginx **add-on module** (`ngx_addon_name =
 ngx_stream_xrootd_module`, top-level `config`). It plugs into nginx's existing
 machinery:
 
@@ -240,8 +240,8 @@ ngx_module_t ngx_stream_xrootd_module = {
 ```
 
 There are **no companion daemons**. Manager/redirector mode (`src/net/manager/`,
-`src/net/cms/`), FRM tape staging (`src/frm/`), metrics, SRR, and the dashboard all
-run **inside the nginx workers**.
+`src/net/cms/`), tape staging (`src/fs/xfer/` + `src/fs/backend/frm/`), metrics,
+SRR, and the dashboard all run **inside the nginx workers**.
 
 ### Process / concurrency model: one event loop per worker
 
@@ -289,7 +289,7 @@ processes and share nothing by default:
   `src/protocols/root/connection/handler.c`), the session/handle/manager registries
   (`src/net/manager/registry.c`), the redirect-collapse cache
   (`src/net/manager/redir_cache.c`), the native-TPC key registry
-  (`src/tpc/key_registry.c`), the FRM durable queue, and rate-limit/KV zones.
+  (`src/tpc/engine/key_registry.c`), the FRM durable queue, and rate-limit/KV zones.
 
 ### Per-connection state: `xrootd_ctx_t`
 
@@ -382,7 +382,7 @@ pools** whose lifetimes nginx owns:
   `src/core/aio/buffers.c` so sync and async paths produce byte-identical wire output.
 
 So where XRootD recycles fixed-size buffers from a global `XrdBuffManager`,
-nginx-xrootd uses **per-request/per-connection arenas plus a few long-lived
+gnuBall uses **per-request/per-connection arenas plus a few long-lived
 grow-only scratch buffers** owned by the ctx.
 
 ### Build / config model
@@ -441,7 +441,7 @@ substrates. The "Resume continuation" (official) and the `XRD_ST_*` + `NGX_AGAIN
 suspend states (nginx) are the same idea: survive a partial read without holding a
 thread.
 
-| Stage | Official XRootD | nginx-xrootd |
+| Stage | Official XRootD | gnuBall |
 |---|---|---|
 | Accept | accept thread (`mainAccept`) hands the fd to a poller; an `XrdLink` is created | nginx core accepts; `ngx_stream_xrootd_handler()` runs, allocates `xrootd_ctx_t`, arms read/write handlers |
 | Readiness | one of 3 `XrdPoll` epoll threads marks the link readable, schedules it | the worker's single epoll loop calls `ngx_stream_xrootd_recv` |
@@ -449,14 +449,14 @@ thread.
 | Framing | `XrdXrootdProtocol::Process2()` reads header/body; short read → stash `Resume`, return | `recv.c` accumulates 20B/24B/dlen; incomplete → `NGX_AGAIN`, return to loop |
 | Handshake/login/auth | `do_Login` / `do_Auth`, gated by `XRD_LOGGEDIN`/`XRD_NEED_AUTH` | `xrootd_dispatch_session_opcode`, gated by `ctx->auth_done` |
 | Dispatch | `switch` over opcode → `do_Open`/`do_Read`/… | cascade `xrootd_dispatch_{session,read,write,signing}_opcode` |
-| Storage call | virtual `XrdSfsFile`/`XrdOss` plugin method | confined `openat2(RESOLVE_BENEATH)` helpers (`src/path/`) |
+| Storage call | virtual `XrdSfsFile`/`XrdOss` plugin method | confined `openat2(RESOLVE_BENEATH)` helpers (`src/fs/path/`) |
 | Blocking I/O | runs on the pool thread (the thread *is* allowed to block) | **offloaded** to `ngx_thread_pool_run` / io_uring; conn → `XRD_ST_AIO` |
 | Response | `XrdXrootdResponse` from a pooled `XrdBuffer` | `ngx_chain_t` of `ngx_buf_t` (memory or sendfile), shared builders in `aio/buffers.c` |
 | Cleanup | `XrdProtocol::Recycle` returns the protocol object to its pool | pool freed at request/conn end; raw scratch/SSL freed via `cleanup_add` / disconnect |
 
 **Threading vs event-loop implications.** Because XRootD runs each request on a
 pool thread, a slow disk read blocks only that one thread, and concurrency scales
-by spawning more threads (up to 8192). Because nginx-xrootd runs on a shared event
+by spawning more threads (up to 8192). Because gnuBall runs on a shared event
 loop, a slow disk read *must* be offloaded or it blocks every connection on the
 worker — which is exactly why the module's hard rules are "no `goto` / no blocking
 / pool the crypto / cache the validation." The two models trade
@@ -483,7 +483,7 @@ manage it via the daemons' own start/stop (systemd units `xrootd@`, `cmsd@`,
 `frmd@`) and signals; config changes generally mean a daemon restart.
 Observability is historically **UDP XrdMon** streams plus per-daemon logs.
 
-### nginx-xrootd deployment
+### gnuBall deployment
 
 The deployment is **one nginx instance with the module loaded**. A single
 `nginx.conf` configures `root://` (stream block), WebDAV/S3 (http blocks),
@@ -507,7 +507,7 @@ nginx access/error logs — UDP XrdMon is an explicit non-goal.
 
 ## Parity, divergences, and trade-offs
 
-| Aspect | Official XRootD | nginx-xrootd | Notes |
+| Aspect | Official XRootD | gnuBall | Notes |
 |---|---|---|---|
 | Deployment unit | standalone `xrootd` daemon + plugins (+ `cmsd`, `frmd`) | one nginx instance with a stream + HTTP module | nginx folds cluster/tape/metrics into the workers; no companion daemons |
 | Process model | single process, multi-threaded | nginx master + N single-threaded worker processes | XRootD = threads share memory; nginx = processes share via SHM |
@@ -518,18 +518,18 @@ nginx access/error logs — UDP XrdMon is an explicit non-goal.
 | Blocking I/O | done on the (blockable) pool thread | offloaded to `ngx_thread_pool` / io_uring; conn parked in `XRD_ST_AIO` | nginx *must* offload or it stalls the worker |
 | Crypto on the hot path | runs on a pool thread, fine to block | pooled/cached (DH keypool, GSI in-flight cap, token L1/L2) | a consequence of the shared event loop |
 | Protocol code | `.so` plugin (`XrdXrootdProtocol`), ABI-versioned, dlopened | compiled into the module; dispatch cascade in `src/protocols/root/handshake/` | XRootD = pluggable ABI; nginx = static module |
-| Storage abstraction | `XrdSfs`/`XrdOss` virtual plugins | confined `openat2(RESOLVE_BENEATH)` POSIX helpers (`src/path/`) | nginx is POSIX-focused; no plugin ABI for Ceph/PSS/PFC |
+| Storage abstraction | `XrdSfs`/`XrdOss` virtual plugins | confined `openat2(RESOLVE_BENEATH)` POSIX helpers (`src/fs/path/`) | nginx is POSIX-focused; no plugin ABI for Ceph/PSS/PFC |
 | Cross-process state | shared in-process memory (threads) | SHM slab tables via `shm_slots.c`, spin+yield mutexes | nginx needs SHM because workers are processes |
 | Memory model | C++ `new`/`delete` + `XrdBuffManager` bucketed buffer pool | nginx arenas (`ngx_palloc`) + raw grow-only scratch + `cleanup_add` | recycle vs arena; both avoid per-request malloc on the hot path |
 | Config | `xrootd.cfg`, scoped prefixes, `if/fi`, plugin-by-directive | nginx `stream{}`/`http{}` blocks, `xrootd_*` directives, `create/merge_srv_conf` | one nginx.conf spans root/WebDAV/S3/metrics |
 | Build | CMake C++ build of daemon + plugins | nginx `--add-module` add-on; src list in top-level `config` | new `.c` must be registered in `config`, then `./configure` |
 | Reload | typically daemon restart (graceful in-place reload not verified) | nginx `-s reload` graceful worker reload | nginx reload model is a clear operational win |
-| Observability | UDP XrdMon + logs | Prometheus `/metrics`, SRR, dashboard, access logs | nginx-xrootd makes UDP XrdMon an explicit non-goal |
+| Observability | UDP XrdMon + logs | Prometheus `/metrics`, SRR, dashboard, access logs | gnuBall makes UDP XrdMon an explicit non-goal |
 | Hard coding rules | C++ conventions | no `goto`, no blocking, helpers-first, functional/modular (CLAUDE.md) | enforced because everything shares the loop |
 
 **Net trade-off.** XRootD's thread-per-job model is conceptually simpler for the
 handler author (a handler may block) and scales with thread count, at the cost of
-thread-scheduling overhead and lock contention. nginx-xrootd's event-loop model
+thread-scheduling overhead and lock contention. gnuBall's event-loop model
 removes per-request thread overhead and inherits nginx's mature
 process/reload/TLS/HTTP machinery, but forces a strict no-blocking discipline:
 every disk syscall is offloaded and every blocking crypto primitive is pooled or
@@ -557,7 +557,7 @@ and *what the author must never do*.
 | Storage abstraction | `XrdSfs/XrdSfsInterface.hh` (`SFS_OK/ERROR/REDIRECT`), `XrdOss/XrdOss.hh` (`XrdOssDF`) |
 | Companion daemons | `XrdCms/` (cmsd), `XrdFrm/` (frmd + frm_* tools) |
 
-### nginx-xrootd (`/home/rcurrie/HEP-x/nginx-xrootd`)
+### gnuBall (`/home/rcurrie/HEP-x/nginx-xrootd`)
 
 | Concern | Files / symbols |
 |---|---|
@@ -568,6 +568,6 @@ and *what the author must never do*.
 | Directive table / config | `src/protocols/root/stream/module.c` (`ngx_stream_xrootd_commands[]`), `src/core/types/config.h` (`ngx_stream_xrootd_srv_conf_t`), `src/core/config/postconfiguration.c`, `src/core/config/config.h`, `src/core/types/tunables.h` |
 | Per-connection state | `src/core/types/context.h` (`xrootd_ctx_t`, `files[]`, `out_ring`/`rd_pool`, `XRD_ST_*`) |
 | Thread-pool / io_uring offload | `src/core/aio/README.md`, `src/core/aio/resume.c` (`xrootd_aio_post_task`), `src/core/aio/buffers.c`, `src/core/aio/uring.c` |
-| SHM cross-worker state | `src/core/compat/shm_slots.c` (`xrootd_shm_table_alloc`, spin+yield mutex), `src/net/manager/registry.c`, `src/net/manager/redir_cache.c`, `src/tpc/key_registry.c` |
+| SHM cross-worker state | `src/core/compat/shm_slots.c` (`xrootd_shm_table_alloc`, spin+yield mutex), `src/net/manager/registry.c`, `src/net/manager/redir_cache.c`, `src/tpc/engine/key_registry.c` |
 | Build governance | top-level `config` (`ngx_addon_name`, `ngx_module_srcs`, `ngx_module_libs`, CFLAGS), `src/core/config/config.h` |
-| Cluster / tape / observability (in-process) | `src/net/manager/`, `src/net/cms/`, `src/frm/`, `src/observability/metrics/`, `src/protocols/srr/`, `src/observability/dashboard/` |
+| Cluster / tape / observability (in-process) | `src/net/manager/`, `src/net/cms/`, `src/fs/xfer/`, `src/observability/metrics/`, `src/protocols/srr/`, `src/observability/dashboard/` |

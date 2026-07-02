@@ -1,8 +1,8 @@
-# `root://` Binary Wire Protocol — Official XRootD vs. nginx-xrootd
+# `root://` Binary Wire Protocol — Official XRootD vs. gnuBall
 
-> Part of the [XRootD vs nginx-xrootd comparison set](./README.md).
+> Part of the [XRootD vs gnuBall comparison set](./README.md).
 
-This document compares the **official XRootD C++** server with the **nginx-xrootd**
+This document compares the **official XRootD C++** server with the **gnuBall**
 stream module at the level of the `root://` *binary wire protocol*: the initial
 handshake, `kXR_protocol`/TLS negotiation, `kXR_login`/`kXR_auth`, the universal
 framing, and the per-opcode coverage and framing-parity of every `kXR_*` request
@@ -11,7 +11,7 @@ code.
 Every claim below is grounded in source. The official side cites
 `/tmp/xrootd-src/src/XProtocol/XProtocol.hh` (the opcode and struct definitions)
 and `XrdXrootd/XrdXrootdProtocol.cc` / `XrdXrootdXeq.cc` (the `do_*` handlers).
-The nginx-xrootd side cites this repository's `src/` tree. Where a behaviour was
+The gnuBall side cites this repository's `src/` tree. Where a behaviour was
 already verified by the conformance / interop suites, this doc **reuses** the
 facts from the companion documents rather than re-deriving them:
 
@@ -31,7 +31,7 @@ documents and are referenced here only where they affect wire behaviour.
 
 "Official XRootD" means the reference C++ implementation in `/tmp/xrootd-src`
 (protocol string `5.2.0`, `kXR_PROTOCOLVERSION 0x00000520`,
-`XProtocol.hh:70-76`). "nginx-xrootd" / "this module" means the server in
+`XProtocol.hh:70-76`). "gnuBall" / "this module" means the server in
 `src/` (the native client in `client/` is mentioned only where the two ends must
 agree on the wire).
 
@@ -69,7 +69,7 @@ protocol.
 
 ---
 
-## In nginx-xrootd
+## In gnuBall
 
 The module registers as an `NGX_STREAM_MODULE` and runs the protocol **on nginx's
 event loop**, single-threaded per worker — the only event-loop reimplementation in
@@ -141,7 +141,7 @@ The client sends `struct ClientInitHandShake` = five 32-bit words
   fourth word == 4" with the magic word historical
   (`XrdXrootdProtocol.cc:311-325`, per
   [`../xrootd-implementations.md`](../xrootd-implementations.md) §3).
-- **nginx-xrootd validates `fourth==4 && fifth==ROOTD_PQ(2012)`**
+- **gnuBall validates `fourth==4 && fifth==ROOTD_PQ(2012)`**
   (`src/protocols/root/handshake/client_hello.c:66`, `ROOTD_PQ` defined `opcodes.h`). Slightly
   stricter than the reference (it also requires the magic), but a conformant
   client always sends it, so this is interoperable.
@@ -154,9 +154,9 @@ Both reply with a `ServerResponseHeader` (streamid `{0,0}`, status `kXR_ok`,
 | | protover | msgval (server role) |
 |---|---|---|
 | Official | `kXR_PROTOCOLVERSION` (`0x00000520`, 5.2.0) | `kXR_DataServer`=1 / `kXR_LBalServer`=0 |
-| nginx-xrootd | `kXR_PROTOCOLVERSION` (`0x00000520`) | always `kXR_DataServer`=1 |
+| gnuBall | `kXR_PROTOCOLVERSION` (`0x00000520`) | always `kXR_DataServer`=1 |
 
- nginx-xrootd source: `client_hello.c:84-87` writes `htonl(kXR_PROTOCOLVERSION)`
+ gnuBall source: `client_hello.c:84-87` writes `htonl(kXR_PROTOCOLVERSION)`
 then `htonl(kXR_DataServer)`. It always advertises **DataServer** in the
 handshake; *manager/redirector* status is advertised later via the
 `kXR_protocol` flags, not here. The conformance suite confirms the handshake
@@ -184,7 +184,7 @@ The server reply (`ServerResponseBody_Protocol`, `XProtocol.hh:1233-1237`) is
 | `kXR_gotoTLS` | `0x40000000` | upgrade to TLS now |
 | `kXR_tlsLogin/tlsData/tlsSess/...` | `0x0?000000` | which phases require TLS |
 
-**nginx-xrootd** (`src/protocols/root/session/protocol.c`):
+**gnuBall** (`src/protocols/root/session/protocol.c`):
 
 - Builds `pval = htonl(kXR_PROTOCOLVERSION)` and a `flags` bitmask
   (`protocol.c:116-132`): always `kXR_isServer`; `kXR_isManager` when
@@ -215,7 +215,7 @@ version in the low 6 bits — `XLoginCapVer`/`XLoginVersion`, `XProtocol.hh:404-
 `reserved2`. The reply (`ServerResponseBody_Login`, `XProtocol.hh:1081-1084`) is a
 **16-byte sessid** plus an optional `sec[]` blob.
 
-**nginx-xrootd** (`src/protocols/root/session/login.c`):
+**gnuBall** (`src/protocols/root/session/login.c`):
 
 - Parses username/PID from the 8-byte field; **rejects non-printable usernames**
   (`login.c:82`), which is stricter than the reference but defensible
@@ -237,7 +237,7 @@ version in the low 6 bits — `XLoginCapVer`/`XLoginVersion`, `XProtocol.hh:404-
 
 Official `ClientAuthRequest` (`XProtocol.hh:168-174`) carries a 4-byte `credtype`
 and a credential blob; `do_Auth()` runs the chosen `XrdSecProtocol` and replies
-`kXR_authmore` for additional rounds or `kXR_ok` on success. nginx-xrootd's
+`kXR_authmore` for additional rounds or `kXR_ok` on success. gnuBall's
 handler is `xrootd_handle_auth` in `src/auth/gsi/auth.c`, which drives GSI / token /
 SSS / krb5 to completion (multi-round via `kXR_authmore`), then sets
 `auth_done=1`. The crypto details (GSI buckets, DH, IV/`#ivlen`, digest
@@ -254,7 +254,7 @@ the official handler, our handler file, implementation status, and framing/seman
 parity notes. Our handler files are confirmed by grep over `src/` and the dispatch
 tables in `src/protocols/root/handshake/dispatch_*.c`.
 
-| # | Opcode | Official handler | nginx-xrootd handler | Impl? | Framing / semantics parity |
+| # | Opcode | Official handler | gnuBall handler | Impl? | Framing / semantics parity |
 |---|--------|------------------|----------------------|-------|----------------------------|
 | 3000 | `kXR_auth` | `do_Auth` | `gsi/auth.c` (`handle_auth`) | yes | `credtype[4]`, multi-round `kXR_authmore`; GSI/token/SSS/krb5. |
 | 3001 | `kXR_query` | `do_Query`/`do_Qconf`/`do_Qfh`/`do_Qspace`/`do_Qxattr`/`do_CKsum` | `query/dispatch.c` (`handle_query`) | yes | `infotype` subcodes. Qconfig returns **bare `value\n`** (fix #6), `pio_max`→bare int (fix #12), checksum trims trailing NUL/CR/LF (fix #16). |
@@ -290,7 +290,7 @@ tables in `src/protocols/root/handshake/dispatch_*.c`.
 | 3031 | `kXR_writev` | `do_WriteV`/`do_WriteVec` | `write/writev.c` (`handle_writev`) | yes | `options` + `write_list[]`; optional `doSync`. All fhandles validated before any write. Write-gated. |
 | 3032 | `kXR_clone` | `do_Clone` | `read/clone.c` (`handle_clone`) | yes | `dst fhandle` + `clone_list[]` (32-byte items); server-side range copy (v5.2.0). |
 
-**Coverage summary:** of the 33 official request opcodes (3000-3032), nginx-xrootd
+**Coverage summary:** of the 33 official request opcodes (3000-3032), gnuBall
 implements **32**; the only gap is `kXR_gpfile` (3005), whose reference struct is
 itself flagged as unfinished (`XProtocol.hh:360`) and which falls through to a
 conformant `kXR_InvalidRequest`.
@@ -385,7 +385,7 @@ relevant to wire framing/semantics (cross-referenced in the opcode table above):
 What `xrdcp` / `xrdfs` operations map to which opcodes, and what a user can or
 cannot do against this module:
 
-| User command | Opcodes exercised | Works against nginx-xrootd? |
+| User command | Opcodes exercised | Works against gnuBall? |
 |---|---|---|
 | `xrdcp root://h//f /tmp/f` (download) | `protocol, login[, auth, sigver], stat, open(read), read`/`pgread`/`readv`, `close` | Yes — byte-identical to stock (conformance "What the suites confirm"). |
 | `xrdcp /tmp/f root://h//f` (upload) | `protocol, login[, auth], open(new\|async), write`/`pgwrite`, `sync`, `close` | Yes — parent dir auto-created via `kXR_async` (fix #13/#21). |
@@ -428,7 +428,7 @@ vendor extensions, which require this project's own client.
   ([`../xrootd-implementations.md`](../xrootd-implementations.md) §6) — plus four
   opt-in vendor POSIX extension opcodes.
 
-**Bottom line:** on the `root://` binary wire protocol, nginx-xrootd is a
+**Bottom line:** on the `root://` binary wire protocol, gnuBall is a
 **conformant, near-complete reimplementation** of official XRootD, differentially
 verified against the stock server/tools and two independent clients, with a small,
 explicitly opt-in vendor superset and one dead-opcode gap.
@@ -450,7 +450,7 @@ explicitly opt-in vendor superset and one dead-opcode gap.
   `XrdXrootdXeqChkPnt.cc`) — the `do_*` handlers enumerated in
   [In official XRootD](#in-official-xrootd).
 
-**nginx-xrootd** (`/home/rcurrie/HEP-x/nginx-xrootd/src/`):
+**gnuBall** (`/home/rcurrie/HEP-x/nginx-xrootd/src/`):
 
 - `protocol/opcodes.h` — opcode/version/size constants (request ids `:44-95`,
   responses `:106-137`, errors `:148-177`).

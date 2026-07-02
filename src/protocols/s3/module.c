@@ -42,7 +42,7 @@
 #include "core/config/http_rootfd.h"
 #include "core/compat/tmp_path.h"          /* SP4 orphan direct-write temp reaper */
 #include "core/config/credential_block.h"   /* §14 xrootd_credential lookup/bearer */
-#include "fs/vfs_backend_registry.h"   /* per-export backend registration */
+#include "fs/vfs/vfs_backend_registry.h"   /* per-export backend registration */
 #include "core/compat/alloc_guard.h"
 
 static ngx_int_t ngx_http_s3_postconfiguration(ngx_conf_t *cf);

@@ -1,6 +1,6 @@
 #include "metrics_internal.h"
 #include "core/shm/kv.h"
-#include "fs/vfs_backend_registry.h"   /* C-7: composed-stack introspection */
+#include "fs/vfs/vfs_backend_registry.h"   /* C-7: composed-stack introspection */
 
 /*
  * Shared low-cardinality label tables for both WebDAV and S3 Prometheus export.

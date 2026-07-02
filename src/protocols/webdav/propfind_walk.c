@@ -3,7 +3,7 @@
  * Phase-38 split of propfind.c; behavior-identical.
  */
 #include "propfind_internal.h"
-#include "fs/vfs.h"   /* directory listing via the VFS seam (impersonation-aware) */
+#include "fs/vfs/vfs.h"   /* directory listing via the VFS seam (impersonation-aware) */
 
 
 /* Adapt the VFS stat (returned per-entry by xrootd_vfs_readdir, a no-follow
@@ -44,19 +44,20 @@ propfind_dir_ctx(ngx_http_request_t *r, const char *root_canon,
  * wide tree cannot generate an unbounded response / runaway recursion. */
 
 /*
- * Recursively emit D:response elements for every descendant of dir_path
- * (Depth: infinity).  entry_count is shared across the whole walk and checked
- * against max_entries before each entry; once the cap is hit the walk stops and
- * logs a warning (the response is still well-formed, just truncated).  An
- * unreadable directory is skipped, not fatal.  On any propfind_entry error the
- * open DIR is closed before returning NGX_ERROR (no fd leak on the error path).
+ * Emit D:response elements for the children of dir_path — one level when
+ * recurse is 0 (Depth: 1), every descendant when recurse is 1 (Depth:
+ * infinity).  entry_count is shared across the whole walk and checked against
+ * max_entries before each entry; once the cap is hit the walk stops and logs a
+ * warning (the response is still well-formed, just truncated).  An unreadable
+ * directory is skipped, not fatal.  On any propfind_entry error the open DIR
+ * is closed before returning NGX_ERROR (no fd leak on the error path).
  */
 ngx_int_t
 propfind_walk(ngx_http_request_t *r,
               ngx_chain_t **head, ngx_chain_t **tail,
               const char *dir_path, const char *base_href,
               ngx_uint_t *entry_count, ngx_uint_t max_entries,
-              const propfind_req_t *req)
+              const propfind_req_t *req, ngx_flag_t recurse)
 {
     ngx_http_xrootd_webdav_loc_conf_t *wdcf =
         ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
@@ -143,14 +144,15 @@ propfind_walk(ngx_http_request_t *r,
         /* Recurse into subdirectories (with a trailing-slash href). Re-check
          * the cap first so a balanced tree cannot blow past max_entries via
          * nested calls before the per-entry check fires. */
-        if (S_ISDIR(csb.st_mode) && *entry_count < max_entries) {
+        if (recurse && S_ISDIR(csb.st_mode) && *entry_count < max_entries) {
             char subdir_href[WEBDAV_MAX_PATH + 3];
             if ((size_t) snprintf(subdir_href, sizeof(subdir_href),
                                   "%s/", child_href)
                 < sizeof(subdir_href))
             {
                 if (propfind_walk(r, head, tail, child_path, subdir_href,
-                                  entry_count, max_entries, req) != NGX_OK)
+                                  entry_count, max_entries, req, recurse)
+                    != NGX_OK)
                 {
                     xrootd_vfs_closedir(dh, r->connection->log);
                     return NGX_ERROR;
@@ -213,9 +215,10 @@ propfind_do(ngx_http_request_t *r)
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    /* First D:response is always the request target itself (Depth 0/1/inf). */
+    /* First D:response is always the request target itself (Depth 0/1/inf);
+     * its bounded href then serves as the walk's base. */
+    char   href[WEBDAV_MAX_PATH + 2];
     {
-        char   href[WEBDAV_MAX_PATH + 2];
         size_t uri_len = r->uri.len;
 
         /* r->uri is not NUL-terminated; copy a bounded, terminated href. */
@@ -231,94 +234,17 @@ propfind_do(ngx_http_request_t *r)
         entry_count++;
     }
 
-    /* Depth 1 or infinity on a collection: emit each immediate child. For
-     * infinity we additionally recurse into each child directory via
-     * propfind_walk (the top level is unrolled here so the shared entry_count
-     * cap is threaded through). */
+    /* Depth 1 or infinity on a collection: the children come from
+     * propfind_walk — one level for Depth: 1 (uncapped, as before this loop
+     * was unrolled inline), recursive with the entry cap for infinity. */
     if ((depth == 1 || depth == -1) && S_ISDIR(sb.st_mode)) {
-        ngx_http_xrootd_webdav_loc_conf_t *wdcf =
-            ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
-        xrootd_vfs_ctx_t  vctx;
-        xrootd_vfs_dir_t *dh;
-        ngx_str_t         name;
-        xrootd_vfs_stat_t vst;
+        ngx_uint_t cap = (depth == -1) ? PROPFIND_INFINITY_MAX_ENTRIES
+                                       : (ngx_uint_t) -1;
 
-        /* Impersonation read-gate (kept); xrootd_vfs_opendir also opens the dir
-         * O_RDONLY AS the mapped user via the broker, so a worker that itself
-         * cannot read still lists for the legitimate owner — and never leaks
-         * entries the user has no permission to see. No-op when impersonation off. */
-        if (xrootd_dirlist_access_ok(r->connection->log,
-                                     wdcf->common.root_canon, path) != NGX_OK)
+        if (propfind_walk(r, &head, &tail, path, href, &entry_count, cap,
+                          &req, depth == -1) != NGX_OK)
         {
-            dh = NULL;
-        } else {
-            propfind_dir_ctx(r, wdcf->common.root_canon, path, &vctx);
-            dh = xrootd_vfs_opendir(&vctx, NULL);
-        }
-
-        if (dh != NULL) {
-            while (xrootd_vfs_readdir(dh, &name, &vst) == NGX_OK) {
-                char        child_path[WEBDAV_MAX_PATH];
-                struct stat csb;
-                char        href[WEBDAV_MAX_PATH + 2];
-                const char *base;
-                size_t      blen;
-
-                if (name.data[0] == '.') {
-                    continue;
-                }
-
-                if (xrootd_fs_join_path(path, (char *) name.data, child_path,
-                                        sizeof(child_path)) != NGX_OK)
-                {
-                    continue;
-                }
-
-                propfind_vfs_to_stat(&vst, &csb);   /* no-follow lstat */
-
-                base = (const char *) r->uri.data;
-                blen = r->uri.len;
-                if (blen == 0 || base[blen - 1] != '/') {
-                    if ((size_t) snprintf(href, sizeof(href), "%.*s/%s",
-                                          (int) blen, base, (char *) name.data)
-                        >= sizeof(href))
-                    {
-                        continue;
-                    }
-                } else if ((size_t) snprintf(href, sizeof(href), "%.*s%s",
-                                             (int) blen, base, (char *) name.data)
-                           >= sizeof(href))
-                {
-                    continue;
-                }
-
-                if (propfind_entry(r, &head, &tail, href, child_path,
-                                   &csb, &req) != NGX_OK)
-                {
-                    xrootd_vfs_closedir(dh, r->connection->log);
-                    return NGX_HTTP_INTERNAL_SERVER_ERROR;
-                }
-                entry_count++;
-
-                if (depth == -1 && S_ISDIR(csb.st_mode)) {
-                    char subdir_href[WEBDAV_MAX_PATH + 3];
-                    if ((size_t) snprintf(subdir_href, sizeof(subdir_href),
-                                          "%s/", href)
-                        < sizeof(subdir_href))
-                    {
-                        if (propfind_walk(r, &head, &tail,
-                                          child_path, subdir_href,
-                                          &entry_count,
-                                          PROPFIND_INFINITY_MAX_ENTRIES,
-                                          &req) != NGX_OK)
-                        {
-                            xrootd_vfs_closedir(dh, r->connection->log);
-                            return NGX_HTTP_INTERNAL_SERVER_ERROR;
-                        }
-                    }
-                }
-            }
-            xrootd_vfs_closedir(dh, r->connection->log);
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
     }
 

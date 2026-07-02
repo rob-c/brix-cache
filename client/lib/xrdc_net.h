@@ -508,6 +508,14 @@ void        xrdc_timing_report(const xrdc_conn *c);
  * caller has already filled requestid + the 16-byte body). Sends header+payload. */
 int xrdc_send(xrdc_conn *c, void *hdr24, const void *payload, uint32_t plen,
               uint16_t *out_sid, xrdc_status *st);
+/* As xrdc_send, but the wire dlen (hdr[20..23], also the sigver-signed span)
+ * may be smaller than send_len, the payload bytes actually written.  Needed by
+ * kXR_writev, whose dlen frames only the 16-byte descriptor block while the
+ * segment data streams after the frame (stock XrdXrootdProtocol::do_WriteV).
+ * xrdc_send == xrdc_send_ext with dlen == send_len. */
+int xrdc_send_ext(xrdc_conn *c, void *hdr24, const void *payload,
+                  uint32_t send_len, uint32_t dlen, uint16_t *out_sid,
+                  xrdc_status *st);
 /* Read one response frame for streamid want_sid. Returns 0 with *status set and a
  * malloc'd body/blen (caller frees) for kXR_ok/oksofar/authmore AND kXR_redirect/
  * kXR_wait (so the roundtrip wrapper can act on them). Returns -1 on kXR_error

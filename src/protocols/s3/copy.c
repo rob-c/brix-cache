@@ -17,10 +17,10 @@
 
 #include "s3.h"
 #include "usermeta.h"
-#include "fs/vfs.h"
+#include "fs/vfs/vfs.h"
 #include "fs/path/path.h"
 #include "core/compat/copy_range.h"
-#include "core/compat/http_headers.h"
+#include "core/http/http_headers.h"
 #include "core/compat/staged_file.h"
 
 #include <errno.h>
@@ -29,24 +29,24 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <limits.h>
-#include "core/compat/alloc_guard.h"
+#include "core/compat/str_dup.h"
 
+/* Look up a request header and return its value as a NUL-terminated pool
+ * copy (NULL when absent or on alloc failure) — find + strdupz adapter. */
 static const char *
 s3_copy_find_header(ngx_http_request_t *r, const char *name, size_t nlen)
 {
     ngx_table_elt_t *h;
-    u_char          *value;
+    ngx_str_t        value;
 
     h = xrootd_http_find_header(r, name, nlen);
-    if (h == NULL) {
+    if (h == NULL
+        || xrootd_pstrdupz(r->pool, &value, h->value.data, h->value.len)
+           != NGX_OK)
+    {
         return NULL;
     }
-
-    XROOTD_PNALLOC_OR_RETURN(value, r->pool, h->value.len + 1, NULL);
-
-    ngx_memcpy(value, h->value.data, h->value.len);
-    value[h->value.len] = '\0';
-    return (const char *) value;
+    return (const char *) value.data;
 }
 
 /* Build a transient VFS ctx for a confined S3 op on `fs_path` (mirrors the

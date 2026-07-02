@@ -1,8 +1,8 @@
-# Storage backends, caching, and tape/FRM staging: XRootD vs nginx-xrootd
+# Storage backends, caching, and tape/FRM staging: XRootD vs gnuBall
 
-> Part of the [XRootD vs nginx-xrootd comparison set](./README.md).
+> Part of the [XRootD vs gnuBall comparison set](./README.md).
 
-This document compares how **official XRootD** and the **nginx-xrootd module** handle
+This document compares how **official XRootD** and the **gnuBall module** handle
 the three layers below the wire protocol:
 
 1. **Storage backend & namespace** — how a logical client path is turned into a
@@ -29,11 +29,12 @@ This page is consistent with, and does not contradict,
 In scope:
 
 - The **storage abstraction**: XRootD `XrdOss`/`XrdOfs` vs this module's
-  `src/fs/` (VFS) + `src/path/` (confinement) + `src/core/compat/namespace_ops.c`.
+  `src/fs/` (VFS) + `src/fs/path/` (confinement) + `src/core/compat/namespace_ops.c`.
 - **POSC** (persist-on-successful-close): `XrdOfs` POSC queue vs `src/protocols/root/read/`
   open/close staging, including the documented disconnect-semantics difference.
 - **Caching**: `XrdPfc` (XCache) + `XrdPss` (proxy storage) vs `src/fs/cache/`.
-- **Tape / FRM**: `XrdFrm`/`XrdFrc` multi-daemon ecosystem vs `src/frm/` +
+- **Tape / FRM**: `XrdFrm`/`XrdFrc` multi-daemon ecosystem vs the `src/fs/xfer/`
+  stage engine + `src/fs/backend/frm/` nearline driver +
   `src/protocols/root/query/prepare.c` + `src/protocols/webdav/tape_rest.c`.
 - The **operator view**: directives and what to monitor on each side.
 
@@ -84,22 +85,22 @@ cache, and tape are independent, separately deployable, separately configured.
 
 ---
 
-## In nginx-xrootd
+## In gnuBall
 
 This module collapses the same responsibilities into a single nginx worker
 process with a **unified VFS** and **no plugin ABI**:
 
 - **`src/fs/` — the VFS.** One protocol-agnostic API (`xrootd_vfs_*`) that every
   front end (`root://` stream, WebDAV/HTTP, the S3 subset, CMS data I/O) funnels
-  through (`src/fs/README.md`, `src/fs/vfs.h`). It performs the syscall, records a
+  through (`src/fs/README.md`, `src/fs/vfs/vfs.h`). It performs the syscall, records a
   metric + access-log line, and returns a handle or buffer chain. Confinement,
   page-CRC, cache integration, and write-through are implemented **once** here.
-- **`src/path/` — confinement and the namespace boundary.** The export root is a
+- **`src/fs/path/` — confinement and the namespace boundary.** The export root is a
   **single local directory** (`xrootd_root`). Every client path is confined with
   Linux `openat2(2)` + `RESOLVE_BENEATH | RESOLVE_NO_MAGICLINKS`
   (`src/fs/path/beneath.c`), anchored to a per-worker `O_PATH` "rootfd". This is a
   *kernel-enforced* boundary, not a string prefix (see the next section). Auth/ACL
-  gating (`auth_gate.c`, `authdb.c`, `acl.c`) lives here too.
+  gating (`auth_gate.c`, `authdb.c`, `acl.c`) lives in `src/auth/authz/`.
 - **`src/core/compat/namespace_ops.c`** — the `xrootd_ns_*` mutation helpers
   (`mkdir`/`rename`/`unlink`/`link`) that the VFS and HTTP/S3 callers share, each
   confining through the beneath API. (Also `compat/staged_file.c`,
@@ -109,10 +110,13 @@ process with a **unified VFS** and **no plugin ABI**:
   protocol as a *native client* (`origin_protocol.c`, `origin_connection.c`,
   `io.c`) to fill the local `cache_root` tree on a miss, and mirror local writes
   back to an origin at `kXR_sync`/`kXR_close` (`writethrough_flush.c`).
-- **`src/frm/` — a durable, crash-safe tape stage queue.** A file-backed
-  fixed-record log (`frm_format.h`, modeled on `XrdFrcReqFile`) with an SHM hot
-  index, backing `kXR_prepare`/`kXR_QPrep`, residency-aware opens, async recall
-  (`waiter.c`), and the WLCG HTTP Tape REST API (`src/protocols/webdav/tape_rest.c`).
+- **`src/fs/xfer/` + `src/fs/backend/frm/` — durable tape staging.** The former
+  standalone `src/frm/` subsystem, dissolved (phase-64) into the composable
+  transfer engine: a durable, file-backed request registry with an SHM hot index
+  (`stage_request_registry.c`, modeled on `XrdFrcReqFile`) backing
+  `kXR_prepare`/`kXR_QPrep`, residency-aware opens via the `sd_frm` nearline
+  driver, async recall (`stage_waiter.c`), and the WLCG HTTP Tape REST API
+  (`src/protocols/webdav/tape_rest.c`).
   POSC commit logic lives in `src/protocols/root/read/close.c` / `src/protocols/root/connection/fd_table.c`.
 
 The design point is **convergence and operability**: one process, one confinement
@@ -147,7 +151,7 @@ call:
 - The **whole backend is swappable** via `ofs.osslib` — local POSIX, Ceph, PSS,
   CSI-tagstore, etc.
 
-### nginx-xrootd: single confined local export, kernel-enforced
+### gnuBall: single confined local export, kernel-enforced
 
 This module exposes exactly **one local POSIX export** per server block:
 
@@ -212,7 +216,7 @@ ofs.persist [auto | manual | off] [hold <sec>] [logdir <dirp>] [sync <snum>]
 So official POSC survives both a client disconnect (held for `hold`) and a server
 restart (recovered from the poscq file).
 
-### nginx-xrootd: stage-temp + atomic rename, immediate disconnect cleanup
+### gnuBall: stage-temp + atomic rename, immediate disconnect cleanup
 
 This module implements POSC inline in the open/close path, gated on the wire flag
 `kXR_posc` on a write open (advertised as `kXR_supposc`):
@@ -280,7 +284,7 @@ origin)**:
 - The remote origin is an `XrdPss` instance: `pss.origin root://host:port`
   (`XrdPssConfig.cc`), with remote checksum support (`XrdPssCks.cc`).
 
-### nginx-xrootd: read-through + write-through, native-client origin fill
+### gnuBall: read-through + write-through, native-client origin fill
 
 This module's `src/fs/cache/` is a practical caching gateway with **two halves**
 (`src/fs/cache/README.md`):
@@ -293,7 +297,7 @@ This module's `src/fs/cache/` is a practical caching gateway with **two halves**
   `rename`s into the `cache_root` tree; a `.meta` sidecar records origin
   mtime/size/etag for staleness detection (`fetch.c`, `meta.c`,
   `origin_protocol.c`). Subsequent opens hit local disk
-  (`xrootd_cache_open()` in `cache/open.c`, called from `src/fs/vfs_open.c`).
+  (`xrootd_cache_open()` in `cache/open.c`, called from `src/fs/vfs/vfs_open.c`).
   - **Two fill granularities:** **whole-file** (`fetch.c`, the historical path)
     and **fixed-size slices** (`slice.c`/`slice_fill.c`, Phase 26 — `read://`
     random reads fetch only the touched ~128 KiB windows; missing slices get a
@@ -373,35 +377,41 @@ priority — `XrdFrcRequest.hh`), with four queue types (stg/mig/get/put) and
 mutex + file locking. Cluster IDs are tracked (`XrdFrcCID.cc`), and
 stage/migrate/purge events stream over **UDP monitoring** (`XrdFrmMonitor.cc`).
 
-### nginx-xrootd: one durable queue + Tape REST, in-process
+### gnuBall: one durable queue + Tape REST, in-process
 
-This module's `src/frm/` is a **single-process, durable, crash-safe stage-in
-queue** (`src/frm/README.md`). It is enabled by `xrootd_frm on` and backs
+This module's tape staging is a **single-process, durable, crash-safe stage-in
+queue**. Since phase-64 it is owned by the composable transfer engine — the
+former standalone `src/frm/` subsystem was dissolved into `src/fs/xfer/`
+(registry, engine, waiter — see `src/fs/xfer/README.md`) and the `sd_frm`
+nearline driver (`src/fs/backend/frm/`), with the directives kept in
+`src/core/config/tape_stage_conf.c`. It is enabled by `xrootd_frm on` and backs
 `kXR_prepare`/`kXR_QPrep`, residency-aware opens, and the HTTP Tape REST API. Its
 defining invariant is **file = truth, SHM = cache**:
 
-- The queue is a **file-backed fixed-record log** (`frm_format.h`), modeled on the
-  official `XrdFrcReqFile`, with a per-record CRC32c and a self-offset so a torn
+- The queue is a **file-backed fixed-record log** (modeled on the official
+  `XrdFrcReqFile`), with a per-record CRC32c and a self-offset so a torn
   write is *detectable*. Every mutation takes the in-process `ngx_shmtx` then an
   `fcntl(F_SETLKW)` whole-file lock (serialising across workers and across hosts
   sharing the filesystem), writes the body + `fdatasync`, then the header +
   `fsync` (the header write is the WAL commit point). nginx SHM is treated as a
   **hot index only**, reconciled from the file at master start before workers fork
-  (`reqfile.c`, `index.c`, `reconcile.c`).
+  (`stage_request_registry.c` + the engine's startup reconcile).
 - **Durable reqids** are `"<seq>.<pid>@<host>"` with the sequence in the file
-  header so they stay monotonic across restarts (`reqid.c`) — replacing the old
-  fire-and-forget stub where `reqid` was the literal `"0"` and state died with the
-  connection.
-- **Residency model.** `residency.c` probes a `user.frm.residency` xattr (absent ⇒
-  ONLINE). A nearline file makes `kXR_stat`/`statx` OR in `kXR_offline`; a recall
-  is triggered on open via the **stage agent** (`stage.c`, a double-forked,
-  init-reparented process so nginx never reaps the copy command), parking the
-  client with `kXR_wait`.
+  header so they stay monotonic across restarts (the registry preserves the
+  original FRM reqid format) — replacing the old fire-and-forget stub where
+  `reqid` was the literal `"0"` and state died with the connection.
+- **Residency model.** The `sd_frm` driver (`src/fs/backend/frm/sd_frm.c`) probes
+  a `user.frm.residency` xattr (absent ⇒ ONLINE). A nearline file makes
+  `kXR_stat`/`statx` OR in `kXR_offline`; a recall is triggered on open through
+  the driver's MSS adapter (the exec adapter runs the operator's copy command via
+  the crash-safe, init-reparented agent harness in `xfer_spawn.c` /
+  `xfer_mover_agent.c`, so nginx never reaps it), parking the client with
+  `kXR_wait`.
 - **Prepare / QPrep.** `kXR_prepare(kXR_stage)` enqueues one durable record per
   resolved path and returns the first record's reqid; `kXR_QPrep` is stat-first
   (resident ⇒ `A`) then queue-fallback (`q`/`s`/`f`), unknown ⇒ `M`;
   `kXR_cancel`/`kXR_evict` delete/release the record (`src/protocols/root/query/prepare.c`).
-- **Async recall** (`waiter.c`, `xrootd_frm_async_recall`): a nearline open is
+- **Async recall** (`stage_waiter.c`, `xrootd_frm_async_recall`): a nearline open is
   parked with `kXR_waitresp` and satisfied in place via `kXR_attn(asynresp)` when
   the recall lands — same-worker inline, cross-worker via an SHM waiter table
   delivered by the owning worker's scheduler tick (no IPC).
@@ -413,29 +423,32 @@ defining invariant is **file = truth, SHM = cache**:
 - **Parity follow-ups (F1–F6):** manager registration of a now-resident path on
   stage completion (cmsd "Have"); a residency-oracle command
   (`xrootd_frm_residency_cmd`) consulted before copying; recalled-file checksum
-  verification; per-DN admission cap (`xrootd_frm_max_per_source`); and a
-  migrate/purge **watermark monitor scaffold** (`migrate_purge.c`).
+  verification; and a per-DN admission cap (`xrootd_frm_max_per_source`). (The
+  former migrate/purge watermark monitor scaffold was removed with the phase-64
+  dissolution.)
 
-**The honest maturity statement.** Per `src/frm/README.md` and the source-verified
+**The honest maturity statement.** Per `src/fs/xfer/README.md` and the source-verified
 comparison: this is **intentionally narrower than the complete upstream
 XrdFrm/MSS daemon ecosystem.** Concretely:
 
 - It is **one in-process subsystem**, not the `frm_xfrd` / `frm_xfragent` /
   `frm_purged` / `frm_admin` four-daemon split.
-- **Migration (disk→tape) is a scaffold.** `migrate_purge.c` is a worker-0
-  watermark *monitor that only logs*; the actual migrate/purge engine is delegated
-  to the MSS backend / operator policy. There is **no automatic disk→tape
+- **Migration (disk→tape) is not implemented in-process.** The migrate/purge
+  engine is delegated to the MSS backend / operator policy (the old
+  `migrate_purge.c` monitor-only scaffold was deleted in the phase-64
+  dissolution). There is **no automatic disk→tape
   migration scan** and **no built-in purge GC** equivalent to `frm_purged`. The
   source-verified comparison rates "Migrate/purge policy engine" as
   **Missing/Partial** and flags it as "a serious reviewer item for tape sites
   requiring disk-to-tape migration or watermark GC inside this process."
 - **The MSS driver abstraction is a command, not a library.** Recall runs the
   operator's `xrootd_frm_stagecmd` / `copycmd` (and `xrootd_frm_residency_cmd`
-  oracle); there is no linked MSS/ARC plugin and no `frm_admin`-style tooling.
+  oracle) through the `sd_frm` exec adapter; there is no linked MSS/ARC plugin
+  and no `frm_admin`-style tooling.
   Auditable and simple, but **not drop-in for sites depending on upstream MSS
   plugins or FRM operational workflows.**
-- Monitoring is **Prometheus**, not UDP stage/migr/purge streams (`metrics.c`,
-  `xrootd_frm_*` counters).
+- Monitoring is **Prometheus**, not UDP stage/migr/purge streams
+  (`src/observability/metrics/frm_metrics.c`, `xrootd_frm_*` counters).
 
 Maturity of the *recall/stage* path (durable queue, prepare/QPrep, async recall,
 Tape REST) is **verified** by tests (`test_frm_queue.py` incl. restart durability,
@@ -450,7 +463,7 @@ such here.
 
 ### Configuring the export root / storage backend
 
-| Concern | Official XRootD | nginx-xrootd |
+| Concern | Official XRootD | gnuBall |
 |---|---|---|
 | Export base path | `oss.localroot <path>` (string prefix) | `xrootd_root <dir>` (kernel-confined export root) |
 | Confinement | none from `localroot`; symlinks followed | `openat2(RESOLVE_BENEATH)` per syscall (`src/fs/path/beneath.c`) |
@@ -460,7 +473,7 @@ such here.
 
 ### Configuring the cache (XCache role)
 
-| Concern | Official XRootD | nginx-xrootd |
+| Concern | Official XRootD | gnuBall |
 |---|---|---|
 | Cache plugin / enable | `pfc.osslib`, cache plugin load | `xrootd_cache on` |
 | Cache disk tree | OSS data space | `xrootd_cache_root <dir>` |
@@ -474,7 +487,7 @@ such here.
 
 ### Configuring tape / FRM
 
-| Concern | Official XRootD | nginx-xrootd |
+| Concern | Official XRootD | gnuBall |
 |---|---|---|
 | Enable | run `frm_xfrd`/`frm_purged` daemons | `xrootd_frm on` |
 | Durable queue file | poscq/req file (internal paths) | `xrootd_frm_queue_path <abs>` (durable, required) |
@@ -493,21 +506,21 @@ such here.
   watermarks, hit/miss/bypass from `cinfo` access history, purge runs
   (`XrdPfcResourceMonitor`); FRM stage/migrate/purge events over **UDP
   monitoring**; `frm_admin` for queue introspection and audit.
-- **nginx-xrootd:** Prometheus counters at `/metrics` — cache hit/miss, eviction,
+- **gnuBall:** Prometheus counters at `/metrics` — cache hit/miss, eviction,
   write-through pending/success/error and bytes; `xrootd_frm_*` (requests, stage
   success/fail, evict, migrate, async waiters/waitresp/asynresp,
   reject-inflight, dedup hits, cmsd-have); plus the live transfer dashboard
   (`src/observability/dashboard/`, including a cache view). Residency is observable via
   `kXR_offline` on stat, WebDAV PROPFIND `<xrd:locality>`, and S3 HEAD
-  `x-amz-storage-class: GLACIER` (`src/frm/README.md`, Phase 1).
+  `x-amz-storage-class: GLACIER`.
 
 ---
 
 ## Parity, gaps, and divergences
 
-| Capability | Official XRootD | nginx-xrootd | Status | Notes |
+| Capability | Official XRootD | gnuBall | Status | Notes |
 |---|---|---|---|---|
-| POSIX local serving | `XrdOss`/`XrdOfs` POSIX backend | `src/fs/` VFS + confined `src/path/` | **Parity** | Intentionally strongest as a POSIX data server/gateway. |
+| POSIX local serving | `XrdOss`/`XrdOfs` POSIX backend | `src/fs/` VFS + confined `src/fs/path/` | **Parity** | Intentionally strongest as a POSIX data server/gateway. |
 | Namespace confinement | `oss.localroot` string prefix (symlinks followed) | `openat2(RESOLVE_BENEATH)` kernel-enforced | **nginx+ (stronger)** | Kernel refuses escape (`EXDEV`); not a chroot vs prefix tradeoff. |
 | **Pluggable OSS backend ABI** | `ofs.osslib` loads Ceph/PSS/CSI/custom | **none** | **Missing (honest gap)** | No plugin ABI; POSIX only. Sites needing `XrdCeph`/`XrdPss`/`XrdOssCsi` cannot use this for that role. |
 | Named storage spaces / partitions | `oss.space`, per-space usage/quota | none | **Missing** | One export tree; cache tree is separate but not a space-token system. |
@@ -522,11 +535,11 @@ such here.
 | Cache admit decision plugin (`.so`) | `pfc.decisionlib` | in-process fn only | **Partial** | Policy fn pluggable in-process; no loadable plugin. |
 | Write-through cache | `pfc.writethrough` | `xrootd_write_through` sync/async + prefix policy | **Parity / nginx+** | Cross-protocol, identity-agnostic edge writes. |
 | Proxy storage (remote origin as backend) | `XrdPss` OSS plugin | (no PSS-style storage backend; proxy/cache patterns instead) | **Missing** | See proxy/cache comparison pages for the bridge approach. |
-| Tape stage-in (recall) queue | `XrdFrm` durable req file + daemons | `src/frm/` durable file=truth+SHM queue | **Partial** | Real durable queue; not the daemon ecosystem. |
-| `kXR_prepare`/`kXR_QPrep` staging | `do_Prepare` + full FRM | `src/protocols/root/query/prepare.c` + `src/frm/` durable reqids | **Partial** | Real reqids + restart durability; legacy `"0"` only with FRM off. |
-| Async recall delivery | daemon-driven | `kXR_waitresp` + `kXR_attn(asynresp)` (`waiter.c`) | **Parity-ish** | In-process, no IPC; opt-in. |
-| Disk→tape migration (auto) | `frm_xfrd`/`XrdFrmMigrate` scan + `copycmd out` | `migrate_purge.c` **monitor-only scaffold** | **Missing / Partial** | No automatic migration scan; delegated to MSS/operator. |
-| Disk purge GC daemon | `frm_purged` watermark/hold/policy | watermark monitor scaffold | **Missing / Partial** | No in-process purge engine. |
+| Tape stage-in (recall) queue | `XrdFrm` durable req file + daemons | `src/fs/xfer/` durable file=truth+SHM queue | **Partial** | Real durable queue; not the daemon ecosystem. |
+| `kXR_prepare`/`kXR_QPrep` staging | `do_Prepare` + full FRM | `src/protocols/root/query/prepare.c` + `src/fs/xfer/` durable reqids | **Partial** | Real reqids + restart durability; legacy `"0"` only with FRM off. |
+| Async recall delivery | daemon-driven | `kXR_waitresp` + `kXR_attn(asynresp)` (`stage_waiter.c`) | **Parity-ish** | In-process, no IPC; opt-in. |
+| Disk→tape migration (auto) | `frm_xfrd`/`XrdFrmMigrate` scan + `copycmd out` | **none in-process** (scaffold removed in phase-64) | **Missing** | No automatic migration scan; delegated to MSS/operator. |
+| Disk purge GC daemon | `frm_purged` watermark/hold/policy | none in-process | **Missing** | No in-process purge engine. |
 | MSS driver | OSS/MSS plugin + `copycmd` | `stagecmd`/`copycmd`/`residency_cmd` (commands only) | **Partial** | Simpler, auditable; not drop-in for MSS plugins. |
 | Admin tooling | `frm_admin` interactive client | Prometheus + dashboard + HTTP Tape REST | **Divergence** | Different operational model. |
 | WLCG HTTP Tape REST | not a core daemon surface | `src/protocols/webdav/tape_rest.c` on same queue | **nginx+** | FTS/gfal2-friendly HTTP tape ops. |
@@ -571,10 +584,10 @@ monitor-only scaffolds delegated to operator commands). Do not claim full
   `XrdFrc/XrdFrcRequest.hh` (durable record), `XrdFrc/XrdFrcReqAgent.cc`,
   `XrdFrc/XrdFrcCID.cc`.
 
-**nginx-xrootd (`src/`):**
+**gnuBall (`src/`):**
 
-- VFS / storage: `src/fs/README.md`, `src/fs/vfs.h`, `src/fs/vfs_open.c`,
-  `src/fs/vfs_read.c`, `src/fs/vfs_write.c`.
+- VFS / storage: `src/fs/README.md`, `src/fs/vfs/vfs.h`, `src/fs/vfs/vfs_open.c`,
+  `src/fs/vfs/vfs_read.c`, `src/fs/vfs/vfs_write.c`.
 - Confinement / namespace: `src/fs/path/README.md`, `src/fs/path/beneath.c/.h`,
   `src/fs/path/canonical.c`, `src/fs/path/mkdir.c`, `src/core/compat/namespace_ops.c`,
   `src/core/compat/staged_file.c`, `src/core/compat/shm_slots.c`.
@@ -585,10 +598,11 @@ monitor-only scaffolds delegated to operator commands). Do not claim full
   `src/fs/cache/origin_connection.c`, `src/fs/cache/io.c`,
   `src/fs/cache/writethrough_decision.c`, `src/fs/cache/writethrough_flush.c`,
   `src/fs/cache/evict_policy.c`, `src/fs/cache/directives.c`.
-- FRM / tape: `src/frm/README.md`, `src/frm/frm_format.h`, `src/frm/reqfile.c`,
-  `src/frm/reqid.c`, `src/frm/index.c`, `src/frm/reconcile.c`,
-  `src/frm/residency.c`, `src/frm/stage.c`, `src/frm/waiter.c`,
-  `src/frm/migrate_purge.c`, `src/frm/directives.c`, `src/protocols/root/query/prepare.c`,
+- FRM / tape (re-homed by the phase-64 dissolution of `src/frm/`):
+  `src/fs/xfer/README.md`, `src/fs/xfer/stage_engine.c`,
+  `src/fs/xfer/stage_request_registry.c`, `src/fs/xfer/stage_waiter.c`,
+  `src/fs/backend/frm/sd_frm.c`, `src/core/config/tape_stage_conf.c`,
+  `src/observability/metrics/frm_metrics.c`, `src/protocols/root/query/prepare.c`,
   `src/protocols/webdav/tape_rest.c`.
 - Cross-checked against: `docs/10-reference/source-verified-xrootd-comparison.md`
   (Storage/Cache/Tape section) and `docs/10-reference/comparison/conformance-findings.md`

@@ -1,4 +1,4 @@
-# Feature Gap Analysis: nginx-xrootd vs. XRootD
+# Feature Gap Analysis: gnuBall vs. XRootD
 
 This document outlines the remaining feature gaps between the `nginx-xrootd` module and a canonical XRootD implementation suitable for WLCG Tier-2 disk-only and tape-backed sites.
 
@@ -43,7 +43,7 @@ WebDAV locks are maintained in process-local memory. A reload causes these locks
 TPC transfers involving multiple network hops fail when the delegation of a GSI proxy cert is required beyond the initial hop.
 
 *   **Files to Modify:**
-    *   `src/tpc/bootstrap.c`: Enhance GSI delegation logic.
+    *   `src/tpc/outbound/bootstrap.c`: Enhance GSI delegation logic.
 *   **Work Required:** Implement a second-hop delegation handshake in the TPC outbound pull client.
 
 ### 5. Parallel Write Streams (Write Sharing)

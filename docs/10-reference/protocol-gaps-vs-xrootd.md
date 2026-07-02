@@ -1,6 +1,6 @@
-# XRootD Protocol Gap Analysis — nginx-xrootd vs upstream xrootd
+# XRootD Protocol Gap Analysis — gnuBall vs upstream xrootd
 
-> **Scope**: Comparison of nginx-xrootd (`src/`) against reference xrootd server (`/tmp/xrootd-src/src/`, v5.2.0 protocol surface). Covers all protocol opcodes, security plugins, server modules, capability flags, and optional features.
+> **Scope**: Comparison of gnuBall (`src/`) against reference xrootd server (`/tmp/xrootd-src/src/`, v5.2.0 protocol surface). Covers all protocol opcodes, security plugins, server modules, capability flags, and optional features.
 >
 > **Legend**: ✅ implemented · ⚠️ partial · ❌ not implemented · N/A not applicable · 📋 out of scope
 
@@ -32,7 +32,7 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 | `kXR_set` (3018) | ✅ | appid, clttl |
 | `kXR_write` (3019) | ✅ | |
 | `kXR_fattr` (3020) | ✅ | get/set/del/list via xattrs |
-| `kXR_prepare` (3021) | ✅ | FRM-off legacy mode does path validation + optional `xrootd_prepare_command`; with `xrootd_frm on`, durable queue records and real request IDs are handled by `src/frm/`. Full upstream XrdFrm/MSS parity remains partial. |
+| `kXR_prepare` (3021) | ✅ | FRM-off legacy mode does path validation + optional `xrootd_prepare_command`; with `xrootd_frm on`, durable queue records and real request IDs are handled by the `src/fs/xfer/` stage engine. Full upstream XrdFrm/MSS parity remains partial. |
 | `kXR_statx` (3022) | ✅ | |
 | `kXR_endsess` (3023) | ✅ | |
 | `kXR_bind` (3024) | ✅ | Parallel streams |
@@ -188,11 +188,11 @@ paths where required.
 
 ---
 
-## 9. Optional Server Modules (upstream vs nginx-xrootd)
+## 9. Optional Server Modules (upstream vs gnuBall)
 
 ### Implemented (with upstream equivalent)
 
-| Module | Description | nginx-xrootd equivalent |
+| Module | Description | gnuBall equivalent |
 |--------|-------------|------------------------|
 | `XrdXrootd` | Core protocol handler | Native `root://` stream module |
 | `XrdHttp` | HTTP file serving | WebDAV (`davs://`) + S3 REST |
@@ -239,7 +239,7 @@ paths where required.
 
 ## 10. HTTP Layer
 
-| Feature | XRootD (XrdHttp) | nginx-xrootd | Status |
+| Feature | XRootD (XrdHttp) | gnuBall | Status |
 |---------|------------------|--------------|--------|
 | HTTP GET / HEAD | ✅ | ✅ WebDAV | ✅ |
 | HTTP PUT | ✅ | ✅ | ✅ |
@@ -264,7 +264,7 @@ paths where required.
 
 ## 11. Monitoring
 
-| Feature | XRootD | nginx-xrootd | Status |
+| Feature | XRootD | gnuBall | Status |
 |---------|--------|--------------|--------|
 | Per-opcode counters | XROOTD_MON_ALL | ✅ Prometheus | ✅ |
 | Per-file I/O | XROOTD_MON_FILE | N/A | ❌ UDP-only |

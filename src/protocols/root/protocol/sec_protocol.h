@@ -9,7 +9,7 @@
  * WHY:  TWO XRootD-client implementations parse this same list to choose which
  *       credential to send: the native client's auth driver (client/lib/auth.c)
  *       and the server's own TPC-outbound auth selector (server-as-client,
- *       src/tpc/gsi_outbound_finish.c). The latter hand-rolled a LOOSER check —
+ *       src/tpc/gsi/gsi_outbound_finish.c). The latter hand-rolled a LOOSER check —
  *       a bare strstr(parms, "ztn")/"gsi") with no "&P=" anchor or name-boundary
  *       test — which can false-match the substring anywhere in the block (another
  *       protocol's args, a trailing hostname) and pick the wrong auth method.

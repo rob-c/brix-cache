@@ -1,6 +1,6 @@
 # Proxy Mode
 
-nginx-xrootd as a protocol-aware forwarding proxy — authenticates clients itself (GSI, token, or anonymous), then forwards authenticated requests upstream to a real XRootD data server. Useful when you want centralized auth without touching the backend.
+gnuBall as a protocol-aware forwarding proxy — authenticates clients itself (GSI, token, or anonymous), then forwards authenticated requests upstream to a real XRootD data server. Useful when you want centralized auth without touching the backend.
 then lazily connects to the upstream on the first data-plane request and relays
 all subsequent opcodes — rewriting file handles transparently so neither side
 knows about the other's handle space.
@@ -252,7 +252,7 @@ valid inside `http { }`.
 |---|---|
 | ✅ Lazy upstream TCP connect on first FS opcode | Triggered by kXR_stat, kXR_open, kXR_dirlist, etc. — not by kXR_ping/kXR_query |
 | ✅ XRootD bootstrap to upstream (handshake + kXR_protocol + kXR_login) | Anonymous login, username "xrd", unique virtual PID per connection |
-| ✅ Client-side auth: anonymous, GSI, token, sss | Normal nginx-xrootd auth stack |
+| ✅ Client-side auth: anonymous, GSI, token, sss | Normal gnuBall auth stack |
 | ✅ File handle translation (fh_map[16]) | Per-connection; client handles are independent of upstream handles |
 | ✅ kXR_open — pre-allocate local slot, rewrite upstream fh in response | Failed opens free the slot immediately |
 | ✅ kXR_read, kXR_pgread, kXR_write, kXR_pgwrite, kXR_close, kXR_sync, kXR_chkpoint | fh translated at byte 0 of request body |

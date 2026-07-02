@@ -69,7 +69,7 @@ Removal touches (no git operations will be run by the agent):
   **not** reused by `cephfsro`, which decodes CephFS's own omap dentry format via
   the new `cephfs_denc`/`cephfs_layout`, a different on-disk encoding).
 - `src/fs/backend/sd_registry.c` — drop the `xrootd_sd_ceph_ns_driver` row.
-- `src/fs/vfs_backend_registry.c` — drop the `cephns:` route; the backend-name
+- `src/fs/vfs/vfs_backend_registry.c` — drop the `cephns:` route; the backend-name
   param on `config_ceph` collapses back to the single `ceph` form.
 - `config` — drop `sd_ceph_ns.c` + `sd_ceph_omap.c` from the source list.
 - tests: `tests/ceph/sd_ceph_ns_live_test.c`, `sd_ceph_omap_unittest.c`,

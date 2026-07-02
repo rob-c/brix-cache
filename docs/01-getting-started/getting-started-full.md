@@ -409,7 +409,7 @@ Here are the most useful docs, organized by what you might want to do:
 - **Benchmarks and performance tuning** — [benchmarks.md](../05-operations/performance-benchmarks.md)
 
 ### Understanding the project
-- **How nginx-xrootd compares to official xrootd** — [comparison-with-xrootd.md](../10-reference/design-rationale.md)
+- **How gnuBall compares to official xrootd** — [comparison-with-xrootd.md](../10-reference/design-rationale.md)
 - **Run the full test suite** — [testing.md](../09-developer-guide/testing-runbook.md)
 - **Protocol quirks and design trade-offs** — [reference/quirks.md](../10-reference/quirks.md)
 

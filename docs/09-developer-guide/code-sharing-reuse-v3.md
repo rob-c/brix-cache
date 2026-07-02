@@ -216,7 +216,7 @@ proxy_up_state_t enum lifecycle states:
 4. Map entry updated: local_fh=N → upstream_fh=<opaque value>
 5. All subsequent requests relay verbatim — handle translation applied at wire level
 
-**INVARIANT #9:** Native TPC = SHM key registry (`src/tpc/key_registry.c`) — cross-process, zero-copy. Proxy TPC uses the same fh_map for handle translation across proxy boundary.
+**INVARIANT #9:** Native TPC = SHM key registry (`src/tpc/engine/key_registry.c`) — cross-process, zero-copy. Proxy TPC uses the same fh_map for handle translation across proxy boundary.
 
 ### Shared Mental Model
 

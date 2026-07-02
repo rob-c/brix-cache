@@ -24,7 +24,7 @@
 #include "protocols/root/path/op_path.h"
 #include "auth/authz/auth_gate.h"
 #include "fs/path/path.h"
-#include "fs/vfs.h"   /* xrootd_vfs_setattr — driver-routed metadata mutation */
+#include "fs/vfs/vfs.h"   /* xrootd_vfs_setattr — driver-routed metadata mutation */
 
 #include <arpa/inet.h>
 #include <endian.h>

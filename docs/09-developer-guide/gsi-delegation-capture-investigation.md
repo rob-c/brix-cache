@@ -53,7 +53,7 @@ server bugs.
 failed with `TPC kXR_open recv failed`. Root cause: the dest authenticated to the source **as the
 user** (delegation working) but presented the anonymous-rendezvous `?tpc.key=` opaque, so the
 source deferred the open with `kXR_waitresp` awaiting a client-side authorization the delegate
-flow never issues → the dest timed out. Fix (`src/tpc/source.c`): when a delegated credential is
+flow never issues → the dest timed out. Fix (`src/tpc/outbound/source.c`): when a delegated credential is
 held, open the source file **directly** (no `tpc.key`), since the dest is authenticated as the
 file owner. `test_dest_pulls_as_user_via_delegation` is now GREEN. **The full F6 chain works
 end-to-end** (`test_tpc_delegation.py`: 4 passed). See the long-form walkthrough

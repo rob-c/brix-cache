@@ -1,6 +1,6 @@
 #include "dashboard_http.h"
 #include "api_admin.h"   /* Phase 23: xrootd_admin_dispatch + admin directives */
-#include "core/compat/http_headers.h"   /* xrootd_http_source_offer (AGPL sec.13) */
+#include "core/http/http_headers.h"   /* xrootd_http_source_offer (AGPL sec.13) */
 
 #include <limits.h>
 #include <stdio.h>

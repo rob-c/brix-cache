@@ -108,6 +108,16 @@ typedef struct {
     uint8_t            wv_desc[16];              /* current descriptor bytes */
     size_t             wv_desc_got;
     uint64_t           wv_extra;                 /* sum(wlen) so far */
+
+    /* kXR_chkpoint/ckpXeq trailing sub-body (stock framing: the frame's dlen
+     * covers only the embedded 24-byte sub-request header; the sub-request
+     * body streams after it — write/pgwrite data, or writev descriptors then
+     * data, the latter consumed via the wv_* machinery above).  The embedded
+     * header is captured as it passes so the trailing byte count can be
+     * recovered, keeping the stream aligned on the next frame. */
+    int                ckp_active;               /* capturing embedded header */
+    uint8_t            ckp_hdr[24];
+    size_t             ckp_hdr_got;
 } xrootd_tap_stream_t;
 
 void xrootd_tap_stream_init(xrootd_tap_stream_t *st, xrootd_tap_ctx_t *tap,

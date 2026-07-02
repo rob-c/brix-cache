@@ -19,20 +19,25 @@
  *   core filter — it never disagrees with it, it only adds the future-date 304
  *   case and the XML body.
  *
- * HOW: s3_eval_preconditions() applies RFC 9110 §13.2.2 precedence
- *   (If-Match → If-Unmodified-Since → If-None-Match → If-Modified-Since) using
- *   the request's synthetic ETag (mtime+size) and mtime.  ETag matching tolerates
- *   the `*` any-match token and weak (`W/`) prefixes.  Response overrides are
- *   applied from the serve pre-header hook so they win over the headers
- *   set_file_headers computed; every override value is rejected if it carries a
- *   control byte (defeats response-splitting), so they are safe to honor on any
- *   request without an open header-injection risk.
+ * HOW: Precondition evaluation delegates to the shared RFC 9110 §13.2.2
+ *   evaluator xrootd_http_eval_preconditions() (core/http/http_conditionals.c)
+ *   — GET/HEAD in READ|TIME mode (If-None-Match match ⇒ 304, S3 `before`
+ *   If-Modified-Since semantics), conditional PUT in ETag-only write mode
+ *   (match ⇒ 412).  This file owns only the S3 protocol edge: the XML 412
+ *   body, the bare 304, the pre-body PUT existence probe, and the response-*
+ *   overrides.  Overrides are applied from the serve pre-header hook so they
+ *   win over the headers set_file_headers computed; every override value is
+ *   rejected if it carries a control byte (defeats response-splitting), so
+ *   they are safe to honor on any request without an open header-injection
+ *   risk.
  */
 
 #include "s3.h"
-#include "core/compat/http_headers.h"
-#include "core/compat/http_query.h"
-#include "fs/vfs.h"
+#include "core/http/etag.h"
+#include "core/http/http_conditionals.h"
+#include "core/http/http_headers.h"
+#include "core/http/http_query.h"
+#include "fs/vfs/vfs.h"
 
 #include <fcntl.h>
 #include <string.h>
@@ -43,99 +48,6 @@
 #define S3_OVERRIDE_QUERY_FLAGS \
     (XROOTD_HTTP_QUERY_DECODE_VALUE | XROOTD_HTTP_QUERY_PLUS_TO_SPACE \
      | XROOTD_HTTP_QUERY_REJECT_NUL | XROOTD_HTTP_QUERY_ALLOW_EMPTY)
-
-/*
- * ETag matching
- * */
-
-/* Case-sensitive search for the NUL-terminated needle inside h (not NUL-term). */
-static int
-s3_str_contains(const ngx_str_t *h, const char *needle)
-{
-    size_t nl = ngx_strlen(needle);
-    size_t i;
-
-    if (nl == 0 || h->len < nl) {
-        return 0;
-    }
-    for (i = 0; i + nl <= h->len; i++) {
-        if (ngx_strncmp(h->data + i, needle, nl) == 0) {
-            return 1;
-        }
-    }
-    return 0;
-}
-
-/*
- * s3_etag_header_matches — does an If-[None-]Match header value select `etag`?
- *
- * `etag` is our synthetic strong validator including its surrounding quotes,
- * e.g. "6a37c4b6-5".  A trimmed "*" matches any existing representation.  Any
- * other value is a (comma-separated) list of quoted validators; because our
- * etag carries its closing quote, a plain quoted-substring search cannot
- * prefix-collide (e.g. "..-5" never matches inside "..-55") — so it is both
- * correct and simpler than a full list tokenizer.  A weak `W/` prefix on a
- * list entry still leaves the quoted token intact for the substring match.
- */
-static int
-s3_etag_header_matches(const ngx_str_t *h, const char *etag)
-{
-    size_t a = 0, b = h->len;
-
-    while (a < b && (h->data[a] == ' ' || h->data[a] == '\t')) {
-        a++;
-    }
-    while (b > a && (h->data[b - 1] == ' ' || h->data[b - 1] == '\t')) {
-        b--;
-    }
-    if (b - a == 1 && h->data[a] == '*') {
-        return 1;
-    }
-    return s3_str_contains(h, etag);
-}
-
-/*
- * Precondition evaluation
- * */
-
-ngx_int_t
-s3_eval_preconditions(ngx_http_request_t *r, const char *etag, time_t mtime)
-{
-    ngx_table_elt_t *if_match  = r->headers_in.if_match;
-    ngx_table_elt_t *if_none   = r->headers_in.if_none_match;
-    ngx_table_elt_t *if_unmod  = r->headers_in.if_unmodified_since;
-    ngx_table_elt_t *if_mod    = r->headers_in.if_modified_since;
-
-    /* 1. If-Match — strong validator; mismatch ⇒ 412. */
-    if (if_match != NULL && if_match->value.len > 0) {
-        if (!s3_etag_header_matches(&if_match->value, etag)) {
-            return NGX_HTTP_PRECONDITION_FAILED;
-        }
-    } else if (if_unmod != NULL && if_unmod->value.len > 0) {
-        /* 2. If-Unmodified-Since (only when If-Match absent). */
-        time_t t = ngx_parse_http_time(if_unmod->value.data,
-                                       if_unmod->value.len);
-        if (t != (time_t) NGX_ERROR && mtime > t) {
-            return NGX_HTTP_PRECONDITION_FAILED;
-        }
-    }
-
-    /* 3. If-None-Match — match ⇒ 304 (GET/HEAD). */
-    if (if_none != NULL && if_none->value.len > 0) {
-        if (s3_etag_header_matches(&if_none->value, etag)) {
-            return NGX_HTTP_NOT_MODIFIED;
-        }
-    } else if (if_mod != NULL && if_mod->value.len > 0) {
-        /* 4. If-Modified-Since (only when If-None-Match absent) — S3 `before`
-         *    semantics: not modified since the given time ⇒ 304. */
-        time_t t = ngx_parse_http_time(if_mod->value.data, if_mod->value.len);
-        if (t != (time_t) NGX_ERROR && mtime <= t) {
-            return NGX_HTTP_NOT_MODIFIED;
-        }
-    }
-
-    return NGX_OK;
-}
 
 /*
  * Sending the conditional outcomes
@@ -185,7 +97,9 @@ s3_handle_conditional(ngx_http_request_t *r, time_t mtime, off_t size)
     }
 
     xrootd_http_etag_str(etag, sizeof(etag), mtime, size, 0);
-    verdict = s3_eval_preconditions(r, etag, mtime);
+    verdict = xrootd_http_eval_preconditions(r, 1 /* exists */, mtime, size,
+        0, XROOTD_HTTP_COND_READ | XROOTD_HTTP_COND_TIME
+           | XROOTD_HTTP_COND_WEAK_EQUIV);
 
     if (verdict == NGX_HTTP_NOT_MODIFIED) {
         return s3_send_not_modified(r, etag, mtime);
@@ -213,8 +127,10 @@ s3_handle_conditional(ngx_http_request_t *r, time_t mtime, off_t size)
  * WHY: Lets clients implement compare-and-swap / create-once semantics without a
  *   separate HEAD round-trip; checked here (pre-body) so a doomed write never
  *   consumes the upload bandwidth.
- * HOW: A single confined stat of the destination yields existence + synthetic
- *   etag (mtime+size), reused through the same matcher as the GET path.
+ * HOW: A single confined stat of the destination yields existence + mtime/size;
+ *   the verdict comes from the shared evaluator in ETag-only write mode (the
+ *   same engine as the GET path, minus READ|TIME: a match ⇒ 412, never 304,
+ *   and the date headers are not part of the S3 conditional-write contract).
  *
  * NOTE (atomicity): the existence test and the later staged-rename commit are
  *   not a single atomic step, so two racing If-None-Match:* creates of the same
@@ -231,7 +147,6 @@ s3_put_precondition(ngx_http_request_t *r, const char *root_canon,
     ngx_table_elt_t  *if_none = r->headers_in.if_none_match;
     ngx_table_elt_t  *if_match = r->headers_in.if_match;
     int               exists = 0;
-    char              etag[48];
     xrootd_vfs_ctx_t  vctx;
     xrootd_vfs_stat_t vst;
     ngx_http_s3_req_ctx_t *s3ctx;
@@ -260,21 +175,13 @@ s3_put_precondition(ngx_http_request_t *r, const char *root_canon,
 
     if (xrootd_vfs_stat(&vctx, &vst) == NGX_OK && vst.is_regular) {
         exists = 1;
-        xrootd_http_etag_str(etag, sizeof(etag), vst.mtime, vst.size, 0);
     }
 
-    /* If-None-Match fails (→412) when the named representation is present. */
-    if (if_none != NULL && if_none->value.len > 0) {
-        if (exists && s3_etag_header_matches(&if_none->value, etag)) {
-            return s3_send_precondition_failed(r);
-        }
-    }
-
-    /* If-Match fails (→412) unless the object exists and matches. */
-    if (if_match != NULL && if_match->value.len > 0) {
-        if (!exists || !s3_etag_header_matches(&if_match->value, etag)) {
-            return s3_send_precondition_failed(r);
-        }
+    if (xrootd_http_eval_preconditions(r, exists,
+            exists ? vst.mtime : 0, exists ? vst.size : 0,
+            0, XROOTD_HTTP_COND_WEAK_EQUIV) != NGX_OK)
+    {
+        return s3_send_precondition_failed(r);
     }
 
     return NGX_DECLINED;

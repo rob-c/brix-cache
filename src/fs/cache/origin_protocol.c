@@ -197,7 +197,7 @@ cache_origin_gsi_parms(const char *parms, size_t plen)
 /* xrootd_cache_origin_auth_gsi — present an X.509 proxy to the origin via the
  * in-process XrdSecgsi two-round handshake after a login advertised "&P=gsi". The
  * DH/cipher/proof-of-possession math is the SHARED gsi_core kernel (the exact
- * implementation client/lib/sec/sec_gsi.c and src/tpc/gsi_outbound_exchange.c use):
+ * implementation client/lib/sec/sec_gsi.c and src/tpc/gsi/gsi_outbound_exchange.c use):
  *   round 1  client → kXGC_certreq (build_certreq); server → kXGS_cert (kXR_authmore)
  *   round 2  client → kXGC_cert (build_cert_response w/ the proxy chain + key); → kXR_ok
  * `gsi_parms` is the server's gsi v:/c:/ca: list; `proxy_path` the proxy PEM file.

@@ -816,13 +816,13 @@ plane is already unprivileged and confined:
    mapped user** (`imp_openat2`, `broker.c:346`) and passes the resulting fd back
    to the worker via **SCM_RIGHTS** (`imp_send_reply`, `broker.c:805` →
    `imp_recv_reply`, `src/auth/impersonate/client.c:204` → stored in `fh->fd`,
-   `src/fs/vfs_open.c:137`). The broker does **only** open + metadata ops
+   `src/fs/vfs/vfs_open.c:137`). The broker does **only** open + metadata ops
    (`impersonate_proto.h` opcodes) — **no data-plane read/write** — so there is
    no reason for it to ever own a ring.
 
 2. **io_uring runs in the *unprivileged* worker, on a pre-vetted fd.** The worker
    holds **zero filesystem capabilities**. The fd handed to the AIO layer
-   (`task->fd = xrootd_vfs_file_fd(fh)`, `src/fs/vfs.h:99`) is exactly the
+   (`task->fd = xrootd_vfs_file_fd(fh)`, `src/fs/vfs/vfs.h:99`) is exactly the
    broker-opened, DAC-checked, `RESOLVE_BENEATH`-confined fd. An
    `IORING_OP_READ/WRITE/FSYNC` on an already-open fd performs **no further uid/gid
    permission check** (Unix checks at `open()` time, which happened as the mapped
@@ -3124,7 +3124,7 @@ Effort labels are **rough relative estimates** (person-days, single engineer fam
 
 **Goal.** Implement §8.2 / §14.4 containment: lock each ring to fd-only data opcodes, validate fd-provenance, prove interop with Phase-40 impersonation.
 
-**Deliverables.** `src/core/aio/uring.c` (restricted setup), `src/core/aio/uring_submit.c` (fd-provenance assertion), interop tests. **Read-only consumers:** `src/auth/impersonate/broker.c`, `src/fs/vfs_open.c`/`vfs.h`, `src/fs/path/beneath.c`.
+**Deliverables.** `src/core/aio/uring.c` (restricted setup), `src/core/aio/uring_submit.c` (fd-provenance assertion), interop tests. **Read-only consumers:** `src/auth/impersonate/broker.c`, `src/fs/vfs/vfs_open.c`/`vfs.h`, `src/fs/path/beneath.c`.
 
 | # | Sub-task | Concrete change |
 |---|---|---|
@@ -6106,7 +6106,7 @@ pgread CRC boundary), `src/core/config/process.c` (worker init/exit hooks), `con
 read-only (no edits, just consumed):** the impersonation seam — `src/fs/path/beneath.c`
 / `src/fs/path/resolve_confined_ops.c` (broker-vs-local open routing),
 `src/auth/impersonate/broker.c` (`imp_openat2` `RESOLVE_BENEATH`, SCM_RIGHTS fd-pass),
-`src/fs/vfs_open.c` / `src/fs/vfs.h` (`fh->fd` provenance) — io_uring submits the
+`src/fs/vfs/vfs_open.c` / `src/fs/vfs/vfs.h` (`fh->fd` provenance) — io_uring submits the
 fd these already produce, adding no privileged code.
 
 **Client:** `client/lib/copy.c` (pump adapters), `client/lib/aio.c` (epoll loop /

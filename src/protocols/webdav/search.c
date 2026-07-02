@@ -9,10 +9,10 @@
 #include "webdav.h"
 #include "auth/impersonate/lifecycle.h"
 #include "fs/path/path.h"
-#include "fs/vfs.h"   /* confined walk via vfs_opendir_quiet/readdir_kind/probe */
+#include "fs/vfs/vfs.h"   /* confined walk via vfs_opendir_quiet/readdir_kind/probe */
 #include "core/compat/fs_walk.h"
-#include "core/compat/http_body.h"
-#include "core/compat/http_xml.h"
+#include "core/http/http_body.h"
+#include "core/http/http_xml.h"
 
 #include <dirent.h>
 #include <libxml/parser.h>

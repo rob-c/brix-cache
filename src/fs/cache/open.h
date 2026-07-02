@@ -1,7 +1,7 @@
 #ifndef XROOTD_CACHE_OPEN_H
 #define XROOTD_CACHE_OPEN_H
 
-#include "fs/vfs.h"
+#include "fs/vfs/vfs.h"
 
 /*
  * open.h — read-side cache-hit path: serve a file from the local cache tree.

@@ -9,7 +9,7 @@
  *         - xrd_pack_login_request:    ClientLoginRequest   (24B kXR_login)
  * WHY:  this exact byte layout was hand-assembled in FOUR places — the native
  *       client (client/lib/conn.c), the proxy upstream (src/upstream/bootstrap.c,
- *       twice: bootstrap + TLS-resend), and native TPC pull (src/tpc/bootstrap.c).
+ *       twice: bootstrap + TLS-resend), and native TPC pull (src/tpc/outbound/bootstrap.c).
  *       It is security-relevant (protocol version, TLS-capability flags, login
  *       capver) and was therefore audited 4× and could drift between roles. One
  *       header keeps the wire facts in a single place; the per-role policy that

@@ -114,15 +114,18 @@ class TestWritevEdgeCases:
     def _writev(self, sock, segments, streamid=b"\x00\x07"):
         """Send kXR_writev with [(fhandle, offset, data)] segments.
         write_list struct: fhandle[4], wlen(int32), offset(int64)
+
+        Stock wire framing (XrdXrootdProtocol::do_WriteV): dlen covers ONLY
+        the descriptor block; the concatenated segment data streams after the
+        frame and the server recovers its length as sum(wlen).
         """
         seg_hdrs = b""
         seg_data = b""
         for fh, offset, data in segments:
             seg_hdrs += struct.pack("!4siq", fh, len(data), offset)
             seg_data += data
-        payload = seg_hdrs + seg_data
-        req = struct.pack("!2sH16sI", streamid, kXR_writev, b"\x00"*16, len(payload))
-        sock.sendall(req + payload)
+        req = struct.pack("!2sH16sI", streamid, kXR_writev, b"\x00"*16, len(seg_hdrs))
+        sock.sendall(req + seg_hdrs + seg_data)
         return _read_response(sock)
 
     def test_writev_single_segment(self):
@@ -171,11 +174,11 @@ class TestWritevEdgeCases:
         # Set sync flag in body (byte 4 of fixed body = reqflags)
         seg_hdr = struct.pack("!4siq", fh, 5, 0)
         seg_data = b"SYNCD"
-        payload = seg_hdr + seg_data
-        # Build writev with sync flag: byte 4 of body = 0x08
+        # Build writev with sync flag: byte 4 of body = 0x08.
+        # Stock framing: dlen covers only the descriptor block.
         body16 = b"\x00\x00\x00\x00\x08" + b"\x00" * 11
-        req = struct.pack("!2sH16sI", b"\x00\x01", kXR_writev, body16, len(payload))
-        sock.sendall(req + payload)
+        req = struct.pack("!2sH16sI", b"\x00\x01", kXR_writev, body16, len(seg_hdr))
+        sock.sendall(req + seg_hdr + seg_data)
         status, _ = _read_response(sock)
         sock.close()
         assert status == kXR_ok
@@ -205,12 +208,12 @@ class TestWritevEdgeCases:
         status, body = _open(sock,path, kXR_open_updt)
         assert status == kXR_ok
         fh = body[:4]
-        # Segment with wlen=0 — C code skips it with continue
+        # Segment with wlen=0 — stock parity: an all-zero-length vector
+        # succeeds immediately (do_WriteV returns Send() when maxSZ == 0).
         status, _ = self._writev(sock, [(fh, 0, b"")])
         _close(sock, fh)
         sock.close()
-        # Either ok (skipped empty seg) or error (no valid segments)
-        assert status in (kXR_ok, kXR_error)
+        assert status == kXR_ok
 
 
 # =========================================================================

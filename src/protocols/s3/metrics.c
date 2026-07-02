@@ -29,7 +29,7 @@
  */
 
 #include "s3.h"
-#include "core/compat/http_headers.h"
+#include "core/http/http_headers.h"
 #include "observability/metrics/http_common.h"
 #include "observability/metrics/unified.h"
 

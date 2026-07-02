@@ -292,7 +292,7 @@ def test_wire_contract_tripwires():
 # the xcache / TPC use case silently breaks:
 #   * xcache origin fill  -> fork/execs the native client (cache/fetch.c,
 #       cache_origin_client default "xrdcp"); rides the guarded sec_gsi.c path.
-#   * native TPC pull     -> in-process src/tpc/gsi_outbound_*.c (separate
+#   * native TPC pull     -> in-process src/tpc/gsi/gsi_outbound_*.c (separate
 #       implementation that can regress independently of the client).
 # --------------------------------------------------------------------------- #
 def test_xcache_origin_uses_native_client():
@@ -318,14 +318,14 @@ def test_xcache_origin_uses_native_client():
 def test_tpc_outbound_uses_shared_core():
     """The in-process TPC outbound GSI must reuse the shared, proven gsi_core.
 
-    Post-F4 the TPC destination's round-2 (src/tpc/gsi_outbound_exchange.c) is a
+    Post-F4 the TPC destination's round-2 (src/tpc/gsi/gsi_outbound_exchange.c) is a
     thin driver that delegates the entire kXGC_cert build to the shared kernel
     xrootd_gsi_build_cert_response (src/auth/gsi/gsi_core.c) — the SAME implementation
     the native client uses. We assert the delegation (so the TPC path can never
     grow a divergent crypto reimplementation) and that the shared kernel still
     carries the wire-critical facts.
     """
-    ex = _read("src/tpc/gsi_outbound_exchange.c")
+    ex = _read("src/tpc/gsi/gsi_outbound_exchange.c")
     core = _read("src/auth/gsi/gsi_core.c")
     assert "xrootd_gsi_build_cert_response" in ex, (
         "TPC outbound GSI no longer delegates round-2 to the shared gsi_core kernel "
@@ -409,7 +409,7 @@ def test_xcache_origin_fetch_live(endpoint, listdir, tmp_path):
 # TPC pull from a live origin (this module as the TPC destination). Gated on a
 # running native-TPC nginx-xrootd destination (TEST_TPC_DEST_ENDPOINT) because it
 # needs a server instance whose xrootd_certificate is authorized at the origin.
-# NOTE: the in-process outbound path (src/tpc/gsi_outbound_*.c) is the legacy
+# NOTE: the in-process outbound path (src/tpc/gsi/gsi_outbound_*.c) is the legacy
 # unsigned-DH dialect (no kXRS_md_alg); it is proven against EOS but UNVERIFIED
 # against dCache — this test is the gold guard once a dest is available.
 _TPC_DEST = os.environ.get("TEST_TPC_DEST_ENDPOINT", "").strip()
@@ -424,7 +424,7 @@ def test_tpc_pull_from_origin_live(endpoint, listdir):
     """Native TPC pull with a real origin (EOS/dCache) as the source.
 
     Drives `xrdcp --tpc <origin>/<file> <dest>/<file>` so the nginx destination
-    performs the server-outbound GSI handshake (src/tpc/gsi_outbound_*.c) against
+    performs the server-outbound GSI handshake (src/tpc/gsi/gsi_outbound_*.c) against
     the live origin. Validates the module can TPC with EOS/dCache as origins.
     """
     XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
@@ -446,5 +446,5 @@ def test_tpc_pull_from_origin_live(endpoint, listdir):
                         capture_output=True, text=True, timeout=180, env=env)
     assert cp.returncode == 0, (
         f"TPC pull from {endpoint}{rfile} via dest {_TPC_DEST} failed — the module's "
-        f"server-outbound GSI (src/tpc/gsi_outbound_*.c) does not interoperate with "
+        f"server-outbound GSI (src/tpc/gsi/gsi_outbound_*.c) does not interoperate with "
         f"this origin:\n{cp.stdout}\n{cp.stderr}")

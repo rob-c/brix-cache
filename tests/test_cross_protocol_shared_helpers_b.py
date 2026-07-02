@@ -61,25 +61,25 @@ def test_phase3_vfs_layer_is_registered():
     _assert_markers(
         "config",
         [
-            "src/fs/vfs.h",
-            "src/fs/vfs_internal.h",
-            "src/fs/vfs_open.c",
-            "src/fs/vfs_read.c",
-            "src/fs/vfs_write.c",
-            "src/fs/vfs_stat.c",
-            "src/fs/vfs_dir.c",
-            "src/fs/vfs_unlink.c",
-            "src/fs/vfs_rename.c",
-            "src/fs/vfs_mkdir.c",
-            "src/fs/vfs_sync.c",
-            "src/fs/fd_cache.c",
+            "src/fs/vfs/vfs.h",
+            "src/fs/vfs/vfs_internal.h",
+            "src/fs/vfs/vfs_open.c",
+            "src/fs/vfs/vfs_read.c",
+            "src/fs/vfs/vfs_write.c",
+            "src/fs/vfs/vfs_stat.c",
+            "src/fs/vfs/vfs_dir.c",
+            "src/fs/vfs/vfs_unlink.c",
+            "src/fs/vfs/vfs_rename.c",
+            "src/fs/vfs/vfs_mkdir.c",
+            "src/fs/vfs/vfs_sync.c",
+            "src/fs/vfs/fd_cache.c",
         ],
     )
     # The data-plane read/write entry points are no longer public API on vfs.h —
     # byte I/O routes through xrootd_vfs_io_execute() (vfs_io_core.c); vfs.h
     # exposes open/stat plus the sendfile/readdir surface.
     _assert_markers(
-        "src/fs/vfs.h",
+        "src/fs/vfs/vfs.h",
         [
             "XROOTD_VFS_O_READ",
             "XROOTD_VFS_O_WRITE",
@@ -98,14 +98,14 @@ def test_phase3_vfs_preserves_io_invariants():
     #    owns the sendfile fd's lifetime (no double-close) -> shared/file_serve.c
     #  - read-side CRC -> fs/vfs_io_core.c
     #  - the write byte primitive -> fs/vfs_write.c
-    _assert_markers("src/core/compat/http_file_response.c", ["b->in_file = 1"])
+    _assert_markers("src/core/http/http_file_response.c", ["b->in_file = 1"])
     _assert_markers("src/protocols/shared/file_serve.c",
                     ["send_fd = dup(fd)", "xrootd_vfs_close(fh"])
-    _assert_markers("src/fs/vfs_io_core.c", ["xrootd_crc32c_value("])
-    _assert_markers("src/fs/vfs_write.c", ["xrootd_vfs_pwrite_full("])
-    _assert_markers("src/fs/vfs_unlink.c", ["xrootd_ns_delete("])
-    _assert_markers("src/fs/vfs_mkdir.c", ["xrootd_ns_mkdir("])
-    _assert_markers("src/fs/vfs_rename.c", ["xrootd_ns_rename("])
+    _assert_markers("src/fs/vfs/vfs_io_core.c", ["xrootd_crc32c_value("])
+    _assert_markers("src/fs/vfs/vfs_write.c", ["xrootd_vfs_pwrite_full("])
+    _assert_markers("src/fs/vfs/vfs_unlink.c", ["xrootd_ns_delete("])
+    _assert_markers("src/fs/vfs/vfs_mkdir.c", ["xrootd_ns_mkdir("])
+    _assert_markers("src/fs/vfs/vfs_rename.c", ["xrootd_ns_rename("])
 
 
 def test_phase3_http_read_metadata_uses_vfs():
@@ -156,7 +156,7 @@ def test_phase4_cache_layer_is_registered():
 
 def test_phase4_vfs_cache_hooks_are_present():
     _assert_markers(
-        "src/fs/vfs.h",
+        "src/fs/vfs/vfs.h",
         [
             "cache_root_canon",
             "cache_enabled",
@@ -165,7 +165,7 @@ def test_phase4_vfs_cache_hooks_are_present():
         ],
     )
     _assert_markers(
-        "src/fs/vfs_open.c",
+        "src/fs/vfs/vfs_open.c",
         [
             "fs/cache/open.h",
             "xrootd_cache_open(ctx, flags, &fh)",
@@ -217,7 +217,7 @@ def test_phase4_http_protocols_use_vfs_cache_path():
     # The single wiring point: xrootd_vfs_ctx_init() sets cache_root_canon (and
     # derives cache_enabled) for every HTTP caller.
     _assert_markers(
-        "src/fs/vfs_open.c",
+        "src/fs/vfs/vfs_open.c",
         ["vctx->cache_root_canon = cache_root_canon"],
     )
     # Phase 12: the cache-hit detection and access-record calls moved out of the
@@ -282,9 +282,9 @@ def test_new_shared_helpers_are_wired_into_module_config():
     for marker in (
         "src/core/compat/checksum.c",
         "src/core/compat/fs_walk.c",
-        "src/core/compat/http_body.c",
-        "src/core/compat/http_conditionals.c",
-        "src/core/compat/http_headers.c",
+        "src/core/http/http_body.c",
+        "src/core/http/http_conditionals.c",
+        "src/core/http/http_headers.c",
         "src/core/compat/hex.c",
         "src/core/compat/staged_file.c",
         "src/core/compat/time.c",
@@ -332,21 +332,21 @@ def test_phase6_unified_metrics_observability_is_wired():
         ],
     )
     _assert_markers(
-        "src/fs/vfs_internal.h",
+        "src/fs/vfs/vfs_internal.h",
         ["xrootd_metric_op_done(", "xrootd_access_log_emit("],
     )
     # The metadata ops carry the observe hook directly; data-plane read/write are
     # observed through the I/O core (vfs_io_core.c), not vfs_read.c/vfs_write.c.
     for relpath in (
-        "src/fs/vfs_stat.c",
-        "src/fs/vfs_unlink.c",
-        "src/fs/vfs_mkdir.c",
-        "src/fs/vfs_rename.c",
-        "src/fs/vfs_dir.c",
+        "src/fs/vfs/vfs_stat.c",
+        "src/fs/vfs/vfs_unlink.c",
+        "src/fs/vfs/vfs_mkdir.c",
+        "src/fs/vfs/vfs_rename.c",
+        "src/fs/vfs/vfs_dir.c",
     ):
         _assert_markers(relpath, ["xrootd_vfs_observe_"])
     _assert_markers(
-        "src/fs/vfs_open.c",
+        "src/fs/vfs/vfs_open.c",
         ["xrootd_metric_cache_result("],
     )
     _assert_markers(

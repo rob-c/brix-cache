@@ -34,7 +34,6 @@ MAP_TSV = os.path.join(REPO, "docs", "refactor", "phase-66-map.tsv")
 SRC = os.path.join(REPO, "src")
 
 INC_RE = re.compile(r'^(\s*#\s*include\s+")([^"]+)(".*)$')
-STEPS = ["core", "auth", "fs", "net", "obs", "protos", "root"]
 
 
 def load_map():
@@ -153,7 +152,7 @@ def tracked_text_files():
     for rel in rels:
         if rel.startswith("src/") and rel.endswith((".c", ".h")):
             continue
-        if rel in TEXT_EXCLUDE:
+        if rel in TEXT_EXCLUDE or rel == os.path.relpath(MAP_TSV, REPO):
             continue
         base = os.path.basename(rel)
         if rel.endswith(TEXT_EXTS) or base in TEXT_NAMES:
@@ -177,6 +176,9 @@ def file_map_applied(entries):
 
 def do_step(step, dry_run=False, fixup=False):
     steps = load_map()
+    if step not in steps:
+        sys.exit(f"step {step}: not in {os.path.relpath(MAP_TSV, REPO)} "
+                 f"(available: {', '.join(sorted(steps))})")
     entries = steps[step]
     if fixup:
         fmap = file_map_applied(entries)
@@ -298,15 +300,19 @@ def do_verify():
 
 
 def main():
+    global MAP_TSV
     ap = argparse.ArgumentParser()
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument("--normalize", action="store_true")
-    g.add_argument("--step", choices=STEPS)
-    g.add_argument("--fixup", choices=STEPS,
+    g.add_argument("--step")
+    g.add_argument("--fixup",
                    help="re-run include/text rewrites for an already-moved step")
     g.add_argument("--verify", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--map", default=MAP_TSV,
+                    help="move-map TSV (default: phase-66 map)")
     args = ap.parse_args()
+    MAP_TSV = os.path.abspath(args.map)
     if args.normalize:
         do_normalize()
     elif args.verify:

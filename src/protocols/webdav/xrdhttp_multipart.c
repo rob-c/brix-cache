@@ -33,7 +33,7 @@
 
 #include "xrdhttp.h"
 #include "webdav.h"
-#include "core/compat/http_file_response.h"
+#include "core/http/http_file_response.h"
 #include "core/compat/range_vector.h"
 
 #include <stdio.h>

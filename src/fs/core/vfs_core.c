@@ -3,8 +3,8 @@
  *
  * The EINTR / short-I/O loop policy lives here; the raw syscalls live in the
  * backend driver (obj->driver->...). Lifted verbatim from the server's
- * xrootd_vfs_pread_full (src/fs/vfs_read.c) and xrootd_vfs_io_write_counted
- * (src/fs/vfs_io_core.c) so behaviour is byte-identical across both trees.
+ * xrootd_vfs_pread_full (src/fs/vfs/vfs_read.c) and xrootd_vfs_io_write_counted
+ * (src/fs/vfs/vfs_io_core.c) so behaviour is byte-identical across both trees.
  */
 #include "vfs_core.h"
 

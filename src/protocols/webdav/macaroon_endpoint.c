@@ -24,7 +24,7 @@
 #include "auth/token/macaroon.h"
 #include "auth/token/macaroon_issue.h"
 #include "core/compat/log_diag.h"
-#include "core/compat/http_body.h"
+#include "core/http/http_body.h"
 #include "core/compat/json_min.h"
 
 #include <openssl/rand.h>

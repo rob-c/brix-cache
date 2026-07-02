@@ -1,6 +1,6 @@
 # Testing guide
 
-How to run, understand, and extend the nginx-xrootd test suite — from environment bootstrap through credential generation (GSI proxy, VOMS proxy, bearer token) through per-test nginx instance management and writing new tests.
+How to run, understand, and extend the gnuBall test suite — from environment bootstrap through credential generation (GSI proxy, VOMS proxy, bearer token) through per-test nginx instance management and writing new tests.
 
 For the manual step-by-step PKI walkthrough (CA, proxy, VOMS from scratch with `openssl` commands), see [test-pki.md](../06-authentication/test-pki-setup.md). For token details, see [test-tokens.md](../06-authentication/test-token-generation.md). For the PKI trust model and wire formats, see [pki.md](../06-authentication/pki-config.md).
 
@@ -116,7 +116,7 @@ Everything lives under `TEST_ROOT` (default `/tmp/xrd-test`, overridden by the `
 
 ## XrdHttp/davs:// Conformance Tests
 
-Starting in **May 2026**, the suite includes **XrdHttp conformance tests** that verify nginx-xrootd's WebDAV HTTPS interface operates identically to the official xrootd daemon running the `XrdHttp` module. These tests compare operation outcomes byte-for-byte or by HTTP status code equivalence.
+Starting in **May 2026**, the suite includes **XrdHttp conformance tests** that verify gnuBall's WebDAV HTTPS interface operates identically to the official xrootd daemon running the `XrdHttp` module. These tests compare operation outcomes byte-for-byte or by HTTP status code equivalence.
 
 ### Test Files
 

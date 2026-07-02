@@ -33,14 +33,15 @@ src/core/           platform primitives: compat/ types/ config/ shm/ aio/ + ngx_
 src/protocols/      one subdir per wire protocol: root/ (all root:// machinery incl.
                     connection/ session/ protocol/ handshake/ read/ write/ zip/ stream/
                     handoff/ relay/ response/ path/) webdav/ s3/ ssi/ srr/ dig/ shared/
-src/fs/             storage plane (VFS = sole storage truth): vfs_*.c + core/ backend/
-                    tier/ xfer/ path/ cache/ scan/
+src/fs/             storage plane (VFS = sole storage truth): vfs/ (facade ops +
+                    backend registry) core/ backend/ tier/ xfer/ path/ cache/ scan/
 src/auth/           identity + authz: gsi/ token/ sss/ krb5/ pwd/ unix/ host/ voms/
                     crypto/ authz/ (acl + acc engine) impersonate/
 src/net/            clustering/proxying/shadowing: cms/ manager/ upstream/ proxy/
                     ratelimit/ tap/ mirror/
 src/observability/  metrics/ pmark/ dashboard/ accesslog/
-src/tpc/            cross-plane third-party-copy (kept top-level)
+src/tpc/            cross-plane third-party-copy (kept top-level): engine/ (parse/
+                    launch/done/key registry) outbound/ (source-session client) gsi/ common/
 ```
 Cross-dir includes are **src-rooted** (`#include "auth/gsi/parse.h"`); same-dir stay bare.
 Full mapping: [docs/refactor/phase-66-map.tsv](docs/refactor/phase-66-map.tsv).
@@ -73,7 +74,7 @@ Full mapping: [docs/refactor/phase-66-map.tsv](docs/refactor/phase-66-map.tsv).
 | write / pgwrite / sync | `write/write.c`, `pgwrite.c`, `sync.c` |
 | rename / mkdir / rm | `write/mv.c`, `mkdir.c`, `rm.c`, `fattr/` |
 | dirlist / locate / clone | `dirlist/handler.c`, `read/locate.c`, `clone.c` |
-| native tpc | `src/tpc/key_registry.c`, `launch.c`, `thread.c`, `io.c`, `done.c` |
+| native tpc | `src/tpc/engine/` (`key_registry.c`, `launch.c`, `parse.c`, `done.c`), `src/tpc/outbound/` (`thread.c`, `io.c`, `source.c`), `src/tpc/gsi/` |
 | cms / manager / cluster | `src/net/manager/registry.c`, `src/net/cms/send.c`, `src/net/upstream/` |
 
 ### HTTP (`src/protocols/webdav/` prefix unless noted)
@@ -123,7 +124,7 @@ Full mapping: [docs/refactor/phase-66-map.tsv](docs/refactor/phase-66-map.tsv).
 10. **SHM mutexes = spin+yield, NEVER the POSIX-semaphore mode.** Every module shared-memory table mutex MUST be created via `xrootd_shm_table_alloc()` / `xrootd_shm_table_mutex_create()` (`src/core/compat/shm_slots.c`), which clears `mtx->semaphore` after `ngx_shmtx_create()`. Stock `ngx_shmtx_create(…, NULL)` silently enables a POSIX semaphore whose wakeup path is **lost-wakeup-prone under high cross-worker contention**: a worker blocks in `sem_wait` forever with the lock already free (`*lock==0, *wait==0`), freezing the whole worker (it stops running its event loop) and stalling every connection pinned to it. This hit the hot `kXR_open` path (`xrootd_handle_mutex`) and caused 60–450s multi-worker connection stalls. Our critical sections are µs-held fixed-slot scans, so spin+yield is correct and cheaper. See [docs/09-developer-guide/postmortem-shmtx-semaphore-stall.md](docs/09-developer-guide/postmortem-shmtx-semaphore-stall.md).
 
 **Architecture:**
-9. Native TPC = SHM key registry (`src/tpc/key_registry.c`) — cross-process, zero-copy
+9. Native TPC = SHM key registry (`src/tpc/engine/key_registry.c`) — cross-process, zero-copy
 10. WebDAV TPC = curl COPY with Source/Credential headers (`src/protocols/webdav/tpc.c`)
 11. **Storage plane ≈ `proto → VFS → backend`. The VFS is the SOLE source of storage truth — bytes AND namespace AND metadata.** (a) **Byte data**: proto handler → VFS (`src/fs/`) → storage driver (`src/fs/backend/`, POSIX default); raw `pread`/`pwrite`/`preadv`/`copy_file_range`/`fstat`/`sendfile` on file data live ONLY in `src/fs/backend/` (tier-1, HARD rule). `root://` read/write/readv/pgread/pgwrite/sync/truncate → `xrootd_vfs_io_execute()` (`vfs_io_core.c`); WebDAV/S3 GET → `xrootd_vfs_open()`+`xrootd_vfs_file_sendfile_fd()`+`xrootd_vfs_close()`. (b) **Namespace + metadata (phase-62)**: every handler reaches `open`/`stat`/`opendir`/`unlink`/`rename`/`mkdir`/`truncate`/`chmod`/**xattr** on an export path through `xrootd_vfs_*` — `xrootd_vfs_probe` (non-metered existence/type), `xrootd_vfs_stat`/`statf`, `xrootd_vfs_open_fd`/`_at`, `xrootd_vfs_{get,set,list,remove}xattr` + fd variants `xrootd_vfs_f{get,set,list,remove}xattr`, `xrootd_vfs_unlink_path`/`_at`/`mkdir_path`/`rename_path`/`walk` — never a raw libc call. **Only raw FS left in handlers:** (i) non-export resources (config/cert/token, `/tmp` creds, `/dev/null`, `/proc`, sockets) and (ii) SEPARATE svc-owned storage domains (read-through cache, upload stage dir, FRM control/journal, S3 multipart staging, checkpoint journal) which MUST stay raw-as-worker — the VFS confines to ONE export root + routes to the impersonation broker as the mapped user, the wrong root/identity for those. Each such raw call carries a same-line `/* vfs-seam-allow: <reason> */` marker. `*_confined_canon` primitives take the ABSOLUTE path (they strip root_canon themselves — never pre-strip). **Guard `tools/ci/check_vfs_seam.sh`** (3 tiers; tier-2 backlog `vfs_seam_backlog.txt`=0, tier-3 ns backlog `vfs_seam_backlog_ns.txt`=0; `--regen` only after a deliberate migration). Driver = capability-typed pluggable seam (`xrootd_sd_driver_t`, `src/fs/backend/sd.h`): an object/S3 backend can become primary without changing anything above it. See [src/fs/README.md](src/fs/README.md), [src/fs/backend/README.md](src/fs/backend/README.md), [docs/refactor/phase-62-vfs-namespace-metadata-seam-closure.md](docs/refactor/phase-62-vfs-namespace-metadata-seam-closure.md).
 

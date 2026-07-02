@@ -1,8 +1,8 @@
-# Tier 2: Stream Data Paths — Wire Protocol Through nginx-xrootd
+# Tier 2: Stream Data Paths — Wire Protocol Through gnuBall
 
 ## Overview
 
-This document maps every XRootD wire protocol operation to its implementation in the nginx-xrootd module, showing how the native `stream` module translates binary opcodes into file operations.
+This document maps every XRootD wire protocol operation to its implementation in the gnuBall module, showing how the native `stream` module translates binary opcodes into file operations.
 
 **Reference:** `/tmp/xrootd-src/src/XProtocol/XProtocol.hh` — full wire spec  
 **Entry point:** `src/protocols/root/connection/handler.c` → `src/protocols/root/handshake/dispatch.c` → opcode handlers in `src/protocols/root/read/`, `src/protocols/root/write/`, etc.
@@ -263,9 +263,9 @@ Client                          Server
 
 ### Overview
 
-Native TPC enables a client to copy files between two XRootD servers through nginx-xrootd acting as the destination server. The protocol uses `kXR_open` with opaque parameters (`tpc.src=`, `tpc.key=`) and relies on shared-memory key registry for cross-process rendezvous.
+Native TPC enables a client to copy files between two XRootD servers through gnuBall acting as the destination server. The protocol uses `kXR_open` with opaque parameters (`tpc.src=`, `tpc.key=`) and relies on shared-memory key registry for cross-process rendezvous.
 
-**Key file:** `src/tpc/key_registry.c` — SHM-based key registry (256 slots, 60s TTL)  
+**Key file:** `src/tpc/engine/key_registry.c` — SHM-based key registry (256 slots, 60s TTL)  
 **Entry point:** `src/protocols/root/handshake/dispatch.c` → `xrootd_handle_open()` with TPC params
 
 ### Wire Protocol Sequence
@@ -284,8 +284,8 @@ Client                 nginx-xrootd (dest)          Remote root:// origin
 
 ### Key Registry (SHM Rendezvous)
 
-**File:** `src/tpc/key_registry.c`  
-**Header:** `src/tpc/key_registry.h`
+**File:** `src/tpc/engine/key_registry.c`  
+**Header:** `src/tpc/engine/key_registry.h`
 
 The key registry is a shared-memory table with:
 - **256 slots** for concurrent TPC operations
@@ -304,7 +304,7 @@ void xrootd_tpc_key_remove(const char *key);    // Remove key from registry
 
 ### Pull Path Implementation
 
-**Files:** `src/tpc/launch.c`, `thread.c`, `io.c`, `done.c`
+**Files:** `src/tpc/engine/launch.c`, `thread.c`, `io.c`, `done.c`
 
 #### launch.c — Event Thread Entry
 
@@ -362,10 +362,10 @@ void xrootd_tpc_pull_done(ngx_event_t *ev);  // Sends kXR_open response or error
 
 ### Push Path Implementation
 
-**File:** `src/tpc/source.c` — Remote source open + read loop  
-**File:** `src/tpc/bootstrap.c` — Anonymous XRootD session setup on remote side
+**File:** `src/tpc/outbound/source.c` — Remote source open + read loop  
+**File:** `src/tpc/outbound/bootstrap.c` — Anonymous XRootD session setup on remote side
 
-The push path is the inverse of pull: nginx-xrootd acts as a client to a remote origin, reading data and writing locally.
+The push path is the inverse of pull: gnuBall acts as a client to a remote origin, reading data and writing locally.
 
 ---
 

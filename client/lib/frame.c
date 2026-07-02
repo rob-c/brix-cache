@@ -24,12 +24,12 @@
 #include "core/compat/host_format.h"   /* IPv6-bracketing host:port (libxrdproto) */
 
 int
-xrdc_send(xrdc_conn *c, void *hdr24, const void *payload, uint32_t plen,
-          uint16_t *out_sid, xrdc_status *st)
+xrdc_send_ext(xrdc_conn *c, void *hdr24, const void *payload, uint32_t send_len,
+              uint32_t dlen, uint16_t *out_sid, xrdc_status *st)
 {
     uint8_t *h   = (uint8_t *) hdr24;
     uint16_t sid = c->next_sid++;
-    uint32_t be  = htonl(plen);
+    uint32_t be  = htonl(dlen);
 
     h[0] = (uint8_t) (sid >> 8);
     h[1] = (uint8_t) (sid & 0xff);
@@ -43,31 +43,41 @@ xrdc_send(xrdc_conn *c, void *hdr24, const void *payload, uint32_t plen,
      * request, and stamp the send time. All inert unless armed. */
     c->diag.inflight_reqid = xrd_get_u16_be(h + 2);
     if (c->diag.wire_trace) {
-        xrdc_trace_frame(c, '>', sid, c->diag.inflight_reqid, 1, plen, payload, plen);
+        xrdc_trace_frame(c, '>', sid, c->diag.inflight_reqid, 1, dlen,
+                         payload, send_len);
     }
     if (c->diag.cap != NULL) {   /* §15.1: record the full request wire bytes */
         xrdc_capture_frame(c->diag.cap, '>', sid, c->diag.inflight_reqid, 1,
-                           h, XRD_REQUEST_HDR_LEN, payload, plen);
+                           h, XRD_REQUEST_HDR_LEN, payload, send_len);
     }
     if (c->diag.timing) {
         c->diag.t_send_ns = xrdc_mono_ns();
     }
 
     /* When GSI signing is active and the server's security level requires it,
-     * prepend a kXR_sigver frame covering this request (no-op otherwise). */
-    if (xrdc_sigver_maybe(c, h, payload, plen, st) != 0) {
+     * prepend a kXR_sigver frame covering this request (no-op otherwise).
+     * The signature covers the dlen-framed payload — for kXR_writev that is
+     * the descriptor block only, matching what the server hashes. */
+    if (xrdc_sigver_maybe(c, h, payload, dlen, st) != 0) {
         return -1;
     }
 
     if (xrdc_write_full(&c->io, h, XRD_REQUEST_HDR_LEN, st) != 0) {
         return -1;
     }
-    if (plen > 0 && payload != NULL) {
-        if (xrdc_write_full(&c->io, payload, plen, st) != 0) {
+    if (send_len > 0 && payload != NULL) {
+        if (xrdc_write_full(&c->io, payload, send_len, st) != 0) {
             return -1;
         }
     }
     return 0;
+}
+
+int
+xrdc_send(xrdc_conn *c, void *hdr24, const void *payload, uint32_t plen,
+          uint16_t *out_sid, xrdc_status *st)
+{
+    return xrdc_send_ext(c, hdr24, payload, plen, plen, out_sid, st);
 }
 
 /* Read one full server frame (header + body) with the standard size cap; fills

@@ -4,7 +4,7 @@
  */
 #include "http_serve_offload.h"
 #include "core/aio/aio.h"                          /* xrootd_task_bind */
-#include "fs/vfs.h"                           /* xrootd_vfs_adopt_fd / _ctx_t */
+#include "fs/vfs/vfs.h"                           /* xrootd_vfs_adopt_fd / _ctx_t */
 #include "fs/core/vfs_core.h"                 /* xvfs_drain (shared copy verb) */
 #include "fs/backend/cache/sd_cache.h"        /* cache store accessor */
 #include "fs/backend/stage/sd_stage.h"        /* stage source accessor */

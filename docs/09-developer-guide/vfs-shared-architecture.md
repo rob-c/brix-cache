@@ -44,7 +44,7 @@ The four layers, top to bottom:
 | Layer | Server home | Client home | Shared? |
 |---|---|---|---|
 | **module / app** | proto handlers (`src/protocols/root/read/`, `src/protocols/webdav/`, `src/protocols/s3/`) | `xrdcp`, `xrootdfs`, `copy.c` | no (protocol/UX) |
-| **vfs_server** (confined open + nginx lifecycle) | `src/fs/vfs_open.c`, `vfs_io_core.c`, … | *(n/a — the client adapter is its peer)* | no (policy) |
+| **vfs_server** (confined open + nginx lifecycle) | `src/fs/vfs/vfs_open.c`, `vfs_io_core.c`, … | *(n/a — the client adapter is its peer)* | no (policy) |
 | **vfs** (storage-neutral I/O verbs) | `src/fs/core/vfs_core.c` | `client/lib/vfs_posix.c`, `vfs_block.c`, `vfs_s3*.c` | **YES** (`vfs_core.c`) |
 | **backend** (Storage Driver: raw syscalls / S3 protocol) | `src/fs/backend/sd_*.c` | same files via `libxrdproto` | **YES** |
 
@@ -185,7 +185,7 @@ xvfs_pwrite_full(&obj, buf, len, off, &written, &short_io);
 ```
 
 This is how the *server* routes its AIO write/sync/truncate through the seam
-(`src/fs/vfs_io_core.c: xrootd_vfs_io_write_counted`, `_execute_sync`,
+(`src/fs/vfs/vfs_io_core.c: xrootd_vfs_io_write_counted`, `_execute_sync`,
 `_execute_truncate`) **and** how the *client's* plain (non-io_uring) POSIX/block
 paths run (`client/lib/vfs_posix.c: posix_pread/pwrite/fstat/…`). One wrap helper,
 one driver, two callers.
@@ -228,8 +228,8 @@ works unchanged.
 
 **Who calls it:**
 
-- **Server:** `src/fs/vfs_read.c` (the `xrootd_vfs_pread_full` wrapper) and
-  `src/fs/vfs_io_core.c` (write-counted / sync / truncate executors) — see the
+- **Server:** `src/fs/vfs/vfs_read.c` (the `xrootd_vfs_pread_full` wrapper) and
+  `src/fs/vfs/vfs_io_core.c` (write-counted / sync / truncate executors) — see the
   `xrootd_sd_posix_wrap` calls in §2.4.
 - **Client:** `client/lib/vfs_posix.c` and `vfs_block.c`, plain paths.
 
@@ -590,10 +590,10 @@ shared core.
 ### Server-only `vfs_server` (nginx-coupled)
 | File | Role |
 |---|---|
-| `src/fs/vfs_open.c` | confined open cascade (produces the fd) |
-| `src/fs/vfs_io_core.c` / `.h` | worker-safe job executor (read/write/readv/pgread/sync/truncate/opendir) over the shared verbs |
-| `src/fs/vfs_read.c` … `vfs_xattr.c` | per-op data-plane handlers, staged commit, dir/stat/rename/xattr |
-| `src/fs/vfs_walk.c` | thread-safe pool-free confined primitives (`xrootd_vfs_open_fd`/`_at`, `unlink_path`/`_at`, `mkdir_path`, `rename_path`, `walk`, `copyfile`/`copytree`) for off-loop/bulk consumers |
+| `src/fs/vfs/vfs_open.c` | confined open cascade (produces the fd) |
+| `src/fs/vfs/vfs_io_core.c` / `.h` | worker-safe job executor (read/write/readv/pgread/sync/truncate/opendir) over the shared verbs |
+| `src/fs/vfs/vfs_read.c` … `vfs_xattr.c` | per-op data-plane handlers, staged commit, dir/stat/rename/xattr |
+| `src/fs/vfs/vfs_walk.c` | thread-safe pool-free confined primitives (`xrootd_vfs_open_fd`/`_at`, `unlink_path`/`_at`, `mkdir_path`, `rename_path`, `walk`, `copyfile`/`copytree`) for off-loop/bulk consumers |
 | `src/fs/backend/sd_ceph.c` (`+_unittest`) | module-only Ceph/RADOS driver (gated on `XROOTD_HAVE_CEPH`); **not** compiled into the client `libxrdproto` |
 | `src/fs/backend/sd_pblock.c`, `sd_pblock_catalog.c` (`+ unittests`) | module-only striped-block driver over a SQLite catalog (gated on `XROOTD_HAVE_SQLITE`); ngx-free + standalone-testable but not in the client build. **Deep-dive (block-striping, the catalog, the VFS↔backend wiring, with ASCII diagrams):** [`pblock-storage-backend.md`](pblock-storage-backend.md) |
 | `src/fs/backend/csi_tagstore.c`, `csi_verify.c` (`+_unittest`) | module-only `XrdOssCsi`-parity per-page CRC32C tagstore; tag-file I/O stays below the seam (in `backend/`) |

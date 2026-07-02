@@ -7,12 +7,12 @@ Why this file exists
 --------------------
 Phase-36 fixed a recurring "bracket-on-emit" defect: an IPv6 literal source host
 is stored *bare* (the TPC opaque parser strips the brackets off "[::1]" into
-tpc_src_host="::1", see src/tpc/parse.c::tpc_parse_src_spec), and the native-TPC
+tpc_src_host="::1", see src/tpc/engine/parse.c::tpc_parse_src_spec), and the native-TPC
 launch path then *rebuilds* a "root://host:port/path" display/registry URL.  Before
 the fix that rebuild emitted a bare, unparseable "root://::1:port/path"; the fix
-re-brackets via xrootd_format_host_port() at src/tpc/launch.c:182 →
+re-brackets via xrootd_format_host_port() at src/tpc/engine/launch.c:182 →
 "root://[::1]:port/path".  These tests prove the parse→rebuild round-trip accepts a
-bracketed IPv6 source and that the SSRF gate (src/tpc/connect.c::
+bracketed IPv6 source and that the SSRF gate (src/tpc/outbound/connect.c::
 xrootd_tpc_check_src_policy → src/core/compat/net_target.c) is still applied to the bare
 host BEFORE any rebuild, so the round-trip cannot be used to smuggle a loopback /
 v4-mapped-loopback source past the local-deny policy.
@@ -187,7 +187,7 @@ def _open_tpc_pull(sock, dst_path, src_url, streamid=b"\x00\x02"):
     """kXR_open for a TPC-destination pull from src_url (a full root:// URL).
 
     Body is the NUL-terminated "path?opaque" with the tpc.src / tpc.key / tpc.dst
-    opaque keys parsed by src/tpc/parse.c.  Options request create+write so the
+    opaque keys parsed by src/tpc/engine/parse.c.  Options request create+write so the
     open is routed through xrootd_tpc_prepare_pull (is_write=1)."""
     opaque = "tpc.src=%s&tpc.key=ipv6key&tpc.dst=root://%s//%s" % (
         src_url, url_host(HOST6), dst_path.lstrip("/"),
@@ -347,7 +347,7 @@ def _webdav_base_url():
 
 class TestNativeTpcIpv6BracketRoundTrip:
     """Prove the parse→rebuild round-trip accepts a bracketed IPv6 source
-    (src/tpc/parse.c strips "[::1]"→"::1"; src/tpc/launch.c re-brackets at the
+    (src/tpc/engine/parse.c strips "[::1]"→"::1"; src/tpc/engine/launch.c re-brackets at the
     registry/display URL rebuild).  Raw-wire because PyXRootD mishandles
     root://[::1] literals."""
 

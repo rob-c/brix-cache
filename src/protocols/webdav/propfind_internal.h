@@ -6,14 +6,14 @@
 #define XROOTD_PROPFIND_INTERNAL_H
 
 #include "webdav.h"
-#include "fs/vfs.h"
+#include "fs/vfs/vfs.h"
 #include "fs/path/path.h"
 #include "auth/impersonate/lifecycle.h"
-#include "core/compat/etag.h"
+#include "core/http/etag.h"
 #include "core/compat/fs_walk.h"
 #include "core/compat/fs_usage.h"
-#include "core/compat/http_body.h"
-#include "core/compat/http_xml.h"
+#include "core/http/http_body.h"
+#include "core/http/http_xml.h"
 #include "core/compat/time.h"
 #include <libxml/parser.h>
 #include <libxml/tree.h>
@@ -81,7 +81,7 @@ ngx_int_t propfind_entry(ngx_http_request_t *r, ngx_chain_t **head, ngx_chain_t 
 int propfind_parse_depth(ngx_http_request_t *r);
 
 /* propfind_walk.c */
-ngx_int_t propfind_walk(ngx_http_request_t *r, ngx_chain_t **head, ngx_chain_t **tail, const char *dir_path, const char *base_href, ngx_uint_t *entry_count, ngx_uint_t max_entries, const propfind_req_t *req);
+ngx_int_t propfind_walk(ngx_http_request_t *r, ngx_chain_t **head, ngx_chain_t **tail, const char *dir_path, const char *base_href, ngx_uint_t *entry_count, ngx_uint_t max_entries, const propfind_req_t *req, ngx_flag_t recurse);
 ngx_int_t propfind_do(ngx_http_request_t *r);
 
 /* propfind.c */

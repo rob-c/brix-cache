@@ -1,7 +1,7 @@
 #include "core/ngx_xrootd_module.h"
 #include "stat.h"
 #include "net/cms/cns.h"            /* §6 CNS inventory stat answer */
-#include "fs/vfs.h"            /* path stat via the VFS seam */
+#include "fs/vfs/vfs.h"            /* path stat via the VFS seam */
 #include "protocols/root/path/op_path.h"
 #include "net/manager/registry.h"
 #include "net/manager/pending.h"

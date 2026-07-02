@@ -1,7 +1,7 @@
 #ifndef XROOTD_READ_STAT_H
 #define XROOTD_READ_STAT_H
 
-#include "fs/vfs.h"   /* xrootd_vfs_stat_t for the projection helper */
+#include "fs/vfs/vfs.h"   /* xrootd_vfs_stat_t for the projection helper */
 #include <sys/stat.h>    /* struct stat for xrootd_vfs_to_struct_stat */
 
 /* ---- Module: Stat Operations ----

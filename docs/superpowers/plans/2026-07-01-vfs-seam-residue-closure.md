@@ -10,7 +10,7 @@
 
 **Architecture:** A scope correction drives this plan. The auxiliary domains I earlier flagged as needing a new "worker-scratch VFS context" turned out to be **already under the export root and already ~80–90% on the VFS** (S3 multipart uses `xrootd_mkdir_confined_canon`/`xrootd_vfs_open_fd`/`xrootd_vfs_ctx_t`; TPC uses `xrootd_link/unlink/rename_confined_canon`; `mpu_rmdir_recursive`/`s3_mpu_reap_stale` are fully on the VFS seam). What remains is a small **residue** of under-migrated calls (a `lstat`, one dst-part `open`+`unlink`, three `stat` size-probes) that map directly onto existing primitives, plus two checkpoint/POSC `unlink`s at `fd_table` teardown that lack a `root_canon`. **No new VFS context is built.** The genuinely-outside-export worker scratch (none remain after this) is not needed.
 
-**Tech Stack:** C (nginx http + stream module), the existing confined VFS surface — `xrootd_vfs_open_fd` / `xrootd_vfs_unlink_path` / `xrootd_vfs_unlink_at` (`src/fs/vfs.h`), `xrootd_lstat_confined_canon` / `xrootd_unlink_confined_canon` (`src/fs/path/path.h`) — the existing S3/TPC/checkpoint test harnesses as the gate, and `tools/ci/check_vfs_seam.sh`.
+**Tech Stack:** C (nginx http + stream module), the existing confined VFS surface — `xrootd_vfs_open_fd` / `xrootd_vfs_unlink_path` / `xrootd_vfs_unlink_at` (`src/fs/vfs/vfs.h`), `xrootd_lstat_confined_canon` / `xrootd_unlink_confined_canon` (`src/fs/path/path.h`) — the existing S3/TPC/checkpoint test harnesses as the gate, and `tools/ci/check_vfs_seam.sh`.
 
 ## Global Constraints
 

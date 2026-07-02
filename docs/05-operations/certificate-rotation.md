@@ -1,6 +1,6 @@
 # Certificate, CRL & Token-Key Rotation
 
-How to roll the credentials an nginx-xrootd gateway depends on **without dropping
+How to roll the credentials an gnuBall gateway depends on **without dropping
 in-flight requests**. The key fact: the token-signing keys (JWKS), CRLs, and the
 authorization DB are **hot-reloaded in place** — you do *not* need to restart, and
 for those three you usually do not even need `nginx -s reload`.

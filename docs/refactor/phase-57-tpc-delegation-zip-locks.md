@@ -60,12 +60,12 @@ are `b->memory=1` only, cleartext file-backed sendfile (INVARIANT #2).
 | Cache-fill outbound state machine `HANDSHAKE→PROTOCOL→TLS→LOGIN→AUTH→DONE` | `src/net/upstream/bootstrap.c:62`; enum `upstream_internal.h:31-36` | Done |
 | Cache-fill outbound **`kXR_gotoTLS` upgrade** (detect flag, resend login over TLS) | `src/net/upstream/bootstrap.c:85-116` (`xrootd_upstream_start_tls`) | **Done** |
 | Cache-fill outbound **single** `kXR_authmore` → token credential | `src/net/upstream/bootstrap.c:130-153`; `authmore_count` field `upstream_internal.h:73` | Done (1 round only) |
-| TPC pull auth-method selection (ztn vs GSI), anchored `&P=` parse | `src/tpc/gsi_outbound_finish.c:27-86` (`tpc_outbound_finish_login`, `xrootd_sec_proto_advertised`) | Done |
-| TPC pull outbound ztn JWT (`"ztn\0"`+token, seq 3) | `src/tpc/gsi_outbound_common.c:132` (`tpc_outbound_ztn`) | Done |
-| TPC pull outbound GSI — **fixed 2 rounds** (certreq → DH cert exchange) | `src/tpc/gsi_outbound_certreq.c` (209 L), `gsi_outbound_exchange.c` (464 L); decl `tpc_internal.h:181-203` | Done (no ≥3 round) |
-| OAuth2/OIDC token-exchange → reused outbound bearer | `src/tpc/tpc_token.c` → `xrootd_tpc_pull_t.delegated_token[65536]` (`tpc_internal.h:98`) | Done |
-| TPC rendezvous key registry (cross-worker SHM) | `src/tpc/key_registry.h` — `xrootd_tpc_key_table_t`, 256×`{key[128],expiry,in_use}` | Done |
-| `kXR_auth` frame builder (24-byte hdr, credtype @ body+12 = abs off 16) | `src/tpc/gsi_outbound_common.c:52-99` (`tpc_send_kxr_auth`) | Done |
+| TPC pull auth-method selection (ztn vs GSI), anchored `&P=` parse | `src/tpc/gsi/gsi_outbound_finish.c:27-86` (`tpc_outbound_finish_login`, `xrootd_sec_proto_advertised`) | Done |
+| TPC pull outbound ztn JWT (`"ztn\0"`+token, seq 3) | `src/tpc/gsi/gsi_outbound_common.c:132` (`tpc_outbound_ztn`) | Done |
+| TPC pull outbound GSI — **fixed 2 rounds** (certreq → DH cert exchange) | `src/tpc/gsi/gsi_outbound_certreq.c` (209 L), `gsi_outbound_exchange.c` (464 L); decl `tpc_internal.h:181-203` | Done (no ≥3 round) |
+| OAuth2/OIDC token-exchange → reused outbound bearer | `src/tpc/outbound/tpc_token.c` → `xrootd_tpc_pull_t.delegated_token[65536]` (`tpc_internal.h:98`) | Done |
+| TPC rendezvous key registry (cross-worker SHM) | `src/tpc/engine/key_registry.h` — `xrootd_tpc_key_table_t`, 256×`{key[128],expiry,in_use}` | Done |
+| `kXR_auth` frame builder (24-byte hdr, credtype @ body+12 = abs off 16) | `src/tpc/gsi/gsi_outbound_common.c:52-99` (`tpc_send_kxr_auth`) | Done |
 | Server-side **inbound** GSI handshake — **2 rounds only** (certreq→cert) | `src/auth/gsi/auth.c:235-258`; rejects any step past `kXGC_cert` at `:254-258` | Done (no delegation) |
 | GSI delegation opcodes defined but **unused** | `src/protocols/root/protocol/gsi.h:20` `kXGS_pxyreq=2002`, `:23` `kXGC_sigpxy=1002` | Constants only |
 
@@ -197,7 +197,7 @@ void xrootd_oba_free(xrootd_oba_ctx_t *c);   /* releases mstate */
   stay in `XRD_UP_BS_AUTH` while `CONT`, advance to `XRD_UP_BS_DONE` on `DONE`.
   **Delete** `authmore_count` (field `upstream_internal.h:73` + checks at
   `bootstrap.c:134,167`).
-- `src/tpc/thread.c`: replace the explicit `finish_login → outbound_gsi →
+- `src/tpc/outbound/thread.c`: replace the explicit `finish_login → outbound_gsi →
   outbound_gsi_exchange` ladder with `while (phase==CONT)`; frame via
   `tpc_send_kxr_auth` (`gsi_outbound_common.c:52`), recv via `tpc_recv_response`.
   `tpc_outbound_finish_login` becomes `xrootd_oba_select` + the loop.
@@ -274,10 +274,10 @@ uint32_t xrootd_tpc_key_take_proxy(const char *key, u_char *buf, uint32_t bufsz)
 - `src/net/upstream/bootstrap.c` — drive `LOGIN`/`AUTH` via the state machine; delete
   `authmore_count` logic.
 - `src/net/upstream/upstream_internal.h` — remove `authmore_count` (`:73`).
-- `src/tpc/thread.c` — auth loop via the state machine.
-- `src/tpc/gsi_outbound_finish.c` — `tpc_outbound_finish_login` → `select`+loop wrapper.
-- `src/tpc/gsi_outbound_certreq.c`, `gsi_outbound_exchange.c` — expose per-round bodies as the GSI `step()` callback (mechanical extraction; logic reused).
-- `src/tpc/bootstrap.c` / `connect.c` — `kXR_gotoTLS` upgrade for the pull socket.
+- `src/tpc/outbound/thread.c` — auth loop via the state machine.
+- `src/tpc/gsi/gsi_outbound_finish.c` — `tpc_outbound_finish_login` → `select`+loop wrapper.
+- `src/tpc/gsi/gsi_outbound_certreq.c`, `gsi_outbound_exchange.c` — expose per-round bodies as the GSI `step()` callback (mechanical extraction; logic reused).
+- `src/tpc/outbound/bootstrap.c` / `connect.c` — `kXR_gotoTLS` upgrade for the pull socket.
 - `src/tpc/key_registry.{h,c}` — proxy-blob slot + attach/take helpers.
 - `src/auth/gsi/auth.c` — 3rd round (`kXGS_pxyreq`/`kXGC_sigpxy`) inbound capture.
 - `src/auth/gsi/gsi_core.{h,c}` — `xrootd_gsi_build_pxyreq` / `xrootd_gsi_parse_sigpxy`.
@@ -328,7 +328,7 @@ uint32_t xrootd_tpc_key_take_proxy(const char *key, u_char *buf, uint32_t bufsz)
   `fd==-1` served from cache files (`:99-102`), and a `uint8_t read_codec`
   ordinal (`:80`). A `zip_mode` field follows precedent.
 - **Data plane (INVARIANT #11):** `xrootd_vfs_open`/`..._file_sendfile_fd`/
-  `..._close` (`src/fs/vfs.h:116-131`); `xrootd_vfs_io_execute()` for root://
+  `..._close` (`src/fs/vfs/vfs.h:116-131`); `xrootd_vfs_io_execute()` for root://
   reads; `xrootd_vfs_stat()` for archive size.
 
 ## W2.2 Goal
@@ -685,7 +685,7 @@ table.
   `key_registry.h`; GSI: `src/auth/gsi/README.md`, `gsi_core.h`, `protocol/gsi.h`.
 - Codec/inflate: `src/core/compat/codec_core.h` (note line 12 lists ZIP as a planned
   surface). Handle model: `src/core/types/file.h`. VFS data plane: `src/fs/README.md`,
-  `src/fs/vfs.h` (INVARIANT #11).
+  `src/fs/vfs/vfs.h` (INVARIANT #11).
 - Reference wire spec: `/tmp/xrootd-src/src/XrdZip/*`,
   `/tmp/xrootd-src/src/XrdSecgsi/XrdSecProtocolgsi.{hh,cc}`.
 
@@ -752,7 +752,7 @@ client ◄ kXR_ok (L bytes)
 
 ## B2. Edit-site diffs (verified current code → proposed)
 
-### B2.1 `src/tpc/bootstrap.c:116-123` — authmore dispatch unchanged; loop moves inside finish_login
+### B2.1 `src/tpc/outbound/bootstrap.c:116-123` — authmore dispatch unchanged; loop moves inside finish_login
 The call site stays minimal; the multi-round loop lives in
 `tpc_outbound_finish_login` (B3.1):
 ```c
@@ -1122,7 +1122,7 @@ config-field/command declarations, not the file list. A new `.c` must be added t
 
 **Exact additions to `./config`:**
 ```sh
-# W1 — after config:572 ($ngx_addon_dir/src/tpc/bootstrap.c \), in the same block:
+# W1 — after config:572 ($ngx_addon_dir/src/tpc/outbound/bootstrap.c \), in the same block:
     $ngx_addon_dir/src/net/upstream/auth_handshake.c \
 # (auth_handshake.c is shared by the upstream + tpc blocks; add once to the
 #  variable that both link, or to each srcs list that references upstream/tpc.)
@@ -1862,17 +1862,17 @@ diagnosis-first.**
    - client → dest `kXR_sync` → `xrootd_tpc_start_pull` posts the pull thread.
 2. **Compare the native client's `--tpc only` emission to stock `xrdcp`.** The
    native client may not implement the full source-rendezvous (`tpc.dst`) leg, or
-   may send a form the dest's `xrootd_tpc_parse_opaque` (`src/tpc/parse.c`) does
+   may send a form the dest's `xrootd_tpc_parse_opaque` (`src/tpc/engine/parse.c`) does
    not recognize. Capture both with `tcpdump`/`--wire-trace` and diff the opaque
    strings (`tpc.src` / `tpc.dst` / `tpc.key` / `tpc.org`).
 3. **Likely fix locations** (confirm with the trace before editing):
    - native client TPC orchestration (`client/` — the `--tpc` driver) if it omits
      the rendezvous leg;
-   - `src/protocols/root/read/open_request.c:176-339` (TPC detect) / `src/tpc/parse.c` if the
+   - `src/protocols/root/read/open_request.c:176-339` (TPC detect) / `src/tpc/engine/parse.c` if the
      dest mis-parses the opaque;
-   - `src/tpc/launch.c` (`xrootd_tpc_prepare_pull` / `xrootd_tpc_start_pull`) if
+   - `src/tpc/engine/launch.c` (`xrootd_tpc_prepare_pull` / `xrootd_tpc_start_pull`) if
      the prepare/sync hand-off is the stall.
-4. Keep `tpc.org`/`tpc.key` SHM-registry flow (`src/tpc/key_registry.c`) in mind:
+4. Keep `tpc.org`/`tpc.key` SHM-registry flow (`src/tpc/engine/key_registry.c`) in mind:
    the source registers the key on the `tpc.dst` open and consumes it on the
    `tpc.org` reconnect (`src/protocols/root/read/open_request.c:301-337`).
 
@@ -2008,13 +2008,13 @@ existing `--tpc first` test); two remain — the genuine GSI crypto.**
    token (session id + `&P=…` list) — exactly what stock XrdCl handles by sending
    `kXR_auth` after an OK login (verified in its trace: `login ok dlen=61` →
    `kXR_auth`). The dest skipped auth and opened the source unauthenticated →
-   `kXR_InvalidRequest "user not authenticated"`. **Fix** (`src/tpc/bootstrap.c`):
+   `kXR_InvalidRequest "user not authenticated"`. **Fix** (`src/tpc/outbound/bootstrap.c`):
    authenticate on `kXR_ok` OR `kXR_authmore` whenever `dlen >
    XROOTD_SESSION_ID_LEN` (a sec token is present); a bare session id is truly
    anonymous. *Bonus:* this also enables ZTN-over-TPC when the source returns an
    OK login (not authmore).
 3. **Round-2 `tpc_outbound_gsi_exchange` was dead code** (called by nothing).
-   **Fix** (`src/tpc/gsi_outbound_certreq.c`): call it after the round-1 authmore,
+   **Fix** (`src/tpc/gsi/gsi_outbound_certreq.c`): call it after the round-1 authmore,
    clearing `body` afterwards; plus `gsi_outbound_exchange.c` now frees `body` on
    its cert-verify-fail early path so the caller's `body=NULL` is leak- and
    double-free-safe (exchange owns `body` on every exit).
@@ -2089,7 +2089,7 @@ file-open.
 ### Remaining — TPC DATA-PLANE orchestration (NOT GSI; F4 deferred)
 With GSI working, the dest's `kXR_open` of the source returns **`kXR_waitresp`
 (4006)** — the source answers the TPC open ASYNCHRONOUSLY (validate rendezvous →
-deferred `kXR_attn` asynresp). `src/tpc/source.c` only accepts `kXR_ok`. A
+deferred `kXR_attn` asynresp). `src/tpc/outbound/source.c` only accepts `kXR_ok`. A
 prototype wait/waitresp+attn-unwrap loop was written and **reverted**: against the
 test's `ofs.tpc pgm` (push-model) source the deferred `kXR_attn` never arrived
 within the I/O timeout, so the dest pull thread BLOCKED (hanging even the
@@ -2152,7 +2152,7 @@ credential + map errors:
   wrapper (loads the proxy file → calls the kernel). Was ~410 lines (608→239 in
   the file): the round-2 logic + 4 private helpers (cert_pubkey,
   export_pubkey_pem, gsi_pick_md_alg, gsi_more_ctx/cleanup) moved into gsi_core.
-- **TPC destination** — `src/tpc/gsi_outbound_exchange.c` is now a ~200-line
+- **TPC destination** — `src/tpc/gsi/gsi_outbound_exchange.c` is now a ~200-line
   driver (cert-verify → serialise chain PEM → call the kernel → send → recv); was
   509 lines of a parallel raw-OpenSSL DH/cipher reimplementation. **Bonus:** the
   destination gets the **signed-DH path for free** — whatever variant the server
@@ -2179,7 +2179,7 @@ codepath. The only open item remains stock-source async TPC open
 ### F8 DONE — async kXR_open resolution (2026-06-26)
 
 The remaining W1 data-plane gap is now closed. The TPC destination resolves an
-**asynchronous source open**: `tpc_open_resolve()` (`src/tpc/source.c`) honours the
+**asynchronous source open**: `tpc_open_resolve()` (`src/tpc/outbound/source.c`) honours the
 XRootD flow-control statuses a real source (EOS/dCache, or any server still
 finishing the TPC rendezvous) returns before the open settles —
 
@@ -2228,11 +2228,11 @@ authmore rounds + dedicated redirector nginx) — the locate returns kXR_redirec
 both ztn creds are forwarded. (Full GSI-over-cache-fill — the async-driver
 consumer of this seam — remains the larger W1.4.a event-loop work, deferred.)
 
-**F5 (Stage 3) — TPC pull kXR_gotoTLS.** The TPC pull I/O (`src/tpc/io.c`) is now
+**F5 (Stage 3) — TPC pull kXR_gotoTLS.** The TPC pull I/O (`src/tpc/outbound/io.c`) is now
 TLS-aware: the three primitives thread `t` and route through `SSL_read`/`SSL_write`
-when `t->tls` is set. `src/tpc/bootstrap.c` advertises `kXR_ableTLS` (when
+when `t->tls` is set. `src/tpc/outbound/bootstrap.c` advertises `kXR_ableTLS` (when
 `xrootd_tpc_outbound_tls on`) and, on a `kXR_gotoTLS` protocol reply, upgrades via
-the new `src/tpc/tls.c` (`tpc_start_tls`: blocking client `SSL_connect` over the
+the new `src/tpc/outbound/tls.c` (`tpc_start_tls`: blocking client `SSL_connect` over the
 pull fd in the thread-pool worker, CA-verified against `xrootd_trusted_ca`); login +
 GSI/ztn auth + open/read/close then ride the TLS socket. Freed in `thread.c` via
 `tpc_tls_teardown`. New directive `xrootd_tpc_outbound_tls` (default off →
@@ -2444,13 +2444,13 @@ the captured delegated proxy.
 - `src/auth/gsi/delegation.c` (handle_sigpxy): builds the full pull credential = proxy
   cert + issuer chain + the request private key (PEM, in that order) onto
   `ctx->gsi_deleg_proxy_pem`.
-- `src/tpc/launch.c` (start_pull): when `xrootd_tpc_delegate` is on and a proxy was
+- `src/tpc/engine/launch.c` (start_pull): when `xrootd_tpc_delegate` is on and a proxy was
   captured, malloc-copies the credential into the pull task (`t->deleg_cred_pem`).
-- `src/tpc/gsi_outbound_certreq.c`: when `t->deleg_cred_pem` is set, loads the cert
+- `src/tpc/gsi/gsi_outbound_certreq.c`: when `t->deleg_cred_pem` is set, loads the cert
   chain + key from that in-memory blob (two BIOs over it) instead of the gateway's
   `xrootd_certificate`, and skips the file-based credential validation; the existing
   GSI outbound handshake (F4 `xrootd_gsi_build_cert_response`) then presents the
-  user's proxy. `src/tpc/thread.c` frees the blob.
+  user's proxy. `src/tpc/outbound/thread.c` frees the blob.
 
 Gated off by default (no captured proxy ⇒ unchanged behaviour). No regression: all
 TPC gates (TLS, async-open, nginx-GSI-source) + the stock-delegation green tests +

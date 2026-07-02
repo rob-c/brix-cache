@@ -1,0 +1,174 @@
+# packaging/nginx-xrootd.service
+#
+# Hardened systemd unit for the nginx-xrootd storage gateway.
+#
+# This unit runs the system nginx binary with a dedicated xrootd configuration
+# file.  It is NOT a replacement for the stock nginx.service — it is a
+# separate, independently managed instance for sites that want isolation.
+#
+# Installation:
+#   install -m 644 packaging/nginx-xrootd.service /etc/systemd/system/
+#   # Create the dedicated config (copy from the example and edit paths/secrets):
+#   cp /etc/nginx/conf.d/xrootd.conf.example /etc/nginx/nginx-xrootd.conf
+#   # The config MUST contain:  pid /run/nginx-xrootd.pid;
+#   systemctl daemon-reload
+#   systemctl enable --now nginx-xrootd
+#
+# Logrotate note: contrib/logrotate.d/nginx-xrootd references /run/nginx.pid
+# (the stock instance PID file).  When using this unit, update that file to
+# reference /run/nginx-xrootd.pid instead, or copy it to a separate rotate
+# rule for this instance.
+#
+# See: docs/09-developer-guide/deployment-hardening.md
+
+[Unit]
+Description=nginx-xrootd storage gateway
+Documentation=https://github.com/HEP-x/nginx-xrootd
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+PIDFile=/run/nginx-xrootd.pid
+ExecStartPre=/usr/sbin/nginx -c /etc/nginx/nginx-xrootd.conf -t
+ExecStart=/usr/sbin/nginx -c /etc/nginx/nginx-xrootd.conf
+ExecReload=/bin/kill -s HUP $MAINPID
+ExecStop=/bin/kill -s QUIT $MAINPID
+# Align with xrootd.conf.example recommendation (worker_shutdown_timeout 30s):
+# an old worker finishes in-flight transfers then exits, and the native client
+# reconnects within its stall window (XRDC_MAX_STALL_MS, default 30 s).
+TimeoutStopSec=30
+
+# File-creation umask: logs and staged uploads are not world-readable by default.
+UMask=0027
+
+# -------------------------------------------------------------------------
+# Sandboxing — full rationale in docs/09-developer-guide/deployment-hardening.md
+# -------------------------------------------------------------------------
+
+# Prevents gaining new privileges through setuid/setgid executables or file
+# capabilities at execve.  Does NOT block the broker's inline capability
+# manipulation (capset + setresuid) — those operate on the permitted set
+# already held, which NoNewPrivileges does not touch.
+NoNewPrivileges=true
+
+# /usr, /boot, /etc read-only.  nginx reads (never writes) its config and
+# certificates from /etc; these paths never need write access.
+ProtectSystem=strict
+
+# Block access to /home, /root, /run/user.  If the export root lives under
+# /home, add it to ReadWritePaths below instead.
+ProtectHome=true
+
+# Private /tmp namespace: staged upload partials use a tempfs-backed /tmp
+# that is invisible to other processes and cleaned on service exit.
+PrivateTmp=true
+
+# No access to real device nodes.  nginx never opens /dev/sd*, /dev/tape, etc.
+PrivateDevices=true
+
+# Kernel tunable, module, and cgroup pseudo-filesystems are read-only.
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+# Hide all kernel namespace operations.  The gateway does not create or enter
+# namespaces; exposing unshare/setns/clone-with-ns only enlarges the attack surface.
+RestrictNamespaces=true
+
+# Prevent SCHED_FIFO / SCHED_RR acquisition.  All I/O is event-loop + thread-pool;
+# no real-time scheduling is used or needed.
+RestrictRealtime=true
+
+# Prevent files created by the service from carrying setuid/setgid file bits.
+# The impersonate broker changes its OWN process identity (setresuid/setresgid),
+# which is governed by the @setuid syscall filter and CapabilityBoundingSet —
+# not by this directive.  This correctly remains true (tight).
+RestrictSUIDSGID=true
+
+# Prevent mmap(PROT_WRITE|PROT_EXEC) and mprotect to PROT_EXEC.  nginx does not
+# JIT-compile anything.  CAVEAT: if nginx was built with --with-pcre-jit,
+# PCRE2's JIT engine requires W+X mappings and will crash with this directive
+# enabled — in that case set MemoryDenyWriteExecute=false here.
+MemoryDenyWriteExecute=true
+
+# Prevent personality() calls that change the ABI of system calls; unnecessary
+# for a native-Linux service and closes a class of seccomp-bypass gadgets.
+LockPersonality=true
+
+# Restrict socket families to the ones actually used:
+#   AF_INET + AF_INET6  — root:// / WebDAV / S3 / metrics / TPC / CMS
+#   AF_UNIX             — nginx worker-master IPC, thread-pool pipes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+# Allowlisted syscall groups:
+#   @system-service  — baseline for any long-running daemon
+#   @setuid          — setresuid / setresgid / setgroups for the impersonate broker
+#
+# Blocklisted groups (kernel-hardening):
+#   @debug           — ptrace, perf_event_open; not needed at runtime
+#   @mount           — mount/umount; not needed
+#   @reboot          — reboot/kexec; definitely not needed
+#   @swap            — swapon/swapoff; not needed
+#   @obsolete        — old SysV/BSD calls; not needed
+SystemCallFilter=@system-service @setuid
+SystemCallFilter=~@debug @mount @reboot @swap @obsolete
+
+# Block syscalls with a different ABI (e.g. 32-bit int 0x80 on x86_64).
+SystemCallArchitectures=native
+
+# -------------------------------------------------------------------------
+# Capability bounding set
+#
+# Only three capabilities are retained in the bounding set:
+#
+#   CAP_SETUID, CAP_SETGID
+#       Required by the impersonate broker.  The broker forks at startup
+#       (lifecycle.c), drops its real uid/gid to a non-root service account
+#       (broker_creds.c: imp_drop_to_service_user), and retains only these
+#       two capabilities (imp_capset_setuid_setgid) so it can perform
+#       per-request identity switches without running as root.  Workers
+#       immediately call imp_worker_drop_caps() to shed these caps after
+#       fork, so a compromised worker cannot escalate.
+#
+#       If xrootd_impersonation is disabled (or the module is built without
+#       the impersonate component), these two caps can be removed:
+#         CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+#       See docs/09-developer-guide/deployment-hardening.md §3.
+#
+#   CAP_NET_BIND_SERVICE
+#       Allows the nginx master to bind ports < 1024.  XRootD listens on
+#       1094 (< 1024); WebDAV on 443 / 8443; S3 on 9001 (> 1024 — only
+#       CAP_NET_BIND_SERVICE is needed for 443/1094, 9001 does not need it).
+#       If all listen ports are > 1024, this cap can also be dropped.
+#
+# CAP_DAC_OVERRIDE is explicitly NOT in the bounding set.  The broker's
+# lifecycle.c lists it in kill_caps[] and drops it; nothing in the module
+# uses it.
+# -------------------------------------------------------------------------
+CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_NET_BIND_SERVICE
+
+# -------------------------------------------------------------------------
+# Writable filesystem paths
+#
+# Everything outside these paths is read-only (enforced by ProtectSystem=strict
+# + ProtectHome=true + PrivateTmp=true).
+#
+# Adjust to the deployment's actual export root, stage dir, log dir, and
+# any additional cert/keytab locations that nginx needs to write.
+# -------------------------------------------------------------------------
+#
+#   /var/log/nginx       — access logs (xrootd_access*.log, WebDAV, S3)
+#   /var/lib/nginx-xrootd — export root + default stage dir for partial uploads
+#   /run                 — PID file (/run/nginx-xrootd.pid), nginx lock files,
+#                          and the impersonate broker UNIX socket
+#
+# Examples of additional paths to add:
+#   /mnt/fastcache/xrd-stage   — if xrootd_stage_dir points here
+#   /var/cache/nginx-xrootd    — if nginx proxy_cache_path is configured
+#   /home/xrootd               — if the export root is under /home (also
+#                                requires ProtectHome=read-only or false)
+ReadWritePaths=/var/log/nginx /var/lib/nginx-xrootd /run
+
+[Install]
+WantedBy=multi-user.target

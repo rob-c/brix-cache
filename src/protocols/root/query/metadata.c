@@ -1,4 +1,5 @@
 #include "query_internal.h"
+#include "core/ident.h"
 
 /*
  * WHAT: kXR_QStats, kXR_Qxattr, kXR_QFinfo, kXR_QFSinfo, kXR_Qvisa, kXR_Qopaque, kXR_Qopaquf, kXR_Qopaqug — metadata and plugin-style query handlers.
@@ -94,9 +95,10 @@ xrootd_query_stats(xrootd_ctx_t *ctx, ngx_connection_t *c)
     }
 
     n = snprintf(resp, sizeof(resp) - 1,
-        "<statistics id=\"xrootd\" ver=\"5.2.0\" tos=\"%ld\" pgm=\"nginx-xrootd\">"
+        "<statistics id=\"xrootd\" ver=\"" XROOTD_SERVER_VERSION "\""
+        " tos=\"%ld\" pgm=\"" XROOTD_SERVER_NAME "\">"
         "<stats id=\"info\"><host>localhost</host><port>%d</port>"
-        "<name>nginx-xrootd</name></stats>"
+        "<name>" XROOTD_SERVER_NAME "</name></stats>"
         "<stats id=\"link\"><num>%ld</num><tot>%ld</tot>"
         "<in>%ld</in><out>%ld</out><ctime>0</ctime>"
         "<ltime>0</ltime><sfps>0</sfps></stats>"

@@ -93,7 +93,7 @@ content is not served after mutation.
 
 Relevant code:
 
-- `src/fs/fd_cache.c`
+- `src/fs/vfs/fd_cache.c`
 - `src/protocols/webdav/get.c`
 
 ---
@@ -121,7 +121,7 @@ Expected benefits:
 Relevant code:
 
 - `src/protocols/webdav/get.c`
-- `src/fs/fd_cache.c`
+- `src/fs/vfs/fd_cache.c`
 
 ---
 
@@ -153,7 +153,7 @@ through the SSL stack.
 Relevant code:
 
 - `src/protocols/webdav/get.c`
-- `src/fs/fd_cache.c`
+- `src/fs/vfs/fd_cache.c`
 
 ---
 

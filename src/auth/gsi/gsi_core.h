@@ -142,7 +142,7 @@ uint8_t *xrootd_gsi_build_certreq(const char *cryptomod, uint32_t version,
  * frees them. On success payload+plen receive a malloc'd kXGC_cert buffer the
  * caller must free(); returns 0. On failure returns -1 and, if err!=NULL, writes a
  * short reason into err[errcap]. Both the native client (client/lib/sec/sec_gsi.c)
- * and the TPC destination (src/tpc/gsi_outbound_exchange.c) call this. */
+ * and the TPC destination (src/tpc/gsi/gsi_outbound_exchange.c) call this. */
 int xrootd_gsi_build_cert_response(const uint8_t *sbody, uint32_t slen,
                                    const uint8_t *proxy_pem, size_t proxy_pem_len,
                                    EVP_PKEY *proxy_key,

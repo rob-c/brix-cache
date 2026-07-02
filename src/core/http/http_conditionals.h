@@ -17,6 +17,22 @@
 #define XROOTD_HTTP_COND_WEAK_EQUIV  0x0001
 
 /*
+ * XROOTD_HTTP_COND_READ / XROOTD_HTTP_COND_TIME — mode flags for
+ * xrootd_http_eval_preconditions().
+ *
+ * WHAT: READ selects GET/HEAD semantics — a matching If-None-Match yields
+ *       304 Not Modified instead of 412, and If-Modified-Since is evaluated.
+ *       TIME enables the date-based headers (If-Unmodified-Since, and with
+ *       READ also If-Modified-Since); without it only the ETag headers are
+ *       evaluated (the conditional-write contract: If-Match / If-None-Match).
+ * WHY: RFC 9110 §13.1 gives If-None-Match different outcomes for reads vs
+ *      writes, and conditional-write callers (S3 PutObject) must not grow
+ *      date-header behaviour their protocol does not define. */
+
+#define XROOTD_HTTP_COND_READ        0x0002
+#define XROOTD_HTTP_COND_TIME        0x0004
+
+/*
  * xrootd_http_etag_list_contains - check whether an ETag header value matches a target ETag.
  *
  * WHAT: Scans the ETag header string for occurrences of the target etag value,
@@ -50,6 +66,34 @@ ngx_int_t xrootd_http_etag_list_contains(const ngx_str_t *header,
 ngx_int_t xrootd_http_check_etag_preconditions(ngx_http_request_t *r,
     ngx_flag_t resource_exists, const struct stat *st, unsigned etag_flags,
     unsigned condition_flags);
+
+/*
+ * xrootd_http_eval_preconditions - full RFC 9110 §13.2.2 precondition evaluation.
+ *
+ * WHAT: Evaluates If-Match, If-Unmodified-Since, If-None-Match, and
+ *       If-Modified-Since in the RFC-mandated precedence order against the
+ *       resource's synthetic ETag (mtime+size) and mtime. Returns NGX_OK when
+ *       every precondition passes, NGX_HTTP_NOT_MODIFIED (304, READ mode only)
+ *       when If-None-Match / If-Modified-Since short-circuits a read, or
+ *       NGX_HTTP_PRECONDITION_FAILED (412) on any failed precondition.
+ *
+ * WHY: One evaluator owns the precedence rules and the read/write outcome
+ *      split so S3 GET/HEAD, S3 conditional PUT, and future WebDAV callers
+ *      cannot drift apart. (xrootd_http_check_etag_preconditions above is the
+ *      ETag-only WebDAV-write subset and predates this entry point.)
+ *
+ * HOW: Precedence per RFC 9110 §13.2.2 — If-Match, else If-Unmodified-Since
+ *      (TIME mode); then If-None-Match, else If-Modified-Since (READ+TIME
+ *      mode, `before` semantics: unmodified since the date ⇒ 304). Empty
+ *      header values are treated as absent. `*` matches any existing
+ *      representation; list matching uses xrootd_http_etag_list_contains()
+ *      with `condition_flags` weak-equivalence passed through. The resource
+ *      ETag is derived from mtime/size via xrootd_http_etag_str(etag_flags)
+ *      only when resource_exists.
+ */
+ngx_int_t xrootd_http_eval_preconditions(ngx_http_request_t *r,
+    ngx_flag_t resource_exists, time_t mtime, off_t size,
+    unsigned etag_flags, unsigned condition_flags);
 
 /*
  * xrootd_http_check_if_modified_since - evaluate If-Modified-Since / If-Unmodified-Since.

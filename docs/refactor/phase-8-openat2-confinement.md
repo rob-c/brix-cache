@@ -236,7 +236,7 @@ Remaining direct callers after Phase 3:
 | `src/protocols/root/connection/fd_table.c` | `xrootd_open_confined()` | fd_table open |
 | `src/protocols/root/dirlist/handler.c` | `xrootd_resolve_path()`, `xrootd_open_confined()` | directory listing |
 | `src/protocols/root/fattr/dispatch.c` | `xrootd_resolve_path()` | extended attributes |
-| `src/fs/vfs_open.c` | `xrootd_open_confined_canon()` | VFS open |
+| `src/fs/vfs/vfs_open.c` | `xrootd_open_confined_canon()` | VFS open |
 | `src/protocols/root/query/checksum_ckscan_*.c` | `xrootd_open_confined_canon()`, `xrootd_resolve_path()` | checksum scan |
 | `src/protocols/root/query/checksum_qcksum.c` | `xrootd_resolve_path()`, `xrootd_open_confined()` | on-demand checksum |
 | `src/protocols/root/query/metadata.c` | `xrootd_resolve_path()` | metadata query |
@@ -424,7 +424,7 @@ Replace the two-step `resolve_path` + `open_confined` pattern at each call
 site with a single `xrootd_open_beneath()` call.  Migrate in file order:
 
 1. `src/protocols/root/connection/fd_table.c`
-2. `src/fs/vfs_open.c`
+2. `src/fs/vfs/vfs_open.c`
 3. `src/protocols/root/read/open_resolved_file.c`
 4. `src/protocols/root/read/open_cache.c`
 5. `src/protocols/root/read/stat.c`, `pgread.c`, `locate.c`

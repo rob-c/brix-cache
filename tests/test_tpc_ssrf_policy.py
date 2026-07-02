@@ -4,7 +4,7 @@ tests/test_tpc_ssrf_policy.py
 Tests for the xrootd_tpc_allow_local and xrootd_tpc_allow_private
 SSRF-guard directives on the XRootD stream module.
 
-The SSRF guard lives in src/tpc/connect.c: tpc_addr_is_prohibited().
+The SSRF guard lives in src/tpc/outbound/connect.c: tpc_addr_is_prohibited().
 These tests verify that the per-server directives control which
 destination addresses are allowed for TPC pulls:
 

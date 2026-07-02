@@ -1,7 +1,7 @@
 #include "open.h"
-#include "fs/vfs.h"   /* VFS confined open/probe seam */
-#include "fs/vfs_backend_registry.h"  /* per-export storage-driver resolution */
-#include "fs/vfs_internal.h"          /* xrootd_vfs_export_relative_root key form */
+#include "fs/vfs/vfs.h"   /* VFS confined open/probe seam */
+#include "fs/vfs/vfs_backend_registry.h"  /* per-export storage-driver resolution */
+#include "fs/vfs/vfs_internal.h"          /* xrootd_vfs_export_relative_root key form */
 #include "fs/backend/sd.h"            /* Layer 3: driver-backed export open */
 #include "core/ngx_xrootd_module.h"
 #include "fs/backend/csi_tagstore.h"

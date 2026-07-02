@@ -10,14 +10,14 @@
  */
 
 #include "webdav.h"
-#include "core/compat/etag.h"
-#include "core/compat/http_body.h"
+#include "core/http/etag.h"
+#include "core/http/http_body.h"
 #include "core/compat/integrity_info.h"
-#include "core/compat/http_conditionals.h"
+#include "core/http/http_conditionals.h"
 #include "core/compat/range.h"
 #include "core/compat/staged_file.h"
 #include "observability/dashboard/dashboard_tracking.h"
-#include "fs/vfs.h"
+#include "fs/vfs/vfs.h"
 #include "auth/impersonate/lifecycle.h"
 #include "fs/path/path.h"
 

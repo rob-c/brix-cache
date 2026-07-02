@@ -1,12 +1,14 @@
-# compat — Cross-protocol shared primitives (checksums, HTTP, paths, filesystem, SSRF)
+# compat — Cross-protocol shared primitives (checksums, paths, filesystem, SSRF)
 
 ## Overview
 
-`src/core/compat` is the module's library of **protocol-neutral building blocks**: small, focused helpers that the three protocol front-ends (`root://` stream, WebDAV/HTTP, S3 REST) plus the cluster/proxy/TPC machinery all share so they cannot drift apart. Nothing here owns a request lifecycle or a wire dialect; each file does one job — compute a CRC32c, parse a Range header, write a request body to an fd, build an Allow header, resolve a URL host against an SSRF policy — and does it identically for every caller. The directory's reason to exist is the project's core rule: *use helpers, never reimplement path/auth/metrics/framing* (see the root `CLAUDE.md`). When a checksum, error-code mapping, or path-confinement decision needs to change, it changes here once.
+`src/core/compat` is the module's library of **protocol-neutral building blocks**: small, focused helpers that the three protocol front-ends (`root://` stream, WebDAV/HTTP, S3 REST) plus the cluster/proxy/TPC machinery all share so they cannot drift apart. Nothing here owns a request lifecycle or a wire dialect; each file does one job — compute a CRC32c, parse a Range header, mutate the namespace under kernel confinement, resolve a URL host against an SSRF policy — and does it identically for every caller. The directory's reason to exist is the project's core rule: *use helpers, never reimplement path/auth/metrics/framing* (see the root `CLAUDE.md`). When a checksum, error-code mapping, or path-confinement decision needs to change, it changes here once.
 
 Despite the historical name "compat", this is not a thin compatibility shim over nginx — it is the de-duplication layer. Earlier files such as `cors.c`, `io.c`, `http_protocol_vars.c`, `kxr_errno.c`, and `result_mapper.c` have been **folded into the surviving consolidated files** (e.g. `error_mapping.c` now carries the errno→kXR, errno→HTTP, and namespace-status→HTTP maps that three separate files used to). `result_mapper.h` survives only as a back-compat alias header whose two prototypes are now defined in `error_mapping.c`.
 
-These helpers sit *below* the protocol handlers in every request lifecycle. A WebDAV `GET` calls `xrootd_http_parse_range` → `xrootd_http_set_file_headers` → `xrootd_http_send_file_range`; an S3 `ListObjectsV2` calls `xrootd_fs_walk` + `xrootd_http_chain_appendf` + `xrootd_xml_write_text_element`; a native `kXR_Qcksum` calls `xrootd_integrity_get_fd` → `xrootd_checksum_hex_fd`; every mutating op (`rm`, `mkdir`, `mv`, WebDAV `MKCOL`/`DELETE`/`MOVE`, S3 `PutObject`/`DeleteObjects`) routes through `xrootd_ns_*` in `namespace_ops.c`. Outbound transfers (native TPC, WebDAV HTTP-TPC) gate on `net_target.c`'s SSRF policy.
+**The HTTP-semantics cluster moved out (2026-07-02):** `http_headers`, `http_body`, `http_file_response`, `http_conditionals`, `http_query`, `http_xml`, `http_compress`, and `etag` now live in [`../http`](../http/README.md) — they are security-load-bearing HTTP request/response semantics, not portability glue, and deserve to be discoverable by name. What remains here is the genuinely protocol-neutral layer: checksums, namespace mutation, path/range/URI/XML primitives, SSRF, time/log/SHM utilities.
+
+These helpers sit *below* the protocol handlers in every request lifecycle. A WebDAV `GET` calls `xrootd_http_parse_range` (`range.c`) before the serve pipeline in `core/http` takes over; an S3 `ListObjectsV2` calls `xrootd_fs_walk` + `xrootd_xml_write_text_element`; a native `kXR_Qcksum` calls `xrootd_integrity_get_fd` → `xrootd_checksum_hex_fd`; every mutating op (`rm`, `mkdir`, `mv`, WebDAV `MKCOL`/`DELETE`/`MOVE`, S3 `PutObject`/`DeleteObjects`) routes through `xrootd_ns_*` in `namespace_ops.c`. Outbound transfers (native TPC, WebDAV HTTP-TPC) gate on `net_target.c`'s SSRF policy.
 
 Two invariants make this directory load-bearing for security: (1) every namespace mutation and staged write here re-resolves the client path under the export root with the kernel's `openat2(RESOLVE_BENEATH)` API (via `../path/beneath.h`) — confinement is enforced at the syscall, not assumed from an upstream check; and (2) all outbound network targets pass a DNS-rebind-safe SSRF classifier before any byte is sent.
 
@@ -23,21 +25,16 @@ Two invariants make this directory load-bearing for security: (1) every namespac
 | `hex.c` / `hex.h` | Nibble↔char and byte-array→hex string. NOTE: `xrootd_hex_encode` emits **lowercase** hex; `xrootd_hex_nibble` emits **uppercase** (used by `xml.c` `%XX` control-escaping). |
 | `crypto.c` / `crypto.h` | Worker-lifecycle OpenSSL HMAC-SHA256 + SHA-256 singletons. `EVP_MAC`/`EVP_MD` fetched once at `init_process`, freed at `exit_process`; per-call cost is just a CTX alloc. Used by GSI `kXR_sigver` and S3 SigV4. |
 
-### HTTP request/response helpers
+### HTTP-adjacent primitives
+
+The request/response-semantics files (`http_*`, `etag`) live in [`../http`](../http/README.md). These remain here because they serve non-HTTP planes too:
 
 | File | Responsibility |
 |---|---|
-| `http_headers.c` / `http_headers.h` | Case-insensitive `headers_in` lookup, `Authorization: Bearer` extraction, control-char validation, whitespace-trimmed value compare, response/request header insertion (`set_header`/`_str`/`_num`), and the canonical handler-rc→HTTP-status mapper `xrootd_http_effective_status` (keeps WebDAV/S3 metric buckets aligned). |
-| `http_body.c` / `http_body.h` | nginx request-body chain (`request_body->bufs`, mixed memory + spooled-to-file): summarise byte count/layout, write whole body to an fd (`copy_file_range` for file bufs, `pwrite` for memory), read all into one pool buffer, gzip/deflate **inflate**-to-fd, and the `ngx_http_read_client_request_body` dispatch wrapper. |
-| `http_file_response.c` / `http_file_response.h` | File-backed serving for WebDAV GET & S3 GET/HEAD: ETag/Content-Range header construction, the standard status+length+type+ETag block (`set_file_headers`), single-range send (`send_file_range`, sets `last_buf`, optional fd pool-cleanup), and multi-range chain append (`chain_append_file_range`). Uses nginx sendfile — see gotcha below. |
-| `http_conditionals.c` / `http_conditionals.h` | RFC 7232 conditionals: `If-Match`/`If-None-Match` (with `*` wildcard and weak-ETag equivalence), `If-Modified-Since`, and WebDAV `Overwrite: F`. Returns 304 / 412 / NGX_OK. |
-| `http_query.c` / `http_query.h` | Bounded `?key=value` scanner over `r->args` (one `ngx_str_t`): case policy, percent-decode, `+`→space, NUL-reject, truncation, bare-flag detection. `xrootd_http_query_get`/`_has`. Drives S3 ListObjectsV2 / multipart query parsing. |
-| `http_xml.c` / `http_xml.h` | Incremental XML response chain builder (`chain_appendf`/`vappendf`, stack tmp[2048] → pool overflow), single-buffer XML send, and a protocol-agnostic `<Error><Code><Message>` sender (S3 + REST). |
 | `range.c` / `range.h` | Single-range RFC 7233 `bytes=` parser (`xrootd_http_range_t`: present + satisfiable). Thin facade over `range_vector.c` in single-range mode. |
 | `range_vector.c` / `range_vector.h` | Multi-range parse/normalise/validate + contiguous-run coalescing. Shared by XrdHttp multipart byteranges, single-range HTTP, and native `kXR_readv` I/O coalescing. |
 | `uri.c` / `uri.h` | RFC 3986 percent-decode (nginx-lenient: malformed `%` passes verbatim) and percent-encode (uppercase hex, configurable `safe_extra`). The encoder feeds S3 SigV4 canonicalisation. |
 | `xml.c` / `xml.h` | XML escaping (`& < > " '`, optional `&apos;` and control-char `%XX`), `<name>escaped</name>` element builder with name validation, and WebDAV `<lockinfo>` parsing via **libxml2** (`XML_PARSE_NONET|NOERROR|NOWARNING`, `XML_PARSE_NO_XXE` when available). `xrootd_xml_backend_name()` returns `"libxml2"`. |
-| `etag.c` / `etag.h` | RFC 7232 ETag string from mtime+size, strong or `W/`-weak (`XROOTD_ETAG_WEAK`), matching XrdHttp's `"%lx-%llx"` convention. |
 | `protocol_caps.c` / `protocol_caps.h` | Shared HTTP-operation descriptor (`xrootd_http_operation_t`: name, method, metric slot, access-op, capability flags) plus method→op lookup and flag-filtered `Allow` / `Access-Control-Allow-Methods` builder. WebDAV & S3 keep their own tables; these helpers just search/format. |
 
 ### Filesystem & namespace mutation
@@ -74,7 +71,6 @@ Two invariants make this directory load-bearing for security: (1) every namespac
 - **`xrootd_http_range_t`** (`range.h`) and **`xrootd_byte_range_t` / `xrootd_range_vector_opts_t`** (`range_vector.h`) — single- and multi-range descriptors plus parser policy.
 - **`xrootd_http_operation_t` / `xrootd_proto_op_flags_t`** (`protocol_caps.h`) — per-method descriptor and READ/WRITE/LIST/TPC/LOCK/ASYNC_BODY capability bits.
 - **`xrootd_net_target_t` / `xrootd_net_target_policy_t`** (`net_target.h`) — zero-copy parsed URL (fields point into the original buffer) and SSRF allow/deny policy.
-- **`xrootd_http_body_summary_t`** (`http_body.h`) — total bytes + `has_memory`/`has_spooled` flags.
 - **`xrootd_fs_walk_entry_t` / `_options_t` / `xrootd_fs_walk_pt`** (`fs_walk.h`) — per-entry callback payload and traversal options.
 - **`xrootd_fs_usage_t`** (`fs_usage.h`) — computed byte totals + occupancy ppm.
 - **`xrootd_async_job_t`** (`async_job.h`) — background-job lifecycle with idempotent cleanup.
@@ -83,8 +79,8 @@ Two invariants make this directory load-bearing for security: (1) every namespac
 
 Execution always **enters from a caller above** — a protocol handler or a subsystem — never on its own:
 
-- **WebDAV** (`../webdav/`): GET → `range.c` → `http_file_response.c`; PUT → `http_body.c` (+ `staged_file.c`, `tmp_path.c`); PROPFIND → `fs_walk.c` + `http_xml.c` + `xml.c` + `etag.c`; MKCOL/DELETE/MOVE/COPY → `namespace_ops.c`; LOCK → `xml.c`; conditionals → `http_conditionals.c`; method routing/Allow → `protocol_caps.c`.
-- **S3** (`../s3/`): SigV4 → `crypto.c` + `uri.c`; key resolve → `path.c`; list → `fs_walk.c` + `http_xml.c`; get → `range.c`/`range_vector.c` + `http_file_response.c`; put/copy → `http_body.c` + `staged_file.c` + `namespace_ops.c`; errors → `http_xml.c`.
+- **WebDAV** (`../../protocols/webdav/`): GET → `range.c` (then `../http` + `protocols/shared` for the send); PUT staging → `staged_file.c` + `tmp_path.c`; PROPFIND → `fs_walk.c` + `xml.c`; MKCOL/DELETE/MOVE/COPY → `namespace_ops.c`; LOCK → `xml.c`; method routing/Allow → `protocol_caps.c`. Request/response semantics (headers, body, conditionals, ETag) → [`../http`](../http/README.md).
+- **S3** (`../../protocols/s3/`): SigV4 → `crypto.c` + `uri.c`; key resolve → `path.c`; list → `fs_walk.c`; get → `range.c`/`range_vector.c`; put/copy → `staged_file.c` + `namespace_ops.c`. Request/response semantics → [`../http`](../http/README.md).
 - **Native stream** (`../read/`, `../write/`, `../query/`, `../fattr/`): checksums → `checksum.c`/`crc32c.c`/`integrity_info.c`; readv coalescing → `range_vector.c`; clone/chkpoint/copy → `copy_range.c`; mutations → `namespace_ops.c`; space → `fs_usage.c`.
 - **TPC / proxy / CMS** (`../tpc/`, `../proxy/`, `../cms/`): outbound target validation → `net_target.c`; background job teardown → `async_job.c`; SHM slot bookkeeping → `shm_slots.h`.
 
@@ -96,9 +92,8 @@ What this directory **calls out to**: the filesystem helpers depend on the kerne
 - **Documented non-beneath sites are intentional, not gaps.** `namespace_ops.c:427` (copy on already-confined fds), the xattr copies (`namespace_ops.c:463`), and `fs_walk.c:264`'s readdir loop each carry an inline justification: they act on fds already opened beneath, or on kernel-supplied dirent names with `lstat` (no `..`, final symlink not followed). The mutations they drive still go through the beneath API.
 - **`EXDEV`/`ELOOP` are auth failures, never server errors.** Both `error_mapping.c` (`:42`, `:117`) and `namespace_ops.c`'s `errno_to_ns_status` (`:88`) map a blocked traversal / escaping-symlink to `kXR_NotAuthorized` / 403 — a forbidden op, not a 500.
 - **SSRF + DNS-rebind.** Every outbound transfer must pass `net_target.c`. `check_dns_pin` validates *all* resolved addresses (so a multi-A record can't smuggle a private address) and pins the first permitted one, closing the re-resolution TOCTOU (`net_target.c:402`). `xrootd_net_host_chars_valid` blocks CRLF/scheme injection into redirect/registration strings. DNS resolution is **blocking — thread-only** (`net_target.h:88`).
-- **Blocking calls must stay off the event loop.** `copy_range.c` (`copy_range.h:26`), the `pread`/`pwrite` loops in `http_body.c`/`checksum.c`, statvfs/xattr syscalls, and `net_target` DNS all block; callers must invoke them from a thread-pool task or post-accept context, never an nginx handler directly.
-- **TLS vs cleartext buffers.** `http_file_response.c` builds nginx **file-backed** buffers for the sendfile path. GOTCHA (from project memory): this is nginx's native sendfile, not the custom XRootD data plane — mixing it with custom S3/VFS reads needs care in `../webdav/get.c` to avoid double-send/buffer conflicts. Per Invariant #2, TLS responses must be memory-backed (`b->memory=1`); cleartext uses file-backed + sendfile — never mix.
-- **Fail-closed auth helpers.** `http_headers.c` Bearer extraction returns `NGX_DECLINED`/`NGX_ERROR` unless the scheme and a non-empty token are both present; `http_conditionals.c` returns 412 when `If-Match` is set but the resource is absent. SigV4 and WLCG token logic never share code (Invariant #6) — `crypto.c` only provides the primitives.
+- **Blocking calls must stay off the event loop.** `copy_range.c` (`copy_range.h:26`), the `pread`/`pwrite` loops in `checksum.c` (and `../http/http_body.c`), statvfs/xattr syscalls, and `net_target` DNS all block; callers must invoke them from a thread-pool task or post-accept context, never an nginx handler directly.
+- **Fail-closed auth primitives.** SigV4 and WLCG token logic never share code (Invariant #6) — `crypto.c` only provides the primitives. The fail-closed Bearer/conditional helpers live in [`../http`](../http/README.md).
 - **CRC32c value is wire-stable across paths.** The serial, 3-way-parallel, and software CRC32c implementations are bit-identical (`crc32c.c:230`); the 3-way path is a pure scheduling win and only engages at ≥768 B (`crc32c.c:451`). pgread/pgwrite per-page CRC depends on this (Invariant #1).
 - **Integrity xattr cache is mtime+size-keyed and advisory.** A stored `user.XrdCks.<alg>` value is treated as a miss if the file's current mtime/size differ (`integrity_info.c:87`); write/truncate/rename paths must call `xrootd_integrity_invalidate_fd` (preferred — fd-keyed, VFS-routed) or `xrootd_integrity_invalidate_path(log, root_canon, path)` (path-keyed; the `root_canon` arg routes the removal through the VFS xattr seam). Errors are ignored by design.
 - **`ngx_str_t` is not NUL-terminated**; these helpers honour `.len` throughout (header lookups, query scan, range parse). `net_target_t` fields point into the *original* URL buffer — keep it alive while the struct is used (`net_target.h:28`).
@@ -108,7 +103,7 @@ What this directory **calls out to**: the filesystem helpers depend on the kerne
 ## Entry points / extending
 
 - **New checksum algorithm:** add the enum in `checksum.h`, the name/EVP/u32 branches in `checksum.c`, and the name to `s_algorithms[]` in `integrity_info.c` (so the xattr cache invalidates it).
-- **New shared HTTP helper:** add it to the relevant `http_*.c`/`.h` pair (headers, body, file-response, conditionals, query, xml) — keep the WHAT/WHY/HOW block; both WebDAV and S3 should be able to call it without protocol knowledge.
+- **New shared HTTP helper:** goes in [`../http`](../http/README.md), not here.
 - **New mutating filesystem op:** extend `namespace_ops.c` (`xrootd_ns_*`) so all three protocols share confinement + errno mapping; never add a raw `*_beneath` call in a protocol handler (`namespace_ops.h:61` invariant).
 - **New outbound-transfer feature:** parse with `xrootd_net_target_parse`, then gate with `xrootd_net_target_check_dns_pin` from a thread; reuse `xrootd_net_target_policy_t` rather than re-implementing range checks.
 - **New status mapping:** add the case to the appropriate section of `error_mapping.c` (errno→kXR, errno→HTTP, ns→HTTP) — one place, every protocol.

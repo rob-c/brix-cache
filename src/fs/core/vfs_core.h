@@ -8,7 +8,7 @@
  *       confined RESOLVE_BENEATH; client: unconfined URL path), stays in the
  *       caller's layer (vfs_server / client adapter). These verbs own only the
  *       EINTR / short-I/O loop policy; the raw syscalls live in the backend.
- * WHY:  The verb loops were maintained twice (src/fs/vfs_read.c +
+ * WHY:  The verb loops were maintained twice (src/fs/vfs/vfs_read.c +
  *       vfs_io_core.c on the server; client/lib/vfs_posix.c + vfs_block.c on the
  *       client). One copy removes the drift risk and is the `vfs` layer of the
  *       module->vfs_server->vfs->backend / client->vfs->backend topology.

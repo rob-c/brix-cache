@@ -11,7 +11,7 @@
 | `src/protocols/root/session/*.c` | Protocol negotiation, login, bind, ping/end-session, request signing |
 | `src/auth/gsi/*.c` | GSI/x509 proxy certificate authentication exchange (DH key exchange, cert chain validation) |
 | `src/auth/token/*.c` | JWT/JWKS validation, WLCG scope and group parsing, bearer-token (`ztn`) auth |
-| `src/auth/crypto/pki_*.c` / `src/pki/*.c` | PKI/CRL startup consistency checks |
+| `src/auth/crypto/pki_*.c` (+ `src/auth/gsi/pki.c`, `src/protocols/webdav/pki.c` adapters) | PKI/CRL startup consistency checks |
 | `src/auth/voms/*.c` | Runtime VOMS support via `dlopen("libvomsapi.so.1")` — VO extraction from proxy certs |
 | `src/protocols/root/read/*.c` | Read-side operations: open, read, readv, pgread, stat, statx, dirlist, locate, close |
 | `src/fs/cache/*.c` | Read-through cache origin fetch, locking, and fill callbacks |
@@ -21,7 +21,8 @@
 | `src/protocols/root/write/*.c` | Write-side and namespace-mutating operations: write, pgwrite, writev, sync, truncate, mkdir, rm, rmdir, mv, chmod |
 | `src/core/aio/*.c` | Async I/O response builders and nginx thread-pool callbacks |
 | `src/protocols/root/response/*.c` | Response framing, control responses, status responses, CRC32C |
-| `src/path/*.c` | Path extraction, root confinement, policy matching, and log sanitization |
+| `src/fs/path/*.c` | Root confinement, canonical resolution, and confined namespace-op helpers |
+| `src/auth/authz/*.c` | Path ACLs, authdb rules, VO/group policy matching |
 | `src/net/cms/*.c` | CMS manager heartbeat: registration, ping/pong, space and load reporting |
 | `src/observability/metrics/` | Prometheus metrics: shared-memory counters and HTTP export endpoint |
 | `src/protocols/webdav/*.c` | WebDAV over HTTPS module, auth, path safety, method handlers, HTTP-TPC, and upstream proxy (`proxy.c`) |

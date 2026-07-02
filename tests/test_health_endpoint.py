@@ -31,7 +31,8 @@ def test_healthz_liveness_ok(test_env):
     assert r.headers["Content-Type"] == "application/json"
     body = json.loads(r.text)
     assert body["status"] == "ok"
-    assert body["service"] == "nginx-xrootd"
+    assert body["service"] == "GNUBall"
+    assert body["version"] == "v1.0.5"
 
 
 def test_healthz_verbose_readiness(test_env):

@@ -277,6 +277,13 @@ aio-resil: ../tests/c/aio_resil.c $(CLIENT_LIB) | $(BINDIR)
 	$(CC) $(ALL_CFLAGS) ../tests/c/aio_resil.c $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/aio_resil
 	@echo " + built $(BINDIR)/aio_resil (no libXrdCl/libXrdSec*)"
 
+# Deferred-reply (kXR_waitresp → kXR_attn/asynresp) driver for the mock-server
+# pytest (tests/test_aio_waitresp.py).
+.PHONY: aio-waitresp
+aio-waitresp: ../tests/c/aio_waitresp.c $(CLIENT_LIB) | $(BINDIR)
+	$(CC) $(ALL_CFLAGS) ../tests/c/aio_waitresp.c $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/aio_waitresp
+	@echo " + built $(BINDIR)/aio_waitresp (no libXrdCl/libXrdSec*)"
+
 # M3 file-handle resumption test — read/write survive a mid-transfer bounce.
 .PHONY: aio-mfile fault-proxy
 aio-mfile: ../tests/c/aio_mfile.c $(CLIENT_LIB) | $(BINDIR)

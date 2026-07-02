@@ -20,7 +20,7 @@ filesystems** — and none has been found.
   `stat/unlink/mkdir/rename/server_copy`, `opendir/readdir/closedir`,
   `getxattr/listxattr/setxattr/removexattr`, `staged_open/write/commit/abort`.
   **Missing: `chmod`.**
-- The `xrootd_vfs_*` API (`src/fs/vfs.h`) already wraps nearly all of it —
+- The `xrootd_vfs_*` API (`src/fs/vfs/vfs.h`) already wraps nearly all of it —
   including **impersonation-aware `xrootd_vfs_opendir`** (broker `fdopendir` as
   the mapped user) and **`xrootd_vfs_readdir` returning name + no-follow `lstat`**.
 - BUT most VFS entrypoints are **unconsumed**: `xrootd_vfs_opendir/readdir`,

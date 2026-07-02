@@ -23,8 +23,9 @@
  */
 
 #include "metrics_internal.h"
-#include "core/compat/http_headers.h"
+#include "core/http/http_headers.h"
 #include "core/compat/alloc_guard.h"
+#include "core/ident.h"
 
 
 /* True when the request's query string contains the bare `verbose` flag. */
@@ -71,7 +72,8 @@ health_build_json(ngx_http_request_t *r, ngx_uint_t verbose, size_t *len)
          * they ride on the default (non-verbose) document: a probe can confirm a
          * reload took effect without opting into the heavier readiness block. */
         p = ngx_snprintf(buf, cap,
-                         "{\"status\":\"ok\",\"service\":\"nginx-xrootd\","
+                         "{\"status\":\"ok\",\"service\":\"" XROOTD_SERVER_NAME "\","
+                         "\"version\":\"" XROOTD_SERVER_VERSION "\","
                          "\"config_generation\":%ui,"
                          "\"config_version\":\"%016xL\"}\n",
                          generation, config_hash);
@@ -82,7 +84,8 @@ health_build_json(ngx_http_request_t *r, ngx_uint_t verbose, size_t *len)
     shm_state = (m != NULL) ? "mapped" : "unmapped";
 
     p = ngx_snprintf(buf, cap,
-                     "{\"status\":\"ok\",\"service\":\"nginx-xrootd\","
+                     "{\"status\":\"ok\",\"service\":\"" XROOTD_SERVER_NAME "\","
+                     "\"version\":\"" XROOTD_SERVER_VERSION "\","
                      "\"config_generation\":%ui,"
                      "\"config_version\":\"%016xL\","
                      "\"checks\":{"

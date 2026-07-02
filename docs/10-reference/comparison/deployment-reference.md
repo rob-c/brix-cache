@@ -1,7 +1,7 @@
 # Deployment Configuration Reference
 
 This page gives side-by-side, commented deployment snippets for common
-nginx-xrootd and vanilla XRootD roles. The examples intentionally use
+gnuBall and vanilla XRootD roles. The examples intentionally use
 placeholder hostnames and filesystem paths, and they include no private keys,
 tokens, proxy contents, passwords, or shared secrets.
 
@@ -365,7 +365,7 @@ oss.localroot /srv/xrootd/export
 
 Clients are anonymous, but data flows are reported to a SciTags/Firefly
 collector. These examples intentionally keep only the Firefly path enabled for
-parity; nginx-xrootd can also stamp IPv6 flow labels by setting
+parity; gnuBall can also stamp IPv6 flow labels by setting
 `xrootd_pmark_flowlabel on`.
 
 <table>
@@ -407,7 +407,7 @@ stream {
         xrootd_pmark_scitag_cgi on;
 &#32;
         # Firefly-only parity with stock XRootD. Set this on if the
-        # deployment wants nginx-xrootd's IPv6 flow-label marking too.
+        # deployment wants gnuBall's IPv6 flow-label marking too.
         xrootd_pmark_flowlabel off;
 &#32;
         # UDP collector for RFC5424-wrapped Firefly JSON datagrams.
@@ -568,7 +568,7 @@ sec.protbind * only gsi
 ## 7. root:// GSI Fileserver With Explicit User Mapping
 
 Both examples authenticate clients with GSI and use a grid-mapfile, but the files
-mean different things. nginx-xrootd uses `xrootd_gridmap` for optional
+mean different things. gnuBall uses `xrootd_gridmap` for optional
 per-request UNIX impersonation; its authdb still matches the GSI DN. Vanilla
 XRootD's GSI grid-mapfile maps the client DN to the local name that `acc.authdb`
 then authorizes.
@@ -640,7 +640,7 @@ stream {
 &#32;
 # /etc/xrootd/authdb
 &#32;
-# nginx-xrootd authdb grants are keyed by the authenticated DN.
+# gnuBall authdb grants are keyed by the authenticated DN.
 # The grid-mapfile controls the local uid/gid used for filesystem opens.
 u /DC=org/DC=example/CN=Alice Example /users/alice a
 u /DC=org/DC=example/CN=Bob Example   /users/bob   a

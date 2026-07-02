@@ -543,7 +543,7 @@ git commit -m "feat(scan): NDJSON record formatters + unit tests"
 - Modify: `src/fs/scan/scan_engine_unittest.c` (action cases against a temp fixture tree), top-level `config`
 
 **Interfaces:**
-- Consumes: `scan_record.h` (status/rec types), `scan_throttle.h`, VFS (`src/fs/vfs.h`: `xrootd_vfs_open_fd_at`, `xrootd_vfs_fgetxattr`), integrity (`src/core/compat/integrity_info.h`: `xrootd_integrity_get_fd`, `xrootd_cksdata_decode`, `xrootd_integrity_info_t`, `xrootd_integrity_opts_t`).
+- Consumes: `scan_record.h` (status/rec types), `scan_throttle.h`, VFS (`src/fs/vfs/vfs.h`: `xrootd_vfs_open_fd_at`, `xrootd_vfs_fgetxattr`), integrity (`src/core/compat/integrity_info.h`: `xrootd_integrity_get_fd`, `xrootd_cksdata_decode`, `xrootd_integrity_info_t`, `xrootd_integrity_opts_t`).
 - Produces:
   - `typedef enum { XROOTD_SCAN_MODE_DUMP, XROOTD_SCAN_MODE_VERIFY, XROOTD_SCAN_MODE_FILL, XROOTD_SCAN_MODE_COMPARE } xrootd_scan_mode_t;`
   - `typedef struct { xrootd_scan_mode_t mode; char alg[16]; int rootfd; } xrootd_scan_action_ctx_t;`

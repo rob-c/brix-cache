@@ -1,4 +1,4 @@
-# Coding Standards for nginx-xrootd
+# Coding Standards for gnuBall
 
 **Status:** AUTHORITATIVE and MANDATORY — this is *the* coding standard for the
 project. Every agent or contributor making changes under `src/` or `client/`
@@ -363,7 +363,7 @@ required (§1); they are the primary lens for code review.
    complexity lives in the named steps, each independently reviewable and testable.
 6. **Table/descriptor-driven over branch ladders.** Express variation as data, not
    `if/else` chains: the opcode dispatch table, the `op_table` namespace-op
-   descriptors (`src/path/`), the table-driven metric exporter (`src/observability/metrics/`),
+   descriptors (`src/fs/path/`), the table-driven metric exporter (`src/observability/metrics/`),
    and the directive tables (`src/protocols/root/stream/module.c`) are the models. New families of
    similar operations should add a descriptor row, not a new branch.
 7. **Reuse shared helpers; never reimplement.** Path resolution, auth gating,

@@ -4,9 +4,11 @@
 
 **Design spec:** [`docs/superpowers/specs/2026-07-01-generic-bad-actor-guard-arc-xrootd-design.md`](../superpowers/specs/2026-07-01-generic-bad-actor-guard-arc-xrootd-design.md)
 
+> **Layout note (2026-07-02):** paths updated for the phase-66 `src/` re-bucketing ([phase-66-map.tsv](phase-66-map.tsv)). The two new directories this plan creates land in the `net/` bucket (clustering/proxying/traffic policing): the pure-C guard core at `src/net/guard/` (sibling of `src/net/tap/`, same no-nginx discipline) and the nginx HTTP adapter module at `src/net/httpguard/` (sibling of `src/net/ratelimit/`, `src/net/proxy/`). Cross-directory includes are **src-rooted** (`#include "net/guard/guard.h"`); same-directory includes stay bare. The design spec predates phase-66 and still shows the old top-level paths — this plan is authoritative for file locations.
+
 **Goal:** Put nginx in front of ARC and a real XRootD instance as a credential-preserving MITM that classifies each request, bounces obvious junk, and emits one structured log line per bad-actor signal for fail2ban to ban on.
 
-**Architecture:** A protocol-agnostic, allocation-free guard core (`src/guard/`, no nginx — same discipline as `src/net/tap/`) exposes `guard_classify_pre/post` + `guard_audit_format` over a normalized `guard_request_t`. Three thin adapters feed it: one nginx HTTP module (`ngx_http_xrootd_guard_module`) serving ARC and XrdHttp/WebDAV via a `profile` directive (ACCESS phase = pre-backend bounce, LOG phase = audit), and the existing `src/protocols/root/relay/` stream relay (guard sink on the tap → drop the connection). Stock `ngx_http_proxy_module` moves the bytes.
+**Architecture:** A protocol-agnostic, allocation-free guard core (`src/net/guard/`, no nginx — same discipline as `src/net/tap/`) exposes `guard_classify_pre/post` + `guard_audit_format` over a normalized `guard_request_t`. Three thin adapters feed it: one nginx HTTP module (`ngx_http_xrootd_guard_module`) serving ARC and XrdHttp/WebDAV via a `profile` directive (ACCESS phase = pre-backend bounce, LOG phase = audit), and the existing `src/protocols/root/relay/` stream relay (guard sink on the tap → drop the connection). Stock `ngx_http_proxy_module` moves the bytes.
 
 **Tech Stack:** C (C99), nginx module API (stream + http), stock `ngx_http_proxy_module`, pytest test harness, fail2ban (nftables banaction), standalone `gcc` for pure-C unit tests.
 
@@ -29,14 +31,14 @@ Copied verbatim from CLAUDE.md / spec — every task's requirements implicitly i
 
 ## File Structure
 
-**Guard core — `src/guard/` (pure C):**
+**Guard core — `src/net/guard/` (pure C):**
 - `guard.h` — types (`guard_request_t`, enums, `guard_ruleset_t`) + full public API.
 - `guard_classify.c` — `guard_classify_pre`, `guard_classify_post`, `guard_signature_match`, `guard_grammar_ok`.
 - `guard_audit.c` — `guard_audit_format` (key=value line; optional JSON).
 - `guard_ruleset.c` — ruleset construction + built-in signature defaults + per-profile grammar defaults.
 - `guard_test.c` — standalone unit test (compiled with plain `gcc`, no nginx).
 
-**HTTP adapter — `src/httpguard/` (nginx http module):**
+**HTTP adapter — `src/net/httpguard/` (nginx http module):**
 - `guard_http.h` — module decl, loc-conf struct, request-ctx struct.
 - `module.c` — module definition, directive table, conf create/merge, phase-handler registration.
 - `classify_handler.c` — ACCESS-phase handler (build `guard_request_t`, `classify_pre`, bounce).
@@ -60,21 +62,21 @@ Copied verbatim from CLAUDE.md / spec — every task's requirements implicitly i
 
 **Build/docs:**
 - `./config` (modify) — register all new `.c`.
-- `src/guard/README.md`, `src/httpguard/README.md`.
+- `src/net/guard/README.md`, `src/net/httpguard/README.md`.
 
 ---
 
 ## Task 1: Guard core header + types + standalone test harness
 
 **Files:**
-- Create: `src/guard/guard.h`
-- Create: `src/guard/guard_test.c`
+- Create: `src/net/guard/guard.h`
+- Create: `src/net/guard/guard_test.c`
 - Create: `tests/guard/run_guard_core.sh`
 
 **Interfaces:**
 - Produces: `guard_request_t`, `guard_op_class_t`, `guard_outcome_t`, `guard_verdict_t`, `guard_reason_t`, `guard_ruleset_t` (opaque-ish struct), and the function prototypes used by every later task.
 
-- [ ] **Step 1: Write `src/guard/guard.h`**
+- [ ] **Step 1: Write `src/net/guard/guard.h`**
 
 ```c
 #ifndef XROOTD_GUARD_GUARD_H
@@ -208,11 +210,11 @@ void guard_ruleset_load_profile(guard_ruleset_t *rs, const char *profile);
 #endif /* XROOTD_GUARD_GUARD_H */
 ```
 
-- [ ] **Step 2: Write the standalone test harness `src/guard/guard_test.c` (bootstrap: one trivially-true assertion)**
+- [ ] **Step 2: Write the standalone test harness `src/net/guard/guard_test.c` (bootstrap: one trivially-true assertion)**
 
 ```c
 /* guard_test.c — standalone unit tests for the pure-C guard core.
- * Build: gcc -Wall -Wextra -I src/guard src/guard/*.c -o /tmp/guard_test */
+ * Build: gcc -Wall -Wextra -I src/net/guard src/net/guard/*.c -o /tmp/guard_test */
 #include "guard.h"
 #include <stdio.h>
 #include <string.h>
@@ -241,7 +243,7 @@ int main(void)
 # Build + run the standalone guard-core unit test (no nginx).
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
-gcc -Wall -Wextra -std=c99 -Isrc/guard src/guard/guard_*.c -o /tmp/guard_test
+gcc -Wall -Wextra -std=c99 -Isrc/net/guard src/net/guard/guard_*.c -o /tmp/guard_test
 exec /tmp/guard_test
 ```
 
@@ -262,7 +264,7 @@ Expected: `GUARD CORE: all pass`
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/guard/guard.h src/guard/guard_test.c src/guard/guard_ruleset.c tests/guard/run_guard_core.sh
+git add src/net/guard/guard.h src/net/guard/guard_test.c src/net/guard/guard_ruleset.c tests/guard/run_guard_core.sh
 git commit -m "feat(guard): pure-C guard core header + standalone test harness"
 ```
 
@@ -271,9 +273,9 @@ git commit -m "feat(guard): pure-C guard core header + standalone test harness"
 ## Task 2: Signature matching
 
 **Files:**
-- Create: `src/guard/guard_classify.c`
-- Modify: `src/guard/guard_ruleset.c`
-- Modify: `src/guard/guard_test.c`
+- Create: `src/net/guard/guard_classify.c`
+- Modify: `src/net/guard/guard_ruleset.c`
+- Modify: `src/net/guard/guard_test.c`
 
 **Interfaces:**
 - Consumes: `guard_ruleset_t`, `guard_sig_t`, `guard_sig_kind_t` (Task 1).
@@ -393,7 +395,7 @@ Expected: `GUARD CORE: all pass`
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/guard/guard_classify.c src/guard/guard_ruleset.c src/guard/guard_test.c
+git add src/net/guard/guard_classify.c src/net/guard/guard_ruleset.c src/net/guard/guard_test.c
 git commit -m "feat(guard): signature blocklist matching + built-in scanner set"
 ```
 
@@ -402,9 +404,9 @@ git commit -m "feat(guard): signature blocklist matching + built-in scanner set"
 ## Task 3: Namespace grammar + `guard_classify_pre`
 
 **Files:**
-- Modify: `src/guard/guard_classify.c`
-- Modify: `src/guard/guard_ruleset.c`
-- Modify: `src/guard/guard_test.c`
+- Modify: `src/net/guard/guard_classify.c`
+- Modify: `src/net/guard/guard_ruleset.c`
+- Modify: `src/net/guard/guard_test.c`
 
 **Interfaces:**
 - Consumes: `guard_signature_match` (Task 2), `guard_request_t`, `guard_ruleset_t`.
@@ -558,7 +560,7 @@ Expected: `GUARD CORE: all pass`
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/guard/guard_classify.c src/guard/guard_ruleset.c src/guard/guard_test.c
+git add src/net/guard/guard_classify.c src/net/guard/guard_ruleset.c src/net/guard/guard_test.c
 git commit -m "feat(guard): namespace grammar + pre-backend classify (signature>grammar)"
 ```
 
@@ -567,8 +569,8 @@ git commit -m "feat(guard): namespace grammar + pre-backend classify (signature>
 ## Task 4: Post-response outcome classification
 
 **Files:**
-- Modify: `src/guard/guard_classify.c`
-- Modify: `src/guard/guard_test.c`
+- Modify: `src/net/guard/guard_classify.c`
+- Modify: `src/net/guard/guard_test.c`
 
 **Interfaces:**
 - Consumes: `guard_request_t.outcome`, `guard_ruleset_t.flag_notfound/flag_authfail`.
@@ -625,7 +627,7 @@ Expected: `GUARD CORE: all pass`
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/guard/guard_classify.c src/guard/guard_test.c
+git add src/net/guard/guard_classify.c src/net/guard/guard_test.c
 git commit -m "feat(guard): post-response outcome classification (notfound/authfail)"
 ```
 
@@ -634,8 +636,8 @@ git commit -m "feat(guard): post-response outcome classification (notfound/authf
 ## Task 5: Audit line formatting
 
 **Files:**
-- Create: `src/guard/guard_audit.c`
-- Modify: `src/guard/guard_test.c`
+- Create: `src/net/guard/guard_audit.c`
+- Modify: `src/net/guard/guard_test.c`
 
 **Interfaces:**
 - Consumes: `guard_request_t`, `guard_reason_t`, `guard_op_class_t`.
@@ -674,7 +676,7 @@ still wraps it in quotes but assumes the edge already escaped it.
 Run: `tests/guard/run_guard_core.sh`
 Expected: FAIL — undefined references.
 
-- [ ] **Step 3: Implement `src/guard/guard_audit.c`**
+- [ ] **Step 3: Implement `src/net/guard/guard_audit.c`**
 
 ```c
 #include "guard.h"
@@ -733,17 +735,17 @@ Expected: `GUARD CORE: all pass`
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/guard/guard_audit.c src/guard/guard_test.c
+git add src/net/guard/guard_audit.c src/net/guard/guard_test.c
 git commit -m "feat(guard): key=value audit line formatter + reason/op tokens"
 ```
 
 ---
 
-## Task 6: Register guard core in the build + `src/guard/README.md`
+## Task 6: Register guard core in the build + `src/net/guard/README.md`
 
 **Files:**
 - Modify: `./config`
-- Create: `src/guard/README.md`
+- Create: `src/net/guard/README.md`
 
 **Interfaces:**
 - Produces: guard-core `.o` files compiled into the module so adapters can link them.
@@ -753,13 +755,13 @@ git commit -m "feat(guard): key=value audit line formatter + reason/op tokens"
 Find the `NGX_ADDON_SRCS` block that lists `src/net/tap/...` and add, in the same style:
 
 ```
-    $ngx_addon_dir/src/guard/guard_classify.c \
-    $ngx_addon_dir/src/guard/guard_audit.c \
-    $ngx_addon_dir/src/guard/guard_ruleset.c \
+    $ngx_addon_dir/src/net/guard/guard_classify.c \
+    $ngx_addon_dir/src/net/guard/guard_audit.c \
+    $ngx_addon_dir/src/net/guard/guard_ruleset.c \
 ```
 (Do **not** add `guard_test.c` — it is standalone, never compiled into nginx.)
 
-- [ ] **Step 2: Write `src/guard/README.md`** (short: purpose, the pure-C rule, the `guard_request_t` contract, that adapters own the clock + path sanitization, and the standalone test command).
+- [ ] **Step 2: Write `src/net/guard/README.md`** (short: purpose, the pure-C rule, the `guard_request_t` contract, that adapters own the clock + path sanitization, and the standalone test command).
 
 - [ ] **Step 3: Reconfigure + build (new source files => full configure)**
 
@@ -778,7 +780,7 @@ Expected: `GUARD CORE: all pass`
 - [ ] **Step 5: Commit**
 
 ```bash
-git add config src/guard/README.md
+git add config src/net/guard/README.md
 git commit -m "build(guard): register guard core in ./config + README"
 ```
 
@@ -787,8 +789,8 @@ git commit -m "build(guard): register guard core in ./config + README"
 ## Task 7: HTTP guard module skeleton (conf, directives, phase registration)
 
 **Files:**
-- Create: `src/httpguard/guard_http.h`
-- Create: `src/httpguard/module.c`
+- Create: `src/net/httpguard/guard_http.h`
+- Create: `src/net/httpguard/module.c`
 - Modify: `./config`
 
 **Interfaces:**
@@ -797,7 +799,7 @@ git commit -m "build(guard): register guard core in ./config + README"
 
 Follow the pattern in `src/protocols/webdav/module.c` (module struct, `ngx_command_t` table, create/merge loc-conf, `postconfiguration` registering phase handlers). Key points below.
 
-- [ ] **Step 1: Write `src/httpguard/guard_http.h`**
+- [ ] **Step 1: Write `src/net/httpguard/guard_http.h`**
 
 ```c
 #ifndef XROOTD_HTTPGUARD_GUARD_HTTP_H
@@ -806,7 +808,7 @@ Follow the pattern in `src/protocols/webdav/module.c` (module struct, `ngx_comma
 #include <ngx_config.h>
 #include <ngx_core.h>
 #include <ngx_http.h>
-#include "../guard/guard.h"
+#include "net/guard/guard.h"
 
 typedef struct {
     ngx_flag_t        enable;          /* xrootd_guard on|off */
@@ -843,7 +845,7 @@ void ngx_http_xrootd_guard_write_audit(ngx_http_request_t *r,
 #endif
 ```
 
-- [ ] **Step 2: Write `src/httpguard/module.c`** — the directive table, conf create/merge (building `ruleset` from `profile` + `default_sigs` + operator arrays), and `postconfiguration` that pushes the access + log handlers.
+- [ ] **Step 2: Write `src/net/httpguard/module.c`** — the directive table, conf create/merge (building `ruleset` from `profile` + `default_sigs` + operator arrays), and `postconfiguration` that pushes the access + log handlers.
 
 ```c
 #include "guard_http.h"
@@ -938,10 +940,10 @@ Also in `module.c`: `create_loc_conf` (`ngx_pcalloc`, set `enable/default_sigs/b
 
 Add to `NGX_ADDON_SRCS` (alongside the other http modules) — and to `NGX_ADDON_DEPS` the header:
 ```
-    $ngx_addon_dir/src/httpguard/module.c \
-    $ngx_addon_dir/src/httpguard/classify_handler.c \
-    $ngx_addon_dir/src/httpguard/audit_handler.c \
-    $ngx_addon_dir/src/httpguard/guard_http_req.c \
+    $ngx_addon_dir/src/net/httpguard/module.c \
+    $ngx_addon_dir/src/net/httpguard/classify_handler.c \
+    $ngx_addon_dir/src/net/httpguard/audit_handler.c \
+    $ngx_addon_dir/src/net/httpguard/guard_http_req.c \
 ```
 If this module needs its own `HTTP_MODULES` entry, mirror how `ngx_http_xrootd_webdav_module` is added in `./config` (`ngx_module_name`/`HTTP_MODULES` list). Create empty stubs for `classify_handler.c`, `audit_handler.c`, `guard_http_req.c` returning `NGX_DECLINED` / no-op so the build links this task.
 
@@ -954,7 +956,7 @@ Expected: `configuration file … test is successful`.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/httpguard/guard_http.h src/httpguard/module.c src/httpguard/classify_handler.c src/httpguard/audit_handler.c src/httpguard/guard_http_req.c config
+git add src/net/httpguard/guard_http.h src/net/httpguard/module.c src/net/httpguard/classify_handler.c src/net/httpguard/audit_handler.c src/net/httpguard/guard_http_req.c config
 git commit -m "feat(httpguard): module skeleton — directives, conf, phase registration"
 ```
 
@@ -963,7 +965,7 @@ git commit -m "feat(httpguard): module skeleton — directives, conf, phase regi
 ## Task 8: HTTP `guard_request_t` builder (op mapping, cred_present, sanitized path)
 
 **Files:**
-- Modify: `src/httpguard/guard_http_req.c`
+- Modify: `src/net/httpguard/guard_http_req.c`
 - Test: `tests/test_arc_guard.py` (create; ACCESS-phase behaviour asserted here via live server)
 
 **Interfaces:**
@@ -1067,7 +1069,7 @@ Expected: FAIL (stub returns NGX_DECLINED → 200/404, backend hit).
 - [ ] **Step 4: Commit (builder only; handler wired next task)**
 
 ```bash
-git add src/httpguard/guard_http_req.c tests/test_arc_guard.py
+git add src/net/httpguard/guard_http_req.c tests/test_arc_guard.py
 git commit -m "feat(httpguard): guard_request_t builder (op/cred/sanitized path) + access tests"
 ```
 
@@ -1076,7 +1078,7 @@ git commit -m "feat(httpguard): guard_request_t builder (op/cred/sanitized path)
 ## Task 9: HTTP ACCESS-phase classify handler (pre-backend bounce)
 
 **Files:**
-- Modify: `src/httpguard/classify_handler.c`
+- Modify: `src/net/httpguard/classify_handler.c`
 
 **Interfaces:**
 - Consumes: `ngx_http_xrootd_guard_build_request` (Task 8), `guard_classify_pre` (Task 3), `ngx_http_xrootd_guard_ctx_t`.
@@ -1143,7 +1145,7 @@ Expected: PASS (signature/grammar → 444 pre-backend; valid → proxied).
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/httpguard/classify_handler.c
+git add src/net/httpguard/classify_handler.c
 git commit -m "feat(httpguard): ACCESS-phase pre-backend bounce (signature/grammar)"
 ```
 
@@ -1152,8 +1154,8 @@ git commit -m "feat(httpguard): ACCESS-phase pre-backend bounce (signature/gramm
 ## Task 10: HTTP LOG-phase audit handler (outcome mapping + fail2ban line)
 
 **Files:**
-- Modify: `src/httpguard/audit_handler.c`
-- Modify: `src/httpguard/guard_http_req.c` (add `ngx_http_xrootd_guard_write_audit`)
+- Modify: `src/net/httpguard/audit_handler.c`
+- Modify: `src/net/httpguard/guard_http_req.c` (add `ngx_http_xrootd_guard_write_audit`)
 - Modify: `tests/test_arc_guard.py` (add post-response cases)
 
 **Interfaces:**
@@ -1266,7 +1268,7 @@ Expected: PASS (all ACCESS + LOG cases).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/httpguard/audit_handler.c src/httpguard/guard_http_req.c tests/test_arc_guard.py
+git add src/net/httpguard/audit_handler.c src/net/httpguard/guard_http_req.c tests/test_arc_guard.py
 git commit -m "feat(httpguard): LOG-phase outcome classify + fail2ban audit line"
 ```
 
@@ -1335,16 +1337,16 @@ Add to the `xrootd_relay_t` struct in `relay.c` (and any needed decl in `relay.h
     int                      guard_enable;
     int                      guard_drop;    /* set by the sink -> pump closes */
 ```
-Include `"../guard/guard.h"` at the top of `relay.c`.
+Include `"net/guard/guard.h"` at the top of `relay.c`.
 
 - [ ] **Step 2: Write `src/protocols/root/relay/relay_guard.c`**
 
 ```c
-#include "../ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "relay.h"
-#include "../tap/tap.h"
-#include "../guard/guard.h"
-#include "../protocol/opcodes.h"
+#include "net/tap/tap.h"
+#include "net/guard/guard.h"
+#include "protocols/root/protocol/opcodes.h"
 
 /* kXR_* request opcode -> guard op-class. */
 static guard_op_class_t
@@ -1618,15 +1620,15 @@ git commit -m "feat(fail2ban): per-signal filters + jails + regex fixture test"
 ## Task 14: End-to-end integration, docs, and final verification
 
 **Files:**
-- Create: `src/httpguard/README.md`
+- Create: `src/net/httpguard/README.md`
 - Modify: `CLAUDE.md` (OP→FILE HTTP table: add guard keyword→files row; ROUTING note)
 - Create: `tests/test_guard_e2e.py` (optional smoke across all three surfaces)
 
-- [ ] **Step 1: Write `src/httpguard/README.md`** — deployment recipe: host cert on `ssl_certificate`, `ssl_verify_client optional_no_ca`, `proxy_set_header X-SSL-Client-Cert $ssl_client_escaped_cert`, `proxy_pass https://arc_backend`, `xrootd_guard on; xrootd_guard_profile arc; xrootd_guard_audit_log /var/log/xrootd-guard-audit.log;` — plus the fail2ban wiring pointer.
+- [ ] **Step 1: Write `src/net/httpguard/README.md`** — deployment recipe: host cert on `ssl_certificate`, `ssl_verify_client optional_no_ca`, `proxy_set_header X-SSL-Client-Cert $ssl_client_escaped_cert`, `proxy_pass https://arc_backend`, `xrootd_guard on; xrootd_guard_profile arc; xrootd_guard_audit_log /var/log/xrootd-guard-audit.log;` — plus the fail2ban wiring pointer.
 
 - [ ] **Step 2: Add an OP→FILE row to `CLAUDE.md`**
 
-Under the HTTP table: `| guard / bad-actor / fail2ban | src/httpguard/*, src/guard/*, src/protocols/root/relay/relay_guard.c |`.
+Under the HTTP table: `| guard / bad-actor / fail2ban | src/net/httpguard/*, src/net/guard/*, src/protocols/root/relay/relay_guard.c |`.
 
 - [ ] **Step 3: Full guard-core + adapter test sweep**
 
@@ -1644,13 +1646,13 @@ Expected: `test is successful`.
 
 - [ ] **Step 5: Confirm the no-goto / build invariants**
 
-Run: `! grep -rn '\bgoto\b' src/guard src/httpguard src/protocols/root/relay/relay_guard.c`
+Run: `! grep -rn '\bgoto\b' src/net/guard src/net/httpguard src/protocols/root/relay/relay_guard.c`
 Expected: no matches (exit 0 from the negation).
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/httpguard/README.md CLAUDE.md tests/test_guard_e2e.py
+git add src/net/httpguard/README.md CLAUDE.md tests/test_guard_e2e.py
 git commit -m "docs(guard): deployment README + OP->FILE row + e2e sweep"
 ```
 

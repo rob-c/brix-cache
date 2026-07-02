@@ -10,7 +10,7 @@
  */
 #include "webdav.h"
 #include "fs/path/path.h"
-#include "fs/vfs.h"
+#include "fs/vfs/vfs.h"
 
 #include <sys/xattr.h>
 #include <stdio.h>

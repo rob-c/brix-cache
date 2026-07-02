@@ -5,11 +5,11 @@
 #include "webdav.h"
 #include "xrdhttp.h"
 #include "core/compat/error_mapping.h"
-#include "core/compat/etag.h"
-#include "core/compat/http_conditionals.h"
+#include "core/http/etag.h"
+#include "core/http/http_conditionals.h"
 #include "fs/cache/open.h"
 #include "observability/dashboard/dashboard_tracking.h"
-#include "fs/vfs.h"
+#include "fs/vfs/vfs.h"
 #include "protocols/shared/file_serve.h"
 #include "protocols/shared/http_cache_fill.h"     /* phase-64 SP2: off-loop cache fill */
 #include "protocols/shared/http_serve_offload.h"  /* phase-64 SP3: off-loop remote serve */

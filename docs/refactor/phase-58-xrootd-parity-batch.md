@@ -1059,7 +1059,7 @@ creation:
 - `kXR_close` of a written handle → `src/protocols/root/read/close.c` (after fsync, before reply).
 - WebDAV PUT completion → `src/protocols/webdav/put.c`.
 - S3 PUT/complete-multipart → `src/protocols/s3/object.c`.
-- TPC destination finish → `src/tpc/done.c`.
+- TPC destination finish → `src/tpc/engine/done.c`.
 Computed on the **AIO thread pool** (reuse `query/checksum_qcksum_async.c`), never on
 the event loop; on completion, `xrootd_integrity_*` persists via §8.1/§8.2.
 
@@ -1078,7 +1078,7 @@ Full XrdOssCsi keeps a **per-4 KiB-page CRC** stream beside the data + verifies 
 the heavy part is persisting that page-CRC stream at rest and a scrub job. Defer; the
 file-level digest (8.1–8.3) covers the common WLCG need. Sketch for later:
 `<path>.csi` = header + `ceil(size/4096)` × CRC32c; verify-on-read in
-`src/fs/vfs_io_core.c` EXECUTE; scrub timer in `src/frm/` walking the export.
+`src/fs/vfs/vfs_io_core.c` EXECUTE; scrub timer in `src/frm/` walking the export.
 
 ### 8.5 Build
 codecs/sidecar are additions to existing `integrity_info.c` (no new file → no

@@ -35,8 +35,8 @@ Non-goals: changing the wire protocol; merging `commit`/`abort` (they legitimate
 ## The seam: `open` is policy, the I/O verbs are mechanism
 
 The key insight from the current code:
-- `src/fs/vfs_io_core.h` already keys the I/O **job on a bare `ngx_fd_t fd`** (`xrootd_vfs_job_read_init(job, fd, offset, …)`). The byte I/O touches no nginx state — it is one step from ngx-free.
-- `src/fs/vfs_open.c` applies all confinement (`rootfd` / `RESOLVE_BENEATH` / `root_canon`) when *producing* the fd. Every verb after open just acts on the fd.
+- `src/fs/vfs/vfs_io_core.h` already keys the I/O **job on a bare `ngx_fd_t fd`** (`xrootd_vfs_job_read_init(job, fd, offset, …)`). The byte I/O touches no nginx state — it is one step from ngx-free.
+- `src/fs/vfs/vfs_open.c` applies all confinement (`rootfd` / `RESOLVE_BENEATH` / `root_canon`) when *producing* the fd. Every verb after open just acts on the fd.
 
 Therefore the split is clean:
 - **`open` (+ confinement, + nginx lifecycle) = per-side policy** → lives in `vfs_server` (confined) and in the client adapter (unconfined URL open).
@@ -78,7 +78,7 @@ int     xvfs_stat_at (const xrootd_sd_driver_t *drv, /*inst*/void *inst,
                       const char *path, xvfs_stat_t *out);
 ```
 
-The verbs are extracted from today's `src/fs/vfs_read.c`/`vfs_write.c`/`vfs_sync.c` bodies, which are already thin loops over `obj.driver->pread/...` (the same calls Candidate B put into the client).
+The verbs are extracted from today's `src/fs/vfs/vfs_read.c`/`vfs_write.c`/`vfs_sync.c` bodies, which are already thin loops over `obj.driver->pread/...` (the same calls Candidate B put into the client).
 
 ### `vfs_server` — server-only adapter (the de-ngx'd residue of today's `src/fs/`)
 Keeps everything nginx-shaped and security-critical:

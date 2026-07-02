@@ -3,9 +3,9 @@
  */
 
 #include "s3.h"
-#include "core/compat/etag.h"
-#include "core/compat/http_headers.h"
-#include "core/compat/http_xml.h"
+#include "core/http/etag.h"
+#include "core/http/http_headers.h"
+#include "core/http/http_xml.h"
 #include "core/compat/integrity_info.h"
 #include "core/compat/path.h"
 #include "core/compat/xml.h"

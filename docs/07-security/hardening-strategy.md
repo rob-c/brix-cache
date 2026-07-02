@@ -43,7 +43,7 @@ Attackers may attempt to bypass scope checks or exploit weak signature verificat
 
 | Priority | Feature | Target |
 |---|---|---|
-| **Critical** | `openat(2)` transition | `src/path/` |
+| **Critical** | `openat(2)` transition | `src/fs/path/` |
 | **High** | Fuzzing framework | `tests/fuzzing/` |
 | **High** | Walk depth/count limits | `src/protocols/root/query/` |
 | **Medium** | State-machine enforcement | `src/protocols/root/handshake/` |

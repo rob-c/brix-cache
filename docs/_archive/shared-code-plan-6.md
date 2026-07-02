@@ -297,7 +297,7 @@ range-normalization logic.
 
 ### Problem
 
-Native root TPC has an SSRF guard in `src/tpc/connect.c`:
+Native root TPC has an SSRF guard in `src/tpc/outbound/connect.c`:
 
 | Guard | Current owner |
 |---|---|
@@ -316,7 +316,7 @@ remote-copy or presigned-fetch feature should not grow a third policy.
 
 ### Plan
 
-Move the address classification and DNS preflight from `src/tpc/connect.c` into
+Move the address classification and DNS preflight from `src/tpc/outbound/connect.c` into
 `src/core/compat/net_target.h` and `src/core/compat/net_target.c`.
 
 ```c
@@ -364,7 +364,7 @@ Policy defaults:
 ### First Migration Targets
 
 1. Move `tpc_addr_is_prohibited()` and related IPv4/IPv6 helpers out of
-   `src/tpc/connect.c`.
+   `src/tpc/outbound/connect.c`.
 2. Keep `xrootd_tpc_check_src_policy()` as a native wrapper over the compat
    DNS checker.
 3. Add `xrootd_webdav_tpc_allow_local` and
@@ -650,7 +650,7 @@ Several features run work outside the main request path:
 | Feature | Current owner |
 |---|---|
 | native read/write AIO | `src/core/aio/*`, `src/protocols/root/read/readv.c` |
-| native TPC pull | `src/tpc/thread.c`, `done.c`, `source.c` |
+| native TPC pull | `src/tpc/outbound/thread.c`, `done.c`, `source.c` |
 | WebDAV HTTP-TPC curl thread | `src/protocols/webdav/tpc_thread.c`, `tpc_marker.c` |
 | Qckscan checksum scan | `src/protocols/root/query/checksum_ckscan_async.c` |
 | request body callbacks | WebDAV PUT, S3 PUT, S3 multipart complete |

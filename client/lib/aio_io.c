@@ -127,25 +127,56 @@ aconn_rto_ns(const xrdc_aconn *ac)
 }
 
 
-/* Dispatch one fully-received response frame to its in-flight request. */
-void
-aconn_dispatch_frame(xrdc_aconn *ac, uint16_t sid, uint16_t stat,
-                     const uint8_t *body, uint32_t dlen)
+/* kXR_waitresp: the reply arrives later as an unsolicited kXR_attn(asynresp).
+ * Park the request across the server's advertised delay — extend the deadline
+ * (never shorten it) past that delay plus margin so the timeout sweep doesn't
+ * fail the request while the server is legitimately working, and mark it
+ * deferred so its eventual completion is not taken as an RTT sample (it would
+ * measure the deferral, not the link). Mirrors the sync path's read-window
+ * extension (frame.c recv_after_waitresp); clamps match frame.c (570 s + 30 s). */
+static void
+areq_note_deferral(xrdc_areq *r, const uint8_t *body, uint32_t dlen)
+{
+    uint64_t secs = xrd_wait_secs_parse(body, dlen, 0, 570);
+
+    r->deferred = 1;
+    if (r->deadline_ns != 0) {
+        uint64_t want = xrdc_mono_ns() + secs * 1000000000ULL + 30000000000ULL;
+        if (want > r->deadline_ns) {
+            r->deadline_ns = want;
+        }
+    }
+}
+
+
+/* Dispatch one response (direct, or unwrapped from an asynresp envelope) to its
+ * in-flight request by streamid. Handles response statuses ONLY — kXR_attn never
+ * reaches here from the wire (aconn_dispatch_frame routes it first), so a nested
+ * attn inside an asynresp lands in the unexpected-status arm and fails the
+ * request cleanly instead of recursing. */
+static void
+aconn_dispatch_response(xrdc_aconn *ac, uint16_t sid, uint16_t stat,
+                        const uint8_t *body, uint32_t dlen)
 {
     xrdc_areq *r = reqmap_get(&ac->inflight, sid);
     if (r == NULL) {
         return;   /* late frame for a completed/cancelled request — ignore */
     }
 
-    ac->last_activity_ns = xrdc_mono_ns();   /* we heard from the server */
-
     switch (stat) {
     case kXR_oksofar:
         (void) areq_accumulate(r, body, dlen);
         return;   /* more frames follow; keep the entry */
 
+    case kXR_waitresp:
+        areq_note_deferral(r, body, dlen);
+        return;   /* the deferred reply arrives as kXR_attn(asynresp); keep the
+                   * entry (a repeat waitresp simply re-arms the wait) */
+
     case kXR_ok:
-        aconn_note_rtt(ac, r);   /* RTT sample feeds the adaptive deadline/RTO */
+        if (!r->deferred) {
+            aconn_note_rtt(ac, r);   /* RTT sample feeds the adaptive deadline/RTO */
+        }
         /* fallthrough */
     case kXR_redirect:   /* delivered to the upper layer (M2/M3 acts) */
     case kXR_wait:
@@ -178,6 +209,50 @@ aconn_dispatch_frame(xrdc_aconn *ac, uint16_t sid, uint16_t stat,
         return;
     }
     }
+}
+
+
+/* Handle an unsolicited kXR_attn push. Body = [actnum u32 BE][payload]. Only
+ * kXR_asynresp carries a reply — envelope [actnum 4][reserved 4][inner
+ * ServerResponseHdr 8][data] — which is unwrapped and dispatched by its INNER
+ * streamid (the outer one is not a request key: asyncms uses {0,0}, and a
+ * deferring server need not mirror the deferred sid). Everything else (asyncms
+ * text, obsolete actions, truncated envelopes) is informational at most: drop
+ * it — it must never complete or fail an in-flight request. */
+static void
+aconn_handle_attn(xrdc_aconn *ac, const uint8_t *body, uint32_t dlen)
+{
+    uint16_t esid, estat;
+    uint32_t edlen;
+
+    if (dlen < 4 || xrd_get_u32_be(body) != (uint32_t) kXR_asynresp) {
+        return;   /* not a deferred reply (e.g. asyncms notice) — ignore */
+    }
+    if (dlen < 16) {
+        return;   /* truncated asynresp envelope: no inner header to trust */
+    }
+    xrd_resp_hdr_unpack(body + 8, &esid, &estat, &edlen);
+    if (edlen > dlen - 16) {
+        edlen = dlen - 16;   /* never read past the outer frame */
+    }
+    aconn_dispatch_response(ac, esid, estat, body + 16, edlen);
+}
+
+
+/* Dispatch one fully-received frame: unsolicited kXR_attn pushes are routed
+ * BEFORE any in-flight lookup (their outer streamid is not a reliable request
+ * key); everything else is a direct response matched by streamid. */
+void
+aconn_dispatch_frame(xrdc_aconn *ac, uint16_t sid, uint16_t stat,
+                     const uint8_t *body, uint32_t dlen)
+{
+    ac->last_activity_ns = xrdc_mono_ns();   /* we heard from the server */
+
+    if (stat == kXR_attn) {
+        aconn_handle_attn(ac, body, dlen);
+        return;
+    }
+    aconn_dispatch_response(ac, sid, stat, body, dlen);
 }
 
 

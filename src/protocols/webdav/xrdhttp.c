@@ -31,8 +31,8 @@
 #include "core/compat/integrity_info.h"
 #include "core/compat/net_target.h"
 #include "core/compat/checksum.h"
-#include "core/compat/http_headers.h"
-#include "core/compat/http_query.h"
+#include "core/http/http_headers.h"
+#include "core/http/http_query.h"
 
 #include <ctype.h>
 #include <stdio.h>

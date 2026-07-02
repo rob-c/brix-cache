@@ -9,7 +9,7 @@
  */
 
 #include "proxy_internal.h"
-#include "core/compat/http_body.h"
+#include "core/http/http_body.h"
 
 /*
  * WHAT: Configure nginx upstream object and lifecycle hooks for WebDAV proxy mode — sets up request forwarding infrastructure after authentication gate completes.

@@ -160,6 +160,105 @@ xrootd_http_check_etag_preconditions(ngx_http_request_t *r,
     return NGX_OK;
 }
 
+/*
+ * cond_header_present - is a conditional header usable?
+ *
+ * WHAT: True when the header exists with a non-empty value.
+ * WHY: An empty conditional header is invalid per RFC 9110; treating it as
+ *      absent (rather than as a never-matching list) keeps a malformed client
+ *      from turning every request into a 412.
+ * HOW: NULL / len check.
+ */
+static ngx_flag_t
+cond_header_present(const ngx_table_elt_t *h)
+{
+    return h != NULL && h->value.len > 0;
+}
+
+/*
+ * cond_is_wildcard - is the header value the `*` any-representation token?
+ *
+ * WHAT: True for a value that is exactly "*".
+ * WHY: RFC 9110 §13.1.1/§13.1.2: `*` selects any existing representation and
+ *      must be recognised before list matching.
+ * HOW: Length-1 compare (nginx has already trimmed surrounding whitespace).
+ */
+static ngx_flag_t
+cond_is_wildcard(const ngx_str_t *v)
+{
+    return v->len == 1 && v->data[0] == '*';
+}
+
+ngx_int_t
+xrootd_http_eval_preconditions(ngx_http_request_t *r,
+    ngx_flag_t resource_exists, time_t mtime, off_t size,
+    unsigned etag_flags, unsigned condition_flags)
+{
+    ngx_table_elt_t *if_match = r->headers_in.if_match;
+    ngx_table_elt_t *if_none  = r->headers_in.if_none_match;
+    ngx_table_elt_t *if_unmod = r->headers_in.if_unmodified_since;
+    ngx_table_elt_t *if_mod   = r->headers_in.if_modified_since;
+    unsigned         read_mode = condition_flags & XROOTD_HTTP_COND_READ;
+    unsigned         time_mode = condition_flags & XROOTD_HTTP_COND_TIME;
+    char             etag_buf[64];
+    const char      *etag = NULL;
+
+    if (resource_exists) {
+        xrootd_http_etag_str(etag_buf, sizeof(etag_buf), mtime, size,
+                             etag_flags);
+        etag = etag_buf;
+    }
+
+    /* 1. If-Match — fails (412) unless the representation exists and the
+     *    validator selects it. */
+    if (cond_header_present(if_match)) {
+        if (!resource_exists) {
+            return NGX_HTTP_PRECONDITION_FAILED;
+        }
+        if (!cond_is_wildcard(&if_match->value)
+            && xrootd_http_etag_list_contains(&if_match->value, etag,
+                                              condition_flags) != NGX_OK)
+        {
+            return NGX_HTTP_PRECONDITION_FAILED;
+        }
+    } else if (time_mode && cond_header_present(if_unmod)) {
+        /* 2. If-Unmodified-Since — only when If-Match is absent. */
+        time_t t = ngx_parse_http_time(if_unmod->value.data,
+                                       if_unmod->value.len);
+        if (t != (time_t) NGX_ERROR && mtime > t) {
+            return NGX_HTTP_PRECONDITION_FAILED;
+        }
+    }
+
+    /* 3. If-None-Match — a match means the client already holds (or must not
+     *    overwrite) this representation: 304 on reads, 412 on writes. */
+    if (cond_header_present(if_none)) {
+        ngx_flag_t selected;
+
+        if (cond_is_wildcard(&if_none->value)) {
+            selected = resource_exists;
+        } else {
+            selected = resource_exists
+                       && xrootd_http_etag_list_contains(&if_none->value, etag,
+                                                         condition_flags)
+                          == NGX_OK;
+        }
+        if (selected) {
+            return read_mode ? NGX_HTTP_NOT_MODIFIED
+                             : NGX_HTTP_PRECONDITION_FAILED;
+        }
+    } else if (read_mode && time_mode && cond_header_present(if_mod)) {
+        /* 4. If-Modified-Since — reads only, when If-None-Match is absent.
+         *    `before` semantics: not modified since the given date ⇒ 304. */
+        time_t t = ngx_parse_http_time(if_mod->value.data, if_mod->value.len);
+        if (t != (time_t) NGX_ERROR && mtime <= t) {
+            return NGX_HTTP_NOT_MODIFIED;
+        }
+    }
+
+    return NGX_OK;
+}
+
 ngx_int_t
 xrootd_http_check_if_modified_since(ngx_http_request_t *r, time_t mtime)
 {

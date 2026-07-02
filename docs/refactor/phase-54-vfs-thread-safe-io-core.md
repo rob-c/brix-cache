@@ -119,7 +119,7 @@ runs the same completion helpers on the event loop before returning.
 
 ## The POD job descriptor + core (new, VFS-THREAD-SAFE)
 
-**New header `src/fs/vfs_io_core.h`** — one copyable struct + one dispatcher, no `ngx_pool_t`/`xrootd_vfs_ctx_t`/`ngx_connection_t`:
+**New header `src/fs/vfs/vfs_io_core.h`** — one copyable struct + one dispatcher, no `ngx_pool_t`/`xrootd_vfs_ctx_t`/`ngx_connection_t`:
 
 ```c
 typedef enum {
@@ -185,7 +185,7 @@ Recommended normalization:
 - Unsupported/malformed job: `nio = -1`, `io_errno = EINVAL`; this should only
   be reachable in tests because PREPARE validates before dispatch.
 
-**New `src/fs/vfs_io_core.c`** — `xrootd_vfs_io_execute` is a pure `switch (job->op)` (no fall-through, no goto), each arm a small static fn delegating to an existing pure primitive:
+**New `src/fs/vfs/vfs_io_core.c`** — `xrootd_vfs_io_execute` is a pure `switch (job->op)` (no fall-through, no goto), each arm a small static fn delegating to an existing pure primitive:
 - READ → `xrootd_vfs_pread_full` (+ optional `xrootd_crc32c_value`)
 - WRITE → `xrootd_vfs_pwrite_full`
 - PGREAD → `xrootd_pgread_read_encode_inplace` (`src/protocols/root/read/pgread.c` — reuse verbatim)
@@ -509,7 +509,7 @@ Suggested static checks:
 ```bash
 rg -n "VFS-LOOP-ONLY|xrootd_vfs_(read|write|open|close|opendir|readdir|observe|ctx_init|cache)" src/core/aio
 rg -n "#include .*vfs_internal.h" src/core/aio src/protocols/root/read src/protocols/root/write
-rg -n "ngx_palloc|ngx_pcalloc|ngx_pnalloc|xrootd_log_access|XROOTD_OP_|xrootd_cache_" src/fs/vfs_io_core.c
+rg -n "ngx_palloc|ngx_pcalloc|ngx_pnalloc|xrootd_log_access|XROOTD_OP_|xrootd_cache_" src/fs/vfs/vfs_io_core.c
 ```
 
 The CI version should be narrower than the exploratory commands above: it should
@@ -619,7 +619,7 @@ Every phase should land with the same mechanical checklist:
 ### Detailed per-phase notes
 
 **Phase 0 - scaffolding**
-- Register `src/fs/vfs_io_core.c` in `src/core/config/config.h` `NGX_ADDON_SRCS`.
+- Register `src/fs/vfs/vfs_io_core.c` in `src/core/config/config.h` `NGX_ADDON_SRCS`.
 - Move `xrootd_vfs_pread_full`/`pwrite_full` prototypes to the new public
   thread-safe header or include them through a small internal thread-safe header;
   do not expose loop-only helpers to `src/core/aio`.
@@ -705,7 +705,7 @@ move causes large diffs, land the pure move first and the behavior change second
 Use this as the patch map for the actual implementation. Each bullet is intended
 to keep diffs small enough to review.
 
-### `src/fs/vfs_io_core.h`
+### `src/fs/vfs/vfs_io_core.h`
 
 - Include only the minimum nginx/POSIX types needed for `ngx_fd_t`, `u_char`,
   `off_t`, `size_t`, and `uint32_t`.
@@ -716,7 +716,7 @@ to keep diffs small enough to review.
 - Do not include `vfs.h`, `vfs_internal.h`, metrics, cache, access-log, or
   protocol response headers.
 
-### `src/fs/vfs_io_core.c`
+### `src/fs/vfs/vfs_io_core.c`
 
 - Include `vfs_io_core.h`, the CRC helper header, and the narrow headers for
   pure readv/pgread helpers.
@@ -729,7 +729,7 @@ to keep diffs small enough to review.
   `dirlist_flush_chunk()` inside the same file or a dedicated thread-safe
   dirlist core file.
 
-### `src/fs/vfs_read.c`
+### `src/fs/vfs/vfs_read.c`
 
 - Split current `xrootd_vfs_read()` into:
   - capping/validation PREPARE
@@ -741,7 +741,7 @@ to keep diffs small enough to review.
 - Make `xrootd_vfs_pread_full()` visible to the core through the new
   thread-safe header path.
 
-### `src/fs/vfs_write.c`
+### `src/fs/vfs/vfs_write.c`
 
 - Split `xrootd_vfs_write()` so memory buffers can map directly to WRITE jobs.
 - Keep file-buffer copying explicit: the source side `pread_full` from
@@ -751,7 +751,7 @@ to keep diffs small enough to review.
 - Keep `xrootd_cache_should_writethrough()` in PREPARE and write-through dirty
   marking in protocol/VFS completion as appropriate.
 
-### `src/fs/vfs_dir.c`
+### `src/fs/vfs/vfs_dir.c`
 
 - Add a loop-only opendir prepare helper that re-checks confinement and opens a
   directory fd beneath `rootfd`.
@@ -886,12 +886,12 @@ For each phase, reviewers should be able to answer "yes" to all of these:
 ## Files to modify / create
 
 **New (register in `src/core/config/config.h` `NGX_ADDON_SRCS`, requires `./configure` per AGENTS.md BUILD GOVERNANCE):**
-- `src/fs/vfs_io_core.h` — POD job + `xrootd_vfs_io_execute` (THREAD-SAFE banner)
-- `src/fs/vfs_io_core.c` — dispatcher + per-op execute arms
+- `src/fs/vfs/vfs_io_core.h` — POD job + `xrootd_vfs_io_execute` (THREAD-SAFE banner)
+- `src/fs/vfs/vfs_io_core.c` — dispatcher + per-op execute arms
 
 **Modify (make only):**
-- `src/fs/vfs.h`, `src/fs/vfs_internal.h` — annotation tags; prepare/complete + `pread_full`/`pwrite_full` tagged THREAD-SAFE
-- `src/fs/vfs_read.c`, `vfs_write.c`, `vfs_dir.c` — prepare/complete helpers; beneath-confined opendir prepare
+- `src/fs/vfs/vfs.h`, `src/fs/vfs/vfs_internal.h` — annotation tags; prepare/complete + `pread_full`/`pwrite_full` tagged THREAD-SAFE
+- `src/fs/vfs/vfs_read.c`, `vfs_write.c`, `vfs_dir.c` — prepare/complete helpers; beneath-confined opendir prepare
 - `src/core/aio/reads.c`, `write.c`, `readv.c`, `dirlist.c` — rewire `*_aio_thread` to the core
 - `src/fs/cache/open.c` — `record_access` call moves to COMPLETE (no signature change)
 - `src/fs/README.md` — triad model + contract
@@ -997,8 +997,8 @@ FORBIDDEN_IN_WORKER = (
 Implementation approach:
 - Extract each worker body by matching braces from the function declaration.
 - Fail if any forbidden token appears in the extracted body.
-- Separately fail if `src/core/aio/*.c` includes `src/fs/vfs_internal.h`.
-- Separately fail if `src/fs/vfs_io_core.c` references pool, metrics, access-log,
+- Separately fail if `src/core/aio/*.c` includes `src/fs/vfs/vfs_internal.h`.
+- Separately fail if `src/fs/vfs/vfs_io_core.c` references pool, metrics, access-log,
   cache, protocol response builders, or connection/session types.
 
 This is intentionally simple and local. If it starts to fight legitimate code,
@@ -1077,7 +1077,7 @@ Rollback strategy:
   is the stream-slot adapter the long-term boundary? The adapter is lower risk
   for Phase 54; full handle unification can be a later refactor.
 - Should READV/WRITEV segment descriptor types move from `src/core/aio/aio.h` into
-  `src/fs/vfs_io_core.h`, or should the core accept opaque segment arrays plus
+  `src/fs/vfs/vfs_io_core.h`, or should the core accept opaque segment arrays plus
   typed helper callbacks? Start with the smaller move: reuse current descriptors
   and relocate only if include boundaries become tangled.
 - Should dirlist's sync fallback be converted in the same patch as AIO dirlist or

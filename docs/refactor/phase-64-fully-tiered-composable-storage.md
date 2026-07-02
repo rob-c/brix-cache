@@ -554,7 +554,7 @@ is `tape`.
 
 ## 10. The generic VFS / cache layering (P3)
 
-- **VFS** (`src/fs/vfs_*.c`): only change — `xrootd_vfs_backend_resolve` returns a
+- **VFS** (`src/fs/vfs/vfs_*.c`): only change — `xrootd_vfs_backend_resolve` returns a
   **composed** instance. `xrootd_vfs_open`/`_read`/`_write`/`_stat`/the staged path
   call `ctx->sd->driver->*` exactly as today; no VFS branch knows about cache/stage/
   tiers (G4/G5). `xrootd_vfs_staged_*` (Mode-A passthrough after C-6) keeps delegating
@@ -565,7 +565,7 @@ is `tape`.
 - **The cache open path** (`open_or_fill.c`/`open.c`) becomes the `sd_cache` decorator
   `open` (§10); the legacy `fetch.c` scheme-dispatch is deleted (§14); there is one
   generic fill: `backend->open/pread → cstore_fill_*`.
-- **Code-review gate (G5):** no file under `src/fs/cache/` or `src/fs/vfs_*.c` may
+- **Code-review gate (G5):** no file under `src/fs/cache/` or `src/fs/vfs/vfs_*.c` may
   `strcmp` a driver name or branch on a protocol — only `cstore`/`tier_build`/the
   staging engine may.
 
@@ -858,7 +858,7 @@ grammar (Appendix F). A pre-existing on-disk **local** cache tree is readable as
   `sd_stage.staged_commit`.
 - VFS: no change except the resolve returns a composed instance.
 
-Review gates: G5 (no driver `strcmp` under `src/fs/cache/`/`src/fs/vfs_*.c`) and G9 (the
+Review gates: G5 (no driver `strcmp` under `src/fs/cache/`/`src/fs/vfs/vfs_*.c`) and G9 (the
 only data-movement primitives are `xrootd_stage_submit` + the two decorators).
 
 ---

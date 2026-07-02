@@ -1,6 +1,6 @@
 # Adversarial Hardening Tests (evil-actor suite)
 
-> **Audience:** Maintainers and security reviewers of the nginx-xrootd stream/HTTP data planes.
+> **Audience:** Maintainers and security reviewers of the gnuBall stream/HTTP data planes.
 > **Prerequisites:** Familiarity with the XRootD `root://` wire protocol (24-byte request header, `kXR_*` opcodes, `kXR_status` framing), the nginx stream event loop + thread pool model, and the project's confinement/AIO invariants in [`CLAUDE.md`](../../CLAUDE.md).
 > **Time:** ~20 min read; full ASAN run ~10-15 min wall.
 
@@ -48,7 +48,7 @@ The methodology is byte-accurate raw framing (no client library to sanitize inpu
 
 ## The race_shim mechanism (deterministic worker-gated syscall slowing)
 
-`tests/race_shim.c` is an `LD_PRELOAD` shim that interposes the blocking file-I/O syscalls the nginx-xrootd thread pool runs on its **worker** threads — `pread`, `pwrite`, `preadv`, `pwritev`, `read`, `write` — and injects a tunable `nanosleep` (`XRD_RACE_DELAY_US`, default 15000us) around the real syscall (before by default; after if `XRD_RACE_AFTER=1`). The delay turns a microsecond-wide race into a per-iteration hit.
+`tests/race_shim.c` is an `LD_PRELOAD` shim that interposes the blocking file-I/O syscalls the gnuBall thread pool runs on its **worker** threads — `pread`, `pwrite`, `preadv`, `pwritev`, `read`, `write` — and injects a tunable `nanosleep` (`XRD_RACE_DELAY_US`, default 15000us) around the real syscall (before by default; after if `XRD_RACE_AFTER=1`). The delay turns a microsecond-wide race into a per-iteration hit.
 
 ### Why it only delays workers, never the event loop
 
@@ -200,7 +200,7 @@ For 25s, 11 threads hammer the **same** files: 4 do `root://` open+read of `/xp.
 
 **Hypothesis:** a shared fd-cache or SHM entry reused across `root`/WebDAV/S3 serves a stale or swapped inode; the unlink/recreate lets one protocol read another's freed buffer; or a concurrent open escapes the export root.
 
-**Defense.** Every wire path resolves through the same confinement helper before open: `xrootd_open_beneath` uses a per-worker `O_PATH` rootfd + `openat2(RESOLVE_BENEATH)` (`src/fs/vfs_open.c:290`, dispatch cascade at `:275`), so no protocol can traverse outside root regardless of inode churn (Invariant 4). Each open captures `st_dev`/`st_ino` into its **own** per-connection handle (`src/protocols/root/read/open_resolved_file.c:220-221`), so an unlink+recreate leaves earlier opens reading the now-unlinked original inode and later opens getting the new one — no shared mutable buffer is crossed between protocols (S3 SigV4, WebDAV, and `root` each have isolated auth/handle state — Invariant 6). The three protocols are independent nginx modules sharing only read-only confined-open primitives and mutex-guarded SHM.
+**Defense.** Every wire path resolves through the same confinement helper before open: `xrootd_open_beneath` uses a per-worker `O_PATH` rootfd + `openat2(RESOLVE_BENEATH)` (`src/fs/vfs/vfs_open.c:290`, dispatch cascade at `:275`), so no protocol can traverse outside root regardless of inode churn (Invariant 4). Each open captures `st_dev`/`st_ino` into its **own** per-connection handle (`src/protocols/root/read/open_resolved_file.c:220-221`), so an unlink+recreate leaves earlier opens reading the now-unlinked original inode and later opens getting the new one — no shared mutable buffer is crossed between protocols (S3 SigV4, WebDAV, and `root` each have isolated auth/handle state — Invariant 6). The three protocols are independent nginx modules sharing only read-only confined-open primitives and mutex-guarded SHM.
 
 ### P7 — Survival + integrity
 
@@ -294,4 +294,4 @@ TSan is wired (`TEST_EVIL_SHIM_SAN=thread`, plus the TSan log-dir scan in `asser
 
 ---
 
-See also: [`coding-standards.md`](coding-standards.md) for the no-`goto` / functional-modular rules the AIO and confinement helpers follow, and the per-module READMEs under `src/core/aio/`, `src/protocols/root/connection/`, and `src/path/` for the WHAT/WHY/HOW contracts referenced above.
+See also: [`coding-standards.md`](coding-standards.md) for the no-`goto` / functional-modular rules the AIO and confinement helpers follow, and the per-module READMEs under `src/core/aio/`, `src/protocols/root/connection/`, and `src/fs/path/` for the WHAT/WHY/HOW contracts referenced above.

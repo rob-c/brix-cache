@@ -1,6 +1,6 @@
 # Prometheus Metrics Bug Patterns
 
-Reference document from a full correctness audit of the nginx-xrootd Prometheus metrics
+Reference document from a full correctness audit of the gnuBall Prometheus metrics
 layer (stream, WebDAV, S3, proxy) conducted 2026-05-27. Seven distinct bugs were found
 across four bug patterns. Each section names the pattern, explains the root cause, lists
 the specific instances found, and states the fix.

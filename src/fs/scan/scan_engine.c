@@ -8,7 +8,7 @@
 #include "scan_engine.h"
 
 #include "core/compat/integrity_info.h"
-#include "fs/vfs.h"
+#include "fs/vfs/vfs.h"
 #include "protocols/root/protocol/opcodes.h"
 
 #include <limits.h>

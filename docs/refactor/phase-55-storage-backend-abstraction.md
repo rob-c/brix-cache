@@ -72,11 +72,11 @@ where "VFS == POSIX" is still encoded:
 
 | Area | Files | What moves into SD |
 |---|---|---|
-| Object lifecycle | `src/fs/vfs_open.c`, `src/fs/vfs_sync.c`, `src/fs/vfs_staged.c` | open/close/adopt, fstat, truncate, sync, staged temp lifecycle |
-| Byte I/O | `src/fs/vfs_read.c`, `src/fs/vfs_write.c`, `src/fs/vfs_io_core.c` | full pread/pwrite loops, readv/writev segment execution, sendfile eligibility |
-| Namespace | `src/fs/vfs_unlink.c`, `vfs_rename.c`, `vfs_mkdir.c`, `vfs_copy.c`, `src/core/compat/namespace_ops.c` | delete/rmdir/rename/mkdir/copy implementation and escape mapping |
-| Directory/stat | `src/fs/vfs_dir.c`, `src/fs/vfs_stat.c`, dirlist scan in `vfs_io_core.c` | opendir/readdir/closedir, lstat/stat, directory-entry stat |
-| Metadata | `src/fs/vfs_xattr.c` | user xattrs or backend metadata/tag/sidecar mapping |
+| Object lifecycle | `src/fs/vfs/vfs_open.c`, `src/fs/vfs/vfs_sync.c`, `src/fs/vfs/vfs_staged.c` | open/close/adopt, fstat, truncate, sync, staged temp lifecycle |
+| Byte I/O | `src/fs/vfs/vfs_read.c`, `src/fs/vfs/vfs_write.c`, `src/fs/vfs/vfs_io_core.c` | full pread/pwrite loops, readv/writev segment execution, sendfile eligibility |
+| Namespace | `src/fs/vfs/vfs_unlink.c`, `vfs_rename.c`, `vfs_mkdir.c`, `vfs_copy.c`, `src/core/compat/namespace_ops.c` | delete/rmdir/rename/mkdir/copy implementation and escape mapping |
+| Directory/stat | `src/fs/vfs/vfs_dir.c`, `src/fs/vfs/vfs_stat.c`, dirlist scan in `vfs_io_core.c` | opendir/readdir/closedir, lstat/stat, directory-entry stat |
+| Metadata | `src/fs/vfs/vfs_xattr.c` | user xattrs or backend metadata/tag/sidecar mapping |
 | Confinement helpers | `src/fs/path/beneath.c`, `src/fs/path/beneath.h` | POSIX driver's physical confinement primitive only |
 
 The migration is complete only when the above files contain VFS policy and result
@@ -3566,7 +3566,7 @@ Conventions used below:
 
 ---
 
-### 17.1 `src/fs/vfs_internal.h`
+### 17.1 `src/fs/vfs/vfs_internal.h`
 
 **Intent:** replace the raw fd in the open-handle struct with an opaque SD object,
 keeping every cached metadata field and the `stat_current` optimization; update the
@@ -3630,7 +3630,7 @@ the declarations. Add `#include "backend/sd.h"` is **not** needed here because
 
 ---
 
-### 17.2 `src/fs/vfs.h`
+### 17.2 `src/fs/vfs/vfs.h`
 
 **Intent:** pull the SD types into the public surface (for `xrootd_vfs_ctx_t`), add the
 backend+staging store binding to the ctx, and document `xrootd_vfs_file_fd()` as
@@ -3703,7 +3703,7 @@ shim. Mark it so a non-POSIX backend can never silently leak a fake fd:
 
 ---
 
-### 17.3 `src/fs/vfs_io_core.h`
+### 17.3 `src/fs/vfs/vfs_io_core.h`
 
 **Intent:** make the worker-safe job object-centric. The job carries
 `xrootd_sd_obj_t *obj` (and segment arrays carry `obj` instead of raw `fd`/`rootfd`),
@@ -3810,7 +3810,7 @@ overload-free `dir_inst` parameter set to the backend instance:
 
 ---
 
-### 17.4 `src/fs/vfs_io_core.c`
+### 17.4 `src/fs/vfs/vfs_io_core.c`
 
 **Intent:** the six EXECUTE arms (READ/WRITE/PGREAD/READV/WRITEV/OPENDIR — plus the
 trivial SYNC/TRUNCATE) dispatch the raw op through `obj->driver->pread/pwrite/...`
@@ -3970,7 +3970,7 @@ For POSIX this is identical machine code.
 
 ---
 
-### 17.5 `src/fs/vfs_open.c`
+### 17.5 `src/fs/vfs/vfs_open.c`
 
 **Intent:** the open cascade calls `ctx->sd->driver->open()`; `adopt_fd` wraps the
 returned fd in an `xrootd_sd_obj_t`; close and every accessor read through the SD; the
@@ -4149,7 +4149,7 @@ fallback live-fstat both change to the obj:
 
 ---
 
-### 17.6 `src/fs/vfs_read.c`
+### 17.6 `src/fs/vfs/vfs_read.c`
 
 **Intent:** gate sendfile/file-backed buffers on `XROOTD_SD_CAP_SENDFILE` instead of
 `is_tls || want_pgcrc` alone; route the memory-chain pread and the file-chain `dup`
@@ -4211,7 +4211,7 @@ still selects `make_file_chain` — byte-identical to today.
 
 ---
 
-### 17.7 `src/fs/vfs_write.c`
+### 17.7 `src/fs/vfs/vfs_write.c`
 
 **Intent:** writes go through `ctx->sd` (the obj's driver); the `stat_current` clear is
 already correct and stays.
@@ -4257,7 +4257,7 @@ inlines to the same code.
 
 ---
 
-### 17.8 `src/fs/vfs_sync.c`
+### 17.8 `src/fs/vfs/vfs_sync.c`
 
 **Intent:** truncate/sync go through the obj; the I/O-core jobs are now obj-initialized.
 
@@ -4292,7 +4292,7 @@ supports it so behaviour is unchanged.)
 
 ---
 
-### 17.9 `src/fs/vfs_dir.c`
+### 17.9 `src/fs/vfs/vfs_dir.c`
 
 **Intent:** delegate opendir/readdir to the SD; for `!CAP_DIRS` backends offload to the
 AIO tier (§5.5). For POSIX (CAP_DIRS) the existing inline `opendir`/`readdir` stay.
@@ -4330,7 +4330,7 @@ identical in both arms.
 
 ---
 
-### 17.10 `src/fs/vfs_stat.c`
+### 17.10 `src/fs/vfs/vfs_stat.c`
 
 **Intent:** delegate the path-stat to the SD; AIO-offload for object backends.
 
@@ -4365,7 +4365,7 @@ comment, which moves into `sd_posix.c`'s `stat`).
 
 ---
 
-### 17.11 `src/fs/vfs_sync.c` durability note / `src/fs/vfs_copy.c`
+### 17.11 `src/fs/vfs/vfs_sync.c` durability note / `src/fs/vfs/vfs_copy.c`
 
 **Intent (`vfs_copy.c`):** delegate the copy to `ctx->sd->driver->server_copy`; when
 `!CAP_SERVER_COPY` fall back to the VFS stream-through loop (§5.4).
@@ -4410,7 +4410,7 @@ stays, but now reads `ctx->sd->driver->stat(ctx->sd, dst_resolved, &sst)`.
 
 ---
 
-### 17.12 `src/fs/vfs_staged.c`
+### 17.12 `src/fs/vfs/vfs_staged.c`
 
 **Intent:** re-express commit as the §3.6.1 decision over `(sd_staging, sd)` — native
 rename when `sd_staging == sd`, else promote (read staging object → backend `staged_*`
@@ -4505,7 +4505,7 @@ stub returning `NGX_ERROR`/`ENOTSUP` so the branch compiles.
 
 ---
 
-### 17.13 `src/fs/vfs_xattr.c`
+### 17.13 `src/fs/vfs/vfs_xattr.c`
 
 **Intent:** delegate the four xattr ops to the SD (`CAP_XATTR`); reject with `ENOTSUP`
 when absent. The guard/observe scaffolding is untouched.
@@ -4665,36 +4665,36 @@ no longer exposed above the seam (capability-gated `xrootd_sd_fd` is private to 
 per BUILD GOVERNANCE) — incremental `make` alone will not pick them up.
 
 Add `sd.h` to the **stream** deps list (after line 290,
-`$ngx_addon_dir/src/fs/vfs_internal.h \`):
+`$ngx_addon_dir/src/fs/vfs/vfs_internal.h \`):
 
 ```diff
-                         $ngx_addon_dir/src/fs/vfs.h \
-                         $ngx_addon_dir/src/fs/vfs_internal.h \
+                         $ngx_addon_dir/src/fs/vfs/vfs.h \
+                         $ngx_addon_dir/src/fs/vfs/vfs_internal.h \
 +                        $ngx_addon_dir/src/fs/backend/sd.h \
                          $ngx_addon_dir/src/frm/frm.h \
 ```
 
 Add `sd.h` to the **webdav** deps list (after line 391,
-`$ngx_addon_dir/src/fs/vfs.h \`):
+`$ngx_addon_dir/src/fs/vfs/vfs.h \`):
 
 ```diff
-                         $ngx_addon_dir/src/fs/vfs.h \
+                         $ngx_addon_dir/src/fs/vfs/vfs.h \
 +                        $ngx_addon_dir/src/fs/backend/sd.h \
                          $ngx_addon_dir/src/fs/cache/open.h \
 ```
 
 Add the new `.c` files to `NGX_ADDON_SRCS` (after line 510,
-`$ngx_addon_dir/src/fs/vfs_staged.c \`, before `fd_cache.c`):
+`$ngx_addon_dir/src/fs/vfs/vfs_staged.c \`, before `fd_cache.c`):
 
 ```diff
-     $ngx_addon_dir/src/fs/vfs_copy.c \
-     $ngx_addon_dir/src/fs/vfs_staged.c \
+     $ngx_addon_dir/src/fs/vfs/vfs_copy.c \
+     $ngx_addon_dir/src/fs/vfs/vfs_staged.c \
 +    $ngx_addon_dir/src/fs/backend/sd_registry.c \
 +    $ngx_addon_dir/src/fs/backend/sd_posix.c \
 +    $ngx_addon_dir/src/fs/backend/sd_object.c \
 +    $ngx_addon_dir/src/fs/backend/sd_object_s3.c \
 +    $ngx_addon_dir/src/fs/backend/sd_block.c \
-     $ngx_addon_dir/src/fs/fd_cache.c \
+     $ngx_addon_dir/src/fs/vfs/fd_cache.c \
 ```
 
 (`sd.h` is header-only and goes in the deps lists above, not `NGX_ADDON_SRCS`. Phase
@@ -4703,7 +4703,7 @@ land in 55.D/55.E but registering all five up front is harmless — each compile
 self-contained TU and is inert until its driver is selected. If you prefer minimal 55.A
 churn, add only `sd_registry.c`+`sd_posix.c` now and the other three in their phase.)
 
-There is a third deps occurrence at line 956 (`$ngx_addon_dir/src/fs/vfs.h`); if that
+There is a third deps occurrence at line 956 (`$ngx_addon_dir/src/fs/vfs/vfs.h`); if that
 block compiles a unit that includes `vfs.h` (now pulling `backend/sd.h`), add the
 `sd.h` line there too for dependency-tracking correctness.
 
@@ -6620,7 +6620,7 @@ Conventions used below:
   per-srv `*_instance` pointers; expose **both** store names + capability bitmaps in debug
   logs and `/healthz`. Still **no VFS callsite rewired** — the ctx pointers are populated
   but unused on the data path.
-- **Files:** `src/fs/backend/sd_posix.c` (new, stub), `src/fs/vfs.h`/`vfs_ctx`, `/healthz` writer, `config`.
+- **Files:** `src/fs/backend/sd_posix.c` (new, stub), `src/fs/vfs/vfs.h`/`vfs_ctx`, `/healthz` writer, `config`.
 - **Depends-on:** PR-03
 - **Review checklist:**
   - `/healthz` lists `backend=posix staging=posix(same)` and the cap bitmaps.
@@ -6638,7 +6638,7 @@ Conventions used below:
   `open` (the `vfs_open.c` `xrootd_open_beneath`/`_confined_canon` cascade body),
   `close` (idempotent, §3.2), `fstat` (the `adopt_fd` body). `xrootd_sd_fd(obj)` returns
   the fd (POSIX has `CAP_FD`). **No job rewiring yet** — obj exists alongside `fh->fd`.
-- **Files:** `src/fs/backend/sd_posix.c`, `src/fs/vfs_open.c`.
+- **Files:** `src/fs/backend/sd_posix.c`, `src/fs/vfs/vfs_open.c`.
 - **Depends-on:** PR-04
 - **Review checklist:**
   - Object lifetime contract §3.2: open → fully initialized or NULL + `*err_out`; no half-open leak; close idempotent and does **not** commit staged writes.
@@ -6652,7 +6652,7 @@ Conventions used below:
   family through the SD vtable; `xrootd_vfs_job_t` carries `xrootd_sd_obj_t *obj` (+ the
   `{obj,off,len}` segment array for readv). POSIX `pread` body == today's
   `xrootd_vfs_pread_full`. Preserve page-CRC framing, EOF/short-read semantics.
-- **Files:** `src/fs/vfs_io_core.c`, `src/fs/vfs_read.c`, `src/protocols/root/read/*` (job shape only).
+- **Files:** `src/fs/vfs/vfs_io_core.c`, `src/fs/vfs/vfs_read.c`, `src/protocols/root/read/*` (job shape only).
 - **Depends-on:** PR-05
 - **Review checklist:**
   - io_uring tier still reads `xrootd_sd_fd(obj)`; capability-gated in `xrootd_aio_post_task` (§3.4) — non-fd backends never reach it (no live effect yet, but the gate is in place).
@@ -6667,7 +6667,7 @@ Conventions used below:
 - **Scope:** Dispatch the write family + `fsync`/`ftruncate` through the vtable; POSIX
   bodies == today's `xrootd_vfs_pwrite_full`/`fsync`/`ftruncate`. Keep event-loop
   prepare/complete, cache, metrics, protocol counters and write-pipelining bounds unchanged.
-- **Files:** `src/fs/vfs_io_core.c`, `src/fs/vfs_write.c`, `src/fs/vfs_sync.c`, `src/protocols/root/write/*` (job shape).
+- **Files:** `src/fs/vfs/vfs_io_core.c`, `src/fs/vfs/vfs_write.c`, `src/fs/vfs/vfs_sync.c`, `src/protocols/root/write/*` (job shape).
 - **Depends-on:** PR-06
 - **Review checklist:**
   - pgwrite CSE retransmit machine and per-page CRC unchanged (INVARIANT 1).
@@ -6685,7 +6685,7 @@ Conventions used below:
 - **Scope:** Move `vfs_stat.c` (`xrootd_lstat_beneath`) and `vfs_dir.c` +
   `vfs_io_core.c` `fdopendir` scan behind `sd_posix` `stat`/`opendir`/`readdir`/
   `closedir`. `xrootd_sd_stat_to_vfs()` normalizes to `xrootd_vfs_stat_t`.
-- **Files:** `src/fs/vfs_stat.c`, `src/fs/vfs_dir.c`, `src/fs/vfs_io_core.c`, `src/fs/backend/sd_posix.c`.
+- **Files:** `src/fs/vfs/vfs_stat.c`, `src/fs/vfs/vfs_dir.c`, `src/fs/vfs/vfs_io_core.c`, `src/fs/backend/sd_posix.c`.
 - **Depends-on:** PR-07
 - **Review checklist:**
   - Dirlist dot-entry hiding + stat format stability preserved (§9.1 dirlist row).
@@ -6698,7 +6698,7 @@ Conventions used below:
 - **Scope:** Move `xrootd_ns_delete/_mkdir/_rename` bodies behind the POSIX driver; the
   `xrootd_ns_*` entry points **stay** but become thin forwarders to `sd_posix` (one
   implementation) since worker-thread TPC/S3 assembly still call them (§4).
-- **Files:** `src/fs/vfs_unlink.c`, `vfs_rename.c`, `vfs_mkdir.c`, `src/core/compat/namespace_ops.c`, `src/fs/backend/sd_posix.c`.
+- **Files:** `src/fs/vfs/vfs_unlink.c`, `vfs_rename.c`, `vfs_mkdir.c`, `src/core/compat/namespace_ops.c`, `src/fs/backend/sd_posix.c`.
 - **Depends-on:** PR-08
 - **Review checklist:**
   - `renameat2` `RENAME_NOREPLACE` (`noreplace`) semantics preserved (atomic, `CAP_HARD_RENAME`).
@@ -6712,7 +6712,7 @@ Conventions used below:
   `copy_file_range`. When `!CAP_SERVER_COPY` or it returns `NGX_DECLINED`, fall back to
   the existing `xrootd_copy_range` pread→pwrite stream-through (§5.4). No live non-POSIX
   yet, but the fallback branch is wired and unit-tested by forcing `NGX_DECLINED`.
-- **Files:** `src/fs/vfs_copy.c`, `src/fs/backend/sd_posix.c`.
+- **Files:** `src/fs/vfs/vfs_copy.c`, `src/fs/backend/sd_posix.c`.
 - **Depends-on:** PR-09
 - **Review checklist:**
   - Overwrite policy + byte-exactness identical to today (§9.1 copy row).
@@ -6723,7 +6723,7 @@ Conventions used below:
 - **Phase:** 55.C · **Risk:** Low
 - **Scope:** Move `vfs_xattr.c` `*xattr_confined_canon` helpers behind
   `get/list/set/removexattr`. POSIX `CAP_XATTR` real user xattrs.
-- **Files:** `src/fs/vfs_xattr.c`, `src/fs/backend/sd_posix.c`.
+- **Files:** `src/fs/vfs/vfs_xattr.c`, `src/fs/backend/sd_posix.c`.
 - **Depends-on:** PR-09
 - **Review checklist:**
   - WebDAV dead-property + fattr wire names unchanged (no `U.` prefix regression).
@@ -6736,7 +6736,7 @@ Conventions used below:
   `staged_commit`/`staged_abort`; re-express `xrootd_vfs_staged_commit()` as the §3.6.1
   decision over `(staging, backend)` instances. Both still POSIX-same, so **only the
   native-rename fast path is exercised** (`staging.instance == backend.instance`).
-- **Files:** `src/fs/vfs_staged.c`, `src/core/compat/staged_file.c`, `src/fs/backend/sd_posix.c`.
+- **Files:** `src/fs/vfs/vfs_staged.c`, `src/core/compat/staged_file.c`, `src/fs/backend/sd_posix.c`.
 - **Depends-on:** PR-09
 - **Review checklist:**
   - Identity fast path verified: `staging==backend` ⇒ atomic `renameat2`, **zero** promote bytes recorded (§9.1 fast-path row).
@@ -6751,7 +6751,7 @@ Conventions used below:
   capability-aware `xrootd_vfs_read()`-family call that returns the correct chain
   (memory or file-backed); internal `vfs_open.c` use becomes `xrootd_sd_fd(obj)`.
   `struct xrootd_vfs_file_s.fd` → `xrootd_sd_obj_t *obj` (§6.2).
-- **Files:** `src/protocols/webdav/get.c`, `src/protocols/s3/object.c`, `src/protocols/shared/file_serve.c`, `src/fs/vfs_read.c`, `src/fs/vfs.h`, `src/fs/vfs_open.c`.
+- **Files:** `src/protocols/webdav/get.c`, `src/protocols/s3/object.c`, `src/protocols/shared/file_serve.c`, `src/fs/vfs/vfs_read.c`, `src/fs/vfs/vfs.h`, `src/fs/vfs/vfs_open.c`.
 - **Depends-on:** PR-12
 - **Review checklist:**
   - Cleartext WebDAV/S3/root reads **still use sendfile/file-backed buffers** on POSIX when `CAP_SENDFILE` (INVARIANT 2; §10 sendfile-preservation gate).
@@ -6847,7 +6847,7 @@ Conventions used below:
   currently-inline namespace entries (`vfs_stat`, `vfs_dir` open, `vfs_mkdir`,
   `vfs_rename`, `vfs_unlink`) reusing `xrootd_aio_post_task` (§5.5). This is **the one
   place the upper VFS gains backend-aware code** — keep it minimal and capability-keyed.
-- **Files:** `src/fs/vfs_stat.c`, `vfs_dir.c`, `vfs_mkdir.c`, `vfs_rename.c`, `vfs_unlink.c`.
+- **Files:** `src/fs/vfs/vfs_stat.c`, `vfs_dir.c`, `vfs_mkdir.c`, `vfs_rename.c`, `vfs_unlink.c`.
 - **Depends-on:** PR-18
 - **Review checklist:**
   - POSIX path unchanged: `CAP_DIRS`+fast-syscall backends still run inline (no perf regression — §10).
@@ -6862,7 +6862,7 @@ Conventions used below:
   `staged_open`/`staged_write`/`staged_commit` (multipart) as the byte source, then
   unlinks the staging temp. Makes the random/out-of-order/checkpointed upload path work
   end-to-end without RMW. `xrootd_storage_staging` directive becomes functional.
-- **Files:** `src/fs/vfs_staged.c`, `src/fs/backend/sd_object.c`, `src/core/config/directives.c` (staging live).
+- **Files:** `src/fs/vfs/vfs_staged.c`, `src/fs/backend/sd_object.c`, `src/core/config/directives.c` (staging live).
 - **Depends-on:** PR-19
 - **Review checklist:**
   - Promote lands **one sequential object**, byte-exact + checksum-verified (REQ-FR-PROMOTE-1; §9.1 promote row).
@@ -6883,7 +6883,7 @@ Conventions used below:
   `!HARD_RENAME`→opt-in weak rename, `!XATTR`→sidecar-or-reject, `!CAP_DIRS`→prefix
   synthesis. Every degradation: correct client status + low-cardinality metric +
   access-log detail string naming the degraded op (no path as label).
-- **Files:** `src/fs/vfs_read.c`, `vfs_copy.c`, `vfs_rename.c`, `vfs_xattr.c`, `vfs_dir.c`, `src/fs/backend/sd_object.c`, access-log writer.
+- **Files:** `src/fs/vfs/vfs_read.c`, `vfs_copy.c`, `vfs_rename.c`, `vfs_xattr.c`, `vfs_dir.c`, `src/fs/backend/sd_object.c`, access-log writer.
 - **Depends-on:** PR-20
 - **Review checklist:**
   - Every degradation does all three things (§3.1 closing rule): status + metric + log detail.

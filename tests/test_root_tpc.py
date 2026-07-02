@@ -13,7 +13,7 @@ The destination write-open previously failed with kXR_IOError "No such file or
 directory": the Phase 8 beneath-API migration left xrootd_tpc_prepare_pull()
 passing the root_canon-prefixed ABSOLUTE path to xrootd_open_beneath(), which
 re-strips the root and so doubled the prefix (openat2 → ENOENT).  Fixed in
-src/tpc/launch.c by passing the logical export path to the beneath open; these
+src/tpc/engine/launch.c by passing the logical export path to the beneath open; these
 tests now exercise the full source→destination rendezvous end to end.
 """
 
@@ -350,4 +350,89 @@ class TestReferenceXrootdToNginxRootTPC:
             assert dst_path.read_bytes() == content
         finally:
             _unlink(src_path)
+            _unlink(dst_path)
+
+
+NATIVE_XRDCP = str(
+    Path(__file__).resolve().parent.parent / "client" / "bin" / "xrdcp"
+)
+
+
+def _native_xrdcp_tpc(src: str, dst: str):
+    if not os.path.exists(NATIVE_XRDCP):
+        pytest.skip("native xrdcp not built (make -C client)")
+    return _run([NATIVE_XRDCP, "-f", "-s", "--tpc", "only", src, dst], timeout=40)
+
+
+class TestNativeClientRootTPC:
+    """libxrdc TPC dialect coverage (client/lib/copy_remote.c copy_tpc).
+
+    The native client must emit the stock XrdOucTPC CGI dialect —
+    ``tpc.src=host:port`` + ``tpc.lfn=/path`` + ``tpc.stage=copy`` (+
+    ``oss.asize``/``tpc.dlgon``/...) on the destination open and
+    ``tpc.dst=host`` on the source open, in the stock control order (dest
+    open → sync → source open → sync) — because BOTH the reference xrootd
+    and nginx-xrootd destinations accept that dialect, while only nginx
+    accepts the legacy full-URL ``tpc.src=root://...`` form. This class is
+    the regression guard that libxrdc TPC works against a STOCK destination
+    and source, not just nginx↔nginx.
+    """
+
+    def _roundtrip(self, src_root, dst_root, content, prefix):
+        src_name = _logical_name(f"{prefix}_src")
+        dst_name = _logical_name(f"{prefix}_dst")
+        src_path = src_root.data_root / src_name
+        dst_path = dst_root.data_root / dst_name
+        _write(src_path, content)
+        _unlink(dst_path)
+        try:
+            result = _native_xrdcp_tpc(
+                f"{src_root.url}//{src_name}", f"{dst_root.url}//{dst_name}"
+            )
+            assert result.returncode == 0, result.stderr.decode(errors="replace")
+            assert dst_path.read_bytes() == content
+        finally:
+            _unlink(src_path)
+            _unlink(dst_path)
+
+    def test_native_tpc_nginx_to_nginx(self, nginx_root):
+        """Control: the nginx↔nginx rendezvous keeps working."""
+        self._roundtrip(nginx_root, nginx_root,
+                        b"native client tpc nginx to nginx\n", "ntpc_nn")
+
+    def test_native_tpc_xrootd_to_xrootd(self, reference_root_tpc):
+        """The reported gap: stock source AND stock destination."""
+        self._roundtrip(reference_root_tpc, reference_root_tpc,
+                        b"native client tpc stock to stock\n", "ntpc_xx")
+
+    def test_native_tpc_nginx_source_to_xrootd_destination(
+        self, nginx_root, reference_root_tpc
+    ):
+        """Stock destination must understand our destination-open CGI."""
+        self._roundtrip(nginx_root, reference_root_tpc,
+                        b"native client tpc nginx to stock\n", "ntpc_nx")
+
+    def test_native_tpc_xrootd_source_to_nginx_destination(
+        self, nginx_root, reference_root_tpc
+    ):
+        """Stock source must match Key+Org+Lfn+Dst from our source-open CGI."""
+        self._roundtrip(reference_root_tpc, nginx_root,
+                        b"native client tpc stock to nginx\n", "ntpc_xn")
+
+    def test_native_tpc_missing_source_fails_cleanly(
+        self, nginx_root, reference_root_tpc
+    ):
+        """Security/robustness-neg: a nonexistent source fails the copy with a
+        nonzero exit and leaves no destination content behind."""
+        dst_name = _logical_name("ntpc_neg_dst")
+        dst_path = reference_root_tpc.data_root / dst_name
+        _unlink(dst_path)
+        try:
+            result = _native_xrdcp_tpc(
+                f"{nginx_root.url}//{_logical_name('ntpc_neg_missing')}",
+                f"{reference_root_tpc.url}//{dst_name}",
+            )
+            assert result.returncode != 0
+            assert not _has_complete_content(dst_path, b"anything")
+        finally:
             _unlink(dst_path)

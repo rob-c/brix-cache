@@ -12,7 +12,7 @@ listing never leaks unrelated `user.*` xattrs written by other tools.
 
 `kXR_fattr` is a single wire opcode carrying one of four sub-codes — `Get`,
 `Set`, `Del`, `List`. Since phase-62 **every xattr syscall here goes through the
-VFS xattr seam** (`xrootd_vfs_*xattr`, `src/fs/vfs_xattr.c`), never a raw
+VFS xattr seam** (`xrootd_vfs_*xattr`, `src/fs/vfs/vfs_xattr.c`), never a raw
 `getxattr(2)` — so each touch is confined, impersonation-aware, and metered
 (`OP_XATTR`). The subsystem is reached only from the **stream** (`root://`) path;
 WebDAV and S3 do not expose `kXR_fattr` (they have their own VFS-routed

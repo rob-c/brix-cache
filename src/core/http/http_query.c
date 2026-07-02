@@ -9,7 +9,7 @@
  */
 
 #include "http_query.h"
-#include "uri.h"
+#include "core/compat/uri.h"
 
 /*
  * xrootd_http_query_key_eq - case-sensitive or case-insensitive key comparison.

@@ -176,8 +176,8 @@ DISABLED but `tcp_user_timeout` enabled → kernel backstop still tears it down.
 **Closes:** curl TPC has no connect/idle/low-speed bound (only optional `CURLOPT_TIMEOUT` at
 `tpc_curl.c:257/516`); native TPC has only a per-recv `SO_RCVTIMEO` that resets every byte. A stalled
 remote pins a finite thread-pool worker forever; enough stalls wedge all TPC.
-**Files:** `src/protocols/webdav/tpc_curl.c`; `src/tpc/source.c` (native pull loop ~182+);
-`src/tpc/tpc_internal.h`; `src/protocols/webdav/webdav.h`, `tpc_config.c`; `config.h` + `module.c` (native knob).
+**Files:** `src/protocols/webdav/tpc_curl.c`; `src/tpc/outbound/source.c` (native pull loop ~182+);
+`src/tpc/engine/tpc_internal.h`; `src/protocols/webdav/webdav.h`, `tpc_config.c`; `config.h` + `module.c` (native knob).
 **Changes:**
 - On **every** curl easy handle (single + multi paths) set `CURLOPT_CONNECTTIMEOUT` (e.g. 30s),
   `CURLOPT_LOW_SPEED_LIMIT` (new `xrootd_webdav_tpc_low_speed_bytes`, e.g. 1024) + `CURLOPT_LOW_SPEED_TIME`

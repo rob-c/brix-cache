@@ -19,7 +19,7 @@ not yet advertised when this document was written
 
 Every `kXR_protocol` response carries a 32-bit `flags` field that tells the client what this server node is and what optional features it supports. Clients use this to choose paths, optimise transfers, and avoid sending unsupported opcodes.
 
-Current nginx-xrootd advertisement (lines 112–114 of `src/protocols/root/session/protocol.c`):
+Current gnuBall advertisement (lines 112–114 of `src/protocols/root/session/protocol.c`):
 
 ```c
 body.flags = htonl(kXR_isServer
@@ -409,7 +409,7 @@ Setting `kXR_supgpf` without implementing GPF aggregation would cause clients to
 
 ## Out of Scope — `kXR_ecRedir`
 
-`kXR_ecRedir = 0x00004000` indicates the server can redirect to erasure-coded storage segments. This requires an erasure-coding storage backend (Reed-Solomon stripe layout, parity servers, reconstruction protocol). nginx-xrootd is POSIX-backed only. This flag must not be set and is explicitly out of scope.
+`kXR_ecRedir = 0x00004000` indicates the server can redirect to erasure-coded storage segments. This requires an erasure-coding storage backend (Reed-Solomon stripe layout, parity servers, reconstruction protocol). gnuBall is POSIX-backed only. This flag must not be set and is explicitly out of scope.
 
 `src/protocols/root/protocol/flags.h`:
 ```c

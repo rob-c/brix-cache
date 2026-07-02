@@ -1,6 +1,6 @@
 # Authentication
 
-Grid identity is layered: transport security, proof of identity, VO membership, and path authorization are separate concerns. nginx-xrootd handles all four. This page maps the options, tells you which combination to use for your site, and links to the details.
+Grid identity is layered: transport security, proof of identity, VO membership, and path authorization are separate concerns. gnuBall handles all four. This page maps the options, tells you which combination to use for your site, and links to the details.
 
 ---
 

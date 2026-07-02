@@ -10,7 +10,7 @@
  */
 #include "ratelimit.h"
 #include "protocols/webdav/webdav.h"
-#include "core/compat/http_headers.h"
+#include "core/http/http_headers.h"
 #include "observability/metrics/metrics_macros.h"
 
 #define XROOTD_RL_METRIC_INC(field)                                          \

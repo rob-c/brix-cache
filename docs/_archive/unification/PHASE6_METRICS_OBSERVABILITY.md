@@ -160,7 +160,7 @@ void xrootd_metric_op_done(xrootd_proto_t proto,
 
 /*
  * Record cache hit or miss.
- * Called by src/fs/vfs_open.c (Phase 3/4).
+ * Called by src/fs/vfs/vfs_open.c (Phase 3/4).
  */
 void xrootd_metric_cache_result(xrootd_proto_t proto,
                                  unsigned int hit,
@@ -176,7 +176,7 @@ void xrootd_metric_auth(xrootd_proto_t proto,
 
 /*
  * Record TPC transfer outcome.
- * Called by src/tpc/done.c and src/protocols/webdav/tpc_thread.c (Phase 5).
+ * Called by src/tpc/engine/done.c and src/protocols/webdav/tpc_thread.c (Phase 5).
  */
 void xrootd_metric_tpc(xrootd_proto_t proto,
                         unsigned int is_push,
@@ -267,10 +267,10 @@ Protocol-specific fields (e.g., kXR request ID, HTTP status code) are written to
 
 ### Log Emission Point
 
-Emitted from `src/fs/vfs_read.c`, `src/fs/vfs_write.c`, and other VFS operations at completion — after the metric is recorded. Implemented as a thin call:
+Emitted from `src/fs/vfs/vfs_read.c`, `src/fs/vfs/vfs_write.c`, and other VFS operations at completion — after the metric is recorded. Implemented as a thin call:
 
 ```c
-// src/fs/vfs_internal.h:
+// src/fs/vfs/vfs_internal.h:
 void xrootd_access_log_emit(const xrootd_vfs_ctx_t *ctx,
                              xrootd_op_t op,
                              const xrootd_vfs_io_result_t *result,
@@ -341,9 +341,9 @@ Removal of legacy slots is a follow-up PR after consumers (Grafana dashboards, a
 | `src/observability/metrics/webdav.c` | Replace direct slot writes with `xrootd_metric_op_done()` calls |
 | `src/observability/metrics/s3.c` | Replace direct slot writes with `xrootd_metric_op_done()` calls |
 | `src/observability/metrics/stream_cache.c` | Replace with `xrootd_metric_cache_result()` calls |
-| `src/fs/vfs_read.c` | Call `xrootd_metric_op_done()` + `xrootd_access_log_emit()` |
-| `src/fs/vfs_write.c` | Call `xrootd_metric_op_done()` + `xrootd_access_log_emit()` |
-| `src/fs/vfs_stat.c` | Call `xrootd_metric_op_done()` |
+| `src/fs/vfs/vfs_read.c` | Call `xrootd_metric_op_done()` + `xrootd_access_log_emit()` |
+| `src/fs/vfs/vfs_write.c` | Call `xrootd_metric_op_done()` + `xrootd_access_log_emit()` |
+| `src/fs/vfs/vfs_stat.c` | Call `xrootd_metric_op_done()` |
 | `src/observability/dashboard/transfer_table.c` | Add `protocol` and `auth_subject` fields |
 | `src/observability/dashboard/http_tracking.c` | Delegate to unified `transfer_table.c` |
 | `src/observability/dashboard/page.c` | Render "Protocol" column; show auth subject |
