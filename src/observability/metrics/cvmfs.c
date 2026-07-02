@@ -1,5 +1,7 @@
 #include "metrics_internal.h"
 
+#include <string.h>
+
 /*
  * WHAT: Prometheus export for the cvmfs:// protocol plane (phase-68).
  * WHY:  a CVMFS site cache is judged on exactly these numbers: request mix by
@@ -16,6 +18,98 @@ static const char *xrootd_cvmfs_class_names[XROOTD_CVMFS_CLASS_COUNT] = {
     "geo",
     "reject",
 };
+
+/* ---- per-repository slot table (see metrics.h for the design notes) ------ */
+
+/* 1 iff READY slot `r` carries exactly `name`/`len`. */
+static int
+cvmfs_repo_slot_is(const ngx_xrootd_cvmfs_repo_metrics_t *r,
+    const char *name, size_t len)
+{
+    return r->state == XROOTD_CVMFS_REPO_READY
+        && strlen(r->name) == len
+        && memcmp(r->name, name, len) == 0;
+}
+
+ngx_xrootd_cvmfs_repo_metrics_t *
+xrootd_cvmfs_repo_slot(const char *name, size_t len)
+{
+    ngx_xrootd_metrics_t            *m = xrootd_metrics_shared();
+    ngx_xrootd_cvmfs_repo_metrics_t *repos;
+    ngx_xrootd_cvmfs_repo_metrics_t *other;
+    ngx_uint_t                       i;
+
+    if (m == NULL || name == NULL || len == 0
+        || len >= XROOTD_CVMFS_REPO_NAME_MAX)
+    {
+        return NULL;
+    }
+    repos = m->cvmfs.repos;
+    other = &repos[XROOTD_CVMFS_REPO_SLOTS - 1];
+
+    /* Fast path: lowest-index READY match (the convergence rule). */
+    for (i = 0; i < XROOTD_CVMFS_REPO_SLOTS - 1; i++) {
+        if (cvmfs_repo_slot_is(&repos[i], name, len)) {
+            return &repos[i];
+        }
+    }
+
+    /* First sight: claim the first EMPTY slot (lock-free; a lost race just
+     * rescans). The last slot stays reserved for the overflow bucket. */
+    for (i = 0; i < XROOTD_CVMFS_REPO_SLOTS - 1; i++) {
+        if (repos[i].state == XROOTD_CVMFS_REPO_EMPTY
+            && ngx_atomic_cmp_set(&repos[i].state, XROOTD_CVMFS_REPO_EMPTY,
+                                  XROOTD_CVMFS_REPO_CLAIMED))
+        {
+            memcpy(repos[i].name, name, len);
+            repos[i].name[len] = '\0';
+            (void) ngx_atomic_cmp_set(&repos[i].state,
+                                      XROOTD_CVMFS_REPO_CLAIMED,
+                                      XROOTD_CVMFS_REPO_READY);
+            /* A racing worker may have claimed an EARLIER slot for the same
+             * name; the lowest-index rule keeps everyone converged. */
+            {
+                ngx_uint_t j;
+
+                for (j = 0; j < XROOTD_CVMFS_REPO_SLOTS - 1; j++) {
+                    if (cvmfs_repo_slot_is(&repos[j], name, len)) {
+                        return &repos[j];
+                    }
+                }
+            }
+            return &repos[i];
+        }
+    }
+
+    /* Table full: everything else folds into the reserved "_other" slot. */
+    if (other->state != XROOTD_CVMFS_REPO_READY
+        && ngx_atomic_cmp_set(&other->state, XROOTD_CVMFS_REPO_EMPTY,
+                              XROOTD_CVMFS_REPO_CLAIMED))
+    {
+        memcpy(other->name, "_other", sizeof("_other"));
+        (void) ngx_atomic_cmp_set(&other->state, XROOTD_CVMFS_REPO_CLAIMED,
+                                  XROOTD_CVMFS_REPO_READY);
+    }
+    return (other->state == XROOTD_CVMFS_REPO_READY) ? other : NULL;
+}
+
+/* 1 iff an EARLIER READY slot carries the same name (claim-race duplicate —
+ * the exporter emits only the lowest-index instance). */
+static int
+cvmfs_repo_slot_is_dup(const ngx_xrootd_cvmfs_repo_metrics_t *repos,
+    ngx_uint_t i)
+{
+    ngx_uint_t j;
+
+    for (j = 0; j < i; j++) {
+        if (repos[j].state == XROOTD_CVMFS_REPO_READY
+            && strcmp(repos[j].name, repos[i].name) == 0)
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
 
 void
 xrootd_export_cvmfs_metrics(metrics_writer_t *mw, ngx_xrootd_metrics_t *shm)
@@ -56,4 +150,93 @@ xrootd_export_cvmfs_metrics(metrics_writer_t *mw, ngx_xrootd_metrics_t *shm)
     mw_emit_scalar(mw, "xrootd_cvmfs_origin_bytes_total",
         "bytes pulled from the Stratum-1 origins (WAN in)",
         &c->origin_bytes_total);
+
+    /* ---- per-repository families (bounded label set — see metrics.h) ---- */
+    {
+        static const struct {
+            const char *name;
+            const char *help;
+            size_t      off;
+        } fam[] = {
+            { "xrootd_cvmfs_repo_files_accessed_total",
+              "CAS objects served (hit or fill) per repository",
+              offsetof(ngx_xrootd_cvmfs_repo_metrics_t, files_accessed_total) },
+            { "xrootd_cvmfs_repo_cache_hits_total",
+              "requests served from the local store per repository",
+              offsetof(ngx_xrootd_cvmfs_repo_metrics_t, cache_hits_total) },
+            { "xrootd_cvmfs_repo_cache_misses_total",
+              "requests that needed an origin fill per repository",
+              offsetof(ngx_xrootd_cvmfs_repo_metrics_t, cache_misses_total) },
+            { "xrootd_cvmfs_repo_fills_total",
+              "origin fills published per repository",
+              offsetof(ngx_xrootd_cvmfs_repo_metrics_t, fills_total) },
+            { "xrootd_cvmfs_repo_fill_failures_total",
+              "fills that failed definitively per repository",
+              offsetof(ngx_xrootd_cvmfs_repo_metrics_t, fill_failures_total) },
+            { "xrootd_cvmfs_repo_verify_failures_total",
+              "CAS verify mismatches per repository",
+              offsetof(ngx_xrootd_cvmfs_repo_metrics_t, verify_failures_total) },
+            { "xrootd_cvmfs_repo_negative_hits_total",
+              "404s absorbed by the negative cache per repository",
+              offsetof(ngx_xrootd_cvmfs_repo_metrics_t, negative_hits_total) },
+            { "xrootd_cvmfs_repo_origin_bytes_total",
+              "bytes pulled from the Stratum-1 origins per repository (WAN in)",
+              offsetof(ngx_xrootd_cvmfs_repo_metrics_t, origin_bytes_total) },
+        };
+        ngx_uint_t f, i, cls;
+
+        mw_printf(mw,
+            "# HELP xrootd_cvmfs_repo_requests_total requests per repository by traffic class\n"
+            "# TYPE xrootd_cvmfs_repo_requests_total counter\n");
+        for (i = 0; i < XROOTD_CVMFS_REPO_SLOTS; i++) {
+            ngx_xrootd_cvmfs_repo_metrics_t *rm = &c->repos[i];
+
+            if (rm->state != XROOTD_CVMFS_REPO_READY
+                || cvmfs_repo_slot_is_dup(c->repos, i))
+            {
+                continue;
+            }
+            for (cls = 0; cls < XROOTD_CVMFS_CLASS_COUNT; cls++) {
+                mw_printf(mw,
+                    "xrootd_cvmfs_repo_requests_total{repo=\"%s\",class=\"%s\"} %lu\n",
+                    rm->name, xrootd_cvmfs_class_names[cls],
+                    (unsigned long) rm->requests_total[cls]);
+            }
+        }
+
+        for (f = 0; f < sizeof(fam) / sizeof(fam[0]); f++) {
+            mw_printf(mw, "# HELP %s %s\n# TYPE %s counter\n",
+                      fam[f].name, fam[f].help, fam[f].name);
+            for (i = 0; i < XROOTD_CVMFS_REPO_SLOTS; i++) {
+                ngx_xrootd_cvmfs_repo_metrics_t *rm = &c->repos[i];
+
+                if (rm->state != XROOTD_CVMFS_REPO_READY
+                    || cvmfs_repo_slot_is_dup(c->repos, i))
+                {
+                    continue;
+                }
+                mw_printf(mw, "%s{repo=\"%s\"} %lu\n", fam[f].name, rm->name,
+                    (unsigned long) *(ngx_atomic_t *)
+                        ((u_char *) rm + fam[f].off));
+            }
+        }
+
+        mw_printf(mw,
+            "# HELP xrootd_cvmfs_repo_bytes_served_total bytes served per repository by cache disposition\n"
+            "# TYPE xrootd_cvmfs_repo_bytes_served_total counter\n");
+        for (i = 0; i < XROOTD_CVMFS_REPO_SLOTS; i++) {
+            ngx_xrootd_cvmfs_repo_metrics_t *rm = &c->repos[i];
+
+            if (rm->state != XROOTD_CVMFS_REPO_READY
+                || cvmfs_repo_slot_is_dup(c->repos, i))
+            {
+                continue;
+            }
+            mw_printf(mw,
+                "xrootd_cvmfs_repo_bytes_served_total{repo=\"%s\",source=\"hit\"} %lu\n"
+                "xrootd_cvmfs_repo_bytes_served_total{repo=\"%s\",source=\"fill\"} %lu\n",
+                rm->name, (unsigned long) rm->bytes_served_hit_total,
+                rm->name, (unsigned long) rm->bytes_served_fill_total);
+        }
+    }
 }

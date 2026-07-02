@@ -161,6 +161,7 @@ Scrape `:9100/metrics`. The series that matter:
 | `xrootd_cvmfs_bytes_served_total{source="hit\|fill"}` | hit share dropping | LAN bytes to the farm, split by cache disposition — the hit-ratio source |
 | `xrootd_cvmfs_origin_bytes_total` | sustained ≈ bytes_served | WAN bytes pulled from Stratum-1s; if this tracks bytes_served the cache isn't caching |
 | `{proto="cvmfs"}` on the module-wide families | — | cvmfs as a slice of everything this node does (io, cache hits, auth) |
+| `xrootd_cvmfs_repo_*_total{repo="<fqrn>"}` | per-experiment views | requests{class}, files_accessed, cache_hits/misses, fills(+failures), verify_failures, negative_hits, bytes_served{hit\|fill}, origin_bytes — one row per repository (bounded: 31 named + `_other` overflow) |
 | `/healthz?verbose` `.cvmfs_origins[].fail_score` | > 0 sustained | per-origin health (sd_http EWMA; 0 = healthy) |
 
 Quarantine hygiene: files there are evidence, not cache — prune with
@@ -180,6 +181,11 @@ sum(rate(xrootd_cvmfs_bytes_served_total[5m]))          # LAN out
 
 # request mix by class
 sum by (class) (rate(xrootd_cvmfs_requests_total[5m]))
+
+# per-experiment WAN cost + hit ratio (the per-repo families)
+topk(5, sum by (repo) (rate(xrootd_cvmfs_repo_origin_bytes_total[5m])))
+sum by (repo) (rate(xrootd_cvmfs_repo_bytes_served_total{source="hit"}[5m]))
+  / sum by (repo) (rate(xrootd_cvmfs_repo_bytes_served_total[5m]))
 
 # cvmfs share of ALL cache lookups this node serves (proto identity, T16)
 sum(rate(xrootd_cache_hits_total{proto="cvmfs"}[5m]))

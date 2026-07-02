@@ -280,6 +280,41 @@ typedef enum {
     XROOTD_CVMFS_CLASS_COUNT
 } xrootd_cvmfs_class_metric_e;
 
+/* ---- per-repository (fqrn) counters --------------------------------------
+ * A site serves O(20) repositories, so the fqrn is a usable label — but the
+ * name arrives FROM THE WIRE, so the label set must be BOUNDED or a scanner
+ * minting random repo names explodes both the SHM and the Prometheus series
+ * space. A fixed slot table holds the first XROOTD_CVMFS_REPO_SLOTS-1
+ * distinct fqrns seen; everything past capacity folds into the reserved
+ * last slot, exported as repo="_other". Slots register lock-free
+ * (state: EMPTY -> CAS -> CLAIMED(write name) -> READY); a claim race can
+ * duplicate a name across two slots, so RESOLUTION always returns the
+ * LOWEST-index READY match and the exporter skips later duplicates — all
+ * increments and all output converge on one slot per name. */
+#define XROOTD_CVMFS_REPO_SLOTS     32
+#define XROOTD_CVMFS_REPO_NAME_MAX  64
+
+#define XROOTD_CVMFS_REPO_EMPTY    0u
+#define XROOTD_CVMFS_REPO_CLAIMED  1u
+#define XROOTD_CVMFS_REPO_READY    2u
+
+typedef struct {
+    ngx_atomic_t  state;                 /* EMPTY / CLAIMED / READY           */
+    char          name[XROOTD_CVMFS_REPO_NAME_MAX];  /* fqrn, NUL-terminated  */
+
+    ngx_atomic_t  requests_total[XROOTD_CVMFS_CLASS_COUNT]; /* by class      */
+    ngx_atomic_t  files_accessed_total;  /* CAS objects served OK (hit+fill)  */
+    ngx_atomic_t  cache_hits_total;      /* served from the local store       */
+    ngx_atomic_t  cache_misses_total;    /* needed an origin fill             */
+    ngx_atomic_t  fills_total;           /* fills that published              */
+    ngx_atomic_t  fill_failures_total;   /* fills that failed definitively    */
+    ngx_atomic_t  verify_failures_total; /* CAS mismatches (quarantined)      */
+    ngx_atomic_t  negative_hits_total;   /* 404s absorbed by the worker memo  */
+    ngx_atomic_t  bytes_served_hit_total;  /* LAN out, from cache             */
+    ngx_atomic_t  bytes_served_fill_total; /* LAN out, via a fresh fill       */
+    ngx_atomic_t  origin_bytes_total;      /* WAN in, pulled from Stratum-1s  */
+} ngx_xrootd_cvmfs_repo_metrics_t;
+
 typedef struct {
     ngx_atomic_t  requests_total[XROOTD_CVMFS_CLASS_COUNT]; /* by traffic class */
     ngx_atomic_t  negative_hits_total;   /* 404s absorbed by the worker memo   */
@@ -291,7 +326,18 @@ typedef struct {
     ngx_atomic_t  bytes_served_hit_total;  /* LAN out, served from cache       */
     ngx_atomic_t  bytes_served_fill_total; /* LAN out, served via a fresh fill */
     ngx_atomic_t  origin_bytes_total;      /* WAN in, pulled from Stratum-1s   */
+
+    ngx_xrootd_cvmfs_repo_metrics_t repos[XROOTD_CVMFS_REPO_SLOTS];
 } ngx_xrootd_cvmfs_metrics_t;
+
+/*
+ * Resolve the fqrn `name`/`len` to its SHM repo-metrics slot, registering it
+ * on first sight; past capacity returns the reserved "_other" slot. NULL when
+ * the metrics SHM is unmapped. Lock-free; safe from fill worker threads.
+ * (metrics/cvmfs.c)
+ */
+ngx_xrootd_cvmfs_repo_metrics_t *xrootd_cvmfs_repo_slot(const char *name,
+    size_t len);
 
 /*
  * Per-process FRM tape-stage metrics (phase-35).  All ngx_atomic_t, lock-free.

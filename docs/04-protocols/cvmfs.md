@@ -547,6 +547,37 @@ Dedicated family (`src/observability/metrics/cvmfs.c`):
 | `xrootd_cvmfs_origin_bytes_total` | WAN-in (counts every attempt's bytes, including discarded corrupt fills — WAN cost is WAN cost) |
 | `xrootd_scvmfs_requests_total` | requests admitted by the scvmfs preamble |
 
+**Per-repository families** (the same measures sliced by fqrn): a site
+serves O(20) repositories, so `repo` is a usable label — but the name
+arrives from the wire, so the set is **bounded by construction**: a
+32-slot SHM table registers the first 31 distinct fqrns seen and folds
+everything past capacity into `repo="_other"` (a scanner minting random
+repo names cannot explode the series space or the SHM). Claim races
+resolve lowest-index-wins; the exporter skips duplicates.
+
+| Series (all `{repo="<fqrn>"}`) | Meaning |
+|---|---|
+| `xrootd_cvmfs_repo_requests_total{repo,class}` | request mix per repository |
+| `xrootd_cvmfs_repo_files_accessed_total` | CAS objects served OK (hit or fill) — file-access operations, not distinct files |
+| `xrootd_cvmfs_repo_cache_hits_total` / `_cache_misses_total` | disposition split per repository |
+| `xrootd_cvmfs_repo_fills_total` / `_fill_failures_total` | origin fills per repository |
+| `xrootd_cvmfs_repo_verify_failures_total` | CAS mismatches per repository (which experiment's WAN path corrupts) |
+| `xrootd_cvmfs_repo_negative_hits_total` | absorbed 404s per repository |
+| `xrootd_cvmfs_repo_bytes_served_total{repo,source="hit\|fill"}` | LAN-out per repository (what each experiment pulls from the cache) |
+| `xrootd_cvmfs_repo_origin_bytes_total` | WAN-in per repository (what each experiment costs the WAN) |
+
+```promql
+# per-experiment hit ratio (5m)
+sum by (repo) (rate(xrootd_cvmfs_repo_bytes_served_total{source="hit"}[5m]))
+  / sum by (repo) (rate(xrootd_cvmfs_repo_bytes_served_total[5m]))
+
+# which repository dominates WAN pulls
+topk(5, sum by (repo) (rate(xrootd_cvmfs_repo_origin_bytes_total[5m])))
+
+# per-experiment access rate
+sum by (repo) (rate(xrootd_cvmfs_repo_files_accessed_total[5m]))
+```
+
 Hit ratio and WAN-saved are one PromQL expression away:
 `bytes_served{hit} / (bytes_served{hit}+bytes_served{fill})`. Additionally
 `XROOTD_PROTO_CVMFS` joined the unified per-protocol enum, so **every**
