@@ -216,10 +216,25 @@ ngx_http_s3_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
             {
                 return NGX_CONF_ERROR;
             }
-            xrootd_vfs_backend_set_credential(conf->common.root_canon, bearer,
-                (cred->x509_proxy.len > 0)
-                    ? (const char *) cred->x509_proxy.data : NULL,
-                (cred->ca_dir.len > 0) ? (const char *) cred->ca_dir.data : NULL);
+            {
+                xrootd_vfs_backend_cred_t bcred;
+
+                ngx_memzero(&bcred, sizeof(bcred));
+                bcred.bearer = (bearer[0] != '\0') ? bearer : NULL;
+                bcred.x509_proxy = (cred->x509_proxy.len > 0)
+                    ? (const char *) cred->x509_proxy.data : NULL;
+                bcred.ca_dir = (cred->ca_dir.len > 0)
+                    ? (const char *) cred->ca_dir.data : NULL;
+                bcred.s3_access_key = (cred->s3_access_key.len > 0)
+                    ? (const char *) cred->s3_access_key.data : NULL;
+                bcred.s3_secret_key = (cred->s3_secret_key.len > 0)
+                    ? (const char *) cred->s3_secret_key.data : NULL;
+                bcred.s3_region = (cred->s3_region.len > 0)
+                    ? (const char *) cred->s3_region.data : NULL;
+                bcred.sss_keytab = (cred->sss_keytab.len > 0)
+                    ? (const char *) cred->sss_keytab.data : NULL;
+                xrootd_vfs_backend_set_credential(conf->common.root_canon, &bcred);
+            }
         }
 
         /* Phase-64: register the composable cache/stage tiers (§4.4 mirror). */

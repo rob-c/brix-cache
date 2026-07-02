@@ -66,12 +66,26 @@ void xrootd_vfs_backend_config_s3(const char *root_canon, const char *host,
 ngx_int_t xrootd_vfs_backend_config_str(ngx_conf_t *cf, const char *root_canon,
     const ngx_str_t *backend, size_t block_size, int family);
 
+/* Upstream credential material a backend build consumes (plain primitives, so the
+ * registry stays independent of the config credential block). NULL / "" ⇒ unset.
+ * Each backend build reads only the fields its scheme needs: bearer→ztn (sd_http/
+ * sd_xroot); x509_proxy/ca_dir→GSI (sd_xroot); s3_*→SigV4 (sd_remote/sd_s3);
+ * sss_keytab→SSS (sd_xroot origin). */
+typedef struct {
+    const char *bearer;
+    const char *x509_proxy;
+    const char *ca_dir;
+    const char *s3_access_key;
+    const char *s3_secret_key;
+    const char *s3_region;
+    const char *sss_keytab;
+} xrootd_vfs_backend_cred_t;
+
 /* Attach (at config time) the credential the source backend authenticates to its
- * upstream with (§14 xrootd_credential): a bearer token (ztn → sd_http / sd_xroot)
- * and/or an X.509 proxy PEM path (in-process GSI → sd_xroot). Set after the backend
- * is registered for the same root; "" / NULL on both ⇒ anonymous. */
-void xrootd_vfs_backend_set_credential(const char *root_canon, const char *bearer,
-    const char *x509_proxy, const char *ca_dir);
+ * upstream with (§14 xrootd_credential). Set after the backend is registered for the
+ * same root; all-unset ⇒ anonymous. NULL `cred` ⇒ anonymous (clears any prior). */
+void xrootd_vfs_backend_set_credential(const char *root_canon,
+    const xrootd_vfs_backend_cred_t *cred);
 
 /* Mark (at config time) whether the export rooted at `root_canon` stages uploads
  * locally and PROMOTES them to a remote backend on commit (write-back), vs.

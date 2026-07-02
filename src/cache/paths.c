@@ -1,6 +1,8 @@
 #include "cache_internal.h"
 #include "meta.h"
 #include "open.h"          /* xrootd_cache_path_for_resolved */
+#include "cstore.h"          /* xrootd_cstore_local_root (driver-truthful reap root) */
+#include "cache_storage.h"  /* xrootd_cache_storage_cstore (resolve the tier cstore) */
 
 
 #include <errno.h>
@@ -92,6 +94,17 @@ xrootd_cache_state_root(const ngx_stream_xrootd_srv_conf_t *conf)
     }
     if (conf->cache_state_root.len > 0) {
         return (const char *) conf->cache_state_root.data;
+    }
+    /* Tier grammar (§14a): the durable cache state + the evictable objects live in
+     * the PHYSICAL cache STORE, never the advertised (logical) cache_root. The
+     * authoritative location is the store instance's OWN local dir — ask the
+     * resolved cstore, not the URL string, so this is driver-truthful for every
+     * scheme. A non-local store (s3/rados/remote) returns NULL: the reaper/state
+     * layer MUST then decline filesystem reaping (store-native eviction handles it)
+     * rather than fall back to cache_root and reap the wrong tree. cache_root is the
+     * physical root ONLY in the legacy (no-cache_store) config below. */
+    if (conf->common.cache_store.len > 0) {
+        return xrootd_cstore_local_root(xrootd_cache_storage_cstore(conf));
     }
     if (conf->cache_root.len > 0) {
         return (const char *) conf->cache_root.data;

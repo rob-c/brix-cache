@@ -66,6 +66,34 @@ webdav_tpc_cred_validate_token(ngx_http_request_t *r, ngx_str_t *token)
 /* Path to the dedicated oidc-agent helper binary. */
 #define TPC_CRED_HELPER_PATH    "/usr/local/sbin/nginx-xrootd-tpc-cred"
 
+/*
+ * WHAT: Resolve the oidc-token binary to an absolute path — first honours an
+ *       explicit override env var, then probes standard install locations.
+ * WHY:  The fallback exec path must not be subject to $PATH substitution in the
+ *       daemon's environment (a compromised PATH entry could shadow the real binary).
+ * HOW:  secure_getenv("XROOTD_OIDC_TOKEN_BIN") if access(X_OK) passes; else
+ *       walk a fixed candidate list; return NULL if none executable.
+ */
+static const char *
+resolve_oidc_token_binary(void)
+{
+    static const char *const candidates[] = {
+        "/usr/bin/oidc-token", "/usr/local/bin/oidc-token", NULL
+    };
+    const char *const *p;
+    const char *override = secure_getenv("XROOTD_OIDC_TOKEN_BIN");
+
+    if (override != NULL && access(override, X_OK) == 0) {
+        return override;
+    }
+    for (p = candidates; *p != NULL; p++) {
+        if (access(*p, X_OK) == 0) {
+            return *p;
+        }
+    }
+    return NULL;
+}
+
 
 /**
  * Send a JSON request to the oidc-agent UNIX socket and read the token.
@@ -191,8 +219,41 @@ tpc_cred_oidc_agent_fetch(ngx_http_request_t *r,
             cli_argv[1][1] = 'c';
             cli_argv[1][2] = '\0';
 
-            execlp("oidc-token", "oidc-token", cli_argv[1], cli_argv[0],
-                   (char *) NULL);
+            /* Resolve to an absolute path — avoid $PATH substitution risk in
+             * the daemon's potentially untrusted environment.  Build a minimal
+             * controlled envp: PATH + HOME + OIDC_SOCK + XDG_RUNTIME_DIR only. */
+            {
+                const char *fb_bin = resolve_oidc_token_binary();
+                if (fb_bin != NULL) {
+                    const char *home_val = getenv("HOME");
+                    const char *xdg_val  = getenv("XDG_RUNTIME_DIR");
+                    const char *oidc_val = sock_env;  /* already resolved above */
+                    char  home_buf[280], oidc_buf[280], xdg_buf[280];
+                    char *fb_argv[4] = {
+                        (char *) fb_bin, cli_argv[1], cli_argv[0], NULL
+                    };
+                    char *fb_envp[5];
+                    int   ei = 0;
+
+                    fb_envp[ei++] = "PATH=/usr/bin:/bin";
+                    if (home_val != NULL) {
+                        snprintf(home_buf, sizeof(home_buf), "HOME=%s", home_val);
+                        fb_envp[ei++] = home_buf;
+                    }
+                    if (oidc_val != NULL && *oidc_val != '\0') {
+                        snprintf(oidc_buf, sizeof(oidc_buf),
+                                 "OIDC_SOCK=%s", oidc_val);
+                        fb_envp[ei++] = oidc_buf;
+                    }
+                    if (xdg_val != NULL) {
+                        snprintf(xdg_buf, sizeof(xdg_buf),
+                                 "XDG_RUNTIME_DIR=%s", xdg_val);
+                        fb_envp[ei++] = xdg_buf;
+                    }
+                    fb_envp[ei] = NULL;
+                    execve(fb_bin, fb_argv, fb_envp);
+                }
+            }
             _exit(127);
         } else {
             /* Exec the dedicated helper. */

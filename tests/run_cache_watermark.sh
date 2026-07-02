@@ -67,7 +67,7 @@ thread_pool default threads=2;
 events { worker_connections 64; }
 stream { server {
     listen 127.0.0.1:${port}; xrootd on; xrootd_auth none;
-    xrootd_cache on; xrootd_cache_root $d/cache; xrootd_cache_origin 127.0.0.1:1;
+    xrootd_storage_backend root://127.0.0.1:1; xrootd_cache_store posix:$d/cache; xrootd_cache_root /;
     xrootd_cache_high_watermark ${high}%;
     xrootd_cache_low_watermark  ${low}%;
     xrootd_cache_reap_interval 1;

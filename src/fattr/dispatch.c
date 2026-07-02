@@ -110,11 +110,21 @@ xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
                                          "fattr: invalid file handle");
             }
             fd = ctx->files[idx].fd;
+            /* A driver-backed handle (object store: ceph/s3/…) keeps its xattrs on
+             * the BACKEND object, not the local placeholder fd — a raw fsetxattr on
+             * that fd is lost. Route by the handle's resolved path through the driver
+             * (path mode) so set/get/list hit the same store the bytes live in. */
+            if (ctx->files[idx].sd_obj.driver != NULL
+                && ctx->files[idx].path != NULL)
+            {
+                path = ctx->files[idx].path;
+            }
         }
-        /* fd target: vctx carries proto/log only (path stays NULL → fd mode). */
+        /* fd target: vctx carries proto/log only (path NULL → fd mode); a driver-
+         * backed handle set its resolved path above → driver path mode. */
         xrootd_vfs_ctx_init(&vctx, c->pool, c->log, XROOTD_PROTO_STREAM,
             conf->common.root_canon, NULL, conf->common.allow_write,
-            0 /* is_tls */, NULL, NULL);
+            0 /* is_tls */, NULL, path);
 
     } else if (ctx->payload != NULL && ctx->payload[0] == 0) {
         /* (b) fhandle-targeted request with a leading 0 marker byte. */
@@ -127,10 +137,18 @@ xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
         }
 
         fd = ctx->files[idx].fd;
-        /* fd target: vctx carries proto/log only (path stays NULL → fd mode). */
+        /* Driver-backed handle: route xattrs by the resolved path through the driver
+         * (path mode), not the local placeholder fd (see branch (a)). */
+        if (ctx->files[idx].sd_obj.driver != NULL
+            && ctx->files[idx].path != NULL)
+        {
+            path = ctx->files[idx].path;
+        }
+        /* fd target: vctx carries proto/log only (path NULL → fd mode); a driver-
+         * backed handle set its resolved path above → driver path mode. */
         xrootd_vfs_ctx_init(&vctx, c->pool, c->log, XROOTD_PROTO_STREAM,
             conf->common.root_canon, NULL, conf->common.allow_write,
-            0 /* is_tls */, NULL, NULL);
+            0 /* is_tls */, NULL, path);
         /* Everything after the marker byte is the nvec/vvec args region. */
         if (ctx->cur_dlen > 1) {
             args_buf = ctx->payload + 1;

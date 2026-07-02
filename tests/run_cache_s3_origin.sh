@@ -49,19 +49,23 @@ http {
     }
 }
 
-# The root:// cache node fronting the S3 origin.
+# The root:// cache node fronting the S3 origin (TIER grammar: the S3 bucket is the
+# storage_backend, its SigV4 keys carried by a named xrootd_credential, the local
+# read cache is a posix cache_store).
 stream {
+    xrootd_credential s3origin {
+        s3_access_key ${AKID};
+        s3_secret_key ${SECRET};
+        s3_region     us-east-1;
+    }
     server {
         listen 127.0.0.1:${NODE_PORT};
         xrootd on;
         xrootd_root $PFX/export;
         xrootd_auth none;
-        xrootd_cache on;
-        xrootd_cache_root   $PFX/cache;
-        xrootd_cache_origin s3://127.0.0.1:${S3_PORT}/testbucket;
-        xrootd_cache_origin_s3_access_key ${AKID};
-        xrootd_cache_origin_s3_secret_key ${SECRET};
-        xrootd_cache_origin_s3_region     us-east-1;
+        xrootd_storage_backend    s3://127.0.0.1:${S3_PORT}/testbucket;
+        xrootd_storage_credential s3origin;
+        xrootd_cache_store posix:$PFX/cache; xrootd_cache_root /;
     }
 }
 EOF

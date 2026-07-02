@@ -402,33 +402,12 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		}
 	}
 
-	/* A driver-backed read cache (cache_storage_backend) keeps its bytes in the
-	 * cache driver's namespace — there is no POSIX file at cache_path to open. Serve
-	 * it through the cache STORAGE instance, keyed on the export-relative suffix under
-	 * cache_root, adopting the returned object into the handle exactly like an export
-	 * driver open. A POSIX cache (no backend) keeps the raw-fd from_cache path below. */
-	/* Slice/partial mode (phase-64 §6.5): a composed sd_cache decorator serves the
-	 * cache read hit-or-miss via its range-fill pread — prefer it over the plain
-	 * whole-file cache store when it is configured. */
-	xrootd_sd_instance_t  *cache_inst =
-	    (from_cache && conf->cache_slice_inst != NULL)
-	        ? (xrootd_sd_instance_t *) conf->cache_slice_inst
-	    : (from_cache && conf->cache_storage_backend.len > 0)
-	        ? conf->cache_storage_inst : NULL;
-
-	if (cache_inst != NULL) {
-		const char *ckey = xrootd_cache_key_under_root(conf, resolved);
-
-		driver_backed = 1;
-		if (ckey == NULL) {
-			errno = EINVAL;
-			open_failed = 1;
-		} else if (xrootd_open_resolved_via_driver(cache_inst, ckey, oflags,
-		               is_readable, is_write, create_mode,
-		               &ctx->files[idx], &fd, &st) != NGX_OK) {
-			open_failed = 1;   /* helper set errno; mapped below */
-		}
-	} else if (sd_inst != NULL && !from_cache && !use_resume) {
+	/* §14 (phase-64): the legacy driver-backed read cache (cache_storage_backend)
+	 * and the legacy slice decorator (cache_slice_inst) are RETIRED — a driver
+	 * cache store and slice/partial serving are the tier grammar's composed
+	 * sd_cache, reached through the sd_inst branch below. A POSIX `xrootd_cache
+	 * on` cache keeps the raw-fd from_cache path. */
+	if (sd_inst != NULL && !from_cache && !use_resume) {
 		driver_backed = 1;
 		/* Key the driver namespace on the export-root-relative ("/sub/file")
 		 * form — the same convention WebDAV/S3 and the VFS stat/dirlist/unlink

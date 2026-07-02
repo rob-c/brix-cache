@@ -18,8 +18,7 @@ def test_opcode_empty_body_robust(srv, op):
     or crash OUR server."""
     def send(s):
         s.sendall(struct.pack("!2sH16sI", b"\x00\x40", op, b"\x00" * 16, 0))
-    st_o, en_o = _run_probe(srv["our"], send)
-    st_f, en_f = _run_probe(srv["off"], send)
+    (st_o, en_o), (st_f, en_f) = _run_probe_pair(srv, send)
     if st_o == HANG:
         # A one-sided hang is normally the bug — EXCEPT for kXR_sigver, which by
         # design produces NO response on a (provisionally) valid signature and
@@ -103,8 +102,7 @@ def test_stat_dlen_gt_sent_then_nothing_no_hang(srv):
     # Either server may legitimately hold the link open awaiting the rest, then
     # the read times out at the application layer. We require the CLASS to match
     # and OUR not to hang DIFFERENTLY (i.e. if stock answers/closes, so must we).
-    st_o, en_o = _run_probe(srv["our"], send)
-    st_f, en_f = _run_probe(srv["off"], send)
+    (st_o, en_o), (st_f, en_f) = _run_probe_pair(srv, send)
     # Both holding the link (HANG) is a conformant "awaiting more data" state —
     # acceptable as long as they AGREE. A divergence (one answers, one hangs) is
     # the bug we hunt.
@@ -125,8 +123,7 @@ def test_stat_dlen_lt_payload_extra_trailing(srv):
         body = b"/hello.txt"
         s.sendall(struct.pack("!2sH16sI", b"\x00\x46", kXR_stat,
                               b"\x00" * 16, 4) + body)
-    st_o, en_o = _run_probe(srv["our"], send)
-    st_f, en_f = _run_probe(srv["off"], send)
+    (st_o, en_o), (st_f, en_f) = _run_probe_pair(srv, send)
     _assert_no_hang("stat-dlen-lt-payload", st_o, st_f)
     assert _class(st_o) == _class(st_f), (
         f"[stat-dlen-lt-payload] first-response class diverges: "
@@ -196,8 +193,7 @@ def test_two_requests_one_send_ordered(srv):
         finally:
             s.close()
 
-    o = runner(srv["our"])
-    f = runner(srv["off"])
+    o, f = _run_pair(srv, runner)
     assert o[0] != "HANG", f"HIGH: OUR server hung on pipelined requests: {o}"
     assert o == (b"\x00\x51", kXR_ok, b"\x00\x52", kXR_ok), (
         f"OUR pipelined responses wrong/out-of-order: {o} (stock: {f})")
@@ -225,8 +221,7 @@ def test_three_mixed_requests_pipelined(srv):
         finally:
             s.close()
 
-    o = runner(srv["our"])
-    f = runner(srv["off"])
+    o, f = _run_pair(srv, runner)
     assert o != "HANG", "HIGH: OUR server hung on 3 pipelined requests"
     assert f != "HANG", "oracle: STOCK hung on 3 pipelined requests"
     # ping ok, stat ok, stat reject — same shape on both.
@@ -257,8 +252,7 @@ def test_valid_request_trailing_garbage(srv):
         finally:
             s.close()
 
-    o = runner(srv["our"])
-    f = runner(srv["off"])
+    o, f = _run_pair(srv, runner)
     assert o != "HANG", "HIGH: OUR server hung after valid request + trailing garbage"
     assert o == kXR_ok, f"OUR first response not ok with trailing garbage: {o}"
     assert f == kXR_ok, f"oracle: STOCK first response unexpected: {f}"
@@ -285,8 +279,7 @@ def test_valid_then_garbage_frame_class_parity(srv):
         finally:
             s.close()
 
-    o = runner(srv["our"])
-    f = runner(srv["off"])
+    o, f = _run_pair(srv, runner)
     assert o[1] != HANG, f"HIGH: OUR server hung on the garbage frame after a valid one: {o}"
     assert o[0] == kXR_ok and f[0] == kXR_ok, f"first reply not ok: our={o} stock={f}"
     assert _class(o[1]) == _class(f[1]), (
@@ -393,8 +386,7 @@ def test_login_zero_length_username_class_parity(srv):
         finally:
             s.close()
 
-    o = runner(srv["our"])
-    f = runner(srv["off"])
+    o, f = _run_pair(srv, runner)
     _assert_no_hang("login-empty-user", o[0], f[0])
     assert _class(o[0]) == _class(f[0]), (
         f"empty-username login class diverges: our={_class(o[0])}({o}) "
@@ -424,8 +416,7 @@ def test_login_oversized_username_class_parity(srv):
         finally:
             s.close()
 
-    o = runner(srv["our"])
-    f = runner(srv["off"])
+    o, f = _run_pair(srv, runner)
     _assert_no_hang("login-oversized-user", o[0], f[0])
     assert _class(o[0]) == _class(f[0]), (
         f"oversized-username login class diverges: our={_class(o[0])}({o}) "
@@ -453,8 +444,7 @@ def test_login_short_body_truncated_no_hang(srv):
         finally:
             s.close()
 
-    o = runner(srv["our"])
-    f = runner(srv["off"])
+    o, f = _run_pair(srv, runner)
     # Both awaiting (HANG) is fine if they AGREE; a one-sided hang is the bug.
     assert _class(o[0]) == _class(f[0]), (
         f"short-login-body class diverges: our={_class(o[0])}({o}) "
@@ -491,8 +481,7 @@ def test_handshake_wrong_magic_class_parity(srv):
         finally:
             s.close()
 
-    o = runner(srv["our"])
-    f = runner(srv["off"])
+    o, f = _run_pair(srv, runner)
     assert o != HANG, f"HIGH: OUR server hung on a wrong-magic handshake (stock={f})"
     assert _class(o) == _class(f), (
         f"wrong-magic handshake class diverges: our={_class(o)}({o!r}) "
@@ -518,8 +507,7 @@ def test_handshake_short_then_nothing_no_hang(srv):
         finally:
             s.close()
 
-    o = runner(srv["our"])
-    f = runner(srv["off"])
+    o, f = _run_pair(srv, runner)
     # The handshake is INCOMPLETE (4 of 20 bytes), so the server has two
     # conformant choices: keep the link open awaiting the rest (HANG) or drop it
     # (EOF). Both stock and ours pick one of these; the only outcome that would be
@@ -554,8 +542,7 @@ def test_handshake_extra_bytes_then_login(srv):
         finally:
             s.close()
 
-    o = runner(srv["our"])
-    f = runner(srv["off"])
+    o, f = _run_pair(srv, runner)
     assert o != HANG, f"HIGH: OUR server hung after handshake+extra bytes (stock={f})"
     assert _class(o) == _class(f), (
         f"handshake+extra class diverges: our={_class(o)}({o!r}) "
@@ -583,8 +570,7 @@ def test_no_handshake_direct_login_no_hang(srv):
         finally:
             s.close()
 
-    o = runner(srv["our"])
-    f = runner(srv["off"])
+    o, f = _run_pair(srv, runner)
     assert o != HANG, f"HIGH: OUR server hung on a login-without-handshake (stock={f})"
     assert _class(o) == _class(f), (
         f"login-without-handshake class diverges: our={_class(o)}({o!r}) "
@@ -613,8 +599,7 @@ def test_request_then_half_close(srv):
         finally:
             s.close()
 
-    o = runner(srv["our"])
-    f = runner(srv["off"])
+    o, f = _run_pair(srv, runner)
     assert o != HANG, f"HIGH: OUR server hung after a request + half-close (stock={f})"
     # Both should deliver the kXR_ok response before/at close.
     assert o in (kXR_ok, EOF), f"OUR half-close outcome unexpected: {o!r} (stock {f!r})"

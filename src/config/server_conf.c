@@ -110,8 +110,6 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     conf->cache        = NGX_CONF_UNSET;
     conf->cache_origin_tls = NGX_CONF_UNSET;
     conf->cache_origin_family = NGX_CONF_UNSET_UINT;
-    conf->cache_origin_scheme = NGX_CONF_UNSET_UINT;
-    conf->cache_origin_forward_token = NGX_CONF_UNSET;
     conf->cache_lock_timeout = NGX_CONF_UNSET;
     conf->cache_eviction_threshold = NGX_CONF_UNSET_UINT;
     conf->cache_max_file_size      = NGX_CONF_UNSET;
@@ -128,7 +126,6 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     conf->cache_reap_interval      = NGX_CONF_UNSET;
     conf->cache_deny_prefixes      = NULL;
     conf->cache_allow_prefixes     = NULL;
-    conf->cache_storage_block_size = NGX_CONF_UNSET_SIZE;
     conf->cache_wt_stage_block_size = NGX_CONF_UNSET_SIZE;
     conf->cache_wt_stage_high_watermark = NGX_CONF_UNSET_UINT;
     conf->cache_wt_stage_low_watermark  = NGX_CONF_UNSET_UINT;
@@ -142,7 +139,6 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     /* cache_verify_digest left zeroed (ngx_str_t {0,NULL}) by pcalloc */
     conf->cache_advertise          = NGX_CONF_UNSET;
     conf->cache_advertise_interval = NGX_CONF_UNSET_MSEC;
-    conf->cache_slice_size         = NGX_CONF_UNSET_SIZE;
     conf->wt_enable                = NGX_CONF_UNSET;
     conf->wt_mode                  = XROOTD_WT_MODE_UNSET;
     conf->wt_origin_port           = 0;
@@ -482,6 +478,18 @@ xrootd_merge_srv_storage(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
     ngx_conf_merge_size_value(conf->common.cache_slice_size,
                               prev->common.cache_slice_size, 0);
 
+    /* §6.5: the tier slice size must be 0 (off) or a positive multiple of the
+     * 1 MiB cinfo block granule (so a partial fill never records a mis-aligned
+     * block) — the same rule the legacy xrootd_cache_slice enforced. */
+    if (conf->common.cache_slice_size != 0
+        && (conf->common.cache_slice_size < (1024 * 1024)
+            || (conf->common.cache_slice_size % (1024 * 1024)) != 0))
+    {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "xrootd_cache_slice_size must be a positive multiple of 1m");
+        return NGX_CONF_ERROR;
+    }
+
     ngx_conf_merge_value(conf->read_compress,   prev->read_compress,   0);
     ngx_conf_merge_value(conf->write_compress,  prev->write_compress,  0);
     ngx_conf_merge_value(conf->zip_access,      prev->zip_access,      0);
@@ -494,10 +502,6 @@ xrootd_merge_srv_storage(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
     ngx_conf_merge_value(conf->cache,           prev->cache,           0);
     ngx_conf_merge_str_value(conf->cache_root,  prev->cache_root,      "");
     ngx_conf_merge_str_value(conf->cache_state_root, prev->cache_state_root, "");
-    ngx_conf_merge_str_value(conf->cache_storage_backend,
-                             prev->cache_storage_backend, "");
-    ngx_conf_merge_size_value(conf->cache_storage_block_size,
-                              prev->cache_storage_block_size, 0);
     ngx_conf_merge_str_value(conf->cache_wt_stage_root,
                              prev->cache_wt_stage_root, "");
     ngx_conf_merge_str_value(conf->cache_wt_stage_backend,
@@ -524,27 +528,9 @@ xrootd_merge_srv_storage(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
         conf->cache_allow_prefixes = prev->cache_allow_prefixes;
     }
     ngx_conf_merge_str_value(conf->cache_origin, prev->cache_origin,   "");
-    ngx_conf_merge_str_value(conf->cache_origin_proxy,  prev->cache_origin_proxy,  "");
-    ngx_conf_merge_str_value(conf->cache_origin_cadir,  prev->cache_origin_cadir,
-                             "/etc/grid-security/certificates");
-    ngx_conf_merge_str_value(conf->cache_origin_client, prev->cache_origin_client, "xrdcp");
-    ngx_conf_merge_str_value(conf->cache_origin_s3_bucket,
-                             prev->cache_origin_s3_bucket, "");
-    ngx_conf_merge_str_value(conf->cache_origin_s3_access_key,
-                             prev->cache_origin_s3_access_key, "");
-    ngx_conf_merge_str_value(conf->cache_origin_s3_secret_key,
-                             prev->cache_origin_s3_secret_key, "");
-    ngx_conf_merge_str_value(conf->cache_origin_s3_region,
-                             prev->cache_origin_s3_region, "us-east-1");
     ngx_conf_merge_value(conf->cache_origin_tls, prev->cache_origin_tls, 0);
     ngx_conf_merge_uint_value(conf->cache_origin_family,
                               prev->cache_origin_family, XROOTD_AF_AUTO);
-    ngx_conf_merge_uint_value(conf->cache_origin_scheme, prev->cache_origin_scheme,
-                              XROOTD_CACHE_SCHEME_XROOT);
-    ngx_conf_merge_str_value(conf->cache_origin_token_file,
-                             prev->cache_origin_token_file, "");
-    ngx_conf_merge_value(conf->cache_origin_forward_token,
-                         prev->cache_origin_forward_token, 0);
     ngx_conf_merge_value(conf->cache_lock_timeout,
                          prev->cache_lock_timeout, 300);
     ngx_conf_merge_uint_value(conf->cache_eviction_threshold,
@@ -586,8 +572,6 @@ xrootd_merge_srv_storage(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
     ngx_conf_merge_value(conf->io_uring_admin, prev->io_uring_admin, 0);
     ngx_conf_merge_value(conf->io_uring_restrict, prev->io_uring_restrict, 1);
 
-    ngx_conf_merge_size_value(conf->cache_slice_size,
-                              prev->cache_slice_size, 0);
 
     /* Checksum-on-fill: default best-effort (verify when a digest is available,
      * fail-closed on mismatch). Operators opt down to off or up to require. */
@@ -612,30 +596,6 @@ xrootd_merge_srv_storage(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
     ngx_conf_merge_str_value(conf->cache_issuer_url, prev->cache_issuer_url, "");
     if (conf->cache_advertise_ns == NULL) {
         conf->cache_advertise_ns = prev->cache_advertise_ns;
-    }
-
-    /* Phase 26: slice size must be 0 (off) or a positive multiple of the 1 MiB
-     * origin fetch chunk (so a fill never reads a partial chunk at a slice
-     * boundary). */
-    if (conf->cache_slice_size != 0
-        && (conf->cache_slice_size < (1024 * 1024)
-            || (conf->cache_slice_size % (1024 * 1024)) != 0))
-    {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_cache_slice must be a positive multiple of 1m");
-        return NGX_CONF_ERROR;
-    }
-
-    /* Slice-granular fills drive the XRootD wire client (origin_protocol.c); they
-     * are not implemented over the HTTP/Pelican transport. Reject the combination
-     * rather than silently mis-fetch. */
-    if (conf->cache_slice_size != 0
-        && conf->cache_origin_scheme != XROOTD_CACHE_SCHEME_XROOT)
-    {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_cache_slice requires a root:// origin "
-            "(HTTP/Pelican origins fetch whole files only)");
-        return NGX_CONF_ERROR;
     }
 
     /* Inherit compiled regex from parent if the child didn't set one */

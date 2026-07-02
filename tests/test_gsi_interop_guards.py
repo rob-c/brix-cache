@@ -296,16 +296,23 @@ def test_wire_contract_tripwires():
 #       implementation that can regress independently of the client).
 # --------------------------------------------------------------------------- #
 def test_xcache_origin_uses_native_client():
-    """xcache must fetch GSI origins via the native client, not the anon built-in.
+    """xcache must fetch GSI origins with a REAL GSI auth, not an anon-only login.
 
-    The built-in origin client only does an anonymous kXR_login, which EOS/dCache
-    reject; cache/fetch.c (and writethrough_flush.c) therefore fork/exec the
-    native client. If that exec path is removed, GSI origins silently stop working.
+    EOS/dCache reject an anonymous kXR_login. xcache historically fork/exec'd the
+    native client for this; phase-63 replaced the fork/exec with an IN-PROCESS GSI
+    origin client — cache/fetch.c builds an sd_xroot origin carrying the X.509
+    proxy / CA dir, and cache/origin_protocol.c performs the real XrdSecgsi
+    handshake. If either half is removed, GSI origins fall back to anon and are
+    rejected — so guard both halves of the in-process path.
     """
     fetch = _read("src/cache/fetch.c")
-    assert "cache_origin_client" in fetch and "posix_spawn" in fetch, (
-        "xcache no longer fork/execs the native client for GSI origins — GSI "
-        "origins (EOS/dCache) will fall back to anon login and be rejected")
+    assert "xrootd_sd_xroot_create_origin" in fetch and "x509_proxy" in fetch, (
+        "cache/fetch.c no longer builds a GSI-capable (X.509) sd_xroot origin — "
+        "GSI origins (EOS/dCache) would fall back to anon login and be rejected")
+    origin = _read("src/cache/origin_protocol.c")
+    assert "xrootd_cache_origin_auth_gsi" in origin, (
+        "cache/origin_protocol.c no longer performs the in-process GSI (X.509) "
+        "origin handshake — GSI origins would fall back to anon and be rejected")
 
 
 def test_tpc_outbound_uses_shared_core():

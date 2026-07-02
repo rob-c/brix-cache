@@ -239,10 +239,7 @@ xrootd_pelican_set_ca(ngx_stream_xrootd_srv_conf_t *conf, CURL *curl)
 {
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
-    if (conf->cache_origin_cadir.len > 0) {
-        curl_easy_setopt(curl, CURLOPT_CAPATH,
-                         (char *) conf->cache_origin_cadir.data);
-    } else if (conf->trusted_ca.len > 0) {
+    if (conf->trusted_ca.len > 0) {
         curl_easy_setopt(curl, CURLOPT_CAPATH, (char *) conf->trusted_ca.data);
     }
 }

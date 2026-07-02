@@ -4,6 +4,8 @@
 #include "../protocol/frame_hdr.h"        /* xrd_error_body_decode (kXR_error errnum) */
 #include "../gsi/gsi_core.h"              /* shared XrdSecgsi handshake kernel (C-3 GSI) */
 #include "../protocol/gsi.h"              /* kXRS_x509 bucket id (origin-cert verify) */
+#include "../sss/sss_keytab_kernel.h"     /* §14 SSS: shared keytab line grammar */
+#include <stdio.h>                        /* fdopen/fgets for the keytab reader */
 
 
 #if defined(__linux__)
@@ -359,6 +361,109 @@ xrootd_cache_origin_auth_gsi(xrootd_cache_fill_t *t,
     return 0;
 }
 
+/* cache_origin_load_sss_key — load the first usable key from an SSS keytab file into
+ * *out. The keytab is an operator-configured, trusted path (opened O_NOFOLLOW so a
+ * planted symlink cannot redirect it) parsed with the SHARED keytab line grammar
+ * (sss_keytab_parse_line) — the exact tokenisation the server's loader uses, so a key
+ * that works one side works the other. Returns 0 with *out filled, or -1 (unreadable /
+ * malformed / no usable key). */
+static int
+cache_origin_load_sss_key(const char *path, xrootd_sss_key_t *out)
+{
+    int   fd;
+    FILE *fp;
+    char  line[1024];
+    int   found = 0;
+
+    fd = open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);  /* vfs-seam-allow: config-domain SSS keytab (not export storage) */
+    if (fd < 0) {
+        return -1;
+    }
+    fp = fdopen(fd, "r");
+    if (fp == NULL) {
+        close(fd);
+        return -1;
+    }
+    ngx_memzero(out, sizeof(*out));
+    while (!found && fgets(line, sizeof(line), fp) != NULL) {
+        sss_keytab_entry_t entry;
+        int                rc = sss_keytab_parse_line(line, &entry,
+                                                      (int64_t) ngx_time());
+
+        if (rc < 0) {                            /* malformed ⇒ fail closed */
+            fclose(fp);
+            return -1;
+        }
+        if (rc == 0) {                           /* blank / comment / expired */
+            continue;
+        }
+        out->id      = entry.id;
+        out->exp     = (time_t) entry.exp;
+        out->key_len = entry.key_len;
+        ngx_memcpy(out->key, entry.key, entry.key_len);
+        ngx_cpystrn((u_char *) out->user,  (u_char *) entry.user,
+                    sizeof(out->user));
+        ngx_cpystrn((u_char *) out->group, (u_char *) entry.group,
+                    sizeof(out->group));
+        ngx_cpystrn((u_char *) out->name,  (u_char *) entry.name,
+                    sizeof(out->name));
+        found = 1;
+    }
+    fclose(fp);
+    return found ? 0 : -1;
+}
+
+/* xrootd_cache_origin_auth_sss — present an SSS (Simple Shared Secret) credential to
+ * the origin via the XrdSecsss protocol after a login advertised "&P=sss". Mints the
+ * SAME kXR_auth blob the proxy path sends (xrootd_sss_build_proxy_credential): a
+ * Blowfish-CFB block over a nonce + gen-time + the keytab user, keyed by the shared
+ * secret. Single-round: expect kXR_ok. Returns 0, or -1 (t error set). §14. */
+static int
+xrootd_cache_origin_auth_sss(xrootd_cache_fill_t *t,
+    xrootd_cache_origin_conn_t *oc, const char *keytab_path)
+{
+    xrootd_sss_key_t  key;
+    u_char            cred[2048];
+    size_t            cred_len = 0;
+    uint16_t          status;
+    uint32_t          dlen;
+    u_char           *body = NULL;
+
+    if (cache_origin_load_sss_key(keytab_path, &key) != 0) {
+        xrootd_cache_set_error(t, kXR_AuthFailed, 0,
+            "cache origin SSS keytab unreadable or has no usable key");
+        return -1;
+    }
+    if (xrootd_sss_build_proxy_credential(&key, key.user, cred, sizeof(cred),
+                                          &cred_len) != NGX_OK)
+    {
+        xrootd_cache_set_error(t, kXR_AuthFailed, 0,
+            "cache origin SSS credential build failed");
+        return -1;
+    }
+    if (cache_origin_send_kxr_auth(oc, "sss", cred, (uint32_t) cred_len) != 0) {
+        xrootd_cache_set_error(t, kXR_ServerError, errno,
+            "cache origin SSS auth write failed");
+        return -1;
+    }
+    if (xrootd_cache_read_response(t, oc, &status, &body, &dlen, 4096) != 0) {
+        return -1;
+    }
+    if (status == kXR_error) {
+        xrootd_cache_set_origin_error(t, body, dlen,
+                                      "cache origin SSS auth rejected");
+        free(body);
+        return -1;
+    }
+    free(body);
+    if (status != kXR_ok) {                      /* SSS is single-round */
+        xrootd_cache_set_error(t, kXR_AuthFailed, 0,
+                               "cache origin SSS auth incomplete");
+        return -1;
+    }
+    return 0;
+}
+
 /* xrootd_cache_origin_bootstrap — three-phase XRootD connection bootstrap on a
  * raw TCP/TLS socket: ClientInitHandShake → kXR_protocol negotiation (a
  * kXR_gotoTLS flag triggers a TLS upgrade when configured) → anonymous kXR_login
@@ -461,6 +566,7 @@ xrootd_cache_origin_bootstrap(xrootd_cache_fill_t *t,
         int           needs_auth = (ngx_strlchr((u_char *) parms,
                                         (u_char *) parms + plen, '=') != NULL);
         int           has_ztn = (ngx_strnstr((u_char *) parms, "ztn", plen) != NULL);
+        int           has_sss = (ngx_strnstr((u_char *) parms, "sss", plen) != NULL);
         const char   *gp = cache_origin_gsi_parms((const char *) parms, plen);
         char          gsi_parms[256];
         int           has_gsi = 0;
@@ -489,10 +595,15 @@ xrootd_cache_origin_bootstrap(xrootd_cache_fill_t *t,
                 return xrootd_cache_origin_auth_gsi(t, oc, gsi_parms,
                     (const char *) t->conf->cache_origin_x509_proxy.data);
             }
+            if (has_sss && t->conf->cache_origin_sss_keytab.len > 0) {
+                return xrootd_cache_origin_auth_sss(t, oc,
+                    (const char *) t->conf->cache_origin_sss_keytab.data);
+            }
             xrootd_cache_set_error(t, kXR_AuthFailed, 0,
                 (t->conf->cache_origin_bearer.len > 0
-                 || t->conf->cache_origin_x509_proxy.len > 0)
-                    ? "cache origin auth protocol not supported (need ztn/gsi)"
+                 || t->conf->cache_origin_x509_proxy.len > 0
+                 || t->conf->cache_origin_sss_keytab.len > 0)
+                    ? "cache origin auth protocol not supported (need ztn/gsi/sss)"
                     : "cache origin requires authentication (no credential set)");
             return -1;
         }

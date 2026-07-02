@@ -338,9 +338,11 @@ def test_checksum_fs_walk_staging_and_cms_frame_helpers_are_shared():
     _assert_markers("src/fs/vfs_walk.c", ["xrootd_fs_is_dot_entry("])
 
     # s3/put was split: the staged_file include is in s3_put_internal.h, the open
-    # call stays in put.c; webdav/tpc.c still carries both directly.
+    # call stays in put.c — now routed through the VFS seam
+    # (xrootd_vfs_staged_open, phase-62 VFS closure) rather than the raw
+    # xrootd_staged_open; webdav/tpc.c still carries the raw open directly.
     _assert_markers("src/s3/s3_put_internal.h", ["../compat/staged_file.h"])
-    _assert_markers("src/s3/put.c", ["xrootd_staged_open("])
+    _assert_markers("src/s3/put.c", ["xrootd_vfs_staged_open("])
     _assert_markers("src/webdav/tpc.c",
                     ["../compat/staged_file.h", "xrootd_staged_open("])
 

@@ -101,6 +101,26 @@ xrootd_rl_rbtree_insert_value(ngx_rbtree_node_t *temp,
  *   3. fresh           — first creation: carve the shctx out of the slab,
  *      init the rbtree + LRU queue, and stash a human-readable log prefix.
  */
+void
+xrootd_rl_zone_reset_gauges(xrootd_rl_shctx_t *sh)
+{
+    ngx_queue_t      *q;
+    xrootd_rl_node_t *rln;
+
+    if (sh == NULL) {
+        return;
+    }
+    for (q = ngx_queue_head(&sh->queue);
+         q != ngx_queue_sentinel(&sh->queue);
+         q = ngx_queue_next(q))
+    {
+        rln = ngx_queue_data(q, xrootd_rl_node_t, queue);
+        rln->in_flight  = 0;               /* leaked concurrency reservation */
+        rln->open_files = 0;               /* leaked per-user open handle    */
+    }
+}
+
+
 static ngx_int_t
 xrootd_rl_init_zone(ngx_shm_zone_t *shm_zone, void *data)
 {
@@ -109,9 +129,16 @@ xrootd_rl_init_zone(ngx_shm_zone_t *shm_zone, void *data)
     ngx_slab_pool_t  *shpool;
 
     if (ozone != NULL) {
-        /* Reload: inherit the already-initialised shared structure. */
+        /* Reload: inherit the already-initialised shared structure. The
+         * time-windowed rate/bandwidth buckets survive, but the in-use gauges
+         * (in_flight, open_files) are zeroed: they self-heal only via a matched
+         * decrement, so a worker SIGKILLed mid-request (e.g. at reload's
+         * worker_shutdown_timeout) would otherwise leak its increment forever,
+         * accumulating across reboots until the cap wedges the key. Resetting
+         * here bounds any crash-leak to a single generation. */
         zone->sh     = ozone->sh;
         zone->shpool = ozone->shpool;
+        xrootd_rl_zone_reset_gauges(zone->sh);
         return NGX_OK;
     }
 

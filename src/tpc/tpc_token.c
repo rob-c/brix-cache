@@ -113,9 +113,35 @@ tpc_token_validate_delegated(xrootd_tpc_pull_t *t)
     return 0;
 }
 
-/* WHAT: Fetches OAuth2/OIDC access token via fork/exec to local oidc-agent daemon using UNIX-socket JSON IPC. Creates pipe → forks child → dup2 STDOUT → execve dedicated helper binary (nginx-xrootd-tpc-token) with OIDC_SOCK env or fallback /run/user/1000/oidc/oidc_agent.sock → if execve fails falls back to execlp oidc-token -c default → parent reads pipe stdout into buffer → waitpid checks WIFEXITED+WEXITSTATUS==0 → tpc_trim_trailing(buf) → if buf[0]=='{' parses JSON via xrootd_oauth2_parse_access_token else copies plain token with size guard. Returns 0 on success, -1 with err_msg/xrd_error=kXR_AuthFailed on failure.
+/* WHAT: Resolve the oidc-token binary to an absolute path — first honours an
+ * explicit override env var, then probes standard install locations.
+ * WHY:  The fallback exec path must not be subject to $PATH substitution in the
+ * daemon's environment (a compromised PATH entry could shadow the real binary).
+ * HOW:  secure_getenv("XROOTD_OIDC_TOKEN_BIN") if access(X_OK) passes; else
+ * walk a fixed candidate list; return NULL if none executable → caller _exit(127). */
+static const char *
+resolve_oidc_token_binary(void)
+{
+    static const char *const candidates[] = {
+        "/usr/bin/oidc-token", "/usr/local/bin/oidc-token", NULL
+    };
+    const char *const *p;
+    const char *override = secure_getenv("XROOTD_OIDC_TOKEN_BIN");
+
+    if (override != NULL && access(override, X_OK) == 0) {
+        return override;
+    }
+    for (p = candidates; *p != NULL; p++) {
+        if (access(*p, X_OK) == 0) {
+            return *p;
+        }
+    }
+    return NULL;
+}
+
+/* WHAT: Fetches OAuth2/OIDC access token via fork/exec to local oidc-agent daemon using UNIX-socket JSON IPC. Creates pipe → forks child → dup2 STDOUT → execve dedicated helper binary (nginx-xrootd-tpc-token) with OIDC_SOCK env or fallback /run/user/1000/oidc/oidc_agent.sock → if execve fails falls back to execve resolved oidc-token binary with sanitized env → parent reads pipe stdout into buffer → waitpid checks WIFEXITED+WEXITSTATUS==0 → tpc_trim_trailing(buf) → if buf[0]=='{' parses JSON via xrootd_oauth2_parse_access_token else copies plain token with size guard. Returns 0 on success, -1 with err_msg/xrd_error=kXR_AuthFailed on failure.
  * WHY: CMS/Fermilab environments use oidc-agent daemons for OIDC token management. This function provides a robust fallback chain (dedicated helper binary → generic oidc-token CLI) ensuring token fetch works even when the custom binary is absent. JSON parsing handles agent daemon's structured output; plain-token paths handle oidc-token CLI's raw output. Pipe-based IPC avoids TOCTOU race on executable path (execve without access() pre-check).
- * HOW: pipe() → fork() → child close(pipefd[0]) dup2(pipefd[1],STDOUT) execve helper binary or execlp oidc-token → parent close(pipefd[1]) read loop into buffer null-terminate waitpid check trim trailing whitespace if JSON parse access_token else memcpy plain token. */
+ * HOW: pipe() → fork() → child close(pipefd[0]) dup2(pipefd[1],STDOUT) execve helper binary or resolve_oidc_token_binary → execve with controlled envp → parent close(pipefd[1]) read loop into buffer null-terminate waitpid check trim trailing whitespace if JSON parse access_token else memcpy plain token. */
 static int
 tpc_token_oidc_agent(xrootd_tpc_pull_t *t, char *token_out, size_t token_out_sz)
 {
@@ -165,8 +191,38 @@ tpc_token_oidc_agent(xrootd_tpc_pull_t *t, char *token_out, size_t token_out_sz)
         execve(argv[0], argv, NULL);
         /* execve returned — helper not found or not executable; continue */
 
-        /* Fallback: the generic oidc-token CLI from the default profile. */
-        execlp("oidc-token", "oidc-token", "-c", "default", (char *) NULL);
+        /* Fallback: the generic oidc-token CLI, resolved to an absolute path.
+         * Avoids $PATH substitution — the daemon's PATH is untrusted.
+         * Build a minimal controlled environment: PATH + HOME + OIDC_SOCK +
+         * XDG_RUNTIME_DIR (the latter two are needed by oidc-token to locate its
+         * config and agent socket); do not inherit the full environ. */
+        {
+            const char *fb_bin = resolve_oidc_token_binary();
+            if (fb_bin != NULL) {
+                const char *home_val = getenv("HOME");
+                const char *xdg_val  = getenv("XDG_RUNTIME_DIR");
+                char  home_buf[280], oidc_buf[280], xdg_buf[280];
+                char *fb_argv[4] = { (char *) fb_bin, "-c", "default", NULL };
+                char *fb_envp[5];
+                int   ei = 0;
+
+                fb_envp[ei++] = "PATH=/usr/bin:/bin";
+                if (home_val != NULL) {
+                    snprintf(home_buf, sizeof(home_buf), "HOME=%s", home_val);
+                    fb_envp[ei++] = home_buf;
+                }
+                if (sock_env != NULL) {
+                    snprintf(oidc_buf, sizeof(oidc_buf), "OIDC_SOCK=%s", sock_env);
+                    fb_envp[ei++] = oidc_buf;
+                }
+                if (xdg_val != NULL) {
+                    snprintf(xdg_buf, sizeof(xdg_buf), "XDG_RUNTIME_DIR=%s", xdg_val);
+                    fb_envp[ei++] = xdg_buf;
+                }
+                fb_envp[ei] = NULL;
+                execve(fb_bin, fb_argv, fb_envp);
+            }
+        }
         _exit(127);  /* both execs failed: 127 == "command not found" */
     }
 

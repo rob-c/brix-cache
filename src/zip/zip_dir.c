@@ -12,6 +12,7 @@
 #include "zip_dir.h"
 #include "zip_kernel.h"
 #include "../fs/backend/sd.h"   /* route ZIP directory byte reads through the SD backend */
+#include "../shared/safe_size.h"   /* overflow-checked size arithmetic */
 
 #include <stdlib.h>
 #include <string.h>
@@ -98,7 +99,13 @@ xrootd_zip_find_member(int fd, off_t archive_size, const char *member,
         return XROOTD_ZIP_ECORRUPT;   /* empty directory — no member to find */
     }
 
-    cd = malloc((size_t) cd_size);
+    /* cd_size is read from the (untrusted) EOCD record; guard against a value
+     * so close to SIZE_MAX that the +1 sentinel byte allocation would wrap. */
+    size_t cd_alloc;
+    if (xrootd_size_add((size_t) cd_size, 1, &cd_alloc) != NGX_OK) {
+        return XROOTD_ZIP_ECORRUPT;
+    }
+    cd = malloc(cd_alloc);
     if (cd == NULL) {
         return XROOTD_ZIP_EIO;
     }
@@ -197,7 +204,13 @@ xrootd_zip_extract_full(int fd, const xrootd_zip_member_t *m,
         if (m->comp_size == 0) {
             return (m->uncomp_size == 0) ? 0 : -1;
         }
-        comp = malloc((size_t) m->comp_size);
+        /* comp_size comes from the (untrusted) central directory; reject a
+         * value that would cause the +1 guard byte allocation to overflow. */
+        size_t comp_alloc;
+        if (xrootd_size_add((size_t) m->comp_size, 1, &comp_alloc) != NGX_OK) {
+            return -1;
+        }
+        comp = malloc(comp_alloc);
         if (comp == NULL) {
             return -1;
         }

@@ -339,23 +339,9 @@ int xrootd_cache_origin_sync(xrootd_cache_fill_t *t,
  * -1 on error (t error set), 1 when admission declined (sets t->result=NGX_DECLINED
  * so the caller redirects the client to the origin). */
 int xrootd_cache_fetch_origin(xrootd_cache_fill_t *t);
-/* Build a bare sd_xroot cache-origin instance from the legacy cache_origin READ
- * credentials (cache_origin_proxy/cadir/token_file + family + tls). The SINGLE
- * source of the read-origin credential mapping — the whole-file fetch (fetch.c) and
- * the slice decorator (cache_storage.c) both build through here so their auth cannot
- * drift. Caller owns the instance (xrootd_sd_xroot_destroy). NULL on failure. */
-xrootd_sd_instance_t *xrootd_cache_build_origin(
-    const ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log);
-/* Build a bare read-only sd_remote (S3/SigV4) cache-origin instance from the legacy
- * cache_origin_s3_* config. The SINGLE source of the S3-origin config mapping (the
- * whole-file fetch and the config-time source builder both use it). Caller owns the
- * instance (xrootd_sd_remote_destroy). NULL on failure / when no bucket is set. */
-xrootd_sd_instance_t *xrootd_cache_build_s3_origin(
-    const ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log);
-/* Build a bare read-only sd_http (HTTP/HTTPS) cache-origin instance from the legacy
- * cache_origin config. Caller owns it (xrootd_sd_http_destroy). NULL on failure. */
-xrootd_sd_instance_t *xrootd_cache_build_http_origin(
-    const ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log);
+
+
+
 /* Build the WRITE-BACK origin (flush target) from wt_origin/cache_origin with the
  * write-back credential precedence. Distinct from xrootd_cache_build_origin (READ).
  * Caller owns it (xrootd_sd_xroot_destroy). NULL if no origin configured. */

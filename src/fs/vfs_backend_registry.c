@@ -29,6 +29,10 @@ typedef struct {
                                                * upstream ("" = anonymous) */
     char                  origin_x509_proxy[1024]; /* §14/C-3 GSI: proxy PEM path */
     char                  origin_ca_dir[1024];      /* §14/C-3 GSI: origin-cert CA */
+    char                  origin_s3_access_key[256]; /* §14 S3 SigV4: access-key id */
+    char                  origin_s3_secret_key[256]; /* §14 S3 SigV4: secret key    */
+    char                  origin_s3_region[64];      /* §14 S3 SigV4: region scope  */
+    char                  origin_sss_keytab[1024];   /* §14 SSS: shared-secret keytab*/
     int                   staging;       /* xroot: stage local + promote on commit */
     /* ceph backend: the export's namespace + data live in a RADOS pool (no local
      * dir); root_canon is just the logical mount point. */
@@ -348,28 +352,48 @@ xrootd_vfs_backend_config_tape(const char *root_canon, const char *adapter,
 }
 
 void
-xrootd_vfs_backend_set_credential(const char *root_canon, const char *bearer,
-    const char *x509_proxy, const char *ca_dir)
+xrootd_vfs_backend_set_credential(const char *root_canon,
+    const xrootd_vfs_backend_cred_t *cred)
 {
-    ngx_uint_t i;
+    xrootd_vfs_backend_cred_t  empty;
+    xrootd_vfs_backend_entry_t *e;
+    ngx_uint_t                 i;
 
     if (root_canon == NULL || root_canon[0] == '\0') {
         return;
     }
+    if (cred == NULL) {
+        ngx_memzero(&empty, sizeof(empty));     /* NULL ⇒ clear to anonymous */
+        cred = &empty;
+    }
     for (i = 0; i < xrootd_vfs_backend_count; i++) {
-        if (ngx_strcmp(xrootd_vfs_backends[i].root_canon, root_canon) == 0) {
-            ngx_cpystrn((u_char *) xrootd_vfs_backends[i].origin_token,
-                        (u_char *) (bearer ? bearer : ""),
-                        sizeof(xrootd_vfs_backends[i].origin_token));
-            ngx_cpystrn((u_char *) xrootd_vfs_backends[i].origin_x509_proxy,
-                        (u_char *) (x509_proxy ? x509_proxy : ""),
-                        sizeof(xrootd_vfs_backends[i].origin_x509_proxy));
-            ngx_cpystrn((u_char *) xrootd_vfs_backends[i].origin_ca_dir,
-                        (u_char *) (ca_dir ? ca_dir : ""),
-                        sizeof(xrootd_vfs_backends[i].origin_ca_dir));
-            xrootd_vfs_backends[i].inst = NULL;   /* rebuilt with the credential */
-            return;
+        e = &xrootd_vfs_backends[i];
+        if (ngx_strcmp(e->root_canon, root_canon) != 0) {
+            continue;
         }
+        ngx_cpystrn((u_char *) e->origin_token,
+                    (u_char *) (cred->bearer ? cred->bearer : ""),
+                    sizeof(e->origin_token));
+        ngx_cpystrn((u_char *) e->origin_x509_proxy,
+                    (u_char *) (cred->x509_proxy ? cred->x509_proxy : ""),
+                    sizeof(e->origin_x509_proxy));
+        ngx_cpystrn((u_char *) e->origin_ca_dir,
+                    (u_char *) (cred->ca_dir ? cred->ca_dir : ""),
+                    sizeof(e->origin_ca_dir));
+        ngx_cpystrn((u_char *) e->origin_s3_access_key,
+                    (u_char *) (cred->s3_access_key ? cred->s3_access_key : ""),
+                    sizeof(e->origin_s3_access_key));
+        ngx_cpystrn((u_char *) e->origin_s3_secret_key,
+                    (u_char *) (cred->s3_secret_key ? cred->s3_secret_key : ""),
+                    sizeof(e->origin_s3_secret_key));
+        ngx_cpystrn((u_char *) e->origin_s3_region,
+                    (u_char *) (cred->s3_region ? cred->s3_region : ""),
+                    sizeof(e->origin_s3_region));
+        ngx_cpystrn((u_char *) e->origin_sss_keytab,
+                    (u_char *) (cred->sss_keytab ? cred->sss_keytab : ""),
+                    sizeof(e->origin_sss_keytab));
+        e->inst = NULL;                          /* rebuilt with the credential */
+        return;
     }
 }
 
@@ -857,6 +881,7 @@ xrootd_vfs_backend_build_source(xrootd_vfs_backend_entry_t *e, ngx_log_t *log)
                  (e->origin_token[0] != '\0') ? e->origin_token : NULL,
                  (e->origin_x509_proxy[0] != '\0') ? e->origin_x509_proxy : NULL,
                  (e->origin_ca_dir[0] != '\0') ? e->origin_ca_dir : NULL,
+                 (e->origin_sss_keytab[0] != '\0') ? e->origin_sss_keytab : NULL,
                  log);
         if (inst == NULL) {
             ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
@@ -989,6 +1014,16 @@ xrootd_vfs_backend_build_source(xrootd_vfs_backend_entry_t *e, ngx_log_t *log)
                     sizeof(cfg.bucket));
         cfg.timeout_ms = 60000;
         cfg.transport  = &xrootd_s3_origin_curl_transport;
+        /* §14: SigV4 credentials from the attached xrootd_credential (s3_* fields);
+         * empty ⇒ anonymous (public bucket). Region defaults to us-east-1. */
+        ngx_cpystrn((u_char *) cfg.access_key,
+                    (u_char *) e->origin_s3_access_key, sizeof(cfg.access_key));
+        ngx_cpystrn((u_char *) cfg.secret_key,
+                    (u_char *) e->origin_s3_secret_key, sizeof(cfg.secret_key));
+        ngx_cpystrn((u_char *) cfg.region,
+                    (u_char *) (e->origin_s3_region[0] != '\0'
+                                ? e->origin_s3_region : "us-east-1"),
+                    sizeof(cfg.region));
 
         inst = xrootd_sd_remote_create(&cfg, log);
         if (inst == NULL) {

@@ -1243,72 +1243,20 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       offsetof(ngx_stream_xrootd_srv_conf_t, cache_root),
       NULL },
 
-    { ngx_string("xrootd_cache_origin"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      xrootd_conf_set_cache_origin,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      0,
-      NULL },
-
-    { ngx_string("xrootd_cache_origin_tls"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, cache_origin_tls),
-      NULL },
+    /* §14 (phase-64): the legacy cache-origin config model is RETIRED. The
+     * directives xrootd_cache_origin{,_tls,_proxy,_cadir,_client,_token_file,
+     * _forward_token,_s3_*} are deleted — a cache's source is the export's
+     * xrootd_storage_backend, its identity a named xrootd_credential attached
+     * via xrootd_storage_credential (x509_proxy/ca_dir, token, s3_access_key/
+     * s3_secret_key/s3_region, sss_keytab), and the physical cache is
+     * xrootd_cache_store. cache_origin_family survives below: it is the connect
+     * address-family policy for the tier root:// backend, not an origin knob. */
 
     { ngx_string("xrootd_cache_origin_family"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       xrootd_conf_set_cache_origin_family,
       NGX_STREAM_SRV_CONF_OFFSET,
       0,
-      NULL },
-
-    /* X.509-proxy (GSI) auth to the origin: when set, cache fills fork/exec the
-     * native client with these credentials so the cache can authenticate to a GSI
-     * origin (e.g. EOS) that rejects the built-in anonymous login. */
-    { ngx_string("xrootd_cache_origin_proxy"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, cache_origin_proxy),
-      NULL },
-
-    { ngx_string("xrootd_cache_origin_cadir"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, cache_origin_cadir),
-      NULL },
-
-    { ngx_string("xrootd_cache_origin_client"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, cache_origin_client),
-      NULL },
-
-    /* S3 origin (scheme s3://) SigV4 credentials. The bucket comes from the URL;
-     * region defaults to us-east-1. */
-    { ngx_string("xrootd_cache_origin_s3_access_key"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, cache_origin_s3_access_key),
-      NULL },
-
-    { ngx_string("xrootd_cache_origin_s3_secret_key"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, cache_origin_s3_secret_key),
-      NULL },
-
-    { ngx_string("xrootd_cache_origin_s3_region"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, cache_origin_s3_region),
       NULL },
 
     { ngx_string("xrootd_cache_lock_timeout"),
@@ -1392,24 +1340,9 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       0,
       NULL },
 
-    /* Cache-storage backend selection: bind the read cache and the write-back
-     * staging cache to a storage driver (e.g. pblock) on their own roots — the
-     * cache then keeps its bytes in that backend. Default ("" / posix) = the
-     * POSIX driver on the role's directory. A driver-backed cache REQUIRES a
-     * distinct POSIX xrootd_cache_state_root for its sidecars (validated). */
-    { ngx_string("xrootd_cache_storage_backend"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, cache_storage_backend),
-      NULL },
-
-    { ngx_string("xrootd_cache_storage_block_size"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_size_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, cache_storage_block_size),
-      NULL },
+    /* §14 (phase-64): xrootd_cache_storage_backend/_block_size are RETIRED —
+     * a driver-backed cache is the tier grammar's xrootd_cache_store
+     * ("pblock:<dir> block_size=<n>", any driver), cinfo carried in-store. */
 
     { ngx_string("xrootd_cache_wt_stage_root"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
@@ -1510,13 +1443,9 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       offsetof(ngx_stream_xrootd_srv_conf_t, io_uring_restrict),
       NULL },
 
-    /* Phase 26: slice-granular caching (size 0 = off; multiple of 1 MiB). */
-    { ngx_string("xrootd_cache_slice"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_size_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, cache_slice_size),
-      NULL },
+    /* §14 (phase-64): the legacy xrootd_cache_slice is RETIRED — slice/partial
+     * caching is the tier grammar's xrootd_cache_slice_size (same 1 MiB-multiple
+     * validation), served by the composed sd_cache partial path (§6.5). */
 
     /* POSIX extended regular expression matched against the path basename.
      * Matching files are admitted to cache even if they exceed the size limit. */

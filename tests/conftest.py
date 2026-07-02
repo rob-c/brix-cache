@@ -77,7 +77,16 @@ from settings import (
 
 # Repo cwd captured at import (pytest's rootdir).  The session chdir()s into
 # CWD_DIR for the run and restores this at teardown before wiping the tree.
-_ORIG_CWD = os.getcwd()
+# getcwd() raises FileNotFoundError if the process's cwd was removed out from
+# under it (e.g. an xdist worker whose scratch cwd a concurrent session wiped,
+# or a re-import of this module from a transient cwd).  Fall back to the repo
+# root (this file lives in <repo>/tests/) so import never fails — a robust
+# restore target regardless.  Without this, a racy getcwd() aborts collection on
+# some xdist workers, tripping pytest's "different tests collected" guard.
+try:
+    _ORIG_CWD = os.getcwd()
+except OSError:
+    _ORIG_CWD = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Guards the destructive full-tree wipe so it runs at most once per process
 # (defensive — _setup_session is normally called only from pytest_sessionstart).
 _test_tree_wiped = False
@@ -397,13 +406,43 @@ def pytest_configure(config):
     )
 
 
+# Module-name substrings that identify the multi-minute "slow" families: the
+# destructive/resilience suites, multi-node meshes, differential client suites,
+# conformance/interop batches, and throughput/perf runs.  Tests in these modules
+# are auto-marked `slow` so a fast iteration check can deselect them with
+# `-m "not slow"` (see tests/run_suite.sh --fast).  Over-inclusion is safe: the
+# full run (run_suite.sh) covers everything regardless of this marker.
+_SLOW_MODULE_HINTS = (
+    "resilien", "chaos", "evil_actor", "evil_paths", "netfault", "net_resilience",
+    "topolog", "conformance", "official", "clientconf", "hybrid", "throughput",
+    "performance", "stress", "redteam", "gfal", "busybox", "xrootdfs",
+    "fuse", "concurrent", "proxy_large", "large_read", "_mesh", "cms_mesh",
+    "interop", "_load", "_e2e",
+    # build/compile matrices — a single test can rebuild+dlopen a module (~73s),
+    # which has no place in a minutes-long iteration check (full run still runs it).
+    "build_matrix",
+)
+
+
+def _is_slow_module(name):
+    """True if a test module's basename marks it a slow-family test."""
+    stem = name[:-3] if name.endswith(".py") else name
+    return any(h in stem for h in _SLOW_MODULE_HINTS)
+
+
 def pytest_collection_modifyitems(config, items):
-    """Skip requires_local_server tests in remote mode; order CMS tests last."""
+    """Skip requires_local_server tests in remote mode; order CMS tests last;
+    auto-mark the slow families so `-m "not slow"` yields a fast iteration set."""
     cms_items = []
     other_items = []
 
     for item in items:
         name = os.path.basename(str(item.fspath))
+
+        # Auto-tag slow families (idempotent — a hand-placed @slow still counts).
+        # The <5min PR gate runs `-m "not slow"`; --nightly runs the slow set.
+        if _is_slow_module(name):
+            item.add_marker(pytest.mark.slow)
 
         if item.get_closest_marker("requires_local_server") and REMOTE_SERVER:
             item.add_marker(

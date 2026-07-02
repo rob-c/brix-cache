@@ -42,32 +42,33 @@ stream { server {
     xrootd_allow_write on;
 } }
 EOF
-# Node B — LEGACY slice cache over root://O, GSI via the cache_origin directives.
+# Node B — TIER slice cache over root://O, GSI via the composable tier grammar
+# (xrootd_storage_backend + xrootd_storage_credential + xrootd_cache_store +
+# xrootd_cache_slice_size — the composed sd_cache partial-fills each slice).
 cat > "$PFX/b/nginx.conf" <<EOF
 daemon on; error_log $PFX/b/logs/e.log info; pid $PFX/b/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
-stream { server {
+stream {
+    xrootd_credential origin { x509_proxy $PROXY_STD; ca_dir $CA_DIR; }
+    server {
     listen 127.0.0.1:${BPORT}; xrootd on; xrootd_root $PFX/b/export; xrootd_auth none;
-    xrootd_cache on;
-    xrootd_cache_root  $PFX/b/cache;
-    xrootd_cache_origin       127.0.0.1:${OPORT};
-    xrootd_cache_origin_proxy $PROXY_STD;
-    xrootd_cache_origin_cadir $CA_DIR;
-    xrootd_cache_slice 1m;
+    xrootd_storage_backend root://127.0.0.1:${OPORT};
+    xrootd_storage_credential origin;
+    xrootd_cache_store posix:$PFX/b/cache; xrootd_cache_root /;
+    xrootd_cache_slice_size 1m;
 } }
 EOF
-# Node N — legacy slice cache but NO proxy (negative control: anonymous → GSI rejects).
+# Node N — tier slice cache but NO credential (negative control: anonymous → GSI rejects).
 cat > "$PFX/n/nginx.conf" <<EOF
 daemon on; error_log $PFX/n/logs/e.log info; pid $PFX/n/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 stream { server {
     listen 127.0.0.1:${NPORT}; xrootd on; xrootd_root $PFX/n/export; xrootd_auth none;
-    xrootd_cache on;
-    xrootd_cache_root  $PFX/n/cache;
-    xrootd_cache_origin 127.0.0.1:${OPORT};
-    xrootd_cache_slice 1m;
+    xrootd_storage_backend root://127.0.0.1:${OPORT};
+    xrootd_cache_store posix:$PFX/n/cache; xrootd_cache_root /;
+    xrootd_cache_slice_size 1m;
 } }
 EOF
 

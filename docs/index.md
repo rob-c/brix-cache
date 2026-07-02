@@ -198,6 +198,7 @@ graph TD
 |----------|-------------|
 | [Security Hardening Guide](07-security/hardening-guide.md) | Four-layer security model, hardening checklist, production recommendations |
 | [Threat Model & Security Posture](07-security/threat-model.md) | Adversarial threat actors, existing controls, Phase 28 hardening (CMS sss auth, TPC SSRF, side-channels, admin blast radius, concurrency limits), and deferred items |
+| [Codebase Hardening — Findings & Summary (2026-06)](09-developer-guide/lessons-codebase-hardening-2026-06.md) | Retrospective of the whole-tree hardening pass: link-time hardening (PIE/RELRO/BIND_NOW), `safe_size.h` overflow-guard adoption, in-process libFuzzer targets, ASan/UBSan lane, oidc-token exec hardening, systemd sandbox — with residual follow-ups |
 
 ### Running in Production
 *Day-to-day operations: opcode support, proxy mode, clusters, and manager configuration.*
@@ -263,6 +264,7 @@ Contributing code? Start here. Everything you need to navigate the source tree, 
 | [Postmortem — Proxy Splice Under-drain Stall](09-developer-guide/postmortem-proxy-splice-underdrain-stall.md) | How a flaky mesh-topology test was traced to an `xrootd_proxy` zero-copy splice stall on large reads, and the self-healing fallback that fixed it — plus the systematic-debugging lessons |
 | [Client Mount & Connect Latency](09-developer-guide/client-mount-connect-latency.md) | Measure-first pass over `xrootdfs` mount / `xrdfs` connect: why the mount opened 5 serial connections, the parallel-eager + `--lazy-streams` fix, the GSI-rtag concurrency prerequisite, and connect-path micro-wins |
 | [Source Reduction Plan](09-developer-guide/source-reduction-plan.md) | External-library and nginx built-in delegation plan with LOC estimates |
+| [Deployment Hardening](09-developer-guide/deployment-hardening.md) | Hardened systemd unit directives, capability bounding set rationale, build-side RELRO/PIE defaults, and operator checklist for tightening/widening the sandbox |
 
 ---
 

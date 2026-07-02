@@ -24,7 +24,8 @@ thread_pool default threads=2;
 events { worker_connections 64; }
 stream { server {
     listen 127.0.0.1:11620; xrootd on; xrootd_auth none;
-    xrootd_cache on; xrootd_cache_root $PFX/cache; xrootd_cache_origin 127.0.0.1:1; ${3:-}
+    xrootd_storage_backend root://127.0.0.1:1;
+    xrootd_cache on; xrootd_cache_root $PFX/cache; ${3:-}
     $1 $2
 } }
 EOF

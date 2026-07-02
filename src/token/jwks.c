@@ -15,6 +15,7 @@
 #include "token_internal.h"
 #include "json.h"
 #include "../compat/log_diag.h"
+#include "../shared/safe_size.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -176,7 +177,13 @@ xrootd_jwks_load(ngx_log_t *log, const char *path,
         return -1;
     }
 
-    buf = malloc((size_t) fsize + 1);
+    /* Defense-in-depth: reject a negative or wraparound fsize before malloc. */
+    size_t buf_sz;
+    if (fsize < 0 || xrootd_size_add((size_t) fsize, 1, &buf_sz) != NGX_OK) {
+        fclose(fp);
+        return -1;
+    }
+    buf = malloc(buf_sz);
     if (buf == NULL) {
         fclose(fp);
         return -1;

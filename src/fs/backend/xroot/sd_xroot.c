@@ -32,6 +32,7 @@ typedef struct {
     char                          bearer[4096]; /* §14/C-3 ztn token ("" = anon) */
     char                          x509_proxy[1024]; /* §14/C-3 GSI proxy path */
     char                          ca_dir[1024];     /* §14/C-3 GSI origin-cert CA */
+    char                          sss_keytab[1024]; /* §14 SSS shared-secret keytab */
 } sd_xroot_inst_state;
 
 /* Per-open state: a live origin connection + open file handle + the synthetic
@@ -788,7 +789,7 @@ xrootd_sd_xroot_create(void *conf, ngx_log_t *log)
 xrootd_sd_instance_t *
 xrootd_sd_xroot_create_origin(const char *host, int port, int tls,
     int af_policy, const char *bearer, const char *x509_proxy,
-    const char *ca_dir, ngx_log_t *log)
+    const char *ca_dir, const char *sss_keytab, ngx_log_t *log)
 {
     xrootd_sd_instance_t         *inst;
     sd_xroot_inst_state          *is;
@@ -827,6 +828,14 @@ xrootd_sd_xroot_create_origin(const char *host, int port, int tls,
                     sizeof(is->x509_proxy));
         synth->cache_origin_x509_proxy.data = (u_char *) is->x509_proxy;
         synth->cache_origin_x509_proxy.len  = ngx_strlen(is->x509_proxy);
+    }
+    /* §14 SSS: present a shared-secret credential minted from this keytab when the
+     * origin advertises &P=sss. Bytes on the instance so synth's str stays valid. */
+    if (sss_keytab != NULL && sss_keytab[0] != '\0') {
+        ngx_cpystrn((u_char *) is->sss_keytab, (u_char *) sss_keytab,
+                    sizeof(is->sss_keytab));
+        synth->cache_origin_sss_keytab.data = (u_char *) is->sss_keytab;
+        synth->cache_origin_sss_keytab.len  = ngx_strlen(is->sss_keytab);
     }
     if (ca_dir != NULL && ca_dir[0] != '\0') {
         struct stat ca_st;

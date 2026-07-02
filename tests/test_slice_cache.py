@@ -55,7 +55,7 @@ class TestSliceLibrary:
 
 
 class TestSliceConfig:
-    """Step F — the xrootd_cache_slice directive parses and validates."""
+    """Step F — the xrootd_cache_slice_size tier directive parses and validates."""
 
     def _nginx_t(self, tmp_path, slice_value):
         cache = tmp_path / "cache"
@@ -73,10 +73,10 @@ class TestSliceConfig:
                     xrootd on;
                     xrootd_root {tmp_path};
                     xrootd_auth none;
-                    xrootd_cache on;
-                    xrootd_cache_root {cache};
-                    xrootd_cache_origin {HOST}:1095;
-                    xrootd_cache_slice {slice_value};
+                    xrootd_storage_backend root://{HOST}:1095;
+                    xrootd_cache_store posix:{cache};
+                    xrootd_cache_root /;
+                    xrootd_cache_slice_size {slice_value};
                 }}
             }}
             """))
@@ -304,10 +304,10 @@ def xcache(tmp_path_factory):
         "    xrootd on;\n"
         f"    xrootd_root {export};\n"
         "    xrootd_auth none;\n"
-        "    xrootd_cache on;\n"
-        f"    xrootd_cache_root {cache_root};\n"
-        f"    xrootd_cache_origin 127.0.0.1:{origin_port};\n"
-        "    xrootd_cache_slice 1m;\n  }\n}\n")
+        f"    xrootd_storage_backend root://127.0.0.1:{origin_port};\n"
+        f"    xrootd_cache_store posix:{cache_root};\n"
+        "    xrootd_cache_root /;\n"
+        "    xrootd_cache_slice_size 1m;\n  }\n}\n")
 
     origin = _start(base, "origin.conf", origin_cfg, origin_port)
     cache = _start(base, "cache.conf", cache_cfg, cache_port)
@@ -334,27 +334,53 @@ def _seed(xc, name, size=_FILESIZE):
 
 
 def _cached(xc, name):
-    """Inspect cache_root for `name`: return (slices, wholes, metas) where
-    slices maps slice-index -> on-disk size, wholes is any non-slice (whole-file)
-    cache copy, and metas is the list of file-level meta sidecars."""
+    """Inspect cache_root for `name` under the phase-64 sd_cache on-disk format:
+    ONE SPARSE object file named exactly `name` (filesystem holes for the slices
+    not yet fetched) plus a `<name>.cinfo` present-bitmap sidecar — the old
+    per-slice `<name>.__xrds_<k>_<idx>` files are gone.
+
+    Returns (slices, wholes, metas) with the SAME contract the assertions expect:
+      slices : {slice-index -> logical slice size} for each block the .cinfo
+               bitmap records present (last slice clamped to the remainder),
+      wholes : [] for a correctly SPARSE object; [obj] only if a PARTIAL object is
+               materialized full on disk (a genuine whole-file copy — the
+               invariant these tests guard). A COMPLETE file is legitimately full,
+               so it is NOT a whole-file copy,
+      metas  : the `.cinfo` sidecar list (the file-level record)."""
     root = xc["cache_root"]
+    metas = glob.glob(os.path.join(root, "**", name + ".cinfo"), recursive=True)
+    objs = [f for f in glob.glob(os.path.join(root, "**", name), recursive=True)
+            if os.path.isfile(f)]
     slices = {}
-    for f in glob.glob(os.path.join(root, "**", name + ".__xrds_*"), recursive=True):
-        idx = int(os.path.basename(f).rsplit("_", 1)[1])
-        slices[idx] = os.path.getsize(f)
-    metas = glob.glob(os.path.join(root, "**", name + ".__xrds.meta"), recursive=True)
-    # A whole-file copy is a cache file named exactly `name` (no slice infix).
-    wholes = [f for f in glob.glob(os.path.join(root, "**", name), recursive=True)
-              if os.path.isfile(f)]
+    wholes = []
+    ci = _read_cinfo(xc, name)
+    for obj in objs:
+        st = os.stat(obj)
+        on_disk = st.st_blocks * 512               # bytes actually allocated
+        if ci is None:
+            wholes.append(obj)                     # object with no bitmap == blob
+            continue
+        fields, present = ci
+        bs = fields["block_size"]
+        for idx in present:
+            slices[idx] = min(bs, fields["size"] - idx * bs)
+        # Sparse invariant: a PARTIAL object must hold ~ only its present slices on
+        # disk, never the whole apparent file. Allow one slice of slack.
+        if not (fields["flags"] & _CINFO_F_COMPLETE) \
+           and on_disk > sum(slices.values()) + bs:
+            wholes.append(obj)
     return slices, wholes, metas
 
 
 def _slice_bytes(xc, name, idx):
-    matches = glob.glob(os.path.join(xc["cache_root"], "**",
-                                     "%s.__xrds_*_%d" % (name, idx)), recursive=True)
-    assert matches, "slice %d of %s not on disk" % (idx, name)
+    """Read slice `idx`'s bytes from the sparse cache object (the slice must be
+    present, else the read returns hole zeros)."""
+    matches = [f for f in glob.glob(os.path.join(xc["cache_root"], "**", name),
+                                    recursive=True) if os.path.isfile(f)]
+    assert matches, "cache object %s not on disk" % name
     with open(matches[0], "rb") as f:
-        return f.read()
+        f.seek(idx * _SLICE)
+        return f.read(_SLICE)
 
 
 def test_partial_read_caches_only_the_touched_slice(xcache):

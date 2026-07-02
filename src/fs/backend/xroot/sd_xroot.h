@@ -59,7 +59,7 @@ xrootd_sd_instance_t *xrootd_sd_xroot_create(void *conf, ngx_log_t *log);
  * Destroy with xrootd_sd_xroot_destroy. */
 xrootd_sd_instance_t *xrootd_sd_xroot_create_origin(const char *host, int port,
     int tls, int af_policy, const char *bearer, const char *x509_proxy,
-    const char *ca_dir, ngx_log_t *log);
+    const char *ca_dir, const char *sss_keytab, ngx_log_t *log);
 
 /* Free a root:// instance built by xrootd_sd_xroot_create. NULL-safe. */
 void xrootd_sd_xroot_destroy(xrootd_sd_instance_t *inst);

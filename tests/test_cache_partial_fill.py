@@ -12,6 +12,11 @@ from _cache_partial_helpers import (
     backend_available,
 )
 
+# Each test stands up its OWN dedicated cache + origin nginx (2 per xroot test),
+# and the slice-cache origin read path SIGSEGVs under heavy concurrency — so this
+# suite runs in run_suite.sh's SERIAL lane, not the -n12 parallel pool.
+pytestmark = pytest.mark.serial
+
 BLK = 1024 * 1024  # 1 MiB slice granule (matches the proven xrootd_cache_slice 1m)
 
 
@@ -108,15 +113,12 @@ def test_generic_backend_partial_read_is_whole_file(tmp_path, backend):
         assert r["complete"] is True
 
 
-@pytest.mark.xfail(strict=True,
-                   reason="slice decorator not yet wired over generic backends "
-                          "(docs/refactor/phase-64-generic-slice-fill.md); "
-                          "flips to PARTIAL when wired")
 @pytest.mark.parametrize("backend", ["posix", "pblock"])
-def test_generic_backend_slice_size_is_ignored(tmp_path, backend):
-    """Key config gap: cache_slice set on a non-xroot backend is IGNORED — the
-    partial read still caches the whole file. Marked xfail so it turns green
-    automatically once generic-slice fill lands (assert PARTIAL then)."""
+def test_generic_backend_slice_partial_fills(tmp_path, backend):
+    """Generic-backend slice (§14 landed): xrootd_cache_slice_size on a LOCAL
+    (posix/pblock) storage backend partial-fills — a one-block read caches only
+    block 0 (PARTIAL), not the whole file. (Formerly a strict xfail: the legacy
+    xrootd_cache_slice directive never reached the composed sd_cache policy.)"""
     with make_cache_node(backend, slice_size=BLK, tmp=tmp_path) as node:
         seed_origin(node, "/f.bin", 4 * BLK)
         read_range(node.cache_port, "/f.bin", 0, BLK)

@@ -95,14 +95,14 @@ def make_cache_node(backend, *, tmp, slice_size=None, max_file_size=None,
 
     Two proven config styles (mirror tests/run_root_slice_fill.sh and
     tests/run_cache_backend_source.sh):
-      * backend == 'xroot' -> LEGACY slice path: the node has its own export
-        (xrootd_root) and a read cache (xrootd_cache_root <dir>) that fills from
-        a root:// origin (xrootd_cache_origin) per-slice (xrootd_cache_slice).
-        This is the ONLY path wired for sparse partial fill. The origin serves
-        posix or pblock (origin_backend). The cached object + .cinfo land under
-        the cache dir; seed_origin writes into the ORIGIN's root.
-      * other backends -> COMPOSABLE path: xrootd_storage_backend <type> +
-        xrootd_cache_store posix:<dir> + xrootd_cache_root /. Whole-file fill;
+      * backend == 'xroot' -> tier grammar over a root:// origin
+        (xrootd_storage_backend root:// + xrootd_cache_store posix:<dir> +
+        xrootd_cache_slice_size): sparse partial fill via the composed sd_cache
+        (§14: the legacy cache_origin/cache_slice model is retired). The origin
+        serves posix or pblock (origin_backend); the cached object + .cinfo land
+        under the cache dir; seed_origin writes into the ORIGIN's root.
+      * other backends -> the same tier grammar over a LOCAL backend
+        (posix/pblock): slice_size>0 partial-fills, else whole-file;
         seed_origin writes into the backend's own dir.
     """
     base = str(tmp)
@@ -139,11 +139,11 @@ def make_cache_node(backend, *, tmp, slice_size=None, max_file_size=None,
             f"stream {{ server {{\n"
             f"    listen {HOST}:{cache_port}; xrootd on; xrootd_auth none;\n"
             f"    xrootd_root {export};\n"
-            f"    xrootd_cache on;\n"
-            f"    xrootd_cache_root {cache_dir};\n"
-            f"    xrootd_cache_origin {HOST}:{backend_port};\n"
-            + _opt(f"    xrootd_cache_slice {slice_size};", slice_size)
-            + _opt(f"    xrootd_cache_max_file_size {max_file_size};", max_file_size)
+            f"    xrootd_storage_backend root://{HOST}:{backend_port};\n"
+            f"    xrootd_cache_store posix:{cache_dir};\n"
+            f"    xrootd_cache_root /;\n"
+            + _opt(f"    xrootd_cache_slice_size {slice_size};", slice_size)
+            + _opt(f"    xrootd_cache_max_object {max_file_size};", max_file_size)
             + _opt(f"    xrootd_cache_deny_prefix {deny_prefix};", deny_prefix)
             + _opt(f"    xrootd_cache_include_regex {include_regex};", include_regex)
             + f"}} }}\n")
@@ -174,7 +174,7 @@ def make_cache_node(backend, *, tmp, slice_size=None, max_file_size=None,
         f"    xrootd_allow_write on; xrootd_upload_resume off;\n"
         f"    xrootd_storage_backend {drv};\n"
         f"    xrootd_cache_store posix:{store}; xrootd_cache_root /;\n"
-        + _opt(f"    xrootd_cache_slice {slice_size};", slice_size)
+        + _opt(f"    xrootd_cache_slice_size {slice_size};", slice_size)
         + _opt(f"    xrootd_cache_max_object {max_object};", max_object)
         + _opt(f"    xrootd_cache_deny_prefix {deny_prefix};", deny_prefix)
         + _opt(f"    xrootd_cache_include_regex {include_regex};", include_regex)

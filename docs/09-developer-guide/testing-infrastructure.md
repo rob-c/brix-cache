@@ -2,6 +2,10 @@
 
 How the test environment is wired: server startup, PKI fixtures, token fixtures, and the per-test nginx instance lifecycle.
 
+> **Just want to run the tests?** See [`tests/README.md`](../../tests/README.md).
+> TL;DR: `tests/run_suite.sh --fast` (~4min iteration check) or `tests/run_suite.sh`
+> (~20min full gate). Never bare `pytest tests/` — it runs serially (20min+).
+
 [← Testing overview](testing-runbook.md)
 
 ## Session lifecycle

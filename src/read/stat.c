@@ -49,139 +49,10 @@ xrootd_make_vfs_body(ngx_stream_xrootd_srv_conf_t *conf, char *out, size_t outsz
 
 extern char **environ;
 
-/* xrootd_stat_origin_forward — GSI-origin stat for the cache
- * WHAT: When the cache has an X.509 proxy (xrootd_cache_origin_proxy) and the
- *       path is not present locally, resolve a kXR_stat by fork/exec'ing the
- *       native `xrdfs <origin> stat <path>` (GSI) and parsing its output into a
- *       host `struct stat`. Same PSS-via-native-client pattern as the cache fill
- *       and the dirlist forward.
- * WHY:  The cache disk holds only fetched FILES; a metadata stat on a namespace
- *       entry that has not yet been cached (a directory, or an un-fetched file)
- *       must be answered from the origin, which requires GSI auth that only the
- *       native client provides.
- * HOW:  Combined stdout+stderr captured over a pipe. exit 0 → parse the "Size:"
- *       and "Flags:" lines (Flags containing "IsDir" → directory) into `st`;
- *       returns 0. exit != 0 (or parse failure) → returns -1, caller falls back
- *       to the local errno error.
- * NOTE: Runs synchronously in the event loop (like the local stat), so a slow
- *       origin briefly stalls the worker — acceptable first cut, mirrors the
- *       dirlist forward; a threaded variant is future work. */
-static int
-xrootd_stat_origin_forward(ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf, const char *reqpath, struct stat *st)
-{
-    char        endpoint[320];
-    char        proxy_env[XROOTD_MAX_PATH + 32];
-    char        cadir_env[XROOTD_MAX_PATH + 32];
-    char        xrdfs_path[XROOTD_MAX_PATH + 1];
-    char       *argv[5];
-    char      **envp;
-    posix_spawn_file_actions_t fa;
-    int         pipefd[2];
-    pid_t       pid;
-    int         n, rc, wstatus, ai;
-    size_t      envn, ei;
-    char        out[4096];
-    size_t      out_len = 0;
-    char       *line, *save;
-    const char *client;
-    long long   sz = -1;
-    int         is_dir = 0, have_size = 0, have_flags = 0;
-
-    /* derive the xrdfs path from the configured xrdcp path (…/xrdcp → …/xrdfs) */
-    client = conf->cache_origin_client.len
-             ? (char *) conf->cache_origin_client.data : "xrdcp";
-    n = snprintf(xrdfs_path, sizeof(xrdfs_path), "%s", client);
-    if (n >= 5 && strcmp(xrdfs_path + n - 5, "xrdcp") == 0) {
-        ngx_memcpy(xrdfs_path + n - 5, "xrdfs", 5);
-    } else {
-        snprintf(xrdfs_path, sizeof(xrdfs_path), "xrdfs");
-    }
-
-    n = snprintf(endpoint, sizeof(endpoint), "%s://%s:%u",
-                 conf->cache_origin_tls ? "roots" : "root",
-                 (char *) conf->cache_origin_host.data,
-                 (unsigned) conf->cache_origin_port);
-    if (n < 0 || (size_t) n >= sizeof(endpoint)) {
-        return -1;
-    }
-    snprintf(proxy_env, sizeof(proxy_env), "X509_USER_PROXY=%s",
-             (char *) conf->cache_origin_proxy.data);
-    snprintf(cadir_env, sizeof(cadir_env), "X509_CERT_DIR=%s",
-             (char *) conf->cache_origin_cadir.data);
-
-    for (envn = 0; environ[envn] != NULL; envn++) { /* count */ }
-    envp = ngx_palloc(c->pool, (envn + 3) * sizeof(char *));
-    if (envp == NULL) { return -1; }
-    ei = 0;
-    for (n = 0; (size_t) n < envn; n++) {
-        if (ngx_strncmp(environ[n], "X509_USER_PROXY=", 16) == 0
-            || ngx_strncmp(environ[n], "X509_CERT_DIR=", 14) == 0) {
-            continue;
-        }
-        envp[ei++] = environ[n];
-    }
-    envp[ei++] = proxy_env;
-    envp[ei++] = cadir_env;
-    envp[ei]   = NULL;
-
-    ai = 0;
-    argv[ai++] = xrdfs_path;
-    argv[ai++] = endpoint;
-    argv[ai++] = (char *) "stat";
-    argv[ai++] = (char *) reqpath;
-    argv[ai]   = NULL;
-
-    if (pipe(pipefd) != 0) { return -1; }
-    posix_spawn_file_actions_init(&fa);
-    posix_spawn_file_actions_adddup2(&fa, pipefd[1], 1);
-    posix_spawn_file_actions_adddup2(&fa, pipefd[1], 2);
-    posix_spawn_file_actions_addclose(&fa, pipefd[0]);
-    posix_spawn_file_actions_addclose(&fa, pipefd[1]);
-
-    rc = posix_spawnp(&pid, xrdfs_path, &fa, NULL, argv, envp);
-    posix_spawn_file_actions_destroy(&fa);
-    close(pipefd[1]);
-    if (rc != 0) { close(pipefd[0]); return -1; }
-
-    for (;;) {
-        ssize_t r = read(pipefd[0], out + out_len, sizeof(out) - 1 - out_len);
-        if (r < 0 && errno == EINTR) { continue; }
-        if (r <= 0) { break; }
-        out_len += (size_t) r;
-        if (out_len >= sizeof(out) - 1) { break; }
-    }
-    close(pipefd[0]);
-    out[out_len] = '\0';
-    while (waitpid(pid, &wstatus, 0) < 0 && errno == EINTR) { /* retry */ }
-
-    if (!WIFEXITED(wstatus) || WEXITSTATUS(wstatus) != 0) {
-        return -1;
-    }
-
-    /* Parse the "Size:" and "Flags:" lines of the xrdfs stat report. */
-    for (line = strtok_r(out, "\n", &save);
-         line != NULL;
-         line = strtok_r(NULL, "\n", &save))
-    {
-        while (*line == ' ' || *line == '\t') { line++; }
-        if (ngx_strncmp(line, "Size:", 5) == 0) {
-            if (sscanf(line + 5, " %lld", &sz) == 1) { have_size = 1; }
-        } else if (ngx_strncmp(line, "Flags:", 6) == 0) {
-            have_flags = 1;
-            if (strstr(line, "IsDir") != NULL) { is_dir = 1; }
-        }
-    }
-
-    if (!have_flags) { return -1; }
-
-    ngx_memzero(st, sizeof(*st));
-    st->st_mode  = is_dir ? (S_IFDIR | 0755) : (S_IFREG | 0644);
-    st->st_size  = have_size && sz >= 0 ? (off_t) sz : 0;
-    st->st_nlink = 1;
-    st->st_mtime = ngx_time();
-    return 0;
-}
+/* §14 (phase-64): the fork/exec `xrdfs <origin> stat` forward for a legacy
+ * cache_origin GSI cache is RETIRED with the cache_origin config model — a tier
+ * cache's stat resolves through the composed sd_cache (cinfo hit) or the
+ * backend driver's in-process stat. */
 
 /*
  * xrootd_vfs_to_struct_stat — project a VFS stat result back into the struct
@@ -410,20 +281,9 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
                 }
             }
             if (src != 0) {
-                int saved_errno = errno;
-                /* Local miss: a GSI-proxy cache forwards the metadata stat to
-                 * the origin namespace (file not yet fetched, or a directory). */
-                if (conf->cache && conf->cache_origin_proxy.len > 0
-                    && conf->cache_origin_host.len > 0
-                    && xrootd_stat_origin_forward(c, conf, reqpath, &st) == 0)
-                {
-                    /* fall through to the response build with the origin stat */
-                } else {
-                    errno = saved_errno;
-                    XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_STAT, "STAT", reqpath,
-                                      "-", xrootd_kxr_from_errno(errno),
-                                      strerror(errno));
-                }
+                XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_STAT, "STAT", reqpath,
+                                  "-", xrootd_kxr_from_errno(errno),
+                                  strerror(errno));
             }
         }
 

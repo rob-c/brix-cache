@@ -110,9 +110,17 @@ xrootd_cache_try_evict_lock(ngx_stream_xrootd_srv_conf_t *conf,
     int          fd;
     struct stat st;
     time_t      now;
+    /* §14a: the lock sentinel lives in the PHYSICAL cache root (tier-aware — the
+     * posix cache_store dir for a tier cache, else cache_root). A pure tier cache
+     * advertises cache_root "/", and creating "/.ngx-xrootd-evict-lock" fails EACCES,
+     * silently disabling the reaper — the lock must land in the writable store dir. */
+    const char  *root = xrootd_cache_state_root(conf);
 
-    n = snprintf(lock_path, lock_pathsz, "%s/%s",
-                 (char *) conf->cache_root.data,
+    if (root == NULL) {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
+    n = snprintf(lock_path, lock_pathsz, "%s/%s", root,
                  XROOTD_CACHE_EVICT_LOCK_NAME);
     if (n < 0 || (size_t) n >= lock_pathsz) {
         errno = ENAMETOOLONG;

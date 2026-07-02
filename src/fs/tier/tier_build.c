@@ -108,7 +108,7 @@ xrootd_tier_build(const xrootd_tier_cfg_t *t, ngx_log_t *log)
             XROOTD_AF_AUTO,
             (bearer[0] != '\0') ? bearer : NULL,
             (proxy[0] != '\0') ? proxy : NULL,
-            (cadir[0] != '\0') ? cadir : NULL, log);
+            (cadir[0] != '\0') ? cadir : NULL, NULL /* sss_keytab */, log);
     }
 
     if (ngx_strcmp(t->driver, "http") == 0) {

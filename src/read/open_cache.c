@@ -1,5 +1,5 @@
 #include "open.h"
-#include "../cache/cache_storage.h"   /* xrootd_cache_slice_inst (§6.5 slice route) */
+#include "../cache/cache_storage.h"
 #include "../path/beneath.h"
 
 /* Cache-aware read-open (XCache-style).  Checks the VO ACL against the export
@@ -34,21 +34,6 @@ xrootd_open_cached_read(xrootd_ctx_t *ctx, ngx_connection_t *c,
     if (n < 0 || (size_t) n >= sizeof(resolved)) {
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN",
                           clean_path, "cache", kXR_ArgInvalid, "path too long");
-    }
-
-    /*
-     * Slice/partial caching (phase-64 §6.5): when enabled and an origin is
-     * configured, serve this read handle through the unified sd_cache partial
-     * decorator — open_resolved_file opens cache_slice_inst and serves hit-or-miss
-     * via the driver's range-fill pread, filling only the blocks a read touches.
-     * (Replaced the legacy per-slice-file path, slice_read.c.) Falls through to the
-     * whole-file cache path when the decorator is absent or slicing is off.
-     */
-    if (conf->cache_slice_size > 0 && conf->cache_origin_host.len > 0
-        && xrootd_cache_slice_inst(conf) != NULL)
-    {
-        return xrootd_open_resolved_file(ctx, c, conf, resolved, options,
-                                         mode_bits, 0, 0);
     }
 
     /* vfs-seam-allow: separate storage domain. `resolved` is under the

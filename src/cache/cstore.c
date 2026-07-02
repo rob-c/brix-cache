@@ -498,6 +498,19 @@ xrootd_cstore_scan(xrootd_cstore_t *cs, xrootd_cstore_visit_fn visit, void *ctx)
     return cstore_scan_dir(cs, "/", visit, ctx);
 }
 
+/* ---- introspection --------------------------------------------------------- */
+
+const char *
+xrootd_cstore_local_root(const xrootd_cstore_t *cs)
+{
+    if (cs == NULL || cs->meta_mode != XROOTD_CMETA_LOCAL
+        || cs->local_root[0] == '\0')
+    {
+        return NULL;                            /* non-local store: no dir to reap */
+    }
+    return cs->local_root;
+}
+
 /* ---- freespace ------------------------------------------------------------ */
 
 ngx_int_t

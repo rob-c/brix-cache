@@ -44,6 +44,7 @@ servers on high ports; skips entirely without the stock xrootd toolchain.
 import os
 import socket
 import struct
+import threading
 
 import pytest
 
@@ -240,6 +241,51 @@ def _run_probe(url, send_fn, prelogin=False):
             pass
 
 
+def _run_pair(srv, fn):
+    """Run fn(url) for OUR and STOCK CONCURRENTLY; return (our_result, stock_result).
+
+    Differential framing probes call the SAME logic against both servers and were
+    doing it sequentially: `o = fn(srv["our"]); f = fn(srv["off"])`.  When a probe
+    legitimately makes a server hold an incomplete frame, fn blocks up to
+    SOCK_TIMEOUT, so a "both hold" case cost 5s + 5s = 10s.  The two servers are
+    independent (distinct ports/sockets) and every probe allocates its own socket
+    with fixed stream-ids — no shared mutable state — so running fn on two threads
+    is race-free.  The socket recv releases the GIL, so the two 5s waits truly
+    overlap, collapsing the wall cost to a single SOCK_TIMEOUT.  Semantically
+    identical to the sequential form.
+    """
+    out = {}
+    errs = {}
+
+    def _worker(key, url):
+        try:
+            out[key] = fn(url)
+        except BaseException as e:            # noqa: BLE001 — re-raised below
+            errs[key] = e
+
+    to = threading.Thread(target=_worker, args=("o", srv["our"]))
+    tf = threading.Thread(target=_worker, args=("f", srv["off"]))
+    to.start()
+    tf.start()
+    to.join()
+    tf.join()
+    # Preserve the sequential form's semantics: it evaluated OUR first, so an
+    # exception (or in-runner assertion) from OUR surfaces before STOCK's.  Both
+    # probes still ran (harmless read-only side effect), but the test observes the
+    # same failure it would have sequentially — not a swallowed-thread KeyError.
+    if "o" in errs:
+        raise errs["o"]
+    if "f" in errs:
+        raise errs["f"]
+    return out["o"], out["f"]
+
+
+def _run_probe_pair(srv, send_fn, prelogin=False):
+    """Concurrent form of two _run_probe() calls (see _run_pair).  Returns
+    ((st_o, en_o), (st_f, en_f))."""
+    return _run_pair(srv, lambda url: _run_probe(url, send_fn, prelogin=prelogin))
+
+
 # =========================================================================== #
 # Outcome classification + differential assertions.
 # =========================================================================== #
@@ -282,8 +328,7 @@ def _assert_reject_parity(srv, label, send_fn, want_code=None, prelogin=False):
     want_code: when the reference is exact, pin OUR coded error to it (and require
     stock to agree or match OUR). When None, only require both to land in the
     common framing-reject class."""
-    st_o, en_o = _run_probe(srv["our"], send_fn, prelogin=prelogin)
-    st_f, en_f = _run_probe(srv["off"], send_fn, prelogin=prelogin)
+    (st_o, en_o), (st_f, en_f) = _run_probe_pair(srv, send_fn, prelogin=prelogin)
     _assert_no_hang(label, st_o, st_f)
     assert _is_reject(st_f), (
         f"[{label}] oracle: STOCK did not reject (status={st_f!r} "
@@ -310,8 +355,7 @@ def _assert_class_parity(srv, label, send_fn, prelogin=False):
     """Pin OUR coarse outcome CLASS (ok / reject) to STOCK. Use where the spec
     permits either (the server MAY ignore extra bytes or MAY reject). OUR must
     never hang."""
-    st_o, en_o = _run_probe(srv["our"], send_fn, prelogin=prelogin)
-    st_f, en_f = _run_probe(srv["off"], send_fn, prelogin=prelogin)
+    (st_o, en_o), (st_f, en_f) = _run_probe_pair(srv, send_fn, prelogin=prelogin)
     _assert_no_hang(label, st_o, st_f)
     cls_o, cls_f = _class(st_o), _class(st_f)
     assert cls_o == cls_f, (
@@ -328,8 +372,7 @@ def _assert_class_parity(srv, label, send_fn, prelogin=False):
 
 def _assert_ok_parity(srv, label, send_fn):
     """Both must ACCEPT (kXR_ok / oksofar). OUR must not hang."""
-    st_o, en_o = _run_probe(srv["our"], send_fn)
-    st_f, en_f = _run_probe(srv["off"], send_fn)
+    (st_o, en_o), (st_f, en_f) = _run_probe_pair(srv, send_fn)
     _assert_no_hang(label, st_o, st_f)
     assert _is_ok(st_f), f"[{label}] oracle: STOCK did not accept (status={st_f!r})"
     assert _is_ok(st_o), (
