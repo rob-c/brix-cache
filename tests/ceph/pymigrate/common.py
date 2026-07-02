@@ -54,16 +54,12 @@ def read_list_file(path: str) -> "list[str]":
 
 def filter_worklist(items: "list[str]", list_file: Optional[str],
                     prefix: Optional[str], match: Optional[str]) -> "list[str]":
-    """Apply the worklist filters (intersection). With a --list file the file's
-    order is preserved and entries absent from `items` are kept only if
-    `items` is empty (callers pass [] when enumeration was skipped)."""
+    """Build the worklist. A --list file REPLACES the enumerated items
+    verbatim (C++-tool parity — rollback must be able to name files whose
+    source objects no longer exist); --prefix/--match then filter whatever
+    the base list is."""
     if list_file is not None:
-        listed = read_list_file(list_file)
-        if items:
-            present = set(items)
-            items = [s for s in listed if s in present]
-        else:
-            items = listed
+        items = read_list_file(list_file)
     if prefix is not None:
         items = [s for s in items if s.startswith(prefix)]
     if match is not None:

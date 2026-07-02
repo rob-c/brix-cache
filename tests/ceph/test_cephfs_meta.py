@@ -284,8 +284,10 @@ def test_filter_worklist(tmp_path):
     from pymigrate.common import filter_worklist
     items = ["rm/a", "rm/b", "cp/x"]
     lf = tmp_path / "l"
-    lf.write_text("rm/a\r\ncp/x \n\n")
-    assert filter_worklist(items, str(lf), None, None) == ["rm/a", "cp/x"]
+    lf.write_text("rm/a\r\ncp/x \nzz/gone \n\n")
+    # --list replaces enumeration verbatim: entries survive even when the
+    # enumerated items no longer contain them (rollback of deleted sources)
+    assert filter_worklist(items, str(lf), None, None) == ["rm/a", "cp/x", "zz/gone"]
     assert filter_worklist(items, None, "rm/", None) == ["rm/a", "rm/b"]
     assert filter_worklist(items, None, None, "*/b") == ["rm/b"]
     assert filter_worklist(items, str(lf), "rm/", None) == ["rm/a"]
