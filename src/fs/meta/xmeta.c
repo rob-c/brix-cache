@@ -171,6 +171,50 @@ xrootd_xmeta_digest_add(xrootd_xmeta_t *m, uint16_t alg, const void *val,
 }
 
 int
+xrootd_xmeta_digest_set(xrootd_xmeta_t *m, uint16_t alg, const void *val,
+    uint16_t len)
+{
+    uint8_t *kept = NULL;
+    uint32_t kept_len = 0;
+    size_t   off = 0;
+
+    if (m == NULL) {
+        errno = EINVAL;
+        return XROOTD_XMETA_ERR;
+    }
+    if (m->digests != NULL) {
+        kept = malloc(m->digests_len ? m->digests_len : 1);
+        if (kept == NULL) {
+            errno = ENOMEM;
+            return XROOTD_XMETA_ERR;
+        }
+        while (off + 4 <= m->digests_len) {
+            uint16_t a, l;
+
+            memcpy(&a, m->digests + off, 2);
+            memcpy(&l, m->digests + off + 2, 2);
+            if (off + 4 + l > m->digests_len) {
+                break;                      /* malformed tail: drop it */
+            }
+            if (a != alg) {
+                memcpy(kept + kept_len, m->digests + off, 4 + (size_t) l);
+                kept_len += 4 + (uint32_t) l;
+            }
+            off += 4 + (size_t) l;
+        }
+        free(m->digests);
+        m->digests = kept;
+        m->digests_len = kept_len;
+        if (kept_len == 0) {
+            free(m->digests);
+            m->digests = NULL;
+            m->digests_len = 0;
+        }
+    }
+    return xrootd_xmeta_digest_add(m, alg, val, len);
+}
+
+int
 xrootd_xmeta_digest_get(const xrootd_xmeta_t *m, uint32_t idx, uint16_t *alg,
     const uint8_t **val, uint16_t *len)
 {

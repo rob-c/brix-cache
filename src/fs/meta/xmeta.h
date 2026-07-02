@@ -84,6 +84,9 @@ typedef struct {
 #define XROOTD_XMETA_ALG_SHA256     4
 #define XROOTD_XMETA_ALG_CRC64XZ    5
 #define XROOTD_XMETA_ALG_CRC64NVME  6
+#define XROOTD_XMETA_ALG_CRC32      7
+#define XROOTD_XMETA_ALG_SHA1       8
+#define XROOTD_XMETA_ALG_ZCRC32     9
 
 /* ---- in-memory record ---------------------------------------------------- */
 
@@ -169,6 +172,9 @@ int  xrootd_xmeta_complete(const xrootd_xmeta_t *m);   /* all blocks set?   */
  * into borrowed pointers, XROOTD_XMETA_OK or FOREIGN when idx is past the
  * end / the payload is malformed. */
 int  xrootd_xmeta_digest_add(xrootd_xmeta_t *m, uint16_t alg,
+    const void *val, uint16_t len);
+/* set replaces any existing entries for `alg` with one new entry. */
+int  xrootd_xmeta_digest_set(xrootd_xmeta_t *m, uint16_t alg,
     const void *val, uint16_t len);
 int  xrootd_xmeta_digest_get(const xrootd_xmeta_t *m, uint32_t idx,
     uint16_t *alg, const uint8_t **val, uint16_t *len);
