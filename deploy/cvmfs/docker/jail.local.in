@@ -4,10 +4,16 @@
 # to the container's log directory. @BANACTION@ is chosen by entrypoint.sh:
 # nftables-multiport when the container has NET_ADMIN, the no-op "dummy"
 # action otherwise (detection still visible via fail2ban-client status).
+#
+# EVERY jail is scoped to port 3128 (the only client-facing port). Without
+# an explicit port, fail2ban's nftables action bans dport 0-65535 — which
+# takes the operator's dashboard/metrics ports down with the abuser and
+# even locks the operator out of unbanning remotely. Learned the hard way.
 
 [DEFAULT]
 banaction = @BANACTION@
 backend = polling
+port = 3128
 
 # --- guard audit-log jails (phase-65) --------------------------------------
 
@@ -35,19 +41,23 @@ maxretry = 20
 findtime = 60
 bantime  = 3600
 
+# On a CVMFS cache, a 403 usually means "authority not on UPSTREAM_ALLOW yet"
+# — a legitimate client probing a repo whose Stratum-1 the operator hasn't
+# listed. The stock 5-strike threshold instabans real worker nodes while the
+# allowlist is being tuned; the nginx-xrootd-cvmfs jail below still catches
+# hostile probing. Keep this jail loose here.
 [xrootd-guard-authfail]
 enabled  = true
 filter   = xrootd-guard-authfail
 logpath  = /var/log/nginx-xrootd/guard-audit.log
-maxretry = 5
-findtime = 120
+maxretry = 60
+findtime = 60
 bantime  = 7200
 
 # --- cvmfs protocol rejects (phase-68, nginx ERROR log) ---------------------
 
 [nginx-xrootd-cvmfs]
 enabled  = true
-port     = 3128
 filter   = nginx-xrootd-cvmfs
 logpath  = /var/log/nginx-xrootd/error.log
 maxretry = 20

@@ -70,7 +70,9 @@ COPY deploy/cvmfs/docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 EXPOSE 3128 3129 3130
-VOLUME /var/cache/nginx-cvmfs
+# Cached CVMFS objects land here — mount it (-v ./cache:/var/cache/cvmfs) or
+# inspect live: docker exec cvmfs-demo find /var/cache/cvmfs -type f
+VOLUME /var/cache/cvmfs
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
     CMD curl -fsS http://127.0.0.1:3130/healthz || exit 1

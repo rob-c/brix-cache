@@ -8,7 +8,15 @@ coexists in a single process:
 | **3128** | `cvmfs://` site cache, forward-proxy mode (`CVMFS_HTTP_PROXY` target), CAS verify-on-fill, never-drop semantics, **bad-actor guard** active on the listener |
 | **3129** | built-in operator dashboard (`/xrootd/`) |
 | **3130** | Prometheus `/metrics` + `/healthz` |
-| (internal) | loopback `root://` stream endpoint on 127.0.0.1:1094 — registers the dashboard SHM zones and proves the stream plane shares the config |
+
+Cached CVMFS objects land in the posix folder **`/var/cache/cvmfs`** (a
+docker volume). Watch data accumulate during the demo:
+
+```bash
+docker exec cvmfs-demo find /var/cache/cvmfs -type f | head
+# or bind-mount it to inspect from the host:
+docker run … -v "$PWD/cvmfs-cache:/var/cache/cvmfs" nginx-xrootd-cvmfs
+```
 
 **fail2ban runs inside the container**, consuming two independent bad-actor
 signals: the guard audit log (`xrootd-guard-*` jails, phase-65) and the
@@ -94,8 +102,10 @@ Then watch it work:
 - The dashboard is **admin-only by design** (it shows client IPs and
   paths): firewall 3129/3130 in any real deployment; the demo only
   password-protects it.
-- The cache store is a volume (`/var/cache/nginx-cvmfs`); quarantined
-  CAS-verify mismatches land in `/var/cache/nginx-cvmfs-quarantine`.
+- The cache store is a volume (`/var/cache/cvmfs`) — the demo config keeps
+  CAS verify-on-fill but omits an explicit quarantine dir (a corrupt fill is
+  discarded and retried rather than preserved for forensics); set
+  `xrootd_cvmfs_quarantine_dir` if you want the evidence kept.
 - Logs: `docker exec cvmfs-demo ls /var/log/nginx-xrootd/` —
   `cvmfs_access.log` uses the `$cvmfs_class`/`$cvmfs_cache`/`$cvmfs_origin`
   identity format, `error.log` carries `cvmfs-reject:` lines,
