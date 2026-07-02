@@ -73,6 +73,24 @@ int main(void)
     adv.enforce_grammar = 0;
     CHECK(guard_classify_pre(&adv, &offns, &why) == GUARD_ALLOW);
 
+    /* --- classify_post --- */
+    guard_ruleset_t pr; guard_ruleset_init(&pr);
+    pr.flag_notfound = 1; pr.flag_authfail = 1;
+    guard_request_t nf = { "1.2.3.4","arc",GUARD_OP_READ,"/arex/x",7,1,
+                           OUTCOME_NOTFOUND, 404 };
+    CHECK(guard_classify_post(&pr, &nf) == GUARD_R_NOTFOUND);
+    guard_request_t af = { "1.2.3.4","arc",GUARD_OP_READ,"/arex/x",7,0,
+                           OUTCOME_AUTHFAIL, 401 };
+    CHECK(guard_classify_post(&pr, &af) == GUARD_R_AUTHFAIL);
+    guard_request_t okr = { "1.2.3.4","arc",GUARD_OP_READ,"/arex/x",7,1,
+                            OUTCOME_OK, 200 };
+    CHECK(guard_classify_post(&pr, &okr) == GUARD_R_NONE);
+    /* toggled off => not flagged */
+    guard_ruleset_t off; guard_ruleset_init(&off);
+    off.flag_notfound = 0; off.flag_authfail = 0;
+    CHECK(guard_classify_post(&off, &nf) == GUARD_R_NONE);
+    CHECK(guard_classify_post(&off, &af) == GUARD_R_NONE);
+
     printf(fails ? "GUARD CORE: %d FAIL\n" : "GUARD CORE: all pass\n", fails);
     return fails ? 1 : 0;
 }
