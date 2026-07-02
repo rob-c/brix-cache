@@ -56,6 +56,10 @@ typedef struct {
     const char                  *bearer_token; /* §14: Authorization: Bearer, or NULL */
     const xrootd_sd_http_ep_cfg_t *extra;      /* endpoints 1.. (may be NULL)   */
     int                            n_extra;    /* count of `extra` entries      */
+    void                         (*failover_note)(void);  /* T16: called when a
+                                    read fails over to an alternate endpoint
+                                    (driver is ngx-free; the owner injects
+                                    its metric hook). NULL = no accounting. */
 } xrootd_sd_http_cfg_t;
 
 /* Build a read-only HTTP source instance. Returns a malloc-owned instance, or NULL
@@ -75,5 +79,8 @@ void sd_http_set_ranks(xrootd_sd_instance_t *inst, const int *ranks, int n);
 int  sd_http_endpoint_list(xrootd_sd_instance_t *inst, char hosts[][256],
                            int *ports, int max);
 int  sd_http_n_endpoints(xrootd_sd_instance_t *inst);
+int  sd_http_last_origin(xrootd_sd_instance_t *inst, char *buf, size_t cap);
+int  sd_http_health_snapshot(xrootd_sd_instance_t *inst, char hosts[][256],
+                             int *ports, int *scores, int max);
 
 #endif /* XROOTD_SD_HTTP_H */

@@ -28,6 +28,7 @@
  */
 
 #include "cvmfs.h"
+#include "core/config/config.h"           /* xrootd_metrics_ensure_zone */
 #include "core/config/root_prepare.h"
 #include "core/config/http_rootfd.h"
 #include "core/compat/alloc_guard.h"
@@ -36,6 +37,7 @@
 #include "origin_geo.h"
 #include "fs/backend/http/sd_http.h"       /* SD_HTTP_EP_MAX */
 #include "auth/token/issuer_registry.h"    /* scvmfs bearer registry (T22) */
+#include "fs/backend/cache/sd_cache.h"     /* unwrap for $cvmfs_origin (T16) */
 
 #include <stdlib.h>                        /* strtod (coord parsing) */
 
@@ -432,6 +434,112 @@ ngx_http_xrootd_cvmfs_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     return NGX_CONF_OK;
 }
 
+/* ---- T16: nginx variables ($cvmfs_class / $cvmfs_cache / $cvmfs_origin) ---
+ * Backed by the request ctx the handler fills; "-" outside cvmfs requests.
+ * $cvmfs_origin queries the http driver's last-answering endpoint (display
+ * only — approximate under concurrent fills, exact in the common case). */
+
+static ngx_int_t
+cvmfs_var_set(ngx_http_request_t *r, ngx_http_variable_value_t *v,
+    const char *val)
+{
+    size_t  n = ngx_strlen(val);
+    u_char *p = ngx_pnalloc(r->pool, n);
+
+    if (p == NULL) {
+        return NGX_ERROR;
+    }
+    ngx_memcpy(p, val, n);
+    v->data = p;
+    v->len = n;
+    v->valid = 1;
+    v->no_cacheable = 0;
+    v->not_found = 0;
+    return NGX_OK;
+}
+
+static ngx_int_t
+cvmfs_var_class(ngx_http_request_t *r, ngx_http_variable_value_t *v,
+    uintptr_t data)
+{
+    ngx_http_xrootd_cvmfs_ctx_t *ctx =
+        ngx_http_get_module_ctx(r, ngx_http_xrootd_cvmfs_module);
+    static const char *names[] = { "cas", "manifest", "geo", "reject" };
+
+    (void) data;
+    if (ctx == NULL || ctx->url.cls > CVMFS_URL_REJECT) {
+        return cvmfs_var_set(r, v, "-");
+    }
+    return cvmfs_var_set(r, v, names[ctx->url.cls]);
+}
+
+static ngx_int_t
+cvmfs_var_cache(ngx_http_request_t *r, ngx_http_variable_value_t *v,
+    uintptr_t data)
+{
+    ngx_http_xrootd_cvmfs_ctx_t *ctx =
+        ngx_http_get_module_ctx(r, ngx_http_xrootd_cvmfs_module);
+    static const char *names[] = { "-", "hit", "fill", "neg" };
+
+    (void) data;
+    if (ctx == NULL || ctx->cache_status > XROOTD_CVMFS_CACHE_NEG) {
+        return cvmfs_var_set(r, v, "-");
+    }
+    return cvmfs_var_set(r, v, names[ctx->cache_status]);
+}
+
+static ngx_int_t
+cvmfs_var_origin(ngx_http_request_t *r, ngx_http_variable_value_t *v,
+    uintptr_t data)
+{
+    ngx_http_xrootd_cvmfs_loc_conf_t *lcf =
+        ngx_http_get_module_loc_conf(r, ngx_http_xrootd_cvmfs_module);
+    ngx_http_xrootd_cvmfs_ctx_t      *ctx =
+        ngx_http_get_module_ctx(r, ngx_http_xrootd_cvmfs_module);
+    xrootd_sd_instance_t             *inst;
+    char                              buf[300];
+    const char                       *root;
+
+    (void) data;
+    if (ctx == NULL || ctx->cache_status != XROOTD_CVMFS_CACHE_FILL
+        || lcf == NULL)
+    {
+        return cvmfs_var_set(r, v, "-");
+    }
+    root = (ctx->up_root != NULL) ? ctx->up_root : lcf->common.root_canon;
+    inst = xrootd_vfs_backend_resolve(root, r->connection->log);
+    while (inst != NULL && ngx_strcmp(inst->driver->name, "http") != 0) {
+        inst = xrootd_sd_cache_source_instance(inst);
+    }
+    if (inst == NULL || sd_http_last_origin(inst, buf, sizeof(buf)) != 0) {
+        return cvmfs_var_set(r, v, "-");
+    }
+    return cvmfs_var_set(r, v, buf);
+}
+
+static ngx_http_variable_t  ngx_http_xrootd_cvmfs_vars[] = {
+    { ngx_string("cvmfs_class"),  NULL, cvmfs_var_class,  0, 0, 0 },
+    { ngx_string("cvmfs_cache"),  NULL, cvmfs_var_cache,  0, 0, 0 },
+    { ngx_string("cvmfs_origin"), NULL, cvmfs_var_origin, 0, 0, 0 },
+      ngx_http_null_variable
+};
+
+static ngx_int_t
+ngx_http_xrootd_cvmfs_preconfiguration(ngx_conf_t *cf)
+{
+    ngx_http_variable_t *v, *nv;
+
+    for (v = ngx_http_xrootd_cvmfs_vars; v->name.len; v++) {
+        nv = ngx_http_add_variable(cf, &v->name, v->flags);
+        if (nv == NULL) {
+            return NGX_ERROR;
+        }
+        nv->get_handler = v->get_handler;
+        nv->data = v->data;
+    }
+    return NGX_OK;
+}
+
 /*
  * Post-config: resolve the async-I/O thread pool per server (fill/offload
  * helpers need it) — identical mechanics to the s3 module.
@@ -445,6 +553,13 @@ ngx_http_xrootd_cvmfs_postconfiguration(ngx_conf_t *cf)
     static ngx_str_t                   default_pool_name = ngx_string("default");
     ngx_str_t                         *pool_name;
     ngx_uint_t                         s;
+
+    /* An HTTP-only cvmfs node has no stream block, so the metrics SHM zone
+     * (normally created by the stream postconfiguration) must be ensured
+     * here or every counter INC is a silent no-op. Idempotent. */
+    if (xrootd_metrics_ensure_zone(cf) != NGX_OK) {
+        return NGX_ERROR;
+    }
 
     cmcf = ngx_http_conf_get_module_main_conf(cf, ngx_http_core_module);
     cscfp = cmcf->servers.elts;
@@ -474,7 +589,7 @@ ngx_http_xrootd_cvmfs_postconfiguration(ngx_conf_t *cf)
 }
 
 static ngx_http_module_t ngx_http_xrootd_cvmfs_module_ctx = {
-    NULL,                                    /* preconfiguration     */
+    ngx_http_xrootd_cvmfs_preconfiguration,  /* preconfiguration     */
     ngx_http_xrootd_cvmfs_postconfiguration, /* postconfiguration    */
     NULL,                                    /* create main conf     */
     NULL,                                    /* init main conf       */

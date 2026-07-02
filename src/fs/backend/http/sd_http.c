@@ -44,6 +44,11 @@ typedef struct {
     const xrootd_s3_transport_t *transport;
     void                        *tctx;
     int                          timeout_ms;
+    void                       (*failover_note)(void);  /* T16 metric hook */
+    char                         last_origin[300]; /* "host:port" of the last
+                                    endpoint that answered a read — display
+                                    only ($cvmfs_origin); racy-by-design
+                                    under concurrent fills. */
     unsigned                     probe_tick;  /* half-open recovery probe clock */
     char                         auth_hdr[SD_HTTP_AUTH_MAX]; /* §14 bearer hdr or "" */
 } sd_http_inst_state;
@@ -161,6 +166,8 @@ sd_http_request_fo(sd_http_inst_state *is, const char *method, const char *key,
             if (used != NULL) {
                 *used = ep;
             }
+            snprintf(is->last_origin, sizeof(is->last_origin), "%s:%d",
+                     ep->host, ep->port);
             return 0;
         }
         if (is->n_eps < 2) {
@@ -180,6 +187,9 @@ sd_http_request_fo(sd_http_inst_state *is, const char *method, const char *key,
         }
         if (ep == NULL) {
             break;
+        }
+        if (is->failover_note != NULL) {
+            is->failover_note();               /* T16: failover accounting */
         }
     }
     errno = EIO;
@@ -557,6 +567,46 @@ sd_http_n_endpoints(xrootd_sd_instance_t *inst)
          ? ((sd_http_inst_state *) inst->state)->n_eps : 0;
 }
 
+/* "host:port" of the endpoint that answered the most recent read (display
+ * only; racy-by-design). 0 with buf filled, or -1 (non-http / none yet). */
+int
+sd_http_last_origin(xrootd_sd_instance_t *inst, char *buf, size_t cap)
+{
+    sd_http_inst_state *is;
+
+    if (!sd_http_instance_is(inst)) {
+        return -1;
+    }
+    is = inst->state;
+    if (is->last_origin[0] == '\0') {
+        return -1;
+    }
+    snprintf(buf, cap, "%s", is->last_origin);
+    return 0;
+}
+
+/* Health snapshot for /healthz: copies up to `max` (host, port, fail_score)
+ * triplets. Returns the count (0 for a non-http instance). */
+int
+sd_http_health_snapshot(xrootd_sd_instance_t *inst, char hosts[][256],
+    int *ports, int *scores, int max)
+{
+    sd_http_inst_state *is;
+    int                 i, n;
+
+    if (!sd_http_instance_is(inst)) {
+        return 0;
+    }
+    is = inst->state;
+    n = (is->n_eps < max) ? is->n_eps : max;
+    for (i = 0; i < n; i++) {
+        memcpy(hosts[i], is->eps[i].host, sizeof(is->eps[i].host));
+        ports[i]  = is->eps[i].port;
+        scores[i] = is->eps[i].fail_score;
+    }
+    return n;
+}
+
 xrootd_sd_instance_t *
 xrootd_sd_http_create(const xrootd_sd_http_cfg_t *cfg, ngx_log_t *log)
 {
@@ -608,6 +658,7 @@ xrootd_sd_http_create(const xrootd_sd_http_cfg_t *cfg, ngx_log_t *log)
         }
     }
     is->transport  = cfg->transport;
+    is->failover_note = cfg->failover_note;
     is->tctx       = cfg->tctx;
     is->timeout_ms = (cfg->timeout_ms > 0) ? cfg->timeout_ms : 60000;
     if (cfg->bearer_token != NULL && cfg->bearer_token[0] != '\0') {

@@ -187,6 +187,9 @@ ngx_int_t xrootd_config_finalize_policy(ngx_conf_t *cf,
     ngx_stream_xrootd_srv_conf_t *xcf);
 
 /* Create or attach to the shared-memory metrics zone. */
+/* Idempotent metrics-SHM-zone creation — callable from HTTP-only planes
+ * (phase-68: a standalone cvmfs cache node has no stream block). */
+ngx_int_t xrootd_metrics_ensure_zone(ngx_conf_t *cf);
 ngx_int_t xrootd_configure_metrics(ngx_conf_t *cf,
     ngx_stream_core_main_conf_t *cmcf);
 

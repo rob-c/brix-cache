@@ -124,6 +124,13 @@ void  xrootd_export_stream_tracking_metrics(metrics_writer_t *mw,
 void  xrootd_export_unified_metrics(metrics_writer_t *mw,
     ngx_xrootd_metrics_t *shm);
 
+/* cvmfs.c */
+/* Emit the phase-68 cvmfs:// protocol families from shm->cvmfs (per-class
+ * requests, fills/failures/verify/failover, scvmfs admissions, and the
+ * LAN-out/WAN-in byte split). Labels are a fixed 4-value class set. */
+void  xrootd_export_cvmfs_metrics(metrics_writer_t *mw,
+    ngx_xrootd_metrics_t *shm);
+
 /* webdav.c */
 /* Emit all WebDAV counter families from shm->webdav (per-method requests and
  * method x status responses, auth outcomes, bytes, range/PUT modes, PROPFIND

@@ -21,6 +21,7 @@ dashboard_proto_name(uint8_t proto)
     switch (proto) {
     case XROOTD_XFER_PROTO_WEBDAV: return "webdav";
     case XROOTD_XFER_PROTO_S3:     return "s3";
+    case XROOTD_XFER_PROTO_CVMFS:  return "cvmfs";
     default:                       return "root";
     }
 }

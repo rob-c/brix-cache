@@ -20,6 +20,8 @@
 #include "classify.h"
 #include "core/config/shared_conf.h"
 #include "fs/backend/sd.h"
+#include "observability/metrics/metrics.h"
+#include "observability/metrics/metrics_macros.h"
 
 /* T19: origin-selection policy for the multi-endpoint backend. */
 typedef enum {
@@ -135,7 +137,10 @@ void      xrootd_cvmfs_rtt_register(const char *root_canon, time_t interval,
     const ngx_str_t *pool_name);
 ngx_int_t xrootd_cvmfs_rtt_init_worker(ngx_cycle_t *cycle);
 
-/* Metric slots (Task 16 wires the macro body; call sites are placed now). */
-#define XROOTD_CVMFS_METRIC_INC(slot) /* wired in phase-4 (T16) */
+/* $cvmfs_cache dispositions (request ctx cache_status; 0 = not applicable). */
+#define XROOTD_CVMFS_CACHE_NONE  0u
+#define XROOTD_CVMFS_CACHE_HIT   1u
+#define XROOTD_CVMFS_CACHE_FILL  2u
+#define XROOTD_CVMFS_CACHE_NEG   3u
 
 #endif /* XROOTD_CVMFS_H */

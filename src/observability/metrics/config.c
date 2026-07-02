@@ -12,13 +12,37 @@
  *      NGX_OK or NGX_ERROR on allocation failure.
  */
 
+/*
+ * Create (or reuse) the module's metrics SHM zone. Idempotent per config
+ * cycle: ngx_shared_memory_add returns the existing zone on a repeat call.
+ * Split out of the stream postconfiguration (phase-68) so an HTTP-only
+ * deployment — a standalone cvmfs:// cache node has no stream block — still
+ * gets the counter table its /metrics endpoint exports.
+ */
+ngx_int_t
+xrootd_metrics_ensure_zone(ngx_conf_t *cf)
+{
+    ngx_str_t  zone_name = ngx_string("xrootd_metrics");
+    size_t     zone_size;
+
+    zone_size = xrootd_shm_zone_size(sizeof(ngx_xrootd_metrics_t));
+    ngx_xrootd_shm_zone = ngx_shared_memory_add(cf, &zone_name, zone_size,
+                                                &ngx_stream_xrootd_module);
+    if (ngx_xrootd_shm_zone == NULL) {
+        return NGX_ERROR;
+    }
+    if (ngx_xrootd_shm_zone->init == NULL) {
+        ngx_xrootd_shm_zone->init = ngx_xrootd_metrics_shm_init;
+        ngx_xrootd_shm_zone->data = (void *) 1;
+    }
+    return NGX_OK;
+}
+
 ngx_int_t
 xrootd_configure_metrics(ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf)
 {
     ngx_stream_core_srv_conf_t   **cscfp;
     ngx_stream_xrootd_srv_conf_t  *xcf;
-    ngx_str_t                      zone_name = ngx_string("xrootd_metrics");
-    size_t                         zone_size;
     ngx_uint_t                     i;
     ngx_uint_t                     slot = 0;
 
@@ -35,18 +59,9 @@ xrootd_configure_metrics(ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf)
      * nginx's ngx_unlock_mutexes() force-unlocks on every child death, SIGSEGVing
      * the master. The helper accounts for the table bytes plus slab overhead.
      */
-    zone_size = xrootd_shm_zone_size(sizeof(ngx_xrootd_metrics_t));
-    ngx_xrootd_shm_zone = ngx_shared_memory_add(cf, &zone_name,
-                                                  zone_size,
-                                                  &ngx_stream_xrootd_module);
-    if (ngx_xrootd_shm_zone == NULL) {
+    if (xrootd_metrics_ensure_zone(cf) != NGX_OK) {
         return NGX_ERROR;
     }
-
-    /* init() will either zero a new mapping or hand back an existing one. */
-    ngx_xrootd_shm_zone->init = ngx_xrootd_metrics_shm_init;
-    /* Non-NULL sentinel tells the init callback this is the first setup. */
-    ngx_xrootd_shm_zone->data = (void *) 1;
 
     cscfp = cmcf->servers.elts;
 

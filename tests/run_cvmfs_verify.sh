@@ -25,6 +25,7 @@ thread_pool default threads=2;
 events { worker_connections 128; }
 http { access_log off; server {
     listen 127.0.0.1:$CPORT;
+    location /metrics { xrootd_metrics on; }
     location /cvmfs/ {
         xrootd_cvmfs_storage_backend http://127.0.0.1:$MPORT;
         xrootd_cvmfs_cache_store posix:$PFX/cache;
@@ -50,6 +51,10 @@ C="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$CPORT$OBJ")"
 curl -s -o /dev/null -X POST -d '{"mode":"none","count":0}' "http://127.0.0.1:$MPORT/ctl/fault"
 [ -n "$(ls -A "$PFX/quarantine")" ] && ok "corrupt part quarantined" \
     || bad "quarantine empty"
+
+V="$(curl -s "http://127.0.0.1:$CPORT/metrics" | sed -n 's/^xrootd_cvmfs_verify_failures_total //p')"
+[ "${V:-0}" -ge 1 ] && ok "verify failure counted in /metrics ($V)" \
+    || bad "verify_failures_total missing/zero"
 
 # 2: clean retry fills and matches
 curl -s "http://127.0.0.1:$CPORT$OBJ" -o "$PFX/got.bin"

@@ -29,7 +29,8 @@ typedef enum {
     XROOTD_PROTO_STREAM = 0,
     XROOTD_PROTO_WEBDAV = 1,
     XROOTD_PROTO_S3     = 2,
-    XROOTD_PROTO_COUNT  = 3
+    XROOTD_PROTO_CVMFS  = 3,    /* phase-68: the cvmfs:// site-cache plane */
+    XROOTD_PROTO_COUNT  = 4
 } xrootd_proto_t;
 
 typedef enum {

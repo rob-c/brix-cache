@@ -9,7 +9,7 @@ ok(){ printf '  ok   %s\n' "$1"; }; bad(){ printf '  FAIL %s\n' "$1"; fail=1; }
 cleanup(){ [ -f "$PFX/nginx.pid" ] && kill "$(cat "$PFX/nginx.pid")" 2>/dev/null
            [ -n "${MOCK:-}" ] && kill "$MOCK" 2>/dev/null; rm -rf "$PFX"; }
 trap cleanup EXIT
-MPORT=12831; CPORT=12832
+MPORT=12831; CPORT=12832; XPORT=12833
 mkdir -p "$PFX/cache" "$PFX/logs"
 
 cat > "$PFX/nginx.conf" <<EOF
@@ -17,7 +17,11 @@ daemon on; error_log $PFX/logs/e.log info; pid $PFX/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 128; }
 http {
-    access_log off;
+    # T16 canonical cvmfs access-log format (class / cache disposition / origin)
+    log_format cvmfs '\$remote_addr [\$time_local] "\$request" \$status '
+                     '\$body_bytes_sent \$request_time '
+                     'class=\$cvmfs_class cache=\$cvmfs_cache origin=\$cvmfs_origin';
+    access_log $PFX/logs/cvmfs_access.log cvmfs;
     # T21 canonical connection-durability block (proven by run_cvmfs_keepalive.sh)
     keepalive_timeout 3600s; keepalive_requests 1000000;
     send_timeout 300s; client_header_timeout 300s;
@@ -33,6 +37,12 @@ http {
         # nginx normalizes dot-segments before location match, so a traversal
         # like /cvmfs/../etc/passwd arrives here as /etc/passwd — refuse it.
         location / { return 403; }
+    }
+    server {   # T16: metrics + healthz scrape listener
+        listen 127.0.0.1:$XPORT;
+        access_log off;
+        location /metrics { xrootd_metrics on; }
+        location /healthz { xrootd_health on; }
     }
 }
 EOF
@@ -96,5 +106,24 @@ NB2="$(curl -s "http://127.0.0.1:$MPORT/ctl/heads" | grep -oF "$BOGUS" | wc -l)"
 [ "$CN1" = 404 ] && [ "$CN2" = 404 ] && [ "$NB1" -ge 1 ] && [ "$NB1" = "$NB2" ] \
     && ok "negative cache absorbed repeat 404" \
     || bad "negative cache: codes=$CN1/$CN2 origin-probes=$NB1→$NB2"
+
+# T16: the three visibility surfaces
+M="$(curl -s "http://127.0.0.1:$XPORT/metrics")"
+CASN="$(printf '%s' "$M" | sed -n 's/^xrootd_cvmfs_requests_total{class="cas"} //p')"
+[ "${CASN:-0}" -ge 1 ] && ok "metrics: cas requests counted ($CASN)" \
+    || bad "metrics: cas counter missing/zero"
+printf '%s' "$M" | grep -q 'proto="cvmfs"' \
+    && ok "metrics: proto=cvmfs on module-wide families" \
+    || bad "metrics: no proto=cvmfs label"
+FILLB="$(printf '%s' "$M" | sed -n 's/^xrootd_cvmfs_bytes_served_total{source="fill"} //p')"
+[ "${FILLB:-0}" -ge 1 ] && ok "metrics: fill bytes counted" || bad "metrics: fill bytes zero"
+grep -q 'class=cas cache=fill' "$PFX/logs/cvmfs_access.log" \
+    && ok "access log: cold read logged as class=cas cache=fill" \
+    || bad "access log: no fill line"
+grep -q 'class=cas cache=hit' "$PFX/logs/cvmfs_access.log" \
+    && ok "access log: warm read logged as cache=hit" \
+    || bad "access log: no hit line"
+curl -s "http://127.0.0.1:$XPORT/healthz?verbose" | grep -q '"cvmfs_origins":\[{"host"' \
+    && ok "healthz: cvmfs_origins present" || bad "healthz: no cvmfs_origins"
 
 exit $fail

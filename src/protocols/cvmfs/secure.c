@@ -119,10 +119,10 @@ xrootd_scvmfs_preamble(ngx_http_request_t *r,
         break;
     }
     if (rc != NGX_DECLINED) {
-        XROOTD_CVMFS_METRIC_INC(XROOTD_CVMFS_M_REJECT);
+        XROOTD_CVMFS_METRIC_INC(requests_total[XROOTD_CVMFS_CLASS_REJECT]);
         return rc;
     }
     ctx->secure = 1;                               /* unlocks https upstream */
-    XROOTD_CVMFS_METRIC_INC(XROOTD_CVMFS_M_SECURE);
+    XROOTD_CVMFS_METRIC_INC(secure_requests_total);
     return NGX_DECLINED;
 }

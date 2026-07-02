@@ -11,6 +11,8 @@
  */
 #include "sd_cache.h"
 #include "protocols/cvmfs/classify.h"   /* phase-68 manifest-TTL stamping */
+#include "observability/metrics/metrics.h"        /* phase-68 T16 counters */
+#include "observability/metrics/metrics_macros.h"
 #include "fs/cache/cstore.h"
 
 #include <errno.h>
@@ -77,6 +79,21 @@ sd_cache_admit(const xrootd_cache_policy_t *pol, const char *path, off_t size)
         return 0;
     }
     return 1;
+}
+
+/* phase-68 T16: WAN-in byte accounting, gated on the cvmfs personality
+ * (other exports' fills must not feed the cvmfs family). */
+static void
+sd_cache_note_origin_bytes(const sd_cache_inst_state *st, off_t bytes)
+{
+    if (bytes <= 0) {
+        return;
+    }
+    if (st->policy.verify == XROOTD_CACHE_VERIFY_CVMFS_CAS
+        || st->policy.cvmfs_manifest_ttl > 0)
+    {
+        XROOTD_CVMFS_METRIC_ADD(origin_bytes_total, (ngx_atomic_uint_t) bytes);
+    }
 }
 
 /* phase-68: 1 iff `key` is CVMFS MANIFEST-class (mutable signed metadata). */
@@ -258,6 +275,8 @@ sd_cache_fill(sd_cache_inst_state *st, const char *key)
            ? xrootd_cache_verify_cvmfs_cas(pp, key, st->log, NULL, NULL)
            : XROOTD_CACHE_VERIFY_ERROR;
         if (vr == XROOTD_CACHE_VERIFY_MISMATCH) {
+            XROOTD_CVMFS_METRIC_INC(verify_failures_total);
+            sd_cache_note_origin_bytes(st, off);   /* WAN cost is WAN cost */
             xrootd_cache_quarantine_part(pp, st->policy.quarantine_dir,
                                          st->log);
             xrootd_cstore_fill_abort(staged);   /* part already renamed away */
@@ -274,6 +293,8 @@ sd_cache_fill(sd_cache_inst_state *st, const char *key)
         }
         verified = (vr == XROOTD_CACHE_VERIFY_VERIFIED);
     }
+
+    sd_cache_note_origin_bytes(st, off);       /* WAN in, this attempt */
 
     if (xrootd_cstore_fill_commit(staged) != NGX_OK) {
         return NGX_ERROR;

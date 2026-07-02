@@ -36,6 +36,7 @@ static const char *xrootd_unified_proto_names[XROOTD_PROTO_COUNT] = {
     "stream",
     "webdav",
     "s3",
+    "cvmfs",
 };
 
 static const char *xrootd_unified_op_names[XROOTD_METRIC_OP_COUNT] = {

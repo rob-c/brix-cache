@@ -1040,6 +1040,7 @@ ngx_module_name=ngx_http_xrootd_metrics_module
                   $ngx_addon_dir/src/observability/metrics/stream_tracking.c \
                   $ngx_addon_dir/src/observability/metrics/webdav.c \
                   $ngx_addon_dir/src/observability/metrics/s3.c \
+                 $ngx_addon_dir/src/observability/metrics/cvmfs.c \
                   $ngx_addon_dir/src/observability/metrics/tracking.c \
                   $ngx_addon_dir/src/observability/metrics/cluster.c \
                   $ngx_addon_dir/src/observability/metrics/ratelimit.c \
