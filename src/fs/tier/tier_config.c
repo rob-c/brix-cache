@@ -13,6 +13,7 @@
  * (NEEDS_DEV + the closing sub-project), never a hard failure (P1).
  */
 #include "tier.h"
+#include "core/types/fs_list.h"
 #include "core/config/root_prepare.h"   /* xrootd_prepare_export_root */
 
 #include <limits.h>
@@ -27,19 +28,11 @@ static const struct {
     int         tls;
     int         nearline;
 } tier_schemes[] = {
-    { "posix",  "posix",  0, 0 },
-    { "pblock", "pblock", 0, 0 },
-    { "root",   "xroot",  0, 0 },
-    { "roots",  "xroot",  1, 0 },
-    { "http",   "http",   0, 0 },
-    { "https",  "http",   1, 0 },
-    { "webdav", "http",   0, 0 },   /* WebDAV is HTTP; davs is HTTPS */
-    { "davs",   "http",   1, 0 },
-    { "s3",     "s3",     0, 0 },
-    { "rados",  "rados",  0, 0 },
-    { "ceph",   "ceph",   0, 0 },   /* librados object store (alias of rados) */
-    { "tape",   "tape",   0, 1 },
-    { "frm",    "frm",    0, 1 },   /* nearline MSS/HSM (alias of tape) */
+    /* GENERATED from the central filesystem declaration
+     * (core/types/fs_list.h XROOTD_FS_SCHEME_LIST) — add schemes there. */
+#define S(scheme, driver, tls, nearline) { scheme, driver, tls, nearline },
+    XROOTD_FS_SCHEME_LIST(S)
+#undef S
 };
 
 /* ---- small helpers -------------------------------------------------------- */

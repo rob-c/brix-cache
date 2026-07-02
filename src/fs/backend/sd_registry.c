@@ -16,25 +16,42 @@
  */
 
 #include "sd.h"
+#include "core/types/fs_list.h"         /* THE central filesystem census */
 #include "fs/backend/rados/sd_ceph.h"   /* xrootd_sd_ceph_driver (only under XROOTD_HAVE_CEPH) */
 
 #include <errno.h>
 
-/* The driver table. Append a row + its sd_<name>.c to add a backend. The Ceph
- * and pblock rows are present only when the build found their libraries
- * (librados / libsqlite3); otherwise the table — and the build — are unchanged.
- * The pblock extern lives in sd.h (guarded by XROOTD_HAVE_SQLITE). */
+/* The name-resolvable driver table, GENERATED from the central filesystem
+ * declaration (core/types/fs_list.h): every BACKEND-kind row lands here;
+ * origins/decorators are created directly by the tier and stay out. Add
+ * filesystems THERE (the gated sublists carry the library #if structure). */
+#define XROOTD_FS_ROW_BACKEND(ID, sym, name)   &xrootd_sd_##sym##_driver,
+#define XROOTD_FS_ROW_ORIGIN(ID, sym, name)
+#define XROOTD_FS_ROW_DECORATOR(ID, sym, name)
+#define XROOTD_FS_ROW_NEARLINE(ID, sym, name)
+
 static const xrootd_sd_driver_t *const sd_drivers[] = {
-    &xrootd_sd_posix_driver,
-    &xrootd_sd_block_driver,
-#if XROOTD_HAVE_CEPH
-    &xrootd_sd_ceph_driver,
-    &xrootd_sd_cephfs_ro_driver,
-#endif
-#if XROOTD_HAVE_SQLITE
-    &xrootd_sd_pblock_driver,
-#endif
+    XROOTD_FS_DRIVER_LIST(XROOTD_FS_ROW)
 };
+
+#undef XROOTD_FS_ROW_BACKEND
+#undef XROOTD_FS_ROW_ORIGIN
+#undef XROOTD_FS_ROW_DECORATOR
+#undef XROOTD_FS_ROW_NEARLINE
+
+/* Census accessors: iterate every REGISTERED filesystem (tooling/health). */
+ngx_uint_t
+xrootd_sd_driver_count(void)
+{
+    return sizeof(sd_drivers) / sizeof(sd_drivers[0]);
+}
+
+const xrootd_sd_driver_t *
+xrootd_sd_driver_at(ngx_uint_t i)
+{
+    return (i < sizeof(sd_drivers) / sizeof(sd_drivers[0]))
+         ? sd_drivers[i] : NULL;
+}
 
 /* xrootd_sd_default_driver — the backend an export defaults to when it names none:
  * the built-in POSIX driver (the full-featured reference backend), so the VFS can
