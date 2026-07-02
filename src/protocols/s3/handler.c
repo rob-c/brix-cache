@@ -31,9 +31,9 @@
 #include "s3.h"
 #include "tagging.h"
 #include "auth/impersonate/lifecycle.h"
-#include "core/compat/http_body.h"
-#include "core/compat/http_headers.h"
-#include "core/compat/http_query.h"
+#include "core/http/http_body.h"
+#include "core/http/http_headers.h"
+#include "core/http/http_query.h"
 
 #include <limits.h>
 #include <stdlib.h>
@@ -409,6 +409,19 @@ ngx_http_s3_handler(ngx_http_request_t *r)
     /* XrdAcc engine (when xrootd_authdb_format xrdacc) */    rc = s3_acc_check(r, cf, s3ctx->identity);
     if (rc != NGX_OK) {
         return s3_metrics_return_method(r, method_slot, rc);
+    }
+
+    /*
+     * An auth gate that rejected the request by emitting its OWN XML error body
+     * (e.g. s3_verify_sigv4's "Missing/Malformed Authorization") returns NGX_OK
+     * but leaves r->header_sent set. Continuing to dispatch would let GetObject
+     * call ngx_http_send_header a second time ("header already sent" alert) and
+     * overwrite the sent 4xx with headers_out.status = 200 — hiding the auth
+     * failure from the LOG phase (metrics AND the bad-actor guard). Stop here so
+     * the already-sent status stands.
+     */
+    if (r->header_sent) {
+        return s3_metrics_return_method(r, method_slot, NGX_OK);
     }
 
     /*

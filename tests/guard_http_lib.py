@@ -113,23 +113,27 @@ class GuardServer:
         self.host = base_host
         self.port = port
 
-    def get(self, path, headers=None):
+    def request(self, method, path, body=None, headers=None):
         conn = http.client.HTTPConnection(self.host, self.port, timeout=5)
         try:
-            conn.request("GET", path, headers=headers or {})
+            conn.request(method, path, body=body, headers=headers or {})
             resp = conn.getresponse()
-            resp.read()
+            resp.body = resp.read()
             return resp
         except (http.client.BadStatusLine, http.client.RemoteDisconnected,
-                ConnectionResetError):
+                ConnectionResetError, BrokenPipeError):
 
             class _Dropped:
                 status = 444
                 status_code = 444
+                body = b""
 
             return _Dropped()
         finally:
             conn.close()
+
+    def get(self, path, headers=None):
+        return self.request("GET", path, headers=headers)
 
     def wait_ready(self, probe_path="/"):
         for _ in range(50):
