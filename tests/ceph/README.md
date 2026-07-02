@@ -136,8 +136,10 @@ in the container with `tests/ceph/run_rescue_tools.sh` (host-side runner).
 Pure-Python re-implementations of the two bidirectional migration tools, with
 identical semantics and CLI grammar plus operator quality-of-life additions
 (`--json` JSONL output, resumable `--state` manifest, `--prefix`/`--match`
-worklist filters, progress, O(N) source indexing). The C++ originals stay the
-proven reference; spec:
+worklist filters, progress, O(N) source indexing). **Full reference +
+operator guide:**
+[`docs/10-reference/python-migration-tools.md`](../../docs/10-reference/python-migration-tools.md).
+The C++ originals stay the proven reference; spec:
 `docs/superpowers/specs/2026-07-02-python-xrdceph-cephfs-migration-design.md`,
 deep reference:
 [`docs/10-reference/xrdceph-cephfs-bidirectional-migration.md`](../../docs/10-reference/xrdceph-cephfs-bidirectional-migration.md).
