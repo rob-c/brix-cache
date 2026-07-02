@@ -244,6 +244,13 @@ ngx_http_xrootd_cvmfs_handler(ngx_http_request_t *r)
         return rc;
     }
 
+    if (lcf->scvmfs) {
+        rc = xrootd_scvmfs_preamble(r, lcf);        /* T22: TLS + authz    */
+        if (rc != NGX_DECLINED) {
+            return rc;
+        }
+    }
+
     rc = xrootd_cvmfs_gate(r, lcf);                 /* classify + police  */
     if (rc != NGX_DECLINED) {
         return rc;               /* reject status, passthrough NGX_DONE … */

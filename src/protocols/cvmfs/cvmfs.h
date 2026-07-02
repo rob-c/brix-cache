@@ -47,6 +47,9 @@ typedef struct {
     ngx_array_t *origin_coords;    /* xrootd_cvmfs_origin_coords entries      */
     ngx_str_t    here;             /* xrootd_cvmfs_here lat:lon (geo mode)    */
     time_t       rtt_interval;     /* xrootd_cvmfs_rtt_interval (default 60)  */
+    time_t       client_hold;      /* xrootd_cvmfs_client_hold (default 25;
+                                      MUST stay below the WN CVMFS_TIMEOUT)   */
+    time_t       fill_max_life;    /* xrootd_cvmfs_fill_max_life (default 300)*/
 } xrootd_cvmfs_conf_t;
 
 typedef struct {
@@ -57,9 +60,21 @@ typedef struct {
     ngx_http_xrootd_shared_conf_t  common;
 
     xrootd_cvmfs_conf_t            cvmfs;    /* protocol-specific knobs      */
-    /* scvmfs (T22, EXPERIMENTAL) fields land here later:                    */
-    /* ngx_flag_t secure; ngx_uint_t secure_authz;                           */
+
+    /* ---- scvmfs:// (T22, EXPERIMENTAL) — the secure layer ON cvmfs ---- */
+    ngx_flag_t   scvmfs;               /* xrootd_scvmfs on|off (default off) */
+    ngx_uint_t   scvmfs_authz;         /* xrootd_scvmfs_authz none|bearer    */
+    ngx_str_t    scvmfs_token_issuers; /* scitokens.cfg path (bearer mode)   */
+    void        *scvmfs_registry;      /* xrootd_token_registry_t*, built at
+                                          merge when bearer mode is on       */
 } ngx_http_xrootd_cvmfs_loc_conf_t;
+
+/* scvmfs client-authz modes (VOMS/GSI client-cert mode is future work —
+ * the WebDAV auth_cert machinery needs a conf-independent seam first). */
+typedef enum {
+    XROOTD_SCVMFS_AUTHZ_NONE = 0,     /* TLS transport only, no client auth */
+    XROOTD_SCVMFS_AUTHZ_BEARER        /* Authorization: Bearer + read scope */
+} xrootd_scvmfs_authz_e;
 
 /* Per-request ctx set by the handler on entry (convention #2 of the phase-68
  * plan). sd_override is the proxy-mode (T14) per-upstream storage instance;
@@ -107,6 +122,12 @@ xrootd_sd_instance_t *xrootd_cvmfs_upstream_get(ngx_http_request_t *r,
  * inline open, off-loop fill, future hold/retry — feeds the memo. */
 void xrootd_cvmfs_notify_status(ngx_http_request_t *r,
     ngx_http_xrootd_cvmfs_loc_conf_t *lcf, ngx_uint_t status);
+
+/* scvmfs (T22, EXPERIMENTAL) security preamble: NGX_DECLINED = proceed
+ * (transport verified + client authenticated per xrootd_scvmfs_authz);
+ * anything else is a final status (400/401). */
+ngx_int_t xrootd_scvmfs_preamble(ngx_http_request_t *r,
+    ngx_http_xrootd_cvmfs_loc_conf_t *lcf);
 
 /* T19 rtt mode: record (at config time) that the export at `root_canon` runs
  * the per-worker RTT probe; arm the probe timers at worker init. */
