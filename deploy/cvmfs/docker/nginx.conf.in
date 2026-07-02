@@ -1,0 +1,108 @@
+# deploy/cvmfs/docker/nginx.conf.in — THE single-config proof (phase-68 demo).
+#
+# One nginx process serves, side by side:
+#   :3128  the CVMFS site cache (forward-proxy mode) + bad-actor guard
+#   :3129  the operator dashboard
+#   :3130  Prometheus /metrics + /healthz
+# plus a loopback root:// stream endpoint (the dashboard's SHM zones are
+# registered by the stream side; it also demonstrates stream+http coexisting).
+#
+# Rendered by entrypoint.sh: @DASH_PASSWORD@ / @UPSTREAM_ALLOW@ come from env.
+
+worker_processes auto;
+error_log /var/log/nginx-xrootd/error.log info;
+pid /run/nginx-xrootd.pid;
+
+thread_pool default threads=8;
+
+events { worker_connections 4096; }
+
+stream {
+    # Loopback-only root:// endpoint: registers the dashboard/metrics SHM
+    # zones and proves the stream plane lives in the same config. Not
+    # published by the container.
+    server {
+        listen 127.0.0.1:1094;
+        xrootd on;
+        xrootd_storage_backend posix:/srv/scratch;
+        xrootd_auth none;
+    }
+}
+
+http {
+    access_log /var/log/nginx-xrootd/http_access.log;
+
+    # cvmfs-identity access log (phase-68 T16 variables)
+    log_format cvmfs '$remote_addr [$time_local] "$request" $status '
+                     '$body_bytes_sent class=$cvmfs_class cache=$cvmfs_cache '
+                     'origin=$cvmfs_origin';
+
+    # ------------------------------------------------------------------ 3128
+    # The CVMFS site cache. Official clients point CVMFS_HTTP_PROXY here and
+    # send absolute-form request lines; the authority must be on the
+    # allowlist below. Listener block = the proven connection-durability
+    # shape (tests/run_cvmfs_keepalive.sh): a WN's pooled proxy connection
+    # is precious — never recycle it early, never answer trouble with a
+    # broken socket.
+    server {
+        listen 3128 so_keepalive=60s:10s:6 backlog=2048;
+
+        keepalive_timeout  3600s;
+        keepalive_requests 1000000;
+        send_timeout          300s;
+        client_header_timeout 300s;
+        reset_timedout_connection off;
+
+        access_log /var/log/nginx-xrootd/cvmfs_access.log cvmfs;
+
+        location / {
+            xrootd_cvmfs on;
+            xrootd_cvmfs_cache_store posix:/var/cache/nginx-cvmfs;
+            xrootd_cache_verify cvmfs-cas;
+            xrootd_cvmfs_quarantine_dir /var/cache/nginx-cvmfs-quarantine;
+
+            # forward-proxy authority allowlist (= this site's Stratum-1s).
+            # Host-only match, any port; unset would mean proxy mode off.
+            xrootd_cvmfs_upstream_allow @UPSTREAM_ALLOW@;
+            xrootd_cvmfs_upstream_max 16;
+
+            # never-drop envelope: hold+retry 25 s (must stay < the client's
+            # CVMFS_TIMEOUT), detached fills may run 300 s.
+            xrootd_cvmfs_client_hold 25;
+            xrootd_cvmfs_fill_max_life 300;
+
+            # bad-actor guard on the same location (phase-65): junk bounced
+            # pre-handler, one audit line per signal for fail2ban. 403 (not
+            # 444) keeps the never-drop no-broken-sockets contract.
+            xrootd_guard on;
+            xrootd_guard_bounce_status 403;
+            xrootd_guard_audit_log /var/log/nginx-xrootd/guard-audit.log;
+            xrootd_guard_valid_prefix /cvmfs;
+            xrootd_guard_valid_method GET HEAD;
+        }
+    }
+
+    # ------------------------------------------------------------------ 3129
+    # Operator dashboard. Admin-only by design (see dashboard README):
+    # firewall this port; the demo protects it with a password only.
+    server {
+        listen 3129;
+
+        location /xrootd/ {
+            xrootd_dashboard on;
+            xrootd_dashboard_password "@DASH_PASSWORD@";
+        }
+        location = / { return 302 /xrootd/; }
+        location / { return 404; }
+    }
+
+    # ------------------------------------------------------------------ 3130
+    # Prometheus scrape target + liveness probe.
+    server {
+        listen 3130;
+
+        location = /metrics { xrootd_metrics on; }
+        location = /healthz { xrootd_health on; }
+        location / { return 404; }
+    }
+}

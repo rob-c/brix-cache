@@ -1,0 +1,10 @@
+# Whitelist build context for deploy/cvmfs/docker/Dockerfile — the module
+# build needs only ./config + ./src; the demo adds its own deploy files and
+# the mock Stratum-1. Everything else (docs/doxygen, .git, test artifacts,
+# scratch files) stays out of the context.
+*
+!config
+!src
+!deploy/cvmfs/docker
+!deploy/fail2ban
+!tests/cvmfs/mock_stratum1.py

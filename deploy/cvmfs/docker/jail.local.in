@@ -1,0 +1,55 @@
+# deploy/cvmfs/docker/jail.local.in — fail2ban jails for the demo container.
+#
+# Same jails as deploy/fail2ban/jail.d/xrootd-guard.conf, with logpaths moved
+# to the container's log directory. @BANACTION@ is chosen by entrypoint.sh:
+# nftables-multiport when the container has NET_ADMIN, the no-op "dummy"
+# action otherwise (detection still visible via fail2ban-client status).
+
+[DEFAULT]
+banaction = @BANACTION@
+backend = polling
+
+# --- guard audit-log jails (phase-65) --------------------------------------
+
+[xrootd-guard-signature]
+enabled  = true
+filter   = xrootd-guard-signature
+logpath  = /var/log/nginx-xrootd/guard-audit.log
+maxretry = 1
+findtime = 600
+bantime  = 86400
+
+[xrootd-guard-grammar]
+enabled  = true
+filter   = xrootd-guard-grammar
+logpath  = /var/log/nginx-xrootd/guard-audit.log
+maxretry = 2
+findtime = 600
+bantime  = 43200
+
+[xrootd-guard-notfound]
+enabled  = true
+filter   = xrootd-guard-notfound
+logpath  = /var/log/nginx-xrootd/guard-audit.log
+maxretry = 20
+findtime = 60
+bantime  = 3600
+
+[xrootd-guard-authfail]
+enabled  = true
+filter   = xrootd-guard-authfail
+logpath  = /var/log/nginx-xrootd/guard-audit.log
+maxretry = 5
+findtime = 120
+bantime  = 7200
+
+# --- cvmfs protocol rejects (phase-68, nginx ERROR log) ---------------------
+
+[nginx-xrootd-cvmfs]
+enabled  = true
+port     = 3128
+filter   = nginx-xrootd-cvmfs
+logpath  = /var/log/nginx-xrootd/error.log
+maxretry = 20
+findtime = 60
+bantime  = 600
