@@ -1,6 +1,6 @@
 #include "proxy_internal.h"
-#include "../connection/handler.h"
-#include "../connection/write_helpers.h"   /* xrootd_queue_response_base */
+#include "connection/handler.h"
+#include "connection/write_helpers.h"   /* xrootd_queue_response_base */
 #include <sys/socket.h>
 #include <sys/ioctl.h>   /* FIONREAD — only splice a fully-buffered body */
 

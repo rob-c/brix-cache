@@ -11,9 +11,9 @@
  */
 
 #include "namespace_ops.h"
-#include "../path/path.h"
-#include "../path/beneath.h"
-#include "../fattr/ngx_xrootd_fattr.h"
+#include "path/path.h"
+#include "path/beneath.h"
+#include "fattr/ngx_xrootd_fattr.h"
 #include "fs_walk.h"
 #include "copy_range.h"
 #include "staged_file.h"

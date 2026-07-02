@@ -33,8 +33,8 @@
 #include <ngx_core.h>
 #include <ngx_http.h>
 
-#include "../config/shared_conf.h"      /* ngx_http_xrootd_shared_conf_t */
-#include "../fs/backend/sd.h"           /* xrootd_sd_instance_t */
+#include "config/shared_conf.h"      /* ngx_http_xrootd_shared_conf_t */
+#include "fs/backend/sd.h"           /* xrootd_sd_instance_t */
 
 /* The handler re-entry callback: invoked on the event loop after a successful
  * fill to serve the now-cached object. `data` is the opaque pointer passed to

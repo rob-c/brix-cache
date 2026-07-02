@@ -36,10 +36,10 @@
  *     403 when off.
  */
 #include "webdav.h"
-#include "../compat/crypto.h"
+#include "compat/crypto.h"
 
 #include <jansson.h>
-#include "../compat/alloc_guard.h"
+#include "compat/alloc_guard.h"
 
 /* State carried from the subrequest fire to its completion callback. */
 typedef struct {

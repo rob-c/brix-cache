@@ -29,8 +29,8 @@
 
 #include <ngx_core.h>
 
-#include "../sd.h"
-#include "../../tier/tier.h"   /* xrootd_stage_policy_t */
+#include "fs/backend/sd.h"
+#include "fs/tier/tier.h"   /* xrootd_stage_policy_t */
 
 /* Wrap `source` in a write-stage decorator buffering staged writes on the `store`
  * instance, with `policy` (flush sync/async; copied; NULL = a default sync flush).

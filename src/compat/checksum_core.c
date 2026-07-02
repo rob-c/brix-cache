@@ -14,7 +14,7 @@
  *       path uses an init-at-edge helper.
  */
 #include "checksum_core.h"
-#include "../fs/backend/sd.h"   /* phase-55: route raw fd I/O through the SD seam */
+#include "fs/backend/sd.h"   /* phase-55: route raw fd I/O through the SD seam */
 #include "crc32c.h"
 #include "crc64.h"
 

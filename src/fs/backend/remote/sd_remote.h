@@ -21,8 +21,8 @@
  *       (no nginx pool), so they are safe to build and use off the event loop.
  */
 
-#include "../sd.h"
-#include "../s3/sd_s3_transport.h"
+#include "fs/backend/sd.h"
+#include "fs/backend/s3/sd_s3_transport.h"
 
 /* Remote-origin schemes the driver can serve. */
 typedef enum {

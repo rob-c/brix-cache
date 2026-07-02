@@ -7,7 +7,7 @@
 
 #include "impersonate.h"
 #include "impersonate_proto.h"
-#include "../compat/log_diag.h"
+#include "compat/log_diag.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <grp.h>

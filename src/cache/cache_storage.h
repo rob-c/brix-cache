@@ -23,7 +23,7 @@
 
 #include "cache_internal.h"
 #include "cstore.h"                 /* xrootd_cstore_t (policy-layer adapter) */
-#include "../fs/backend/sd.h"
+#include "fs/backend/sd.h"
 
 /* Build the per-role SD instances + O_PATH rootfds for this worker. No-op when no
  * cache is configured. Returns NGX_OK, or NGX_ERROR on a hard failure (a missing

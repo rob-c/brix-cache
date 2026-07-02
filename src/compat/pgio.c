@@ -6,7 +6,7 @@
  */
 #include "pgio.h"
 #include "crc32c.h"
-#include "../protocol/flags.h"   /* kXR_pgPageSZ */
+#include "protocol/flags.h"   /* kXR_pgPageSZ */
 
 #include <string.h>
 #include <stdint.h>

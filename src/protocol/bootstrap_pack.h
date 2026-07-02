@@ -33,7 +33,7 @@
 
 #include "wire_core_requests.h"   /* ClientInitHandShake / Protocol / Login + types/opcodes */
 #include "flags.h"                /* kXR_ver005, kXR_secreqs/ableTLS/wantTLS, kXR_asyncap */
-#include "codec/wire_codec.h"     /* shared per-opcode wire-body codec */
+#include "protocol/codec/wire_codec.h"     /* shared per-opcode wire-body codec */
 
 /*
  * ClientInitHandShake = {0,0,0, htonl(4), htonl(ROOTD_PQ)} (20 bytes). The first

@@ -25,8 +25,8 @@
 
 #include <ngx_core.h>
 
-#include "backend/sd.h"
-#include "../compat/af_policy.h"   /* XROOTD_AF_* family policy for config_str/_xroot */
+#include "fs/backend/sd.h"
+#include "compat/af_policy.h"   /* XROOTD_AF_* family policy for config_str/_xroot */
 
 /* Record (at config time) that the export rooted at `root_canon` uses backend
  * `name` (currently only "pblock") with `block_size` bytes (0 = default). Safe to

@@ -22,11 +22,11 @@
 
 /* Phase 24 — shared mirror config block embedded below (self-contained;
  * pulls only ngx_core, so safe to include from this header). */
-#include "../mirror/mirror.h"
+#include "mirror/mirror.h"
 
 /* Tape/stage directive config block (xrootd_frm_conf_t). Pulls only ngx_core, so
  * it is safe to include from this header. (FRM-dissolution: was ../frm/frm.h.) */
-#include "../config/tape_stage_conf.h"
+#include "config/tape_stage_conf.h"
 
 /* ---- Helper structs used inside ngx_stream_xrootd_srv_conf_t ---- */
 
@@ -58,7 +58,7 @@ typedef enum {
 
 /* The XrdAcc engine selector + audit constants live in src/acc/privs.h (pure,
  * shared by the stream / WebDAV / S3 modules); pulled in via the include below. */
-#include "../acc/privs.h"
+#include "acc/privs.h"
 
 typedef struct {
     xrootd_auth_type_t type;
@@ -92,15 +92,15 @@ typedef struct {
     char       sss_keyname[XROOTD_SSS_NAME_MAX]; /* "" = use first key in conf->sss_keys       */
 } xrootd_proxy_upstream_t;
 
-#include "../cache/writethrough_decision.h"
-#include "../config/shared_conf.h"
+#include "cache/writethrough_decision.h"
+#include "config/shared_conf.h"
 
 /* Phase 20 — shared-memory KV consumers (token cache, auth cache, rate limit).
  * These headers are lightweight (ngx core only) so embedding their config
  * structs here introduces no include cycle. */
-#include "../shm/kv.h"
-#include "../path/auth_cache.h"
-#include "../shm/rate_limit.h"
+#include "shm/kv.h"
+#include "path/auth_cache.h"
+#include "shm/rate_limit.h"
 
 /*
  * Per-server configuration block.

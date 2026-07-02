@@ -13,8 +13,8 @@
  *      and queues to the client event loop.
  */
 
-#include "../ngx_xrootd_module.h"
-#include "../fs/backend/sd.h"   /* xrootd_sd_obj_t — pgread routes via the SD seam */
+#include "ngx_xrootd_module.h"
+#include "fs/backend/sd.h"   /* xrootd_sd_obj_t — pgread routes via the SD seam */
 
 /* ---- Function: xrootd_handle_read() ----
  * Handles kXR_read opcode — single-segment file read returning raw bytes to client.

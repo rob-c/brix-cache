@@ -7,12 +7,12 @@
  */
 
 #include "webdav.h"
-#include "../impersonate/lifecycle.h"
-#include "../path/path.h"
-#include "../fs/vfs.h"   /* confined walk via vfs_opendir_quiet/readdir_kind/probe */
-#include "../compat/fs_walk.h"
-#include "../compat/http_body.h"
-#include "../compat/http_xml.h"
+#include "impersonate/lifecycle.h"
+#include "path/path.h"
+#include "fs/vfs.h"   /* confined walk via vfs_opendir_quiet/readdir_kind/probe */
+#include "compat/fs_walk.h"
+#include "compat/http_body.h"
+#include "compat/http_xml.h"
 
 #include <dirent.h>
 #include <libxml/parser.h>

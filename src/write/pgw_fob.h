@@ -22,7 +22,7 @@
 #ifndef XROOTD_WRITE_PGW_FOB_H
 #define XROOTD_WRITE_PGW_FOB_H
 
-#include "../types/file.h"
+#include "types/file.h"
 
 /* Initialise the Fob for a writable handle.  Idempotent; called lazily on the
  * first kXR_pgwrite so read-only / plain-write handles pay nothing. */

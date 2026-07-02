@@ -1,7 +1,7 @@
 #ifndef XROOTD_WEBDAV_LOCKS_REQUEST_H
 #define XROOTD_WEBDAV_LOCKS_REQUEST_H
 
-#include "../webdav.h"
+#include "webdav/webdav.h"
 
 /*
  * Parse the WebDAV "Timeout" request header into an ABSOLUTE expiry instant.

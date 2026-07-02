@@ -1,5 +1,5 @@
 #include "metrics.h"
-#include "../../metrics/unified.h"
+#include "metrics/unified.h"
 
 static xrootd_proto_t
 xrootd_tpc_metric_proto(ngx_uint_t protocol)

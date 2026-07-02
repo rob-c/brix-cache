@@ -8,7 +8,7 @@
  */
 
 #include "tap.h"
-#include "../protocol/opcodes.h"
+#include "protocol/opcodes.h"
 
 #include <stdio.h>
 #include <string.h>

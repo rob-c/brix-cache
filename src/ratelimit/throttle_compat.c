@@ -10,7 +10,7 @@
  */
 
 #include "throttle_compat.h"
-#include "../token/ini.h"
+#include "token/ini.h"
 
 #include <string.h>
 #include <stdlib.h>

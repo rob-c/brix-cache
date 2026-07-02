@@ -24,10 +24,10 @@
  * verification, so it is verified our-client ↔ our-server; full stock-XrdSecpwd
  * byte-interop (pre-shared srvpuk + 3-RT rtag) is a documented follow-on.
  */
-#include "../ngx_xrootd_module.h"
-#include "../session/registry.h"
-#include "../gsi/gsi_core.h"
-#include "../protocol/gsi.h"
+#include "ngx_xrootd_module.h"
+#include "session/registry.h"
+#include "gsi/gsi_core.h"
+#include "protocol/gsi.h"
 #include "pwd.h"
 
 #include <openssl/evp.h>

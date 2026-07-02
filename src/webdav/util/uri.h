@@ -1,7 +1,7 @@
 #ifndef XROOTD_WEBDAV_UTIL_URI_H
 #define XROOTD_WEBDAV_UTIL_URI_H
 
-#include "../webdav.h"
+#include "webdav/webdav.h"
 
 /*
  * webdav_urldecode — percent-decode a URI component, rejecting embedded null bytes.

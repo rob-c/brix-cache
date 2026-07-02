@@ -1,8 +1,8 @@
 #include "s3.h"
 #include "multipart_internal.h"
-#include "../impersonate/lifecycle.h"
-#include "../fs/vfs.h"   /* thread-safe confined open/unlink (off-thread assemble) */
-#include "../compat/copy_range.h"
+#include "impersonate/lifecycle.h"
+#include "fs/vfs.h"   /* thread-safe confined open/unlink (off-thread assemble) */
+#include "compat/copy_range.h"
 
 #include <string.h>
 

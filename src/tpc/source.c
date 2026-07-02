@@ -1,5 +1,5 @@
 #include "tpc_internal.h"
-#include "../protocol/frame_hdr.h"   /* xrd_error_body_decode (shared kXR_error codec) */
+#include "protocol/frame_hdr.h"   /* xrd_error_body_decode (shared kXR_error codec) */
 
 
 #include <stdlib.h>

@@ -22,7 +22,7 @@
 
 #include <ngx_config.h>
 #include <ngx_core.h>
-#include "../types/context.h"
+#include "types/context.h"
 #include "ssi_service.h"
 #include "ssi_req.h"        /* xrootd_ssi_req_t (nginx-free data type) */
 

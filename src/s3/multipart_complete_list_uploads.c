@@ -23,7 +23,7 @@
  */
 #include "s3.h"
 #include "multipart_internal.h"
-#include "../fs/vfs.h"   /* confined opendir/readdir/probe via the VFS seam */
+#include "fs/vfs.h"   /* confined opendir/readdir/probe via the VFS seam */
 
 #include <dirent.h>
 #include <fcntl.h>

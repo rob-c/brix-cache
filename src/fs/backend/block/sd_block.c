@@ -18,7 +18,7 @@
  *       xrootd_sd_posix_open_unconfined but is exposed under the block name for
  *       call-site clarity.
  */
-#include "../sd.h"
+#include "fs/backend/sd.h"
 
 #include <errno.h>
 #include <fcntl.h>

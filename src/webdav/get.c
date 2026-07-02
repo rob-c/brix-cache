@@ -4,16 +4,16 @@
 
 #include "webdav.h"
 #include "xrdhttp.h"
-#include "../compat/error_mapping.h"
-#include "../compat/etag.h"
-#include "../compat/http_conditionals.h"
-#include "../cache/open.h"
-#include "../dashboard/dashboard_tracking.h"
-#include "../fs/vfs.h"
-#include "../shared/file_serve.h"
-#include "../shared/http_cache_fill.h"     /* phase-64 SP2: off-loop cache fill */
-#include "../shared/http_serve_offload.h"  /* phase-64 SP3: off-loop remote serve */
-#include "../zip/zip_http.h"   /* phase-57 W2: shared HTTP ZIP member serving */
+#include "compat/error_mapping.h"
+#include "compat/etag.h"
+#include "compat/http_conditionals.h"
+#include "cache/open.h"
+#include "dashboard/dashboard_tracking.h"
+#include "fs/vfs.h"
+#include "shared/file_serve.h"
+#include "shared/http_cache_fill.h"     /* phase-64 SP2: off-loop cache fill */
+#include "shared/http_serve_offload.h"  /* phase-64 SP3: off-loop remote serve */
+#include "zip/zip_http.h"   /* phase-57 W2: shared HTTP ZIP member serving */
 
 /* GET range/bytes metrics — shared by the inline serve and the off-loop serve
  * completion (xrootd_http_serve_offload), so both report identically. */

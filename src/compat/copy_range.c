@@ -17,8 +17,8 @@
  */
 
 #include "copy_range.h"
-#include "../fs/backend/sd.h"   /* copy_file_range fast path via the SD driver */
-#include "../fs/vfs.h"          /* xrootd_vfs_pread_full / pwrite_full */
+#include "fs/backend/sd.h"   /* copy_file_range fast path via the SD driver */
+#include "fs/vfs.h"          /* xrootd_vfs_pread_full / pwrite_full */
 
 #include <errno.h>
 #include <limits.h>

@@ -23,7 +23,7 @@
 #include "opcodes.h"
 #include "flags.h"
 #include "wire.h"
-#include "codec/wire_codec.h"   /* shared per-opcode wire-body pack/unpack codec */
+#include "protocol/codec/wire_codec.h"   /* shared per-opcode wire-body pack/unpack codec */
 #include "gsi.h"
 
 #endif /* XROOTD_PROTOCOL_PROTOCOL_H */

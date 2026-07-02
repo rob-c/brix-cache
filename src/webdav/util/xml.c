@@ -35,10 +35,10 @@
  */
 
 #include "xml.h"
-#include "../../compat/xml.h"
+#include "compat/xml.h"
 
 #include <string.h>
-#include "../../compat/alloc_guard.h"
+#include "compat/alloc_guard.h"
 
 /**
  * WHAT: Escape a string for safe inclusion in XML text response bodies.

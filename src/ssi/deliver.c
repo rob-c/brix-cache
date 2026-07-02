@@ -11,8 +11,8 @@
 #include "ssi.h"
 #include "ssi_reply.h"
 #include "ssi_rrinfo.h"     /* XROOTD_SSI_ATTN_FULL / _PEND / _ALRT */
-#include "../response/response.h"
-#include "../response/async.h"
+#include "response/response.h"
+#include "response/async.h"
 
 /* Build the SSI reply payload (tag + meta + data) into a c->pool buffer and push
  * it as a deferred response (kXR_ok inner status). 0 on success. */

@@ -1,7 +1,7 @@
 #ifndef XROOTD_WEBDAV_UTIL_XML_H
 #define XROOTD_WEBDAV_UTIL_XML_H
 
-#include "../webdav.h"
+#include "webdav/webdav.h"
 
 /*
  * webdav_escape_xml_text — escape a string for safe inclusion in XML text response bodies.

@@ -33,13 +33,13 @@
 
 #include "xrdhttp.h"
 #include "webdav.h"
-#include "../compat/http_file_response.h"
-#include "../compat/range_vector.h"
+#include "compat/http_file_response.h"
+#include "compat/range_vector.h"
 
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
-#include "../compat/alloc_guard.h"
+#include "compat/alloc_guard.h"
 
 #define XRDHTTP_BOUNDARY  "xrdhttp_boundary_42"
 

@@ -26,7 +26,7 @@
  */
 
 #include "srr.h"
-#include "../compat/alloc_guard.h"
+#include "compat/alloc_guard.h"
 
 
 static void *ngx_http_xrootd_srr_create_loc_conf(ngx_conf_t *cf);

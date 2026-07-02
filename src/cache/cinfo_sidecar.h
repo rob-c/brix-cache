@@ -25,7 +25,7 @@
 #include <ngx_core.h>
 
 #include "cinfo.h"             /* xrootd_cache_cinfo_t */
-#include "../fs/backend/sd.h"  /* xrootd_sd_instance_t */
+#include "fs/backend/sd.h"  /* xrootd_sd_instance_t */
 
 /* The sidecar object key suffix (Appendix B). */
 #define XROOTD_CINFO_SIDECAR_SUFFIX ".xrdcinfo"

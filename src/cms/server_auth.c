@@ -1,6 +1,6 @@
 #include "server.h"
-#include "../compat/net_target.h"
-#include "../sss/sss_internal.h"
+#include "compat/net_target.h"
+#include "sss/sss_internal.h"
 
 /*
  * server_auth.c — CMS registration authentication (Phase 28 W1).

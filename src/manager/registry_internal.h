@@ -6,9 +6,9 @@
 #define XROOTD_REGISTRY_INTERNAL_H
 
 #include "registry.h"
-#include "../compat/net_target.h"   
-#include "../compat/host_format.h"  
-#include "../compat/shm_slots.h"    
+#include "compat/net_target.h"   
+#include "compat/host_format.h"  
+#include "compat/shm_slots.h"    
 #include <ngx_shmtx.h>
 #include <string.h>
 extern ngx_shmtx_t   xrootd_srv_mutex;

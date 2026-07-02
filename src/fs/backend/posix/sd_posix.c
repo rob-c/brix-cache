@@ -18,7 +18,7 @@
  *       xrootd_ns_result_t status to errno via xrootd_vfs_ns_status_errno().
  */
 
-#include "../sd.h"
+#include "fs/backend/sd.h"
 
 /* The instance lifecycle + namespace/dir/xattr/staged ops below are nginx-coupled
  * (confined open, ngx pool, the shared xrootd_ns_* helpers). They — and these
@@ -27,12 +27,12 @@
  * shared libxrdproto, so a shared kernel (src/compat/checksum_core.c) can route
  * its fd reads through xrootd_sd_posix_driver in both worlds. */
 #ifndef XRDPROTO_NO_NGX
-#include "../../vfs_internal.h"          /* pread_full/pwrite_full + ns_status_errno */
-#include "../../../compat/crc32c.h"
-#include "../../../compat/namespace_ops.h"
-#include "../../../compat/staged_file.h"
-#include "../../../path/beneath.h"
-#include "../../../path/path.h"
+#include "fs/vfs_internal.h"          /* pread_full/pwrite_full + ns_status_errno */
+#include "compat/crc32c.h"
+#include "compat/namespace_ops.h"
+#include "compat/staged_file.h"
+#include "path/beneath.h"
+#include "path/path.h"
 #endif
 
 #include <dirent.h>

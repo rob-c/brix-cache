@@ -27,11 +27,11 @@
 
 #include "vfs.h"
 
-#include "../compat/crc32c.h"
-#include "../compat/namespace_ops.h"
-#include "../compat/staged_file.h"
-#include "../metrics/access_log.h"
-#include "../path/path.h"
+#include "compat/crc32c.h"
+#include "compat/namespace_ops.h"
+#include "compat/staged_file.h"
+#include "metrics/access_log.h"
+#include "path/path.h"
 
 #include <dirent.h>
 #include <errno.h>

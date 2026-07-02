@@ -27,16 +27,16 @@
 
 #include "webdav.h"
 #include "tape_rest.h"
-#include "../fs/vfs.h"                        /* xrootd_vfs_residency (sd_frm seam) */
-#include "../fs/xfer/stage_request_registry.h"
-#include "../compat/http_body.h"
-#include "../compat/http_headers.h"
-#include "../shared/safe_size.h"   /* Phase 27 W1: overflow-checked size math */
+#include "fs/vfs.h"                        /* xrootd_vfs_residency (sd_frm seam) */
+#include "fs/xfer/stage_request_registry.h"
+#include "compat/http_body.h"
+#include "compat/http_headers.h"
+#include "shared/safe_size.h"   /* Phase 27 W1: overflow-checked size math */
 
 #include <jansson.h>
 #include <openssl/rand.h>
 #include <string.h>
-#include "../compat/alloc_guard.h"
+#include "compat/alloc_guard.h"
 
 #define TAPE_PATH_MAX       4096           /* confined absolute-path buffer   */
 #define TAPE_API_PREFIX     "/api/v1/"

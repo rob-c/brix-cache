@@ -2,7 +2,7 @@
  * rate_limit.c — token-bucket rate limiter over the KV store (see header).
  */
 #include "ngx_xrootd_module.h"
-#include "shm/rate_limit.h"
+#include "rate_limit.h"
 
 /*
  * Per-identity bucket state stored verbatim as the KV value.

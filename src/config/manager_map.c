@@ -6,7 +6,7 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include "../compat/alloc_guard.h"
+#include "compat/alloc_guard.h"
 
 /* Parse `manager_map <prefix> <host:port>` into a prefix->endpoint entry for
  * CMS manager mode: normalise the prefix (policy conventions), parse the

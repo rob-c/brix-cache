@@ -29,9 +29,9 @@
  */
 
 #include "s3.h"
-#include "../compat/http_headers.h"
-#include "../metrics/http_common.h"
-#include "../metrics/unified.h"
+#include "compat/http_headers.h"
+#include "metrics/http_common.h"
+#include "metrics/unified.h"
 
 static xrootd_metric_op_t
 s3_unified_op(ngx_uint_t method_slot)

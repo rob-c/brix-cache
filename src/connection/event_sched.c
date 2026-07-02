@@ -1,6 +1,6 @@
 #include "event_sched.h"
 #include <ngx_event.h>
-#include "../ngx_xrootd_module.h"
+#include "ngx_xrootd_module.h"
 #include "deadline.h"
 
 ngx_int_t xrootd_schedule_read_resume(ngx_connection_t *c) {

@@ -27,7 +27,7 @@
 #define _GNU_SOURCE   /* preadv2(2) (the module build sets it) */
 #endif
 
-#include "../sd.h"
+#include "fs/backend/sd.h"
 
 #if XROOTD_HAVE_SQLITE
 

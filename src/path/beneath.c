@@ -30,9 +30,9 @@
  *       the *at() op on the final component name only (which those syscalls do
  *       not dereference as a symlink for delete/rename/create).
  */
-#include "../ngx_xrootd_module.h"
+#include "ngx_xrootd_module.h"
 #include "beneath.h"
-#include "../impersonate/impersonate.h"
+#include "impersonate/impersonate.h"
 
 #include <sys/syscall.h>
 #include <linux/openat2.h>

@@ -6,7 +6,7 @@
 #include <openssl/evp.h>
 #include <stdint.h>
 
-#include "../fs/backend/sd.h"   /* xrootd_sd_obj_t — driver-routed checksum read */
+#include "fs/backend/sd.h"   /* xrootd_sd_obj_t — driver-routed checksum read */
 
 typedef enum {
     XROOTD_CHECKSUM_ADLER32 = 0,

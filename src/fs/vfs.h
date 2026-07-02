@@ -30,10 +30,10 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 
-#include "../path/unified.h"
-#include "../types/identity.h"
-#include "../metrics/unified.h"
-#include "backend/sd.h"
+#include "path/unified.h"
+#include "types/identity.h"
+#include "metrics/unified.h"
+#include "fs/backend/sd.h"
 
 #define XROOTD_VFS_O_READ        0x01
 #define XROOTD_VFS_O_WRITE       0x02

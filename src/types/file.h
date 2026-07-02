@@ -1,7 +1,7 @@
 #ifndef XROOTD_TYPES_FILE_H
 #define XROOTD_TYPES_FILE_H
 
-#include "../fs/backend/sd.h"   /* xrootd_sd_obj_t — per-handle storage object */
+#include "fs/backend/sd.h"   /* xrootd_sd_obj_t — per-handle storage object */
 
 /* Number of committed-write entries kept per open handle for replay detection. */
 #define XROOTD_WRTS_JOURNAL_SLOTS 64

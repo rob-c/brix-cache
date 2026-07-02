@@ -8,11 +8,11 @@
  */
 
 #include "aws_chunked.h"
-#include "../fs/vfs.h"   /* xrootd_vfs_pread_full / pwrite_full (storage seam) */
+#include "fs/vfs.h"   /* xrootd_vfs_pread_full / pwrite_full (storage seam) */
 #include "s3.h"
-#include "../compat/http_headers.h"
-#include "../compat/crypto.h"
-#include "../compat/hex.h"
+#include "compat/http_headers.h"
+#include "compat/crypto.h"
+#include "compat/hex.h"
 
 #include <errno.h>
 #include <string.h>

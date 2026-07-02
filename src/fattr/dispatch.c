@@ -6,11 +6,11 @@
  * authorization, then dispatches to the specific handler based on sub-code.
  */
 
-#include "fattr/ngx_xrootd_fattr.h"
+#include "ngx_xrootd_fattr.h"
 #include "fs/vfs.h"   /* confinement check via the VFS seam */
 
 #include <string.h>
-#include "../compat/alloc_guard.h"
+#include "compat/alloc_guard.h"
 
 /*
  *

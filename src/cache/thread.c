@@ -1,6 +1,6 @@
 #include "cache_internal.h"
 #include "cache_storage.h"   /* driver-aware readiness for a backend-backed cache */
-#include "../manager/registry.h"
+#include "manager/registry.h"
 
 
 #include <netinet/in.h>

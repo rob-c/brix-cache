@@ -16,7 +16,7 @@
 #define XROOTD_TOKEN_TOKEN_CACHE_H
 
 #include "shm/kv.h"
-#include "token/token.h"
+#include "token.h"
 
 /*
  * xrootd_token_cache_lookup() — return 1 and populate *claims if the raw

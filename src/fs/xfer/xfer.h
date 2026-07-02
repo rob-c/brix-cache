@@ -29,7 +29,7 @@
 
 #include <ngx_core.h>
 
-#include "../backend/sd.h"   /* xrootd_sd_obj_t — the byte-movable object handle */
+#include "fs/backend/sd.h"   /* xrootd_sd_obj_t — the byte-movable object handle */
 
 /* The transfer kind. Drives the per-kind metric callback (ledger) and the
  * server-driven vs client-driven recovery split (reconcile). */

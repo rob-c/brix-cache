@@ -7,7 +7,7 @@
  * the directive setter enforces.
  */
 #include "ngx_xrootd_module.h"
-#include "token/token_cache.h"
+#include "token_cache.h"
 #include "compat/crypto.h"
 
 #include <time.h>

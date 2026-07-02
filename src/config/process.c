@@ -6,28 +6,28 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include "config.h"
-#include "../proxy/proxy.h"
-#include "../proxy/proxy_internal.h"
-#include "../compat/staged_file.h"
-#include "../compat/tmp_path.h"          /* SP4 orphan direct-write temp reaper */
-#include "../write/chkpoint.h"
-#include "../compat/crypto.h"
-#include "../compat/log_diag.h"
-#include "../compat/lifecycle_timing.h"
-#include "../manager/health_check.h"
-#include "../manager/pending.h"
-#include "../cache/origin/pelican_register.h"
-#include "../cache/cache_internal.h"   /* xrootd_wt_replay_register (durable WT) */
-#include "../cache/cache_reap.h"       /* stale-dirty reaper (cache-state engine) */
-#include "../cache/reap_watermark.h"  /* proactive watermark LRU reaper */
-#include "../fs/xfer/stage_request_registry.h"  /* FRM-dissolution: composable registry */
-#include "../cache/cache_storage.h"    /* per-role SD storage instances (exclusively-VFS) */
-#include "../fs/xfer/xfer.h"           /* xrootd_xfer_resume_sweep_register      */
-#include "../fs/xfer/stage_engine.h"   /* phase-64 SP4 async stage scheduler     */
-#include "../gsi/keypool.h"
-#include "../impersonate/lifecycle.h"
-#include "../aio/uring.h"
-#include "../fs/backend/sd.h"          /* SD registry: per-worker backend instance */
+#include "proxy/proxy.h"
+#include "proxy/proxy_internal.h"
+#include "compat/staged_file.h"
+#include "compat/tmp_path.h"          /* SP4 orphan direct-write temp reaper */
+#include "write/chkpoint.h"
+#include "compat/crypto.h"
+#include "compat/log_diag.h"
+#include "compat/lifecycle_timing.h"
+#include "manager/health_check.h"
+#include "manager/pending.h"
+#include "cache/origin/pelican_register.h"
+#include "cache/cache_internal.h"   /* xrootd_wt_replay_register (durable WT) */
+#include "cache/cache_reap.h"       /* stale-dirty reaper (cache-state engine) */
+#include "cache/reap_watermark.h"  /* proactive watermark LRU reaper */
+#include "fs/xfer/stage_request_registry.h"  /* FRM-dissolution: composable registry */
+#include "cache/cache_storage.h"    /* per-role SD storage instances (exclusively-VFS) */
+#include "fs/xfer/xfer.h"           /* xrootd_xfer_resume_sweep_register      */
+#include "fs/xfer/stage_engine.h"   /* phase-64 SP4 async stage scheduler     */
+#include "gsi/keypool.h"
+#include "impersonate/lifecycle.h"
+#include "aio/uring.h"
+#include "fs/backend/sd.h"          /* SD registry: per-worker backend instance */
 
 #if defined(__SANITIZE_ADDRESS__)   /* Phase 27 W6: explicit LSan check at exit */
 #include <sanitizer/lsan_interface.h>

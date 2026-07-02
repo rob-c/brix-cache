@@ -1,6 +1,6 @@
 #include "ngx_xrootd_module.h"
-#include "../compat/crc32c.h"
-#include "../compat/checksum.h"
+#include "compat/crc32c.h"
+#include "compat/checksum.h"
 
 /* CRC32C checksum helpers for XRootD wire protocol and file integrity verification.
  *

@@ -14,7 +14,7 @@
  *       connection; they re-arm the relevant nginx event on NGX_AGAIN and never
  *       touch the caller's dispatch/teardown state.
  */
-#include "mirror/stream_mirror_io.h"
+#include "stream_mirror_io.h"
 
 ngx_int_t
 xrootd_mirror_io_flush(ngx_connection_t *c, const u_char *wbuf,

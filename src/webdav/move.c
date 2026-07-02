@@ -3,11 +3,11 @@
  */
 
 #include "webdav.h"
-#include "../compat/namespace_ops.h"
-#include "../fs/vfs.h"   /* xrootd_vfs_rename_path + xrootd_vfs_probe */
-#include "../compat/http_conditionals.h"
-#include "../impersonate/impersonate.h"
-#include "../path/path.h"
+#include "compat/namespace_ops.h"
+#include "fs/vfs.h"   /* xrootd_vfs_rename_path + xrootd_vfs_probe */
+#include "compat/http_conditionals.h"
+#include "impersonate/impersonate.h"
+#include "path/path.h"
 
 #include <limits.h>
 #include <string.h>

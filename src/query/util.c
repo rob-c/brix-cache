@@ -1,5 +1,5 @@
 #include "query_internal.h"
-#include "../compat/checksum.h"
+#include "compat/checksum.h"
 
 #include <errno.h>
 

@@ -7,8 +7,8 @@
  */
 
 #include "dcksm.h"
-#include "../compat/checksum.h"
-#include "../compat/integrity_info.h"
+#include "compat/checksum.h"
+#include "compat/integrity_info.h"
 
 #include <ctype.h>
 #include <string.h>

@@ -1,6 +1,6 @@
 #include "ngx_xrootd_module.h"
-#include "../compat/host_format.h"  /* xrootd_format_host — IPv6 bracketing */
-#include "../compat/alloc_guard.h"
+#include "compat/host_format.h"  /* xrootd_format_host — IPv6 bracketing */
+#include "compat/alloc_guard.h"
 
 /*
  * Control-flow responses: redirects and asynchronous retry hints.

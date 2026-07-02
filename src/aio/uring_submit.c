@@ -1,7 +1,7 @@
 #include "ngx_xrootd_module.h"
-#include "aio/aio.h"
-#include "aio/uring.h"
-#include "../shared/safe_size.h"   /* Phase 27 W1: overflow-checked size math */
+#include "aio.h"
+#include "uring.h"
+#include "shared/safe_size.h"   /* Phase 27 W1: overflow-checked size math */
 
 
 /* File: src/aio/uring_submit.c — io_uring SQE submission (Phase 44)

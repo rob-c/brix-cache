@@ -13,10 +13,10 @@
 #include "stage_waiter.h"
 #include "stage_request_registry.h"
 
-#include "../../compat/shm_slots.h"
-#include "../../read/open.h"
-#include "../../response/async.h"
-#include "../../connection/event_sched.h"
+#include "compat/shm_slots.h"
+#include "read/open.h"
+#include "response/async.h"
+#include "connection/event_sched.h"
 
 #include <ngx_shmtx.h>
 #include <string.h>

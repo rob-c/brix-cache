@@ -15,8 +15,8 @@
  */
 
 #include "copy_conditionals.h"
-#include "../../compat/etag.h"
-#include "../../compat/http_conditionals.h"
+#include "compat/etag.h"
+#include "compat/http_conditionals.h"
 
 /*
  * WHAT: Evaluate HTTP conditional headers (If-Match / If-None-Match) against the COPY

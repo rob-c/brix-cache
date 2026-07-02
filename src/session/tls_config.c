@@ -1,5 +1,5 @@
-#include "../config/config.h"
-#include "../crypto/ocsp.h"
+#include "config/config.h"
+#include "crypto/ocsp.h"
 
 /*
  * WHAT: This file configures the SSL context for in-protocol TLS upgrade. When

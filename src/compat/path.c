@@ -14,8 +14,8 @@
  */
 
 #include "path.h"
-#include "../path/beneath.h"
-#include "../path/op_path.h"
+#include "path/beneath.h"
+#include "path/op_path.h"
 
 int
 xrootd_http_resolve_path(const char *root_canon, const char *decoded_path,

@@ -10,8 +10,8 @@
  */
 
 #include "csi_tagstore.h"
-#include "../../compat/crc32c.h"
-#include "../../path/beneath.h"
+#include "compat/crc32c.h"
+#include "path/beneath.h"
 
 #include <string.h>
 #include <unistd.h>

@@ -14,7 +14,7 @@
 #ifndef XROOTD_ZIP_MEMBER_H
 #define XROOTD_ZIP_MEMBER_H
 
-#include "../ngx_xrootd_module.h"   /* xrootd_ctx_t, ngx_stream_xrootd_srv_conf_t,
+#include "ngx_xrootd_module.h"   /* xrootd_ctx_t, ngx_stream_xrootd_srv_conf_t,
                                        xrootd_file_t */
 
 /*

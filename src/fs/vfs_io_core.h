@@ -27,7 +27,7 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 
-#include "backend/sd.h"   /* xrootd_sd_obj_t — the per-handle storage object */
+#include "fs/backend/sd.h"   /* xrootd_sd_obj_t — the per-handle storage object */
 
 #include <stdint.h>
 #include <sys/types.h>

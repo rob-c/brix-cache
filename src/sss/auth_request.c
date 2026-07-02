@@ -1,11 +1,11 @@
 #include "sss_internal.h"
-#include "../path/path.h"
-#include "../response/response.h"
-#include "../session/registry.h"
+#include "path/path.h"
+#include "response/response.h"
+#include "session/registry.h"
 
 #include <openssl/crypto.h>
 #include <string.h>
-#include "../compat/alloc_guard.h"
+#include "compat/alloc_guard.h"
 
 /* Handle the kXR_auth SSS (XrdSecsss shared-secret) credential: verify the
  * client token against the keytab, set the identity/session, and return kXR_ok

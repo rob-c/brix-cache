@@ -6,15 +6,15 @@
 #define XROOTD_PROPFIND_INTERNAL_H
 
 #include "webdav.h"
-#include "../fs/vfs.h"
-#include "../path/path.h"
-#include "../impersonate/lifecycle.h"
-#include "../compat/etag.h"
-#include "../compat/fs_walk.h"
-#include "../compat/fs_usage.h"
-#include "../compat/http_body.h"
-#include "../compat/http_xml.h"
-#include "../compat/time.h"
+#include "fs/vfs.h"
+#include "path/path.h"
+#include "impersonate/lifecycle.h"
+#include "compat/etag.h"
+#include "compat/fs_walk.h"
+#include "compat/fs_usage.h"
+#include "compat/http_body.h"
+#include "compat/http_xml.h"
+#include "compat/time.h"
 #include <libxml/parser.h>
 #include <libxml/tree.h>
 #include <dirent.h>

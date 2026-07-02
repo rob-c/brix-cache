@@ -23,7 +23,7 @@
 #include "upstream_internal.h"
 
 #include <string.h>
-#include "../compat/alloc_guard.h"
+#include "compat/alloc_guard.h"
 
 ngx_int_t
 xrootd_upstream_send_request(xrootd_upstream_t *up)

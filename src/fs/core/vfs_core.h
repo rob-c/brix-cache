@@ -21,7 +21,7 @@
 #ifndef XROOTD_VFS_CORE_H
 #define XROOTD_VFS_CORE_H
 
-#include "../backend/sd.h"   /* xrootd_sd_obj_t + driver vtable (ngx-free fallback) */
+#include "fs/backend/sd.h"   /* xrootd_sd_obj_t + driver vtable (ngx-free fallback) */
 
 #include <stddef.h>
 #include <sys/types.h>   /* ssize_t, off_t */

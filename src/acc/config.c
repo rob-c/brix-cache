@@ -15,9 +15,9 @@
  *   worker pool, point it at the refresh handler, and re-arm after each fire.
  */
 
-#include "../ngx_xrootd_module.h"
+#include "ngx_xrootd_module.h"
 #include "acc.h"
-#include "../compat/log_diag.h"
+#include "compat/log_diag.h"
 
 #include <sys/stat.h>
 

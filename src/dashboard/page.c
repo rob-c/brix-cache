@@ -1,5 +1,5 @@
 #include "dashboard_http.h"
-#include "../compat/alloc_guard.h"
+#include "compat/alloc_guard.h"
 
 /*
  * dashboard/page.c - embedded dashboard UI.

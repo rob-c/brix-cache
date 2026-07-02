@@ -8,9 +8,9 @@
  * atomically without the lock.
  */
 #include "ngx_xrootd_module.h"
-#include "webdav/proxy_pool.h"
-#include "../compat/host_format.h"  /* xrootd_format_host[_port] — IPv6 bracketing */
-#include "../compat/shm_slots.h"    /* slab-safe SHM table alloc (preserves slab header) */
+#include "proxy_pool.h"
+#include "compat/host_format.h"  /* xrootd_format_host[_port] — IPv6 bracketing */
+#include "compat/shm_slots.h"    /* slab-safe SHM table alloc (preserves slab header) */
 
 static ngx_shm_zone_t *xrootd_proxy_pool_zone;
 static ngx_shmtx_t     xrootd_proxy_pool_mutex;

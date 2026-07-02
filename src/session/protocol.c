@@ -2,8 +2,8 @@
  * protocol.c — kXR_protocol opcode handler (capability negotiation).
  */
 
-#include "../ngx_xrootd_module.h"
-#include "../compat/alloc_guard.h"
+#include "ngx_xrootd_module.h"
+#include "compat/alloc_guard.h"
 
 /*
  * kXR_protocol - negotiate protocol version, auth protocols, and TLS support.

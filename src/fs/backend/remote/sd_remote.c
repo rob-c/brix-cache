@@ -7,7 +7,7 @@
  */
 
 #include "sd_remote.h"
-#include "../s3/sd_s3.h"
+#include "fs/backend/s3/sd_s3.h"
 
 #include <errno.h>
 #include <stdlib.h>

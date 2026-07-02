@@ -7,9 +7,9 @@
  * single-threaded per connection.
  */
 
-#include "../ngx_xrootd_module.h"
+#include "ngx_xrootd_module.h"
 #include "pgw_fob.h"
-#include "../protocol/flags.h"   /* kXR_pgPageBL, kXR_pgPageSZ */
+#include "protocol/flags.h"   /* kXR_pgPageBL, kXR_pgPageSZ */
 #include <string.h>
 
 /* Encode (offset,dlen) the way stock does: shift the offset up by the page-bit

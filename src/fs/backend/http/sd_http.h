@@ -26,8 +26,8 @@
  *       an HTTP origin is a later credential-block consumer.)
  */
 
-#include "../sd.h"
-#include "../s3/sd_s3_transport.h"
+#include "fs/backend/sd.h"
+#include "fs/backend/s3/sd_s3_transport.h"
 
 /* Endpoint for one HTTP source instance. Strings are copied. `base_path` is the
  * URL path prefix ("" or "/dir"); a request key "/file" is appended to it. */

@@ -18,14 +18,14 @@
  */
 
 #include "s3.h"
-#include "../path/path.h"
+#include "path/path.h"
 #include "tagging.h"
-#include "../compat/http_body.h"
-#include "../compat/http_headers.h"
-#include "../compat/http_query.h"
-#include "../compat/uri.h"
-#include "../compat/xml.h"
-#include "../fs/vfs.h"
+#include "compat/http_body.h"
+#include "compat/http_headers.h"
+#include "compat/http_query.h"
+#include "compat/uri.h"
+#include "compat/xml.h"
+#include "fs/vfs.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -35,7 +35,7 @@
 
 #include <libxml/parser.h>
 #include <libxml/tree.h>
-#include "../compat/alloc_guard.h"
+#include "compat/alloc_guard.h"
 
 #define S3_TAG_XATTR    "user.s3.tagging"
 #define S3_TAG_MAX      4096   /* AWS: <=10 tags, key<=128, value<=256 */

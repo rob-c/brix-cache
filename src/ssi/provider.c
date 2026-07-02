@@ -7,7 +7,7 @@
  */
 
 #include "provider.h"
-#include "svc_cta/cta_service.h"
+#include "ssi/svc_cta/cta_service.h"
 #include <stddef.h>
 #include <string.h>
 

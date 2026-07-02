@@ -36,13 +36,13 @@
  *       callers must never close it afterwards.
  */
 #include "file_serve.h"
-#include "../compat/http_file_response.h"
-#include "../compat/http_compress.h"
-#include "../compat/range.h"
-#include "../dashboard/dashboard_tracking.h"
-#include "../cache/open.h"
-#include "../webdav/webdav.h"          /* xrootd_tcp_congestion (webdav-owned directive) */
-#include "../connection/netopt.h"      /* xrootd_apply_tcp_congestion */
+#include "compat/http_file_response.h"
+#include "compat/http_compress.h"
+#include "compat/range.h"
+#include "dashboard/dashboard_tracking.h"
+#include "cache/open.h"
+#include "webdav/webdav.h"          /* xrootd_tcp_congestion (webdav-owned directive) */
+#include "connection/netopt.h"      /* xrootd_apply_tcp_congestion */
 
 #include <unistd.h>
 

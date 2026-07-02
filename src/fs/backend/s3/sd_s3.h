@@ -16,7 +16,7 @@
 #define XROOTD_SD_S3_H
 
 #include "sd_s3_transport.h"
-#include "../meta_advisory.h"
+#include "fs/backend/meta_advisory.h"
 
 #include <stddef.h>
 #include <stdint.h>

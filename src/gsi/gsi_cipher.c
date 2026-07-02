@@ -3,7 +3,7 @@
  * Phase-38 split of gsi_core.c; behavior-identical.
  */
 #include "gsi_core_internal.h"
-#include "../compat/openssl_auto.h"   /* XRD_AUTO scope cleanup for EVP_CIPHER_CTX */
+#include "compat/openssl_auto.h"   /* XRD_AUTO scope cleanup for EVP_CIPHER_CTX */
 
 
 EVP_PKEY *

@@ -1,5 +1,5 @@
 #include "proxy_internal.h"
-#include "../session/registry.h"
+#include "session/registry.h"
 
 /*
  * xrootd_proxy_tap_audit_sink — emit one JSON line per tapped frame to the

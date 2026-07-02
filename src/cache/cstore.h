@@ -37,7 +37,7 @@
 
 #include "cinfo.h"     /* xrootd_cache_cinfo_t (the cinfo record) */
 #include "cinfo_l1.h"  /* xrootd_cinfo_l1_t (the write-through L1) */
-#include "../fs/backend/sd.h"  /* xrootd_sd_instance_t / _obj_t / _staged_t */
+#include "fs/backend/sd.h"  /* xrootd_sd_instance_t / _obj_t / _staged_t */
 
 /* cinfo/meta encoding mode (section 6.3). AUTO resolves from the store's caps at
  * init: a store with a known local POSIX dir -> LOCAL (sidecar files next to the

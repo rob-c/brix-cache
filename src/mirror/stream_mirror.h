@@ -18,7 +18,7 @@
 #ifndef XROOTD_MIRROR_STREAM_MIRROR_H
 #define XROOTD_MIRROR_STREAM_MIRROR_H
 
-#include "../ngx_xrootd_module.h"
+#include "ngx_xrootd_module.h"
 
 /*
  * Fire a mirror replay for the just-dispatched read request, if mirroring is

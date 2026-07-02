@@ -3,7 +3,7 @@
  */
 
 #include "ngx_xrootd_module.h"
-#include "../compat/error_mapping.h"
+#include "compat/error_mapping.h"
 #include "fs/vfs.h"   /* mkdir via the VFS seam */
 #include "fs/vfs_backend_registry.h"   /* POSIX-vs-driver export check for group policy */
 

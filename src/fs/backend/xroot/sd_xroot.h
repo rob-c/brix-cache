@@ -36,8 +36,8 @@
  *       backend, so the dependency is inherent rather than a layering slip.
  */
 
-#include "../sd.h"
-#include "../../../compat/af_policy.h"   /* XROOTD_AF_* for create_origin af_policy */
+#include "fs/backend/sd.h"
+#include "compat/af_policy.h"   /* XROOTD_AF_* for create_origin af_policy */
 
 /* Build a remote root:// instance bound to `conf` (an ngx_stream_xrootd_srv_conf_t*,
  * read for cache_origin_host/port/tls/ssl_ctx). Returns a malloc-owned instance

@@ -11,7 +11,7 @@
  * the WebDAV and stream command tables; the rule setters locate the per-conf
  * rules array via cmd->offset so one implementation serves both planes.
  */
-#include "ratelimit/ratelimit.h"
+#include "ratelimit.h"
 #include "webdav/webdav.h"      /* ngx_http_xrootd_webdav_req_ctx_t */
 
 

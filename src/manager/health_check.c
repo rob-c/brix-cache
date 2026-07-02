@@ -13,8 +13,8 @@
  * A single deadline timer (hc_timeout_ms) bounds the whole probe; a hung server
  * that accepts the TCP connection but never answers is failed on timeout.
  */
-#include "manager/health_check.h"
-#include "manager/registry.h"
+#include "health_check.h"
+#include "registry.h"
 #include "metrics/metrics_macros.h"
 #include "compat/log_diag.h"
 

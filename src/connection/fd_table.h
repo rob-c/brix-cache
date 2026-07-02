@@ -1,7 +1,7 @@
 #ifndef XROOTD_CONN_FD_H
 #define XROOTD_CONN_FD_H
 
-#include "../ngx_xrootd_module.h"
+#include "ngx_xrootd_module.h"
 
 /*
  * XRootD file-handle table for a single TCP session.

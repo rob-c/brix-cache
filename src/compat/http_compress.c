@@ -9,7 +9,7 @@
  */
 
 #include "http_compress.h"
-#include "../fs/vfs.h"   /* xrootd_vfs_pread_full (storage seam) */
+#include "fs/vfs.h"   /* xrootd_vfs_pread_full (storage seam) */
 #include "http_file_response.h"
 
 #include <unistd.h>

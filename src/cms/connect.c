@@ -1,7 +1,7 @@
 #include "cms_internal.h"
-#include "../connection/netopt.h"   /* Phase 50: TCP dead-peer opts (WS5) */
-#include "../compat/log_diag.h"
-#include "../compat/lifecycle_timing.h"   /* monotonic clock for settle timing */
+#include "connection/netopt.h"   /* Phase 50: TCP dead-peer opts (WS5) */
+#include "compat/log_diag.h"
+#include "compat/lifecycle_timing.h"   /* monotonic clock for settle timing */
 
 #include <ngx_event_connect.h>
 #include <netinet/in.h>

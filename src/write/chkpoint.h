@@ -1,7 +1,7 @@
 #ifndef XROOTD_CHKPOINT_H
 #define XROOTD_CHKPOINT_H
 
-#include "../ngx_xrootd_module.h"
+#include "ngx_xrootd_module.h"
 
 /*
  * xrootd_handle_chkpoint — dispatch a kXR_chkpoint request to the appropriate

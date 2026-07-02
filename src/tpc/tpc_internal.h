@@ -9,12 +9,12 @@
 #ifndef XROOTD_TPC_TPC_INTERNAL_H
 #define XROOTD_TPC_TPC_INTERNAL_H
 
-#include "../ngx_xrootd_module.h"
+#include "ngx_xrootd_module.h"
 #include "key_registry.h"
-#include "common/auth.h"
-#include "common/credential.h"
-#include "common/registry.h"
-#include "common/metrics.h"
+#include "tpc/common/auth.h"
+#include "tpc/common/credential.h"
+#include "tpc/common/registry.h"
+#include "tpc/common/metrics.h"
 
 /* ------------------------------------------------------------------ */
 /* Wire-level constants shared by all TPC source files                  */

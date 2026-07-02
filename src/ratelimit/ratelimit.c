@@ -12,7 +12,7 @@
  * eviction) returns NGX_OK so rate limiting never denies otherwise-authorised
  * access — availability beats strict enforcement.
  */
-#include "ratelimit/ratelimit.h"
+#include "ratelimit.h"
 
 
 ngx_int_t

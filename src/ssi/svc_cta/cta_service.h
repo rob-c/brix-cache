@@ -13,7 +13,7 @@
  *       A per-worker request queue is created lazily.
  */
 
-#include "../ssi_service.h"
+#include "ssi/ssi_service.h"
 
 /* The "cta" service handler (registered via provider.c). */
 int xrootd_ssi_cta_process(const unsigned char *req, size_t req_len,

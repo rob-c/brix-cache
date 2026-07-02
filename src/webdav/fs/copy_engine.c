@@ -17,7 +17,7 @@
  */
 
 #include "copy_engine.h"
-#include "../../fs/vfs.h"   /* xrootd_vfs_copyfile / xrootd_vfs_copytree */
+#include "fs/vfs.h"   /* xrootd_vfs_copyfile / xrootd_vfs_copytree */
 
 /*
  * webdav_copy_meta_cb — per-entry metadata callback for the VFS copy primitives.

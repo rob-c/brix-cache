@@ -8,8 +8,8 @@
 
 #include "keypool.h"
 #include "gsi_core.h"             /* xrootd_gsi_dh_keygen (shared kernel) */
-#include "../aio/aio.h"            /* xrootd_task_bind */
-#include "../types/tunables.h"     /* XROOTD_GSI_KEYPOOL_* */
+#include "aio/aio.h"            /* xrootd_task_bind */
+#include "types/tunables.h"     /* XROOTD_GSI_KEYPOOL_* */
 
 #include <openssl/evp.h>
 #include <openssl/params.h>

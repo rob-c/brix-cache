@@ -1,8 +1,8 @@
 #include "query_internal.h"
-#include "../response/response.h"
-#include "../aio/aio.h"
-#include "../compat/checksum.h"
-#include "../path/beneath.h"
+#include "response/response.h"
+#include "aio/aio.h"
+#include "compat/checksum.h"
+#include "path/beneath.h"
 
 #include <dirent.h>
 #include <sys/stat.h>

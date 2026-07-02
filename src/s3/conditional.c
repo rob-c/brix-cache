@@ -30,9 +30,9 @@
  */
 
 #include "s3.h"
-#include "../compat/http_headers.h"
-#include "../compat/http_query.h"
-#include "../fs/vfs.h"
+#include "compat/http_headers.h"
+#include "compat/http_query.h"
+#include "fs/vfs.h"
 
 #include <fcntl.h>
 #include <string.h>

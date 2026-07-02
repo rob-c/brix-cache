@@ -1,7 +1,7 @@
 #ifndef XROOTD_STATX_H
 #define XROOTD_STATX_H
 
-#include "../ngx_xrootd_module.h"
+#include "ngx_xrootd_module.h"
 
 /*
  * xrootd_handle_statx — batched metadata query for multiple paths.

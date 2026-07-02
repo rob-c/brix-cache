@@ -1,5 +1,5 @@
 #include "handshake.h"
-#include "../gsi/gsi_core.h"   /* xrootd_gsi_sigver_required (shared policy) */
+#include "gsi/gsi_core.h"   /* xrootd_gsi_sigver_required (shared policy) */
 
 /* sigver.c — request signature verification (kXR_sigver HMAC-SHA256) and security-level enforcement
  * WHAT: Owns the "verify" half of XRootD request signing. Three entry points:

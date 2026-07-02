@@ -20,7 +20,7 @@
 
 #include <stdint.h>
 
-#include "../fs/backend/sd.h"   /* xrootd_sd_obj_t — driver-routed whole-object read */
+#include "fs/backend/sd.h"   /* xrootd_sd_obj_t — driver-routed whole-object read */
 
 #define XROOTD_CK_ADLER32   0
 #define XROOTD_CK_CRC32     1

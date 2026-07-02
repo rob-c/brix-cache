@@ -1,7 +1,7 @@
 #include "server.h"
-#include "../connection/netopt.h"   /* Phase 50: TCP dead-peer opts (WS5) */
-#include "../compat/log_diag.h"
-#include "../metrics/metrics_macros.h"   /* Phase 51 (A1): resilience counters */
+#include "connection/netopt.h"   /* Phase 50: TCP dead-peer opts (WS5) */
+#include "compat/log_diag.h"
+#include "metrics/metrics_macros.h"   /* Phase 51 (A1): resilience counters */
 
 /*
  * Phase 50 (WS4): per-worker live gauge of accepted CMS data-server connections.

@@ -1,9 +1,9 @@
 #include "handshake.h"
-#include "../write/chkpoint.h"
-#include "../write/ext_ops.h"   /* vendor setattr/symlink/link */
-#include "../manager/registry.h"   /* xrootd_srv_select_or_blacklisted */
-#include "../path/path.h"          /* xrootd_extract_path */
-#include "../response/response.h"  /* xrootd_send_redirect / xrootd_send_error */
+#include "write/chkpoint.h"
+#include "write/ext_ops.h"   /* vendor setattr/symlink/link */
+#include "manager/registry.h"   /* xrootd_srv_select_or_blacklisted */
+#include "path/path.h"          /* xrootd_extract_path */
+#include "response/response.h"  /* xrootd_send_redirect / xrootd_send_error */
 
 /* Gate macro: check write permission then invoke handler.
  * ctx/c/conf/rc are from the enclosing xrootd_dispatch_write_opcode scope. */

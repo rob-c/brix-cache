@@ -26,7 +26,7 @@
 #ifndef XROOTD_WRITE_WRTS_JOURNAL_H
 #define XROOTD_WRITE_WRTS_JOURNAL_H
 
-#include "../types/file.h"
+#include "types/file.h"
 
 /*
  * xrootd_wrts_open — initialise the write-recovery journal for a newly opened

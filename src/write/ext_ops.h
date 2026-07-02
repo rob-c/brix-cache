@@ -7,7 +7,7 @@
  * included by both the write dispatcher (setattr/symlink/link) and the read
  * dispatcher (readlink), since readlink is a non-mutating op.
  */
-#include "../ngx_xrootd_module.h"
+#include "ngx_xrootd_module.h"
 
 /* kXR_setattr — set times (utimens) and/or owner (chown) on a path. */
 ngx_int_t xrootd_handle_setattr(xrootd_ctx_t *ctx, ngx_connection_t *c,

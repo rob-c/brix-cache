@@ -22,7 +22,7 @@
  */
 
 #include "proxy_internal.h"
-#include "../shared/safe_size.h"   /* Phase 27 W1: overflow-checked size math */
+#include "shared/safe_size.h"   /* Phase 27 W1: overflow-checked size math */
 #include <openssl/md5.h>
 
 /* Worker-local pool of idle authenticated upstream connections. */

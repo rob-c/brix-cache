@@ -13,7 +13,7 @@
  */
 
 #include "registry.h"
-#include "../compat/shm_slots.h"
+#include "compat/shm_slots.h"
 #include <ngx_shmtx.h>
 #include <string.h>
 

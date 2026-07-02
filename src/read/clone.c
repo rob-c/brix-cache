@@ -26,8 +26,8 @@
  */
 
 #include "clone.h"
-#include "../connection/fd_table.h"
-#include "../compat/copy_range.h"
+#include "connection/fd_table.h"
+#include "compat/copy_range.h"
 
 #include <errno.h>
 #include <unistd.h>

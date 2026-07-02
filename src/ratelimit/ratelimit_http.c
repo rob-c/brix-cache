@@ -8,7 +8,7 @@
  * stashes the matched rule + key on the request ctx so the body filter can
  * charge the actual bytes sent.
  */
-#include "ratelimit/ratelimit.h"
+#include "ratelimit.h"
 #include "webdav/webdav.h"
 #include "compat/http_headers.h"
 #include "metrics/metrics_macros.h"

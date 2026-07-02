@@ -31,16 +31,16 @@
  */
 
 #include "close.h"
-#include "../ngx_xrootd_module.h"
-#include "../ratelimit/throttle_compat.h"   /* phase-59 W3a: open-files release */
-#include "../cache/cache_internal.h"
-#include "../compat/staged_file.h"
-#include "../fs/xfer/xfer.h"   /* unified transfer audit ledger (root:// STAGE) */
-#include "../write/wrts_journal.h"
-#include "../write/pgw_fob.h"
-#include "../cms/cns.h"
-#include "../cms/cms_internal.h"   /* ngx_xrootd_cms_ctx_t */
-#include "../cms/frame_io.h"       /* xrootd_cms_send_frame */
+#include "ngx_xrootd_module.h"
+#include "ratelimit/throttle_compat.h"   /* phase-59 W3a: open-files release */
+#include "cache/cache_internal.h"
+#include "compat/staged_file.h"
+#include "fs/xfer/xfer.h"   /* unified transfer audit ledger (root:// STAGE) */
+#include "write/wrts_journal.h"
+#include "write/pgw_fob.h"
+#include "cms/cns.h"
+#include "cms/cms_internal.h"   /* ngx_xrootd_cms_ctx_t */
+#include "cms/frame_io.h"       /* xrootd_cms_send_frame */
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>

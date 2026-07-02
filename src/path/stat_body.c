@@ -1,6 +1,6 @@
-#include "../ngx_xrootd_module.h"
-#include "../protocol/stat_line.h"    /* shared stat-line grammar (encode side) */
-#include "../protocol/stat_flags.h"   /* shared stat `flags` semantics (encode side) */
+#include "ngx_xrootd_module.h"
+#include "protocol/stat_line.h"    /* shared stat-line grammar (encode side) */
+#include "protocol/stat_flags.h"   /* shared stat `flags` semantics (encode side) */
 
 #include <stdio.h>
 #include <sys/stat.h>

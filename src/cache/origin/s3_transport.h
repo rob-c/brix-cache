@@ -21,7 +21,7 @@
  *       port) to match sd_s3's SigV4 canonical host.
  */
 
-#include "../../fs/backend/s3/sd_s3_transport.h"
+#include "fs/backend/s3/sd_s3_transport.h"
 
 /* The singleton libcurl transport vtable. tctx is unused (pass NULL). */
 extern const xrootd_s3_transport_t xrootd_s3_origin_curl_transport;

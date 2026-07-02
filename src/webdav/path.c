@@ -3,7 +3,7 @@
  */
 
 #include "webdav.h"
-#include "../compat/path.h"
+#include "compat/path.h"
 
 #include <limits.h>
 #include <string.h>

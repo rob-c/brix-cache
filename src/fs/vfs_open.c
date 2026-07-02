@@ -25,9 +25,9 @@
  */
 #include "vfs_internal.h"
 #include "vfs_backend_registry.h"
-#include "../cache/open.h"
-#include "../path/beneath.h"
-#include "../compat/log_diag.h"
+#include "cache/open.h"
+#include "path/beneath.h"
+#include "compat/log_diag.h"
 
 /* Populate a per-request xrootd_vfs_ctx_t with the fields the HTTP front ends
  * (WebDAV, S3) set identically: a transient (rootfd = -1) confined open of an

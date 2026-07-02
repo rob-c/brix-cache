@@ -3,7 +3,7 @@
  * Phase-38 split of tpc_curl.c; behavior-identical.
  */
 #include "tpc_curl_internal.h"
-#include "../fs/vfs.h"   /* confined open/unlink via the VFS seam */
+#include "fs/vfs.h"   /* confined open/unlink via the VFS seam */
 
 
 /*

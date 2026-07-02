@@ -3,15 +3,15 @@
  */
 
 #include "webdav.h"
-#include "../path/path.h"
-#include "../fs/vfs.h"   /* xrootd_vfs_probe (confined stat via the VFS seam) */
-#include "../compat/http_headers.h"
-#include "../compat/staged_file.h"
-#include "../dashboard/dashboard_tracking.h"
-#include "../fs/xfer/xfer.h"     /* unified transfer audit ledger (kind=tpc) */
-#include "../tpc/common/auth.h"
-#include "../tpc/common/metrics.h"
-#include "../tpc/common/registry.h"
+#include "path/path.h"
+#include "fs/vfs.h"   /* xrootd_vfs_probe (confined stat via the VFS seam) */
+#include "compat/http_headers.h"
+#include "compat/staged_file.h"
+#include "dashboard/dashboard_tracking.h"
+#include "fs/xfer/xfer.h"     /* unified transfer audit ledger (kind=tpc) */
+#include "tpc/common/auth.h"
+#include "tpc/common/metrics.h"
+#include "tpc/common/registry.h"
 
 #include <fcntl.h>
 #include <string.h>

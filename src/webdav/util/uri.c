@@ -38,7 +38,7 @@
  */
 
 #include "uri.h"
-#include "../../compat/uri.h"
+#include "compat/uri.h"
 
 ngx_int_t
 webdav_urldecode(const u_char *src, size_t src_len, char *dst, size_t dst_sz)

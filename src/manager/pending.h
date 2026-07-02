@@ -3,7 +3,7 @@
 
 #include <ngx_core.h>
 #include <ngx_shmtx.h>
-#include "../ngx_xrootd_module.h"
+#include "ngx_xrootd_module.h"
 
 /*
  * Shared-memory table of in-flight kYR_locate requests.

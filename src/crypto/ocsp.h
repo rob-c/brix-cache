@@ -17,7 +17,7 @@
  * because they execute on the auth path that already performs blocking crypto.
  */
 
-#include "../ngx_xrootd_module.h"
+#include "ngx_xrootd_module.h"
 #include <openssl/x509.h>
 
 /*

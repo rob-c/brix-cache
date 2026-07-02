@@ -1,7 +1,7 @@
 #ifndef XROOTD_WEBDAV_COPY_CONDITIONALS_H
 #define XROOTD_WEBDAV_COPY_CONDITIONALS_H
 
-#include "../webdav.h"
+#include "webdav/webdav.h"
 
 #include <sys/stat.h>
 

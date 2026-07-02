@@ -19,7 +19,7 @@
  */
 
 #include "proxy_internal.h"
-#include "../connection/netconnect.h"   /* shared outbound resolve/connect helper */
+#include "connection/netconnect.h"   /* shared outbound resolve/connect helper */
 
 #include <netdb.h>
 #include <sys/socket.h>

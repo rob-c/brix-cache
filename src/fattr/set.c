@@ -1,4 +1,4 @@
-#include "fattr/ngx_xrootd_fattr.h"
+#include "ngx_xrootd_fattr.h"
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/xattr.h>   /* XATTR_CREATE flag only — syscalls go via the VFS */

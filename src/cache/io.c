@@ -1,5 +1,5 @@
 #include "cache_internal.h"
-#include "../fs/backend/sd.h"   /* route cache-content byte writes through the SD backend */
+#include "fs/backend/sd.h"   /* route cache-content byte writes through the SD backend */
 
 
 #include <errno.h>

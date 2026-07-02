@@ -6,10 +6,10 @@
 #define XROOTD_TPC_CURL_INTERNAL_H
 
 #include "webdav.h"
-#include "../fs/backend/sd.h"   
-#include "../tpc/common/registry.h"
-#include "../compat/net_target.h"
-#include "../compat/host_format.h"  
+#include "fs/backend/sd.h"   
+#include "tpc/common/registry.h"
+#include "compat/net_target.h"
+#include "compat/host_format.h"  
 #include <curl/curl.h>
 #include <fcntl.h>
 #include <stdio.h>

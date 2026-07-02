@@ -3,8 +3,8 @@
  */
 
 #include "webdav.h"
-#include "../compat/fs_walk.h"
-#include "../fs/vfs.h"
+#include "compat/fs_walk.h"
+#include "fs/vfs.h"
 
 #include <errno.h>
 #include <sys/stat.h>

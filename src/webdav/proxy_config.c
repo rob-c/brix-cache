@@ -12,8 +12,8 @@
  */
 
 #include "proxy_internal.h"
-#include "../compat/host_format.h"  /* xrootd_format_host[_port] — IPv6 bracketing */
-#include "../compat/log_diag.h"
+#include "compat/host_format.h"  /* xrootd_format_host[_port] — IPv6 bracketing */
+#include "compat/log_diag.h"
 
 /*
  * Resolve one upstream URL and append one backend per resolved address.

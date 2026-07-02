@@ -1,5 +1,5 @@
 #include "upstream_internal.h"
-#include "../protocol/bootstrap_pack.h"   /* shared handshake/protocol/login packers */
+#include "protocol/bootstrap_pack.h"   /* shared handshake/protocol/login packers */
 
 /*
  * WHAT: XRootD upstream bootstrap sequence — handshake, protocol negotiation, TLS upgrade detection,

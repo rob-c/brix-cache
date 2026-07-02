@@ -19,9 +19,9 @@
  * rejected by the kernel (EXDEV) when the operation runs.
  */
 #include "ngx_xrootd_module.h"
-#include "path/op_path.h"
-#include "path/beneath.h"
-#include "path/path_internal.h"
+#include "op_path.h"
+#include "beneath.h"
+#include "path_internal.h"
 #include "fs/vfs.h"   /* existence/type pre-gate via the VFS seam */
 #include "fs/vfs_backend_registry.h"  /* POSIX-vs-driver existence-gate routing */
 

@@ -1,6 +1,6 @@
-#include "../ngx_xrootd_module.h"
-#include "../metrics/unified.h"
-#include "../session/registry.h"
+#include "ngx_xrootd_module.h"
+#include "metrics/unified.h"
+#include "session/registry.h"
 
 #include <string.h>
 

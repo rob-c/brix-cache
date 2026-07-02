@@ -12,7 +12,7 @@
  * See also: src/read/close.c (full implementation), src/read/README.md (read module overview).
  */
 
-#include "../ngx_xrootd_module.h"
+#include "ngx_xrootd_module.h"
 
 ngx_int_t xrootd_handle_close(xrootd_ctx_t *ctx, ngx_connection_t *c);
 

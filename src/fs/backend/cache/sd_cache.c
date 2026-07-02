@@ -10,7 +10,7 @@
  * serves wrong bytes (section 16).
  */
 #include "sd_cache.h"
-#include "../../../cache/cstore.h"
+#include "cache/cstore.h"
 
 #include <errno.h>
 #include <stdlib.h>

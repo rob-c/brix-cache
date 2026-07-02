@@ -2,15 +2,15 @@
  * vfs_backend_registry.c — per-export storage-backend resolution (see the header).
  */
 #include "vfs_backend_registry.h"
-#include "backend/xroot/sd_xroot.h"   /* remote root:// backend (xrootd_sd_xroot_create) */
-#include "backend/http/sd_http.h"     /* HTTP source backend (xrootd_sd_http_create) */
-#include "backend/remote/sd_remote.h" /* read-only S3 source backend (xrootd_sd_remote_create) */
-#include "backend/rados/sd_ceph.h"    /* Ceph/RADOS backend (XROOTD_HAVE_CEPH) */
-#include "backend/stage/sd_stage.h"   /* C-2/C-6 write-back stage decorator */
-#include "backend/cache/sd_cache.h"   /* phase-64 read-cache decorator */
-#include "backend/frm/sd_frm.h"       /* phase-64 SP5 nearline (tape) backend */
-#include "tier/tier.h"                /* phase-64 tier cfg/build + the cache/stage setters */
-#include "../cache/origin/s3_transport.h" /* xrootd_s3_origin_curl_transport (libcurl) */
+#include "fs/backend/xroot/sd_xroot.h"   /* remote root:// backend (xrootd_sd_xroot_create) */
+#include "fs/backend/http/sd_http.h"     /* HTTP source backend (xrootd_sd_http_create) */
+#include "fs/backend/remote/sd_remote.h" /* read-only S3 source backend (xrootd_sd_remote_create) */
+#include "fs/backend/rados/sd_ceph.h"    /* Ceph/RADOS backend (XROOTD_HAVE_CEPH) */
+#include "fs/backend/stage/sd_stage.h"   /* C-2/C-6 write-back stage decorator */
+#include "fs/backend/cache/sd_cache.h"   /* phase-64 read-cache decorator */
+#include "fs/backend/frm/sd_frm.h"       /* phase-64 SP5 nearline (tape) backend */
+#include "fs/tier/tier.h"                /* phase-64 tier cfg/build + the cache/stage setters */
+#include "cache/origin/s3_transport.h" /* xrootd_s3_origin_curl_transport (libcurl) */
 
 #include <string.h>
 

@@ -10,11 +10,11 @@
  */
 #include "sd_s3.h"
 
-#include "../../../compat/crypto.h"        /* xrootd_sha256 / xrootd_hmac_sha256 */
-#include "../../../compat/hex.h"           /* xrootd_hex_encode */
-#include "../../../compat/sigv4.h"         /* xrootd_sigv4_signing_key */
-#include "../../../compat/uri.h"           /* xrootd_http_urlencode */
-#include "../../../compat/host_format.h"   /* xrootd_format_host_port */
+#include "compat/crypto.h"        /* xrootd_sha256 / xrootd_hmac_sha256 */
+#include "compat/hex.h"           /* xrootd_hex_encode */
+#include "compat/sigv4.h"         /* xrootd_sigv4_signing_key */
+#include "compat/uri.h"           /* xrootd_http_urlencode */
+#include "compat/host_format.h"   /* xrootd_format_host_port */
 
 #include <errno.h>
 #include <stdarg.h>

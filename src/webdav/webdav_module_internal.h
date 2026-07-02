@@ -7,14 +7,14 @@
 
 #include "webdav.h"
 #include "module_acc_directives.h" 
-#include "../compat/integrity_info.h"   
-#include "../acc/acc.h"            
-#include "../s3/s3.h"
-#include "../shm/kv.h"             
-#include "../shm/rate_limit.h"     
-#include "../token/token_cache.h"  
-#include "../mirror/http_mirror.h" 
-#include "../ratelimit/ratelimit.h" 
+#include "compat/integrity_info.h"   
+#include "acc/acc.h"            
+#include "s3/s3.h"
+#include "shm/kv.h"             
+#include "shm/rate_limit.h"     
+#include "token/token_cache.h"  
+#include "mirror/http_mirror.h" 
+#include "ratelimit/ratelimit.h" 
 #include <curl/curl.h>
 #include <stddef.h>
 #include <stdlib.h>

@@ -1,15 +1,15 @@
 #include "cms_internal.h"
-#include "../fs/vfs.h"   /* confined open/unlink via the VFS seam */
-#include "../fs/vfs_backend_registry.h"   /* non-POSIX backend driver routing */
+#include "fs/vfs.h"   /* confined open/unlink via the VFS seam */
+#include "fs/vfs_backend_registry.h"   /* non-POSIX backend driver routing */
 #include "node_ops.h"               /* Plane B forwarded-op planner */
 #include "rrdata.h"                 /* Pup decode of forwarded payloads */
 #include "router.h"                 /* node-role opcode routing */
-#include "../manager/pending.h"
-#include "../manager/registry.h"
-#include "../path/beneath.h"
-#include "../path/path.h"           /* xrootd_sanitize_log_string (WS6) */
-#include "../compat/net_target.h"   /* xrootd_net_host_chars_valid (WS6) */
-#include "../metrics/metrics_macros.h"   /* Phase 51 (A1): resilience counters */
+#include "manager/pending.h"
+#include "manager/registry.h"
+#include "path/beneath.h"
+#include "path/path.h"           /* xrootd_sanitize_log_string (WS6) */
+#include "compat/net_target.h"   /* xrootd_net_host_chars_valid (WS6) */
+#include "metrics/metrics_macros.h"   /* Phase 51 (A1): resilience counters */
 
 #include <errno.h>
 #include <unistd.h>

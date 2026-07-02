@@ -31,7 +31,7 @@
 
 #include "ngx_xrootd_module.h"
 #include "async.h"
-#include "../compat/alloc_guard.h"
+#include "compat/alloc_guard.h"
 
 
 static const u_char kAttnZeroStreamid[2] = {0, 0};

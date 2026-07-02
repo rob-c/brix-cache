@@ -3,13 +3,13 @@
  */
 
 #include "read.h"
-#include "../fs/backend/sd.h"   /* phase-55: route raw fd I/O through the SD seam */
-#include "../fs/backend/csi_tagstore.h"  /* phase-59 W2: page-checksum verify */
-#include "../zip/zip_member.h"   /* phase-57 W2: ZIP member read dispatch */
-#include "../ssi/ssi.h"          /* §7: SSI handle read dispatch */
+#include "fs/backend/sd.h"   /* phase-55: route raw fd I/O through the SD seam */
+#include "fs/backend/csi_tagstore.h"  /* phase-59 W2: page-checksum verify */
+#include "zip/zip_member.h"   /* phase-57 W2: ZIP member read dispatch */
+#include "ssi/ssi.h"          /* §7: SSI handle read dispatch */
 
-#include "../ngx_xrootd_module.h"
-#include "../connection/budget.h"
+#include "ngx_xrootd_module.h"
+#include "connection/budget.h"
 #include "prefetch.h"
 
 #include <sys/uio.h>   /* Phase 32 WS4: preadv2(RWF_NOWAIT) warm-cache probe */
