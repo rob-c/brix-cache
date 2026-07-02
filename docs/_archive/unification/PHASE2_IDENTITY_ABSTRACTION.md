@@ -17,7 +17,7 @@ Authentication and authorization state is currently scattered across at least th
 
 | Protocol | Auth State Lives In | Populated By |
 |:---|:---|:---|
-| XRootD Stream | `xrootd_ctx_t` (`src/session/session.h`) | `src/session/login.c`, `src/gsi/parse.c`, `src/token/validate.c` |
+| XRootD Stream | `xrootd_ctx_t` (`src/session/session.h`) | `src/session/login.c`, `src/auth/gsi/parse.c`, `src/auth/token/validate.c` |
 | WebDAV/HTTPS | `ngx_http_xrootd_webdav_req_ctx_t` (`src/webdav/webdav.h`) | `src/webdav/auth_cert.c`, `src/webdav/auth_token.c` |
 | S3 REST | Inline locals in `src/s3/auth_sigv4_verify.c` | SigV4 HMAC verification; no persistent identity struct |
 
@@ -42,9 +42,9 @@ unsigned int authed:1;
 
 Populated by:
 - `src/session/login.c` — dispatches to GSI/Token/SSS sub-handlers
-- `src/gsi/parse.c` — X.509 parse, proxy validation, VOMS extraction
-- `src/token/validate.c` — JWT signature check, scope extraction
-- `src/sss/` — Shared-Secret handshake
+- `src/auth/gsi/parse.c` — X.509 parse, proxy validation, VOMS extraction
+- `src/auth/token/validate.c` — JWT signature check, scope extraction
+- `src/auth/sss/` — Shared-Secret handshake
 
 ### HTTP Identity (`ngx_http_xrootd_webdav_req_ctx_t`)
 
@@ -142,7 +142,7 @@ Small — only `xrootd_identity_alloc()` and `xrootd_identity_describe()`. No au
 
 ## Refactoring Plan
 
-### Step 1 — GSI: Unify `src/gsi/parse.c`
+### Step 1 — GSI: Unify `src/auth/gsi/parse.c`
 
 **Current signature:**
 ```c
@@ -161,7 +161,7 @@ ngx_int_t xrootd_gsi_parse_cert(ngx_ssl_conn_t *ssl,
 
 The function now fills `id->dn`, `id->vo_list`, and sets `id->auth_method |= XROOTD_AUTHN_GSI`. The caller is responsible for attaching the `xrootd_identity_t` to the per-request/session context.
 
-### Step 2 — Token: Unify `src/token/validate.c`
+### Step 2 — Token: Unify `src/auth/token/validate.c`
 
 **Current:** Returns a bitmask of validated scopes into stream-specific fields.
 
@@ -175,9 +175,9 @@ ngx_int_t xrootd_token_validate(const ngx_str_t *bearer,
 
 Fills `id->subject`, `id->issuer`, `id->scopes`, `id->has_write_scope`, `id->has_read_scope`. Sets `id->auth_method |= XROOTD_AUTHN_TOKEN`.
 
-`src/token/scopes.c` scope-checking helpers remain unchanged; they now accept `xrootd_identity_t *` instead of protocol-specific context pointers.
+`src/auth/token/scopes.c` scope-checking helpers remain unchanged; they now accept `xrootd_identity_t *` instead of protocol-specific context pointers.
 
-### Step 3 — SSS: Unify `src/sss/`
+### Step 3 — SSS: Unify `src/auth/sss/`
 
 SSS is stream-only but its output (a verified DN or group) should still fill `xrootd_identity_t` so downstream ACL code needs no special case.
 
@@ -199,9 +199,9 @@ ngx_int_t xrootd_s3_sigv4_verify(ngx_http_request_t *r,
                                    ngx_log_t *log);
 ```
 
-### Step 5 — Policy: Update `src/path/acl.c` and `src/session/login.c`
+### Step 5 — Policy: Update `src/auth/authz/acl.c` and `src/session/login.c`
 
-`src/path/acl.c` currently takes a raw `dn` string. Change to:
+`src/auth/authz/acl.c` currently takes a raw `dn` string. Change to:
 
 ```c
 ngx_int_t xrootd_check_authdb(const xrootd_identity_t *id,
@@ -214,7 +214,7 @@ ngx_int_t xrootd_check_authdb(const xrootd_identity_t *id,
 
 WebDAV request context `ngx_http_xrootd_webdav_req_ctx_t` gains a single `xrootd_identity_t *identity` pointer; all individual auth fields (`client_dn`, `bearer_sub`, auth flags) are removed.
 
-### Step 6 — VOMS: `src/voms/`
+### Step 6 — VOMS: `src/auth/voms/`
 
 VOMS extraction (FQAN parsing) already produces an array. It now fills `id->vo_list` directly instead of the session/request context.
 
@@ -231,13 +231,13 @@ VOMS extraction (FQAN parsing) already produces an array. It now fills `id->vo_l
 ### Modified files
 | File | Change |
 |:---|:---|
-| `src/gsi/parse.c` | Output into `xrootd_identity_t *` instead of `xrootd_ctx_t *` |
-| `src/token/validate.c` | Output into `xrootd_identity_t *` |
-| `src/token/scopes.c` | Accept `xrootd_identity_t *` for scope check helpers |
-| `src/sss/*.c` | Output into `xrootd_identity_t *` |
+| `src/auth/gsi/parse.c` | Output into `xrootd_identity_t *` instead of `xrootd_ctx_t *` |
+| `src/auth/token/validate.c` | Output into `xrootd_identity_t *` |
+| `src/auth/token/scopes.c` | Accept `xrootd_identity_t *` for scope check helpers |
+| `src/auth/sss/*.c` | Output into `xrootd_identity_t *` |
 | `src/s3/auth_sigv4_verify.c` | Add `xrootd_identity_t *` output |
-| `src/voms/*.c` | Fill `id->vo_list` |
-| `src/path/acl.c` | Accept `xrootd_identity_t *` |
+| `src/auth/voms/*.c` | Fill `id->vo_list` |
+| `src/auth/authz/acl.c` | Accept `xrootd_identity_t *` |
 | `src/session/session.h` | Add `xrootd_identity_t *identity` field |
 | `src/session/login.c` | Build and attach identity struct |
 | `src/webdav/webdav.h` | Replace scattered auth fields with `xrootd_identity_t *identity` |
@@ -301,7 +301,7 @@ These layers produce the raw credential material. The new auth functions receive
 
 - [ ] `xrootd_identity_t` defined in `src/core/types/identity.h`
 - [ ] All auth sub-systems produce `xrootd_identity_t` (GSI, Token, SSS, SigV4)
-- [ ] `src/path/acl.c` accepts `xrootd_identity_t *` — no protocol-specific fields
+- [ ] `src/auth/authz/acl.c` accepts `xrootd_identity_t *` — no protocol-specific fields
 - [ ] Stream and WebDAV contexts each hold `xrootd_identity_t *identity` (single pointer)
 - [ ] Security regression test set passes for all 5 negative scenarios
 - [ ] Cross-protocol identity consistency tests pass (same cert → same DN in both access logs)

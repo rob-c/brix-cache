@@ -1,4 +1,4 @@
-#include "../../src/token/b64url.h"
+#include "../../src/auth/token/b64url.h"
 #include <stdio.h>
 #include <string.h>
 

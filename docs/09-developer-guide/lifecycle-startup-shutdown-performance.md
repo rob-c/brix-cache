@@ -121,7 +121,7 @@ entire per-worker startup cost, and the bulk of respawn time too. None of the
 
 This is exactly why measure-first matters. The keypool warm-up exists to keep keygen
 *off* the event thread under a handshake burst ([Phase 33], see
-`src/gsi/keypool.h`) — a deliberate, correct decision. But the *warm-up itself* ran
+`src/auth/gsi/keypool.h`) — a deliberate, correct decision. But the *warm-up itself* ran
 synchronously at boot, paying the whole cost up front on every worker start and
 respawn.
 
@@ -275,8 +275,8 @@ connections — idle conns have no timer and never pin the worker.
 | `src/core/compat/lifecycle_timing.{c,h}` | New monotonic phase stopwatch (registered in `./config`) |
 | `src/core/config/postconfiguration.c` | Master-side phase marks + summary line |
 | `src/core/config/process.c` | Per-worker phase marks + summary line; pass thread pool + config into keypool init |
-| `src/gsi/keypool.{c,h}` | Lazy seed + off-thread fill to target; runtime target/seed; "warmed" NOTICE |
-| `src/gsi/config.c` | Independent timing of the GSI trust-store build |
+| `src/auth/gsi/keypool.{c,h}` | Lazy seed + off-thread fill to target; runtime target/seed; "warmed" NOTICE |
+| `src/auth/gsi/config.c` | Independent timing of the GSI trust-store build |
 | `src/core/types/config.h` | `gsi_keypool_size` / `gsi_keypool_seed` fields |
 | `src/core/types/tunables.h` | `XROOTD_GSI_KEYPOOL_CAP` / `_SIZE_DEFAULT` / `_SEED_DEFAULT` |
 | `src/core/config/server_conf.c` | Merge defaults for the new directives |

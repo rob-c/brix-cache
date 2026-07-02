@@ -89,7 +89,7 @@ opened anything.
 root `/`, which cannot be stripped, or any explicit `/dir/`) is already at a
 separator and should match everything beneath it.
 
-**Fix:** `src/path/find_rule.c` — `xrootd_path_prefix_match()` returns a match
+**Fix:** `src/auth/authz/find_rule.c` — `xrootd_path_prefix_match()` returns a match
 when the prefix ends in `/`.
 
 **Impact beyond go-hep:** this matcher backs **`manager_map`, VO rules, authdb

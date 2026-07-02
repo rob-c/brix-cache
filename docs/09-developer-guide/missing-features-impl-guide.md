@@ -253,12 +253,12 @@ def test_stage_cancel_skips_command():
 **Status:** ✅ IMPLEMENTED — mtime-poll hot refresh via `xrootd_token_jwks_refresh_interval` directive  
 **Impact:** High for unattended production — WLCG IAM key rotation (≤24 h) causes token auth failures without operator intervention  
 **Effort:** 3–5 days  
-**Implemented in:** `src/token/refresh.c` (new), `src/core/types/config.h`, `src/core/config/server_conf.c`, `src/token/config.c`, `src/core/config/config.h`, `src/stream/module_core_directives.c`, `src/core/config/process.c`, `config`  
+**Implemented in:** `src/auth/token/refresh.c` (new), `src/core/types/config.h`, `src/core/config/server_conf.c`, `src/auth/token/config.c`, `src/core/config/config.h`, `src/stream/module_core_directives.c`, `src/core/config/process.c`, `config`  
 **Tests:** `tests/test_token_jwks_refresh.py`
 
 ### Problem
 
-`src/token/config.c` calls `xrootd_jwks_load()` once during
+`src/auth/token/config.c` calls `xrootd_jwks_load()` once during
 `ngx_stream_xrootd_merge_srv_conf()`. The resulting `xcf->jwks_keys[]` array
 is fixed for the lifetime of the worker process. Key rotations at the issuer
 are invisible until `nginx -s reload`.
@@ -273,15 +273,15 @@ configured JWKS file path. If `st_mtime` changed, call `xrootd_jwks_free()` +
 with file-based JWKS (fetched by a cron job or cert-manager sidecar).
 
 **Files:**
-- `src/token/refresh.c` (new) — `xrootd_token_jwks_schedule_refresh()`
-- `src/token/token.h` — add `time_t jwks_mtime` to `xrootd_jwks_state_t`
+- `src/auth/token/refresh.c` (new) — `xrootd_token_jwks_schedule_refresh()`
+- `src/auth/token/token.h` — add `time_t jwks_mtime` to `xrootd_jwks_state_t`
 - `src/core/config/config.h` — add `ngx_msec_t token_jwks_refresh_interval`
   (default 60 000 ms)
 - `src/core/config/directives.c` — add `xrootd_token_jwks_refresh_interval`
   directive (milliseconds)
 - Worker init: call `xrootd_token_jwks_schedule_refresh()` after config merge
 
-**`src/token/refresh.c`:**
+**`src/auth/token/refresh.c`:**
 
 ```c
 static void
@@ -685,7 +685,7 @@ preserved.
 ### 8b. Third-party / discharge Macaroon support
 
 **Status:** ✅ IMPLEMENTED — AES-256-CBC vid decryption and discharge bundle validation  
-**Implemented in:** `src/token/macaroon.c`, `src/token/macaroon.h`  
+**Implemented in:** `src/auth/token/macaroon.c`, `src/auth/token/macaroon.h`  
 **Tests:** `tests/test_macaroon_discharge.py` (23/23 passing)
 
 Third-party caveats in a Macaroon are caveats that can only be discharged by a
@@ -711,7 +711,7 @@ validation pipeline:
 ### 8c. Authdb `HOST` (`p`) identity type
 
 **Status:** ✅ IMPLEMENTED — exact IP and CIDR host matching  
-**Implemented in:** `src/core/types/context.h`, `src/connection/handler.c`, `src/path/authdb.c`  
+**Implemented in:** `src/core/types/context.h`, `src/connection/handler.c`, `src/auth/authz/authdb.c`  
 **Tests:** `tests/test_authdb.py::test_host_rule_exact_peer_read`, `test_host_rule_cidr_peer_read`, `test_host_rule_nonmatching_peer_denied`
 
 `p` rules in the authdb file now match the remote peer address recorded at
@@ -722,7 +722,7 @@ matches any peer.
 ### 8d. Delta CRL processing
 
 **Status:** ✅ IMPLEMENTED — OpenSSL delta-CRL verification flag enabled  
-**Implemented in:** `src/gsi/config.c`, `src/webdav/auth_store.c`  
+**Implemented in:** `src/auth/gsi/config.c`, `src/webdav/auth_store.c`  
 **Regression tests:** `tests/test_crl.py`
 
 Delta CRLs (RFC 5280 §5.2.4) carry only revocations issued since the last full
@@ -737,7 +737,7 @@ base and delta CRLs during chain verification.
 ### 8e. OCSP stapling and responder queries
 
 **Status:** ✅ IMPLEMENTED — AIA responder queries and TLS stapling callback  
-**Implemented in:** `src/crypto/ocsp.c`, `src/crypto/ocsp.h`, `src/gsi/auth.c`, `src/session/tls_config.c`  
+**Implemented in:** `src/auth/crypto/ocsp.c`, `src/auth/crypto/ocsp.h`, `src/auth/gsi/auth.c`, `src/session/tls_config.c`  
 **New directives:** `xrootd_ocsp_enable`, `xrootd_ocsp_soft_fail`, `xrootd_ocsp_stapling`  
 **Tests:** `tests/test_ocsp.py` (18/18 passing)
 
@@ -747,7 +747,7 @@ OCSP eliminates the file management by querying the CA's responder online.
 Two sub-features were implemented:
 
 1. **OCSP responder query** (client cert verification): after successfully
-   verifying the X.509 chain in `src/gsi/auth.c`, `xrootd_ocsp_check_cert()`
+   verifying the X.509 chain in `src/auth/gsi/auth.c`, `xrootd_ocsp_check_cert()`
    extracts the OCSP responder URL from the leaf cert's `authorityInfoAccess`
    extension via `X509_get1_ocsp()`, builds a nonce-protected `OCSP_REQUEST`,
    POSTs it to the CA's responder via `BIO_new_connect()`, verifies the

@@ -5,7 +5,7 @@ The bug: the GSI round-1 (kXGC_certreq) handler generated an ephemeral ffdhe2048
 DH key INLINE on the single nginx event thread, head-of-line-blocking every other
 connection during each keygen.  Under a concurrent GSI-handshake burst that
 serialized/stalled the worker so concurrent certreqs went unanswered ("No protocols
-left to try").  The fix (src/gsi/keypool.c) hands keys out from a per-worker pool
+left to try").  The fix (src/auth/gsi/keypool.c) hands keys out from a per-worker pool
 refilled off-thread, so keygen never runs on the event thread.
 
 These tests drive N *independent* GSI handshakes at once.  They use separate
@@ -125,24 +125,24 @@ def _rd(rel):
 
 def test_keypool_wiring():
     # keypool module registered in the build + warmed per worker.
-    assert "src/gsi/keypool.c" in _rd("config")
-    assert "src/gsi/keypool.h" in _rd("config")
+    assert "src/auth/gsi/keypool.c" in _rd("config")
+    assert "src/auth/gsi/keypool.h" in _rd("config")
     proc = _rd("src/core/config/process.c")
     assert "xrootd_gsi_keypool_init" in proc
     # tunables present.
     assert "XROOTD_GSI_KEYPOOL_SIZE" in _rd("src/core/types/tunables.h")
     # certreq pops from the pool with an inline fallback (keygen off the event thread).
-    cert = _rd("src/gsi/cert_response.c")
+    cert = _rd("src/auth/gsi/cert_response.c")
     assert "xrootd_gsi_keypool_pop" in cert
     assert "xrootd_gsi_dh_keygen" in cert     # inline fallback retained
     # refill runs off-thread (event thread never blocks on keygen).
-    kp = _rd("src/gsi/keypool.c")
+    kp = _rd("src/auth/gsi/keypool.c")
     assert "ngx_thread_task_post" in kp
 
 
 def test_errclear_wiring():
     # The OpenSSL error-queue is cleared at the GSI auth + in-protocol TLS entries.
-    assert "ERR_clear_error" in _rd("src/gsi/auth.c")
+    assert "ERR_clear_error" in _rd("src/auth/gsi/auth.c")
     assert "ERR_clear_error" in _rd("src/connection/tls.c")
 
 
@@ -152,8 +152,8 @@ def test_pfs_key_is_single_use():
     connection, which frees it after round 2 — so no key is ever handed to two
     sessions.  Asserted at the source level (a runtime crypto-equality check is
     not observable through the pyxrootd client)."""
-    kp = _rd("src/gsi/keypool.c")
+    kp = _rd("src/auth/gsi/keypool.c")
     # pop decrements the count and transfers the slot's key out (no copy/reuse).
     assert "xrootd_kp_ring[--xrootd_kp_count]" in kp
     # round-2 derive still frees the per-connection key (existing lifecycle).
-    assert "EVP_PKEY_free" in _rd("src/gsi/auth.c")
+    assert "EVP_PKEY_free" in _rd("src/auth/gsi/auth.c")

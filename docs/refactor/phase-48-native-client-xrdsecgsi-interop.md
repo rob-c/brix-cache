@@ -39,7 +39,7 @@ interoperates with our own (equally non-standard) server**, not real XrdSecgsi:
 | Cipher | `aes-256-cbc` | `aes-128-cbc:bf-cbc:des-ede3-cbc` (server picks `aes-128-cbc`) |
 | Mutual auth | (ignored) | verify server's signature over our round-1 rtag |
 
-**Our own server is ALSO non-standard** (`src/gsi/cert_response.c` emits `kXRS_puk`,
+**Our own server is ALSO non-standard** (`src/auth/gsi/cert_response.c` emits `kXRS_puk`,
 not `kXRS_cipher`) — so this is a *from-scratch* port of XrdCryptossl/XrdSecgsi's
 client side, not "match our server". (A separate follow-up should make the *server*
 XrdCrypto-compatible too, or it cannot serve stock `xrdcp`.)
@@ -159,7 +159,7 @@ against a real XrdSecgsi peer. The regression suite must close that:
 
 ## 4. Non-goals / follow-ups
 
-- Making the *server* (`src/gsi/`) XrdCrypto-compatible (so stock `xrdcp` can GSI to
+- Making the *server* (`src/auth/gsi/`) XrdCrypto-compatible (so stock `xrdcp` can GSI to
   us) is a separate phase — related but out of scope here.
 - VOMS AC parsing on the client (the proxy already carries it inside the cert; we
   just need to transmit the chain intact, which W5's `kXRS_x509` does).

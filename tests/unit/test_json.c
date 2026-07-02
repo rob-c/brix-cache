@@ -1,4 +1,4 @@
-#include "../../src/token/json.h"
+#include "../../src/auth/token/json.h"
 #include <stdio.h>
 #include <string.h>
 

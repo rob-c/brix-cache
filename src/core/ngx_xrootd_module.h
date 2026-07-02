@@ -79,7 +79,7 @@
 #include "protocol/protocol.h"
 #include "metrics/metrics.h"
 #include "dashboard/dashboard.h"
-#include "token/token.h"
+#include "auth/token/token.h"
 
 #include <ngx_thread_pool.h>
 
@@ -346,7 +346,7 @@ ngx_int_t xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
 /* path/ — client path resolution, VO ACL, group policy, access log */
 #include "path/path.h"
-#include "path/auth_gate.h"
+#include "auth/authz/auth_gate.h"
 #include "path/op_path.h"
 
 /* upstream/ — dynamic XRootD redirector query */

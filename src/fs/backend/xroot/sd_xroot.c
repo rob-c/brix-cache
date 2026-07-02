@@ -10,7 +10,7 @@
 
 #include "sd_xroot.h"
 #include "cache/cache_internal.h"   /* origin wire client + fill-task ctx */
-#include "crypto/pki_build.h"       /* xrootd_build_ca_store (GSI MITM verify) */
+#include "auth/crypto/pki_build.h"       /* xrootd_build_ca_store (GSI MITM verify) */
 
 #include <errno.h>
 #include <stdlib.h>

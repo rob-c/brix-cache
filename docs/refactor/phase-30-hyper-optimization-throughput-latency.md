@@ -261,20 +261,20 @@ instead of re-scanning (`src/path/beneath.c:83`, `resolve_confined_helpers.c`).
 
 ### C.2 `[AUDIT]` Precompute rule lengths; kill per-iteration `strlen` — **P1-6**
 
-`src/path/find_rule.c:58-71,93-106,128-143` calls `strlen(rule[i].resolved)`
+`src/auth/authz/find_rule.c:58-71,93-106,128-143` calls `strlen(rule[i].resolved)`
 **inside** the match loop. Precompute `resolved_len` at config finalization
 (`src/path/helpers.c`) and store it on the rule struct. Pure config-time cost,
 zero runtime.
 
 ### C.3 `[AUDIT]` Hash VO membership instead of comma-string scan — **P1-6**
 
-`src/path/acl.c:88-101` linear-scans a comma-separated VO list with `strchr` per
+`src/auth/authz/acl.c:88-101` linear-scans a comma-separated VO list with `strchr` per
 ACL check. Build a small hash set on the identity at auth time
 (`src/core/types/identity.c`) → O(1) membership.
 
 ### C.4 `[AUDIT]` Parse the JWT payload once — **P1-6**
 
-`src/token/json.c` + `src/token/validate.c`: each claim extraction (`iss`, `sub`,
+`src/auth/token/json.c` + `src/auth/token/validate.c`: each claim extraction (`iss`, `sub`,
 `aud`, `scope`, `groups`) re-runs `json_loadb()` over the whole payload — ~5
 parses per token. Parse once into a `json_t` root, extract all claims, `decref`.
 The header path already does this; apply the same to the payload.
@@ -285,13 +285,13 @@ The header path already does this; apply the same to the payload.
 
 ### C.5 `[AUDIT]` Auth-gate cache key construction
 
-`src/path/auth_gate.c:23-61` rebuilds a ~3.6 KB staging buffer and `strlen`s four
+`src/auth/authz/auth_gate.c:23-61` rebuilds a ~3.6 KB staging buffer and `strlen`s four
 strings per request before SHA-256. Pass known lengths from the resolver (C.1) and
 hash the four fields incrementally instead of concatenating into a temp buffer.
 
 ### C.6 `[AUDIT]` Streaming base64url decode
 
-`src/token/b64url.c:11-40` puts an 8 KiB scratch on the stack per token decode.
+`src/auth/token/b64url.c:11-40` puts an 8 KiB scratch on the stack per token decode.
 Feed OpenSSL `EVP_DecodeUpdate` incrementally with a small fixed buffer.
 
 > **GSI / OCSP / JWKS:** verify (do not assume) that cert-chain verification,
@@ -465,8 +465,8 @@ flushed on a timer / size threshold. Sanitize once at parse time
 intentionally (`:84-89` sets versions but no explicit ticket policy);
 `:54-60` `OPENSSL_malloc`s the OCSP staple copy per handshake (pre-allocate once).
 Evaluate `SSL_sendfile` (OpenSSL 3.2+, in RHEL 9's openssl) for the cleartext-to-TLS
-GET path. Per-request `EVP_MD_CTX_new/free` in `src/token/signature.c` and
-`X509_STORE_CTX` in `src/crypto/gsi_verify.c` are inherent to the OpenSSL API but
+GET path. Per-request `EVP_MD_CTX_new/free` in `src/auth/token/signature.c` and
+`X509_STORE_CTX` in `src/auth/crypto/gsi_verify.c` are inherent to the OpenSSL API but
 are already shielded by the token/auth caches — leave unless profiling says
 otherwise.
 

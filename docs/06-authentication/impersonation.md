@@ -349,7 +349,7 @@ are proven end-to-end without real root by the user-namespace test suite in
 
 ## Implementation
 
-`src/impersonate/` — `idmap.c` (mapping), `broker.c` (privileged broker),
+`src/auth/impersonate/` — `idmap.c` (mapping), `broker.c` (privileged broker),
 `client.c` (worker client), `lifecycle.c` (directives + spawn + request hooks),
 `impersonate_proto.h` (wire frames). The confined-FS seam lives in
 `src/path/beneath.c` (stream) and `src/path/resolve_confined_ops.c` (HTTP/S3).

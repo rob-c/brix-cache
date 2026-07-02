@@ -1,5 +1,5 @@
 #include "identity.h"
-#include "token/issuer_registry.h"   /* phase-59 W1: per-path issuer gate */
+#include "auth/token/issuer_registry.h"   /* phase-59 W1: per-path issuer gate */
 
 #include <string.h>
 

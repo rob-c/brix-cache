@@ -8,11 +8,11 @@
 #include "webdav.h"
 #include "module_acc_directives.h" 
 #include "core/compat/integrity_info.h"   
-#include "acc/acc.h"            
+#include "auth/authz/acc/acc.h"            
 #include "s3/s3.h"
 #include "core/shm/kv.h"             
 #include "core/shm/rate_limit.h"     
-#include "token/token_cache.h"  
+#include "auth/token/token_cache.h"  
 #include "mirror/http_mirror.h" 
 #include "ratelimit/ratelimit.h" 
 #include <curl/curl.h>

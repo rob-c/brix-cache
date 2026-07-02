@@ -1,7 +1,7 @@
 # `tests/userns/` — user-namespace impersonation tests (phase 40)
 
 End-to-end tests for the **per-request UNIX impersonation broker**
-(`src/impersonate/`). They live in their **own sub-folder, independent of the
+(`src/auth/impersonate/`). They live in their **own sub-folder, independent of the
 main test suite**, because they need capabilities the rest of the suite does not
 — and must **not** trigger the nginx server-fleet bring-up that
 `tests/conftest.py` performs.

@@ -19,7 +19,7 @@ re-deriving them:
 
 - [`../conformance-findings.md`](../conformance-findings.md) — fixed wire divergences vs. the spec + stock tools (incl. the framing batch).
 - `tests/test_conf_framing.py` — raw-socket malformed/boundary framing differential vs. the stock data server.
-- `src/impersonate/README.md`, `src/path/README.md`, `src/ratelimit/README.md` — subsystem invariants.
+- `src/auth/impersonate/README.md`, `src/path/README.md`, `src/ratelimit/README.md` — subsystem invariants.
 
 ---
 
@@ -97,7 +97,7 @@ nginx front end and a modern kernel make cheap:
   token `exp`; issuer pinning for both JWT and macaroons; a per-worker auth-result
   cache; a per-worker in-flight GSI-handshake cap.
 - **Optional per-request UNIX impersonation** via a privileged root broker that
-  drops to `{CAP_SETUID, CAP_SETGID}` (off by default, `src/impersonate/`).
+  drops to `{CAP_SETUID, CAP_SETGID}` (off by default, `src/auth/impersonate/`).
 - **DoS controls**: nginx connection limits + this module's leaky-bucket rate /
   bandwidth / concurrency limiter, per-IP CMS caps, and connect/read/handshake
   deadlines.
@@ -231,7 +231,7 @@ on an unknown sessid (`session/bind.c:123`).
 
 ### The authorization gate is fail-closed at every tier
 
-`xrootd_auth_gate_op()` (`src/path/auth_gate.c`) runs a three-tier check —
+`xrootd_auth_gate_op()` (`src/auth/authz/auth_gate.c`) runs a three-tier check —
 authdb/XrdAcc → VO ACL → token scope — and on the **first** failure sends
 `kXR_NotAuthorized` and returns `NGX_DONE`. The XrdAcc engine **denies on a
 missing table** (`acc_tables == NULL` → `NGX_ERROR`, `auth_gate.c:36-38`): a
@@ -241,7 +241,7 @@ operation, resolved + request paths, host, DN, VO, raw token scope, SHA-256'd);
 a cached grant therefore can never be replayed for a different token, path,
 operation, host, or access level (`auth_gate.c:131-190`). Brute-force /
 CPU-amplification on the GSI/token verify path is bounded by an
-`auth_fail_count` against `XROOTD_MAX_AUTH_ATTEMPTS` (`src/gsi/auth.c:414`).
+`auth_fail_count` against `XROOTD_MAX_AUTH_ATTEMPTS` (`src/auth/gsi/auth.c:414`).
 
 ### Official side
 
@@ -303,9 +303,9 @@ module's favour for availability* that has no analogue in the monolithic server
 
 | Control | Official XRootD | nginx-xrootd |
 |---|---|---|
-| X.509 chain verify | yes (`XrdCrypto`/`XrdSecgsi`) | yes (`src/gsi/`, `src/crypto/pki_*`) |
-| CRL revocation | yes — `CRLCheck` levels + optional download + `CRLRefresh` (`XrdSecProtocolgsi.cc:510`); TLS CRL refresh thread (`XrdTlsContext.cc`) | yes — PEM + Grid `hash.r0`/`.r1` loaders, regular-file-only filter (`src/crypto/pki_load.c`) |
-| OCSP revocation | **none** (no OCSP in the tree) | **yes** — client check + staple fetch (`src/crypto/ocsp.c`) with a **5 s connect deadline** + I/O timeouts |
+| X.509 chain verify | yes (`XrdCrypto`/`XrdSecgsi`) | yes (`src/auth/gsi/`, `src/auth/crypto/pki_*`) |
+| CRL revocation | yes — `CRLCheck` levels + optional download + `CRLRefresh` (`XrdSecProtocolgsi.cc:510`); TLS CRL refresh thread (`XrdTlsContext.cc`) | yes — PEM + Grid `hash.r0`/`.r1` loaders, regular-file-only filter (`src/auth/crypto/pki_load.c`) |
+| OCSP revocation | **none** (no OCSP in the tree) | **yes** — client check + staple fetch (`src/auth/crypto/ocsp.c`) with a **5 s connect deadline** + I/O timeouts |
 | Token `exp` | n/a (token via ZTN plugin) | **mandatory** — a token without a positive `exp` is rejected (`token/validate.c:335-341`) |
 | Issuer pinning | per-plugin config | **JWT and macaroon** — `iss`/location must match `expected_issuer` (`validate.c:351`, `:201`); macaroon with no location is rejected |
 | Auth-result cache | n/a | per-worker L1 (lockless) over SHM L2, keyed on full verdict inputs (`auth_gate.c`, `path/auth_gate_l1.c`) |
@@ -350,7 +350,7 @@ the mapping. The mapping is a first-class, long-standing feature.
 
 ### nginx-xrootd: optional per-request broker, privilege-dropped, off by default
 
-This module's impersonation (`src/impersonate/`, phase 40) is **off by default**
+This module's impersonation (`src/auth/impersonate/`, phase 40) is **off by default**
 and strictly opt-in (`xrootd_impersonation off|single|map`). `off` and `single`
 add no privilege and need no root; only `map` is privileged. Its design is
 notably defensive:

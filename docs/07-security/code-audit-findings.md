@@ -281,7 +281,7 @@ Add a per-connection auth failure counter to `xrootd_ctx_t`:
 uint8_t     auth_attempts;      /* failed kXR_auth count on this connection */
 ```
 
-In `src/session/login.c` or `src/gsi/parse.c` (wherever auth failure is returned):
+In `src/session/login.c` or `src/auth/gsi/parse.c` (wherever auth failure is returned):
 
 ```c
 #define XROOTD_MAX_AUTH_ATTEMPTS 5
@@ -321,7 +321,7 @@ session auth state fields.
 **`src/core/types/tunables.h`** — added `#define XROOTD_MAX_AUTH_ATTEMPTS 10` (allows
 5 full GSI retry cycles, each of which uses 2 rounds: certreq + cert).
 
-**`src/gsi/auth.c`** — the public `xrootd_handle_auth()` entry point was refactored into
+**`src/auth/gsi/auth.c`** — the public `xrootd_handle_auth()` entry point was refactored into
 a thin wrapper that enforces the counter, with the previous body moved to a static inner
 function `xrootd_handle_auth_inner()`:
 

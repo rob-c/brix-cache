@@ -3,7 +3,7 @@
 #include "mirror/stream_mirror.h"
 #include "mirror/stream_wmirror.h"
 #include "ratelimit/ratelimit.h"
-#include "impersonate/lifecycle.h"
+#include "auth/impersonate/lifecycle.h"
 
 /*
  * Request routing overview

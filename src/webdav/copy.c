@@ -10,7 +10,7 @@
 #include "core/compat/namespace_ops.h"
 #include "core/compat/tmp_path.h"
 #include "fs/vfs.h"
-#include "impersonate/impersonate.h"
+#include "auth/impersonate/impersonate.h"
 #include "path/path.h"
 
 #include <errno.h>

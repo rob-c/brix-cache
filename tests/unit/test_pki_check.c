@@ -1,5 +1,5 @@
 #define UNIT_TEST
-#include "../../src/crypto/pki_check.h"
+#include "../../src/auth/crypto/pki_check.h"
 #include <stdio.h>
 
 int main() {

@@ -13,7 +13,7 @@ unknown-user, no-credential).  Remaining: full stock-XrdSecpwd byte-interop
 ### WS-B — `pwd` (XrdSecpwd) implemented (server + native client)
 
 - `XROOTD_AUTH_PWD=8` / `XROOTD_AUTHN_PWD=0x80` / `XROOTD_METRIC_AUTH_PWD=8`.
-- Server `src/pwd/auth.c` (2-round handshake) + `src/pwd/pwdfile.c` (PBKDF2 verify).
+- Server `src/auth/pwd/auth.c` (2-round handshake) + `src/auth/pwd/pwdfile.c` (PBKDF2 verify).
   Round 1 exchanges DH publics (reusing the shared `gsi_core` cipher) + the asserted
   user; round 2 decrypts `kXRS_main` and checks the credential
   (PBKDF2-HMAC-SHA1, 10000 iters, 24 B — the exact stock KDF) against
@@ -42,9 +42,9 @@ a zero IV. Result: byte-for-byte interop restored both directions.
 ### WS-C — `host` auth implemented (server + native client)
 
 - `XROOTD_AUTH_HOST=7` / `XROOTD_AUTHN_HOST=0x40` / `XROOTD_METRIC_AUTH_HOST=7`.
-- `src/host/auth.c`: reverse-resolves the peer (`xrootd_acc_resolve_peer`) and
+- `src/auth/host/auth.c`: reverse-resolves the peer (`xrootd_acc_resolve_peer`) and
   matches `xrootd_host_allow` (exact host or `.suffix` patterns); **fail-closed**
-  (empty/unset allowlist denies). Dispatched from `src/gsi/auth.c` on credtype
+  (empty/unset allowlist denies). Dispatched from `src/auth/gsi/auth.c` on credtype
   `host`; advertised in `src/session/protocol.c`; registered in `config`.
 - Client: `client/lib/sec/sec_host.c` (sends `"host\0"`+FQDN, tried **last**),
   wired into both module lists in `client/lib/auth.c` and `client/Makefile`.
@@ -53,13 +53,13 @@ a zero IV. Result: byte-for-byte interop restored both directions.
 
 ### WS-A — implemented (decision: full table-driven rewrite)
 
-- Shared `src/gsi/gsi_core.{c,h}`: cipher descriptor + allowlist
+- Shared `src/auth/gsi/gsi_core.{c,h}`: cipher descriptor + allowlist
   (`aes-128-cbc`/`aes-256-cbc`/`bf-cbc`/`des-ede3-cbc`), runtime-resolved via
   `EVP_get_cipherbyname` (bf/3des need the OpenSSL-3 legacy provider, loaded
   best-effort); `xrootd_gsi_cipher_lookup`/`_pick`; `session_key` now derives
   `key_len` bytes; `encrypt`/`decrypt` take the descriptor (native IV length).
   `aes-128-cbc` stays first → the proven default + stock interop is byte-identical.
-- Server signed-DH path (`src/gsi/parse_x509.c`) honours the client's
+- Server signed-DH path (`src/auth/gsi/parse_x509.c`) honours the client's
   `kXRS_cipher_alg` choice (the unsigned path already did); no-bucket default
   changed aes-256→aes-128 (`parse_crypto_helpers.c`).
 - Client (`client/lib/sec/sec_gsi.c`) picks the first supported cipher from the
@@ -109,17 +109,17 @@ transport (`XrdTls/`), orthogonal to XrdSec.
 
 | Capability | Server | Client |
 |---|---|---|
-| `gsi` (x509 + VOMS, DH, RSA signed-DH, OCSP) | `src/gsi/`, `src/crypto/` | `client/lib/sec/sec_gsi.c` |
-| `ztn` (token/JWT/macaroon) | `src/gsi/auth.c`→`src/token/` | `client/lib/sec/sec_token.c` |
-| `sss` (Blowfish-CFB64 + replay check) | `src/sss/` | `client/lib/sec/sec_sss.c` |
-| `unix` (loopback-gated) | `src/unix/auth.c` | `client/lib/sec/sec_unix.c` |
-| `krb5` (AP_REQ, compile-gated) | `src/krb5/auth.c` | `client/lib/sec/sec_krb5.c` |
+| `gsi` (x509 + VOMS, DH, RSA signed-DH, OCSP) | `src/auth/gsi/`, `src/auth/crypto/` | `client/lib/sec/sec_gsi.c` |
+| `ztn` (token/JWT/macaroon) | `src/auth/gsi/auth.c`→`src/auth/token/` | `client/lib/sec/sec_token.c` |
+| `sss` (Blowfish-CFB64 + replay check) | `src/auth/sss/` | `client/lib/sec/sec_sss.c` |
+| `unix` (loopback-gated) | `src/auth/unix/auth.c` | `client/lib/sec/sec_unix.c` |
+| `krb5` (AP_REQ, compile-gated) | `src/auth/krb5/auth.c` | `client/lib/sec/sec_krb5.c` |
 | TLS transport (`roots://`, `kXR_*TLS`) | `src/connection/tls.c` | `client/lib/tls.c` |
 | Protocol-list advertise + negotiate | `src/session/protocol.c:151-176` | `client/lib/auth.c:22-44` |
 
 ### 1.2 Gaps to "support all"
 
-1. **GSI session-cipher/digest negotiation is hardcoded.** `src/gsi/gsi_core.c`
+1. **GSI session-cipher/digest negotiation is hardcoded.** `src/auth/gsi/gsi_core.c`
    uses `EVP_aes_128_cbc()` (lines ~537/573) regardless of the negotiated
    `kXRS_cipher_alg`, and the advertised string (`parse_crypto_helpers.c`) is a
    fixed token. It interoperates today *only because* `aes-128-cbc` is the default
@@ -155,7 +155,7 @@ The session key is derived as the first *keylen* bytes of the (padded) DH shared
 secret; the cipher + digest are chosen from a negotiated list. Make this
 table-driven instead of hardcoded AES-128.
 
-- **A1. Cipher descriptor table** (`src/gsi/` shared, used by server + client):
+- **A1. Cipher descriptor table** (`src/auth/gsi/` shared, used by server + client):
   map each XrdCrypto cipher name → `{ EVP_CIPHER*, key_len, iv_len, block }` for
   `aes-128-cbc` (16B), `aes-256-cbc` (32B), `bf-cbc` (16B, variable-key Blowfish),
   `des-ede3-cbc` (24B). Replace the hardcoded `EVP_aes_128_cbc()` in
@@ -175,7 +175,7 @@ table-driven instead of hardcoded AES-128.
   cipher/digest list (already partially read into debug), pick the first mutually
   supported entry, and encrypt the `kXGC_cert` payload with it.
 - **A5. Reuse**: the descriptor table + key-derivation live in the shared
-  `src/gsi/gsi_core.*` (dual-built into server and client — the established seam),
+  `src/auth/gsi/gsi_core.*` (dual-built into server and client — the established seam),
   so server and client stay byte-identical.
 
 ### WS-B — `pwd` (XrdSecpwd) password protocol (server + client, opt-in)
@@ -184,7 +184,7 @@ Mirror the stock handshake (`/tmp/xrootd-src/src/XrdSecpwd/`): DH+RSA session-ke
 setup, then password verification; optional server-public-key (`srvpuk`) mutual
 check and random-tag signing.
 
-- **B1. Server**: new `src/pwd/` auth handler routed from `xrootd_gsi_auth.c`'s
+- **B1. Server**: new `src/auth/pwd/` auth handler routed from `xrootd_gsi_auth.c`'s
   credtype dispatcher on `"pwd"`; password store backed by a hashed password file
   (NOT `/etc/shadow`; a dedicated `xrootd_pwd_file`), `xrootd_auth pwd` mode,
   `XROOTD_AUTH_PWD` enum value, advertise `"pwd "` in `src/session/protocol.c`.
@@ -200,7 +200,7 @@ check and random-tag signing.
 - **C1. Server**: accept the implicit `host` protocol — authenticate by the peer's
   reverse-resolved hostname against an allowlist (`xrootd_auth host` +
   `xrootd_host_allow <pattern>...`), `XROOTD_AUTH_HOST` enum, advertise `"host"`.
-  Reuse the XrdAcc reverse-DNS path (`src/acc/resolve.c`, now breaker-bounded) for
+  Reuse the XrdAcc reverse-DNS path (`src/auth/authz/acc/resolve.c`, now breaker-bounded) for
   the lookup. Fail-closed when DNS is unavailable.
 - **C2. Client**: trivial — present the `host` credential (hostname) when the
   server advertises it and no stronger protocol matched.
@@ -227,15 +227,15 @@ check and random-tag signing.
 
 ## 4. Files to create / modify (representative)
 
-- GSI cipher/digest (WS-A): `src/gsi/gsi_core.{c,h}` (cipher descriptor + key
-  derivation), `src/gsi/parse_crypto_helpers.c` (advertise/parse list),
-  `src/gsi/cert_response.c` (server pick), `client/lib/sec/sec_gsi.c` (client
+- GSI cipher/digest (WS-A): `src/auth/gsi/gsi_core.{c,h}` (cipher descriptor + key
+  derivation), `src/auth/gsi/parse_crypto_helpers.c` (advertise/parse list),
+  `src/auth/gsi/cert_response.c` (server pick), `client/lib/sec/sec_gsi.c` (client
   pick); directives in `src/core/config/server_conf.c` + `src/stream/module.c`.
-- `pwd` (WS-B): new `src/pwd/`, `client/lib/sec/sec_pwd.c`, dispatcher in
-  `src/gsi/auth.c`, advertise in `src/session/protocol.c`, enum in
+- `pwd` (WS-B): new `src/auth/pwd/`, `client/lib/sec/sec_pwd.c`, dispatcher in
+  `src/auth/gsi/auth.c`, advertise in `src/session/protocol.c`, enum in
   `src/core/types/tunables.h`, `client/lib/auth.c` order; register new `.c` in `config`
   + `client/Makefile`, run `./configure`.
-- `host` (WS-C): `src/host/` (or fold into `src/unix/`), `client/lib/sec/sec_host.c`,
+- `host` (WS-C): `src/auth/host/` (or fold into `src/auth/unix/`), `client/lib/sec/sec_host.c`,
   same dispatch/advertise/enum wiring.
 - Tests (WS-D): `tests/test_gsi_cipher_matrix.py` (extend existing
   `tests/test_gsi_cipher.py`), `tests/test_pwd_auth.py`, `tests/test_host_auth.py`.

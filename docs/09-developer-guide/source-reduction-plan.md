@@ -21,10 +21,10 @@ Measured from the current tree on 2026-05-20:
 | `src/tpc` | 3,796 | Native XRootD third-party copy and outbound GSI helpers. |
 | `src/cache` | 3,709 | Cache origin client, fills, eviction, write-through. |
 | `src/query` | 2,765 | Query subtypes, checksum scans, prepare/stage. |
-| `src/token` | 2,658 | JWT/JWKS/scopes/macaroons/base64/json. |
+| `src/auth/token` | 2,658 | JWT/JWKS/scopes/macaroons/base64/json. |
 | `src/path` | 2,885 | Path confinement, ACL/authdb; keep mostly local. |
 | `src/core/aio` | 2,131 | nginx thread-pool file I/O; keep mostly local. |
-| `src/gsi` + `src/sss` + `src/crypto` | 4,315 | Security protocol glue and PKI/OCSP helpers. |
+| `src/auth/gsi` + `src/auth/sss` + `src/auth/crypto` | 4,315 | Security protocol glue and PKI/OCSP helpers. |
 | Whole `src/` tree | 68,893 | All C/header files. |
 
 The most promising reduction targets are therefore:
@@ -71,7 +71,7 @@ large outbound dependency.
 | Pool alloc null-check macro (Candidate 15) | −150 to −200 | All of src/ | Low (mechanical) |
 | Dead code audit (Candidate 18) | −50 to −200 | All of src/ | Medium (audit first) |
 | Shared-memory registry template (Candidate 16) | −10 to −60 | src/tpc/, src/session/ | Low |
-| GSI X.509 OpenSSL delegation (Candidate 17) | −30 to −70 | src/gsi/ | Low (security-critical) |
+| GSI X.509 OpenSSL delegation (Candidate 17) | −30 to −70 | src/auth/gsi/ | Low (security-critical) |
 
 The correctness items (blocking event loop) are independent of the LOC
 reduction roadmap but should be addressed first because they affect production
@@ -639,7 +639,7 @@ small C library exists for server-side verification; the AWS C SDK
 heavy dependency tree.  The current code is lean and specification-correct.
 **Keep local.**
 
-### VOMS attribute certificate extraction (src/voms/ — 415 LOC)
+### VOMS attribute certificate extraction (src/auth/voms/ — 415 LOC)
 
 The module already delegates to `libvomsapi` at runtime via `dlopen()`.  The
 local code builds VO lists from the VOMS API result structs; replacing this
@@ -815,7 +815,7 @@ both TPC key exchange and session handling.
 
 ## Candidate 17: Delegate more X.509 parsing to OpenSSL
 
-`src/gsi/parse_x509.c` (294 LOC) includes manual DER field extraction that
+`src/auth/gsi/parse_x509.c` (294 LOC) includes manual DER field extraction that
 OpenSSL already provides:
 
 - Subject DN extraction: `X509_get_subject_name()` + `X509_NAME_oneline()`.
@@ -840,7 +840,7 @@ versions; confirm behavior against OpenSSL 1.1.x and 3.x.
 ## Candidate 18: Dead code audit
 
 No static analysis has been run on the module to identify functions that are
-defined but never called.  Short files like `src/gsi/pki.c` (31 LOC) suggest
+defined but never called.  Short files like `src/auth/gsi/pki.c` (31 LOC) suggest
 some stub or transitional code may remain.
 
 **Recommended approach:**
@@ -962,7 +962,7 @@ Status: **complete (cleanup done 2026-05-20).**
 - Implemented + cleaned up: Jansson is now a **required** build dependency
   (config fails with a clear error if not found).  The 345-LOC local JSON/JWKS
   fallback parser (`json.c` helpers + `jwks.c` fallback path) has been deleted.
-  `src/token/json.c` is now 150 LOC (was 495); `src/token/jwks.c` is 171 LOC
+  `src/auth/token/json.c` is now 150 LOC (was 495); `src/auth/token/jwks.c` is 171 LOC
   (was 281).
 - Implemented + cleaned up: `src/webdav/date.c` (70 LOC) deleted; callers in
   `propfind.c` now use `ngx_http_time()` for RFC 1123 and `strftime()` for

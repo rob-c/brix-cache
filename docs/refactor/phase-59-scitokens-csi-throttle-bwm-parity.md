@@ -60,7 +60,7 @@ provide, native to the nginx module — not loadable `.so` parity.
 **Relationship to Phase 58:** Phase 58 §8 (checksum-at-rest) landed the
 *file-level* digest at rest and explicitly deferred "a later per-page CSI + scrub
 phase." **W2 here is that deferred phase.** W1 extends the single-issuer
-`src/token/` validator; W3 extends the `src/ratelimit/` engine. Nothing here
+`src/auth/token/` validator; W3 extends the `src/ratelimit/` engine. Nothing here
 reverts or contradicts Phase 58. Cross-link:
 [`phase-58-xrootd-parity-batch.md`](phase-58-xrootd-parity-batch.md) §8/§9 and
 [`docs/10-reference/comparison/xrootd-vs-nginx/11-gaps-divergences-and-extras.md`](../10-reference/comparison/xrootd-vs-nginx/11-gaps-divergences-and-extras.md).
@@ -223,7 +223,7 @@ Full per-issuer key set (verified in `XrdSciTokensAccess.cc` + README):
 (`Mon_isIO` = AOP_Read/Update/Create/Excl_Create), carrying the resolved identity
 — a monitoring hook, not a wire feature.
 
-### W1.2 Current module state (`src/token/`)
+### W1.2 Current module state (`src/auth/token/`)
 
 - **Single issuer.** `config.c::xrootd_configure_token_auth()` validates exactly
   one `token_issuer` + one `token_audience` + one `token_jwks`. Fields in
@@ -253,10 +253,10 @@ validator. WLCG-scope enforcement stays the **default** strategy (`capability`).
 **New files**
 
 ```
-src/token/issuer_registry.c   issuer_registry.h
-src/token/subject_map.c       subject_map.h
-src/token/monitor.c           monitor.h
-src/token/ini.c               ini.h          (shared INI reader; reused by W3a)
+src/auth/token/issuer_registry.c   issuer_registry.h
+src/auth/token/subject_map.c       subject_map.h
+src/auth/token/monitor.c           monitor.h
+src/auth/token/ini.c               ini.h          (shared INI reader; reused by W3a)
 ```
 
 **New types** (`issuer_registry.h`):
@@ -599,7 +599,7 @@ typedef struct {                 /* one reservation slot in SHM              */
 > space; the real PRs carry the mandatory WHAT/WHY/HOW blocks (coding-standards
 > §3). No `goto`; early-return + helper decomposition throughout.
 
-### S.1 `src/token/ini.c` (shared INI reader)
+### S.1 `src/auth/token/ini.c` (shared INI reader)
 
 ```c
 /* Minimal INI: [section] headers, key = value lines, # / ; comments.
@@ -632,7 +632,7 @@ int xrootd_ini_parse_file(const char *path, xrootd_ini_cb cb, void *u,
 }
 ```
 
-### S.2 `src/token/issuer_registry.c` (load callback excerpt)
+### S.2 `src/auth/token/issuer_registry.c` (load callback excerpt)
 
 ```c
 static int
@@ -771,7 +771,7 @@ xrootd_throttle_ioload_over(xrootd_rl_zone_t *zone, const char *user,
 +    xrootd_token_registry_t *token_registry; /* NULL ⇒ single-issuer path     */
 ```
 
-**T-2 `src/token/validate.c`** (W1) — add registry entry point; legacy shim:
+**T-2 `src/auth/token/validate.c`** (W1) — add registry entry point; legacy shim:
 ```c
 +int xrootd_token_validate_registry(ngx_log_t *log, const char *tok, size_t n,
 +    const xrootd_token_registry_t *reg, const char *req_path, int op,
@@ -837,7 +837,7 @@ xrootd_throttle_ioload_over(xrootd_rl_zone_t *zone, const char *user,
 before transfer; `xrootd_resv_done()` on done/abort (both success and error
 ladders).
 
-**T-10 `./config`** — register: `src/token/{ini,issuer_registry,subject_map,
+**T-10 `./config`** — register: `src/auth/token/{ini,issuer_registry,subject_map,
 monitor}.c`, `src/fs/backend/{csi_tagstore,csi_verify}.c`,
 `src/ratelimit/{throttle_compat,reservation}.c`. Requires `./configure` + `make`.
 
@@ -1156,17 +1156,17 @@ status updated; [`dropin_gap_analysis`] memory touched when a WS lands.
 
 ### Y.1 Per-PR file manifest
 
-**PR-1 (W1a)** — new: `src/token/ini.{c,h}`, `src/token/issuer_registry.{c,h}`;
-modified: `src/token/validate.c` (+`xrootd_token_validate_registry`, peek_iss,
+**PR-1 (W1a)** — new: `src/auth/token/ini.{c,h}`, `src/auth/token/issuer_registry.{c,h}`;
+modified: `src/auth/token/validate.c` (+`xrootd_token_validate_registry`, peek_iss,
 aud_ok), `src/core/types/config.h` (+`token_config`/`token_default_strategy`/
 `token_registry`), `src/core/config/directives.c` (+2 directives), merge_srv_conf
-(+registry build), `src/webdav/auth_token.c` + `src/gsi/token.c` (registry branch),
+(+registry build), `src/webdav/auth_token.c` + `src/auth/gsi/token.c` (registry branch),
 `./config` (+2 srcs). Tests: `tests/test_token_issuer_registry.py`,
-`tests/fixtures/scitokens.cfg`. Docs: `src/token/README.md`,
+`tests/fixtures/scitokens.cfg`. Docs: `src/auth/token/README.md`,
 `docs/10-reference/protocol-gaps-vs-xrootd.md` (SciTokens row).
 
-**PR-2 (W1b)** — new: `src/token/subject_map.{c,h}`, `src/token/monitor.{c,h}`;
-modified: `validate.c` (strategy ladder: group/mapping grants), `src/path/authdb.c`
+**PR-2 (W1b)** — new: `src/auth/token/subject_map.{c,h}`, `src/auth/token/monitor.{c,h}`;
+modified: `validate.c` (strategy ladder: group/mapping grants), `src/auth/authz/authdb.c`
 (group/user lookup helpers if absent), `src/metrics/` (token authz counters),
 `./config`. Tests: `tests/test_token_subject_map.py`,
 `tests/fixtures/namemap.json`.
@@ -1188,7 +1188,7 @@ Tests: `tests/test_csi_holes.py`.
 `src/ratelimit/ratelimit.h` (node `io_time_us`/`io_window`/`open_files`,
 `KEY_IOLOAD`), `vfs_io_core.c` (charge_io at IO completion), `src/read/open.c` +
 `src/connection/disconnect.c` (open/conn counters), `directives.c` (+throttle
-directives, custom parser), reuses `src/token/ini.c` for userconfig, `./config`.
+directives, custom parser), reuses `src/auth/token/ini.c` for userconfig, `./config`.
 Tests: `tests/test_throttle_contract.py`, `tests/fixtures/throttle-users.conf`.
 
 **PR-6 (W3b)** — new: `src/ratelimit/reservation.{c,h}`; modified: `src/tpc/
@@ -1227,7 +1227,7 @@ calls are early-return-guarded on the feature flag.
    ran the strategy ladder, so it sets a `rctx->authz_done` flag the path-gate
    honors (no double-enforcement).
 
-### QQ.2 Stream (`root://`) auth — `src/gsi/token.c`
+### QQ.2 Stream (`root://`) auth — `src/auth/gsi/token.c`
 - The two `xrootd_token_validate()` call sites (lines 109, 130) gain the same
   `token_registry` branch. The resolved username flows into `ctx->identity`
   (`types/identity.c`) exactly where the `sub` is recorded today, so downstream
@@ -1507,7 +1507,7 @@ xrdcp roots://nginx:1094//data/1g.bin /tmp/corrupt  # expect kXR_ChkSumErr (3031
 > against the headers cited in §W*. Treat as the implementation target, not a
 > drop-in paste (error strings + a few helper bodies are elided with `…`).
 
-### EE.1 `src/token/ini.h`
+### EE.1 `src/auth/token/ini.h`
 
 ```c
 #ifndef XROOTD_TOKEN_INI_H
@@ -1525,7 +1525,7 @@ int xrootd_ini_parse_file(const char *path, xrootd_ini_cb cb, void *user,
 #endif
 ```
 
-### EE.2 `src/token/ini.c`
+### EE.2 `src/auth/token/ini.c`
 
 ```c
 #include "ini.h"
@@ -1627,7 +1627,7 @@ xrootd_ini_parse_file(const char *path, xrootd_ini_cb cb, void *user,
 }
 ```
 
-### EE.3 `src/token/issuer_registry.h`
+### EE.3 `src/auth/token/issuer_registry.h`
 
 ```c
 #ifndef XROOTD_TOKEN_ISSUER_REGISTRY_H
@@ -1699,7 +1699,7 @@ int xrootd_token_issuer_path_ok(const xrootd_token_issuer_t *is,
 #endif
 ```
 
-### EE.4 `src/token/issuer_registry.c` (load + path gate)
+### EE.4 `src/auth/token/issuer_registry.c` (load + path gate)
 
 ```c
 #include "issuer_registry.h"
@@ -1886,7 +1886,7 @@ xrootd_token_issuer_path_ok(const xrootd_token_issuer_t *is,
 }
 ```
 
-### EE.5 `src/token/subject_map.c` (resolve + groups)
+### EE.5 `src/auth/token/subject_map.c` (resolve + groups)
 
 ```c
 #include "subject_map.h"
@@ -1930,7 +1930,7 @@ xrootd_token_subject_resolve(const xrootd_token_issuer_t *is,
 }
 ```
 
-### EE.6 `src/token/monitor.c` (HTTP-native IO monitor)
+### EE.6 `src/auth/token/monitor.c` (HTTP-native IO monitor)
 
 ```c
 #include "monitor.h"
@@ -2344,7 +2344,7 @@ xrootd_resv_schedule(const char *zname, uint32_t class_id, uint64_t bytes)
 }
 ```
 
-### EE.13 `src/token/validate.c` — registry entry point (full body)
+### EE.13 `src/auth/token/validate.c` — registry entry point (full body)
 
 ```c
 /* Validate a bearer token against the multi-issuer registry, enforce the
@@ -2418,7 +2418,7 @@ xrootd_token_validate_registry(ngx_log_t *log, const char *tok, size_t toklen,
 }
 ```
 
-### EE.14 `src/token/subject_map.c` — mapfile lookup (full body)
+### EE.14 `src/auth/token/subject_map.c` — mapfile lookup (full body)
 
 ```c
 /* Look up `subject` in a JSON name-map file: { "<subject>": "<username>", ... }.
@@ -2452,7 +2452,7 @@ xrootd_subject_mapfile_lookup(const char *path, const char *subject,
 }
 ```
 
-### EE.15 `src/token/monitor.h` — metric enum + macro
+### EE.15 `src/auth/token/monitor.h` — metric enum + macro
 
 ```c
 #ifndef XROOTD_TOKEN_MONITOR_H
@@ -3508,7 +3508,7 @@ page CRCs, writes a fresh v1 tag file. Idempotent; safe to run on a quiesced fil
 ## §ADB — authdb integration for `group` and `mapping` strategies
 
 The `capability` strategy uses the existing WLCG scope checker. The `group` and
-`mapping` strategies bridge a validated token into `src/path/authdb.c` so a site
+`mapping` strategies bridge a validated token into `src/auth/authz/authdb.c` so a site
 can express token-driven access with the same rule grammar it already uses for
 GSI/SSS identities.
 
@@ -3768,12 +3768,12 @@ Official (`/tmp/xrootd-src/src`): `XrdSciTokens/` (`XrdSciTokensAccess.cc`,
 `XrdThrottleManager.cc`, `README.md`); `XrdBwm/` (`XrdBwmPolicy*.{cc,hh}`,
 `XrdBwmConfig.cc`, `XrdBwmLogger.{cc,hh}`).
 
-This module (`src/`): `src/token/` (`token.h`, `token_internal.h`, `validate.c`,
+This module (`src/`): `src/auth/token/` (`token.h`, `token_internal.h`, `validate.c`,
 `config.c`, `scopes.c`, `jwks.c`, `json.c`, `refresh.c`); `src/core/types/config.h`
 (token fields @215-229); `src/fs/vfs_io_core.{c,h}`, `src/fs/backend/sd.h`
 (caps @75-89), `src/core/compat/{crc32c,pgio,integrity_info}.{c,h}`;
 `src/ratelimit/` (`ratelimit.{c,h}`, `ratelimit_keys.c`, `ratelimit_zone.c`);
-`src/connection/disconnect.c` (`xrootd_on_disconnect` @288); `src/path/authdb.c`,
-`src/path/auth_gate.c`; callers `src/webdav/auth_token.c`, `src/gsi/token.c`,
+`src/connection/disconnect.c` (`xrootd_on_disconnect` @288); `src/auth/authz/authdb.c`,
+`src/auth/authz/auth_gate.c`; callers `src/webdav/auth_token.c`, `src/auth/gsi/token.c`,
 `src/handshake/policy.c`, `src/core/types/identity.c`. Builds on Phase-58 §8/§9.
 </content>

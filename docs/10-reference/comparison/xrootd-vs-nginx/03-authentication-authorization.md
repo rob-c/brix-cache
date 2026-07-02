@@ -93,23 +93,23 @@ breakers, in-flight caps).
   (`tunables.h:221` `XROOTD_AUTH_{NONE,GSI,TOKEN,BOTH,SSS,UNIX,KRB5,HOST,PWD}`).
   `xrootd_handle_login()` (`login.c:61`) builds the `&P=` advertisement; the
   per-method dispatch lives in `src/handshake/`.
-- **Per-method backends:** `src/gsi/` (shared client/server core), `src/token/`,
-  `src/sss/`, `src/krb5/`, `src/unix/`, `src/pwd/`, `src/host/`, `src/voms/`.
+- **Per-method backends:** `src/auth/gsi/` (shared client/server core), `src/auth/token/`,
+  `src/auth/sss/`, `src/auth/krb5/`, `src/auth/unix/`, `src/auth/pwd/`, `src/auth/host/`, `src/auth/voms/`.
 - **In-process token validation:** unlike upstream's `ztn`-delegates-to-plugin
-  split, `src/token/validate.c` validates JWT/WLCG tokens *itself* (RS256/ES256
-  against a JWKS), and `src/token/macaroon.c` validates macaroons itself.
-- **Authorization:** a **dual engine** — `src/path/authdb.c` (native `u/g/p/a`
-  format, `root://` only) and `src/acc/` (a faithful XrdAcc port, all three
-  protocols), selected by `xrootd_authdb_format`. Plus VO ACLs (`src/path/acl.c`,
-  `find_rule.c`), token-scope path gates (`src/token/scopes.c`), and a global
+  split, `src/auth/token/validate.c` validates JWT/WLCG tokens *itself* (RS256/ES256
+  against a JWKS), and `src/auth/token/macaroon.c` validates macaroons itself.
+- **Authorization:** a **dual engine** — `src/auth/authz/authdb.c` (native `u/g/p/a`
+  format, `root://` only) and `src/auth/authz/acc/` (a faithful XrdAcc port, all three
+  protocols), selected by `xrootd_authdb_format`. Plus VO ACLs (`src/auth/authz/acl.c`,
+  `find_rule.c`), token-scope path gates (`src/auth/token/scopes.c`), and a global
   write gate.
 - **The decision pipeline** for `root://` runs through
-  `src/path/auth_gate.c` `xrootd_auth_gate_op()` (authdb → VO ACL → token scope,
+  `src/auth/authz/auth_gate.c` `xrootd_auth_gate_op()` (authdb → VO ACL → token scope,
   fail-closed on first failure), behind the `auth_done` completion gate in
   `src/handshake/policy.c`.
 - **HTTP/WebDAV/S3** auth lives in `src/webdav/auth_cert.c`,
   `src/webdav/auth_token.c`, and `src/s3/` (SigV4), all reusing the same
-  `src/token/` and `src/acc/` cores.
+  `src/auth/token/` and `src/auth/authz/acc/` cores.
 
 ---
 
@@ -126,10 +126,10 @@ client `sigpxy`.
   `kXGS_init/kXGS_cert/kXGS_pxyreq` (`XrdSecProtocolgsi.hh:89-104`); the
   exchange is a `switch(step)` on each side (client `getCredentials()`
   ~`:1411`, server `Authenticate()` ~`:1748`).
-- *Module:* `src/gsi/auth.c` routes on the 4-byte `credtype` and the GSI step
+- *Module:* `src/auth/gsi/auth.c` routes on the 4-byte `credtype` and the GSI step
   byte; round-1 → `xrootd_gsi_send_cert()` (`cert_response.c:128`), round-2 →
   `xrootd_gsi_parse_x509()` (`parse_x509.c:251`) or the signed variant
-  (`parse_x509.c:123`). DH primitives are in the **shared** `src/gsi/gsi_core.c`
+  (`parse_x509.c:123`). DH primitives are in the **shared** `src/auth/gsi/gsi_core.c`
   (`xrootd_gsi_dh_keygen`, `_dh_derive`) used by both this server and the native
   client. The 3072-bit DH parameters are copied verbatim from
   `XrdCryptosslCipher.cc` (`gsi_core.c` comment) for byte-level interop.
@@ -181,7 +181,7 @@ protocol ≥ 10400.
   (`XrdVoms/XrdVomsFun.cc:185`) calls `vomsdata::Retrieve(... RECURSE_CHAIN)`
   and reads `voname`/`std`(group/role/cap)/`fqan`, filling
   `Entity.vorg/grps/role/endorsements`.
-- *Module:* `src/voms/loader.c` `dlopen`s `libvomsapi.so.1` (graceful
+- *Module:* `src/auth/voms/loader.c` `dlopen`s `libvomsapi.so.1` (graceful
   `NGX_DECLINED` if absent); `extract.c` calls `VOMS_Retrieve(... RECURSE_CHAIN)`.
   Notably the module reads **only `voname` and `fqan`** — the `std` group/role/
   cap triples are declared but never dereferenced (`collect.c`), so VO is derived
@@ -198,14 +198,14 @@ protocol ≥ 10400.
   (`:678`, per-link `crl->IsRevoked()` `:813`). **No OCSP anywhere** in
   `XrdSecgsi` or `XrdCrypto` — revocation is CRL-only (including CRL-DP URI
   download).
-- *Module:* `src/gsi/config.c` `xrootd_rebuild_gsi_store()` sets
+- *Module:* `src/auth/gsi/config.c` `xrootd_rebuild_gsi_store()` sets
   `X509_V_FLAG_ALLOW_PROXY_CERTS`; `trusted_ca` is stat'd and treated as an
   OpenSSL CApath when a directory (hashed grid certs dir) or a CAfile otherwise.
-  CRLs load in `src/crypto/pki_build.c` (matches `*.pem` and grid `*.r0..r9`)
+  CRLs load in `src/auth/crypto/pki_build.c` (matches `*.pem` and grid `*.r0..r9`)
   and set `CRL_CHECK | CRL_CHECK_ALL | USE_DELTAS`; CRL mtime-skip reload lives
   in `src/core/config/process.c` `xrootd_crl_reload_handler()` (a CApath directory is
   always rebuilt). **OCSP exists** here as a module feature
-  (`src/crypto/ocsp.c`): AIA-derived responder, `xrootd_ocsp_check_cert()`
+  (`src/auth/crypto/ocsp.c`): AIA-derived responder, `xrootd_ocsp_check_cert()`
   (REVOKED is always fatal), stapling cache, and a hardened
   `XROOTD_OCSP_TIMEOUT_SECS = 5` connect deadline, wired from `gsi/auth.c`
   behind `xrootd_ocsp_enable`. **This is a module-only addition relative to
@@ -244,18 +244,18 @@ validation; the module validates in-process.**
   `XrdHttpExtHandler`. The macaroon secret must base64-decode to ≥32 bytes;
   `maxduration` default 24h.
 
-**Module.** `src/token/validate.c` `xrootd_token_validate()` is a single
+**Module.** `src/auth/token/validate.c` `xrootd_token_validate()` is a single
 in-process pipeline: length gate (≤8192) → split → header decode → **alg check
 (only `RS256`/`ES256`; `alg:"none"` and all others rejected before any
 verification)** → kid/key select → **signature verify (before payload is
 trusted)** → claims → `iss` → `aud` → `exp` (required, positive) → `nbf` →
 scopes.
 
-- **JWKS:** `src/token/jwks.c` reads a **local file only** (no remote HTTP
+- **JWKS:** `src/auth/token/jwks.c` reads a **local file only** (no remote HTTP
   fetch), max 8 keys, reloaded by a per-worker mtime-polling timer
   (`refresh.c`). This is a deliberate divergence from issuer-discovery JWKS
   fetching.
-- **Scopes:** `src/token/scopes.c` parses space-separated `permission:path`;
+- **Scopes:** `src/auth/token/scopes.c` parses space-separated `permission:path`;
   empty path defaults to `/` (WLCG convention); `storage.read/write/create/
   modify/stage` map to read/write/create/modify; path matching is
   boundary-aware (`/data` ≠ `/database`).
@@ -264,7 +264,7 @@ scopes.
   cross-worker SHM L2** (`token_cache.c`, `xrootd_token_cache zone=...`, key =
   SHA-256(token)). This exists to keep per-request RSA+JSON off the event loop
   (project memory: "Token-auth L1 cache (HTTP ReadTimeout fix)").
-- **Macaroons:** `src/token/macaroon.c` validates the HMAC chain in-process
+- **Macaroons:** `src/auth/token/macaroon.c` validates the HMAC chain in-process
   with two hardened invariants — **mandatory expiry** (`macaroon.c:528`: a
   root-context macaroon with no `before:` caveat is rejected) and
   **issuer-pinning** (`validate.c:201`: `location`/`iss` must match the
@@ -287,7 +287,7 @@ scopes.
   interactive nonce (freshness is a ~13s timestamp window; the `Rand[32]` is
   anti-known-plaintext only), optional source-IP binding unless `noIPCK`. Weak
   `srand48` RNG fallback when `/dev/urandom` is absent.
-- *Module:* `src/sss/` — Blowfish-CFB64 (zero IV, no padding) with a **CRC-32/
+- *Module:* `src/auth/sss/` — Blowfish-CFB64 (zero IV, no padding) with a **CRC-32/
   IEEE** integrity/wrong-key check; cleartext prefix = 32-byte random nonce +
   gen_time; replay window enforced (`gen_time + sss_lifetime <= now` rejected).
   Keytab parsing (`config.c`) enforces owner-only `0600` (`0640` for `.grp`)
@@ -305,7 +305,7 @@ scopes.
   AP-REP, not GSSAPI** (`krb5_mk_req_extended()` / `krb5_rd_req()`); keytab via
   `krb5_kt_resolve` or `krb5_kt_default`; optional `-ipchk` (off by default);
   forwardable-cred delegation via `-exptkn` + `krb5_fwd_tgt_creds`.
-- *Module:* `src/krb5/auth.c` — also **native `krb5_rd_req()` AP-REQ, not
+- *Module:* `src/auth/krb5/auth.c` — also **native `krb5_rd_req()` AP-REQ, not
   GSSAPI**; gated on build flag `XROOTD_HAVE_KRB5` (absent ⇒ unconditional
   deny); validates the AP-REQ against a pre-loaded principal + keytab; maps the
   client principal to a local name via `krb5_aname_to_localname`. Directives:
@@ -319,7 +319,7 @@ scopes.
   uid/gid**; no `SO_PEERCRED`/`getpeereid`/`SCM_CREDENTIALS`. The server copies
   the wire `"<user> <group>"` verbatim into `Entity.name`/`Entity.grps` and
   returns success unconditionally.
-- *Module:* `src/unix/auth.c` — also takes the username from the wire
+- *Module:* `src/auth/unix/auth.c` — also takes the username from the wire
   credential (self-asserted), but is **loopback-only by default**
   (`xrootd_unix_peer_is_loopback()` accepts 127/8, ::1, AF_UNIX) and rejects
   remote peers unless `xrootd_unix_trust_remote on`. It also allow-lists the
@@ -330,7 +330,7 @@ scopes.
 
 - *Official:* `XrdSecpwd/` — salted KDF (`DoubleHash`) or libc `crypt()` against
   a `$HOME/.xrd/` info dir; netrc/autologin support; `xrdpwdadmin` admin tool.
-- *Module:* `src/pwd/` — **a real implementation** (added 2026-06, Phase-52
+- *Module:* `src/auth/pwd/` — **a real implementation** (added 2026-06, Phase-52
   WS-B; *not* a stub), confirmed in source: a 2-round DH-bootstrapped exchange
   (`pwd_round1` establishes a DH session key without looking up the user, for
   anti-enumeration; `pwd_round2` decrypts the AES-128-CBC credential and
@@ -349,7 +349,7 @@ scopes.
 - *Official:* built-in `host` protocol (`XrdSec/XrdSecProtocolhost.cc`), no
   crypto — identity is the peer host, `Authenticate()` always returns success
   setting `Entity.prot="host"`.
-- *Module:* `src/host/auth.c` — **a real implementation** (added 2026-06,
+- *Module:* `src/auth/host/auth.c` — **a real implementation** (added 2026-06,
   Phase-52 WS-C; *not* a stub). Identity is the socket **reverse-DNS** hostname
   (never client-supplied), matched against an allowlist
   (`xrootd_host_pattern_match()`: leading `.` = domain suffix, else exact,
@@ -362,19 +362,19 @@ scopes.
 | Method | Official XRootD | nginx-xrootd | Notes |
 |---|---|---|---|
 | Anonymous | core flow | `xrootd_auth none` | both |
-| GSI / X.509 proxy | `XrdSecgsi` | `src/gsi/` (shared core) | 4-msg DH; signed-DH ≥10400 both |
+| GSI / X.509 proxy | `XrdSecgsi` | `src/auth/gsi/` (shared core) | 4-msg DH; signed-DH ≥10400 both |
 | GSI cipher set | aes-128/bf/3des | + aes-256 (table-driven) | module adds aes-256-cbc |
-| OCSP revocation | **none** (CRL only) | `src/crypto/ocsp.c` | **module-only** |
-| VOMS | `XrdVoms`→`libvomsapi` | `src/voms/`→`libvomsapi` | module reads voname/fqan only |
-| WLCG/SciToken `root://` | `ztn` transport + `XrdSciTokens` plugin | `src/token/validate.c` in-process | module validates RS256/ES256 itself |
+| OCSP revocation | **none** (CRL only) | `src/auth/crypto/ocsp.c` | **module-only** |
+| VOMS | `XrdVoms`→`libvomsapi` | `src/auth/voms/`→`libvomsapi` | module reads voname/fqan only |
+| WLCG/SciToken `root://` | `ztn` transport + `XrdSciTokens` plugin | `src/auth/token/validate.c` in-process | module validates RS256/ES256 itself |
 | JWKS source | issuer/scitokens-cpp | **local file + mtime poll** | divergence |
-| Macaroon | `XrdMacaroons`/`libmacaroons` | `src/token/macaroon.c` in-process | module: mandatory-expiry + issuer-pin |
+| Macaroon | `XrdMacaroons`/`libmacaroons` | `src/auth/token/macaroon.c` in-process | module: mandatory-expiry + issuer-pin |
 | Token endpoint (HTTP) | XrdMacaroons ext handler | `src/webdav/macaroon_endpoint.c` | both `POST /.oauth2/token` |
-| SSS | `XrdSecsss` (Blowfish, ts window) | `src/sss/` (Blowfish-CFB + CRC32 + replay window) | + proxy-upstream arm |
-| Kerberos 5 | `XrdSeckrb5` (native AP-REQ) | `src/krb5/` (native AP-REQ) | both not-GSSAPI; build-gated |
-| UNIX | `XrdSecunix` (self-asserted) | `src/unix/` (self-asserted, loopback-default) | module stricter by default |
-| Password (`pwd`) | `XrdSecpwd` | `src/pwd/` (PBKDF2, DH-bootstrapped) | added 2026-06; interop follow-on |
-| Host | built-in `host` | `src/host/` (reverse-DNS allowlist) | added 2026-06; no CIDR |
+| SSS | `XrdSecsss` (Blowfish, ts window) | `src/auth/sss/` (Blowfish-CFB + CRC32 + replay window) | + proxy-upstream arm |
+| Kerberos 5 | `XrdSeckrb5` (native AP-REQ) | `src/auth/krb5/` (native AP-REQ) | both not-GSSAPI; build-gated |
+| UNIX | `XrdSecunix` (self-asserted) | `src/auth/unix/` (self-asserted, loopback-default) | module stricter by default |
+| Password (`pwd`) | `XrdSecpwd` | `src/auth/pwd/` (PBKDF2, DH-bootstrapped) | added 2026-06; interop follow-on |
+| Host | built-in `host` | `src/auth/host/` (reverse-DNS allowlist) | added 2026-06; no CIDR |
 | Token transport (`ztn`) | yes (transport only) | n/a (validation in-process) | architectural difference |
 
 ---
@@ -411,14 +411,14 @@ scopes.
 
 **Module — dual engine.** `xrootd_authdb_format` selects:
 
-- **`native`** (`src/path/authdb.c`, default, `root://` only): records
+- **`native`** (`src/auth/authz/authdb.c`, default, `root://` only): records
   `[u|g|p|a] <id> <path> <privs>` (`u`ser/`g`roup/`p`=host-CIDR/`a`ll — **no
   principal kind**); 6 privilege bits (`r`ead, `l`ookup, `w`/`a`→update,
   `d`elete, `m`kdir, `k`→admin); **longest-prefix selection** with
   privilege-sufficiency folded in (a shorter sufficient rule beats a longer
   insufficient one). Host `p` rules are **IP/CIDR string match — no reverse-DNS**
   in the native engine. Directive `xrootd_authdb`.
-- **`xrdacc`** (`src/acc/`): a **faithful XrdAcc port** with a generational
+- **`xrdacc`** (`src/auth/authz/acc/`): a **faithful XrdAcc port** with a generational
   table swap on mtime hot-reload (`config.c`, single-threaded-worker
   pointer-swap, per-worker COW). Grammar matches stock: record types
   `= x s g h n o r t u`; selectors `g h o r u` (**no `v`, no `l`; role is `r`**);
@@ -442,7 +442,7 @@ scopes.
 - *Official:* VO authorization is expressed through XrdAcc `o`/`r`/`g` matching
   on `Entity.vorg/role/grps`, or via the GSI VO-authz plugin
   (`XrdSecgsiAuthzFunVO.cc`, `vo2grp`/`vo2usr`/`cn2usr`).
-- *Module:* a dedicated VO-ACL tier (`src/path/acl.c`,
+- *Module:* a dedicated VO-ACL tier (`src/auth/authz/acl.c`,
   `xrootd_check_vo_acl_identity()`; rule lookup in `find_rule.c`, longest-prefix
   over `vo_rules`), plus the `xrootd_require_vo` directive. Empty required-VO ⇒
   allow; empty VO list ⇒ deny. This runs as the middle tier of the auth gate.
@@ -451,7 +451,7 @@ scopes.
 
 - *Official:* SciTokens maps token scopes to `Access_Operation`/`XrdAccPrivs`
   inside `XrdSciTokensAccess.cc`, evaluated like any other authz rule.
-- *Module:* `src/token/scopes.c` checks the requested path against the token's
+- *Module:* `src/auth/token/scopes.c` checks the requested path against the token's
   `permission:path` scopes directly (boundary-aware), via
   `xrootd_token_check_read`/`_check_write` (write accepts write|create|modify),
   enforced as the **third** tier of `auth_gate.c` and at the WebDAV verifier
@@ -464,7 +464,7 @@ scopes.
 ### The decision pipeline
 
 Module `root://` authorization is a single fail-closed pipeline,
-`src/path/auth_gate.c` `xrootd_auth_gate_op()` (`:212`): **authdb → VO ACL →
+`src/auth/authz/auth_gate.c` `xrootd_auth_gate_op()` (`:212`): **authdb → VO ACL →
 token scope**, denying with `kXR_NotAuthorized` on the first failure. The XrdAcc
 engine keys on the logical request path; the native authdb keys on the resolved
 filesystem path. An optional cross-worker **L2 auth-cache**
@@ -644,18 +644,18 @@ keytab from `xrdsssadmin` format. See
   chains, VOMS via `libvomsapi` — module GSI is byte-checked against EOS.
 - Native-krb5 AP-REQ (both, not GSSAPI), SSS Blowfish keytabs, self-asserted
   UNIX semantics, XrdAcc authfile grammar and `@=`/AOP-create-vs-update
-  semantics (the `src/acc/` port deliberately mirrors upstream enum values).
+  semantics (the `src/auth/authz/acc/` port deliberately mirrors upstream enum values).
 
 **Module-side additions (nginx+):**
 
-- **OCSP** revocation (`src/crypto/ocsp.c`) — upstream GSI/XrdCrypto have none.
+- **OCSP** revocation (`src/auth/crypto/ocsp.c`) — upstream GSI/XrdCrypto have none.
 - **In-process token + macaroon validation** with **mandatory-expiry** and
   **issuer-pinning**, the **always-on per-worker L1 / opt-in SHM L2** caches, and
   the **global write pre-gate** — none of these exist upstream, where validation
   is delegated to `scitokens-cpp`/`libmacaroons` and write permission is purely
   authz-driven.
 - **Hardening**: GSI in-flight handshake cap, DNS/NSS circuit breakers in
-  `src/acc/`, SSS replay window + CRC32 wrong-key detection, OCSP connect
+  `src/auth/authz/acc/`, SSS replay window + CRC32 wrong-key detection, OCSP connect
   timeout, UNIX loopback-default.
 - **`aes-256-cbc`** added to the GSI cipher set.
 - XrdAcc engine applies to **all three** protocols (root/WebDAV/S3); upstream
@@ -684,7 +684,7 @@ keytab from `xrdsssadmin` format. See
 [feature matrix](../../xrootd-feature-matrix.md), and
 [gaps-vs-xrootd](../../gaps-vs-xrootd.md)) originally recorded `pwd` and `host`
 as *Missing*; they have now been reconciled to reflect the 2026-06 Phase-52
-additions of `src/pwd/` and `src/host/`. The XrdAcc port remains *Partial* — the
+additions of `src/auth/pwd/` and `src/auth/host/`. The XrdAcc port remains *Partial* — the
 residual grammar gaps (no `v`/`l`/`x`, narrower identity classes) still hold and
 are repeated above.
 

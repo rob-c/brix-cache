@@ -3,7 +3,7 @@
  */
 
 #include "webdav.h"
-#include "crypto/gsi_verify.h"
+#include "auth/crypto/gsi_verify.h"
 #include "core/ngx_xrootd_module.h"
 
 #include <ngx_http_ssl_module.h>

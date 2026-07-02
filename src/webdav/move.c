@@ -6,7 +6,7 @@
 #include "core/compat/namespace_ops.h"
 #include "fs/vfs.h"   /* xrootd_vfs_rename_path + xrootd_vfs_probe */
 #include "core/compat/http_conditionals.h"
-#include "impersonate/impersonate.h"
+#include "auth/impersonate/impersonate.h"
 #include "path/path.h"
 
 #include <limits.h>

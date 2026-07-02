@@ -357,7 +357,7 @@ Start here when tracing a performance change:
 - `src/read/*.c` - native read/readv/pgread implementations
 - `src/write/*.c` - native write/pgwrite implementations
 - `src/webdav/*.c` - WebDAV GET/PUT/auth/path optimizations
-- `src/token/*.c` - local token verification
+- `src/auth/token/*.c` - local token verification
 - `src/metrics/*.c` - shared-memory counters
 
 Useful tests:

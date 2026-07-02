@@ -32,7 +32,7 @@ cluster-manager/admin/proxy behaviors.
 | PSS/PFC proxy storage | Mature PSS and proxy-file-cache stack | Not a full upstream-compatible PSS/PFC replacement | Sites that depend on XRootD proxy-cache topology should not assume drop-in parity. |
 | Alternative OSS/storage plugins | Ceph/Rados, OssCsi, OssArc, Mirage, and other plugin backends | POSIX-first backend with selected local helpers (ZIP-member access is implemented in `src/zip/`) | This project should be presented as a high-performance POSIX/nginx module, not a complete OSS plugin host. The remaining hard backend gaps are erasure coding, Ceph/RADOS, the object-archive backend, and the CSI page tagstore. |
 | Full `XrdAcc` privilege model | Upstream access-control plugin semantics | ACL/authdb/VOMS/token-scope controls | Practical policy coverage exists, but reviewers should not assume every upstream privilege and authdb behavior is reproduced. |
-| Security plugin ecosystem | Full upstream sec protocol/plugin matrix | Direct implementations for GSI, token, SSS, unix, krb5, macaroons, **pwd**, and **host** | All upstream stream auth schemes now have wire-equivalent implementations (`pwd` in `src/pwd/`, `host` in `src/host/`). Sites using *custom* sec plugins (not these standard schemes) still need a migration plan. |
+| Security plugin ecosystem | Full upstream sec protocol/plugin matrix | Direct implementations for GSI, token, SSS, unix, krb5, macaroons, **pwd**, and **host** | All upstream stream auth schemes now have wire-equivalent implementations (`pwd` in `src/auth/pwd/`, `host` in `src/auth/host/`). Sites using *custom* sec plugins (not these standard schemes) still need a migration plan. |
 | Native root TPC edge cases | Broad upstream TPC paths | Partial | Basic source/destination rendezvous exists. TLS-upgraded origins, multihop delegation, and site-specific credential forwarding need validation. |
 | Checksum plugin breadth | Upstream checksum plugin catalog, including deployment-specific algorithms | Partial | CRC32c/page integrity, checksum query support, CRC-64/XZ, and CRC-64/NVME exist; full upstream plugin-framework breadth is not equivalent. |
 | CMS manager/admin breadth | Full upstream manager, redirector, and admin command ecosystem | Partial nginx-oriented manager/upstream controls | Dynamic upstream management exists, but not every CMS admin command, EC redirect mode, or redirector behavior. |
@@ -54,7 +54,7 @@ or source-verified review shows they are implemented:
 
 | Former gap | Current status |
 |---|---|
-| Kerberos 5 auth | Implemented as optional build-time support in `src/krb5`. |
+| Kerberos 5 auth | Implemented as optional build-time support in `src/auth/krb5`. |
 | UNIX auth | Implemented in `src/unixauth`. |
 | XrdHttp/WebDAV basics | Implemented here; upstream also has XrdHttp. |
 | HTTP third-party copy | Implemented here; upstream also has `XrdHttpTpc`. |

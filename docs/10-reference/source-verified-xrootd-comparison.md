@@ -87,8 +87,8 @@ their current documentation status after the 2026-06-14 cleanup.
 
 | Claim location | Previous stale claim or implication | Source-verified status | Doc status |
 |---|---|---|---|
-| `docs/05-operations/operation-status.md` | `krb5` auth was not planned; `kXR_prepare/kXR_stage` had no tape dispatch. | `krb5` exists in `src/krb5`; FRM queue and Tape REST gateway support exist, while full XrdFrm/MSS parity remains partial. | Corrected. |
-| `docs/10-reference/xrootd-feature-matrix.md` | UNIX/krb5/macaroons/XrdHttp/protocol flags were missing. | Source has `src/unix`, `src/krb5`, macaroon issue/verify paths, XrdHttp/WebDAV paths, and protocol-flag tests. | Replaced with a current source-verified matrix. |
+| `docs/05-operations/operation-status.md` | `krb5` auth was not planned; `kXR_prepare/kXR_stage` had no tape dispatch. | `krb5` exists in `src/auth/krb5`; FRM queue and Tape REST gateway support exist, while full XrdFrm/MSS parity remains partial. | Corrected. |
+| `docs/10-reference/xrootd-feature-matrix.md` | UNIX/krb5/macaroons/XrdHttp/protocol flags were missing. | Source has `src/auth/unix`, `src/auth/krb5`, macaroon issue/verify paths, XrdHttp/WebDAV paths, and protocol-flag tests. | Replaced with a current source-verified matrix. |
 | `docs/10-reference/gaps-vs-xrootd.md` | Rate limiting, XrdHttp, HTTP-TPC, FRM/tape, and delegation work were still missing. | Those features exist; remaining gaps are non-POSIX storage backends (EC/Ceph/OssArc/OssCsi), full XrdFrm/MSS parity, the loadable plugin ABI itself, and selected proxy/admin edges. (`host`/`pwd` auth are now implemented.) | Replaced with a current remaining-gaps document. |
 | `docs/10-reference/comparison-nginx-xrootd-vs-canonical.md` | Upstream/canonical XRootD lacked WebDAV/HTTP-TPC and only had native TPC. | Upstream has `src/XrdHttpTpc/`; nginx adds different HTTP-TPC hardening and operational integration, not the first HTTP-TPC implementation. | Corrected and pointed at this source-verified comparison. |
 | `docs/09-developer-guide/capability-flags-implementation-plan.md` | Several protocol flags were missing/planned. | `src/session/protocol.c` sets the implemented flags and `tests/test_protocol_flags.py` verifies them. | Marked historical. |
@@ -124,7 +124,7 @@ Source anchors:
 |---|---|---|---|---|
 | Protocol version constants | `XProtocol.hh` advertises `kXR_PROTOCOLVERSION 0x00000520` and `5.2.0`. | `src/protocol/opcodes.h` advertises `0x00000520`. | Parity | The module intentionally speaks the current 5.2 wire vocabulary even if the surrounding XRootD software release number is newer. |
 | Request opcodes `3000..3032` | `XProtocol.hh` defines auth through clone, including historical gaps. | `src/protocol/opcodes.h` defines the same visible request IDs. | Parity | `kXR_gpfile` is the only defined request without a practical handler here. |
-| Handshake, protocol, login, auth | `XrdXrootdProtocol.cc`, XrdSec plugin manager. | `src/connection/handler.c`, `src/session/protocol.c`, `src/session/login.c`, `src/gsi/auth.c`, `src/token/validate.c`, `src/sss/`, `src/unix/`, `src/krb5/`. | Parity | Auth plugin breadth differs; see auth table. |
+| Handshake, protocol, login, auth | `XrdXrootdProtocol.cc`, XrdSec plugin manager. | `src/connection/handler.c`, `src/session/protocol.c`, `src/session/login.c`, `src/auth/gsi/auth.c`, `src/auth/token/validate.c`, `src/auth/sss/`, `src/auth/unix/`, `src/auth/krb5/`. | Parity | Auth plugin breadth differs; see auth table. |
 | In-protocol TLS (`kXR_ableTLS`, `kXR_gotoTLS`, `kXR_tlsLogin`) | XrdTls/XrdXrootd protocol path. | `src/connection/tls.c`, `src/session/protocol.c`, `src/upstream/tls.c`. | Parity | Also implemented for upstream proxy bootstrap when backend requires `kXR_gotoTLS`. |
 | Signing (`kXR_sigver`) | `XrdSecProtect`, XrdXrootd signing enforcement. | `src/handshake/dispatch_signing.c`, signing enforcement before dispatch. | Parity | Module enforces configured signing level before handler dispatch. |
 | Session bind / secondary streams | Upstream bind/session mechanisms. | `src/session/bind.c`, `src/session/registry.c`; read dispatch restricts bound streams to read-style handle I/O. | Parity | Bound stream write rejection is explicit in `dispatch_read.c`. |
@@ -153,22 +153,22 @@ Source anchors:
   `/tmp/xrootd-src/src/XrdSciTokens`,
   `/tmp/xrootd-src/src/XrdVoms`
 - nginx auth source:
-  `src/gsi/`, `src/token/`, `src/sss/`, `src/unix/`, `src/krb5/`,
-  `src/path/authdb.c`, `src/path/acl.c`, `src/core/config/policy.c`
+  `src/auth/gsi/`, `src/auth/token/`, `src/auth/sss/`, `src/auth/unix/`, `src/auth/krb5/`,
+  `src/auth/authz/authdb.c`, `src/auth/authz/acl.c`, `src/core/config/policy.c`
 
 | Feature | Upstream XRootD source | nginx-xrootd source | Status | Notes |
 |---|---|---|---|---|
 | Anonymous mode | Core XRootD config/auth flow. | `xrootd_auth none`; login/session code. | Parity | Used heavily in tests and proxy/cache modes. |
-| GSI / x509 proxy cert auth | `XrdSecgsi`, `XrdVoms`. | `src/gsi/`, `src/voms/`, WebDAV cert auth in `src/webdav/auth_cert.c`. | Parity | Module supports proxy certs and optional VOMS/VO authorization. |
-| SSS | `XrdSecsss`. | `src/sss/`; protocol advertises `sss`. | Parity | Standard encrypted keytab format support is documented and source-backed. |
-| Unix auth | `XrdSecunix`. | `src/unix/auth.c`; protocol advertises `unix` when configured. | Parity | Module is loopback-only by default unless `xrootd_unix_trust_remote on`. |
-| Kerberos 5 | `XrdSeckrb5`. | `src/krb5/auth.c`, `src/krb5/config.c`; optional Kerberos detection in `config`. | Parity | Existing docs that call this absent are stale. |
-| Bearer token / `ztn` | `XrdSecztn`; `XrdSciTokens`. | `src/token/validate.c`, `src/token/jwks.c`, `src/token/scopes.c`; WebDAV bearer auth. | Partial | WLCG/JWT validation and path scopes exist. Upstream SciTokens has a broader helper/config/monitor model. |
-| Macaroons | `XrdMacaroons` HTTP handlers and authz. | `src/token/macaroon.c`, `src/token/macaroon_issue.c`, `src/webdav/macaroon_endpoint.c`. | Partial | Validation, caveats, third-party discharge bundles, and token endpoint exist. Review wire-format compatibility if claiming exact `XrdMacaroons` parity. |
-| Password auth | `XrdSecpwd` and `xrdpwdadmin`. | `src/pwd/auth.c` + `src/pwd/pwdfile.c`; 2-round DH-bootstrapped handshake, opt-in `xrootd_auth pwd` + `xrootd_pwd_file`. | Partial / parity | Wire-equivalent of `XrdSecpwd`; not the full `xrdpwdadmin`/server-public-key admin ecosystem. Recommended under TLS. |
-| Host auth | Built-in `host` protocol in `XrdSec` (`XrdSecProtocolhost.cc`). | `src/host/auth.c`; reverse-DNS allowlist, opt-in `xrootd_auth host` + `xrootd_host_allow`. | Parity | Identity from socket reverse-DNS only; fail-closed, trusted-network only by design. |
-| Full `XrdAcc` authdb semantics | `XrdAcc` supports rich auth-file syntax and identities. | `src/path/authdb.c` supports user/group/principal/host rules, longest-prefix matching, and rw/admin-like privilege bits. | Partial | Good practical authdb, not full `XrdAcc` semantics such as all upstream identity classes/templates/exclusive-list behavior. |
-| Token scope authorization | Upstream SciTokens maps token claims to XrdAcc privileges. | `src/token/scopes.c`, `src/path/auth_gate.c`, WebDAV token checks. | Partial / nginx+ | Scope enforcement is explicit and path-boundary aware; upstream configurability is broader. |
+| GSI / x509 proxy cert auth | `XrdSecgsi`, `XrdVoms`. | `src/auth/gsi/`, `src/auth/voms/`, WebDAV cert auth in `src/webdav/auth_cert.c`. | Parity | Module supports proxy certs and optional VOMS/VO authorization. |
+| SSS | `XrdSecsss`. | `src/auth/sss/`; protocol advertises `sss`. | Parity | Standard encrypted keytab format support is documented and source-backed. |
+| Unix auth | `XrdSecunix`. | `src/auth/unix/auth.c`; protocol advertises `unix` when configured. | Parity | Module is loopback-only by default unless `xrootd_unix_trust_remote on`. |
+| Kerberos 5 | `XrdSeckrb5`. | `src/auth/krb5/auth.c`, `src/auth/krb5/config.c`; optional Kerberos detection in `config`. | Parity | Existing docs that call this absent are stale. |
+| Bearer token / `ztn` | `XrdSecztn`; `XrdSciTokens`. | `src/auth/token/validate.c`, `src/auth/token/jwks.c`, `src/auth/token/scopes.c`; WebDAV bearer auth. | Partial | WLCG/JWT validation and path scopes exist. Upstream SciTokens has a broader helper/config/monitor model. |
+| Macaroons | `XrdMacaroons` HTTP handlers and authz. | `src/auth/token/macaroon.c`, `src/auth/token/macaroon_issue.c`, `src/webdav/macaroon_endpoint.c`. | Partial | Validation, caveats, third-party discharge bundles, and token endpoint exist. Review wire-format compatibility if claiming exact `XrdMacaroons` parity. |
+| Password auth | `XrdSecpwd` and `xrdpwdadmin`. | `src/auth/pwd/auth.c` + `src/auth/pwd/pwdfile.c`; 2-round DH-bootstrapped handshake, opt-in `xrootd_auth pwd` + `xrootd_pwd_file`. | Partial / parity | Wire-equivalent of `XrdSecpwd`; not the full `xrdpwdadmin`/server-public-key admin ecosystem. Recommended under TLS. |
+| Host auth | Built-in `host` protocol in `XrdSec` (`XrdSecProtocolhost.cc`). | `src/auth/host/auth.c`; reverse-DNS allowlist, opt-in `xrootd_auth host` + `xrootd_host_allow`. | Parity | Identity from socket reverse-DNS only; fail-closed, trusted-network only by design. |
+| Full `XrdAcc` authdb semantics | `XrdAcc` supports rich auth-file syntax and identities. | `src/auth/authz/authdb.c` supports user/group/principal/host rules, longest-prefix matching, and rw/admin-like privilege bits. | Partial | Good practical authdb, not full `XrdAcc` semantics such as all upstream identity classes/templates/exclusive-list behavior. |
+| Token scope authorization | Upstream SciTokens maps token claims to XrdAcc privileges. | `src/auth/token/scopes.c`, `src/auth/authz/auth_gate.c`, WebDAV token checks. | Partial / nginx+ | Scope enforcement is explicit and path-boundary aware; upstream configurability is broader. |
 | Global write gate before token scope | Upstream policy depends on configured authz stack. | `xrootd_allow_write` and WebDAV/common write gates. | nginx+ | Useful operational safety: global write enablement remains a precondition. |
 | Request signing/security levels | Upstream XrdSec protection. | `src/handshake/dispatch_signing.c`, `src/session/protocol.c`. | Parity | SecurityInfo trailer advertises configured signing level. |
 
@@ -291,10 +291,10 @@ UDP monitoring.
 
 | Gap | Upstream evidence | nginx evidence | Impact | Suggested position |
 |---|---|---|---|---|
-| `pwd` authentication | `/tmp/xrootd-src/src/XrdSecpwd` | **Implemented** — `src/pwd/` (DH-bootstrapped handshake). | No longer a blocker; wire-equivalent, not the full `xrdpwdadmin` admin ecosystem. | Closed; advertise as available legacy scheme (TLS recommended). |
-| `host` authentication | `/tmp/xrootd-src/src/XrdSec/XrdSecProtocolhost.cc` | **Implemented** — `src/host/` (reverse-DNS allowlist). | No longer a blocker for trusted-network deployments. | Closed; advertise as fail-closed, trusted-network only. |
-| Full `XrdAcc` compatibility | `/tmp/xrootd-src/src/XrdAcc` | `src/path/authdb.c` implements a narrower authdb. | Complex existing auth files may need translation. | Build a migration guide or converter rather than cloning all `XrdAcc`. |
-| Full SciTokens plugin semantics | `/tmp/xrootd-src/src/XrdSciTokens` | `src/token/` validates WLCG/JWT and scopes. | Sites using advanced issuer/config/helper behavior need review. | Document supported claims/scopes precisely. |
+| `pwd` authentication | `/tmp/xrootd-src/src/XrdSecpwd` | **Implemented** — `src/auth/pwd/` (DH-bootstrapped handshake). | No longer a blocker; wire-equivalent, not the full `xrdpwdadmin` admin ecosystem. | Closed; advertise as available legacy scheme (TLS recommended). |
+| `host` authentication | `/tmp/xrootd-src/src/XrdSec/XrdSecProtocolhost.cc` | **Implemented** — `src/auth/host/` (reverse-DNS allowlist). | No longer a blocker for trusted-network deployments. | Closed; advertise as fail-closed, trusted-network only. |
+| Full `XrdAcc` compatibility | `/tmp/xrootd-src/src/XrdAcc` | `src/auth/authz/authdb.c` implements a narrower authdb. | Complex existing auth files may need translation. | Build a migration guide or converter rather than cloning all `XrdAcc`. |
+| Full SciTokens plugin semantics | `/tmp/xrootd-src/src/XrdSciTokens` | `src/auth/token/` validates WLCG/JWT and scopes. | Sites using advanced issuer/config/helper behavior need review. | Document supported claims/scopes precisely. |
 | Full `XrdFrm` daemon/admin ecosystem | `/tmp/xrootd-src/src/XrdFrm` | `src/frm/` plus Tape REST; migrate/purge scaffold. | Tape sites with upstream FRM operational workflows are not drop-in. | Present as functional tape gateway, not complete FRM clone. |
 | PSS backend | `/tmp/xrootd-src/src/XrdPss` | No comparable implementation found. | Sites using PSS for remote storage access need another architecture. | Use proxy/cache/gateway patterns where possible; do not claim parity. |
 | PFC/XCache full policy cache | `/tmp/xrootd-src/src/XrdPfc` | `src/cache/` is narrower. | Sites relying on PFC purge/snapshot/policy internals need review. | Claim cache support, not full PFC parity. |
@@ -364,7 +364,7 @@ High-signal source files inspected for this comparison:
 |---|---|---|
 | Protocol opcodes/flags | `src/protocol/opcodes.h`, `src/protocol/flags.h`, `src/session/protocol.c` | `/tmp/xrootd-src/src/XProtocol/XProtocol.hh` |
 | Dispatch | `src/handshake/dispatch*.c` | `/tmp/xrootd-src/src/XrdXrootd/XrdXrootdProtocol.cc`, `/tmp/xrootd-src/src/XrdXrootd/XrdXrootdXeq.cc` |
-| Auth | `src/gsi/`, `src/token/`, `src/sss/`, `src/unix/`, `src/krb5/`, `src/path/authdb.c` | `/tmp/xrootd-src/src/XrdSec*`, `/tmp/xrootd-src/src/XrdMacaroons`, `/tmp/xrootd-src/src/XrdSciTokens`, `/tmp/xrootd-src/src/XrdVoms`, `/tmp/xrootd-src/src/XrdAcc` |
+| Auth | `src/auth/gsi/`, `src/auth/token/`, `src/auth/sss/`, `src/auth/unix/`, `src/auth/krb5/`, `src/auth/authz/authdb.c` | `/tmp/xrootd-src/src/XrdSec*`, `/tmp/xrootd-src/src/XrdMacaroons`, `/tmp/xrootd-src/src/XrdSciTokens`, `/tmp/xrootd-src/src/XrdVoms`, `/tmp/xrootd-src/src/XrdAcc` |
 | HTTP/WebDAV/XrdHttp | `src/webdav/` | `/tmp/xrootd-src/src/XrdHttp`, `/tmp/xrootd-src/src/XrdHttpCors` |
 | HTTP-TPC | `src/webdav/tpc*.c` | `/tmp/xrootd-src/src/XrdHttpTpc` |
 | S3 | `src/s3/` | `/tmp/xrootd-src/src/XrdClS3` |

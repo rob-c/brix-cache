@@ -47,10 +47,10 @@ into dedicated subdirectories:
 | `src/ngx_xrootd_write_handlers.c` | `src/write/` (17 files) |
 | `src/ngx_xrootd_query.c` | `src/query/` |
 | `src/ngx_xrootd_path.c` | `src/path/` (17 files) |
-| `src/ngx_xrootd_gsi.c` | `src/gsi/` |
-| `src/ngx_xrootd_token.c` | `src/token/` (16 files) |
+| `src/ngx_xrootd_gsi.c` | `src/auth/gsi/` |
+| `src/ngx_xrootd_token.c` | `src/auth/token/` (16 files) |
 | `src/ngx_xrootd_upstream.c` | `src/upstream/` |
-| `src/ngx_xrootd_voms.c` | `src/voms/` |
+| `src/ngx_xrootd_voms.c` | `src/auth/voms/` |
 | `src/ngx_xrootd_aio.c` | `src/core/aio/` |
 | `src/ngx_xrootd_cms_heartbeat.c` | `src/cms/` |
 | `src/ngx_xrootd_handshake.c` | `src/handshake/` (10 files) |
@@ -90,12 +90,12 @@ net).
 | `src/cache/` | Read-through cache (eviction, config, AIO integration) |
 | `src/proxy/` | Upstream proxy pool — connection pooling, event handling, forwarding |
 | `src/s3/` | S3-compatible REST gateway: GET/PUT/DELETE, ListObjectsV2, multipart upload, SigV4 auth |
-| `src/sss/` | SSS (Shared-Secret-Security) authentication |
+| `src/auth/sss/` | SSS (Shared-Secret-Security) authentication |
 | `src/manager/` | Dynamic manager/registry state |
 | `src/cms/` | CMS heartbeat, space/load reporting, multi-server config |
 | `src/fattr/` | Extended attribute operations (`kXR_fattr` get/set/del) |
 | `src/dirlist/` | Native directory listing (`kXR_dirlist`) |
-| `src/crypto/` | Shared PKI loading and verification helpers |
+| `src/auth/crypto/` | Shared PKI loading and verification helpers |
 
 ### 2.4 WebDAV (`src/webdav/`) — new and expanded handlers
 

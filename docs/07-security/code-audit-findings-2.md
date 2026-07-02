@@ -136,7 +136,7 @@ fix all call sites.
 ## G-02: JWT JSON Parser Stack Overflow
 
 **Severity:** High  
-**File:** `src/token/json.c:61–107`
+**File:** `src/auth/token/json.c:61–107`
 
 ### Vulnerability
 
@@ -144,7 +144,7 @@ The JWT payload parser uses mutual recursion between object and array parsing to
 handle nested JSON:
 
 ```c
-/* src/token/json.c:80-95 */
+/* src/auth/token/json.c:80-95 */
 static const char *
 json_skip_compound(const char *cursor, const char *end, char open, char close)
 {
@@ -282,14 +282,14 @@ header starts with `opaquelocktoken:` or `<opaquelocktoken:`.
 ## G-04: JWT Audience Not Enforced by Default
 
 **Severity:** Medium  
-**File:** `src/token/validate.c:324`
+**File:** `src/auth/token/validate.c:324`
 
 ### Vulnerability
 
 JWT audience (`aud`) validation is conditional on operator configuration:
 
 ```c
-/* src/token/validate.c:324-334 */
+/* src/auth/token/validate.c:324-334 */
 if (expected_audience != NULL && expected_audience[0]) {
     if (strcmp(claims->aud, expected_audience) != 0) {
         ...
@@ -486,14 +486,14 @@ Update the single call site to pass `sizeof(e->token)`.
 ## G-08: SSS Decrypted Identity Buffer Not Zeroed
 
 **Severity:** Low  
-**File:** `src/sss/auth_request.c:83–93`
+**File:** `src/auth/sss/auth_request.c:83–93`
 
 ### Vulnerability
 
 SSS authentication decrypts the client credential into a pool-allocated buffer:
 
 ```c
-/* src/sss/auth_request.c:83-93 */
+/* src/auth/sss/auth_request.c:83-93 */
 clear = ngx_palloc(c->pool, cipher_len);
 ...
 if (xrootd_sss_bf32_crypt(0, key->key, key->key_len,
@@ -510,7 +510,7 @@ An attacker who achieves an arbitrary memory-read primitive (e.g., via another
 vulnerability in a co-loaded nginx module) can scan the connection pool region and
 recover plaintext usernames and VO memberships from past SSS sessions.
 
-Contrast this with `src/sss/config.c:211` where the `key` struct IS zeroed after
+Contrast this with `src/auth/sss/config.c:211` where the `key` struct IS zeroed after
 reading from the keytab:
 
 ```c
@@ -541,7 +541,7 @@ cln->data    = clear;
 ## G-09: SSS Keytab `stat()`/`fopen()` TOCTOU Race
 
 **Severity:** Low  
-**File:** `src/sss/config.c:366–395`
+**File:** `src/auth/sss/config.c:366–395`
 
 ### Vulnerability
 
@@ -549,7 +549,7 @@ The keytab loader checks file permissions with `stat()` (which follows symlinks)
 and then opens the file with `fopen()`:
 
 ```c
-/* src/sss/config.c:366-395 */
+/* src/auth/sss/config.c:366-395 */
 if (stat((const char *) xcf->sss_keytab.data, &st) != 0) { ... }
 if (xrootd_sss_keytab_mode_ok(..., st.st_mode) != NGX_OK) { ... }
 fp = fopen((const char *) xcf->sss_keytab.data, "r");
@@ -589,14 +589,14 @@ This eliminates the TOCTOU window and prevents symlink-based substitution.
 ## G-10: JWT `nbf` Check Has Zero Clock-Skew Tolerance
 
 **Severity:** Low  
-**File:** `src/token/validate.c:345`
+**File:** `src/auth/token/validate.c:345`
 
 ### Vulnerability
 
 The JWT "not before" (`nbf`) claim is enforced with zero tolerance:
 
 ```c
-/* src/token/validate.c:345-349 */
+/* src/auth/token/validate.c:345-349 */
 if (claims->nbf > 0 && now < (time_t) claims->nbf) {
     ngx_log_error(NGX_LOG_WARN, log, 0,
                   "xrootd_token: token not yet valid ...");
@@ -626,7 +626,7 @@ ngx_int_t  token_clock_skew;   /* seconds of NBF/EXP tolerance (default 30) */
 ```
 
 ```c
-/* src/token/validate.c */
+/* src/auth/token/validate.c */
 if (claims->nbf > 0 && now + xcf->token_clock_skew < (time_t) claims->nbf) {
     ...
     return -1;
@@ -677,15 +677,15 @@ G-06 through G-10 are defensive hygiene improvements with minimal effort.
 | ID | Files changed | Change |
 |----|---------------|--------|
 | G-01 | `src/s3/util.c`, `src/s3/list_objects_v2.c` | Added `b->last + elen > b->end` guard inside `s3_xml_escape`; raised capacity estimate from 3× to 6× worst-case XML entity expansion |
-| G-02 | `src/token/json.c` | Added `JSON_MAX_NEST_DEPTH=32`; `json_skip_compound` now delegates to `json_skip_compound_depth` which decrements a remaining-depth counter and returns `NULL` when exhausted |
+| G-02 | `src/auth/token/json.c` | Added `JSON_MAX_NEST_DEPTH=32`; `json_skip_compound` now delegates to `json_skip_compound_depth` which decrements a remaining-depth counter and returns `NULL` when exhausted |
 | G-03 | `src/webdav/lock.c` | Replaced `ngx_strstr` with `CRYPTO_memcmp` after stripping angle-bracket delimiters; comparison is now constant-time in token length |
-| G-04 | — | Already enforced: `src/token/config.c` rejects configuration when `xrootd_auth token` is set without `xrootd_token_audience` |
+| G-04 | — | Already enforced: `src/auth/token/config.c` rejects configuration when `xrootd_auth token` is set without `xrootd_token_audience` |
 | G-05 | `docs/07-security/hardening-guide.md` | Added `limit_req_zone propfind_limit` example with `rate=2r/s burst=4` guidance for operators |
 | G-06 | `src/s3/multipart_complete_list_parts.c` | Added `mn <= MPU_MAX_PART_NUMBER` guard before `(int)` cast of `strtol` result |
 | G-07 | `src/webdav/lock.c` | Changed `webdav_generate_uuid(char *buf)` → `webdav_generate_uuid(char *buf, size_t bufsz)`; replaced `sprintf` with `snprintf` |
-| G-08 | `src/sss/auth_request.c` | Added `OPENSSL_cleanse(clear, cipher_len)` immediately before `ctx->auth_done = 1` |
-| G-09 | `src/sss/config.c` | Replaced `stat()` + `fopen()` with `open(O_RDONLY\|O_NOFOLLOW\|O_CLOEXEC)` + `fstat()` + `fdopen()` to close the TOCTOU window and prevent symlink substitution |
-| G-10 | `src/core/types/tunables.h`, `src/token/validate.c` | Defined `XROOTD_TOKEN_CLOCK_SKEW_SECS=30`; `exp` check now allows 30 s grace after expiry, `nbf` check now allows 30 s before the not-before instant |
+| G-08 | `src/auth/sss/auth_request.c` | Added `OPENSSL_cleanse(clear, cipher_len)` immediately before `ctx->auth_done = 1` |
+| G-09 | `src/auth/sss/config.c` | Replaced `stat()` + `fopen()` with `open(O_RDONLY\|O_NOFOLLOW\|O_CLOEXEC)` + `fstat()` + `fdopen()` to close the TOCTOU window and prevent symlink substitution |
+| G-10 | `src/core/types/tunables.h`, `src/auth/token/validate.c` | Defined `XROOTD_TOKEN_CLOCK_SKEW_SECS=30`; `exp` check now allows 30 s grace after expiry, `nbf` check now allows 30 s before the not-before instant |
 
 All changes compile cleanly against nginx 1.28.3 and pass the full `tests/test_security_hardening.py` suite.
 

@@ -32,7 +32,7 @@
  */
 #include "core/ngx_xrootd_module.h"
 #include "beneath.h"
-#include "impersonate/impersonate.h"
+#include "auth/impersonate/impersonate.h"
 
 #include <sys/syscall.h>
 #include <linux/openat2.h>

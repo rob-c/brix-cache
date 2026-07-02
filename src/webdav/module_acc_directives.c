@@ -7,7 +7,7 @@
  * the block comment below).  Public setters are declared in the matching .h.
  */
 #include "webdav.h"
-#include "acc/acc.h"   /* XrdAcc enum tables + xrootd_acc_http_t */
+#include "auth/authz/acc/acc.h"   /* XrdAcc enum tables + xrootd_acc_http_t */
 #include "s3/s3.h"     /* S3 loc-conf to populate alongside WebDAV */
 #include "module_acc_directives.h"
 

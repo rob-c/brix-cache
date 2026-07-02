@@ -3,7 +3,7 @@
  * Exercises grid-mapfile + getpwnam + policy + squash against the real NSS. */
 #include <ngx_config.h>
 #include <ngx_core.h>
-#include "../../src/impersonate/impersonate.h"
+#include "../../src/auth/impersonate/impersonate.h"
 #include <pwd.h>
 #include <stdio.h>
 #include <string.h>

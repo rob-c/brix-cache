@@ -26,8 +26,8 @@ The module has already consolidated a significant shared layer — path resoluti
 │                    Shared infrastructure layer                      │
 │                                                                    │
 │  src/core/compat/path.c      xrootd_http_resolve_path()  [HTTP+S3]     │
-│  src/token/             JWT validate + scope check  [all]         │
-│  src/crypto/            OCSP + PKI load             [all]         │
+│  src/auth/token/             JWT validate + scope check  [all]         │
+│  src/auth/crypto/            OCSP + PKI load             [all]         │
 │  src/metrics/metrics.h  shared-memory layout        [all]         │
 │  src/tpc/key_registry.c SHM TPC key table           [stream+webdav]│
 │  src/core/compat/crc32c.c    CRC32c for pgread/pgwrite   [stream]      │
@@ -68,7 +68,7 @@ See [cross-protocol-unification.md](cross-protocol-unification.md) for the full 
 
 Both read the same file types (CA certs + CRLs), use OpenSSL APIs (`X509_STORE_add_cert`, `X509_CRL_load_file`), and cache the result. But they have separate implementations with different sentinel checks and error paths.
 
-**Opportunity:** Move CA store building to `src/crypto/pki_build.c` (new) or extend `pki_load.c`, exporting `xrootd_build_ca_store(cadir, cafile, crl)` that both protocols call. WebDAV already has a partially shared `webdav_verify_proxy_cert()` → `src/crypto/gsi_verify.c`.
+**Opportunity:** Move CA store building to `src/auth/crypto/pki_build.c` (new) or extend `pki_load.c`, exporting `xrootd_build_ca_store(cadir, cafile, crl)` that both protocols call. WebDAV already has a partially shared `webdav_verify_proxy_cert()` → `src/auth/crypto/gsi_verify.c`.
 
 ### 3. HTTP header assembly helpers — duplicated patterns despite compat layer
 
@@ -173,7 +173,7 @@ Stream uses CRC32c via `src/core/compat/crc32c.c`. S3 uses MD5 for multipart ETa
 
 ### 3. `ngx_http_geo_module` / `map` blocks — IP-based ACLs
 
-**Current:** ACL logic in `src/path/acl.c` uses VO/user identity from auth tokens + path prefix matching. No IP-based restrictions.
+**Current:** ACL logic in `src/auth/authz/acl.c` uses VO/user identity from auth tokens + path prefix matching. No IP-based restrictions.
 
 **Nginx built-in:** `geo` and `map` directives create shared-memory lookup tables mapping client IPs to variables. Works at http level, visible to all server/location blocks.
 
@@ -234,10 +234,10 @@ Stream uses CRC32c via `src/core/compat/crc32c.c`. S3 uses MD5 for multipart ETa
 ### 2. `libjose` / `joseft` — JWK/JWT operations beyond jansson alone
 
 **Current:** JWT validation uses:
-- `src/token/json.c` — minimal JSON scanner for claims extraction
-- `src/token/b64url.c` — base64url decode
-- `src/token/keys.c` / `jwks.c` — JWKS parsing + key lookup (Jansson-backed)
-- `src/gsi/token.c` — token validation with OpenSSL RSA/ECDSA signature verification
+- `src/auth/token/json.c` — minimal JSON scanner for claims extraction
+- `src/auth/token/b64url.c` — base64url decode
+- `src/auth/token/keys.c` / `jwks.c` — JWKS parsing + key lookup (Jansson-backed)
+- `src/auth/gsi/token.c` — token validation with OpenSSL RSA/ECDSA signature verification
 
 **AlmaLinux 8/9 packages:** `libjose` (`jose-devel`) — JWK operations, JWT encode/decode/sign/verify, base64url. API: `jose_jwk_from_json()`, `jose_jwt_verify()`, `jose_b64url_decode()`. Lightweight (~50KB library).
 
@@ -274,7 +274,7 @@ Stream uses CRC32c via `src/core/compat/crc32c.c`. S3 uses MD5 for multipart ETa
 | Priority | Area | Impact | Effort | Notes |
 |----------|------|--------|--------|-------|
 | **P0** | Config shared preamble (`src/core/config/shared_conf.h`) | ~60 merge calls → ~30 | Low | Same fields, different structs. Embed common struct in each protocol config. |
-| **P0** | CA store builder (`src/crypto/pki_build.c`) | Eliminates duplicated X509_STORE build | Medium | Both protocols read same files, use same OpenSSL APIs. |
+| **P0** | CA store builder (`src/auth/crypto/pki_build.c`) | Eliminates duplicated X509_STORE build | Medium | Both protocols read same files, use same OpenSSL APIs. |
 | **P1** | HTTP header helpers audit → compat layer adoption | Reduces inline header assembly across S3/WebDAV | Low | `src/core/compat/http_headers.c` already exists. Just replace callsites. |
 | **P1** | Request body handler (`src/core/compat/http_body.c`) expansion | Unifies WebDAV PUT/S3 PUT body reading | Medium | Both use same nginx callback pattern with different wrappers. |
 | **P2** | Error response XML builder extension | S3 + WebDAV share standard error XML format | Low | `src/core/compat/xml.c` already has text element helpers. Add structured error builder. |
@@ -302,7 +302,7 @@ See [cross-protocol-unification.md](cross-protocol-unification.md#why-the-path-e
 S3 Signature Version 4 uses HMAC-SHA256 over request components with AWS credential scope. WLCG JWT uses RSA/ECDSA signature verification over claims. Different algorithms, different input structures, different scope semantics. Not worth merging.
 
 ### Native TPC stays separate from WebDAV curl-TPC
-Native TPC uses SHM key registry for cross-process zero-copy rendezvous. WebDAV TPC uses libcurl (or external `curl(1)`) with HTTP Source/Credential headers. Different transport, different protocol semantics. Could share the credential-parsing JSON layer (`src/token/oauth2.c` — already done).
+Native TPC uses SHM key registry for cross-process zero-copy rendezvous. WebDAV TPC uses libcurl (or external `curl(1)`) with HTTP Source/Credential headers. Different transport, different protocol semantics. Could share the credential-parsing JSON layer (`src/auth/token/oauth2.c` — already done).
 
 ### Stream wire framing stays separate from HTTP chain building
 Stream XRootD uses length-prefix binary wire framing (kXR_status responses). HTTP protocols use `ngx_chain_t` of `ngx_buf_t`. Different output mechanisms, different buffering strategies. Each protocol's response builder is appropriate to its transport.

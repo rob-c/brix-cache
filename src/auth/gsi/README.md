@@ -172,7 +172,7 @@ entry is from `../config/postconfiguration.c` (calls `xrootd_configure_gsi`) and
   `ngx_stream_xrootd_srv_conf_t` (`../types/config.h`), wire the command in the
   config subsystem, then load/validate it in `xrootd_configure_gsi()`
   (`config.c`). Register any new `.c` file in the top-level `config` script
-  (`$ngx_addon_dir/src/gsi/…`) and re-run `./configure`.
+  (`$ngx_addon_dir/src/auth/gsi/…`) and re-run `./configure`.
 - **Change the cipher/digest negotiation:** edit the advertised lists in
   `cert_response.c` (`cipher_alg`/`md_alg`) and the accepted set in
   `xrootd_gsi_select_cipher_name()` (`parse_crypto_helpers.c`).

@@ -159,7 +159,7 @@ Verb is `"TPC-PULL"` or `"TPC-PUSH"`, op varies by TPC direction.
 
 **Estimated savings: ~32 LoC** (7×4.6 avg).
 
-### `src/krb5/auth.c` — 6 ERR, 1 OK
+### `src/auth/krb5/auth.c` — 6 ERR, 1 OK
 
 Verb is `"KRB5"`, op is `XROOTD_OP_LOGIN`.
 
@@ -215,15 +215,15 @@ Verb is `"OPEN"`, op is `XROOTD_OP_OPEN_RD`.
 
 **Estimated savings: ~16 LoC**.
 
-### `src/unix/auth.c` — 4 ERR, 1 OK
+### `src/auth/unix/auth.c` — 4 ERR, 1 OK
 
 **Estimated savings: ~16 LoC**.
 
-### `src/gsi/auth.c` — 3 ERR, 1 OK
+### `src/auth/gsi/auth.c` — 3 ERR, 1 OK
 
 **Estimated savings: ~12 LoC**.
 
-### `src/gsi/token.c` — 3 ERR, 1 OK
+### `src/auth/gsi/token.c` — 3 ERR, 1 OK
 
 **Estimated savings: ~12 LoC**.
 
@@ -233,7 +233,7 @@ Verb is `"OPEN"`, op is `XROOTD_OP_OPEN_RD`.
 
 ### Remaining files (≤ 2 patterns each)
 
-`src/sss/auth_identity_challenge.c`, `src/sss/auth_request.c`,
+`src/auth/sss/auth_identity_challenge.c`, `src/auth/sss/auth_request.c`,
 `src/session/lifecycle.c`, `src/read/stat.c`, `src/read/statx.c`,
 `src/read/locate.c` (REDIR), `src/write/truncate.c`,
 `src/write/writev.c`, `src/write/chkpoint.c`, `src/query/space.c`,

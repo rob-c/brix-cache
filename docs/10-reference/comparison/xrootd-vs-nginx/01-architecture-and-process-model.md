@@ -375,7 +375,7 @@ pools** whose lifetimes nginx owns:
   `src/core/aio/README.md`).
 - Deterministic cleanup (OpenSSL objects, fds, temp files) uses
   `ngx_pool_cleanup_add(pool, …)` — the manual destructor equivalent
-  (`src/crypto/scoped.h`).
+  (`src/auth/crypto/scoped.h`).
 - The output path is buffer/chain assembly: an `ngx_chain_t` of `ngx_buf_t`
   (memory-backed `b->memory=1` for TLS; file-backed `b->in_file=1` for cleartext
   `sendfile`) — never raw `write`/`send`. The shared chain builders live in

@@ -247,15 +247,15 @@ tier-3 wholesale (they are the seam's own implementation, config readers, or
 self-contained alternate stores with their own confinement):
 
 - **The VFS + resolution layer**: `src/fs/`, `src/path/`, `src/core/compat/`,
-  `src/impersonate/`.
+  `src/auth/impersonate/`.
 - **Separate storage/metadata domains**: `src/cache/` (read-through cache),
   `src/dashboard/` (admin browse, openat2-confined), `src/frm/` (residency
   markers + durable queue — a control/journal store keyed off a confined path,
   optionally under a separate `frm_g_control_dir`), `src/write/chkpoint` (the
   checkpoint journal), `src/read/slice_read` (the slice cache).
 - **Config / cert / token / auth readers** (never the export backend):
-  `src/crypto/`, `src/gsi/`, `src/sss/`, `src/pwd/`, `src/token/`, `src/core/config/`,
-  `src/krb5/`, `src/acc/`, `src/voms/`, `src/ssi/`, `src/dig/`, `src/core/aio/`.
+  `src/auth/crypto/`, `src/auth/gsi/`, `src/auth/sss/`, `src/auth/pwd/`, `src/auth/token/`, `src/core/config/`,
+  `src/auth/krb5/`, `src/auth/authz/acc/`, `src/auth/voms/`, `src/ssi/`, `src/dig/`, `src/core/aio/`.
 - Unit tests (`*unittest*`, `*_test*`).
 
 `compat/integrity_info.c`'s `.cks` sidecar fallback store and its `fstat` of an

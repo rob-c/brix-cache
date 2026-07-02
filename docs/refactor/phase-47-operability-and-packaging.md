@@ -80,8 +80,8 @@ features. A read-only audit surfaced one real correctness blocker and a cluster 
    consolidated troubleshooting guide, capacity-planning, cert/token-rotation procedure, or
    upgrade/rollback note; guidance is scattered across 8+ docs.
 
-**Already in place (do NOT re-build):** JWKS hot-reload (`src/token/refresh.c`, mtime
-poll) and non-disruptive CRL/X509_STORE rebuild (`src/gsi`) already exist — the rotation
+**Already in place (do NOT re-build):** JWKS hot-reload (`src/auth/token/refresh.c`, mtime
+poll) and non-disruptive CRL/X509_STORE rebuild (`src/auth/gsi`) already exist — the rotation
 runbook documents them, it does not add them. Metrics (`src/metrics/`) and the dashboard
 (`src/dashboard/`) are production-grade. Config-time validation (`src/core/config/helpers.c`,
 ~354 `ngx_conf_log_error` sites) is already strict.

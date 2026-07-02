@@ -26,7 +26,7 @@
  */
 #include "core/ngx_xrootd_module.h"
 #include "session/registry.h"
-#include "gsi/gsi_core.h"
+#include "auth/gsi/gsi_core.h"
 #include "protocol/gsi.h"
 #include "pwd.h"
 

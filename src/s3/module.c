@@ -37,7 +37,7 @@
  */
 
 #include "s3.h"
-#include "acc/acc.h"            /* XrdAcc engine directives + enum tables */
+#include "auth/authz/acc/acc.h"            /* XrdAcc engine directives + enum tables */
 #include "core/config/root_prepare.h"
 #include "core/config/http_rootfd.h"
 #include "core/compat/tmp_path.h"          /* SP4 orphan direct-write temp reaper */

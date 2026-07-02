@@ -56,7 +56,7 @@ work is to make that discipline universal.
   (16 KB), `write → XROOTD_MAX_WRITE_PAYLOAD`, `prepare →
   XROOTD_MAX_PREPARE_PAYLOAD`, `readv → segments × segsize`, others →
   `path + 64`. Over-cap clients are disconnected. This is the model to extend.
-- **Auth brute-force / CPU-amplification cap.** `src/gsi/auth.c:357` rejects once
+- **Auth brute-force / CPU-amplification cap.** `src/auth/gsi/auth.c:357` rejects once
   `auth_fail_count >= XROOTD_MAX_AUTH_ATTEMPTS`, skipping the certreq round.
 - **Body caps before `malloc` on remote responses.** `src/cache/origin_response.c:49`
   (`*dlen > max_body`) and `src/tpc/io.c:115` (`*dlen > TPC_RESP_MAX_BODY`) both
@@ -88,8 +88,8 @@ Severity reflects exploitability by an external peer.
 | F3 | `src/read/readv.c:79` (and other per-request `malloc`) | Raw `malloc`/`free` used where a **request/transient pool** would auto-reclaim on the error paths. Each manual `free` is a chance to miss one. | Med | Prefer pool-backed alloc on per-request paths (W4) |
 | F4 | `src/session/registry.*`, `src/manager/registry.c` | Registries are **capacity-bounded but never time-evicted**. A peer that opens sessions/handles (or a flapping CMS server) can fill all slots → legitimate logins rejected (slot-exhaustion DoS). No `last_seen` TTL reaper on the session table. | High | TTL/LRU eviction + per-source quota (W5) |
 | F5 | `src/session/registry.h:30` vs `:36` docstring | `#define XROOTD_SESSION_REGISTRY_SLOTS 1024` but the doc comment says “default 256” — **cap drift** between declared limit and documentation; risk of wrong capacity assumptions in sizing/SHM math. | Low | Reconcile + single source of truth (W5) |
-| F6 | 26 files use `EVP_*`; `src/gsi`, `src/tpc`, `src/crypto`, `src/token`, `src/s3` | OpenSSL `*_new`/`d2i_*`/`PEM_read_*`/`BIO_new` with error returns; needs per-function verification that **every** return path frees. Manual audit cannot guarantee coverage at this scale. | High | LSan/valgrind CI is the real guard (W6) + scoped idiom (W3) |
-| F7 | `src/dashboard`, `src/token`, `src/metrics`, `src/query`, `src/s3` (jansson, 10 files) | `json_t` ownership (borrowed `json_object_get` vs owned `json_loads`/`*_new`; stealing `json_object_set_new`) is error-prone → leak or double-decref. | Med | Ownership audit + LSan (W6); jansson cheatsheet in W3 |
+| F6 | 26 files use `EVP_*`; `src/auth/gsi`, `src/tpc`, `src/auth/crypto`, `src/auth/token`, `src/s3` | OpenSSL `*_new`/`d2i_*`/`PEM_read_*`/`BIO_new` with error returns; needs per-function verification that **every** return path frees. Manual audit cannot guarantee coverage at this scale. | High | LSan/valgrind CI is the real guard (W6) + scoped idiom (W3) |
+| F7 | `src/dashboard`, `src/auth/token`, `src/metrics`, `src/query`, `src/s3` (jansson, 10 files) | `json_t` ownership (borrowed `json_object_get` vs owned `json_loads`/`*_new`; stealing `json_object_set_new`) is error-prone → leak or double-decref. | Med | Ownership audit + LSan (W6); jansson cheatsheet in W3 |
 | F8 | systemic: **33 files `ngx_alloc`** vs **7 files `ngx_pool_cleanup_add`** | Raw `ngx_alloc` on connection/persistent pools in the long-lived **stream path** relies on a manual `ngx_free` that a session-teardown error path can skip. | Med | Cleanup-registration discipline + lint (W4, W8) |
 | F9 | `src/cache/evict_candidates.c:231,237` | `realloc` growth (`list->evicted`, `list->elts`) — classic “`p = realloc(p,…)` loses the old pointer on NULL” + unbounded growth risk if the candidate set is attacker-influenced. | Med | `realloc`-safe helper + cap (W1, W2) |
 | F10 | `src/connection/fd_table.c` (0–255 handles) | Confirm every error path that opens an fd into the table also releases it on session close / failed-open; an fd leaked into a slot is both a descriptor leak and a logic hazard. | Med | Audit + LSan/fd-count assertion in tests (W6) |
@@ -141,7 +141,7 @@ by wire data happens without a preceding explicit cap check**. Concretely:
 The TPC/GSI exchange (F2) and the 26 EVP-using files (F6) need a discipline that
 makes leaks structurally hard rather than reviewer-dependent.
 
-- Add `src/crypto/scoped.h`: small `XROOTD_DEFER_*` macros (or a manual
+- Add `src/auth/crypto/scoped.h`: small `XROOTD_DEFER_*` macros (or a manual
   `cleanup:` label convention codified in `CODE STYLE`) that pair each
   `*_new` with its `*_free`, plus convenience destroyers
   (`xrootd_evp_md_free`, `xrootd_bio_free`, `xrootd_x509_stack_free`).
@@ -197,8 +197,8 @@ The attack surface is parsers of attacker-controlled bytes. Add libFuzzer
 targets (compiled standalone against the parser TUs, not full nginx):
 
 - Framing + per-opcode dispatch (`src/connection/recv.c`, `src/handshake`).
-- GSI/TPC bucket + PEM/cipher parsing (`src/tpc/gsi_outbound_*`, `src/gsi`).
-- Token/JWT/JWKS (`src/token`), S3 SigV4 + multipart (`src/s3`), WebDAV
+- GSI/TPC bucket + PEM/cipher parsing (`src/tpc/gsi_outbound_*`, `src/auth/gsi`).
+- Token/JWT/JWKS (`src/auth/token`), S3 SigV4 + multipart (`src/s3`), WebDAV
   XML / dead-props (`src/webdav/dead_props.c`).
 - Seed corpus from the existing test fixtures; run under ASAN. Store under
   `tests/fuzz/`. Even a few CPU-minutes per target routinely surfaces the
@@ -224,7 +224,7 @@ Heuristic, not sound — its job is to make the *next* F1/F2 visible in review.
 | File | Purpose | Registered in |
 |---|---|---|
 | `src/core/compat/safe_size.h` | overflow-checked size math + array alloc (W1) | `config.h` includes |
-| `src/crypto/scoped.h` | OpenSSL handle destroyers + cleanup idiom (W3) | `config.h` includes |
+| `src/auth/crypto/scoped.h` | OpenSSL handle destroyers + cleanup idiom (W3) | `config.h` includes |
 | `tests/fuzz/*.c` + `tests/fuzz/README.md` | libFuzzer targets + corpus (W7) | standalone, not in module |
 | `tests/lint_alloc.sh` | alloc/free invariant lint (W8) | CI |
 | (docs) `build-guide.md` ASAN section | sanitizer build instructions (W6) | — |
@@ -321,17 +321,17 @@ capped + overflow-checked:
 - `src/core/compat/namespace_ops.c:114` — `list_len` *(verify source)*
 - `src/cache/evict_candidates.c:231,237,251` — `realloc` growth *(F9)*
 - `src/tpc/gsi_outbound_exchange.c:222,271,335,404,439` — exchange buffers *(F2)*
-- `src/s3/copy.c:41`, `src/crypto/ocsp.c:524`, `src/write/chkpoint*.c:84,86`
+- `src/s3/copy.c:41`, `src/auth/crypto/ocsp.c:524`, `src/write/chkpoint*.c:84,86`
   — header/DER/path-len derived *(verify caps)*
 
 ## Appendix B — External-handle hotspots (audit checklist for W3/W6)
 
 - OpenSSL EVP/BIO/X509/EC/BN: `src/tpc/gsi_outbound_*` (densest),
-  `src/gsi/*`, `src/crypto/*`, `src/token/*`, `src/s3/auth_sigv4_*`,
-  `src/sss/*` — 26 files total.
+  `src/auth/gsi/*`, `src/auth/crypto/*`, `src/auth/token/*`, `src/s3/auth_sigv4_*`,
+  `src/auth/sss/*` — 26 files total.
 - libcurl: `src/webdav/tpc*`, `src/cache/origin*` (1 `curl_easy_init` site —
   verify `curl_easy_cleanup` + `curl_slist_free_all` on all returns).
-- jansson: `src/dashboard`, `src/token`, `src/metrics`, `src/query`, `src/s3`,
-  `src/gsi` — 10 files; audit borrowed-vs-owned refs.
+- jansson: `src/dashboard`, `src/auth/token`, `src/metrics`, `src/query`, `src/s3`,
+  `src/auth/gsi` — 10 files; audit borrowed-vs-owned refs.
 - File descriptors: `src/connection/fd_table.c` (F10), `src/core/compat/staged_file.c`,
   `src/cache`, `src/tpc/io.c`.

@@ -44,12 +44,12 @@ paths checked, see
 | Anonymous auth | Yes | Yes | Supported for native stream and HTTP/WebDAV surfaces where enabled. |
 | GSI/X.509 | Yes | Yes | Native stream and WebDAV support are present. |
 | Token auth / WLCG bearer tokens | Yes | Yes | Includes native and HTTP/WebDAV handling. |
-| SSS shared-secret auth | Yes | Yes | Implemented in `src/sss`. |
+| SSS shared-secret auth | Yes | Yes | Implemented in `src/auth/sss`. |
 | UNIX credential auth | Yes | Yes | Implemented in `src/unixauth`. |
-| Kerberos 5 auth | Yes | Yes | Optional build-time support in `src/krb5`; older docs that call this missing are stale. |
+| Kerberos 5 auth | Yes | Yes | Optional build-time support in `src/auth/krb5`; older docs that call this missing are stale. |
 | Macaroons | Yes | Yes | Includes token mint/verify and WebDAV delegation flows. |
 | VOMS and ACL policy | Yes | Yes | Implemented through policy, ACL, authdb, and VOMS helpers. |
-| `host` and `pwd` auth protocols | Yes | Yes | Implemented in `src/host/` (reverse-DNS allowlist) and `src/pwd/` (DH-bootstrapped password handshake); wire-equivalents, not the `xrdpwdadmin` admin ecosystem. |
+| `host` and `pwd` auth protocols | Yes | Yes | Implemented in `src/auth/host/` (reverse-DNS allowlist) and `src/auth/pwd/` (DH-bootstrapped password handshake); wire-equivalents, not the `xrdpwdadmin` admin ecosystem. |
 | Full upstream `XrdAcc` semantics | Yes | Partial | nginx-xrootd has ACL/authdb/VOMS/scope checks but not every upstream `XrdAcc` privilege model and plugin behavior. |
 | External security plugin ecosystem | Yes | Partial | nginx-xrootd implements selected native mechanisms directly rather than loading the full upstream sec plugin matrix. |
 
@@ -99,7 +99,7 @@ paths checked, see
 | Area | Status | Why reviewers should care |
 |---|---|---|
 | Full XrdFrm/MSS parity | Partial | Sites with tape-backed data services must validate prepare/evict/cancel semantics against their real tape workflow. |
-| `host`/`pwd` auth | Implemented | `src/host/` + `src/pwd/`; closed gap. Wire-equivalents, not the `xrdpwdadmin` admin ecosystem. |
+| `host`/`pwd` auth | Implemented | `src/auth/host/` + `src/auth/pwd/`; closed gap. Wire-equivalents, not the `xrdpwdadmin` admin ecosystem. |
 | Full `XrdAcc` and *custom* security plugin ecosystem | Partial | nginx-xrootd implements practical ACL/token/VOMS controls and all standard auth schemes, but not arbitrary loadable third-party sec plugins. |
 | PSS/PFC/Ceph/OssCsi/OssArc backends | Missing/partial | Upstream XRootD remains the better fit for deployments built around those backend plugins (ZIP-member access is implemented). |
 | Native TPC credential edge cases | Partial | Source/destination TPC works, but TLS-upgraded origins and multihop delegation need deployment-specific verification. |
@@ -112,7 +112,7 @@ These statements appeared in older docs and are no longer accurate:
 
 | Old claim | Current source-verified status |
 |---|---|
-| "Kerberos is not implemented." | Kerberos 5 support exists behind optional build-time support in `src/krb5`. |
+| "Kerberos is not implemented." | Kerberos 5 support exists behind optional build-time support in `src/auth/krb5`. |
 | "Official XRootD does not have HTTP-TPC." | Upstream has `src/XrdHttpTpc`; this project should not claim exclusivity for HTTP-TPC. |
 | "nginx-xrootd lacks HTTP-TPC multistream/performance markers." | Current WebDAV TPC paths implement multistream/range transfer and progress/marker behavior. |
 | "Prepare always returns request id 0." | That is only the FRM-off legacy behavior; FRM-enabled operation returns durable request ids. |

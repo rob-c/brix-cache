@@ -12,7 +12,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "path_internal.h"
+#include "path/path_internal.h"
 
 ngx_int_t
 xrootd_finalize_group_rules(ngx_log_t *log, const ngx_str_t *root,

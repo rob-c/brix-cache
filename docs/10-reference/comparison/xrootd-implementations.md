@@ -483,7 +483,7 @@ single pass writes each CRC into its preceding gap — no copy
   dispatch macros (`require_auth` for reads, `require_write` = auth ∧ `allow_write`
   for writes); sigver enforcement rejects unsigned mutating ops.
 * **CApath CA loading** — `trusted_ca` is `stat`'d and, when a directory, loaded as
-  an OpenSSL CApath (`src/gsi/config.c`) so on-demand hash lookup verifies
+  an OpenSSL CApath (`src/auth/gsi/config.c`) so on-demand hash lookup verifies
   arbitrary grid proxy chains a single bundle cannot.
 * **Verified interoperability** against three independent stacks — its own server,
   real EOS (stock XRootD C++, `v:10600`), and real dCache (Java, `v:10400`,
@@ -582,7 +582,7 @@ single pass writes each CRC into its preceding gap — no copy
 | Server dispatch | `XrdXrootd/XrdXrootdProtocol.cc:439` | `XrootdRequestHandler.java:229` | `server.go:242` | `src/handshake/dispatch.c` |
 | Client transport | `XrdCl/XrdClXRootDTransport.cc` | `org/dcache/xrootd/tpc/` | `client.go`, `session.go` | `client/lib/conn.c`, `frame.c` |
 | Handshake | `XrdXrootdProtocol.cc:311` | `XrootdHandshakeHandler.java:60` | `xrdproto/handshake/handshake.go` | `src/handshake/client_hello.c` |
-| GSI | `XrdSecgsi/XrdSecProtocolgsi.cc`, `XrdCrypto/XrdCryptosslCipher.cc` | `xrootd4j-gsi/.../{DHSession,GSIRequestHandler}.java` | — (absent) | `src/gsi/`, `client/lib/sec/sec_gsi.c`, shared `src/gsi/gsi_core.c` |
+| GSI | `XrdSecgsi/XrdSecProtocolgsi.cc`, `XrdCrypto/XrdCryptosslCipher.cc` | `xrootd4j-gsi/.../{DHSession,GSIRequestHandler}.java` | — (absent) | `src/auth/gsi/`, `client/lib/sec/sec_gsi.c`, shared `src/auth/gsi/gsi_core.c` |
 | Data plane | `XrdXrootdXeq.cc`, `XrdXrootdXeqPgrw.cc` | `DataServerHandler.java` | `xrootd/file.go`, `xrdproto/read` | `src/read/`, `src/write/`, `src/response/status.c` |
 | EOS integration | — | — | — | (EOS) `mgm/ofs/XrdMgmOfsFile.cc`, `fst/XrdFstOfsFile.cc`, `common/Mapping.cc` |
 

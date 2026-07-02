@@ -2,7 +2,7 @@
 tests/test_token_cache_l1.py — per-worker L1 token-validation cache (phase-50).
 
 These tests guard the always-on per-worker L1 bearer-token cache added to harden
-token auth against "HTTP ReadTimeout under load" (src/token/worker_cache.c).  The
+token auth against "HTTP ReadTimeout under load" (src/auth/token/worker_cache.c).  The
 cache must make repeated token validation cheap WITHOUT changing any
 authorization decision:
 

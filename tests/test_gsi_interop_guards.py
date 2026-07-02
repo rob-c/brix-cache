@@ -64,11 +64,11 @@ def test_gsi_core_invariants_unit():
         "-o", out_bin,
         os.path.join(REPO, "tests/c/gsi_interop_test.c"),
         # gsi_core was split into focused units (cipher/rsa/buf/dh); link them all.
-        os.path.join(REPO, "src/gsi/gsi_core.c"),
-        os.path.join(REPO, "src/gsi/gsi_cipher.c"),
-        os.path.join(REPO, "src/gsi/gsi_rsa.c"),
-        os.path.join(REPO, "src/gsi/gsi_buf.c"),
-        os.path.join(REPO, "src/gsi/gsi_dh.c"),
+        os.path.join(REPO, "src/auth/gsi/gsi_core.c"),
+        os.path.join(REPO, "src/auth/gsi/gsi_cipher.c"),
+        os.path.join(REPO, "src/auth/gsi/gsi_rsa.c"),
+        os.path.join(REPO, "src/auth/gsi/gsi_buf.c"),
+        os.path.join(REPO, "src/auth/gsi/gsi_dh.c"),
         os.path.join(REPO, "src/core/compat/crypto.c"),
         "-lcrypto",
     ]
@@ -228,12 +228,12 @@ def test_wire_contract_tripwires():
     docs/10-reference/comparison/xrootd-implementations.md (§5.4).
     """
     client_gsi = _read("client/lib/sec/sec_gsi.c")
-    core = _read("src/gsi/gsi_core.c")
+    core = _read("src/auth/gsi/gsi_core.c")
     conn = _read("client/lib/conn.c")
-    server_parse = _read("src/gsi/parse_x509.c")
+    server_parse = _read("src/auth/gsi/parse_x509.c")
 
     # (F4) The XrdSecgsi round-2 (kXGC_cert) now lives in ONE shared kernel,
-    # xrootd_gsi_build_cert_response (src/gsi/gsi_core.c); both the native client
+    # xrootd_gsi_build_cert_response (src/auth/gsi/gsi_core.c); both the native client
     # and the TPC destination delegate to it so neither can grow a divergent
     # reimplementation. Guard the client's delegation here; the wire-critical facts
     # below are then asserted against the shared kernel that actually emits them.
@@ -275,7 +275,7 @@ def test_wire_contract_tripwires():
     #     the client's '#ivlen' suffix. Either way the signed-DH decrypt must NOT
     #     pass use_iv=0, and the cipher-name parser must strip a stock client's
     #     '#ivlen' suffix so the cipher still resolves.
-    helpers = _read("src/gsi/parse_crypto_helpers.c")
+    helpers = _read("src/auth/gsi/parse_crypto_helpers.c")
     assert "'#'" in helpers, (
         "server cipher-name parser no longer strips the '#ivlen' suffix — a stock "
         "IV-advertising client's cipher_alg ('aes-128-cbc#16') will fail to resolve")
@@ -320,13 +320,13 @@ def test_tpc_outbound_uses_shared_core():
 
     Post-F4 the TPC destination's round-2 (src/tpc/gsi_outbound_exchange.c) is a
     thin driver that delegates the entire kXGC_cert build to the shared kernel
-    xrootd_gsi_build_cert_response (src/gsi/gsi_core.c) — the SAME implementation
+    xrootd_gsi_build_cert_response (src/auth/gsi/gsi_core.c) — the SAME implementation
     the native client uses. We assert the delegation (so the TPC path can never
     grow a divergent crypto reimplementation) and that the shared kernel still
     carries the wire-critical facts.
     """
     ex = _read("src/tpc/gsi_outbound_exchange.c")
-    core = _read("src/gsi/gsi_core.c")
+    core = _read("src/auth/gsi/gsi_core.c")
     assert "xrootd_gsi_build_cert_response" in ex, (
         "TPC outbound GSI no longer delegates round-2 to the shared gsi_core kernel "
         "(xrootd_gsi_build_cert_response) — its DH/cipher math can drift from the "

@@ -15,7 +15,7 @@
 #include "fs/vfs.h"
 #include "path/path.h"
 #include "dashboard/dashboard_tracking.h"
-#include "impersonate/lifecycle.h"
+#include "auth/impersonate/lifecycle.h"
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>

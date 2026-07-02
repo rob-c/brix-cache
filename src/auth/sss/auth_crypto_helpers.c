@@ -1,5 +1,5 @@
 #include "sss_internal.h"
-#include "gsi/gsi_internal.h"
+#include "auth/gsi/gsi_internal.h"
 #include "session/registry.h"
 #include "core/compat/crc32_ieee.h"   /* shared CRC-32/IEEE (libxrdproto) */
 #include "core/compat/sss_bf.h"       /* shared Blowfish-CFB64 (libxrdproto) */

@@ -16,7 +16,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 NGINX_SRC="${TEST_NGINX_SRC:-/tmp/nginx-1.28.3}"
 CC="${CC:-cc}"
-IMP="$REPO/src/impersonate"
+IMP="$REPO/src/auth/impersonate"
 OUT="${OUT:-/tmp/userns_broker_test.bin}"
 
 if ! command -v "$CC" >/dev/null 2>&1; then

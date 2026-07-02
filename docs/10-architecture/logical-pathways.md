@@ -38,10 +38,10 @@ These pathways represent the foundational functionality required for a single-no
 - **Logic Flow**:
   1. `xrootd_handle_auth`: Dispatches to specific security plugins.
   2. **Plugins**:
-     - **GSI**: X.509 proxy validation (`src/gsi/`).
-     - **Token**: JWT/WLCG bearer token validation (`src/token/`).
-     - **SSS**: Shared-secret authentication (`src/sss/`).
-  3. `xrootd_check_authdb`: Verifies file-path permissions against `authdb` rules (`src/path/authdb.c`).
+     - **GSI**: X.509 proxy validation (`src/auth/gsi/`).
+     - **Token**: JWT/WLCG bearer token validation (`src/auth/token/`).
+     - **SSS**: Shared-secret authentication (`src/auth/sss/`).
+  3. `xrootd_check_authdb`: Verifies file-path permissions against `authdb` rules (`src/auth/authz/authdb.c`).
 
 ### C. Basic File I/O
 - **Entry Point**: `src/handshake/dispatch_read.c` / `dispatch_write.c`

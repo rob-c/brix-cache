@@ -163,10 +163,10 @@ changes; the bound stream closes any stale local fd and the read fails with
  **Status:** Complete. Basic HMAC-SHA256 signature chaining and caveat validation using a static secret is fully implemented as of 2026-05-09.
  
  **What was done:**
- - Implemented `xrootd_macaroon_validate()` in `src/token/macaroon.c` with support for parsing ISO8601 timestamps and WLCG activity caveats.
+ - Implemented `xrootd_macaroon_validate()` in `src/auth/token/macaroon.c` with support for parsing ISO8601 timestamps and WLCG activity caveats.
  - Updated `xrootd_token_validate()` to dispatch Macaroon validation transparently.
  - Added `xrootd_macaroon_secret` directive in the stream module and `xrootd_webdav_macaroon_secret` in the WebDAV module for static secret configuration.
- - Integrated secret parsing into `src/gsi/token.c` and `src/webdav/auth_token.c`.
+ - Integrated secret parsing into `src/auth/gsi/token.c` and `src/webdav/auth_token.c`.
  - Created Macaroon generation helper and test cases in `tests/test_token_macaroon.py`.
 
 **Why it matters:** Some WLCG sites (particularly those running dCache and
@@ -377,7 +377,7 @@ full M6 plan and per-step status.
 **Status:** Core implementation complete for user, group, host, and all-identity
 rules. Operational caveats are documented below.
 
-**What is implemented** (`src/path/authdb.c`, `src/core/config/policy.c`):
+**What is implemented** (`src/auth/authz/authdb.c`, `src/core/config/policy.c`):
 
 - `xrootd_authdb <path>` directive — registered as `NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1`, requires `xrootd_auth gsi`, `token`, or both
 - Full authdb file parser: `[u|g|p|a] <id> <path> <privs>` line format, comments (`#`), blank lines
@@ -504,20 +504,20 @@ what is missing. Items are grouped by feature area.
 
 ### Macaroon tokens (item 4)
 
-- ~~**`path:` caveat not enforced**~~ ✓ **DONE:** `src/token/macaroon.c` now
+- ~~**`path:` caveat not enforced**~~ ✓ **DONE:** `src/auth/token/macaroon.c` now
   enforces `path:` caveats. Each caveat narrows the allowed scope paths by
   intersection: if the caveat path is a sub-path of the scope it is narrowed;
   if the paths are disjoint all permission bits for that scope are revoked.
   Multiple `path:` caveats are applied in sequence (up to 8 per token).
 
 - **Former third-party / discharge macaroon gap** ✓ **DONE:**
-  `src/token/macaroon.c` validates space-separated root/discharge bundles,
+  `src/auth/token/macaroon.c` validates space-separated root/discharge bundles,
   decrypts `vid` with AES-256-CBC, and intersects discharge caveats with the
   root token constraints. See `tests/test_macaroon_discharge.py`.
 
 - ~~**Static secret only — no key rotation**~~ ✓ **DONE:** `xrootd_macaroon_secret_old`
   grace-period directive added to both stream (`src/stream/module.c`) and WebDAV
-  (`src/webdav/module.c`) modules. `src/gsi/token.c` and `src/webdav/auth_token.c`
+  (`src/webdav/module.c`) modules. `src/auth/gsi/token.c` and `src/webdav/auth_token.c`
   now fall back to the old secret when primary validation fails, allowing zero-
   downtime key rotation without reloading nginx.
 
@@ -600,17 +600,17 @@ what is missing. Items are grouped by feature area.
 
 ### Token / JWT validation (items 4, 10)
 
-- ~~**RS256 only**~~ ✓ **ES256 added:** `src/token/validate.c` now accepts both
+- ~~**RS256 only**~~ ✓ **ES256 added:** `src/auth/token/validate.c` now accepts both
   `RS256` and `ES256`. EC P-256 public keys are loaded from JWKS files
-  (`kty:"EC"`, `crv:"P-256"`) in `src/token/jwks.c`; the IEEE P1363 raw
+  (`kty:"EC"`, `crv:"P-256"`) in `src/auth/token/jwks.c`; the IEEE P1363 raw
   signature is converted to DER before OpenSSL verification in
-  `src/token/signature.c`. PS256, RS384/RS512, and `alg:"none"` remain refused.
+  `src/auth/token/signature.c`. PS256, RS384/RS512, and `alg:"none"` remain refused.
 
 - ~~**Single JWKS file, no hot refresh**~~ ✓ **DONE:**
   `xrootd_token_jwks_refresh_interval` mtime-polls file-based JWKS material and
   keeps the old key set if a refresh parse fails.
 
-- ~~**`storage.stage:` not enforced**~~ ✓ **DONE:** `src/token/scopes.c` now maps
+- ~~**`storage.stage:` not enforced**~~ ✓ **DONE:** `src/auth/token/scopes.c` now maps
   `storage.stage:` to `read = 1`, matching the WLCG token profile intent that
   stage is a read-like capability for tape-recall workflows. `openid` / `profile`
   scopes are still parsed but grant no storage privileges (correct behavior).
@@ -667,7 +667,7 @@ mechanism are all implemented (M6 steps 1–6). Remaining gaps:
   stream GSI and WebDAV X.509 stores enable `X509_V_FLAG_USE_DELTAS` alongside
   full-chain CRL checking when CRLs are configured.
 
-- **Former OCSP gap** ✓ **DONE:** `src/crypto/ocsp.c` implements client-cert
+- **Former OCSP gap** ✓ **DONE:** `src/auth/crypto/ocsp.c` implements client-cert
   OCSP responder queries and server-cert staple fetching; `src/session/tls_config.c`
   attaches cached staples during TLS handshakes. See `tests/test_ocsp.py`.
 
@@ -684,7 +684,7 @@ mechanism are all implemented (M6 steps 1–6). Remaining gaps:
   appropriate privilege (`XROOTD_AUTH_READ` for queries; `XROOTD_AUTH_READ` or
   `XROOTD_AUTH_UPDATE` depending on fattr subcode) before the vo_acl check.
 
-- ~~**Authdb file size limit**~~ ✓ **DONE:** `src/path/authdb.c` now uses
+- ~~**Authdb file size limit**~~ ✓ **DONE:** `src/auth/authz/authdb.c` now uses
   `ngx_fd_info()` to determine the exact file size at config time and allocates
   accordingly, with a hard 1 MiB cap (logs `NGX_LOG_EMERG` and aborts startup
   if exceeded). Silent truncation at 4096 bytes is gone.

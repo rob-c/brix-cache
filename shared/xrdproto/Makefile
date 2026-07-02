@@ -82,7 +82,7 @@ LIB   := libxrdproto.a
 # WebDAV href decode); host_format: IPv6-aware host:port formatting; kxr_names:
 # kXR opcode/status/error name tables; json_min: dependency-free JSON value
 # extractor for client JWT-claim display — NO jansson, the safe replacement for
-# the old strstr() hack.  The module keeps its jansson src/token/json.c for the
+# the old strstr() hack.  The module keeps its jansson src/auth/token/json.c for the
 # security-critical JWKS path; this is the lightweight diagnostic core only.)
 NAMES := crc32c crc64 crc32_ieee hex crypto error_mapping checksum_core uri \
          host_format host_split kxr_names sigv4 pgio vendor_ext sss_bf fattr_codec \
@@ -90,14 +90,14 @@ NAMES := crc32c crc64 crc32_ieee hex crypto error_mapping checksum_core uri \
          codec_core codec_zlib codec_zstd codec_lzma codec_brotli codec_bzip2 \
          codec_lz4
 COMPAT_OBJS := $(addprefix $(BUILD)/,$(addsuffix .o,$(NAMES)))
-# GSI/sigver crypto + wire kernels (shared with the module's src/gsi).
-GSI   := $(REPO)/src/gsi
+# GSI/sigver crypto + wire kernels (shared with the module's src/auth/gsi).
+GSI   := $(REPO)/src/auth/gsi
 # Phase-38: gsi_core.c split into single-responsibility siblings (all ngx-free).
 GSI_OBJS := $(BUILD)/gsi_core.o $(BUILD)/gsi_buf.o $(BUILD)/gsi_dh.o \
             $(BUILD)/gsi_cipher.o $(BUILD)/gsi_rsa.o $(BUILD)/proxy_req.o
-# Token kernels shared with the module's src/token (WLCG scope authz + JWT
+# Token kernels shared with the module's src/auth/token (WLCG scope authz + JWT
 # base64url decode — the DECODE/scope core, not the JWKS signature-verify path).
-TOKEN := $(REPO)/src/token
+TOKEN := $(REPO)/src/auth/token
 TOKEN_OBJS := $(BUILD)/scopes.o $(BUILD)/b64url.o
 # Storage Driver POSIX raw fd ops (src/fs/backend/sd_posix.c). Under
 # -DXRDPROTO_NO_NGX only the worker-safe pread/pwrite/... slots + the driver
@@ -113,10 +113,10 @@ BACKEND_OBJS := $(BUILD)/sd_posix.o $(BUILD)/sd_block.o $(BUILD)/sd_s3.o \
 # reader (client/lib/zip.c) and the server's member-access path both link it.
 ZIP   := $(REPO)/src/zip
 ZIP_OBJS := $(BUILD)/zip_kernel.o
-# SSS keytab text grammar (src/sss/sss_keytab_kernel.c): the pure-C keytab line
-# parser + file-permission check shared with the module's src/sss. The crypto
+# SSS keytab text grammar (src/auth/sss/sss_keytab_kernel.c): the pure-C keytab line
+# parser + file-permission check shared with the module's src/auth/sss. The crypto
 # kernels (sss_bf) and hex codec are already shared above; this closes the gap.
-SSS   := $(REPO)/src/sss
+SSS   := $(REPO)/src/auth/sss
 SSS_OBJS := $(BUILD)/sss_keytab_kernel.o
 # xrdwire per-opcode wire-body codec (src/protocol/codec/*.c): the shared
 # pack/unpack of each opcode's fixed request/response body. ngx-free; the client
@@ -155,7 +155,7 @@ $(BUILD)/proxy_req.o: $(GSI)/proxy_req.c | $(BUILD)
 $(BUILD)/gsi_rsa.o: $(GSI)/gsi_rsa.c | $(BUILD)
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 
-# Token kernels live under src/token; explicit rules (take precedence over the
+# Token kernels live under src/auth/token; explicit rules (take precedence over the
 # COMPAT pattern rule). The local "scopes.h"/"b64url.h" resolve via the .c's dir.
 $(BUILD)/scopes.o: $(TOKEN)/scopes.c | $(BUILD)
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
@@ -179,7 +179,7 @@ $(BUILD)/meta_advisory.o: $(BACKEND)/meta_advisory.c | $(BUILD)
 $(BUILD)/zip_kernel.o: $(ZIP)/zip_kernel.c | $(BUILD)
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 
-# SSS keytab grammar lives under src/sss; explicit rule (its "../compat/hex.h"
+# SSS keytab grammar lives under src/auth/sss; explicit rule (its "../compat/hex.h"
 # resolves via the .c's own dir). Pure C — no nginx deps.
 $(BUILD)/sss_keytab_kernel.o: $(SSS)/sss_keytab_kernel.c | $(BUILD)
 	$(CC) $(ALL_CFLAGS) -c $< -o $@

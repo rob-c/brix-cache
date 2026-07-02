@@ -1,6 +1,6 @@
 #include "s3.h"
 #include "multipart_internal.h"
-#include "impersonate/lifecycle.h"
+#include "auth/impersonate/lifecycle.h"
 #include "fs/vfs.h"   /* thread-safe confined open/unlink (off-thread assemble) */
 #include "core/compat/copy_range.h"
 

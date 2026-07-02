@@ -24,8 +24,8 @@
 #include "cache/cache_storage.h"    /* per-role SD storage instances (exclusively-VFS) */
 #include "fs/xfer/xfer.h"           /* xrootd_xfer_resume_sweep_register      */
 #include "fs/xfer/stage_engine.h"   /* phase-64 SP4 async stage scheduler     */
-#include "gsi/keypool.h"
-#include "impersonate/lifecycle.h"
+#include "auth/gsi/keypool.h"
+#include "auth/impersonate/lifecycle.h"
 #include "core/aio/uring.h"
 #include "fs/backend/sd.h"          /* SD registry: per-worker backend instance */
 

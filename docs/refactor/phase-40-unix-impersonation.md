@@ -74,7 +74,7 @@ sites; this is for deployments that explicitly need on-disk per-user ownership.
   (`src/frm/stage.c`: `frm_agent_spawn` double-fork + socketpair + event-driven
   `frm_agent_on_reply` + `frm_agent_respawn`) is the template for spawning a
   long-lived helper that nginx never reaps (avoiding the SHM/SIGCHLD crash).
-- **No identity→uid mapping exists today.** `src/acc/groups.c` calls
+- **No identity→uid mapping exists today.** `src/auth/authz/acc/groups.c` calls
   `getpwnam(name)` but discards the uid (keeps group *names* for authz only);
   SSS/identity carry user/group *strings*, never numeric ids. A mapping layer is
   net-new (Phase 0).
@@ -131,21 +131,21 @@ must guarantee, not an afterthought:
 ## Implementation phases
 
 Each phase is independently buildable/testable. New code lives in a new
-`src/impersonate/` subtree (registered in the repo-root `config`).
+`src/auth/impersonate/` subtree (registered in the repo-root `config`).
 
-### Phase 0 — Identity → (uid, gid, gids) mapping (`src/impersonate/idmap.c`)
+### Phase 0 — Identity → (uid, gid, gids) mapping (`src/auth/impersonate/idmap.c`)
 - `xrootd_idmap_resolve(principal, vo_csv, group_csv) → {uid, gid, gids[], n, rc}`.
   Resolution order: (1) **grid-mapfile** (`xrootd_gridmap <file>`: `"<DN>" user`)
   → `getpwnam(user)`; (2) **direct** `getpwnam(principal)` for token-sub / SSS-user
   / krb5-localname; (3) **squash/deny** policy. Reuse the `getpwnam`+`getgrouplist`
-  pattern already in `src/acc/groups.c:acc_resolve_unix` (verified) — but keep the
+  pattern already in `src/auth/authz/acc/groups.c:acc_resolve_unix` (verified) — but keep the
   uid/gid this time.
 - Per-broker TTL cache (mirror `acc_grp_cache` in `groups.c`).
 - **Policy guards:** `xrootd_idmap_min_uid <N>` (refuse uid < N), never map to 0 /
   system accounts, optional `xrootd_idmap_default_user <name>` (squash) vs **deny**
   (default). Pure unit-testable.
 
-### Phase 1 — The broker process (`src/impersonate/broker.c`)
+### Phase 1 — The broker process (`src/auth/impersonate/broker.c`)
 - Spawn at **`init_module`** (master, still root) using the FRM double-fork
   (`frm_agent_spawn` as the template) so nginx never reaps it; broker `setsid()`s
   and reparents to init. Master supervises liveness + respawn via a master-side
@@ -163,7 +163,7 @@ Each phase is independently buildable/testable. New code lives in a new
   ops) → **restore creds** → reply. Start single-threaded (poll loop); bound
   request size/relpath length.
 
-### Phase 2 — Worker client + helper swap (`src/impersonate/client.c`, `src/path/beneath.c`)
+### Phase 2 — Worker client + helper swap (`src/auth/impersonate/client.c`, `src/path/beneath.c`)
 - Worker connects at `init_process` (`src/core/config/process.c` + `src/core/config/http_rootfd.c`),
   keeps the fd for its lifetime, registered as an nginx event with reconnect-on-EOF
   (mirror `frm_agent_on_reply` / `frm_agent_respawn`).
@@ -186,7 +186,7 @@ Each phase is independently buildable/testable. New code lives in a new
   `src/core/compat/fs_walk.c`'s `opendir`/`readdir`/`lstat` traversal).
 - Route the `xrootd_ns_*` orchestrators (`namespace_ops.c`) and `fs_walk.c`
   through these. `fstat` on an already-open fd stays local (worker holds the fd).
-- `xrootd_inherit_parent_group` (`src/path/group_policy.c`) becomes redundant for
+- `xrootd_inherit_parent_group` (`src/auth/authz/group_policy.c`) becomes redundant for
   *ownership* (the broker now sets uid:gid on create) but can coexist for group
   policy; document the interaction.
 
@@ -209,8 +209,8 @@ Each phase is independently buildable/testable. New code lives in a new
   caveat becomes "optional, via the broker"); new `docs/06-authentication/impersonation.md`.
 
 ## Critical files
-- **New:** `src/impersonate/idmap.c` (Phase 0), `broker.c` (Phase 1),
-  `client.c` (Phase 2), `impersonate.h`, plus `src/impersonate/README.md`;
+- **New:** `src/auth/impersonate/idmap.c` (Phase 0), `broker.c` (Phase 1),
+  `client.c` (Phase 2), `impersonate.h`, plus `src/auth/impersonate/README.md`;
   register all in the repo-root `config` (`./configure` once).
 - **Swap helper bodies (no caller changes):** `src/path/beneath.c` (the ~8
   helpers + `do_openat2`), `src/path/resolve_confined_ops.c` (legacy fallback).
@@ -220,7 +220,7 @@ Each phase is independently buildable/testable. New code lives in a new
   + `src/core/config/http_rootfd.c` (worker connect); a new `init_module` master hook
   (broker spawn) wired in `src/core/config/postconfiguration.c` / the module struct.
 - **Reuse patterns:** `src/frm/stage.c` (double-fork + socketpair + event reply +
-  respawn), `src/acc/groups.c` (`getpwnam`/`getgrouplist`/cache), the SHM-safe
+  respawn), `src/auth/authz/acc/groups.c` (`getpwnam`/`getgrouplist`/cache), the SHM-safe
   zone contract (`src/core/compat/shm_slots.c`).
 - **Config/directives:** `src/core/types/config.h`, `src/stream/module.c`,
   `src/webdav/module.c`, `src/core/config/server_conf.c` (init/merge).

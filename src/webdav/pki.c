@@ -1,5 +1,5 @@
 #include "webdav.h"
-#include "crypto/pki_check.h"
+#include "auth/crypto/pki_check.h"
 
 /*
  * pki.c - WebDAV module-specific PKI/CRL consistency checks.

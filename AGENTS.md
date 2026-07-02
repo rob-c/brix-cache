@@ -223,7 +223,7 @@ error_log /tmp/xrd-test/logs/debug.log debug; # nginx debug (server block)
 |---|---|---|
 | Connection refused | Port listening? | `ss -tlnp \| grep 1094` |
 | Auth failure | Cert/token valid? | `openssl x509 -in cert.pem -noout -dates` |
-| Permission denied | ACL logic | `src/path/acl.c` |
+| Permission denied | ACL logic | `src/auth/authz/acl.c` |
 | Conn stalls under concurrency (multi-worker only) | read-side vs write-side, then idle vs **blocked** | `ss -tn 'sport = :PORT'` (Recv-Q>0=read-side); `cat /proc/PID/wchan` (`do_epoll_wait`=idle/lost-notify vs `futex_do_wait`=**blocked on a lock**) |
 | Worker frozen / armed nginx timer never fires | worker is blocked in a syscall, not looping → GDB it | `gdb -p WORKER -batch -ex "thread apply all bt"`; for a stuck `ngx_shmtx`: `print *(int*)MUTEX.lock` + `*(int*)MUTEX.wait` (0/0 + thread in `sem_wait` = lost semaphore wakeup → see postmortem-shmtx-semaphore-stall.md) |
 

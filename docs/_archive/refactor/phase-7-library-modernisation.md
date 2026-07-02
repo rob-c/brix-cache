@@ -98,13 +98,13 @@ LIBJWT_CFLAGS := $(shell pkg-config --cflags libjwt 2>/dev/null)
 LIBJWT_LIBS   := $(shell pkg-config --libs   libjwt 2>/dev/null)
 
 # In NGX_ADDON_SRCS, remove (files being deleted):
-#   src/token/b64url.c
-#   src/token/signature.c
+#   src/auth/token/b64url.c
+#   src/auth/token/signature.c
 ```
 
 Requires a `./configure` run.
 
-#### Step 2: New `src/token/jwt_verify.c` (~120 LoC)
+#### Step 2: New `src/auth/token/jwt_verify.c` (~120 LoC)
 
 This replaces validate.c's JWT path (not the macaroon path, which stays in validate.c):
 
@@ -225,7 +225,7 @@ xrootd_jwt_verify(ngx_log_t *log,
 }
 ```
 
-#### Step 3: Rewrite `src/token/jwks.c` (~60 LoC)
+#### Step 3: Rewrite `src/auth/token/jwks.c` (~60 LoC)
 
 libjwt 2.x provides `jwks_create_fromfile()` and `jwks_item_free_all()`.
 The new jwks.c wraps these, populating a `jwk_set_t*` instead of the
@@ -259,9 +259,9 @@ xrootd_jwks_free_libjwt(jwk_set_t *ks)
 
 | File | LoC | Reason |
 |---|---|---|
-| `src/token/b64url.c` | 82 | libjwt handles base64url internally |
-| `src/token/b64url.h` | 26 | header for above |
-| `src/token/signature.c` | 99 | libjwt handles EVP_DigestVerify internally |
+| `src/auth/token/b64url.c` | 82 | libjwt handles base64url internally |
+| `src/auth/token/b64url.h` | 26 | header for above |
+| `src/auth/token/signature.c` | 99 | libjwt handles EVP_DigestVerify internally |
 
 #### Step 5: Files that shrink
 
@@ -285,13 +285,13 @@ exposed outside token/, no callers need updating.
 ### Files added to `src/core/config/config.h`
 
 ```
-$ngx_addon_dir/src/token/jwt_verify.c
+$ngx_addon_dir/src/auth/token/jwt_verify.c
 ```
 
 Remove from `NGX_ADDON_SRCS`:
 ```
-$ngx_addon_dir/src/token/b64url.c
-$ngx_addon_dir/src/token/signature.c
+$ngx_addon_dir/src/auth/token/b64url.c
+$ngx_addon_dir/src/auth/token/signature.c
 ```
 
 Requires `./configure`.
@@ -499,7 +499,7 @@ PYTHONPATH=tests pytest tests/ -n 4 --tb=short -q
 
 ### Sequencing relative to other phases
 
-Phase 7a (token) is fully independent — it touches only `src/token/` and has no
+Phase 7a (token) is fully independent — it touches only `src/auth/token/` and has no
 dependency on Phases 1–6.
 
 Phase 7b (aio) depends on Phase 1 macros for Target 1, and on the comment policy

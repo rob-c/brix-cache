@@ -51,7 +51,7 @@ def test_w1_safe_size_header():
 
 
 def test_w3_scoped_header():
-    h = _read("src/crypto/scoped.h")
+    h = _read("src/auth/crypto/scoped.h")
     assert "xrootd_evp_pkey_free" in h
     assert "xrootd_x509_stack_free" in h
     assert "JANSSON OWNERSHIP CHEATSHEET" in h
@@ -157,7 +157,7 @@ def test_w6c_valgrind_findings_closed_and_harness_present():
         "src/dashboard/http_tracking.c")
     # Finding 2: JWKS pool cleanup registered at both conf load sites.
     assert "xrootd_jwks_register_cleanup" in _read("src/webdav/config.c")
-    assert "xrootd_jwks_register_cleanup" in _read("src/token/config.c")
+    assert "xrootd_jwks_register_cleanup" in _read("src/auth/token/config.c")
     # Committed harness + findings writeup.
     assert (ROOT / "tests/valgrind/run_valgrind.sh").exists()
     assert (ROOT / "docs/07-security/valgrind-findings.md").exists()

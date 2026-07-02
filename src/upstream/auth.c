@@ -23,7 +23,7 @@
  */
 
 #include "upstream_internal.h"
-#include "token/file.h"
+#include "auth/token/file.h"
 #include "core/compat/alloc_guard.h"
 
 #define UPSTREAM_BEARER_MAX  65536   /* max token file size (bytes) */

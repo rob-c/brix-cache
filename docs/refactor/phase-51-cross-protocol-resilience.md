@@ -53,15 +53,15 @@ observability/anti-abuse depth that "extremely hardened" implies.
 | TCP dead-peer reaping | **FULL** | `src/connection/netopt.h` `xrootd_apply_tcp_deadpeer_opts()` at root:// accept (`handler.c`) + CMS sockets |
 | Stream admission cap | **FULL** | pre-identity `xrootd_max_connections` in `handler.c` (atomic `connections_active`, `connections_rejected_total`) |
 | `cms://` hardening (phase-50) | **FULL** | client read-liveness + send-stall deadlines, server login + idle deadlines, per-worker conn cap, redirect-host validation, log-flood fix; 72 CMS tests green |
-| HTTP token auth | **FULL** | always-on per-worker L1 validation cache `src/token/worker_cache.c` |
+| HTTP token auth | **FULL** | always-on per-worker L1 validation cache `src/auth/token/worker_cache.c` |
 | Proxy upstream | bounded | connect 10s, read 60s, reconnect budget + teardown guard (`events_read.c` `if (ctx->proxy != proxy) return;`) |
 | Native TPC | thread-pooled | `curl` on thread pool, 30s connect timeout, registry reaper + cancel-on-disconnect |
 | Health check | bounded | 5s probe deadline + 10s blacklist |
-| GSI DH keygen | **FULL** | thread-pool keypool warms 64 ffdhe2048 keys off-loop (`src/gsi/keypool.c`); pop is O(1), inline keygen only on pool-empty (phase-33 wedge fixed) |
+| GSI DH keygen | **FULL** | thread-pool keypool warms 64 ffdhe2048 keys off-loop (`src/auth/gsi/keypool.c`); pop is O(1), inline keygen only on pool-empty (phase-33 wedge fixed) |
 | S3 SigV4 signing key | **FULL** | per-worker one-slot date+region cache (`src/s3/auth_sigv4_verify.c`) → ~99% hit, 4-round HMAC only on date roll |
 | SSS / krb5 keytab | bounded | keytabs loaded once at startup, in-memory; SSS Blowfish+CRC32 is µs-scale CPU only |
-| XrdAcc group lookups | partial | per-worker 256-slot username cache (12h TTL) in `src/acc/groups.c` — but a cold/diverse miss blocks on NSS/NIS/LDAP |
-| GSI auth-result cache | partial | DN+VO-keyed SHM verdict cache (`src/path/auth_gate.c`) skips full chain re-verify for repeat clients — but SHM-spinlock only, **no per-worker L1** |
+| XrdAcc group lookups | partial | per-worker 256-slot username cache (12h TTL) in `src/auth/authz/acc/groups.c` — but a cold/diverse miss blocks on NSS/NIS/LDAP |
+| GSI auth-result cache | partial | DN+VO-keyed SHM verdict cache (`src/auth/authz/auth_gate.c`) skips full chain re-verify for repeat clients — but SHM-spinlock only, **no per-worker L1** |
 
 > The `phase39_network_resilience_plan` memory note says "PLAN ONLY" — that note is
 > **stale**; the audit confirmed phase-39 WS1–WS9 are all implemented in code.
@@ -95,7 +95,7 @@ caches above blunt the common (repeat-client) case; these are the remaining
 hot-path hazards when a backend is slow/down or under CPU/memory pressure:
 
 8. **OCSP per-request fetch has NO timeout (highest event-loop-freeze risk).**
-   When `xrootd_ocsp on`, `do_ocsp_request()` (`src/crypto/ocsp.c:190`,
+   When `xrootd_ocsp on`, `do_ocsp_request()` (`src/auth/crypto/ocsp.c:190`,
    `BIO_do_connect`/`BIO_do_handshake`/`OCSP_sendreq_bio`) is a synchronous
    network call with no socket timeout — a slow/down responder blocks the whole
    worker for the kernel TCP timeout (~60–120 s). There is no per-request OCSP
@@ -105,18 +105,18 @@ hot-path hazards when a backend is slow/down or under CPU/memory pressure:
 9. **No per-worker L1 on the auth-result (auth-gate) cache.** Every GSI/authz
    decision takes the SHM spinlock (`xrootd_kv_get/_set` in `src/core/shm/kv.c`) —
    cross-worker contention under load. The token cache got an L1 this session; the
-   auth-gate cache did not (`src/path/auth_gate.c`).
+   auth-gate cache did not (`src/auth/authz/auth_gate.c`).
 10. **XrdAcc NSS / reverse-DNS lookups block on miss.** `getpwnam`/`getgrouplist`
-    (`src/acc/groups.c`) and `getnameinfo` (`src/acc/resolve.c`) block the event
+    (`src/auth/authz/acc/groups.c`) and `getnameinfo` (`src/auth/authz/acc/resolve.c`) block the event
     loop when the directory service (NIS/LDAP) or DNS is slow and the per-worker
     cache misses — a classic "system pressure" cascade.
 11. **No bound on cold-auth concurrency.** Cache-*miss* crypto — `X509_verify_cert`
-    (`src/crypto/gsi_verify.c:75`) and RSA/EC token verify (`src/token/validate.c`)
+    (`src/auth/crypto/gsi_verify.c:75`) and RSA/EC token verify (`src/auth/token/validate.c`)
     — runs inline; a burst of *distinct* (uncached) clients serializes on the loop
     with no admission limit, so CPU saturation becomes a worker-wide stall.
-12. **krb5 `krb5_rd_req()` may touch the KDC** (`src/krb5/auth.c:255`) inline
+12. **krb5 `krb5_rd_req()` may touch the KDC** (`src/auth/krb5/auth.c:255`) inline
     (compile-gated) — blocks under a slow/unreachable KDC.
-13. **CRL reload runs on the event thread** (`src/crypto/pki_load.c` via the
+13. **CRL reload runs on the event thread** (`src/auth/crypto/pki_load.c` via the
     `crl_timer`) without an mtime-skip — a large CRL on slow storage stalls the
     loop, even if briefly and infrequently.
 14. **No auth-pressure observability** — no metrics for per-method cache hit/miss,
@@ -219,11 +219,11 @@ The rule for every auth dependency is therefore: **(1) bound it with a timeout,
 degraded backend to its configured fail policy** for a cooldown window rather than
 re-blocking each request, and **(4) keep the cold (cache-miss) crypto path
 concurrency-bounded** so CPU saturation sheds gracefully instead of stalling. The
-GSI DH keypool (`src/gsi/keypool.c`) is the model for moving cost off the loop.
+GSI DH keypool (`src/auth/gsi/keypool.c`) is the model for moving cost off the loop.
 
 - **E1. OCSP: timeout + per-request cache + circuit-breaker (highest priority).**
   Add connect/read/write socket timeouts to `do_ocsp_request()`
-  (`src/crypto/ocsp.c`) — generous default (~3–5 s), so a dead responder can never
+  (`src/auth/crypto/ocsp.c`) — generous default (~3–5 s), so a dead responder can never
   hold the worker for the kernel TCP timeout. Add a per-worker OCSP-status cache
   keyed by issuer+serial (GOOD/REVOKED honouring `nextUpdate`), so a re-presented
   cert never re-fetches. Add a circuit-breaker: after N consecutive responder
@@ -232,15 +232,15 @@ GSI DH keypool (`src/gsi/keypool.c`) is the model for moving cost off the loop.
   thread pool. Document `ocsp_soft_fail` (default on = fail-open) prominently.
 
 - **E2. Per-worker L1 in front of the auth-result (auth-gate) cache.** Mirror
-  `src/token/worker_cache.c`: a lockless per-worker direct-mapped L1 keyed by the
+  `src/auth/token/worker_cache.c`: a lockless per-worker direct-mapped L1 keyed by the
   existing 32-byte auth-cache SHA-256 key, in front of the SHM L2
-  (`src/path/auth_gate.c`). An L1 hit skips both the SHM spinlock and the full
+  (`src/auth/authz/auth_gate.c`). An L1 hit skips both the SHM spinlock and the full
   authdb/VO-ACL/scope/chain decision; bounded by the same TTL; promote L2 hits into
   L1. Removes the cross-worker contention point that GSI-heavy load hits hardest.
 
 - **E3. Bound the blocking NSS / reverse-DNS lookups (XrdAcc).** Wrap
-  `getpwnam`/`getgrouplist` (`src/acc/groups.c`) and `getnameinfo`
-  (`src/acc/resolve.c`) with a **negative cache + circuit-breaker**: cache misses
+  `getpwnam`/`getgrouplist` (`src/auth/authz/acc/groups.c`) and `getnameinfo`
+  (`src/auth/authz/acc/resolve.c`) with a **negative cache + circuit-breaker**: cache misses
   and timeouts so a degraded NIS/LDAP/DNS service trips to a bounded fail decision
   for a cooldown rather than re-blocking the loop on every cold/diverse user; keep
   the existing 12 h positive cache. *(Stretch: thread-pool offload of the cold
@@ -255,7 +255,7 @@ GSI DH keypool (`src/gsi/keypool.c`) is the model for moving cost off the loop.
   the cold crypto that would otherwise bury the loop is. Generous default; `0`=off.
 
 - **E5. CRL refresh hardening (low).** Add an mtime-skip to the CRL reload
-  (`src/crypto/pki_load.c`, like JWKS `refresh.c`) and parse large CRLs on the
+  (`src/auth/crypto/pki_load.c`, like JWKS `refresh.c`) and parse large CRLs on the
   thread pool, so a big/slow CRL on remote storage never stalls the loop.
 
 - **E6. Auth-pressure observability.** Counters per auth method: cache hit/miss
@@ -302,12 +302,12 @@ GSI DH keypool (`src/gsi/keypool.c`) is the model for moving cost off the loop.
 - Docs/config: `contrib/xrootd.conf.example` (B3), `docs/04-protocols/cms-protocol.md`
   (metrics table).
 - Tests: `tests/test_http_resilience.py` (new), extend `tests/test_cms_resilience.py`.
-- Auth (Part E): `src/crypto/ocsp.c` (E1 timeout + cache + breaker),
-  `src/path/auth_gate.c` + a new `src/path/auth_gate_l1.{c,h}` mirroring
-  `src/token/worker_cache.c` (E2), `src/acc/groups.c` + `src/acc/resolve.c` (E3
+- Auth (Part E): `src/auth/crypto/ocsp.c` (E1 timeout + cache + breaker),
+  `src/auth/authz/auth_gate.c` + a new `src/path/auth_gate_l1.{c,h}` mirroring
+  `src/auth/token/worker_cache.c` (E2), `src/auth/authz/acc/groups.c` + `src/auth/authz/acc/resolve.c` (E3
   negative cache + breaker), the GSI/token cold-verify call sites
-  `src/gsi/auth.c` / `src/token/validate.c` + the W7 concurrency limiter (E4),
-  `src/crypto/pki_load.c` (E5), `src/metrics/metrics.h` + `src/metrics/stream.c` +
+  `src/auth/gsi/auth.c` / `src/auth/token/validate.c` + the W7 concurrency limiter (E4),
+  `src/auth/crypto/pki_load.c` (E5), `src/metrics/metrics.h` + `src/metrics/stream.c` +
   `src/metrics/http.c` (E6). New auth directives via the usual
   `NGX_CONF_UNSET`→merge→`ngx_command_t` pattern (`src/core/config/server_conf.c`,
   `src/stream/module.c`, `src/webdav/module.c`).

@@ -8,7 +8,7 @@
 
 #include "proxy_internal.h"
 #include "connection/handler.h"
-#include "token/file.h"
+#include "auth/token/file.h"
 
 #include <sys/socket.h>
 

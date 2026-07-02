@@ -28,7 +28,7 @@ Official `XrdHttp` (and FTS) relies on periodic progress reporting for long-live
     *   ~~**Presigned URLs:** Support `X-Amz-Signature` query-string authentication for S3.~~ Implemented for static access-key SigV4.
     *   ~~**STS Tokens:** Parse `X-Amz-Security-Token` header/query forms.~~ Static-secret compatibility is implemented via `xrootd_s3_allow_unsigned_session_token`; dynamic temporary credential stores remain out of scope.
 *   **Expanded Auth Protocols:** Kerberos 5 is implemented as optional build-time
-    support. `host` (`src/host/`) and `pwd` (`src/pwd/`) are now also implemented,
+    support. `host` (`src/auth/host/`) and `pwd` (`src/auth/pwd/`) are now also implemented,
     completing the standard upstream stream-auth set.
 
 ## Phase 3: Cluster Topology & Hierarchical Redirection
@@ -65,4 +65,4 @@ Fine-tuning the "look and feel" of the HTTP service to match `xrdcp davs://` exp
 | **Multi-tier Manager** | Medium | Native stream hierarchy implemented; HTTP hierarchical redirect/proxy parity still pending |
 | **S3 Presigned URLs** | Medium | **Implemented** for static access-key SigV4 |
 | **Tape Staging** | Low | FRM/Tape REST implemented; full XrdFrm/MSS parity partial |
-| **krb5 Auth** | Low | Optional build-time support implemented; `host`/`pwd` now also implemented (`src/host/`, `src/pwd/`) |
+| **krb5 Auth** | Low | Optional build-time support implemented; `host`/`pwd` now also implemented (`src/auth/host/`, `src/auth/pwd/`) |

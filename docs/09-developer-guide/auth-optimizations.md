@@ -57,8 +57,8 @@ Relevant tests:
 
 Relevant code:
 
-- `src/gsi/config.c`
-- `src/gsi/cert_response.c`
+- `src/auth/gsi/config.c`
+- `src/auth/gsi/cert_response.c`
 - `src/handshake/sigver.c`
 - `src/session/signing.c`
 - `src/core/types/context.h`
@@ -101,7 +101,7 @@ Expected benefits:
 
 Relevant code:
 
-- `src/token/*.c`
+- `src/auth/token/*.c`
 - `src/webdav/auth_token.c`
 
 ---

@@ -18,7 +18,7 @@
 #include "core/compat/staged_file.h"
 #include "dashboard/dashboard_tracking.h"
 #include "fs/vfs.h"
-#include "impersonate/lifecycle.h"
+#include "auth/impersonate/lifecycle.h"
 #include "path/path.h"
 
 #include <fcntl.h>

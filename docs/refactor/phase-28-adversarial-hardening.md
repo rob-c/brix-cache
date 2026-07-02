@@ -52,7 +52,7 @@ regress these, and should extend their rigor to the edges.
   `openat2(2)` with `RESOLVE_BENEATH | RESOLVE_NO_MAGICLINKS` (hard-fails build
   on kernels < 5.6). No stat-then-open race, no symlink/magic-link escape. This
   is best-in-class — the gold standard the rest of the plan leans on.
-- **JWT done right.** `src/token/validate.c:134` *explicitly rejects `alg:"none"`*
+- **JWT done right.** `src/auth/token/validate.c:134` *explicitly rejects `alg:"none"`*
   and any non-RS256/ES256 alg before verification; key selected by `kid` from the
   JWKS (so HMAC/RSA-pubkey **alg-confusion is structurally impossible** — no
   symmetric path exists); `iss`/`aud`/`exp`/`nbf` all enforced (`token_cache.c:38`,
@@ -61,7 +61,7 @@ regress these, and should extend their rigor to the edges.
   skew (incl. presigned future-skew); signatures must be exactly 64 hex chars
   (`:590`).
 - **SSS replay protection.** Timestamp-vs-`sss_lifetime` check, `RAND_bytes`
-  nonce, CRC integrity for wrong-key detection (`src/sss/auth_request.c`).
+  nonce, CRC integrity for wrong-key detection (`src/auth/sss/auth_request.c`).
 - **Constant-time admin compare + network ACL.** `src/dashboard/api_admin.c:190`
   uses `CRYPTO_memcmp` against the bearer secret and enforces a CIDR allowlist
   (`:198`); body capped at 64 KB.
@@ -115,7 +115,7 @@ attacker-controlled argv values**, which `--` + leading-dash rejection closes.
 |---|-----------|-------|-----|-------|
 | C1 | `src/manager/registry.c`, `src/cms/server_recv.c:306` | A data node self-reports `host:port:paths` at CMS login; the manager later **redirects clients to that host** (`src/read/locate.c:60,78,116`). A rogue/spoofed node registers an attacker host → clients (and their credentials) are redirected to the attacker. | High | Authenticate CMS registration (shared secret / mTLS on the cms port); validate the advertised host against an allowlist / the peer's connecting IP; rate-limit + alert on registration churn |
 | C2 | `src/read/locate.c:116` | Redirect host string is emitted from registry data onto the wire — ensure it cannot contain control bytes / be a different scheme. | Low | Validate host syntax before emit (reuse `xrootd_sanitize_log_string`-style validation for wire host) |
-| C3 | `src/crypto/ocsp.c`, `src/token/jwks.c` | OCSP/CRL freshness and JWKS refresh: a stale/again-trusted revoked cert or rotated-out JWK key widens the window for a stolen credential. | Med | Define max-staleness; fail-closed on OCSP "unknown" for high-value ops; periodic JWKS refresh with bounded cache age |
+| C3 | `src/auth/crypto/ocsp.c`, `src/auth/token/jwks.c` | OCSP/CRL freshness and JWKS refresh: a stale/again-trusted revoked cert or rotated-out JWK key widens the window for a stolen credential. | Med | Define max-staleness; fail-closed on OCSP "unknown" for high-value ops; periodic JWKS refresh with bounded cache age |
 
 ### D — AuthN/Z bypass & side channels
 
@@ -123,9 +123,9 @@ attacker-controlled argv values**, which `--` + leading-dash rejection closes.
 |---|-----------|-------|-----|-------|
 | D1 | `src/s3/auth_sigv4_verify.c:581` | Final SigV4 signature comparison — confirm it uses **`CRYPTO_memcmp`**, not `strcmp`/`memcmp` (the file uses `strcmp` for cache-key/region at `:270`). Non-constant-time compare of an HMAC is a (low-but-real) timing channel. | Low-Med | Constant-time compare for the signature itself |
 | D2 | cross-cutting | **Deny-by-default audit:** every handler must reach a default-deny if no auth/ACL rule matches. The global `allow_write` gate is correctly checked before serving writes (`src/read/open_request.c:253`) — extend the same "explicit allow required" audit to *every* op (stat, locate, dirlist, fattr, query). | Med | Matrix test: each op × (no-auth, wrong-scope, wrong-VO) must 403/NotAuthorized |
-| D3 | `src/path/authdb.c:50` | The `k` → `XROOTD_AUTH_ADMIN` privilege bit — verify it is never implicitly granted and that ADMIN ⇏ all-paths without an explicit path scope. | Med | Test ADMIN bit is path-scoped, not global |
+| D3 | `src/auth/authz/authdb.c:50` | The `k` → `XROOTD_AUTH_ADMIN` privilege bit — verify it is never implicitly granted and that ADMIN ⇏ all-paths without an explicit path scope. | Med | Test ADMIN bit is path-scoped, not global |
 | D4 | auth paths | **User enumeration / timing:** do auth failures differ (message or timing) between "unknown user" and "bad credential"? GSI rate-limit helps; token/SSS/S3 should return a **uniform** failure + constant-ish work. | Low-Med | Uniform auth-failure response; avoid early-out timing divergence on secret-bearing compares |
-| D5 | `src/sss/auth_request.c`, S3 | Replay is window-bounded (timestamp/skew) but there is **no nonce cache** — replay *within* the window is possible for non-idempotent ops. | Low | Optional short-TTL nonce cache for mutating ops where replay matters |
+| D5 | `src/auth/sss/auth_request.c`, S3 | Replay is window-bounded (timestamp/skew) but there is **no nonce cache** — replay *within* the window is possible for non-idempotent ops. | Low | Optional short-TTL nonce cache for mutating ops where replay matters |
 
 ### E — Malicious / compromised admin (blast-radius reduction)
 

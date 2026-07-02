@@ -103,7 +103,7 @@ xrootd_vo_overflow_total > 0
 ```
 
 **Configuration note:** VO information comes from:
-- GSI proxy certificates via VOMS attribute extraction (`src/voms/`)
+- GSI proxy certificates via VOMS attribute extraction (`src/auth/voms/`)
 - WLCG JWT token `groups` claim for bearer-token sessions  
 - SSS shared secret `group` field for simple authentication
 

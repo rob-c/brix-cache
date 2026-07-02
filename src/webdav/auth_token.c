@@ -4,10 +4,10 @@
 
 #include "webdav.h"
 #include "core/compat/http_headers.h"
-#include "token/macaroon.h"
-#include "token/token_cache.h"
-#include "token/worker_cache.h"
-#include "token/issuer_registry.h"
+#include "auth/token/macaroon.h"
+#include "auth/token/token_cache.h"
+#include "auth/token/worker_cache.h"
+#include "auth/token/issuer_registry.h"
 
 #include <string.h>
 

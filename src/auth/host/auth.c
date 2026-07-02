@@ -1,6 +1,6 @@
 #include "core/ngx_xrootd_module.h"
 #include "session/registry.h"
-#include "acc/acc.h"          /* xrootd_acc_resolve_peer (breaker-bounded) */
+#include "auth/authz/acc/acc.h"          /* xrootd_acc_resolve_peer (breaker-bounded) */
 
 #include <string.h>
 #include <sys/socket.h>

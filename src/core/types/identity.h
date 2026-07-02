@@ -12,7 +12,7 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 
-#include "token/token.h"
+#include "auth/token/token.h"
 
 #define XROOTD_AUTHN_NONE     0x00
 #define XROOTD_AUTHN_GSI      0x01

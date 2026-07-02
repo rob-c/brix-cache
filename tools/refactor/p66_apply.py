@@ -215,8 +215,12 @@ def do_step(step, dry_run=False, fixup=False):
             includer_rel = os.path.relpath(includer, REPO)
             old_includer = rmoved.get(includer_rel, includer_rel)
             inc_repo = os.path.join(os.path.dirname(old_includer), inc)
-            if inc_repo not in moved and "src/" + inc in moved:
-                inc_repo = "src/" + inc
+            if inc_repo not in moved:
+                if "src/" + inc in moved:
+                    inc_repo = "src/" + inc
+                elif os.path.isfile(os.path.join(REPO, inc_repo)):
+                    # includer moved, neighbor stayed behind: src-rooted old home
+                    return os.path.relpath(os.path.join(REPO, inc_repo), SRC)
         elif "src/" in inc:                                   # cross-tree ../../src/... form
             tail = inc.split("src/", 1)[1]
             if "src/" + tail in moved:

@@ -19,7 +19,7 @@ The nginx-xrootd module implements three distinct protocols — XRootD (`root://
           ▼ extract          ▼                  ▼ bucket      pre-processing
    ┌──────────────────────────────────────────────────────┐
    │  SHARED CORE                                          │  src/core/compat/, src/path/
-   │  token validate · scope check · confined ns ops       │  src/token/, src/metrics/
+   │  token validate · scope check · confined ns ops       │  src/auth/token/, src/metrics/
    │  path resolve · error map (errno→kXR / →HTTP)         │
    │  HTTP file response · range · ETag · XML · fs_walk     │  ← WebDAV+S3 reuse
    │  staged-file commit · async-job guard · metrics zone   │
@@ -48,8 +48,8 @@ These functions are already used by multiple protocols and represent the foundat
 
 | Function | File | Used By |
 |---|---|---|
-| `xrootd_token_validate()` | `src/token/validate.c` | Stream (XRootD), WebDAV |
-| `xrootd_token_check_read/write()` | `src/token/scopes.c` | **Stream, WebDAV, S3** — all three protocols |
+| `xrootd_token_validate()` | `src/auth/token/validate.c` | Stream (XRootD), WebDAV |
+| `xrootd_token_check_read/write()` | `src/auth/token/scopes.c` | **Stream, WebDAV, S3** — all three protocols |
 
 **Current state:** WLCG/JWT token validation is shared between Stream and WebDAV. Scope checking (`storage.read`, `storage.write`, `storage.create`) with prefix matching is used by ALL three protocols. This is the strongest cross-protocol sharing point.
 
@@ -185,7 +185,7 @@ These patterns are structurally similar but currently implemented separately. Un
 
 | Protocol | Function | File | Caching Strategy |
 |---|---|---|---|
-| Stream (XRootD) | `xrootd_handle_gsi_auth()` → parse_x509 + verify CA chain | `src/gsi/auth.c`, `parse_x509.c` | Session-level — verified once per session |
+| Stream (XRootD) | `xrootd_handle_gsi_auth()` → parse_x509 + verify CA chain | `src/auth/gsi/auth.c`, `parse_x509.c` | Session-level — verified once per session |
 | WebDAV | `webdav_verify_proxy_cert()` | `src/webdav/auth_cert.c` | Per-request with caching via `webdav_mark_req_verified()` |
 
 **Key differences:**
@@ -194,7 +194,7 @@ These patterns are structurally similar but currently implemented separately. Un
 
 **Implemented:** The OpenSSL `X509_STORE_CTX` setup, proxy-cert flag,
 verification-depth handling, chain verification, and leaf DN extraction are
-shared in `xrootd_gsi_verify_chain()` (`src/crypto/gsi_verify.c`). Stream and
+shared in `xrootd_gsi_verify_chain()` (`src/auth/crypto/gsi_verify.c`). Stream and
 WebDAV both call this helper after their protocol-specific credential intake:
 - Stream keeps the two-round DH-protected GSI wire exchange and session-level
   auth state.
@@ -204,9 +204,9 @@ WebDAV both call this helper after their protocol-specific credential intake:
 **Remaining expansion:** VOMS extraction is now available to WebDAV via
 `webdav_extract_voms_ctx()` in `src/webdav/auth_cert.c`. After any successful
 GSI cert verification path (cached, nginx-verified, or manually verified),
-the function calls `xrootd_extract_voms_info()` from `src/voms/extract.c`
+the function calls `xrootd_extract_voms_info()` from `src/auth/voms/extract.c`
 and populates `ctx->primary_vo` and `ctx->vo_list` in the per-request context.
-A thin header `src/voms/voms_http.h` exposes the extraction API without pulling
+A thin header `src/auth/voms/voms_http.h` exposes the extraction API without pulling
 in the full stream-module umbrella header.
 
 Configuration: add `xrootd_webdav_vomsdir /etc/grid-security/vomsdir;` and
@@ -424,7 +424,7 @@ compatibility check before moving it into the shared preamble.
 - Auth gate (shared auth verification)
 - Path resolution (shared path resolver from Section 2.1)
 - Metrics tracking (shared metric macros)
-- ACL/VO check (shared VO ACL from `src/path/acl.c`)
+- ACL/VO check (shared VO ACL from `src/auth/authz/acl.c`)
 
 **Effort:** High — requires redesigning the dispatch entry point for each protocol to share a common pre-processing pipeline before delegating to protocol-specific handlers. Would reduce ~200 lines of duplicated auth+metrics+path resolution code across three protocols.
 
@@ -528,9 +528,9 @@ These existing invariants from AGENTS.md should be preserved or updated during c
 - `src/s3/object.c` — target for cache integration
 
 ### Token Validation (Section 1.1)
-- `src/token/validate.c` — shared JWT validation
-- `src/token/scopes.c` — scope checking
-- `src/gsi/token.c` — Stream token handler
+- `src/auth/token/validate.c` — shared JWT validation
+- `src/auth/token/scopes.c` — scope checking
+- `src/auth/gsi/token.c` — Stream token handler
 - `src/webdav/auth_token.c` — WebDAV token handler
 
 ### Metrics (Section 1.9)

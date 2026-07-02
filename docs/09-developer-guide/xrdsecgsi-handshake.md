@@ -9,7 +9,7 @@
 > (`XrdSecgsi/`, `XrdCrypto/`, `XrdSut/`).
 
 This is the single most intricate wire protocol in the XRootD stack. Read it
-before touching `src/gsi/` or `client/lib/sec/sec_gsi.c`.
+before touching `src/auth/gsi/` or `client/lib/sec/sec_gsi.c`.
 
 ---
 
@@ -31,7 +31,7 @@ proxy.
 The fix is a from-scratch port of XrdCryptossl + XrdSecgsi, because even our
 server was non-standard (it emitted `kXRS_puk` as a bare DH key, not the full
 `XrdCryptosslCipher::Public()` serialization). All new primitives live in the
-**shared** `src/gsi/gsi_core.c`, which compiles into both `libxrdproto.a` (the
+**shared** `src/auth/gsi/gsi_core.c`, which compiles into both `libxrdproto.a` (the
 client) and the nginx module (the server) — one source of truth.
 
 ---
@@ -215,7 +215,7 @@ CA), maps the DN → `kXR_ok`. Done.
 
 ## 7. Shared architecture & the primitives
 
-Everything is in `src/gsi/gsi_core.{c,h}` → compiled into **both** the client
+Everything is in `src/auth/gsi/gsi_core.{c,h}` → compiled into **both** the client
 (`shared/xrdproto/libxrdproto.a`) and the server (the nginx module, via the root
 `config`). New primitives:
 
@@ -291,7 +291,7 @@ The unsigned (`< 10400`) path sends the bare `Public()` as `kXRS_puk`,
 `dh_pad=0`, zero IV (nothing prepended). The bucket *type* signals the variant;
 the AES key is the first *keylen* bytes of the DH secret either way.
 
-### 9b. The server side (`src/gsi/`)
+### 9b. The server side (`src/auth/gsi/`)
 - **Round 1** (`cert_response.c`): when the handshake is signed
   (`ctx->gsi_signed_dh`, see 9c), RSA-sign the same `Public()` blob with the host
   key and emit it as `kXRS_cipher` instead of `kXRS_puk`. The client recovers it

@@ -19,7 +19,7 @@ xrootd: GSI delegation: captured delegated proxy (5447 bytes) dn="/O=F6Test/CN=F
 ```
 
 1. **Proxy request encoded as DER, not PEM (the decisive bug).** `xrootd_gsi_build_pxyreq`
-   emits the `X509_REQ` as **DER**, and `src/gsi/delegation.c` put that DER straight into the
+   emits the `X509_REQ` as **DER**, and `src/auth/gsi/delegation.c` put that DER straight into the
    `kXRS_x509_req` bucket. The stock client parses that bucket with `PEM_read_bio_X509_REQ`
    (`XrdCryptosslX509Req`), so a DER request fails to parse and the client declines with
    **"could not resolve proxy request."** Fix: `delegation.c` now re-encodes the request to PEM
@@ -32,7 +32,7 @@ xrootd: GSI delegation: captured delegated proxy (5447 bytes) dn="/O=F6Test/CN=F
    proxy's issuer (`X509_V_ERR_AKID_SKID_MISMATCH`) and reports **"unable to get local issuer
    certificate."** This surfaces only once the EEC carries a `subjectKeyIdentifier` (every real
    grid cert does). The reference server (`XrdCryptosslX509Chain`) selects issuers by name +
-   signature and ignores the AKID hint. Fix: `src/crypto/pki_build.c` installs a proxy-tolerant
+   signature and ignores the AKID hint. Fix: `src/auth/crypto/pki_build.c` installs a proxy-tolerant
    `check_issued` on proxy-verification stores (scoped to `EXFLAG_PROXY` subjects; the RSA
    signature is still verified, so only issuer *selection* is relaxed).
 
@@ -68,7 +68,7 @@ The historical analysis below (§1–§5) is retained as the investigation trail
 
 When a GSI client delegates an X.509 proxy to our nginx XRootD server
 (`xrootd_tpc_delegate on`), our server runs the inbound delegation handshake
-(`src/gsi/delegation.c`): it sends `kXGS_pxyreq` and waits for the client's
+(`src/auth/gsi/delegation.c`): it sends `kXGS_pxyreq` and waits for the client's
 `kXGC_sigpxy` carrying the delegated proxy. **The stock XRootD client (`/usr/bin/xrdcp`,
 v5.9.5) declines** — it returns a `kXGC_sigpxy` whose `kXRS_x509` (signed proxy) bucket is
 absent, and emits `Not allowed to sign proxy requests`. Our server logs:
@@ -141,8 +141,8 @@ These took several iterations to get right; document them so the next person doe
 | Proxy not delegatable (pathlen) | **FALSE** | `proxy_std`/`xrdgsiproxy` proxy has `Path Length Constraint: infinite` |
 | Our proof-of-possession (`signed_rtag`) wrong | **FALSE** | client logs `secgsi_CheckRtag: Random tag successfully checked` for our pxyreq |
 | `EEC not found in chain` (client cert-chain msg) | **benign** | appears in the **working** stock case too |
-| `gsi_key` (DH signing key) not loaded | **FALSE** | `src/gsi/config.c:154` loads it from `xrootd_certificate_key`; non-NULL |
-| `gsi_use_signed_dh()` returns 0 under `require` | **FALSE** | `src/gsi/cert_response.c:56` returns `1` for `REQUIRE` unconditionally |
+| `gsi_key` (DH signing key) not loaded | **FALSE** | `src/auth/gsi/config.c:154` loads it from `xrootd_certificate_key`; non-NULL |
+| `gsi_use_signed_dh()` returns 0 under `require` | **FALSE** | `src/auth/gsi/cert_response.c:56` returns `1` for `REQUIRE` unconditionally |
 
 ---
 
@@ -204,10 +204,10 @@ A stock server therefore sends a **CSR** (`kXRS_x509_req`) only when the client 
 `kOptsDlgPxy`, and uses the **forward** flow when the client asked for `kOptsFwdPxy`
 (`XrdSecGSIDELEGPROXY=2`, the common default).
 
-**Our server does neither.** `src/gsi/delegation.c::xrootd_gsi_begin_delegation` **hardcodes**
+**Our server does neither.** `src/auth/gsi/delegation.c::xrootd_gsi_begin_delegation` **hardcodes**
 the CSR model — it always builds and sends `kXRS_x509_req` — and **our server never reads the
 client's `kXRS_clnt_opts` (3019)** (the constant exists in `src/protocol/gsi.h:48` and we only
-ever *send* it as a client in `src/gsi/gsi_core.c:106`; there is no server-side read). So a
+ever *send* it as a client in `src/auth/gsi/gsi_core.c:106`; there is no server-side read). So a
 forward-mode client receives a CSR it will not sign → `Not allowed to sign proxy requests`.
 
 **This is the concrete thing to fix:** read `kXRS_clnt_opts` on the server during the GSI login,
@@ -235,7 +235,7 @@ Deeper reading + empirical capture corrected two assumptions above:
    its delegation mode **local**; the server drives delegation from **its own** config
    (stock `-dlgpxy:request` sets `kOptsSrvReq`). **Reading `kXRS_clnt_opts` on the server is
    therefore NOT the fix** (the flags aren't there). A diagnostic read was added anyway
-   (`src/gsi/cert_response.c: gsi_certreq_clnt_opts` → `ctx->gsi_clnt_opts`, logged at INFO) —
+   (`src/auth/gsi/cert_response.c: gsi_certreq_clnt_opts` → `ctx->gsi_clnt_opts`, logged at INFO) —
    it is regression-safe and useful, but it is **not** a functional change.
 
 **Net:** the "forward vs sign model" framing is a red herring for the *env-driven* client. The
@@ -278,10 +278,10 @@ is `0x80` = `kOptsCreatePxy` only, both against us and against the working stock
 
 **Move delegation INLINE into the `kXGS_cert` response** (mirror stock `ServerDoCert`,
 `XrdSecProtocolgsi.cc` ≈ 3895-3960): when delegation is enabled, build the proxy request (CSR)
-and add it to the `kXRS_main` bucket of the `kXGS_cert` we already send (`src/gsi/cert_response.c`),
+and add it to the `kXRS_main` bucket of the `kXGS_cert` we already send (`src/auth/gsi/cert_response.c`),
 saving the request key on `ctx`. Then process the returned proxy from the client's `kXGC_cert`
-(`src/gsi/parse_x509.c`) — **not** via a separate `kXGS_pxyreq`/`kXGC_sigpxy` round. The existing
-`src/gsi/delegation.c` (separate-round machinery) becomes the wrong mechanism for interop and
+(`src/auth/gsi/parse_x509.c`) — **not** via a separate `kXGS_pxyreq`/`kXGC_sigpxy` round. The existing
+`src/auth/gsi/delegation.c` (separate-round machinery) becomes the wrong mechanism for interop and
 should be retired or kept only for a peer that advertises the separate-round capability. This is
 a real restructuring of the GSI cert exchange, but it is now unambiguous.
 
@@ -390,7 +390,7 @@ verifies).
    `ParseServerInput`, lines 3699/3735/3907 (server-side request gating).
 2. **Byte-diff our `kXGS_cert` vs a stock signed-DH server's** at the bucket level (types,
    sizes, and the `kXRS_cipher` signed-DH blob + IV handling). Use `XrdSecDEBUG=3` and dump the
-   `IN: kXGS_cert` buckets from each client log. Our `src/gsi/cert_response.c` builds the
+   `IN: kXGS_cert` buckets from each client log. Our `src/auth/gsi/cert_response.c` builds the
    signed DH at ≈ lines 220-245 (`EncryptPrivate` of the `Public()` blob as `kXRS_cipher`);
    compare against the stock server path (`XrdSecProtocolgsi.cc` ≈ line 3016 onward, note
    `useIV`).

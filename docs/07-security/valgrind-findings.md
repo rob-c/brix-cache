@@ -88,7 +88,7 @@ NUL-terminated copy first. See the CLAUDE.md FAQ entry on `ngx_str_t`.
 **Severity:** Medium (recurring leak on `nginx -s reload`; unbounded growth for
 long-running gateways that reload config or rotate JWKS).
 
-**Files:** `src/token/jwks.c`, `src/token/token.h`, `src/token/config.c`
+**Files:** `src/auth/token/jwks.c`, `src/auth/token/token.h`, `src/auth/token/config.c`
 (stream), `src/webdav/config.c` (HTTP).
 
 **Symptom (Memcheck):** `1,680 (152 direct, 1,528 indirect) bytes in 1 blocks
@@ -98,9 +98,9 @@ are definitely lost`, the parent of ~10 indirectly-lost OpenSSL allocations:
 malloc
   CRYPTO_zalloc / EVP_PKEY_new
   EVP_PKEY_fromdata
-  xrootd_token_rsa_pubkey_from_ne   (src/token/keys.c:73)
-  xrootd_jwks_load_jansson          (src/token/jwks.c:76)
-  xrootd_jwks_load                  (src/token/jwks.c:177)
+  xrootd_token_rsa_pubkey_from_ne   (src/auth/token/keys.c:73)
+  xrootd_jwks_load_jansson          (src/auth/token/jwks.c:76)
+  xrootd_jwks_load                  (src/auth/token/jwks.c:177)
   ngx_http_xrootd_webdav_merge_loc_conf (src/webdav/config.c)
   ngx_http_merge_servers / ngx_http_block
   ngx_init_cycle / main
@@ -120,14 +120,14 @@ was **never registered to run when the conf pool is destroyed**. Consequences:
 - At shutdown the same handles leak (Memcheck reports them as `definitely lost`
   because the pool memory holding the pointers is freed before exit).
 
-Both conf load sites had the defect: the stream module (`src/token/config.c`)
+Both conf load sites had the defect: the stream module (`src/auth/token/config.c`)
 and the HTTP/WebDAV module (`src/webdav/config.c`).
 
 **Fix:** A new helper registers an `ngx_pool_cleanup_t` on the conf pool whose
 handler calls `xrootd_jwks_free()`:
 
 ```c
-/* src/token/jwks.c */
+/* src/auth/token/jwks.c */
 typedef struct {
     xrootd_jwks_key_t *keys;
     int               *count;   /* pointer, not value — see note below */
@@ -173,7 +173,7 @@ if (rc > 0
 ```
 
 ```c
-/* src/token/config.c */
+/* src/auth/token/config.c */
 if (xcf->jwks_key_count > 0
     && xrootd_jwks_register_cleanup(cf->pool, xcf->jwks_keys,
                                     &xcf->jwks_key_count) != NGX_OK)
@@ -183,7 +183,7 @@ if (xcf->jwks_key_count > 0
 ```
 
 **Why the cleanup stores a pointer to the count, not the value:** the JWKS
-refresh path (`src/token/refresh.c`) rewrites the same `jwks_keys[]` array in
+refresh path (`src/auth/token/refresh.c`) rewrites the same `jwks_keys[]` array in
 place — it calls `xrootd_jwks_free()` on the old set, then `memcpy`s the new set
 in and updates `jwks_key_count`. Because the cleanup reads `*count` at
 pool-destroy time (not at registration time), it frees whatever set is current,
@@ -267,5 +267,5 @@ new defects** — Findings 1 and 2 remain the only module-code issues found.
 - Macaroon **minting** returns a small response in the harness (the issued-token
   body was not consumed for a follow-up verify); the endpoint parse + HMAC path
   is exercised, but a full mint→use round-trip is a future improvement.
-- OAuth2 token-exchange against a live IdP (`src/token/oauth2.c`) is only reached
+- OAuth2 token-exchange against a live IdP (`src/auth/token/oauth2.c`) is only reached
   via the TPC token-endpoint delegation path; not driven standalone here.

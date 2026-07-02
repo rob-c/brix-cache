@@ -17,7 +17,7 @@ same pattern
 
 ## Context
 
-`src/path/auth_gate.c` and `src/path/auth_gate.h` implement:
+`src/auth/authz/auth_gate.c` and `src/auth/authz/auth_gate.h` implement:
 
 ```c
 ngx_int_t xrootd_auth_gate(xrootd_ctx_t *ctx, ngx_connection_t *c,

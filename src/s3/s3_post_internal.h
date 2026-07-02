@@ -7,7 +7,7 @@
 
 #include "s3.h"
 #include "fs/backend/sd.h"   
-#include "impersonate/lifecycle.h"
+#include "auth/impersonate/lifecycle.h"
 #include "s3_auth_internal.h"
 #include "core/compat/crypto.h"
 #include "core/compat/hex.h"

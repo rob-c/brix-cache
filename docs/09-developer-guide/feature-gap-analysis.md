@@ -56,9 +56,9 @@ TPC transfers involving multiple network hops fail when the delegation of a GSI 
 ### 6. OCSP Support — COMPLETED
 
 OCSP support was implemented in the May 2026 major release (commit `0bf185e`).
-`src/crypto/ocsp.c` / `src/crypto/ocsp.h` provide `xrootd_ocsp_check_cert()`
+`src/auth/crypto/ocsp.c` / `src/auth/crypto/ocsp.h` provide `xrootd_ocsp_check_cert()`
 (query the OCSP responder URL embedded in a client certificate's Authority
 Information Access extension) and `xrootd_ocsp_staple_fetch()` (fetch and cache
 an OCSP staple for the server certificate, RFC 6066 / RFC 6961). Client-cert
 revocation checking is wired into the GSI authentication path at
-`src/gsi/auth.c`, after X.509 chain verification.
+`src/auth/gsi/auth.c`, after X.509 chain verification.

@@ -36,7 +36,7 @@ Frequent `kXR_stat` or `kXR_locate` queries against non-existent paths can leak 
 The intersection of AuthDB, VO ACLs, and Token Scopes is the most complex security path in the codebase.
 
 ### Proposal:
-*   **Model Checking**: Use a formal tool (like TLA+ or a bounded model checker) to verify the path-resolution and ACL-intersection logic in `src/path/acl.c` and `src/handshake/policy.c`.
+*   **Model Checking**: Use a formal tool (like TLA+ or a bounded model checker) to verify the path-resolution and ACL-intersection logic in `src/auth/authz/acl.c` and `src/handshake/policy.c`.
 *   **Unit Test Invariants**: Create a "negative test suite" that exhaustively attempts to bypass every combination of ACL and Token Scope to ensure no edge-case permits unauthorized access.
 
 ## Summary of Advanced Priorities

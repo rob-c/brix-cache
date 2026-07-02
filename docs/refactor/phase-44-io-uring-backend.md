@@ -810,12 +810,12 @@ plane is already unprivileged and confined:
 1. **The privileged broker is the only root component, and it never touches
    io_uring.** With `xrootd_impersonation map`, a separate broker process holds
    only `CAP_SETUID`/`CAP_SETGID` (`xrootd_imp_broker_drop_caps`,
-   `src/impersonate/broker.c:207`; it can even drop to a non-root service account,
+   `src/auth/impersonate/broker.c:207`; it can even drop to a non-root service account,
    `imp_drop_to_service_user` `:138`). The broker performs `openat2()` with
    `RESOLVE_BENEATH | RESOLVE_NO_MAGICLINKS` on its authoritative rootfd **as the
    mapped user** (`imp_openat2`, `broker.c:346`) and passes the resulting fd back
    to the worker via **SCM_RIGHTS** (`imp_send_reply`, `broker.c:805` →
-   `imp_recv_reply`, `src/impersonate/client.c:204` → stored in `fh->fd`,
+   `imp_recv_reply`, `src/auth/impersonate/client.c:204` → stored in `fh->fd`,
    `src/fs/vfs_open.c:137`). The broker does **only** open + metadata ops
    (`impersonate_proto.h` opcodes) — **no data-plane read/write** — so there is
    no reason for it to ever own a ring.
@@ -2099,7 +2099,7 @@ The engine is the highest-risk client workstream; it is gated and staged:
 
 This section is the code-level reference behind the §8 "Security hardening" overview. §8 states the two pillars — a multi-level kill switch and privilege containment via ring restrictions on top of the Phase-40 broker. This section gives the threat model, the exact SHM/admin/panic-file/restriction code, the fd-provenance argument, and the required security-negative tests. Where §8 says "what", §14 says "how, and why it is sufficient."
 
-The single most important security invariant: **the io_uring ring lives in the unprivileged worker and is only ever handed file descriptors that were already opened and access-checked, as the mapped user, by the Phase-40 broker** (`imp_openat2` `src/impersonate/broker.c:346` with `RESOLVE_BENEATH|RESOLVE_NO_MAGICLINKS`). io_uring read/write/fsync on an already-open fd performs no further DAC traversal — the check happened at open. Therefore io_uring never widens the authorization surface of a request relative to the existing synchronous path; it only changes the submission mechanism. Every mitigation below is built to preserve that invariant even under partial compromise.
+The single most important security invariant: **the io_uring ring lives in the unprivileged worker and is only ever handed file descriptors that were already opened and access-checked, as the mapped user, by the Phase-40 broker** (`imp_openat2` `src/auth/impersonate/broker.c:346` with `RESOLVE_BENEATH|RESOLVE_NO_MAGICLINKS`). io_uring read/write/fsync on an already-open fd performs no further DAC traversal — the check happened at open. Therefore io_uring never widens the authorization surface of a request relative to the existing synchronous path; it only changes the submission mechanism. Every mitigation below is built to preserve that invariant even under partial compromise.
 
 ### 14.1 Assets, trust boundaries & attacker model
 
@@ -3124,7 +3124,7 @@ Effort labels are **rough relative estimates** (person-days, single engineer fam
 
 **Goal.** Implement §8.2 / §14.4 containment: lock each ring to fd-only data opcodes, validate fd-provenance, prove interop with Phase-40 impersonation.
 
-**Deliverables.** `src/core/aio/uring.c` (restricted setup), `src/core/aio/uring_submit.c` (fd-provenance assertion), interop tests. **Read-only consumers:** `src/impersonate/broker.c`, `src/fs/vfs_open.c`/`vfs.h`, `src/path/beneath.c`.
+**Deliverables.** `src/core/aio/uring.c` (restricted setup), `src/core/aio/uring_submit.c` (fd-provenance assertion), interop tests. **Read-only consumers:** `src/auth/impersonate/broker.c`, `src/fs/vfs_open.c`/`vfs.h`, `src/path/beneath.c`.
 
 | # | Sub-task | Concrete change |
 |---|---|---|
@@ -6105,7 +6105,7 @@ pgread CRC boundary), `src/core/config/process.c` (worker init/exit hooks), `con
 `src/metrics/metrics.h` (`io_uring_active`/`ops`/`fallback` gauges). **Reused
 read-only (no edits, just consumed):** the impersonation seam — `src/path/beneath.c`
 / `src/path/resolve_confined_ops.c` (broker-vs-local open routing),
-`src/impersonate/broker.c` (`imp_openat2` `RESOLVE_BENEATH`, SCM_RIGHTS fd-pass),
+`src/auth/impersonate/broker.c` (`imp_openat2` `RESOLVE_BENEATH`, SCM_RIGHTS fd-pass),
 `src/fs/vfs_open.c` / `src/fs/vfs.h` (`fh->fd` provenance) — io_uring submits the
 fd these already produce, adding no privileged code.
 

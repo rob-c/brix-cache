@@ -1,5 +1,5 @@
 #include "s3.h"
-#include "token/b64url.h"
+#include "auth/token/b64url.h"
 #include "core/compat/http_query.h"
 #include <string.h>
 

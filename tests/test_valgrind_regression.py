@@ -6,7 +6,7 @@ Findings (see docs/07-security/valgrind-findings.md):
   1. Uninitialised read of addr_text in src/dashboard/http_tracking.c — the
      dashboard client-IP copy ran ngx_cpystrn() over a non-NUL-terminated
      ngx_str_t.  Fix: a length-bounded, NUL-terminated copy into a caller buffer.
-  2. JWKS EVP_PKEY leak on every config reload in src/token/jwks.c — the keys
+  2. JWKS EVP_PKEY leak on every config reload in src/auth/token/jwks.c — the keys
      loaded into the pool-allocated conf array were never freed when the pool was
      destroyed.  Fix: register an ngx_pool_cleanup_t at both conf load sites.
 
@@ -60,13 +60,13 @@ def test_finding1_addr_text_bounded_copy():
 # --------------------------------------------------------------------------- #
 
 def test_finding2_jwks_pool_cleanup_defined():
-    j = _read("src/token/jwks.c")
+    j = _read("src/auth/token/jwks.c")
     assert "xrootd_jwks_register_cleanup" in j
     assert "ngx_pool_cleanup_add" in j
     # The cleanup handler frees the keys.
     assert "xrootd_jwks_free" in j
     # Declared in the public header.
-    assert "xrootd_jwks_register_cleanup" in _read("src/token/token.h")
+    assert "xrootd_jwks_register_cleanup" in _read("src/auth/token/token.h")
 
 
 def test_finding2_jwks_cleanup_called_at_both_sites():
@@ -74,7 +74,7 @@ def test_finding2_jwks_cleanup_called_at_both_sites():
     assert "xrootd_jwks_register_cleanup" in _read("src/webdav/config.c"), (
         "HTTP/WebDAV conf must register the JWKS pool cleanup"
     )
-    assert "xrootd_jwks_register_cleanup" in _read("src/token/config.c"), (
+    assert "xrootd_jwks_register_cleanup" in _read("src/auth/token/config.c"), (
         "stream token conf must register the JWKS pool cleanup"
     )
 

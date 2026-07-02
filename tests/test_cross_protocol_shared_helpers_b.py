@@ -2,7 +2,7 @@ from _test_cross_protocol_shared_helpers_helpers import *  # noqa: F401,F403  (P
 
 def test_phase2_policy_consumes_identity():
     _assert_markers(
-        "src/path/authdb.c",
+        "src/auth/authz/authdb.c",
         [
             "xrootd_find_authdb_rule_identity(",
             "xrootd_check_authdb_identity(",
@@ -11,7 +11,7 @@ def test_phase2_policy_consumes_identity():
         ],
     )
     _assert_markers(
-        "src/path/acl.c",
+        "src/auth/authz/acl.c",
         ["xrootd_check_vo_acl_identity(", "xrootd_identity_vo_csv_cstr("],
     )
     _assert_markers(
@@ -22,7 +22,7 @@ def test_phase2_policy_consumes_identity():
     # have been converted call xrootd_auth_gate() instead of the three functions
     # directly.  Verify auth_gate.c implements the full triad.
     _assert_markers(
-        "src/path/auth_gate.c",
+        "src/auth/authz/auth_gate.c",
         ["xrootd_check_authdb(", "xrootd_check_vo_acl_identity(",
          "xrootd_check_token_scope("],
     )
@@ -45,7 +45,7 @@ def test_phase2_policy_consumes_identity():
 
 def test_phase2_voms_identity_rejects_injected_vo_tokens():
     _assert_markers(
-        "src/voms/collect.c",
+        "src/auth/voms/collect.c",
         [
             "xrootd_vo_token_safe(",
             "ch <= ' '",
@@ -490,9 +490,9 @@ def test_stream_missing_auth_plugins_are_wired():
         [
             "pkg-config --exists krb5",
             "-DXROOTD_HAVE_KRB5=1",
-            "src/unix/auth.c",
-            "src/krb5/config.c",
-            "src/krb5/auth.c",
+            "src/auth/unix/auth.c",
+            "src/auth/krb5/config.c",
+            "src/auth/krb5/auth.c",
         ],
     )
     # The auth-method name->enum table moved into module_enums.c; the krb5/unix
@@ -533,14 +533,14 @@ def test_stream_missing_auth_plugins_are_wired():
         ],
     )
     _assert_markers(
-        "src/gsi/auth.c",
+        "src/auth/gsi/auth.c",
         [
             "xrootd_handle_unix_auth(ctx, c, conf)",
             "xrootd_handle_krb5_auth(ctx, c, conf)",
         ],
     )
     _assert_markers(
-        "src/unix/auth.c",
+        "src/auth/unix/auth.c",
         [
             "xrootd_unix_peer_is_loopback(",
             "unix_trust_remote",
@@ -549,7 +549,7 @@ def test_stream_missing_auth_plugins_are_wired():
         ],
     )
     _assert_markers(
-        "src/krb5/config.c",
+        "src/auth/krb5/config.c",
         [
             "krb5_parse_name(",
             "krb5_kt_start_seq_get(",
@@ -557,7 +557,7 @@ def test_stream_missing_auth_plugins_are_wired():
         ],
     )
     _assert_markers(
-        "src/krb5/auth.c",
+        "src/auth/krb5/auth.c",
         [
             "krb5_rd_req(",
             "krb5_aname_to_localname(",

@@ -274,10 +274,10 @@ assembly**, ranked by audit cost (not LoC):
 
 | Candidate | Client / Server | Status |
 |---|---|---|
-| **SSS credential frame assembly** | `client/lib/sec/sec_sss.c` ↔ `src/sss/auth_proxy_credential.c` | ⚙️ **DONE** — §4.1 |
+| **SSS credential frame assembly** | `client/lib/sec/sec_sss.c` ↔ `src/auth/sss/auth_proxy_credential.c` | ⚙️ **DONE** — §4.1 |
 | **kXR ↔ errno canonical table** | `client/lib/status.c` ↔ `src/core/compat/error_mapping.c` | ⚙️ **DONE** — §4.2 |
 | **GSI-client handshake** | `client/lib/sec/sec_gsi.c` (on `gsi_core`) **vs** `src/tpc/gsi_outbound_*.c` (raw OpenSSL) | ⚙️ **DONE** — §4.3 (built a TPC-pull-from-GSI-origin gate, then migrated onto `gsi_core`) |
-| **Token JWT split** | `client/lib/credinfo.c` (`xrdjwt_split`) ↔ `src/token/validate.c` (inline `memchr`) | ⚙️ **DONE** — §4.4 (server switched to the shared `xrdjwt_split`) |
+| **Token JWT split** | `client/lib/credinfo.c` (`xrdjwt_split`) ↔ `src/auth/token/validate.c` (inline `memchr`) | ⚙️ **DONE** — §4.4 (server switched to the shared `xrdjwt_split`) |
 | **Session-bootstrap packing** (handshake + kXR_protocol + kXR_login) | `client/lib/conn.c` ↔ `src/upstream/bootstrap.c` (×2) ↔ `src/tpc/bootstrap.c` | ⚙️ **DONE** — §4.5 (new `protocol/bootstrap_pack.h`, 4 sites → 1) |
 | **kXR_error decode adoption** | already-shared `xrd_error_body_decode` ↔ hand-rolled in `src/tpc/source.c`, `src/cache/origin_response.c` | ⚙️ **DONE** — §4.5 (adopted shared decoder; fixed a non-NUL `%s` over-read) |
 | **Stat-line grammar** `"<id> <size> <flags> <mtime>"` | `src/path/stat_body.c` (encoder) ↔ `client/lib/ops_meta.c` (decoder) | ⚙️ **DONE** — §4.6 (new `protocol/stat_line.h`, encode + decode co-located) |
@@ -297,7 +297,7 @@ assembly**, ranked by audit cost (not LoC):
 The SSS kXR_auth credential **byte assembly** (40-byte data header `[nonce | gen_time | opt]`
 + NAME TLV + IEEE-CRC32 + Blowfish-CFB encrypt + 16-byte outer header) was duplicated
 byte-for-byte in `client/lib/sec/sec_sss.c:sss_first()` and
-`src/sss/auth_proxy_credential.c`. The cipher (`xrootd_sss_bf_crypt`), CRC (`xrootd_crc32_ieee`)
+`src/auth/sss/auth_proxy_credential.c`. The cipher (`xrootd_sss_bf_crypt`), CRC (`xrootd_crc32_ieee`)
 and constants (`protocol/sss.h`) were already shared — only the assembly glue was not.
 
 Factored into one nginx-free kernel `xrootd_sss_build_credential()` in the already-shared
