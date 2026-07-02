@@ -821,6 +821,9 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/net/tap/tap_emit.c \
     $ngx_addon_dir/src/net/tap/tap_audit.c \
     $ngx_addon_dir/src/net/tap/tap_stream.c \
+    $ngx_addon_dir/src/net/guard/guard_classify.c \
+    $ngx_addon_dir/src/net/guard/guard_audit.c \
+    $ngx_addon_dir/src/net/guard/guard_ruleset.c \
     $ngx_addon_dir/src/protocols/root/relay/relay.c \
     $ngx_addon_dir/src/net/proxy/gsi_upstream.c \
     $ngx_addon_dir/src/net/proxy/gsi_upstream_login.c \
