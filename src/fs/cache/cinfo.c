@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/file.h>
+#include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -236,6 +237,66 @@ cinfo_load_v2(int fd, xrootd_cache_cinfo_t *hdr, uint8_t **bitmap,
 }
 
 /* load / store */
+/* ---- phase-68 manifest TTL ---------------------------------------------- */
+
+void
+xrootd_cache_cinfo_set_expires(xrootd_cache_cinfo_t *ci, time_t when)
+{
+    ci->expires_at = (uint64_t) when;
+    ci->flags |= XROOTD_CINFO_F_EXPIRES;
+}
+
+int
+xrootd_cache_cinfo_expired(const xrootd_cache_cinfo_t *ci, time_t now)
+{
+    if ((ci->flags & XROOTD_CINFO_F_EXPIRES) == 0) {
+        return -1;                          /* immutable entry: never expires */
+    }
+    return ((uint64_t) now >= ci->expires_at) ? 1 : 0;
+}
+
+/*
+ * Read the fixed v3 header from fd, tolerating the pre-phase-68 layout (16
+ * bytes shorter: no expires_at/filled_at trailer). Detection: try the full
+ * header; a short file re-reads at the old size, and a full read whose file
+ * size matches old-header+bitmap exactly is an old file whose bitmap bytes
+ * leaked into the trailer. On NGX_OK the trailer is normalized (zeroed, flag
+ * cleared, for old files) and *bitmap_off holds THIS file's bitmap offset.
+ * Writers always emit the full new header, so a rewrite upgrades in place.
+ */
+static ngx_int_t
+cinfo_read_hdr(int fd, xrootd_cache_cinfo_t *hdr, off_t *bitmap_off)
+{
+    struct stat  stb;
+    size_t       blen;
+    ngx_int_t    rc;
+
+    rc = cinfo_pio(fd, hdr, XROOTD_CACHE_CINFO_HDR_SIZE, 0, 0);
+    if (rc != NGX_OK) {
+        rc = cinfo_pio(fd, hdr, XROOTD_CACHE_CINFO_HDR_SIZE_PRE68, 0, 0);
+        if (rc != NGX_OK) {
+            return rc;
+        }
+        hdr->expires_at = 0;
+        hdr->filled_at  = 0;
+        hdr->flags &= (uint16_t) ~XROOTD_CINFO_F_EXPIRES;
+        *bitmap_off = (off_t) XROOTD_CACHE_CINFO_HDR_SIZE_PRE68;
+        return NGX_OK;
+    }
+    blen = xrootd_cache_cinfo_bitmap_len(hdr->nblocks);
+    if (fstat(fd, &stb) == 0
+        && (size_t) stb.st_size == XROOTD_CACHE_CINFO_HDR_SIZE_PRE68 + blen)
+    {
+        hdr->expires_at = 0;
+        hdr->filled_at  = 0;
+        hdr->flags &= (uint16_t) ~XROOTD_CINFO_F_EXPIRES;
+        *bitmap_off = (off_t) XROOTD_CACHE_CINFO_HDR_SIZE_PRE68;
+        return NGX_OK;
+    }
+    *bitmap_off = (off_t) XROOTD_CACHE_CINFO_HDR_SIZE;
+    return NGX_OK;
+}
+
 ngx_int_t
 xrootd_cache_cinfo_load(const char *cache_path, xrootd_cache_cinfo_t *hdr,
     uint8_t **bitmap, size_t *bitmap_len)
@@ -285,29 +346,33 @@ xrootd_cache_cinfo_load(const char *cache_path, xrootd_cache_cinfo_t *hdr,
         }
     }
 
-    rc = cinfo_pio(fd, hdr, XROOTD_CACHE_CINFO_HDR_SIZE, 0, 0);
-    if (rc != NGX_OK) {
-        close(fd);
-        return rc;                 /* short header → DECLINED, I/O error → ERROR */
-    }
-    if (cinfo_header_ok(hdr) != NGX_OK) {
-        close(fd);
-        return NGX_DECLINED;       /* garbage / wrong version / inconsistent */
-    }
+    {
+        off_t boff = 0;
 
-    blen = xrootd_cache_cinfo_bitmap_len(hdr->nblocks);
-    if (blen == 0) {
-        close(fd);
-        return NGX_OK;             /* 0-block file: header only, no bitmap */
-    }
+        rc = cinfo_read_hdr(fd, hdr, &boff);
+        if (rc != NGX_OK) {
+            close(fd);
+            return rc;             /* short header → DECLINED, I/O error → ERROR */
+        }
+        if (cinfo_header_ok(hdr) != NGX_OK) {
+            close(fd);
+            return NGX_DECLINED;   /* garbage / wrong version / inconsistent */
+        }
 
-    bits = malloc(blen);
-    if (bits == NULL) {
-        close(fd);
-        errno = ENOMEM;
-        return NGX_ERROR;
+        blen = xrootd_cache_cinfo_bitmap_len(hdr->nblocks);
+        if (blen == 0) {
+            close(fd);
+            return NGX_OK;         /* 0-block file: header only, no bitmap */
+        }
+
+        bits = malloc(blen);
+        if (bits == NULL) {
+            close(fd);
+            errno = ENOMEM;
+            return NGX_ERROR;
+        }
+        rc = cinfo_pio(fd, bits, blen, boff, 0);
     }
-    rc = cinfo_pio(fd, bits, blen, (off_t) XROOTD_CACHE_CINFO_HDR_SIZE, 0);
     close(fd);
     if (rc != NGX_OK) {
         free(bits);
@@ -485,7 +550,8 @@ xrootd_cache_cinfo_record_block(const char *cache_path, uint64_t size,
      * absent/garbage/stale (changed origin) record starts the bitmap fresh. */
     {
         xrootd_cache_cinfo_t cur;
-        ngx_int_t lrc = cinfo_pio(fd, &cur, XROOTD_CACHE_CINFO_HDR_SIZE, 0, 0);
+        off_t     boff = 0;
+        ngx_int_t lrc = cinfo_read_hdr(fd, &cur, &boff);
         int reuse = (lrc == NGX_OK
                      && cinfo_header_ok(&cur) == NGX_OK
                      && cur.size == size
@@ -494,8 +560,7 @@ xrootd_cache_cinfo_record_block(const char *cache_path, uint64_t size,
         if (reuse) {
             hdr = cur;
             if (blen > 0
-                && cinfo_pio(fd, bits, blen,
-                             (off_t) XROOTD_CACHE_CINFO_HDR_SIZE, 0) != NGX_OK)
+                && cinfo_pio(fd, bits, blen, boff, 0) != NGX_OK)
             {
                 ngx_memzero(bits, blen);   /* unreadable tail → start fresh */
             }
@@ -545,22 +610,23 @@ cinfo_rmw_load(int fd, uint64_t size, uint32_t block_size, uint64_t mtime,
     }
     ngx_memzero(b, blen ? blen : 1);
 
-    lrc = cinfo_pio(fd, &cur, XROOTD_CACHE_CINFO_HDR_SIZE, 0, 0);
-    reuse = (lrc == NGX_OK
-             && cinfo_header_ok(&cur) == NGX_OK
-             && cur.size == size
-             && cur.block_size == block_size
-             && cur.mtime == mtime);
-    if (reuse) {
-        *hdr = cur;
-        if (blen > 0
-            && cinfo_pio(fd, b, blen, (off_t) XROOTD_CACHE_CINFO_HDR_SIZE, 0)
-               != NGX_OK)
-        {
-            ngx_memzero(b, blen);          /* unreadable tail → start fresh bits */
+    {
+        off_t boff = 0;
+
+        lrc = cinfo_read_hdr(fd, &cur, &boff);
+        reuse = (lrc == NGX_OK
+                 && cinfo_header_ok(&cur) == NGX_OK
+                 && cur.size == size
+                 && cur.block_size == block_size
+                 && cur.mtime == mtime);
+        if (reuse) {
+            *hdr = cur;
+            if (blen > 0 && cinfo_pio(fd, b, blen, boff, 0) != NGX_OK) {
+                ngx_memzero(b, blen);      /* unreadable tail → start fresh bits */
+            }
+        } else {
+            cinfo_init(hdr, size, block_size, mtime);
         }
-    } else {
-        cinfo_init(hdr, size, block_size, mtime);
     }
     *bits = b;
     *blen_out = blen;

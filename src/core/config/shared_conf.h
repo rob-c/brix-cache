@@ -72,6 +72,9 @@ typedef struct {
                                              * the cvmfs protocol only.           */
     ngx_str_t           cache_quarantine_dir; /* verify-mismatch evidence dir;
                                              * "" = unlink the failed part.       */
+    time_t              cache_manifest_ttl; /* phase-68 cvmfs: TTL stamped on
+                                             * MANIFEST-class cache fills (secs;
+                                             * 0 = no expiry stamping).           */
     ngx_uint_t          cache_batch_cinfo;  /* xrootd_cache_batch_cinfo (0 off/1 on/2 auto) */
     size_t              cache_index_cache;  /* xrootd_cache_index_cache (L1 entries) */
     size_t              cache_slice_size;   /* xrootd_cache_slice_size (0 = whole-file) */

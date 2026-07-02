@@ -10,6 +10,7 @@
  * serves wrong bytes (section 16).
  */
 #include "sd_cache.h"
+#include "protocols/cvmfs/classify.h"   /* phase-68 manifest-TTL stamping */
 #include "fs/cache/cstore.h"
 
 #include <errno.h>
@@ -78,6 +79,56 @@ sd_cache_admit(const xrootd_cache_policy_t *pol, const char *path, off_t size)
     return 1;
 }
 
+/* phase-68: 1 iff `key` is CVMFS MANIFEST-class (mutable signed metadata). */
+static int
+sd_cache_is_manifest_key(const char *key)
+{
+    cvmfs_url_info_t info;
+
+    return (key != NULL
+            && cvmfs_classify_url(key, strlen(key), &info) == 0
+            && info.cls == CVMFS_URL_MANIFEST);
+}
+
+/* phase-68 bounded stale-if-error: 1 iff an expired-but-COMPLETE cached copy
+ * of `key` exists whose total age is inside the 10x-TTL window — the caller
+ * absorbs the refill failure and the stale copy serves. Re-arms the entry's
+ * expiry one TTL forward so the next origin retry happens a TTL from now
+ * (not on every request); the 10x bound is keyed on filled_at, which re-arms
+ * never touch. */
+static int
+sd_cache_stale_serve_ok(sd_cache_inst_state *st, const char *key)
+{
+    xrootd_cache_cinfo_t  ci;
+    time_t                now = time(NULL);
+    time_t                ttl = st->policy.cvmfs_manifest_ttl;
+
+    if (ttl <= 0) {
+        return 0;
+    }
+    if (xrootd_cstore_cinfo_load(&st->cstore, key, &ci) != NGX_OK
+        || (ci.flags & XROOTD_CINFO_F_COMPLETE) == 0
+        || xrootd_cache_cinfo_expired(&ci, now) != 1)
+    {
+        return 0;
+    }
+    if (ci.filled_at == 0
+        || (uint64_t) now >= ci.filled_at + 10 * (uint64_t) ttl)
+    {
+        return 0;                       /* stale window exhausted: fail hard */
+    }
+    ngx_log_error(NGX_LOG_WARN, st->log, 0,
+        "sd_cache: refill of \"%s\" failed; serving stale copy (%uL s past "
+        "expiry)\n"
+        "  cause: origin unreachable or fill error\n"
+        "  fix:   check Stratum-1 reachability; stale serving stops at 10x "
+        "manifest_ttl", key,
+        (uint64_t) ((uint64_t) now - ci.expires_at));
+    xrootd_cache_cinfo_set_expires(&ci, now + ttl);   /* next retry in one TTL */
+    (void) xrootd_cstore_cinfo_store(&st->cstore, key, &ci);
+    return 1;
+}
+
 /* ---- the fill spine (source -> cache store) ------------------------------- */
 
 /* Fill `key` from the source into the cache store and record its cinfo. Returns
@@ -103,6 +154,9 @@ sd_cache_fill(sd_cache_inst_state *st, const char *key)
     }
     so = src->driver->open(src, key, XROOTD_SD_O_READ, 0, &err);
     if (so == NULL) {
+        if (sd_cache_stale_serve_ok(st, key)) {
+            return NGX_OK;              /* bounded stale-if-error (phase-68) */
+        }
         errno = err ? err : EIO;
         return NGX_ERROR;
     }
@@ -167,6 +221,9 @@ sd_cache_fill(sd_cache_inst_state *st, const char *key)
             free(buf);
             xrootd_cstore_fill_abort(staged);
             so->driver->close(so);
+            if (sd_cache_stale_serve_ok(st, key)) {
+                return NGX_OK;          /* bounded stale-if-error (phase-68) */
+            }
             return NGX_ERROR;
         }
         if (r == 0) {
@@ -234,6 +291,11 @@ sd_cache_fill(sd_cache_inst_state *st, const char *key)
     ci.nblocks    = xrootd_cache_cinfo_nblocks((uint64_t) off, ci.block_size);
     ci.flags      = XROOTD_CINFO_F_COMPLETE
                   | (verified ? XROOTD_CINFO_F_VERIFIED : 0);
+    ci.filled_at  = (uint64_t) time(NULL);
+    if (st->policy.cvmfs_manifest_ttl > 0 && sd_cache_is_manifest_key(key)) {
+        xrootd_cache_cinfo_set_expires(&ci,
+            (time_t) ci.filled_at + st->policy.cvmfs_manifest_ttl);
+    }
 
     if (xrootd_cstore_cinfo_store(&st->cstore, key, &ci) != NGX_OK) {
         /* The object is cached but unrecorded - a safe miss (refill) next time. */
@@ -936,11 +998,18 @@ xrootd_sd_cache_fill_needs_offload(xrootd_sd_instance_t *inst, const char *key)
     }
     st = SD_CACHE_ST(inst);
 
-    /* A COMPLETE cached object is served from the store with no fill. */
+    /* A COMPLETE cached object is served from the store with no fill —
+     * unless its phase-68 TTL has passed (an expired manifest refills; the
+     * failed-refill path serves it stale within the 10x-TTL bound). */
     if (xrootd_cstore_cinfo_load(&st->cstore, key, &ci) == NGX_OK
         && (ci.flags & XROOTD_CINFO_F_COMPLETE))
     {
-        return 0;
+        if (!(st->policy.cvmfs_manifest_ttl > 0
+              && xrootd_cache_cinfo_expired(&ci, time(NULL)) == 1))
+        {
+            return 0;
+        }
+        /* expired: fall through to the miss logic (refill if a slow tier) */
     }
     /* Slice/partial mode (LOCAL store): open() returns a partial object without a
      * whole-file fill, so the open call itself does not block. */

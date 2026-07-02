@@ -47,6 +47,8 @@
 #define XROOTD_CINFO_F_PARTIAL  0x0002u   /* some, not all, blocks present */
 #define XROOTD_CINFO_F_VERIFIED 0x0004u   /* contents checked vs the origin digest */
 #define XROOTD_CINFO_F_DIRTY    0x0008u   /* local writes pending write-back */
+#define XROOTD_CINFO_F_EXPIRES  0x0010u   /* expires_at present+valid
+                                             (phase-68 manifest TTL) */
 
 /* Block granule used to key a DIRTY record's validity (size/mtime/block_size).
  * The dirty extent is file-level (dirty_lo/dirty_hi), so this granule is only the
@@ -87,9 +89,17 @@ typedef struct {
     char     cks_alg[16];                           /* origin checksum algo name */
     uint8_t  cks_len;
     char     cks_hex[129];                          /* origin checksum, hex */
+    /* ---- phase-68 trailer (appended LAST; version stays 3: readers accept
+     * files written without it — see cinfo.c's tolerant layout probe) ---- */
+    uint64_t expires_at;     /* unix secs; entry stale when now >= expires_at
+                                and F_EXPIRES is set. 0 + no flag = no TTL. */
+    uint64_t filled_at;      /* unix secs the fill published this entry; keys
+                                the bounded stale-if-error window (10x TTL). */
 } xrootd_cache_cinfo_t;
 
 #define XROOTD_CACHE_CINFO_HDR_SIZE (sizeof(xrootd_cache_cinfo_t))
+/* Pre-phase-68 v3 header (no expires_at/filled_at trailer): 16 bytes shorter. */
+#define XROOTD_CACHE_CINFO_HDR_SIZE_PRE68 (sizeof(xrootd_cache_cinfo_t) - 16)
 
 /* ---- pure helpers (no I/O; safe on any thread) ------------------------- */
 
@@ -112,6 +122,12 @@ uint64_t xrootd_cache_cinfo_present_count(const uint8_t *bitmap, uint64_t nblock
  */
 void xrootd_cache_cinfo_refresh_flags(xrootd_cache_cinfo_t *hdr,
     const uint8_t *bitmap);
+
+/* Stamp an expiry (sets F_EXPIRES) — phase-68 manifest TTL. */
+void xrootd_cache_cinfo_set_expires(xrootd_cache_cinfo_t *ci, time_t when);
+
+/* 0 = fresh, 1 = expired, -1 = no expiry recorded (immutable entry). */
+int  xrootd_cache_cinfo_expired(const xrootd_cache_cinfo_t *ci, time_t now);
 
 /* ---- sidecar path ------------------------------------------------------- */
 

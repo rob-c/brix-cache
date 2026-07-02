@@ -186,8 +186,10 @@ ngx_http_xrootd_cvmfs_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
             return NGX_CONF_ERROR;
         }
 
-        /* Verify-mismatch evidence lands in the protocol's quarantine dir. */
+        /* Verify-mismatch evidence lands in the protocol's quarantine dir;
+         * MANIFEST-class fills get the protocol's TTL stamped (T12). */
         conf->common.cache_quarantine_dir = conf->cvmfs.quarantine_dir;
+        conf->common.cache_manifest_ttl   = conf->cvmfs.manifest_ttl;
 
         /* Phase-64: compose the cache/stage tiers over the backend. */
         if (xrootd_tier_register_stores(cf, &conf->common) != NGX_OK) {
