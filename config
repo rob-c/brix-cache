@@ -801,6 +801,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/cache/cinfo_sidecar.c \
     $ngx_addon_dir/src/fs/cache/cstore.c \
     $ngx_addon_dir/src/fs/cache/verify.c \
+    $ngx_addon_dir/src/protocols/cvmfs/classify.c \
     $ngx_addon_dir/src/fs/cache/origin/s3_transport.c \
     $ngx_addon_dir/src/fs/cache/origin/pelican_register.c \
     $ngx_addon_dir/src/fs/cache/lock.c \
