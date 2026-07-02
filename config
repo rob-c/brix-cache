@@ -1226,7 +1226,9 @@ ngx_module_name=ngx_http_xrootd_cvmfs_module
 ngx_module_srcs="$ngx_addon_dir/src/protocols/cvmfs/module.c \
                  $ngx_addon_dir/src/protocols/cvmfs/handler.c \
                  $ngx_addon_dir/src/protocols/cvmfs/gate.c \
-                 $ngx_addon_dir/src/protocols/cvmfs/geo.c"
+                 $ngx_addon_dir/src/protocols/cvmfs/geo.c \
+                 $ngx_addon_dir/src/protocols/cvmfs/request.c \
+                 $ngx_addon_dir/src/protocols/cvmfs/upstreams.c"
 ngx_module_deps="$ngx_addon_dir/src/protocols/cvmfs/cvmfs.h \
                  $ngx_addon_dir/src/protocols/cvmfs/classify.h \
                  $ngx_addon_dir/src/core/config/shared_conf.h \
