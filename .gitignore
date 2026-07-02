@@ -69,3 +69,6 @@ docs/doxygen/
 
 # Local security proof-of-concept (exploit code; kept out of the repo)
 xrootd-session-hijack-poc/
+
+# superpowers brainstorm scratch
+.superpowers/
