@@ -11,6 +11,7 @@
  */
 
 #include "cinfo.h"
+#include "fs/meta/xmeta_carrier.h"   /* xattr name + size cap (shared) */
 
 #include <errno.h>
 #include <fcntl.h>
@@ -19,6 +20,7 @@
 #include <string.h>
 #include <sys/file.h>
 #include <sys/stat.h>
+#include <sys/xattr.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -91,356 +93,367 @@ xrootd_cache_cinfo_path(char *dst, size_t dstsz, const char *cache_path)
     return (n < 0 || (size_t) n >= dstsz) ? -1 : 0;
 }
 
-/* short-safe positional read/write */
-/* Transfer exactly len bytes at offset off. Returns NGX_OK, NGX_DECLINED on a
- * short read (premature EOF), or NGX_ERROR (errno set). */
-static ngx_int_t
-cinfo_pio(int fd, void *buf, size_t len, off_t off, unsigned write_op)
-{
-    u_char *p = buf;
+/* ---- xmeta mapping (the cinfo struct stays the in-memory model) --------- */
 
-    /* The .cinfo sidecar is cache METADATA (the block-present bitmap), not user
-     * file data, so the data-plane "byte I/O only via the SD backend" invariant
-     * does not apply — and keeping raw pread/pwrite here preserves cinfo.c's
-     * standalone (nginx-free) unit test (tests/c/run_cinfo_tests.sh). */
-    while (len > 0) {
-        ssize_t n = write_op ? pwrite(fd, p, len, off)
-                             : pread(fd, p, len, off);
-        if (n < 0) {
-            if (errno == EINTR) {
-                continue;
-            }
-            return NGX_ERROR;
-        }
-        if (n == 0) {
-            return NGX_DECLINED;   /* short file */
-        }
-        p += (size_t) n;
-        len -= (size_t) n;
-        off += n;
+ngx_int_t
+xrootd_cache_cinfo_to_xmeta(const xrootd_cache_cinfo_t *hdr,
+    const uint8_t *bitmap, size_t bitmap_len, xrootd_xmeta_t *m)
+{
+    uint32_t bs = hdr->block_size ? hdr->block_size : XROOTD_CACHE_DIRTY_BLOCK;
+    size_t   need;
+
+    if (xrootd_xmeta_init(m, (int64_t) hdr->size, (int64_t) bs)
+        != XROOTD_XMETA_OK)
+    {
+        return NGX_ERROR;
+    }
+    m->have_blockcrc = 0;              /* block CRCs are CSI state (P3) */
+    m->access_cnt    = hdr->access_count;
+    if (hdr->last_access != 0 || hdr->bytes_served != 0) {
+        m->astat_count       = 1;
+        m->astat.attach_time = (int64_t) hdr->last_access;
+        m->astat.detach_time = (int64_t) hdr->last_access;
+        m->astat.bytes_hit   = (int64_t) hdr->bytes_served;
+    }
+    m->origin_mtime  = hdr->mtime;
+    m->dirty_lo      = hdr->dirty_lo;
+    m->dirty_hi      = hdr->dirty_hi;
+    m->dirty_since   = hdr->dirty_since;
+    m->flush_gen     = hdr->flush_gen;
+    m->last_flush    = hdr->last_flush;
+    m->bytes_flushed = hdr->bytes_flushed;
+    m->expires_at    = hdr->expires_at;
+    m->filled_at     = hdr->filled_at;
+    m->mode          = hdr->mode;
+    m->state_flags   =
+        ((hdr->flags & XROOTD_CINFO_F_VERIFIED) ? XROOTD_XMETA_F_VERIFIED : 0u)
+      | ((hdr->flags & XROOTD_CINFO_F_EXPIRES)  ? XROOTD_XMETA_F_EXPIRES  : 0u);
+    /* Clamp the validity-string lengths at this boundary: a hand-built or
+     * corrupted header must not be able to drive an over-long encode. */
+    m->etag_len = (hdr->etag_len <= sizeof(hdr->etag)) ? hdr->etag_len : 0;
+    ngx_memcpy(m->etag, hdr->etag, m->etag_len);
+    m->cks_alg_len = (hdr->cks_alg_len <= sizeof(hdr->cks_alg))
+                     ? hdr->cks_alg_len : 0;
+    ngx_memcpy(m->cks_alg, hdr->cks_alg, m->cks_alg_len);
+    m->cks_len = (hdr->cks_len <= sizeof(hdr->cks_hex)) ? hdr->cks_len : 0;
+    ngx_memcpy(m->cks_hex, hdr->cks_hex, m->cks_len);
+
+    /* Present bitmap: adopt the caller's when it covers this geometry;
+     * otherwise synthesize whole-file state from the COMPLETE flag. */
+    need = xrootd_cache_cinfo_bitmap_len(m->nblocks);
+    if (bitmap != NULL && bitmap_len >= need && need > 0) {
+        ngx_memcpy(m->bitmap, bitmap, need);
+    } else if ((hdr->flags & XROOTD_CINFO_F_COMPLETE) && need > 0) {
+        ngx_memset(m->bitmap, 0xFF, need);
     }
     return NGX_OK;
 }
 
-/*
- * Validate a just-read header against its own internal invariants. NGX_OK if it
- * is a well-formed cinfo, NGX_DECLINED otherwise (treat as no record).
- */
-static ngx_int_t
-cinfo_header_ok(const xrootd_cache_cinfo_t *hdr)
+void
+xrootd_cache_cinfo_from_xmeta(const xrootd_xmeta_t *m,
+    xrootd_cache_cinfo_t *hdr)
 {
-    if (hdr->magic != XROOTD_CACHE_CINFO_MAGIC
-        || hdr->version != XROOTD_CACHE_CINFO_VERSION
-        || hdr->block_size == 0
-        || hdr->etag_len > XROOTD_CACHE_META_ETAG_MAX
-        || hdr->cks_alg_len > sizeof(hdr->cks_alg)
-        || hdr->cks_len > sizeof(hdr->cks_hex)
-        || hdr->nblocks != xrootd_cache_cinfo_nblocks(hdr->size, hdr->block_size))
-    {
-        return NGX_DECLINED;
+    ngx_memzero(hdr, sizeof(*hdr));
+    hdr->magic         = XROOTD_CACHE_CINFO_MAGIC;
+    hdr->version       = XROOTD_CACHE_CINFO_VERSION;
+    hdr->block_size    = (uint32_t) m->buffer_size;
+    hdr->size          = (uint64_t) m->file_size;
+    hdr->mtime         = m->origin_mtime;
+    hdr->nblocks       = m->nblocks;
+    hdr->access_count  = m->access_cnt;
+    hdr->bytes_served  = (uint64_t) m->astat.bytes_hit;
+    hdr->last_access   = (uint64_t) m->astat.detach_time;
+    hdr->dirty_lo      = m->dirty_lo;
+    hdr->dirty_hi      = m->dirty_hi;
+    hdr->dirty_since   = m->dirty_since;
+    hdr->flush_gen     = m->flush_gen;
+    hdr->last_flush    = m->last_flush;
+    hdr->bytes_flushed = m->bytes_flushed;
+    hdr->expires_at    = m->expires_at;
+    hdr->filled_at     = m->filled_at;
+    hdr->mode          = m->mode;
+
+    hdr->etag_len = m->etag_len <= sizeof(hdr->etag) ? m->etag_len : 0;
+    ngx_memcpy(hdr->etag, m->etag, hdr->etag_len);
+    hdr->cks_alg_len = m->cks_alg_len <= sizeof(hdr->cks_alg)
+                       ? m->cks_alg_len : 0;
+    ngx_memcpy(hdr->cks_alg, m->cks_alg, hdr->cks_alg_len);
+    hdr->cks_len = m->cks_len <= sizeof(hdr->cks_hex) ? m->cks_len : 0;
+    ngx_memcpy(hdr->cks_hex, m->cks_hex, hdr->cks_len);
+
+    if (m->bitmap != NULL) {
+        xrootd_cache_cinfo_refresh_flags(hdr, m->bitmap);
     }
-    return NGX_OK;
+    if (m->state_flags & XROOTD_XMETA_F_VERIFIED) {
+        hdr->flags |= XROOTD_CINFO_F_VERIFIED;
+    }
+    if (m->state_flags & XROOTD_XMETA_F_EXPIRES) {
+        hdr->flags |= XROOTD_CINFO_F_EXPIRES;
+    }
+    if (m->dirty_lo < m->dirty_hi) {
+        hdr->flags |= XROOTD_CINFO_F_DIRTY;
+    }
 }
 
-/*
- * Frozen v2 on-disk header (pre-write-back layout). A v2 sidecar predates the
- * dirty/write-back fields; reading it lets a populated cache survive the upgrade
- * to v3 — the present bitmap is preserved and the dirty state starts clean. The
- * field order is byte-identical to the v2 xrootd_cache_cinfo_t.
- */
-#define XROOTD_CACHE_CINFO_V2_VERSION 2
-typedef struct {
-    uint32_t magic;
-    uint16_t version;
-    uint16_t flags;
-    uint32_t block_size;
-    uint32_t reserved;
-    uint64_t size;
-    uint64_t mtime;
-    uint64_t nblocks;
-    uint64_t access_count;
-    uint64_t bytes_served;
-    uint64_t last_access;
-    uint8_t  etag_len;
-    char     etag[XROOTD_CACHE_META_ETAG_MAX];
-    uint8_t  cks_alg_len;
-    char     cks_alg[16];
-    uint8_t  cks_len;
-    char     cks_hex[129];
-} xrootd_cache_cinfo_v2_t;
-#define XROOTD_CACHE_CINFO_V2_HDR_SIZE (sizeof(xrootd_cache_cinfo_v2_t))
+/* ---- raw path carrier ------------------------------------------------------
+ * The record rides in the data file's user.xrd.cinfo xattr when it fits, else
+ * as the stock-readable "<path>.cinfo" sidecar. The cache tree is the
+ * read-cache's own svc-owned raw domain (not an export), so these are direct
+ * syscalls, which also keeps cinfo.c standalone-testable. */
 
-/* Promote a v2 header into a zero-initialised v3 header (the dirty/write-back
- * fields stay 0 ⇒ the upgraded record reads as clean). */
-static void
-cinfo_v2_to_v3(const xrootd_cache_cinfo_v2_t *v2, xrootd_cache_cinfo_t *out)
+#define CINFO_XATTR_NAME XROOTD_XMETA_XATTR_NAME
+
+/* "the record cannot ride in this file's xattr" -- fall back, don't fail */
+static int
+cinfo_xattr_unfit(int err)
 {
-    ngx_memzero(out, sizeof(*out));
-    out->magic        = v2->magic;
-    out->version      = XROOTD_CACHE_CINFO_VERSION;
-    out->flags        = v2->flags;
-    out->block_size   = v2->block_size;
-    out->size         = v2->size;
-    out->mtime        = v2->mtime;
-    out->nblocks      = v2->nblocks;
-    out->access_count = v2->access_count;
-    out->bytes_served = v2->bytes_served;
-    out->last_access  = v2->last_access;
-    out->etag_len     = v2->etag_len;
-    ngx_memcpy(out->etag, v2->etag, sizeof(out->etag));
-    out->cks_alg_len  = v2->cks_alg_len;
-    ngx_memcpy(out->cks_alg, v2->cks_alg, sizeof(out->cks_alg));
-    out->cks_len      = v2->cks_len;
-    ngx_memcpy(out->cks_hex, v2->cks_hex, sizeof(out->cks_hex));
+    return err == E2BIG || err == ERANGE || err == ENOSPC || err == ENOTSUP
+        || err == EACCES || err == EPERM || err == ENOENT
+#ifdef EOPNOTSUPP
+        || err == EOPNOTSUPP
+#endif
+        ;
 }
 
-/* Read a legacy v2 sidecar (header@v2 size + bitmap@v2 offset) into the v3 hdr +
- * a freshly malloc'd bitmap. fd is positioned anywhere (pread is used). Returns
- * NGX_OK with the bitmap out-params set (NULL/0 for a 0-block file), or a
- * NGX_DECLINED/NGX_ERROR the caller propagates. */
+/* Load + decode the record for cache_path (xattr first, then the sidecar
+ * file). NGX_OK (caller frees *xm) / NGX_DECLINED (nothing valid recorded) /
+ * NGX_ERROR (errno). */
 static ngx_int_t
-cinfo_load_v2(int fd, xrootd_cache_cinfo_t *hdr, uint8_t **bitmap,
-    size_t *bitmap_len)
+cinfo_xmeta_read(const char *cache_path, xrootd_xmeta_t *xm)
 {
-    xrootd_cache_cinfo_v2_t v2;
-    size_t                  blen;
-    uint8_t                *bits;
-    ngx_int_t               rc;
+    char     path[PATH_MAX];
+    uint8_t *buf;
+    ssize_t  n;
+    int      fd, drc;
 
-    if (cinfo_pio(fd, &v2, XROOTD_CACHE_CINFO_V2_HDR_SIZE, 0, 0) != NGX_OK) {
-        return NGX_DECLINED;
-    }
-    if (v2.block_size == 0
-        || v2.nblocks != xrootd_cache_cinfo_nblocks(v2.size, v2.block_size))
-    {
-        return NGX_DECLINED;                 /* garbage v2 → nothing recorded */
-    }
-    cinfo_v2_to_v3(&v2, hdr);
-
-    blen = xrootd_cache_cinfo_bitmap_len(hdr->nblocks);
-    if (blen == 0) {
-        return NGX_OK;                       /* 0-block file: header only */
-    }
-    bits = malloc(blen);
-    if (bits == NULL) {
+    buf = malloc(XROOTD_XMETA_XATTR_MAX);
+    if (buf == NULL) {
         errno = ENOMEM;
         return NGX_ERROR;
     }
-    rc = cinfo_pio(fd, bits, blen, (off_t) XROOTD_CACHE_CINFO_V2_HDR_SIZE, 0);
-    if (rc != NGX_OK) {
-        free(bits);
-        return (rc == NGX_DECLINED) ? NGX_DECLINED : NGX_ERROR;
-    }
-    *bitmap = bits;
-    *bitmap_len = blen;
-    return NGX_OK;
-}
 
-/* load / store */
-/* ---- phase-68 manifest TTL ---------------------------------------------- */
-
-void
-xrootd_cache_cinfo_set_expires(xrootd_cache_cinfo_t *ci, time_t when)
-{
-    ci->expires_at = (uint64_t) when;
-    ci->flags |= XROOTD_CINFO_F_EXPIRES;
-}
-
-int
-xrootd_cache_cinfo_expired(const xrootd_cache_cinfo_t *ci, time_t now)
-{
-    if ((ci->flags & XROOTD_CINFO_F_EXPIRES) == 0) {
-        return -1;                          /* immutable entry: never expires */
-    }
-    return ((uint64_t) now >= ci->expires_at) ? 1 : 0;
-}
-
-/*
- * Read the fixed v3 header from fd, tolerating the pre-phase-68 layout (16
- * bytes shorter: no expires_at/filled_at trailer). Detection: try the full
- * header; a short file re-reads at the old size, and a full read whose file
- * size matches old-header+bitmap exactly is an old file whose bitmap bytes
- * leaked into the trailer. On NGX_OK the trailer is normalized (zeroed, flag
- * cleared, for old files) and *bitmap_off holds THIS file's bitmap offset.
- * Writers always emit the full new header, so a rewrite upgrades in place.
- */
-static ngx_int_t
-cinfo_read_hdr(int fd, xrootd_cache_cinfo_t *hdr, off_t *bitmap_off)
-{
-    struct stat  stb;
-    size_t       blen;
-    ngx_int_t    rc;
-
-    rc = cinfo_pio(fd, hdr, XROOTD_CACHE_CINFO_HDR_SIZE, 0, 0);
-    if (rc != NGX_OK) {
-        rc = cinfo_pio(fd, hdr, XROOTD_CACHE_CINFO_HDR_SIZE_PRE68, 0, 0);
-        if (rc != NGX_OK) {
-            return rc;
+    /* vfs-seam-allow: cache-state record on the svc-owned cache tree */
+    n = getxattr(cache_path, CINFO_XATTR_NAME, buf, XROOTD_XMETA_XATTR_MAX);
+    if (n > 0) {
+        drc = xrootd_xmeta_decode(buf, (size_t) n, xm);
+        free(buf);
+        if (drc == XROOTD_XMETA_OK) {
+            return NGX_OK;
         }
-        hdr->expires_at = 0;
-        hdr->filled_at  = 0;
-        hdr->flags &= (uint16_t) ~XROOTD_CINFO_F_EXPIRES;
-        *bitmap_off = (off_t) XROOTD_CACHE_CINFO_HDR_SIZE_PRE68;
-        return NGX_OK;
+        return (drc == XROOTD_XMETA_FOREIGN) ? NGX_DECLINED : NGX_ERROR;
     }
-    blen = xrootd_cache_cinfo_bitmap_len(hdr->nblocks);
-    if (fstat(fd, &stb) == 0
-        && (size_t) stb.st_size == XROOTD_CACHE_CINFO_HDR_SIZE_PRE68 + blen)
+    free(buf);
+
+    if (xrootd_cache_cinfo_path(path, sizeof(path), cache_path) != 0) {
+        errno = ENAMETOOLONG;
+        return NGX_ERROR;
+    }
+    fd = open(path, O_RDONLY | O_NOCTTY | O_CLOEXEC | O_NOFOLLOW);
+    if (fd < 0) {
+        return (errno == ENOENT) ? NGX_DECLINED : NGX_ERROR;
+    }
     {
-        hdr->expires_at = 0;
-        hdr->filled_at  = 0;
-        hdr->flags &= (uint16_t) ~XROOTD_CINFO_F_EXPIRES;
-        *bitmap_off = (off_t) XROOTD_CACHE_CINFO_HDR_SIZE_PRE68;
+        struct stat stb;
+        uint8_t    *fbuf;
+        size_t      flen, got = 0;
+
+        if (fstat(fd, &stb) != 0 || stb.st_size <= 0
+            || (uint64_t) stb.st_size > XROOTD_XMETA_MAX_SECTION)
+        {
+            close(fd);
+            return NGX_DECLINED;
+        }
+        flen = (size_t) stb.st_size;
+        fbuf = malloc(flen);
+        if (fbuf == NULL) {
+            close(fd);
+            errno = ENOMEM;
+            return NGX_ERROR;
+        }
+        while (got < flen) {
+            ssize_t r = pread(fd, fbuf + got, flen - got, (off_t) got);
+
+            if (r < 0 && errno == EINTR) {
+                continue;
+            }
+            if (r <= 0) {
+                break;
+            }
+            got += (size_t) r;
+        }
+        close(fd);
+        if (got != flen) {
+            free(fbuf);
+            return NGX_DECLINED;
+        }
+        drc = xrootd_xmeta_decode(fbuf, flen, xm);
+        free(fbuf);
+    }
+    if (drc == XROOTD_XMETA_OK) {
         return NGX_OK;
     }
-    *bitmap_off = (off_t) XROOTD_CACHE_CINFO_HDR_SIZE;
+    return (drc == XROOTD_XMETA_FOREIGN) ? NGX_DECLINED : NGX_ERROR;
+}
+
+/* Encode + persist the record for cache_path (xattr preferred, sidecar
+ * fallback; exactly one carrier survives). NGX_OK / NGX_ERROR (errno). */
+static ngx_int_t
+cinfo_xmeta_write(const char *cache_path, const xrootd_xmeta_t *xm)
+{
+    char     path[PATH_MAX];
+    uint8_t *buf = NULL;
+    size_t   len = 0;
+    int      fd;
+    size_t   put = 0;
+
+    if (xrootd_xmeta_encode(xm, &buf, &len) != XROOTD_XMETA_OK) {
+        return NGX_ERROR;
+    }
+    if (xrootd_cache_cinfo_path(path, sizeof(path), cache_path) != 0) {
+        free(buf);
+        errno = ENAMETOOLONG;
+        return NGX_ERROR;
+    }
+
+    if (len <= XROOTD_XMETA_XATTR_MAX
+        /* vfs-seam-allow: cache-state record on the svc-owned cache tree */
+        && setxattr(cache_path, CINFO_XATTR_NAME, buf, len, 0) == 0)
+    {
+        free(buf);
+        (void) unlink(path);           /* one carrier: drop any stale sidecar */
+        return NGX_OK;
+    }
+    if (len <= XROOTD_XMETA_XATTR_MAX && !cinfo_xattr_unfit(errno)) {
+        free(buf);
+        return NGX_ERROR;
+    }
+
+    fd = open(path, O_WRONLY | O_CREAT | O_NOCTTY | O_CLOEXEC | O_NOFOLLOW,
+              0644);
+    if (fd < 0) {
+        free(buf);
+        return NGX_ERROR;
+    }
+    while (put < len) {
+        ssize_t w = pwrite(fd, buf + put, len - put, (off_t) put);
+
+        if (w < 0 && errno == EINTR) {
+            continue;
+        }
+        if (w <= 0) {
+            free(buf);
+            close(fd);
+            return NGX_ERROR;
+        }
+        put += (size_t) w;
+    }
+    free(buf);
+    if (ftruncate(fd, (off_t) len) != 0 || fdatasync(fd) != 0) {
+        close(fd);
+        return NGX_ERROR;
+    }
+    if (close(fd) != 0) {
+        return NGX_ERROR;
+    }
+    (void) removexattr(cache_path, CINFO_XATTR_NAME);  /* one carrier */
     return NGX_OK;
+}
+
+/* Open + LOCK_EX the per-file RMW lock: the data file when it exists (partial
+ * fills, write-back), else the sidecar path (slice cache: the base object is
+ * never materialized, so the sidecar doubles as the lock). Returns the locked
+ * fd or -1 (errno). flock is advisory, per-open-fd, auto-released on crash. */
+static int
+cinfo_rmw_lock(const char *cache_path)
+{
+    char path[PATH_MAX];
+    int  fd;
+
+    fd = open(cache_path, O_RDONLY | O_NOCTTY | O_CLOEXEC | O_NOFOLLOW);
+    if (fd < 0) {
+        if (errno != ENOENT
+            || xrootd_cache_cinfo_path(path, sizeof(path), cache_path) != 0)
+        {
+            return -1;
+        }
+        fd = open(path, O_RDWR | O_CREAT | O_NOCTTY | O_CLOEXEC | O_NOFOLLOW,
+                  0644);
+        if (fd < 0) {
+            return -1;
+        }
+    }
+    while (flock(fd, LOCK_EX) != 0) {
+        if (errno != EINTR) {
+            close(fd);
+            return -1;
+        }
+    }
+    return fd;
+}
+
+static void
+cinfo_rmw_unlock(int fd)
+{
+    (void) flock(fd, LOCK_UN);
+    (void) close(fd);
 }
 
 ngx_int_t
 xrootd_cache_cinfo_load(const char *cache_path, xrootd_cache_cinfo_t *hdr,
     uint8_t **bitmap, size_t *bitmap_len)
 {
-    char      path[PATH_MAX];
-    int       fd;
-    size_t    blen;
-    uint8_t  *bits;
-    ngx_int_t rc;
+    xrootd_xmeta_t xm;
+    size_t         blen;
+    ngx_int_t      rc;
 
-    if (cache_path == NULL || hdr == NULL || bitmap == NULL || bitmap_len == NULL) {
+    if (cache_path == NULL || hdr == NULL || bitmap == NULL
+        || bitmap_len == NULL)
+    {
         errno = EINVAL;
         return NGX_ERROR;
     }
     *bitmap = NULL;
     *bitmap_len = 0;
 
-    if (xrootd_cache_cinfo_path(path, sizeof(path), cache_path) != 0) {
-        errno = ENAMETOOLONG;
-        return NGX_ERROR;
+    rc = cinfo_xmeta_read(cache_path, &xm);
+    if (rc != NGX_OK) {
+        return rc;
     }
+    xrootd_cache_cinfo_from_xmeta(&xm, hdr);
 
-    fd = open(path, O_RDONLY | O_NOCTTY | O_CLOEXEC | O_NOFOLLOW);
-    if (fd < 0) {
-        return (errno == ENOENT) ? NGX_DECLINED : NGX_ERROR;
-    }
+    blen = xrootd_cache_cinfo_bitmap_len(hdr->nblocks);
+    if (blen > 0) {
+        uint8_t *bits = malloc(blen);
 
-    /* Peek magic+version first: a v2 sidecar is SHORTER than the v3 header, so a
-     * full v3-sized read would short-read before we could detect the version.
-     * magic (u32 @0) + version (u16 @4) sit at the same offset in v2 and v3. */
-    {
-        unsigned char peek[8];
-
-        if (cinfo_pio(fd, peek, sizeof(peek), 0, 0) == NGX_OK) {
-            uint32_t pmagic;
-            uint16_t pver;
-
-            ngx_memcpy(&pmagic, peek, sizeof(pmagic));
-            ngx_memcpy(&pver, peek + 4, sizeof(pver));
-            if (pmagic == XROOTD_CACHE_CINFO_MAGIC
-                && pver == XROOTD_CACHE_CINFO_V2_VERSION)
-            {
-                rc = cinfo_load_v2(fd, hdr, bitmap, bitmap_len);
-                close(fd);
-                return rc;
-            }
-        }
-    }
-
-    {
-        off_t boff = 0;
-
-        rc = cinfo_read_hdr(fd, hdr, &boff);
-        if (rc != NGX_OK) {
-            close(fd);
-            return rc;             /* short header → DECLINED, I/O error → ERROR */
-        }
-        if (cinfo_header_ok(hdr) != NGX_OK) {
-            close(fd);
-            return NGX_DECLINED;   /* garbage / wrong version / inconsistent */
-        }
-
-        blen = xrootd_cache_cinfo_bitmap_len(hdr->nblocks);
-        if (blen == 0) {
-            close(fd);
-            return NGX_OK;         /* 0-block file: header only, no bitmap */
-        }
-
-        bits = malloc(blen);
         if (bits == NULL) {
-            close(fd);
+            xrootd_xmeta_free(&xm);
             errno = ENOMEM;
             return NGX_ERROR;
         }
-        rc = cinfo_pio(fd, bits, blen, boff, 0);
+        ngx_memcpy(bits, xm.bitmap, blen);
+        *bitmap = bits;
+        *bitmap_len = blen;
     }
-    close(fd);
-    if (rc != NGX_OK) {
-        free(bits);
-        return (rc == NGX_DECLINED) ? NGX_DECLINED : NGX_ERROR;
-    }
-
-    *bitmap = bits;
-    *bitmap_len = blen;
-    return NGX_OK;
-}
-
-/*
- * Write *src + bitmap to an already-open fd at offset 0 and trim to that exact
- * length. The magic/version are forced so every persisted record self-identifies.
- */
-static ngx_int_t
-cinfo_write_fd(int fd, const xrootd_cache_cinfo_t *src,
-    const uint8_t *bitmap, size_t bitmap_len)
-{
-    xrootd_cache_cinfo_t disk;
-
-    disk = *src;
-    disk.magic = XROOTD_CACHE_CINFO_MAGIC;
-    disk.version = XROOTD_CACHE_CINFO_VERSION;
-
-    if (cinfo_pio(fd, &disk, XROOTD_CACHE_CINFO_HDR_SIZE, 0, 1) != NGX_OK) {
-        return NGX_ERROR;
-    }
-    if (bitmap_len > 0
-        && cinfo_pio(fd, (void *) bitmap, bitmap_len,
-                     (off_t) XROOTD_CACHE_CINFO_HDR_SIZE, 1) != NGX_OK)
-    {
-        return NGX_ERROR;
-    }
-    if (ftruncate(fd, (off_t) (XROOTD_CACHE_CINFO_HDR_SIZE + bitmap_len)) != 0) {
-        return NGX_ERROR;
-    }
-    if (fdatasync(fd) != 0) {
-        return NGX_ERROR;
-    }
+    xrootd_xmeta_free(&xm);
     return NGX_OK;
 }
 
 ngx_int_t
-xrootd_cache_cinfo_store(const char *cache_path, const xrootd_cache_cinfo_t *hdr,
-    const uint8_t *bitmap, size_t bitmap_len)
+xrootd_cache_cinfo_store(const char *cache_path,
+    const xrootd_cache_cinfo_t *hdr, const uint8_t *bitmap, size_t bitmap_len)
 {
-    char      path[PATH_MAX];
-    int       fd;
-    ngx_int_t rc;
+    xrootd_xmeta_t xm;
+    ngx_int_t      rc;
 
     if (cache_path == NULL || hdr == NULL) {
         errno = EINVAL;
         return NGX_ERROR;
     }
-    if (xrootd_cache_cinfo_path(path, sizeof(path), cache_path) != 0) {
-        errno = ENAMETOOLONG;
+    if (xrootd_cache_cinfo_to_xmeta(hdr, bitmap, bitmap_len, &xm) != NGX_OK) {
         return NGX_ERROR;
     }
-
-    fd = open(path, O_WRONLY | O_CREAT | O_NOCTTY | O_CLOEXEC | O_NOFOLLOW, 0644);
-    if (fd < 0) {
-        return NGX_ERROR;
-    }
-    rc = cinfo_write_fd(fd, hdr, bitmap, bitmap_len);
-    if (close(fd) != 0 && rc == NGX_OK) {
-        rc = NGX_ERROR;
-    }
+    rc = cinfo_xmeta_write(cache_path, &xm);
+    xrootd_xmeta_free(&xm);
     return rc;
 }
 
@@ -497,13 +510,11 @@ xrootd_cache_cinfo_record_block(const char *cache_path, uint64_t size,
     uint32_t block_size, uint64_t mtime, uint32_t mode, uint64_t blk,
     ngx_log_t *log)
 {
-    char                 path[PATH_MAX];
     xrootd_cache_cinfo_t hdr;
-    uint8_t             *bits = NULL;
-    size_t               blen;
+    xrootd_xmeta_t       xm;
     uint64_t             nblocks;
-    int                  fd;
-    ngx_int_t            rc = NGX_ERROR;
+    int                  lfd;
+    ngx_int_t            rc;
 
     (void) log;
 
@@ -516,121 +527,69 @@ xrootd_cache_cinfo_record_block(const char *cache_path, uint64_t size,
         errno = ERANGE;
         return NGX_ERROR;            /* block out of range for this size */
     }
-    blen = xrootd_cache_cinfo_bitmap_len(nblocks);
 
-    if (xrootd_cache_cinfo_path(path, sizeof(path), cache_path) != 0) {
-        errno = ENAMETOOLONG;
+    lfd = cinfo_rmw_lock(cache_path);
+    if (lfd < 0) {
         return NGX_ERROR;
     }
 
-    fd = open(path, O_RDWR | O_CREAT | O_NOCTTY | O_CLOEXEC | O_NOFOLLOW, 0644);
-    if (fd < 0) {
-        return NGX_ERROR;
-    }
-    /* Serialise the read-modify-write so two workers filling different windows
-     * of the same file cannot clobber each other's bits.  flock is per-open-fd,
-     * advisory, and auto-released on close/crash (no orphan-lock reclaim). */
-    while (flock(fd, LOCK_EX) != 0) {
-        if (errno != EINTR) {
-            close(fd);
+    /* Adopt the recorded state only if it describes the SAME origin file; an
+     * absent/garbage/stale (changed origin) record starts the bitmap fresh. */
+    if (cinfo_xmeta_read(cache_path, &xm) == NGX_OK) {
+        if ((uint64_t) xm.file_size == size
+            && (uint64_t) xm.buffer_size == block_size
+            && xm.origin_mtime == mtime)
+        {
+            xrootd_cache_cinfo_from_xmeta(&xm, &hdr);
+        } else {
+            xrootd_xmeta_free(&xm);
+            cinfo_init(&hdr, size, block_size, mtime);
+            if (xrootd_cache_cinfo_to_xmeta(&hdr, NULL, 0, &xm) != NGX_OK) {
+                cinfo_rmw_unlock(lfd);
+                return NGX_ERROR;
+            }
+        }
+    } else {
+        cinfo_init(&hdr, size, block_size, mtime);
+        if (xrootd_cache_cinfo_to_xmeta(&hdr, NULL, 0, &xm) != NGX_OK) {
+            cinfo_rmw_unlock(lfd);
             return NGX_ERROR;
         }
     }
 
-    bits = malloc(blen ? blen : 1);
-    if (bits == NULL) {
-        flock(fd, LOCK_UN);
-        close(fd);
-        errno = ENOMEM;
-        return NGX_ERROR;
-    }
-    ngx_memzero(bits, blen ? blen : 1);
-
-    /* Adopt the on-disk bitmap only if it describes the SAME origin file; an
-     * absent/garbage/stale (changed origin) record starts the bitmap fresh. */
-    {
-        xrootd_cache_cinfo_t cur;
-        off_t     boff = 0;
-        ngx_int_t lrc = cinfo_read_hdr(fd, &cur, &boff);
-        int reuse = (lrc == NGX_OK
-                     && cinfo_header_ok(&cur) == NGX_OK
-                     && cur.size == size
-                     && cur.block_size == block_size
-                     && cur.mtime == mtime);
-        if (reuse) {
-            hdr = cur;
-            if (blen > 0
-                && cinfo_pio(fd, bits, blen, boff, 0) != NGX_OK)
-            {
-                ngx_memzero(bits, blen);   /* unreadable tail → start fresh */
-            }
-        } else {
-            cinfo_init(&hdr, size, block_size, mtime);
-        }
-    }
-
     if (mode != 0) {
-        hdr.mode = mode;                 /* origin perms (0 = caller has none) */
+        xm.mode = mode;              /* origin perms (0 = caller has none) */
     }
-    xrootd_cache_cinfo_mark_block(bits, blk);
-    xrootd_cache_cinfo_refresh_flags(&hdr, bits);
+    xrootd_xmeta_block_set(&xm, blk);
 
-    rc = cinfo_write_fd(fd, &hdr, bits, blen);
-
-    free(bits);
-    flock(fd, LOCK_UN);
-    if (close(fd) != 0 && rc == NGX_OK) {
-        rc = NGX_ERROR;
-    }
+    rc = cinfo_xmeta_write(cache_path, &xm);
+    xrootd_xmeta_free(&xm);
+    cinfo_rmw_unlock(lfd);
     return rc;
 }
 
-/* ---- write-back (dirty) record-keeping (v3) ---------------------------- */
+/* ---- write-back (dirty) record-keeping --------------------------------- */
 
-/*
- * Under an flock'd fd, load the current header + present bitmap describing the
- * SAME origin file (size/mtime/block_size); an absent/garbage/stale record
- * starts fresh (cinfo_init zeroes the dirty fields too). *bits is malloc'd
- * (caller frees); *blen_out is its length. Returns NGX_OK / NGX_ERROR.
- */
+/* Under the per-file RMW lock, load the record describing the SAME origin
+ * file (size/mtime/block_size) into *xm; an absent/garbage/stale record
+ * starts fresh (clean dirty state, empty bitmap). NGX_OK / NGX_ERROR. */
 static ngx_int_t
-cinfo_rmw_load(int fd, uint64_t size, uint32_t block_size, uint64_t mtime,
-    xrootd_cache_cinfo_t *hdr, uint8_t **bits, size_t *blen_out)
+cinfo_rmw_load(const char *cache_path, uint64_t size, uint32_t block_size,
+    uint64_t mtime, xrootd_xmeta_t *xm)
 {
-    uint64_t nblocks = xrootd_cache_cinfo_nblocks(size, block_size);
-    size_t   blen = xrootd_cache_cinfo_bitmap_len(nblocks);
-    uint8_t *b = malloc(blen ? blen : 1);
-    xrootd_cache_cinfo_t cur;
-    ngx_int_t lrc;
-    int reuse;
+    xrootd_cache_cinfo_t fresh;
 
-    if (b == NULL) {
-        errno = ENOMEM;
-        return NGX_ERROR;
-    }
-    ngx_memzero(b, blen ? blen : 1);
-
-    {
-        off_t boff = 0;
-
-        lrc = cinfo_read_hdr(fd, &cur, &boff);
-        reuse = (lrc == NGX_OK
-                 && cinfo_header_ok(&cur) == NGX_OK
-                 && cur.size == size
-                 && cur.block_size == block_size
-                 && cur.mtime == mtime);
-        if (reuse) {
-            *hdr = cur;
-            if (blen > 0 && cinfo_pio(fd, b, blen, boff, 0) != NGX_OK) {
-                ngx_memzero(b, blen);      /* unreadable tail → start fresh bits */
-            }
-        } else {
-            cinfo_init(hdr, size, block_size, mtime);
+    if (cinfo_xmeta_read(cache_path, xm) == NGX_OK) {
+        if ((uint64_t) xm->file_size == size
+            && (uint64_t) xm->buffer_size == block_size
+            && xm->origin_mtime == mtime)
+        {
+            return NGX_OK;
         }
+        xrootd_xmeta_free(xm);
     }
-    *bits = b;
-    *blen_out = blen;
-    return NGX_OK;
+    cinfo_init(&fresh, size, block_size, mtime);
+    return xrootd_cache_cinfo_to_xmeta(&fresh, NULL, 0, xm);
 }
 
 ngx_int_t
@@ -638,12 +597,9 @@ xrootd_cache_cinfo_mark_dirty(const char *cache_path, uint64_t size,
     uint32_t block_size, uint64_t mtime, uint64_t off, uint64_t len,
     ngx_log_t *log)
 {
-    char                 path[PATH_MAX];
-    xrootd_cache_cinfo_t hdr;
-    uint8_t             *bits = NULL;
-    size_t               blen;
-    int                  fd;
-    ngx_int_t            rc;
+    xrootd_xmeta_t xm;
+    int            lfd;
+    ngx_int_t      rc;
 
     (void) log;
 
@@ -651,50 +607,31 @@ xrootd_cache_cinfo_mark_dirty(const char *cache_path, uint64_t size,
         errno = EINVAL;
         return NGX_ERROR;
     }
-    if (xrootd_cache_cinfo_path(path, sizeof(path), cache_path) != 0) {
-        errno = ENAMETOOLONG;
+    lfd = cinfo_rmw_lock(cache_path);
+    if (lfd < 0) {
         return NGX_ERROR;
     }
-    fd = open(path, O_RDWR | O_CREAT | O_NOCTTY | O_CLOEXEC | O_NOFOLLOW, 0644);
-    if (fd < 0) {
-        return NGX_ERROR;
-    }
-    while (flock(fd, LOCK_EX) != 0) {
-        if (errno != EINTR) {
-            close(fd);
-            return NGX_ERROR;
-        }
-    }
-
-    if (cinfo_rmw_load(fd, size, block_size, mtime, &hdr, &bits, &blen)
-        != NGX_OK)
-    {
-        flock(fd, LOCK_UN);
-        close(fd);
+    if (cinfo_rmw_load(cache_path, size, block_size, mtime, &xm) != NGX_OK) {
+        cinfo_rmw_unlock(lfd);
         return NGX_ERROR;
     }
 
-    if (!(hdr.flags & XROOTD_CINFO_F_DIRTY)) {     /* clean → dirty transition */
-        hdr.flags |= XROOTD_CINFO_F_DIRTY;
-        hdr.dirty_lo = off;
-        hdr.dirty_hi = off + len;
-        hdr.dirty_since = (uint64_t) time(NULL);
+    if (xm.dirty_lo >= xm.dirty_hi) {              /* clean -> dirty */
+        xm.dirty_lo = off;
+        xm.dirty_hi = off + len;
+        xm.dirty_since = (uint64_t) time(NULL);
     } else {                                       /* widen; keep dirty_since */
-        if (off < hdr.dirty_lo) {
-            hdr.dirty_lo = off;
+        if (off < xm.dirty_lo) {
+            xm.dirty_lo = off;
         }
-        if (off + len > hdr.dirty_hi) {
-            hdr.dirty_hi = off + len;
+        if (off + len > xm.dirty_hi) {
+            xm.dirty_hi = off + len;
         }
     }
 
-    rc = cinfo_write_fd(fd, &hdr, bits, blen);
-
-    free(bits);
-    flock(fd, LOCK_UN);
-    if (close(fd) != 0 && rc == NGX_OK) {
-        rc = NGX_ERROR;
-    }
+    rc = cinfo_xmeta_write(cache_path, &xm);
+    xrootd_xmeta_free(&xm);
+    cinfo_rmw_unlock(lfd);
     return rc;
 }
 
@@ -702,12 +639,9 @@ ngx_int_t
 xrootd_cache_cinfo_mark_clean(const char *cache_path, uint64_t bytes,
     ngx_log_t *log)
 {
-    char                 path[PATH_MAX];
-    xrootd_cache_cinfo_t hdr;
-    uint8_t             *bits = NULL;
-    size_t               blen;
-    int                  fd;
-    ngx_int_t            rc;
+    xrootd_xmeta_t xm;
+    int            lfd;
+    ngx_int_t      rc;
 
     (void) log;
 
@@ -715,62 +649,26 @@ xrootd_cache_cinfo_mark_clean(const char *cache_path, uint64_t bytes,
         errno = EINVAL;
         return NGX_ERROR;
     }
-    if (xrootd_cache_cinfo_path(path, sizeof(path), cache_path) != 0) {
-        errno = ENAMETOOLONG;
+    lfd = cinfo_rmw_lock(cache_path);
+    if (lfd < 0) {
         return NGX_ERROR;
     }
-    fd = open(path, O_RDWR | O_NOCTTY | O_CLOEXEC | O_NOFOLLOW, 0644);
-    if (fd < 0) {
-        return (errno == ENOENT) ? NGX_DECLINED : NGX_ERROR;
-    }
-    while (flock(fd, LOCK_EX) != 0) {
-        if (errno != EINTR) {
-            close(fd);
-            return NGX_ERROR;
-        }
+    rc = cinfo_xmeta_read(cache_path, &xm);
+    if (rc != NGX_OK) {
+        cinfo_rmw_unlock(lfd);
+        return (rc == NGX_DECLINED) ? NGX_DECLINED : NGX_ERROR;
     }
 
-    {
-        xrootd_cache_cinfo_t cur;
+    xm.dirty_lo = 0;
+    xm.dirty_hi = 0;
+    xm.dirty_since = 0;
+    xm.flush_gen += 1;
+    xm.last_flush = (uint64_t) time(NULL);
+    xm.bytes_flushed += bytes;
 
-        if (cinfo_pio(fd, &cur, XROOTD_CACHE_CINFO_HDR_SIZE, 0, 0) != NGX_OK
-            || cinfo_header_ok(&cur) != NGX_OK)
-        {
-            flock(fd, LOCK_UN);
-            close(fd);
-            return NGX_DECLINED;               /* no usable record → nothing to do */
-        }
-        blen = xrootd_cache_cinfo_bitmap_len(cur.nblocks);
-        bits = malloc(blen ? blen : 1);
-        if (bits == NULL) {
-            flock(fd, LOCK_UN);
-            close(fd);
-            errno = ENOMEM;
-            return NGX_ERROR;
-        }
-        ngx_memzero(bits, blen ? blen : 1);
-        if (blen > 0) {
-            (void) cinfo_pio(fd, bits, blen,
-                             (off_t) XROOTD_CACHE_CINFO_HDR_SIZE, 0);
-        }
-        hdr = cur;
-    }
-
-    hdr.flags &= (uint16_t) ~XROOTD_CINFO_F_DIRTY;
-    hdr.dirty_lo = 0;
-    hdr.dirty_hi = 0;
-    hdr.dirty_since = 0;
-    hdr.flush_gen += 1;
-    hdr.last_flush = (uint64_t) time(NULL);
-    hdr.bytes_flushed += bytes;
-
-    rc = cinfo_write_fd(fd, &hdr, bits, blen);
-
-    free(bits);
-    flock(fd, LOCK_UN);
-    if (close(fd) != 0 && rc == NGX_OK) {
-        rc = NGX_ERROR;
-    }
+    rc = cinfo_xmeta_write(cache_path, &xm);
+    xrootd_xmeta_free(&xm);
+    cinfo_rmw_unlock(lfd);
     return rc;
 }
 
@@ -831,4 +729,22 @@ xrootd_cache_cinfo_state(const char *cache_path, xrootd_cache_cinfo_state_t *out
     out->flush_gen   = h.flush_gen;
     out->last_flush  = h.last_flush;
     return NGX_OK;
+}
+
+/* ---- phase-68 manifest TTL (pure helpers on the in-memory header) -------- */
+
+void
+xrootd_cache_cinfo_set_expires(xrootd_cache_cinfo_t *ci, time_t when)
+{
+    ci->expires_at = (uint64_t) when;
+    ci->flags |= XROOTD_CINFO_F_EXPIRES;
+}
+
+int
+xrootd_cache_cinfo_expired(const xrootd_cache_cinfo_t *ci, time_t now)
+{
+    if ((ci->flags & XROOTD_CINFO_F_EXPIRES) == 0) {
+        return -1;                          /* immutable entry: never expires */
+    }
+    return ((uint64_t) now >= ci->expires_at) ? 1 : 0;
 }

@@ -19,7 +19,7 @@ gcc -Wall -Wextra -Werror -I "$HERE/src" -o "$UT" \
     "$HERE/src/fs/meta/xmeta_unittest.c" "$HERE/src/fs/meta/xmeta.c" \
     "$HERE/src/core/compat/crc32c.c" || { bad "unittest build"; exit 1; }
 "$UT" "$SAMPLE" || { bad "codec unit tests"; exit 1; }
-ok "codec unit tests (22 checks)"
+ok "codec unit tests"
 
 echo "== stock cross-check (xrdpfc_print) =="
 if ! command -v xrdpfc_print >/dev/null; then

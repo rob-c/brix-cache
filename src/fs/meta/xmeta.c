@@ -200,7 +200,7 @@ xrootd_xmeta_digest_get(const xrootd_xmeta_t *m, uint32_t idx, uint16_t *alg,
     return XROOTD_XMETA_FOREIGN;                    /* past the end */
 }
 
-/* ---- STATE section wire layout (56 bytes) --------------------------------- */
+/* ---- STATE section wire layout (80 bytes) --------------------------------- */
 
 typedef struct {
     uint64_t origin_mtime;
@@ -208,13 +208,19 @@ typedef struct {
     uint64_t dirty_hi;
     uint64_t flush_gen;
     uint64_t dirty_since;
-    uint32_t mode;
-    uint32_t reserved;
+    uint64_t last_flush;
+    uint64_t bytes_flushed;
     uint64_t expires_at;
+    uint64_t filled_at;
+    uint32_t mode;
+    uint32_t state_flags;
 } xmeta_state_wire_t;
 
 typedef char xmeta_state_size_check[
-    sizeof(xmeta_state_wire_t) == 56 ? 1 : -1];
+    sizeof(xmeta_state_wire_t) == 80 ? 1 : -1];
+
+/* ORIGIN section: {u8 etag_len, u8 alg_len, u8 cks_len, u8 pad, strings...} */
+#define XMETA_ORIGIN_FIXED 4
 
 /* ---- encode ---------------------------------------------------------------- */
 
@@ -258,9 +264,15 @@ xrootd_xmeta_encode(const xrootd_xmeta_t *m, uint8_t **out, size_t *out_len)
     }
 
     blen = xmeta_bitmap_len(m->nblocks);
+    unsigned have_origin = (m->etag_len > 0 || m->cks_len > 0
+                            || m->cks_alg_len > 0);
+    size_t   origin_plen = XMETA_ORIGIN_FIXED + m->etag_len
+                           + m->cks_alg_len + m->cks_len;
+
     nsec = (uint16_t) ((m->have_state ? 1 : 0)
                        + (m->digests != NULL ? 1 : 0)
-                       + (m->have_blockcrc && m->blockcrc != NULL ? 1 : 0));
+                       + (m->have_blockcrc && m->blockcrc != NULL ? 1 : 0)
+                       + (have_origin ? 1 : 0));
     if (m->have_blockcrc && m->blockcrc != NULL) {
         blockcrc_plen = 16 + (size_t) m->nblocks * 4;
     }
@@ -270,7 +282,8 @@ xrootd_xmeta_encode(const xrootd_xmeta_t *m, uint8_t **out, size_t *out_len)
           + 8                                           /* ext magic+ver+cnt */
           + (m->have_state ? 12 + sizeof(state) : 0)
           + (m->digests != NULL ? 12 + (size_t) m->digests_len : 0)
-          + (blockcrc_plen ? 12 + blockcrc_plen : 0);
+          + (blockcrc_plen ? 12 + blockcrc_plen : 0)
+          + (have_origin ? 12 + origin_plen : 0);
 
     buf = malloc(cap);
     if (buf == NULL) {
@@ -307,15 +320,34 @@ xrootd_xmeta_encode(const xrootd_xmeta_t *m, uint8_t **out, size_t *out_len)
 
     if (m->have_state) {
         memset(&state, 0, sizeof(state));
-        state.origin_mtime = m->origin_mtime;
-        state.dirty_lo     = m->dirty_lo;
-        state.dirty_hi     = m->dirty_hi;
-        state.flush_gen    = m->flush_gen;
-        state.dirty_since  = m->dirty_since;
-        state.mode         = m->mode;
-        state.expires_at   = m->expires_at;
+        state.origin_mtime  = m->origin_mtime;
+        state.dirty_lo      = m->dirty_lo;
+        state.dirty_hi      = m->dirty_hi;
+        state.flush_gen     = m->flush_gen;
+        state.dirty_since   = m->dirty_since;
+        state.last_flush    = m->last_flush;
+        state.bytes_flushed = m->bytes_flushed;
+        state.expires_at    = m->expires_at;
+        state.filled_at     = m->filled_at;
+        state.mode          = m->mode;
+        state.state_flags   = m->state_flags;
         xmeta_put_section(buf, &off, XROOTD_XMETA_SEC_STATE,
                           &state, sizeof(state));
+    }
+    if (have_origin) {
+        uint8_t hdr4[XMETA_ORIGIN_FIXED] = {
+            m->etag_len, m->cks_alg_len, m->cks_len, 0
+        };
+        uint8_t payload[XMETA_ORIGIN_FIXED + sizeof(m->etag)
+                        + sizeof(m->cks_alg) + sizeof(m->cks_hex)];
+        size_t  poff = 0;
+
+        memcpy(payload, hdr4, XMETA_ORIGIN_FIXED);  poff = XMETA_ORIGIN_FIXED;
+        memcpy(payload + poff, m->etag, m->etag_len);       poff += m->etag_len;
+        memcpy(payload + poff, m->cks_alg, m->cks_alg_len); poff += m->cks_alg_len;
+        memcpy(payload + poff, m->cks_hex, m->cks_len);     poff += m->cks_len;
+        xmeta_put_section(buf, &off, XROOTD_XMETA_SEC_ORIGIN,
+                          payload, (uint32_t) poff);
     }
     if (m->digests != NULL) {
         xmeta_put_section(buf, &off, XROOTD_XMETA_SEC_DIGEST,
@@ -362,14 +394,40 @@ xmeta_decode_section(xrootd_xmeta_t *m, uint16_t type, const uint8_t *p,
             return XROOTD_XMETA_ERR;
         }
         memcpy(&state, p, sizeof(state));
-        m->have_state   = 1;
-        m->origin_mtime = state.origin_mtime;
-        m->dirty_lo     = state.dirty_lo;
-        m->dirty_hi     = state.dirty_hi;
-        m->flush_gen    = state.flush_gen;
-        m->dirty_since  = state.dirty_since;
-        m->mode         = state.mode;
-        m->expires_at   = state.expires_at;
+        m->have_state    = 1;
+        m->origin_mtime  = state.origin_mtime;
+        m->dirty_lo      = state.dirty_lo;
+        m->dirty_hi      = state.dirty_hi;
+        m->flush_gen     = state.flush_gen;
+        m->dirty_since   = state.dirty_since;
+        m->last_flush    = state.last_flush;
+        m->bytes_flushed = state.bytes_flushed;
+        m->expires_at    = state.expires_at;
+        m->filled_at     = state.filled_at;
+        m->mode          = state.mode;
+        m->state_flags   = state.state_flags;
+        return XROOTD_XMETA_OK;
+    }
+
+    case XROOTD_XMETA_SEC_ORIGIN: {
+        uint8_t el, al, cl;
+
+        if (plen < XMETA_ORIGIN_FIXED) {
+            return XROOTD_XMETA_ERR;
+        }
+        el = p[0]; al = p[1]; cl = p[2];
+        if (el > sizeof(m->etag) || al > sizeof(m->cks_alg)
+            || cl > sizeof(m->cks_hex)
+            || plen < (uint32_t) XMETA_ORIGIN_FIXED + el + al + cl)
+        {
+            return XROOTD_XMETA_ERR;
+        }
+        m->etag_len = el;
+        memcpy(m->etag, p + XMETA_ORIGIN_FIXED, el);
+        m->cks_alg_len = al;
+        memcpy(m->cks_alg, p + XMETA_ORIGIN_FIXED + el, al);
+        m->cks_len = cl;
+        memcpy(m->cks_hex, p + XMETA_ORIGIN_FIXED + el + al, cl);
         return XROOTD_XMETA_OK;
     }
 

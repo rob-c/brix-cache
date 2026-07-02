@@ -76,6 +76,8 @@ typedef struct {
     char     cks_alg[16];
     uint8_t  cks_len;
     char     cks_hex[129];
+    uint64_t expires_at;
+    uint64_t filled_at;
 } xrootd_cache_cinfo_t;
 
 /* Frozen v2 mirror (no write-back fields) for the upgrade test. */
@@ -246,14 +248,18 @@ test_store_load(void)
     CHECK(r.flags & F_PARTIAL, "PARTIAL persisted");
     free(rbm);
 
-    /* on-disk size is exactly header + bitmap */
+    /* on-disk form is the unified xmeta record: the sidecar (the data file
+     * does not exist here, so the sidecar carrier is used) leads with the
+     * stock XrdPfc cinfo v4 version word. */
     {
         char p[PATH_MAX];
-        struct stat st;
+        int  fd2;
+        int32_t ver = 0;
         xrootd_cache_cinfo_path(p, sizeof(p), g_cache);
-        CHECK(stat(p, &st) == 0
-              && (size_t) st.st_size == sizeof(xrootd_cache_cinfo_t) + blen,
-              "file size == header+bitmap");
+        fd2 = open(p, O_RDONLY);
+        CHECK(fd2 >= 0 && read(fd2, &ver, 4) == 4 && ver == 4,
+              "sidecar is a stock-prefixed xmeta record");
+        if (fd2 >= 0) close(fd2);
     }
 }
 
@@ -455,12 +461,12 @@ test_v2_loads_present_only(void)
     CHECK(write(fd, &b, 1) == 1, "write v2 bitmap");
     close(fd);
 
-    CHECK(xrootd_cache_cinfo_load(c, &r, &rbm, &rlen) == NGX_OK, "load v2 record");
-    CHECK(r.version == CINFO_VERSION, "v2 promoted to v3");
-    CHECK(!(r.flags & F_DIRTY) && r.dirty_since == 0, "upgraded record is clean");
-    CHECK(rlen == 1 && rbm != NULL && xrootd_cache_cinfo_block_present(rbm, 0)
-          && xrootd_cache_cinfo_block_present(rbm, 1), "present bitmap preserved");
-    free(rbm);
+    /* xmeta carries no legacy readers (spec: no migration) — a v2/XCI1
+     * sidecar reads as "nothing recorded" and the cache refills. */
+    CHECK(xrootd_cache_cinfo_load(c, &r, &rbm, &rlen) == NGX_DECLINED,
+          "legacy v2 record reads as no-record");
+    CHECK(rbm == NULL && rlen == 0, "no bitmap from a legacy record");
+    (void) free;
 }
 
 static void

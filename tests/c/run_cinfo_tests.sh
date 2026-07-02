@@ -22,7 +22,8 @@ if [[ ! -f "${CACHE_OBJ}/cinfo.o" ]]; then
     exit 2
 fi
 
-cc -O -Wall -o "${BIN}" "${HERE}/test_cinfo.c" "${CACHE_OBJ}/cinfo.o"
+cc -O -Wall -o "${BIN}" "${HERE}/test_cinfo.c" "${CACHE_OBJ}/cinfo.o" \
+    "${OBJS_DIR}/addon/meta/xmeta.o" "${OBJS_DIR}/addon/compat/crc32c.o"
 
 "${BIN}"
 rc=$?

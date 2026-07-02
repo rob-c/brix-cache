@@ -52,8 +52,12 @@ E2
     { [ "$code" = 200 ] && [ "$(sha256sum /tmp/cssc_c.got|cut -d' ' -f1)" = "$sha" ]; } \
       && ok "$label cold GET byte-exact (filled store + sidecar)" \
       || { bad "$label cold GET $code"; grep -iE "cinfo|sidecar|cache|stage move|error" "$d/b/logs/e.log"|grep -v access_json|tail -6; }
-    [ -f "$d/sa/store/f.bin.xrdcinfo" ] && ok "$label <key>.xrdcinfo sidecar object landed on the store" \
+    # xmeta: the record rides as "<key>.cinfo" (a stock-readable cinfo v4)
+    [ -f "$d/sa/store/f.bin.cinfo" ] && ok "$label <key>.cinfo xmeta sidecar landed on the store" \
       || bad "$label no sidecar object on the store"
+    [ "$(head -c4 "$d/sa/store/f.bin.cinfo" 2>/dev/null | od -An -td4 | tr -d ' ')" = 4 ] \
+      && ok "$label sidecar is a stock-prefixed record" \
+      || bad "$label sidecar prefix is not cinfo v4"
     mv "$d/b/backend/f.bin" "$d/b/backend/.hidden"     # hide the SOURCE
     kill "$(cat "$d/b/nginx.pid")" 2>/dev/null; sleep 0.6
     "$NGINX" -p "$d/b" -c "$d/b.conf" 2>"$d/berr2" || { bad "$label B restart failed"; return; }
