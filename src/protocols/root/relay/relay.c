@@ -1,5 +1,6 @@
 #include "core/ngx_xrootd_module.h"
 #include "relay.h"
+#include "relay_guard.h"
 #include "net/tap/tap.h"
 
 /*
@@ -38,6 +39,10 @@ typedef struct {
      * out from under the relay — dereferencing it from a later event would crash.
      * This copy keeps the server's error-log destination without that appender. */
     ngx_log_t                  log;
+
+    /* bad-actor guard (xrootd_guard_stream): a second tap sink that classifies
+     * each frame and raises a drop flag the pump enforces. */
+    xrootd_relay_guard_t       guard;
 
     ngx_xrootd_srv_metrics_t  *metrics;   /* for connections_active-- on close */
     unsigned                   connected:1;
@@ -151,11 +156,13 @@ relay_close(xrootd_relay_t *r)
  * read more from `from` and loop.  Each freshly-read chunk is fed to `dec` (the
  * direction's tap decoder) exactly once — before it is queued for send, never on
  * a re-send after NGX_AGAIN — so the tap observes every byte once, in order.
+ * When the guard sink flags a frame in that chunk, the chunk is NOT forwarded
+ * and the whole relay comes down (bounce = connection drop).
  * Arms the appropriate event (and an idle timer) when either side would block;
  * returns NGX_ERROR on EOF/error so the caller closes the whole relay.
  */
 static ngx_int_t
-relay_pump(ngx_connection_t *from, ngx_connection_t *to,
+relay_pump(xrootd_relay_t *r, ngx_connection_t *from, ngx_connection_t *to,
     u_char *buf, size_t *off, size_t *end, xrootd_tap_stream_t *dec)
 {
     ssize_t  n;
@@ -181,6 +188,9 @@ relay_pump(ngx_connection_t *from, ngx_connection_t *to,
         n = from->recv(from, buf, XROOTD_RELAY_BUF);
         if (n > 0) {
             xrootd_tap_stream_feed(dec, buf, (size_t) n);   /* tap once */
+            if (xrootd_relay_guard_should_drop(&r->guard)) {
+                return NGX_ERROR;      /* BOUNCE: never forward this chunk */
+            }
             *end = (size_t) n;
             *off = 0;
             continue;
@@ -217,7 +227,7 @@ relay_cu(xrootd_relay_t *r, ngx_event_t *ev)
         relay_close(r);
         return;
     }
-    if (relay_pump(r->client, r->upstream, r->cu, &r->cu_off, &r->cu_end,
+    if (relay_pump(r, r->client, r->upstream, r->cu, &r->cu_off, &r->cu_end,
                    &r->cu_dec) != NGX_OK)
     {
         relay_close(r);
@@ -232,7 +242,7 @@ relay_uc(xrootd_relay_t *r, ngx_event_t *ev)
         relay_close(r);
         return;
     }
-    if (relay_pump(r->upstream, r->client, r->uc, &r->uc_off, &r->uc_end,
+    if (relay_pump(r, r->upstream, r->client, r->uc, &r->uc_off, &r->uc_end,
                    &r->uc_dec) != NGX_OK)
     {
         relay_close(r);
@@ -265,13 +275,13 @@ relay_begin(xrootd_relay_t *r)
     r->upstream->read->handler  = relay_upstream_read;
     r->upstream->write->handler = relay_upstream_write;
 
-    if (relay_pump(r->client, r->upstream, r->cu, &r->cu_off, &r->cu_end,
+    if (relay_pump(r, r->client, r->upstream, r->cu, &r->cu_off, &r->cu_end,
                    &r->cu_dec) != NGX_OK)
     {
         relay_close(r);
         return;
     }
-    if (relay_pump(r->upstream, r->client, r->uc, &r->uc_off, &r->uc_end,
+    if (relay_pump(r, r->upstream, r->client, r->uc, &r->uc_off, &r->uc_end,
                    &r->uc_dec) != NGX_OK)
     {
         relay_close(r);
@@ -346,6 +356,14 @@ xrootd_relay_start(ngx_stream_session_t *s, ngx_connection_t *c, void *srv_conf)
     xrootd_tap_register_sink(&r->tap, relay_audit_sink, &r->log);
     xrootd_tap_stream_init(&r->cu_dec, &r->tap, XROOTD_TAP_C2U);
     xrootd_tap_stream_init(&r->uc_dec, &r->tap, XROOTD_TAP_U2C);
+
+    /* Bad-actor guard (xrootd_guard_stream): classify each tapped frame and
+     * let the pump drop the connection on a BOUNCE verdict. */
+    xrootd_relay_guard_init(&r->guard, conf->relay_guard_enable == 1,
+                            &c->addr_text, &r->log);
+    if (r->guard.enable) {
+        xrootd_tap_register_sink(&r->tap, xrootd_relay_guard_sink, &r->guard);
+    }
 
     /* The xrootd recv/send handlers and any deadline timer must not fire on this
      * connection again — the relay owns it now. */

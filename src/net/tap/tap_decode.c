@@ -44,6 +44,7 @@ xrootd_tap_decode_request(const uint8_t *buf, size_t len,
     out->streamid   = xrd_get_u16_be(buf);
     out->opcode     = xrd_get_u16_be(buf + 2);
     out->status     = 0;
+    out->errnum     = 0;
     out->dlen       = xrd_get_u32_be(buf + 20);
     out->path       = NULL;
     out->path_len   = 0;
@@ -69,8 +70,16 @@ xrootd_tap_decode_response(const uint8_t *buf, size_t len,
 
     out->is_request = 0;
     out->opcode     = 0;
+    out->errnum     = 0;
     out->path       = NULL;
     out->path_len   = 0;
     xrd_resp_hdr_unpack(buf, &out->streamid, &out->status, &out->dlen);
+
+    /* A kXR_error body is errnum[4 BE] + errmsg; surface the errnum when the
+     * payload bytes are present so consumers (the bad-actor guard) can map
+     * kXR_NotFound / kXR_NotAuthorized without re-parsing. */
+    if (out->status == kXR_error && out->dlen >= 4 && len >= 8 + 4) {
+        out->errnum = xrd_get_u32_be(buf + 8);
+    }
     return 8;
 }

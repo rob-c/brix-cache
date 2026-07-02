@@ -1641,6 +1641,16 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       0,
       NULL },
 
+    /* bad-actor guard on the transparent relay: classify each tapped frame
+     * (src/net/guard/), drop junk-signature / off-grammar connections, and
+     * audit notfound/authfail responses for fail2ban (relay/relay_guard.c). */
+    { ngx_string("xrootd_guard_stream"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, relay_guard_enable),
+      NULL },
+
     /* terminating tap proxy (src/proxy/): authenticate the client locally, then
      * re-authenticate upstream as the user (anonymous/ztn/SSS/username) and
      * forward opcode-by-opcode while the tap decodes the now-plaintext frames. */
