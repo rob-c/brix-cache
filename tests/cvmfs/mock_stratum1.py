@@ -7,7 +7,7 @@
 import argparse, hashlib, json, os, random, socket, threading, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-STATE = {"log": [], "fault": {"mode": "none", "count": 0},
+STATE = {"log": [], "heads": [], "fault": {"mode": "none", "count": 0},
          "objects": {}, "repo": "", "revision": 1, "lock": threading.Lock()}
 
 def make_repo(repo, n_objects, seed):
@@ -59,6 +59,8 @@ class Handler(BaseHTTPRequestHandler):
         # to the request log: /ctl/log counts data FETCHES, and tests assert on
         # exact fetch counts (stampede coalescing).
         repo = STATE["repo"]
+        with STATE["lock"]:
+            STATE["heads"].append({"path": self.path, "ts": time.time()})
         if self.path == f"/cvmfs/{repo}/.cvmfspublished":
             body = manifest(repo, STATE["revision"])
         elif self.path == f"/cvmfs/{repo}/.cvmfswhitelist":
@@ -80,6 +82,10 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/ctl/log":
             with STATE["lock"]:
                 body = json.dumps(STATE["log"]).encode()
+            return self._send(200, body, "application/json")
+        if self.path == "/ctl/heads":
+            with STATE["lock"]:
+                body = json.dumps(STATE["heads"]).encode()
             return self._send(200, body, "application/json")
         if self.path == "/ctl/objects":
             return self._send(200, json.dumps(sorted(STATE["objects"])).encode(),

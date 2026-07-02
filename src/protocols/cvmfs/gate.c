@@ -16,6 +16,66 @@
 #include "cvmfs.h"
 #include "fs/path/path.h"
 
+/* --- negative cache (T13) --------------------------------------------------
+ * Per-worker fixed-size direct-mapped memo of recent 404s (the deliberate
+ * worker-local exception to the no-globals rule: each worker absorbing its
+ * own 404 storm is sufficient and avoids SHM). A slot collision simply
+ * overwrites (false eviction = one extra origin round-trip); false HITS are
+ * impossible short of a full 64-bit hash collision, and even that only
+ * mis-404s one object for negative_ttl seconds — acceptable for a cache
+ * whose entries are retried by design.
+ */
+#define CVMFS_NEG_SLOTS 512u            /* power of two: mask, don't mod   */
+
+typedef struct {
+    uint64_t path_hash;                 /* FNV-1a of the full URI, 0=empty */
+    time_t   until;
+} cvmfs_neg_slot;
+
+static cvmfs_neg_slot  cvmfs_neg[CVMFS_NEG_SLOTS];
+
+static uint64_t
+cvmfs_neg_hash(const ngx_str_t *uri)
+{
+    uint64_t h = 0xcbf29ce484222325ull;
+    size_t   i;
+
+    for (i = 0; i < uri->len; i++) {
+        h = (h ^ uri->data[i]) * 0x100000001b3ull;
+    }
+    return (h != 0) ? h : 1;            /* 0 is the empty-slot marker      */
+}
+
+static int
+cvmfs_neg_check(const ngx_str_t *uri, time_t now)
+{
+    uint64_t        h = cvmfs_neg_hash(uri);
+    cvmfs_neg_slot *s = &cvmfs_neg[h & (CVMFS_NEG_SLOTS - 1)];
+
+    return (s->path_hash == h && now < s->until);
+}
+
+static void
+cvmfs_neg_store(const ngx_str_t *uri, time_t now, time_t ttl)
+{
+    uint64_t        h = cvmfs_neg_hash(uri);
+    cvmfs_neg_slot *s = &cvmfs_neg[h & (CVMFS_NEG_SLOTS - 1)];
+
+    s->path_hash = h;
+    s->until = now + ttl;
+}
+
+/* Called by the handler's finalization observer when a request on a cvmfs
+ * location has produced its final status. Records 404s in the memo. */
+void
+xrootd_cvmfs_notify_status(ngx_http_request_t *r,
+    ngx_http_xrootd_cvmfs_loc_conf_t *lcf, ngx_uint_t status)
+{
+    if (status == NGX_HTTP_NOT_FOUND && lcf->cvmfs.negative_ttl > 0) {
+        cvmfs_neg_store(&r->uri, ngx_time(), lcf->cvmfs.negative_ttl);
+    }
+}
+
 /* One stable, single-line, guard-parsable WARN per reject (convention #4).
  * The URI is wire-supplied: sanitize before logging. */
 static ngx_int_t
@@ -57,6 +117,12 @@ xrootd_cvmfs_gate(ngx_http_request_t *r, ngx_http_xrootd_cvmfs_loc_conf_t *lcf)
     switch (ctx->url.cls) {
     case CVMFS_URL_CAS:
         XROOTD_CVMFS_METRIC_INC(XROOTD_CVMFS_M_CAS);
+        if (lcf->cvmfs.negative_ttl > 0
+            && cvmfs_neg_check(&r->uri, ngx_time()))
+        {
+            XROOTD_CVMFS_METRIC_INC(XROOTD_CVMFS_M_NEG_HIT);
+            return NGX_HTTP_NOT_FOUND;    /* absorbed 404 storm (T13)    */
+        }
         return NGX_DECLINED;              /* tier serve path (handler.c) */
     case CVMFS_URL_MANIFEST:
         XROOTD_CVMFS_METRIC_INC(XROOTD_CVMFS_M_MANIFEST);
