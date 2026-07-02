@@ -1,9 +1,9 @@
-# Security Posture & Hardening — Official XRootD vs. nginx-xrootd
+# Security Posture & Hardening — Official XRootD vs. gnuBall
 
-> Part of the [XRootD vs nginx-xrootd comparison set](./README.md).
+> Part of the [XRootD vs gnuBall comparison set](./README.md).
 
 This document compares the **official XRootD C++** server with the
-**nginx-xrootd** module on **security posture and hardening**: path confinement,
+**gnuBall** module on **security posture and hardening**: path confinement,
 fail-closed authentication, input/framing robustness, credential handling
 (OCSP/CRL, token expiry/issuer pinning), impersonation, DoS protection / rate
 limiting, build hardening, and the overall attack surface.
@@ -12,7 +12,7 @@ Every claim below is grounded in source. The official side cites
 `/tmp/xrootd-src/src` — principally `XrdXrootd/XrdXrootdXeq.cc` and
 `XrdXrootdProtocol.cc` (request validation, `rpCheck`/`Squash` path checks),
 `XrdSecgsi/XrdSecProtocolgsi.cc` (GSI + CRL), `XrdTls/XrdTlsContext.cc` (TLS CRL
-refresh), and `XrdCrypto/` (X.509/CRL primitives). The nginx-xrootd side cites
+refresh), and `XrdCrypto/` (X.509/CRL primitives). The gnuBall side cites
 this repository's `src/` tree. Where a behaviour was already verified by the
 conformance / attack-vector suites, this doc **reuses** those facts rather than
 re-deriving them:
@@ -33,14 +33,14 @@ correctness of each protocol is covered by the other comparison documents and is
 referenced here only where it bears on security.
 
 "Official XRootD" means the reference C++ implementation in `/tmp/xrootd-src`.
-"nginx-xrootd" / "this module" means the server in `src/`. Two architectural
+"gnuBall" / "this module" means the server in `src/`. Two architectural
 facts frame everything below:
 
 - **Official XRootD is a multi-process C++ daemon** (`xrootd` + `cmsd` + plugin
   `.so`s) that typically runs as a dedicated service user and reaches the
   filesystem through the `XrdOfs`/`XrdOss` storage stack. Its path safety is
   **lexical** (string checks before handing the name to the OSS layer).
-- **nginx-xrootd is an nginx module**: a master + unprivileged workers, a
+- **gnuBall is an nginx module**: a master + unprivileged workers, a
   single-threaded event loop per worker, all I/O through nginx's allocator and
   buffer-chain machinery, and the filesystem reached through **kernel-enforced**
   `openat2(RESOLVE_BENEATH)` confinement. It inherits nginx's own hardened
@@ -78,7 +78,7 @@ not fronted by a general-purpose hardened HTTP/stream server.
 
 ---
 
-## In nginx-xrootd
+## In gnuBall
 
 This module re-implements the same protections and adds several that the
 nginx front end and a modern kernel make cheap:
@@ -133,7 +133,7 @@ by the OSS layer at I/O time — by design, the stock server *follows* symlinks
 (its safety is the export-prefix match plus whatever the underlying OSS allows),
 and there is a TOCTOU gap in principle between the name check and the open.
 
-### nginx-xrootd: kernel-enforced `RESOLVE_BENEATH`
+### gnuBall: kernel-enforced `RESOLVE_BENEATH`
 
 This module makes the **kernel** the confinement authority. Every confined open
 goes through one chokepoint, `do_openat2()`:
@@ -188,7 +188,7 @@ Two cheaper, defence-in-depth lexical guards sit in front:
   component-by-component before longest-prefix matching (`src/fs/path/normalize.c`),
   so a policy bypass via path tricks cannot occur.
 
-**Net.** Both servers reject `..` lexically. nginx-xrootd additionally makes
+**Net.** Both servers reject `..` lexically. gnuBall additionally makes
 escape *physically impossible at the syscall layer* and refuses symlink escape
 that the stock server permits — a strictly stronger confinement boundary, at the
 cost of requiring a Linux ≥ 5.6 kernel.
@@ -279,7 +279,7 @@ module's unknown-opcode reply from `kXR_Unsupported 3013` to `kXR_InvalidRequest
 
 Official: `dlen < 0` → `kXR_ArgInvalid` + drop link; oversized arg →
 `kXR_ArgTooLong`; argument buffer is NUL-terminated by the server
-(`XrdXrootdProtocol.cc:404-426`). nginx-xrootd: the path extractor enforces the
+(`XrdXrootdProtocol.cc:404-426`). gnuBall: the path extractor enforces the
 NUL/length contract (`extract.c`), the dispatcher rejects unknown opcodes and
 pre-login ops, and the whole front end runs on nginx's own hardened request
 reader — bounded buffers via `ngx_palloc`/`ngx_alloc`, `ngx_str_t` length-
@@ -301,7 +301,7 @@ module's favour for availability* that has no analogue in the monolithic server
 
 ## Credential & availability hardening
 
-| Control | Official XRootD | nginx-xrootd |
+| Control | Official XRootD | gnuBall |
 |---|---|---|
 | X.509 chain verify | yes (`XrdCrypto`/`XrdSecgsi`) | yes (`src/auth/gsi/`, `src/auth/crypto/pki_*`) |
 | CRL revocation | yes — `CRLCheck` levels + optional download + `CRLRefresh` (`XrdSecProtocolgsi.cc:510`); TLS CRL refresh thread (`XrdTlsContext.cc`) | yes — PEM + Grid `hash.r0`/`.r1` loaders, regular-file-only filter (`src/auth/crypto/pki_load.c`) |
@@ -348,7 +348,7 @@ Official XRootD maps an authenticated DN/principal to a UNIX username through
 `XrdSec`/GSI and can run the OSS op as that user; `sudo` and N2N plugins extend
 the mapping. The mapping is a first-class, long-standing feature.
 
-### nginx-xrootd: optional per-request broker, privilege-dropped, off by default
+### gnuBall: optional per-request broker, privilege-dropped, off by default
 
 This module's impersonation (`src/auth/impersonate/`, phase 40) is **off by default**
 and strictly opt-in (`xrootd_impersonation off|single|map`). `off` and `single`
@@ -467,7 +467,7 @@ not fixed by this comparison.
 
 ## Admin security configuration
 
-| Area | Official XRootD | nginx-xrootd |
+| Area | Official XRootD | gnuBall |
 |---|---|---|
 | Path confinement | export-prefix list; symlinks **followed** | `RESOLVE_BENEATH` always on; symlink escape **refused** (no directive to disable) |
 | Auth requirement | `sec.protocol` / `xrootd.seclib`; default depends on config | per-listener auth mode; `auth=none` is the only path that sets `auth_done` at login (explicit, secure-by-default ports per `CLAUDE.md` routing table) |
@@ -479,7 +479,7 @@ not fixed by this comparison.
 
 The secure-by-default story differs in emphasis. Official XRootD is
 secure-when-configured by an experienced operator (CRL `require`, a Sec protocol,
-an Acc plugin). nginx-xrootd pushes more guarantees into code that an operator
+an Acc plugin). gnuBall pushes more guarantees into code that an operator
 **cannot** turn off: kernel confinement is unconditional, symlink escape cannot
 be re-enabled, a token without `exp` cannot be accepted, the impersonation
 reserved-id floor and cap-drop are not directives, and the auth gate denies on a
@@ -489,7 +489,7 @@ missing authz table.
 
 ## Parity, divergences, and posture
 
-| Dimension | Official | nginx-xrootd | Posture |
+| Dimension | Official | gnuBall | Posture |
 |---|---|---|---|
 | `..` lexical rejection | `rpCheck` (reject) | `has_dotdot`/`component_forbidden` (reject) | **parity** |
 | Confinement mechanism | lexical export-prefix | kernel `RESOLVE_BENEATH` (syscall-atomic) | **nginx stronger** (no TOCTOU) |
@@ -508,7 +508,7 @@ missing authz table.
 | Maturity / field exposure | decades, huge deployment | newer; verified differentially against stock | **official more proven** |
 
 **Bottom line.** On the *mechanisms* that matter most — confinement,
-fail-closed auth, framing robustness, revocation — nginx-xrootd reaches parity
+fail-closed auth, framing robustness, revocation — gnuBall reaches parity
 with official XRootD and, in several places, is **stricter** by deliberate
 design: kernel-enforced (not lexical) confinement, refused (not followed) symlink
 escape, mandatory token expiry, issuer pinning for both token types, and OCSP on
@@ -533,7 +533,7 @@ inherent `CAP_SETUID` exposure of *any* impersonation broker if it is exploited.
 - `XrdTls/XrdTlsContext.cc:85-111` (background CRL refresh thread).
 - `grep -rln OCSP /tmp/xrootd-src/src` → empty (no OCSP).
 
-**nginx-xrootd (this repository, `src/`):**
+**gnuBall (this repository, `src/`):**
 
 - Confinement: `path/beneath.c` (`do_openat2`, `beneath_open_parent`),
   `path/beneath.h`, `path/extract.c` (embedded-NUL + length), `path/helpers.c`

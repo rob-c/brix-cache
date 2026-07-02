@@ -1,4 +1,4 @@
-# TLS in nginx-xrootd
+# TLS in gnuBall
 
 Three distinct encrypted transport patterns — each serves a different client type and security requirement. Pick the one that matches your clients:
 

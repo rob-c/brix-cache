@@ -1,6 +1,6 @@
 # Implementation status
 
-How nginx-xrootd stacks up against the official `xrootd` data-server surface,
+How gnuBall stacks up against the official `xrootd` data-server surface,
 operation by operation. Use this before reporting a missing feature, planning a
 migration, or deciding what to work on next.
 
@@ -46,7 +46,7 @@ explicitly rejected with `kXR_Unsupported`.
 | `kXR_set` | 3018 | `appid` and `clttl` modifiers; unknown modifiers accepted as no-op |
 | `kXR_write` | 3019 | Async via nginx thread pool |
 | `kXR_fattr` | 3020 | get / set / del / list; backed by Linux xattrs (`user.U.*` namespace) |
-| `kXR_prepare` | 3021 | Path validation + existence check. With `xrootd_frm on` (Phase 35): durable stage-request queue — real host-qualified reqid, `kXR_cancel` deletes the request, records survive disconnect + restart (`src/frm/`). `kXR_evict` accepted as a no-op (backend-delegated). Default (FRM off): legacy fire-and-forget `prepare_command`. |
+| `kXR_prepare` | 3021 | Path validation + existence check. With `xrootd_frm on` (Phase 35): durable stage-request queue — real host-qualified reqid, `kXR_cancel` deletes the request, records survive disconnect + restart (`src/fs/xfer/`). `kXR_evict` accepted as a no-op (backend-delegated). Default (FRM off): legacy fire-and-forget `prepare_command`. |
 | `kXR_statx` | 3022 | Multi-path stat (path list in payload) |
 | `kXR_endsess` | 3023 | Graceful session termination |
 | `kXR_bind` | 3024 | Secondary streams, pathid 1–253; inherits primary auth state |

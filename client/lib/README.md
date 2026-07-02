@@ -16,7 +16,7 @@ static lib, so cross-file references resolve at link time.
 |---|---|
 | `aio.c` | The epoll/io_uring event loop (`loop_*`, `rc_worker_main`) + the public `xrdc_loop_*`/`xrdc_aio_*`/`xrdc_aconn_*` API. *(Phase 38: split.)* |
 | `aio_buffers.c` | Growable byte buffer (`xbuf_*`), the streamid→request open-addressing map (`reqmap_*`), and request lifecycle (`areq_*`). |
-| `aio_io.c` | Non-blocking socket read/write + frame parser + RTT/RTO (`aconn_do_read`/`_write`, `aconn_parse`, `aconn_dispatch_frame`). |
+| `aio_io.c` | Non-blocking socket read/write + frame parser + RTT/RTO (`aconn_do_read`/`_write`, `aconn_parse`, `aconn_dispatch_frame`) incl. the deferred-reply flow (`kXR_waitresp` parks the request; the unsolicited `kXR_attn(asynresp)` is unwrapped and dispatched by its inner streamid — see `tests/test_aio_waitresp.py`). |
 | `aio_engine.c` | The pollset abstraction over epoll + io_uring poll (`io_engine_*`, `uring_*`). |
 | `aio_conn.c` | Per-connection lifecycle: reconnect, keepalive/ping, teardown, deadlines, command submission. |
 | `aio_internal.h` | Private split contract shared by `aio*.c` (the `aconn`/`areq`/loop structs + prototypes). |
@@ -35,7 +35,7 @@ static lib, so cross-file references resolve at link time.
 | `copy.c` | The `xrdc_copy` entry + direction inference + single-file r2l/l2r; **keeps the `__attribute__((used))` VFS-backend link anchors** (`s_vfs_*_anchor`) in `copy.o`. *(Phase 38: split.)* |
 | `copy_pump.c` | The chunked transfer pump (`transfer_pump` + `pump_*` + `write_all`). |
 | `copy_local.c` | Download/upload to local + temp-file/atomic-dest helpers. |
-| `copy_remote.c` | Remote→remote + native TPC (`copy_tpc`, key gen) + checksum verify. |
+| `copy_remote.c` | Remote→remote + native TPC (`copy_tpc`, key gen) + checksum verify. `copy_tpc` speaks the STOCK XrdOucTPC dialect (`tpc.src=host:port` + `tpc.lfn` + `tpc.stage=copy` + `oss.asize`/`tpc.dlgon`/..., dest-open→sync→src-open→sync), which stock XRootD and nginx-xrootd destinations both accept — see `tests/test_root_tpc.py::TestNativeClientRootTPC`. |
 | `copy_recursive.c` | Recursive tree download/upload + web-auth headers. |
 | `copy_internal.h` | Private split contract shared by `copy*.c` (anchors deliberately excluded). |
 

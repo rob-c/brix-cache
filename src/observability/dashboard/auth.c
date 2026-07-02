@@ -1,4 +1,5 @@
 #include "dashboard_http.h"
+#include "core/ident.h"
 
 #include <openssl/hmac.h>
 #include <openssl/evp.h>
@@ -535,7 +536,7 @@ static const char login_form_html[] =
     "<!DOCTYPE html>\n"
     "<html lang=\"en\">\n"
     "<head><meta charset=\"utf-8\">"
-    "<title>nginx-xrootd Monitor — Login</title>\n"
+    "<title>" XROOTD_SERVER_NAME " Monitor — Login</title>\n"
     "<style>\n"
     "body{background:#1a1a2e;color:#e0e0e0;font-family:monospace;"
     "display:flex;justify-content:center;align-items:center;height:100vh;margin:0}\n"
@@ -563,7 +564,7 @@ static const char login_form_html_error[] =
     "<!DOCTYPE html>\n"
     "<html lang=\"en\">\n"
     "<head><meta charset=\"utf-8\">"
-    "<title>nginx-xrootd Monitor — Login</title>\n"
+    "<title>" XROOTD_SERVER_NAME " Monitor — Login</title>\n"
     "<style>\n"
     "body{background:#1a1a2e;color:#e0e0e0;font-family:monospace;"
     "display:flex;justify-content:center;align-items:center;height:100vh;margin:0}\n"

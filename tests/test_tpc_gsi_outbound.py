@@ -1,10 +1,10 @@
-"""Local verification of the server-outbound TPC GSI handshake (src/tpc/gsi_outbound_*.c).
+"""Local verification of the server-outbound TPC GSI handshake (src/tpc/gsi/gsi_outbound_*.c).
 
 This is the missing behavioural coverage for the code path that authenticates to a
 GSI-requiring TPC *source*: a native TPC PULL where the nginx data server (the
 destination) connects to a remote XrdSecgsi server and must present its own
 certificate (`xrootd_certificate`) — i.e. `tpc_outbound_gsi()` in
-src/tpc/gsi_outbound_certreq.c + the DH/cipher exchange in gsi_outbound_exchange.c.
+src/tpc/gsi/gsi_outbound_certreq.c + the DH/cipher exchange in gsi_outbound_exchange.c.
 
 Topology:
     stock `xrootd` (GSI source, sec.protbind * only gsi, exports /gsidata)

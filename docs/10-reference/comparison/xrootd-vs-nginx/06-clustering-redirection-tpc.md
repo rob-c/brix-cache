@@ -1,6 +1,6 @@
 # Clustering, redirection, TPC, proxy, and traffic mirroring
 
-> Part of the [XRootD vs nginx-xrootd comparison set](./README.md).
+> Part of the [XRootD vs gnuBall comparison set](./README.md).
 
 This document compares official XRootD against the `nginx-xrootd` module on the
 five subsystems that turn a single data server into a federated storage service:
@@ -12,7 +12,7 @@ five subsystems that turn a single data server into a federated storage service:
    coordinated with a rendezvous key.
 4. **Proxy mode** — forwarding `root://` to a backend storage cluster.
 5. **Traffic mirroring** — replaying live requests to a shadow backend (an
-   nginx-xrootd extension with no official equivalent).
+   gnuBall extension with no official equivalent).
 
 Every claim below is grounded in source. Official paths are under
 `/tmp/xrootd-src/src/`; module paths are repo-relative under `src/`. Where wire
@@ -83,7 +83,7 @@ Key official source areas:
 There is **no traffic-mirroring/shadow-replay** subsystem in the reviewed
 official source.
 
-## In nginx-xrootd
+## In gnuBall
 
 The module folds all of this into the single nginx process model. Five
 subsystems map to the five topics:
@@ -116,7 +116,7 @@ blocking native-TPC pull (a detached thread-pool task) and one `statvfs` in
 
 ### Roles and topologies
 
-| Concept | Official XRootD | nginx-xrootd |
+| Concept | Official XRootD | gnuBall |
 |---|---|---|
 | Daemon model | Separate `cmsd` per node, sharing config with `xrootd` | In-process; both halves are nginx stream modules |
 | Role set | 9 roles (`XrdCmsRole.hh`): meta-manager, manager, supervisor, server, proxy-manager/super/server, peer-manager, peer | Effective roles: **data server** (default), **manager/redirector** (`xrootd_manager_mode on`), **sub-manager** (manager_mode + CMS client up to a meta), **supervisor flag** (`xrootd_supervisor`, sets `kXR_attrSuper`) |
@@ -221,7 +221,7 @@ After login the client sends `kYR_status` (`Resume|noStage`) to become selectabl
 
 ### Heartbeat, keepalive, load/space
 
-| Frame | Official (`XrdCmsNode.cc`) | nginx-xrootd |
+| Frame | Official (`XrdCmsNode.cc`) | gnuBall |
 |---|---|---|
 | `kYR_ping (17)` / `kYR_pong (18)` | `do_Ping`/`do_Pong`, header-only | client: `recv.c` ping→`_send_pong`; manager: `server_recv.c` ping timer, `_send_ping` |
 | `kYR_load (16)` | `do_Load`: 6-byte load array (cpu/net/xeq/mem/pag/dsk) + disk free, via `XrdCmsMeter` | `send.c::_send_load` periodic heartbeat (`theLoad` as `[2B 6][6 bytes]` blob + disk free) |
@@ -362,7 +362,7 @@ Two material differences from official:
 1. **Cross-process SHM key registry (zero-copy rendezvous).** Where official
    uses an in-process mutex-protected list per data server, the module's source
    side registers rendezvous keys in a **shared-memory table**
-   (`src/tpc/key_registry.c`: `XROOTD_TPC_KEY_SLOTS` = 256, `XROOTD_TPC_KEY_TTL_MS`
+   (`src/tpc/engine/key_registry.c`: `XROOTD_TPC_KEY_SLOTS` = 256, `XROOTD_TPC_KEY_TTL_MS`
    default, runtime override `xrootd_tpc_key_ttl`), guarded by an
    `ngx_shmtx_sh_t` spinlock so any nginx **worker** can validate/consume a key
    the destination presents on reconnect with `tpc.org`+`tpc.key`. Keys are
@@ -384,6 +384,26 @@ The blocking fetch runs in a detached `ngx_thread_task`
 only the completion callback (`done.c`) runs back on the event loop to frame the
 deferred response. Off-loop code uses `malloc`/`free` and raw socket syscalls —
 never `ngx_palloc` (not thread-safe there).
+
+### The native client (libxrdc) dialect
+
+`client/lib/copy_remote.c::copy_tpc` (the `xrdcp --tpc` path of the native
+client) emits the **stock XrdOucTPC CGI dialect** in the stock XrdCl control
+order: best-effort source stat (size + post-redirect endpoint), destination
+open with `tpc.key` + `tpc.src=<host:port>` + `tpc.lfn=</path>` +
+`tpc.dlg`/`tpc.spr`/`tpc.tpr`/`tpc.dlgon=0` + `oss.asize` + `tpc.stage=copy`,
+first `kXR_sync` (rendezvous/arm), source open with `tpc.key` +
+`tpc.dst=<dest-host>` + `tpc.stage=copy`, second `kXR_sync` (trigger + await).
+Both destinations accept this: a stock `XrdOfsTPC` parses it natively, and the
+module normalizes bare-host `tpc.src` + `tpc.lfn` in `src/tpc/engine/parse.c`. The
+legacy full-URL form (`tpc.src=root://host:port/path`, source-first order) was
+nginx-only — a stock destination rejects it with "Invalid address (source)" and
+a stock source fails `Match()` on the full-URL `tpc.dst` — and is no longer
+emitted. `tpc.token_mode` remains an nginx extension (unknown `tpc.*` keys are
+ignored by both sides). Regression matrix (all four server combinations plus a
+clean-failure guard): `tests/test_root_tpc.py::TestNativeClientRootTPC`.
+Delegation (`tpc.dlgon=1`, TPC-lite `tpc.scgi`) is NOT implemented in the
+native client.
 
 ### Outbound source auth (GSI / `ztn` / delegated tokens)
 
@@ -407,7 +427,7 @@ flagged as needing per-site verification.
 
 ### TPC controls
 
-| Concern | Official `ofs.tpc` | nginx-xrootd |
+| Concern | Official `ofs.tpc` | gnuBall |
 |---|---|---|
 | Enable / key TTL | `ofs.tpc ttl <d>[ <m>]` | `xrootd_tpc_keys on`, `xrootd_tpc_key_ttl` |
 | Concurrency | `ofs.tpc xfr`, `streams` | `xrootd_tpc_transfers`, `xrootd_tpc_max_transfer_secs`, `xrootd_tpc_transfer_max_age` |
@@ -502,7 +522,7 @@ is the narrow redirector-confirmation client, **not** a transparent proxy.
 
 ## Traffic mirroring (nginx-forward)
 
-This is an **nginx-xrootd extension with no official equivalent** — there is no
+This is an **gnuBall extension with no official equivalent** — there is no
 shadow-replay subsystem in the reviewed XRootD source. It exists for migration
 validation: stand up a new backend behind a production gateway and prove it
 answers identically against real traffic before cutover.
@@ -574,7 +594,7 @@ Clients then `xrdcp root://<mgr-host>:<dataport>//path /local` and get redirecte
 to a data server. PSS proxying is a separate `ofs.osslib libXrdPss` +
 `pss.origin` deployment.
 
-### Redirector + data servers, nginx-xrootd
+### Redirector + data servers, gnuBall
 
 ```nginx
 # Redirector / manager (serves no files):
@@ -643,7 +663,7 @@ server {
 
 ## Parity, divergences, and extensions
 
-| Capability | Official XRootD | nginx-xrootd | Status |
+| Capability | Official XRootD | gnuBall | Status |
 |---|---|---|---|
 | Cluster daemon model | Separate `cmsd` per node (`XrdCms/`) | In-process stream modules (`src/net/cms/`) | Different architecture, comparable function |
 | Role taxonomy | 9 roles (`XrdCmsRole.hh`) | server / manager / sub-manager / supervisor-flag | Partial — practical subset |
@@ -690,7 +710,7 @@ Official XRootD (`/tmp/xrootd-src/src/`):
   `XrdOfsTPCConfig.hh`, `XrdOfsTPCJob.cc`, `XrdOfsTPCProg.cc`,
   `XrdOuc/XrdOucTPC.cc`, `XrdOfs/XrdOfsConfig.cc` (`xtpc`).
 
-nginx-xrootd (repo-relative `src/`):
+gnuBall (repo-relative `src/`):
 
 - CMS: `src/net/cms/` — `connect.c`, `recv.c`, `send.c`, `wire.c`, `space.c`,
   `frame_io.c`, `cms_internal.h`; manager half `server_handler.c`,

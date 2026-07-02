@@ -203,6 +203,7 @@ def _selected_tests_do_not_need_server(config) -> bool:
     """Return True when the requested pytest target is static-only."""
     raw_args = getattr(config, "args", ()) or ()
     no_server_files = {
+        "test_aio_waitresp.py",
         "test_cross_protocol_shared_helpers.py",
         "test_ipv6_fallback.py",
         "test_loss_sweep_gsi.py",

@@ -2,17 +2,75 @@
 #include "fs/cache/writethrough_metrics.h"
 #include "wrts_journal.h"
 
+/* xrootd_writev_body_extra — trailing segment-data length for kXR_writev
+ * WHAT: Validates a dlen-framed write_list descriptor block under the stock
+ * wire contract (dlen frames ONLY the descriptors: non-zero, 16-aligned,
+ * <= XROOTD_WRITEV_MAXSEGS entries, descriptors + declared data within
+ * XROOTD_MAX_WRITE_PAYLOAD) and reports sum(wlen) — the number of segment-data
+ * bytes the client streams after the request frame.
+ * WHY: Shared by the recv framing (to extend the read obligation so the
+ * streamed data lands in payload_buf before dispatch) and kept next to the
+ * handler that consumes the same layout.  Also delegated to by
+ * xrootd_ckpxeq_body_extra (chkpoint_xeq.c): a kXR_ckpXeq-embedded writev
+ * tunnels this exact contract — its embedded header's dlen frames the
+ * descriptors only, and the segment data streams behind.  Returns NGX_OK
+ * with *extra set, or NGX_DECLINED when the block violates the contract (the
+ * caller decides the error; the framing never rejects so the auth gates
+ * still run first). */
+ngx_int_t
+xrootd_writev_body_extra(const u_char *desc, uint32_t dlen, uint32_t *extra)
+{
+	const write_list *wl = (const write_list *) desc;
+	uint32_t          n_segs, i;
+	uint64_t          total = 0;
+
+	*extra = 0;
+
+	if (desc == NULL || dlen == 0 || dlen % XROOTD_WRITEV_SEGSIZE != 0) {
+		return NGX_DECLINED;
+	}
+
+	n_segs = dlen / XROOTD_WRITEV_SEGSIZE;
+	if (n_segs > XROOTD_WRITEV_MAXSEGS) {
+		return NGX_DECLINED;
+	}
+
+	for (i = 0; i < n_segs; i++) {
+		total += (uint32_t) ntohl((uint32_t) wl[i].wlen);
+	}
+
+	if ((uint64_t) dlen + total > XROOTD_MAX_WRITE_PAYLOAD) {
+		return NGX_DECLINED;
+	}
+
+	*extra = (uint32_t) total;
+	return NGX_OK;
+}
+
 /* Handle kXR_writev — scatter the request's data segments to their per-handle
  * (fd, offset) targets through the VFS write path, then reply with the aggregate
- * status. */
+ * status.
+ *
+ * Wire contract (stock XrdXrootdProtocol::do_WriteV): the header dlen frames
+ * ONLY the N*16-byte write_list descriptor block; the concatenated segment data
+ * (sum(wlen) bytes) streams after the frame.  The recv framing has already
+ * appended that trailing data to ctx->payload (ctx->cur_body_extra bytes), so
+ * descriptors and data are contiguous here.  Framing violations are rejected
+ * exactly like the reference server — send the error, then drop the link
+ * (return NGX_ERROR): once the descriptor block is in doubt the trailing byte
+ * count is unknowable and the connection cannot be resynchronised.
+ *
+ * The checkpoint-embedded form (kXR_ckpXeq carrying a writev — ckp_xeq_writev
+ * in chkpoint_xeq.c) tunnels this SAME layout one level down: the embedded
+ * sub-header's dlen frames the descriptors and the data streams behind, so
+ * the two paths must be kept contract-identical. */
 ngx_int_t
 xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 {
 	xrdw_writev_req_t    req;
 	write_list          *wl;
 	size_t               n_segs, i;
-	size_t               total_wlen;
-	size_t               max_segs;
+	uint64_t             total_wlen;
 	const u_char        *data_ptr;
 	size_t               bytes_written_total = 0;
 	int                  do_sync;
@@ -20,61 +78,58 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 	xrdw_writev_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
 	do_sync = (req.options & kXR_wv_doSync) ? 1 : 0;
 
-	if (ctx->payload == NULL || ctx->cur_dlen == 0) {
+	/* Stock parity: a dlen that is zero or not a whole number of write_list
+	 * descriptors is "Write vector is invalid" (kXR_ArgInvalid) + link drop. */
+	if (ctx->payload == NULL || ctx->cur_dlen == 0
+	    || ctx->cur_dlen % XROOTD_WRITEV_SEGSIZE != 0)
+	{
 		XROOTD_OP_ERR(ctx, XROOTD_OP_WRITEV);
-		return xrootd_send_error(ctx, c, kXR_ArgMissing,
-								 "empty writev payload");
+		(void) xrootd_send_error(ctx, c, kXR_ArgInvalid,
+								 "Write vector is invalid");
+		return NGX_ERROR;
 	}
 
-	if (ctx->cur_dlen < XROOTD_WRITEV_SEGSIZE) {
+	wl     = (write_list *) ctx->payload;
+	n_segs = ctx->cur_dlen / XROOTD_WRITEV_SEGSIZE;
+
+	/* Stock parity: vector count cap (stock maxWvecsz == 1024 == ours). */
+	if (n_segs > XROOTD_WRITEV_MAXSEGS) {
 		XROOTD_OP_ERR(ctx, XROOTD_OP_WRITEV);
-		return xrootd_send_error(ctx, c, kXR_ArgInvalid,
-								 "writev payload too short for one segment");
+		(void) xrootd_send_error(ctx, c, kXR_ArgTooLong,
+								 "Write vector is too long");
+		return NGX_ERROR;
 	}
 
-	/* The payload is N back-to-back write_list descriptors (16 bytes each)
-	 * followed by the concatenated data for every segment. The wire carries
-	 * no explicit N, so the upper bound is "however many whole descriptors
-	 * could fit in the payload", clamped to the safety cap. */
-	wl       = (write_list *) ctx->payload;
-	max_segs = ctx->cur_dlen / XROOTD_WRITEV_SEGSIZE;
-	if (max_segs > XROOTD_WRITEV_MAXSEGS) {
-		max_segs = XROOTD_WRITEV_MAXSEGS;
-	}
-
-	/* Recover N by treating leading bytes as descriptors and accumulating
-	 * their declared wlen until the running total descriptors+data exactly
-	 * fills the payload: n*16 + sum(wlen) == dlen pins down N uniquely.
-	 * Reading wl[i].wlen here also implicitly assumes the i-th descriptor is
-	 * in bounds, which holds because i < max_segs (whole descriptors only). */
-	n_segs     = 0;
 	total_wlen = 0;
-
-	for (i = 0; i < max_segs; i++) {
-		uint32_t wlen = (uint32_t) ntohl((uint32_t) wl[i].wlen);
-		n_segs++;
-		total_wlen += wlen;
-
-		/* Exact fit: this is the real segment count, stop scanning. */
-		if (n_segs * XROOTD_WRITEV_SEGSIZE + total_wlen == ctx->cur_dlen) {
-			break;
-		}
-
-		/* Overshoot: a declared wlen pushed us past the payload, so the
-		 * descriptors are inconsistent with the byte count — reject before
-		 * any write rather than read past the buffer. */
-		if (n_segs * XROOTD_WRITEV_SEGSIZE + total_wlen > ctx->cur_dlen) {
-			XROOTD_OP_ERR(ctx, XROOTD_OP_WRITEV);
-			return xrootd_send_error(ctx, c, kXR_ArgInvalid,
-									 "malformed writev: payload size mismatch");
-		}
+	for (i = 0; i < n_segs; i++) {
+		total_wlen += (uint32_t) ntohl((uint32_t) wl[i].wlen);
 	}
 
-	/* Hit the segment cap (or undershot) without an exact fit: malformed. */
-	if (n_segs * XROOTD_WRITEV_SEGSIZE + total_wlen != ctx->cur_dlen) {
+	/* Our aggregate transfer cap (stock instead caps each element at its
+	 * maxTransz); enforced by the framing BEFORE it reads the data, so a
+	 * violation means the trailing bytes were never accepted — drop. */
+	if ((uint64_t) ctx->cur_dlen + total_wlen > XROOTD_MAX_WRITE_PAYLOAD) {
 		XROOTD_OP_ERR(ctx, XROOTD_OP_WRITEV);
-		return xrootd_send_error(ctx, c, kXR_ArgInvalid,
-								 "malformed writev: payload size mismatch");
+		(void) xrootd_send_error(ctx, c, kXR_NoMemory,
+								 "writev transfer is too large");
+		return NGX_ERROR;
+	}
+
+	/* Defensive: the recv framing extends the body by exactly sum(wlen); a
+	 * mismatch means the extension never ran for this frame (unreachable in
+	 * normal operation) and the data bytes are not in the buffer. */
+	if (total_wlen != (uint64_t) ctx->cur_body_extra) {
+		XROOTD_OP_ERR(ctx, XROOTD_OP_WRITEV);
+		(void) xrootd_send_error(ctx, c, kXR_ArgInvalid,
+								 "Write vector is invalid");
+		return NGX_ERROR;
+	}
+
+	/* Stock parity: an all-zero-length vector succeeds immediately, before
+	 * any handle validation (do_WriteV returns Send() when maxSZ == 0). */
+	if (total_wlen == 0) {
+		XROOTD_OP_OK(ctx, XROOTD_OP_WRITEV);
+		return xrootd_send_ok(ctx, c, NULL, 0);
 	}
 
 	/* INVARIANT: validate every targeted handle up front so a bad handle in a

@@ -1,4 +1,4 @@
-# nginx-xrootd Feature Gap Analysis
+# gnuBall Feature Gap Analysis
 
 This document identifies incomplete features, missing corner cases, and areas requiring completion across the supported protocols (XRootD Stream, WebDAV, S3) in the `nginx-xrootd` module.
 

@@ -9,12 +9,12 @@
  */
 
 #include "webdav.h"
-#include "fs/vfs.h"   /* confined read-open for the Want-Digest checksum */
+#include "fs/vfs/vfs.h"   /* confined read-open for the Want-Digest checksum */
 #include "auth/impersonate/lifecycle.h"
-#include "core/compat/etag.h"
-#include "core/compat/http_body.h"
-#include "core/compat/http_file_response.h"
-#include "core/compat/http_xml.h"
+#include "core/http/etag.h"
+#include "core/http/http_body.h"
+#include "core/http/http_file_response.h"
+#include "core/http/http_xml.h"
 
 #include <libxml/parser.h>
 #include <libxml/tree.h>

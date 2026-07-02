@@ -17,7 +17,8 @@
  * LOG-phase handler stamps the primary's final status for that comparison.
  */
 #include "http_mirror.h"
-#include "core/compat/http_body.h"
+#include "core/http/http_body.h"
+#include "core/http/http_headers.h"
 
 /* Mirror counters live in the shared root metrics struct (low cardinality, no
  * per-target labels per metrics INVARIANT 8). */
@@ -52,31 +53,6 @@ static ngx_int_t
 xrootd_http_mirror_method_has_body(ngx_uint_t method)
 {
     return method == NGX_HTTP_PUT;
-}
-
-/* Find a request header by name (case-insensitive) in r->headers_in. */
-static ngx_table_elt_t *
-xrootd_http_mirror_find_header(ngx_http_request_t *r, const char *name,
-    size_t name_len)
-{
-    ngx_list_part_t *part = &r->headers_in.headers.part;
-    ngx_table_elt_t *h    = part->elts;
-    ngx_uint_t       i;
-
-    for (i = 0; /* void */; i++) {
-        if (i >= part->nelts) {
-            if (part->next == NULL) { break; }
-            part = part->next;
-            h    = part->elts;
-            i    = 0;
-        }
-        if (h[i].key.len == name_len
-            && ngx_strncasecmp(h[i].key.data, (u_char *) name, name_len) == 0)
-        {
-            return &h[i];
-        }
-    }
-    return NULL;
 }
 
 /*
@@ -199,15 +175,15 @@ mirror_create_request(ngx_http_request_t *r)
     /* MOVE/COPY: rewrite the client's Destination to point at the shadow, and
      * forward Depth/Overwrite verbatim so the shadow performs the same op. */
     if (method == NGX_HTTP_MOVE || method == NGX_HTTP_COPY) {
-        ngx_table_elt_t *dest_h = xrootd_http_mirror_find_header(r,
+        ngx_table_elt_t *dest_h = xrootd_http_find_header(r,
             "Destination", sizeof("Destination") - 1);
         if (dest_h != NULL) {
             dest = xrootd_http_mirror_rewrite_dest(r->pool, &dest_h->value,
                        &t->url_base);
         }
-        depth_h = xrootd_http_mirror_find_header(r, "Depth",
+        depth_h = xrootd_http_find_header(r, "Depth",
                       sizeof("Depth") - 1);
-        over_h  = xrootd_http_mirror_find_header(r, "Overwrite",
+        over_h  = xrootd_http_find_header(r, "Overwrite",
                       sizeof("Overwrite") - 1);
     }
 

@@ -1,6 +1,6 @@
 # Deployment Modes
 
-There are three ways to run nginx-xrootd, and they solve three different problems. Pick the one that matches where nginx-xrootd sits in your stack — you can always combine modes later.
+There are three ways to run gnuBall, and they solve three different problems. Pick the one that matches where gnuBall sits in your stack — you can always combine modes later.
 
 ---
 
@@ -53,7 +53,7 @@ Answer these questions to find your mode:
 
 ### What it does
 
-nginx-xrootd *is* the XRootD server. It directly serves files from your local filesystem using the native XRootD protocol.
+gnuBall *is* the XRootD server. It directly serves files from your local filesystem using the native XRootD protocol.
 
 ### When to use this mode
 
@@ -104,7 +104,7 @@ stream {
 
 ### What it does
 
-nginx-xrootd sits **in front of** an existing XRootD server. Clients connect to nginx; nginx authenticates, then transparently forwards requests to the backend. The client never sees the backend server.
+gnuBall sits **in front of** an existing XRootD server. Clients connect to nginx; nginx authenticates, then transparently forwards requests to the backend. The client never sees the backend server.
 
 ### When to use this mode
 
@@ -161,7 +161,7 @@ stream {
 
 ### What it does
 
-nginx-xrootd terminates **HTTPS** and enforces **WLCG JWT bearer token authentication**, then forwards plain HTTP requests to an internal WebDAV server. External clients never see the internal infrastructure.
+gnuBall terminates **HTTPS** and enforces **WLCG JWT bearer token authentication**, then forwards plain HTTP requests to an internal WebDAV server. External clients never see the internal infrastructure.
 
 ### When to use this mode
 

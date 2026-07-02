@@ -97,7 +97,7 @@ B2 turns the existing fire-and-forget staging hook (`src/protocols/root/query/pr
 | `src/frm/residency.h` | Residency model: `frm_residency_state_t`, `frm_residency_t`, `frm_residency_xattr_t`, stage-registry + stage-fail decls. |
 | `src/frm/residency_xattr.c` | `user.frm.residency` xattr encode/decode/read/write (mirrors `src/protocols/webdav/prop_xattr.c:23-118`). |
 | `src/frm/residency_probe.c` | `frm_residency_probe()` — the single source of truth for resident/backend-exists/staging. |
-| `src/frm/stage_registry.c` | **SHM dedup-set** (`frm_stage_table_t`): `frm_stage_claim` (atomic test-and-claim → LAUNCH/DEDUP/FULL), `frm_stage_dedup_lookup`, `frm_stage_release` (clone of `src/tpc/key_registry.c:154-183`). |
+| `src/frm/stage_registry.c` | **SHM dedup-set** (`frm_stage_table_t`): `frm_stage_claim` (atomic test-and-claim → LAUNCH/DEDUP/FULL), `frm_stage_dedup_lookup`, `frm_stage_release` (clone of `src/tpc/engine/key_registry.c:154-183`). |
 | `src/frm/stage_fail.c` | `.fail`/hold sidecar backoff (port of `XrdOssStage.cc:134-139`): `frm_stage_fail_check/_mark/_clear`. |
 | `src/frm/stage_launch.c` | Detached launcher on `FRM_STAGE_LAUNCH`: fail-check → xattr `staging` → post worker job → on done flip xattr + clear/mark. |
 | `src/frm/stage_registry.h` | Waiter + worker structs: `xrootd_stage_waiter_t`, `xrootd_stage_entry_t` (waiters[]), `xrootd_stage_job_t`, CRUD signatures. |
@@ -300,7 +300,7 @@ Merge in `ngx_stream_xrootd_merge_srv_conf` (`src/core/config/server_conf.c`), i
 - `src/frm/index.c` — SHM zone (clone `src/net/manager/registry.h:45-48` lock-first flexible array; LRU reaper `src/protocols/root/session/registry.c:226-289`).
 - `src/frm/reconcile.c` — `Init` analog (`XrdFrcReqFile.cc:216-302`): validate, CRC-scan, rebuild chains ordered `(priority desc, tod_added asc)` (`:266-283`), compact, repopulate index.
 - `src/frm/compact.c` — `ReWrite` analog (`XrdFrcReqFile.cc:571-623`): stream → `.new`, fsync, atomic `rename`, bump `generation`.
-- `src/frm/reqid.c` — durable `seq` bump (persisted analog of `xrootd_tpc_generate_key`, `src/tpc/key_registry.c:118-127`).
+- `src/frm/reqid.c` — durable `seq` bump (persisted analog of `xrootd_tpc_generate_key`, `src/tpc/engine/key_registry.c:118-127`).
 - `src/frm/queue.c` — façade + `frm_queue_get`/`frm_queue_init` + public ops + the `(reqid,path)` adapter wrappers (§3.3 note).
 - `src/frm/reaper.c` — worker-0 timer.
 - `src/frm/directives.c` — directive table fragment + custom setters.
@@ -340,7 +340,7 @@ Merge in `ngx_stream_xrootd_merge_srv_conf` (`src/core/config/server_conf.c`), i
 **CREATE:**
 - `src/frm/residency.h`, `src/frm/residency_xattr.c` — `user.frm.residency` xattr (mirror `src/protocols/webdav/prop_xattr.c:23-118`; absent ⇒ ONLINE, `NGX_DECLINED` on `ENODATA`/`ENOATTR`).
 - `src/frm/residency_probe.c` — `frm_residency_probe()` (§1 of M4): off→`{ONLINE}` (0 syscalls); dedup-set lookup first; then xattr; default ONLINE. Composes with existing `xrootd_cache_path_flag()` (independent bit).
-- `src/frm/stage_registry.c` + decls in `residency.h` — `frm_stage_table_t` SHM dedup-set, `frm_stage_claim` (LAUNCH/DEDUP/FULL atomic under one `ngx_shmtx_lock`, clone `src/tpc/key_registry.c:154-183`), `frm_stage_dedup_lookup`, `frm_stage_release`. `frm_stage_configure_registry(cf)`.
+- `src/frm/stage_registry.c` + decls in `residency.h` — `frm_stage_table_t` SHM dedup-set, `frm_stage_claim` (LAUNCH/DEDUP/FULL atomic under one `ngx_shmtx_lock`, clone `src/tpc/engine/key_registry.c:154-183`), `frm_stage_dedup_lookup`, `frm_stage_release`. `frm_stage_configure_registry(cf)`.
 - `src/frm/stage_fail.c` — `.fail`/hold sidecar (port `XrdOssStage.cc:134-139`): `frm_stage_fail_check/_mark/_clear`.
 - `src/frm/stage_exec.c` — reap-and-capture exec helper `xrootd_stage_run_copycmd` (single-fork + `waitpid` on a pool thread; factor shared `xrootd_close_inherited_fds()` out of `prepare_cmd.c:103-152`, reuse the no-shell `execv` body and SECURITY block `prepare_cmd.c:32-37`).
 - `src/frm/stage_registry.h` + `src/frm/stage_worker.c` — `xrootd_stage_job_t`; `xrootd_stage_worker_thread` (Fetch logic `XrdFrmTransfer.cc:146-328`: pre-stat → copy to `pfn.anew` → verify `stat`+size → atomic `rename` → on fail unlink+`.fail`) + `xrootd_stage_worker_done` (commit M1 status, `frm_stage_release`, fail-backoff `retry_not_before`, scheduler kick). **Phase-1 `worker_done` does NOT call `deliver_waiters`** — that's Phase 3.

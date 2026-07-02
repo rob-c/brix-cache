@@ -3,7 +3,7 @@
 #include "core/compat/integrity_info.h"
 #include "protocols/root/response/response.h"
 #include "core/aio/aio.h"
-#include "fs/vfs.h"   /* confined read-open via the VFS seam */
+#include "fs/vfs/vfs.h"   /* confined read-open via the VFS seam */
 #include "net/manager/registry.h"
 #include "net/manager/pending.h"
 #include "net/cms/cms_internal.h"

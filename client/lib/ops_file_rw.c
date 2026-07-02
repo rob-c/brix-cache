@@ -369,10 +369,14 @@ xrdc_file_readv(xrdc_conn *c, xrdc_file *f, xrdc_readv_seg *segs,
 
 
 /*
- * kXR_writev (3031) — scatter-gather write. Payload = nseg write_list descriptors
- * (fhandle[4] + wlen[4 BE] + offset[8 BE]) back-to-back, then the concatenated data
- * for every segment (the server recovers N from n*16 + sum(wlen) == dlen). do_sync
- * sets kXR_wv_doSync (fsync each touched handle). The write is all-or-nothing.
+ * kXR_writev (3031) — scatter-gather write. Wire framing (stock
+ * XrdXrootdProtocol::do_WriteV): the header dlen covers ONLY the nseg*16-byte
+ * write_list descriptor block (fhandle[4] + wlen[4 BE] + offset[8 BE]
+ * back-to-back); the concatenated segment data streams immediately after the
+ * frame and the server recovers its length as sum(wlen).  Counting the data
+ * inside dlen is rejected by stock servers with kXR_ArgInvalid ("Write vector
+ * is invalid") followed by a link drop.  do_sync sets kXR_wv_doSync (fsync
+ * each touched handle).  The write is all-or-nothing.
  */
 int
 xrdc_file_writev(xrdc_conn *c, xrdc_file *f, const xrdc_writev_seg *segs,
@@ -425,7 +429,9 @@ xrdc_file_writev(xrdc_conn *c, xrdc_file *f, const xrdc_writev_seg *segs,
         xrdw_writev_req_t b = { .options = (uint8_t) (do_sync ? kXR_wv_doSync : 0) };
         xrdw_writev_req_pack(&b, ((ClientRequestHdr *) &req)->body);
     }
-    if (xrdc_send(c, &req, payload, (uint32_t) plen, &sid, st) != 0) {
+    /* dlen frames only the descriptor block; the data bytes ride after it. */
+    if (xrdc_send_ext(c, &req, payload, (uint32_t) plen,
+                      (uint32_t) (nseg * 16), &sid, st) != 0) {
         free(payload);
         return -1;
     }

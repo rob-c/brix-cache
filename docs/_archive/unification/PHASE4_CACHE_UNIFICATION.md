@@ -73,7 +73,7 @@ None. `src/protocols/s3/object.c` opens the origin path directly every time.
 After Phase 3, `xrootd_vfs_open()` calls a new internal function:
 
 ```c
-// Inside src/fs/vfs_open.c (Phase 3):
+// Inside src/fs/vfs/vfs_open.c (Phase 3):
 static ngx_int_t
 vfs_open_with_cache(xrootd_vfs_ctx_t *ctx, ngx_uint_t flags,
                     xrootd_vfs_file_t *fh)
@@ -126,7 +126,7 @@ ngx_int_t xrootd_cache_open(xrootd_vfs_ctx_t *ctx,
 Currently `src/fs/cache/writethrough_decision.c` is only reachable from the WebDAV TPC path. After Phase 4 it is called by `xrootd_vfs_write()` for **all** write operations:
 
 ```c
-// Inside src/fs/vfs_write.c (extended in Phase 4):
+// Inside src/fs/vfs/vfs_write.c (extended in Phase 4):
 if (xrootd_cache_should_writethrough(ctx, offset, length)) {
     rc = xrootd_cache_writethrough(fh, offset, in);
     if (rc != NGX_OK) { /* log, fall through to origin write */ }
@@ -219,9 +219,9 @@ The origin protocol is determined by the nginx config directive `xrootd_cache_or
 | `src/fs/cache/evict_policy.c` | Accept access events from all protocols |
 | `src/fs/cache/origin_protocol.c` | Add HTTP and S3 origin fetch dispatch |
 | `src/fs/cache/writethrough_decision.c` | Accept `xrootd_vfs_ctx_t *` (was stream-specific) |
-| `src/fs/vfs_open.c` | Call `xrootd_cache_open()` (Phase 4 hook) |
-| `src/fs/vfs_write.c` | Call `xrootd_cache_should_writethrough()` |
-| `src/fs/vfs_read.c` | Call `xrootd_cache_record_access()` on cache hit |
+| `src/fs/vfs/vfs_open.c` | Call `xrootd_cache_open()` (Phase 4 hook) |
+| `src/fs/vfs/vfs_write.c` | Call `xrootd_cache_should_writethrough()` |
+| `src/fs/vfs/vfs_read.c` | Call `xrootd_cache_record_access()` on cache hit |
 | `src/protocols/root/read/open_cache.c` | **Removed** — replaced by `src/fs/cache/open.c` |
 | `src/core/config/config.h` | Add `src/fs/cache/open.c`, `src/fs/cache/meta.c` to `NGX_ADDON_SRCS`; new `xrootd_cache_origin_protocol` directive |
 

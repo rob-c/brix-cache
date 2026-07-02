@@ -59,7 +59,7 @@ work is to make that discipline universal.
 - **Auth brute-force / CPU-amplification cap.** `src/auth/gsi/auth.c:357` rejects once
   `auth_fail_count >= XROOTD_MAX_AUTH_ATTEMPTS`, skipping the certreq round.
 - **Body caps before `malloc` on remote responses.** `src/fs/cache/origin_response.c:49`
-  (`*dlen > max_body`) and `src/tpc/io.c:115` (`*dlen > TPC_RESP_MAX_BODY`) both
+  (`*dlen > max_body`) and `src/tpc/outbound/io.c:115` (`*dlen > TPC_RESP_MAX_BODY`) both
   bound, allocate `dlen+1`, and free on the read-failure path. **These are the
   reference pattern.**
 - **Bounded shared-memory registries.** Session registry is fixed-capacity
@@ -84,7 +84,7 @@ Severity reflects exploitability by an external peer.
 | # | File:line | Issue | Sev | Guard |
 |---|-----------|-------|-----|-------|
 | F1 | `src/protocols/root/read/readv.c:79`, `:250` | `malloc(segment_count * sizeof(*ranges))` / `ngx_alloc(segment_count * …)`. `segment_count = cur_dlen / SEGSIZE` (`:204`) is bounded by `recv.c`, but the **`* sizeof` multiply has no explicit overflow/`MAXSEGS` guard at the callsite** — defense-in-depth missing. | Med | Explicit `if (segment_count > XROOTD_READV_MAXSEGS) reject;` + checked-mul helper |
-| F2 | `src/tpc/gsi_outbound_exchange.c:222,271,335,404,439` | DH/cert exchange does ~5 `malloc`/`OPENSSL_malloc` + many OpenSSL handles with hand-rolled `goto round_fail/done`. Long, branchy error paths driven by a **remote origin's** buckets → high risk of handle/heap leak on any malformed bucket. | High | Scoped-cleanup idiom (W3); fuzz the bucket parser (W7) |
+| F2 | `src/tpc/gsi/gsi_outbound_exchange.c:222,271,335,404,439` | DH/cert exchange does ~5 `malloc`/`OPENSSL_malloc` + many OpenSSL handles with hand-rolled `goto round_fail/done`. Long, branchy error paths driven by a **remote origin's** buckets → high risk of handle/heap leak on any malformed bucket. | High | Scoped-cleanup idiom (W3); fuzz the bucket parser (W7) |
 | F3 | `src/protocols/root/read/readv.c:79` (and other per-request `malloc`) | Raw `malloc`/`free` used where a **request/transient pool** would auto-reclaim on the error paths. Each manual `free` is a chance to miss one. | Med | Prefer pool-backed alloc on per-request paths (W4) |
 | F4 | `src/protocols/root/session/registry.*`, `src/net/manager/registry.c` | Registries are **capacity-bounded but never time-evicted**. A peer that opens sessions/handles (or a flapping CMS server) can fill all slots → legitimate logins rejected (slot-exhaustion DoS). No `last_seen` TTL reaper on the session table. | High | TTL/LRU eviction + per-source quota (W5) |
 | F5 | `src/protocols/root/session/registry.h:30` vs `:36` docstring | `#define XROOTD_SESSION_REGISTRY_SLOTS 1024` but the doc comment says “default 256” — **cap drift** between declared limit and documentation; risk of wrong capacity assumptions in sizing/SHM math. | Low | Reconcile + single source of truth (W5) |
@@ -197,7 +197,7 @@ The attack surface is parsers of attacker-controlled bytes. Add libFuzzer
 targets (compiled standalone against the parser TUs, not full nginx):
 
 - Framing + per-opcode dispatch (`src/protocols/root/connection/recv.c`, `src/protocols/root/handshake`).
-- GSI/TPC bucket + PEM/cipher parsing (`src/tpc/gsi_outbound_*`, `src/auth/gsi`).
+- GSI/TPC bucket + PEM/cipher parsing (`src/tpc/gsi/gsi_outbound_*`, `src/auth/gsi`).
 - Token/JWT/JWKS (`src/auth/token`), S3 SigV4 + multipart (`src/protocols/s3`), WebDAV
   XML / dead-props (`src/protocols/webdav/dead_props.c`).
 - Seed corpus from the existing test fixtures; run under ASAN. Store under
@@ -312,7 +312,7 @@ capped + overflow-checked:
 
 - `src/protocols/root/read/readv.c:79,250` — `segment_count * sizeof` *(F1, no callsite cap)*
 - `src/fs/cache/origin_response.c:60` — `*dlen+1` *(capped ✓ `max_body`)*
-- `src/tpc/io.c:118` — `*dlen+1` *(capped ✓ `TPC_RESP_MAX_BODY`)*
+- `src/tpc/outbound/io.c:118` — `*dlen+1` *(capped ✓ `TPC_RESP_MAX_BODY`)*
 - `src/protocols/root/query/prepare.c:317` — `cur_dlen+1` *(verify `MAX_PREPARE_PAYLOAD` gate)*
 - `src/fs/cache/origin_protocol.c:220,321` — `malloc(total)` *(verify cap)*
 - `src/net/proxy/forward_relay_dispatch.c:136`, `forward_rewrite_helpers.c:61,139`
@@ -320,13 +320,13 @@ capped + overflow-checked:
 - `src/protocols/webdav/dead_props.c:129,285,321` — XML len-derived *(verify cap)*
 - `src/core/compat/namespace_ops.c:114` — `list_len` *(verify source)*
 - `src/fs/cache/evict_candidates.c:231,237,251` — `realloc` growth *(F9)*
-- `src/tpc/gsi_outbound_exchange.c:222,271,335,404,439` — exchange buffers *(F2)*
+- `src/tpc/gsi/gsi_outbound_exchange.c:222,271,335,404,439` — exchange buffers *(F2)*
 - `src/protocols/s3/copy.c:41`, `src/auth/crypto/ocsp.c:524`, `src/protocols/root/write/chkpoint*.c:84,86`
   — header/DER/path-len derived *(verify caps)*
 
 ## Appendix B — External-handle hotspots (audit checklist for W3/W6)
 
-- OpenSSL EVP/BIO/X509/EC/BN: `src/tpc/gsi_outbound_*` (densest),
+- OpenSSL EVP/BIO/X509/EC/BN: `src/tpc/gsi/gsi_outbound_*` (densest),
   `src/auth/gsi/*`, `src/auth/crypto/*`, `src/auth/token/*`, `src/protocols/s3/auth_sigv4_*`,
   `src/auth/sss/*` — 26 files total.
 - libcurl: `src/protocols/webdav/tpc*`, `src/fs/cache/origin*` (1 `curl_easy_init` site —
@@ -334,4 +334,4 @@ capped + overflow-checked:
 - jansson: `src/observability/dashboard`, `src/auth/token`, `src/observability/metrics`, `src/protocols/root/query`, `src/protocols/s3`,
   `src/auth/gsi` — 10 files; audit borrowed-vs-owned refs.
 - File descriptors: `src/protocols/root/connection/fd_table.c` (F10), `src/core/compat/staged_file.c`,
-  `src/fs/cache`, `src/tpc/io.c`.
+  `src/fs/cache`, `src/tpc/outbound/io.c`.

@@ -11,7 +11,7 @@
 #include "stage_engine.h"
 #include "xfer.h"   /* xrootd_xfer_finish + the kind/result vocabulary (ledger) */
 #include "core/aio/aio.h"                /* xrootd_task_bind (mover thread-offload) */
-#include "fs/vfs_backend_registry.h"      /* xrootd_vfs_backend_resolve (reconcile) */
+#include "fs/vfs/vfs_backend_registry.h"      /* xrootd_vfs_backend_resolve (reconcile) */
 #include "fs/backend/cache/sd_cache.h"    /* cache instance_is / source_instance    */
 #include "fs/backend/stage/sd_stage.h"    /* stage instance_is / reflush            */
 

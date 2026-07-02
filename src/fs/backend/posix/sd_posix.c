@@ -27,7 +27,7 @@
  * shared libxrdproto, so a shared kernel (src/compat/checksum_core.c) can route
  * its fd reads through xrootd_sd_posix_driver in both worlds. */
 #ifndef XRDPROTO_NO_NGX
-#include "fs/vfs_internal.h"          /* pread_full/pwrite_full + ns_status_errno */
+#include "fs/vfs/vfs_internal.h"          /* pread_full/pwrite_full + ns_status_errno */
 #include "core/compat/crc32c.h"
 #include "core/compat/namespace_ops.h"
 #include "core/compat/staged_file.h"

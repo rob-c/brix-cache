@@ -20,13 +20,14 @@
  *   xrootd_srr_name          <name>          storageservice.name
  *   xrootd_srr_id            <id>            storageservice.id (default = name)
  *   xrootd_srr_quality       <level>         qualitylevel (default "production")
- *   xrootd_srr_version       <ver>           implementationversion (default "1.0")
+ *   xrootd_srr_version       <ver>           implementationversion (default: core/ident.h version)
  *   xrootd_srr_share         <name> <path> [vos]   repeatable storageshares[] entry
  *   xrootd_srr_endpoint      <name> <iftype> <url>  repeatable storageendpoints[] entry
  */
 
 #include "srr.h"
 #include "core/compat/alloc_guard.h"
+#include "core/ident.h"
 
 
 static void *ngx_http_xrootd_srr_create_loc_conf(ngx_conf_t *cf);
@@ -141,7 +142,8 @@ ngx_http_xrootd_srr_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_str_value(conf->name, prev->name, "");
     ngx_conf_merge_str_value(conf->id, prev->id, "");
     ngx_conf_merge_str_value(conf->quality, prev->quality, "production");
-    ngx_conf_merge_str_value(conf->version, prev->version, "1.0");
+    ngx_conf_merge_str_value(conf->version, prev->version,
+                             XROOTD_SERVER_VERSION_BARE);
 
     if (conf->shares == NULL) {
         conf->shares = prev->shares;

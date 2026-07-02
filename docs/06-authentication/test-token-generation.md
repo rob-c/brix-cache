@@ -1,6 +1,6 @@
 # Test tokens from scratch
 
-Create a JWT/WLCG token signing authority, mint tokens, and fire them at nginx-xrootd — all with local tools, no external identity provider needed. This is the token equivalent of [test-pki.md](test-pki-setup.md), and a useful reference for understanding how WLCG bearer-token auth works across both the native XRootD stream protocol and WebDAV.
+Create a JWT/WLCG token signing authority, mint tokens, and fire them at gnuBall — all with local tools, no external identity provider needed. This is the token equivalent of [test-pki.md](test-pki-setup.md), and a useful reference for understanding how WLCG bearer-token auth works across both the native XRootD stream protocol and WebDAV.
 
 For the full session lifecycle (how tokens are initialized automatically alongside the PKI on each `pytest` run), per-test nginx instances, and how to write new tests, see [testing.md](../09-developer-guide/testing-runbook.md).
 

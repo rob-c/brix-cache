@@ -1,6 +1,6 @@
 # XRootD Basics
 
-XRootD is the data highway of High Energy Physics — the protocol that ships collision events from storage to analysis farms, one multi-gigabyte file at a time. This page maps the key concepts, translates the jargon, and shows where nginx-xrootd fits in.
+XRootD is the data highway of High Energy Physics — the protocol that ships collision events from storage to analysis farms, one multi-gigabyte file at a time. This page maps the key concepts, translates the jargon, and shows where gnuBall fits in.
 
 ---
 
@@ -67,7 +67,7 @@ xrdfs server.example.com stat /store/data/Run3/sample.root
 
 `.root` files contain **TTrees**, **histograms**, and other physics analysis data. They are binary containers managed by the ROOT framework (a C++ analysis toolkit).
 
-**Important:** nginx-xrootd does *not* understand `.root` files internally. It serves raw bytes. A ROOT application reads them because ROOT knows how to open `root://` URLs through its own XRootD client library.
+**Important:** gnuBall does *not* understand `.root` files internally. It serves raw bytes. A ROOT application reads them because ROOT knows how to open `root://` URLs through its own XRootD client library.
 
 See also: [Glossary → ROOT (Framework)](../10-reference/glossary.md#root-framework)
 
@@ -159,7 +159,7 @@ JWTs are web-standard tokens (like OAuth2). WLCG has defined a standard format t
 
 ---
 
-## Architecture — How nginx-xrootd Fits Together
+## Architecture — How gnuBall Fits Together
 
 ```
                     Client Request (XRootD protocol)
@@ -203,7 +203,7 @@ The rest is configuration detail you'll encounter when you need it.
 
 ## Related Reading
 
-- [What Is This Project](../01-getting-started/what-is-this.md) — Why nginx-xrootd exists *(5 min)*
+- [What Is This Project](../01-getting-started/what-is-this.md) — Why gnuBall exists *(5 min)*
 - [Deployment Modes](deployment-modes.md) — Three ways to run this software *(10 min, or skip if you know modes)*
 - [Authentication Overview](../06-authentication/auth-overview.md) — Setting up access control *(20 min)*
 - **[Security Hardening Guide](../07-security/hardening-guide.md)** — Verify your deployment is secure *(30 min)*

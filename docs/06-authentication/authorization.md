@@ -20,7 +20,7 @@ VOMS AC extraction (src/auth/voms/collect.c)
 
           │
           ▼
-Path ACL check (src/path/ and xrootd_require_vo directives)
+Path ACL check (src/auth/authz/ and xrootd_require_vo directives)
     For each xrootd_require_vo rule:
         rule: path="/cms"  required_vo="cms"
         request path: "/cms/mc/file.root"
@@ -99,7 +99,7 @@ ca/
 ```
 
 The `.signing_policy` files are only read by the XRootD C++ `XrdSecGSI`
-library on the client side — nginx-xrootd's server-side verification does not
+library on the client side — gnuBall's server-side verification does not
 read them.  They must still be present in the CA directory if your test clients
 use the XRootD library for GSI, because the client validates the server cert
 against its own CA bundle.

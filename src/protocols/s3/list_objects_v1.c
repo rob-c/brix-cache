@@ -26,7 +26,7 @@
  */
 
 #include "s3.h"
-#include "core/compat/http_query.h"
+#include "core/http/http_query.h"
 #include <string.h>
 
 ngx_int_t

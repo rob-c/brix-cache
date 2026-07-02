@@ -109,6 +109,7 @@ def test_delegated_token_enables_ztn_auth_path():
         Path(__file__).resolve().parents[1]
         / "src"
         / "tpc"
+        / "gsi"
         / "gsi_outbound_finish.c"
     ).read_text()
 

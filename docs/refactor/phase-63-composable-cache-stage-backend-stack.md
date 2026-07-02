@@ -455,7 +455,7 @@ an authenticated login (`cache/origin_protocol.c`, `xrootd_cache_origin_auth_ztn
 IN-PROCESS — round-1 `kXGC_certreq` (`xrootd_gsi_build_certreq`) → server `kXGS_cert`
 → round-2 `kXGC_cert` (`xrootd_gsi_build_cert_response` with the proxy chain + key) →
 `kXR_ok`. The DH/cipher/proof-of-possession math is the **shared `gsi_core` kernel**
-(the same `client/lib/sec/sec_gsi.c` and `src/tpc/gsi_outbound_exchange.c` drive), so
+(the same `client/lib/sec/sec_gsi.c` and `src/tpc/gsi/gsi_outbound_exchange.c` drive), so
 no XrdCl/subprocess and no parallel crypto. The proxy PEM path threads through the §14
 credential (`x509_proxy`) → registry `origin_x509_proxy` →
 `xrootd_sd_xroot_create_origin(…, x509_proxy, …)` → the synthetic conf's

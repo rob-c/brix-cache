@@ -422,7 +422,7 @@ hide it:
 
 So:
 
-- `xrdcp --tpc` / `xrdcp --tpc first` against nginx-xrootd is covered by
+- `xrdcp --tpc` / `xrdcp --tpc first` against gnuBall is covered by
   `tests/test_root_tpc.py` for typical disk-only anonymous or compatible-auth
   sources
 - WebDAV TPC is a different HTTP code path entirely

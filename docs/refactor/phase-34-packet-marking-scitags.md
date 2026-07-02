@@ -286,10 +286,10 @@ request/connection
 - Identity from `webdav/auth_cert.c` / `auth_token.c` / `s3/auth_sigv4_verify.c`.
 
 ### 6.3 TPC (outbound — the most XRootD-faithful path)
-- **Native TPC** (`src/tpc/connect.c:82-139`): we already `setsockopt(SO_RCVTIMEO/SO_SNDTIMEO)`
+- **Native TPC** (`src/tpc/outbound/connect.c:82-139`): we already `setsockopt(SO_RCVTIMEO/SO_SNDTIMEO)`
   right after `socket(2)` — add the **flow-label setsockopt** and register the fd with `firefly.c`
   at the same site (`flow_begin` after connect succeeds; `flow_end` on teardown). Source identity
-  parsed from the TPC URL/params (`src/tpc/launch.c`).
+  parsed from the TPC URL/params (`src/tpc/engine/launch.c`).
 - **WebDAV TPC (libcurl)** (`src/protocols/webdav/tpc_curl.c:110`): we already set `CURLOPT_RESOLVE`. Add
   `CURLOPT_OPENSOCKETFUNCTION` + `CURLOPT_CLOSESOCKETFUNCTION` exactly like
   `XrdHttpTpcPMarkManager`: open-cb captures the curl fd → `flow_begin`; close-cb → `flow_end`
@@ -355,7 +355,7 @@ if (setsockopt(fd, IPPROTO_IPV6, IPV6_FLOWLABEL_MGR, &fl, sizeof(fl)) == 0) {
 }
 ```
 
-*(b) Outbound sockets we create — native TPC (`src/tpc/connect.c`).*
+*(b) Outbound sockets we create — native TPC (`src/tpc/outbound/connect.c`).*
 Simplest path: set the label in the destination `sockaddr_in6.sin6_flowinfo` **before** `connect()`
 and enable send, alongside the existing `SO_RCVTIMEO/SO_SNDTIMEO` calls (`connect.c:138-139`):
 ```c

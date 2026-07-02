@@ -83,10 +83,17 @@ class TestChkpoint:
         return self._recv_response(sock)
 
     def _ckpxeq_write(self, sock, sid, fh, offset, data):
-        """kXR_ckpXeq carrying a kXR_write sub-request."""
+        """kXR_ckpXeq carrying a kXR_write sub-request (stock framing: the
+        chkpoint dlen covers only the embedded 24-byte sub-header — which must
+        carry the outer streamid — and the write data streams after the
+        frame, exactly like XrdCl sends it)."""
         sub = struct.pack("!2sH4sqB3sI",
-                          b"\x00\x00", 3019, fh, offset, 0, b"\x00" * 3, len(data))
-        return self._chkpoint(sock, sid, fh, 4, sub + data)  # 4 = kXR_ckpXeq
+                          bytes([0, sid]), 3019, fh, offset, 0, b"\x00" * 3,
+                          len(data))
+        req = struct.pack("!2sH4s11sBI",
+                          bytes([0, sid]), 3012, fh, b"\x00" * 11, 4, len(sub))
+        sock.sendall(req + sub + data)
+        return self._recv_response(sock)
 
     # ── tests ────────────────────────────────────────────────────────────
 
@@ -449,23 +456,36 @@ class TestChkpointXeq:
         sock.sendall(req + extra)
         return self._recv_response(sock)
 
+    def _ckpxeq(self, sock, sid, fh, sub_hdr, sub_body=b""):
+        """Send a stock-framed kXR_ckpXeq: the chkpoint dlen covers only the
+        embedded 24-byte sub-header (which carries the outer streamid); the
+        sub-request body streams after the frame (see chkpoint_xeq.c and
+        test_chkpoint_stock_framing.py)."""
+        req = struct.pack("!2sH4s11sBI",
+                          bytes([0, sid]), 3012, fh, b"\x00"*11, 4,
+                          len(sub_hdr))
+        sock.sendall(req + sub_hdr + sub_body)
+        return self._recv_response(sock)
+
     def _ckpxeq_pgwrite(self, sock, sid, fh, offset, data, corrupt_page=-1):
         """Send ckpXeq carrying a kXR_pgwrite sub-request."""
         payload = _pgwrite_payload(data, offset, corrupt_page)
         sub_hdr = struct.pack("!2sH4sqBBHi",
-                              b"\x00\x00", 3026,   # kXR_pgwrite
+                              bytes([0, sid]), 3026,   # kXR_pgwrite
                               fh, offset, 0, 0, 0, len(payload))
-        return self._chkpoint(sock, sid, fh, 4, sub_hdr + payload)
+        return self._ckpxeq(sock, sid, fh, sub_hdr, payload)
 
     def _ckpxeq_truncate(self, sock, sid, fh, length):
         """Send ckpXeq carrying a kXR_truncate sub-request (handle-based)."""
         sub_hdr = struct.pack("!2sH4sq4sI",
-                              b"\x00\x00", 3028,   # kXR_truncate
+                              bytes([0, sid]), 3028,   # kXR_truncate
                               fh, length, b"\x00"*4, 0)
-        return self._chkpoint(sock, sid, fh, 4, sub_hdr)
+        return self._ckpxeq(sock, sid, fh, sub_hdr)
 
     def _ckpxeq_writev(self, sock, sid, fh, segments):
-        """Send ckpXeq carrying a kXR_writev sub-request.
+        """Send ckpXeq carrying a kXR_writev sub-request (stock framing: the
+        sub-header's dlen frames only the descriptor block; the segment data
+        streams after it, exactly like a standalone kXR_writev).
 
         segments: list of (offset, data) pairs.
         """
@@ -474,17 +494,17 @@ class TestChkpointXeq:
         for off, data in segments:
             seg_hdrs += struct.pack("!4siq", fh, len(data), off)
             seg_data += data
-        payload = seg_hdrs + seg_data
         sub_hdr = struct.pack("!2sHB15sI",
-                              b"\x00\x00", 3031,   # kXR_writev
-                              0, b"\x00"*15, len(payload))
-        return self._chkpoint(sock, sid, fh, 4, sub_hdr + payload)
+                              bytes([0, sid]), 3031,   # kXR_writev
+                              0, b"\x00"*15, len(seg_hdrs))
+        return self._ckpxeq(sock, sid, fh, sub_hdr, seg_hdrs + seg_data)
 
     def _ckpxeq_write(self, sock, sid, fh, offset, data):
         """Send ckpXeq carrying a kXR_write sub-request."""
-        sub = struct.pack("!2sH4sqB3sI",
-                          b"\x00\x00", 3019, fh, offset, 0, b"\x00"*3, len(data))
-        return self._chkpoint(sock, sid, fh, 4, sub + data)
+        sub_hdr = struct.pack("!2sH4sqB3sI",
+                              bytes([0, sid]), 3019, fh, offset, 0,
+                              b"\x00"*3, len(data))
+        return self._ckpxeq(sock, sid, fh, sub_hdr, data)
 
     # ── tests ─────────────────────────────────────────────────────────────
 
@@ -639,10 +659,11 @@ class TestChkpointXeq:
         try:
             fh = self._open(sock, 2, "/xeq_unknown.bin")
             self._chkpoint(sock, 3, fh, 0)   # begin
-            # Sub-header with an opcode that doesn't exist (0xFFFF).
-            bogus_sub = struct.pack("!2sH4s16sI",
-                                    b"\x00\x00", 0xFFFF, fh, b"\x00"*16, 0)
-            status, _ = self._chkpoint(sock, 4, fh, 4, bogus_sub)   # ckpXeq
+            # 24-byte sub-header with a requestid that doesn't exist (0xFFFF);
+            # stock parity: error, link kept (no data was declared).
+            bogus_sub = struct.pack("!2sH4s12sI",
+                                    bytes([0, 4]), 0xFFFF, fh, b"\x00"*12, 0)
+            status, _ = self._ckpxeq(sock, 4, fh, bogus_sub)
             assert status != 0, "expected error for unknown ckpXeq sub-opcode"
             self._chkpoint(sock, 5, fh, 1)   # commit to clean up
             self._close(sock, 6, fh)
@@ -867,9 +888,16 @@ class TestChkpointExtended:
         return self._recv_response(sock)
 
     def _ckpxeq_write(self, sock, sid, fh, offset, data):
+        """Stock-framed ckpXeq write: the chkpoint dlen covers only the
+        embedded 24-byte sub-header (carrying the outer streamid); the write
+        data streams after the frame."""
         sub = struct.pack("!2sH4sqB3sI",
-                          b"\x00\x00", 3019, fh, offset, 0, b"\x00"*3, len(data))
-        return self._chkpoint(sock, sid, fh, 4, sub + data)
+                          bytes([0, sid]), 3019, fh, offset, 0, b"\x00"*3,
+                          len(data))
+        req = struct.pack("!2sH4s11sBI",
+                          bytes([0, sid]), 3012, fh, b"\x00"*11, 4, len(sub))
+        sock.sendall(req + sub + data)
+        return self._recv_response(sock)
 
     # ── tests ──────────────────────────────────────────────────────────────
 

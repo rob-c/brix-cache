@@ -19,7 +19,7 @@
 #include "core/config/http_rootfd.h"
 #include "core/compat/staged_file.h"
 #include "fs/backend/sd.h"           /* SD registry: lazy per-worker instance */
-#include "fs/vfs_backend_registry.h" /* per-export backend config + resolve */
+#include "fs/vfs/vfs_backend_registry.h" /* per-export backend config + resolve */
 
 #include <openssl/x509.h>
 

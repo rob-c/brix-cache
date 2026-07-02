@@ -1,6 +1,6 @@
 #include "cms_internal.h"
-#include "fs/vfs.h"   /* confined open/unlink via the VFS seam */
-#include "fs/vfs_backend_registry.h"   /* non-POSIX backend driver routing */
+#include "fs/vfs/vfs.h"   /* confined open/unlink via the VFS seam */
+#include "fs/vfs/vfs_backend_registry.h"   /* non-POSIX backend driver routing */
 #include "node_ops.h"               /* Plane B forwarded-op planner */
 #include "rrdata.h"                 /* Pup decode of forwarded payloads */
 #include "router.h"                 /* node-role opcode routing */

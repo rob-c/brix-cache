@@ -4,7 +4,7 @@
  * See net_target.h for the public API.
  *
  * Address classification helpers (ipv4/ipv6 prohibited-range checks) were
- * extracted from src/tpc/connect.c so that WebDAV HTTP-TPC and future S3
+ * extracted from src/tpc/outbound/connect.c so that WebDAV HTTP-TPC and future S3
  * remote-copy features share the same SSRF policy without reimplementing it.
  */
 

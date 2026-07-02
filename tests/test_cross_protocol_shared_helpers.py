@@ -2,7 +2,7 @@ from _test_cross_protocol_shared_helpers_helpers import *  # noqa: F401,F403  (P
 
 def test_copy_and_http_file_response_helpers_are_shared():
     # Phase 55: local-object copy moved behind the shared VFS copy entry point
-    # (xrootd_vfs_copy → xrootd_ns_local_copy in src/fs/vfs_copy.c).  The S3
+    # (xrootd_vfs_copy → xrootd_ns_local_copy in src/fs/vfs/vfs_copy.c).  The S3
     # CopyObject handler must route through that shared seam, not a private copy.
     _assert_markers(
         "src/protocols/s3/copy.c",
@@ -10,7 +10,7 @@ def test_copy_and_http_file_response_helpers_are_shared():
     )
     _assert_absent("src/protocols/s3/copy.c", ["static int\ns3_copy_file"])
     # Phase 62: WebDAV COPY's local copy moved behind the shared VFS copy seam
-    # (xrootd_vfs_copyfile / xrootd_vfs_copytree, src/fs/vfs_walk.c), which owns
+    # (xrootd_vfs_copyfile / xrootd_vfs_copytree, src/fs/vfs/vfs_walk.c), which owns
     # the underlying copy_file_range path.  The handler must route through that
     # seam, and the shared VFS layer keeps the single xrootd_copy_range() impl.
     _assert_markers(
@@ -18,7 +18,7 @@ def test_copy_and_http_file_response_helpers_are_shared():
         ["fs/vfs.h", "xrootd_vfs_copyfile("],
     )
     _assert_markers(
-        "src/fs/vfs_walk.c",
+        "src/fs/vfs/vfs_walk.c",
         ["xrootd_copy_range("],
     )
     # Phase 12: the range-parse → headers → send pipeline (including the
@@ -28,7 +28,7 @@ def test_copy_and_http_file_response_helpers_are_shared():
     # http_file_response helpers directly.
     _assert_markers(
         "src/protocols/shared/file_serve.c",
-        ["core/compat/http_file_response.h", "xrootd_http_send_file_range("],
+        ["core/http/http_file_response.h", "xrootd_http_send_file_range("],
     )
     _assert_markers(
         "src/protocols/webdav/get.c",
@@ -51,16 +51,16 @@ def test_query_xml_and_base64url_helpers_are_shared():
     # propfind was split into propfind_props.c / propfind_walk.c with a shared
     # propfind_internal.h; the http_xml include lives in the header, the chain
     # builder is used by the props unit.
-    _assert_markers("src/protocols/webdav/propfind_internal.h", ["core/compat/http_xml.h"])
+    _assert_markers("src/protocols/webdav/propfind_internal.h", ["core/http/http_xml.h"])
     _assert_markers("src/protocols/webdav/propfind_props.c", ["xrootd_http_chain_appendf("])
     _assert_markers(
         "src/protocols/webdav/lock.c",
-        ["core/compat/http_xml.h", "xrootd_http_chain_appendf("],
+        ["core/http/http_xml.h", "xrootd_http_chain_appendf("],
     )
     _assert_absent("src/protocols/webdav/lock.c", ["webdav_propfind_append("])
     _assert_markers(
         "src/protocols/s3/util.c",
-        ["core/compat/http_xml.h", "xrootd_http_send_xml_error("],
+        ["core/http/http_xml.h", "xrootd_http_send_xml_error("],
     )
     _assert_markers(
         "src/protocols/s3/list_objects_v2.c",
@@ -129,12 +129,12 @@ def test_iso8601_and_hex_helpers_are_shared():
 def test_token_fs_usage_and_shm_slot_helpers_are_shared():
     for relpath in (
         "src/net/upstream/auth.c",
-        "src/tpc/gsi_outbound_common.c",
-        "src/tpc/tpc_token.c",
+        "src/tpc/gsi/gsi_outbound_common.c",
+        "src/tpc/outbound/tpc_token.c",
     ):
         _assert_markers(relpath, ["xrootd_token_read_file("])
 
-    for relpath in ("src/tpc/tpc_token.c", "src/protocols/webdav/tpc_cred_parse.c"):
+    for relpath in ("src/tpc/outbound/tpc_token.c", "src/protocols/webdav/tpc_cred_parse.c"):
         _assert_markers(relpath, ["xrootd_oauth2_parse_access_token("])
 
     for relpath in (
@@ -146,7 +146,7 @@ def test_token_fs_usage_and_shm_slot_helpers_are_shared():
 
     for relpath in (
         "src/net/manager/pending.c",
-        "src/tpc/key_registry.c",
+        "src/tpc/engine/key_registry.c",
     ):
         _assert_markers(relpath, ["core/compat/shm_slots.h", "xrootd_shm_"])
 
@@ -189,11 +189,11 @@ def test_phase5_tpc_common_layer_is_shared():
         "src/protocols/webdav/tpc.c",
         ["tpc/common/auth.h", "xrootd_tpc_check_authz("],
     )
-    for relpath in ("src/tpc/launch.c", "src/protocols/webdav/tpc_thread.c", "src/protocols/webdav/tpc.c"):
+    for relpath in ("src/tpc/engine/launch.c", "src/protocols/webdav/tpc_thread.c", "src/protocols/webdav/tpc.c"):
         _assert_markers(relpath, ["xrootd_tpc_registry_add("])
-    for relpath in ("src/tpc/source.c", "src/protocols/webdav/tpc_curl_pmark.c", "src/protocols/webdav/tpc_marker.c"):
+    for relpath in ("src/tpc/outbound/source.c", "src/protocols/webdav/tpc_curl_pmark.c", "src/protocols/webdav/tpc_marker.c"):
         _assert_markers(relpath, ["xrootd_tpc_progress_emit("])
-    for relpath in ("src/tpc/tpc_token.c", "src/protocols/webdav/tpc_cred.c"):
+    for relpath in ("src/tpc/outbound/tpc_token.c", "src/protocols/webdav/tpc_cred.c"):
         _assert_markers(relpath, ["xrootd_tpc_credential_parse("])
     # dashboard api was split: registry include in dashboard_api_internal.h, the
     # snapshot call in api_transfers.c.
@@ -206,23 +206,23 @@ def test_phase5_tpc_common_layer_is_shared():
 def test_http_header_body_and_condition_helpers_are_shared():
     _assert_markers(
         "src/protocols/webdav/webdav.h",
-        ["core/compat/http_headers.h", "xrootd_http_find_header("],
+        ["core/http/http_headers.h", "xrootd_http_find_header("],
     )
     _assert_markers(
         "src/protocols/s3/auth_sigv4_parse.c",
-        ["core/compat/http_headers.h", "xrootd_http_get_header("],
+        ["core/http/http_headers.h", "xrootd_http_get_header("],
     )
     _assert_markers(
         "src/protocols/s3/copy.c",
-        ["core/compat/http_headers.h", "xrootd_http_find_header("],
+        ["core/http/http_headers.h", "xrootd_http_find_header("],
     )
     _assert_markers(
-        "src/core/compat/http_headers.h",
+        "src/core/http/http_headers.h",
         ["xrootd_http_extract_bearer("],
     )
     _assert_markers(
         "src/protocols/webdav/auth_token.c",
-        ["core/compat/http_headers.h", "xrootd_http_extract_bearer("],
+        ["core/http/http_headers.h", "xrootd_http_extract_bearer("],
     )
     _assert_absent(
         "src/protocols/webdav/auth_token.c",
@@ -230,7 +230,7 @@ def test_http_header_body_and_condition_helpers_are_shared():
     )
     _assert_markers(
         "src/protocols/webdav/tpc.c",
-        ["core/compat/http_headers.h", "xrootd_http_extract_bearer("],
+        ["core/http/http_headers.h", "xrootd_http_extract_bearer("],
     )
     _assert_absent(
         "src/protocols/webdav/tpc.c",
@@ -240,28 +240,28 @@ def test_http_header_body_and_condition_helpers_are_shared():
     # s3/put was split: the http_body include lives in s3_put_internal.h while the
     # writer call stays in put.c; webdav/put.c still carries both directly.
     _assert_markers("src/protocols/webdav/put.c",
-                    ["core/compat/http_body.h", "xrootd_http_body_write_to_fd("])
-    _assert_markers("src/protocols/s3/s3_put_internal.h", ["core/compat/http_body.h"])
+                    ["core/http/http_body.h", "xrootd_http_body_write_to_fd("])
+    _assert_markers("src/protocols/s3/s3_put_internal.h", ["core/http/http_body.h"])
     _assert_markers("src/protocols/s3/put.c", ["xrootd_http_body_write_to_fd("])
 
     # propfind was split: the include is in propfind_internal.h, the reader in
     # propfind.c; delete_objects.c still carries both directly.
-    _assert_markers("src/protocols/webdav/propfind_internal.h", ["core/compat/http_body.h"])
+    _assert_markers("src/protocols/webdav/propfind_internal.h", ["core/http/http_body.h"])
     _assert_markers("src/protocols/webdav/propfind.c", ["xrootd_http_body_read_all("])
     _assert_markers("src/protocols/s3/delete_objects.c",
-                    ["core/compat/http_body.h", "xrootd_http_body_read_all("])
+                    ["core/http/http_body.h", "xrootd_http_body_read_all("])
 
     _assert_markers(
         "src/protocols/webdav/put.c",
-        ["core/compat/http_conditionals.h", "xrootd_http_check_etag_preconditions("],
+        ["core/http/http_conditionals.h", "xrootd_http_check_etag_preconditions("],
     )
     _assert_markers(
         "src/protocols/webdav/methods/copy_conditionals.c",
-        ["core/compat/http_conditionals.h", "xrootd_http_check_etag_preconditions("],
+        ["core/http/http_conditionals.h", "xrootd_http_check_etag_preconditions("],
     )
     _assert_markers(
         "src/protocols/webdav/get.c",
-        ["core/compat/http_conditionals.h", "xrootd_http_check_if_modified_since("],
+        ["core/http/http_conditionals.h", "xrootd_http_check_if_modified_since("],
     )
     for relpath in ("src/protocols/webdav/copy.c", "src/protocols/webdav/move.c"):
         _assert_markers(relpath, ["xrootd_http_overwrite_forbidden("])
@@ -269,7 +269,7 @@ def test_http_header_body_and_condition_helpers_are_shared():
 
 def test_phase1_http_status_header_and_query_helpers_are_shared():
     _assert_markers(
-        "src/core/compat/http_headers.h",
+        "src/core/http/http_headers.h",
         [
             "xrootd_http_effective_status(",
             "xrootd_http_set_header_num(",
@@ -279,13 +279,13 @@ def test_phase1_http_status_header_and_query_helpers_are_shared():
     for relpath in ("src/protocols/webdav/metrics.c", "src/protocols/s3/metrics.c"):
         _assert_markers(
             relpath,
-            ["core/compat/http_headers.h", "xrootd_http_effective_status("],
+            ["core/http/http_headers.h", "xrootd_http_effective_status("],
         )
 
     _assert_markers(
         "src/protocols/webdav/xrdhttp.c",
         [
-            "core/compat/http_headers.h",
+            "core/http/http_headers.h",
             "xrootd_http_set_header(",
             "xrootd_http_set_header_num(",
             "xrootd_http_request_header_add(",
@@ -299,7 +299,7 @@ def test_phase1_http_status_header_and_query_helpers_are_shared():
     _assert_markers(
         "src/protocols/s3/handler.c",
         [
-            "core/compat/http_query.h",
+            "core/http/http_query.h",
             "xrootd_http_query_get(",
             "xrootd_http_find_header(",
         ],
@@ -307,7 +307,7 @@ def test_phase1_http_status_header_and_query_helpers_are_shared():
     _assert_absent("src/protocols/s3/handler.c", ['needle[] = "list-type=2"'])
     _assert_markers(
         "src/protocols/s3/multipart_complete_upload_part_copy.c",
-        ["core/compat/http_headers.h", "xrootd_http_find_header("],
+        ["core/http/http_headers.h", "xrootd_http_find_header("],
     )
 
 
@@ -331,11 +331,11 @@ def test_checksum_fs_walk_staging_and_cms_frame_helpers_are_shared():
 
     # Phase 62: directory enumeration moved behind the VFS seam — propfind walks
     # via xrootd_vfs_readdir and ckscan via xrootd_vfs_walk, both of which skip
-    # "."/".." centrally in src/fs/vfs_walk.c (the single xrootd_fs_is_dot_entry
+    # "."/".." centrally in src/fs/vfs/vfs_walk.c (the single xrootd_fs_is_dot_entry
     # caller) instead of each handler filtering dotted entries itself.
     _assert_markers("src/protocols/webdav/propfind_walk.c", ["xrootd_vfs_readdir("])
     _assert_markers("src/protocols/root/query/checksum_ckscan_common.c", ["xrootd_vfs_walk("])
-    _assert_markers("src/fs/vfs_walk.c", ["xrootd_fs_is_dot_entry("])
+    _assert_markers("src/fs/vfs/vfs_walk.c", ["xrootd_fs_is_dot_entry("])
 
     # s3/put was split: the staged_file include is in s3_put_internal.h, the open
     # call stays in put.c — now routed through the VFS seam
@@ -348,7 +348,7 @@ def test_checksum_fs_walk_staging_and_cms_frame_helpers_are_shared():
 
     # Phase 55: both the S3 CopyObject and WebDAV COPY handlers delegate the
     # local-object copy to the shared VFS copy seam (xrootd_vfs_copy), which is
-    # the single place that reaches xrootd_ns_local_copy (src/fs/vfs_copy.c).
+    # the single place that reaches xrootd_ns_local_copy (src/fs/vfs/vfs_copy.c).
     for relpath in (
         "src/protocols/s3/copy.c",
         "src/protocols/webdav/copy.c",
@@ -490,4 +490,33 @@ def test_phase2_auth_paths_populate_identity():
     _assert_markers(
         "src/protocols/s3/auth_sigv4_verify.c",
         ["xrootd_identity_t *identity", "XROOTD_AUTHN_S3KEY"],
+    )
+
+
+def test_http_precondition_evaluation_is_shared():
+    # S3 GET/HEAD and conditional-PUT preconditions route through the shared
+    # RFC 9110 evaluator (core/http/http_conditionals.c); the former private
+    # evaluator/matcher (s3_eval_preconditions / s3_etag_header_matches) must
+    # not grow back.
+    _assert_markers(
+        "src/protocols/s3/conditional.c",
+        [
+            "core/http/http_conditionals.h",
+            "xrootd_http_eval_preconditions(",
+            "XROOTD_HTTP_COND_READ",
+        ],
+    )
+    _assert_absent(
+        "src/protocols/s3/conditional.c",
+        ["s3_eval_preconditions", "s3_etag_header_matches", "s3_str_contains"],
+    )
+    # WebDAV COPY/PUT keep using the shared ETag-precondition subset.
+    _assert_markers(
+        "src/protocols/webdav/methods/copy_conditionals.c",
+        ["xrootd_http_check_etag_preconditions("],
+    )
+    # The shared engine owns both outcome modes.
+    _assert_markers(
+        "src/core/http/http_conditionals.c",
+        ["xrootd_http_eval_preconditions(", "XROOTD_HTTP_COND_READ"],
     )

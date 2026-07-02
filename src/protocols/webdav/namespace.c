@@ -4,7 +4,7 @@
 
 #include "webdav.h"
 #include "core/compat/fs_walk.h"
-#include "fs/vfs.h"
+#include "fs/vfs/vfs.h"
 
 #include <errno.h>
 #include <sys/stat.h>

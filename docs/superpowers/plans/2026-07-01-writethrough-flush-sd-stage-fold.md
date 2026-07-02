@@ -53,7 +53,7 @@
 ### Task 0 (original): SPIKE — prove a legacy writethrough config can resolve its write-open to `sd_stage` byte-exact (GATES EVERYTHING)
 
 **Files:**
-- Read: `src/fs/vfs_backend_registry.c:1055-1081` (how `sd_stage` is composed), `src/protocols/root/read/open_resolved_file.c:790-840` (the write-open writethrough-decision block), `src/protocols/root/write/sync.c:73-90`
+- Read: `src/fs/vfs/vfs_backend_registry.c:1055-1081` (how `sd_stage` is composed), `src/protocols/root/read/open_resolved_file.c:790-840` (the write-open writethrough-decision block), `src/protocols/root/write/sync.c:73-90`
 - Test: a throwaway config mirroring `tests/run_pblock_writethrough.sh` but composable
 
 **Interfaces:**

@@ -27,10 +27,10 @@
 
 #include "webdav.h"
 #include "tape_rest.h"
-#include "fs/vfs.h"                        /* xrootd_vfs_residency (sd_frm seam) */
+#include "fs/vfs/vfs.h"                        /* xrootd_vfs_residency (sd_frm seam) */
 #include "fs/xfer/stage_request_registry.h"
-#include "core/compat/http_body.h"
-#include "core/compat/http_headers.h"
+#include "core/http/http_body.h"
+#include "core/http/http_headers.h"
 #include "core/compat/safe_size.h"   /* Phase 27 W1: overflow-checked size math */
 
 #include <jansson.h>

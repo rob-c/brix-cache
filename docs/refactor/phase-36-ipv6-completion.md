@@ -106,7 +106,7 @@ Detection: `host[0] != '[' && strchr(host, ':') != NULL` (a hostname never conta
 
 | Site | Defect | Fix |
 |---|---|---|
-| `src/tpc/parse.c:169` → `src/tpc/launch.c:180` (`tpc_register_stream_transfer`) | parse *strips* brackets into `src_host`, launch rebuilds `root://%s:%ui%s` *without* re-bracketing | re-bracket at format time (or carry an `is_ipv6` flag / `sockaddr_storage`) |
+| `src/tpc/engine/parse.c:169` → `src/tpc/engine/launch.c:180` (`tpc_register_stream_transfer`) | parse *strips* brackets into `src_host`, launch rebuilds `root://%s:%ui%s` *without* re-bracketing | re-bracket at format time (or carry an `is_ipv6` flag / `sockaddr_storage`) |
 
 Also a **security-negative** to cover: confirm the re-bracketed `root://[::ffff:127.0.0.1]:1094` form is still rejected by the SSRF/local-deny policy (`tpc/connect.c` per-candidate check is already correct; verify the round-trip doesn't bypass it).
 
@@ -146,7 +146,7 @@ Also a **security-negative** to cover: confirm the re-bracketed `root://[::ffff:
 
 ## 5. Already correct — do not touch
 
-`src/core/compat/net_target.c` (AF_UNSPEC + `[IPv6]:port` parse + SSRF v4-mapped classification, lines 30-133/242-278/387-410), `src/core/config/addr_parse.c:99-124` (bracket parsing), `src/protocols/root/connection/handler.c:50-68` + `disconnect.c:133-143` (AF_INET6 detection + per-version metrics), `src/auth/authz/authdb.c:285-344` (IPv6 CIDR matching), `src/protocols/root/read/locate.c:182-204` (local locate brackets correctly), `src/auth/unix/auth.c` + `src/auth/krb5/auth.c:57-81` (`::1` / ADDRTYPE_INET6), `src/protocols/webdav/proxy_pool.h:40` + `src/net/mirror/mirror.h:116` (`sockaddr_storage`), `src/tpc/connect.c:107-149` (AF_UNSPEC per-candidate policy), inbound stats/metrics (`webdav/access.c`, `webdav/xrdhttp_stats.c`, `query/metadata.c`, `cache/evict_policy.c`).
+`src/core/compat/net_target.c` (AF_UNSPEC + `[IPv6]:port` parse + SSRF v4-mapped classification, lines 30-133/242-278/387-410), `src/core/config/addr_parse.c:99-124` (bracket parsing), `src/protocols/root/connection/handler.c:50-68` + `disconnect.c:133-143` (AF_INET6 detection + per-version metrics), `src/auth/authz/authdb.c:285-344` (IPv6 CIDR matching), `src/protocols/root/read/locate.c:182-204` (local locate brackets correctly), `src/auth/unix/auth.c` + `src/auth/krb5/auth.c:57-81` (`::1` / ADDRTYPE_INET6), `src/protocols/webdav/proxy_pool.h:40` + `src/net/mirror/mirror.h:116` (`sockaddr_storage`), `src/tpc/outbound/connect.c:107-149` (AF_UNSPEC per-candidate policy), inbound stats/metrics (`webdav/access.c`, `webdav/xrdhttp_stats.c`, `query/metadata.c`, `cache/evict_policy.c`).
 
 ---
 

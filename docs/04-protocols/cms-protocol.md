@@ -2,7 +2,7 @@
 
 What actually happens on the wire between a CMS **manager** and the servers and
 clients it coordinates — the framing, the field-by-field negotiation in both
-directions, and the non-obvious details that make nginx-xrootd
+directions, and the non-obvious details that make gnuBall
 **cmsd-wire-compliant** with a real XRootD `cmsd`.
 
 > **Naming.** There is no real `cms://` URL scheme. We use `cms://` here purely
@@ -29,7 +29,7 @@ Authoritative upstream spec (verified against XRootD 5.9.2):
 
 ## 1. Where CMS sits
 
-A managed XRootD cluster has three actors. nginx-xrootd can play any of them,
+A managed XRootD cluster has three actors. gnuBall can play any of them,
 and a sub-manager plays two at once.
 
 ```
@@ -42,7 +42,7 @@ Client  ── kXR_open/locate ──►  MANAGER  ◄── kYR_login/load ─�
    └────────────── root:// to the selected data server ────────────┘
 ```
 
-| Role | `root://` side | CMS side | nginx-xrootd directives |
+| Role | `root://` side | CMS side | gnuBall directives |
 |---|---|---|---|
 | **Data server** (leaf) | serves files | **outbound** CMS *client* → registers with manager | `xrootd_cms_manager`, `xrootd_cms_paths` |
 | **Manager / redirector** | answers `kXR_locate`/`kXR_open` with `kXR_redirect` | **inbound** CMS *server* ← accepts data-server registrations | `xrootd_manager_mode on`, `xrootd_cms_server on` |
@@ -52,7 +52,7 @@ The key invariant: **the manager never moves file bytes.** It keeps a live map
 of "which server holds which path, and how loaded is it," and turns every client
 lookup into a redirect. CMS is the protocol that keeps that map current.
 
-nginx-xrootd implements two independent halves of this, in two source trees:
+gnuBall implements two independent halves of this, in two source trees:
 
 | Half | Direction | Source | Role it enables |
 |---|---|---|---|
@@ -127,7 +127,7 @@ Encoder: `ngx_xrootd_cms_put_string()` in `src/net/cms/wire.c`. The real
 `0x80` high bit in the first length byte** — which is why a string must never
 carry a `PT_short`/`PT_int` tag.
 
-> **The historical bug (now fixed).** nginx-xrootd's first login attempt encoded
+> **The historical bug (now fixed).** gnuBall's first login attempt encoded
 > the path list as a *tagged short* (`put_short(len) + raw`) and omitted the
 > SID/ifList/envCGI strings. The real parser, expecting a bare Pup string after
 > the `sPort` field, saw a `0x80…` tag where a length was due → "invalid login

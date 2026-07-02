@@ -1,5 +1,5 @@
 #include "fd_table.h"
-#include "fs/vfs.h"   /* xrootd_vfs_open_fd_at (handle-table confined open) */
+#include "fs/vfs/vfs.h"   /* xrootd_vfs_open_fd_at (handle-table confined open) */
 #include "protocols/root/session/registry.h"
 #include "fs/cache/writethrough_metrics.h"
 #include "protocols/root/write/pgw_fob.h"

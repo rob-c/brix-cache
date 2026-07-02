@@ -1,0 +1,52 @@
+# phase-67: sort the loose files under src/fs/ and src/tpc/ into concept sub-folders.
+# Applied by tools/refactor/p66_apply.py --map docs/refactor/phase-67-map.tsv --step <step>.
+# Columns: step<TAB>kind<TAB>old<TAB>new   (kind: file|dir, paths repo-relative)
+#
+# fs: the loose vfs_* facade layer (ops + backend registry + the reserved
+#     fd_cache slot) moves under src/fs/vfs/; backend/ stays the raw driver
+#     plane below the seam, core/ stays the ngx-free kernel.
+fs	file	src/fs/vfs.h	src/fs/vfs/vfs.h
+fs	file	src/fs/vfs_internal.h	src/fs/vfs/vfs_internal.h
+fs	file	src/fs/vfs_io_core.c	src/fs/vfs/vfs_io_core.c
+fs	file	src/fs/vfs_io_core.h	src/fs/vfs/vfs_io_core.h
+fs	file	src/fs/vfs_open.c	src/fs/vfs/vfs_open.c
+fs	file	src/fs/vfs_read.c	src/fs/vfs/vfs_read.c
+fs	file	src/fs/vfs_write.c	src/fs/vfs/vfs_write.c
+fs	file	src/fs/vfs_stat.c	src/fs/vfs/vfs_stat.c
+fs	file	src/fs/vfs_sync.c	src/fs/vfs/vfs_sync.c
+fs	file	src/fs/vfs_unlink.c	src/fs/vfs/vfs_unlink.c
+fs	file	src/fs/vfs_rename.c	src/fs/vfs/vfs_rename.c
+fs	file	src/fs/vfs_mkdir.c	src/fs/vfs/vfs_mkdir.c
+fs	file	src/fs/vfs_dir.c	src/fs/vfs/vfs_dir.c
+fs	file	src/fs/vfs_xattr.c	src/fs/vfs/vfs_xattr.c
+fs	file	src/fs/vfs_walk.c	src/fs/vfs/vfs_walk.c
+fs	file	src/fs/vfs_copy.c	src/fs/vfs/vfs_copy.c
+fs	file	src/fs/vfs_staged.c	src/fs/vfs/vfs_staged.c
+fs	file	src/fs/vfs_backend_config.c	src/fs/vfs/vfs_backend_config.c
+fs	file	src/fs/vfs_backend_registry.c	src/fs/vfs/vfs_backend_registry.c
+fs	file	src/fs/vfs_backend_registry.h	src/fs/vfs/vfs_backend_registry.h
+fs	file	src/fs/vfs_backend_internal.h	src/fs/vfs/vfs_backend_internal.h
+fs	file	src/fs/fd_cache.c	src/fs/vfs/fd_cache.c
+#
+# tpc: gsi/ = outbound GSI handshake kernel; outbound/ = the source-session
+#      client pipeline run on the thread pool; engine/ = event-loop
+#      orchestration (opaque parse, open-path launch, completion handoff,
+#      SHM key registry, disabled-build stubs, module-internal header).
+tpc	file	src/tpc/gsi_outbound_certreq.c	src/tpc/gsi/gsi_outbound_certreq.c
+tpc	file	src/tpc/gsi_outbound_common.c	src/tpc/gsi/gsi_outbound_common.c
+tpc	file	src/tpc/gsi_outbound_exchange.c	src/tpc/gsi/gsi_outbound_exchange.c
+tpc	file	src/tpc/gsi_outbound_finish.c	src/tpc/gsi/gsi_outbound_finish.c
+tpc	file	src/tpc/bootstrap.c	src/tpc/outbound/bootstrap.c
+tpc	file	src/tpc/connect.c	src/tpc/outbound/connect.c
+tpc	file	src/tpc/tls.c	src/tpc/outbound/tls.c
+tpc	file	src/tpc/source.c	src/tpc/outbound/source.c
+tpc	file	src/tpc/io.c	src/tpc/outbound/io.c
+tpc	file	src/tpc/thread.c	src/tpc/outbound/thread.c
+tpc	file	src/tpc/tpc_token.c	src/tpc/outbound/tpc_token.c
+tpc	file	src/tpc/parse.c	src/tpc/engine/parse.c
+tpc	file	src/tpc/launch.c	src/tpc/engine/launch.c
+tpc	file	src/tpc/done.c	src/tpc/engine/done.c
+tpc	file	src/tpc/key_registry.c	src/tpc/engine/key_registry.c
+tpc	file	src/tpc/key_registry.h	src/tpc/engine/key_registry.h
+tpc	file	src/tpc/noop.c	src/tpc/engine/noop.c
+tpc	file	src/tpc/tpc_internal.h	src/tpc/engine/tpc_internal.h

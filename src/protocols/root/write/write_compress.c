@@ -30,7 +30,7 @@
 
 #include "core/ngx_xrootd_module.h"
 #include "core/compat/codec_core.h"
-#include "core/compat/http_body.h"   /* XROOTD_DECODE_MAX_RATIO */
+#include "core/http/http_body.h"   /* XROOTD_DECODE_MAX_RATIO */
 #include "protocols/root/response/response.h"
 
 #include <errno.h>

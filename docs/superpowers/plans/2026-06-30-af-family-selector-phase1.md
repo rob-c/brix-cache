@@ -398,8 +398,8 @@ on that path, carry the merged `cache_origin_family` from `runtime_server.c` →
 backend registry entry → `sd_xroot` synth.
 
 **Files:**
-- Modify: `src/fs/vfs_backend_registry.c` (entry field `origin_family`; `set_xroot`, `config_xroot`, and the storage-backend dispatcher gain a `family` arg; pass `e->origin_family` to `create_origin`)
-- Modify: `src/fs/vfs_backend_registry.h` (updated `xrootd_vfs_backend_config_xroot` + dispatcher prototypes)
+- Modify: `src/fs/vfs/vfs_backend_registry.c` (entry field `origin_family`; `set_xroot`, `config_xroot`, and the storage-backend dispatcher gain a `family` arg; pass `e->origin_family` to `create_origin`)
+- Modify: `src/fs/vfs/vfs_backend_registry.h` (updated `xrootd_vfs_backend_config_xroot` + dispatcher prototypes)
 - Modify: `src/core/config/runtime_server.c:383,402` (pass `xcf->cache_origin_family`)
 - Modify: `src/fs/backend/xroot/sd_xroot.c` (`create_origin` gains `int af_policy`; set `synth->cache_origin_family`)
 - Modify: `src/fs/backend/xroot/sd_xroot.h:57` (updated `xrootd_sd_xroot_create_origin` prototype)
@@ -492,7 +492,7 @@ Expected: FAIL — the `inet6` case still fills successfully because the synth c
 
 - [ ] **Step 3a: Registry entry field + setters**
 
-In `src/fs/vfs_backend_registry.c`, add to the entry struct after `int origin_tls;` (~line 25):
+In `src/fs/vfs/vfs_backend_registry.c`, add to the entry struct after `int origin_tls;` (~line 25):
 
 ```c
     int                   origin_family;  /* xrootd_af_policy_t for origin connect */
@@ -550,11 +550,11 @@ xrootd_vfs_backend_config_xroot(const char *root_canon, const char *host,
 }
 ```
 
-Update the prototype in `src/fs/vfs_backend_registry.h` to match (add `, int family`).
+Update the prototype in `src/fs/vfs/vfs_backend_registry.h` to match (add `, int family`).
 
 - [ ] **Step 3b: Pass family at the storage-backend dispatcher**
 
-In `src/fs/vfs_backend_registry.c` (~line 724) update the call:
+In `src/fs/vfs/vfs_backend_registry.c` (~line 724) update the call:
 
 ```c
         xrootd_vfs_backend_config_xroot(root_canon, host, (int) portnum,
@@ -593,7 +593,7 @@ the synth field next to the other synth assignments (~line 788):
     synth->cache_origin_family    = (ngx_uint_t) af_policy;
 ```
 
-Update the caller in `src/fs/vfs_backend_registry.c` (~line 853) to pass the entry's
+Update the caller in `src/fs/vfs/vfs_backend_registry.c` (~line 853) to pass the entry's
 family in the new slot:
 
 ```c
@@ -619,7 +619,7 @@ Expected: PASS — unchanged.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/fs/vfs_backend_registry.c src/fs/vfs_backend_registry.h \
+git add src/fs/vfs/vfs_backend_registry.c src/fs/vfs/vfs_backend_registry.h \
         src/core/config/runtime_server.c src/fs/backend/xroot/sd_xroot.c \
         src/fs/backend/xroot/sd_xroot.h tests/run_cache_af_family.sh
 git commit -m "feat(cache): honor xrootd_cache_origin_family on the storage_backend root:// (sd_xroot) origin path"

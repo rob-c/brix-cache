@@ -18,7 +18,7 @@
  */
 
 #include "http_xml.h"
-#include "xml.h"
+#include "core/compat/xml.h"
 
 #include <stdio.h>
 #include <string.h>

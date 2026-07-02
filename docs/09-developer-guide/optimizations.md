@@ -1,4 +1,4 @@
-# Optimizations in nginx-xrootd
+# Optimizations in gnuBall
 
 Code-level optimizations that matter at scale: what changed, what cost was removed, why it matters, and which workloads
 benefit. It is intentionally about implementation choices inside

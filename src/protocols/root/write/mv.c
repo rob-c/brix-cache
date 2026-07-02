@@ -5,8 +5,8 @@
 #include "core/ngx_xrootd_module.h"
 #include "core/compat/error_mapping.h"
 #include "protocols/root/path/op_path.h"
-#include "fs/vfs.h"   /* xrootd_vfs_rename_path (thread-safe confined rename) */
-#include "fs/vfs_backend_registry.h"   /* per-export backend resolve */
+#include "fs/vfs/vfs.h"   /* xrootd_vfs_rename_path (thread-safe confined rename) */
+#include "fs/vfs/vfs_backend_registry.h"   /* per-export backend resolve */
 
 /*
  * xrootd_handle_mv â rename a file or directory.

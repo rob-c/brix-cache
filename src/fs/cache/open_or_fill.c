@@ -1,7 +1,7 @@
 #include "cache_internal.h"
 #include "cache_storage.h"   /* driver-aware readiness for a backend-backed cache */
-#include "fs/vfs_backend_registry.h"   /* C-1: resolve the source backend */
-#include "fs/vfs_internal.h"           /* export-relative key for the composed fill */
+#include "fs/vfs/vfs_backend_registry.h"   /* C-1: resolve the source backend */
+#include "fs/vfs/vfs_internal.h"           /* export-relative key for the composed fill */
 #include "fs/backend/cache/sd_cache.h" /* composed-cache fill seam (SP2) */
 #include "core/compat/error_mapping.h"      /* errno → kXR for the fill result */
 

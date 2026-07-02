@@ -4,8 +4,8 @@
 
 #include "webdav.h"
 #include "core/compat/namespace_ops.h"
-#include "fs/vfs.h"   /* xrootd_vfs_rename_path + xrootd_vfs_probe */
-#include "core/compat/http_conditionals.h"
+#include "fs/vfs/vfs.h"   /* xrootd_vfs_rename_path + xrootd_vfs_probe */
+#include "core/http/http_conditionals.h"
 #include "auth/impersonate/impersonate.h"
 #include "fs/path/path.h"
 

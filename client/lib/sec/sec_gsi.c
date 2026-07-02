@@ -371,7 +371,7 @@ gsi_sigpxy(xrdc_conn *c, const uint8_t *sbody, uint32_t slen, uint8_t **payload,
  * full handshake (DH variant detection, session-key agreement, proof-of-
  * possession, encrypted main + outer kXGC_cert assembly) now lives in the shared
  * gsi_core kernel (xrootd_gsi_build_cert_response) so the native client and the
- * TPC destination (src/tpc/gsi_outbound_exchange.c) drive ONE implementation.
+ * TPC destination (src/tpc/gsi/gsi_outbound_exchange.c) drive ONE implementation.
  * This wrapper only supplies the client's proxy credential (loaded from the
  * configured proxy file) and maps the kernel's error string onto xrdc_status.
  */

@@ -4,8 +4,8 @@
 
 #include "webdav.h"
 #include "fs/path/path.h"
-#include "fs/vfs.h"   /* xrootd_vfs_probe (confined stat via the VFS seam) */
-#include "core/compat/http_headers.h"
+#include "fs/vfs/vfs.h"   /* xrootd_vfs_probe (confined stat via the VFS seam) */
+#include "core/http/http_headers.h"
 #include "core/compat/staged_file.h"
 #include "observability/dashboard/dashboard_tracking.h"
 #include "fs/xfer/xfer.h"     /* unified transfer audit ledger (kind=tpc) */

@@ -1,4 +1,15 @@
-# nginx-xrootd
+```
+ ██████╗ ███╗   ██╗██╗   ██╗██████╗  █████╗ ██╗     ██╗
+██╔════╝ ████╗  ██║██║   ██║██╔══██╗██╔══██╗██║     ██║
+██║  ███╗██╔██╗ ██║██║   ██║██████╔╝███████║██║     ██║
+██║   ██║██║╚██╗██║██║   ██║██╔══██╗██╔══██║██║     ██║
+╚██████╔╝██║ ╚████║╚██████╔╝██████╔╝██║  ██║███████╗███████╗
+ ╚═════╝ ╚═╝  ╚═══╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝╚══════╝
+```
+
+# gnuBall
+
+> **The whole HEP data stack in one nginx binary — `root://`, WebDAV, and S3 — built from snap-together parts you assemble to fit your site, instead of a monolith you bend to fit.**
 
 Physicists at CERN, SLAC, and Fermilab move petabytes of collision data using two protocols nginx has never spoken: **XRootD** (`root://`) and **WebDAV** (`davs://`). This module teaches nginx both — plus an S3-compatible endpoint — so you get the entire HEP data stack inside one binary with all of nginx's battle-tested operations tooling behind it.
 
@@ -8,7 +19,7 @@ Physicists at CERN, SLAC, and Fermilab move petabytes of collision data using tw
                          +-----------------+
   xrdcp root://host/...  |                 |  /data/atlas/...  (POSIX)
   ─────────────────────> |                 | ─────────────────>
-                         |  nginx-xrootd   |
+                         |     gnuBall     |
   xrdcp davs://host/...  |    (nginx +     | ─────────────────>  (proxy mode)
                          |     module)     |
   aws s3 cp s3://host/.. |                 |  http://dav-backend/  (WebDAV proxy)
@@ -67,27 +78,41 @@ the right module, and converge on **one shared module core** before touching a f
                 └────────────────────────────────────────────────┘
 ```
 
-### Inside the module — `src/` by plane
+### Inside the module — `src/` in seven buckets
 
-Every subsystem lives in its own folder. They group into four planes: who-are-you
-(control), move-the-bytes (data), scale-out (cluster), and the nginx plumbing
-everything rides on (foundation):
+The source tree is organized by concept, not by accretion: seven top-level
+buckets, each owning one question. Any subsystem can be located from its
+concept alone:
 
 ```text
- ┌── CONTROL PLANE · auth & policy ───┐   ┌── DATA PLANE · move the bytes ─────┐
- │ handshake/  session/   path/       │   │ read/    write/    aio/            │
- │ gsi/  token/  sss/  pwd/  krb5/    │   │ dirlist/ fattr/    query/          │
- │ voms/ acc/    ratelimit/           │   │ response/ compat/  fs/             │
- └────────────────────────────────────┘   └────────────────────────────────────┘
- ┌── CLUSTER & EXTENSIONS · scale-out ┐   ┌── FOUNDATION · nginx plumbing ─────┐
- │ manager/ cms/    proxy/  upstream/ │   │ connection/ protocol/  config/     │
- │ mirror/  cache/  tpc/    frm/      │   │ metrics/    shm/       crypto/     │
- │ s3/      srr/    pmark/  impersonate│  │ host/  types/  stream/  dashboard/ │
- └────────────────────────────────────┘   └────────────────────────────────────┘
+ src/
+ ├─ core/            the nginx plumbing everything rides on — compat shims,
+ │                   shared types, config parse/merge, shared memory, and the
+ │                   thread-pool async-I/O machinery
+ ├─ protocols/       one folder per wire protocol — root/ (the whole root://
+ │                   plane: connection → handshake → session → read/write →
+ │                   response), webdav/, s3/, ssi/, srr/, dig/, shared/
+ ├─ auth/            identity & authorization — gsi/ token/ sss/ krb5/ pwd/
+ │                   unix/ host/ voms/, the shared crypto/ PKI core, the
+ │                   authz/ ACL engine, and the impersonate/ broker
+ ├─ fs/              the storage plane — the VFS is the sole storage truth
+ │                   (bytes, namespace, metadata): path/ confinement,
+ │                   pluggable backend/ drivers, cache/, tier/, the xfer/
+ │                   staging engine, scan/
+ ├─ net/             scale-out & interposition — cms/ + manager/ clustering,
+ │                   upstream/ + proxy/ relaying, ratelimit/, tap/, mirror/
+ ├─ observability/   metrics/ (Prometheus), accesslog/, dashboard/, pmark/
+ └─ tpc/             third-party copy — cross-plane by nature, kept top-level
 
-   control → "may you?"     data → "here are the bytes"
-   cluster → "ask another node"     foundation → "how nginx holds it all"
+   protocols → "parse the wire"       auth → "may you?"
+   fs        → "here are the bytes"   net  → "ask another node"
 ```
+
+Every request flows the same way: a **protocols** front end parses the wire,
+**auth** decides identity and access, and all storage work funnels through the
+**fs** VFS — raw file I/O exists only in `src/fs/backend/`. Each directory
+carries its own `README.md`; [src/README.md](src/README.md) is the full
+subsystem map.
 
 ### A `root://` download, wire step by wire step
 
@@ -96,7 +121,7 @@ Auth happens once; then `open` → `read`-loop → `close`. Path confinement and
 checksums are non-negotiable on every byte:
 
 ```text
-  client                       nginx-xrootd                        disk / backend
+  client                         gnuBall                          disk / backend
     │                               │                                    │
     │── handshake (4×0, "root") ───►│                                    │
     │◄──── protocol + TLS hint ─────│  kXR_wantTLS / kXR_ableTLS         │
@@ -139,13 +164,13 @@ in flight, then picks up the completion as just another event:
 ```text
   MODE 1 — Standalone server
   ──────────────────────────
-  xrdcp client ──> nginx-xrootd ──> local POSIX filesystem
+  xrdcp client ──>  gnuBall     ──> local POSIX filesystem
                        |
                   auth/TLS/metrics handled here
 
   MODE 2 — XRootD transparent proxy
   ──────────────────────────────────
-  xrdcp client ──> nginx-xrootd ──> root://backend (xrdceph, HDFS, tape, ...)
+  xrdcp client ──>  gnuBall     ──> root://backend (xrdceph, HDFS, tape, ...)
                        |                  ^
                   terminates auth    file-handle translation,
                   & TLS, emits       lazy connect, opaque relay
@@ -153,7 +178,7 @@ in flight, then picks up the completion as just another event:
 
   MODE 3 — WebDAV perimeter proxy
   ────────────────────────────────
-  HTTP client  ──> nginx-xrootd ──> http://internal-dav-server/
+  HTTP client  ──>  gnuBall     ──> http://internal-dav-server/
   (xrdcp,            |
    browser,     terminates HTTPS,
    rucio)       WLCG token auth,
@@ -264,7 +289,7 @@ xrdcp --allow-http /local/file.root davs://localhost:8443//data/test.root
 
 ### Transparent XRootD proxy
 
-Slide nginx-xrootd in front of any existing XRootD server and immediately gain TLS termination, auth enforcement, and Prometheus metrics — without changing a single line of client or backend config:
+Slide gnuBall in front of any existing XRootD server and immediately gain TLS termination, auth enforcement, and Prometheus metrics — without changing a single line of client or backend config:
 
 ```nginx
 stream {
@@ -412,7 +437,7 @@ All 32 active opcodes are implemented — `open`, `read`, `pgread`, `readv`, `wr
 
 ## Performance & resilience
 
-`nginx-xrootd` aims for **parity with reference XRootD on a healthy network** and to
+`gnuBall` aims for **parity with reference XRootD on a healthy network** and to
 **degrade gracefully when the network is not**. The figures below come from the
 in-repo fault-injection harness (`tests/resilience/` — an in-process TCP fault proxy
 plus an ASAN+TLS read harness). They are **same-machine (loopback) numbers —
@@ -421,10 +446,10 @@ memory-bandwidth-bound; treat the ratios, not the GB/s).
 
 ### Clean network — parity with the reference `xrootd` daemon
 
-Serving a 64 MiB file, `nginx-xrootd` matches the reference XRootD server within
+Serving a 64 MiB file, `gnuBall` matches the reference XRootD server within
 run-to-run noise on every transport:
 
-| transport (64 MiB read) | nginx-xrootd | reference XRootD |
+| transport (64 MiB read) | gnuBall | reference XRootD |
 |---|---|---|
 | `root://` | ~1.0–1.2 GB/s | ~1.0–1.2 GB/s |
 | HTTP GET (WebDAV vs XrdHttp) | ~1.9–2.2 GB/s | ~1.9–2.2 GB/s |
@@ -437,13 +462,13 @@ laptop abroad", a flaky transatlantic path, a saturated edge. Two cases:
 **Packet reordering** is, on TCP, a pure *latency* tax (the kernel reassembles in
 order before any byte reaches the application). Every client × server combination
 converges to the same curve (~118 MB/s at 1% reorder) and stays **byte-exact** —
-`nginx-xrootd` and reference XRootD are indistinguishable here.
+`gnuBall` and reference XRootD are indistinguishable here.
 
 **Packet loss** (modeled as connection severs — harsher than `netem` drop, which TCP
 would merely retransmit) is where *client* resilience decides the outcome, and the
 native client + module stack stays correct where the stock stack does not:
 
-| 64 MiB download, 1% loss | nginx-xrootd + native `xrdcp` | reference XRootD + `xrdcp` |
+| 64 MiB download, 1% loss | gnuBall + native `xrdcp` | reference XRootD + `xrdcp` |
 |---|---|---|
 | `root://` | ✅ **8/8 byte-exact**, bounded (~107 MB/s; ~660 tuned) | ⚠️ completes but 15–45 s stalls (~2.2 MB/s) |
 | HTTP | ✅ **8/8 byte-exact** (HTTP `Range`-resume) | ❌ `xrdcp` cannot copy `http://` at all |
@@ -512,14 +537,14 @@ Every request — XRootD, WebDAV, or S3 — writes a structured access log line 
 
 ## Testing
 
-The Python test suite is comprehensive by design — `xrdcp` and XRootD Python client behavior, WebDAV, HTTP-TPC interop, auth, ACLs, proxy mode, manager mode, security hardening, cross-backend conformance against reference xrootd, **and XrdHttp/davs:// protocol conformance** between nginx-xrootd and the official xrootd daemon.
+The Python test suite is comprehensive by design — `xrdcp` and XRootD Python client behavior, WebDAV, HTTP-TPC interop, auth, ACLs, proxy mode, manager mode, security hardening, cross-backend conformance against reference xrootd, **and XrdHttp/davs:// protocol conformance** between gnuBall and the official xrootd daemon.
 
 ```bash
 # Run the full suite
 # Session-level setup handles all required nginx and xrootd instances automatically
 pytest -v
 
-# Run cross-compatible tests against both nginx-xrootd and reference xrootd
+# Run cross-compatible tests against both gnuBall and reference xrootd
 tests/run_cross_compatible_tests.sh
 
 # Target an already-running server (if desired)
@@ -530,7 +555,7 @@ pytest -v
 
 ### Cross-Backend Conformance Tests (Native XRootD)
 
-These modules run unchanged against both nginx-xrootd and the reference xrootd daemon — any divergence is a conformance failure:
+These modules run unchanged against both gnuBall and the reference xrootd daemon — any divergence is a conformance failure:
 - `tests/test_file_api.py`
 - `tests/test_query.py`
 - `tests/test_protocol_edge_cases.py`
@@ -540,7 +565,7 @@ Set `TEST_CROSS_BACKEND=nginx` or `TEST_CROSS_BACKEND=xrootd` to target one back
 
 ### XrdHttp/davs:// Conformance Tests (May 2026+)
 
-Three new test modules verify that nginx-xrootd's **WebDAV HTTPS endpoint** operates identically to the official xrootd server running its **XrdHttp module**:
+Three new test modules verify that gnuBall's **WebDAV HTTPS endpoint** operates identically to the official xrootd server running its **XrdHttp module**:
 
 | Test File | What It Validates |
 |-----------|-------------------|
@@ -552,7 +577,7 @@ Three new test modules verify that nginx-xrootd's **WebDAV HTTPS endpoint** oper
 # Run XrdHttp conformance tests
 pytest tests/test_xrdhttp_*.py -v
 
-# Cross-compatibility: run against BOTH backends (nginx-xrootd + reference XrdHttp)
+# Cross-compatibility: run against BOTH backends (gnuBall + reference XrdHttp)
 TEST_CROSS_BACKEND=nginx pytest tests/test_xrdhttp_webdav.py -v
 TEST_CROSS_BACKEND=xrootd pytest tests/test_xrdhttp_webdav.py -v
 ```

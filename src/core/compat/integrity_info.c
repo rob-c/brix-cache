@@ -15,7 +15,7 @@
  */
 
 #include "integrity_info.h"
-#include "fs/vfs.h"   /* fd-based xattr via the VFS seam */
+#include "fs/vfs/vfs.h"   /* fd-based xattr via the VFS seam */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

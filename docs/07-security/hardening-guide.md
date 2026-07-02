@@ -2,17 +2,17 @@
 
 > **Audience:** Operators who want their deployment secure by default, not just "working."
 >
-> **Prerequisites:** Sections 01-02 (Getting Started and Concepts). Know what nginx-xrootd does before hardening it.
+> **Prerequisites:** Sections 01-02 (Getting Started and Concepts). Know what gnuBall does before hardening it.
 >
 > **Time:** 30 minutes
 
 ---
 
-A default nginx-xrootd install is functional, not hardened. This guide closes the gap: network exposure, auth policy, path confinement, TLS posture, and the settings that are too easy to leave at their insecure defaults.
+A default gnuBall install is functional, not hardened. This guide closes the gap: network exposure, auth policy, path confinement, TLS posture, and the settings that are too easy to leave at their insecure defaults.
 
 ## Overview
 
-nginx-xrootd includes multiple layers of security controls. This guide explains each layer, how to configure it, and the default behavior — so you know what's protected out-of-the-box and what needs explicit configuration.
+gnuBall includes multiple layers of security controls. This guide explains each layer, how to configure it, and the default behavior — so you know what's protected out-of-the-box and what needs explicit configuration.
 
 ### The Layers (Bottom-Up)
 
@@ -273,7 +273,7 @@ CRL files should be updated automatically — manually maintained lists go stale
 
 ### Privilege Escalation Prevention
 
-nginx-xrootd runs with specific security constraints:
+gnuBall runs with specific security constraints:
 
 1. **Dropping privileges** — worker processes run as an unprivileged user after accepting connections
 2. **File descriptor limiting** — prevents resource exhaustion attacks
@@ -295,7 +295,7 @@ stream {
 }
 ```
 
-4. **PROPFIND `Depth: infinity` rate limiting** — a single `PROPFIND` with `Depth: infinity` on a large tree can hold a worker connection for tens of seconds while directory entries are enumerated.  nginx-xrootd caps the result set at 10 000 entries, but without a per-IP rate limit an attacker can open many simultaneous requests.  Add a dedicated zone in the `http` block:
+4. **PROPFIND `Depth: infinity` rate limiting** — a single `PROPFIND` with `Depth: infinity` on a large tree can hold a worker connection for tens of seconds while directory entries are enumerated.  gnuBall caps the result set at 10 000 entries, but without a per-IP rate limit an attacker can open many simultaneous requests.  Add a dedicated zone in the `http` block:
 
 ```nginx
 http {
@@ -378,4 +378,4 @@ add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" alway
 
 ---
 
-*This document covers the security controls available in nginx-xrootd. When in doubt, **default to more restrictive** — it's easier to add permissions than to remove them.*
+*This document covers the security controls available in gnuBall. When in doubt, **default to more restrictive** — it's easier to add permissions than to remove them.*

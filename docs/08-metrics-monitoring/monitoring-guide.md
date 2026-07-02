@@ -1,6 +1,6 @@
 # Metrics and Logging
 
-Every request leaves a trace. This section covers every Prometheus metric nginx-xrootd exports, how to set up scraping, how to use the HTTPS monitoring dashboard, how to read the access logs, and what healthy numbers look like at scale.
+Every request leaves a trace. This section covers every Prometheus metric gnuBall exports, how to set up scraping, how to use the HTTPS monitoring dashboard, how to read the access logs, and what healthy numbers look like at scale.
 
 ## Quick Navigation
 

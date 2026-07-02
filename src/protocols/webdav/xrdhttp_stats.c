@@ -25,6 +25,7 @@
 
 #include "xrdhttp.h"
 #include "webdav.h"
+#include "core/ident.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -110,13 +111,13 @@ build_stats_xml(char *buf, size_t bufsz, ngx_http_request_t *r)
 
     len = snprintf(buf, bufsz,
         "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-        "<statistics tod=\"%ld\" ver=\"v5.0.0\" src=\"%s:%d\""
-        " ins=\"anon\" pid=\"%d\" pgm=\"nginx-xrootd\">\n"
+        "<statistics tod=\"%ld\" ver=\"" XROOTD_SERVER_VERSION "\" src=\"%s:%d\""
+        " ins=\"anon\" pid=\"%d\" pgm=\"" XROOTD_SERVER_NAME "\">\n"
 
         "  <stats id=\"info\">\n"
         "    <host>%s</host>\n"
         "    <port>%d</port>\n"
-        "    <name>nginx-xrootd</name>\n"
+        "    <name>" XROOTD_SERVER_NAME "</name>\n"
         "    <role>server</role>\n"
         "  </stats>\n"
 

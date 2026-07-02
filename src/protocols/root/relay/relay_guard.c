@@ -50,6 +50,7 @@ opcode_to_op(uint16_t opcode)
     case kXR_mkdir:
     case kXR_mv:
     case kXR_chmod:
+    case kXR_chkpoint:
     case kXR_truncate: return GUARD_OP_WRITE;
     case kXR_dirlist:  return GUARD_OP_LIST;
     case kXR_rm:

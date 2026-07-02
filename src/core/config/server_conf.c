@@ -14,7 +14,7 @@
 #include "fs/cache/verify.h"          /* xrootd_cache_verify_mode_e default */
 #include "net/ratelimit/ratelimit.h"   /* phase-59 W3a: throttle zone lookup */
 #include "net/cms/cns.h"               /* §6 CNS mode enum */
-#include "tpc/key_registry.h"
+#include "tpc/engine/key_registry.h"
 #include "tpc/common/registry.h"   /* Phase 39 (WS5): registry reaper max-age */
 #include "protocols/root/session/registry.h"   /* XROOTD_SESSION_REGISTRY_SLOTS default */
 #include "net/manager/health_check.h" /* XROOTD_HC_TYPE_PING default */

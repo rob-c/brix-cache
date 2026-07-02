@@ -19,7 +19,7 @@
 #include <ngx_core.h>
 #include <ngx_http.h>
 
-#include "codec_core.h"
+#include "core/compat/codec_core.h"
 
 /* Don't bother compressing objects smaller than this (overhead dominates). */
 #define XROOTD_COMPRESS_MIN_SIZE  256

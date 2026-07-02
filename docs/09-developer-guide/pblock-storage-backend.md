@@ -2,7 +2,7 @@
 
 > **Audience:** developers extending the storage layer.
 > **Scope:** the `pblock` ("pseudo-block") Storage Driver (`src/fs/backend/sd_pblock.c`
-> + `sd_pblock_catalog.c`), and the VFS↔backend wiring (`src/fs/vfs_backend_registry.c`,
+> + `sd_pblock_catalog.c`), and the VFS↔backend wiring (`src/fs/vfs/vfs_backend_registry.c`,
 > `vfs_open.c`, `vfs_*.c`) that lets one VFS serve many backends and keeps the
 > nginx server *and* the native clients reaching storage correctly.
 > **Companion docs:** [`pblock-metadata-performance.md`](pblock-metadata-performance.md)
@@ -938,9 +938,9 @@ unchanged.
 | `src/fs/backend/sd_pblock_unittest.c` | standalone driver-vtable suite (incl. multi-thread / multi-process / fsync) |
 | `src/fs/backend/sd_pblock_catalog_unittest.c` | standalone catalog API suite |
 | `src/fs/backend/sd.h` | the SD seam: caps, vtable, object model, `xrootd_sd_pblock_conf_t` |
-| `src/fs/vfs_backend_registry.c` / `.h` | per-export backend choice (config time) → lazy per-worker instance; `xrootd_vfs_backend_resolve` (by root_canon) + `xrootd_vfs_backend_resolve_for_path` (by absolute path, longest-prefix — used by the staged commit) |
-| `src/fs/vfs_open.c` | `ctx_init` backend resolve; the non-POSIX `driver->open` + `adopt_obj` path; `export_relative` |
-| `src/fs/vfs_xattr.c`, `vfs_unlink.c`, `vfs_copy.c`, `vfs_stat.c` | the per-op `driver-><op>` vs POSIX dispatch |
+| `src/fs/vfs/vfs_backend_registry.c` / `.h` | per-export backend choice (config time) → lazy per-worker instance; `xrootd_vfs_backend_resolve` (by root_canon) + `xrootd_vfs_backend_resolve_for_path` (by absolute path, longest-prefix — used by the staged commit) |
+| `src/fs/vfs/vfs_open.c` | `ctx_init` backend resolve; the non-POSIX `driver->open` + `adopt_obj` path; `export_relative` |
+| `src/fs/vfs/vfs_xattr.c`, `vfs_unlink.c`, `vfs_copy.c`, `vfs_stat.c` | the per-op `driver-><op>` vs POSIX dispatch |
 | `src/core/compat/staged_file.c` | `xrootd_commit_staged` — backend-aware staged commit: POSIX rename / cross-device copy, **or** `commit_staged_to_backend` (driver `staged_*` upload) when the final export is non-POSIX (§10.1) |
 | `src/protocols/root/read/open_resolved_file.c` | `kXR_open`: keeps resume/POSC partials on the POSIX-fd path; opens the final through the driver otherwise (Layer 3) |
 | `src/protocols/root/read/stat.c` | `kXR_stat` — path stat via `driver->stat`; handle stat via the driver-backed `fstat` branch (§6.1) |

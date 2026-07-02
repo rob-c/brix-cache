@@ -1,7 +1,7 @@
 # GSI Interoperability with Real XRootD Servers (EOS, dCache, stock XRootD)
 
 > **What this is.** A record of the GSI handshake work that made the native
-> client and the nginx-xrootd server interoperate with production XRootD storage
+> client and the gnuBall server interoperate with production XRootD storage
 > — verified live against **EOS** (`eoslhcb.cern.ch`, modern stock `XrdSecgsi`,
 > `v:10600`) and **dCache** (`lhcbdcache-kit.gridka.de`, Java `xrootd4j`,
 > `v:10400`, `sha1:md5`) using an LHCb VOMS proxy — plus the regression guards

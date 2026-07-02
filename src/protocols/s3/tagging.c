@@ -20,12 +20,12 @@
 #include "s3.h"
 #include "fs/path/path.h"
 #include "tagging.h"
-#include "core/compat/http_body.h"
-#include "core/compat/http_headers.h"
-#include "core/compat/http_query.h"
+#include "core/http/http_body.h"
+#include "core/http/http_headers.h"
+#include "core/http/http_query.h"
 #include "core/compat/uri.h"
 #include "core/compat/xml.h"
-#include "fs/vfs.h"
+#include "fs/vfs/vfs.h"
 
 #include <errno.h>
 #include <fcntl.h>

@@ -52,11 +52,12 @@ location = /.well-known/wlcg-storage-resource-reporting {
 | `xrootd_srr_name` | name | `storageservice.name` (and `.id` if `xrootd_srr_id` unset) |
 | `xrootd_srr_id` | id | `storageservice.id` |
 | `xrootd_srr_quality` | level | `qualitylevel` (default `production`) |
-| `xrootd_srr_version` | ver | `implementationversion` (default `1.0`) |
+| `xrootd_srr_version` | ver | `implementationversion` (default: product version from `core/ident.h`, currently `1.0.5`) |
 | `xrootd_srr_share` | `<name> <path> [vos]` | one `storageshares[]` entry; `<path>` is `statvfs`'d for `totalsize`/`usedsize` and reported in `path[]`; `[vos]` → `vos[]` |
 | `xrootd_srr_endpoint` | `<name> <iftype> <url>` | one `storageendpoints[]` entry |
 
-`implementation` is fixed `"nginx-xrootd"`; `servicetype` is `"disk"`.
+`implementation` is fixed to the product name from `core/ident.h` (currently
+`"GNUBall"`); `servicetype` is `"disk"`.
 `storagecapacity.online.{totalsize,usedsize}` is the site-wide sum of the shares.
 `latestupdate`/share `timestamp` are the request-time unix epoch.
 

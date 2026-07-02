@@ -39,7 +39,14 @@ xrootd_proxy_forward_request(xrootd_proxy_ctx_t *proxy,
                               ngx_connection_t   *c)
 {
     uint16_t  reqid = ctx->cur_reqid;
-    size_t    total = XRD_REQUEST_HDR_LEN + ctx->cur_dlen;
+    /* body_len covers everything after the header: cur_dlen plus any
+     * streamed trailing body the recv framing appended (cur_body_extra) —
+     * kXR_writev segment data after the dlen-framed descriptor block, or the
+     * kXR_ckpXeq sub-request body after the dlen-framed embedded header.
+     * The header is forwarded verbatim (its dlen still frames only the
+     * dlen-counted part), so the upstream sees the exact stock wire layout. */
+    size_t    body_len = (size_t) ctx->cur_dlen + ctx->cur_body_extra;
+    size_t    total    = XRD_REQUEST_HDR_LEN + body_len;
     u_char   *req;
 
     /* Allocate forwarded request buffer — freed by cleanup or after send */
@@ -49,10 +56,10 @@ xrootd_proxy_forward_request(xrootd_proxy_ctx_t *proxy,
                                  "proxy: out of memory building request");
     }
 
-    /* Copy full request header then payload */
+    /* Copy full request header then payload (descriptors + any trailing data) */
     ngx_memcpy(req, ctx->hdr_buf, XRD_REQUEST_HDR_LEN);
-    if (ctx->cur_dlen > 0 && ctx->payload != NULL) {
-        ngx_memcpy(req + XRD_REQUEST_HDR_LEN, ctx->payload, ctx->cur_dlen);
+    if (body_len > 0 && ctx->payload != NULL) {
+        ngx_memcpy(req + XRD_REQUEST_HDR_LEN, ctx->payload, body_len);
     }
 
     /* Pre-set forwarding metadata */
@@ -127,6 +134,45 @@ xrootd_proxy_forward_request(xrootd_proxy_ctx_t *proxy,
             return xrootd_send_error(ctx, c, kXR_InvalidRequest,
                                      "proxy: invalid file handle");
         }
+
+        /* kXR_ckpXeq (opcode byte at header offset 19): the frame's payload
+         * is the embedded sub-request header (its streamed sub-body follows
+         * inside body_len, see chkpoint_xeq.c).  The embedded request — and,
+         * for an embedded writev, every write_list descriptor — names the
+         * same local handle, so translate those too or the upstream will
+         * refuse the handle mismatch. */
+        if (reqid == kXR_chkpoint && req[19] == kXR_ckpXeq && body_len >= 24) {
+            u_char   *sub       = req + XRD_REQUEST_HDR_LEN;
+            uint16_t  sub_reqid = (uint16_t) ((sub[2] << 8) | sub[3]);
+
+            if (proxy_translate_fh(proxy, sub + 4, 0) != 0) {
+                ngx_free(req);
+                return xrootd_send_error(ctx, c, kXR_InvalidRequest,
+                                         "proxy: invalid file handle");
+            }
+
+            if (sub_reqid == kXR_writev) {
+                uint32_t sub_dlen = ((uint32_t) sub[20] << 24)
+                                  | ((uint32_t) sub[21] << 16)
+                                  | ((uint32_t) sub[22] << 8)
+                                  |  (uint32_t) sub[23];
+                size_t   pos      = 24;
+                size_t   desc_end = 24 + (size_t) sub_dlen;
+
+                if (desc_end > body_len) {
+                    desc_end = body_len;   /* defensive clamp */
+                }
+                while (pos + 16 <= desc_end) {
+                    if (proxy_translate_fh(proxy, sub + pos, 0) != 0) {
+                        ngx_free(req);
+                        return xrootd_send_error(ctx, c, kXR_InvalidRequest,
+                                            "proxy: invalid fhandle in writev");
+                    }
+                    pos += 16;
+                }
+            }
+        }
+
         proxy->fwd_local_fh = local_fh;
         break;
     }

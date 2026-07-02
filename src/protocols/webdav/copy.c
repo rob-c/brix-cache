@@ -5,11 +5,11 @@
 #include "webdav.h"
 #include "protocols/webdav/fs/copy_engine.h"
 #include "protocols/webdav/methods/copy_conditionals.h"
-#include "core/compat/http_conditionals.h"
+#include "core/http/http_conditionals.h"
 #include "core/compat/error_mapping.h"
 #include "core/compat/namespace_ops.h"
 #include "core/compat/tmp_path.h"
-#include "fs/vfs.h"
+#include "fs/vfs/vfs.h"
 #include "auth/impersonate/impersonate.h"
 #include "fs/path/path.h"
 

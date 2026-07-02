@@ -2,7 +2,7 @@
 
 Last verified: 2026-06-14
 
-This document lists features that remain absent or narrower in nginx-xrootd after
+This document lists features that remain absent or narrower in gnuBall after
 checking the current module source and the official XRootD source tree under
 `/tmp/xrootd-src`. It deliberately does **not** treat the UDP/XrdMon monitoring
 stack as a target: this project has rejected that subsystem and uses
@@ -14,7 +14,7 @@ For the positive feature comparison and source evidence, see
 
 ## Executive Summary
 
-nginx-xrootd is no longer missing the common native data-server surface that
+gnuBall is no longer missing the common native data-server surface that
 older planning docs described. The current source implements the mainstream
 stream protocol lifecycle, active read/write/stat/namespace opcodes, GSI/token/
 SSS/unix/krb5/macaroons auth paths, WebDAV, HTTP-TPC, rate/bandwidth/
@@ -26,7 +26,7 @@ cluster-manager/admin/proxy behaviors.
 
 ## High-Impact Gaps
 
-| Area | Official XRootD | nginx-xrootd | Review attention |
+| Area | Official XRootD | gnuBall | Review attention |
 |---|---|---|---|
 | Full XrdFrm/MSS/tape ecosystem | Full upstream staging, migration, purge, space, and MSS-driver architecture | Partial FRM queue and WLCG Tape REST gateway | Tape-backed sites must validate `prepare`, `query prepare`, `cancel`, `evict`, purge, and recall behavior against the real storage manager. |
 | PSS/PFC proxy storage | Mature PSS and proxy-file-cache stack | Not a full upstream-compatible PSS/PFC replacement | Sites that depend on XRootD proxy-cache topology should not assume drop-in parity. |
@@ -42,9 +42,9 @@ cluster-manager/admin/proxy behaviors.
 | Area | Status | Notes |
 |---|---|---|
 | Async attention packets | Partial | Queue/wait behaviors exist where needed, but broad upstream attention semantics should be reviewed per workflow. |
-| Extended collection/GPF behavior | Missing | nginx-xrootd does not advertise GPF-style collection behavior. |
+| Extended collection/GPF behavior | Missing | gnuBall does not advertise GPF-style collection behavior. |
 | `kXR_gpfile` | Unsupported | Upstream default data-server behavior is also unsupported, so this is normally low impact. |
-| In-process XrdCl client library | Not applicable | nginx-xrootd is a server module and does not replace XrdCl. |
+| In-process XrdCl client library | Not applicable | gnuBall is a server module and does not replace XrdCl. |
 | UDP/XrdMon monitoring | Intentionally absent | Replaced by Prometheus/SRR/dashboard/logs by project policy. |
 
 ## No Longer Gaps
@@ -67,7 +67,7 @@ or source-verified review shows they are implemented:
 | `prepare` request id is always `"0"` | Only true when FRM is disabled. FRM-enabled operation uses durable request ids. |
 | S3 auth is planned | S3 SigV4/anonymous auth is implemented. |
 
-## nginx-xrootd Features Not Present Upstream
+## gnuBall Features Not Present Upstream
 
 These are not "gaps"; they are project-specific additions that sites may value
 when comparing replacement options:
@@ -95,4 +95,4 @@ against the target deployment:
 | Does the site use `host`, `pwd`, or custom security plugins? | Keep official XRootD or implement a migration path. |
 | Does native TPC require TLS-upgraded origins or multihop delegation? | Test with production credential flows, not only anonymous/local copies. |
 | Are checksum policies tied to site-specific checksum plugins beyond the built-in CRC64/CRC64NVME set? | Confirm which algorithms are required by clients and catalog policy. |
-| Are CMS admin commands part of operations automation? | Map each command to nginx-xrootd manager/upstream behavior before migration. |
+| Are CMS admin commands part of operations automation? | Map each command to gnuBall manager/upstream behavior before migration. |

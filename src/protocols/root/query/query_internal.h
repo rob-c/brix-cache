@@ -3,7 +3,7 @@
 
 #include "core/ngx_xrootd_module.h"
 #include "core/compat/checksum.h"
-#include "fs/vfs.h"   /* VFS stat + xattr seam for kXR_Qxattr */
+#include "fs/vfs/vfs.h"   /* VFS stat + xattr seam for kXR_Qxattr */
 
 #define XROOTD_CKSCAN_INIT_CAP  (256 * 1024)
 

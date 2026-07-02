@@ -11,7 +11,7 @@
 > | **EOS** | C++ | CERN storage; XRootD plugin consumer |
 > | **dCache / xrootd4j** | Java (Netty) | clean-room protocol reimplementation |
 > | **go-hep** | Go | clean-room protocol reimplementation |
-> | **nginx-xrootd** | C | this project — nginx stream module (server) + native client |
+> | **gnuBall** | C | this project — nginx stream module (server) + native client |
 > | **gfal2** | C++ (delegates) | *consumer / aggregator* — `root://` via the official `libXrdCl`, `davs://` via `davix`; the FTS/Rucio data-management layer (§7.6) |
 >
 > **gfal2 is not a sixth protocol implementation.** Its xrootd plugin
@@ -46,7 +46,7 @@ The codebases fall into four strategies:
   XRootD C++. EOS's contribution lives strictly *above* the protocol (a
   capability-signed MGM→FST redirect model and an `XrdSecEntity`→virtual-identity
   mapping).
-* **Reimplement** — **dCache (Java/Netty)**, **go-hep (Go)**, and **nginx-xrootd
+* **Reimplement** — **dCache (Java/Netty)**, **go-hep (Go)**, and **gnuBall
   (C)** each parse `kXR_*` PDUs themselves, because none can load a C++ plugin
   into their runtime (JVM / Go / nginx). These are the three genuinely
   independent reimplementations.
@@ -59,7 +59,7 @@ The codebases fall into four strategies:
   It matters here because it is the dominant production WLCG client (FTS, Rucio).
 
 Consequently the interesting axis of comparison is **XRootD C++ vs. xrootd4j vs.
-go-hep vs. nginx-xrootd**, with EOS standing in for "stock C++ + storage
+go-hep vs. gnuBall**, with EOS standing in for "stock C++ + storage
 semantics."
 
 **One-line characterization of each:**
@@ -72,7 +72,7 @@ semantics."
   pinned to an older GSI dialect (sha1/md5, 512-bit DH) and **no paged I/O**.
 * **go-hep** — an idiomatic, well-factored, but deliberately narrow Go port
   pinned to **protocol v3.1 (2012)**: no TLS, no GSI/token/SSS, no readv/pgread.
-* **nginx-xrootd** — the only event-loop reimplementation; full GSI/token/SSS +
+* **gnuBall** — the only event-loop reimplementation; full GSI/token/SSS +
   TLS + readv + pgread; unique **shared client/server crypto core** making the
   two ends provably wire-inverse.
 * **gfal2** — not an implementation but the *production client*: one API over
@@ -130,7 +130,7 @@ acknowledged TODO) and on an unroutable StreamID (`:263`); and the mux's
 `SendData` blocks into an unbuffered channel while holding the mutex
 (`mux.go:214`), so one slow caller stalls fan-out for the whole connection.
 
-### nginx-xrootd (`src/`, `client/`)
+### gnuBall (`src/`, `client/`)
 The only **event-loop** reimplementation. Registers as `NGX_STREAM_MODULE`
 (`src/protocols/root/stream/module_definition.c:18`); protocol logic is single-threaded per
 worker (epoll/kqueue). The recv path (`src/protocols/root/connection/recv.c`) is a
@@ -141,7 +141,7 @@ exiled from the loop**: file I/O and DH keygen go to a thread pool / per-worker
 keypool, and results re-enter via done-callbacks. The native client (`client/`)
 is the inverse — **synchronous/blocking** with `poll(2)` deadlines.
 
-> **Architectural consequence unique to nginx-xrootd.** Because the protocol runs
+> **Architectural consequence unique to gnuBall.** Because the protocol runs
 > on nginx's shared worker loop, *every* potentially-blocking crypto primitive
 > must sit behind a pool or cache or it stalls unrelated traffic. This is why the
 > module has a GSI handshake in-flight gauge (sheds with `kXR_wait`), a per-worker
@@ -162,7 +162,7 @@ This is the most stable layer; all five are byte-identical.
 * **Client request header (24 bytes):** `streamid[2] | requestid[2] | body[16] |
   dlen[4]`. (XRootD `XProtocol.hh:157`; dCache `CLIENT_REQUEST_LEN=24`,
   decoder reads dlen at offset 20; go-hep `ReadRequest` reads a fixed 24-byte
-  prefix and extracts dlen from bytes `[20:24]`; nginx-xrootd
+  prefix and extracts dlen from bytes `[20:24]`; gnuBall
   `src/protocols/root/protocol/wire_core_requests.h:98`, parsed in `recv.c:375`.)
 * **Server response header (8 bytes):** `streamid[2] | status[2] | dlen[4]`.
 * **`streamid` is opaque** — matched/echoed as raw bytes, **never byte-swapped**,
@@ -173,7 +173,7 @@ This is the most stable layer; all five are byte-identical.
 Dispatch mechanism is the only difference, and it is purely stylistic:
 XRootD splits the `switch` "to help the compiler" (`XrdXrootdProtocol.cc:439`);
 xrootd4j maps opcode→typed object then switches on type; go-hep uses the
-`Marshaler`/`Unmarshaler` interface pair; nginx-xrootd uses a cascade of
+`Marshaler`/`Unmarshaler` interface pair; gnuBall uses a cascade of
 single-purpose dispatchers with macro-encoded auth gates (`src/protocols/root/handshake/dispatch.c`).
 
 ---
@@ -185,7 +185,7 @@ The **20-byte initial handshake** `{0,0,0,4,2012}` (the trailing `0x000007dc` =
 validates it *loosely* — the real gate is "first three words zero, fourth word
 == 4"; the magic word is historical (`XrdXrootdProtocol.cc:311-325`). dCache and
 go-hep, by contrast, do **exact** byte-vector matches (`XrootdHandshakeHandler`
-compares against a fixed array; go-hep does `reflect.DeepEqual`), and nginx-xrootd
+compares against a fixed array; go-hep does `reflect.DeepEqual`), and gnuBall
 validates `fourth==4 && fifth==ROOTD_PQ` (`src/protocols/root/handshake/client_hello.c:66`).
 
 The divergences are **reported protocol version** and **TLS support**:
@@ -196,14 +196,14 @@ The divergences are **reported protocol version** and **TLS support**:
 | EOS | stock (`0x500`+) | full (stock) |
 | dCache xrootd4j | `0x500` (5.0) | TLS-aware flags; standalone server can `startTls(true)` |
 | **go-hep** | **`0x310` (3.1, 2012)** | **none** — no `crypto/tls`, no `gotoTLS`, no path to upgrade |
-| nginx-xrootd | 5.x | full: `haveTLS\|gotoTLS\|tlsLogin`, upgrade via `ngx_ssl_create_connection` |
+| gnuBall | 5.x | full: `haveTLS\|gotoTLS\|tlsLogin`, upgrade via `ngx_ssl_create_connection` |
 
 > **go-hep is frozen at the 2012 v3.1 protocol** and never negotiates TLS. For
 > modern WLCG endpoints (increasingly TLS-required) this is disqualifying on its
 > own, independent of its auth gaps (§5).
 
 `kXR_protocol` negotiation: all advertise server flags (`kXR_isServer`,
-capability bits). nginx-xrootd, when the client sets `kXR_secreqs`, appends a
+capability bits). gnuBall, when the client sets `kXR_secreqs`, appends a
 SecurityInfo trailer enumerating enabled plugins as 8-byte entries plus the
 signing security level (`src/protocols/root/session/protocol.c:144`). dCache forces
 `SigningPolicy.OFF` when TLS is active (TLS already provides integrity) — a
@@ -217,16 +217,16 @@ Converged: 8-byte username, pid, capver (async bit `0x80` + protocol version in
 the low bits), 16-byte session id, optional trailing CGI/security blob.
 
 * **Session id:** XRootD derives it from FD/Inst/PID/SID then masks
-  (`XrdXrootdXeq.cc:1105`); go-hep and nginx-xrootd generate 16 random-ish bytes
-  (nginx-xrootd explicitly notes its sessid is *not* crypto-grade,
+  (`XrdXrootdXeq.cc:1105`); go-hep and gnuBall generate 16 random-ish bytes
+  (gnuBall explicitly notes its sessid is *not* crypto-grade,
   `src/protocols/root/connection/handler.c:80`).
-* **Anonymous handling differs:** nginx-xrootd rejects non-printable usernames
+* **Anonymous handling differs:** gnuBall rejects non-printable usernames
   (`src/protocols/root/session/login.c:88`) and only sets `auth_done=1` immediately for
   `XROOTD_AUTH_NONE`; dCache leaves anonymity to the application; go-hep's default
   server is anonymous-only (echoes the sessid with no security blob).
 * **Auth trigger:** when security is configured, the login response carries the
   `&P=...` list and forces a follow-up `kXR_auth` (XRootD sets
-  `XRD_LOGGEDIN|XRD_NEED_AUTH`; nginx-xrootd leaves `auth_done=0`).
+  `XRD_LOGGEDIN|XRD_NEED_AUTH`; gnuBall leaves `auth_done=0`).
 
 ---
 
@@ -234,7 +234,7 @@ the low bits), 16-byte session id, optional trailing CGI/security blob.
 
 ### 5.1 Mechanism coverage
 
-| Mechanism | XRootD C++ / EOS | dCache xrootd4j | go-hep | nginx-xrootd |
+| Mechanism | XRootD C++ / EOS | dCache xrootd4j | go-hep | gnuBall |
 |---|---|---|---|---|
 | GSI (X.509 proxy) | ✅ (signed-DH, delegation, VOMS) | ✅ (server + TPC client) | ❌ **absent** | ✅ (server + native client) |
 | ztn / WLCG token | ✅ | ✅ | ❌ | ✅ (JWKS + L1/L2 cache) |
@@ -261,7 +261,7 @@ signed_rtag=3007, x509=3022, cipher_alg=3025, md_alg=3026`).
 
 The **details diverge in exactly the places that determine interop**:
 
-| GSI detail | XRootD C++ (reference) | dCache xrootd4j | nginx-xrootd |
+| GSI detail | XRootD C++ (reference) | dCache xrootd4j | gnuBall |
 |---|---|---|---|
 | `XrdSecgsiVers` advertised | 10400 / 10600 | **10400** | 10600 (signed-DH default) |
 | Digests offered | `sha256:sha1:…` | **`sha1:md5` only** | `sha256:sha1`; client prefers sha256 else echoes server's first |
@@ -294,7 +294,7 @@ The server splits on `#` to learn the IV length (`:3674-3692`). The corollary is
 that **the IV-present bit and the `#ivlen` suffix must agree**: prepending an IV
 under a bare cipher name (or advertising a suffix while sending no IV) desyncs the
 CBC block alignment and the peer fails to decrypt. This is precisely the failure
-mode that surfaced during nginx-xrootd interop testing — see §5.4.
+mode that surfaced during gnuBall interop testing — see §5.4.
 
 #### The DH-padding dance (dCache's brittleness)
 
@@ -330,7 +330,7 @@ EOS code — it is inherited.
 
 ### 5.4 Interop landmines (empirically confirmed)
 
-The following broke nginx-xrootd against **real dCache** and **real EOS** in turn;
+The following broke gnuBall against **real dCache** and **real EOS** in turn;
 each row maps to a column in the §5.2 table. They are the practical takeaways of
 this whole comparison:
 
@@ -355,8 +355,8 @@ this whole comparison:
 
 ### 5.5 Request signing (sigver)
 
-XRootD C++, go-hep, and nginx-xrootd all implement `kXR_sigver`; dCache has the
-infrastructure but ships it OFF in the bundled standalone server. nginx-xrootd's
+XRootD C++, go-hep, and gnuBall all implement `kXR_sigver`; dCache has the
+infrastructure but ships it OFF in the bundled standalone server. gnuBall's
 implementation is notable for using the **shared** HMAC kernel
 (`xrootd_gsi_sigver_hmac` over `seqno_be(8) || hdr24 || [payload unless nodata]`),
 a shared opcode→level policy table, constant-time compare (`CRYPTO_memcmp`), and
@@ -367,7 +367,7 @@ rejected, and in pedantic mode `nodata`-with-payload is rejected.
 
 ## 6. Data plane
 
-| Feature | XRootD C++ / EOS | dCache xrootd4j | go-hep | nginx-xrootd |
+| Feature | XRootD C++ / EOS | dCache xrootd4j | go-hep | gnuBall |
 |---|---|---|---|---|
 | open/read/write/stat/dirlist | ✅ | ✅ | ✅ (server subset narrower than client) | ✅ |
 | **readv** (`kXR_readv`) | ✅ | ✅ (chunked) | ❌ **absent** | ✅ (coalesced `preadv`, ≤64 iovecs) |
@@ -376,14 +376,14 @@ rejected, and in pedantic mode `nodata`-with-payload is rejected.
 | redirect | ✅ | `RedirectResponse` (door) | follows, **but not after open** (TODO) | ✅ (manager mode) |
 
 > **Paged I/O (`pgread`/`pgwrite` with `kXR_status` and per-page CRC32c) exists in
-> only two of the reimplementations: XRootD C++ and nginx-xrootd.** dCache and
+> only two of the reimplementations: XRootD C++ and gnuBall.** dCache and
 > go-hep stop at legacy `kXR_oksofar` chunking. EOS implements it as genuine OFS
 > overrides (`fst/XrdFstOfsFile.cc:978,1280`). The `kXR_status` frame carries its
 > own CRC32c over the response header — a transport integrity check *distinct*
 > from the per-page data CRCs — so a conformant pgread/pgwrite implementation
 > reproduces a dual-CRC design.
 
-nginx-xrootd's pgread uses a **gapped in-place layout**: `preadv` reads page data
+gnuBall's pgread uses a **gapped in-place layout**: `preadv` reads page data
 into positions that leave a 4-byte gap before each ≤4096-byte page, then a
 single pass writes each CRC into its preceding gap — no copy
 (`src/protocols/root/read/pgread.c:88-150`; this was a 27.6%→10% module-CPU optimization).
@@ -467,7 +467,7 @@ single pass writes each CRC into its preceding gap — no copy
   basic byte-range I/O against a cooperating server; not viable for production
   WLCG `root://`.
 
-### 7.5 nginx-xrootd (this project)
+### 7.5 gnuBall (this project)
 * **The shared `gsi_core` seam is the headline architectural choice.** One
   OpenSSL+libc file (bucket codec, DH, cipher negotiation, RSA POP, sigver HMAC +
   policy) compiles byte-identically into both the server module and the client
@@ -554,13 +554,13 @@ single pass writes each CRC into its preceding gap — no copy
   and the bucket terminator. A conformant client must negotiate *down* to the
   peer's dialect on every one of these.
 * **Feature completeness for production WLCG `root://`:**
-  **XRootD C++ ≈ EOS ≈ nginx-xrootd** (full GSI/token/SSS + TLS + readv + pgread)
+  **XRootD C++ ≈ EOS ≈ gnuBall** (full GSI/token/SSS + TLS + readv + pgread)
   > **dCache xrootd4j** (full auth + TLS, but no paged-I/O / readv-CRC path)
   > **go-hep** (plaintext krb5/unix metadata + basic I/O only).
 * **Architecturally**, the five span the full reuse↔reimplement spectrum: EOS
   (maximal reuse via plugins) at one pole, the three clean-room reimplementations
   (dCache/go-hep/nginx-xrootd) at the other, and the C++ reference defining the
-  contract. nginx-xrootd is unique in being event-loop-based and in sharing a
+  contract. gnuBall is unique in being event-loop-based and in sharing a
   single crypto core between its server and client. **gfal2** sits off this axis
   entirely as the production *consumer* — reusing `libXrdCl`/`davix` rather than
   speaking the wire — and is the client analogue of EOS's plugin reuse.
@@ -576,7 +576,7 @@ single pass writes each CRC into its preceding gap — no copy
 
 ### Appendix A — key source anchors
 
-| Concern | XRootD C++ | dCache xrootd4j | go-hep | nginx-xrootd |
+| Concern | XRootD C++ | dCache xrootd4j | go-hep | gnuBall |
 |---|---|---|---|---|
 | Wire structs | `XProtocol/XProtocol.hh` | `XrootdProtocol.java` | `xrdproto/xrdproto.go` | `src/protocols/root/protocol/` |
 | Server dispatch | `XrdXrootd/XrdXrootdProtocol.cc:439` | `XrootdRequestHandler.java:229` | `server.go:242` | `src/protocols/root/handshake/dispatch.c` |
@@ -588,7 +588,7 @@ single pass writes each CRC into its preceding gap — no copy
 
 ### Appendix B — verification provenance
 
-GSI interoperability claims (§5.4) were established by running the nginx-xrootd
+GSI interoperability claims (§5.4) were established by running the gnuBall
 native client against live endpoints with an LHCb VOMS proxy
 (`/tmp/x509up_u<uid>`):
 

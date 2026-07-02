@@ -16,7 +16,7 @@
  */
 
 #include "srr.h"
-#include "core/compat/http_headers.h"
+#include "core/http/http_headers.h"
 #include "core/compat/alloc_guard.h"
 
 

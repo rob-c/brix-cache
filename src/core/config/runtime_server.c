@@ -7,7 +7,7 @@
 #include "credential_block.h"             /* §14 xrootd_credential lookup/bearer */
 #include "core/compat/staged_file.h"
 #include "core/compat/tmp_path.h"          /* SP4 orphan direct-write temp reaper */
-#include "fs/vfs_backend_registry.h"   /* per-export backend registration */
+#include "fs/vfs/vfs_backend_registry.h"   /* per-export backend registration */
 #include "fs/path/path.h"                 /* xrootd_mkdir_recursive (pblock:// init) */
 #include "fs/tier/tier.h"              /* phase-64 tier parse + cache/stage register */
 

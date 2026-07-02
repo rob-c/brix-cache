@@ -1,5 +1,6 @@
 #include "query_internal.h"
 #include "core/compat/codec_core.h"
+#include "core/ident.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -266,12 +267,12 @@ xrootd_query_config(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
         } else if (strcmp(key, "version") == 0) {
             /* Server software version.  The reference do_Qconf returns the bare
-             * xrootd version string (e.g. "v5.9.5"); clients parse it for
-             * feature/quirk detection, so it must contain digits and carry NO
-             * "version=" prefix.  Report the protocol-compatible version this
-             * gateway already advertises elsewhere (webdav/xrdhttp_stats.c
-             * ver="v5.0.0"). */
-            if (!xrootd_qconfig_append(resp, sizeof(resp), &pos, "v5.0.0\n")) {
+             * version string (e.g. "v5.9.5"); clients parse it for feature/quirk
+             * detection, so it must contain digits and carry NO "version="
+             * prefix.  Report the product version from core/ident.h — the same
+             * string every other identity surface advertises. */
+            if (!xrootd_qconfig_append(resp, sizeof(resp), &pos, "%s\n",
+                                       XROOTD_SERVER_VERSION)) {
                 break;
             }
 

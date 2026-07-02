@@ -121,7 +121,7 @@ xrdfs localhost rmdir /data/publications/test-dir
 
 ## If everything passes
 
-You have a working nginx-xrootd server. Before putting it in production, you should:
+You have a working gnuBall server. Before putting it in production, you should:
 
 1. **Add authentication** — See [Authentication Overview](../06-authentication/)
 2. **Enable TLS/HTTPS** — See [TLS Configuration](../03-configuration/tls-config.md) for `roots://` support

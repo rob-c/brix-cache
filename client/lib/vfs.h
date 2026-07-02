@@ -18,7 +18,7 @@
  *       the POSIX and block backends is dispatched through the SHARED Storage
  *       Driver `xrootd_sd_posix_driver` (src/fs/backend/sd.h, ngx-free under
  *       -DXRDPROTO_NO_NGX via libxrdproto) — the SAME driver the nginx server's
- *       data plane uses (src/fs/vfs_io_core.c). So `pread`/`pwrite`/`fstat`/
+ *       data plane uses (src/fs/vfs/vfs_io_core.c). So `pread`/`pwrite`/`fstat`/
  *       `ftruncate`/`fsync` have ONE implementation across client and server.
  *       (The old "never reuse sd.h — phase-55 broke it" caveat is obsolete: sd.h
  *       now carries a complete ngx-free fallback, so the worker-safe raw-fd

@@ -74,7 +74,7 @@ subsequent request on the connection.
 
 ### What XRootD implements manually that we get for free
 
-| Feature | XRootD daemon | nginx-xrootd stream module |
+| Feature | XRootD daemon | gnuBall stream module |
 |---|---|---|
 | Process lifecycle | `XrdSupervisor`, `XrdFork` | nginx master process |
 | Signal handling (`SIGHUP` reload) | Custom in `XrdConfig` | nginx master |

@@ -3,7 +3,7 @@
 
 #include "core/ngx_xrootd_module.h"
 #include "core/compat/pgio.h"   /* xrdp_pg_bad_t — pgwrite CSE bad-page list */
-#include "fs/vfs_io_core.h"
+#include "fs/vfs/vfs_io_core.h"
 
 /*
  * AIO — async file I/O via the nginx thread pool, plus response builders.

@@ -1,14 +1,14 @@
 # Cross-Protocol Sharing & Expansion Analysis
 
 **Date:** 2026-05-26  
-**Scope:** nginx-xrootd module — XRootD (stream), WebDAV/HTTP (http), S3 REST (http)  
+**Scope:** gnuBall module — XRootD (stream), WebDAV/HTTP (http), S3 REST (http)  
 **Purpose:** Identify areas where functionality can be shared or expanded across protocol implementations to reduce duplication, improve consistency, and enable new cross-protocol capabilities.
 
 ---
 
 ## Executive Summary
 
-The nginx-xrootd module implements three distinct protocols — XRootD (`root://`/`roots://`) via the stream layer, WebDAV (`davs://`/`http://`) via the HTTP layer, and S3-compatible REST via a separate HTTP location handler. Despite their protocol differences, there is significant overlap in **auth validation**, **path resolution**, **namespace operations**, **HTTP response building**, **error mapping**, **metrics infrastructure**, and **I/O helpers**.
+The gnuBall module implements three distinct protocols — XRootD (`root://`/`roots://`) via the stream layer, WebDAV (`davs://`/`http://`) via the HTTP layer, and S3-compatible REST via a separate HTTP location handler. Despite their protocol differences, there is significant overlap in **auth validation**, **path resolution**, **namespace operations**, **HTTP response building**, **error mapping**, **metrics infrastructure**, and **I/O helpers**.
 
 ```text
    ┌──────────────┐   ┌──────────────┐   ┌──────────────┐   PROTOCOL FRONT-ENDS
@@ -18,7 +18,7 @@ The nginx-xrootd module implements three distinct protocols — XRootD (`root://
           │ wire-path        │ URI-decode       │ key-strip   protocol-specific
           ▼ extract          ▼                  ▼ bucket      pre-processing
    ┌──────────────────────────────────────────────────────┐
-   │  SHARED CORE                                          │  src/core/compat/, src/path/
+   │  SHARED CORE                                          │  src/core/compat/, src/fs/path/
    │  token validate · scope check · confined ns ops       │  src/auth/token/, src/observability/metrics/
    │  path resolve · error map (errno→kXR / →HTTP)         │
    │  HTTP file response · range · ETag · XML · fs_walk     │  ← WebDAV+S3 reuse
@@ -60,7 +60,7 @@ S3 should remain out of scope unless the project explicitly changes INVARIANT
 
 ### 1.2 Confined Namespace Operations
 
-All three protocols use the same confined filesystem operations from `src/path/`:
+All three protocols use the same confined filesystem operations from `src/fs/path/`:
 
 | Function | File | Used By |
 |---|---|---|
@@ -83,15 +83,15 @@ All three protocols use the same confined filesystem operations from `src/path/`
 
 ### 1.4 HTTP Response Building (WebDAV + S3)
 
-All three functions in `src/core/compat/http_file_response.c` are shared between WebDAV and S3:
+All three functions in `src/core/http/http_file_response.c` are shared between WebDAV and S3:
 
 | Function | File | Used By |
 |---|---|---|
-| `xrootd_http_send_file_range()` | `src/core/compat/http_file_response.c` | WebDAV GET, S3 GetObject |
-| `xrootd_http_add_etag_header()` | `src/core/compat/http_file_response.c` | WebDAV HEAD, S3 HeadObject |
+| `xrootd_http_send_file_range()` | `src/core/http/http_file_response.c` | WebDAV GET, S3 GetObject |
+| `xrootd_http_add_etag_header()` | `src/core/http/http_file_response.c` | WebDAV HEAD, S3 HeadObject |
 | `xrootd_http_parse_range()` / `xrootd_http_parse_range_vector()` | `src/core/compat/range.c`, `range_vector.c` | WebDAV GET, S3 GetObject (Range header) |
 
-**Current state:** WebDAV and S3 share the same HTTP file response infrastructure — both build `ngx_chain_t` of `ngx_buf_t`, use sendfile for cleartext, memory-backed buffers for TLS. ETag generation via `xrootd_http_etag_str()` from mtime+size is shared in `src/core/compat/etag.c`.
+**Current state:** WebDAV and S3 share the same HTTP file response infrastructure — both build `ngx_chain_t` of `ngx_buf_t`, use sendfile for cleartext, memory-backed buffers for TLS. ETag generation via `xrootd_http_etag_str()` from mtime+size is shared in `src/core/http/etag.c`.
 
 ### 1.5 XML Building (WebDAV + S3)
 
@@ -216,15 +216,15 @@ location block. VOMS extraction is skipped when either directive is absent.
 ### 2.3 HTTP Body Write — Shared WebDAV/S3 Body Writer
 
 **Current state:** WebDAV and S3 PUT both route request-body writes through
-the shared body helpers in `src/core/compat/http_body.c`:
+the shared body helpers in `src/core/http/http_body.c`:
 
 | Protocol | Function | File | Buffer Handling |
 |---|---|---|---|
-| WebDAV | `webdav_put_body_handler()` → async callback after body read | `src/protocols/webdav/put.c` | Uses `xrootd_http_body_write_buf()` from `src/core/compat/http_body.c` |
-| S3 | `s3_put_body_handler()` → async callback after body read | `src/protocols/s3/put.c` | Uses `xrootd_http_body_write_to_fd()` from `src/core/compat/http_body.c` |
+| WebDAV | `webdav_put_body_handler()` → async callback after body read | `src/protocols/webdav/put.c` | Uses `xrootd_http_body_write_buf()` from `src/core/http/http_body.c` |
+| S3 | `s3_put_body_handler()` → async callback after body read | `src/protocols/s3/put.c` | Uses `xrootd_http_body_write_to_fd()` from `src/core/http/http_body.c` |
 
 **Key differences:**
-- WebDAV: uses shared `xrootd_http_body_pwrite_full()` / `xrootd_http_body_write_buf()` helpers from `src/core/compat/http_body.c`
+- WebDAV: uses shared `xrootd_http_body_pwrite_full()` / `xrootd_http_body_write_buf()` helpers from `src/core/http/http_body.c`
 - S3: uses `xrootd_http_body_write_to_fd()` so memory-backed and spooled request-body buffers follow the same write path as WebDAV
 
 **Implemented:** S3 no longer needs a private request-body chain iterator for
@@ -293,7 +293,7 @@ Configuration: add `xrootd_webdav_cache_root /srv/cache;` or
 
 ### 3.2 Native TPC — Stream Only, Could Expand to HTTP
 
-**Current state:** Native Third-Party Copy (`src/tpc/key_registry.c`, `launch.c`, `thread.c`, `io.c`, `done.c`) operates only on the stream (XRootD) layer using SHM key registry for cross-process zero-copy transfers. WebDAV TPC uses curl COPY with Source/Credential headers (`src/protocols/webdav/tpc.c`). S3 has local copy via `xrootd_ns_local_copy()` but no remote TPC.
+**Current state:** Native Third-Party Copy (`src/tpc/engine/key_registry.c`, `launch.c`, `thread.c`, `io.c`, `done.c`) operates only on the stream (XRootD) layer using SHM key registry for cross-process zero-copy transfers. WebDAV TPC uses curl COPY with Source/Credential headers (`src/protocols/webdav/tpc.c`). S3 has local copy via `xrootd_ns_local_copy()` but no remote TPC.
 
 **Gap:** S3 does not support third-party copy (PUT with Content-Copy-Source header already exists as `s3_handle_copy_object()` in `src/protocols/s3/copy.c` but uses local file copy, not cross-server transfer). WebDAV TPC is curl-based; stream TPC is SHM-based — two different architectures for the same concept.
 
@@ -512,9 +512,9 @@ These existing invariants from AGENTS.md should be preserved or updated during c
 - `src/protocols/s3/s3.h` — declarations for S3 callers
 
 ### HTTP Response Building (Section 1.4)
-- `src/core/compat/http_file_response.c` — file response helpers
+- `src/core/http/http_file_response.c` — file response helpers
 - `src/core/compat/range.c`, `range_vector.c` — range parsing
-- `src/core/compat/etag.c` — ETag generation
+- `src/core/http/etag.c` — ETag generation
 
 ### Staged Files (Section 2.4)
 - `src/core/compat/staged_file.c` — staged file helpers
@@ -565,7 +565,7 @@ Cross-protocol consolidation changes should also include:
 |---|---|---|---|
 | Auth methods | Anonymous, GSI, WLCG token, SSS | Anonymous, GSI, WLCG token | SigV4, Anonymous |
 | Path resolution | `xrootd_resolve_path()` variants | `ngx_http_xrootd_webdav_resolve_path()` | `s3_resolve_key()` |
-| Confined ops | All helpers via `src/path/` | All helpers via `src/path/` | All helpers via `src/path/` |
+| Confined ops | All helpers via `src/fs/path/` | All helpers via `src/fs/path/` | All helpers via `src/fs/path/` |
 | File response | Wire framing (kXR_ok + data) | `xrootd_http_send_file_range()` | `xrootd_http_send_file_range()` |
 | Range support | Offset+length in wire payload | HTTP Range header | HTTP Range header |
 | TPC | SHM key registry (`src/tpc/`) | curl COPY (`src/protocols/webdav/tpc.c`) | Local copy (`xrootd_ns_local_copy()`) |

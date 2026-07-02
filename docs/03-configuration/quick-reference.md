@@ -12,13 +12,13 @@ The most-used directives on one page. Start here when you know what you want to 
 | `xrootd_root <path>` | `server` | `/` | Recommended |
 | `xrootd_allow_write on\|off` | `server` | `off` | No |
 | `xrootd_auth none\|gsi\|token\|both` | `server` | `none` | No |
-| `xrootd_frm on\|off` | `server` | `off` | Enable the FRM durable tape-staging queue behind `kXR_prepare`/`kXR_QPrep` (Phase 35, `src/frm/`) |
+| `xrootd_frm on\|off` | `server` | `off` | Enable the FRM durable tape-staging queue behind `kXR_prepare`/`kXR_QPrep` (`src/fs/xfer/` stage engine) |
 | `xrootd_frm_queue_path <abs-path>` | `server` | — | Required when `xrootd_frm on`; absolute path to the durable queue file (the `.lock` sidecar lives beside it). The crash-safe source of truth. |
 | `xrootd_frm_max_inflight <N>` | `server` | `64` | Admission cap on live (queued + staging) requests |
 | `xrootd_frm_stagecmd <cmd>` | `server` | inherits `xrootd_prepare_command` | Stage-in command (Phase 1 worker); Phase 0 records durably + the legacy command stages |
 | `xrootd_frm_stage_ttl <time>` | `server` | `600s` | Hard expiry for a queue record (reaped by the worker-0 timer) |
 
-> Additional Phase 1–4 FRM directives (`xrootd_frm_copycmd/copymax/xfrhold/fail_backoff/fail_retries/residency_cmd/copy_timeout/migrate_copycmd/purge_watermark/purge_interval`) are accepted now and activate with their phase. See [`src/frm/README.md`](../../src/frm/README.md) and [`docs/refactor/phase-35-frm-tape-staging.md`](../refactor/phase-35-frm-tape-staging.md).
+> Additional Phase 1–4 FRM directives (`xrootd_frm_copycmd/copymax/xfrhold/fail_backoff/fail_retries/residency_cmd/copy_timeout/migrate_copycmd/purge_watermark/purge_interval`) are accepted now and activate with their phase. See [`src/fs/xfer/README.md`](../../src/fs/xfer/README.md) and [`docs/refactor/phase-35-frm-tape-staging.md`](../refactor/phase-35-frm-tape-staging.md).
 
 | `xrootd_proxy on\|off` | `server` | `off` | Enable transparent XRootD proxy mode |
 | `xrootd_proxy_upstream host[:port] [auth]` | `server` | — | Required when `xrootd_proxy on`; may appear multiple times for round-robin load balancing. Optional `auth` arg (`anonymous`, `forward`, `sss`, `sss:<keyname>`) overrides server-level `xrootd_proxy_auth` for this upstream |

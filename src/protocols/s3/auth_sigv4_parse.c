@@ -1,6 +1,6 @@
 #include "s3.h"
 #include "s3_auth_internal.h"
-#include "core/compat/http_headers.h"
+#include "core/http/http_headers.h"
 
 #include <string.h>
 #include <errno.h>

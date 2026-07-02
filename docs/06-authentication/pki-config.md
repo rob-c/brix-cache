@@ -1,6 +1,6 @@
 # PKI, Proxy Certificates, and VOMS
 
-The complete X.509 certificate stack used by nginx-xrootd, and how it's consumed during authentication over `root://` (XRootD native) and `https://` (WebDAV). If you already know Grid PKI and just want directives, jump to the configuration section.
+The complete X.509 certificate stack used by gnuBall, and how it's consumed during authentication over `root://` (XRootD native) and `https://` (WebDAV). If you already know Grid PKI and just want directives, jump to the configuration section.
 step-by-step commands for creating test certificates, see
 [test-pki.md](test-pki-setup.md).  If you want the quick-reference config
 directives, see [authentication.md](auth-overview.md).
@@ -12,7 +12,7 @@ directives, see [authentication.md](auth-overview.md).
 Grid security has a lot of names because it separates several concerns that are
 often bundled together in smaller systems:
 
-| Concern | Grid/WLCG/OSG term | What nginx-xrootd uses |
+| Concern | Grid/WLCG/OSG term | What gnuBall uses |
 |---|---|---|
 | Who is this user? | X.509 identity, DN, proxy certificate | GSI proxy chain or token `sub` |
 | Which collaboration are they in? | VO, VOMS, FQAN, WLCG group | `ctx->primary_vo`, `ctx->vo_list`, `xrootd_require_vo` |

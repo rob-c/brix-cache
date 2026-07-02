@@ -255,6 +255,116 @@ static void test_stream_writev_trailing_data(void)
     assert(r.op[1] == kXR_stat && strcmp(r.path[1], "/after") == 0);
 }
 
+static void test_stream_ckpxeq_trailing_subbody(void)
+{
+    /* kXR_chkpoint/ckpXeq stock framing: dlen covers only the embedded
+     * 24-byte sub-request header; the sub-request body streams after the
+     * frame.  Frame: ckpXeq embedding a writev (2 descriptors, wlen 5 + 7 =
+     * 12 data bytes — a two-stage extension: header -> descriptors -> data),
+     * then a kXR_stat request — fed one byte at a time.  The decoder must
+     * consume the whole streamed sub-body or it would misparse it as the
+     * next header. */
+    uint8_t wire[512]; memset(wire, 0, 20);              /* handshake */
+    size_t  off = 20;
+
+    uint16_t sid = htons(6), op = htons(kXR_chkpoint);
+    uint32_t dlen = htonl(24);                           /* embedded header */
+    memcpy(wire + off, &sid, 2); memcpy(wire + off + 2, &op, 2);
+    wire[off + 19] = 4;                                  /* kXR_ckpXeq */
+    memcpy(wire + off + 20, &dlen, 4);
+    off += 24;
+
+    uint16_t sub_op = htons(3031 /* kXR_writev */);
+    uint32_t sub_dlen = htonl(32);                       /* 2 descriptors */
+    memset(wire + off, 0, 24);
+    memcpy(wire + off, &sid, 2); memcpy(wire + off + 2, &sub_op, 2);
+    memcpy(wire + off + 20, &sub_dlen, 4);
+    off += 24;
+    uint32_t w1 = htonl(5), w2 = htonl(7);
+    memset(wire + off, 0, 32);                           /* fhandle+offset zero */
+    memcpy(wire + off + 4, &w1, 4);                      /* desc[0].wlen = 5 */
+    memcpy(wire + off + 16 + 4, &w2, 4);                 /* desc[1].wlen = 7 */
+    off += 32;
+    memset(wire + off, 'D', 12);                         /* trailing segment data */
+    off += 12;
+
+    uint8_t req[256];
+    size_t nreq = mk_request(req, 7, kXR_stat, "/after");
+    memcpy(wire + off, req, nreq);
+    size_t total = off + nreq;
+
+    xrootd_tap_ctx_t tap; memset(&tap, 0, sizeof(tap));
+    struct rec_ctx r; memset(&r, 0, sizeof(r));
+    xrootd_tap_register_sink(&tap, rec_sink, &r);
+    xrootd_tap_stream_t st;
+    xrootd_tap_stream_init(&st, &tap, XROOTD_TAP_C2U);
+    for (size_t i = 0; i < total; i++) {
+        xrootd_tap_stream_feed(&st, wire + i, 1);        /* 1-byte chunks */
+    }
+
+    assert(r.n == 2);
+    assert(r.op[0] == kXR_chkpoint);
+    assert(r.op[1] == kXR_stat && strcmp(r.path[1], "/after") == 0);
+}
+
+static void test_stream_ckpxeq_write_and_truncate(void)
+{
+    /* The two other ckpXeq embed shapes: an embedded kXR_write extends
+     * consumption by its sub_dlen in ONE stage (data streams right after the
+     * embedded header), and an embedded kXR_truncate declares sub_dlen == 0
+     * so the frame closes with no extension at all.  Both must leave the
+     * stream aligned for the kXR_stat that follows. */
+    uint8_t wire[512]; memset(wire, 0, 20);              /* handshake */
+    size_t  off = 20;
+
+    /* ckpXeq embedding a write with 9 streamed data bytes */
+    uint16_t sid = htons(8), op = htons(kXR_chkpoint);
+    uint32_t dlen = htonl(24);
+    memcpy(wire + off, &sid, 2); memcpy(wire + off + 2, &op, 2);
+    wire[off + 19] = 4;                                  /* kXR_ckpXeq */
+    memcpy(wire + off + 20, &dlen, 4);
+    off += 24;
+    uint16_t sub_op = htons(3019 /* kXR_write */);
+    uint32_t sub_dlen = htonl(9);
+    memset(wire + off, 0, 24);
+    memcpy(wire + off, &sid, 2); memcpy(wire + off + 2, &sub_op, 2);
+    memcpy(wire + off + 20, &sub_dlen, 4);
+    off += 24;
+    memset(wire + off, 'W', 9);                          /* streamed write data */
+    off += 9;
+
+    /* ckpXeq embedding a truncate (sub_dlen == 0: nothing streams) */
+    memcpy(wire + off, &sid, 2); memcpy(wire + off + 2, &op, 2);
+    memset(wire + off + 4, 0, 16);
+    wire[off + 19] = 4;                                  /* kXR_ckpXeq */
+    memcpy(wire + off + 20, &dlen, 4);
+    off += 24;
+    sub_op = htons(3028 /* kXR_truncate */); sub_dlen = 0;
+    memset(wire + off, 0, 24);
+    memcpy(wire + off, &sid, 2); memcpy(wire + off + 2, &sub_op, 2);
+    memcpy(wire + off + 20, &sub_dlen, 4);
+    off += 24;
+
+    uint8_t req[256];
+    size_t nreq = mk_request(req, 9, kXR_stat, "/after");
+    memcpy(wire + off, req, nreq);
+    size_t total = off + nreq;
+
+    xrootd_tap_ctx_t tap; memset(&tap, 0, sizeof(tap));
+    struct rec_ctx r; memset(&r, 0, sizeof(r));
+    xrootd_tap_register_sink(&tap, rec_sink, &r);
+    xrootd_tap_stream_t st;
+    xrootd_tap_stream_init(&st, &tap, XROOTD_TAP_C2U);
+    for (size_t i = 0; i < total; i++) {
+        xrootd_tap_stream_feed(&st, wire + i, 1);        /* 1-byte chunks */
+    }
+
+    assert(r.n == 3);
+    assert(r.op[0] == kXR_chkpoint);
+    assert(r.op[1] == kXR_chkpoint);
+    assert(r.op[2] == kXR_stat && strcmp(r.path[2], "/after") == 0);
+}
+
 static void test_stream_c2u_handshake_skip(void)
 {
     /* C2U opens with a 20-byte handshake, then a real kXR_open request */
@@ -310,6 +420,8 @@ int main(void)
     test_stream_chunked();
     test_stream_response_and_skip();
     test_stream_writev_trailing_data();
+    test_stream_ckpxeq_trailing_subbody();
+    test_stream_ckpxeq_write_and_truncate();
     test_stream_c2u_handshake_skip();
     printf("tap_unittest: all checks passed\n");
     return 0;

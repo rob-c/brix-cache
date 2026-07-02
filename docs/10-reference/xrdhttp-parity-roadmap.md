@@ -1,7 +1,7 @@
 # XrdHttp Parity Roadmap
 
-Strategic parity work for nginx-xrootd's XrdHttp/WebDAV surface: what has
-landed, what remains open, and where nginx-xrootd intentionally differs from
+Strategic parity work for gnuBall's XrdHttp/WebDAV surface: what has
+landed, what remains open, and where gnuBall intentionally differs from
 the official `XrdHttp` implementation.
 
 ---

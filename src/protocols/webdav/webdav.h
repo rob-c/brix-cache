@@ -53,7 +53,7 @@
 
 #include "observability/metrics/metrics.h"
 #include "core/compat/error_mapping.h"
-#include "core/compat/http_headers.h"
+#include "core/http/http_headers.h"
 #include "core/compat/log.h"
 #include "auth/token/token.h"
 #include "core/types/identity.h"

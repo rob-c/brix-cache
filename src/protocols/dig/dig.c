@@ -14,7 +14,7 @@
 #include "dig.h"
 #include "protocols/webdav/webdav.h"
 #include "fs/path/beneath.h"
-#include "fs/vfs.h"   /* serve diagnostics files through the VFS seam */
+#include "fs/vfs/vfs.h"   /* serve diagnostics files through the VFS seam */
 
 #include <errno.h>
 #include <fcntl.h>

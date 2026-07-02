@@ -375,7 +375,7 @@ ngx_int_t xrootd_cache_open_fill_offload(xrootd_ctx_t *ctx,
     uint16_t options, uint16_t mode_bits);
 
 /* tpc/ — XRootD root:// third-party copy (TPC) */
-#include "tpc/tpc_internal.h"
+#include "tpc/engine/tpc_internal.h"
 
 /* cms/ — CMS manager heartbeat/registration */
 /* Start this worker's CMS heartbeat client (allocates ctx in the cycle pool,

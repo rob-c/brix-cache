@@ -10,7 +10,7 @@
 #include "protocols/root/response/response.h"
 #include "core/aio/aio.h"
 #include "core/compat/checksum.h"
-#include "fs/vfs.h"   /* xrootd_vfs_walk — confined recursive scan */
+#include "fs/vfs/vfs.h"   /* xrootd_vfs_walk — confined recursive scan */
 
 #include <dirent.h>
 #include <sys/stat.h>

@@ -10,7 +10,7 @@ reply:
                           a deferred kXR_attn(kXR_asynresp) carrying the real reply.
 
 Before §F8 the dest only accepted a synchronous kXR_ok and fast-failed on these.
-tpc_open_resolve() (src/tpc/source.c) now honours both flows, bounded so a silent
+tpc_open_resolve() (src/tpc/outbound/source.c) now honours both flows, bounded so a silent
 source can never hang the pull thread.
 
 This test drives a REAL native xrdcp `--tpc only` pull, with a real nginx-xrootd

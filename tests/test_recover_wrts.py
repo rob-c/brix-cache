@@ -109,10 +109,20 @@ def _writev_one(sock, sid, fhandle, offset, data):
     """Send kXR_writev with a single segment and assert kXR_ok.
 
     Segment descriptor (write_list): fhandle[4] + wlen[4be] + offset[8be] = 16 bytes.
-    Payload = segment descriptor + data.
+    Stock wire framing: dlen covers ONLY the descriptor block; the segment
+    data streams after the frame (server recovers its length as sum(wlen)).
     """
-    seg     = fhandle + struct.pack(">I", len(data)) + struct.pack(">q", offset)
-    status, _ = _send_req(sock, sid, kXR_writev, payload=seg + data)
+    seg = fhandle + struct.pack(">I", len(data)) + struct.pack(">q", offset)
+    hdr = bytes(sid[:2]) + struct.pack(">H", kXR_writev)
+    hdr += b"\x00" * 16
+    hdr += struct.pack(">I", len(seg))
+    sock.sendall(hdr + seg + data)
+    rsp_hdr = _recv_exact(sock, 8)
+    assert rsp_hdr is not None, "connection closed unexpectedly"
+    status = struct.unpack(">H", rsp_hdr[2:4])[0]
+    dlen = struct.unpack(">I", rsp_hdr[4:8])[0]
+    if dlen > 0:
+        _recv_exact(sock, dlen)
     assert status == kXR_ok, f"kXR_writev failed: status={status}"
 
 

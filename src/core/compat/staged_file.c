@@ -12,7 +12,7 @@
 #include "fs/path/beneath.h"
 #include "fs/backend/sd.h"   /* Storage Driver seam: VFS↔VFS (backend↔backend) move */
 #include "fs/xfer/xfer.h"    /* xrootd_xfer_pump_objects — the shared in-process mover */
-#include "fs/vfs_backend_registry.h"  /* per-export backend for a non-POSIX commit */
+#include "fs/vfs/vfs_backend_registry.h"  /* per-export backend for a non-POSIX commit */
 
 #include <dirent.h>
 #include <errno.h>

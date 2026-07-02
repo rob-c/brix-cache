@@ -72,7 +72,7 @@ Credential extraction in `tpc_cred.c` reads `Credential:` header; independently 
 | Credential parse | `tpc_token.c`, `gsi_outbound_certreq.c` | `tpc_cred.c`, `tpc_cred_parse.c` |
 | Credential validation | `src/auth/gsi/parse.c` (ad-hoc call) | `webdav_verify_proxy_cert()` (ad-hoc call) |
 | Scope check | Manual bitmask on `kXR_prepare` flags | Manual `has_write_scope` check in `tpc.c` |
-| Transfer tracking | `src/tpc/key_registry.c` (SHM) | None — lost on worker restart |
+| Transfer tracking | `src/tpc/engine/key_registry.c` (SHM) | None — lost on worker restart |
 | Metrics | Not recorded | `src/protocols/webdav/metrics.c` partial |
 | Authorization | Hardcoded in `parse.c` | Hardcoded in `tpc.c` |
 
@@ -178,7 +178,7 @@ ngx_int_t xrootd_tpc_check_authz(const xrootd_identity_t *identity,
 
 ### `src/tpc/common/registry.c` — Unified Transfer Registry
 
-The stream TPC uses a SHM-based key registry (`src/tpc/key_registry.c`) to track in-progress transfers across worker processes. WebDAV TPC has no equivalent — a transfer in progress is invisible to other workers and lost on crash.
+The stream TPC uses a SHM-based key registry (`src/tpc/engine/key_registry.c`) to track in-progress transfers across worker processes. WebDAV TPC has no equivalent — a transfer in progress is invisible to other workers and lost on crash.
 
 The unified registry uses the existing SHM mechanism but extends it to cover both stream and WebDAV transfers:
 
@@ -212,7 +212,7 @@ ngx_int_t xrootd_tpc_registry_remove(uint64_t id, ngx_log_t *log);
 const xrootd_tpc_transfer_t *xrootd_tpc_registry_find(uint64_t id);
 ```
 
-The stream-specific `src/tpc/key_registry.c` is **not deleted** in this phase — it remains for stream-only delegation key lookup. The new registry overlaps in purpose for progress tracking; both exist during the transition and the stream registry is retired in a follow-up cleanup.
+The stream-specific `src/tpc/engine/key_registry.c` is **not deleted** in this phase — it remains for stream-only delegation key lookup. The new registry overlaps in purpose for progress tracking; both exist during the transition and the stream registry is retired in a follow-up cleanup.
 
 ---
 
@@ -222,7 +222,7 @@ The stream-specific `src/tpc/key_registry.c` is **not deleted** in this phase �
 
 **WebDAV:** Replace `src/protocols/webdav/tpc_cred.c` logic with a call to `xrootd_tpc_credential_parse()`. The `Credential:` header value is passed as `raw_credential`. `type` hint = `XROOTD_TPC_CRED_NONE` (auto-detect from header prefix: `"Bearer "` → TOKEN, `"-----BEGIN"` → PROXY).
 
-**Stream:** Replace `src/tpc/tpc_token.c` and the inline GSI delegation in `gsi_outbound_certreq.c` with a call to `xrootd_tpc_credential_parse()`. The kXR delegation key resolves to a raw credential string; pass that directly.
+**Stream:** Replace `src/tpc/outbound/tpc_token.c` and the inline GSI delegation in `gsi_outbound_certreq.c` with a call to `xrootd_tpc_credential_parse()`. The kXR delegation key resolves to a raw credential string; pass that directly.
 
 **Validation:** Both paths call `xrootd_tpc_credential_validate()` before proceeding.
 
@@ -230,7 +230,7 @@ The stream-specific `src/tpc/key_registry.c` is **not deleted** in this phase �
 
 **WebDAV:** `src/protocols/webdav/tpc.c` currently checks authorization with ad-hoc scope flags. Replace with `xrootd_tpc_check_authz(request_ctx->identity, src_path, dst_path, log)`.
 
-**Stream:** `src/tpc/parse.c` authorization check replaced with `xrootd_tpc_check_authz(ctx->identity, src_path, dst_path, log)`.
+**Stream:** `src/tpc/engine/parse.c` authorization check replaced with `xrootd_tpc_check_authz(ctx->identity, src_path, dst_path, log)`.
 
 Both paths now use Phase 2's `xrootd_identity_t` — meaning a token that grants write scope for `/store/data` is honored identically over stream and WebDAV TPC.
 
@@ -238,7 +238,7 @@ Both paths now use Phase 2's `xrootd_identity_t` — meaning a token that grants
 
 **WebDAV:** `src/protocols/webdav/tpc_thread.c` registers the transfer with `xrootd_tpc_registry_add()` at launch; calls `xrootd_tpc_registry_update()` on each libcurl progress callback; calls `xrootd_tpc_registry_remove()` on completion.
 
-**Stream:** `src/tpc/launch.c` registers; `src/tpc/thread.c` updates; `src/tpc/done.c` removes.
+**Stream:** `src/tpc/engine/launch.c` registers; `src/tpc/outbound/thread.c` updates; `src/tpc/engine/done.c` removes.
 
 ### Step 4 — Progress / Marker Unification
 
@@ -270,12 +270,12 @@ Both paths read progress from the **same** registry entry, so a monitoring endpo
 ### Modified files
 | File | Change |
 |:---|:---|
-| `src/tpc/tpc_token.c` | Delegate to `xrootd_tpc_credential_parse()` |
-| `src/tpc/gsi_outbound_certreq.c` | Delegate credential validation to common layer |
-| `src/tpc/parse.c` | Replace auth with `xrootd_tpc_check_authz()` |
-| `src/tpc/launch.c` | Add `xrootd_tpc_registry_add()` call |
-| `src/tpc/thread.c` | Add `xrootd_tpc_registry_update()` calls |
-| `src/tpc/done.c` | Add `xrootd_tpc_registry_remove()` call |
+| `src/tpc/outbound/tpc_token.c` | Delegate to `xrootd_tpc_credential_parse()` |
+| `src/tpc/gsi/gsi_outbound_certreq.c` | Delegate credential validation to common layer |
+| `src/tpc/engine/parse.c` | Replace auth with `xrootd_tpc_check_authz()` |
+| `src/tpc/engine/launch.c` | Add `xrootd_tpc_registry_add()` call |
+| `src/tpc/outbound/thread.c` | Add `xrootd_tpc_registry_update()` calls |
+| `src/tpc/engine/done.c` | Add `xrootd_tpc_registry_remove()` call |
 | `src/protocols/webdav/tpc.c` | Replace auth with `xrootd_tpc_check_authz()` |
 | `src/protocols/webdav/tpc_cred.c` | Delegate to `xrootd_tpc_credential_parse()` |
 | `src/protocols/webdav/tpc_cred_parse.c` | Keep raw header parsing; remove validation logic (moved to common) |
@@ -336,7 +336,7 @@ TPC is the highest-risk operation in the module. These invariants must be preser
 | WebDAV curl credential injection | `xrootd_tpc_credential_validate()` runs before curl sees the credential |
 | SHM registry overflow under load | Bounded size; overflow returns 503 (not silent failure) |
 | Proxy depth bypass via renegotiation | Depth check in `xrootd_tpc_credential_validate()` applied to delegated chain |
-| Phase 2 identity not available in stream TPC path | Stream TPC spawns from `src/tpc/parse.c` which has `xrootd_ctx_t`; identity attached in Phase 2 |
+| Phase 2 identity not available in stream TPC path | Stream TPC spawns from `src/tpc/engine/parse.c` which has `xrootd_ctx_t`; identity attached in Phase 2 |
 
 ---
 

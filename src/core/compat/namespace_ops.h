@@ -53,7 +53,7 @@ typedef struct {
  *
  * INVARIANT: All protocol handlers implementing user-visible namespace
  * mutations (delete, mkdir, rename) MUST route through the VFS layer
- * (src/fs/vfs.h: xrootd_vfs_unlink/rmdir/mkdir/rename/copy and the staged-write
+ * (src/fs/vfs/vfs.h: xrootd_vfs_unlink/rmdir/mkdir/rename/copy and the staged-write
  * family), which calls these functions underneath while adding the metrics +
  * access-log layer. These xrootd_ns_*() entry points remain the seam the VFS
  * delegates to; calling them directly from an EVENT-LOOP handler path is now a
@@ -71,7 +71,7 @@ typedef struct {
  * NOTE (phase-54): this exemption is for namespace MUTATION only. Raw byte I/O
  * (read/write/readv/writev/pgread + the dirlist scan) is no longer exempt —
  * worker threads now run it through the VFS-owned thread-safe core
- * xrootd_vfs_io_execute() (src/fs/vfs_io_core.c), so that path is unified across
+ * xrootd_vfs_io_execute() (src/fs/vfs/vfs_io_core.c), so that path is unified across
  * all dispatch tiers. See src/fs/README.md "Two VFS tiers".
  */
 

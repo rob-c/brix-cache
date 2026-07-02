@@ -78,7 +78,7 @@ The official XRootD daemon has `XrdHttp` (the HTTP/WebDAV plugin). It uses
 a third-party HTTP parser (`libmicrohttpd` or its own in-process state machine
 depending on version) and re-implements every layer nginx provides:
 
-| Feature | XrdHttp | nginx-xrootd HTTP module |
+| Feature | XrdHttp | gnuBall HTTP module |
 |---|---|---|
 | HTTP/1.1 parsing | Custom or `libmicrohttpd` | nginx core — zero code |
 | TLS termination | OpenSSL wiring in `XrdTlsSocket` | `ngx_http_ssl_module` |

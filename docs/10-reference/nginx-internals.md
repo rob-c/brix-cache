@@ -296,7 +296,7 @@ for x509 proxy chain validation, in `src/auth/crypto/pki_check.c`).
 
 Compare: the XRootD daemon's `XrdTls` subsystem is ~3,000 lines of C++ that
 wires OpenSSL, manages session caches, implements non-blocking handshake
-retries, and handles certificate reload. nginx-xrootd has zero equivalent code.
+retries, and handles certificate reload. gnuBall has zero equivalent code.
 
 ---
 
@@ -456,32 +456,33 @@ the official XRootD daemon implements manually (or not at all):
 Looking at the full source tree, the breakdown is:
 
 ```
-src/protocols/root/stream/module.c      ← module registration only (~200 lines)
-src/core/config/              ← directive handlers, config merge, postconfiguration
-src/protocols/root/connection/          ← XRootD state machine, send/recv loop, TLS start
-src/protocols/root/handshake/           ← initial handshake, opcode dispatch, policy
-src/protocols/root/session/             ← login, auth, bind, ping, per-session opcodes
-src/auth/gsi/                 ← GSI/x509 proxy handshake (protocol-specific)
-src/auth/token/               ← JWT/WLCG validation
-src/auth/sss/                 ← SSS shared-secret auth
-src/auth/voms/                ← VOMS VO extraction (via libvomsapi)
-src/auth/crypto/              ← PKI/CRL load and consistency checks
-src/protocols/root/read/                ← kXR_open, kXR_read, kXR_readv, kXR_pgread, kXR_stat
-src/protocols/root/write/               ← kXR_write, kXR_pgwrite, kXR_truncate, kXR_mkdir, etc.
-src/core/aio/                 ← ngx_thread_task_t wrappers for all blocking I/O
-src/path/                ← path confinement, canonical resolution, VO ACL
-src/protocols/root/query/               ← kXR_query subtypes (cksum, space, config, stats)
-src/protocols/root/fattr/               ← kXR_fattr (xattr get/set/del via Linux xattrs)
-src/fs/cache/               ← read-through cache (origin fill, eviction)
-src/net/cms/                 ← CMS manager heartbeat (send/receive)
-src/tpc/                 ← native root:// TPC (pull path on destination)
-src/protocols/root/response/            ← XRootD response framing helpers
-src/observability/metrics/             ← Prometheus counters and HTTP export endpoint
-src/net/upstream/            ← outbound XRootD redirect client
-src/protocols/webdav/              ← HTTP/WebDAV module (all methods, auth, TPC, S3)
-src/net/manager/             ← dynamic server registry for manager mode
-src/core/types/               ← shared type headers (xrootd_ctx_t, config.h, etc.)
-src/protocols/root/protocol/            ← wire format constants (kXR_* opcodes, flags)
+src/protocols/root/stream/module.c  ← module registration only (~200 lines)
+src/core/config/                    ← directive handlers, config merge, postconfiguration
+src/protocols/root/connection/      ← XRootD state machine, send/recv loop, TLS start
+src/protocols/root/handshake/       ← initial handshake, opcode dispatch, policy
+src/protocols/root/session/         ← login, auth, bind, ping, per-session opcodes
+src/auth/gsi/                       ← GSI/x509 proxy handshake (protocol-specific)
+src/auth/token/                     ← JWT/WLCG validation
+src/auth/sss/                       ← SSS shared-secret auth
+src/auth/voms/                      ← VOMS VO extraction (via libvomsapi)
+src/auth/crypto/                    ← PKI/CRL load and consistency checks
+src/auth/authz/                     ← path ACLs, authdb, VO/group policy
+src/protocols/root/read/            ← kXR_open, kXR_read, kXR_readv, kXR_pgread, kXR_stat
+src/protocols/root/write/           ← kXR_write, kXR_pgwrite, kXR_truncate, kXR_mkdir, etc.
+src/core/aio/                       ← ngx_thread_task_t wrappers for all blocking I/O
+src/fs/path/                        ← path confinement, canonical resolution
+src/protocols/root/query/           ← kXR_query subtypes (cksum, space, config, stats)
+src/protocols/root/fattr/           ← kXR_fattr (xattr get/set/del via Linux xattrs)
+src/fs/cache/                       ← read-through cache (origin fill, eviction)
+src/net/cms/                        ← CMS manager heartbeat (send/receive)
+src/tpc/                            ← native root:// TPC (pull path on destination)
+src/protocols/root/response/        ← XRootD response framing helpers
+src/observability/metrics/          ← Prometheus counters and HTTP export endpoint
+src/net/upstream/                   ← outbound XRootD redirect client
+src/protocols/webdav/               ← HTTP/WebDAV module (all methods, auth, TPC, S3)
+src/net/manager/                    ← dynamic server registry for manager mode
+src/core/types/                     ← shared type headers (xrootd_ctx_t, config.h, etc.)
+src/protocols/root/protocol/        ← wire format constants (kXR_* opcodes, flags)
 ```
 
 Everything in that list is **protocol logic, storage logic, or domain-specific
@@ -509,6 +510,6 @@ them:
 ```
 
 This is the core economic argument in the [comparison doc](design-rationale.md):
-nginx-xrootd took ~5,000 developer-hours to build because it did not need to
+gnuBall took ~5,000 developer-hours to build because it did not need to
 implement any of those absent subsystems. The official XRootD daemon took
 ~200,000 developer-hours in part because it did.

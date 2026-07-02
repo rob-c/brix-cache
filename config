@@ -335,6 +335,7 @@ fi
 ngx_addon_name=ngx_stream_xrootd_module
 
 ngx_xrootd_stream_deps="$ngx_addon_dir/src/core/ngx_xrootd_module.h \
+                        $ngx_addon_dir/src/core/ident.h \
                         $ngx_addon_dir/src/auth/authz/acc/privs.h \
                         $ngx_addon_dir/src/auth/authz/acc/acc.h \
                         $ngx_addon_dir/src/net/mirror/mirror.h \
@@ -360,8 +361,8 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/core/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/fs/cache/origin/pelican_register.h \
                         $ngx_addon_dir/src/auth/token/jwt_sign.h \
                         $ngx_addon_dir/src/fs/cache/writethrough.h \
-                        $ngx_addon_dir/src/tpc/tpc_internal.h \
-                        $ngx_addon_dir/src/tpc/key_registry.h \
+                        $ngx_addon_dir/src/tpc/engine/tpc_internal.h \
+                        $ngx_addon_dir/src/tpc/engine/key_registry.h \
                         $ngx_addon_dir/src/tpc/common/auth.h \
                         $ngx_addon_dir/src/tpc/common/credential.h \
                         $ngx_addon_dir/src/tpc/common/metrics.h \
@@ -370,8 +371,8 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/core/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/fs/path/path_internal.h \
                         $ngx_addon_dir/src/fs/path/unified.h \
                         $ngx_addon_dir/src/core/types/identity.h \
-                        $ngx_addon_dir/src/fs/vfs.h \
-                        $ngx_addon_dir/src/fs/vfs_internal.h \
+                        $ngx_addon_dir/src/fs/vfs/vfs.h \
+                        $ngx_addon_dir/src/fs/vfs/vfs_internal.h \
                         $ngx_addon_dir/src/fs/xfer/xfer.h \
                         $ngx_addon_dir/src/fs/xfer/stage_engine.h \
                         $ngx_addon_dir/src/fs/xfer/stage_request_registry.h \
@@ -497,11 +498,12 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/core/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/auth/token/token_cache.h \
                         $ngx_addon_dir/src/auth/token/worker_cache.h"
 ngx_xrootd_webdav_deps="$ngx_addon_dir/src/protocols/webdav/webdav.h \
+                        $ngx_addon_dir/src/core/ident.h \
                         $ngx_addon_dir/src/protocols/dig/dig.h \
                         $ngx_addon_dir/src/protocols/webdav/tape_rest.h \
                         $ngx_addon_dir/src/net/mirror/mirror.h \
                         $ngx_addon_dir/src/net/mirror/http_mirror.h \
-                        $ngx_addon_dir/src/fs/vfs.h \
+                        $ngx_addon_dir/src/fs/vfs/vfs.h \
                         $ngx_addon_dir/src/fs/backend/sd.h \
                         $ngx_addon_dir/src/fs/backend/rados/sd_ceph.h \
                         $ngx_addon_dir/src/fs/backend/pblock/sd_pblock_catalog.h \
@@ -616,21 +618,22 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/observability/pmark/firefly.c \
     $ngx_addon_dir/src/observability/pmark/flowlabel.c \
     $ngx_addon_dir/src/core/types/identity.c \
-    $ngx_addon_dir/src/fs/vfs_open.c \
-    $ngx_addon_dir/src/fs/vfs_backend_registry.c \
-    $ngx_addon_dir/src/fs/vfs_io_core.c \
-    $ngx_addon_dir/src/fs/vfs_read.c \
-    $ngx_addon_dir/src/fs/vfs_write.c \
-    $ngx_addon_dir/src/fs/vfs_stat.c \
-    $ngx_addon_dir/src/fs/vfs_dir.c \
-    $ngx_addon_dir/src/fs/vfs_walk.c \
-    $ngx_addon_dir/src/fs/vfs_unlink.c \
-    $ngx_addon_dir/src/fs/vfs_rename.c \
-    $ngx_addon_dir/src/fs/vfs_mkdir.c \
-    $ngx_addon_dir/src/fs/vfs_sync.c \
-    $ngx_addon_dir/src/fs/vfs_xattr.c \
-    $ngx_addon_dir/src/fs/vfs_copy.c \
-    $ngx_addon_dir/src/fs/vfs_staged.c \
+    $ngx_addon_dir/src/fs/vfs/vfs_open.c \
+    $ngx_addon_dir/src/fs/vfs/vfs_backend_registry.c \
+    $ngx_addon_dir/src/fs/vfs/vfs_backend_config.c \
+    $ngx_addon_dir/src/fs/vfs/vfs_io_core.c \
+    $ngx_addon_dir/src/fs/vfs/vfs_read.c \
+    $ngx_addon_dir/src/fs/vfs/vfs_write.c \
+    $ngx_addon_dir/src/fs/vfs/vfs_stat.c \
+    $ngx_addon_dir/src/fs/vfs/vfs_dir.c \
+    $ngx_addon_dir/src/fs/vfs/vfs_walk.c \
+    $ngx_addon_dir/src/fs/vfs/vfs_unlink.c \
+    $ngx_addon_dir/src/fs/vfs/vfs_rename.c \
+    $ngx_addon_dir/src/fs/vfs/vfs_mkdir.c \
+    $ngx_addon_dir/src/fs/vfs/vfs_sync.c \
+    $ngx_addon_dir/src/fs/vfs/vfs_xattr.c \
+    $ngx_addon_dir/src/fs/vfs/vfs_copy.c \
+    $ngx_addon_dir/src/fs/vfs/vfs_staged.c \
     $ngx_addon_dir/src/fs/xfer/xfer_mover_pump.c \
     $ngx_addon_dir/src/fs/xfer/xfer_mover_agent.c \
     $ngx_addon_dir/src/fs/xfer/xfer_spawn.c \
@@ -642,7 +645,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/xfer/stage_waiter.c \
     $ngx_addon_dir/src/fs/tier/tier_config.c \
     $ngx_addon_dir/src/fs/tier/tier_build.c \
-    $ngx_addon_dir/src/fs/fd_cache.c \
+    $ngx_addon_dir/src/fs/vfs/fd_cache.c \
     $ngx_addon_dir/src/fs/backend/posix/sd_posix.c \
     $ngx_addon_dir/src/fs/backend/block/sd_block.c \
     $ngx_addon_dir/src/fs/backend/rados/sd_ceph.c \
@@ -717,26 +720,26 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/net/mirror/stream_mirror_io.c \
     $ngx_addon_dir/src/net/manager/redir_cache.c \
     $ngx_addon_dir/src/net/manager/pending.c \
-    $ngx_addon_dir/src/tpc/key_registry.c \
+    $ngx_addon_dir/src/tpc/engine/key_registry.c \
     $ngx_addon_dir/src/tpc/common/credential.c \
     $ngx_addon_dir/src/tpc/common/auth.c \
     $ngx_addon_dir/src/tpc/common/registry.c \
     $ngx_addon_dir/src/tpc/common/progress.c \
     $ngx_addon_dir/src/tpc/common/metrics.c \
-    $ngx_addon_dir/src/tpc/parse.c \
-    $ngx_addon_dir/src/tpc/io.c \
-    $ngx_addon_dir/src/tpc/tls.c \
-    $ngx_addon_dir/src/tpc/connect.c \
-    $ngx_addon_dir/src/tpc/bootstrap.c \
-    $ngx_addon_dir/src/tpc/gsi_outbound_common.c \
-    $ngx_addon_dir/src/tpc/gsi_outbound_certreq.c \
-    $ngx_addon_dir/src/tpc/gsi_outbound_finish.c \
-    $ngx_addon_dir/src/tpc/gsi_outbound_exchange.c \
-    $ngx_addon_dir/src/tpc/source.c \
-    $ngx_addon_dir/src/tpc/thread.c \
-    $ngx_addon_dir/src/tpc/done.c \
-    $ngx_addon_dir/src/tpc/launch.c \
-    $ngx_addon_dir/src/tpc/tpc_token.c \
+    $ngx_addon_dir/src/tpc/engine/parse.c \
+    $ngx_addon_dir/src/tpc/outbound/io.c \
+    $ngx_addon_dir/src/tpc/outbound/tls.c \
+    $ngx_addon_dir/src/tpc/outbound/connect.c \
+    $ngx_addon_dir/src/tpc/outbound/bootstrap.c \
+    $ngx_addon_dir/src/tpc/gsi/gsi_outbound_common.c \
+    $ngx_addon_dir/src/tpc/gsi/gsi_outbound_certreq.c \
+    $ngx_addon_dir/src/tpc/gsi/gsi_outbound_finish.c \
+    $ngx_addon_dir/src/tpc/gsi/gsi_outbound_exchange.c \
+    $ngx_addon_dir/src/tpc/outbound/source.c \
+    $ngx_addon_dir/src/tpc/outbound/thread.c \
+    $ngx_addon_dir/src/tpc/engine/done.c \
+    $ngx_addon_dir/src/tpc/engine/launch.c \
+    $ngx_addon_dir/src/tpc/outbound/tpc_token.c \
     $ngx_addon_dir/src/auth/token/jwks.c \
     $ngx_addon_dir/src/auth/token/keys.c \
     $ngx_addon_dir/src/auth/token/refresh.c \
@@ -1040,6 +1043,7 @@ ngx_module_name=ngx_http_xrootd_metrics_module
                   $ngx_addon_dir/src/observability/metrics/handler.c \
                   $ngx_addon_dir/src/observability/metrics/health.c"
 ngx_module_deps="$ngx_addon_dir/src/observability/metrics/metrics.h \
+                 $ngx_addon_dir/src/core/ident.h \
                  $ngx_addon_dir/src/observability/metrics/metrics_macros.h \
                  $ngx_addon_dir/src/observability/metrics/unified.h \
                  $ngx_addon_dir/src/observability/metrics/metrics_internal.h"
@@ -1057,6 +1061,7 @@ ngx_module_srcs="$ngx_addon_dir/src/protocols/srr/module.c \
                  $ngx_addon_dir/src/protocols/srr/builder.c \
                  $ngx_addon_dir/src/protocols/srr/handler.c"
 ngx_module_deps="$ngx_addon_dir/src/protocols/srr/srr.h \
+                 $ngx_addon_dir/src/core/ident.h \
                  $ngx_addon_dir/src/core/compat/fs_usage.h"
 # SRR builder.c serialises the storageservice document with jansson.
 ngx_module_libs="$XROOTD_JANSSON_LIBS"
@@ -1200,7 +1205,7 @@ ngx_module_srcs="$ngx_addon_dir/src/protocols/s3/module.c \
 ngx_module_deps="$ngx_addon_dir/src/protocols/s3/s3.h \
                  $ngx_addon_dir/src/protocols/s3/aws_chunked.h \
                  $ngx_addon_dir/src/protocols/s3/tagging.h \
-                 $ngx_addon_dir/src/fs/vfs.h \
+                 $ngx_addon_dir/src/fs/vfs/vfs.h \
                  $ngx_addon_dir/src/fs/backend/sd.h \
                  $ngx_addon_dir/src/fs/backend/rados/sd_ceph.h \
                  $ngx_addon_dir/src/fs/backend/pblock/sd_pblock_catalog.h \
@@ -1238,6 +1243,7 @@ ngx_module_srcs="$ngx_addon_dir/src/observability/dashboard/module.c \
                  $ngx_addon_dir/src/fs/scan/scan_engine.c \
                  $ngx_addon_dir/src/fs/scan/scan_http.c"
 ngx_module_deps="$ngx_addon_dir/src/observability/dashboard/dashboard.h \
+                 $ngx_addon_dir/src/core/ident.h \
                  $ngx_addon_dir/src/fs/scan/scan_record.h \
                  $ngx_addon_dir/src/fs/scan/scan_throttle.h \
                  $ngx_addon_dir/src/fs/scan/scan_emit.h \

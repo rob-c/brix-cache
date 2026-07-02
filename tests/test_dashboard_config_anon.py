@@ -207,7 +207,7 @@ def test_anonymous_does_not_open_privileged_endpoints(server, path):
 def test_anonymous_page_served_not_redirected(server):
     code, body, _ = _get(server["base"], "/xrootd/")
     assert code == 200
-    assert "nginx-xrootd Dashboard" in body
+    assert "GNUBall Dashboard" in body
 
 
 def test_authed_snapshot_is_full(server):

@@ -34,7 +34,7 @@ The pieces already exist but don't compose into an admin tool:
 | Existing | What it gives | Why it's not enough |
 |---|---|---|
 | `kXR_Qckscan` (`src/protocols/root/query/`) | server-side recursive checksum of a subtree | **recomputes** every file (no verify-against-stored), **buffers the whole result** in memory, walks **single-threaded**, **no throttle** |
-| `xrootd_vfs_walk()` (`src/fs/vfs_walk.c`) | thread-safe, confined, non-metered recursive walk firing a per-file callback | it's an enabler, not a product — no parallelism, throttle, or streaming around it |
+| `xrootd_vfs_walk()` (`src/fs/vfs/vfs_walk.c`) | thread-safe, confined, non-metered recursive walk firing a per-file callback | it's an enabler, not a product — no parallelism, throttle, or streaming around it |
 | `xrootd_integrity_get_fd()` (`src/core/compat/integrity_info.h`) | checksum lookup (xattr cache) or compute, with cache-update opt | per-file primitive; nothing orchestrates it in bulk |
 | xattr `user.XrdCks.<alg>` + CSI tagstore | checksums-at-rest already on disk | nothing exposes a bulk read of them |
 | dashboard / SRR (`src/observability/dashboard/`, `src/protocols/srr/`) | admin-auth HTTP/JSON endpoints, `openat2 RESOLVE_BENEATH` confinement | precedent to reuse for transport + auth |

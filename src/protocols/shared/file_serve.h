@@ -4,7 +4,7 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 #include <ngx_http.h>
-#include "fs/vfs.h"
+#include "fs/vfs/vfs.h"
 
 /* Outcome codes returned in xrootd_http_serve_result_t.range_result */
 #define XROOTD_SERVE_RANGE_FULL        0

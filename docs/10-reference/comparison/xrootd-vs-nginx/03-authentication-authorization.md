@@ -1,9 +1,9 @@
-# Authentication & Authorization: official XRootD vs nginx-xrootd
+# Authentication & Authorization: official XRootD vs gnuBall
 
-> Part of the [XRootD vs nginx-xrootd comparison set](./README.md).
+> Part of the [XRootD vs gnuBall comparison set](./README.md).
 
 This document compares how **official XRootD** (the upstream C++ server, source
-under `/tmp/xrootd-src/src`) and the **nginx-xrootd module** (this repository,
+under `/tmp/xrootd-src/src`) and the **gnuBall module** (this repository,
 source under `src/`) authenticate clients and authorize requests. Every claim is
 grounded in source with file paths and, where load-bearing, symbol/line
 references. Where a fact could not be confirmed from source it is explicitly
@@ -81,7 +81,7 @@ xrootd core.
   names (`libXrdSecgsiVOMS` for GSI, `libXrdHttpVOMS` for HTTP), wrapping
   `libvomsapi` to fill `Entity.vorg/grps/role`.
 
-## In nginx-xrootd
+## In gnuBall
 
 The module reimplements the same surface as nginx stream/HTTP handlers backed by
 OpenSSL, with a strong bias toward **doing validation in-process and
@@ -359,7 +359,7 @@ scopes.
 
 ### Support matrix
 
-| Method | Official XRootD | nginx-xrootd | Notes |
+| Method | Official XRootD | gnuBall | Notes |
 |---|---|---|---|
 | Anonymous | core flow | `xrootd_auth none` | both |
 | GSI / X.509 proxy | `XrdSecgsi` | `src/auth/gsi/` (shared core) | 4-msg DH; signed-DH ≥10400 both |
@@ -557,7 +557,7 @@ Parse sites: `sec.protocol`/`protbind` → `XrdSec/XrdSecServer.cc::ConfigXeq`;
 File conventions: CA dir `/etc/grid-security/certificates`, CRLs `*.r0`, authdb
 `/etc/xrootd/authdb`, SSS keytab via `xrdsssadmin`.
 
-### nginx-xrootd (`nginx.conf`)
+### gnuBall (`nginx.conf`)
 
 ```nginx
 # root:// listener (stream module)
@@ -715,7 +715,7 @@ are repeated above.
 - HTTP: `XrdHttp/XrdHttpProtocol.cc`, `XrdHttpSecurity.cc`, `XrdHttpExtHandler.hh`
 - Config: `Xrd/XrdConfig.cc` (`xrd.tls*`), `XrdXrootd/XrdXrootdConfig.cc`
 
-**nginx-xrootd** (`src/`):
+**gnuBall** (`src/`):
 
 - GSI: `gsi/gsi_core.c` + `.h`, `gsi/auth.c`, `gsi/cert_response.c`,
   `gsi/parse_x509.c`, `gsi/parse_crypto_helpers.c`, `gsi/config.c`

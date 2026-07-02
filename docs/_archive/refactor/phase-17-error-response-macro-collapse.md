@@ -45,7 +45,7 @@ Three structurally different patterns share surface similarity but must be left
 as-is:
 
 **AIO/TPC callback pattern** (`src/core/aio/write.c`, `src/core/aio/dirlist.c`,
-`src/tpc/done.c`, `src/fs/cache/thread.c`, `src/fs/cache/writethrough_flush.c` —
+`src/tpc/engine/done.c`, `src/fs/cache/thread.c`, `src/fs/cache/writethrough_flush.c` —
 ~30 instances):
 
 ```c
@@ -153,7 +153,7 @@ Verb is `"DIRLIST"`, op is `XROOTD_OP_DIRLIST`.
 
 **Estimated savings: ~40 LoC** (9×4.5 avg).
 
-### `src/tpc/launch.c` — 7 ERR
+### `src/tpc/engine/launch.c` — 7 ERR
 
 Verb is `"TPC-PULL"` or `"TPC-PUSH"`, op varies by TPC direction.
 

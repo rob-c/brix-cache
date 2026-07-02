@@ -45,7 +45,7 @@ PHASE42_SOURCES = [
     "src/core/compat/codec_brotli.c",
     "src/core/compat/codec_bzip2.c",
     "src/core/compat/codec_lz4.c",
-    "src/core/compat/http_compress.c",
+    "src/core/http/http_compress.c",
     "client/lib/zip.c",
 ]
 

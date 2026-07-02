@@ -75,14 +75,14 @@ manager redirect. Integration tests in `tests/test_root_tpc.py` cover
 nginx↔nginx and nginx↔reference xrootd transfers.
 
 **What was done:**
-- Shared-memory TPC key registry (`src/tpc/key_registry.c`) with register,
+- Shared-memory TPC key registry (`src/tpc/engine/key_registry.c`) with register,
   consume, and TTL eviction.
 - Source role in `src/protocols/root/read/open.c`: read-open with `tpc.dst` + `tpc.key`
   registers the key; read-open with `tpc.org` + `tpc.key` consumes it before
   serving data (destination’s outbound pull presents `tpc.org` from
-  `tpc_build_origin_id()` in `src/tpc/launch.c`).
+  `tpc_build_origin_id()` in `src/tpc/engine/launch.c`).
 - Destination role: write-open with `tpc.src=` defers to the thread-pool pull
-  (`src/tpc/thread.c`, `source.c`, …) which opens the remote file with
+  (`src/tpc/outbound/thread.c`, `source.c`, …) which opens the remote file with
   `?tpc.key=` / `&tpc.org=` as needed.
 - Manager mode: `kXR_redirect` with `?tpc.key=` (`src/protocols/root/response/control.c`).
 - Configurable TTL: `xrootd_tpc_key_ttl` (default 60s), merged in
@@ -488,7 +488,7 @@ what is missing. Items are grouped by feature area.
   anonymous or compatible policy. Native TPC has separate ztn/GSI handling after
   `kXR_authmore` when configured.
 
-- **No multi-hop GSI delegation for TPC:** `src/tpc/bootstrap.c` — when the
+- **No multi-hop GSI delegation for TPC:** `src/tpc/outbound/bootstrap.c` — when the
   source server requires GSI (completes `kXR_authmore` successfully), the
   client presents a delegated token or the module certificate/key, but does
   not perform a second delegation step. Multi-hop proxy-delegation chains
@@ -617,7 +617,7 @@ what is missing. Items are grouped by feature area.
 
 ### kXR_prepare / kXR_stage (item 7 — FRM/Tape REST implemented; full MSS parity partial)
 
-- ~~**Former tape-dispatch gap**~~ ✓ **UPDATED:** `src/frm/` now provides a
+- ~~**Former tape-dispatch gap**~~ ✓ **UPDATED:** the `src/fs/xfer/` stage engine (formerly `src/frm/`) provides a
   durable FRM-style stage queue, host-qualified request ids, cancel handling,
   and queue-backed `kXR_QPrep` states when `xrootd_frm on` is configured.
   WebDAV Tape REST gateway support also exists. This is still narrower than the

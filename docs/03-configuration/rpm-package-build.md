@@ -1,6 +1,6 @@
 # RPM Package Build
 
-Building and distributing nginx-xrootd as an RPM for RHEL/AlmaLinux — for sites that deploy everything through a package manager. For general build instructions, see [Build Guide](build-guide.md).
+Building and distributing gnuBall as an RPM for RHEL/AlmaLinux — for sites that deploy everything through a package manager. For general build instructions, see [Build Guide](build-guide.md).
 
 From a fresh AlmaLinux host to a running `root://` server that authenticates clients via x509 proxy certificate (GSI) and serves files from a local POSIX directory — packaged as an RPM.
 

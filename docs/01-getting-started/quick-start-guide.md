@@ -1,4 +1,4 @@
-# nginx-xrootd Quick-Start Guide
+# gnuBall Quick-Start Guide
 
 **One container → root:// + https:// + S3 → xrdcp transfers → Prometheus monitoring → CURL with JWT or x509 auth.**
 

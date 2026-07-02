@@ -8,7 +8,7 @@
  * of xrootd_open_resolved_file(); none of the write/POSC/WT machinery applies.
  */
 #include "zip_member.h"
-#include "fs/vfs.h"   /* xrootd_vfs_open_fd_at (handle-table confined open) */
+#include "fs/vfs/vfs.h"   /* xrootd_vfs_open_fd_at (handle-table confined open) */
 #include "zip_dir.h"
 #include "fs/backend/sd.h"   /* route ZIP member byte reads through the SD backend */
 #include "fs/core/vfs_core.h"  /* xvfs_stage_fd: materialize the archive to local scratch */

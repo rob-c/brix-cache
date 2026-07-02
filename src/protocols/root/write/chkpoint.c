@@ -1,5 +1,5 @@
 #include "core/ngx_xrootd_module.h"
-#include "fs/vfs.h"   /* confined open/unlink via the VFS seam */
+#include "fs/vfs/vfs.h"   /* confined open/unlink via the VFS seam */
 #include "chkpoint_xeq.h"
 #include "core/compat/log.h"
 #include "core/compat/copy_range.h"

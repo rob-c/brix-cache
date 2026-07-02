@@ -11,10 +11,10 @@
  */
 #include "webdav.h"
 #include "fs/path/path.h"
-#include "fs/vfs.h"   /* lock-DB namespace ops via the VFS seam */
+#include "fs/vfs/vfs.h"   /* lock-DB namespace ops via the VFS seam */
 #include "auth/impersonate/lifecycle.h"
 #include "protocols/webdav/locks/request.h"
-#include "core/compat/http_xml.h"
+#include "core/http/http_xml.h"
 #include "core/compat/fs_walk.h"
 
 #include <openssl/crypto.h>

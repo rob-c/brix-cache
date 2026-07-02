@@ -1,6 +1,6 @@
-# Tier 1 XRootD Wire Protocol Operations — nginx-xrootd Module
+# Tier 1 XRootD Wire Protocol Operations — gnuBall Module
 
-Comprehensive documentation of all Tier 1 XRootD wire protocol operations through the nginx-xrootd module. This covers the stream-layer operations that handle the XRootD binary wire protocol, as defined in `/tmp/xrootd-src/src/XProtocol/XProtocol.hh` and implemented via `src/protocols/root/protocol/wire_core_requests.h`.
+Comprehensive documentation of all Tier 1 XRootD wire protocol operations through the gnuBall module. This covers the stream-layer operations that handle the XRootD binary wire protocol, as defined in `/tmp/xrootd-src/src/XProtocol/XProtocol.hh` and implemented via `src/protocols/root/protocol/wire_core_requests.h`.
 
 ## Operations Covered (8 total)
 
@@ -111,7 +111,7 @@ Wire layout (big-endian):
 #### Core Logic
 1. Validate handle exists in fd_table
 2. Check read permission against ACL rules
-3. Read data via the VFS I/O core (`xrootd_vfs_io_execute()`, `src/fs/vfs_io_core.c`), which issues the raw `pread`/`preadv` through the POSIX storage driver (`src/fs/backend/`) — the handler never calls `pread` directly
+3. Read data via the VFS I/O core (`xrootd_vfs_io_execute()`, `src/fs/vfs/vfs_io_core.c`), which issues the raw `pread`/`preadv` through the POSIX storage driver (`src/fs/backend/`) — the handler never calls `pread` directly
 4. Build response chain with ngx_buf_t buffers
 
 #### Response Building
@@ -184,7 +184,7 @@ Wire layout (big-endian):
 #### Core Logic
 1. Validate handle exists in fd_table
 2. Check write permission against ACL rules and conf->allow_write gate
-3. Write data via the VFS I/O core (`xrootd_vfs_io_execute()`, `src/fs/vfs_io_core.c`), which issues the raw `pwrite`/`pwritev` through the POSIX storage driver (`src/fs/backend/`) — the handler never calls `pwrite` directly
+3. Write data via the VFS I/O core (`xrootd_vfs_io_execute()`, `src/fs/vfs/vfs_io_core.c`), which issues the raw `pwrite`/`pwritev` through the POSIX storage driver (`src/fs/backend/`) — the handler never calls `pwrite` directly
 4. Build response chain with ngx_buf_t buffers
 
 #### Response Building
@@ -627,7 +627,7 @@ typedef struct {
 ## Reference Files
 
 - `/tmp/xrootd-src/src/XProtocol/XProtocol.hh` — wire protocol definitions (source of truth for wire details)
-- `src/protocols/root/protocol/wire_core_requests.h` — Client*Request struct definitions used by nginx-xrootd
+- `src/protocols/root/protocol/wire_core_requests.h` — Client*Request struct definitions used by gnuBall
 - `.sisyphus/plans/tier1-kxr-read.md`, `.sisyphus/plans/tier1-kxr-stat.md` — format reference for section structure
 - `src/protocols/root/handshake/dispatch_read.c` — opcode dispatch switch cases for Tier 1 operations (xrootd_dispatch_read_opcode, xrootd_dispatch_write_opcode)
 - `src/protocols/root/read/open.c` — kXR_open handler implementation (boundary case)
@@ -646,7 +646,7 @@ typedef struct {
 
 ## Summary
 
-This documentation covers all 8 Tier 1 XRootD wire protocol operations through the nginx-xrootd module:
+This documentation covers all 8 Tier 1 XRootD wire protocol operations through the gnuBall module:
 - 6 core operations (read, write, stat, close, ping, dirlist)
 - 2 boundary cases (open, statx)
 - Each operation documented with Entry Point, Request Parsing, Security Checks, Core Logic, Response Building, Error Handling, and Wire Struct Details sections

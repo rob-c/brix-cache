@@ -555,7 +555,7 @@ typedef struct {                 /* one reservation slot in SHM              */
   `bwm.src`/`bwm.dst` analogue).
 - API: `xrootd_resv_schedule(class) → handle | QUEUED`, `xrootd_resv_done(handle)`,
   `xrootd_resv_status(&in,&out,&xeq)`.
-- Integrate at TPC launch (`src/tpc/launch.c`, `src/protocols/webdav/tpc.c`): reserve before
+- Integrate at TPC launch (`src/tpc/engine/launch.c`, `src/protocols/webdav/tpc.c`): reserve before
   transfer, release on done/abort. Non-TPC data ops unaffected.
 - `Status` → dashboard + Prometheus gauge `xrootd_reservation_queue{state}`.
 
@@ -793,7 +793,7 @@ xrootd_throttle_ioload_over(xrootd_rl_zone_t *zone, const char *user,
 `conf->token_registry != NULL`, else the existing `xrootd_token_validate()`; pass
 `rctx->uri`/op so `base_path` can be enforced and the resolved username stored.
 
-**T-4 `src/fs/vfs_io_core.h:61`** (W2) — extend the job:
+**T-4 `src/fs/vfs/vfs_io_core.h:61`** (W2) — extend the job:
 ```c
      unsigned            want_pgcrc:1;
      unsigned            want_cksum:1;
@@ -801,7 +801,7 @@ xrootd_throttle_ioload_over(xrootd_rl_zone_t *zone, const char *user,
 +    void               *csi;              /* IN: xrootd_csi_t* or NULL          */
 ```
 
-**T-5 `src/fs/vfs_io_core.c:165,208,254`** (W2) — wrap read/write/pgwrite:
+**T-5 `src/fs/vfs/vfs_io_core.c:165,208,254`** (W2) — wrap read/write/pgwrite:
 ```c
  xrootd_vfs_io_execute_read(xrootd_vfs_job_t *job) {
      ... existing pread ...
@@ -833,7 +833,7 @@ xrootd_throttle_ioload_over(xrootd_rl_zone_t *zone, const char *user,
 **T-8 `src/protocols/root/connection/disconnect.c:288`** (W3a) — decrement per-user counters in
 `xrootd_on_disconnect()` (active-connection + any still-open files).
 
-**T-9 `src/tpc/launch.c`, `src/protocols/webdav/tpc.c`** (W3b) — `xrootd_resv_schedule()`
+**T-9 `src/tpc/engine/launch.c`, `src/protocols/webdav/tpc.c`** (W3b) — `xrootd_resv_schedule()`
 before transfer; `xrootd_resv_done()` on done/abort (both success and error
 ladders).
 
@@ -1233,14 +1233,14 @@ calls are early-return-guarded on the feature flag.
   (`types/identity.c`) exactly where the `sub` is recorded today, so downstream
   `handshake/policy.c` (token_scopes) and authdb checks see the mapped user.
 
-### QQ.3 Stream read — `src/fs/vfs_io_core.c::xrootd_vfs_io_execute_read`
+### QQ.3 Stream read — `src/fs/vfs/vfs_io_core.c::xrootd_vfs_io_execute_read`
 - After the data `pread` succeeds and before returning, the `job->csi != NULL`
   guard calls `xrootd_csi_verify_read`. On `CSI_MISMATCH` set
   `job->io_errno = EIO; job->csi_mismatch = 1;`. The stream read handler
   (`src/protocols/root/read/read.c`) maps `csi_mismatch` → `kXR_ChkSumErr` (3031) instead of the
   generic `kXR_IOError`.
 
-### QQ.4 Stream write / pgwrite — `src/fs/vfs_io_core.c`
+### QQ.4 Stream write / pgwrite — `src/fs/vfs/vfs_io_core.c`
 - `_execute_write`/`_execute_writev`: after `pwrite`, `xrootd_csi_update_aligned`
   for full pages, RMW helper for partials.
 - `_execute_pgwrite` (the kXR_pgwrite path): the client CRC array is already in
@@ -1262,7 +1262,7 @@ calls are early-return-guarded on the feature flag.
   `xrootd_throttle_open_dec(t, user)` for each still-open handle, and decrement
   the active-connection counter once if the connection had ≥1 open file.
 
-### QQ.7 TPC reserve/release — `src/tpc/launch.c`, `src/protocols/webdav/tpc.c`
+### QQ.7 TPC reserve/release — `src/tpc/engine/launch.c`, `src/protocols/webdav/tpc.c`
 - Before initiating the pull/push: `handle = xrootd_resv_schedule(zone, class,
   est_bytes)`; if `handle == 0` (QUEUED) park the TPC with the existing
   `kXR_waitresp`/retry machinery.

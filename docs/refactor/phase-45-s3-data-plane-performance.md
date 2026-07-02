@@ -4,8 +4,8 @@
 W4 deliberately deferred (see §2). Built clean (`-Werror`); 181 S3 tests + 155 WebDAV
 + integrity-matrix green; the strace syscall-count proof confirms list stats track the
 page, not the bucket.
-**Scope:** `src/protocols/s3/` data path + the read VFS seam it shares (`src/fs/vfs_open.c`,
-`src/fs/vfs_write.c`, `src/fs/vfs_internal.h`). **No wire/format changes** —
+**Scope:** `src/protocols/s3/` data path + the read VFS seam it shares (`src/fs/vfs/vfs_open.c`,
+`src/fs/vfs/vfs_write.c`, `src/fs/vfs/vfs_internal.h`). **No wire/format changes** —
 ListObjects XML, ETags, response headers, and continuation tokens are byte-identical
 before/after, so xrootd / XrdHttp / xrootd-S3 (XrdClS3) compatibility holds by
 construction. **Next free number** (44 is `phase-44-io-uring-backend.md`).
@@ -103,9 +103,9 @@ few MB + ~1 K `lstat`, with **byte-identical XML**.
   response for several prefix/delimiter/pagination cases.
 
 ### W2 — GET/HEAD hot-path syscall cuts
-**Files (actual):** `src/fs/vfs_internal.h` (the `stat_current` bit),
-`src/fs/vfs_open.c` (`adopt_fd` set + `xrootd_vfs_file_stat` cached answer),
-`src/fs/vfs_write.c` (invalidate on write). R2 would have touched `src/protocols/s3/object.c`.
+**Files (actual):** `src/fs/vfs/vfs_internal.h` (the `stat_current` bit),
+`src/fs/vfs/vfs_open.c` (`adopt_fd` set + `xrootd_vfs_file_stat` cached answer),
+`src/fs/vfs/vfs_write.c` (invalidate on write). R2 would have touched `src/protocols/s3/object.c`.
 
 - **R1 — kill the redundant GET `fstat` (DONE).** `xrootd_vfs_adopt_fd` already `fstat`s and
   caches `fh->size`/`fh->mtime`/etc. (`vfs_open.c:122,141-142`), but `xrootd_vfs_file_stat`
@@ -182,7 +182,7 @@ baseline).
 | Workstream | Files (actual) |
 |---|---|
 | W1 (done) | `src/protocols/s3/list_walk.c`, `src/protocols/s3/list_objects_v2.c`, `src/protocols/s3/list_objects_v1.c`, `src/protocols/s3/s3.h` |
-| W2/R1 (done) | `src/fs/vfs_internal.h`, `src/fs/vfs_open.c`, `src/fs/vfs_write.c` |
+| W2/R1 (done) | `src/fs/vfs/vfs_internal.h`, `src/fs/vfs/vfs_open.c`, `src/fs/vfs/vfs_write.c` |
 | W2/R2 (deferred) | — (would be `src/protocols/s3/object.c`) |
 | W3 (done) | `src/protocols/s3/multipart_complete_body.c` |
 | W4 (deferred) | `src/protocols/s3/put.c`, `src/protocols/s3/aws_chunked.c` |

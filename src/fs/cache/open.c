@@ -3,7 +3,7 @@
 #include "cache_storage.h"
 #include "meta.h"
 
-#include "fs/vfs_internal.h"
+#include "fs/vfs/vfs_internal.h"
 
 #include <errno.h>
 #include <fcntl.h>

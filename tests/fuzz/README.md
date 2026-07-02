@@ -52,7 +52,7 @@ Recommended next targets (see Phase 27 W7 / Appendix B):
 
 - **Framing + per-opcode dispatch** — `src/protocols/root/connection/recv.c`, `src/protocols/root/handshake`
   (the `ClientRequestHdr` `dlen` / per-opcode cap table; F1 readv segment math).
-- **GSI/TPC bucket + PEM/cipher parsing** — `src/tpc/gsi_outbound_*`, `src/auth/gsi`
+- **GSI/TPC bucket + PEM/cipher parsing** — `src/tpc/gsi/gsi_outbound_*`, `src/auth/gsi`
   (F2 — the densest external-handle error paths).
 - **Token / JWT / JWKS** — `src/auth/token` (base64url, JSON header/claims).
 - **S3 SigV4 + multipart** — `src/protocols/s3`.

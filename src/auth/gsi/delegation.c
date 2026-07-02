@@ -356,7 +356,7 @@ xrootd_gsi_handle_sigpxy(xrootd_ctx_t *ctx, ngx_connection_t *c)
     /*
      * Build the full pull credential = proxy cert + its private key (our request
      * key) + issuer chain, PEM, so the TPC pull can authenticate to the source AS
-     * THE USER (loaded in src/tpc/gsi_outbound_certreq.c).
+     * THE USER (loaded in src/tpc/gsi/gsi_outbound_certreq.c).
      */
     {
         BIO    *kb = BIO_new(BIO_s_mem());

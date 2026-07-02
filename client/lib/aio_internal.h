@@ -54,6 +54,9 @@ typedef struct xrdc_areq {
     int         retry_safe;  /* may be re-issued verbatim after a reconnect */
     int         retries_left;/* transport re-issues remaining */
     int         is_ping;     /* internal keepalive heartbeat (no user cb) */
+    int         deferred;    /* server sent kXR_waitresp; reply arrives as an
+                              * unsolicited kXR_attn(asynresp) — completion is
+                              * NOT an RTT sample (it measures the deferral) */
     uint64_t    submit_ns;   /* when the current attempt was written (RTT sample) */
     struct xrdc_areq *pend_next;  /* link in the aconn pending (re-issue) list */
 } xrdc_areq;

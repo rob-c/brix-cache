@@ -1,7 +1,7 @@
-# XRootD vs nginx-xrootd — the comparison set
+# XRootD vs gnuBall — the comparison set
 
 A hyper-detailed, **source-grounded** comparison of **official XRootD** (the C++
-daemon + plugin ecosystem) against **this nginx-xrootd module** (a C nginx
+daemon + plugin ecosystem) against **this gnuBall module** (a C nginx
 stream/http module), covering both **codebase internals** (how each feature is
 implemented) and the **end-user / administrator view** (config, commands,
 observable behaviour, parity).
@@ -58,7 +58,7 @@ trees; see each doc's *Source references*.
 
 ### Core protocol & data
 
-| Capability | Official XRootD | nginx-xrootd | Detail |
+| Capability | Official XRootD | gnuBall | Detail |
 |---|---|---|---|
 | root:// wire framing & handshake | ✓ | ✓ byte-identical | [02](./02-rootd-protocol.md) |
 | Request opcodes implemented | ✓ (reference) | ✓ 32/33 (`kXR_gpfile` is the gap; itself unfinished upstream) | [02](./02-rootd-protocol.md) |
@@ -72,7 +72,7 @@ trees; see each doc's *Source references*.
 
 ### Authentication & authorization
 
-| Capability | Official | nginx-xrootd | Detail |
+| Capability | Official | gnuBall | Detail |
 |---|---|---|---|
 | GSI / x509 / VOMS (+ signed-DH, cipher neg.) | ✓ | ✓ (interops with real EOS/dCache) | [03](./03-authentication-authorization.md) |
 | Bearer tokens (WLCG/SciTokens/macaroon) | ✓ (delegates to libs) | ✓ in-process (mandatory-expiry, issuer-pin, L1/L2 cache) | [03](./03-authentication-authorization.md) |
@@ -82,7 +82,7 @@ trees; see each doc's *Source references*.
 
 ### HTTP family
 
-| Capability | Official | nginx-xrootd | Detail |
+| Capability | Official | gnuBall | Detail |
 |---|---|---|---|
 | WebDAV class 1 (GET/PUT/PROPFIND/MKCOL/MOVE/COPY/DELETE) | ✓ XrdHttp | ✓ | [05](./05-http-webdav-s3.md) |
 | WebDAV class 2 (LOCK/UNLOCK/PROPPATCH) | ✗ | ➕ | [05](./05-http-webdav-s3.md) |
@@ -91,7 +91,7 @@ trees; see each doc's *Source references*.
 
 ### Cluster, storage, operations
 
-| Capability | Official | nginx-xrootd | Detail |
+| Capability | Official | gnuBall | Detail |
 |---|---|---|---|
 | CMS/cmsd clustering | ✓ | ◑ (client + manager modes; full real-cmsd interop maturing) | [06](./06-clustering-redirection-tpc.md) |
 | Redirector / locate / proxy mode | ✓ | ✓ | [06](./06-clustering-redirection-tpc.md) |

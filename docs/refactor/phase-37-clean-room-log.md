@@ -261,8 +261,8 @@ Wire facts (verified against the module + black-box):
 | `ClientBindRequest` = streamid[2] reqid[2] sessid[16] dlen[4] (24B); reply = kXR_ok + **1 byte pathid** (1-253) | src/protocols/root/protocol/wire_write_extended_requests.h:162, src/protocols/root/session/bind.c:130-138 | conn.c `xrdc_bind` |
 | A secondary stream **skips kXR_login**: handshake+kXR_protocol then kXR_bind{primary sessid}; identity inherited from the SHM session registry | src/protocols/root/session/bind.c:78-122 | conn.c `xrdc_bringup_ex(want_login=0)` |
 | **Caveat:** kXR_read carries no pathid (wire_core_requests.h ClientReadRequest), and the server never reads it to fan reads — so server-side stream parallelism is cosmetic. The gate only requires binds + byte-exactness. | — | streams.c (bind N-1, copy on primary) |
-| TPC source-first rendezvous: open SRC read `?tpc.key=K&tpc.dst=root://dest//dpath` (registers K), then open DST write `?tpc.src=root://src//spath&tpc.key=K`; opaque keys tpc.{src,dst,key,org,token_mode} | src/protocols/root/read/open_request.c:108-258, src/tpc/parse.c:310-356 | copy.c `copy_tpc` |
-| Two `kXR_sync` on the dest handle: 1st arms (`kXR_ok "tpc-arm"`), 2nd triggers the pull, reply **deferred** until done | src/protocols/root/write/sync.c:56-66, src/tpc/launch.c | ops_file.c `xrdc_file_sync` (+ bumped timeout) |
+| TPC source-first rendezvous: open SRC read `?tpc.key=K&tpc.dst=root://dest//dpath` (registers K), then open DST write `?tpc.src=root://src//spath&tpc.key=K`; opaque keys tpc.{src,dst,key,org,token_mode} | src/protocols/root/read/open_request.c:108-258, src/tpc/engine/parse.c:310-356 | copy.c `copy_tpc` |
+| Two `kXR_sync` on the dest handle: 1st arms (`kXR_ok "tpc-arm"`), 2nd triggers the pull, reply **deferred** until done | src/protocols/root/write/sync.c:56-66, src/tpc/engine/launch.c | ops_file.c `xrdc_file_sync` (+ bumped timeout) |
 | Server splits the open payload at `?` into path + opaque | src/protocols/root/read/open_overview.c open_extract_opaque | ops_file.c `xrdc_file_open_opaque` |
 
 Implementation: `conn.c` split into `xrdc_bringup_ex(want_login)` + `xrdc_bind`;

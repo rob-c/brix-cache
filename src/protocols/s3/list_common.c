@@ -22,7 +22,7 @@
 
 #include "s3.h"
 #include "list_cache.h"
-#include "core/compat/http_query.h"
+#include "core/http/http_query.h"
 
 #include <errno.h>
 #include <stdlib.h>

@@ -102,7 +102,7 @@ src/fs/
   vfs_internal.h — Internal helpers (not public)
 ```
 
-### Core VFS Header: `src/fs/vfs.h`
+### Core VFS Header: `src/fs/vfs/vfs.h`
 
 ```c
 #ifndef XROOTD_VFS_H
@@ -245,7 +245,7 @@ graph TD
     A["Stream kXR_read\n(src/protocols/root/read/read.c)"] --> W["Wire→VFS Shim\n(thin; fills xrootd_vfs_ctx_t)"]
     B["WebDAV GET\n(src/protocols/webdav/get.c)"] --> W
     C["S3 GetObject\n(src/protocols/s3/object.c)"] --> W
-    W --> VFS["xrootd_vfs_read()\n(src/fs/vfs_read.c)"]
+    W --> VFS["xrootd_vfs_read()\n(src/fs/vfs/vfs_read.c)"]
     VFS --> CACHE{"Cache Hit?\n(src/fs/cache/)"}
     CACHE -- Yes --> CREAD["Read from cache root\n(cache/io.c → aio/read.c)"]
     CACHE -- No --> OREAD["Read from origin root\n(aio/read.c direct)"]
@@ -259,12 +259,12 @@ graph TD
 
 ## Implementation Steps
 
-### Step 1 — VFS Open (`src/fs/vfs_open.c`)
+### Step 1 — VFS Open (`src/fs/vfs/vfs_open.c`)
 
 Extract and merge logic from `src/protocols/root/read/open_request.c` and `src/protocols/webdav/fs/` fd cache:
 
 1. Validate `conf->allow_write` if `XROOTD_VFS_O_WRITE` is set.
-2. Check fd cache (`src/protocols/webdav/fs/` → consolidate into `src/fs/fd_cache.c`).
+2. Check fd cache (`src/protocols/webdav/fs/` → consolidate into `src/fs/vfs/fd_cache.c`).
 3. Call `open(2)` with appropriate flags; store fd in `xrootd_vfs_file_t`.
 4. Populate file size and mtime from `fstat(2)` into the handle.
 5. Register dashboard transfer slot (`xrootd_dashboard_slot_open()`).
@@ -284,7 +284,7 @@ struct xrootd_vfs_file_s {
 };
 ```
 
-### Step 2 — VFS Read (`src/fs/vfs_read.c`)
+### Step 2 — VFS Read (`src/fs/vfs/vfs_read.c`)
 
 Key invariant from AGENTS.md: TLS connections use `b->memory=1` (memory-backed buffers); cleartext connections use `b->file` for sendfile. This logic currently exists separately in `src/protocols/root/read/read.c` and `src/protocols/webdav/get.c`.
 
@@ -302,7 +302,7 @@ xrootd_vfs_read():
   7. Fill xrootd_vfs_io_result_t and return chain
 ```
 
-### Step 3 — VFS Write (`src/fs/vfs_write.c`)
+### Step 3 — VFS Write (`src/fs/vfs/vfs_write.c`)
 
 Merge logic from `src/protocols/root/write/write.c` and `src/protocols/webdav/put.c`:
 
@@ -310,7 +310,7 @@ Merge logic from `src/protocols/root/write/write.c` and `src/protocols/webdav/pu
 - Normal write: `pwrite(2)` via `aio/write.c`.
 - S3 multipart: `src/protocols/s3/multipart_*.c` remains S3-specific but calls `xrootd_vfs_write()` for each part's actual data write.
 
-### Step 4 — VFS Stat (`src/fs/vfs_stat.c`)
+### Step 4 — VFS Stat (`src/fs/vfs/vfs_stat.c`)
 
 Merge `src/protocols/root/read/stat.c`, `src/protocols/root/read/statx.c`, and `src/protocols/webdav/resource.c` stat logic:
 
@@ -367,18 +367,18 @@ Once `src/fs/` is complete:
 ### New files
 | File | Purpose |
 |:---|:---|
-| `src/fs/vfs.h` | Public VFS API |
-| `src/fs/vfs_internal.h` | `xrootd_vfs_file_t` internals |
-| `src/fs/vfs_open.c` | Open + fd cache integration |
-| `src/fs/vfs_read.c` | Read + AIO + TLS/sendfile split |
-| `src/fs/vfs_write.c` | Write + AIO + pgwrite CRC32c |
-| `src/fs/vfs_stat.c` | Stat (lstat + type detection) |
-| `src/fs/vfs_dir.c` | opendir/readdir/closedir |
-| `src/fs/vfs_unlink.c` | unlink + rmdir (recursive) |
-| `src/fs/vfs_rename.c` | rename(2) with lock check |
-| `src/fs/vfs_mkdir.c` | mkdir + mkdirpath |
-| `src/fs/vfs_sync.c` | fsync + ftruncate |
-| `src/fs/fd_cache.c` | Consolidated fd cache (from `src/protocols/webdav/fs/`) |
+| `src/fs/vfs/vfs.h` | Public VFS API |
+| `src/fs/vfs/vfs_internal.h` | `xrootd_vfs_file_t` internals |
+| `src/fs/vfs/vfs_open.c` | Open + fd cache integration |
+| `src/fs/vfs/vfs_read.c` | Read + AIO + TLS/sendfile split |
+| `src/fs/vfs/vfs_write.c` | Write + AIO + pgwrite CRC32c |
+| `src/fs/vfs/vfs_stat.c` | Stat (lstat + type detection) |
+| `src/fs/vfs/vfs_dir.c` | opendir/readdir/closedir |
+| `src/fs/vfs/vfs_unlink.c` | unlink + rmdir (recursive) |
+| `src/fs/vfs/vfs_rename.c` | rename(2) with lock check |
+| `src/fs/vfs/vfs_mkdir.c` | mkdir + mkdirpath |
+| `src/fs/vfs/vfs_sync.c` | fsync + ftruncate |
+| `src/fs/vfs/fd_cache.c` | Consolidated fd cache (from `src/protocols/webdav/fs/`) |
 
 ### Modified files (call sites updated to use VFS API)
 | File | Change |

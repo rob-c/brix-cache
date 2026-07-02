@@ -263,67 +263,84 @@ ckp_xeq_truncate(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
     return xrootd_send_ok(ctx, c, NULL, 0);
 }
 
-/* WHAT: Performs a vectorized write under checkpoint protection, parsing multiple segments from the payload (each segment = fhandle+offset+wlen header + data),
- *      validating all segments target the checkpointed handle idx, then writing each segment sequentially through the VFS core. Enforces XROOTD_WRITEV_MAXSEGS limit.
- * WHY: kXR_writev enables efficient multi-offset writes in a single request — critical for sparse file operations and chunked transfers under checkpoint.
- *      Under ckpXeq all segments must target the same handle (idx); handle mismatch in any segment is rejected to prevent cross-file corruption.
- * HOW: 1) Parse payload header segments, validate total size matches sub_dlen. 2) Check each fhandle[0] == idx. 3) Skip zero-length segments. 4) Run one VFS WRITE job per data chunk. */
+/* WHAT: Executes an embedded kXR_writev under checkpoint protection: validates
+ *      the descriptor block under the STOCK wire contract (sub_dlen frames
+ *      ONLY the N*16-byte write_list descriptors; data_len bytes of segment
+ *      data were streamed after them), requires every data-bearing segment to
+ *      target the checkpointed handle idx, then writes each segment through
+ *      the VFS core.
+ * WHY: kXR_ckpXeq tunnels the SAME wire layout as a standalone kXR_writev
+ *      (see xrootd_handle_writev in writev.c): the embedded header's dlen
+ *      counts descriptors only and the data rides behind — stock do_ChkPntXeq
+ *      fetches the descriptor block, then hands off to do_WriteV, which
+ *      streams the data.  Multi-file vectors are refused (stock: "multi-file
+ *      chkpoint writev not supported") because the rollback anchor covers
+ *      exactly one file.
+ * HOW: 1) Validate sub_dlen non-zero, 16-aligned, <= XROOTD_WRITEV_MAXSEGS
+ *      segments — violations reject + drop the link like stock (once the
+ *      descriptor framing is in doubt the trailing byte count is unknowable).
+ *      2) Sum wlen; require data-bearing segments to name idx and the sum to
+ *      equal data_len (defensive: the recv framing extended by exactly that).
+ *      3) One VFS WRITE job per non-empty segment. */
 
 static ngx_int_t
 ckp_xeq_writev(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
-    const u_char *sub_payload, uint32_t sub_dlen)
+    const u_char *sub_payload, uint32_t sub_dlen, uint32_t data_len)
 {
     write_list       *wl;
-    size_t            n_segs, i, total_wlen, max_segs;
+    size_t            n_segs, i;
+    uint64_t          total_wlen;
     const u_char     *data_ptr;
     size_t            bytes_written_total = 0;
 
-    if (sub_dlen < XROOTD_WRITEV_SEGSIZE) {
-        return xrootd_send_error(ctx, c, kXR_ArgInvalid,
-                                 "ckpXeq writev payload too short");
+    /* Stock parity (do_WriteV, reached via do_ChkPntXeq): a sub_dlen that is
+     * zero or not a whole number of descriptors is invalid — error + drop. */
+    if (sub_dlen == 0 || sub_dlen % XROOTD_WRITEV_SEGSIZE != 0) {
+        XROOTD_OP_ERR(ctx, XROOTD_OP_CHKPOINT);
+        (void) xrootd_send_error(ctx, c, kXR_ArgInvalid,
+                                 "Write vector is invalid");
+        return NGX_ERROR;
     }
 
-    /* Same wire layout as plain kXR_writev: N back-to-back 16-byte descriptors
-     * then concatenated data, with N recovered by size matching (see writev.c).
-     * The extra rule here is that every segment must name the checkpointed
-     * handle. */
-    wl       = (write_list *) sub_payload;
-    max_segs = sub_dlen / XROOTD_WRITEV_SEGSIZE;
-    if (max_segs > XROOTD_WRITEV_MAXSEGS) {
-        max_segs = XROOTD_WRITEV_MAXSEGS;
+    wl     = (write_list *) sub_payload;
+    n_segs = sub_dlen / XROOTD_WRITEV_SEGSIZE;
+
+    if (n_segs > XROOTD_WRITEV_MAXSEGS) {
+        XROOTD_OP_ERR(ctx, XROOTD_OP_CHKPOINT);
+        (void) xrootd_send_error(ctx, c, kXR_ArgTooLong,
+                                 "Write vector is too long");
+        return NGX_ERROR;
     }
 
-    n_segs = 0; total_wlen = 0;
-    for (i = 0; i < max_segs; i++) {
+    total_wlen = 0;
+    for (i = 0; i < n_segs; i++) {
         uint32_t wlen = (uint32_t) ntohl((uint32_t) wl[i].wlen);
 
-        /* ckpXeq writev: all segments must target the checkpointed handle so a
-         * checkpoint can never be used to scatter writes across other files. */
-        if ((int)(unsigned char) wl[i].fhandle[0] != idx) {
-            return xrootd_send_error(ctx, c, kXR_InvalidRequest,
-                                     "ckpXeq writev: handle mismatch in segment");
+        /* Every data-bearing segment must target the checkpointed handle so
+         * a checkpoint can never scatter writes across other files (stock
+         * ignores zero-length segments when it collects the vector, then
+         * refuses a multi-file result). */
+        if (wlen > 0 && (int)(unsigned char) wl[i].fhandle[0] != idx) {
+            XROOTD_OP_ERR(ctx, XROOTD_OP_CHKPOINT);
+            (void) xrootd_send_error(ctx, c, kXR_Unsupported,
+                                 "multi-file chkpoint writev not supported");
+            return NGX_ERROR;
         }
-        n_segs++;
         total_wlen += wlen;
-        /* Exact fit pins down the real segment count. */
-        if (n_segs * XROOTD_WRITEV_SEGSIZE + total_wlen == sub_dlen) {
-            break;
-        }
-        /* Overshoot => descriptors inconsistent with byte count: reject. */
-        if (n_segs * XROOTD_WRITEV_SEGSIZE + total_wlen > sub_dlen) {
-            return xrootd_send_error(ctx, c, kXR_ArgInvalid,
-                                     "ckpXeq writev: payload size mismatch");
-        }
     }
 
-    /* Hit the cap (or undershot) without an exact fit: malformed. */
-    if (n_segs * XROOTD_WRITEV_SEGSIZE + total_wlen != sub_dlen) {
-        return xrootd_send_error(ctx, c, kXR_ArgInvalid,
+    /* Defensive: the recv framing extended the body by exactly sum(wlen); a
+     * mismatch means the extension never ran for this frame — the trailing
+     * data was never read, so the link cannot be resynchronised. */
+    if (total_wlen != (uint64_t) data_len) {
+        XROOTD_OP_ERR(ctx, XROOTD_OP_CHKPOINT);
+        (void) xrootd_send_error(ctx, c, kXR_ArgInvalid,
                                  "ckpXeq writev: payload size mismatch");
+        return NGX_ERROR;
     }
 
     /* Data blocks begin right after the N descriptors. */
-    data_ptr = sub_payload + n_segs * XROOTD_WRITEV_SEGSIZE;
+    data_ptr = sub_payload + (size_t) sub_dlen;
 
     for (i = 0; i < n_segs; i++) {
         int64_t  offset = (int64_t) be64toh((uint64_t) wl[i].offset);
@@ -359,15 +376,104 @@ ckp_xeq_writev(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
     return xrootd_send_ok(ctx, c, NULL, 0);
 }
 
-/* WHAT: Unwraps the embedded sub-request (a full 24-byte client request header plus
- *      its payload) carried in a kXR_ckpXeq body and routes it to the matching
- *      write/pgwrite/truncate/writev handler for the checkpointed handle idx.
- * WHY: kXR_ckpXeq tunnels an ordinary write op "inside" an active checkpoint so the op
- *      can be rolled back. Requiring an active checkpoint (ckp_path) and a complete
- *      sub-header guards against executing a tentative op with no rollback anchor.
- * HOW: 1) Require f->ckp_path (active checkpoint). 2) Require >= 24 body bytes (one
- *      full sub-header). 3) Read the embedded requestid (sub_hdr + 2). 4) Split header
- *      vs payload at the 24-byte boundary. 5) switch on requestid to the sub-handler. */
+/* xrootd_ckpxeq_body_extra — trailing sub-body length for kXR_ckpXeq
+ * WHAT: Computes how many more bytes the client will stream after the ckpXeq
+ * frame, staged on `have` (body bytes received so far).  have == 24: the
+ * embedded sub-header just landed — the sub-request's own dlen bytes follow
+ * (write/pgwrite data, or the writev descriptor block).  have == 24 +
+ * sub_dlen: an embedded writev's descriptors landed — sum(wlen) data bytes
+ * follow, delegated to xrootd_writev_body_extra (the SAME contract as a
+ * standalone kXR_writev).  *final = 0 tells the recv framing to call again
+ * after the current extension completes.
+ * WHY: Stock wire contract (do_ChkPntXeq + XrdCl MessageUtils): the outer
+ * chkpoint dlen frames ONLY the embedded 24-byte header; everything else is
+ * raw body streamed behind the frame.  Shared by the recv framing so the
+ * whole sub-request lands contiguously in payload_buf before dispatch.
+ * HOW: Bound every stage by XROOTD_MAX_WRITE_PAYLOAD (and the writev vector
+ * cap) and return NGX_DECLINED on any violation — the framing then does NOT
+ * extend, the auth gates still run, and ckp_xeq detects the un-read trailing
+ * bytes (count mismatch) and drops the link. */
+ngx_int_t
+xrootd_ckpxeq_body_extra(const u_char *body, uint32_t have,
+    uint32_t *extra, unsigned *final)
+{
+    uint16_t  sub_reqid;
+    uint32_t  sub_dlen;
+
+    *extra = 0;
+    *final = 1;
+
+    if (body == NULL || have < 24) {
+        return NGX_DECLINED;
+    }
+
+    sub_reqid = (uint16_t) ntohs(*(const uint16_t *) (body + 2));
+    sub_dlen  = (uint32_t) ntohl(*(const uint32_t *) (body + 20));
+
+    if (have == 24) {
+        if (sub_dlen == 0) {
+            return NGX_OK;               /* nothing streams (e.g. truncate) */
+        }
+
+        switch (sub_reqid) {
+
+        case kXR_write:
+        case kXR_pgwrite:
+            if (sub_dlen > XROOTD_MAX_WRITE_PAYLOAD) {
+                return NGX_DECLINED;
+            }
+            *extra = sub_dlen;
+            return NGX_OK;
+
+        case kXR_writev:
+            /* Descriptor block first; the segment data extends in stage 2
+             * once the descriptors can be summed. */
+            if (sub_dlen % XROOTD_WRITEV_SEGSIZE != 0
+                || sub_dlen > XROOTD_WRITEV_MAXSEGS * XROOTD_WRITEV_SEGSIZE)
+            {
+                return NGX_DECLINED;
+            }
+            *extra = sub_dlen;
+            *final = 0;
+            return NGX_OK;
+
+        default:
+            /* Invalid embed (chkpoint-in-chkpoint, truncate with data, or
+             * garbage) — no extension; ckp_xeq rejects and drops. */
+            return NGX_DECLINED;
+        }
+    }
+
+    /* Stage 2: the embedded writev descriptor block is in at body[24..). */
+    if (sub_reqid == kXR_writev && have == 24 + sub_dlen) {
+        return xrootd_writev_body_extra(body + 24, sub_dlen, extra);
+    }
+
+    return NGX_DECLINED;
+}
+
+/* WHAT: Unwraps the embedded sub-request carried by a kXR_ckpXeq frame and
+ *      routes it to the matching write/pgwrite/truncate/writev handler for
+ *      the checkpointed handle idx.
+ * WHY: kXR_ckpXeq tunnels an ordinary write op "inside" an active checkpoint
+ *      so the op can be rolled back.  Requiring an active checkpoint
+ *      (ckp_path) guards against executing a tentative op with no rollback
+ *      anchor.  Stock wire contract (do_ChkPntXeq): the frame's dlen is
+ *      EXACTLY 24 — the embedded ClientRequestHdr — and the sub-request body
+ *      (sub_dlen bytes per the embedded header; for writev, descriptors then
+ *      data, see ckp_xeq_writev) streams after the frame.  The recv framing
+ *      (xrootd_ckpxeq_body_extra) has already appended those streamed bytes
+ *      to ctx->payload (ctx->cur_body_extra of them), so the sub-request is
+ *      contiguous here.
+ * HOW: Stock-parity validation, then dispatch: 1) embedded streamid must
+ *      match the outer header's. 2) dlen must be 24. 3) An embedded chkpoint,
+ *      or a truncate carrying data, is invalid.  All three reject + drop the
+ *      link exactly like stock (do_ChkPntXeq returns -1) — for 1 and 3 the
+ *      trailing bytes may not have been read, so no resync is possible.
+ *      4) Per-type byte-count cross-check against cur_body_extra (defensive:
+ *      detects a declined extension) — also error + drop.  5) Only then the
+ *      checkpoint-active check (error, link kept: the sub-body is safely
+ *      buffered by that point), and the switch to the sub-handler. */
 ngx_int_t
 ckp_xeq(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
 {
@@ -377,30 +483,72 @@ ckp_xeq(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
     uint32_t       sub_dlen;
     uint16_t       sub_reqid;
 
+    /* Stock parity: the embedded request must carry the outer streamid. */
+    if (ctx->payload != NULL && ctx->cur_dlen >= 2
+        && (ctx->payload[0] != ctx->cur_streamid[0]
+            || ctx->payload[1] != ctx->cur_streamid[1]))
+    {
+        XROOTD_OP_ERR(ctx, XROOTD_OP_CHKPOINT);
+        (void) xrootd_send_error(ctx, c, kXR_ArgInvalid,
+                                 "Request streamid mismatch");
+        return NGX_ERROR;
+    }
+
+    /* Stock parity: the frame is EXACTLY the embedded 24-byte header — the
+     * sub-request body streams after it.  This also rejects the legacy
+     * private layout (header + body counted inside dlen) the way a stock
+     * server does. */
+    if (ctx->cur_dlen != 24 || ctx->payload == NULL) {
+        XROOTD_OP_ERR(ctx, XROOTD_OP_CHKPOINT);
+        (void) xrootd_send_error(ctx, c, kXR_ArgInvalid,
+                                 "Request length invalid");
+        return NGX_ERROR;
+    }
+
+    /* Wire layout as buffered by the recv framing:
+     *   [0 .. 24)                 embedded ClientRequestHdr
+     *   [24 .. 24+cur_body_extra) streamed sub-request body
+     * requestid at header offset 2, dlen at offset 20, both big-endian. */
+    sub_hdr     = ctx->payload;
+    sub_reqid   = (uint16_t) ntohs(*(const uint16_t *) (sub_hdr + 2));
+    sub_dlen    = (uint32_t) ntohl(*(const uint32_t *) (sub_hdr + 20));
+    sub_payload = ctx->payload + 24;
+
+    /* Stock parity: a chkpoint may not embed a chkpoint, and an embedded
+     * truncate carries no data (its length rides in the offset field). */
+    if (sub_reqid == kXR_chkpoint
+        || (sub_reqid == kXR_truncate && sub_dlen != 0))
+    {
+        XROOTD_OP_ERR(ctx, XROOTD_OP_CHKPOINT);
+        (void) xrootd_send_error(ctx, c, kXR_ArgInvalid,
+                                 "chkpoint request is invalid");
+        return NGX_ERROR;
+    }
+
+    /* Defensive byte-count cross-check: the recv framing extended the body
+     * by exactly sub_dlen (write/pgwrite data; writev descriptors).  A
+     * shortfall means the extension was declined (oversized sub_dlen or a
+     * malformed descriptor block) — the trailing bytes were never read, so
+     * no resync is possible: error + drop.  Runs BEFORE the checkpoint-
+     * active check so a framing violation always takes the link-drop path. */
+    if (((sub_reqid == kXR_write || sub_reqid == kXR_pgwrite)
+         && ctx->cur_body_extra != sub_dlen)
+        || (sub_reqid == kXR_writev && ctx->cur_body_extra < sub_dlen))
+    {
+        XROOTD_OP_ERR(ctx, XROOTD_OP_CHKPOINT);
+        (void) xrootd_send_error(ctx, c, kXR_ArgInvalid,
+                                 "ckpXeq: sub-request length invalid");
+        return NGX_ERROR;
+    }
+
     /* A ckpXeq with no open checkpoint has nothing to make tentative — reject
-     * so a write can never masquerade as checkpointed when it is not. */
+     * so a write can never masquerade as checkpointed when it is not.  Runs
+     * AFTER the wire-shape checks above so a framing violation always takes
+     * the link-drop path even when no checkpoint is open. */
     if (f->ckp_path == NULL) {
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_CHKPOINT, "CHKPOINT", f->path, "xeq",
                           kXR_InvalidRequest, "no active checkpoint");
     }
-
-    /* The body must contain at least one complete client request header
-     * (all client headers are exactly 24 bytes). */
-    if (ctx->cur_dlen < 24 || ctx->payload == NULL) {
-        XROOTD_OP_ERR(ctx, XROOTD_OP_CHKPOINT);
-        return xrootd_send_error(ctx, c, kXR_ArgMissing,
-                                 "ckpXeq: missing sub-request header");
-    }
-
-    /* Wire layout of the ckpXeq body:
-     *   [0 .. 24)        embedded ClientRequestHdr (the sub-request header)
-     *   [24 .. cur_dlen) sub-request payload (write data, writev descriptors, ...)
-     * The requestid lives at header offset 2 (right after the 2-byte streamid)
-     * and is big-endian on the wire. */
-    sub_hdr     = ctx->payload;
-    sub_reqid   = (uint16_t) ntohs(*(uint16_t *)(sub_hdr + 2));
-    sub_dlen    = ctx->cur_dlen - 24;
-    sub_payload = ctx->payload + 24;
 
     switch (sub_reqid) {
 
@@ -414,14 +562,17 @@ ckp_xeq(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
         return ckp_xeq_truncate(ctx, c, idx, sub_hdr);
 
     case kXR_writev:
-        return ckp_xeq_writev(ctx, c, idx, sub_payload, sub_dlen);
+        return ckp_xeq_writev(ctx, c, idx, sub_payload, sub_dlen,
+                              ctx->cur_body_extra - sub_dlen);
 
     default:
+        /* Stock parity: unknown embedded op — error, keep the link (stock's
+         * second-pass default does not drop). */
         ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
                        "xrootd: ckpXeq unsupported sub-reqid=%d",
                        (int) sub_reqid);
         XROOTD_OP_ERR(ctx, XROOTD_OP_CHKPOINT);
-        return xrootd_send_error(ctx, c, kXR_InvalidRequest,
-                                 "ckpXeq: unsupported sub-request type");
+        return xrootd_send_error(ctx, c, kXR_ArgInvalid,
+                                 "chkpoint request is invalid");
     }
 }

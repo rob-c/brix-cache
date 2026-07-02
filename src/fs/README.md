@@ -38,8 +38,8 @@ client ──────────────▶ vfs ─▶ backend       (c
   `sd_posix.c`), ngx-free, in `libxrdproto`.
 - **`vfs`** = [`core/`](core/README.md) (`vfs_core.c`): the storage-neutral
   `xvfs_pread_full`/`pread_once`/`pwrite_full`/`fsync`/`ftruncate`/`fstat` verbs —
-  the EINTR/short-I/O loop policy, single-sourced across both trees. `vfs_read.c`
-  and `vfs_io_core.c` here are thin server wrappers over it.
+  the EINTR/short-I/O loop policy, single-sourced across both trees.
+  `vfs/vfs_read.c` and `vfs/vfs_io_core.c` are thin server wrappers over it.
 - **`vfs_server`** = the rest of `src/fs/` (this directory): everything nginx-
   shaped and security-critical that stays server-only — the **export-confined
   open** (`RESOLVE_BENEATH`/`root_canon`), the AIO thread-pool dispatch, sendfile
@@ -140,6 +140,11 @@ xattr/copy/staged/delete paths in `prop_xattr.c`, `dead_props.c`, `copy.c`,
 > [`../../docs/refactor/phase-62-vfs-namespace-metadata-seam-closure.md`](../../docs/refactor/phase-62-vfs-namespace-metadata-seam-closure.md).
 
 ## Files
+
+All of the following live under [`vfs/`](vfs/) — the facade layer, moved off
+the `src/fs/` root in phase-67. The sibling concept dirs are `core/` (ngx-free
+verb kernel), `backend/` (storage drivers), `path/` (confinement), `cache/`,
+`tier/`, `xfer/`, and `scan/`.
 
 | File | Responsibility |
 |---|---|

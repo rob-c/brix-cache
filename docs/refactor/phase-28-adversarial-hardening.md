@@ -68,7 +68,7 @@ regress these, and should extend their rigor to the edges.
 - **Secret hygiene exists.** `OPENSSL_cleanse`/`ngx_memzero` wipe crypto material
   in `gsi/parse_x509.c`, `sss/auth_request.c`, `token/macaroon.c`.
 - **Native-TPC SSRF policy.** `allow_local`/`allow_private` source gates
-  (`src/tpc/launch.c`, `src/tpc/noop.c`); WebDAV-TPC curl restricted to
+  (`src/tpc/engine/launch.c`, `src/tpc/engine/noop.c`); WebDAV-TPC curl restricted to
   `CURLPROTO_HTTPS` only (`src/protocols/webdav/tpc_curl.c:55,57`).
 - **TLS peer verification on** for OCSP (`crypto/ocsp.c:151`) and origin cache
   (`cache/origin_connection.c:197`).
@@ -94,7 +94,7 @@ Severity = exploitability × impact for the named actor. Each cites real code.
 | A1 | `src/protocols/webdav/tpc_cred.c:176,187` | `execlp("oidc-token","oidc-token","-c",host,…)` — `host` derives from the client-supplied source URL. A value beginning with `-` is parsed as an **option** by oidc-token (argv injection, no shell needed). | High | Insert `"--"` end-of-options before any attacker-derived arg; reject/encode values with a leading `-`; validate host as a strict hostname |
 | A2 | `src/protocols/webdav/tpc_cred.c:197,200` | `execve(helper, {helper, sockpath, source_url}, NULL)` passes the raw `source_url` to a credential helper. | Med | Same `--`/leading-dash defense; canonicalise+validate URL first |
 | A3 | `src/protocols/webdav/tpc_cred.c:288–325` | `curl_argv[16]` built for the rfc8693 exchange; if any attacker-derived value (URL, token) lands in argv without `--`, curl flags like `-o`/`-K`/`--config` enable **file write / file read (SSRF-by-config)**. | High | Hard `--` terminator before URLs; never let user data occupy an argv slot that precedes a flag; prefer a fixed-arg helper over building curl argv |
-| A4 | `src/tpc/tpc_token.c:125` | `fork`+`execve`/`execlp oidc-token` token helper — same argv-position discipline needed. | Med | `--` terminator; arg validation |
+| A4 | `src/tpc/outbound/tpc_token.c:125` | `fork`+`execve`/`execlp oidc-token` token helper — same argv-position discipline needed. | Med | `--` terminator; arg validation |
 
 The fork/exec design is correct (no shell); the gap is **option-injection via
 attacker-controlled argv values**, which `--` + leading-dash rejection closes.
@@ -103,7 +103,7 @@ attacker-controlled argv values**, which `--` + leading-dash rejection closes.
 
 | # | File:line | Issue | Sev | Guard |
 |---|-----------|-------|-----|-------|
-| B1 | `src/tpc/launch.c`, `src/protocols/webdav/tpc_curl.c:52` | TPC source host comes from the client. `allow_private` gates RFC1918 but there is **no explicit block of link-local `169.254.0.0/16` / cloud-metadata `169.254.169.254` / `::1` / `0.0.0.0`** (no literal found anywhere in src). An attacker points TPC/copy at the metadata endpoint → credential theft. | High | Default-deny destination IP classes: loopback, link-local, metadata, multicast, unspecified, ULA `fc00::/7`; apply to **both** native-TPC and curl paths |
+| B1 | `src/tpc/engine/launch.c`, `src/protocols/webdav/tpc_curl.c:52` | TPC source host comes from the client. `allow_private` gates RFC1918 but there is **no explicit block of link-local `169.254.0.0/16` / cloud-metadata `169.254.169.254` / `::1` / `0.0.0.0`** (no literal found anywhere in src). An attacker points TPC/copy at the metadata endpoint → credential theft. | High | Default-deny destination IP classes: loopback, link-local, metadata, multicast, unspecified, ULA `fc00::/7`; apply to **both** native-TPC and curl paths |
 | B2 | `src/protocols/webdav/tpc_curl.c` | Host is validated/policy-checked, then curl **re-resolves DNS** and connects → **DNS-rebinding TOCTOU**: policy sees a public IP, curl connects to an internal one. | High | Resolve once, validate the *resolved* IP set, pin curl to it (`CURLOPT_RESOLVE`/`OPENSOCKETFUNCTION`); re-check post-resolution |
 | B3 | `src/protocols/webdav/tpc_curl.c:63–72,275–287` | Sets `SSLCERT/SSLKEY/CAINFO/CAPATH` but **does not explicitly set `CURLOPT_SSL_VERIFYPEER=1` / `VERIFYHOST=2`** — relies on curl's compiled default. A build/default change silently disables verification. | Med | Set both explicitly; never expose a "disable verify" knob |
 | B4 | `src/protocols/webdav/tpc_cred.c`, `src/tpc/*` | **Confused deputy:** the server uses *its own* delegated credential/token to fetch a *client-named* source → client redirects the server's privileged identity at an unintended target. | Med | Bind the delegated credential's usable audience/host to the request's intended source; refuse cross-target reuse |

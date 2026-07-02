@@ -21,7 +21,7 @@
 
 #include "s3.h"
 #include "multipart_internal.h"
-#include "fs/vfs.h"   /* confined dir probe/opendir/readdir via the VFS seam */
+#include "fs/vfs/vfs.h"   /* confined dir probe/opendir/readdir via the VFS seam */
 
 #include <dirent.h>
 #include <fcntl.h>

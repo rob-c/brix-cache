@@ -11,7 +11,7 @@
 #include "protocols/root/path/op_path.h"
 #include "net/manager/registry.h"
 #include "protocols/root/protocol/dirlist_fmt.h"   /* shared dstat lead-in sentinel */
-#include "fs/vfs.h"                 /* directory listing via the VFS seam */
+#include "fs/vfs/vfs.h"                 /* directory listing via the VFS seam */
 #include "dcksm.h"
 
 #include <spawn.h>

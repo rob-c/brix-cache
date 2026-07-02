@@ -278,16 +278,16 @@ assembly**, ranked by audit cost (not LoC):
 | **kXR ↔ errno canonical table** | `client/lib/status.c` ↔ `src/core/compat/error_mapping.c` | ⚙️ **DONE** — §4.2 |
 | **GSI-client handshake** | `client/lib/sec/sec_gsi.c` (on `gsi_core`) **vs** `src/tpc/gsi_outbound_*.c` (raw OpenSSL) | ⚙️ **DONE** — §4.3 (built a TPC-pull-from-GSI-origin gate, then migrated onto `gsi_core`) |
 | **Token JWT split** | `client/lib/credinfo.c` (`xrdjwt_split`) ↔ `src/auth/token/validate.c` (inline `memchr`) | ⚙️ **DONE** — §4.4 (server switched to the shared `xrdjwt_split`) |
-| **Session-bootstrap packing** (handshake + kXR_protocol + kXR_login) | `client/lib/conn.c` ↔ `src/net/upstream/bootstrap.c` (×2) ↔ `src/tpc/bootstrap.c` | ⚙️ **DONE** — §4.5 (new `protocol/bootstrap_pack.h`, 4 sites → 1) |
-| **kXR_error decode adoption** | already-shared `xrd_error_body_decode` ↔ hand-rolled in `src/tpc/source.c`, `src/fs/cache/origin_response.c` | ⚙️ **DONE** — §4.5 (adopted shared decoder; fixed a non-NUL `%s` over-read) |
+| **Session-bootstrap packing** (handshake + kXR_protocol + kXR_login) | `client/lib/conn.c` ↔ `src/net/upstream/bootstrap.c` (×2) ↔ `src/tpc/outbound/bootstrap.c` | ⚙️ **DONE** — §4.5 (new `protocol/bootstrap_pack.h`, 4 sites → 1) |
+| **kXR_error decode adoption** | already-shared `xrd_error_body_decode` ↔ hand-rolled in `src/tpc/outbound/source.c`, `src/fs/cache/origin_response.c` | ⚙️ **DONE** — §4.5 (adopted shared decoder; fixed a non-NUL `%s` over-read) |
 | **Stat-line grammar** `"<id> <size> <flags> <mtime>"` | `src/protocols/root/path/stat_body.c` (encoder) ↔ `client/lib/ops_meta.c` (decoder) | ⚙️ **DONE** — §4.6 (new `protocol/stat_line.h`, encode + decode co-located) |
-| **`root://` URL authority split** | `client/lib/url.c` (on shared `host_split`) ↔ `src/tpc/parse.c` (bespoke) | ⚙️ **DONE** — §4.7 (server routed onto the shared `xrootd_split_host_port`) |
+| **`root://` URL authority split** | `client/lib/url.c` (on shared `host_split`) ↔ `src/tpc/engine/parse.c` (bespoke) | ⚙️ **DONE** — §4.7 (server routed onto the shared `xrootd_split_host_port`) |
 | **kXR_open flag semantics** (options ↔ POSIX `O_*`) | `src/protocols/root/read/open_resolved_file.c` (decoder) ↔ `client/lib/ops_file.c` + both FUSE drivers (encoders) | ⚙️ **DONE** — §4.8 (new `protocol/open_flags.h`, 1 decoder + 3 encoders → 1) |
 | **stat `flags` field semantics** (flags ↔ `st_mode`) | `src/protocols/root/path/stat_body.c` (encoder) ↔ `client/lib/posix_map.c` (decoder) | ⚙️ **DONE** — §4.9 (new `protocol/stat_flags.h`; completes the stat spec) |
 | **dirlist dstat sentinel** `".\n0 0 0 0\n"` | `src/protocols/root/dirlist/handler.c` (×2 emit) ↔ `client/lib/ops_meta.c` (match) | ⚙️ **DONE** — §4.10 (new `protocol/dirlist_fmt.h`, 3 literals → 1) |
 | **kXR_Qspace `oss.*` grammar** | `src/protocols/root/query/space.c` (emit) ↔ `client/lib/posix_map.c` (parse) | ⚙️ **DONE** — §4.11 (new `protocol/qspace.h`, format + parse co-located) |
 | **checksum algo-name registry** | `client/lib/checksum.c` ↔ `src/core/compat/checksum.c` | ❌ **NOT A WIN** — §4.12 (three distinct load-bearing enums; compute already shared) |
-| **`&P=` security-protocol list parser** | `client/lib/auth.c` (anchored) ↔ `src/tpc/gsi_outbound_finish.c` (loose `strstr`) | ⚙️ **DONE** — §4.13 (new `protocol/sec_protocol.h`; also tightened the server's auth selection) |
+| **`&P=` security-protocol list parser** | `client/lib/auth.c` (anchored) ↔ `src/tpc/gsi/gsi_outbound_finish.c` (loose `strstr`) | ⚙️ **DONE** — §4.13 (new `protocol/sec_protocol.h`; also tightened the server's auth selection) |
 | **protocol vocabulary** (`kXR_ExpLogin`/`kXR_FinalResult`/`kXR_PartialResult`, fhandle/sessid lengths) | client `xrdc.h` shadow-defs ↔ comments-only in `src/protocols/root/protocol/` | ⚙️ **DONE** — §4.14 (promoted spec constants to real shared `#define`s; killed shadow-defs + magic numbers) |
 | **kXR_readv segment-header codec** `{fhandle[4],rlen[4],offset[8]}` | `client/lib/ops_file.c` (build+parse) ↔ `src/protocols/root/read/readv.c` (response build) | ⚙️ **DONE** — §4.15 (new `protocol/readv_seg.h`; the readv gap pgio left) |
 
@@ -420,7 +420,7 @@ rather than parses).
 `ClientInitHandShake` (20B) → `ClientProtocolRequest` (kXR_protocol, 24B) → `ClientLoginRequest`
 (kXR_login, 24B) — were hand-packed in **four** places: `client/lib/conn.c`,
 `src/net/upstream/bootstrap.c` (twice: the bootstrap buffer *and* the TLS-resend login), and
-`src/tpc/bootstrap.c`. This is security-relevant assembly (protocol version, TLS-capability
+`src/tpc/outbound/bootstrap.c`. This is security-relevant assembly (protocol version, TLS-capability
 flags, login capver) audited 4× and free to drift between roles.
 
 ⚙️ **DONE:** added header-only **`src/protocols/root/protocol/bootstrap_pack.h`** (the `frame_hdr.h` precedent
@@ -435,7 +435,7 @@ use a fixed `{0,1}` streamid, no TLS flags (TLS is driven by `kXR_gotoTLS`), and
 
 **Bonus adoption (no new code):** while in the outbound-client paths, switched two sites that
 hand-rolled the `kXR_error` body layout (`ntohl(*(uint32_t*)body)` + message slice) to the
-already-shared `xrd_error_body_decode()` from `frame_hdr.h` — `src/tpc/source.c` and
+already-shared `xrd_error_body_decode()` from `frame_hdr.h` — `src/tpc/outbound/source.c` and
 `src/fs/cache/origin_response.c`. This also **fixed a latent bug**: the TPC site printed the
 non-NUL-terminated wire message with `%s` (the exact over-read `frame_hdr.h`'s own doc warns
 about); it now uses the decoder's bounded slice with `%.*s`.
@@ -471,7 +471,7 @@ count. Verified: stat/dirlist conformance + native-client decode green (part of 
 
 The client's URL parser (`client/lib/url.c`) already delegates its authority split to the shared,
 ngx-free **`xrootd_split_host_port()`** (`src/core/compat/host_split.{c,h}`, libxrdproto). The server's
-native-TPC source parser (`src/tpc/parse.c`, `tpc_parse_src_spec`) reimplemented the *same*
+native-TPC source parser (`src/tpc/engine/parse.c`, `tpc_parse_src_spec`) reimplemented the *same*
 bracketed-IPv6-aware `host[:port]` split by hand — its own `tpc_copy_component()` +
 `tpc_parse_port_range()` (~70 LoC).
 
@@ -559,7 +559,7 @@ both already.)
 After `kXR_login` the server advertises its accepted auth methods as a `&P=<name>,<args>`
 parameter block. **Two** XRootD-client implementations parse it to choose a credential: the
 native client's auth driver (`client/lib/auth.c`, `proto_advertised`) and the server's own
-**TPC-outbound** auth selector (server-as-client, `src/tpc/gsi_outbound_finish.c`). The client's
+**TPC-outbound** auth selector (server-as-client, `src/tpc/gsi/gsi_outbound_finish.c`). The client's
 parser anchors on `&P=` and checks the name boundary (`,`/`&`/end); the server's was a bare
 `strstr(parms, "ztn")` / `strstr(parms, "gsi")` with **no anchor** — it would false-match the
 substring anywhere in the block (another protocol's args, a trailing host) and could select the

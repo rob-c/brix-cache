@@ -17,9 +17,9 @@
  * success per S3 idempotency semantics. */
 
 #include "s3.h"
-#include "core/compat/http_body.h"
+#include "core/http/http_body.h"
 #include "auth/impersonate/lifecycle.h"
-#include "fs/vfs.h"   /* per-object delete via the VFS unlink surface */
+#include "fs/vfs/vfs.h"   /* per-object delete via the VFS unlink surface */
 
 #include <libxml/parser.h>
 #include <libxml/tree.h>
