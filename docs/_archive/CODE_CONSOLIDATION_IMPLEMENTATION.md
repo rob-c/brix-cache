@@ -195,9 +195,9 @@ Files to migrate:
 ### Priority 2c: Config Merge Migration (Est. -200 LoC)
 
 Files to migrate (14+ modules):
-- src/dashboard/module.c
+- src/observability/dashboard/module.c
 - src/webdav/module.c
-- src/metrics/module.c
+- src/observability/metrics/module.c
 - src/fs/cache/module.c
 - src/net/upstream/module.c
 - And 9+ more

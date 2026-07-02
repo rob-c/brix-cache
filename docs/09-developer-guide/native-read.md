@@ -690,4 +690,4 @@ Relevant code:
 - `src/read/read.c`
 - `src/read/readv.c`
 - `src/read/pgread.c`
-- `src/path/access_log.c`
+- `src/observability/accesslog/access_log.c`

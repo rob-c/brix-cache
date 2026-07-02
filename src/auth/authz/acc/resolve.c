@@ -21,8 +21,8 @@
  */
 
 #include "acc.h"
-#include "metrics/metrics.h"          /* ngx_xrootd_metrics_t */
-#include "metrics/metrics_macros.h"   /* Phase 51 (E6): breaker counter */
+#include "observability/metrics/metrics.h"          /* ngx_xrootd_metrics_t */
+#include "observability/metrics/metrics_macros.h"   /* Phase 51 (E6): breaker counter */
 #include <netdb.h>
 #include <sys/socket.h>
 #include <time.h>

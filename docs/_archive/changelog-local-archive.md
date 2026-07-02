@@ -57,9 +57,9 @@ into dedicated subdirectories:
 | `src/ngx_xrootd_session.c` | `src/session/` |
 | `src/ngx_xrootd_response.c` | `src/response/` |
 | `src/ngx_http_xrootd_webdav_*.c` (4 files) | `src/webdav/` (34 files) |
-| `src/ngx_http_xrootd_metrics_module.c` | `src/metrics/` |
+| `src/ngx_http_xrootd_metrics_module.c` | `src/observability/metrics/` |
 | `src/xrootd_protocol.h` | `src/protocol/wire.h` + companion headers |
-| `src/ngx_xrootd_metrics.h` | `src/metrics/metrics.h` |
+| `src/ngx_xrootd_metrics.h` | `src/observability/metrics/metrics.h` |
 
 `src/core/ngx_xrootd_module.h` kept but substantially reorganised (−715 /+821 lines
 net).
@@ -112,7 +112,7 @@ New handlers not previously in the monolith:
 - `io.c` — `copy_file_range(2)` + pread/write fallback
 - `resource.c`, `date.c`, `headers.c` — helpers
 
-### 2.5 Metrics (`src/metrics/`)
+### 2.5 Metrics (`src/observability/metrics/`)
 
 Fully rewritten as a proper multi-file module: `export.c`, `handler.c`,
 `module.c`, `writer.c`, `metrics_internal.h`, `stream.c`.  WebDAV metrics
@@ -123,8 +123,8 @@ moved to `src/webdav/metrics.c`, S3 metrics to `src/s3/metrics.c`.
 | File | Change |
 |---|---|
 | `src/connection/handler.c` | +18 lines |
-| `src/metrics/metrics.h` | +62 lines (new counter definitions) |
-| `src/metrics/stream.c` | +13 lines |
+| `src/observability/metrics/metrics.h` | +62 lines (new counter definitions) |
+| `src/observability/metrics/stream.c` | +13 lines |
 | `src/net/proxy/connect.c` | +11 lines |
 | `src/net/proxy/events.c` | +13 lines |
 | `src/net/proxy/forward.c` | +26 lines (proxy forwarding improvements) |

@@ -103,7 +103,7 @@ model stock `cmsd` uses (`XrdCmsCache` + `do_Have`):
   over the existing runtime 30 s disconnect-blacklist in `registry_select`.
 - **Admin surface**: rather than the `XrdCmsAdmin` local Unix-socket command set,
   expose drain/undrain/blacklist/list via the existing **dashboard API**
-  (`src/dashboard/`) — native and authenticated (ADR-2).
+  (`src/observability/dashboard/`) — native and authenticated (ADR-2).
 - Tests: blacklisted host never selected; file reload picks up edits; dashboard
   drain removes a node from selection.
 
@@ -346,7 +346,7 @@ void xrootd_cms_blacklist_reload(const char *file) {     /* host or CIDR/line */
 }
 /* poll the file mtime from the existing low-rate manager timer (no new thread) */
 
-/* admin via the dashboard API (src/dashboard/api_admin.c), authenticated:
+/* admin via the dashboard API (src/observability/dashboard/api_admin.c), authenticated:
  *   GET  /xrootd/api/v1/cms/nodes          -> xrootd_srv_snapshot()
  *   POST /xrootd/api/v1/cms/drain {host}   -> xrootd_srv_blacklist()
  *   POST /xrootd/api/v1/cms/undrain {host} -> xrootd_srv_undrain()           */

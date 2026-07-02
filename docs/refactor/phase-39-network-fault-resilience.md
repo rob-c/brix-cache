@@ -460,7 +460,7 @@ fall back to a pure-Python asyncio fault relay implementing the same levers.
 - **kXR_bind secondary connections:** a bound secondary shares file handles with the primary via the
   session registry; a per-conn read timer must respect the multi-connection session lifetime and not
   conflict with the Phase-27 LRU session reaper.
-- **/metrics :9100 self-resilience:** harden the metrics stream handler (`src/metrics/stream.c`) against a
+- **/metrics :9100 self-resilience:** harden the metrics stream handler (`src/observability/metrics/stream.c`) against a
   slowloris scraper — HTTP-1 guidance covers WebDAV/S3 loc confs, not this separate handler.
 - **IPv6 / dual-stack:** `TCP_USER_TIMEOUT`, `SO_KEEPALIVE`, and the cap/accept logic must work on
   `AF_INET6` (the codebase has a documented unbracketed-IPv6 history — phase-36). Add an IPv6 netfault case.

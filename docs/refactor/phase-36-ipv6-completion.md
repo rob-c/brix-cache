@@ -115,14 +115,14 @@ Also a **security-negative** to cover: confirm the re-bracketed `root://[::ffff:
 | Site | Fix |
 |---|---|
 | `src/core/types/context.h:141` `peer_ip[64]` | widen to `INET6_ADDRSTRLEN + 16` (brackets + link-local `%zone` scope-id margin). ⚠️ struct-layout edit → **full rebuild** |
-| `src/pmark/pmark.h:118-119` `src_ip[64]`/`dst_ip[64]` | widen to `INET6_ADDRSTRLEN + 16` (link-local `fe80::1%ifname`) |
+| `src/observability/pmark/pmark.h:118-119` `src_ip[64]`/`dst_ip[64]` | widen to `INET6_ADDRSTRLEN + 16` (link-local `fe80::1%ifname`) |
 | `src/net/manager/registry.h:28` `host[256]`, `src/net/manager/redir_cache.c:40` `host[128]` | sufficient; **document the IPv6+brackets budget** and keep bounds-checked writes |
 
 ### E. Normalization / parsing edges — **MINOR**
 
 | Site | Defect | Fix |
 |---|---|---|
-| `src/dashboard/api_admin.c:395` (`admin_parse_server_uri`) | splits URI tail on `/` only; a `[2001:db8::1]` segment survives but brackets aren't stripped for registry host-matching | bracket-detect/strip the host segment before comparing to registry entries |
+| `src/observability/dashboard/api_admin.c:395` (`admin_parse_server_uri`) | splits URI tail on `/` only; a `[2001:db8::1]` segment survives but brackets aren't stripped for registry host-matching | bracket-detect/strip the host segment before comparing to registry entries |
 | `src/net/ratelimit/ratelimit_keys.c:52,60,68,73` | `"ip:%s"` with bare `peer_ip` → colon-bearing key | bracket or use a non-colon separator; **keep raw IP out of low-cardinality metric labels** (invariant #8) |
 | `src/webdav/macaroon_endpoint.c:416` | Location URL from client `Host:` without IPv6 validation/bracketing | normalize/bracket |
 | `src/s3/auth_sigv4_verify.c:312` | SigV4 canonical request uses raw `Host`; `::1` vs expanded forms break the signature | defensive Host normalization (largely client responsibility — document) |

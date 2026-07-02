@@ -144,7 +144,7 @@ exists here.
   consumes the UDP XrdMon feed will not receive it. This is the one item where
   the gap is a deliberate product decision, not an incomplete implementation.
 - **Alternative:** yes, and it is the recommended path — Prometheus pull metrics
-  (`src/metrics/`), WLCG SRR (`src/srr/`), the live dashboard (`src/dashboard/`),
+  (`src/observability/metrics/`), WLCG SRR (`src/srr/`), the live dashboard (`src/observability/dashboard/`),
   and structured access logs. Per-file/per-user/per-redirect/per-TPC event
   granularity that XrdMon emits over UDP is **not** reproduced; aggregate
   counters and histograms are.
@@ -192,7 +192,7 @@ exists here.
 - **Why it matters / impact:** the `XrdDig` remote-diagnostics mechanism has a
   fail-closed HTTP equivalent. Surface differs (HTTP path vs `XrdDigFS`), but the
   capability is present.
-- **Alternative:** also the HTTP dashboard/admin API (`src/dashboard/`) and nginx
+- **Alternative:** also the HTTP dashboard/admin API (`src/observability/dashboard/`) and nginx
   logs.
 
 ### ZIP virtual filesystem (`XrdZip`) — partial; replica/memory caches (`XrdRmc`, `XrdFrc`)
@@ -293,12 +293,12 @@ beyond "same protocol, different daemon." Each is source-grounded.
 | **S3-compatible REST server** | `src/s3/` (`handler.c`, `auth_sigv4_*`, `get.c`, `put.c`, `list_objects_v2.c`, `multipart_*`, `copy.c`, `delete_objects.c`, browser POST) | A full S3 server endpoint over the same namespace: SigV4 (header + presigned), multipart, CopyObject, DeleteObjects, POST Object, OPTIONS/CORS, conditional GET/PUT, CRC64NVME checksums. Upstream ships `XrdClS3` (a **client** plugin), not an S3 REST server. One of the strongest module-only features. |
 | **Traffic mirroring / shadow replay** | `src/net/mirror/`, `src/net/mirror/stream_wmirror.c` | Shadow live reads and (gated) writes to an isolated backend to validate a candidate before cutover, logging divergence. No comparable upstream server subsystem found. A first-class migration tool. |
 | **Inline compression** | `src/core/compat/codec_{zlib,zstd,brotli,bzip2,lz4,lzma}.c`, `codec_core.c`, `http_compress.c` | gzip/xz/zstd/brotli/bzip2/lz4 across root/WebDAV/S3 and the client, in all four directions (encode/decode on read/write). |
-| **Prometheus pull metrics** | `src/metrics/`, `/metrics` endpoint | Low-cardinality counters and latency histograms across stream/WebDAV/S3/rate-limit/cache/FRM/mirror/cluster — the intended replacement for UDP XrdMon. |
-| **Leaky-bucket rate / bandwidth / concurrency limiting** | `src/net/ratelimit/`, `src/metrics/ratelimit.c` | Identity-aware (VO, issuer, DN hash, IP, volume prefix) request-rate, bandwidth, and concurrency shaping across **both** stream and HTTP surfaces — broader and more uniform than per-plugin `XrdThrottle`/`XrdBwm`. |
-| **REST admin + live dashboard** | `src/dashboard/` (`api_admin.c`, `api.c`) | HTTP-inspectable transfer/cluster/cache/rate-limit/config state; admin write API with auth/cookie/HMAC paths; config download with fail-closed redaction. |
+| **Prometheus pull metrics** | `src/observability/metrics/`, `/metrics` endpoint | Low-cardinality counters and latency histograms across stream/WebDAV/S3/rate-limit/cache/FRM/mirror/cluster — the intended replacement for UDP XrdMon. |
+| **Leaky-bucket rate / bandwidth / concurrency limiting** | `src/net/ratelimit/`, `src/observability/metrics/ratelimit.c` | Identity-aware (VO, issuer, DN hash, IP, volume prefix) request-rate, bandwidth, and concurrency shaping across **both** stream and HTTP surfaces — broader and more uniform than per-plugin `XrdThrottle`/`XrdBwm`. |
+| **REST admin + live dashboard** | `src/observability/dashboard/` (`api_admin.c`, `api.c`) | HTTP-inspectable transfer/cluster/cache/rate-limit/config state; admin write API with auth/cookie/HMAC paths; config download with fail-closed redaction. |
 | **WLCG Storage Resource Reporting (SRR)** | `src/srr/` (`builder.c`, `handler.c`, `module.c`) | First-class HTTP/JSON SRR endpoint for site accounting/discovery; no core upstream server equivalent in the reviewed tree. |
 | **Resilient pure-C native client suite + FUSE** | `client/apps/` (`xrdcp`, `xrdfs`, `xrddiag`, `xrdmapc`, `xrdprep`, `xrdgsiproxy`, `xrdadler32`, `xrdcrc32c`, `xrdcrc64`, `xrdsssadmin`, …), `client/lib/`, `xrootdfs*` FUSE | A clean-room `libxrdc`-based client + FUSE driver with connect-vs-IO timeouts, fast-fail on permanent errors, IPv6→IPv4 auto-downgrade, atomic/cancellable transfers. Independent of `libXrdCl`. (Server-replacement scope aside, this is a genuine module-family extra.) |
-| **HTTP-based SciTags packet marking** | `src/pmark/` (`firefly.c`, `flowlabel.c`, `scitag.c`, `mapping.c`) | Firefly UDP + IPv6 flow-label packet marking integrated with WebDAV/TPC; an HTTP-native marking path rather than a separate daemon. (Upstream also has `XrdNetPMark`; the surfaces differ.) |
+| **HTTP-based SciTags packet marking** | `src/observability/pmark/` (`firefly.c`, `flowlabel.c`, `scitag.c`, `mapping.c`) | Firefly UDP + IPv6 flow-label packet marking integrated with WebDAV/TPC; an HTTP-native marking path rather than a separate daemon. (Upstream also has `XrdNetPMark`; the surfaces differ.) |
 | **Unified multi-protocol namespace under nginx** | shared `src/path/` + `src/read/` + `src/webdav/` + `src/s3/` | One export serves `root://`, `davs://`/XrdHttp, and S3 with **common confinement and policy rules** and one set of nginx operational tooling (certs, reload, logging, reverse proxy). |
 | **WebDAV beyond upstream XrdHttp's method set** | `src/webdav/lock.c`, `dead_props.c`, `search.c`, `acl.c`, `methods_basic.c` | `LOCK`/`UNLOCK`, `PROPPATCH` + dead-property storage (xattrs), `SEARCH` (RFC 5323), `ACL` discovery — needed by desktop WebDAV clients that treat `501` as fatal. Not found as server methods in the reviewed XrdHttp source. |
 | **Hardened HTTP-TPC** | `src/webdav/tpc_curl.c`, `tpc_cred.c`, `tpc_marker.c`, `tpc_headers.c` | SSRF/DNS-pinning controls, OIDC/RFC-8693 credential delegation, marker streaming, `curl_multi` multistream, dashboard visibility, low-cardinality metrics. Upstream **also** has HTTP-TPC (`XrdHttpTpc`); nginx's edge is hardening + integration, **not** the existence of HTTP-TPC. |
@@ -457,8 +457,8 @@ nginx-xrootd (`src/` and `client/`):
   `src/core/compat/namespace_ops.c`, `src/fs/cache/origin_protocol.c`
 - FRM/tape: `src/frm/`, `src/query/prepare.c`, `src/webdav/tape_rest.c`
 - HTTP/WebDAV/S3: `src/webdav/`, `src/s3/`
-- Extras: `src/net/mirror/`, `src/metrics/`, `src/net/ratelimit/`, `src/dashboard/`,
-  `src/srr/`, `src/pmark/`, `src/core/compat/codec_*.c`, `src/core/compat/http_compress.c`
+- Extras: `src/net/mirror/`, `src/observability/metrics/`, `src/net/ratelimit/`, `src/observability/dashboard/`,
+  `src/srr/`, `src/observability/pmark/`, `src/core/compat/codec_*.c`, `src/core/compat/http_compress.c`
 - Client suite: `client/apps/`, `client/lib/`, `client/lib/sigver.c`
 - Conformance fixes: `src/read/stat.c`, `src/dirlist/handler.c`,
   `src/auth/authz/find_rule.c`, `xrootd_stat_flags_from_stat`,

@@ -392,10 +392,10 @@ and is preferred unless per-location granularity is required.
 
 ### Step F — Protocol metrics for HTTP/3
 
-**Files**: `src/metrics/unified.h`, `src/metrics/webdav.c`, `src/metrics/s3.c`,
-`src/metrics/writer.c` (Prometheus export), `src/webdav/access.c`, `src/s3/metrics.c`
+**Files**: `src/observability/metrics/unified.h`, `src/observability/metrics/webdav.c`, `src/observability/metrics/s3.c`,
+`src/observability/metrics/writer.c` (Prometheus export), `src/webdav/access.c`, `src/s3/metrics.c`
 
-1. **`src/metrics/unified.h`** — add H3 to the protocol enum:
+1. **`src/observability/metrics/unified.h`** — add H3 to the protocol enum:
    ```c
    typedef enum {
        XROOTD_PROTO_STREAM = 0,
@@ -405,7 +405,7 @@ and is preferred unless per-location granularity is required.
        XROOTD_PROTO_COUNT  = 4
    } xrootd_proto_t;
    ```
-   Update `xrootd_metric_proto_name()` in `src/metrics/unified.c` to return `"h3"` for
+   Update `xrootd_metric_proto_name()` in `src/observability/metrics/unified.c` to return `"h3"` for
    the new slot.
 
 2. **`src/webdav/access.c`** — detect HTTP/3 and route to H3 protocol counter:
@@ -416,7 +416,7 @@ and is preferred unless per-location granularity is required.
    webdav_metrics_request_proto(r, proto);
    ```
 
-3. **`src/metrics/webdav.c`** — add byte counters:
+3. **`src/observability/metrics/webdav.c`** — add byte counters:
    ```c
    /* Existing: bytes_rx_ipv4_total, bytes_rx_ipv6_total, bytes_tx_ipv4_total, bytes_tx_ipv6_total */
    /* New: */
@@ -426,7 +426,7 @@ and is preferred unless per-location granularity is required.
    ```
    Increment in `access.c` on request entry and in `metrics_return()` on completion.
 
-4. **`src/metrics/writer.c`** — export new labels in Prometheus format:
+4. **`src/observability/metrics/writer.c`** — export new labels in Prometheus format:
    ```
    xrootd_webdav_bytes_received_total{proto="h3"} <N>
    xrootd_webdav_bytes_sent_total{proto="h3"} <N>

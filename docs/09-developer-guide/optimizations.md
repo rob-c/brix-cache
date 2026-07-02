@@ -358,7 +358,7 @@ Start here when tracing a performance change:
 - `src/write/*.c` - native write/pgwrite implementations
 - `src/webdav/*.c` - WebDAV GET/PUT/auth/path optimizations
 - `src/auth/token/*.c` - local token verification
-- `src/metrics/*.c` - shared-memory counters
+- `src/observability/metrics/*.c` - shared-memory counters
 
 Useful tests:
 

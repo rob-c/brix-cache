@@ -18,7 +18,7 @@
 #include "scan_engine.h"
 #include "scan_record.h"
 
-#include "dashboard/dashboard_http.h"
+#include "observability/dashboard/dashboard_http.h"
 #include "fs/path/beneath.h"
 #include "core/compat/http_headers.h"   /* xrootd_http_source_offer (AGPL sec.13) */
 #include "protocol/opcodes.h"

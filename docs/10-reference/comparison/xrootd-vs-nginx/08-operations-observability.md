@@ -28,7 +28,7 @@ design decision** by the maintainer, is the monitoring *paradigm*:
 
 This is called out explicitly in the module's own source: `src/srr/README.md`
 states the project intentionally replaces XRootD UDP f/g-stream monitoring with
-HTTP/JSON pull, and `src/metrics/README.md` documents the Prometheus exporter as
+HTTP/JSON pull, and `src/observability/metrics/README.md` documents the Prometheus exporter as
 "the single observability spine." It is also recorded as a product decision in
 [`docs/10-reference/source-verified-xrootd-comparison.md`](../../source-verified-xrootd-comparison.md)
 (Observability section: "UDP XrdMon stream monitoring … Not implemented.
@@ -88,31 +88,31 @@ nginx-xrootd is a single nginx process tree (master + workers) configured from
 is consolidated into one shared-memory metrics spine plus several HTTP
 endpoints:
 
-- **Metrics:** `src/metrics/` — one SHM object (`ngx_xrootd_metrics_t`) written
+- **Metrics:** `src/observability/metrics/` — one SHM object (`ngx_xrootd_metrics_t`) written
   lock-free by every protocol via increment macros (`metrics_macros.h`) and read
   back as Prometheus text by `ngx_http_xrootd_metrics_handler()`
   (`handler.c`), with per-protocol exporters in `stream.c`, `webdav.c`,
   `s3.c`, `cluster.c`, `unified.c`, `ratelimit.c`, `stream_proxy.c`,
   `stream_cache.c`, `stream_tracking.c`, `writer.c`. The `xrootd_metrics`
   location directive is declared in `module.c`; the conventional listener is
-  `:9100` (`src/metrics/README.md`).
-- **Dashboard / admin:** `src/dashboard/` — a REST read API
+  `:9100` (`src/observability/metrics/README.md`).
+- **Dashboard / admin:** `src/observability/dashboard/` — a REST read API
   (`/xrootd/api/v1/transfers|events|history|cluster|cache|ratelimit|config`),
   an anonymous PII-free tier, a fail-closed config-download endpoint
   (`config_download.c`), and a CIDR+secret-gated admin write API
   (`api_admin.c`).
-- **SciTags:** `src/pmark/` — both **Firefly UDP** (`firefly.c`, port 10514,
+- **SciTags:** `src/observability/pmark/` — both **Firefly UDP** (`firefly.c`, port 10514,
   byte-compatible with `XrdNetPMarkFF`) and in-band **IPv6 flow-label** marking
   (`flowlabel.c`, WLCG flow-label bit layout). Integrated into `root://`,
   WebDAV, S3, and TPC.
 - **SRR:** `src/srr/` — an HTTP/JSON WLCG `storageservice` endpoint
   (`builder.c` + `handler.c`), conventionally served at
   `/.well-known/wlcg-storage-resource-reporting`.
-- **Logging:** `src/metrics/access_log.c` emits a per-op JSON access log; nginx's
+- **Logging:** `src/observability/metrics/access_log.c` emits a per-op JSON access log; nginx's
   own error log carries diagnostics; `xrootd_sanitize_log_string()`
   (declared `src/fs/path/path.h`) escapes wire-derived strings to defeat log
   injection.
-- **Health & packaging:** `src/metrics/health.c` serves `/healthz`;
+- **Health & packaging:** `src/observability/metrics/health.c` serves `/healthz`;
   `packaging/rpm/nginx-mod-xrootd.spec` builds three RPMs; `contrib/` ships a
   Grafana dashboard, Prometheus alert rules, a logrotate snippet, and an example
   config.
@@ -267,7 +267,7 @@ The increment macros define the metric families:
 - `XROOTD_PROXY_METRIC_INC/_ADD` (+ bound-checked per-upstream `XROOTD_PROXY_UP_INC`)
 - `XROOTD_PMARK_METRIC_INC`, `XROOTD_RESIL_METRIC_INC`, `XROOTD_FRM_METRIC_INC/_DEC/_ADD`
 
-Representative exposed metric names (grepped from `src/metrics/*.c`):
+Representative exposed metric names (grepped from `src/observability/metrics/*.c`):
 
 | Group | Example metric names |
 |---|---|
@@ -281,7 +281,7 @@ Representative exposed metric names (grepped from `src/metrics/*.c`):
 | FRM (tape) | `xrootd_frm_stage_success_total`, `xrootd_frm_stage_fail_total`, `xrootd_frm_reject_inflight_total` |
 
 **Low-cardinality label rule (security boundary, enforced).**
-`src/metrics/README.md` and CLAUDE.md invariant #8 mandate that label values are
+`src/observability/metrics/README.md` and CLAUDE.md invariant #8 mandate that label values are
 low-cardinality enums only: paths, bucket names, object keys, DNs, token
 subjects, and S3 access keys must never appear as labels. Per-VO / per-user views
 are made safe with bounded LRU tables and FNV-1a hashing
@@ -289,7 +289,7 @@ are made safe with bounded LRU tables and FNV-1a hashing
 `tracking.c`). Free-form identity goes to the JSON access log instead (see
 Logging).
 
-**Dashboard / admin REST API** (`src/dashboard/`) complements the scrape with a
+**Dashboard / admin REST API** (`src/observability/dashboard/`) complements the scrape with a
 live operator view:
 
 - Read API: `/xrootd/api/v1/transfers`, `/events`, `/history`, `/cluster`,
@@ -335,7 +335,7 @@ implementations encode the same `(experiment, activity)` and are fail-open
   GET/PUT, and HTTP-TPC (`XrdHttpTpcPMarkManager.cc`, one Firefly handle per
   stream).
 
-### nginx-xrootd — `src/pmark/` (Firefly UDP **and** IPv6 flow-label)
+### nginx-xrootd — `src/observability/pmark/` (Firefly UDP **and** IPv6 flow-label)
 
 - **Firefly UDP** (`firefly.c`): RFC5424-syslog-wrapped JSON `start`/`ongoing`/
   `end` docs, default UDP port 10514, byte-compatible with `XrdNetPMarkFF`.
@@ -412,7 +412,7 @@ generator and serves the file out of band; an nginx-xrootd operator turns on
 
 ### nginx-xrootd
 
-- **JSON access log** (`src/metrics/access_log.c`, `access_log.h`):
+- **JSON access log** (`src/observability/metrics/access_log.c`, `access_log.h`):
   `xrootd_access_log_emit()` writes one JSON record per VFS op — timestamp,
   protocol, op, path, bytes, offset, latency, error, cache-hit, auth method,
   subject/DN — via `ngx_log_error(NGX_LOG_INFO)` prefixed `xrootd_access_json:`.
@@ -423,7 +423,7 @@ generator and serves the file out of band; an nginx-xrootd operator turns on
   `xrootd_webdav_access.log`, `xrootd_s3_access.log`; the `root://` access log is
   configured with `xrootd_access_log` (opened in `src/core/config/runtime_server.c`,
   set `off` to disable). A separate path-layer access log lives in
-  `src/path/access_log.c`. nginx's own `error_log` carries diagnostics/debug.
+  `src/observability/accesslog/access_log.c`. nginx's own `error_log` carries diagnostics/debug.
 - **`xrootd_sanitize_log_string()`** (declared `src/fs/path/path.h`, used across
   `src/auth/authz/acl.c`, `authdb.c`, `resolve_confined_helpers.c`, token validation,
   dirlist, host auth): escapes control bytes, quotes, backslashes, and non-ASCII
@@ -442,7 +442,7 @@ aggregate counts in Prometheus.
 
 | Concern | Official XRootD | nginx-xrootd |
 |---|---|---|
-| Health / readiness probe | **Not in core** — liveness inferred from systemd / UDP feeds; no HTTP probe | `/healthz` (`src/metrics/health.c`, `xrootd_health on;`): `{"status":"ok","service":"nginx-xrootd"}`, `?verbose` adds `metrics_shm`/`worker_pid`/`nginx_version`; wires directly to k8s `livenessProbe` |
+| Health / readiness probe | **Not in core** — liveness inferred from systemd / UDP feeds; no HTTP probe | `/healthz` (`src/observability/metrics/health.c`, `xrootd_health on;`): `{"status":"ok","service":"nginx-xrootd"}`, `?verbose` adds `metrics_shm`/`worker_pid`/`nginx_version`; wires directly to k8s `livenessProbe` |
 | RPM packaging | `xrootd.spec` — many sub-packages (`xrootd-server`, `-libs`, `-client`, `-scitokens`, `-fuse`, `python3-xrootd`, …) | `packaging/rpm/nginx-mod-xrootd.spec` — **3 packages**: `nginx-mod-xrootd` (dynamic modules), `nginx-xrootd-client` (native xrdcp/xrdfs/xrootdfs), `nginx-xrootd-tests` (conformance suite) |
 | Service management | systemd templated units `xrootd@.service`, `cmsd@.service`, `frm_*@.service` + `.socket` units, `EnvironmentFile=/etc/sysconfig/xrootd` | standard nginx service (master/worker); `nginx -s reload` for graceful change |
 | Logrotate | `config/xrootd.logrotate` (cooperates with logger FIFO) | `contrib/logrotate.d/nginx-xrootd` |
@@ -495,7 +495,7 @@ reload`. Request units are stored ×1000; `req_excess` is the bucket.
     client retry (`ratelimit_stream.c`: rate, bandwidth, and concurrency-cap
     paths).
 - Snapshots are exposed to the dashboard (`xrootd_rl_snapshot`) and counters to
-  Prometheus (`src/metrics/ratelimit.c`).
+  Prometheus (`src/observability/metrics/ratelimit.c`).
 
 **Net difference:** XRootD shapes per-server (throttle/BWM plugins);
 nginx-xrootd shapes by *identity* (VO/issuer/DN/IP/volume) uniformly across
@@ -513,7 +513,7 @@ nginx-xrootd shapes by *identity* (VO/issuer/DN/IP/volume) uniformly across
 | Aggregate metrics | `xrd.report` XML/JSON (UDP push) | Prometheus `/metrics` (HTTP pull) | Paradigm difference (deliberate) |
 | Generic monitoring channel | g-stream (pluggable providers) | metric families per subsystem | Different model |
 | External collector required | Yes (shoveler / MonaLisa) | No (Prometheus scrapes directly) | nginx-xrootd simpler ops |
-| Live operator dashboard | external | built-in REST + UI (`src/dashboard/`) | nginx-xrootd advantage |
+| Live operator dashboard | external | built-in REST + UI (`src/observability/dashboard/`) | nginx-xrootd advantage |
 | Admin write API | admin tooling / `xrootd.admin` socket | `/api/v1/admin` (CIDR+secret, audited) | Different surface |
 | SciTags Firefly UDP | Yes (`XrdNetPMarkFF`) | Yes (`firefly.c`, byte-compatible) | Parity |
 | SciTags IPv6 flow-label | **TODO (not implemented)** | **Implemented** (`flowlabel.c`) | nginx-xrootd advantage |
@@ -562,14 +562,14 @@ nginx-xrootd shapes by *identity* (VO/issuer/DN/IP/volume) uniformly across
 
 | Area | Files |
 |---|---|
-| Metrics / Prometheus | `src/metrics/{handler,stream,writer,unified,webdav,s3,cluster,tracking,stream_proxy,stream_cache,config,module,access_log,health}.c`, `metrics_macros.h`, `metrics.h`, `metrics_internal.h`, `README.md` |
-| Dashboard / admin | `src/dashboard/{module,api,api_admin,config,config_download,auth,events,history,transfer_table,page}.c`, `README.md` |
+| Metrics / Prometheus | `src/observability/metrics/{handler,stream,writer,unified,webdav,s3,cluster,tracking,stream_proxy,stream_cache,config,module,access_log,health}.c`, `metrics_macros.h`, `metrics.h`, `metrics_internal.h`, `README.md` |
+| Dashboard / admin | `src/observability/dashboard/{module,api,api_admin,config,config_download,auth,events,history,transfer_table,page}.c`, `README.md` |
 | Config model | `src/core/config/{process,server_conf,postconfiguration,runtime_server}.c`, `merge_macros.h`; directives in `src/stream/module.c`, `module_core_directives.c`, `module_cache_proxy_directives.c`, `src/webdav/module.c`, `src/s3/module.c` |
-| SciTags / PMark | `src/pmark/{firefly,flowlabel,scitag,mapping,config,defsfile,sockstats}.c`, `pmark.h`, `README.md` |
+| SciTags / PMark | `src/observability/pmark/{firefly,flowlabel,scitag,mapping,config,defsfile,sockstats}.c`, `pmark.h`, `README.md` |
 | SRR | `src/srr/{builder,handler,module}.c`, `srr.h`, `README.md` |
-| Logging / sanitize | `src/metrics/access_log.{c,h}`, `src/path/access_log.c`, `src/fs/path/path.h` (`xrootd_sanitize_log_string` decl) + `src/path/{acl,authdb,helpers,resolve_confined_helpers}.c` (uses) |
-| Health | `src/metrics/health.c` |
-| Rate limiting | `src/net/ratelimit/{ratelimit,ratelimit_keys,ratelimit_zone,ratelimit_http,ratelimit_stream}.c`, `ratelimit.h`, `README.md`; `src/metrics/ratelimit.c` |
+| Logging / sanitize | `src/observability/metrics/access_log.{c,h}`, `src/observability/accesslog/access_log.c`, `src/fs/path/path.h` (`xrootd_sanitize_log_string` decl) + `src/path/{acl,authdb,helpers,resolve_confined_helpers}.c` (uses) |
+| Health | `src/observability/metrics/health.c` |
+| Rate limiting | `src/net/ratelimit/{ratelimit,ratelimit_keys,ratelimit_zone,ratelimit_http,ratelimit_stream}.c`, `ratelimit.h`, `README.md`; `src/observability/metrics/ratelimit.c` |
 | Packaging / ops | `packaging/rpm/nginx-mod-xrootd.spec`; `contrib/{grafana-dashboard.json,prometheus-alerts.yml,logrotate.d/nginx-xrootd,xrootd.conf.example}`; `docs/09-developer-guide/testing-runbook.md` |
 
 ### Companion docs

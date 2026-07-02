@@ -9,7 +9,7 @@
 #include "fs/path/beneath.h"
 #include "fs/path/path.h"           /* xrootd_sanitize_log_string (WS6) */
 #include "core/compat/net_target.h"   /* xrootd_net_host_chars_valid (WS6) */
-#include "metrics/metrics_macros.h"   /* Phase 51 (A1): resilience counters */
+#include "observability/metrics/metrics_macros.h"   /* Phase 51 (A1): resilience counters */
 
 #include <errno.h>
 #include <unistd.h>

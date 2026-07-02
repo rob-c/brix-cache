@@ -23,8 +23,8 @@
  */
 
 #include "pmark.h"
-#include "metrics/metrics.h"
-#include "metrics/metrics_macros.h"
+#include "observability/metrics/metrics.h"
+#include "observability/metrics/metrics_macros.h"
 #include "core/compat/log_diag.h"
 
 #if defined(__linux__)

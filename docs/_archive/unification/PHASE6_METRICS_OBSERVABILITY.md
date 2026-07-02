@@ -17,9 +17,9 @@ Currently metrics are siloed:
 
 | Metric | Stream | WebDAV | S3 |
 |:---|:---|:---|:---|
-| Bytes sent | `src/metrics/stream.c` | `src/metrics/webdav.c` | `src/metrics/s3.c` |
-| Request count | `src/metrics/stream.c` | `src/metrics/webdav.c` | `src/metrics/s3.c` |
-| Cache hits | `src/metrics/stream_cache.c` | Not recorded | Not recorded |
+| Bytes sent | `src/observability/metrics/stream.c` | `src/observability/metrics/webdav.c` | `src/observability/metrics/s3.c` |
+| Request count | `src/observability/metrics/stream.c` | `src/observability/metrics/webdav.c` | `src/observability/metrics/s3.c` |
+| Cache hits | `src/observability/metrics/stream_cache.c` | Not recorded | Not recorded |
 | TPC bytes | Not recorded | `src/webdav/metrics.c` (partial) | N/A |
 | Auth method | Not recorded | Not recorded | Not recorded |
 
@@ -32,7 +32,7 @@ After Phase 6:
 
 ## Current State Analysis
 
-### Existing Metric Infrastructure (`src/metrics/`)
+### Existing Metric Infrastructure (`src/observability/metrics/`)
 
 | File | Purpose |
 |:---|:---|
@@ -67,9 +67,9 @@ XROOTD_METRIC_S3_GET_OBJECTS,
 
 A single Prometheus query cannot sum read throughput across all protocols without manual label juggling.
 
-### Dashboard (`src/dashboard/`)
+### Dashboard (`src/observability/dashboard/`)
 
-`src/dashboard/transfer_table.c` tracks in-progress stream transfers. HTTP transfers (`src/dashboard/http_tracking.c`) use a separate table. S3 has no dashboard integration.
+`src/observability/dashboard/transfer_table.c` tracks in-progress stream transfers. HTTP transfers (`src/observability/dashboard/http_tracking.c`) use a separate table. S3 has no dashboard integration.
 
 ---
 
@@ -112,7 +112,7 @@ xrootd_io_ops_total{proto="stream", op="write"}
 
 Maximum label combinations: 3 proto × 7 ops = 21 time series (vs the current unbounded approach).
 
-### Implementation: `src/metrics/unified.h`
+### Implementation: `src/observability/metrics/unified.h`
 
 ```c
 #ifndef XROOTD_METRICS_UNIFIED_H
@@ -186,7 +186,7 @@ void xrootd_metric_tpc(xrootd_proto_t proto,
 #endif /* XROOTD_METRICS_UNIFIED_H */
 ```
 
-### Implementation: `src/metrics/unified.c`
+### Implementation: `src/observability/metrics/unified.c`
 
 Implements the four functions above. Each translates its typed arguments into the appropriate slot index in the existing per-worker metric array and calls `xrootd_metric_inc()` / `xrootd_metric_add()` (existing internal API). No new SHM or atomic operations needed — the existing per-worker aggregation mechanism is reused.
 
@@ -277,24 +277,24 @@ void xrootd_access_log_emit(const xrootd_vfs_ctx_t *ctx,
                              xrootd_err_class_t err);
 ```
 
-`src/metrics/access_log.c` (new file) implements this function. It formats the JSON line and writes to the configured log file via `ngx_log_error()` with a dedicated log channel.
+`src/observability/metrics/access_log.c` (new file) implements this function. It formats the JSON line and writes to the configured log file via `ngx_log_error()` with a dedicated log channel.
 
 ---
 
 ## Dashboard Unification
 
-`src/dashboard/` currently has two transfer tables: `transfer_table.c` (stream) and `http_tracking.c` (WebDAV). Phase 5 added the TPC registry. Phase 6 consolidates:
+`src/observability/dashboard/` currently has two transfer tables: `transfer_table.c` (stream) and `http_tracking.c` (WebDAV). Phase 5 added the TPC registry. Phase 6 consolidates:
 
 ### Single Dashboard Transfer Table
 
-`src/dashboard/transfer_table.c` is extended to hold entries from all protocols. Each entry gains a `protocol` field matching `xrootd_proto_t`. The dashboard HTML page (`src/dashboard/page.c`) renders a single table with a "Protocol" column.
+`src/observability/dashboard/transfer_table.c` is extended to hold entries from all protocols. Each entry gains a `protocol` field matching `xrootd_proto_t`. The dashboard HTML page (`src/observability/dashboard/page.c`) renders a single table with a "Protocol" column.
 
-`src/dashboard/http_tracking.c` is refactored to call the unified `transfer_table.c` instead of maintaining its own list.
+`src/observability/dashboard/http_tracking.c` is refactored to call the unified `transfer_table.c` instead of maintaining its own list.
 
 ### Dashboard API Changes
 
 ```c
-// Extended entry type (src/dashboard/dashboard_tracking.h):
+// Extended entry type (src/observability/dashboard/dashboard_tracking.h):
 typedef struct {
     uint64_t         id;
     xrootd_proto_t   protocol;         // NEW
@@ -327,27 +327,27 @@ Removal of legacy slots is a follow-up PR after consumers (Grafana dashboards, a
 ### New files
 | File | Purpose |
 |:---|:---|
-| `src/metrics/unified.h` | Op-centric metric API |
-| `src/metrics/unified.c` | Implementation of unified metric helpers |
-| `src/metrics/access_log.c` | JSON-Lines structured access log emitter |
-| `src/metrics/access_log.h` | Public header |
+| `src/observability/metrics/unified.h` | Op-centric metric API |
+| `src/observability/metrics/unified.c` | Implementation of unified metric helpers |
+| `src/observability/metrics/access_log.c` | JSON-Lines structured access log emitter |
+| `src/observability/metrics/access_log.h` | Public header |
 
 ### Modified files
 | File | Change |
 |:---|:---|
-| `src/metrics/metrics.h` | Add new op-centric slot enum entries |
-| `src/metrics/writer.c` | Emit new labeled metrics; keep legacy slots with deprecation comments |
-| `src/metrics/stream.c` | Replace direct slot writes with `xrootd_metric_op_done()` calls |
-| `src/metrics/webdav.c` | Replace direct slot writes with `xrootd_metric_op_done()` calls |
-| `src/metrics/s3.c` | Replace direct slot writes with `xrootd_metric_op_done()` calls |
-| `src/metrics/stream_cache.c` | Replace with `xrootd_metric_cache_result()` calls |
+| `src/observability/metrics/metrics.h` | Add new op-centric slot enum entries |
+| `src/observability/metrics/writer.c` | Emit new labeled metrics; keep legacy slots with deprecation comments |
+| `src/observability/metrics/stream.c` | Replace direct slot writes with `xrootd_metric_op_done()` calls |
+| `src/observability/metrics/webdav.c` | Replace direct slot writes with `xrootd_metric_op_done()` calls |
+| `src/observability/metrics/s3.c` | Replace direct slot writes with `xrootd_metric_op_done()` calls |
+| `src/observability/metrics/stream_cache.c` | Replace with `xrootd_metric_cache_result()` calls |
 | `src/fs/vfs_read.c` | Call `xrootd_metric_op_done()` + `xrootd_access_log_emit()` |
 | `src/fs/vfs_write.c` | Call `xrootd_metric_op_done()` + `xrootd_access_log_emit()` |
 | `src/fs/vfs_stat.c` | Call `xrootd_metric_op_done()` |
-| `src/dashboard/transfer_table.c` | Add `protocol` and `auth_subject` fields |
-| `src/dashboard/http_tracking.c` | Delegate to unified `transfer_table.c` |
-| `src/dashboard/page.c` | Render "Protocol" column; show auth subject |
-| `src/core/config/config.h` | Add `src/metrics/unified.c`, `src/metrics/access_log.c` to `NGX_ADDON_SRCS` |
+| `src/observability/dashboard/transfer_table.c` | Add `protocol` and `auth_subject` fields |
+| `src/observability/dashboard/http_tracking.c` | Delegate to unified `transfer_table.c` |
+| `src/observability/dashboard/page.c` | Render "Protocol" column; show auth subject |
+| `src/core/config/config.h` | Add `src/observability/metrics/unified.c`, `src/observability/metrics/access_log.c` to `NGX_ADDON_SRCS` |
 
 ---
 
@@ -412,7 +412,7 @@ sum by (method) (xrootd_auth_total{status="ok"})
 
 ## Completion Criteria
 
-- [ ] `src/metrics/unified.h` and `unified.c` exist with four public functions
+- [ ] `src/observability/metrics/unified.h` and `unified.c` exist with four public functions
 - [ ] All protocol metric files call unified API — no direct slot writes
 - [ ] VFS layer emits metrics for every op (read, write, stat, delete, mkdir, rename)
 - [ ] `/metrics` output contains new op-centric metrics with `proto` labels

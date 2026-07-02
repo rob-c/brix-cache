@@ -9,17 +9,17 @@ logic.
 
 ## Current Baseline
 
-The dashboard today is a small HTTP module under `src/dashboard/`:
+The dashboard today is a small HTTP module under `src/observability/dashboard/`:
 
 | Area | Current implementation |
 |---|---|
-| HTTP routing | `src/dashboard/module.c` routes `/xrootd/`, `/xrootd/login`, and `/xrootd/transfers`. |
-| Auth | `src/dashboard/auth.c` supports one plaintext `xrootd_dashboard_password` and a signed cookie. |
-| Page | `src/dashboard/page.c` embeds a single HTML/JS page that polls every 2 seconds. |
-| JSON | `src/dashboard/api.c` emits active transfer rows and aggregate totals. |
-| Transfer table | `src/dashboard/dashboard.h` and `transfer_table.c` define a fixed 512-slot shared-memory table. |
+| HTTP routing | `src/observability/dashboard/module.c` routes `/xrootd/`, `/xrootd/login`, and `/xrootd/transfers`. |
+| Auth | `src/observability/dashboard/auth.c` supports one plaintext `xrootd_dashboard_password` and a signed cookie. |
+| Page | `src/observability/dashboard/page.c` embeds a single HTML/JS page that polls every 2 seconds. |
+| JSON | `src/observability/dashboard/api.c` emits active transfer rows and aggregate totals. |
+| Transfer table | `src/observability/dashboard/dashboard.h` and `transfer_table.c` define a fixed 512-slot shared-memory table. |
 | Native tracking | `src/read/open_resolved_file.c`, `src/read/read.c`, `src/write/write.c`, `src/read/close.c`, and `src/connection/disconnect.c` allocate, update, and free slots for native XRootD file handles. |
-| Metrics source | `src/metrics/metrics.h` stores stream, WebDAV, and S3 counters in `ngx_xrootd_shm_zone`. |
+| Metrics source | `src/observability/metrics/metrics.h` stores stream, WebDAV, and S3 counters in `ngx_xrootd_shm_zone`. |
 
 The current transfer JSON can represent `root`, `webdav`, and `s3`, but only
 native stream file handles are wired into the live slot lifecycle.
@@ -42,19 +42,19 @@ native stream file handles are wired into the live slot lifecycle.
 
 | File | Purpose |
 |---|---|
-| `src/dashboard/dashboard.h` | Add slot fields, event/history structs, helper declarations. |
-| `src/dashboard/transfer_table.c` | Extend alloc/update/free APIs and state/rate helpers. |
-| `src/dashboard/http_tracking.c` | New request-pool cleanup helper for WebDAV/S3/TPC active slots. |
-| `src/dashboard/events.c` | New bounded recent event ring. |
-| `src/dashboard/history.c` | New bounded aggregate history sampler. |
-| `src/dashboard/api.c` | Add versioned snapshot, detail, events, history, cluster, and cache JSON. |
-| `src/dashboard/page.c` | Add filters, detail drawer, summary panels, sparklines, snapshot export, and accessibility improvements. |
-| `src/dashboard/auth.c` | Add configurable cookie path, TTL directive support, users file auth, and audit events. |
-| `src/dashboard/module.c` | Add directives and route new API endpoints. |
+| `src/observability/dashboard/dashboard.h` | Add slot fields, event/history structs, helper declarations. |
+| `src/observability/dashboard/transfer_table.c` | Extend alloc/update/free APIs and state/rate helpers. |
+| `src/observability/dashboard/http_tracking.c` | New request-pool cleanup helper for WebDAV/S3/TPC active slots. |
+| `src/observability/dashboard/events.c` | New bounded recent event ring. |
+| `src/observability/dashboard/history.c` | New bounded aggregate history sampler. |
+| `src/observability/dashboard/api.c` | Add versioned snapshot, detail, events, history, cluster, and cache JSON. |
+| `src/observability/dashboard/page.c` | Add filters, detail drawer, summary panels, sparklines, snapshot export, and accessibility improvements. |
+| `src/observability/dashboard/auth.c` | Add configurable cookie path, TTL directive support, users file auth, and audit events. |
+| `src/observability/dashboard/module.c` | Add directives and route new API endpoints. |
 | `src/webdav/get.c`, `src/webdav/put.c`, `src/webdav/tpc.c`, `src/webdav/tpc_marker.c` | Wire WebDAV and HTTP-TPC transfer slot lifecycle. |
 | `src/s3/object.c`, `src/s3/put.c`, `src/s3/multipart*.c` | Wire S3 transfer slot lifecycle. |
 | `src/net/manager/registry.h`, `src/net/manager/registry.c` | Add safe snapshot/export helper for cluster view. |
-| `src/metrics/stream_cache.c`, `src/metrics/metrics.h` | Reuse cache counters and add minimal WT counters if missing. |
+| `src/observability/metrics/stream_cache.c`, `src/observability/metrics/metrics.h` | Reuse cache counters and add minimal WT counters if missing. |
 | `tests/test_dashboard.py` | New dashboard API, auth, UI JSON, and security tests. |
 | Existing protocol tests | Add protocol-specific dashboard assertions where the data path already exists. |
 
@@ -220,7 +220,7 @@ table.
 
 ### Common HTTP Tracking Helper
 
-Add `src/dashboard/http_tracking.c` with a request-pool cleanup pattern:
+Add `src/observability/dashboard/http_tracking.c` with a request-pool cleanup pattern:
 
 ```c
 typedef struct {
@@ -445,7 +445,7 @@ Make the embedded dashboard usable when many transfers are active.
 
 ### UI Work
 
-Modify `src/dashboard/page.c`:
+Modify `src/observability/dashboard/page.c`:
 
 - Add filter controls for protocol, direction, and state.
 - Add text search across path, identity, client, and transfer ID.
@@ -515,7 +515,7 @@ Show the last bounded set of operationally relevant events on the dashboard.
 
 ### Shared Memory
 
-New `src/dashboard/events.c` and declarations in `dashboard.h`:
+New `src/observability/dashboard/events.c` and declarations in `dashboard.h`:
 
 ```c
 #define XROOTD_DASHBOARD_MAX_EVENTS 512
@@ -547,13 +547,13 @@ on error paths is simpler and acceptable.
 
 Add event calls at these sites:
 
-- `src/dashboard/auth.c`: login success/failure, cookie reject.
+- `src/observability/dashboard/auth.c`: login success/failure, cookie reject.
 - WebDAV auth failures in `src/webdav/auth_cert.c` and `auth_token.c`.
 - S3 SigV4 failure classes in `src/s3/auth.c`.
 - namespace errors in WebDAV/S3/root mutation paths.
 - I/O errors in read/write/PUT/GET/TPC paths.
 - dashboard table full, stale slot cleanup, and JSON truncation in
-  `src/dashboard/api.c` and `transfer_table.c`.
+  `src/observability/dashboard/api.c` and `transfer_table.c`.
 
 Every event message must be sanitized and bounded.
 
@@ -623,7 +623,7 @@ Existing sources:
 - `cache_evictions_total`
 - `cache_evicted_bytes_total`
 - `cache_eviction_errors_total`
-- `src/metrics/stream_cache.c` already computes `statvfs()`
+- `src/observability/metrics/stream_cache.c` already computes `statvfs()`
 
 Implement a dashboard helper that reuses the `statvfs()` logic or moves it into
 a shared helper so metrics export and dashboard JSON do not diverge.
@@ -785,7 +785,7 @@ Expose dashboard cookie lifetime and path without hard-coding `/xrootd`.
 
 ### Directives
 
-Add to `src/dashboard/module.c` and `dashboard_http.h`:
+Add to `src/observability/dashboard/module.c` and `dashboard_http.h`:
 
 ```nginx
 xrootd_dashboard_session_ttl 8h;
@@ -915,7 +915,7 @@ Provide short dashboard sparklines without embedding Prometheus.
 
 ### Shared Memory
 
-Add `src/dashboard/history.c`:
+Add `src/observability/dashboard/history.c`:
 
 ```c
 #define XROOTD_DASHBOARD_HISTORY_BUCKETS 360
@@ -1008,7 +1008,7 @@ Make the embedded dashboard usable for keyboard users and small screens.
 
 ## Routing Changes
 
-Current routing in `src/dashboard/module.c` uses suffix checks. Replace it with
+Current routing in `src/observability/dashboard/module.c` uses suffix checks. Replace it with
 clear prefix/exact matching:
 
 ```c

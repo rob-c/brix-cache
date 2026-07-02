@@ -1167,7 +1167,7 @@ aud_ok), `src/core/types/config.h` (+`token_config`/`token_default_strategy`/
 
 **PR-2 (W1b)** — new: `src/auth/token/subject_map.{c,h}`, `src/auth/token/monitor.{c,h}`;
 modified: `validate.c` (strategy ladder: group/mapping grants), `src/auth/authz/authdb.c`
-(group/user lookup helpers if absent), `src/metrics/` (token authz counters),
+(group/user lookup helpers if absent), `src/observability/metrics/` (token authz counters),
 `./config`. Tests: `tests/test_token_subject_map.py`,
 `tests/fixtures/namemap.json`.
 
@@ -1193,7 +1193,7 @@ Tests: `tests/test_throttle_contract.py`, `tests/fixtures/throttle-users.conf`.
 
 **PR-6 (W3b)** — new: `src/net/ratelimit/reservation.{c,h}`; modified: `src/tpc/
 launch.c` + `src/webdav/tpc.c` (reserve/release), `directives.c` (+reservation
-directives), `src/dashboard/` (queue panel), `./config`. Tests:
+directives), `src/observability/dashboard/` (queue panel), `./config`. Tests:
 `tests/test_reservation.py`.
 
 **Review checklist applied to EVERY PR** (gate before merge): `-Werror` clean ·
@@ -1323,7 +1323,7 @@ enums. No DN/path/subject/bucket reaches a label.
 - Access-log already carries the resolved identity; the mapped username (W1b) is
   what gets logged for a registry-authorized request.
 
-### AA.3 Dashboard (`src/dashboard/`)
+### AA.3 Dashboard (`src/observability/dashboard/`)
 - CSI panel: verify ok/mismatch/notags counters + last-scrub timestamp.
 - Throttle panel: per-user open-files/active-conn table + current IO-load gauge.
 - Reservation panel: queue depth (in/out/xeq) + budget utilization.

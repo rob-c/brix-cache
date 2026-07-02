@@ -6,7 +6,7 @@
 #include "cache_internal.h"
 #include "stage_admit.h"
 #include "evict_internal.h"       /* xrootd_cache_fs_usage_sampled */
-#include "metrics/unified.h"   /* staging-occupancy gauge */
+#include "observability/metrics/unified.h"   /* staging-occupancy gauge */
 
 /*
  * xrootd_wt_stage_admit — sample the write-back staging filesystem and apply the

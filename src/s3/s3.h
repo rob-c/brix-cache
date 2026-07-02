@@ -45,7 +45,7 @@
 
 #include <ngx_thread_pool.h>
 
-#include "metrics/metrics.h"
+#include "observability/metrics/metrics.h"
 #include "core/compat/protocol_caps.h"
 #include "fs/vfs.h"             /* xrootd_vfs_ctx_t for s3_build_vfs_ctx() */
 #include "core/config/shared_conf.h"

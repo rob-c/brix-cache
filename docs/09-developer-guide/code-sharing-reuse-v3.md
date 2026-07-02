@@ -325,9 +325,9 @@ Metrics use **low-cardinality labels only** (INVARIANT #8: no paths/bucket-names
 
 | Protocol | Metric Source | Label Schema | Callsite Pattern |
 |---|---|---|---|
-| Stream | `src/metrics/stream.c` / `writer.c` | proto="root", op=opcode, status=ok/error | `XROOTD_*_METRIC_INC(slot)` at callsite |
+| Stream | `src/observability/metrics/stream.c` / `writer.c` | proto="root", op=opcode, status=ok/error | `XROOTD_*_METRIC_INC(slot)` at callsite |
 | WebDAV | `webdav/` metric helpers | proto="dav", op=HTTP method, status=ok/error | `webdav_metrics_return(status_bytes, proto)` for bytes; request counters via XROOTD_* pattern |
-| S3 | `src/metrics/s3.c` (implied by s3.h metrics enum) | proto="s3", op=HTTP method, status=ok/error | `XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR])` on OOM; bytes via webdav_metrics_return equivalent |
+| S3 | `src/observability/metrics/s3.c` (implied by s3.h metrics enum) | proto="s3", op=HTTP method, status=ok/error | `XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR])` on OOM; bytes via webdav_metrics_return equivalent |
 
 **Shared metric zone:** Prometheus counters shared across all protocols in low-cardinality metrics zone. Labels: proto (root/dav/s3), op (opcode/HTTP method), status (ok/error). No per-file, per-user, or per-bucket label explosion.
 
@@ -339,7 +339,7 @@ metric = [increment at callsite] → [label with proto/op/status] → [export vi
 
 **Barrier reduction:** `XROOTD_*_METRIC_INC(slot)` pattern is universal across protocols — one macro, three call sites. New contributors learn the metric increment pattern once and apply it everywhere.
 
-**Support burden reduction:** Adding a new metric slot requires: (1) enum addition in metrics.h, (2) field in metrics_internal.h, (3) export file in src/metrics/, (4) callsite macro — no per-protocol changes needed.
+**Support burden reduction:** Adding a new metric slot requires: (1) enum addition in metrics.h, (2) field in metrics_internal.h, (3) export file in src/observability/metrics/, (4) callsite macro — no per-protocol changes needed.
 
 ---
 
@@ -385,7 +385,7 @@ Before planning, audit what is already present to avoid duplicating existing doc
 | §7 Disconnect cleanup | `src/connection/disconnect.c` (275 lines) | Has `/* ---- Buffer release ----`, `/* ---- Crypto state release ----`, `/* xrootd_disconnect_update_metrics */`, `/* ---- Log open files ----` separators | Separators exist but are inconsistently named; no `connection/README.md` phase summary |
 | §8 Test infrastructure | `docs/09-developer-guide/testing-runbook.md` (173 lines) | Has test philosophy + security policy | No LOCAL/REMOTE mode explanation, no conftest.py fixture hierarchy, no shared port table |
 | §9 Request context objects | `src/core/types/README.md` (13 lines) | Minimal — file-to-concept table only | No set_ctx/get_module_ctx pattern, no stream vs HTTP context lifecycle comparison |
-| §10 Metrics export pattern | `src/metrics/README.md` (57 lines) | Has usage example | No label schema table, no low-cardinality constraint explanation, no "adding a metric" recipe |
+| §10 Metrics export pattern | `src/observability/metrics/README.md` (57 lines) | Has usage example | No label schema table, no low-cardinality constraint explanation, no "adding a metric" recipe |
 | Capstone | `docs/10-architecture/cross-protocol-unification.md` (397 lines) | Has shared layer description + gap roadmap | v3 patterns (lifecycle phases, auth state layout, fh_map, disconnect phases) not yet synthesized into it |
 
 ---
@@ -404,7 +404,7 @@ Phase 1: Source-adjacent documentation (5 parallel tasks — different files, no
          ├── T3: src/connection/disconnect.c   — standardize phase separators     (1 h)
          │         src/connection/README.md    — three-phase cleanup pattern      (+30 min)
          ├── T4: src/net/proxy/README.md           — fh_map lifecycle expansion       (1.5 h)
-         └── T5: src/metrics/README.md         — label schema + low-cardinality   (1 h)
+         └── T5: src/observability/metrics/README.md         — label schema + low-cardinality   (1 h)
 
 Phase 2: Higher-level developer docs (4 parallel tasks — blocked by Phase 1 for cross-refs)
          ├── T6: docs/09-developer-guide/dev-workflow.md    — lifecycle diagram section  (2 h)
@@ -433,7 +433,7 @@ Phase 3: Capstone architecture doc (blocked by all of Phase 1 + Phase 2)
 | `src/handshake/README.md` | Find the exact end of the dispatch chain diagram to know where to append the cross-protocol comparison section | 54 lines |
 | `src/connection/disconnect.c` | Map existing section separators; find exact line numbers of buffer/crypto/metrics/log phases to standardize | 275 lines |
 | `src/net/proxy/README.md` | Identify the 23 existing lines; plan expansion without repeating the file table | 23 lines |
-| `src/metrics/README.md` | Find where the label schema section should be inserted relative to existing usage example | 57 lines |
+| `src/observability/metrics/README.md` | Find where the label schema section should be inserted relative to existing usage example | 57 lines |
 | `src/response/README.md` | Check whether the 5-step response pattern (§3) is already documented | unknown |
 | `docs/09-developer-guide/dev-workflow.md` | Find the source layout table position to insert lifecycle diagram immediately after | 290 lines |
 | `docs/09-developer-guide/testing-runbook.md` | Find the test philosophy section end — lifecycle diagram inserts before it | 173 lines |
@@ -632,11 +632,11 @@ Each state gate is checked in `events_*.c` before processing read/write events.
 
 ---
 
-#### T5: Label Schema Section in `src/metrics/README.md` (1 h)
+#### T5: Label Schema Section in `src/observability/metrics/README.md` (1 h)
 
 **Goal:** Add a label schema table documenting the `proto/op/status` label set, the low-cardinality constraint (INVARIANT #8), examples of compliant vs non-compliant labels, and the recipe for adding a new metric slot.
 
-**Blocked by:** Phase 0 read of `metrics/README.md` and `src/metrics/metrics_macros.h` (to confirm actual label names used by `XROOTD_*_METRIC_INC`).
+**Blocked by:** Phase 0 read of `metrics/README.md` and `src/observability/metrics/metrics_macros.h` (to confirm actual label names used by `XROOTD_*_METRIC_INC`).
 
 **Content to add:**
 
@@ -675,8 +675,8 @@ xrootd_requests_total{proto="s3", bucket="cms-xrd-global"}              # bucket
 No per-protocol changes needed for metric schema changes — the macro selects the correct shared-memory slot automatically.
 ```
 
-**Files to read first:** `src/metrics/metrics_macros.h`, `src/metrics/metrics.h`, `src/metrics/metrics_internal.h`
-**File modified:** `src/metrics/README.md`
+**Files to read first:** `src/observability/metrics/metrics_macros.h`, `src/observability/metrics/metrics.h`, `src/observability/metrics/metrics_internal.h`
+**File modified:** `src/observability/metrics/README.md`
 **Lines added:** ~45
 **Lines removed:** 0
 
@@ -937,7 +937,7 @@ See `src/core/types/README.md` §Context retrieval patterns.
 
 ### 8. Metric increment
 
-One macro per protocol: `XROOTD_SRV_METRIC_INC(slot)` (stream), `XROOTD_WEBDAV_METRIC_INC(slot)` (WebDAV), `XROOTD_S3_METRIC_INC(slot)` (S3). Labels: proto/op/status — always low-cardinality. See `src/metrics/README.md` §Label schema.
+One macro per protocol: `XROOTD_SRV_METRIC_INC(slot)` (stream), `XROOTD_WEBDAV_METRIC_INC(slot)` (WebDAV), `XROOTD_S3_METRIC_INC(slot)` (S3). Labels: proto/op/status — always low-cardinality. See `src/observability/metrics/README.md` §Label schema.
 ```
 
 **File modified:** `docs/10-architecture/cross-protocol-unification.md`
@@ -955,7 +955,7 @@ One macro per protocol: `XROOTD_SRV_METRIC_INC(slot)` (stream), `XROOTD_WEBDAV_M
 | T2: handshake dispatch comparison | 1 | 1 | Phase 0 | `src/handshake/README.md` | ~28 | 0 | No |
 | T3: disconnect phase separators | 1 | 1.5 | Phase 0 | `src/connection/disconnect.c`, `src/connection/README.md` | ~27 | 0 | **Yes — mandatory** |
 | T4: proxy fh_map expansion | 1 | 1.5 | Phase 0 | `src/net/proxy/README.md` | ~60 | 0 | No |
-| T5: metrics label schema | 1 | 1 | Phase 0 | `src/metrics/README.md` | ~45 | 0 | No |
+| T5: metrics label schema | 1 | 1 | Phase 0 | `src/observability/metrics/README.md` | ~45 | 0 | No |
 | T6: lifecycle diagram in dev-workflow | 2 | 2 | T1, T2 | `docs/09-developer-guide/dev-workflow.md` | ~30 | 0 | No |
 | T7: LOCAL/REMOTE + conftest.py | 2 | 1 | T5, Phase 0 | `docs/09-developer-guide/testing-runbook.md` | ~50 | 0 | No |
 | T8: namespace translation in compat | 2 | 1 | T1, Phase 0 | `src/core/compat/README.md` | ~30 | 0 | No |
@@ -986,7 +986,7 @@ done
 # 3. No forward-references in Phase 1 docs (they must not reference T6–T10 content)
 grep -n "dev-workflow\|testing-runbook\|cross-protocol-unification" \
     src/core/types/context.h src/handshake/README.md src/connection/disconnect.c \
-    src/net/proxy/README.md src/metrics/README.md
+    src/net/proxy/README.md src/observability/metrics/README.md
 
 # 4. Port numbers in T7 testing-runbook match conftest.py actual values
 grep "NGINX.*PORT\|S3_PORT\|METRICS_PORT" tests/conftest.py | head -15

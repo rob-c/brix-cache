@@ -6,7 +6,7 @@
 
 **Architecture:** Both the local cache storage and the remote origin are SD instances (`xrootd_sd_instance_t`); the cache is driver→driver copies. A shared `statvfs`+TTL fullness sampler feeds the reaper (cache_root) and the staging gate (stage_root).
 
-**Tech Stack:** nginx C module, SD driver seam (`src/fs/backend/sd.h`), libcurl (http/s3 transports), `shared/xrdproto` SigV4, nginx event timers, SHM metrics (`src/metrics/unified.c`).
+**Tech Stack:** nginx C module, SD driver seam (`src/fs/backend/sd.h`), libcurl (http/s3 transports), `shared/xrdproto` SigV4, nginx event timers, SHM metrics (`src/observability/metrics/unified.c`).
 
 ## Global Constraints
 
@@ -84,7 +84,7 @@
 ### Task B5: Dedicated Prometheus metrics
 
 **Files:**
-- Modify: `src/metrics/unified.c` + `unified.h` (+ the SHM struct): `cache_usage_ratio` (gauge, set by the timer), `cache_evicted_bytes_total{reason}`, `cache_evicted_files_total{reason}`, `cache_purge_runs_total`.
+- Modify: `src/observability/metrics/unified.c` + `unified.h` (+ the SHM struct): `cache_usage_ratio` (gauge, set by the timer), `cache_evicted_bytes_total{reason}`, `cache_evicted_files_total{reason}`, `cache_purge_runs_total`.
 - Modify: `reap_watermark.c` / `evict_policy.c` to emit them (`reason="watermark"` vs `"fill"`).
 
 - [ ] **Step 1: Failing test.** Scrape `/metrics` after a purge; assert `xrootd_cache_evicted_bytes_total{reason="watermark"} > 0` and `xrootd_cache_usage_ratio` within `[0,1]`.
@@ -140,7 +140,7 @@
 
 ### Task C5: Metrics + docs
 
-**Files:** `src/metrics/unified.c`/`.h`: `wt_stage_usage_ratio` gauge, `wt_stage_throttled_total{action}`; set gauge from the admit sampler. `src/fs/cache/README.md` write-through section.
+**Files:** `src/observability/metrics/unified.c`/`.h`: `wt_stage_usage_ratio` gauge, `wt_stage_throttled_total{action}`; set gauge from the admit sampler. `src/fs/cache/README.md` write-through section.
 
 - [ ] Failing `/metrics` assertion → implement → PASS. Phase-C regression green.
 

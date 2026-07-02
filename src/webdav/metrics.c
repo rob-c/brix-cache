@@ -4,8 +4,8 @@
 
 #include "webdav.h"
 #include "core/compat/http_headers.h"
-#include "metrics/http_common.h"
-#include "metrics/unified.h"
+#include "observability/metrics/http_common.h"
+#include "observability/metrics/unified.h"
 
 static xrootd_metric_op_t
 webdav_unified_op(ngx_uint_t method)

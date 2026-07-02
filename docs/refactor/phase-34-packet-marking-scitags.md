@@ -1,6 +1,6 @@
 # Phase 34 — Packet Marking / SciTags (network flow tagging)
 
-**Status:** ✅ Implemented / as-built reference (source: `src/pmark/`)
+**Status:** ✅ Implemented / as-built reference (source: `src/observability/pmark/`)
 **Author:** design doc retained as implementation rationale and upstream-source audit
 **Scope:** add XRootD-compatible *packet marking* (the SciTags initiative) to nginx-xrootd,
 configurable from `nginx.conf` in the same spirit as XRootD's `pmark` directive. **Both** SciTags
@@ -12,7 +12,7 @@ mandatory, not an optional add-on.
 `/tmp/xrootd-src/src/XrdHttpTpc/XrdHttpTpcPMarkManager.{cc,hh}` (read in full for this plan).
 
 **Current implementation note (2026-06-14):** the plan has landed under
-`src/pmark/`. `firefly.c` emits start/ongoing/end lifecycle datagrams,
+`src/observability/pmark/`. `firefly.c` emits start/ongoing/end lifecycle datagrams,
 `flowlabel.c` applies Linux IPv6 flow labels with a fail-open capability probe,
 and `config.c`/`mapping.c` implement the nginx directives and SciTags mapping
 rules. Keep the sections below as the source-verified rationale, not as a
@@ -221,21 +221,21 @@ needed for the directives themselves — only for the new `.c` files (§6).
 
 ---
 
-## 5. New subsystem layout: `src/pmark/`
+## 5. New subsystem layout: `src/observability/pmark/`
 
 Following the per-subfolder convention (README + WHAT/WHY/HOW headers per file):
 
 | File | Responsibility |
 |---|---|
-| `src/pmark/pmark.h` | public types (`xrootd_pmark_t`, `xrootd_pmark_flow_t`, code constants) + API prototypes |
-| `src/pmark/scitag.c` | flow-id encode/decode (`(exp<<6)\|act`, range checks), `scitag.flow` CGI / `SciTag:` header parse — the analogue of `XrdNetPMark::getEA` |
-| `src/pmark/defsfile.c` | parse the scitags registry JSON (jansson) → experiment/activity name→id maps |
-| `src/pmark/mapping.c` | `getCodes()` analogue: resolve (exp,act) from scitag → path → VO → default, and activity from user→role→default |
-| `src/pmark/firefly.c` | per-worker UDP socket; build the RFC5424+JSON datagram (template §2.3 verbatim); non-blocking `sendto` to each dest + origin; `flow_begin`/`flow_end`/`flow_echo` |
-| `src/pmark/sockstats.c` | `getsockopt(TCP_INFO)` → bytes/rtt; ISO-8601 UTC timestamp helper |
-| `src/pmark/flowlabel.c` | **REQUIRED**: stamp the 20-bit IPv6 flow label via `setsockopt(IPV6_FLOWLABEL_MGR)` + `IPV6_FLOWINFO_SEND` (inbound) and `sin6_flowinfo` at connect (outbound) — the path XRootD left as `TODO???`; auto no-op on IPv4 / mapped addrs. Full spec in §6.4 |
-| `src/pmark/config.c` | directive setters + merge + worker-init build of `xrootd_pmark_t` |
-| `src/pmark/README.md` | subsystem doc |
+| `src/observability/pmark/pmark.h` | public types (`xrootd_pmark_t`, `xrootd_pmark_flow_t`, code constants) + API prototypes |
+| `src/observability/pmark/scitag.c` | flow-id encode/decode (`(exp<<6)\|act`, range checks), `scitag.flow` CGI / `SciTag:` header parse — the analogue of `XrdNetPMark::getEA` |
+| `src/observability/pmark/defsfile.c` | parse the scitags registry JSON (jansson) → experiment/activity name→id maps |
+| `src/observability/pmark/mapping.c` | `getCodes()` analogue: resolve (exp,act) from scitag → path → VO → default, and activity from user→role→default |
+| `src/observability/pmark/firefly.c` | per-worker UDP socket; build the RFC5424+JSON datagram (template §2.3 verbatim); non-blocking `sendto` to each dest + origin; `flow_begin`/`flow_end`/`flow_echo` |
+| `src/observability/pmark/sockstats.c` | `getsockopt(TCP_INFO)` → bytes/rtt; ISO-8601 UTC timestamp helper |
+| `src/observability/pmark/flowlabel.c` | **REQUIRED**: stamp the 20-bit IPv6 flow label via `setsockopt(IPV6_FLOWLABEL_MGR)` + `IPV6_FLOWINFO_SEND` (inbound) and `sin6_flowinfo` at connect (outbound) — the path XRootD left as `TODO???`; auto no-op on IPv4 / mapped addrs. Full spec in §6.4 |
+| `src/observability/pmark/config.c` | directive setters + merge + worker-init build of `xrootd_pmark_t` |
+| `src/observability/pmark/README.md` | subsystem doc |
 
 All new `.c` files must be registered in the repo-root **`config`** script (`ngx_module_srcs`)
 and a single `./configure --add-module=$REPO && make` run (build governance, CLAUDE.md).
@@ -299,7 +299,7 @@ request/connection
 ### 6.4 IPv6 Flow Label marking — REQUIRED implementation (completes XRootD's `TODO???`)
 
 This is the mechanism XRootD declared (`useFLbl`) but never wrote (`XrdNetPMarkCfg.cc:240-248`).
-`src/pmark/flowlabel.c` MUST implement it for real. It stamps the SciTags flow-id into the
+`src/observability/pmark/flowlabel.c` MUST implement it for real. It stamps the SciTags flow-id into the
 20-bit IPv6 Flow Label of every data packet of a flow, in-band (no collector required), so that
 routers/NRENs can classify traffic without seeing firefly. It is applied to **the same sockets**
 firefly reports on, at the same begin sites (§6.1–6.3), in addition to firefly.
@@ -405,7 +405,7 @@ declared mappings = config error at load (`nginx -t` fails), matching `pmark` `f
 ---
 
 ## 8. Metrics & dashboard
-- New counters in `src/metrics/` (low-cardinality only — INVARIANT #8: no per-flow labels):
+- New counters in `src/observability/metrics/` (low-cardinality only — INVARIANT #8: no per-flow labels):
   `pmark_flows_started`, `pmark_flows_ended`, `pmark_firefly_sent`, `pmark_firefly_dropped`
   (EAGAIN/err), `pmark_flowlabel_set`, `pmark_map_unresolved`.
 - Optionally a small `/xrootd/api` dashboard panel: active flow count, last firefly error.
@@ -436,7 +436,7 @@ declared mappings = config error at load (`nginx -t` fails), matching `pmark` `f
 ---
 
 ## 11. Milestones & build/test
-1. **M1 — scaffolding + config:** `src/pmark/{pmark.h,scitag.c,config.c}`, directives + merge,
+1. **M1 — scaffolding + config:** `src/observability/pmark/{pmark.h,scitag.c,config.c}`, directives + merge,
    register in repo-root `config`, `./configure && make`. Unit-test flow-id encode/decode and
    `scitag.flow`/`SciTag:` parsing (success / out-of-range / malformed).
 2. **M2 — firefly emit:** `firefly.c` + `sockstats.c`; per-worker UDP socket; begin/end on root://
@@ -482,7 +482,7 @@ struct-layout changes to `types/context.h`/`config.h` ⇒ full recompile
 ---
 
 ## 12. Effort estimate
-- M1–M3 (firefly core + config + mapping): the bulk; ~`src/pmark/` 9 files, ~1.7–2.2k LoC.
+- M1–M3 (firefly core + config + mapping): the bulk; ~`src/observability/pmark/` 9 files, ~1.7–2.2k LoC.
 - M4 (IPv6 flow-label, REQUIRED): small-to-moderate — `flowlabel.c` is compact (encode + two
   setsockopt paths + probe), but budget time for **dual-stack testing and the kernel-privilege
   matrix** (CAP_NET_ADMIN, `net.ipv6.flowlabel_state_ranges`/`auto_flowlabels`), which is the only

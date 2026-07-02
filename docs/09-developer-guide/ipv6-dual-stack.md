@@ -66,7 +66,7 @@ Understanding dual-stack support requires tracing IP addresses through three lay
 | `src/fs/cache/directives.c` | `xrootd_cache_origin host:port` parsing | Lines 62–90: same bracket-aware IPv6 parsing, handles `root://` and `roots://` prefixes |
 | `src/connection/handler.c` (lines 93–106) | Port extraction from `c->local_sockaddr` | Lines 93–106: checks `sa_family` and casts to correct type for `AF_INET` and `AF_INET6` |
 | `src/tpc/launch.c` (lines 82–86) | Client address for TPC logging | `getnameinfo()` with `NI_NAMEREQD` — dual-stack safe |
-| `src/path/access_log.c` | Access log client IP | Uses `c->addr_text` — nginx's pre-formatted address string which includes brackets for IPv6 |
+| `src/observability/accesslog/access_log.c` | Access log client IP | Uses `c->addr_text` — nginx's pre-formatted address string which includes brackets for IPv6 |
 | `src/net/cms/server_handler.c` (line 23) | Server address logging | `ngx_sock_ntop()` — nginx's dual-stack address formatter |
 
 ### 3.2 Outbound connects — **[RESOLVED]** (formerly P0: IPv4-only)
@@ -200,7 +200,7 @@ This should be the template for any other code that classifies addresses.
 |-------|-------------|
 | **WebDAV** (`src/webdav/`) | No direct socket code. Uses nginx's HTTP request machinery. TCP listening/connecting is handled by nginx core. TPC URLs come from HTTP headers (`Source:`, `Destination:`) and are passed verbatim to curl, which understands bracketed IPv6. |
 | **S3** (`src/s3/`) | No direct socket code. Same as WebDAV — uses nginx HTTP layer. |
-| **Metrics** (`src/metrics/`) | No IP address handling. Uses shared atomic counters with fixed labels. |
+| **Metrics** (`src/observability/metrics/`) | No IP address handling. Uses shared atomic counters with fixed labels. |
 | **Response module** (`src/response/`) | `xrootd_send_redirect()` takes a `host` string and `port` number. The host string is embedded verbatim into the wire response. IPv6 formatting responsibility is on the *callers* (see §3.3). |
 | **CMS protocol** | The CMS heartbeat sends `listen_port` but not hostname; the CMS manager provides the hostname in `kYR_select` redirects. The CMS subsystem doesn't format IPv6 addresses itself — it delegates to the CMS manager. This is a protocol-level dependency. |
 

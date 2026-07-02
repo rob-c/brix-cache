@@ -16,7 +16,7 @@
 #include "core/compat/http_conditionals.h"
 #include "core/compat/range.h"
 #include "core/compat/staged_file.h"
-#include "dashboard/dashboard_tracking.h"
+#include "observability/dashboard/dashboard_tracking.h"
 #include "fs/vfs.h"
 #include "auth/impersonate/lifecycle.h"
 #include "fs/path/path.h"

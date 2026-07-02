@@ -12,7 +12,7 @@
 
 #include "webdav.h"
 #include "core/compat/protocol_caps.h"
-#include "metrics/metrics.h"
+#include "observability/metrics/metrics.h"
 
 
 const xrootd_http_operation_t xrootd_webdav_operations[] = {

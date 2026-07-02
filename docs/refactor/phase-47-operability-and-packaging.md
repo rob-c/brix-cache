@@ -22,7 +22,7 @@
   previous failure mode). RPM spec installs/ships 2 `.so` + a 2-line
   `mod-xrootd.conf` (combined first), Release bumped to -4.
 - **W2 — `/healthz`.** `xrootd_health on;` in the metrics module (new
-  `src/metrics/health.c`, no new `.so`). `GET /healthz` → 200 liveness JSON;
+  `src/observability/metrics/health.c`, no new `.so`). `GET /healthz` → 200 liveness JSON;
   `?verbose` adds `metrics_shm`/`worker_pid`/`nginx_version`; HEAD → 200; POST →
   405. Wired into the harness metrics block; `tests/test_health_endpoint.py` 4/4.
 - **W3 — `contrib/xrootd.conf.example`** (http-context davs+s3+metrics+healthz+
@@ -43,7 +43,7 @@
 **Original plan below (status: superseded by the notes above).**
 
 **Scope:** packaging (`packaging/rpm/`, root `config`), a tiny new HTTP endpoint
-(`src/metrics/`), shippable ops artifacts (`contrib/`), and docs (`docs/05-operations/`,
+(`src/observability/metrics/`), shippable ops artifacts (`contrib/`), and docs (`docs/05-operations/`,
 `docs/08-metrics-monitoring/`). **No protocol/wire changes.**
 **Next free number** (46 is `phase-46-s3-write-concurrency.md`, implemented).
 
@@ -63,7 +63,7 @@ features. A read-only audit surfaced one real correctness blocker and a cluster 
    `nginx -t` fails to dlopen them together because of a **circular cross-module symbol
    cycle** — the dashboard `.so` calls `xrootd_proxy_pool_add` (defined in the WebDAV
    `.so`) while WebDAV/S3/dashboard all need `ngx_xrootd_shm_zone`
-   (`src/metrics/handler.c:12`) and `xrootd_dashboard_http_add`; with `RTLD_NOW` a cross-
+   (`src/observability/metrics/handler.c:12`) and `xrootd_dashboard_http_add`; with `RTLD_NOW` a cross-
    `.so` cycle can't resolve (documented in `phase-42-compression.md:73-79`). Only the
    **static** `--add-module` build works today, so `dnf install nginx-mod-xrootd` + the
    shipped snippet is a hard failure for an operator.
@@ -82,8 +82,8 @@ features. A read-only audit surfaced one real correctness blocker and a cluster 
 
 **Already in place (do NOT re-build):** JWKS hot-reload (`src/auth/token/refresh.c`, mtime
 poll) and non-disruptive CRL/X509_STORE rebuild (`src/auth/gsi`) already exist — the rotation
-runbook documents them, it does not add them. Metrics (`src/metrics/`) and the dashboard
-(`src/dashboard/`) are production-grade. Config-time validation (`src/core/config/helpers.c`,
+runbook documents them, it does not add them. Metrics (`src/observability/metrics/`) and the dashboard
+(`src/observability/dashboard/`) are production-grade. Config-time validation (`src/core/config/helpers.c`,
 ~354 `ngx_conf_log_error` sites) is already strict.
 
 ---
@@ -133,7 +133,7 @@ working `dnf install`.
   still pass unchanged; `ldd` / `nm -D` shows no unresolved cross-`.so` symbols.
 
 ### W2 — HTTP health/readiness endpoint
-**Files:** `src/metrics/module.c` + a new `src/metrics/health.c`
+**Files:** `src/observability/metrics/module.c` + a new `src/observability/metrics/health.c`
 
 - Add a `xrootd_health on;` location directive in the **metrics** module (avoids a new
   module/`.so`; reuses the lightest content-handler recipe — the SRR pattern in
@@ -236,7 +236,7 @@ All three landed (each opt-in / transparent-fallback, wire-compatible). 9 new te
 | Workstream | Files |
 |---|---|
 | W1 | root `config` (collapse module blocks → one combined + the filter); `packaging/rpm/nginx-mod-xrootd.spec` |
-| W2 | `src/metrics/module.c` + new `src/metrics/health.c` (register the new `.c` in root `config`) |
+| W2 | `src/observability/metrics/module.c` + new `src/observability/metrics/health.c` (register the new `.c` in root `config`) |
 | W3 | new `contrib/xrootd.conf.example`, `contrib/logrotate.d/nginx-xrootd`; spec `%install`/`%files` |
 | W4 | new `contrib/grafana-dashboard.json`, `contrib/prometheus-alerts.yml`; spec dashboards subpackage |
 | W5 | new `docs/05-operations/{troubleshooting,capacity-planning,certificate-rotation,upgrade-procedure}.md` + `docs/index.md` |

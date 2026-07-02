@@ -55,7 +55,7 @@ interoperability with standard FTS but makes large transfers observable.
 - `src/webdav/tpc.c` — add `webdav_tpc_run_curl_push()` and wire into the
   dispatch at the top of `ngx_http_xrootd_webdav_tpc_handle_copy()`
 - `src/webdav/webdav.h` — declare `webdav_tpc_run_curl_push()`
-- `src/metrics/webdav.c` — add `XROOTD_WEBDAV_TPC_PUSH_OK` /
+- `src/observability/metrics/webdav.c` — add `XROOTD_WEBDAV_TPC_PUSH_OK` /
   `XROOTD_WEBDAV_TPC_PUSH_FAIL` event slots
 - `src/webdav/dispatch.c` — OPTIONS Allow header already advertises COPY; no
   change needed
@@ -336,8 +336,8 @@ curl -X COPY https://server:8443//local/path \
 - `src/webdav/tpc_config.c` — merge OAuth2/OIDC config fields
 - `src/webdav/webdav.h` — add `tpc_cred` config field and declarations
 - `src/webdav/module.c` — add nginx directives for token endpoint, client ID/secret, scope
-- `src/metrics/metrics.h` — add TPC cred metrics enum and shared memory field
-- `src/metrics/webdav.c` — add TPC cred metrics export
+- `src/observability/metrics/metrics.h` — add TPC cred metrics enum and shared memory field
+- `src/observability/metrics/webdav.c` — add TPC cred metrics export
  
  ---
  

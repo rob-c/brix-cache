@@ -7,7 +7,7 @@
 
 #include <ngx_thread_pool.h>
 
-#include "pmark/pmark.h"
+#include "observability/pmark/pmark.h"
 
 /*
  * ngx_http_xrootd_shared_conf_t — Common fields embedded at the top of every

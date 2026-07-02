@@ -82,7 +82,7 @@ class TestDashboardApiFoundation:
         """With `xrootd_dashboard_anonymous on` (the test fleet config) the read
         API is reachable WITHOUT a login cookie and returns 200 — but the data is
         PII-redacted for anonymous viewers (IPs/identities/paths scrubbed,
-        worker_pid omitted; src/dashboard/api.c redact path).  The config-download
+        worker_pid omitted; src/observability/dashboard/api.c redact path).  The config-download
         endpoint, by contrast, is always auth-gated (config_download.c) — that is
         the endpoint that must 401 anonymously, not the redacted read snapshot."""
         status, body = _get("/xrootd/api/v1/snapshot")
@@ -230,7 +230,7 @@ class TestDashboardApiFoundation:
 
 # Valid transfer-state vocabulary, including the derived "throttled" label that
 # the exporter substitutes for "stalled" on rate-limited (but progressing)
-# transfers.  See src/dashboard/api.c:dashboard_state_name.
+# transfers.  See src/observability/dashboard/api.c:dashboard_state_name.
 _VALID_STATES = {"active", "idle", "throttled", "stalled", "closing", "error"}
 
 

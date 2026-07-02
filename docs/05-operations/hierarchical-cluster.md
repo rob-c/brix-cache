@@ -312,7 +312,7 @@ exported as the `xrootd_registry_full_total` Prometheus counter.
 Files changed: `src/net/manager/registry.h`, `src/net/manager/registry.c`,
 `src/core/config/config.h`, `src/core/config/server_conf.c`,
 `src/core/config/postconfiguration.c`, `src/stream/module.c`,
-`src/core/types/config.h`, `src/metrics/metrics.h`, `src/metrics/stream.c`.
+`src/core/types/config.h`, `src/observability/metrics/metrics.h`, `src/observability/metrics/stream.c`.
 
 ---
 
@@ -635,8 +635,8 @@ redirects to that server.
 | `src/stream/module.c` | Added `xrootd_registry_slots` and `xrootd_cms_locate_timeout` directive entries | ✅ Steps 1b, 3 done |
 | `src/core/types/state.h` | Added `XRD_ST_WAITING_CMS` | ✅ Step 5 done |
 | `config` | Added `pending.c` to `ngx_module_srcs` | ✅ Step 3 done |
-| `src/metrics/metrics.h` | Added `registry_full_total` counter to `ngx_xrootd_metrics_t` | ✅ Step 1b done |
-| `src/metrics/stream.c` | Added `xrootd_registry_full_total` Prometheus export | ✅ Step 1b done |
+| `src/observability/metrics/metrics.h` | Added `registry_full_total` counter to `ngx_xrootd_metrics_t` | ✅ Step 1b done |
+| `src/observability/metrics/stream.c` | Added `xrootd_registry_full_total` Prometheus export | ✅ Step 1b done |
 | `tests/test_manager_mode.py` | Part 3 (per-worker CMS) added; Parts 5–8 | Steps 2, 3–6 |
 
 ---

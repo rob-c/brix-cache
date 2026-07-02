@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-29
 **Status:** Approved for planning
-**Builds on:** [unified cache state engine (.cinfo v3)](2026-06-28-unified-cache-state-engine-design.md), [cache storage on a driver](2026-06-29-cache-storage-on-a-driver-design.md), the SD driver seam (`src/fs/backend/sd.h`), `src/fs/cache/`, `src/net/ratelimit/`, `src/metrics/unified.c`.
+**Builds on:** [unified cache state engine (.cinfo v3)](2026-06-28-unified-cache-state-engine-design.md), [cache storage on a driver](2026-06-29-cache-storage-on-a-driver-design.md), the SD driver seam (`src/fs/backend/sd.h`), `src/fs/cache/`, `src/net/ratelimit/`, `src/observability/metrics/unified.c`.
 
 ## Goal
 
@@ -46,7 +46,7 @@ That is the "fold both ways": one driver seam underneath, one caching layer on t
 - `process.c`: arm the reaper timer per worker (gated on a cache + watermarks configured).
 - `src/core/config/` + `src/stream/module.c`: directives `xrootd_cache_high_watermark`, `xrootd_cache_low_watermark`, `xrootd_cache_reap_interval`; merge + EMERG validation (`0 < low < high < 100`).
 
-### Metrics (the "unique XCache-style" family) — `src/metrics/unified.c`
+### Metrics (the "unique XCache-style" family) — `src/observability/metrics/unified.c`
 - `xrootd_cache_usage_ratio` — **gauge**, current cache_root occupancy (0–1).
 - `xrootd_cache_evicted_bytes_total{reason}` — **counter**, `reason="watermark"` for proactive purges, `reason="fill"` for the on-fill safety net.
 - `xrootd_cache_evicted_files_total{reason}` — **counter**.
@@ -82,7 +82,7 @@ Labels stay low-cardinality (no paths/keys), per the metrics invariant.
 - `src/read/open_resolved_file.c`, WebDAV `put.c`, S3 `put.c`: call the gate on write-open/PUT, map the verdict to the protocol-correct response.
 - `src/core/config/` + `src/stream/module.c` (+ WebDAV/S3 directive plumbing where the cache is configured): `xrootd_wt_stage_high_watermark`, `xrootd_wt_stage_low_watermark`; merge + EMERG validation. No-op unless a staging root is configured.
 
-### Metrics — `src/metrics/unified.c`
+### Metrics — `src/observability/metrics/unified.c`
 - `xrootd_wt_stage_usage_ratio` — **gauge**, staging occupancy (0–1).
 - `xrootd_wt_stage_throttled_total{action="wait|reject"}` — **counter**.
 
@@ -113,7 +113,7 @@ Introduce a read-only **remote SD driver** so the cache origin is an `xrootd_sd_
 - `fetch.c` / `slice_fill.c`: replace the scheme-switch with the origin-instance copy.
 - `src/core/config/` + directive plumbing for the origin URL + S3 creds.
 
-### Metrics — `src/metrics/unified.c`
+### Metrics — `src/observability/metrics/unified.c`
 - `xrootd_cache_origin_fetch_bytes_total{scheme}` — **counter** (`scheme="root|s3|http"`).
 - `xrootd_cache_origin_fetch_errors_total{scheme}` — **counter**.
 

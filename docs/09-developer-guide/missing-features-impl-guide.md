@@ -374,7 +374,7 @@ def test_jwks_hot_refresh_rejects_old_key_after_rotation():
 **Status:** ✅ IMPLEMENTED — Option B (full recursive walk) with 10 000-entry cap  
 **Impact:** Medium — blocks Cyberduck, GNOME GVFS, and some rucio WebDAV clients  
 **Effort:** 2–3 days  
-**Implemented in:** `src/webdav/propfind.c` (`propfind_parse_depth()`, `propfind_walk()`), `src/metrics/metrics.h` (`XROOTD_WEBDAV_PROPFIND_DEPTH_INF`), `src/metrics/webdav.c`  
+**Implemented in:** `src/webdav/propfind.c` (`propfind_parse_depth()`, `propfind_walk()`), `src/observability/metrics/metrics.h` (`XROOTD_WEBDAV_PROPFIND_DEPTH_INF`), `src/observability/metrics/webdav.c`  
 **Tests:** `tests/test_propfind_infinity.py`
 
 ### Problem

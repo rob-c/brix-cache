@@ -293,7 +293,7 @@ without protocol conversion.
 
 ### 8.1 Metrics
 - **Canonical:** Uses XrdStats for server-side metrics
-- **nginx-xrootd:** `src/metrics/stream.c`/`writer.c` — HTTP request counters, bytes_sent tracking via `webdav_metrics_return()` and `XROOTD_PROXY_METRIC_INC(op, status)`
+- **nginx-xrootd:** `src/observability/metrics/stream.c`/`writer.c` — HTTP request counters, bytes_sent tracking via `webdav_metrics_return()` and `XROOTD_PROXY_METRIC_INC(op, status)`
 
 **Advantage:** nginx provides HTTP-layer metrics (request counts + byte totals) in addition to protocol-level stats. Low-cardinality labels only (INVARIANT #8: no paths/bucket-names/UUIDs).
 

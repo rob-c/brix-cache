@@ -248,7 +248,7 @@ path is byte-for-byte unchanged when no state root is configured.
   `xrootd_cache_dirty_max_age`, `xrootd_cache_allow_prefix`, `xrootd_cache_deny_prefix`;
   route existing size/regex through the shared cfg.
 - `src/fs/cache/paths.c` — state-root resolution (default to `cache_root`).
-- `src/metrics/` — a `cache_dirty_reaped` counter (count + bytes), low-cardinality.
+- `src/observability/metrics/` — a `cache_dirty_reaped` counter (count + bytes), low-cardinality.
 - `config` (NGX_ADDON_SRCS) — register `cache_admit.c`, `cache_reap.c`; `./configure` once.
 - `tests/c/test_cinfo.c`, `tests/c/test_cache_admit.c`, e2e tests.
 

@@ -31,7 +31,7 @@
 #include "webdav.h"
 #include "core/compat/net_target.h"
 #include "core/compat/staged_file.h"
-#include "dashboard/dashboard_tracking.h"
+#include "observability/dashboard/dashboard_tracking.h"
 #include "core/aio/aio.h"          /* xrootd_task_bind */
 #include "tpc/common/metrics.h"
 #include "tpc/common/registry.h"

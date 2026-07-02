@@ -815,7 +815,7 @@ Expected: exit 0.
 - Create: `src/fs/cache/cache_reap.h`, `src/fs/cache/cache_reap.c`
 - Modify: repo-root `config` (register `cache_reap.c`)
 - Modify: `src/core/config/process.c` (arm the reaper timer, mirror `xrootd_stage_reap_timer`)
-- Modify: `src/metrics/` (a `cache_dirty_reaped` counter — count + bytes)
+- Modify: `src/observability/metrics/` (a `cache_dirty_reaped` counter — count + bytes)
 
 **Interfaces:**
 - Produces: `ngx_uint_t xrootd_cache_reap_dirty(const ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log);` — scans the state root, removes records `DIRTY && now-dirty_since > conf->cache_dirty_max_age` (data file + `.cinfo`/`.meta`/slice sidecars), returns the count reaped. No-op when `cache_dirty_max_age==0` or no state root.
@@ -907,7 +907,7 @@ In `ngx_stream_xrootd_init_process`, where `xrootd_stage_reap_timer` is armed, a
 ```
 (Resolve `xcf` the same way `init_process` already obtains the per-server conf for the stage reaper.)
 
-- [ ] **Step 3: Add the metric** — follow `src/metrics/README.md`. Add a `cache_dirty_reaped_count` + `cache_dirty_reaped_bytes` counter and an inline `xrootd_cache_dirty_reaped_inc(uint64_t bytes)` that bumps both. Declare it in a metrics header `cache_reap.c` includes.
+- [ ] **Step 3: Add the metric** — follow `src/observability/metrics/README.md`. Add a `cache_dirty_reaped_count` + `cache_dirty_reaped_bytes` counter and an inline `xrootd_cache_dirty_reaped_inc(uint64_t bytes)` that bumps both. Declare it in a metrics header `cache_reap.c` includes.
 
 - [ ] **Step 4: Build**
 

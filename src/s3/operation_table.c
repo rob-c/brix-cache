@@ -12,7 +12,7 @@
 
 #include "s3.h"
 #include "core/compat/protocol_caps.h"
-#include "metrics/metrics.h"
+#include "observability/metrics/metrics.h"
 
 const xrootd_http_operation_t xrootd_s3_operations[] = {
     /* name      http_method      metric_slot           access_op  flags */

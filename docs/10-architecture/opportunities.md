@@ -28,7 +28,7 @@ The module has already consolidated a significant shared layer — path resoluti
 │  src/core/compat/path.c      xrootd_http_resolve_path()  [HTTP+S3]     │
 │  src/auth/token/             JWT validate + scope check  [all]         │
 │  src/auth/crypto/            OCSP + PKI load             [all]         │
-│  src/metrics/metrics.h  shared-memory layout        [all]         │
+│  src/observability/metrics/metrics.h  shared-memory layout        [all]         │
 │  src/tpc/key_registry.c SHM TPC key table           [stream+webdav]│
 │  src/core/compat/crc32c.c    CRC32c for pgread/pgwrite   [stream]      │
 │  src/core/compat/checksum.c  file checksums/digests      [stream+HTTP] │
@@ -213,7 +213,7 @@ Stream uses CRC32c via `src/core/compat/crc32c.c`. S3 uses MD5 for multipart ETa
 
 ### 8. `ngx_http_stub_status_module` — lightweight alternative to Prometheus handler
 
-**Current:** Full Prometheus `/metrics` handler in `src/metrics/stream.c`, `writer.c` with shared-memory zone reading, counter serialization, label formatting. ~300 lines of custom code.
+**Current:** Full Prometheus `/metrics` handler in `src/observability/metrics/stream.c`, `writer.c` with shared-memory zone reading, counter serialization, label formatting. ~300 lines of custom code.
 
 **Nginx built-in:** `stub_status` provides basic connection/request counters (`Active connections`, `Total requests`, etc.) at `/nginx_status`. Very lightweight.
 

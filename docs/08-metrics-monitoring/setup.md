@@ -46,7 +46,7 @@ Client-controlled strings are not used as Prometheus label values. Exported labe
 
 ## Limits
 
-Up to 16 stream server blocks are tracked simultaneously. This is a compile-time limit (`XROOTD_METRICS_MAX_SERVERS` in `src/metrics/metrics.h`).
+Up to 16 stream server blocks are tracked simultaneously. This is a compile-time limit (`XROOTD_METRICS_MAX_SERVERS` in `src/observability/metrics/metrics.h`).
 
 When the limit is reached, additional listeners will not appear in metrics output. Monitor for this condition by checking that all expected ports/auth combinations appear in each metric series.
 

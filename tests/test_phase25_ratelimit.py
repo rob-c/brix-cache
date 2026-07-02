@@ -56,7 +56,7 @@ def test_ratelimit_module_present():
     for f in ("src/net/ratelimit/ratelimit.h", "src/net/ratelimit/ratelimit.c",
               "src/net/ratelimit/ratelimit_zone.c", "src/net/ratelimit/ratelimit_keys.c",
               "src/net/ratelimit/ratelimit_http.c",
-              "src/net/ratelimit/ratelimit_stream.c", "src/metrics/ratelimit.c"):
+              "src/net/ratelimit/ratelimit_stream.c", "src/observability/metrics/ratelimit.c"):
         assert (ROOT / f).exists(), f
     cfg = _read("config")
     assert "src/net/ratelimit/ratelimit_zone.c" in cfg
@@ -93,11 +93,11 @@ def test_directives_distinct_from_phase20():
 
 
 def test_metrics_and_dashboard_wired():
-    m = _read("src/metrics/metrics.h")
+    m = _read("src/observability/metrics/metrics.h")
     assert "rl_throttled_http_total" in m
     assert "rl_throttled_stream_total" in m
-    assert "xrootd_rate_limit_throttled_total" in _read("src/metrics/ratelimit.c")
-    assert "/xrootd/api/v1/ratelimit" in _read("src/dashboard/module.c")
+    assert "xrootd_rate_limit_throttled_total" in _read("src/observability/metrics/ratelimit.c")
+    assert "/xrootd/api/v1/ratelimit" in _read("src/observability/dashboard/module.c")
 
 
 # --------------------------------------------------------------------------- #

@@ -53,10 +53,10 @@ def _read(rel):
 # --------------------------------------------------------------------------- #
 
 def test_admin_module_present():
-    assert (ROOT / "src/dashboard/api_admin.c").exists()
-    assert (ROOT / "src/dashboard/api_admin.h").exists()
+    assert (ROOT / "src/observability/dashboard/api_admin.c").exists()
+    assert (ROOT / "src/observability/dashboard/api_admin.h").exists()
     cfg = _read("config")
-    assert "src/dashboard/api_admin.c" in cfg
+    assert "src/observability/dashboard/api_admin.c" in cfg
 
 
 def test_proxy_pool_module_present():
@@ -69,7 +69,7 @@ def test_proxy_pool_module_present():
 
 
 def test_admin_auth_and_validation_present():
-    c = _read("src/dashboard/api_admin.c")
+    c = _read("src/observability/dashboard/api_admin.c")
     # Constant-time secret compare, whitelist validation (reject not sanitise),
     # audit logging, and the disabled-by-default gate.
     assert "CRYPTO_memcmp" in c
@@ -97,7 +97,7 @@ def test_proxy_pool_api_present():
 
 
 def test_directives_registered():
-    d = _read("src/dashboard/module.c")
+    d = _read("src/observability/dashboard/module.c")
     for name in ("xrootd_admin_allow", "xrootd_admin_secret",
                  "xrootd_admin_require_both"):
         assert name in d, name

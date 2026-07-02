@@ -140,8 +140,8 @@ Notes:
   `cancelable`) so draining workers exit promptly — see `src/core/config/process.c`,
   `src/auth/token/refresh.c`, `src/auth/authz/acc/config.c`, `src/net/cms/connect.c`.
 - Config version/generation: published in `xrootd_config_version_publish()`
-  (`src/metrics/config.c`), called from the module's `init_module` hook
-  (`src/auth/impersonate/lifecycle.c`); read by `/healthz` (`src/metrics/health.c`).
+  (`src/observability/metrics/config.c`), called from the module's `init_module` hook
+  (`src/auth/impersonate/lifecycle.c`); read by `/healthz` (`src/observability/metrics/health.c`).
 - SHM resize warning: `xrootd_shm_zone_warn_on_resize()` (`src/core/compat/shm_slots.c`),
   called from the registry declarations (`src/session/registry.c`,
   `src/net/manager/registry.c`).

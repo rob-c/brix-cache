@@ -215,7 +215,7 @@ machinery:
 - The `root://` binary protocol is an **`NGX_STREAM_MODULE`** stream handler
   (`src/stream/module_definition.c`).
 - WebDAV/XrdHttp, S3, and the dashboard/admin are **HTTP** handlers
-  (`src/webdav/`, `src/s3/`, `src/dashboard/`), and `/metrics` is a second HTTP
+  (`src/webdav/`, `src/s3/`, `src/observability/dashboard/`), and `/metrics` is a second HTTP
   module (`ngx_http_xrootd_metrics_module`, registered in `config`).
 
 The module descriptor (`src/stream/module_definition.c`) wires nginx's lifecycle
@@ -500,7 +500,7 @@ handles) and in **SHM zones** (metrics, session/handle/manager registries,
 redirect cache, TPC key registry, FRM durable queue, rate-limit/KV zones).
 Clustering, tape staging, metrics, and the dashboard are features of the same
 process tree, not separate daemons. Observability is **HTTP-native**: Prometheus
-`/metrics`, WLCG SRR (`src/srr/`), the dashboard/admin API (`src/dashboard/`), and
+`/metrics`, WLCG SRR (`src/srr/`), the dashboard/admin API (`src/observability/dashboard/`), and
 nginx access/error logs — UDP XrdMon is an explicit non-goal.
 
 ---
@@ -570,4 +570,4 @@ and *what the author must never do*.
 | Thread-pool / io_uring offload | `src/core/aio/README.md`, `src/core/aio/resume.c` (`xrootd_aio_post_task`), `src/core/aio/buffers.c`, `src/core/aio/uring.c` |
 | SHM cross-worker state | `src/core/compat/shm_slots.c` (`xrootd_shm_table_alloc`, spin+yield mutex), `src/net/manager/registry.c`, `src/net/manager/redir_cache.c`, `src/tpc/key_registry.c` |
 | Build governance | top-level `config` (`ngx_addon_name`, `ngx_module_srcs`, `ngx_module_libs`, CFLAGS), `src/core/config/config.h` |
-| Cluster / tape / observability (in-process) | `src/net/manager/`, `src/net/cms/`, `src/frm/`, `src/metrics/`, `src/srr/`, `src/dashboard/` |
+| Cluster / tape / observability (in-process) | `src/net/manager/`, `src/net/cms/`, `src/frm/`, `src/observability/metrics/`, `src/srr/`, `src/observability/dashboard/` |

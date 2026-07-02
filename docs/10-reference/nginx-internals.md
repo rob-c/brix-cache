@@ -307,7 +307,7 @@ When 8 workers each serve connections, Prometheus metrics need to sum across
 all 8. nginx provides a named shared-memory zone for this:
 
 ```c
-/* src/metrics/config.c */
+/* src/observability/metrics/config.c */
 ngx_xrootd_shm_zone = ngx_shared_memory_add(cf, &zone_name,
                                               sizeof(ngx_xrootd_metrics_t),
                                               &ngx_stream_xrootd_module);
@@ -318,7 +318,7 @@ The shared memory is an `mmap(MAP_SHARED)` region that all worker processes
 can read and write. The module declares all counters as `ngx_atomic_t`:
 
 ```c
-/* src/metrics/metrics.h */
+/* src/observability/metrics/metrics.h */
 typedef struct {
     ngx_atomic_t  connections_total;   /* connections accepted (lifetime) */
     ngx_atomic_t  connections_active;  /* currently open connections      */
@@ -476,7 +476,7 @@ src/fs/cache/               ← read-through cache (origin fill, eviction)
 src/net/cms/                 ← CMS manager heartbeat (send/receive)
 src/tpc/                 ← native root:// TPC (pull path on destination)
 src/response/            ← XRootD response framing helpers
-src/metrics/             ← Prometheus counters and HTTP export endpoint
+src/observability/metrics/             ← Prometheus counters and HTTP export endpoint
 src/net/upstream/            ← outbound XRootD redirect client
 src/webdav/              ← HTTP/WebDAV module (all methods, auth, TPC, S3)
 src/net/manager/             ← dynamic server registry for manager mode

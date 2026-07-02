@@ -18,7 +18,7 @@ This is not a refactoring-for-its-own-sake exercise.
 | XRootD confinement primitives | `src/fs/path/resolve_confined_ops.c` | stream, WebDAV, S3 |
 | Kernel-level path confinement | `xrootd_open_confined_canon` / `xrootd_unlink_confined_canon` | all HTTP ops |
 | XML escape + text elements | `src/core/compat/xml.c` | WebDAV (via `util/xml.c`), S3 (direct) |
-| Prometheus metrics export | `src/metrics/` | all four protocols |
+| Prometheus metrics export | `src/observability/metrics/` | all four protocols |
 
 ---
 

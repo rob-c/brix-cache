@@ -493,7 +493,7 @@ SigV4 authentication for presigned URLs (`src/s3/auth.c`).
 
 ## Prometheus metrics
 
-**Source:** `src/metrics/`
+**Source:** `src/observability/metrics/`
 
 ### `test_metrics.py`
 

@@ -23,7 +23,7 @@
 | `src/response/*.c` | Response framing, control responses, status responses, CRC32C |
 | `src/path/*.c` | Path extraction, root confinement, policy matching, and log sanitization |
 | `src/net/cms/*.c` | CMS manager heartbeat: registration, ping/pong, space and load reporting |
-| `src/metrics/` | Prometheus metrics: shared-memory counters and HTTP export endpoint |
+| `src/observability/metrics/` | Prometheus metrics: shared-memory counters and HTTP export endpoint |
 | `src/webdav/*.c` | WebDAV over HTTPS module, auth, path safety, method handlers, HTTP-TPC, and upstream proxy (`proxy.c`) |
 
 The `tests/` directory covers client interoperability, throughput, bridge transfers, GSI, token (JWT/WLCG), WebDAV, metrics, and security regressions.

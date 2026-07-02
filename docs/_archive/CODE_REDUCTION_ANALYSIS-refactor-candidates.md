@@ -168,11 +168,11 @@ Repeats with minor variations across 300+ lines
 
 | File | Current LoC | Est. Reduction | Priority | Reason |
 |------|------------|---|---|---|
-| src/dashboard/api.c | 1104 | -150 | Medium | Repetitive JSON building |
+| src/observability/dashboard/api.c | 1104 | -150 | Medium | Repetitive JSON building |
 | src/webdav/propfind.c | 998 | -180 | Medium | XML property generation |
 | src/fs/cache/directives.c | 533 | -80 | High | Address parsing patterns |
 | src/webdav/module.c | 582 | -40 | High | Config merge boilerplate |
-| src/dashboard/module.c | ~300 | -20 | High | Config merge + setter wrappers |
+| src/observability/dashboard/module.c | ~300 | -20 | High | Config merge + setter wrappers |
 | src/webdav/auth_cert.c | 498 | -30 | High | Memory allocation patterns |
 | src/webdav/tpc_config.c | 56 | -15 | High | Address parsing |
 | src/net/upstream/directives.c | ~200 | -60 | High | Address parsing + boilerplate |
@@ -262,9 +262,9 @@ CONF_MERGE_UINT(port, 1094);
 ```
 
 **Found in:**
-- src/dashboard/module.c (lines 84-92)
+- src/observability/dashboard/module.c (lines 84-92)
 - src/webdav/module.c
-- src/metrics/module.c
+- src/observability/metrics/module.c
 - src/fs/cache/module.c
 - And 10+ other module files
 

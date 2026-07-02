@@ -2,7 +2,7 @@
 
 **Status:** ✅ Implemented (as-built diverges from this plan — see status section)  
 **Depends on:** None (standalone; Phase 20 KV can be adopted later for rate data)  
-**Touches:** `src/net/manager/`, `src/net/upstream/`, `src/metrics/`  
+**Touches:** `src/net/manager/`, `src/net/upstream/`, `src/observability/metrics/`  
 **Net LoC:** +~680 new, ~0 removed
 
 ---
@@ -22,7 +22,7 @@ piece is TLS probing (Step F).
 | **B** | Probe state machine | ✅ **Done — more granular states** | `src/net/manager/health_check.c`. States are `XRD_HC_HANDSHAKE → XRD_HC_PROTOCOL → XRD_HC_LOGIN → XRD_HC_PROBE` (mirroring the real upstream bootstrap phases), **not** the doc's `CONNECTING/BOOTSTRAP/PROBE/DONE`. Probe sends `kXR_ping` or `kXR_stat "/"` (`xrootd_hc_send_probe`, `:111`). The ctx is `xrootd_hc_ctx_t` (`:61`) — defined in the `.c`, not exported in the header as the doc proposed. |
 | **C** | Health-check timer | ✅ **Done — different start hook** | `xrootd_hc_mgr_t`, `xrootd_hc_timer_handler` (`:487`), `xrootd_hc_manager_start` (`:504`), `xrootd_hc_start` (`:368`). Started from **`src/core/config/process.c:163`** (the module's `init_process`), **not** `src/stream/module.c` as the file map said. Scan interval = `interval / slots`, min 100 ms. |
 | **D** | Config directives | ✅ **Done** | All six `xrootd_health_check[_interval/_timeout/_threshold/_blacklist/_type]` directives are registered in **`src/stream/module.c`** (not `src/core/config/directives.c`); conf fields `hc_enabled/hc_interval_ms/hc_timeout_ms/hc_threshold/hc_blacklist_ms/hc_type` in `src/core/types/config.h:357-362`. Off by default. |
-| **E** | Metrics | ✅ **Done — different counter set** | `src/metrics/cluster.c` exports `xrootd_cluster_hc_{probes,pass,fail,blacklist}_total` (fields in `metrics.h:490-493`). Diverges from the plan: there is an **extra `hc_probes_total`** (probes started) and **no `hc_probe_active` gauge**. Per-server `hc_last_ok`/`hc_fail_count` are in the snapshot for the dashboard. |
+| **E** | Metrics | ✅ **Done — different counter set** | `src/observability/metrics/cluster.c` exports `xrootd_cluster_hc_{probes,pass,fail,blacklist}_total` (fields in `metrics.h:490-493`). Diverges from the plan: there is an **extra `hc_probes_total`** (probes started) and **no `hc_probe_active` gauge**. Per-server `hc_last_ok`/`hc_fail_count` are in the snapshot for the dashboard. |
 | **F** | TLS support for probes | ⚠️ **Not implemented as designed** | There is **no TLS upgrade** on the probe path and **no `xrootd_tls_upgrade_ctx_t` refactor** of `src/net/upstream/tls.c`. Instead, when a server advertises `kXR_gotoTLS` in its protocol response, the probe **stops at the protocol stage and counts it as alive (pass)** — see `health_check.c` `XRD_HC_PROTOCOL` (~`:240-256`). So TLS servers get a shallower liveness check (TCP + handshake + protocol), not the full login+ping/stat probe. |
 
 ### As-built divergences (none are correctness defects)
@@ -510,7 +510,7 @@ Fields added to `ngx_stream_xrootd_srv_conf_t`:
 
 ## Step E — Metrics
 
-**File:** `src/metrics/cluster.c` (extend existing)
+**File:** `src/observability/metrics/cluster.c` (extend existing)
 
 Four new counters in the cluster metrics group:
 
@@ -584,8 +584,8 @@ proxy and health check TLS behaviour.
 | `src/core/config/directives.c` | Modify | Register 6 new `xrootd_health_check*` directives |
 | `src/core/types/config.h` | Modify | Add HC fields to `ngx_stream_xrootd_srv_conf_t` |
 | `src/stream/module.c` | Modify | Call `xrootd_hc_manager_start()` in `init_process` hook |
-| `src/metrics/cluster.c` | Modify | Add 4 HC counters; wire `XROOTD_HC_METRIC_INC` macro |
-| `src/metrics/metrics.h` | Modify | Declare new HC counter fields |
+| `src/observability/metrics/cluster.c` | Modify | Add 4 HC counters; wire `XROOTD_HC_METRIC_INC` macro |
+| `src/observability/metrics/metrics.h` | Modify | Declare new HC counter fields |
 | `src/core/config/config.h` | Modify | Add `health_check.c` to `NGX_ADDON_SRCS` |
 
 ---
@@ -626,7 +626,7 @@ files; incremental `make -j$(nproc)` suffices after the initial `./configure`.
 | CMS `server_recv.c` → `xrootd_srv_blacklist(30s)` on disconnect | Unchanged; HC does not interfere. CMS disconnect blacklist is independent of HC fail_count. `xrootd_srv_hc_pass()` does not clear a CMS-triggered blacklist (detected by checking that blacklist was set *by HC* via a new `blacklist_source` flag, or simply by not clearing CMS blacklists at all — HC pass only clears when `hc_fail_count > 0`). |
 | `xrootd_upstream_start()` per-request locate queries | Unchanged. If HC has already blacklisted a server, `xrootd_srv_select()` skips it — the upstream query is never attempted. |
 | CMS `xrootd_cms_srv_send_ping()` liveness probe | Complements HC — CMS ping detects disconnected sockets; HC detects hung-but-connected processes. Both feed into `blacklisted_until` via the same registry spinlock. |
-| Dashboard API (`src/dashboard/api.c`) | `hc_last_ok` and `hc_fail_count` are included in the server snapshot used by the dashboard endpoint, providing operator visibility into health check state per node. |
+| Dashboard API (`src/observability/dashboard/api.c`) | `hc_last_ok` and `hc_fail_count` are included in the server snapshot used by the dashboard endpoint, providing operator visibility into health check state per node. |
 
 ---
 

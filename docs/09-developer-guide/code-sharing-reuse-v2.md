@@ -294,7 +294,7 @@ S3 put.c loses ~5 lines of duplicated temp path generation. One shared pattern f
 - pgread/pgwrite use `xrootd_crc32c_copy()` for per-page checksum verification
 
 ### Metrics Patterns
-- Three independent metric systems: `XROOTD_SRV_METRIC_INC`, `XROOTD_WEBDAV_METRIC_INC`, `XROOTD_S3_METRIC_INC` (`src/metrics/metrics_macros.h`)
+- Three independent metric systems: `XROOTD_SRV_METRIC_INC`, `XROOTD_WEBDAV_METRIC_INC`, `XROOTD_S3_METRIC_INC` (`src/observability/metrics/metrics_macros.h`)
 - S3 metrics chain: 4-step wrapper (`s3_metrics_method_slot → request → response → finalize`) in `src/s3/metrics.c`
 - WebDAV single wrapper: `webdav_metrics_return()` in `src/webdav/metrics.c`
 
@@ -451,7 +451,7 @@ PYTHONPATH=tests pytest tests/test_s3.py::test_path_traversal_rejected -v
 - `src/s3/metrics.c` — full file (125 lines); trace `s3_metrics_method_slot → s3_metrics_request_method → s3_metrics_return_method → s3_metrics_finalize_request_method`
 - `src/s3/handler.c` — lines 185–320; count all `s3_metrics_return_method` callsites (there are ~18)
 - `src/webdav/metrics.c` — full file (104 lines); understand `webdav_metrics_return` signature
-- `src/metrics/metrics_macros.h` — understand `XROOTD_S3_METRIC_INC` vs `XROOTD_WEBDAV_METRIC_INC`
+- `src/observability/metrics/metrics_macros.h` — understand `XROOTD_S3_METRIC_INC` vs `XROOTD_WEBDAV_METRIC_INC`
 
 **Files created:**
 - `src/core/compat/http_metrics.c` (~90 lines):
@@ -498,8 +498,8 @@ PYTHONPATH=tests pytest tests/ -k "test_metrics" -v
 - `src/response/response.h` — current wire-response API surface
 - `src/core/compat/http_body.c` — `ngx_chain_t` building API
 - `src/core/compat/http_body.h`
-- `src/metrics/stream.c` — check whether it manually bridges wire→HTTP today
-- `src/metrics/writer.c`
+- `src/observability/metrics/stream.c` — check whether it manually bridges wire→HTTP today
+- `src/observability/metrics/writer.c`
 
 **Files created:**
 - `src/response/bridge.c` (~120 lines):
@@ -523,8 +523,8 @@ PYTHONPATH=tests pytest tests/ -k "test_metrics" -v
 | File | Change | Lines delta |
 |------|--------|-------------|
 | `src/response/response.h` | Declare `xrootd_wire_to_http_chain`, `xrootd_http_chain_to_kxr_status` | +6 |
-| `src/metrics/stream.c` | Replace manual wire→ngx_chain bridge (if present) with `xrootd_wire_to_http_chain` | ±0 to −15 |
-| `src/metrics/writer.c` | Same as above | ±0 to −10 |
+| `src/observability/metrics/stream.c` | Replace manual wire→ngx_chain bridge (if present) with `xrootd_wire_to_http_chain` | ±0 to −15 |
+| `src/observability/metrics/writer.c` | Same as above | ±0 to −10 |
 | `src/core/config/config.h` | Add `src/response/bridge.c` to `NGX_ADDON_SRCS` | +1 |
 
 **Build:** `./configure ... && make -j$(nproc)`

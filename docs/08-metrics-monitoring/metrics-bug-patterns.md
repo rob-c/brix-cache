@@ -19,7 +19,7 @@ one, meaning every label past the collision point is exported under the wrong na
 
 ### Instance found
 
-`src/metrics/metrics.h` lines 45–46:
+`src/observability/metrics/metrics.h` lines 45–46:
 
 ```c
 #define XROOTD_OP_QUERY_CKSUM 17  /* kXR_query / kXR_QChecksum */

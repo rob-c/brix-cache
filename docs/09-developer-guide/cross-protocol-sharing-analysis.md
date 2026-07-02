@@ -19,7 +19,7 @@ The nginx-xrootd module implements three distinct protocols — XRootD (`root://
           ▼ extract          ▼                  ▼ bucket      pre-processing
    ┌──────────────────────────────────────────────────────┐
    │  SHARED CORE                                          │  src/core/compat/, src/path/
-   │  token validate · scope check · confined ns ops       │  src/auth/token/, src/metrics/
+   │  token validate · scope check · confined ns ops       │  src/auth/token/, src/observability/metrics/
    │  path resolve · error map (errno→kXR / →HTTP)         │
    │  HTTP file response · range · ETag · XML · fs_walk     │  ← WebDAV+S3 reuse
    │  staged-file commit · async-job guard · metrics zone   │
@@ -141,9 +141,9 @@ typedef struct {
 
 | Macro | File | Used By |
 |---|---|---|
-| `XROOTD_WEBDAV_METRIC_INC()` / `XROOTD_S3_METRIC_INC()` / `XROOTD_SRV_METRIC_INC()` | `src/metrics/metrics_macros.h` | WebDAV, S3, Stream — all three protocols |
+| `XROOTD_WEBDAV_METRIC_INC()` / `XROOTD_S3_METRIC_INC()` / `XROOTD_SRV_METRIC_INC()` | `src/observability/metrics/metrics_macros.h` | WebDAV, S3, Stream — all three protocols |
 
-**Current state:** Shared-memory zone (`ngx_xrootd_shm_zone`) with per-protocol counter families (requests_total, responses_total, auth_total, bytes_rx_tx). All three protocols write atomic counters to the same shared memory. Prometheus exporter iterates all protocol families in `src/metrics/stream.c`. Dashboard live transfer monitor reads from this same zone for cross-protocol visibility.
+**Current state:** Shared-memory zone (`ngx_xrootd_shm_zone`) with per-protocol counter families (requests_total, responses_total, auth_total, bytes_rx_tx). All three protocols write atomic counters to the same shared memory. Prometheus exporter iterates all protocol families in `src/observability/metrics/stream.c`. Dashboard live transfer monitor reads from this same zone for cross-protocol visibility.
 
 ### 1.10 Crypto Helpers
 
@@ -340,7 +340,7 @@ authentication through WebDAV or WLCG bearer-token validation.
 **Current state:** Access logging remains transport-native, but both log
 formats now carry protocol labels:
 - Stream: `xrootd_access*.log` via `xrootd_log_access()` in
-  `src/path/access_log.c`, with `proto=root` appended to each structured line.
+  `src/observability/accesslog/access_log.c`, with `proto=root` appended to each structured line.
 - WebDAV and S3: nginx HTTP `access_log` can use the shared
   `$xrootd_protocol` variable from `src/core/compat/http_protocol_vars.c`, which
   resolves to `webdav`, `s3`, or `http` from the active location config.
@@ -362,16 +362,16 @@ opening/reload behavior.
 
 ### 3.6 Dashboard Cross-Protocol Visibility — Implemented
 
-**Current state:** The HTTPS dashboard (`src/dashboard/`) shows active
+**Current state:** The HTTPS dashboard (`src/observability/dashboard/`) shows active
 stream, WebDAV, S3, and TPC transfers in the same transfer table and exposes
 per-protocol summaries in the JSON API.
 
 **Implemented:**
-- `src/dashboard/http_tracking.c` tracks HTTP protocol transfers for WebDAV,
+- `src/observability/dashboard/http_tracking.c` tracks HTTP protocol transfers for WebDAV,
   S3, and WebDAV TPC.
-- `src/dashboard/api.c` emits protocol summaries for `root`, `webdav`, `s3`,
+- `src/observability/dashboard/api.c` emits protocol summaries for `root`, `webdav`, `s3`,
   and `tpc`.
-- `src/dashboard/page.c` renders protocol summary cards and a protocol filter
+- `src/observability/dashboard/page.c` renders protocol summary cards and a protocol filter
   for the live transfer table.
 
 **Remaining expansion:** Add richer historical breakdowns by protocol and
@@ -534,12 +534,12 @@ These existing invariants from AGENTS.md should be preserved or updated during c
 - `src/webdav/auth_token.c` — WebDAV token handler
 
 ### Metrics (Section 1.9)
-- `src/metrics/metrics_macros.h` — shared metric macros
-- `src/metrics/metrics_internal.h` — shared-memory layout
-- `src/metrics/stream.c` — Prometheus exporter (iterates all protocols)
+- `src/observability/metrics/metrics_macros.h` — shared metric macros
+- `src/observability/metrics/metrics_internal.h` — shared-memory layout
+- `src/observability/metrics/stream.c` — Prometheus exporter (iterates all protocols)
 
 ### Access Logging (Section 3.5)
-- `src/path/access_log.c` — stream structured access lines with `proto=root`
+- `src/observability/accesslog/access_log.c` — stream structured access lines with `proto=root`
 - `src/core/compat/http_protocol_vars.c` — shared `$xrootd_protocol` HTTP variable
 - `tests/configs/nginx_shared.conf` — shared `http_access.log` format with protocol labels
 - `docs/08-metrics-monitoring/access-logging.md` — operator-facing log format reference

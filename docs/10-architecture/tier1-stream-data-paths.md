@@ -54,7 +54,7 @@ void acl_update_vo_attrs(xrootd_file_t *file, const char *path); // Update VO at
 - Read/write gates check `conf->allow_write` globally before token scope validation
 - Path resolution (`resolve_path()`) is performed before any open operation
 
-### Metrics (`src/metrics/stream.c`, `src/metrics/writer.c`)
+### Metrics (`src/observability/metrics/stream.c`, `src/observability/metrics/writer.c`)
 
 Prometheus counters for stream operations:
 

@@ -465,7 +465,7 @@ xrootd_macaroon_max_validity <duration>;   # default PT24H (loc), reuse existing
 **Goal.** Read-only, admin-only exposure of whitelisted server files (config, logs,
 selected `/proc`) over **`root://` and HTTP**, under a dig path prefix, with a
 principal→subtree allow-file. Reuses the proven `openat2 RESOLVE_BENEATH` confinement
-from `src/dashboard/files.c` (memory `dashboard_file_viewer`).
+from `src/observability/dashboard/files.c` (memory `dashboard_file_viewer`).
 
 ### 3.1 Path model
 A reserved logical prefix maps to named exports:
@@ -481,7 +481,7 @@ that directory via `RESOLVE_BENEATH` (no `..`, no symlink escape).
 - `dig_auth.c` — allow-file parser + match (`principal → {export…}`).
 - `dig.h`, `directives.c`, `README.md`.
 - hooks: `src/read/open_resolved_file.c`, `src/read/stat.c`,
-  `src/dirlist/handler.c` (stream); HTTP path aliases `src/dashboard/files.c`.
+  `src/dirlist/handler.c` (stream); HTTP path aliases `src/observability/dashboard/files.c`.
 
 ### 3.3 Signatures + contracts
 ```c
@@ -1834,7 +1834,7 @@ backlog: PR-8.4 csi page-crc + scrub
 ## §AA. Observability (metrics, logs, /healthz, qconfig)
 
 Metrics use the existing `xrootd_metric_op_done` / unified label vocabulary
-(`src/metrics/unified.h`); **labels stay low-cardinality** (no paths/DNs/tokens —
+(`src/observability/metrics/unified.h`); **labels stay low-cardinality** (no paths/DNs/tokens —
 INVARIANT #8).
 
 | Feature | Metric (counter/gauge) | Labels | Log line (cause/fix) |

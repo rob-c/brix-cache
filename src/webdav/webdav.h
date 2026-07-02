@@ -51,7 +51,7 @@
 #include <stdint.h>
 #include <sys/stat.h>
 
-#include "metrics/metrics.h"
+#include "observability/metrics/metrics.h"
 #include "core/compat/error_mapping.h"
 #include "core/compat/http_headers.h"
 #include "core/compat/log.h"

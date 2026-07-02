@@ -15,16 +15,16 @@ HTTP/JSON-native via SRR, so a pull endpoint integrates with the existing WLCG
 stack with far less effort — no `xrootd-monitoring-shoveler`, no AMQP collector,
 no UDP packet format. Transfer/operation counters (bytes, transfers, opens,
 cache, TPC, cluster) remain on the Prometheus `/metrics` endpoint
-(`src/metrics/`); a site that scrapes Prometheus can forward those to MonIT.
+(`src/observability/metrics/`); a site that scrapes Prometheus can forward those to MonIT.
 
 ## Files
 
 | File | Responsibility |
 |---|---|
 | `srr.h` | Public types: loc-conf, `xrootd_srr_share_t`, `xrootd_srr_endpoint_t`; handler + builder declarations. |
-| `module.c` | nginx HTTP module: the `xrootd_srr*` directives, loc-conf create/merge, handler binding. Mirrors `src/metrics/module.c`. |
+| `module.c` | nginx HTTP module: the `xrootd_srr*` directives, loc-conf create/merge, handler binding. Mirrors `src/observability/metrics/module.c`. |
 | `builder.c` | `ngx_http_xrootd_srr_build_json()` — assembles the storageservice tree with jansson; per-share space via `xrootd_fs_usage_stat()` (statvfs); two-pass `json_dumpb()` into the request pool. |
-| `handler.c` | `ngx_http_xrootd_srr_handler()` — GET/HEAD only, body discarded, sends `application/json`. Mirrors `src/metrics/handler.c`. |
+| `handler.c` | `ngx_http_xrootd_srr_handler()` — GET/HEAD only, body discarded, sends `application/json`. Mirrors `src/observability/metrics/handler.c`. |
 
 ## Configuration
 

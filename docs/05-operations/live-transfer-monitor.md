@@ -56,7 +56,7 @@ The transfer table is a **separate** shared memory zone from the metrics zone. I
 
 ## New shared memory structure
 
-**`src/dashboard/dashboard.h`** — the complete public header for the feature.
+**`src/observability/dashboard/dashboard.h`** — the complete public header for the feature.
 
 ```c
 #ifndef XROOTD_DASHBOARD_H
@@ -158,7 +158,7 @@ Initialise to `-1` in the open handler. Set after `xrootd_transfer_slot_alloc()`
 
 ## New files
 
-### `src/dashboard/transfer_table.c`
+### `src/observability/dashboard/transfer_table.c`
 
 Implements the four public functions declared in `dashboard.h`.
 
@@ -195,7 +195,7 @@ Called from `xrootd_on_disconnect()` as the final cleanup step. This catches dro
 
 ---
 
-### `src/dashboard/api.c`
+### `src/observability/dashboard/api.c`
 
 HTTP handler for `GET /xrootd/transfers`. Returns JSON.
 
@@ -207,7 +207,7 @@ Steps:
 1. Auth cookie check — if not valid, return `401 Unauthorized` (not a redirect; the JS fetch() handles this and redirects to login).
 2. Read-only scan of `xrootd_transfer_table_t` slots (no lock — eventually consistent is fine for display).
 3. Read aggregate totals from `ngx_xrootd_shm_zone->data` (the existing metrics SHM).
-4. Build JSON into a `metrics_writer_t` chain (reuse the same writer from `src/metrics/writer.c`).
+4. Build JSON into a `metrics_writer_t` chain (reuse the same writer from `src/observability/metrics/writer.c`).
 5. Respond with `Content-Type: application/json`.
 
 **JSON shape:**
@@ -245,7 +245,7 @@ Totals for the aggregate bytes are summed across all `servers[]` slots from the 
 
 ---
 
-### `src/dashboard/page.c`
+### `src/observability/dashboard/page.c`
 
 HTTP handler for `GET /xrootd/`. Serves the dashboard HTML page as a static string constant embedded in the C source.
 
@@ -274,7 +274,7 @@ The entire page — including inline CSS and JS — fits comfortably under 8 KB,
 
 ---
 
-### `src/dashboard/auth.c`
+### `src/observability/dashboard/auth.c`
 
 Handles the login flow and cookie verification.
 
@@ -314,9 +314,9 @@ No rate-limiting on login attempts is planned for v1; this dashboard should be f
 
 ---
 
-### `src/dashboard/module.c`
+### `src/observability/dashboard/module.c`
 
-Defines `ngx_http_xrootd_dashboard_module`. Mirrors the structure of `src/metrics/module.c`:
+Defines `ngx_http_xrootd_dashboard_module`. Mirrors the structure of `src/observability/metrics/module.c`:
 
 - `create_loc_conf` / `merge_loc_conf` for `ngx_http_xrootd_dashboard_loc_conf_t`
 - Two directives: `xrootd_dashboard on|off` and `xrootd_dashboard_password "<string>"`
@@ -344,7 +344,7 @@ ngx_http_xrootd_dashboard_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
 ## Modifications to existing files
 
-### `src/metrics/metrics.h`
+### `src/observability/metrics/metrics.h`
 
 Add the declaration:
 
@@ -352,7 +352,7 @@ Add the declaration:
 extern ngx_shm_zone_t *ngx_xrootd_dashboard_shm_zone;
 ```
 
-And include `src/dashboard/dashboard.h` from the umbrella header so that `xrootd_file_t` can reference `dashboard_slot` without extra includes.
+And include `src/observability/dashboard/dashboard.h` from the umbrella header so that `xrootd_file_t` can reference `dashboard_slot` without extra includes.
 
 ### `src/core/types/file.h`
 
@@ -489,11 +489,11 @@ The password is stored in `ngx_http_xrootd_dashboard_loc_conf_t.password` as an 
 
 ```sh
 ngx_addon_srcs="$ngx_addon_srcs \
-    $ngx_addon_dir/src/dashboard/transfer_table.c \
-    $ngx_addon_dir/src/dashboard/api.c \
-    $ngx_addon_dir/src/dashboard/page.c \
-    $ngx_addon_dir/src/dashboard/auth.c \
-    $ngx_addon_dir/src/dashboard/module.c \
+    $ngx_addon_dir/src/observability/dashboard/transfer_table.c \
+    $ngx_addon_dir/src/observability/dashboard/api.c \
+    $ngx_addon_dir/src/observability/dashboard/page.c \
+    $ngx_addon_dir/src/observability/dashboard/auth.c \
+    $ngx_addon_dir/src/observability/dashboard/module.c \
     "
 ```
 

@@ -923,7 +923,7 @@ hiding it:
   server served via sendfile/pgread/windowed path (cross-checked against `/metrics`
   counters) — directly exercises the data-plane perf work (phases 29–33).
 - **SciTags / packet-marking verification:** confirm the flow is being marked
-  (phase-34, `src/pmark/`) — read back the experiment/activity flow-id the server
+  (phase-34, `src/observability/pmark/`) — read back the experiment/activity flow-id the server
   applied so a "marking not reaching the NIC" misconfig is caught at the client.
 
 ### 15.4 Redirect / cluster / topology debugging

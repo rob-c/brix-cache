@@ -139,7 +139,7 @@ def test_token_fs_usage_and_shm_slot_helpers_are_shared():
 
     for relpath in (
         "src/query/space.c",
-        "src/metrics/stream_cache.c",
+        "src/observability/metrics/stream_cache.c",
         "src/webdav/propfind_props.c",
     ):
         _assert_markers(relpath, ["xrootd_fs_usage_"])
@@ -197,9 +197,9 @@ def test_phase5_tpc_common_layer_is_shared():
         _assert_markers(relpath, ["xrootd_tpc_credential_parse("])
     # dashboard api was split: registry include in dashboard_api_internal.h, the
     # snapshot call in api_transfers.c.
-    _assert_markers("src/dashboard/dashboard_api_internal.h",
+    _assert_markers("src/observability/dashboard/dashboard_api_internal.h",
                     ["../tpc/common/registry.h"])
-    _assert_markers("src/dashboard/api_transfers.c",
+    _assert_markers("src/observability/dashboard/api_transfers.c",
                     ["xrootd_tpc_registry_snapshot("])
 
 
