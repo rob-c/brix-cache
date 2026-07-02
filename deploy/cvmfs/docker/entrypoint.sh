@@ -11,16 +11,18 @@
 set -eu
 
 : "${DASH_PASSWORD:=cvmfs-demo}"
-: "${UPSTREAM_ALLOW:=cvmfs-stratum-one.cern.ch cernvmfs.gridpp.rl.ac.uk cvmfs-s1bnl.opensciencegrid.org cvmfs-s1fnal.opensciencegrid.org cvmfs-s1goc.opensciencegrid.org}"
+# Default allowlist = the Stratum-1 hosts the stock cvmfs-config-default
+# CVMFS_SERVER_URL lists actually name (observed from a live client; the
+# geo API answer can send a client to ANY of them). Port is not matched —
+# the :8000 variants are covered by the hostnames.
+: "${UPSTREAM_ALLOW:=cvmfs-stratum-one.cern.ch cernvmfs.gridpp.rl.ac.uk cvmfs-egi.gridpp.rl.ac.uk cvmfs-s1bnl.opensciencegrid.org cvmfs-s1fnal.opensciencegrid.org cvmfs-s1goc.opensciencegrid.org cvmfs-s1.hpc.swin.edu.au cvmfs-stratum-one.ihep.ac.cn sampacs01.if.usp.br}"
 
 NGX=/opt/nginx-xrootd
 LOGDIR=/var/log/nginx-xrootd
+CACHE=/var/cache/cvmfs
 
-mkdir -p "$LOGDIR" /var/cache/nginx-cvmfs /var/cache/nginx-cvmfs-quarantine \
-         /srv/scratch /run
-# nginx workers run as the built-in default user (nobody)
-chown -R nobody "$LOGDIR" /var/cache/nginx-cvmfs \
-                /var/cache/nginx-cvmfs-quarantine /srv/scratch
+mkdir -p "$LOGDIR" "$CACHE" /run
+chown -R nobody "$LOGDIR" "$CACHE"     # nginx workers run as nobody
 
 if [ "${MOCK_STRATUM1:-0}" = 1 ]; then
     echo "entrypoint: starting bundled mock Stratum-1 on 127.0.0.1:8000"
@@ -29,6 +31,8 @@ if [ "${MOCK_STRATUM1:-0}" = 1 ]; then
     UPSTREAM_ALLOW="$UPSTREAM_ALLOW 127.0.0.1"
 fi
 
+# The allowlist is one space-separated directive — every listed host is
+# allowed (xrootd_cvmfs_upstream_allow accepts all its arguments).
 sed -e "s|@DASH_PASSWORD@|$DASH_PASSWORD|" \
     -e "s|@UPSTREAM_ALLOW@|$UPSTREAM_ALLOW|" \
     "$NGX/conf/nginx.conf.in" > "$NGX/conf/nginx.conf"

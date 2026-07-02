@@ -94,6 +94,12 @@ curl -fsS --max-time 10 -x "$PROXY" "http://$S1$OBJ" -o /tmp/smoke_warm.bin \
     && cmp -s /tmp/smoke_cold.bin /tmp/smoke_warm.bin \
     && ok "CAS warm refetch byte-exact" || bad "CAS warm refetch"
 
+# --- 2b: the cached object is visible in the posix cache folder -------------
+NFILES="$(cexec find /var/cache/cvmfs -type f 2>/dev/null | wc -l)"
+[ "${NFILES:-0}" -ge 1 ] 2>/dev/null \
+    && ok "cached data present in /var/cache/cvmfs ($NFILES file(s))" \
+    || bad "posix cache folder empty after fill"
+
 # --- 3: Prometheus counters -------------------------------------------------
 MET="$(curl -fsS http://127.0.0.1:3130/metrics)"
 echo "$MET" | grep -q 'xrootd_cvmfs_requests_total{class="cas"} [1-9]' \
