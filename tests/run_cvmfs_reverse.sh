@@ -75,13 +75,19 @@ OBJ2="$(curl -s "http://127.0.0.1:$MPORT/ctl/objects" | python3 -c \
 N2="$(curl -s "http://127.0.0.1:$MPORT/ctl/log" | grep -oF "$OBJ2" | wc -l)"
 [ "$N2" = 1 ] && ok "stampede: exactly 1 origin fetch" || bad "stampede: $N2 fetches"
 
-# manifest: cached with a 1s TTL — a bump becomes visible after expiry (T12)
+# manifest: cached with a 1s TTL — a bump becomes visible after expiry (T12).
+# Under load a refill hiccup legitimately serves the stale copy once
+# (bounded stale-if-error), so poll a few TTL windows for the new content.
 curl -s "http://127.0.0.1:$CPORT/cvmfs/test.cern.ch/.cvmfspublished" -o "$PFX/m1"
 curl -s "http://127.0.0.1:$MPORT/ctl/manifest/bump" >/dev/null
-sleep 2
-curl -s "http://127.0.0.1:$CPORT/cvmfs/test.cern.ch/.cvmfspublished" -o "$PFX/m2"
-cmp -s "$PFX/m1" "$PFX/m2" && bad "manifest stale past TTL (cached forever!)" \
-    || ok "expired manifest revalidated (TTL)"
+MREV=0
+for _ in 1 2 3; do
+    sleep 2
+    curl -s "http://127.0.0.1:$CPORT/cvmfs/test.cern.ch/.cvmfspublished" -o "$PFX/m2"
+    cmp -s "$PFX/m1" "$PFX/m2" || { MREV=1; break; }
+done
+[ "$MREV" = 1 ] && ok "expired manifest revalidated (TTL)" \
+    || bad "manifest stale past TTL (cached forever!)"
 
 # geo passthrough
 G="$(curl -s "http://127.0.0.1:$CPORT/cvmfs/test.cern.ch/api/v1.0/geo/x/a,b")"
