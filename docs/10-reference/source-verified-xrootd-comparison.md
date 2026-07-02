@@ -125,7 +125,7 @@ Source anchors:
 | Protocol version constants | `XProtocol.hh` advertises `kXR_PROTOCOLVERSION 0x00000520` and `5.2.0`. | `src/protocol/opcodes.h` advertises `0x00000520`. | Parity | The module intentionally speaks the current 5.2 wire vocabulary even if the surrounding XRootD software release number is newer. |
 | Request opcodes `3000..3032` | `XProtocol.hh` defines auth through clone, including historical gaps. | `src/protocol/opcodes.h` defines the same visible request IDs. | Parity | `kXR_gpfile` is the only defined request without a practical handler here. |
 | Handshake, protocol, login, auth | `XrdXrootdProtocol.cc`, XrdSec plugin manager. | `src/connection/handler.c`, `src/session/protocol.c`, `src/session/login.c`, `src/auth/gsi/auth.c`, `src/auth/token/validate.c`, `src/auth/sss/`, `src/auth/unix/`, `src/auth/krb5/`. | Parity | Auth plugin breadth differs; see auth table. |
-| In-protocol TLS (`kXR_ableTLS`, `kXR_gotoTLS`, `kXR_tlsLogin`) | XrdTls/XrdXrootd protocol path. | `src/connection/tls.c`, `src/session/protocol.c`, `src/upstream/tls.c`. | Parity | Also implemented for upstream proxy bootstrap when backend requires `kXR_gotoTLS`. |
+| In-protocol TLS (`kXR_ableTLS`, `kXR_gotoTLS`, `kXR_tlsLogin`) | XrdTls/XrdXrootd protocol path. | `src/connection/tls.c`, `src/session/protocol.c`, `src/net/upstream/tls.c`. | Parity | Also implemented for upstream proxy bootstrap when backend requires `kXR_gotoTLS`. |
 | Signing (`kXR_sigver`) | `XrdSecProtect`, XrdXrootd signing enforcement. | `src/handshake/dispatch_signing.c`, signing enforcement before dispatch. | Parity | Module enforces configured signing level before handler dispatch. |
 | Session bind / secondary streams | Upstream bind/session mechanisms. | `src/session/bind.c`, `src/session/registry.c`; read dispatch restricts bound streams to read-style handle I/O. | Parity | Bound stream write rejection is explicit in `dispatch_read.c`. |
 | Open/read/close/stat | Upstream `do_Open`, file-handle read dispatch. | `src/read/open.c`, `src/read/read.c`, `src/close.c`, `src/stat.c`. | Parity | Path confinement is module-specific and stronger operationally. |
@@ -134,7 +134,7 @@ Source anchors:
 | POSC | Upstream supports `kXR_posc` and `kXR_supposc`. | `src/read/open.c`, `src/connection/fd_table.c`, protocol advertises `kXR_supposc`. | Parity | Cleanup on failed/abandoned POSC is wired through handle free logic. |
 | Namespace mutation: mkdir, rm, rmdir, mv, chmod, truncate | Upstream dispatches these in `XrdXrootdProtocol.cc`. | `src/mkdir.c`, `src/rm.c`, `src/write/mv.c`, `src/chmod.c`, `src/truncate.c`. | Parity | Module gates writes through global `allow_write` plus auth/token/ACL checks. |
 | Extended attributes (`kXR_fattr`) | Upstream `do_FAttr`. | `src/fattr/`; read dispatcher routes `kXR_fattr`. | Parity | Module maps user-facing attrs through local xattrs and includes auth gating. |
-| Locate / manager redirects | Upstream XrdCms/XrdXrootd integration. | `src/read/locate.c`, `src/manager/`, `src/cms/`, `src/upstream/`. | Partial | Practical redirector behavior exists; full upstream CMS admin/tooling is broader. |
+| Locate / manager redirects | Upstream XrdCms/XrdXrootd integration. | `src/read/locate.c`, `src/net/manager/`, `src/net/cms/`, `src/net/upstream/`. | Partial | Practical redirector behavior exists; full upstream CMS admin/tooling is broader. |
 | Query subtypes | Upstream `do_Query` and plugin hooks. | `src/query/` including checksum, config, space, prep, opaque. | Partial | Common operational queries are present. Full opaque/plugin semantics are narrower. |
 | Prepare/stage (`kXR_prepare`, `kXR_QPrep`) | Upstream `do_Prepare` plus full `XrdFrm` ecosystem. | `src/query/prepare.c`, `src/frm/`, `src/webdav/tape_rest.c`. | Partial | This module now has a real durable queue and tape gateway, but not full upstream FRM daemon/admin/migrate/purge parity. |
 | Checkpoint (`kXR_chkpoint`) | Upstream handle dispatch includes checkpoint. | `src/write/chkpoint.c`. | Parity | Write dispatcher routes checkpoint with write gate. |
@@ -241,15 +241,15 @@ Source anchors:
 | Feature | Upstream XRootD source | nginx-xrootd source | Status | Notes |
 |---|---|---|---|---|
 | Data server role | Core XrdXrootd. | `kXR_isServer` always set. | Parity | Module is a data server by default. |
-| Manager / redirector | `XrdCms`, XrdXrootd manager integration. | `src/manager/`, `src/cms/`, `src/read/locate.c`, `src/upstream/`. | Partial | Practical locate/redirect and manager mode exist. Upstream CMS has broader tooling and battle-tested semantics. |
+| Manager / redirector | `XrdCms`, XrdXrootd manager integration. | `src/net/manager/`, `src/net/cms/`, `src/read/locate.c`, `src/net/upstream/`. | Partial | Practical locate/redirect and manager mode exist. Upstream CMS has broader tooling and battle-tested semantics. |
 | Supervisor/meta manager role | Upstream flags/roles. | `xrootd_supervisor`, `kXR_attrSuper`, tests. | Parity / Partial | Flagging exists; ensure topology behavior matches target deployment before marketing full CMS parity. |
 | Virtual redirector | Upstream protocol clients understand `kXR_attrVirtRdr`. | `xrootd_virtual_redirector` and auto-detection for static manager maps. | nginx+ / Partial | Useful nginx-specific static map deployment mode. |
-| Collapse redirects | Upstream has client/server redirect mechanics. | `src/manager/redir_cache.c`; `kXR_collapseRedir` when configured. | nginx+ / Partial | Implemented as SHM redirect-target cache. |
+| Collapse redirects | Upstream has client/server redirect mechanics. | `src/net/manager/redir_cache.c`; `kXR_collapseRedir` when configured. | nginx+ / Partial | Implemented as SHM redirect-target cache. |
 | Native TPC / clone | Upstream native TPC and clone behavior. | `src/tpc/`, `src/read/clone.c`. | Parity / Partial | Module has SHM key registry and clone; verify multi-hop/TLS/delegation edge cases per site. |
 | HTTP-TPC | `XrdHttpTpc`. | `src/webdav/tpc*.c`. | Parity / nginx+ | See HTTP table. |
-| Upstream proxy mode | Upstream has PSS/proxy/cache architectures. | `src/proxy/`, `src/upstream/`, `src/webdav/proxy.c`. | nginx+ / Partial | nginx offers protocol bridge and HTTP reverse proxy features; some upstream async edge cases remain flagged. |
-| Traffic mirroring / shadow validation | No comparable upstream server feature found. | `src/mirror/`, `src/mirror/stream_wmirror.c`, phase-24 tests/docs. | nginx+ | Strong migration feature: run shadow paths before cutover and track divergence. |
-| Dynamic upstream pools and health | Upstream CMS and PSS ecosystems. | `src/upstream/`, WebDAV proxy backend pools, manager registry. | Partial / nginx+ | Strong for nginx-style operations, not a CMS toolchain clone. |
+| Upstream proxy mode | Upstream has PSS/proxy/cache architectures. | `src/net/proxy/`, `src/net/upstream/`, `src/webdav/proxy.c`. | nginx+ / Partial | nginx offers protocol bridge and HTTP reverse proxy features; some upstream async edge cases remain flagged. |
+| Traffic mirroring / shadow validation | No comparable upstream server feature found. | `src/net/mirror/`, `src/net/mirror/stream_wmirror.c`, phase-24 tests/docs. | nginx+ | Strong migration feature: run shadow paths before cutover and track divergence. |
+| Dynamic upstream pools and health | Upstream CMS and PSS ecosystems. | `src/net/upstream/`, WebDAV proxy backend pools, manager registry. | Partial / nginx+ | Strong for nginx-style operations, not a CMS toolchain clone. |
 
 ## Observability and Operations
 
@@ -261,7 +261,7 @@ Source anchors:
 | Live transfer dashboard | Upstream has admin tools and monitoring ecosystem. | `src/dashboard/`, `/xrootd/api/v1/transfers`, events, history, cluster, cache, ratelimit, config. | nginx+ | Operator-friendly visibility built into the server. |
 | Admin API | Upstream admin commands/tools. | `src/dashboard/api_admin.c`, auth/cookie/HMAC paths. | nginx+ / Partial | Different operational model; not drop-in for XRootD admin command tooling. |
 | Access logs | Upstream logs and monitor streams. | nginx access/error logs plus protocol-specific logs and sanitized wire strings. | nginx+ | Fits existing nginx observability/log shipping. |
-| Rate limiting / bandwidth / concurrency | Upstream `XrdThrottle` and `XrdBwm`. | `src/ratelimit/`, `xrootd_rate_limit_zone`, `xrootd_rate_limit_rule`, `xrootd_bandwidth_limit`, `xrootd_concurrency_limit`. | Parity / nginx+ | Upstream has throttle/BWM plugins; nginx implementation is cross-protocol and identity-aware. |
+| Rate limiting / bandwidth / concurrency | Upstream `XrdThrottle` and `XrdBwm`. | `src/net/ratelimit/`, `xrootd_rate_limit_zone`, `xrootd_rate_limit_rule`, `xrootd_bandwidth_limit`, `xrootd_concurrency_limit`. | Parity / nginx+ | Upstream has throttle/BWM plugins; nginx implementation is cross-protocol and identity-aware. |
 | IPv6 completion and low-cardinality metrics | Upstream supports IPv6 at core network layer. | Phase-36 docs/tests cover stream, CMS redirect, WebDAV/XrdHttp, S3, TPC, admin, rate-limit, metrics. | Parity / nginx+ | Reviewer should prefer source/tests over stale docs where IPv6 gaps are mentioned. |
 | Packet marking / SciTags / PMark | Upstream has `XrdNetPMark`, XrdHttp PMark, XrdHttpTpc PMark manager. | `src/pmark/`, WebDAV/TPC integration, optional HTTP plain marking. | Partial / Parity | Both ecosystems have packet marking; implementation surfaces differ. |
 
@@ -276,10 +276,10 @@ These are the features that make the replacement case stronger than a simple
 | Unified multi-protocol namespace | `src/read/`, `src/webdav/`, `src/s3/`, shared path/auth helpers | One export can serve `root://`, `davs://`/XrdHttp, and S3-style clients with common confinement and policy rules. |
 | Prometheus-first monitoring | `src/metrics/`, `src/dashboard/`, `src/srr/` | Avoids UDP monitoring while integrating with modern site monitoring stacks. |
 | Dashboard/admin API | `src/dashboard/` | Makes transfer, cluster, cache, rate-limit, and config state inspectable over HTTP. |
-| Identity-aware shaping | `src/ratelimit/` | Applies request-rate, bandwidth, and concurrency controls by VO, issuer, DN hash, IP, or volume prefix across stream and HTTP. |
+| Identity-aware shaping | `src/net/ratelimit/` | Applies request-rate, bandwidth, and concurrency controls by VO, issuer, DN hash, IP, or volume prefix across stream and HTTP. |
 | WebDAV desktop/client compatibility | `src/webdav/lock.c`, `dead_props.c`, `search.c`, `acl.c` | Supports clients that need locks or dead properties, beyond upstream XrdHttp's reviewed method set. |
 | Hardened HTTP-TPC | `src/webdav/tpc_curl.c`, `tpc_cred.c`, `tpc_marker.c` | Adds SSRF/DNS pinning, credential exchange, marker streaming, multistream, and metrics in one module. |
-| Traffic mirroring | `src/mirror/` | Enables safe site migration by shadowing reads/writes and logging divergence before cutover. |
+| Traffic mirroring | `src/net/mirror/` | Enables safe site migration by shadowing reads/writes and logging divergence before cutover. |
 | Path confinement discipline | `src/path/`, `src/core/compat/namespace_ops.c` | Makes the codebase auditable: resolve/canonicalize/confine first, then syscall. |
 | WLCG Tape REST gateway | `src/webdav/tape_rest.c`, `src/frm/` | Provides modern HTTP tape control while sharing the same stage queue as native XRootD prepare/open. |
 | nginx TLS/logging/reload model | nginx module integration through top-level `config` | Sites can reuse nginx operational practices for certs, reloads, logging, HTTP routing, and reverse proxying. |
@@ -302,8 +302,8 @@ UDP monitoring.
 | XrdOssCsi tagstore/checksum store | `/tmp/xrootd-src/src/XrdOssCsi` | No comparable tagstore. | Persistent checksum/page-integrity workflows may differ. | Treat as storage-plugin gap. |
 | Checksum plugin framework breadth | `/tmp/xrootd-src/src/XrdCks`, `XrdVersionPlugin.hh` | Fixed local checksum set with CRC64/CRC64NVME included. | Compatibility gap only for uncommon site-specific checksum plugins. | Add plugins only if needed by site validation. |
 | ZIP virtual filesystem | `/tmp/xrootd-src/src/XrdZip` | **Partially implemented** — `src/zip/` (central-dir reader + HTTP member serving). | ZIP-member access over HTTP exists; full cross-protocol parity does not. | Mostly closed; validate breadth if a site needs full ZIP-member semantics. |
-| CMS admin/tooling completeness | `/tmp/xrootd-src/src/XrdCms` | `src/cms/`, `src/manager/` implement practical manager behavior. | Complex multi-tier production clusters may need careful conformance testing. | Claim manager/redirector support with caveats. |
-| Proxy async `kXR_waitresp`/`kXR_attn` relay | Upstream client/server supports async responses. | `src/upstream/response.c` forwards `kXR_waitresp`; no complete unsolicited upstream `kXR_attn` path was verified in this pass. | Could affect proxying to backends that park operations. | Keep as serious proxy-mode gap until source/test proves closure. |
+| CMS admin/tooling completeness | `/tmp/xrootd-src/src/XrdCms` | `src/net/cms/`, `src/net/manager/` implement practical manager behavior. | Complex multi-tier production clusters may need careful conformance testing. | Claim manager/redirector support with caveats. |
+| Proxy async `kXR_waitresp`/`kXR_attn` relay | Upstream client/server supports async responses. | `src/net/upstream/response.c` forwards `kXR_waitresp`; no complete unsolicited upstream `kXR_attn` path was verified in this pass. | Could affect proxying to backends that park operations. | Keep as serious proxy-mode gap until source/test proves closure. |
 | Proxy `kXR_prepare` path-list rewrite | Upstream prepare supports path lists. | Existing proxy docs flag whole-payload rewrite behavior. | Path mapping proxy deployments may mishandle multi-path prepare. | Keep as serious gap unless tests/source show per-entry rewrite. |
 | Erasure-coded redirects (`kXR_ecRedir`) | Protocol flag and client handling exist upstream. | Defined, never set. | EC storage redirect semantics not present. | Out of scope without EC backend. |
 
@@ -370,7 +370,7 @@ High-signal source files inspected for this comparison:
 | S3 | `src/s3/` | `/tmp/xrootd-src/src/XrdClS3` |
 | Cache/storage | `src/fs/cache/`, `src/fs/`, `src/path/`, `src/core/compat/namespace_ops.c` | `/tmp/xrootd-src/src/XrdPfc`, `/tmp/xrootd-src/src/XrdPss`, `/tmp/xrootd-src/src/XrdCeph`, `/tmp/xrootd-src/src/XrdOssCsi`, `/tmp/xrootd-src/src/XrdZip`, `/tmp/xrootd-src/src/XrdRmc` |
 | FRM/tape | `src/frm/`, `src/query/prepare.c`, `src/webdav/tape_rest.c` | `/tmp/xrootd-src/src/XrdFrm` |
-| Rate limiting | `src/ratelimit/`, `src/metrics/ratelimit.c` | `/tmp/xrootd-src/src/XrdThrottle`, `/tmp/xrootd-src/src/XrdBwm` |
-| CMS/manager/proxy | `src/cms/`, `src/manager/`, `src/upstream/`, `src/proxy/` | `/tmp/xrootd-src/src/XrdCms`, `/tmp/xrootd-src/src/XrdXrootd` |
+| Rate limiting | `src/net/ratelimit/`, `src/metrics/ratelimit.c` | `/tmp/xrootd-src/src/XrdThrottle`, `/tmp/xrootd-src/src/XrdBwm` |
+| CMS/manager/proxy | `src/net/cms/`, `src/net/manager/`, `src/net/upstream/`, `src/net/proxy/` | `/tmp/xrootd-src/src/XrdCms`, `/tmp/xrootd-src/src/XrdXrootd` |
 | Observability | `src/metrics/`, `src/dashboard/`, `src/srr/` | `/tmp/xrootd-src/src/XrdMon`, `/tmp/xrootd-src/src/XrdXrootd/XrdXrootdMon*` |
-| Migration/mirroring | `src/mirror/` | No comparable upstream server subsystem found in reviewed source. |
+| Migration/mirroring | `src/net/mirror/` | No comparable upstream server subsystem found in reviewed source. |

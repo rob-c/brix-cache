@@ -278,7 +278,7 @@ assembly**, ranked by audit cost (not LoC):
 | **kXR ↔ errno canonical table** | `client/lib/status.c` ↔ `src/core/compat/error_mapping.c` | ⚙️ **DONE** — §4.2 |
 | **GSI-client handshake** | `client/lib/sec/sec_gsi.c` (on `gsi_core`) **vs** `src/tpc/gsi_outbound_*.c` (raw OpenSSL) | ⚙️ **DONE** — §4.3 (built a TPC-pull-from-GSI-origin gate, then migrated onto `gsi_core`) |
 | **Token JWT split** | `client/lib/credinfo.c` (`xrdjwt_split`) ↔ `src/auth/token/validate.c` (inline `memchr`) | ⚙️ **DONE** — §4.4 (server switched to the shared `xrdjwt_split`) |
-| **Session-bootstrap packing** (handshake + kXR_protocol + kXR_login) | `client/lib/conn.c` ↔ `src/upstream/bootstrap.c` (×2) ↔ `src/tpc/bootstrap.c` | ⚙️ **DONE** — §4.5 (new `protocol/bootstrap_pack.h`, 4 sites → 1) |
+| **Session-bootstrap packing** (handshake + kXR_protocol + kXR_login) | `client/lib/conn.c` ↔ `src/net/upstream/bootstrap.c` (×2) ↔ `src/tpc/bootstrap.c` | ⚙️ **DONE** — §4.5 (new `protocol/bootstrap_pack.h`, 4 sites → 1) |
 | **kXR_error decode adoption** | already-shared `xrd_error_body_decode` ↔ hand-rolled in `src/tpc/source.c`, `src/fs/cache/origin_response.c` | ⚙️ **DONE** — §4.5 (adopted shared decoder; fixed a non-NUL `%s` over-read) |
 | **Stat-line grammar** `"<id> <size> <flags> <mtime>"` | `src/path/stat_body.c` (encoder) ↔ `client/lib/ops_meta.c` (decoder) | ⚙️ **DONE** — §4.6 (new `protocol/stat_line.h`, encode + decode co-located) |
 | **`root://` URL authority split** | `client/lib/url.c` (on shared `host_split`) ↔ `src/tpc/parse.c` (bespoke) | ⚙️ **DONE** — §4.7 (server routed onto the shared `xrootd_split_host_port`) |
@@ -419,7 +419,7 @@ rather than parses).
 **The duplication:** the three fixed-layout structs every outbound session sends in order —
 `ClientInitHandShake` (20B) → `ClientProtocolRequest` (kXR_protocol, 24B) → `ClientLoginRequest`
 (kXR_login, 24B) — were hand-packed in **four** places: `client/lib/conn.c`,
-`src/upstream/bootstrap.c` (twice: the bootstrap buffer *and* the TLS-resend login), and
+`src/net/upstream/bootstrap.c` (twice: the bootstrap buffer *and* the TLS-resend login), and
 `src/tpc/bootstrap.c`. This is security-relevant assembly (protocol version, TLS-capability
 flags, login capver) audited 4× and free to drift between roles.
 

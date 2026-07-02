@@ -50,19 +50,19 @@ def _read(rel):
 # --------------------------------------------------------------------------- #
 
 def test_mirror_modules_present():
-    for f in ("src/mirror/mirror.h", "src/mirror/http_mirror.c",
-              "src/mirror/http_mirror.h", "src/mirror/stream_mirror.c",
-              "src/mirror/stream_mirror.h"):
+    for f in ("src/net/mirror/mirror.h", "src/net/mirror/http_mirror.c",
+              "src/net/mirror/http_mirror.h", "src/net/mirror/stream_mirror.c",
+              "src/net/mirror/stream_mirror.h"):
         assert (ROOT / f).exists(), f
     cfg = _read("config")
-    assert "src/mirror/http_mirror.c" in cfg
-    assert "src/mirror/stream_mirror.c" in cfg
+    assert "src/net/mirror/http_mirror.c" in cfg
+    assert "src/net/mirror/stream_mirror.c" in cfg
 
 
 def test_stream_dispatch_hook_present():
     d = _read("src/handshake/dispatch.c")
     assert "xrootd_stream_mirror_maybe" in d
-    sm = _read("src/mirror/stream_mirror.c")
+    sm = _read("src/net/mirror/stream_mirror.c")
     # Reuses the proven bootstrap wire builder; replays the saved request.
     assert "xrootd_upstream_build_bootstrap" in sm
     assert "xrootd_mir_send_request" in sm
@@ -70,7 +70,7 @@ def test_stream_dispatch_hook_present():
 
 
 def test_http_phase_handlers_present():
-    h = _read("src/mirror/http_mirror.c")
+    h = _read("src/net/mirror/http_mirror.c")
     assert "xrootd_http_mirror_precontent_handler" in h
     assert "ngx_http_subrequest" in h
     assert "NGX_HTTP_SUBREQUEST_BACKGROUND" in h
@@ -232,7 +232,7 @@ def test_stream_mirror_write_opcodes_and_gate_parse(tmp_path):
 
 def test_mirror_writes_off_by_default_and_gated_in_source():
     """mirror_writes defaults off; the gate is independent of opcode selection."""
-    mh = _read("src/mirror/mirror.h")
+    mh = _read("src/net/mirror/mirror.h")
     # Write bits exist but are excluded from the default opcode mask.
     assert "XROOTD_MIRROR_OP_MKDIR" in mh
     assert "XROOTD_MIRROR_OP_WRITE" in mh
@@ -242,7 +242,7 @@ def test_mirror_writes_off_by_default_and_gated_in_source():
     op_all = re.search(r"define\s+XROOTD_MIRROR_OP_ALL\b(.*?)\n\n", mh, re.S)
     assert op_all and "MKDIR" not in op_all.group(1) and "OP_WRITE" not in op_all.group(1)
     # The stream maybe() enforces mirror_writes as a second, independent guard.
-    sm = _read("src/mirror/stream_mirror.c")
+    sm = _read("src/net/mirror/stream_mirror.c")
     assert "OP_WRITE_ALL" in sm and "mirror_writes" in sm
     # Default merge is 0 (off) on both surfaces.
     assert "conf->mirror.mirror_writes,\n                         prev->mirror.mirror_writes, 0" \

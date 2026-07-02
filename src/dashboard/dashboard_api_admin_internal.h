@@ -8,7 +8,7 @@
 #include "dashboard.h"
 #include "api_admin.h"
 #include "dashboard_json.h"
-#include "manager/registry.h"
+#include "net/manager/registry.h"
 #include "webdav/proxy_pool.h"
 #include "core/compat/http_headers.h"
 #include <jansson.h>

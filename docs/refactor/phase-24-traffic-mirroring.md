@@ -2,7 +2,7 @@
 
 **Status:** ✅ Implemented (as-built diverges from this plan — see status section)  
 **Depends on:** Phase 22 (stream health check bootstrap) for stream surface  
-**Touches:** `src/mirror/` (new), `src/handshake/dispatch.c`, `src/webdav/postconfig.c`  
+**Touches:** `src/net/mirror/` (new), `src/handshake/dispatch.c`, `src/webdav/postconfig.c`  
 **Net LoC:** +~780 new, ~25 modified
 
 ---
@@ -19,13 +19,13 @@ mirroring expansion.
 
 | Step | Capability | Status | Evidence / divergence |
 |------|-----------|--------|-----------------------|
-| **A** | Common mirror config | ✅ **Done** | `xrootd_mirror_conf_t` (`src/mirror/mirror.h`) with `method_mask`/`opcode_mask`, `XROOTD_MIRROR_MAX_TARGETS=4`, and the `xrootd_mirror_should_sample()` PRNG helper. Embedded in both the WebDAV loc conf and the stream srv conf. |
-| **B** | HTTP/WebDAV mirror | ✅ **Done** | `src/mirror/http_mirror.c` — PRECONTENT-phase handler registered in `src/webdav/postconfig.c:70`; main-request-only with a `mirror_fired` idempotency guard; fires a `NGX_HTTP_SUBREQUEST_BACKGROUND` subrequest per target to internal `/_xrootd_mirror...` locations; auth-strip + divergence tracking. |
-| **C** | XRootD stream mirror | ✅ **Done — granular bootstrap states** | `src/mirror/stream_mirror.c`; `xrootd_stream_mirror_maybe()` is called from **`src/handshake/dispatch.c:73`** after the read-opcode dispatch (as planned). Bootstrap states are `XRD_MIR_HANDSHAKE → XRD_MIR_PROTOCOL → XRD_MIR_LOGIN → XRD_MIR_REQUEST` (mirroring the real bootstrap phases), **not** the doc's `CONNECTING/BOOTSTRAP/REQUEST/DONE`. Replays the saved primary request frame, discards the response, compares status. |
+| **A** | Common mirror config | ✅ **Done** | `xrootd_mirror_conf_t` (`src/net/mirror/mirror.h`) with `method_mask`/`opcode_mask`, `XROOTD_MIRROR_MAX_TARGETS=4`, and the `xrootd_mirror_should_sample()` PRNG helper. Embedded in both the WebDAV loc conf and the stream srv conf. |
+| **B** | HTTP/WebDAV mirror | ✅ **Done** | `src/net/mirror/http_mirror.c` — PRECONTENT-phase handler registered in `src/webdav/postconfig.c:70`; main-request-only with a `mirror_fired` idempotency guard; fires a `NGX_HTTP_SUBREQUEST_BACKGROUND` subrequest per target to internal `/_xrootd_mirror...` locations; auth-strip + divergence tracking. |
+| **C** | XRootD stream mirror | ✅ **Done — granular bootstrap states** | `src/net/mirror/stream_mirror.c`; `xrootd_stream_mirror_maybe()` is called from **`src/handshake/dispatch.c:73`** after the read-opcode dispatch (as planned). Bootstrap states are `XRD_MIR_HANDSHAKE → XRD_MIR_PROTOCOL → XRD_MIR_LOGIN → XRD_MIR_REQUEST` (mirroring the real bootstrap phases), **not** the doc's `CONNECTING/BOOTSTRAP/REQUEST/DONE`. Replays the saved primary request frame, discards the response, compares status. |
 | **D** | Memory-safety invariant | ✅ **Done** | Stream mirror ctx is allocated off a process-lifetime pool (not the client connection pool) so it outlives the client; matches the Step-D requirement. |
 | **E** | Multi-target | ✅ **Done** | Up to `XROOTD_MIRROR_MAX_TARGETS` (4); HTTP fans out one background subrequest per target, stream loops over targets. |
 | **F** | Metrics | ✅ **Done — different metric names** | The 8 counter fields exist (`metrics.h:496-503`: `mirror_http_*` + `mirror_stream_*`). **Exported with a shared name + `surface="http"\|"stream"` label** (`xrootd_mirror_requests_total{surface=...}`, `xrootd_mirror_dropped_total{...}`, `xrootd_mirror_divergence_total{...}`, from `src/metrics/stream.c:416+`), **not** the plan's separate `xrootd_webdav_mirror_*` / `xrootd_stream_mirror_*` metric names. (`surface` is a 2-value label — low cardinality, honoring Invariant 8.) |
-| **G** | Opt-in write/data-write mirroring | ✅ **Done — added after original scope** | HTTP/WebDAV write methods are gated by `mirror_writes`; stream metadata mutations are replayed by `stream_mirror.c`; sequential `open(write) -> write -> close` data writes are buffered and replayed by `src/mirror/stream_wmirror.c`. `kXR_pgwrite`, non-sequential offsets, and over-cap payloads abort the data-write mirror safely. |
+| **G** | Opt-in write/data-write mirroring | ✅ **Done — added after original scope** | HTTP/WebDAV write methods are gated by `mirror_writes`; stream metadata mutations are replayed by `stream_mirror.c`; sequential `open(write) -> write -> close` data writes are buffered and replayed by `src/net/mirror/stream_wmirror.c`. `kXR_pgwrite`, non-sequential offsets, and over-cap payloads abort the data-write mirror safely. |
 
 ### As-built divergences (not defects)
 
@@ -135,13 +135,13 @@ The primary client response is never delayed by the mirror path.
 
 ## Step A — Common Mirror Config
 
-**Files:** `src/mirror/mirror.h` (new), `src/core/config/directives.c` (extend),
+**Files:** `src/net/mirror/mirror.h` (new), `src/core/config/directives.c` (extend),
 `src/core/types/config.h` (stream), `src/webdav/webdav.h` (HTTP)
 
 ### A1 — Shared config types
 
 ```c
-/* src/mirror/mirror.h */
+/* src/net/mirror/mirror.h */
 
 #define XROOTD_MIRROR_MAX_TARGETS  4   /* up to 4 shadow backends */
 
@@ -232,7 +232,7 @@ HEP traffic volumes. Sampling is per-request, not per-session.
 
 ## Step B — HTTP/WebDAV Mirror
 
-**Files:** `src/mirror/http_mirror.h` (new), `src/mirror/http_mirror.c` (new),
+**Files:** `src/net/mirror/http_mirror.h` (new), `src/net/mirror/http_mirror.c` (new),
 `src/webdav/postconfig.c` (extend)
 
 ### B1 — PRECONTENT phase handler
@@ -436,7 +436,7 @@ auth-stripping added in the header copy loop.
 
 ## Step C — XRootD Stream Mirror
 
-**Files:** `src/mirror/stream_mirror.h` (new), `src/mirror/stream_mirror.c` (new),
+**Files:** `src/net/mirror/stream_mirror.h` (new), `src/net/mirror/stream_mirror.c` (new),
 `src/handshake/dispatch.c` (extend)
 
 The stream mirror reuses the bootstrap machinery from Phase 22 (health checks):
@@ -752,11 +752,11 @@ shadow backend starts behaving differently from production.
 
 | File | Action | Purpose |
 |---|---|---|
-| `src/mirror/mirror.h` | **New** | Shared config types, sampling helper, method/opcode masks |
-| `src/mirror/http_mirror.h` | **New** | HTTP mirror context type; `xrootd_http_mirror_handler` declaration |
-| `src/mirror/http_mirror.c` | **New** | PRECONTENT handler; subrequest launcher; mirror proxy handler; divergence tracking |
-| `src/mirror/stream_mirror.h` | **New** | `xrootd_stream_mirror_t`; `xrootd_stream_mirror_maybe()` |
-| `src/mirror/stream_mirror.c` | **New** | Bootstrap state machine; request replay; response discard; divergence check |
+| `src/net/mirror/mirror.h` | **New** | Shared config types, sampling helper, method/opcode masks |
+| `src/net/mirror/http_mirror.h` | **New** | HTTP mirror context type; `xrootd_http_mirror_handler` declaration |
+| `src/net/mirror/http_mirror.c` | **New** | PRECONTENT handler; subrequest launcher; mirror proxy handler; divergence tracking |
+| `src/net/mirror/stream_mirror.h` | **New** | `xrootd_stream_mirror_t`; `xrootd_stream_mirror_maybe()` |
+| `src/net/mirror/stream_mirror.c` | **New** | Bootstrap state machine; request replay; response discard; divergence check |
 | `src/handshake/dispatch.c` | Modify | Call `xrootd_stream_mirror_maybe()` after read opcode dispatch |
 | `src/webdav/postconfig.c` | Modify | Register `xrootd_http_mirror_handler` in PRECONTENT phase; create internal locations |
 | `src/webdav/webdav.h` | Modify | Add `xrootd_mirror_conf_t mirror` to `ngx_http_xrootd_webdav_loc_conf_t`; add `mirror_fired`, `primary_status` to req ctx |
@@ -772,8 +772,8 @@ shadow backend starts behaving differently from production.
 ## Build Registration
 
 Add to `NGX_ADDON_SRCS` in `src/core/config/config.h`:
-- `$ngx_addon_dir/src/mirror/http_mirror.c`
-- `$ngx_addon_dir/src/mirror/stream_mirror.c`
+- `$ngx_addon_dir/src/net/mirror/http_mirror.c`
+- `$ngx_addon_dir/src/net/mirror/stream_mirror.c`
 
 Run `./configure` once to pick up new source files, then `make -j$(nproc)` for all
 subsequent changes.

@@ -8,9 +8,9 @@
 #include "dashboard_http.h"
 #include "dashboard_json.h"
 #include "core/compat/fs_usage.h"
-#include "manager/registry.h"
+#include "net/manager/registry.h"
 #include "tpc/common/registry.h"
-#include "ratelimit/ratelimit.h"
+#include "net/ratelimit/ratelimit.h"
 #include <stdio.h>
 #include <string.h>
 #include <jansson.h>

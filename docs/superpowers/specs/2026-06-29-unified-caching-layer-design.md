@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-29
 **Status:** Approved for planning
-**Builds on:** [unified cache state engine (.cinfo v3)](2026-06-28-unified-cache-state-engine-design.md), [cache storage on a driver](2026-06-29-cache-storage-on-a-driver-design.md), the SD driver seam (`src/fs/backend/sd.h`), `src/fs/cache/`, `src/ratelimit/`, `src/metrics/unified.c`.
+**Builds on:** [unified cache state engine (.cinfo v3)](2026-06-28-unified-cache-state-engine-design.md), [cache storage on a driver](2026-06-29-cache-storage-on-a-driver-design.md), the SD driver seam (`src/fs/backend/sd.h`), `src/fs/cache/`, `src/net/ratelimit/`, `src/metrics/unified.c`.
 
 ## Goal
 
@@ -64,7 +64,7 @@ Labels stay low-cardinality (no paths/keys), per the metrics invariant.
 ## Component C — Staging-fullness backpressure *(built second)*
 
 ### What exists
-`src/ratelimit/` can already shed stream (`kXR_wait`) and HTTP (`429`) load via `ratelimit_stream.c` / `ratelimit_http.c` + `reservation.c`. Phase 2 added the write-back **staging** SD instance (`cache_wt_stage_root`). Nothing connects staging fullness to admission.
+`src/net/ratelimit/` can already shed stream (`kXR_wait`) and HTTP (`429`) load via `ratelimit_stream.c` / `ratelimit_http.c` + `reservation.c`. Phase 2 added the write-back **staging** SD instance (`cache_wt_stage_root`). Nothing connects staging fullness to admission.
 
 ### What changes
 1. **Fullness signal = `statvfs` on the stage filesystem** (chosen), via the same `xrootd_cache_fs_usage_cached` sampler (short TTL → not per-open).

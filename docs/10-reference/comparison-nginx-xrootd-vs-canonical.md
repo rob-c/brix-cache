@@ -239,7 +239,7 @@ integration models and operational controls.
 |---|---|---|
 | Redirector/Data server split | Yes (redirectors + data servers) | Yes — `xrootd_manager_mode on` + `xrootd_manager_map` enable full manager/redirector role (`session/protocol.c` advertises `kXR_isManager`) |
 | Load balancing | Yes (kXR_locate returns replica list, kXR_redirect sends client elsewhere) | Yes — manager mode issues `kXR_redirect`/`kXR_wait`/`kXR_waitresp` via CMS locate and upstream relay (`response/control.c`, `upstream/response.c`) |
-| Cluster management | CMS/cluster protocol (`src/cms/send.c`, `upstream/`) | Implemented — `xrootd_cms_manager` directive; `manager/registry.c`, `cms/send.c` handle LOGIN/AVAIL/PING heartbeat and multi-tier cluster topologies |
+| Cluster management | CMS/cluster protocol (`src/net/cms/send.c`, `upstream/`) | Implemented — `xrootd_cms_manager` directive; `manager/registry.c`, `cms/send.c` handle LOGIN/AVAIL/PING heartbeat and multi-tier cluster topologies |
 
 ### 6.2 Auth Methods
 | Method | Canonical | nginx-xrootd |

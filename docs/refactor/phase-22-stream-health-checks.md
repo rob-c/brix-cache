@@ -2,7 +2,7 @@
 
 **Status:** ✅ Implemented (as-built diverges from this plan — see status section)  
 **Depends on:** None (standalone; Phase 20 KV can be adopted later for rate data)  
-**Touches:** `src/manager/`, `src/upstream/`, `src/metrics/`  
+**Touches:** `src/net/manager/`, `src/net/upstream/`, `src/metrics/`  
 **Net LoC:** +~680 new, ~0 removed
 
 ---
@@ -11,7 +11,7 @@
 
 Audited against the code under `src/`. **Active stream health checking is
 implemented and wired**: the registry carries the HC fields and claim/pass/fail
-API, `src/manager/health_check.{c,h}` runs the probe state machine + timer,
+API, `src/net/manager/health_check.{c,h}` runs the probe state machine + timer,
 six directives configure it (off by default), and cluster metrics export the
 results. Several details diverge from this plan; the one genuinely *reduced*
 piece is TLS probing (Step F).
@@ -19,11 +19,11 @@ piece is TLS probing (Step F).
 | Step | Capability | Status | Evidence / divergence |
 |------|-----------|--------|-----------------------|
 | **A** | Registry extensions | ✅ **Done** | `xrootd_srv_entry_t` has `hc_next_check`/`hc_last_ok`/`hc_fail_count`/`hc_in_progress` (`registry.h:39-42`); snapshot entry has `hc_last_ok`/`hc_fail_count` (`:60-61`). `xrootd_srv_hc_claim` (`registry.c:626`), `xrootd_srv_hc_pass` (`:666`), `xrootd_srv_hc_fail` (`:701`). Note: `hc_fail` returns `int` (1 if it newly blacklisted), not `void` as sketched. |
-| **B** | Probe state machine | ✅ **Done — more granular states** | `src/manager/health_check.c`. States are `XRD_HC_HANDSHAKE → XRD_HC_PROTOCOL → XRD_HC_LOGIN → XRD_HC_PROBE` (mirroring the real upstream bootstrap phases), **not** the doc's `CONNECTING/BOOTSTRAP/PROBE/DONE`. Probe sends `kXR_ping` or `kXR_stat "/"` (`xrootd_hc_send_probe`, `:111`). The ctx is `xrootd_hc_ctx_t` (`:61`) — defined in the `.c`, not exported in the header as the doc proposed. |
+| **B** | Probe state machine | ✅ **Done — more granular states** | `src/net/manager/health_check.c`. States are `XRD_HC_HANDSHAKE → XRD_HC_PROTOCOL → XRD_HC_LOGIN → XRD_HC_PROBE` (mirroring the real upstream bootstrap phases), **not** the doc's `CONNECTING/BOOTSTRAP/PROBE/DONE`. Probe sends `kXR_ping` or `kXR_stat "/"` (`xrootd_hc_send_probe`, `:111`). The ctx is `xrootd_hc_ctx_t` (`:61`) — defined in the `.c`, not exported in the header as the doc proposed. |
 | **C** | Health-check timer | ✅ **Done — different start hook** | `xrootd_hc_mgr_t`, `xrootd_hc_timer_handler` (`:487`), `xrootd_hc_manager_start` (`:504`), `xrootd_hc_start` (`:368`). Started from **`src/core/config/process.c:163`** (the module's `init_process`), **not** `src/stream/module.c` as the file map said. Scan interval = `interval / slots`, min 100 ms. |
 | **D** | Config directives | ✅ **Done** | All six `xrootd_health_check[_interval/_timeout/_threshold/_blacklist/_type]` directives are registered in **`src/stream/module.c`** (not `src/core/config/directives.c`); conf fields `hc_enabled/hc_interval_ms/hc_timeout_ms/hc_threshold/hc_blacklist_ms/hc_type` in `src/core/types/config.h:357-362`. Off by default. |
 | **E** | Metrics | ✅ **Done — different counter set** | `src/metrics/cluster.c` exports `xrootd_cluster_hc_{probes,pass,fail,blacklist}_total` (fields in `metrics.h:490-493`). Diverges from the plan: there is an **extra `hc_probes_total`** (probes started) and **no `hc_probe_active` gauge**. Per-server `hc_last_ok`/`hc_fail_count` are in the snapshot for the dashboard. |
-| **F** | TLS support for probes | ⚠️ **Not implemented as designed** | There is **no TLS upgrade** on the probe path and **no `xrootd_tls_upgrade_ctx_t` refactor** of `src/upstream/tls.c`. Instead, when a server advertises `kXR_gotoTLS` in its protocol response, the probe **stops at the protocol stage and counts it as alive (pass)** — see `health_check.c` `XRD_HC_PROTOCOL` (~`:240-256`). So TLS servers get a shallower liveness check (TCP + handshake + protocol), not the full login+ping/stat probe. |
+| **F** | TLS support for probes | ⚠️ **Not implemented as designed** | There is **no TLS upgrade** on the probe path and **no `xrootd_tls_upgrade_ctx_t` refactor** of `src/net/upstream/tls.c`. Instead, when a server advertises `kXR_gotoTLS` in its protocol response, the probe **stops at the protocol stage and counts it as alive (pass)** — see `health_check.c` `XRD_HC_PROTOCOL` (~`:240-256`). So TLS servers get a shallower liveness check (TCP + handshake + protocol), not the full login+ping/stat probe. |
 
 ### As-built divergences (none are correctness defects)
 
@@ -69,16 +69,16 @@ and blacklisting before clients are redirected there.
 
 ## Current State
 
-**Registry:** `src/manager/registry.c` — 128-slot SHM table with `blacklisted_until`
+**Registry:** `src/net/manager/registry.c` — 128-slot SHM table with `blacklisted_until`
 and `error_count` fields. `xrootd_srv_select()` skips blacklisted entries. No timing
 field for health check scheduling.
 
-**CMS liveness probe:** `src/cms/server_send.c:xrootd_cms_srv_send_ping()` sends a
+**CMS liveness probe:** `src/net/cms/server_send.c:xrootd_cms_srv_send_ping()` sends a
 CMS-layer `kYR_ping` to data servers. This is a *CMS protocol* heartbeat, not an
 XRootD-protocol health probe — it confirms the CMS management socket is alive, not
 that the data server can serve XRootD file operations.
 
-**Upstream connect:** `src/upstream/` opens a per-request XRootD connection with full
+**Upstream connect:** `src/net/upstream/` opens a per-request XRootD connection with full
 bootstrap (handshake → protocol → TLS → login) before sending a locate/open query.
 This bootstrap machinery is exactly what a health probe needs — reusing it avoids
 duplicating wire-protocol logic.
@@ -87,7 +87,7 @@ duplicating wire-protocol logic.
 outbound XRootD connections for health-check purposes.
 
 > **Historical (pre-Phase-22).** Active probing now exists — see the
-> *Implementation status* section above. `src/manager/health_check.c` runs a timer
+> *Implementation status* section above. `src/net/manager/health_check.c` runs a timer
 > that opens outbound probe connections and feeds verdicts back into the registry.
 
 ---
@@ -117,7 +117,7 @@ count.
 
 ## Step A — Registry Extensions
 
-**File:** `src/manager/registry.h`
+**File:** `src/net/manager/registry.h`
 
 Add four fields to `xrootd_srv_entry_t`:
 
@@ -212,10 +212,10 @@ xrootd_srv_hc_claim(char *host_out, size_t host_size, uint16_t *port_out,
 
 ## Step B — Health Check Context and State Machine
 
-**Files:** `src/manager/health_check.c` (new), `src/manager/health_check.h` (new)
+**Files:** `src/net/manager/health_check.c` (new), `src/net/manager/health_check.h` (new)
 
 The health check probe reuses the XRootD wire bootstrap protocol already implemented
-in `src/upstream/bootstrap.c`. The difference: instead of forwarding a saved client
+in `src/net/upstream/bootstrap.c`. The difference: instead of forwarding a saved client
 request after bootstrap, the probe sends `kXR_ping` and closes the connection.
 
 ### B1 — Context struct
@@ -397,7 +397,7 @@ For `kXR_stat`, the response body is a 4-field space-separated string
 
 ## Step C — Health Check Timer
 
-**File:** `src/manager/health_check.c`
+**File:** `src/net/manager/health_check.c`
 
 ```c
 /*
@@ -539,7 +539,7 @@ Additionally, expose per-server health state via the existing dashboard snapshot
 ## Step F — TLS Support for Health Probes
 
 > **Status: ⚠️ NOT implemented as designed.** The probe path has no TLS upgrade and
-> `src/upstream/tls.c` was not refactored to a shared `xrootd_tls_upgrade_ctx_t`.
+> `src/net/upstream/tls.c` was not refactored to a shared `xrootd_tls_upgrade_ctx_t`.
 > Instead, when a data server advertises `kXR_gotoTLS` in its protocol response, the
 > probe stops at the protocol stage and records the server as **alive (pass)** — a
 > shallower liveness check than the full login + ping/stat probe used for cleartext
@@ -548,7 +548,7 @@ Additionally, expose per-server health state via the existing dashboard snapshot
 
 If `xrootd_upstream_tls on` is configured, data servers advertise `kXR_gotoTLS` in
 the protocol response. The health check bootstrap must handle TLS upgrade the same way
-`src/upstream/tls.c` does.
+`src/net/upstream/tls.c` does.
 
 **Approach:** Share `xrootd_upstream_start_tls()` by refactoring its signature to accept
 a generic conn+log pair rather than a `xrootd_upstream_t *`. A thin wrapper type can
@@ -575,12 +575,12 @@ proxy and health check TLS behaviour.
 
 | File | Action | Purpose |
 |---|---|---|
-| `src/manager/registry.h` | Modify | Add HC fields to entry; declare `hc_claim/pass/fail` |
-| `src/manager/registry.c` | Modify | Implement `xrootd_srv_hc_claim`, `hc_pass`, `hc_fail` |
-| `src/manager/health_check.h` | **New** | `xrootd_hc_ctx_t`, `xrootd_hc_mgr_t`, public API |
-| `src/manager/health_check.c` | **New** | Timer, state machine, connect/send/recv/finish |
-| `src/upstream/tls.c` | Modify | Refactor TLS upgrade to `xrootd_tls_upgrade_ctx_t` for sharing |
-| `src/upstream/upstream_internal.h` | Modify | Use `xrootd_tls_upgrade_ctx_t` alias |
+| `src/net/manager/registry.h` | Modify | Add HC fields to entry; declare `hc_claim/pass/fail` |
+| `src/net/manager/registry.c` | Modify | Implement `xrootd_srv_hc_claim`, `hc_pass`, `hc_fail` |
+| `src/net/manager/health_check.h` | **New** | `xrootd_hc_ctx_t`, `xrootd_hc_mgr_t`, public API |
+| `src/net/manager/health_check.c` | **New** | Timer, state machine, connect/send/recv/finish |
+| `src/net/upstream/tls.c` | Modify | Refactor TLS upgrade to `xrootd_tls_upgrade_ctx_t` for sharing |
+| `src/net/upstream/upstream_internal.h` | Modify | Use `xrootd_tls_upgrade_ctx_t` alias |
 | `src/core/config/directives.c` | Modify | Register 6 new `xrootd_health_check*` directives |
 | `src/core/types/config.h` | Modify | Add HC fields to `ngx_stream_xrootd_srv_conf_t` |
 | `src/stream/module.c` | Modify | Call `xrootd_hc_manager_start()` in `init_process` hook |
@@ -592,7 +592,7 @@ proxy and health check TLS behaviour.
 
 ## Build Registration
 
-Add `$ngx_addon_dir/src/manager/health_check.c` to `NGX_ADDON_SRCS` in
+Add `$ngx_addon_dir/src/net/manager/health_check.c` to `NGX_ADDON_SRCS` in
 `src/core/config/config.h` before running `./configure`. All other changes are in existing
 files; incremental `make -j$(nproc)` suffices after the initial `./configure`.
 
@@ -633,8 +633,8 @@ files; incremental `make -j$(nproc)` suffices after the initial `./configure`.
 ## Risk Notes
 
 - **Bootstrap duplication:** The HC bootstrap state machine is near-identical to
-  `src/upstream/bootstrap.c`. Consider extracting `xrootd_do_bootstrap(conn, conf, done_cb)`
-  as a shared function in `src/upstream/` to prevent the two implementations from
+  `src/net/upstream/bootstrap.c`. Consider extracting `xrootd_do_bootstrap(conn, conf, done_cb)`
+  as a shared function in `src/net/upstream/` to prevent the two implementations from
   drifting. This is not required for Phase 22 but should be done if the bootstrap
   protocol changes in the future.
 - **Connection exhaustion:** With 128 registry slots and 4 workers, worst-case

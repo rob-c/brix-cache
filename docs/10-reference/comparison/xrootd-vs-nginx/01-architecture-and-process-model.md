@@ -239,8 +239,8 @@ ngx_module_t ngx_stream_xrootd_module = {
 };
 ```
 
-There are **no companion daemons**. Manager/redirector mode (`src/manager/`,
-`src/cms/`), FRM tape staging (`src/frm/`), metrics, SRR, and the dashboard all
+There are **no companion daemons**. Manager/redirector mode (`src/net/manager/`,
+`src/net/cms/`), FRM tape staging (`src/frm/`), metrics, SRR, and the dashboard all
 run **inside the nginx workers**.
 
 ### Process / concurrency model: one event loop per worker
@@ -287,8 +287,8 @@ processes and share nothing by default:
   `docs/09-developer-guide/postmortem-shmtx-semaphore-stall.md`.
 - SHM-backed state includes per-server metrics (`ngx_xrootd_metrics_t`,
   `src/connection/handler.c`), the session/handle/manager registries
-  (`src/manager/registry.c`), the redirect-collapse cache
-  (`src/manager/redir_cache.c`), the native-TPC key registry
+  (`src/net/manager/registry.c`), the redirect-collapse cache
+  (`src/net/manager/redir_cache.c`), the native-TPC key registry
   (`src/tpc/key_registry.c`), the FRM durable queue, and rate-limit/KV zones.
 
 ### Per-connection state: `xrootd_ctx_t`
@@ -568,6 +568,6 @@ and *what the author must never do*.
 | Directive table / config | `src/stream/module.c` (`ngx_stream_xrootd_commands[]`), `src/core/types/config.h` (`ngx_stream_xrootd_srv_conf_t`), `src/core/config/postconfiguration.c`, `src/core/config/config.h`, `src/core/types/tunables.h` |
 | Per-connection state | `src/core/types/context.h` (`xrootd_ctx_t`, `files[]`, `out_ring`/`rd_pool`, `XRD_ST_*`) |
 | Thread-pool / io_uring offload | `src/core/aio/README.md`, `src/core/aio/resume.c` (`xrootd_aio_post_task`), `src/core/aio/buffers.c`, `src/core/aio/uring.c` |
-| SHM cross-worker state | `src/core/compat/shm_slots.c` (`xrootd_shm_table_alloc`, spin+yield mutex), `src/manager/registry.c`, `src/manager/redir_cache.c`, `src/tpc/key_registry.c` |
+| SHM cross-worker state | `src/core/compat/shm_slots.c` (`xrootd_shm_table_alloc`, spin+yield mutex), `src/net/manager/registry.c`, `src/net/manager/redir_cache.c`, `src/tpc/key_registry.c` |
 | Build governance | top-level `config` (`ngx_addon_name`, `ngx_module_srcs`, `ngx_module_libs`, CFLAGS), `src/core/config/config.h` |
-| Cluster / tape / observability (in-process) | `src/manager/`, `src/cms/`, `src/frm/`, `src/metrics/`, `src/srr/`, `src/dashboard/` |
+| Cluster / tape / observability (in-process) | `src/net/manager/`, `src/net/cms/`, `src/frm/`, `src/metrics/`, `src/srr/`, `src/dashboard/` |

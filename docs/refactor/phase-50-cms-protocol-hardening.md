@@ -1,7 +1,7 @@
 # Phase 50 — CMS (`cms://`) protocol hardening against timeouts, loss & bad actors
 
 **Status:** IMPLEMENTED + TESTED 2026-06-22 (WS0–WS8 all landed).
-**Scope:** `src/cms/` (client + server), `src/manager/` (read-only reuse),
+**Scope:** `src/net/cms/` (client + server), `src/net/manager/` (read-only reuse),
 config plumbing, tests, docs.
 **Hard requirement:** **zero wire changes** — byte-for-byte interoperable with
 official XRootD `cmsd`.
@@ -60,13 +60,13 @@ The weakness is the **I/O and connection-lifecycle layer**.
 ### 1.1 Confirmed gaps (file:line)
 
 1. **Client (node→manager) never arms a read deadline.** After connect+login no
-   `c->read` timer is set, so the `ev->timedout` branch at `src/cms/recv.c:314` is
+   `c->read` timer is set, so the `ev->timedout` branch at `src/net/cms/recv.c:314` is
    effectively dead code. A manager that **black-holes** (TCP stays up but stops
    responding) is never detected: the node keeps "heartbeating" into a dead socket
    forever and never fails over.
 
 2. **Server (manager) arms no timer until *after* login.**
-   `xrootd_cms_srv_handler` (`src/cms/server_handler.c`) installs handlers and
+   `xrootd_cms_srv_handler` (`src/net/cms/server_handler.c`) installs handlers and
    reads immediately, but the `ping_timer` is only armed inside
    `cms_srv_complete_login` (`server_recv.c:304`). A peer that connects and never
    completes LOGIN — or **trickles a partial header** — holds a ~4 KB ctx + an fd
@@ -85,12 +85,12 @@ The weakness is the **I/O and connection-lifecycle layer**.
    client connect socket nor CMS server accept sockets get it.
 
 5. **Manager-supplied redirect host is not validated.**
-   `cms_wake_pending_session` (`src/cms/recv.c:63`) passes the `kYR_select` /
+   `cms_wake_pending_session` (`src/net/cms/recv.c:63`) passes the `kYR_select` /
    `kYR_try` host straight into `xrootd_send_redirect` with no character check, so
    a compromised/hostile manager can inject control bytes into the redirect string
    the client parses.
 
-6. **Hot-path debug-log flood.** `src/cms/connect.c` and `src/cms/recv.c` emit
+6. **Hot-path debug-log flood.** `src/net/cms/connect.c` and `src/net/cms/recv.c` emit
    `NGX_LOG_WARN` on **every** heartbeat, **every** `recv`, and **every** frame
    (e.g. `connect.c:96,142,153,164,170`; `recv.c:310,320,328,352,373,387`). A
    hostile manager flooding frames amplifies into unbounded WARN logging (disk-fill
@@ -119,12 +119,12 @@ connection hang, spin, leak, or be DoS'd — while a conformant official
 
 | Helper / pattern | Location | Reused for |
 |---|---|---|
-| `ngx_add_timer` / `ngx_del_timer` / `ev->timedout` | `src/cms/connect.c`, `server_recv.c` | all new deadlines |
-| `xrootd_net_host_chars_valid()` | `src/manager/registry.c` (W1c choke point) | WS6 redirect-host gate |
+| `ngx_add_timer` / `ngx_del_timer` / `ev->timedout` | `src/net/cms/connect.c`, `server_recv.c` | all new deadlines |
+| `xrootd_net_host_chars_valid()` | `src/net/manager/registry.c` (W1c choke point) | WS6 redirect-host gate |
 | `xrootd_sanitize_log_string()` | `src/fs/path/helpers.c` | wire-derived log lines |
 | phase-39 `SO_KEEPALIVE`/`TCP_USER_TIMEOUT` setsockopt block | `src/connection/handler.c:109-135` | WS5 shared helper |
-| `NGX_CONF_UNSET*` → `ngx_conf_merge_*` → `ngx_command_t` | `src/core/config/server_conf.c`, `src/stream/module.c`, `src/cms/server_module.c` | WS7 directives |
-| Registry `last_seen` staleness | `src/manager/registry.c` | complements WS3 (selection-steer vs slot-reap) |
+| `NGX_CONF_UNSET*` → `ngx_conf_merge_*` → `ngx_command_t` | `src/core/config/server_conf.c`, `src/stream/module.c`, `src/net/cms/server_module.c` | WS7 directives |
+| Registry `last_seen` staleness | `src/net/manager/registry.c` | complements WS3 (selection-steer vs slot-reap) |
 
 ---
 
@@ -132,7 +132,7 @@ connection hang, spin, leak, or be DoS'd — while a conformant official
 
 ### WS0 — Quiet the hot-path log flood (correctness + anti-amplification)
 Downgrade the leftover per-heartbeat / per-recv / per-frame `NGX_LOG_WARN` lines in
-`src/cms/connect.c` (write handler, timer) and `src/cms/recv.c` (read handler) to
+`src/net/cms/connect.c` (write handler, timer) and `src/net/cms/recv.c` (read handler) to
 `ngx_log_debug*`. Keep genuine error/notice transitions (disconnect, login sent,
 suspend/resume) at their current level.
 
@@ -201,7 +201,7 @@ Standard `NGX_CONF_UNSET` → merge → `ngx_command_t` pattern.
 - **Client-side** (`ngx_stream_xrootd_srv_conf_t`, alongside `cms_interval`):
   `xrootd_cms_read_timeout`, `xrootd_cms_send_timeout`, `xrootd_cms_tcp_keepalive`,
   `xrootd_cms_tcp_user_timeout`.
-- **Server-side** (`ngx_stream_xrootd_cms_srv_conf_t`, `src/cms/server.h`):
+- **Server-side** (`ngx_stream_xrootd_cms_srv_conf_t`, `src/net/cms/server.h`):
   `xrootd_cms_server_login_timeout`, `xrootd_cms_server_idle_timeout`,
   `xrootd_cms_server_max_connections`, `xrootd_cms_server_tcp_keepalive`,
   `xrootd_cms_server_tcp_user_timeout`.
@@ -262,15 +262,15 @@ suite is the guardrail that these generous defaults never trip a conformant peer
 
 ## 7. Files to modify (representative)
 
-- `src/cms/connect.c` — WS0 log levels; WS1 read-deadline arming; WS2 send-stall
+- `src/net/cms/connect.c` — WS0 log levels; WS1 read-deadline arming; WS2 send-stall
   deadline; WS5 client socket opts.
-- `src/cms/recv.c` — WS0 log levels; WS1 re-arm read deadline per frame; WS6
+- `src/net/cms/recv.c` — WS0 log levels; WS1 re-arm read deadline per frame; WS6
   redirect-host validation.
-- `src/cms/cms_internal.h` — new timing constants/defaults + ctx fields (cached
+- `src/net/cms/cms_internal.h` — new timing constants/defaults + ctx fields (cached
   timeouts, last-activity).
-- `src/cms/server_handler.c` — WS3 login deadline + WS4 conn cap + WS5 socket opts.
-- `src/cms/server_recv.c` — WS3 idle-watchdog re-arm + read-timer cancel in close.
-- `src/cms/server.h` / `src/cms/server_module.c` — WS7 server-side conf + directives
+- `src/net/cms/server_handler.c` — WS3 login deadline + WS4 conn cap + WS5 socket opts.
+- `src/net/cms/server_recv.c` — WS3 idle-watchdog re-arm + read-timer cancel in close.
+- `src/net/cms/server.h` / `src/net/cms/server_module.c` — WS7 server-side conf + directives
   + merge.
 - `src/core/types/config.h`, `src/core/config/server_conf.c`, `src/stream/module.c` — WS7
   client-side conf + directives + merge.

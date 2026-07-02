@@ -407,11 +407,11 @@ For mixed tests, also assert the negative routing signal:
 The tests are expected to expose the gaps already documented in
 `docs/09-developer-guide/ipv6-dual-stack.md`:
 
-- `src/upstream/start.c` must use `getaddrinfo(AF_UNSPEC)` rather than
+- `src/net/upstream/start.c` must use `getaddrinfo(AF_UNSPEC)` rather than
   `AF_INET`, `inet_addr()`, and `gethostbyname()`.
-- `src/proxy/connect.c` must use `getaddrinfo(AF_UNSPEC)` and iterate returned
+- `src/net/proxy/connect.c` must use `getaddrinfo(AF_UNSPEC)` and iterate returned
   addresses.
-- `src/proxy/directives.c` must parse bracketed IPv6 upstream addresses.
+- `src/net/proxy/directives.c` must parse bracketed IPv6 upstream addresses.
 - `src/read/locate.c` must format IPv6 locate entries as bracketed literals and
   must not fall back to `localhost`.
 - Any local-port extraction from `c->local_sockaddr` must branch on

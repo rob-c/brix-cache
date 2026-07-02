@@ -17,7 +17,7 @@ Measured from the current tree on 2026-05-20:
 |---|---:|---|
 | `src/webdav` | 12,176 | Largest single area; includes DAV methods, TPC, locks, proxy mode, XrdHttp compatibility. |
 | `src/s3` | 4,923 | SigV4, XML responses, object/multipart operations. |
-| `src/proxy` | 3,897 | Native XRootD transparent proxy state machine. |
+| `src/net/proxy` | 3,897 | Native XRootD transparent proxy state machine. |
 | `src/tpc` | 3,796 | Native XRootD third-party copy and outbound GSI helpers. |
 | `src/fs/cache` | 3,709 | Cache origin client, fills, eviction, write-through. |
 | `src/query` | 2,765 | Query subtypes, checksum scans, prepare/stage. |
@@ -87,7 +87,7 @@ reliability.
 | Checksum algorithms | `src/core/compat/checksum.c` | `kXR_Qcksum`, `kXR_Qckscan`, dirlist `dcksm`, XrdHttp Digest | removes parallel adler/crc/digest dispatch |
 | Recursive filesystem mechanics | `src/core/compat/fs_walk.c` | WebDAV DELETE/access checks, S3 MPU cleanup, Qckscan/PROPFIND dot filtering | removes repeated dot-entry/remove-tree code |
 | Staged temp-file lifecycle | `src/core/compat/staged_file.c` | S3 PUT/CopyObject, WebDAV COPY, WebDAV TPC pull | centralizes temp open/commit/abort |
-| CMS frame send boilerplate | `src/cms/frame_io.c` | CMS client/server send paths | removes duplicate send-all frame assembly |
+| CMS frame send boilerplate | `src/net/cms/frame_io.c` | CMS client/server send paths | removes duplicate send-all frame assembly |
 
 Guardrail coverage is in `tests/test_cross_protocol_shared_helpers.py`; the
 full nginx build with `--with-http_dav_module` also compiles these helpers with
@@ -559,9 +559,9 @@ progress reporting inside the nginx worker.
 
 ## Candidate 10: Fix blocking DNS in outbound connections
 
-`src/upstream/start.c` calls `getaddrinfo()` synchronously before
+`src/net/upstream/start.c` calls `getaddrinfo()` synchronously before
 `ngx_event_connect_peer()`.  `getaddrinfo()` can block for seconds when the
-nameserver is slow or unreachable.  `src/cms/connect.c` uses the same
+nameserver is slow or unreachable.  `src/net/cms/connect.c` uses the same
 pattern for cluster manager connections.
 
 nginx provides an async resolver (`ngx_resolve_name()`) that integrates with
@@ -582,8 +582,8 @@ Affected files:
 
 | File | LOC | Issue |
 |------|----:|-------|
-| `src/upstream/start.c` | 187 | `getaddrinfo()` at line 67 |
-| `src/cms/connect.c` | 267 | same pattern for CMS manager address |
+| `src/net/upstream/start.c` | 187 | `getaddrinfo()` at line 67 |
+| `src/net/cms/connect.c` | 267 | same pattern for CMS manager address |
 
 Expected deletion:
 
@@ -936,10 +936,10 @@ delegation) assume correct event-loop behavior.
    `ngx_http_request_t *r` to `ngx_log_t *log` to make them thread-safe.
    Design B (libcurl CURLM) is the long-term target.
 2. **Upstream DNS blocking (Candidate 10)** — **DONE (pre-resolution
-   approach).** `src/upstream/directives.c` now calls `ngx_parse_url()` at
+   approach).** `src/net/upstream/directives.c` now calls `ngx_parse_url()` at
    configuration time (the same approach the CMS module already uses) and
    stores the resolved `ngx_addr_t *` in `conf->upstream_addr`.
-   `src/upstream/start.c` uses the pre-resolved address directly; the
+   `src/net/upstream/start.c` uses the pre-resolved address directly; the
    `getaddrinfo()` block now only runs as a defensive fallback when config-time
    resolution fails (which emits a WARN log at startup).  Remaining work: a
    full async `ngx_resolve_name()` path for deployments where the upstream
@@ -1061,7 +1061,7 @@ The reduction is successful only if:
 
 **Completed (Phase 0.5, 2026-05-20):**
 - TPC `fork/waitpid` wrapped in `ngx_thread_pool` via `src/webdav/tpc_thread.c`.
-- Upstream DNS blocking eliminated by config-time `ngx_parse_url()` pre-resolution in `src/upstream/directives.c`; `src/upstream/start.c` uses the cached `ngx_addr_t *`.
+- Upstream DNS blocking eliminated by config-time `ngx_parse_url()` pre-resolution in `src/net/upstream/directives.c`; `src/net/upstream/start.c` uses the cached `ngx_addr_t *`.
 - `webdav_tpc_run_curl_pull/push` signatures changed to `ngx_log_t *log` for thread safety.
 
 **Completed (Phase 1, cleanup done 2026-05-20):**

@@ -350,7 +350,7 @@ ngx_int_t xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
 #include "path/op_path.h"
 
 /* upstream/ — dynamic XRootD redirector query */
-#include "upstream/upstream.h"
+#include "net/upstream/upstream.h"
 
 /* cache/ — read-through cache open-or-fill */
 /* On a kXR_open hit: serve directly from cache_path if ready, else post a

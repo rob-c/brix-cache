@@ -320,7 +320,7 @@ Side-by-side conformance with reference xrootd for all namespace ops: mkdir/rmdi
 
 ## CMS, manager, and cluster
 
-**Source:** `src/manager/`, `src/cms/`
+**Source:** `src/net/manager/`, `src/net/cms/`
 
 ### `test_cms.py`
 
@@ -505,7 +505,7 @@ SigV4 authentication for presigned URLs (`src/s3/auth.c`).
 
 ## Proxy mode
 
-**Source:** `src/proxy/`
+**Source:** `src/net/proxy/`
 
 ### `test_proxy_mode.py`
 

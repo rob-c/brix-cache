@@ -1,11 +1,11 @@
 #include "core/ngx_xrootd_module.h"
 #include "stat.h"
-#include "cms/cns.h"            /* §6 CNS inventory stat answer */
+#include "net/cms/cns.h"            /* §6 CNS inventory stat answer */
 #include "fs/vfs.h"            /* path stat via the VFS seam */
 #include "path/op_path.h"
-#include "manager/registry.h"
-#include "manager/pending.h"
-#include "cms/cms_internal.h"
+#include "net/manager/registry.h"
+#include "net/manager/pending.h"
+#include "net/cms/cms_internal.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>

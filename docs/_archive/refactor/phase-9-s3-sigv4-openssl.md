@@ -416,7 +416,7 @@ src/s3/auth_sigv4_verify.c  — absorb headers.c; key helper; cache; timegm
 src/s3/auth_sigv4_headers.c — DELETED
 src/s3/post_object.c        — use s3_sigv4_derive_signing_key_cached
 src/s3/s3_auth_internal.h   — declare s3_sigv4_derive_signing_key[_cached]
-src/upstream/bootstrap.c    — call xrootd_crypto_init in init_process hook
+src/net/upstream/bootstrap.c    — call xrootd_crypto_init in init_process hook
                                call xrootd_crypto_cleanup in exit_process hook
 ```
 

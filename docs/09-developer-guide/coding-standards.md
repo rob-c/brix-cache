@@ -284,7 +284,7 @@ nginx initialises **every** `shared_memory` zone as an `ngx_slab_pool_t`, and it
 
 - **Never** cast `shm_zone->shm.addr` to anything but `ngx_slab_pool_t`, and **never** `ngx_memzero(shm.addr, …)`. The slab header lives there and must survive.
 - Allocate the table **from** the slab pool via `xrootd_shm_table_alloc()` (`src/core/compat/shm_slots.h`), and size the zone with `xrootd_shm_zone_size()`. The helper handles fresh-alloc / reload / re-attach, builds the process-local mutex from the table's first member (an `ngx_shmtx_sh_t lock`; pass `NULL` for lock-less atomic-only tables), and publishes the table via `shm_zone->data`. Initialise non-lock fields only when `*fresh` is set.
-- The reference pattern is `src/ratelimit/ratelimit_zone.c` (view the slab pool, then `ngx_slab_alloc`).
+- The reference pattern is `src/net/ratelimit/ratelimit_zone.c` (view the slab pool, then `ngx_slab_alloc`).
 
 This contract is enforced two ways: `tests/test_shm_slab_safety_lint.py` (static — fails CI if any zone clobbers `shm.addr` or skips the slab-safe allocator) and `tests/test_shm_fork_safety.py` (runtime — SIGKILLs workers across every protocol's zones and asserts the master survives).
 

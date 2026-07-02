@@ -31,12 +31,12 @@
  */
 
 #include "core/ngx_xrootd_module.h"
-#include "upstream/upstream.h"
+#include "net/upstream/upstream.h"
 #include "path/op_path.h"
-#include "manager/registry.h"
-#include "manager/redir_cache.h"
-#include "manager/pending.h"
-#include "cms/cms_internal.h"
+#include "net/manager/registry.h"
+#include "net/manager/redir_cache.h"
+#include "net/manager/pending.h"
+#include "net/cms/cms_internal.h"
 
 #include <arpa/inet.h>
 

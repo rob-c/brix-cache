@@ -603,7 +603,7 @@ Returns the address of the server that should handle a given path (used in distr
 
 ### CMS Heartbeat / Dynamic Registry
 
-**File:** `src/manager/registry.c`, `src/cms/send.c`
+**File:** `src/net/manager/registry.c`, `src/net/cms/send.c`
 
 Manages cluster membership: servers register themselves, heartbeat monitoring, dynamic server discovery.
 

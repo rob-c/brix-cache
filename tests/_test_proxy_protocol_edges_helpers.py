@@ -120,7 +120,7 @@ kXR_waitresp = 4006
 
 kXR_open_read = 0x0010
 
-# Source-of-truth limits (src/proxy/proxy_internal.h, src/core/types/tunables.h).
+# Source-of-truth limits (src/net/proxy/proxy_internal.h, src/core/types/tunables.h).
 XROOTD_PROXY_MAX_WAIT_RETRIES = 5
 XROOTD_MAX_FILES              = 16   # proxy fh_map slot count -> saturation point
 WAIT_SAVE_LIMIT               = 128 * 1024  # rlen < this is saved for retry
@@ -285,7 +285,7 @@ def _read_request(conn):
 
 
 def _redirect_body(host, port):
-    """The proxy's redirect-follow parser (src/proxy/forward_relay_response.c)
+    """The proxy's redirect-follow parser (src/net/proxy/forward_relay_response.c)
     expects a NUL-terminated ``host:port`` text payload, not the binary
     port[4]+host wire form.  Emit the text form so the proxy actually follows
     (and relays verbatim once the hop limit is hit)."""

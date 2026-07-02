@@ -178,7 +178,7 @@ Reduction: 24 - 9 = 15 LoC in single file
 
 Files to migrate:
 - src/tpc_config.c (address parsing)
-- src/upstream/directives.c (allocations + address parsing)
+- src/net/upstream/directives.c (allocations + address parsing)
 - src/core/config/* (allocation patterns)
 - Multiple module merge_conf functions
 
@@ -199,7 +199,7 @@ Files to migrate (14+ modules):
 - src/webdav/module.c
 - src/metrics/module.c
 - src/fs/cache/module.c
-- src/upstream/module.c
+- src/net/upstream/module.c
 - And 9+ more
 
 ---

@@ -1,5 +1,5 @@
 #include "config.h"
-#include "manager/redir_cache.h"
+#include "net/manager/redir_cache.h"
 #include "fs/xfer/stage_waiter.h"
 #include "auth/impersonate/lifecycle.h"
 #include "core/aio/uring.h"

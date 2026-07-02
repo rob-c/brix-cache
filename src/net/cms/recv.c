@@ -4,8 +4,8 @@
 #include "node_ops.h"               /* Plane B forwarded-op planner */
 #include "rrdata.h"                 /* Pup decode of forwarded payloads */
 #include "router.h"                 /* node-role opcode routing */
-#include "manager/pending.h"
-#include "manager/registry.h"
+#include "net/manager/pending.h"
+#include "net/manager/registry.h"
 #include "fs/path/beneath.h"
 #include "fs/path/path.h"           /* xrootd_sanitize_log_string (WS6) */
 #include "core/compat/net_target.h"   /* xrootd_net_host_chars_valid (WS6) */

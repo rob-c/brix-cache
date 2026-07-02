@@ -288,7 +288,7 @@ def test_new_shared_helpers_are_wired_into_module_config():
         "src/core/compat/hex.c",
         "src/core/compat/staged_file.c",
         "src/core/compat/time.c",
-        "src/cms/frame_io.c",
+        "src/net/cms/frame_io.c",
     ):
         _assert_markers("config", [marker])
 

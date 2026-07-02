@@ -1,14 +1,14 @@
 #include "open.h"
 #include "ssi/ssi.h"
 #include "path/op_path.h"
-#include "manager/registry.h"
-#include "manager/redir_cache.h"
-#include "manager/pending.h"
+#include "net/manager/registry.h"
+#include "net/manager/redir_cache.h"
+#include "net/manager/pending.h"
 #include "fs/xfer/stage_request_registry.h"
 #include "fs/xfer/stage_waiter.h"
 #include "fs/vfs.h"                   /* xrootd_vfs_residency (sd_frm seam) */
 #include "session/registry.h"
-#include "cms/cms_internal.h"
+#include "net/cms/cms_internal.h"
 #include "core/compat/codec_core.h"
 #include "protocol/open_flags.h"   /* shared kXR_open option-bit semantics */
 #include "zip/zip_member.h"        /* phase-57 W2: ZIP member access */

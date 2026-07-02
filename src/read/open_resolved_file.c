@@ -5,15 +5,15 @@
 #include "fs/backend/sd.h"            /* Layer 3: driver-backed export open */
 #include "core/ngx_xrootd_module.h"
 #include "fs/backend/csi_tagstore.h"
-#include "ratelimit/throttle_compat.h"  /* phase-59 W3a: open-files cap */
+#include "net/ratelimit/throttle_compat.h"  /* phase-59 W3a: open-files cap */
 #include "response/async.h"
-#include "mirror/stream_wmirror.h"
+#include "net/mirror/stream_wmirror.h"
 #include "write/wrts_journal.h"
 #include "core/compat/tmp_path.h"
 #include "fs/cache/writethrough_metrics.h"
 #include "fs/cache/cache_storage.h"   /* driver-backed read-cache serve + key helper */
-#include "manager/registry.h"
-#include "manager/pending.h"
+#include "net/manager/registry.h"
+#include "net/manager/pending.h"
 #include "session/registry.h"
 #include "core/compat/codec_core.h"
 #include "protocol/open_flags.h"   /* shared kXR_open option-bit semantics */

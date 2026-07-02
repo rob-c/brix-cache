@@ -258,7 +258,7 @@ assignments are in §6.
 | 811 | 1149 | `src/webdav/propfind.c` | 🔴 | request/XML parse · property gather (`propfind_entry` is 308 lines alone) · tree walk · response build *(worked example §6.3)* |
 | 796 | 1186 | `src/s3/put.c` | 🟠 | body-mode/aio plumbing · finalize-result family (12 `s3_put_finalize_*`) · aws-chunked decode |
 | 725 | 1104 | `src/auth/impersonate/broker.c` | 🟠 | peer/cap gate · `imp_do_op` dispatch (288 lines) · xattr filter · request loop *(worked example §6.5)* |
-| 686 | 1123 | `src/manager/registry.c` | 🟠 | registry table · selection core · health-check state · locate/aggregate/snapshot *(worked example §6.4)* |
+| 686 | 1123 | `src/net/manager/registry.c` | 🟠 | registry table · selection core · health-check state · locate/aggregate/snapshot *(worked example §6.4)* |
 | 662 | 900 | `src/webdav/tpc_curl.c` | 🟠 | curl handle setup · header build · transfer loop · result map |
 
 ### 3.3 `client/` C source > 650 logical LoC — the client split list
@@ -650,7 +650,7 @@ Dominated by two large functions — `propfind_entry` (308) and `propfind_do`
 its own file. Shared decls → `propfind_internal.h`. Tests:
 `tests/test_webdav_propfind.py`.
 
-### 6.4 `src/manager/registry.c` (686 / 1123 → ~3 files)
+### 6.4 `src/net/manager/registry.c` (686 / 1123 → ~3 files)
 
 Clean functional clusters by prefix:
 
@@ -1231,7 +1231,7 @@ lands in a dedicated target file, never split mid-body (§6.21).
 | `src/s3/post_object.c` | `s3_post_parse_form` | 156 | `post_form.c` (§6.2) |
 | `src/webdav/propfind.c` | `propfind_entry` | 308 | `propfind_props.c` (§6.3) |
 | `src/dashboard/api_admin.c` | `xrootd_admin_dispatch` | 93 | kept `api_admin.c` (§6.12) |
-| `src/manager/registry.c` | `srv_select_core` | 107 | `registry_select.c` (§6.4) |
+| `src/net/manager/registry.c` | `srv_select_core` | 107 | `registry_select.c` (§6.4) |
 | `src/auth/impersonate/broker.c` | `imp_do_op` | 288 | `broker_ops.c` (§6.5) |
 | `src/s3/put.c` | `s3_put_streaming` | 89 | kept `put.c` (§6.13) |
 | `src/webdav/tpc_curl.c` | `webdav_tpc_run_curl_core` | 178 | kept `tpc_curl.c` (§6.14) |
@@ -1513,7 +1513,7 @@ char * xrootd_admin_set_secret(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 #endif
 ```
 
-#### F.5 `src/manager/registry.c` (686/1123 → 3 files; §6.4)
+#### F.5 `src/net/manager/registry.c` (686/1123 → 3 files; §6.4)
 
 **Move table** — current lines → target file:
 

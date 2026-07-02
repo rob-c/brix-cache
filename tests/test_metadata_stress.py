@@ -13,7 +13,7 @@ under max concurrency).  Here we:
   * focus on cheap+expensive METADATA paths, and
   * assert the rate-limiter protects the server rather than the server toppling.
 
-The module's policy (src/ratelimit/ratelimit_stream.c) is the thing under test:
+The module's policy (src/net/ratelimit/ratelimit_stream.c) is the thing under test:
   * stat / statx / ping / query  -> NEVER rate-limited  (cheap; always answered)
   * open / read / dirlist / locate -> rate-limited       (expensive; shed cleanly)
 So the invariants we assert are:
@@ -587,7 +587,7 @@ class TestMeshMetadataStress:
 # =========================================================================== #
 
 class TestRateLimitThroughput:
-    """After the leaky-bucket drain-writeback fix (src/ratelimit/ratelimit.c) the
+    """After the leaky-bucket drain-writeback fix (src/net/ratelimit/ratelimit.c) the
     limiter delivers its configured rate.  These confirm it scales to ~1k r/s:
     a 1000 r/s limit under heavy offered load must SUSTAIN >500 req/s served
     (target headline), shed the excess cleanly, and never fall over.

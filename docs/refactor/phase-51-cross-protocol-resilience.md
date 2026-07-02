@@ -81,7 +81,7 @@ observability/anti-abuse depth that "extremely hardened" implies.
    watchdog bound it today).
 4. **CMS cap is global-per-worker only** — one source IP can consume every slot.
 5. **Pending-locate slots are lazily reaped** — abandoned manager-side locate
-   entries linger until the next insert if traffic ceases (`src/manager/pending.c`).
+   entries linger until the next insert if traffic ceases (`src/net/manager/pending.c`).
 6. **No fault-injection resilience tests for the HTTP family** (WebDAV, S3,
    HTTP-TPC, HTTP-proxy) — `tests/c/fault_proxy.c` covers only root:///cms.
 7. *(durability)* WebDAV/S3 staged-commit does not `fsync` before `rename` — a
@@ -147,12 +147,12 @@ conformant slow-but-progressing transfer is never clipped.
 - Metrics: `ngx_atomic_t` counters in `src/metrics/metrics.h` + export in
   `src/metrics/stream.c` + `XROOTD_*_METRIC_INC` at the call site (the
   `*_timeouts_total` family is the template).
-- `xrootd_apply_tcp_deadpeer_opts()` (`netopt.h`), CMS deadlines (`src/cms/*`),
+- `xrootd_apply_tcp_deadpeer_opts()` (`netopt.h`), CMS deadlines (`src/net/cms/*`),
   `xrootd_net_host_chars_valid()` / `xrootd_sanitize_log_string()`.
 - TPC stall plumbing present: `tpc_curl_apply_stall_bounds()`
   (`src/webdav/tpc_curl.c`), `tpc_max_transfer_secs`, `tpc_low_speed_bytes/secs`,
   registry reaper (`src/tpc/common/registry.c`).
-- `proxy_write_timeout` arming present (`src/proxy/events_write.c`) — only the
+- `proxy_write_timeout` arming present (`src/net/proxy/events_write.c`) — only the
   default changes.
 - Config pattern: `NGX_CONF_UNSET*` → `ngx_conf_merge_*` → `ngx_command_t`.
 - Fault-injection: `tests/c/fault_proxy.c`; dedicated-instance pattern in
@@ -170,7 +170,7 @@ conformant slow-but-progressing transfer is never clipped.
   `cms_redirect_host_rejections_total`, `cms_oversized_frame_drops_total`.
   Increment at the existing phase-50 sites. Reuse the `*_timeouts_total` pattern.
 - **A2. Bounded CMS work-per-wakeup (anti-flood fairness).** Cap complete frames
-  processed per read event (e.g. 64) in `src/cms/recv.c` and `server_recv.c`; if
+  processed per read event (e.g. 64) in `src/net/cms/recv.c` and `server_recv.c`; if
   more remain, re-post the read event so the worker services other connections
   first. Stops a single flooding peer monopolizing the event loop. Wire-invariant.
 - **A3. Per-source-IP CMS connection cap (server).** Complement the global
@@ -292,9 +292,9 @@ GSI DH keypool (`src/auth/gsi/keypool.c`) is the model for moving cost off the l
 
 ## 6. Files to modify (representative)
 
-- CMS: `src/cms/recv.c`, `server_recv.c`, `server_handler.c`, `connect.c`,
+- CMS: `src/net/cms/recv.c`, `server_recv.c`, `server_handler.c`, `connect.c`,
   `server.h`, `server_module.c` (A1 INCs, A2 work-cap, A3 per-IP cap).
-- Manager: `src/manager/pending.c`/`.h` (A4 reaper).
+- Manager: `src/net/manager/pending.c`/`.h` (A4 reaper).
 - Metrics: `src/metrics/metrics.h` + `src/metrics/stream.c` (A1 counters/export).
 - Defaults: `src/core/config/server_conf.c` (B1, B2).
 - TPC/durability: `src/webdav/tpc_curl.c` (confirm B2), WebDAV/S3 staged-commit

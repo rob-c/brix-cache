@@ -2,7 +2,7 @@
 
 **Status:** ✅ Implemented (one security item pending — see status section)  
 **Depends on:** Phase 22 (health checks) recommended but not required  
-**Touches:** `src/dashboard/`, `src/manager/`, `src/webdav/`  
+**Touches:** `src/dashboard/`, `src/net/manager/`, `src/webdav/`  
 **Net LoC:** +~920 new, ~60 modified
 
 ---
@@ -83,7 +83,7 @@ This phase adds:
 | WebDAV proxy backend | Single `conf->upstream_resolved` in config pool | Config-time only |
 | Dashboard API | All GET-only (`NGX_HTTP_NOT_ALLOWED` on POST/DELETE) | Read-only |
 
-The stream cluster registry (`src/manager/registry.c`) is already in SHM and has a
+The stream cluster registry (`src/net/manager/registry.c`) is already in SHM and has a
 complete public API (`xrootd_srv_register`, `xrootd_srv_unregister`,
 `xrootd_srv_blacklist`). Surface A only needs REST API endpoints that call these
 existing functions — no registry changes required.
@@ -219,7 +219,7 @@ xrootd_admin_body_callback(ngx_http_request_t *r)
 
 **Files:** `src/dashboard/api_admin.c`, `src/dashboard/module.c`
 
-These endpoints call the existing `src/manager/registry.c` public API. No registry
+These endpoints call the existing `src/net/manager/registry.c` public API. No registry
 changes are required.
 
 ### Endpoint table
@@ -642,8 +642,8 @@ json_object_set_new(srv, "draining",
 | `src/webdav/proxy.c` | Modify | Pick from pool when `proxy_pool_enabled`; decrement `in_flight` in finalize |
 | `src/webdav/proxy_config.c` | Modify | Seed pool with static URL at config time; allocate SHM zone |
 | `src/webdav/webdav.h` | Modify | Add `proxy_pool_zone`, `proxy_pool_enabled`, `proxy_be_id` to ctx |
-| `src/manager/registry.c` | Modify | Add `xrootd_srv_undrain()`; declare in `registry.h` |
-| `src/manager/registry.h` | Modify | Declare `xrootd_srv_undrain()` |
+| `src/net/manager/registry.c` | Modify | Add `xrootd_srv_undrain()`; declare in `registry.h` |
+| `src/net/manager/registry.h` | Modify | Declare `xrootd_srv_undrain()` |
 | `src/core/config/directives.c` | Modify | Register 3 admin auth directives |
 | `src/core/types/config.h` | Modify | Add `admin_allow_cidr`, `admin_secret` fields |
 | `src/core/config/config.h` | Modify | Add `proxy_pool.c` + `api_admin.c` to `NGX_ADDON_SRCS` |

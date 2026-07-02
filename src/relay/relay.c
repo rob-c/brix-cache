@@ -1,6 +1,6 @@
 #include "core/ngx_xrootd_module.h"
 #include "relay.h"
-#include "tap/tap.h"
+#include "net/tap/tap.h"
 
 /*
  * relay.c — transparent pass-through relay: a bidirectional buffered TCP relay

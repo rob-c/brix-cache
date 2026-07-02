@@ -4,7 +4,7 @@
 
 **Goal:** Revive the existing (directive-disabled) terminating reverse proxy under a clean `xrootd_tap_proxy*` config surface and wire the Phase-2 tap into it, so a `root://` client is authenticated locally, re-authenticated upstream as the user (anonymous / token / SSS / username — already built), forwarded verbatim opcode-by-opcode, and every request/response is decoded and emitted to a JSON audit log. GSI X.509 delegation is deferred to Phase 4b.
 
-**Architecture:** `src/proxy/` is a complete, cache-independent terminating proxy (connect → bootstrap with ztn/SSS/file-token/anonymous login → forward with file-handle translation → relay with `kXR_wait`/`kXR_redirect`/splice). It is still compiled in; only its `xrootd_proxy*` directives were removed. This phase re-adds the directive table entries under `xrootd_tap_proxy*` names mapped to the *existing* handlers/fields, then feeds the Phase-2 tap from the two points where the proxy already has fully-assembled frames: `xrootd_proxy_forward_request()` (client→upstream request buffer) and `xrootd_proxy_relay_to_client()` (upstream→client status/dlen). The tap uses the stable-log-copy pattern proven in Phase 3.
+**Architecture:** `src/net/proxy/` is a complete, cache-independent terminating proxy (connect → bootstrap with ztn/SSS/file-token/anonymous login → forward with file-handle translation → relay with `kXR_wait`/`kXR_redirect`/splice). It is still compiled in; only its `xrootd_proxy*` directives were removed. This phase re-adds the directive table entries under `xrootd_tap_proxy*` names mapped to the *existing* handlers/fields, then feeds the Phase-2 tap from the two points where the proxy already has fully-assembled frames: `xrootd_proxy_forward_request()` (client→upstream request buffer) and `xrootd_proxy_relay_to_client()` (upstream→client status/dlen). The tap uses the stable-log-copy pattern proven in Phase 3.
 
 **Tech Stack:** C nginx stream module, the existing proxy runtime, the Phase-2 tap core, bash+xrdfs integration test.
 
@@ -96,10 +96,10 @@ Expected: build exit 0; `nginx -t` succeeds.
 ### Task 2: Wire the Phase-2 tap into the proxy
 
 **Files:**
-- Modify: `src/proxy/proxy_internal.h` (add tap fields to `xrootd_proxy_ctx_t`)
-- Modify: `src/proxy/forward_relay_dispatch.c` (init the tap at ctx alloc)
-- Modify: `src/proxy/forward_request.c` (emit C2U request frame)
-- Modify: `src/proxy/forward_relay_response.c` (emit U2C response frame)
+- Modify: `src/net/proxy/proxy_internal.h` (add tap fields to `xrootd_proxy_ctx_t`)
+- Modify: `src/net/proxy/forward_relay_dispatch.c` (init the tap at ctx alloc)
+- Modify: `src/net/proxy/forward_request.c` (emit C2U request frame)
+- Modify: `src/net/proxy/forward_relay_response.c` (emit U2C response frame)
 
 **Interfaces:**
 - Consumes: `xrootd_tap_ctx_t`, `xrootd_tap_decode_request`, `xrootd_tap_emit`, `xrootd_tap_audit_format` (Phase 2).
@@ -107,7 +107,7 @@ Expected: build exit 0; `nginx -t` succeeds.
 
 - [ ] **Step 1: Add tap fields + a shared sink declaration**
 
-In `src/proxy/proxy_internal.h`, add `#include "../tap/tap.h"` and, inside `xrootd_proxy_ctx_t`:
+In `src/net/proxy/proxy_internal.h`, add `#include "../tap/tap.h"` and, inside `xrootd_proxy_ctx_t`:
 
 ```c
     /* Phase-4a observation tap: a stable log copy (no session appender) + the
@@ -279,7 +279,7 @@ Expected: both still PASS (Phase-3 relay + non-proxy servers unaffected).
 
 ## Notes / Deferred (Phase 4b)
 
-- **GSI X.509 proxy delegation upstream** — the high-risk piece (native TPC GSI already broken). Own spec/plan. Until then the tap proxy forwards anonymous/token(ztn)/SSS/username, which `src/proxy/` already supports.
+- **GSI X.509 proxy delegation upstream** — the high-risk piece (native TPC GSI already broken). Own spec/plan. Until then the tap proxy forwards anonymous/token(ztn)/SSS/username, which `src/net/proxy/` already supports.
 - **Tap richness:** request path + opcode + response status/dlen now; per-handle path correlation, capture/metrics sinks are follow-ups.
 - The old `xrootd_proxy*` directives stay removed; `xrootd_tap_proxy*` is the supported surface.
 

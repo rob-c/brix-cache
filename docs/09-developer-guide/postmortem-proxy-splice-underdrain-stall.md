@@ -1,6 +1,6 @@
 # Postmortem: proxy splice under-drain stall (flaky mesh topologies)
 
-**Date:** 2026-06-27 · **Area:** `xrootd_proxy` data forwarding (`src/proxy/events_splice.c`)
+**Date:** 2026-06-27 · **Area:** `xrootd_proxy` data forwarding (`src/net/proxy/events_splice.c`)
 **Symptom:** `test_conformance_topologies` flaky — `proxy`/`mesh` intermittently FAIL,
 `cluster`/`mirror` PASS · **Status:** fixed (self-healing splice→buffered fallback)
 **Related:** [postmortem-proxy-retry-leak.md](postmortem-proxy-retry-leak.md),
@@ -171,8 +171,8 @@ splice(upstream → pipe) == EAGAIN
 
 | File | Change |
 |---|---|
-| `src/proxy/events_splice.c` | `splice(upstream→pipe)` `EAGAIN`-with-remainder → fall back; `xrootd_proxy_splice_to_buffered()` + `xrootd_proxy_splice_fallback_finish()` |
-| `src/proxy/events_read.c` | read handler dispatches to the fallback finish when `splice_fallback` is set |
-| `src/proxy/proxy_internal.h` | `splice_fallback` ctx field + fallback-finish declaration |
-| `src/proxy/README.md` | documents the self-healing fallback |
+| `src/net/proxy/events_splice.c` | `splice(upstream→pipe)` `EAGAIN`-with-remainder → fall back; `xrootd_proxy_splice_to_buffered()` + `xrootd_proxy_splice_fallback_finish()` |
+| `src/net/proxy/events_read.c` | read handler dispatches to the fallback finish when `splice_fallback` is set |
+| `src/net/proxy/proxy_internal.h` | `splice_fallback` ctx field + fallback-finish declaration |
+| `src/net/proxy/README.md` | documents the self-healing fallback |
 | `tests/test_proxy_large_read.py` | self-contained regression: 20 large XrdCl reads through a proxy must each finish fast |

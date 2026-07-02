@@ -59,7 +59,7 @@ shared helpers.
 │  src/core/compat/http_*.c    headers/body/conditions     [webdav+s3]   │
 │  src/core/compat/fs_walk.c   dot-entry/remove-tree       [webdav+s3+query] │
 │  src/core/compat/staged_file temp open/commit/abort      [webdav+s3]   │
-│  src/cms/frame_io.c     CMS send-all + frame build  [cms paths]   │
+│  src/net/cms/frame_io.c     CMS send-all + frame build  [cms paths]   │
 │  src/core/compat/xml.c       minimal XML scanner         [webdav]      │
 └────────────────────────────────────────────────────────────────────┘
 ```
@@ -256,7 +256,7 @@ libcurl rather than the key registry — the two TPC mechanisms are not currentl
 | `fs_usage.c` | `statvfs` arithmetic | kXR_Qspace/QFSinfo, cache metrics, WebDAV quota props |
 | `staged_file.c` | temp-file open/commit/abort lifecycle | S3 PUT/CopyObject, WebDAV COPY/TPC pull |
 | `shm_slots.h` | expiry/free-slot helpers | TPC keys, pending locate |
-| `src/cms/frame_io.c` | send-all loop + CMS frame assembly | CMS client and server send paths |
+| `src/net/cms/frame_io.c` | send-all loop + CMS frame assembly | CMS client and server send paths |
 
 ---
 
@@ -343,7 +343,7 @@ HTTP and token-adjacent helpers.
 | File checksum algorithms | `src/core/compat/checksum.c` | native Qcksum/Qckscan, dirlist dcksm, XrdHttp Digest |
 | Recursive filesystem mechanics | `src/core/compat/fs_walk.c` | WebDAV DELETE/access checks, S3 multipart cleanup, Qckscan/PROPFIND dot filtering |
 | Staged temp-file lifecycle | `src/core/compat/staged_file.c` | S3 PUT/CopyObject, WebDAV file COPY, WebDAV TPC pull |
-| CMS frame sending | `src/cms/frame_io.c` | CMS client send path, CMS server send path |
+| CMS frame sending | `src/net/cms/frame_io.c` | CMS client send path, CMS server send path |
 | Base64url | `src/auth/token/b64url.c` | JWT/macaroons, S3 continuation tokens |
 | Token files | `src/auth/token/file.c` | upstream redirector auth, native TPC outbound auth |
 | OAuth2 token JSON | `src/auth/token/oauth2.c` | native TPC token fetch, WebDAV TPC credential parsing |

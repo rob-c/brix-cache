@@ -473,13 +473,13 @@ src/path/                ← path confinement, canonical resolution, VO ACL
 src/query/               ← kXR_query subtypes (cksum, space, config, stats)
 src/fattr/               ← kXR_fattr (xattr get/set/del via Linux xattrs)
 src/fs/cache/               ← read-through cache (origin fill, eviction)
-src/cms/                 ← CMS manager heartbeat (send/receive)
+src/net/cms/                 ← CMS manager heartbeat (send/receive)
 src/tpc/                 ← native root:// TPC (pull path on destination)
 src/response/            ← XRootD response framing helpers
 src/metrics/             ← Prometheus counters and HTTP export endpoint
-src/upstream/            ← outbound XRootD redirect client
+src/net/upstream/            ← outbound XRootD redirect client
 src/webdav/              ← HTTP/WebDAV module (all methods, auth, TPC, S3)
-src/manager/             ← dynamic server registry for manager mode
+src/net/manager/             ← dynamic server registry for manager mode
 src/core/types/               ← shared type headers (xrootd_ctx_t, config.h, etc.)
 src/protocol/            ← wire format constants (kXR_* opcodes, flags)
 ```

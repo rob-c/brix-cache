@@ -2,7 +2,7 @@
 
 **Status:** plan / spec
 **Date:** 2026-06-27
-**Scope:** `src/cms/`, `src/manager/`, `src/frm/` (wiring only), config, tests, docs.
+**Scope:** `src/net/cms/`, `src/net/manager/`, `src/frm/` (wiring only), config, tests, docs.
 **Hard requirement:** **byte-exact wire interop** with stock `cmsd` — no wire
 changes; every new opcode/field matches `XProtocol/YProtocol.hh` +
 `XrdCms/XrdCmsParser.cc` layouts. **Non-goal:** the C++ plugin ABI; UDP monitoring.
@@ -112,7 +112,7 @@ Supervisor / meta-manager / sub-manager cascades (`XrdCmsSupervisor`,
 `XrdCmsManTree`, `manVOps` routing). A node runs as **both** a manager (accepting
 nodes below) and a heartbeat client (registering up to a meta-manager); locates
 recurse up the tree with hop-count limits. We already have both halves (client +
-server) in `src/cms/` and the sub-manager `state→have` forwarding on the node side
+server) in `src/net/cms/` and the sub-manager `state→have` forwarding on the node side
 — W7 is the tree formation, recursion, and `metaman`/`subman` login modes + the
 meta-manager-restricted routing table (`manVOps`). **Recommend splitting to
 phase-62** given size; this phase delivers G1–G6, G8–G9.

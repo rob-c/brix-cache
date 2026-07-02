@@ -14,14 +14,14 @@
 - **HELPERS — reuse:** `xrootd_cache_origin_connect`/`_bootstrap` (blocking GSI login), `delegation.c` capture, `ngx_thread_task` (cache `thread.c` pattern), `xrootd_open_credfile`/temp-cred helpers (`0600`, `O_EXCL`), the Phase-4a tap. Do NOT write a new GSI handshake — reuse `gsi_core`.
 - **Credential hygiene:** the delegated proxy temp file is `0600`, `O_EXCL`, owner-only, unlinked immediately after the GSI login (or on connection teardown). Never log proxy private bytes.
 - **Thread safety:** the blocking login runs in a thread-pool worker; it touches ONLY its own synth conf + `oc` + the temp file — no shared session state. The fd is handed back to the event loop via the task completion handler (main thread).
-- **Build governance:** likely a new `.c` (`src/proxy/gsi_upstream.c`) → register in `./config`, then `./configure`. A `thread_pool` must be configured for the proxy server (the task is a no-op fallback / clean error if absent).
+- **Build governance:** likely a new `.c` (`src/net/proxy/gsi_upstream.c`) → register in `./config`, then `./configure`. A `thread_pool` must be configured for the proxy server (the task is a no-op fallback / clean error if absent).
 - **Stop-on-risk:** if the upstream GSI login cannot be made to work (foundation bug), STOP at Task 4, document the exact failure, and do not fake the e2e result.
 
 ---
 
 ### Task 1: `gsi` auth mode + delegation enablement (config, verifiable)
 
-**Files:** `src/core/types/config.h` (auth-mode enum value if needed), `src/proxy/directives.c` (`xrootd_conf_set_proxy_auth` accepts `gsi`), `src/stream/module.c` (already has `xrootd_tap_proxy_auth`).
+**Files:** `src/core/types/config.h` (auth-mode enum value if needed), `src/net/proxy/directives.c` (`xrootd_conf_set_proxy_auth` accepts `gsi`), `src/stream/module.c` (already has `xrootd_tap_proxy_auth`).
 
 **Interfaces:** Produces a parsed `proxy_auth == XROOTD_PROXY_AUTH_GSI`; when set, the proxy server must run with delegation capture on.
 
@@ -32,7 +32,7 @@
 
 ### Task 2: Persist the delegated proxy to a secure temp (verifiable)
 
-**Files:** new `src/proxy/gsi_upstream.c` + `.h`.
+**Files:** new `src/net/proxy/gsi_upstream.c` + `.h`.
 
 **Interfaces:** Produces `int xrootd_proxy_gsi_write_deleg(xrootd_ctx_t *ctx, char *path_out, size_t cap)` — writes `ctx->gsi_deleg_proxy_pem` to a freshly-created `0600 O_EXCL` temp file under the configured cred dir, returns 0/-1.
 
@@ -42,7 +42,7 @@
 
 ### Task 3: Threaded blocking GSI login → authenticated fd
 
-**Files:** `src/proxy/gsi_upstream.c`, `src/proxy/proxy_internal.h` (task ctx fields).
+**Files:** `src/net/proxy/gsi_upstream.c`, `src/net/proxy/proxy_internal.h` (task ctx fields).
 
 **Interfaces:** Produces `xrootd_proxy_gsi_connect_async(proxy)` that posts an `ngx_thread_task`; the task body builds a synth `ngx_stream_xrootd_srv_conf_t` (upstream host/port from the selected upstream, `cache_origin_x509_proxy` = temp path, `gsi_store` from the proxy's CA dir) + a minimal `xrootd_cache_fill_t`, calls `xrootd_cache_origin_connect` then `xrootd_cache_origin_bootstrap`, and on success stashes the authenticated `oc.fd` (dup'd out of `oc`, so close doesn't take it) + result code on the task ctx.
 
@@ -53,7 +53,7 @@
 
 ### Task 4: Fd handoff into the proxy + dispatch
 
-**Files:** `src/proxy/gsi_upstream.c`, `src/proxy/connect_upstream.c` (gsi branch), `src/proxy/forward_relay_dispatch.c`.
+**Files:** `src/net/proxy/gsi_upstream.c`, `src/net/proxy/connect_upstream.c` (gsi branch), `src/net/proxy/forward_relay_dispatch.c`.
 
 **Interfaces:** The task completion handler (main thread) wraps `result_fd` in an `ngx_connection_t` (`ngx_get_connection` + set read/write handlers to the proxy relay handlers), sets `proxy->conn`, transitions to `XRD_PX_IDLE`/forwarding, unlinks the temp, and calls `xrootd_proxy_dispatch_pending(proxy)`.
 

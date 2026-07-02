@@ -546,18 +546,18 @@ value / risky):** removing the legacy `cache_origin_*` host/port/proxy/token dir
 | `cache/http_transport.c` + `pelican.c` + `pelican_register.c` | — | **Relocate** | C-4 | Becomes `backend/http`; director discovery + register are remote-backend concerns. |
 | `cache/fetch_origin_exec` (native-client subprocess fill) | — | **Remove** | C-3 | Exists only because `sd_xroot` is anon-only. |
 | `fs/vfs_staged.c` + `fs/vfs_scratch.c` + cache `writethrough_*` | 244 + 177 + 1337 | **Consolidate → one** | C-6 | Three parallel stage-then-commit impls → one decorator over the shared sink + `.cinfo`. |
-| `src/upstream/` | 1463 | **Mostly removable** | C-2, C-4 | The HTTP/WebDAV "proxy to an upstream" connection layer = an `http` remote backend + cache decorator; only a pure non-caching pass-through still wants it. |
-| `src/proxy/` | 4501 | **Partially removable** | C-2, C-3 | The cache/forward-in-front-of-upstream role = `xroot` backend + cache decorator. **Residual stays:** see §5.1. |
+| `src/net/upstream/` | 1463 | **Mostly removable** | C-2, C-4 | The HTTP/WebDAV "proxy to an upstream" connection layer = an `http` remote backend + cache decorator; only a pure non-caching pass-through still wants it. |
+| `src/net/proxy/` | 4501 | **Partially removable** | C-2, C-3 | The cache/forward-in-front-of-upstream role = `xroot` backend + cache decorator. **Residual stays:** see §5.1. |
 | `src/frm/` | 3234 | **Folds into a backend + stage** | C-6 | FRM tape staging = a `tape`/`hsm` **source backend** (its durable queue is the commit); it **already shares `xfer_reconcile`** with the cache replay. The WLCG Tape REST *API surface* stays. |
 
 ### 5.1 Deep dive — what *stays* in the "removable" subsystems
-- **`src/proxy/` (4501 LOC):** the **zero-copy splice pure-relay** (`events_splice.c`,
+- **`src/net/proxy/` (4501 LOC):** the **zero-copy splice pure-relay** (`events_splice.c`,
   the `socket→pipe→socket` no-store forward) is **not** storage and is **not**
   reproduced by the cache — keep it, or model it explicitly as a "no-store cache"
   mode of the cache decorator. The **redirect/forward request rewriting**
   (`forward_*`) for manager/redirector topologies is protocol routing, not storage —
   keep. Only the "fetch-from-upstream-and-serve" role overlaps the `xroot` backend.
-- **`src/upstream/` (1463 LOC):** the WebDAV/HTTP upstream proxy connection +
+- **`src/net/upstream/` (1463 LOC):** the WebDAV/HTTP upstream proxy connection +
   auth/tls (`auth.c`/`tls.c`/`request.c`/`response.c`) is reproduced by `sd_http` +
   cache for the *caching* case; a pure transparent reverse-proxy without caching
   would still want it. Verdict "mostly," not "fully."
@@ -625,7 +625,7 @@ is `source(posix)` only; decorators absent; zero overhead.
    driver-dispatch + slice-store overhead the hardwired origin client inlines. Per
    the pblock perf work, **A/B the composed stack** (`xroot+cache` vs old XCache) and
    keep that benchmark.
-2. **Pure pass-through must survive.** The splice relay in `src/proxy/` is a no-store
+2. **Pure pass-through must survive.** The splice relay in `src/net/proxy/` is a no-store
    role the cache does not cover; keep it or model it as a "no-store cache."
 3. **Durability of the generic stage.** The stage inherits the write-back
    crash-consistency contract (`flush_gen` replay + reaper). Any source used as a
@@ -916,4 +916,4 @@ The write-back state machine and validity are **source-independent**; the re-poi
 - **New:** `backend/http/sd_http.c`, the cache/stage decorator driver(s).
 - **Deleted:** `cache/origin_connection.c`, `cache/origin_protocol.c`, `cache/origin_response.c`, the `fetch_origin_exec` path; **consolidated:** `fs/vfs_staged.c`, `fs/vfs_scratch.c`.
 - **Relocated:** `cache/http_transport.c`, `cache/pelican.c`, `cache/pelican_register.c` → `backend/http/`.
-- **Shrunk to a backend + shim:** `src/frm/`, the caching role of `src/upstream/` and `src/proxy/`.
+- **Shrunk to a backend + shim:** `src/frm/`, the caching role of `src/net/upstream/` and `src/net/proxy/`.

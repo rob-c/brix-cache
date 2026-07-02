@@ -87,10 +87,10 @@ but are **dead code** — nothing calls `ngx_add_timer` to target them. Conseque
 ### 3.1 Two confirmed real bugs (fix regardless of theme)
 
 - **PXY-3 (leak):** the stream proxy never frees `proxy->wbuf` after a deferred flush completes
-  (`src/proxy/events_write.c:106-124`), while `src/proxy/forward_request.c:345` reassigns it on the next
+  (`src/net/proxy/events_write.c:106-124`), while `src/net/proxy/forward_request.c:345` reassigns it on the next
   request — **leaks up to ~128KB per request** under exactly the slow/lossy-consumer case.
 - **PXY-6 (wire corruption):** the splice path sends the 8-byte response header, then on a short send falls
-  back to the buffered path which **re-sends the full header** (`src/proxy/events_splice.c:272-279`),
+  back to the buffered path which **re-sends the full header** (`src/net/proxy/events_splice.c:272-279`),
   duplicating bytes on the wire and corrupting the client's frame stream.
 
 ---
@@ -224,7 +224,7 @@ file unlinked, worker freed, no cross-tenant effect.
 
 ### 4.6 WS6 — Stream proxy correctness + leak + upstream write timeout
 **Closes:** PXY-3 (leak), PXY-6 (corruption), PXY-2 (no upstream write-stall timeout).
-**Files:** `src/proxy/events_write.c`, `forward_request.c`, `connect_lifecycle.c`, `events_splice.c`;
+**Files:** `src/net/proxy/events_write.c`, `forward_request.c`, `connect_lifecycle.c`, `events_splice.c`;
 `config.h` + `module.c`; `server_conf.c`.
 **Changes:**
 - **PXY-3:** after the deferred `xrootd_proxy_flush` completes in `events_write.c`, free `proxy->wbuf` and
@@ -247,8 +247,8 @@ healthy session unaffected.
 **Closes:** PXY-4 (`xrootd_srv_select` filters only `blacklisted_until`, never `last_seen` age, so a
 silently-dead DS stays selectable), CMS-1/CMS-2 (manager/client never correlate PONG; `ev->timedout` is
 dead code), PXY-8 (redir cache vs `?tried=` reconciliation).
-**Files:** `src/manager/registry.c`; `src/cms/server_recv.c`, `recv.c`, `connect.c`;
-`src/manager/redir_cache.c` + `src/read/open_request.c`; `config.h` + `module.c`.
+**Files:** `src/net/manager/registry.c`; `src/net/cms/server_recv.c`, `recv.c`, `connect.c`;
+`src/net/manager/redir_cache.c` + `src/read/open_request.c`; `config.h` + `module.c`.
 **Changes:**
 - `last_seen` staleness check inside the existing `xrootd_srv_select` / `xrootd_srv_count_matching`
   slot-scan (two integer comparisons, same lock, no second pass). New `xrootd_manager_stale_after`

@@ -1,8 +1,8 @@
 #include "handshake.h"
-#include "proxy/proxy.h"
-#include "mirror/stream_mirror.h"
-#include "mirror/stream_wmirror.h"
-#include "ratelimit/ratelimit.h"
+#include "net/proxy/proxy.h"
+#include "net/mirror/stream_mirror.h"
+#include "net/mirror/stream_wmirror.h"
+#include "net/ratelimit/ratelimit.h"
 #include "auth/impersonate/lifecycle.h"
 
 /*

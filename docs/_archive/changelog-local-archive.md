@@ -23,7 +23,7 @@ with a further 23 files modified and 8 untracked in the working tree.
 | `48dca85`–`416e2fd` | Ralph iterations 1–1 (work in progress): incremental development across multiple subsystems |
 | `549497f`–`50776af` | Ralph iterations 1–1: continued |
 | `668b339`–`d7c1f6a` | Ralph iterations 2–3: continued |
-| `226f991` | `proxy:` upstream proxy pool (`src/proxy/connect.c`, `pool.c`, `events.c`) |
+| `226f991` | `proxy:` upstream proxy pool (`src/net/proxy/connect.c`, `pool.c`, `events.c`) |
 | `0ec306e` | `k8s-tests:` initial full scaffold — Dockerfiles, Helm charts, k8s manifests, PKI scripts, test runner |
 | `2777d0d` | `k8s-tests/PLAN.md:` restructure |
 | `2df98ad` | `k8s-tests/PLAN.md` + `src/core/config/process.c` |
@@ -49,10 +49,10 @@ into dedicated subdirectories:
 | `src/ngx_xrootd_path.c` | `src/path/` (17 files) |
 | `src/ngx_xrootd_gsi.c` | `src/auth/gsi/` |
 | `src/ngx_xrootd_token.c` | `src/auth/token/` (16 files) |
-| `src/ngx_xrootd_upstream.c` | `src/upstream/` |
+| `src/ngx_xrootd_upstream.c` | `src/net/upstream/` |
 | `src/ngx_xrootd_voms.c` | `src/auth/voms/` |
 | `src/ngx_xrootd_aio.c` | `src/core/aio/` |
-| `src/ngx_xrootd_cms_heartbeat.c` | `src/cms/` |
+| `src/ngx_xrootd_cms_heartbeat.c` | `src/net/cms/` |
 | `src/ngx_xrootd_handshake.c` | `src/handshake/` (10 files) |
 | `src/ngx_xrootd_session.c` | `src/session/` |
 | `src/ngx_xrootd_response.c` | `src/response/` |
@@ -88,11 +88,11 @@ net).
 | Directory | Purpose |
 |---|---|
 | `src/fs/cache/` | Read-through cache (eviction, config, AIO integration) |
-| `src/proxy/` | Upstream proxy pool — connection pooling, event handling, forwarding |
+| `src/net/proxy/` | Upstream proxy pool — connection pooling, event handling, forwarding |
 | `src/s3/` | S3-compatible REST gateway: GET/PUT/DELETE, ListObjectsV2, multipart upload, SigV4 auth |
 | `src/auth/sss/` | SSS (Shared-Secret-Security) authentication |
-| `src/manager/` | Dynamic manager/registry state |
-| `src/cms/` | CMS heartbeat, space/load reporting, multi-server config |
+| `src/net/manager/` | Dynamic manager/registry state |
+| `src/net/cms/` | CMS heartbeat, space/load reporting, multi-server config |
 | `src/fattr/` | Extended attribute operations (`kXR_fattr` get/set/del) |
 | `src/dirlist/` | Native directory listing (`kXR_dirlist`) |
 | `src/auth/crypto/` | Shared PKI loading and verification helpers |
@@ -125,11 +125,11 @@ moved to `src/webdav/metrics.c`, S3 metrics to `src/s3/metrics.c`.
 | `src/connection/handler.c` | +18 lines |
 | `src/metrics/metrics.h` | +62 lines (new counter definitions) |
 | `src/metrics/stream.c` | +13 lines |
-| `src/proxy/connect.c` | +11 lines |
-| `src/proxy/events.c` | +13 lines |
-| `src/proxy/forward.c` | +26 lines (proxy forwarding improvements) |
-| `src/proxy/pool.c` | −4 / +4 lines |
-| `src/proxy/proxy_internal.h` | −5 / +5 lines |
+| `src/net/proxy/connect.c` | +11 lines |
+| `src/net/proxy/events.c` | +13 lines |
+| `src/net/proxy/forward.c` | +26 lines (proxy forwarding improvements) |
+| `src/net/proxy/pool.c` | −4 / +4 lines |
+| `src/net/proxy/proxy_internal.h` | −5 / +5 lines |
 
 ---
 

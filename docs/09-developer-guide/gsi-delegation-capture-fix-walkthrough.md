@@ -459,7 +459,7 @@ the bytes.
 
 ## 10. The tap-proxy GSI forwarding path (client → proxy → upstream, as the user)
 
-The same capture feeds the **monitoring/MITM tap proxy** (`src/proxy/`, `xrootd_tap_proxy_auth
+The same capture feeds the **monitoring/MITM tap proxy** (`src/net/proxy/`, `xrootd_tap_proxy_auth
 gsi`): a client delegates its proxy to the tap proxy, which logs in to the *upstream* **as the
 user** and relays. Verifying this end-to-end surfaced two more issues.
 

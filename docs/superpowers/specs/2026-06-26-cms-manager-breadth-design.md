@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-26
 **Status:** approved design → implementation (see §9 status)
-**Scope:** `src/cms/` (both halves), config plumbing, tests, docs
+**Scope:** `src/net/cms/` (both halves), config plumbing, tests, docs
 **Hard requirement:** **byte-exact wire interop** with stock XRootD `cmsd` — no wire changes; new opcodes match `XProtocol/YProtocol.hh` + `XrdCms/XrdCmsRRData.hh` layouts exactly.
 
 Related: SSI completeness is a **separate** spec/cycle. Non-goals here: meta-manager
@@ -40,7 +40,7 @@ Routing flags (mirror `XrdCmsRouting.cc`): `isSync`, `Forward`, `Repliable`,
 
 ## 3. Architecture
 
-A table-driven router in `src/cms/` mirrors `XrdCmsRouting.cc`. Both halves
+A table-driven router in `src/net/cms/` mirrors `XrdCmsRouting.cc`. Both halves
 dispatch through it:
 
 - **Manager-from-node** (`server_recv.c`) — manager accepting frames *up* from data nodes.
@@ -55,11 +55,11 @@ aggregation lives in its own module.
 
 | File | Responsibility |
 |---|---|
-| `src/cms/router.{c,h}` | Descriptor table `xrootd_cms_route_t {uint8 code; const char *name; uint16 flags; handler}` + `xrootd_cms_route_lookup(code, role)`. Role-scoped tables (manager, node). |
-| `src/cms/rrdata.{c,h}` | `xrootd_cms_rrdata_t` mirroring `XrdCmsRRData` (Path, Opaque, Path2, Opaque2, Avoid, Reqid, Notify, Prty, Mode, Ident, Opts, PathLen, dskFree, dskUtil); `xrootd_cms_rrdata_parse(code, payload, len, *out)` — bounds-checked Pup decode reusing `tlv_read_next` / `cms_srv_read_string`. |
-| `src/cms/server_ops.c` | **Plane A** manager handlers: `ping→pong`, `disc` (echo+close), `update` (trigger state re-probe), `usage`/`stats`/`statfs` (answer from registry), `have`/`state` reconciliation. |
-| `src/cms/forward.c` | **Plane B** manager-side: select eligible nodes (`manager/registry`) → fan-out → pending-reply aggregation keyed by streamid, `waitresp`/`Delayable` aware. |
-| `src/cms/node_ops.c` | **Plane B** node-side: execute forwarded `chmod/mkdir/mkpath/mv/rm/rmdir/trunc` via the **VFS backend** (confined); `prepadd`/`prepdel` → FRM queue; build success/`kYR_error` reply. |
+| `src/net/cms/router.{c,h}` | Descriptor table `xrootd_cms_route_t {uint8 code; const char *name; uint16 flags; handler}` + `xrootd_cms_route_lookup(code, role)`. Role-scoped tables (manager, node). |
+| `src/net/cms/rrdata.{c,h}` | `xrootd_cms_rrdata_t` mirroring `XrdCmsRRData` (Path, Opaque, Path2, Opaque2, Avoid, Reqid, Notify, Prty, Mode, Ident, Opts, PathLen, dskFree, dskUtil); `xrootd_cms_rrdata_parse(code, payload, len, *out)` — bounds-checked Pup decode reusing `tlv_read_next` / `cms_srv_read_string`. |
+| `src/net/cms/server_ops.c` | **Plane A** manager handlers: `ping→pong`, `disc` (echo+close), `update` (trigger state re-probe), `usage`/`stats`/`statfs` (answer from registry), `have`/`state` reconciliation. |
+| `src/net/cms/forward.c` | **Plane B** manager-side: select eligible nodes (`manager/registry`) → fan-out → pending-reply aggregation keyed by streamid, `waitresp`/`Delayable` aware. |
+| `src/net/cms/node_ops.c` | **Plane B** node-side: execute forwarded `chmod/mkdir/mkpath/mv/rm/rmdir/trunc` via the **VFS backend** (confined); `prepadd`/`prepdel` → FRM queue; build success/`kYR_error` reply. |
 
 New `CMS_RR_*` constants added to `cms_internal.h`: CHMOD=1, MKDIR=3, MKPATH=4,
 MV=5, PREPADD=6, PREPDEL=7, RM=8, RMDIR=9, STATS=11, DISC=13, STATFS=21,

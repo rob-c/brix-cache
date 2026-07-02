@@ -18,8 +18,8 @@ All five phases are fully implemented and tested.
 
 | Phase | Description | Status |
 |---|---|---|
-| M1 | Server registry (`src/manager/registry.c`) | ✅ Complete |
-| M2 | CMS server listener (`src/cms/server_*.c`) | ✅ Complete |
+| M1 | Server registry (`src/net/manager/registry.c`) | ✅ Complete |
+| M2 | CMS server listener (`src/net/cms/server_*.c`) | ✅ Complete |
 | M3 | Dynamic redirect in `kXR_locate` and `kXR_open` | ✅ Complete |
 | M4 | Sub-manager / hierarchical mode | ✅ Complete |
 | M5 | Cache node auto-registration / eviction unregister | ✅ Complete |
@@ -54,13 +54,13 @@ A **cache node** that advertises newly cached files to the redirector adds M5.
 
 ## What each phase adds
 
-### M1 — Server Registry (`src/manager/`)
+### M1 — Server Registry (`src/net/manager/`)
 
 A shared-memory table (128 slots, spinlock-protected) maps each registered
 data server to its host, port, exported path list, free space, and utilisation.
 It is the source of truth read by the redirect logic.
 
-**New files**: `src/manager/registry.h`, `src/manager/registry.c`
+**New files**: `src/net/manager/registry.h`, `src/net/manager/registry.c`
 
 **API**:
 ```c
@@ -86,11 +86,11 @@ with the most `free_mb`.
 
 **Wiring**: call `xrootd_srv_configure_registry(cf)` from
 `src/core/config/postconfiguration.c` (after the metrics zone, same pattern).
-Add `src/manager/registry.c` to `ngx_module_srcs` in `config`.
+Add `src/net/manager/registry.c` to `ngx_module_srcs` in `config`.
 
 ---
 
-### M2 — CMS Server Stream Module (`src/cms/server_*.c`)
+### M2 — CMS Server Stream Module (`src/net/cms/server_*.c`)
 
 Accepts incoming TCP connections from data servers on the CMS management port
 (default 1213). Parses CMS login and heartbeat frames and writes to the M1
@@ -100,11 +100,11 @@ registry.
 
 | File | Purpose |
 |---|---|
-| `src/cms/server_handler.c` | nginx stream handler: allocates `xrootd_cms_server_ctx_t`, wires read handler. Mirrors `src/connection/handler.c`. |
-| `src/cms/server_recv.c` | Frame reader: accumulates 8-byte header + payload, dispatches on `rrCode`. Mirrors `src/cms/recv.c`. |
-| `src/cms/server_send.c` | `cms_server_send_ping()` and `cms_server_send_status()`. Reuses `src/cms/wire.c` helpers. |
-| `src/cms/server_timer.c` | Per-worker timer: pings each active CMS connection every `cms_server_interval` seconds (default 60); marks stale connections for disconnect. |
-| `src/cms/server_module.c` | nginx stream module glue. Directive: `xrootd_cms_server on;`. |
+| `src/net/cms/server_handler.c` | nginx stream handler: allocates `xrootd_cms_server_ctx_t`, wires read handler. Mirrors `src/connection/handler.c`. |
+| `src/net/cms/server_recv.c` | Frame reader: accumulates 8-byte header + payload, dispatches on `rrCode`. Mirrors `src/net/cms/recv.c`. |
+| `src/net/cms/server_send.c` | `cms_server_send_ping()` and `cms_server_send_status()`. Reuses `src/net/cms/wire.c` helpers. |
+| `src/net/cms/server_timer.c` | Per-worker timer: pings each active CMS connection every `cms_server_interval` seconds (default 60); marks stale connections for disconnect. |
+| `src/net/cms/server_module.c` | nginx stream module glue. Directive: `xrootd_cms_server on;`. |
 
 **CMS opcodes handled**:
 
@@ -159,7 +159,7 @@ Add `ngx_flag_t manager_mode` to `ngx_stream_xrootd_srv_conf_t` in
 No new files. A sub-manager runs both the CMS client (reports upward) and the
 CMS server listener (accepts downward), with `xrootd_manager_mode on`.
 
-One change in `src/cms/send.c:ngx_xrootd_cms_send_login()`: when `manager_mode`
+One change in `src/net/cms/send.c:ngx_xrootd_cms_send_login()`: when `manager_mode`
 is on, set `CMS_LOGIN_MODE_MANAGER` in the mode field so the parent manager
 recognises this node as a sub-manager rather than a leaf data server.
 
@@ -217,11 +217,11 @@ stream {
 
 | Phase | New files | Changed files |
 |---|---|---|
-| M1 registry | `src/manager/registry.h`, `registry.c` | `src/core/config/postconfiguration.c`, `config` |
-| M2 CMS server | `src/cms/server_handler.c`, `server_recv.c`, `server_send.c`, `server_timer.c`, `server_module.c` | `config` |
+| M1 registry | `src/net/manager/registry.h`, `registry.c` | `src/core/config/postconfiguration.c`, `config` |
+| M2 CMS server | `src/net/cms/server_handler.c`, `server_recv.c`, `server_send.c`, `server_timer.c`, `server_module.c` | `config` |
 | M3 dynamic redirect | — | `src/read/locate.c`, `src/read/open.c`, `src/session/protocol.c`, `src/core/types/config.h`, `src/stream/module.c`, `src/core/config/server_conf.c` |
-| M4 sub-manager | — | `src/cms/send.c` |
-| M5 cache integration | — | `src/fs/cache/thread.c`, `src/fs/cache/evict.c`, `src/manager/registry.c` |
+| M4 sub-manager | — | `src/net/cms/send.c` |
+| M5 cache integration | — | `src/fs/cache/thread.c`, `src/fs/cache/evict.c`, `src/net/manager/registry.c` |
 
 ---
 
@@ -230,8 +230,8 @@ stream {
 | Component | Reuse |
 |---|---|
 | `src/session/registry.c` | shm zone + spinlock + fixed-slot array pattern for M1 |
-| `src/cms/recv.c`, `send.c`, `wire.c` | CMS frame parser, encoder, byte-order helpers for M2 |
-| `src/cms/connect.c` | timer and backoff pattern for `server_timer.c` |
+| `src/net/cms/recv.c`, `send.c`, `wire.c` | CMS frame parser, encoder, byte-order helpers for M2 |
+| `src/net/cms/connect.c` | timer and backoff pattern for `server_timer.c` |
 | `src/core/config/manager_map.c` | longest-prefix matching algorithm (static fallback stays) |
 | `src/connection/handler.c` | per-connection context init pattern for `server_handler.c` |
 | `src/metrics/config.c` | shm zone creation pattern for `src/core/config/postconfiguration.c` |

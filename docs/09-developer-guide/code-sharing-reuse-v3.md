@@ -197,7 +197,7 @@ namespace = [strip protocol prefix] → [normalize leading slashes] → [call xr
 
 ### Current State
 
-Transparent XRootD proxy maintains a **file-handle translation map** (`src/proxy/proxy_internal.h`):
+Transparent XRootD proxy maintains a **file-handle translation map** (`src/net/proxy/proxy_internal.h`):
 
 ```c
 proxy_fh_map entry struct:
@@ -381,7 +381,7 @@ Before planning, audit what is already present to avoid duplicating existing doc
 | §3 Response type selection | `src/response/README.md` | Not audited — read first | Unknown |
 | §4 Auth state management | `src/core/types/context.h` (273 lines) | Detailed WHAT/WHY/HOW block in header comment; auth fields grouped at lines 59–71 | No canonical "auth state layout" table; no cross-stream/WebDAV comparison note |
 | §5 Namespace translation | `src/core/compat/README.md` | Lists `path.c` and `namespace_ops.c` | No cross-protocol namespace input → canonicalizer table |
-| §6 Proxy handle translation | `src/proxy/README.md` (23 lines) | Sparse file table only | No fh_map lifecycle, state machine, lazy-open sequence |
+| §6 Proxy handle translation | `src/net/proxy/README.md` (23 lines) | Sparse file table only | No fh_map lifecycle, state machine, lazy-open sequence |
 | §7 Disconnect cleanup | `src/connection/disconnect.c` (275 lines) | Has `/* ---- Buffer release ----`, `/* ---- Crypto state release ----`, `/* xrootd_disconnect_update_metrics */`, `/* ---- Log open files ----` separators | Separators exist but are inconsistently named; no `connection/README.md` phase summary |
 | §8 Test infrastructure | `docs/09-developer-guide/testing-runbook.md` (173 lines) | Has test philosophy + security policy | No LOCAL/REMOTE mode explanation, no conftest.py fixture hierarchy, no shared port table |
 | §9 Request context objects | `src/core/types/README.md` (13 lines) | Minimal — file-to-concept table only | No set_ctx/get_module_ctx pattern, no stream vs HTTP context lifecycle comparison |
@@ -403,7 +403,7 @@ Phase 1: Source-adjacent documentation (5 parallel tasks — different files, no
          ├── T2: src/handshake/README.md       — cross-protocol dispatch section  (1 h)
          ├── T3: src/connection/disconnect.c   — standardize phase separators     (1 h)
          │         src/connection/README.md    — three-phase cleanup pattern      (+30 min)
-         ├── T4: src/proxy/README.md           — fh_map lifecycle expansion       (1.5 h)
+         ├── T4: src/net/proxy/README.md           — fh_map lifecycle expansion       (1.5 h)
          └── T5: src/metrics/README.md         — label schema + low-cardinality   (1 h)
 
 Phase 2: Higher-level developer docs (4 parallel tasks — blocked by Phase 1 for cross-refs)
@@ -432,7 +432,7 @@ Phase 3: Capstone architecture doc (blocked by all of Phase 1 + Phase 2)
 | `src/core/types/context.h` | Identify exact line numbers of auth state fields (sessid, logged_in, auth_done, dn, vo_list) before adding the layout table | 273 lines |
 | `src/handshake/README.md` | Find the exact end of the dispatch chain diagram to know where to append the cross-protocol comparison section | 54 lines |
 | `src/connection/disconnect.c` | Map existing section separators; find exact line numbers of buffer/crypto/metrics/log phases to standardize | 275 lines |
-| `src/proxy/README.md` | Identify the 23 existing lines; plan expansion without repeating the file table | 23 lines |
+| `src/net/proxy/README.md` | Identify the 23 existing lines; plan expansion without repeating the file table | 23 lines |
 | `src/metrics/README.md` | Find where the label schema section should be inserted relative to existing usage example | 57 lines |
 | `src/response/README.md` | Check whether the 5-step response pattern (§3) is already documented | unknown |
 | `docs/09-developer-guide/dev-workflow.md` | Find the source layout table position to insert lifecycle diagram immediately after | 290 lines |
@@ -566,7 +566,7 @@ Append a new "Disconnect phases" section after the existing file table:
 
 ---
 
-#### T4: Proxy fh_map Lifecycle Expansion in `src/proxy/README.md` (1.5 h)
+#### T4: Proxy fh_map Lifecycle Expansion in `src/net/proxy/README.md` (1.5 h)
 
 **Goal:** Expand the sparse 23-line file table into a complete reference covering the fh_map[256] state machine, lazy-open sequence, upstream_fh translation, and the relationship to WebDAV proxy (`src/webdav/proxy.c`).
 
@@ -626,7 +626,7 @@ Each state gate is checked in `events_*.c` before processing read/write events.
 `src/webdav/proxy.c` implements HTTP-level forwarding (WebDAV → backend HTTP/HTTPS). It does **not** use `fh_map` because HTTP requests are stateless — each request carries a full URI, not a handle. Handle translation is a stream-protocol-only concept driven by XRootD's stateful session model.
 ```
 
-**File modified:** `src/proxy/README.md`
+**File modified:** `src/net/proxy/README.md`
 **Lines added:** ~60
 **Lines removed:** 0
 
@@ -917,7 +917,7 @@ protocol-specific. See `src/core/compat/README.md` §Cross-protocol namespace tr
 
 `fh_map[256]` maps local_fh (nginx-side, 0–255) → upstream_fh (opaque backend handle).
 State machine: FREE → PENDING_OPEN → MAPPED. Lazy upstream connect on first data opcode.
-See `src/proxy/README.md` §Handle translation map.
+See `src/net/proxy/README.md` §Handle translation map.
 
 ### 6. Disconnect cleanup (stream only — 3 phases)
 
@@ -954,7 +954,7 @@ One macro per protocol: `XROOTD_SRV_METRIC_INC(slot)` (stream), `XROOTD_WEBDAV_M
 | T1: context.h auth layout table | 1 | 2 | Phase 0 | `src/core/types/context.h` | ~18 | 0 | Verify (comment-only) |
 | T2: handshake dispatch comparison | 1 | 1 | Phase 0 | `src/handshake/README.md` | ~28 | 0 | No |
 | T3: disconnect phase separators | 1 | 1.5 | Phase 0 | `src/connection/disconnect.c`, `src/connection/README.md` | ~27 | 0 | **Yes — mandatory** |
-| T4: proxy fh_map expansion | 1 | 1.5 | Phase 0 | `src/proxy/README.md` | ~60 | 0 | No |
+| T4: proxy fh_map expansion | 1 | 1.5 | Phase 0 | `src/net/proxy/README.md` | ~60 | 0 | No |
 | T5: metrics label schema | 1 | 1 | Phase 0 | `src/metrics/README.md` | ~45 | 0 | No |
 | T6: lifecycle diagram in dev-workflow | 2 | 2 | T1, T2 | `docs/09-developer-guide/dev-workflow.md` | ~30 | 0 | No |
 | T7: LOCAL/REMOTE + conftest.py | 2 | 1 | T5, Phase 0 | `docs/09-developer-guide/testing-runbook.md` | ~50 | 0 | No |
@@ -986,7 +986,7 @@ done
 # 3. No forward-references in Phase 1 docs (they must not reference T6–T10 content)
 grep -n "dev-workflow\|testing-runbook\|cross-protocol-unification" \
     src/core/types/context.h src/handshake/README.md src/connection/disconnect.c \
-    src/proxy/README.md src/metrics/README.md
+    src/net/proxy/README.md src/metrics/README.md
 
 # 4. Port numbers in T7 testing-runbook match conftest.py actual values
 grep "NGINX.*PORT\|S3_PORT\|METRICS_PORT" tests/conftest.py | head -15

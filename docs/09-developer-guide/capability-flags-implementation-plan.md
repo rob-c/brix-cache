@@ -139,7 +139,7 @@ body.flags = htonl(kXR_isServer
 
 **Meaning**: this node is an XRootD proxy — it forwards requests to a backend server rather than serving files locally. CMS and monitoring tools use this to distinguish proxy hops from data servers in topology maps.
 
-**Current state**: Proxy mode is implemented (`src/upstream/`, `conf->proxy_enable`, `conf->proxy_upstreams`). Flag defined in `XProtocol.hh` but not in our `flags.h` and not set.
+**Current state**: Proxy mode is implemented (`src/net/upstream/`, `conf->proxy_enable`, `conf->proxy_upstreams`). Flag defined in `XProtocol.hh` but not in our `flags.h` and not set.
 
 **Implementation**:
 
@@ -347,8 +347,8 @@ These flags require new server-side behaviour, not just self-declaration. They m
 3. Map eviction on configurable TTL (default 30 s)
 
 **Implementation steps**:
-1. Add `src/manager/redir_cache.c` — shared-memory LRU map, 512 slots, configurable TTL
-2. In `xrootd_srv_select()` (`src/manager/registry.c`): check redir cache before normal registry scan; on miss, continue to CMS query; on hit, return cached entry
+1. Add `src/net/manager/redir_cache.c` — shared-memory LRU map, 512 slots, configurable TTL
+2. In `xrootd_srv_select()` (`src/net/manager/registry.c`): check redir cache before normal registry scan; on miss, continue to CMS query; on hit, return cached entry
 3. On CMS response delivering a DS address, insert into redir cache
 4. New directive: `xrootd_collapse_redir on|off` (default `off`) and TTL: `xrootd_collapse_redir_ttl 30s`
 5. Set flag only when `conf->collapse_redir` is true
@@ -539,7 +539,7 @@ if (conf->metadata_only && !conf->manager_map) {
 
 When `manager_map` is configured, the existing redirect path handles it; the error path only fires for pure metadata-only nodes with no redirect target.
 
-### `src/manager/redir_cache.c` (Phase 3a new file)
+### `src/net/manager/redir_cache.c` (Phase 3a new file)
 
 New source file for the collapse-redir LRU. Must be registered in `src/core/config/config.h` under `NGX_ADDON_SRCS` and will require a `./configure` run.
 

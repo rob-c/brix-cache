@@ -148,7 +148,7 @@ caps how long a cached token may be served regardless of its `exp`.
 
 ### C. Availability-biased cluster selection — never a false NotFound (addresses #4)
 
-The manager's server registry (`src/manager/registry.c`) is designed so that a
+The manager's server registry (`src/net/manager/registry.c`) is designed so that a
 **control-plane hiccup never produces a false `NotFound` for a file that
 exists**, on two axes:
 
@@ -195,7 +195,7 @@ own backpressure primitives:
   `kXR_wait`/`kXR_waitresp` — telling a client to pause and retry after a bounded
   interval **without losing session context** — instead of an immediate
   `kXR_Overloaded` or a dropped connection.
-- A leaky-bucket rate limiter (`src/ratelimit/`) sheds excess metadata traffic as
+- A leaky-bucket rate limiter (`src/net/ratelimit/`) sheds excess metadata traffic as
   `kXR_wait`/HTTP 429 and recovers, rather than falling over. Stress testing
   (paced ~100 req/s of `stat`/`dirlist`/`locate`/PROPFIND) showed it sheds
   cleanly with a stat-exempt / dirlist-limited policy and no fall-over.

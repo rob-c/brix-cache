@@ -14,7 +14,7 @@ peer-addressing paths of the IPv6 stream instance (``ipv6-stream`` on
       register / drain / undrain / remove are all driven through bracketed URIs.
 
   (b) REGRESSION — rate limiting keyed by an IPv6 client IP still throttles
-      (``src/ratelimit/ratelimit_keys.c`` already builds an ``ip:`` bucket key
+      (``src/net/ratelimit/ratelimit_keys.c`` already builds an ``ip:`` bucket key
       from the bare ``peer_ip``; IPv6 works today).
 
   (c) REGRESSION / invariant #8 — ``/metrics`` is scrapeable over ``[::1]`` and

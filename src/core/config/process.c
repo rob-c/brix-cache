@@ -6,16 +6,16 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include "config.h"
-#include "proxy/proxy.h"
-#include "proxy/proxy_internal.h"
+#include "net/proxy/proxy.h"
+#include "net/proxy/proxy_internal.h"
 #include "core/compat/staged_file.h"
 #include "core/compat/tmp_path.h"          /* SP4 orphan direct-write temp reaper */
 #include "write/chkpoint.h"
 #include "core/compat/crypto.h"
 #include "core/compat/log_diag.h"
 #include "core/compat/lifecycle_timing.h"
-#include "manager/health_check.h"
-#include "manager/pending.h"
+#include "net/manager/health_check.h"
+#include "net/manager/pending.h"
 #include "fs/cache/origin/pelican_register.h"
 #include "fs/cache/cache_internal.h"   /* xrootd_wt_replay_register (durable WT) */
 #include "fs/cache/cache_reap.h"       /* stale-dirty reaper (cache-state engine) */

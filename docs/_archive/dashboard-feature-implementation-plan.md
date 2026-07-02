@@ -53,7 +53,7 @@ native stream file handles are wired into the live slot lifecycle.
 | `src/dashboard/module.c` | Add directives and route new API endpoints. |
 | `src/webdav/get.c`, `src/webdav/put.c`, `src/webdav/tpc.c`, `src/webdav/tpc_marker.c` | Wire WebDAV and HTTP-TPC transfer slot lifecycle. |
 | `src/s3/object.c`, `src/s3/put.c`, `src/s3/multipart*.c` | Wire S3 transfer slot lifecycle. |
-| `src/manager/registry.h`, `src/manager/registry.c` | Add safe snapshot/export helper for cluster view. |
+| `src/net/manager/registry.h`, `src/net/manager/registry.c` | Add safe snapshot/export helper for cluster view. |
 | `src/metrics/stream_cache.c`, `src/metrics/metrics.h` | Reuse cache counters and add minimal WT counters if missing. |
 | `tests/test_dashboard.py` | New dashboard API, auth, UI JSON, and security tests. |
 | Existing protocol tests | Add protocol-specific dashboard assertions where the data path already exists. |
@@ -690,7 +690,7 @@ Show registered data servers and redirector health for manager-mode deployments.
 
 ### Backend
 
-Add a safe snapshot helper to `src/manager/registry.c`:
+Add a safe snapshot helper to `src/net/manager/registry.c`:
 
 ```c
 typedef struct {

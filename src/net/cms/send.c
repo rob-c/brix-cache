@@ -1,6 +1,6 @@
 #include "cms_internal.h"
 #include "frame_io.h"
-#include "manager/registry.h"
+#include "net/manager/registry.h"
 
 #include <unistd.h>
 

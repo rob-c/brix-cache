@@ -339,7 +339,7 @@ def test_cluster_nonexistent_returns_not_found():
 
     This is the divergence the topology conformance run caught: the redirector
     ignored the client's tried/triedrc retry list and kept redirecting to the
-    same (enoent) data server.  src/manager/registry.c::
+    same (enoent) data server.  src/net/manager/registry.c::
     xrootd_manager_tried_exhausted now stops and answers not-found once every
     matching server has been tried; wired into stat/open/checksum redirects."""
     from XRootD import client
