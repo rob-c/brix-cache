@@ -66,6 +66,12 @@ typedef struct {
     ngx_uint_t          cache_evict_at;     /* xrootd_cache_evict_at  (percent)      */
     ngx_uint_t          cache_evict_to;     /* xrootd_cache_evict_to  (percent)      */
     ngx_uint_t          cache_meta_mode;    /* xrootd_cache_meta  (0 auto..3 sidecar)*/
+    ngx_uint_t          cache_verify_mode;  /* xrootd_cache_verify_mode_e for the
+                                             * composed cache tier (phase-68);
+                                             * 0/UNSET = off. Registered today by
+                                             * the cvmfs protocol only.           */
+    ngx_str_t           cache_quarantine_dir; /* verify-mismatch evidence dir;
+                                             * "" = unlink the failed part.       */
     ngx_uint_t          cache_batch_cinfo;  /* xrootd_cache_batch_cinfo (0 off/1 on/2 auto) */
     size_t              cache_index_cache;  /* xrootd_cache_index_cache (L1 entries) */
     size_t              cache_slice_size;   /* xrootd_cache_slice_size (0 = whole-file) */

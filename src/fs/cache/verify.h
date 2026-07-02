@@ -32,11 +32,15 @@
 #include "fs/cache/origin/transport.h"
 
 
-/* Verification policy (config: xrootd_cache_verify off|best-effort|require). */
+/* Verification policy (config: xrootd_cache_verify off|best-effort|require,
+ * plus the phase-68 self-verifying mode cvmfs-cas). */
 typedef enum {
     XROOTD_CACHE_VERIFY_OFF = 0,    /* never verify (legacy behaviour)          */
     XROOTD_CACHE_VERIFY_BESTEFFORT, /* verify if a digest is available (default)*/
-    XROOTD_CACHE_VERIFY_REQUIRE     /* a usable digest is mandatory; else fail  */
+    XROOTD_CACHE_VERIFY_REQUIRE,    /* a usable digest is mandatory; else fail  */
+    XROOTD_CACHE_VERIFY_CVMFS_CAS   /* phase-68: the object NAME is the digest
+                                       (CVMFS content-addressed storage) — no
+                                       origin digest needed                     */
 } xrootd_cache_verify_mode_e;
 
 /* Outcome of a verification attempt. */
@@ -69,6 +73,29 @@ typedef enum {
 xrootd_cache_verify_result_e xrootd_cache_verify_part(xrootd_cache_fill_t *t,
     const char *part_path, const xrootd_cache_digest_t *origin,
     xrootd_cache_verify_mode_e mode, char *out_alg, char *out_hex);
+
+/*
+ * Phase-68 CVMFS-CAS self-verification: the CAS object NAME in the fill's own
+ * export-relative key is the SHA-1 of the served bytes (raw-bytes convention,
+ * spike-verified 2026-07-02), so no origin digest is needed. Independent of any
+ * fill engine — usable from both the legacy fetch.c fill and the sd_cache tier
+ * fill. Returns VERIFIED (out_alg/out_hex filled when non-NULL), MISMATCH
+ * (caller must discard/quarantine), ERROR (could not compute), or UNVERIFIED
+ * for keys that do not classify as CAS (manifests, geo — not content-
+ * addressed). `log` may be NULL.
+ */
+xrootd_cache_verify_result_e xrootd_cache_verify_cvmfs_cas(
+    const char *part_path, const char *key, ngx_log_t *log,
+    char *out_alg, char *out_hex);
+
+/*
+ * Quarantine a failed part: rename it into <quarantine_dir>/<basename>.<ts>
+ * instead of unlinking, when a quarantine dir is configured ("" / NULL ⇒
+ * plain unlink). Best-effort — the caller's fill_abort tolerates the part
+ * being gone. Quarantined files are the operator's corruption evidence.
+ */
+void xrootd_cache_quarantine_part(const char *part_path,
+    const char *quarantine_dir, ngx_log_t *log);
 
 
 #endif /* XROOTD_CACHE_VERIFY_H */

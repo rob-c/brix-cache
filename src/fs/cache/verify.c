@@ -11,11 +11,13 @@
 #include "verify.h"
 
 #include "core/compat/checksum.h"
+#include "protocols/cvmfs/classify.h"
 
 #include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
 #include <strings.h>
+#include <time.h>
 #include <unistd.h>
 
 
@@ -122,4 +124,91 @@ xrootd_cache_verify_part(xrootd_cache_fill_t *t, const char *part_path,
         out_hex[n] = '\0';
     }
     return XROOTD_CACHE_VERIFY_VERIFIED;
+}
+
+
+/* Phase-68 CVMFS-CAS self-verification — see verify.h. The expected digest is
+ * the CAS hex embedded in the key itself (raw served bytes = sha1(name)). */
+xrootd_cache_verify_result_e
+xrootd_cache_verify_cvmfs_cas(const char *part_path, const char *key,
+    ngx_log_t *log, char *out_alg, char *out_hex)
+{
+    cvmfs_url_info_t  info;
+    char              hex[129];
+    char              norm[32];
+    ngx_int_t         rc;
+    int               fd;
+
+    if (cvmfs_classify_url(key, strlen(key), &info) != 0
+        || info.cls != CVMFS_URL_CAS)
+    {
+        return XROOTD_CACHE_VERIFY_UNVERIFIED;   /* not content-addressed */
+    }
+    if (info.cas_hex_len != 40) {
+        /* Only the sha1 (40-hex) convention is verifiable today; longer
+         * hashes would need the repo's hash-algorithm advertisement. */
+        return XROOTD_CACHE_VERIFY_UNVERIFIED;
+    }
+
+    fd = open(part_path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NOCTTY); /* vfs-seam-allow: cache-store staging file, svc-owned domain */
+    if (fd < 0) {
+        return XROOTD_CACHE_VERIFY_ERROR;
+    }
+    rc = xrootd_checksum_hex_name_fd("sha1", fd, part_path, log,
+                                     hex, sizeof(hex), norm, sizeof(norm));
+    close(fd); /* vfs-seam-allow: cache-store staging file, svc-owned domain */
+    if (rc != NGX_OK) {
+        return XROOTD_CACHE_VERIFY_ERROR;
+    }
+
+    if (!xrootd_cache_hex_ieq(hex, info.cas_hex)) {
+        if (log != NULL) {
+            ngx_log_error(NGX_LOG_ERR, log, 0,
+                "xrootd: cvmfs-cas verify FAILED for \"%s\" "
+                "(name=%.40s computed=%.40s)\n"
+                "  cause: origin transfer failed CAS verification — network "
+                "corruption between cache and Stratum-1\n"
+                "  fix:   check WAN path / middleboxes; object was "
+                "quarantined, client will retry",
+                key, info.cas_hex, hex);
+        }
+        return XROOTD_CACHE_VERIFY_MISMATCH;
+    }
+
+    if (out_alg != NULL) {
+        ngx_memcpy(out_alg, "sha1", sizeof("sha1"));
+    }
+    if (out_hex != NULL) {
+        ngx_memcpy(out_hex, hex, 41);
+    }
+    return XROOTD_CACHE_VERIFY_VERIFIED;
+}
+
+/* Quarantine (or drop) a failed part — see verify.h. */
+void
+xrootd_cache_quarantine_part(const char *part_path,
+    const char *quarantine_dir, ngx_log_t *log)
+{
+    char        dst[PATH_MAX];
+    const char *base;
+    int         n;
+
+    if (quarantine_dir == NULL || quarantine_dir[0] == '\0') {
+        unlink(part_path); /* vfs-seam-allow: cache-store staging file, svc-owned domain */
+        return;
+    }
+    base = strrchr(part_path, '/');
+    base = (base != NULL) ? base + 1 : part_path;
+    n = snprintf(dst, sizeof(dst), "%s/%s.%ld", quarantine_dir, base,
+                 (long) time(NULL));
+    if (n < 0 || (size_t) n >= sizeof(dst)
+        || rename(part_path, dst) != 0) /* vfs-seam-allow: cache-store staging file, svc-owned domain */
+    {
+        unlink(part_path); /* vfs-seam-allow: cache-store staging file, svc-owned domain */
+        return;
+    }
+    if (log != NULL) {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+            "xrootd: cvmfs-cas: corrupt fill quarantined at \"%s\"", dst);
+    }
 }

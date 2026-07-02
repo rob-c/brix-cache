@@ -93,6 +93,7 @@ sd_cache_fill(sd_cache_inst_state *st, const char *key)
     u_char               *buf;
     off_t                 off = 0;
     int                   err = 0;
+    int                   verified;
     mode_t                fmode;
     xrootd_cache_cinfo_t  ci;
 
@@ -182,6 +183,38 @@ sd_cache_fill(sd_cache_inst_state *st, const char *key)
     free(buf);
     so->driver->close(so);
 
+    /* phase-68: digest-verify the staged bytes BEFORE the commit publishes
+     * them (cvmfs-cas: the key names its own sha1 — no origin digest). A
+     * MISMATCH is quarantined for evidence and the fill fails (the client
+     * sees a gateway error and retries); an ERROR fails closed. Non-CAS keys
+     * (manifests) come back UNVERIFIED and commit as before. */
+    verified = 0;
+    if (st->policy.verify == XROOTD_CACHE_VERIFY_CVMFS_CAS) {
+        const char *pp = (staged->inst->driver->staged_path != NULL)
+                       ? staged->inst->driver->staged_path(staged) : NULL;
+        xrootd_cache_verify_result_e vr;
+
+        vr = (pp != NULL)
+           ? xrootd_cache_verify_cvmfs_cas(pp, key, st->log, NULL, NULL)
+           : XROOTD_CACHE_VERIFY_ERROR;
+        if (vr == XROOTD_CACHE_VERIFY_MISMATCH) {
+            xrootd_cache_quarantine_part(pp, st->policy.quarantine_dir,
+                                         st->log);
+            xrootd_cstore_fill_abort(staged);   /* part already renamed away */
+            errno = EIO;
+            return NGX_ERROR;
+        }
+        if (vr == XROOTD_CACHE_VERIFY_ERROR) {
+            ngx_log_error(NGX_LOG_ERR, st->log, errno,
+                "sd_cache: cvmfs-cas verify could not run for \"%s\" - "
+                "failing the fill closed", key);
+            xrootd_cstore_fill_abort(staged);
+            errno = EIO;
+            return NGX_ERROR;
+        }
+        verified = (vr == XROOTD_CACHE_VERIFY_VERIFIED);
+    }
+
     if (xrootd_cstore_fill_commit(staged) != NGX_OK) {
         return NGX_ERROR;
     }
@@ -199,7 +232,8 @@ sd_cache_fill(sd_cache_inst_state *st, const char *key)
                                                       * masked by the owner-writable
                                                       * physical store object. */
     ci.nblocks    = xrootd_cache_cinfo_nblocks((uint64_t) off, ci.block_size);
-    ci.flags      = XROOTD_CINFO_F_COMPLETE;
+    ci.flags      = XROOTD_CINFO_F_COMPLETE
+                  | (verified ? XROOTD_CINFO_F_VERIFIED : 0);
 
     if (xrootd_cstore_cinfo_store(&st->cstore, key, &ci) != NGX_OK) {
         /* The object is cached but unrecorded - a safe miss (refill) next time. */

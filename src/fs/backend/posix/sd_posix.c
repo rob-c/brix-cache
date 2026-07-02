@@ -679,6 +679,17 @@ sd_posix_staged_abort(xrootd_sd_staged_t *st)
     xrootd_staged_abort(st->inst->log, inst_st->root_canon, &ps->staged, 1);
 }
 
+/* Physical staged-temp path — lets the cache tier digest-verify a fill (and
+ * quarantine a mismatch) before commit (phase-68). */
+static const char *
+sd_posix_staged_path(const xrootd_sd_staged_t *st)
+{
+    const sd_posix_staged_t *ps = st->state;
+
+    return (ps != NULL && ps->staged.tmp_path[0] != '\0') ? ps->staged.tmp_path
+                                                          : NULL;
+}
+
 #endif /* !XRDPROTO_NO_NGX */
 
 /* the driver descriptor.
@@ -731,5 +742,6 @@ const xrootd_sd_driver_t xrootd_sd_posix_driver = {
     .staged_write = sd_posix_staged_write,
     .staged_commit = sd_posix_staged_commit,
     .staged_abort = sd_posix_staged_abort,
+    .staged_path = sd_posix_staged_path,
 #endif
 };
