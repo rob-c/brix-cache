@@ -132,8 +132,8 @@ acknowledged TODO) and on an unroutable StreamID (`:263`); and the mux's
 
 ### nginx-xrootd (`src/`, `client/`)
 The only **event-loop** reimplementation. Registers as `NGX_STREAM_MODULE`
-(`src/stream/module_definition.c:18`); protocol logic is single-threaded per
-worker (epoll/kqueue). The recv path (`src/connection/recv.c`) is a
+(`src/protocols/root/stream/module_definition.c:18`); protocol logic is single-threaded per
+worker (epoll/kqueue). The recv path (`src/protocols/root/connection/recv.c`) is a
 byte-accumulating state machine: `HANDSHAKE(20B) → REQ_HEADER(24B) →
 REQ_PAYLOAD(dlen) → dispatch`, with suspend states (`SENDING`, `AIO`, `UPSTREAM`,
 `TLS_HANDSHAKE`, …) that return to the loop immediately. **Blocking work is
@@ -163,7 +163,7 @@ This is the most stable layer; all five are byte-identical.
   dlen[4]`. (XRootD `XProtocol.hh:157`; dCache `CLIENT_REQUEST_LEN=24`,
   decoder reads dlen at offset 20; go-hep `ReadRequest` reads a fixed 24-byte
   prefix and extracts dlen from bytes `[20:24]`; nginx-xrootd
-  `src/protocol/wire_core_requests.h:98`, parsed in `recv.c:375`.)
+  `src/protocols/root/protocol/wire_core_requests.h:98`, parsed in `recv.c:375`.)
 * **Server response header (8 bytes):** `streamid[2] | status[2] | dlen[4]`.
 * **`streamid` is opaque** — matched/echoed as raw bytes, **never byte-swapped**,
   in *all* implementations. Only `requestid`/`status`/`dlen` and per-opcode body
@@ -174,7 +174,7 @@ Dispatch mechanism is the only difference, and it is purely stylistic:
 XRootD splits the `switch` "to help the compiler" (`XrdXrootdProtocol.cc:439`);
 xrootd4j maps opcode→typed object then switches on type; go-hep uses the
 `Marshaler`/`Unmarshaler` interface pair; nginx-xrootd uses a cascade of
-single-purpose dispatchers with macro-encoded auth gates (`src/handshake/dispatch.c`).
+single-purpose dispatchers with macro-encoded auth gates (`src/protocols/root/handshake/dispatch.c`).
 
 ---
 
@@ -186,7 +186,7 @@ validates it *loosely* — the real gate is "first three words zero, fourth word
 == 4"; the magic word is historical (`XrdXrootdProtocol.cc:311-325`). dCache and
 go-hep, by contrast, do **exact** byte-vector matches (`XrootdHandshakeHandler`
 compares against a fixed array; go-hep does `reflect.DeepEqual`), and nginx-xrootd
-validates `fourth==4 && fifth==ROOTD_PQ` (`src/handshake/client_hello.c:66`).
+validates `fourth==4 && fifth==ROOTD_PQ` (`src/protocols/root/handshake/client_hello.c:66`).
 
 The divergences are **reported protocol version** and **TLS support**:
 
@@ -205,7 +205,7 @@ The divergences are **reported protocol version** and **TLS support**:
 `kXR_protocol` negotiation: all advertise server flags (`kXR_isServer`,
 capability bits). nginx-xrootd, when the client sets `kXR_secreqs`, appends a
 SecurityInfo trailer enumerating enabled plugins as 8-byte entries plus the
-signing security level (`src/session/protocol.c:144`). dCache forces
+signing security level (`src/protocols/root/session/protocol.c:144`). dCache forces
 `SigningPolicy.OFF` when TLS is active (TLS already provides integrity) — a
 sensible optimization the others could adopt.
 
@@ -219,9 +219,9 @@ the low bits), 16-byte session id, optional trailing CGI/security blob.
 * **Session id:** XRootD derives it from FD/Inst/PID/SID then masks
   (`XrdXrootdXeq.cc:1105`); go-hep and nginx-xrootd generate 16 random-ish bytes
   (nginx-xrootd explicitly notes its sessid is *not* crypto-grade,
-  `src/connection/handler.c:80`).
+  `src/protocols/root/connection/handler.c:80`).
 * **Anonymous handling differs:** nginx-xrootd rejects non-printable usernames
-  (`src/session/login.c:88`) and only sets `auth_done=1` immediately for
+  (`src/protocols/root/session/login.c:88`) and only sets `auth_done=1` immediately for
   `XROOTD_AUTH_NONE`; dCache leaves anonymity to the application; go-hep's default
   server is anonymous-only (echoes the sessid with no security blob).
 * **Auth trigger:** when security is configured, the login response carries the
@@ -360,7 +360,7 @@ infrastructure but ships it OFF in the bundled standalone server. nginx-xrootd's
 implementation is notable for using the **shared** HMAC kernel
 (`xrootd_gsi_sigver_hmac` over `seqno_be(8) || hdr24 || [payload unless nodata]`),
 a shared opcode→level policy table, constant-time compare (`CRYPTO_memcmp`), and
-**fail-closed** enforcement (`src/handshake/sigver.c`): unsigned mutating ops are
+**fail-closed** enforcement (`src/protocols/root/handshake/sigver.c`): unsigned mutating ops are
 rejected, and in pedantic mode `nodata`-with-payload is rejected.
 
 ---
@@ -386,7 +386,7 @@ rejected, and in pedantic mode `nodata`-with-payload is rejected.
 nginx-xrootd's pgread uses a **gapped in-place layout**: `preadv` reads page data
 into positions that leave a 4-byte gap before each ≤4096-byte page, then a
 single pass writes each CRC into its preceding gap — no copy
-(`src/read/pgread.c:88-150`; this was a 27.6%→10% module-CPU optimization).
+(`src/protocols/root/read/pgread.c:88-150`; this was a 27.6%→10% module-CPU optimization).
 
 ---
 
@@ -578,12 +578,12 @@ single pass writes each CRC into its preceding gap — no copy
 
 | Concern | XRootD C++ | dCache xrootd4j | go-hep | nginx-xrootd |
 |---|---|---|---|---|
-| Wire structs | `XProtocol/XProtocol.hh` | `XrootdProtocol.java` | `xrdproto/xrdproto.go` | `src/protocol/` |
-| Server dispatch | `XrdXrootd/XrdXrootdProtocol.cc:439` | `XrootdRequestHandler.java:229` | `server.go:242` | `src/handshake/dispatch.c` |
+| Wire structs | `XProtocol/XProtocol.hh` | `XrootdProtocol.java` | `xrdproto/xrdproto.go` | `src/protocols/root/protocol/` |
+| Server dispatch | `XrdXrootd/XrdXrootdProtocol.cc:439` | `XrootdRequestHandler.java:229` | `server.go:242` | `src/protocols/root/handshake/dispatch.c` |
 | Client transport | `XrdCl/XrdClXRootDTransport.cc` | `org/dcache/xrootd/tpc/` | `client.go`, `session.go` | `client/lib/conn.c`, `frame.c` |
-| Handshake | `XrdXrootdProtocol.cc:311` | `XrootdHandshakeHandler.java:60` | `xrdproto/handshake/handshake.go` | `src/handshake/client_hello.c` |
+| Handshake | `XrdXrootdProtocol.cc:311` | `XrootdHandshakeHandler.java:60` | `xrdproto/handshake/handshake.go` | `src/protocols/root/handshake/client_hello.c` |
 | GSI | `XrdSecgsi/XrdSecProtocolgsi.cc`, `XrdCrypto/XrdCryptosslCipher.cc` | `xrootd4j-gsi/.../{DHSession,GSIRequestHandler}.java` | — (absent) | `src/auth/gsi/`, `client/lib/sec/sec_gsi.c`, shared `src/auth/gsi/gsi_core.c` |
-| Data plane | `XrdXrootdXeq.cc`, `XrdXrootdXeqPgrw.cc` | `DataServerHandler.java` | `xrootd/file.go`, `xrdproto/read` | `src/read/`, `src/write/`, `src/response/status.c` |
+| Data plane | `XrdXrootdXeq.cc`, `XrdXrootdXeqPgrw.cc` | `DataServerHandler.java` | `xrootd/file.go`, `xrdproto/read` | `src/protocols/root/read/`, `src/protocols/root/write/`, `src/protocols/root/response/status.c` |
 | EOS integration | — | — | — | (EOS) `mgm/ofs/XrdMgmOfsFile.cc`, `fst/XrdFstOfsFile.cc`, `common/Mapping.cc` |
 
 ### Appendix B — verification provenance

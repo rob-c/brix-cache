@@ -13,7 +13,7 @@
 #include "protocols/shared/file_serve.h"
 #include "protocols/shared/http_cache_fill.h"     /* phase-64 SP2: off-loop cache fill */
 #include "protocols/shared/http_serve_offload.h"  /* phase-64 SP3: off-loop remote serve */
-#include "zip/zip_http.h"   /* phase-57 W2: shared HTTP ZIP member serving */
+#include "protocols/root/zip/zip_http.h"   /* phase-57 W2: shared HTTP ZIP member serving */
 
 /* GET range/bytes metrics — shared by the inline serve and the off-loop serve
  * completion (xrootd_http_serve_offload), so both report identically. */

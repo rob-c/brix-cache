@@ -7,15 +7,15 @@ opcodes with deliberately hostile requests built on raw TCP sockets, where the
 Python XRootD client would otherwise sanitise offsets/lengths before they ever
 reach the wire.  It targets the real handler code:
 
-  * kXR_readv  (src/read/readv.c)   — negative offset, offset overflow, reads
+  * kXR_readv  (src/protocols/root/read/readv.c)   — negative offset, offset overflow, reads
                                        past EOF (single / straddling / mixed),
                                        segment-count + total-size caps, malformed
                                        framing, stale/invalid handles, and the
                                        contiguous-run coalescer crossing EOF.
-  * kXR_pgread (src/read/pgread.c)  — negative offset, EOF handling, per-page
+  * kXR_pgread (src/protocols/root/read/pgread.c)  — negative offset, EOF handling, per-page
                                        CRC32c integrity of the chunked response,
                                        rlen cap, slice-handle rejection.
-  * kXR_pgwrite(src/write/pgwrite.c)— per-page CRC32c verification (a corrupted
+  * kXR_pgwrite(src/protocols/root/write/pgwrite.c)— per-page CRC32c verification (a corrupted
                                        page must be rejected, not written),
                                        negative offset, malformed framing.
 
@@ -55,7 +55,7 @@ except Exception:  # pragma: no cover - optional GSI assets
 
 
 # ---------------------------------------------------------------------------
-# Opcodes / status / error codes (from src/protocol/opcodes.h)
+# Opcodes / status / error codes (from src/protocols/root/protocol/opcodes.h)
 # ---------------------------------------------------------------------------
 
 kXR_login    = 3007
@@ -81,7 +81,7 @@ kXR_open_read = 0x0010
 kXR_open_updt = 0x0020
 kXR_open_new  = 0x0008
 
-# Handler limits (src/protocol/flags.h, src/core/types/tunables.h)
+# Handler limits (src/protocols/root/protocol/flags.h, src/core/types/tunables.h)
 READV_SEGSIZE = 16
 READV_MAXSEGS = 1024
 # Per-segment readv cap = the server's default xrootd_readv_segment_size, which

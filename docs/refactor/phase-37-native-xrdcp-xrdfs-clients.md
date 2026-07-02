@@ -27,7 +27,7 @@ large transitive dependency surface. For a project whose explicit thesis is "a
 dependency-free, auditable XRootD gateway", shipping clients that pull in the
 upstream client stack is an architectural contradiction.
 
-This project already contains, in `src/protocol/` and `src/core/compat/`, a
+This project already contains, in `src/protocols/root/protocol/` and `src/core/compat/`, a
 **byte-for-byte-correct, ngx-free description of the XRootD wire protocol** plus
 the pure algorithmic kernels (CRC32C, hex, errno→kXR mapping, OpenSSL HMAC/SHA
 wrappers) needed to speak it. The server uses these to frame and parse `root://`
@@ -85,10 +85,10 @@ contract and from observable CLI behaviour, never by transcribing upstream C++.
 
 - The wire specification headers, treated as a published interface document:
   - Canonical: `/tmp/xrootd-src/src/XProtocol/XProtocol.hh`.
-  - This project's already-derived mirror: `src/protocol/*.h`
+  - This project's already-derived mirror: `src/protocols/root/protocol/*.h`
     (`protocol.h`, `types.h`, `opcodes.h`, `flags.h`, `wire.h`,
     `wire_core_requests.h`, `wire_write_extended_requests.h`, `gsi.h`).
-    Per `src/protocol/README.md`, these are "wire facts, not policy" and are
+    Per `src/protocols/root/protocol/README.md`, these are "wire facts, not policy" and are
     explicitly cross-checked against the XRootD Protocol Spec v5.2.0 plus the
     `dcache/xrootd4j` and `go-hep/hep` independent implementations.
 - Observable CLI behaviour: option strings and semantics documented in
@@ -201,12 +201,12 @@ nginx-xrootd/
 ### 3.3 What moves vs what stays
 
 - **Moves to `shared/xrdproto/`** (becomes the single source for both sides):
-  `src/protocol/*.h`, `src/core/compat/{crc32c,hex,crypto}.{c,h}`, and the
+  `src/protocols/root/protocol/*.h`, `src/core/compat/{crc32c,hex,crypto}.{c,h}`, and the
   errno→kXR / ns→kXR portions of `src/core/compat/error_mapping.{c,h}`.
 - **Stays in `src/`** (ngx-coupled, server-only): everything else —
-  `src/handshake/`, `src/session/`, `src/auth/gsi/`, `src/auth/sss/`, `src/auth/krb5/`,
-  `src/auth/token/`, `src/read/`, `src/write/`, `src/dirlist/`, `src/response/`,
-  `src/connection/`, `src/net/cms/`, `src/net/manager/`, `src/net/proxy/`, etc.
+  `src/protocols/root/handshake/`, `src/protocols/root/session/`, `src/auth/gsi/`, `src/auth/sss/`, `src/auth/krb5/`,
+  `src/auth/token/`, `src/protocols/root/read/`, `src/protocols/root/write/`, `src/protocols/root/dirlist/`, `src/protocols/root/response/`,
+  `src/protocols/root/connection/`, `src/net/cms/`, `src/net/manager/`, `src/net/proxy/`, etc.
 - The nginx module's `config` adds `-Ishared/xrdproto/include` and lists the
   moved `.c` files in `NGX_ADDON_SRCS`, so the module build is unchanged in
   behaviour. The HTTP-only error-mapping section (the nginx-specific Section 3 of
@@ -260,22 +260,22 @@ to strip. "Reimplement-client-side" = logic is ngx-coupled or is the opposite
 
 | Capability | Verdict | Source / note |
 |---|---|---|
-| Wire opcodes, flags, packed request/response structs | **reuse-as-is** | `src/protocol/*.h` — header-only, `#pragma pack(1)`, zero ngx. Becomes `shared/xrdproto/include/`. |
+| Wire opcodes, flags, packed request/response structs | **reuse-as-is** | `src/protocols/root/protocol/*.h` — header-only, `#pragma pack(1)`, zero ngx. Becomes `shared/xrdproto/include/`. |
 | CRC32C (SSE4.2 + software Castagnoli) | **reuse-as-is** | `src/core/compat/crc32c.{c,h}` — only `<stddef.h> <stdint.h> <string.h>`. For pgread/pgwrite + checksum. |
 | Hex encode/decode | **reuse-as-is** | `src/core/compat/hex.{c,h}` — zero ngx. Checksum/ETag/DN display. |
 | errno→kXR mapping | **reuse-after-extract** | `src/core/compat/error_mapping.c` Section 1–2 are pure; Section 3 (errno→HTTP) is nginx-only and excluded. Needs minimal `xrootd_ns_status_t` enum from `namespace_ops.h` → copy as `ns_status.h`. |
 | HMAC-SHA256 / SHA-256 (OpenSSL EVP) | **reuse-after-extract** | `src/core/compat/crypto.{c,h}`. The only ngx coupling is the *worker* init/cleanup pattern; replace with `main()`-time `xrootd_crypto_init()` + `atexit(xrootd_crypto_cleanup())`. Hash bodies are identical. Used for GSI signing-key derivation + `kXR_sigver`. |
-| Initial 20B handshake validate + reply | **reimplement-client-side** | `src/handshake/client_hello.c` logic is correct but uses `ngx_palloc`/`ngx_log_t`/`ngx_connection_t`; client side is also the *opposite* role (we *send* the 20B init, *receive* the reply). Constants reused. |
+| Initial 20B handshake validate + reply | **reimplement-client-side** | `src/protocols/root/handshake/client_hello.c` logic is correct but uses `ngx_palloc`/`ngx_log_t`/`ngx_connection_t`; client side is also the *opposite* role (we *send* the 20B init, *receive* the reply). Constants reused. |
 | `kXR_protocol` capability negotiation | **reimplement-client-side** | Parse `ServerResponseBody_Protocol` flags (`kXR_haveTLS`/`kXR_gotoTLS`/`kXR_suppgrw`/`kXR_supposc`) ourselves; struct from `protocol/wire.h`. |
-| `kXR_login` + sessid + `&P=` sec-token parse | **reimplement-client-side** | `src/session/login.c` is ngx-coupled; we issue the request, store `sessid[16]`, split the sec string. |
-| Auth state machine (`kXR_auth`/`kXR_authmore`) | **reimplement-client-side** | `src/session/`, `src/auth/gsi/`, `src/auth/sss/`, `src/auth/token/` are server-role + ngx-coupled. Client drives the loop. |
+| `kXR_login` + sessid + `&P=` sec-token parse | **reimplement-client-side** | `src/protocols/root/session/login.c` is ngx-coupled; we issue the request, store `sessid[16]`, split the sec string. |
+| Auth state machine (`kXR_auth`/`kXR_authmore`) | **reimplement-client-side** | `src/protocols/root/session/`, `src/auth/gsi/`, `src/auth/sss/`, `src/auth/token/` are server-role + ngx-coupled. Client drives the loop. |
 | GSI: X.509 chain, DH, AES, RSA-sign, buckets | **reimplement-client-side** (crypto reuse-after-extract) | `src/auth/gsi/`, `src/auth/crypto/gsi_verify.c` are server-role verification + ngx. Client builds the request side; low-level DH/AES/RSA/SHA come straight from OpenSSL `libcrypto`. Bucket frame format derived from `protocol/gsi.h` `kXRS_*`. |
 | SSS: keytab load, BF-CFB64, identity TLV | **reimplement-client-side** | `src/auth/sss/` decrypts/verifies (server role); client encrypts. BF crypt kernel mirrors `auth_crypto_helpers.c`'s `xrootd_sss_bf32_crypt`. Keytab file format reverse-engineered (open question §13). |
 | Token (ztn) bearer send | **reimplement-client-side** | `src/auth/token/` validates JWTs (server role); client merely *discovers and sends* the token. No client-side JWT verification needed. |
 | Kerberos5 AP_REQ | **reimplement-client-side** (libkrb5 reuse-as-is) | `src/auth/krb5/auth.c` validates AP_REQ (server). Client uses `libkrb5` (`krb5_mk_req_extended`) directly, compile-gated `XROOTD_HAVE_KRB5`. |
 | `kXR_sigver` request-signing envelope | **reimplement-client-side** (HMAC reuse-after-extract) | Envelope framing + sequence tracking reimplemented; `xrootd_hmac_sha256()` reused. |
-| TCP socket I/O | **reimplement-client-side** | `src/connection/` is ngx event-loop. Client uses blocking sockets + `poll(2)` for timeouts. |
-| TLS upgrade / `roots://` | **reimplement-client-side** | `src/session/tls.c` is ngx_ssl. Client uses OpenSSL `SSL_CTX`/`SSL_connect` directly. |
+| TCP socket I/O | **reimplement-client-side** | `src/protocols/root/connection/` is ngx event-loop. Client uses blocking sockets + `poll(2)` for timeouts. |
+| TLS upgrade / `roots://` | **reimplement-client-side** | `src/protocols/root/session/tls.c` is ngx_ssl. Client uses OpenSSL `SSL_CTX`/`SSL_connect` directly. |
 | streamid alloc + out-of-order matching | **reimplement-client-side** | Simple alloc/track/release + pending table. |
 | Redirect follow + tried/triedrc | **reimplement-client-side** | Parse `ServerRedirectBody` (port+host); maintain visited-set CGI; SSRF guard + limit. |
 | `kXR_wait`/`kXR_waitresp` backoff | **reimplement-client-side** | Sleep N seconds (+ jitter); transport-layer per research §"backoff". |
@@ -409,7 +409,7 @@ sec token, intersects it with locally-available credentials, and dispatches to a
 **Bucket frame format** (`XrdSutBucket`-equivalent): each bucket = `{type:u32,
 len:u32, bytes[len]}`; a buffer is a concatenation of buckets, optionally with a
 `kXRS_main`-wrapped encrypted region. The exact numeric `kXRS_*` IDs come from
-`src/protocol/gsi.h`; the binary container layout is recorded in the clean-room
+`src/protocols/root/protocol/gsi.h`; the binary container layout is recorded in the clean-room
 ledger (§13 open question) once confirmed by capture against a reference server.
 
 **Global env** honoured at startup (like XrdCl DefaultEnv, but minimal):

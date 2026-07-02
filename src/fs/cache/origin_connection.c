@@ -1,5 +1,5 @@
 #include "cache_internal.h"
-#include "connection/netconnect.h"   /* shared outbound connect/I/O hardening */
+#include "protocols/root/connection/netconnect.h"   /* shared outbound connect/I/O hardening */
 #include "core/compat/af_policy.h"        /* xrootd_af_policy_t origin family policy */
 
 

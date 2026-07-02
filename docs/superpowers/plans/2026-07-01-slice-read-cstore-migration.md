@@ -2,19 +2,19 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Fold the legacy Phase-26 root:// slice cache (`src/read/slice_read.c` + `src/fs/cache/slice_fill.c` + `src/fs/cache/slice.c`) into the unified phase-64 `sd_cache` partial mechanism, so §6.5's "there is no separate `slice_fill.c`" holds — one slice/partial implementation shared by root:// and WebDAV/S3.
+**Goal:** Fold the legacy Phase-26 root:// slice cache (`src/protocols/root/read/slice_read.c` + `src/fs/cache/slice_fill.c` + `src/fs/cache/slice.c`) into the unified phase-64 `sd_cache` partial mechanism, so §6.5's "there is no separate `slice_fill.c`" holds — one slice/partial implementation shared by root:// and WebDAV/S3.
 
-**Architecture:** The root:// read path already serves driver-backed cache objects: `xrootd_open_resolved_via_driver` adopts an `sd_cache` object into `fh->sd_obj`, and `src/read/read.c` serves it through `sd_obj.driver->pread` (the non-sendfile path). `sd_cache` already implements sparse slice fill (`sd_cache_partial_open` + the cstore serve loop). So the migration routes the slice branch in `open_cache.c` through an `sd_cache` decorator (source = the origin, store = `cache_root`, `slice_size` set) instead of `xrootd_open_slice_handle`, then deletes the three legacy files. The legacy `cache_origin_host`+`cache_slice_size` config is mapped onto an internally-composed `sd_cache` instance so no user-facing config changes.
+**Architecture:** The root:// read path already serves driver-backed cache objects: `xrootd_open_resolved_via_driver` adopts an `sd_cache` object into `fh->sd_obj`, and `src/protocols/root/read/read.c` serves it through `sd_obj.driver->pread` (the non-sendfile path). `sd_cache` already implements sparse slice fill (`sd_cache_partial_open` + the cstore serve loop). So the migration routes the slice branch in `open_cache.c` through an `sd_cache` decorator (source = the origin, store = `cache_root`, `slice_size` set) instead of `xrootd_open_slice_handle`, then deletes the three legacy files. The legacy `cache_origin_host`+`cache_slice_size` config is mapped onto an internally-composed `sd_cache` instance so no user-facing config changes.
 
-**Tech Stack:** C (nginx stream module), `sd_cache`/`cstore` (`src/fs/backend/cache/`, `src/fs/cache/`), the tier composition (`src/fs/tier/tier_build.c`, `xrootd_sd_cache_create`, `xrootd_sd_xroot_create_origin`), the driver-backed open/read path (`src/read/open_resolved_file.c`, `read.c`), and the existing slice tests (`tests/test_slice_cache.py`, `tests/c/run_cinfo_tests.sh`) plus a new root:// slice harness as the parity gate.
+**Tech Stack:** C (nginx stream module), `sd_cache`/`cstore` (`src/fs/backend/cache/`, `src/fs/cache/`), the tier composition (`src/fs/tier/tier_build.c`, `xrootd_sd_cache_create`, `xrootd_sd_xroot_create_origin`), the driver-backed open/read path (`src/protocols/root/read/open_resolved_file.c`, `read.c`), and the existing slice tests (`tests/test_slice_cache.py`, `tests/c/run_cinfo_tests.sh`) plus a new root:// slice harness as the parity gate.
 
 ## Global Constraints
 
 - **Behavior-preserving for the user:** the `xrootd_cache_slice_size` + `xrootd_cache_origin` config keeps working; only the internal mechanism changes. root:// slice reads must remain byte-exact and range-filled (sparse), verified against the pre-migration behavior.
-- **NO `goto`**; **raw byte I/O stays in `src/fs/backend/`** (the seam guard) — the new path serves through `sd_obj.driver`, not raw fds in `src/read/`.
+- **NO `goto`**; **raw byte I/O stays in `src/fs/backend/`** (the seam guard) — the new path serves through `sd_obj.driver`, not raw fds in `src/protocols/root/read/`.
 - **The hot path is `read.c`/`open_cache.c`** — no new per-read allocation or syscalls; the driver-backed serve path already exists, reuse it.
 - **Do not delete the legacy files until parity is proven** (Phase 4 is gated on Phase 3 passing).
-- **`slice.c` vs `slice_fill.c` vs `slice_read.c`:** confirm each file's exact role before deleting (grep every exported symbol for external callers — `src/read/slice_read.h`, `cache_internal.h` slice decls). A symbol still used elsewhere blocks the delete until its caller is migrated.
+- **`slice.c` vs `slice_fill.c` vs `slice_read.c`:** confirm each file's exact role before deleting (grep every exported symbol for external callers — `src/protocols/root/read/slice_read.h`, `cache_internal.h` slice decls). A symbol still used elsewhere blocks the delete until its caller is migrated.
 - Build: incremental `make -j$(nproc)`; `./configure` only when a source file is removed from the `config` addon list (Phase 4).
 
 ---
@@ -45,7 +45,7 @@ Give the stream config an `sd_cache` decorator (source = origin, store = `cache_
 Route `open_cache.c`'s slice branch through the composed `sd_cache` partial object (adopted via the existing driver-backed open) instead of `xrootd_open_slice_handle`, behind a runtime toggle so the legacy path remains as a fallback until parity is proven.
 
 **Files:**
-- Modify: `src/read/open_cache.c` (the `cache_slice_size > 0 && cache_origin_host` branch, ~line 44)
+- Modify: `src/protocols/root/read/open_cache.c` (the `cache_slice_size > 0 && cache_origin_host` branch, ~line 44)
 - Reuse: `xrootd_open_resolved_via_driver` (`open_resolved_file.c`) to adopt the partial obj into `fh->sd_obj`
 - Test: `tests/run_root_slice_fill.sh` (new — see Task 3)
 
@@ -84,9 +84,9 @@ A self-starting harness proving root:// slice reads over the new `sd_cache` path
 Once the new path passes parity, remove `slice_read.c`, `slice_fill.c`, `slice.c` (+ headers), their `config` entries, the legacy config plumbing they alone used, and the now-dead fallback in `open_cache.c`.
 
 **Files:**
-- Delete: `src/read/slice_read.{c,h}`, `src/fs/cache/slice_fill.c`, `src/fs/cache/slice.{c,h}`
-- Modify: `config` (remove the three `.c` from `NGX_ADDON_SRCS`), `open_cache.c` (drop the fallback), `cache_internal.h` (remove `xrootd_cache_slice_*` decls), `src/read/slice_read.h` includers, `src/core/types/file.h` (`slice_cache_path`/`slice_clean_path` if now unused)
-- Modify: `src/read/slice_read.c` callers (`src/read/slice_read.c` was called from `open_cache.c` only — confirm)
+- Delete: `src/protocols/root/read/slice_read.{c,h}`, `src/fs/cache/slice_fill.c`, `src/fs/cache/slice.{c,h}`
+- Modify: `config` (remove the three `.c` from `NGX_ADDON_SRCS`), `open_cache.c` (drop the fallback), `cache_internal.h` (remove `xrootd_cache_slice_*` decls), `src/protocols/root/read/slice_read.h` includers, `src/core/types/file.h` (`slice_cache_path`/`slice_clean_path` if now unused)
+- Modify: `src/protocols/root/read/slice_read.c` callers (`src/protocols/root/read/slice_read.c` was called from `open_cache.c` only — confirm)
 
 - [ ] **Step 1: Prove each symbol is dead.** For every exported symbol of the three files (`xrootd_open_slice_handle`, `xrootd_read_from_slices`, `xrootd_cache_slice_fetch_origin`, `xrootd_cache_slice_fill_thread`, and `slice.c`'s exports), `grep -rn` across `src/` → only self-references. Any live caller blocks deletion (migrate it first).
 - [ ] **Step 2: Remove the fallback** in `open_cache.c` (the `xrootd_cache_slice_inst == NULL` branch that called `xrootd_open_slice_handle`).

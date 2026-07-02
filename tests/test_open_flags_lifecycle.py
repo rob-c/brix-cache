@@ -5,8 +5,8 @@ and the open/close file-handle lifecycle.
 This suite drives kXR_open at the wire level (the Python XRootD client
 sanitises flags before they reach the wire, so we frame ClientOpenRequest by
 hand exactly like tests/test_readv_security.py) to assert the documented
-XRootD open semantics implemented in src/read/open_request.c and
-src/read/open_resolved_file.c:
+XRootD open semantics implemented in src/protocols/root/read/open_request.c and
+src/protocols/root/read/open_resolved_file.c:
 
   * kXR_new on an existing path -> O_EXCL -> EEXIST -> kXR_ItExists
   * kXR_delete truncates an existing file to zero (O_CREAT|O_TRUNC)
@@ -76,7 +76,7 @@ kXR_ItExists      = 3018
 
 # An exclusive-create over an existing file (EEXIST).  The canonical XRootD
 # mapping (XProtocol::mapError) returns kXR_ItExists (3018); nginx-xrootd's
-# open handler (src/read/open_resolved_file.c) currently maps EEXIST to
+# open handler (src/protocols/root/read/open_resolved_file.c) currently maps EEXIST to
 # kXR_FileLocked (3003) with message "file already exists".  Both communicate
 # the same EEXIST semantic to the client, so we accept either to remain a
 # conformance check rather than pinning an implementation detail.

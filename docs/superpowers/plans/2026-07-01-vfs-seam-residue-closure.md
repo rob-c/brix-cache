@@ -185,7 +185,7 @@ The two `fd_table` teardown unlinks (`file->ckp_path`, the POSC `file->path`) ar
 **Files:**
 - Modify: `src/core/types/file.h` (add `root_canon` to `xrootd_file_t`)
 - Modify: the handle-open site that sets `ckp_path`/`posc_final_path`/`path` (grep below) to also set `file->root_canon`
-- Modify: `src/connection/fd_table.c:288,305` (the teardown unlinks)
+- Modify: `src/protocols/root/connection/fd_table.c:288,305` (the teardown unlinks)
 - Test: checkpoint + POSC abandon tests (see Step 5)
 
 **Interfaces:**
@@ -208,7 +208,7 @@ In `src/core/types/file.h`, in `xrootd_file_t`, add next to `path`:
 Find where the handle's `path` (and `ckp_path`/`posc_final_path`) are set at open — grep for the assignment:
 
 ```bash
-grep -rn "file->path =\|->ckp_path =\|->posc_final_path =" src/read src/write src/connection
+grep -rn "file->path =\|->ckp_path =\|->posc_final_path =" src/protocols/root/read src/protocols/root/write src/protocols/root/connection
 ```
 
 At that open site (which has the stream `conf` in scope), set:
@@ -221,7 +221,7 @@ At that open site (which has the stream `conf` in scope), set:
 
 - [ ] **Step 3: Confined-unlink at teardown — checkpoint**
 
-In `src/connection/fd_table.c` (~288):
+In `src/protocols/root/connection/fd_table.c` (~288):
 
 ```c
     if (file->ckp_path != NULL) {
@@ -248,7 +248,7 @@ becomes:
 
 - [ ] **Step 4: Confined-unlink at teardown — POSC**
 
-In `src/connection/fd_table.c` (~305):
+In `src/protocols/root/connection/fd_table.c` (~305):
 
 ```c
     if (file->posc_final_path != NULL) {

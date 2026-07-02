@@ -280,16 +280,16 @@ assembly**, ranked by audit cost (not LoC):
 | **Token JWT split** | `client/lib/credinfo.c` (`xrdjwt_split`) ↔ `src/auth/token/validate.c` (inline `memchr`) | ⚙️ **DONE** — §4.4 (server switched to the shared `xrdjwt_split`) |
 | **Session-bootstrap packing** (handshake + kXR_protocol + kXR_login) | `client/lib/conn.c` ↔ `src/net/upstream/bootstrap.c` (×2) ↔ `src/tpc/bootstrap.c` | ⚙️ **DONE** — §4.5 (new `protocol/bootstrap_pack.h`, 4 sites → 1) |
 | **kXR_error decode adoption** | already-shared `xrd_error_body_decode` ↔ hand-rolled in `src/tpc/source.c`, `src/fs/cache/origin_response.c` | ⚙️ **DONE** — §4.5 (adopted shared decoder; fixed a non-NUL `%s` over-read) |
-| **Stat-line grammar** `"<id> <size> <flags> <mtime>"` | `src/path/stat_body.c` (encoder) ↔ `client/lib/ops_meta.c` (decoder) | ⚙️ **DONE** — §4.6 (new `protocol/stat_line.h`, encode + decode co-located) |
+| **Stat-line grammar** `"<id> <size> <flags> <mtime>"` | `src/protocols/root/path/stat_body.c` (encoder) ↔ `client/lib/ops_meta.c` (decoder) | ⚙️ **DONE** — §4.6 (new `protocol/stat_line.h`, encode + decode co-located) |
 | **`root://` URL authority split** | `client/lib/url.c` (on shared `host_split`) ↔ `src/tpc/parse.c` (bespoke) | ⚙️ **DONE** — §4.7 (server routed onto the shared `xrootd_split_host_port`) |
-| **kXR_open flag semantics** (options ↔ POSIX `O_*`) | `src/read/open_resolved_file.c` (decoder) ↔ `client/lib/ops_file.c` + both FUSE drivers (encoders) | ⚙️ **DONE** — §4.8 (new `protocol/open_flags.h`, 1 decoder + 3 encoders → 1) |
-| **stat `flags` field semantics** (flags ↔ `st_mode`) | `src/path/stat_body.c` (encoder) ↔ `client/lib/posix_map.c` (decoder) | ⚙️ **DONE** — §4.9 (new `protocol/stat_flags.h`; completes the stat spec) |
-| **dirlist dstat sentinel** `".\n0 0 0 0\n"` | `src/dirlist/handler.c` (×2 emit) ↔ `client/lib/ops_meta.c` (match) | ⚙️ **DONE** — §4.10 (new `protocol/dirlist_fmt.h`, 3 literals → 1) |
-| **kXR_Qspace `oss.*` grammar** | `src/query/space.c` (emit) ↔ `client/lib/posix_map.c` (parse) | ⚙️ **DONE** — §4.11 (new `protocol/qspace.h`, format + parse co-located) |
+| **kXR_open flag semantics** (options ↔ POSIX `O_*`) | `src/protocols/root/read/open_resolved_file.c` (decoder) ↔ `client/lib/ops_file.c` + both FUSE drivers (encoders) | ⚙️ **DONE** — §4.8 (new `protocol/open_flags.h`, 1 decoder + 3 encoders → 1) |
+| **stat `flags` field semantics** (flags ↔ `st_mode`) | `src/protocols/root/path/stat_body.c` (encoder) ↔ `client/lib/posix_map.c` (decoder) | ⚙️ **DONE** — §4.9 (new `protocol/stat_flags.h`; completes the stat spec) |
+| **dirlist dstat sentinel** `".\n0 0 0 0\n"` | `src/protocols/root/dirlist/handler.c` (×2 emit) ↔ `client/lib/ops_meta.c` (match) | ⚙️ **DONE** — §4.10 (new `protocol/dirlist_fmt.h`, 3 literals → 1) |
+| **kXR_Qspace `oss.*` grammar** | `src/protocols/root/query/space.c` (emit) ↔ `client/lib/posix_map.c` (parse) | ⚙️ **DONE** — §4.11 (new `protocol/qspace.h`, format + parse co-located) |
 | **checksum algo-name registry** | `client/lib/checksum.c` ↔ `src/core/compat/checksum.c` | ❌ **NOT A WIN** — §4.12 (three distinct load-bearing enums; compute already shared) |
 | **`&P=` security-protocol list parser** | `client/lib/auth.c` (anchored) ↔ `src/tpc/gsi_outbound_finish.c` (loose `strstr`) | ⚙️ **DONE** — §4.13 (new `protocol/sec_protocol.h`; also tightened the server's auth selection) |
-| **protocol vocabulary** (`kXR_ExpLogin`/`kXR_FinalResult`/`kXR_PartialResult`, fhandle/sessid lengths) | client `xrdc.h` shadow-defs ↔ comments-only in `src/protocol/` | ⚙️ **DONE** — §4.14 (promoted spec constants to real shared `#define`s; killed shadow-defs + magic numbers) |
-| **kXR_readv segment-header codec** `{fhandle[4],rlen[4],offset[8]}` | `client/lib/ops_file.c` (build+parse) ↔ `src/read/readv.c` (response build) | ⚙️ **DONE** — §4.15 (new `protocol/readv_seg.h`; the readv gap pgio left) |
+| **protocol vocabulary** (`kXR_ExpLogin`/`kXR_FinalResult`/`kXR_PartialResult`, fhandle/sessid lengths) | client `xrdc.h` shadow-defs ↔ comments-only in `src/protocols/root/protocol/` | ⚙️ **DONE** — §4.14 (promoted spec constants to real shared `#define`s; killed shadow-defs + magic numbers) |
+| **kXR_readv segment-header codec** `{fhandle[4],rlen[4],offset[8]}` | `client/lib/ops_file.c` (build+parse) ↔ `src/protocols/root/read/readv.c` (response build) | ⚙️ **DONE** — §4.15 (new `protocol/readv_seg.h`; the readv gap pgio left) |
 
 ### 4.1 `xrootd_sss_build_credential()` (libxrdproto)
 
@@ -423,7 +423,7 @@ rather than parses).
 `src/tpc/bootstrap.c`. This is security-relevant assembly (protocol version, TLS-capability
 flags, login capver) audited 4× and free to drift between roles.
 
-⚙️ **DONE:** added header-only **`src/protocol/bootstrap_pack.h`** (the `frame_hdr.h` precedent
+⚙️ **DONE:** added header-only **`src/protocols/root/protocol/bootstrap_pack.h`** (the `frame_hdr.h` precedent
 — no new `.c`, no `./configure`, compiles into both the module and ngx-free `libxrdproto`):
 `xrd_pack_handshake()`, `xrd_pack_protocol_request(streamid, flags)`,
 `xrd_pack_login_request(streamid, pid, username, capver)`. Each pre-zeroes its struct (so
@@ -453,12 +453,12 @@ hand-packing), with one over-read removed.
 the client/server boundary.** The `kXR_stat`/`kXR_statx` reply body (and each `kXR_dstat`
 dirlist entry) is an ASCII line `"<id> <size> <flags> <mtime>"` with an optional EOS-extended
 tail `"<ctime> <atime> <mode-octal> <owner> <group>"`. The server was the canonical **encoder**
-(`src/path/stat_body.c`, `snprintf`) and the native client the canonical **decoder**
+(`src/protocols/root/path/stat_body.c`, `snprintf`) and the native client the canonical **decoder**
 (`client/lib/ops_meta.c`, `sscanf`) — exact inverse operations on a wire-visible spec, living
 in two repos with nothing but human discipline keeping field order / octal-mode / mtime units in
 step. If either side drifts, stat & dirlist interop breaks silently.
 
-⚙️ **DONE:** added header-only **`src/protocol/stat_line.h`** with BOTH directions and a stated
+⚙️ **DONE:** added header-only **`src/protocols/root/protocol/stat_line.h`** with BOTH directions and a stated
 round-trip contract: `xrootd_statline_format(out, sz, id, size, flags, mtime)` and
 `xrootd_statline_parse(s, &id, &size, &flags, &mtime, &ext)` (the optional EOS tail in a neutral
 `xrootd_statline_ext`). The server's `xrootd_make_stat_body` keeps its `struct stat` → fields +
@@ -491,14 +491,14 @@ Net negative LoC; one audited authority parser across both trees. Verified: TPC 
 
 **The highest-value find of the "flag-semantics" class.** The create/exclusive/truncate/append/
 rdwr meaning of `kXR_new`/`kXR_delete`/`kXR_open_updt`/`kXR_open_apnd` was hand-coded in **four**
-files: the server's options→`O_*` decoder (`src/read/open_resolved_file.c`), the xrdcp/xrdfs
+files: the server's options→`O_*` decoder (`src/protocols/root/read/open_resolved_file.c`), the xrdcp/xrdfs
 options builder (`client/lib/ops_file.c`), and BOTH FUSE drivers' POSIX→`force` mapping
 (`client/apps/xrootdfs.c`, `xrootdfs_legacy.c`). These are inverse halves of one contract: if
 "`kXR_new` without `kXR_delete`" drifts between the client's intent and the server's `O_EXCL`
 derivation, the result is a spurious `EEXIST` or a **silent overwrite** — a data-integrity bug no
 test catches, because the halves never referenced a shared definition.
 
-⚙️ **DONE:** new header-only **`src/protocol/open_flags.h`** owns the whole contract:
+⚙️ **DONE:** new header-only **`src/protocols/root/protocol/open_flags.h`** owns the whole contract:
 `xrootd_open_options_build` (intent→options), `xrootd_open_options_to_posix` (options→`O_*`,
 the canonical inverse), `xrootd_open_options_is_write` (the write-bit set, also routed on the
 server), and `xrootd_open_force_for_open/create` (POSIX→`force`, which de-duplicated the two FUSE
@@ -510,10 +510,10 @@ stays at the call sites. Verified: `test_open_flags_lifecycle` + write/write-rec
 
 Companion to §4.6: `stat_line.h` fixed the line *shape*, but the meaning of the `flags` integer's
 bits was still split — the server set `kXR_isDir`/`kXR_other`/`kXR_readable` from a mode
-(`src/path/stat_body.c`) and the client turned those bits back into an `st_mode`
+(`src/protocols/root/path/stat_body.c`) and the client turned those bits back into an `st_mode`
 (`client/lib/posix_map.c`), each spelling the bit meanings out independently.
 
-⚙️ **DONE:** new **`src/protocol/stat_flags.h`** with `xrootd_stat_flags_from_mode` (server encode)
+⚙️ **DONE:** new **`src/protocols/root/protocol/stat_flags.h`** with `xrootd_stat_flags_from_mode` (server encode)
 and `xrootd_stat_mode_from_flags` (client decode) co-located. FUSE-specific policy (`st_nlink`,
 `st_size`, `st_ino`, `st_blksize`) stays in the client; only the file-type + permission bits the
 flag spec dictates moved. Not strict inverses (the server emits a subset), but they now share one
@@ -522,22 +522,22 @@ bit *definition*. Verified: stat/dirlist conformance + FUSE green.
 ### 4.10 dirlist dstat sentinel — `protocol/dirlist_fmt.h` (3 literals → 1)
 
 The `kXR_dirlist` dstat lead-in `".\n0 0 0 0\n"` was a hand-written literal in **three** places —
-the server's streaming and buffered emit paths (`src/dirlist/handler.c`) and the client's prefix
+the server's streaming and buffered emit paths (`src/protocols/root/dirlist/handler.c`) and the client's prefix
 match (`client/lib/ops_meta.c`). The stock client keys on exactly the 9-byte prefix, so a stray
 byte silently drops the whole listing into "every line is a filename" mode.
 
-⚙️ **DONE:** new **`src/protocol/dirlist_fmt.h`** defines the sentinel once; the 9-byte client
+⚙️ **DONE:** new **`src/protocols/root/protocol/dirlist_fmt.h`** defines the sentinel once; the 9-byte client
 match length is *derived* from the 10-byte emit literal (lead-in minus its trailing newline) so the
 two can never drift. Verified: dirlist conformance green.
 
 ### 4.11 kXR_Qspace `oss.*` grammar — `protocol/qspace.h` (format + parse co-located)
 
 The server formatted the `oss.cgroup=…&oss.space=…&oss.free=…` capacity report
-(`src/query/space.c`) and the client picked the `oss.space=`/`oss.free=` tokens back out
+(`src/protocols/root/query/space.c`) and the client picked the `oss.space=`/`oss.free=` tokens back out
 (`client/lib/posix_map.c`) — with the token spellings *and* their byte offsets (`p + 10`, `p + 9`)
 hand-written on each side.
 
-⚙️ **DONE:** new **`src/protocol/qspace.h`** co-locates `xrootd_qspace_format` (server emit) and
+⚙️ **DONE:** new **`src/protocols/root/protocol/qspace.h`** co-locates `xrootd_qspace_format` (server emit) and
 `xrootd_qspace_parse` (client decode) over shared token macros; the parser's key offsets are now
 `sizeof(token)-1`, never integer literals. Verified: query/interop-query green.
 
@@ -565,7 +565,7 @@ parser anchors on `&P=` and checks the name boundary (`,`/`&`/end); the server's
 substring anywhere in the block (another protocol's args, a trailing host) and could select the
 wrong outbound credential.
 
-⚙️ **DONE:** new header-only **`src/protocol/sec_protocol.h`** with `xrootd_sec_proto_advertised`
+⚙️ **DONE:** new header-only **`src/protocols/root/protocol/sec_protocol.h`** with `xrootd_sec_proto_advertised`
 (the native client's anchored logic, made NULL-tolerant for presence-only queries). Both the
 client auth driver and the server's TPC-outbound selector now call it — **de-duplicating the
 auth-negotiation grammar and tightening the server's selection** (the loose `strstr` is gone).
@@ -576,7 +576,7 @@ selection green (part of the 172-test run).
 ### 4.14 Protocol vocabulary — promoting comment-only constants to real shared `#define`s
 
 A different *kind* of duplication: not code or a grammar, but the spec's **named constants**.
-Several were documented only as *prose* in the canonical `src/protocol/wire_core_requests.h`
+Several were documented only as *prose* in the canonical `src/protocols/root/protocol/wire_core_requests.h`
 (`kXR_ExpLogin = 0x03` at `:226`; `resptype` `0=Final`/`1=Partial` at `:141`), so every consumer
 re-invented them. The native client even **self-confessed** it in `xrdc.h`
 (*"only documented as a comment … so define them here"*), and the server used **magic numbers** —
@@ -600,9 +600,9 @@ was. Each `kXR_readv` request and response carries an array of fixed 16-byte seg
 `[ fhandle[4] ][ rlen[4 BE] ][ offset[8 BE] ]` — and the layout, with its magic `+4`/`+8`/`16`
 offsets, was hand-spelled in **both directions across both trees**: the native client builds the
 request segments and parses the response segments (`client/lib/ops_file.c`), and the module builds
-the response segments (`src/read/readv.c`).
+the response segments (`src/protocols/root/read/readv.c`).
 
-⚙️ **DONE:** new header-only **`src/protocol/readv_seg.h`** (`xrootd_readv_seg_pack` /
+⚙️ **DONE:** new header-only **`src/protocols/root/protocol/readv_seg.h`** (`xrootd_readv_seg_pack` /
 `xrootd_readv_seg_rlen`) over the already-shared `frame_hdr.h` big-endian accessors. The client's
 request-build, the client's response-parse, and the module's response-build now all go through it;
 the client's magic `16`/`+4`/`+8` are replaced by `XROOTD_READV_SEGSIZE` and the codec. The

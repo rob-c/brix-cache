@@ -21,7 +21,7 @@ check vectors).
 Wire format consulted (not modified):
   /tmp/xrootd-src/src/XrdCl/XrdClFS.cc      DoQuery / BuildPath (xrdfs arg path)
   /tmp/xrootd-src/src/XrdCl/XrdClUtils.cc   appends "?cks.type=<algo>" CGI
-  src/query/checksum_qcksum.c               our kXR_Qcksum handler
+  src/protocols/root/query/checksum_qcksum.c               our kXR_Qcksum handler
 
 Philosophy (per the maintainer): a divergence — wrong hex, wrong reply shape,
 or an error where the reference computes a value — is a BUG IN OUR SERVER, and

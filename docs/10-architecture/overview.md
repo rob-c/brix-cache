@@ -197,7 +197,7 @@ sequenceDiagram
     participant Client as xrdcp client
     participant TCP as nginx stream layer
     participant Auth as Authentication<br/>(GSI/token/SSS)
-    participant Ops as Opcode handler<br/>(src/read, src/write)
+    participant Ops as Opcode handler<br/>(src/protocols/root/read, src/protocols/root/write)
     participant VFS as VFS<br/>(src/fs)
     participant SD as POSIX storage driver<br/>(src/fs/backend) + kernel
     
@@ -282,12 +282,12 @@ sequenceDiagram
 
 | Layer | Key Source File | Purpose |
 |---|---|---|
-| **Stream entry** | `src/stream/` | nginx stream module initialization |
-| **Connection handling** | `src/connection/handler.c`, `recv.c` | TCP accept, read loop, send events |
-| **XRootD handshake** | `src/handshake/dispatch.c` | Protocol negotiation, session setup |
-| **Session dispatch** | `src/handshake/dispatch_session.c` | Session-level opcode routing |
-| **Read path** | `src/read/`, `src/core/aio/` | open/read/readv/pgread/stat/locate (frames VFS results onto the wire) |
-| **Write path** | `src/write/` | write/writev/pgwrite/sync/truncate (frames VFS results onto the wire) |
+| **Stream entry** | `src/protocols/root/stream/` | nginx stream module initialization |
+| **Connection handling** | `src/protocols/root/connection/handler.c`, `recv.c` | TCP accept, read loop, send events |
+| **XRootD handshake** | `src/protocols/root/handshake/dispatch.c` | Protocol negotiation, session setup |
+| **Session dispatch** | `src/protocols/root/handshake/dispatch_session.c` | Session-level opcode routing |
+| **Read path** | `src/protocols/root/read/`, `src/core/aio/` | open/read/readv/pgread/stat/locate (frames VFS results onto the wire) |
+| **Write path** | `src/protocols/root/write/` | write/writev/pgwrite/sync/truncate (frames VFS results onto the wire) |
 | **WebDAV dispatch** | `src/protocols/webdav/dispatch.c` | HTTP method routing, TPC detection |
 | **S3 handler** | `src/protocols/s3/handler.c` | REST API entry point and routing |
 | **Unified data plane (VFS)** | `src/fs/` | `xrootd_vfs_*` — the single path every protocol's file I/O takes: confinement, metrics, cache, page-CRC, buffer shaping |

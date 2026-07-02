@@ -5,7 +5,7 @@
 This document maps every XRootD wire protocol operation to its implementation in the nginx-xrootd module, showing how the native `stream` module translates binary opcodes into file operations.
 
 **Reference:** `/tmp/xrootd-src/src/XProtocol/XProtocol.hh` — full wire spec  
-**Entry point:** `src/connection/handler.c` → `src/handshake/dispatch.c` → opcode handlers in `src/read/`, `src/write/`, etc.
+**Entry point:** `src/protocols/root/connection/handler.c` → `src/protocols/root/handshake/dispatch.c` → opcode handlers in `src/protocols/root/read/`, `src/protocols/root/write/`, etc.
 
 ---
 
@@ -29,12 +29,12 @@ Client (xrdcp/xrdfs) ──TCP──> nginx-xrootd stream server
 
 | File | Role |
 |---|---|
-| `src/connection/handler.c` | Stream module entry — receives raw TCP, routes to XRootD protocol handler |
-| `src/handshake/dispatch.c` | Dispatches post-login opcodes by opcode number |
-| `src/session/protocol.c` | Protocol state machine (XRD_ST_* states) |
-| `src/session/bind.c` | kXR_bind — session-to-fd mapping |
-| `src/session/login.c` | kXR_login, kXR_auth handlers |
-| `src/handshake/policy.c` | Policy enforcement (allow_write, TLS requirements) |
+| `src/protocols/root/connection/handler.c` | Stream module entry — receives raw TCP, routes to XRootD protocol handler |
+| `src/protocols/root/handshake/dispatch.c` | Dispatches post-login opcodes by opcode number |
+| `src/protocols/root/session/protocol.c` | Protocol state machine (XRD_ST_* states) |
+| `src/protocols/root/session/bind.c` | kXR_bind — session-to-fd mapping |
+| `src/protocols/root/session/login.c` | kXR_login, kXR_auth handlers |
+| `src/protocols/root/handshake/policy.c` | Policy enforcement (allow_write, TLS requirements) |
 
 ---
 
@@ -85,7 +85,7 @@ typedef struct {
 
 ## Opcode Dispatch Flow
 
-### Entry: `src/handshake/dispatch.c`
+### Entry: `src/protocols/root/handshake/dispatch.c`
 
 ```c
 // Post-login dispatch by opcode number
@@ -101,7 +101,7 @@ static ngx_int_t xrootd_dispatch_opcode(xrootd_ctx_t *ctx, ...) {
 }
 ```
 
-### Pre-login Dispatch (`src/handshake/dispatch_session.c`)
+### Pre-login Dispatch (`src/protocols/root/handshake/dispatch_session.c`)
 
 Handles pre-authentication opcodes: `kXR_protocol`, `kXR_ableTLS`, `kXR_wantTLS`, `kXR_login`, `kXR_auth`.
 
@@ -111,7 +111,7 @@ Handles pre-authentication opcodes: `kXR_protocol`, `kXR_ableTLS`, `kXR_wantTLS`
 
 ### kXR_read — Variable-Length Block Read
 
-**File:** `src/read/read.c`  
+**File:** `src/protocols/root/read/read.c`  
 **Opcode:** `kXR_read` (3013)  
 **Wire format:** `ClientReadBody { offset (8B), length (4B) }` → `ServerReadBody { data_len (4B), data (N bytes) }`
 
@@ -144,7 +144,7 @@ Client                          Server
 
 ### kXR_pgread — Page Read with CRC32c Integrity
 
-**File:** `src/read/pgread.c`  
+**File:** `src/protocols/root/read/pgread.c`  
 **Opcode:** `kXR_pgread` (3030)  
 **Wire format:** `ClientPgReadBody { offset (8B), length (4B), pagesize (4B) }` → `ServerPgReadBody { status (2B), dlen (4B), page1_crc32c(4B), page2_crc32c(4B), ... }`
 
@@ -170,7 +170,7 @@ Client                          Server
 
 ### kXR_readv — Scatter/Gather Read
 
-**File:** `src/read/readv.c`  
+**File:** `src/protocols/root/read/readv.c`  
 **Opcode:** `kXR_readv` (3025)  
 **Wire format:** `ClientReadvBody { offset (8B), length (4B), iovec_count (4B), iovecs[N] }` → `ServerReadvBody { status (2B), lengths[N], data[N] }`
 
@@ -193,7 +193,7 @@ Client                          Server
 
 ### kXR_write — Variable-Length Block Write
 
-**File:** `src/write/write.c`  
+**File:** `src/protocols/root/write/write.c`  
 **Opcode:** `kXR_write` (3019)  
 **Wire format:** `ClientWriteBody { offset (8B), length (4B), data (N bytes) }` → `ServerWriteBody { status (2B), dlen (4B) }`
 
@@ -218,7 +218,7 @@ Client                          Server
 
 ### kXR_pgwrite — Page Write with CRC32c Integrity
 
-**File:** `src/write/pgwrite.c`  
+**File:** `src/protocols/root/write/pgwrite.c`  
 **Opcode:** `kXR_pgwrite` (3026)  
 **Wire format:** `ClientPgWriteBody { offset (8B), length (4B), pagesize (4B), page1_crc32c(4B), ... }` → `ServerPgWriteBody { status (2B), dlen (4B) }`
 
@@ -239,7 +239,7 @@ Client                          Server
 
 ### kXR_sync — Flush/Sync File to Disk
 
-**File:** `src/write/sync.c`  
+**File:** `src/protocols/root/write/sync.c`  
 **Opcode:** `kXR_sync` (3016)  
 **Wire format:** `ClientSyncBody { fhandle (1B) }` → `ServerSyncBody { status (2B), dlen (4B) }`
 
@@ -266,7 +266,7 @@ Client                          Server
 Native TPC enables a client to copy files between two XRootD servers through nginx-xrootd acting as the destination server. The protocol uses `kXR_open` with opaque parameters (`tpc.src=`, `tpc.key=`) and relies on shared-memory key registry for cross-process rendezvous.
 
 **Key file:** `src/tpc/key_registry.c` — SHM-based key registry (256 slots, 60s TTL)  
-**Entry point:** `src/handshake/dispatch.c` → `xrootd_handle_open()` with TPC params
+**Entry point:** `src/protocols/root/handshake/dispatch.c` → `xrootd_handle_open()` with TPC params
 
 ### Wire Protocol Sequence
 
@@ -373,7 +373,7 @@ The push path is the inverse of pull: nginx-xrootd acts as a client to a remote 
 
 ### kXR_open — Open File for Read or Write
 
-**File:** `src/read/open.c`  
+**File:** `src/protocols/root/read/open.c`  
 **Opcode:** `kXR_open` (3010)  
 **Wire format:** `ClientOpenBody { path (N bytes), options (2B) }` → `ServerOpenBody { fhandle (1B), statbuf? }`
 
@@ -462,7 +462,7 @@ Extended version of stat supporting additional metadata fields.
 
 ### kXR_dirlist — List Directory Contents
 
-**File:** `src/dirlist/handler.c`  
+**File:** `src/protocols/root/dirlist/handler.c`  
 **Opcode:** `kXR_dirlist` (3004)  
 **Wire format:** `ClientDirListBody { path (N bytes), options (2B) }` → `ServerDirListBody { count (4B), entries[N] }`
 
@@ -483,7 +483,7 @@ Client                          Server
 
 ### kXR_locate — Get Server Location for Path
 
-**File:** `src/read/locate.c`  
+**File:** `src/protocols/root/read/locate.c`  
 **Opcode:** `kXR_locate` (3027)  
 **Wire format:** `ClientLocateBody { path (N bytes), options (2B) }` → `ServerLocateBody { server_addr, port }`
 
@@ -503,7 +503,7 @@ Creates a copy of an already-open file handle at a new path.
 
 ### kXR_fattr — File Attributes
 
-**File:** `src/fattr/`  
+**File:** `src/protocols/root/fattr/`  
 **Opcode:** `kXR_fattr` (3020)  
 **Wire format:** `ClientFattrBody { fhandle (1B), mask (4B) }` → `ServerFattrBody { attributes }`
 
@@ -511,7 +511,7 @@ Reads or writes extended file attributes (permissions, ownership, custom metadat
 
 ### kXR_prepare — Prepare File for Write
 
-**File:** `src/read/open.c`  
+**File:** `src/protocols/root/read/open.c`  
 **Opcode:** `kXR_prepare` (3021)  
 **Wire format:** `ClientPrepareBody { path (N bytes), options (2B) }` → `ServerPrepareBody { status (2B), dlen (4B) }`
 
@@ -519,7 +519,7 @@ Pre-allocates file space and sets up for sequential writes.
 
 ### kXR_sync — Sync File to Disk
 
-**File:** `src/write/sync.c`  
+**File:** `src/protocols/root/write/sync.c`  
 **Opcode:** `kXR_sync` (3016)  
 **Wire format:** `ClientSyncBody { fhandle (1B) }` → `ServerSyncBody { status (2B), dlen (4B) }`
 
@@ -531,7 +531,7 @@ Flushes file data and metadata to persistent storage. See Data Path 2 above for 
 
 ### kXR_bind — Bind File Handle to Session
 
-**File:** `src/session/bind.c`  
+**File:** `src/protocols/root/session/bind.c`  
 **Opcode:** `kXR_bind` (3024)  
 **Wire format:** `ClientBindBody { fhandle (1B), session_id (8B) }` → `ServerBindBody { status (2B), dlen (4B) }`
 
@@ -539,7 +539,7 @@ Associates a file handle with a specific session identifier for multi-session su
 
 ### kXR_login — Authenticate Session
 
-**File:** `src/session/login.c`  
+**File:** `src/protocols/root/session/login.c`  
 **Opcode:** `kXR_login` (3007)  
 **Wire format:** `ClientLoginBody { username (N bytes), password (N bytes) }` → `ServerLoginBody { status (2B), dlen (4B) }`
 
@@ -547,7 +547,7 @@ Initial session authentication. Sets up context for subsequent operations.
 
 ### kXR_auth — Verify Authentication Token
 
-**File:** `src/session/login.c`  
+**File:** `src/protocols/root/session/login.c`  
 **Opcode:** `kXR_auth` (3000)  
 **Wire format:** `ClientAuthBody { token (N bytes), type (2B) }` → `ServerAuthBody { status (2B), dlen (4B) }`
 
@@ -555,7 +555,7 @@ Verifies authentication tokens (GSI, bearer token, SSS).
 
 ### kXR_sigver — Signature Verification
 
-**File:** `src/session/login.c`  
+**File:** `src/protocols/root/session/login.c`  
 **Opcode:** `kXR_sigver` (3029)  
 **Wire format:** `ClientSigVerBody { request_hash (N bytes), signature (N bytes) }` → `ServerSigVerBody { status (2B), dlen (4B) }`
 
@@ -567,7 +567,7 @@ HMAC-SHA256 request signing for GSI sessions — verifies integrity of all subse
 
 ### kXR_protocol — Version Negotiation
 
-**File:** `src/handshake/dispatch.c`  
+**File:** `src/protocols/root/handshake/dispatch.c`  
 **Opcode:** `kXR_protocol` (3006)  
 **Wire format:** `ClientProtocolBody { version (4B) }` → `ServerProtocolBody { status (2B), dlen (4B) }`
 
@@ -575,7 +575,7 @@ Initial handshake: client sends supported protocol version, server responds with
 
 ### kXR_ableTLS — TLS Capability Exchange
 
-**File:** `src/handshake/dispatch.c`  
+**File:** `src/protocols/root/handshake/dispatch.c`  
 **Opcode:** `kXR_ableTLS` (3013)  
 **Wire format:** `ClientAbleTlsBody { }` → `ServerAbleTlsBody { status (2B), dlen (4B) }`
 
@@ -583,7 +583,7 @@ Client declares TLS capability; server responds with its own capability.
 
 ### kXR_wantTLS — Request TLS Upgrade
 
-**File:** `src/handshake/dispatch.c`  
+**File:** `src/protocols/root/handshake/dispatch.c`  
 **Opcode:** `kXR_wantTLS` (3014)  
 **Wire format:** `ClientWantTlsBody { }` → `ServerWantTlsBody { status (2B), dlen (4B) }`
 
@@ -595,7 +595,7 @@ Client requests TLS upgrade; server responds with success/failure.
 
 ### kXR_redirect — Get Redirect Server Address
 
-**File:** `src/handshake/dispatch.c`  
+**File:** `src/protocols/root/handshake/dispatch.c`  
 **Opcode:** `kXR_redirect` (4004)  
 **Wire format:** `ClientRedirectBody { path (N bytes), options (2B) }` → `ServerRedirectBody { server_addr, port }`
 
@@ -662,7 +662,7 @@ b->file = ...;  // file pointer from open()
 
 ## File Handle Management
 
-**File:** `src/connection/fd_table.c`  
+**File:** `src/protocols/root/connection/fd_table.c`  
 **Range:** 0–255 (fixed-size array)
 
 | Field | Purpose |

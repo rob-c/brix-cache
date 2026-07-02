@@ -128,7 +128,7 @@ A numerical command code sent over the XRootD wire protocol. Each opcode tells t
 | kXR_bind | 3024 | Bind secondary connection for parallel I/O |
 | kXR_sigver | 3029 | Request signing for GSI sessions |
 
-**Where you'll encounter it:** AGENTS.md operation-to-file index; `src/protocol/opcodes.h`; test coverage files.
+**Where you'll encounter it:** AGENTS.md operation-to-file index; `src/protocols/root/protocol/opcodes.h`; test coverage files.
 
 See also: [XRootD Wire Protocol](#xrootd-wire-protocol)
 

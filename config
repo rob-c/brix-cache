@@ -346,7 +346,7 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/core/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/core/types/context.h \
                         $ngx_addon_dir/src/core/types/tunables.h \
                         $ngx_addon_dir/src/core/config/config.h \
-                        $ngx_addon_dir/src/handshake/handshake.h \
+                        $ngx_addon_dir/src/protocols/root/handshake/handshake.h \
                         $ngx_addon_dir/src/fs/cache/cache_internal.h \
                         $ngx_addon_dir/src/fs/cache/open.h \
                         $ngx_addon_dir/src/fs/cache/meta.h \
@@ -384,12 +384,12 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/core/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/fs/backend/pblock/sd_pblock_catalog.h \
                         $ngx_addon_dir/src/core/config/tape_stage_conf.h \
                         $ngx_addon_dir/src/fs/path/path.h \
-                        $ngx_addon_dir/src/read/clone.h \
-                        $ngx_addon_dir/src/read/close.h \
-                        $ngx_addon_dir/src/read/locate.h \
-                        $ngx_addon_dir/src/read/open.h \
-                        $ngx_addon_dir/src/read/prefetch.h \
-                        $ngx_addon_dir/src/read/read.h \
+                        $ngx_addon_dir/src/protocols/root/read/clone.h \
+                        $ngx_addon_dir/src/protocols/root/read/close.h \
+                        $ngx_addon_dir/src/protocols/root/read/locate.h \
+                        $ngx_addon_dir/src/protocols/root/read/open.h \
+                        $ngx_addon_dir/src/protocols/root/read/prefetch.h \
+                        $ngx_addon_dir/src/protocols/root/read/read.h \
                         $ngx_addon_dir/src/protocols/ssi/ssi.h \
                         $ngx_addon_dir/src/protocols/ssi/ssi_rrinfo.h \
                         $ngx_addon_dir/src/protocols/ssi/ssi_service.h \
@@ -406,24 +406,24 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/core/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/protocols/ssi/svc_cta/cta_exec.h \
                         $ngx_addon_dir/src/protocols/ssi/svc_cta/cta_service.h \
                         $ngx_addon_dir/src/net/cms/cns.h \
-                        $ngx_addon_dir/src/read/stat.h \
-                        $ngx_addon_dir/src/read/statx.h \
-                        $ngx_addon_dir/src/session/session.h \
-                        $ngx_addon_dir/src/response/response.h \
-                        $ngx_addon_dir/src/response/async.h \
-                        $ngx_addon_dir/src/write/write.h \
-                        $ngx_addon_dir/src/write/chkpoint.h \
-                        $ngx_addon_dir/src/dirlist/dirlist.h \
+                        $ngx_addon_dir/src/protocols/root/read/stat.h \
+                        $ngx_addon_dir/src/protocols/root/read/statx.h \
+                        $ngx_addon_dir/src/protocols/root/session/session.h \
+                        $ngx_addon_dir/src/protocols/root/response/response.h \
+                        $ngx_addon_dir/src/protocols/root/response/async.h \
+                        $ngx_addon_dir/src/protocols/root/write/write.h \
+                        $ngx_addon_dir/src/protocols/root/write/chkpoint.h \
+                        $ngx_addon_dir/src/protocols/root/dirlist/dirlist.h \
                         $ngx_addon_dir/src/core/aio/aio.h \
-                        $ngx_addon_dir/src/connection/handler.h \
-                        $ngx_addon_dir/src/connection/netopt.h \
-                        $ngx_addon_dir/src/connection/event_sched.h \
-                        $ngx_addon_dir/src/connection/write_helpers.h \
-                        $ngx_addon_dir/src/connection/tls.h \
-                        $ngx_addon_dir/src/connection/fd_table.h \
-                        $ngx_addon_dir/src/connection/disconnect.h \
-                        $ngx_addon_dir/src/connection/chain_helpers.h \
-                        $ngx_addon_dir/src/fattr/ngx_xrootd_fattr.h \
+                        $ngx_addon_dir/src/protocols/root/connection/handler.h \
+                        $ngx_addon_dir/src/protocols/root/connection/netopt.h \
+                        $ngx_addon_dir/src/protocols/root/connection/event_sched.h \
+                        $ngx_addon_dir/src/protocols/root/connection/write_helpers.h \
+                        $ngx_addon_dir/src/protocols/root/connection/tls.h \
+                        $ngx_addon_dir/src/protocols/root/connection/fd_table.h \
+                        $ngx_addon_dir/src/protocols/root/connection/disconnect.h \
+                        $ngx_addon_dir/src/protocols/root/connection/chain_helpers.h \
+                        $ngx_addon_dir/src/protocols/root/fattr/ngx_xrootd_fattr.h \
                         $ngx_addon_dir/src/net/upstream/upstream.h \
                         $ngx_addon_dir/src/net/upstream/upstream_internal.h \
                         $ngx_addon_dir/src/auth/token/token_internal.h \
@@ -480,14 +480,14 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/core/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/observability/metrics/metrics_macros.h \
                         $ngx_addon_dir/src/observability/metrics/unified.h \
                         $ngx_addon_dir/src/observability/metrics/access_log.h \
-                        $ngx_addon_dir/src/protocol/protocol.h \
-                        $ngx_addon_dir/src/protocol/types.h \
-                        $ngx_addon_dir/src/protocol/opcodes.h \
-                        $ngx_addon_dir/src/protocol/flags.h \
-                        $ngx_addon_dir/src/protocol/wire.h \
-                        $ngx_addon_dir/src/protocol/gsi.h \
-                        $ngx_addon_dir/src/protocol/sss.h \
-                        $ngx_addon_dir/src/protocol/frame_hdr.h \
+                        $ngx_addon_dir/src/protocols/root/protocol/protocol.h \
+                        $ngx_addon_dir/src/protocols/root/protocol/types.h \
+                        $ngx_addon_dir/src/protocols/root/protocol/opcodes.h \
+                        $ngx_addon_dir/src/protocols/root/protocol/flags.h \
+                        $ngx_addon_dir/src/protocols/root/protocol/wire.h \
+                        $ngx_addon_dir/src/protocols/root/protocol/gsi.h \
+                        $ngx_addon_dir/src/protocols/root/protocol/sss.h \
+                        $ngx_addon_dir/src/protocols/root/protocol/frame_hdr.h \
                         $ngx_addon_dir/src/auth/gsi/keypool.h \
                         $ngx_addon_dir/src/auth/gsi/gsi_core.h \
                         $ngx_addon_dir/src/core/shm/kv.h \
@@ -551,9 +551,9 @@ ngx_module_type=STREAM
 ngx_module_name=ngx_stream_xrootd_module
 ngx_module_incs="$ngx_addon_dir/src"
 ngx_module_srcs="\
-    $ngx_addon_dir/src/stream/module.c \
-    $ngx_addon_dir/src/stream/module_enums.c \
-    $ngx_addon_dir/src/stream/module_definition.c \
+    $ngx_addon_dir/src/protocols/root/stream/module.c \
+    $ngx_addon_dir/src/protocols/root/stream/module_enums.c \
+    $ngx_addon_dir/src/protocols/root/stream/module_definition.c \
     $ngx_addon_dir/src/core/compat/checksum.c \
     $ngx_addon_dir/src/core/compat/checksum_core.c \
     $ngx_addon_dir/src/core/compat/crc32c.c \
@@ -675,7 +675,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/core/config/runtime_server.c \
     $ngx_addon_dir/src/net/cms/config.c \
     $ngx_addon_dir/src/auth/gsi/config.c \
-    $ngx_addon_dir/src/session/tls_config.c \
+    $ngx_addon_dir/src/protocols/root/session/tls_config.c \
     $ngx_addon_dir/src/auth/token/config.c \
     $ngx_addon_dir/src/auth/sss/sss_keytab_kernel.c \
     $ngx_addon_dir/src/auth/sss/config.c \
@@ -693,21 +693,21 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/cache/directives.c \
     $ngx_addon_dir/src/core/config/process.c \
     $ngx_addon_dir/src/core/config/postconfiguration.c \
-    $ngx_addon_dir/src/handshake/client_hello.c \
-    $ngx_addon_dir/src/handshake/sigver.c \
-    $ngx_addon_dir/src/handshake/policy.c \
-    $ngx_addon_dir/src/handshake/dispatch.c \
-    $ngx_addon_dir/src/handshake/dispatch_session.c \
-    $ngx_addon_dir/src/handshake/dispatch_read.c \
-    $ngx_addon_dir/src/handshake/dispatch_write.c \
-    $ngx_addon_dir/src/handshake/dispatch_signing.c \
-    $ngx_addon_dir/src/session/protocol.c \
-    $ngx_addon_dir/src/session/login.c \
-    $ngx_addon_dir/src/session/lifecycle.c \
-    $ngx_addon_dir/src/session/signing.c \
-    $ngx_addon_dir/src/session/bind.c \
-    $ngx_addon_dir/src/session/registry.c \
-    $ngx_addon_dir/src/session/handles.c \
+    $ngx_addon_dir/src/protocols/root/handshake/client_hello.c \
+    $ngx_addon_dir/src/protocols/root/handshake/sigver.c \
+    $ngx_addon_dir/src/protocols/root/handshake/policy.c \
+    $ngx_addon_dir/src/protocols/root/handshake/dispatch.c \
+    $ngx_addon_dir/src/protocols/root/handshake/dispatch_session.c \
+    $ngx_addon_dir/src/protocols/root/handshake/dispatch_read.c \
+    $ngx_addon_dir/src/protocols/root/handshake/dispatch_write.c \
+    $ngx_addon_dir/src/protocols/root/handshake/dispatch_signing.c \
+    $ngx_addon_dir/src/protocols/root/session/protocol.c \
+    $ngx_addon_dir/src/protocols/root/session/login.c \
+    $ngx_addon_dir/src/protocols/root/session/lifecycle.c \
+    $ngx_addon_dir/src/protocols/root/session/signing.c \
+    $ngx_addon_dir/src/protocols/root/session/bind.c \
+    $ngx_addon_dir/src/protocols/root/session/registry.c \
+    $ngx_addon_dir/src/protocols/root/session/handles.c \
     $ngx_addon_dir/src/net/manager/registry.c \
     $ngx_addon_dir/src/net/manager/registry_select.c \
     $ngx_addon_dir/src/net/manager/registry_health.c \
@@ -745,12 +745,12 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/auth/token/validate.c \
     $ngx_addon_dir/src/auth/token/macaroon.c \
     $ngx_addon_dir/src/auth/token/macaroon_issue.c \
-    $ngx_addon_dir/src/fattr/helpers.c \
-    $ngx_addon_dir/src/fattr/dispatch.c \
-    $ngx_addon_dir/src/fattr/get.c \
-    $ngx_addon_dir/src/fattr/set.c \
-    $ngx_addon_dir/src/fattr/del.c \
-    $ngx_addon_dir/src/fattr/list.c \
+    $ngx_addon_dir/src/protocols/root/fattr/helpers.c \
+    $ngx_addon_dir/src/protocols/root/fattr/dispatch.c \
+    $ngx_addon_dir/src/protocols/root/fattr/get.c \
+    $ngx_addon_dir/src/protocols/root/fattr/set.c \
+    $ngx_addon_dir/src/protocols/root/fattr/del.c \
+    $ngx_addon_dir/src/protocols/root/fattr/list.c \
     $ngx_addon_dir/src/observability/accesslog/access_log.c \
     $ngx_addon_dir/src/fs/path/helpers.c \
     $ngx_addon_dir/src/fs/path/resolve_confined_helpers.c \
@@ -762,9 +762,9 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/auth/authz/acl.c \
     $ngx_addon_dir/src/auth/authz/group_policy.c \
     $ngx_addon_dir/src/fs/path/mkdir.c \
-    $ngx_addon_dir/src/path/stat_body.c \
-    $ngx_addon_dir/src/path/strip_cgi.c \
-    $ngx_addon_dir/src/path/extract.c \
+    $ngx_addon_dir/src/protocols/root/path/stat_body.c \
+    $ngx_addon_dir/src/protocols/root/path/strip_cgi.c \
+    $ngx_addon_dir/src/protocols/root/path/extract.c \
     $ngx_addon_dir/src/auth/authz/find_rule.c \
     $ngx_addon_dir/src/fs/path/canonical.c \
     $ngx_addon_dir/src/auth/authz/authdb.c \
@@ -785,7 +785,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/auth/impersonate/broker_ops.c \
     $ngx_addon_dir/src/auth/impersonate/client.c \
     $ngx_addon_dir/src/auth/impersonate/lifecycle.c \
-    $ngx_addon_dir/src/path/op_path.c \
+    $ngx_addon_dir/src/protocols/root/path/op_path.c \
     $ngx_addon_dir/src/fs/path/beneath.c \
     $ngx_addon_dir/src/fs/cache/errors.c \
     $ngx_addon_dir/src/fs/cache/io.c \
@@ -821,7 +821,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/net/tap/tap_emit.c \
     $ngx_addon_dir/src/net/tap/tap_audit.c \
     $ngx_addon_dir/src/net/tap/tap_stream.c \
-    $ngx_addon_dir/src/relay/relay.c \
+    $ngx_addon_dir/src/protocols/root/relay/relay.c \
     $ngx_addon_dir/src/net/proxy/gsi_upstream.c \
     $ngx_addon_dir/src/net/proxy/gsi_upstream_login.c \
     $ngx_addon_dir/src/net/cms/wire.c \
@@ -876,20 +876,20 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/auth/sss/auth_identity_challenge.c \
     $ngx_addon_dir/src/auth/sss/auth_proxy_credential.c \
     $ngx_addon_dir/src/auth/sss/auth_request.c \
-    $ngx_addon_dir/src/query/util.c \
-    $ngx_addon_dir/src/query/checksum_qcksum.c \
-    $ngx_addon_dir/src/query/checksum_qcksum_async.c \
-    $ngx_addon_dir/src/query/checksum_ckscan_common.c \
-    $ngx_addon_dir/src/query/checksum_ckscan_async.c \
-    $ngx_addon_dir/src/query/checksum_ckscan_dispatch.c \
-    $ngx_addon_dir/src/query/space.c \
-    $ngx_addon_dir/src/query/config.c \
-    $ngx_addon_dir/src/query/metadata.c \
-    $ngx_addon_dir/src/query/prepare.c \
-    $ngx_addon_dir/src/query/prepare_cmd.c \
+    $ngx_addon_dir/src/protocols/root/query/util.c \
+    $ngx_addon_dir/src/protocols/root/query/checksum_qcksum.c \
+    $ngx_addon_dir/src/protocols/root/query/checksum_qcksum_async.c \
+    $ngx_addon_dir/src/protocols/root/query/checksum_ckscan_common.c \
+    $ngx_addon_dir/src/protocols/root/query/checksum_ckscan_async.c \
+    $ngx_addon_dir/src/protocols/root/query/checksum_ckscan_dispatch.c \
+    $ngx_addon_dir/src/protocols/root/query/space.c \
+    $ngx_addon_dir/src/protocols/root/query/config.c \
+    $ngx_addon_dir/src/protocols/root/query/metadata.c \
+    $ngx_addon_dir/src/protocols/root/query/prepare.c \
+    $ngx_addon_dir/src/protocols/root/query/prepare_cmd.c \
     $ngx_addon_dir/src/core/config/tape_stage_conf.c \
-    $ngx_addon_dir/src/query/set.c \
-    $ngx_addon_dir/src/query/dispatch.c \
+    $ngx_addon_dir/src/protocols/root/query/set.c \
+    $ngx_addon_dir/src/protocols/root/query/dispatch.c \
     $ngx_addon_dir/src/net/upstream/lifecycle.c \
     $ngx_addon_dir/src/net/upstream/bootstrap.c \
     $ngx_addon_dir/src/net/upstream/tls.c \
@@ -912,36 +912,36 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/net/proxy/forward_relay_dispatch.c \
     $ngx_addon_dir/src/net/proxy/pool.c \
     $ngx_addon_dir/src/net/proxy/directives.c \
-    $ngx_addon_dir/src/handoff/handoff.c \
-    $ngx_addon_dir/src/connection/handler.c \
-    $ngx_addon_dir/src/connection/recv.c \
-    $ngx_addon_dir/src/connection/send.c \
-    $ngx_addon_dir/src/connection/fd_table.c \
-    $ngx_addon_dir/src/connection/event_sched.c \
-    $ngx_addon_dir/src/connection/chain_helpers.c \
-    $ngx_addon_dir/src/connection/tls.c \
-    $ngx_addon_dir/src/connection/write_helpers.c \
-    $ngx_addon_dir/src/connection/disconnect.c \
+    $ngx_addon_dir/src/protocols/root/handoff/handoff.c \
+    $ngx_addon_dir/src/protocols/root/connection/handler.c \
+    $ngx_addon_dir/src/protocols/root/connection/recv.c \
+    $ngx_addon_dir/src/protocols/root/connection/send.c \
+    $ngx_addon_dir/src/protocols/root/connection/fd_table.c \
+    $ngx_addon_dir/src/protocols/root/connection/event_sched.c \
+    $ngx_addon_dir/src/protocols/root/connection/chain_helpers.c \
+    $ngx_addon_dir/src/protocols/root/connection/tls.c \
+    $ngx_addon_dir/src/protocols/root/connection/write_helpers.c \
+    $ngx_addon_dir/src/protocols/root/connection/disconnect.c \
     $ngx_addon_dir/src/fs/core/vfs_core.c \
-    $ngx_addon_dir/src/protocol/codec/wire_codec_meta.c \
-    $ngx_addon_dir/src/protocol/codec/wire_codec_file.c \
-    $ngx_addon_dir/src/protocol/codec/wire_codec_ns.c \
-    $ngx_addon_dir/src/protocol/codec/wire_codec_session.c \
-    $ngx_addon_dir/src/response/basic.c \
-    $ngx_addon_dir/src/response/control.c \
-    $ngx_addon_dir/src/response/status.c \
-    $ngx_addon_dir/src/response/crc32c.c \
-    $ngx_addon_dir/src/response/async.c \
-    $ngx_addon_dir/src/read/prefetch.c \
-    $ngx_addon_dir/src/read/clone.c \
-    $ngx_addon_dir/src/read/open_overview.c \
-    $ngx_addon_dir/src/read/open_resolved_file.c \
-    $ngx_addon_dir/src/read/open_request.c \
-    $ngx_addon_dir/src/zip/zip_kernel.c \
-    $ngx_addon_dir/src/zip/zip_dir.c \
-    $ngx_addon_dir/src/zip/zip_member.c \
-    $ngx_addon_dir/src/zip/zip_http.c \
-    $ngx_addon_dir/src/read/open_cache.c \
+    $ngx_addon_dir/src/protocols/root/protocol/codec/wire_codec_meta.c \
+    $ngx_addon_dir/src/protocols/root/protocol/codec/wire_codec_file.c \
+    $ngx_addon_dir/src/protocols/root/protocol/codec/wire_codec_ns.c \
+    $ngx_addon_dir/src/protocols/root/protocol/codec/wire_codec_session.c \
+    $ngx_addon_dir/src/protocols/root/response/basic.c \
+    $ngx_addon_dir/src/protocols/root/response/control.c \
+    $ngx_addon_dir/src/protocols/root/response/status.c \
+    $ngx_addon_dir/src/protocols/root/response/crc32c.c \
+    $ngx_addon_dir/src/protocols/root/response/async.c \
+    $ngx_addon_dir/src/protocols/root/read/prefetch.c \
+    $ngx_addon_dir/src/protocols/root/read/clone.c \
+    $ngx_addon_dir/src/protocols/root/read/open_overview.c \
+    $ngx_addon_dir/src/protocols/root/read/open_resolved_file.c \
+    $ngx_addon_dir/src/protocols/root/read/open_request.c \
+    $ngx_addon_dir/src/protocols/root/zip/zip_kernel.c \
+    $ngx_addon_dir/src/protocols/root/zip/zip_dir.c \
+    $ngx_addon_dir/src/protocols/root/zip/zip_member.c \
+    $ngx_addon_dir/src/protocols/root/zip/zip_http.c \
+    $ngx_addon_dir/src/protocols/root/read/open_cache.c \
     $ngx_addon_dir/src/protocols/ssi/ssi.c \
     $ngx_addon_dir/src/protocols/ssi/ssi_rrinfo.c \
     $ngx_addon_dir/src/protocols/ssi/ssi_service.c \
@@ -956,14 +956,14 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/protocols/ssi/svc_cta/cta_queue.c \
     $ngx_addon_dir/src/protocols/ssi/svc_cta/cta_exec.c \
     $ngx_addon_dir/src/protocols/ssi/svc_cta/cta_service.c \
-    $ngx_addon_dir/src/read/read.c \
-    $ngx_addon_dir/src/read/read_compress.c \
-    $ngx_addon_dir/src/read/readv.c \
-    $ngx_addon_dir/src/read/pgread.c \
-    $ngx_addon_dir/src/read/locate.c \
-    $ngx_addon_dir/src/read/close.c \
-    $ngx_addon_dir/src/read/stat.c \
-    $ngx_addon_dir/src/read/statx.c \
+    $ngx_addon_dir/src/protocols/root/read/read.c \
+    $ngx_addon_dir/src/protocols/root/read/read_compress.c \
+    $ngx_addon_dir/src/protocols/root/read/readv.c \
+    $ngx_addon_dir/src/protocols/root/read/pgread.c \
+    $ngx_addon_dir/src/protocols/root/read/locate.c \
+    $ngx_addon_dir/src/protocols/root/read/close.c \
+    $ngx_addon_dir/src/protocols/root/read/stat.c \
+    $ngx_addon_dir/src/protocols/root/read/statx.c \
     $ngx_addon_dir/src/core/aio/buffers.c \
     $ngx_addon_dir/src/core/aio/resume.c \
     $ngx_addon_dir/src/core/aio/reads.c \
@@ -973,26 +973,26 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/core/aio/uring.c \
     $ngx_addon_dir/src/core/aio/uring_submit.c \
     $ngx_addon_dir/src/core/aio/uring_admin.c \
-    $ngx_addon_dir/src/write/chkpoint.c \
-    $ngx_addon_dir/src/write/chkpoint_xeq.c \
-    $ngx_addon_dir/src/write/op_table.c \
-    $ngx_addon_dir/src/write/chmod.c \
-    $ngx_addon_dir/src/write/common.c \
-    $ngx_addon_dir/src/write/ext_ops.c \
-    $ngx_addon_dir/src/write/mkdir.c \
-    $ngx_addon_dir/src/write/mv.c \
-    $ngx_addon_dir/src/write/pgwrite.c \
-    $ngx_addon_dir/src/write/pgw_fob.c \
-    $ngx_addon_dir/src/write/wrts_journal.c \
-    $ngx_addon_dir/src/write/rm.c \
-    $ngx_addon_dir/src/write/rmdir.c \
-    $ngx_addon_dir/src/write/sync.c \
-    $ngx_addon_dir/src/write/truncate.c \
-    $ngx_addon_dir/src/write/write.c \
-    $ngx_addon_dir/src/write/write_compress.c \
-    $ngx_addon_dir/src/write/writev.c \
-    $ngx_addon_dir/src/dirlist/handler.c \
-    $ngx_addon_dir/src/dirlist/dcksm.c \
+    $ngx_addon_dir/src/protocols/root/write/chkpoint.c \
+    $ngx_addon_dir/src/protocols/root/write/chkpoint_xeq.c \
+    $ngx_addon_dir/src/protocols/root/write/op_table.c \
+    $ngx_addon_dir/src/protocols/root/write/chmod.c \
+    $ngx_addon_dir/src/protocols/root/write/common.c \
+    $ngx_addon_dir/src/protocols/root/write/ext_ops.c \
+    $ngx_addon_dir/src/protocols/root/write/mkdir.c \
+    $ngx_addon_dir/src/protocols/root/write/mv.c \
+    $ngx_addon_dir/src/protocols/root/write/pgwrite.c \
+    $ngx_addon_dir/src/protocols/root/write/pgw_fob.c \
+    $ngx_addon_dir/src/protocols/root/write/wrts_journal.c \
+    $ngx_addon_dir/src/protocols/root/write/rm.c \
+    $ngx_addon_dir/src/protocols/root/write/rmdir.c \
+    $ngx_addon_dir/src/protocols/root/write/sync.c \
+    $ngx_addon_dir/src/protocols/root/write/truncate.c \
+    $ngx_addon_dir/src/protocols/root/write/write.c \
+    $ngx_addon_dir/src/protocols/root/write/write_compress.c \
+    $ngx_addon_dir/src/protocols/root/write/writev.c \
+    $ngx_addon_dir/src/protocols/root/dirlist/handler.c \
+    $ngx_addon_dir/src/protocols/root/dirlist/dcksm.c \
     $ngx_addon_dir/src/core/shm/kv.c \
     $ngx_addon_dir/src/auth/token/token_cache.c \
     $ngx_addon_dir/src/auth/token/worker_cache.c \

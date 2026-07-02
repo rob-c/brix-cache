@@ -44,7 +44,7 @@ anywhere above `src/fs/backend/`.**
 
 Every byte of file I/O and every namespace mutation for a Ceph export MUST flow
 **proto → VFS → SD driver → RADOS**. Nothing above `src/fs/` ever sees a
-`rados_*` symbol; the protocol handlers (`src/read`, `src/write`, `src/protocols/webdav`,
+`rados_*` symbol; the protocol handlers (`src/protocols/root/read`, `src/protocols/root/write`, `src/protocols/webdav`,
 `src/protocols/s3`, `src/tpc`) keep talking to the **VFS** (`src/fs/vfs*.c`) exactly as they
 do for POSIX, and the VFS — not the handler — selects and calls the backend.
 
@@ -202,7 +202,7 @@ and store `obj` in the opaque `xrootd_vfs_file_t`. `xrootd_vfs_file_fd()` return
 xrootd_vfs_file_t *vfs;   /* the backend-generic open handle (NULL for legacy fd-only slots) */
 ```
 The protocol handlers that build io jobs from `ctx->files[idx].fd`
-(`src/read/read.c`, `src/write/write.c`, `readv.c`, `pgread.c`, `pgwrite.c`,
+(`src/protocols/root/read/read.c`, `src/protocols/root/write/write.c`, `readv.c`, `pgread.c`, `pgwrite.c`,
 `sync.c`, `truncate.c`) instead build them from `ctx->files[idx].vfs` →
 `job.obj = xrootd_vfs_file_obj(vfs)`. For POSIX nothing observable changes (the
 obj wraps the same fd). This is the change that lets a no-fd backend reach the io
@@ -578,7 +578,7 @@ xrootd_vfs_open(xrootd_vfs_ctx_t *ctx, int sdflags, mode_t mode, int *err) {
 ## A.4 W0 — handler bridge (feed the VFS handle, not a bare fd)
 
 ```c
-/* src/read/read.c (and readv.c/pgread.c/write.c/sync.c/truncate.c): */
+/* src/protocols/root/read/read.c (and readv.c/pgread.c/write.c/sync.c/truncate.c): */
 - fd = ctx->files[idx].fd;
 - xrootd_vfs_job_read_init(&job, fd, offset, len, buf, cap);
 + xrootd_vfs_job_read_init(&job, ctx->files[idx].vfs, offset, len, buf, cap);
@@ -730,7 +730,7 @@ if (srv->storage_driver_is_ceph) {
 ## A.8 Config wiring
 
 ```c
-/* ngx_command_t (src/stream/module*.c) */
+/* ngx_command_t (src/protocols/root/stream/module*.c) */
 { ngx_string("xrootd_storage_driver"), NGX_STREAM_SRV_CONF|NGX_CONF_TAKE1,
   ngx_conf_set_str_slot, NGX_STREAM_SRV_CONF_OFFSET,
   offsetof(ngx_stream_xrootd_srv_conf_t, storage_driver), NULL },

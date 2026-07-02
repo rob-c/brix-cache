@@ -59,7 +59,7 @@ misbehaves.
 The audit confirmed nginx-xrootd is **architecturally superior** for exactly the failure mode XRootD is
 criticized for:
 
-- **Non-blocking, event-driven recv/send state machine** (`src/connection/recv.c`, `send.c`) that
+- **Non-blocking, event-driven recv/send state machine** (`src/protocols/root/connection/recv.c`, `send.c`) that
   **correctly accumulates split PDUs** and **parks partial sends** in an `out_ring` — it never blocks a
   worker thread on a stalled peer.
 - Official XRootD blocks in `MSG_WAITALL` recv and writes under `wrMutex`
@@ -115,8 +115,8 @@ mandatory** (the critic verified the underlying UAF/double-free/corruption hazar
 ### 4.1 WS1 — Per-PDU read deadline + handshake deadline
 **Closes:** the single highest-impact gap (no client read timer). Prevents pre-auth and mid-PDU
 resource-holding DoS.
-**Files:** `src/connection/recv.c`, `handler.c`, `disconnect.c`; `src/core/types/config.h`;
-`src/stream/module.c` (directive registration); `src/core/config/server_conf.c` (merge).
+**Files:** `src/protocols/root/connection/recv.c`, `handler.c`, `disconnect.c`; `src/core/types/config.h`;
+`src/protocols/root/stream/module.c` (directive registration); `src/core/config/server_conf.c` (merge).
 **Changes:**
 - Add `ngx_msec_t read_timeout` (steady-state per-PDU receive deadline) and `handshake_timeout`
   (pre-login deadline) to `ngx_stream_xrootd_srv_conf_t`. `NGX_CONF_UNSET_MSEC` in create;
@@ -138,7 +138,7 @@ handshake stall (`test_a_robustness.py::_partial_handshake_10_bytes` then silenc
 ### 4.2 WS2 — Response-drain (slow-consumer) write deadline
 **Closes:** parked `out_ring` slots + pinned `read_scratch`/`rd_pool` windows held forever by a frozen
 reader; `send.c:42 wev->timedout` can never fire today.
-**Files:** `src/connection/write_helpers.c`, `send.c`, `event_sched.c`; `config.h`; `server_conf.c`;
+**Files:** `src/protocols/root/connection/write_helpers.c`, `send.c`, `event_sched.c`; `config.h`; `server_conf.c`;
 `module.c`.
 **Changes:**
 - Add `ngx_msec_t send_timeout` (UNSET → `NGX_CONF_NO_TIMER`).
@@ -158,7 +158,7 @@ concurrent healthy connection is unaffected (no worker-wide stall).
 ### 4.3 WS3 — Payload-receive deadline + kernel dead-peer reaping
 **Closes:** a dripped write/auth/prepare payload tying up budget; OS-level dead-peer detection during parked
 AIO/SENDING windows where the app timer intentionally yields ownership.
-**Files:** `src/connection/recv.c` (payload state falls out of WS1), `handler.c` (setsockopt at accept);
+**Files:** `src/protocols/root/connection/recv.c` (payload state falls out of WS1), `handler.c` (setsockopt at accept);
 `config.h`; `server_conf.c`; `module.c`.
 **Changes:**
 - WS1's arm helper already covers `REQ_PAYLOAD` (keyed on "any incomplete PDU").
@@ -248,7 +248,7 @@ healthy session unaffected.
 silently-dead DS stays selectable), CMS-1/CMS-2 (manager/client never correlate PONG; `ev->timedout` is
 dead code), PXY-8 (redir cache vs `?tried=` reconciliation).
 **Files:** `src/net/manager/registry.c`; `src/net/cms/server_recv.c`, `recv.c`, `connect.c`;
-`src/net/manager/redir_cache.c` + `src/read/open_request.c`; `config.h` + `module.c`.
+`src/net/manager/redir_cache.c` + `src/protocols/root/read/open_request.c`; `config.h` + `module.c`.
 **Changes:**
 - `last_seen` staleness check inside the existing `xrootd_srv_select` / `xrootd_srv_count_matching`
   slot-scan (two integer comparisons, same lock, no second pass). New `xrootd_manager_stale_after`
@@ -299,7 +299,7 @@ byte-exact with atomic rename.
 **Closes:** STR-6 / KNOB-5 (no raw concurrent-connection cap before identity is known), KNOB-4 (Phase-20
 rate-limit/auth-cache configs not inherited across server scopes — a child block silently gets the feature
 OFF).
-**Files:** `src/core/config/server_conf.c` (merge inheritance); `src/connection/handler.c` (cap at accept);
+**Files:** `src/core/config/server_conf.c` (merge inheritance); `src/protocols/root/connection/handler.c` (cap at accept);
 `config.h` + `module.c`; `docs/05-operations/*`.
 **Changes:**
 - KNOB-4: add parent→child inheritance for `token_cache_kv` / `auth_cache` / `rate_limit` in

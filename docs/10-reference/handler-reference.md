@@ -7,8 +7,8 @@ The internal building blocks every handler uses — quick reference to keep open
 
 ## Response helpers
 
-All response helpers are declared in `src/response/response.h` and
-implemented in `src/response/`.
+All response helpers are declared in `src/protocols/root/response/response.h` and
+implemented in `src/protocols/root/response/`.
 
 ### `xrootd_send_ok`
 
@@ -30,7 +30,7 @@ ngx_int_t xrootd_send_error(xrootd_ctx_t *ctx, ngx_connection_t *c,
 ```
 
 Sends a `kXR_error` response. `errcode` is one of the `kXR_*` constants from
-`src/protocol/opcodes.h` (e.g. `kXR_NotFound`, `kXR_NotAuthorized`,
+`src/protocols/root/protocol/opcodes.h` (e.g. `kXR_NotFound`, `kXR_NotAuthorized`,
 `kXR_IOError`). `msg` is a human-readable string; it is NUL-terminated on the
 wire so clients can treat it as a C string.
 

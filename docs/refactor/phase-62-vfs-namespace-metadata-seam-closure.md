@@ -251,8 +251,8 @@ self-contained alternate stores with their own confinement):
 - **Separate storage/metadata domains**: `src/fs/cache/` (read-through cache),
   `src/observability/dashboard/` (admin browse, openat2-confined), `src/frm/` (residency
   markers + durable queue — a control/journal store keyed off a confined path,
-  optionally under a separate `frm_g_control_dir`), `src/write/chkpoint` (the
-  checkpoint journal), `src/read/slice_read` (the slice cache).
+  optionally under a separate `frm_g_control_dir`), `src/protocols/root/write/chkpoint` (the
+  checkpoint journal), `src/protocols/root/read/slice_read` (the slice cache).
 - **Config / cert / token / auth readers** (never the export backend):
   `src/auth/crypto/`, `src/auth/gsi/`, `src/auth/sss/`, `src/auth/pwd/`, `src/auth/token/`, `src/core/config/`,
   `src/auth/krb5/`, `src/auth/authz/acc/`, `src/auth/voms/`, `src/protocols/ssi/`, `src/protocols/dig/`, `src/core/aio/`.

@@ -66,7 +66,7 @@ sites; this is for deployments that explicitly need on-disk per-user ownership.
   **Swapping the *bodies* of these helpers** routes the whole module through the
   broker with no change to their callers.
 - **The data plane needs no impersonation.** `pread`/`pwrite`/`preadv2`/
-  `copy_file_range`/`sendfile` (inline in `src/read|write/*`, in the AIO thread
+  `copy_file_range`/`sendfile` (inline in `src/protocols/root/read|write/*`, in the AIO thread
   pool `src/core/aio/*`, and `src/core/compat/copy_range.c`) all run on an **already-open
   fd**. Linux checks DAC at `open()`; an open fd is a capability. So only the open
   + namespace + metadata ops must be impersonated.
@@ -200,7 +200,7 @@ Each phase is independently buildable/testable. New code lives in a new
   `xrootd_impersonation_user <name>` (for `single`),
   `xrootd_impersonation_socket <path>` (for `map`), `xrootd_gridmap <file>`,
   `xrootd_idmap_default_user <name>` (squash else deny), `xrootd_idmap_min_uid <N>`,
-  `xrootd_idmap_cache_ttl <secs>`. Register in `src/stream/module.c` +
+  `xrootd_idmap_cache_ttl <secs>`. Register in `src/protocols/root/stream/module.c` +
   `src/protocols/webdav/module.c`; fields in `src/core/types/config.h`; config-time mode
   validation (fail closed on invalid combinations).
 - Capability/seccomp minimization on the broker; `SO_PEERCRED` gate; reserved-uid
@@ -222,7 +222,7 @@ Each phase is independently buildable/testable. New code lives in a new
 - **Reuse patterns:** `src/frm/stage.c` (double-fork + socketpair + event reply +
   respawn), `src/auth/authz/acc/groups.c` (`getpwnam`/`getgrouplist`/cache), the SHM-safe
   zone contract (`src/core/compat/shm_slots.c`).
-- **Config/directives:** `src/core/types/config.h`, `src/stream/module.c`,
+- **Config/directives:** `src/core/types/config.h`, `src/protocols/root/stream/module.c`,
   `src/protocols/webdav/module.c`, `src/core/config/server_conf.c` (init/merge).
 
 ## Verification

@@ -700,7 +700,7 @@ lifecycle consults `sd_staging`, and only commit/promote spans both.
 
 ### 6.4 Config / wiring
 - Two directives, per server/location, declared alongside the existing storage
-  directives in `src/stream/module_cache_proxy_directives.c` (mirror the
+  directives in `src/protocols/root/stream/module_cache_proxy_directives.c` (mirror the
   `xrootd_cache_root` string-slot directive), with the conf fields added to the
   `ngx_stream_xrootd_srv_conf_t` struct in `src/core/types/config.h` and merged in
   `src/core/config/server_conf.c` (exact hunks in §17.17–§17.19):
@@ -4749,7 +4749,7 @@ typedef struct xrootd_sd_instance_s xrootd_sd_instance_t;   /* near the top incl
 
 ---
 
-### 17.19 `src/stream/module_cache_proxy_directives.c` (or a new
+### 17.19 `src/protocols/root/stream/module_cache_proxy_directives.c` (or a new
 `module_storage_directives.c`) + `src/core/config/server_conf.c` (merge)
 
 **Intent:** add the `xrootd_storage_backend` and `xrootd_storage_staging`
@@ -6652,7 +6652,7 @@ Conventions used below:
   family through the SD vtable; `xrootd_vfs_job_t` carries `xrootd_sd_obj_t *obj` (+ the
   `{obj,off,len}` segment array for readv). POSIX `pread` body == today's
   `xrootd_vfs_pread_full`. Preserve page-CRC framing, EOF/short-read semantics.
-- **Files:** `src/fs/vfs_io_core.c`, `src/fs/vfs_read.c`, `src/read/*` (job shape only).
+- **Files:** `src/fs/vfs_io_core.c`, `src/fs/vfs_read.c`, `src/protocols/root/read/*` (job shape only).
 - **Depends-on:** PR-05
 - **Review checklist:**
   - io_uring tier still reads `xrootd_sd_fd(obj)`; capability-gated in `xrootd_aio_post_task` (§3.4) — non-fd backends never reach it (no live effect yet, but the gate is in place).
@@ -6667,7 +6667,7 @@ Conventions used below:
 - **Scope:** Dispatch the write family + `fsync`/`ftruncate` through the vtable; POSIX
   bodies == today's `xrootd_vfs_pwrite_full`/`fsync`/`ftruncate`. Keep event-loop
   prepare/complete, cache, metrics, protocol counters and write-pipelining bounds unchanged.
-- **Files:** `src/fs/vfs_io_core.c`, `src/fs/vfs_write.c`, `src/fs/vfs_sync.c`, `src/write/*` (job shape).
+- **Files:** `src/fs/vfs_io_core.c`, `src/fs/vfs_write.c`, `src/fs/vfs_sync.c`, `src/protocols/root/write/*` (job shape).
 - **Depends-on:** PR-06
 - **Review checklist:**
   - pgwrite CSE retransmit machine and per-page CRC unchanged (INVARIANT 1).

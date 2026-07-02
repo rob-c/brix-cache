@@ -6,7 +6,7 @@
 
 **Architecture:** A request slot can become *deferred*: when the service does not respond inline, the server captures the submit's stream id, replies `kXR_waitresp`, and arms an event-loop timer that the service's executor fires to deliver the result. All delivery runs in event-loop context (the timer handler) and is guarded by `ctx->destroyed` plus a session generation counter, so a completion targeting a closed connection is dropped. A new built-in `echo-async` service proves the path end-to-end.
 
-**Tech Stack:** C (nginx stream module), `ngx_event_t` timers, `xrootd_send_waitresp` / `xrootd_send_attn_asynresp` (`src/response/`), `ctx->destroyed` guard pattern (`src/core/aio/resume.c`), standalone-gcc + pytest raw-wire + real `libXrdSsi` client tests.
+**Tech Stack:** C (nginx stream module), `ngx_event_t` timers, `xrootd_send_waitresp` / `xrootd_send_attn_asynresp` (`src/protocols/root/response/`), `ctx->destroyed` guard pattern (`src/core/aio/resume.c`), standalone-gcc + pytest raw-wire + real `libXrdSsi` client tests.
 
 ## Global Constraints
 
@@ -24,7 +24,7 @@
 - `xrootd_ssi_req_t` (`src/protocols/ssi/ssi_req.h`) — extended in Task 1
 - `xrootd_ssi_session_req(s, req_id, create)` / `_drop` / `_create`
 - responder ABI `xrootd_ssi_responder_t { set_metadata, set_response, alert, error, state }` (`src/protocols/ssi/ssi_service.h`)
-- `xrootd_send_waitresp(ctx,c)`, `xrootd_send_attn_asynresp(ctx,c,deferred_streamid,resp_status,body,bodylen)` (`src/response/`)
+- `xrootd_send_waitresp(ctx,c)`, `xrootd_send_attn_asynresp(ctx,c,deferred_streamid,resp_status,body,bodylen)` (`src/protocols/root/response/`)
 
 ---
 
@@ -145,7 +145,7 @@ int main(void){
 
 **Files:**
 - Modify: `src/protocols/ssi/ssi.c` (open register, write defer path)
-- Modify: the SSI handle free path — find where `ctx->files[idx].ssi` is cleared (`grep -n "files\[.*\].ssi" src/connection/fd_table.c src/read/close.c`) and call `xrootd_ssi_registry_remove(sess->conn_id)` there.
+- Modify: the SSI handle free path — find where `ctx->files[idx].ssi` is cleared (`grep -n "files\[.*\].ssi" src/protocols/root/connection/fd_table.c src/protocols/root/read/close.c`) and call `xrootd_ssi_registry_remove(sess->conn_id)` there.
 
 **Interfaces:**
 - Consumes: Task 2 registry; `xrootd_send_waitresp`; the responder's new `deferred` signal (Task 4).

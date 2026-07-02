@@ -95,7 +95,7 @@ def _login(sock):
 
 
 def _sync_tpc_pull(sock, streamid, fhandle0):
-    """Arm then run native TPC pull (matches src/write/sync.c two-step)."""
+    """Arm then run native TPC pull (matches src/protocols/root/write/sync.c two-step)."""
     fh = bytes([fhandle0 & 0xFF, 0, 0, 0])
     req = struct.pack("!2sH4s12sI", streamid, kXR_sync, fh, b"\x00" * 12, 0)
     sock.sendall(req)

@@ -143,7 +143,7 @@ def test_keypool_wiring():
 def test_errclear_wiring():
     # The OpenSSL error-queue is cleared at the GSI auth + in-protocol TLS entries.
     assert "ERR_clear_error" in _rd("src/auth/gsi/auth.c")
-    assert "ERR_clear_error" in _rd("src/connection/tls.c")
+    assert "ERR_clear_error" in _rd("src/protocols/root/connection/tls.c")
 
 
 def test_pfs_key_is_single_use():

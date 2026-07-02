@@ -36,8 +36,8 @@ CLIENT_BINARIES = ["xrdcp", "xrdfs", "xrootdfs"]
 
 # --- (2)/(3) phase-42 NEW source files (relative to REPO) ------------------
 PHASE42_SOURCES = [
-    "src/read/read_compress.c",
-    "src/write/write_compress.c",
+    "src/protocols/root/read/read_compress.c",
+    "src/protocols/root/write/write_compress.c",
     "src/core/compat/codec_core.c",
     "src/core/compat/codec_zlib.c",
     "src/core/compat/codec_zstd.c",

@@ -79,10 +79,10 @@ recv path is a byte-accumulating state machine
 states that return to the loop immediately; blocking work (file I/O, DH keygen) is
 exiled to a thread pool / per-worker keypool.
 
-The opcode constants live in `src/protocol/opcodes.h`; the flag/error/status
-constants in `src/protocol/flags.h`; the wire structs in `src/protocol/`
+The opcode constants live in `src/protocols/root/protocol/opcodes.h`; the flag/error/status
+constants in `src/protocols/root/protocol/flags.h`; the wire structs in `src/protocols/root/protocol/`
 (`wire_core_requests.h` et al.). Dispatch is a four-stage cascade in
-`src/handshake/dispatch.c`, each stage returning `XROOTD_DISPATCH_CONTINUE` if the
+`src/protocols/root/handshake/dispatch.c`, each stage returning `XROOTD_DISPATCH_CONTINUE` if the
 opcode is not its own:
 
 | Stage | File | Opcodes |
@@ -115,7 +115,7 @@ throughout):
 
 - **Client request header, 24 bytes:** `streamid[2] | requestid[2] | body[16] |
   dlen[4]`. Official `struct ClientRequestHdr` (`XProtocol.hh:157-162`); ours
-  `XRD_REQUEST_HDR_LEN 24` (`opcodes.h:30`), parsed in `src/connection/recv.c`.
+  `XRD_REQUEST_HDR_LEN 24` (`opcodes.h:30`), parsed in `src/protocols/root/connection/recv.c`.
 - **Server response header, 8 bytes:** `streamid[2] | status[2] | dlen[4]`.
   Official `struct ServerResponseHeader` (`XProtocol.hh:955-959`); ours
   `XRD_RESPONSE_HDR_LEN 8` (`opcodes.h:31`).
@@ -142,7 +142,7 @@ The client sends `struct ClientInitHandShake` = five 32-bit words
   (`XrdXrootdProtocol.cc:311-325`, per
   [`../xrootd-implementations.md`](../xrootd-implementations.md) §3).
 - **nginx-xrootd validates `fourth==4 && fifth==ROOTD_PQ(2012)`**
-  (`src/handshake/client_hello.c:66`, `ROOTD_PQ` defined `opcodes.h`). Slightly
+  (`src/protocols/root/handshake/client_hello.c:66`, `ROOTD_PQ` defined `opcodes.h`). Slightly
   stricter than the reference (it also requires the magic), but a conformant
   client always sends it, so this is interoperable.
 
@@ -184,7 +184,7 @@ The server reply (`ServerResponseBody_Protocol`, `XProtocol.hh:1233-1237`) is
 | `kXR_gotoTLS` | `0x40000000` | upgrade to TLS now |
 | `kXR_tlsLogin/tlsData/tlsSess/...` | `0x0?000000` | which phases require TLS |
 
-**nginx-xrootd** (`src/session/protocol.c`):
+**nginx-xrootd** (`src/protocols/root/session/protocol.c`):
 
 - Builds `pval = htonl(kXR_PROTOCOLVERSION)` and a `flags` bitmask
   (`protocol.c:116-132`): always `kXR_isServer`; `kXR_isManager` when
@@ -215,7 +215,7 @@ version in the low 6 bits — `XLoginCapVer`/`XLoginVersion`, `XProtocol.hh:404-
 `reserved2`. The reply (`ServerResponseBody_Login`, `XProtocol.hh:1081-1084`) is a
 **16-byte sessid** plus an optional `sec[]` blob.
 
-**nginx-xrootd** (`src/session/login.c`):
+**nginx-xrootd** (`src/protocols/root/session/login.c`):
 
 - Parses username/PID from the 8-byte field; **rejects non-printable usernames**
   (`login.c:82`), which is stricter than the reference but defensible
@@ -252,7 +252,7 @@ negotiation) are out of scope here and covered in
 Every `kXR_*` request opcode in the official enum (`XProtocol.hh:111-147`), with
 the official handler, our handler file, implementation status, and framing/semantic
 parity notes. Our handler files are confirmed by grep over `src/` and the dispatch
-tables in `src/handshake/dispatch_*.c`.
+tables in `src/protocols/root/handshake/dispatch_*.c`.
 
 | # | Opcode | Official handler | nginx-xrootd handler | Impl? | Framing / semantics parity |
 |---|--------|------------------|----------------------|-------|----------------------------|
@@ -310,7 +310,7 @@ conformant `kXR_InvalidRequest`.
 ### Vendor POSIX extension opcodes (3500-3503)
 
 This module defines **four opcodes above the official `kXR_clone` fence**
-(`src/protocol/opcodes.h:92-95`, handlers in `src/write/ext_ops.c`):
+(`src/protocols/root/protocol/opcodes.h:92-95`, handlers in `src/protocols/root/write/ext_ops.c`):
 
 | # | Opcode | Purpose |
 |---|--------|---------|
@@ -324,7 +324,7 @@ the native client emits them only when the server advertises support, so a stock
 XRootD client never sends them and a stock server never receives them
 (`ext_ops.c` header block). They exist for POSIX completeness so the FUSE driver
 can honour `cp -p`, `touch -d`, `chown`, and `ln`/`ln -s`. Wire formats live in
-`src/protocol/wire_vendor_ext.h`; `kXR_setattr`'s payload is a 44-byte big-endian
+`src/protocols/root/protocol/wire_vendor_ext.h`; `kXR_setattr`'s payload is a 44-byte big-endian
 attribute prefix + NUL-terminated path. The official protocol has **no equivalent
 wire ops** — these are a strict, opt-in superset, not a divergence in the
 overlapping surface.

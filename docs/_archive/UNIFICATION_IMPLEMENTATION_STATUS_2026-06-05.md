@@ -141,7 +141,7 @@ typedef struct {
 ### What's Planned
 
 Consolidate I/O dispatch currently duplicated in:
-- `src/read/read.c` (XRootD stream read)
+- `src/protocols/root/read/read.c` (XRootD stream read)
 - `src/protocols/webdav/get.c` (WebDAV HTTP GET)
 - `src/protocols/s3/get.c` (S3 REST GET)
 

@@ -206,7 +206,7 @@ A stock server therefore sends a **CSR** (`kXRS_x509_req`) only when the client 
 
 **Our server does neither.** `src/auth/gsi/delegation.c::xrootd_gsi_begin_delegation` **hardcodes**
 the CSR model — it always builds and sends `kXRS_x509_req` — and **our server never reads the
-client's `kXRS_clnt_opts` (3019)** (the constant exists in `src/protocol/gsi.h:48` and we only
+client's `kXRS_clnt_opts` (3019)** (the constant exists in `src/protocols/root/protocol/gsi.h:48` and we only
 ever *send* it as a client in `src/auth/gsi/gsi_core.c:106`; there is no server-side read). So a
 forward-mode client receives a CSR it will not sign → `Not allowed to sign proxy requests`.
 

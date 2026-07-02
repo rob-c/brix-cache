@@ -21,7 +21,7 @@ attribute certificates, CRL conventions, and GSI DH exchange details — see
 |---|---|---|---|---|
 | `davs://host:8443/...` | Before HTTP request parsing | `listen ... ssl` in `http {}` | `src/protocols/webdav/*.c` | Standard HTTPS/WebDAV |
 | S3-compatible `https://host/bucket/key` | Before HTTP request parsing | `listen ... ssl` in `http {}` + `xrootd_s3 on` | `src/protocols/s3/*.c` | HTTPS transport with optional SigV4 auth |
-| `root://host:1094/...` + `xrootd_tls on` | After `kXR_protocol` advertises `kXR_haveTLS` | `xrootd_tls on` in `stream {}` | `src/session/protocol.c`, `src/connection/*.c` | Same TCP port, XRootD-native upgrade |
+| `root://host:1094/...` + `xrootd_tls on` | After `kXR_protocol` advertises `kXR_haveTLS` | `xrootd_tls on` in `stream {}` | `src/protocols/root/session/protocol.c`, `src/protocols/root/connection/*.c` | Same TCP port, XRootD-native upgrade |
 | `roots://host:1094/...` | Immediately after TCP connect | `listen ... ssl` in `stream {}` | nginx stream SSL + normal XRootD stream module | Transport TLS from byte 0 |
 
 The crux is **when** on the connection timeline the bytes become encrypted —
@@ -154,9 +154,9 @@ the module enables XRootD's in-band TLS negotiation:
 
 That flow is implemented in two places:
 
-- `src/session/protocol.c`
+- `src/protocols/root/session/protocol.c`
   - `xrootd_handle_protocol()` decides whether to advertise TLS
-- `src/connection/*.c`
+- `src/protocols/root/connection/*.c`
   - `xrootd_start_tls()` creates the nginx SSL connection
   - `xrootd_tls_handshake_done()` restores the normal read/write handlers
 

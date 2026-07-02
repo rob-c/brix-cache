@@ -18,9 +18,9 @@
 #include "gsi_core.h"
 #include "delegation.h"
 #include "proxy_req.h"
-#include "protocol/gsi.h"
-#include "response/response.h"
-#include "connection/write_helpers.h"
+#include "protocols/root/protocol/gsi.h"
+#include "protocols/root/response/response.h"
+#include "protocols/root/connection/write_helpers.h"
 #include "core/compat/alloc_guard.h"
 
 #include <string.h>

@@ -1,5 +1,5 @@
 #include "upstream_internal.h"
-#include "protocol/frame_hdr.h"   /* shared kXR_wait seconds parse (libxrdproto) */
+#include "protocols/root/protocol/frame_hdr.h"   /* shared kXR_wait seconds parse (libxrdproto) */
 
 /*
  * WHAT: Translate upstream XRootD responses back to the client — kXR_redirect, kXR_wait, kXR_ok, and

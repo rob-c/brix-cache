@@ -188,8 +188,8 @@ Recommended normalization:
 **New `src/fs/vfs_io_core.c`** — `xrootd_vfs_io_execute` is a pure `switch (job->op)` (no fall-through, no goto), each arm a small static fn delegating to an existing pure primitive:
 - READ → `xrootd_vfs_pread_full` (+ optional `xrootd_crc32c_value`)
 - WRITE → `xrootd_vfs_pwrite_full`
-- PGREAD → `xrootd_pgread_read_encode_inplace` (`src/read/pgread.c` — reuse verbatim)
-- READV → `xrootd_readv_read_segments` (`src/read/readv.c` — already pure)
+- PGREAD → `xrootd_pgread_read_encode_inplace` (`src/protocols/root/read/pgread.c` — reuse verbatim)
+- READV → `xrootd_readv_read_segments` (`src/protocols/root/read/readv.c` — already pure)
 - WRITEV → per-seg `xrootd_vfs_pwrite_full` loop + optional `fsync` (body currently inlined in `write.c:258`)
 - OPENDIR → `fdopendir(dup(job->rootfd))` + readdir/fstatat/checksum scan (body moved from `dirlist.c`)
 
@@ -420,9 +420,9 @@ check, matching the current deferred-teardown invariant.
 
 Every path with a no-thread fallback must call the same EXECUTE arm:
 - `xrootd_read_window_pump` queue-full/no-pool window read
-- non-windowed kXR_read fallback in `src/read/read.c`
-- kXR_pgread fallback in `src/read/pgread.c`
-- kXR_write/kXR_pgwrite fallback in `src/write/common.c` callers
+- non-windowed kXR_read fallback in `src/protocols/root/read/read.c`
+- kXR_pgread fallback in `src/protocols/root/read/pgread.c`
+- kXR_write/kXR_pgwrite fallback in `src/protocols/root/write/common.c` callers
 - kXR_readv/kXR_writev fallback bodies
 - dirlist synchronous fallback only after the OPENDIR core is extracted, so the
   response-building loop is not duplicated
@@ -508,7 +508,7 @@ Suggested static checks:
 
 ```bash
 rg -n "VFS-LOOP-ONLY|xrootd_vfs_(read|write|open|close|opendir|readdir|observe|ctx_init|cache)" src/core/aio
-rg -n "#include .*vfs_internal.h" src/core/aio src/read src/write
+rg -n "#include .*vfs_internal.h" src/core/aio src/protocols/root/read src/protocols/root/write
 rg -n "ngx_palloc|ngx_pcalloc|ngx_pnalloc|xrootd_log_access|XROOTD_OP_|xrootd_cache_" src/fs/vfs_io_core.c
 ```
 

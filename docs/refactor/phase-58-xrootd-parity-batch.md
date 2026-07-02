@@ -480,8 +480,8 @@ that directory via `RESOLVE_BENEATH` (no `..`, no symlink escape).
 - `dig.c` — prefix recognizer + export resolver + read/stat/dirlist glue.
 - `dig_auth.c` — allow-file parser + match (`principal → {export…}`).
 - `dig.h`, `directives.c`, `README.md`.
-- hooks: `src/read/open_resolved_file.c`, `src/read/stat.c`,
-  `src/dirlist/handler.c` (stream); HTTP path aliases `src/observability/dashboard/files.c`.
+- hooks: `src/protocols/root/read/open_resolved_file.c`, `src/protocols/root/read/stat.c`,
+  `src/protocols/root/dirlist/handler.c` (stream); HTTP path aliases `src/observability/dashboard/files.c`.
 
 ### 3.3 Signatures + contracts
 ```c
@@ -576,7 +576,7 @@ members; integrate compose/stage with FRM. Mirrors `XrdOssArc*` (external archiv
 program model) and `XrdOssArcZipFile`.
 
 ### Phase A — member read (do first; the reader already exists)
-`src/zip/zip_dir.{c,h}` is **built and unit-tested** (memory
+`src/protocols/root/zip/zip_dir.{c,h}` is **built and unit-tested** (memory
 `zip_member_w2_progress`) and exposes:
 ```c
 typedef struct { char name[PATH_MAX]; uint64_t comp_size; uint64_t uncomp_size;
@@ -592,7 +592,7 @@ ssize_t xrootd_zip_extract_full(int fd, const xrootd_zip_member_t *m,
 The remaining work is the **nginx/wire wrapper** + ranged read (`extract_full` is
 whole-member only today).
 
-**New `src/zip/zip_member.c`**
+**New `src/protocols/root/zip/zip_member.c`**
 ```c
 /* LOOP-ONLY open + THREAD-SAFE read. Resolve member, then read [moff,moff+n) of the
  * UNCOMPRESSED stream. For 'stored' members → a single pread (zero-copy/sendfile-able
@@ -607,14 +607,14 @@ ngx_int_t xrootd_zip_member_pread(xrootd_zip_handle_t *h, off_t moff,
 **Addressing.** Reuse XrdZip's opaque convention so stock clients interoperate:
 `root://h//path/archive.zip?xrdcl.unzip=<member>` (stream) and
 `GET /path/archive.zip?xrdcl.unzip=<member>` (HTTP). Parsed in
-`src/read/open_request.c` (opaque already parsed there) and `src/protocols/webdav/get.c`.
+`src/protocols/root/read/open_request.c` (opaque already parsed there) and `src/protocols/webdav/get.c`.
 
 **Hooks**
-- `src/read/open_request.c` — detect `xrdcl.unzip=` → set a member-open intent on the
+- `src/protocols/root/read/open_request.c` — detect `xrdcl.unzip=` → set a member-open intent on the
   pending open.
-- `src/read/open_resolved_file.c` — when intent set, `xrootd_zip_member_open` and bind
+- `src/protocols/root/read/open_resolved_file.c` — when intent set, `xrootd_zip_member_open` and bind
   a read-only member handle (size = `uncomp_size`).
-- `src/read/read.c` / `pgread.c` — route member handles through
+- `src/protocols/root/read/read.c` / `pgread.c` — route member handles through
   `xrootd_zip_member_pread` (CRC framing unchanged).
 - `src/protocols/webdav/get.c` — same for HTTP GET (+ `Range` support via `moff`).
 
@@ -650,7 +650,7 @@ xrootd_archive_cmd <prog>;               # Phase B external archiver (argv templ
 ```
 
 ### 4.D Build
-`src/zip/zip_member.c`, `src/frm/archive.c` into `./config` srcs; `zip_member.h` into
+`src/protocols/root/zip/zip_member.c`, `src/frm/archive.c` into `./config` srcs; `zip_member.h` into
 headers; `./configure`.
 
 ### 4.E Test matrix
@@ -676,7 +676,7 @@ verify+store it, and (**Phase 2, gated**) use it as the client credential for on
 GSI TPC.
 
 ### 5.1 Current state (verified)
-- Wire steps defined: `src/protocol/gsi.h` has `kXGS_pxyreq 2002`, `kXGC_sigpxy 1002`.
+- Wire steps defined: `src/protocols/root/protocol/gsi.h` has `kXGS_pxyreq 2002`, `kXGC_sigpxy 1002`.
 - Dispatch: `src/auth/gsi/auth.c` reads `gsi_step = ntohl(payload+4)`; handles
   `kXGC_certreq` (round 1) and `kXGC_cert` (round 2) only. Delegation is a **3rd
   round** after `kXGC_cert` verifies.
@@ -684,7 +684,7 @@ GSI TPC.
   `xrootd_gbuf_end(g)` and `xrootd_gsi_find_bucket(buf,len,type,&out,&outlen)`.
 - Client-side proxy generation exists (`client/lib/proxy.c`: CSR + `proxyCertInfo`).
 - **Missing:** bucket types `kXRS_x509 3022` and `kXRS_x509_req 3024` (add to
-  `src/protocol/gsi.h`).
+  `src/protocols/root/protocol/gsi.h`).
 
 ### 5.2 Option bits (official `XrdSecProtocolgsi.hh`)
 `kOptsDlgPxy=1` (client asks to delegate), `kOptsSigReq=4` (client will sign),
@@ -948,10 +948,10 @@ ngx_int_t xrootd_ssi_register(const char *name, xrootd_ssi_handler h);
 ```
 
 ### 7.4 Hooks
-- `src/read/open_request.c` / `open_resolved_file.c` — `xrootd_ssi_is_resource` → bind
+- `src/protocols/root/read/open_request.c` / `open_resolved_file.c` — `xrootd_ssi_is_resource` → bind
   an SSI handle instead of a file fd.
-- `src/write/write.c` — route writes on SSI handles to `xrootd_ssi_write`.
-- `src/read/read.c` — route reads on SSI handles to `xrootd_ssi_read` (after dispatch).
+- `src/protocols/root/write/write.c` — route writes on SSI handles to `xrootd_ssi_write`.
+- `src/protocols/root/read/read.c` — route reads on SSI handles to `xrootd_ssi_read` (after dispatch).
 
 ### 7.5 Sequence
 ```
@@ -1056,7 +1056,7 @@ falls back to sidecar on `ENOTSUP`).
 ### 8.3 Checksum-on-ingest (proactive persistence, à la XrdOssCsi)
 Today digests are lazy (first query). Persist at **ingest** so they're durable from
 creation:
-- `kXR_close` of a written handle → `src/read/close.c` (after fsync, before reply).
+- `kXR_close` of a written handle → `src/protocols/root/read/close.c` (after fsync, before reply).
 - WebDAV PUT completion → `src/protocols/webdav/put.c`.
 - S3 PUT/complete-multipart → `src/protocols/s3/object.c`.
 - TPC destination finish → `src/tpc/done.c`.
@@ -2554,7 +2554,7 @@ native writer is possible later but isn't on the critical path.
 
 > These are whole-file drafts to the verified APIs: `xrootd_beneath_open_root` /
 > `xrootd_open_beneath` / `xrootd_stat_beneath` (`src/fs/path/beneath.h`),
-> `xrootd_alloc_fhandle` + `ctx->files[]` (`src/connection/fd_table.h`),
+> `xrootd_alloc_fhandle` + `ctx->files[]` (`src/protocols/root/connection/fd_table.h`),
 > `xrootd_aio_post_task(ctx,c,…)` (`src/core/aio/aio.h`), `xrootd_build_resp_hdr` +
 > `xrootd_queue_response` + `kXR_authmore` (response path), `xrootd_gbuf_*` /
 > `xrootd_gsi_find_bucket` (`src/auth/gsi/gsi_core.h`), `xrootd_shm_table_alloc`
@@ -2971,7 +2971,7 @@ Append to the **header** list (near the existing `src/fs/cache/*.h`, `src/auth/g
                         $ngx_addon_dir/src/protocols/ssi/ssi.h \
                         $ngx_addon_dir/src/protocols/ssi/ssi_registry.h \
                         $ngx_addon_dir/src/fs/cache/cinfo.h \
-                        $ngx_addon_dir/src/zip/zip_member.h \
+                        $ngx_addon_dir/src/protocols/root/zip/zip_member.h \
                         $ngx_addon_dir/src/core/compat/iso8601.h \
 ```
 Append to the **`NGX_ADDON_SRCS`** list (near `src/auth/gsi/*.c`, `src/net/cms/*.c`):
@@ -2985,7 +2985,7 @@ Append to the **`NGX_ADDON_SRCS`** list (near `src/auth/gsi/*.c`, `src/net/cms/*
     $ngx_addon_dir/src/net/manager/cns_store.c \
     $ngx_addon_dir/src/protocols/ssi/ssi.c \
     $ngx_addon_dir/src/protocols/ssi/ssi_registry.c \
-    $ngx_addon_dir/src/zip/zip_member.c \
+    $ngx_addon_dir/src/protocols/root/zip/zip_member.c \
     $ngx_addon_dir/src/fs/cache/cinfo.c \
     $ngx_addon_dir/src/frm/archive.c \
 ```
@@ -3127,7 +3127,7 @@ features off (defaults).
 
 ## §TT. Protocol / constant reference tables
 
-### TT.1 GSI handshake steps (verified `src/protocol/gsi.h`)
+### TT.1 GSI handshake steps (verified `src/protocols/root/protocol/gsi.h`)
 | const | value | dir | meaning |
 |---|---|---|---|
 | `kXGC_certreq` | 1000 | C→S | request server cert (round 1) |
@@ -3179,7 +3179,7 @@ features off (defaults).
 | `kXR_IOError` | pread/inflate (→500) |
 *(Numeric values: `XProtocol.hh` — referenced, not duplicated, to avoid drift.)*
 
-### TT.5 ZIP central-directory fields consumed (`src/zip/zip_dir.c`)
+### TT.5 ZIP central-directory fields consumed (`src/protocols/root/zip/zip_dir.c`)
 CDFH signature `0x02014b50`; fields used: compression method (0=stored, 8=deflate),
 compressed/uncompressed size (ZIP64-saturated `0xFFFFFFFF` → ZIP64 extra), local-header
 offset, filename. **Rejected:** encrypted entries, methods ∉{0,8}, data-descriptor
@@ -3487,7 +3487,7 @@ combined) and parallelizable with the rest. **5.3** is blocked by the outbound-G
 | §1 | `docs/06-authentication/` token page (+query param); `06.../security` note |
 | §2 | `docs/06-authentication/macaroons.md` (add request content-type) |
 | §3 | `docs/05-operations/` dig page; `src/protocols/dig/README.md` |
-| §4 | `docs/04-protocols/` archive/zip page; `src/zip/README.md` update |
+| §4 | `docs/04-protocols/` archive/zip page; `src/protocols/root/zip/README.md` update |
 | §5 | `docs/06-authentication/gsi.md` delegation section; `src/auth/gsi/README.md` |
 | §6 | `docs/10-architecture/` CNS page; `src/net/cms/README.md` CNS note |
 | §7 | `docs/04-protocols/ssi.md`; `src/protocols/ssi/README.md` |

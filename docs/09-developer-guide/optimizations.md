@@ -352,10 +352,10 @@ Start here when tracing a performance change:
 - `src/core/types/tunables.h` - size limits and hot-path constants
 - `src/core/types/context.h` - per-connection reusable buffers and pending sends
 - `src/core/types/file.h` - per-handle cached state
-- `src/connection/*.c` - receive/send event flow and response draining
+- `src/protocols/root/connection/*.c` - receive/send event flow and response draining
 - `src/core/aio/*.c` - response builders and thread-pool completion paths
-- `src/read/*.c` - native read/readv/pgread implementations
-- `src/write/*.c` - native write/pgwrite implementations
+- `src/protocols/root/read/*.c` - native read/readv/pgread implementations
+- `src/protocols/root/write/*.c` - native write/pgwrite implementations
 - `src/protocols/webdav/*.c` - WebDAV GET/PUT/auth/path optimizations
 - `src/auth/token/*.c` - local token verification
 - `src/observability/metrics/*.c` - shared-memory counters

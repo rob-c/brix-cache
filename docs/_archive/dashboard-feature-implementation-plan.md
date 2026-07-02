@@ -18,7 +18,7 @@ The dashboard today is a small HTTP module under `src/observability/dashboard/`:
 | Page | `src/observability/dashboard/page.c` embeds a single HTML/JS page that polls every 2 seconds. |
 | JSON | `src/observability/dashboard/api.c` emits active transfer rows and aggregate totals. |
 | Transfer table | `src/observability/dashboard/dashboard.h` and `transfer_table.c` define a fixed 512-slot shared-memory table. |
-| Native tracking | `src/read/open_resolved_file.c`, `src/read/read.c`, `src/write/write.c`, `src/read/close.c`, and `src/connection/disconnect.c` allocate, update, and free slots for native XRootD file handles. |
+| Native tracking | `src/protocols/root/read/open_resolved_file.c`, `src/protocols/root/read/read.c`, `src/protocols/root/write/write.c`, `src/protocols/root/read/close.c`, and `src/protocols/root/connection/disconnect.c` allocate, update, and free slots for native XRootD file handles. |
 | Metrics source | `src/observability/metrics/metrics.h` stores stream, WebDAV, and S3 counters in `ngx_xrootd_shm_zone`. |
 
 The current transfer JSON can represent `root`, `webdav`, and `s3`, but only
@@ -650,10 +650,10 @@ ngx_atomic_t  wt_flush_bytes_total;
 
 Update in:
 
-- `src/read/open_resolved_file.c`
-- `src/write/write.c`
-- `src/write/pgwrite.c`
-- `src/read/close.c`
+- `src/protocols/root/read/open_resolved_file.c`
+- `src/protocols/root/write/write.c`
+- `src/protocols/root/write/pgwrite.c`
+- `src/protocols/root/read/close.c`
 - `src/fs/cache/writethrough_flush.c`
 
 ### API/UI

@@ -86,7 +86,7 @@ Keeps everything nginx-shaped and security-critical:
 - **AIO thread-pool**: `vfs_io_core.c`'s job dispatch wraps the shared verbs on a worker thread (the job already calls the driver; it now calls `xvfs_*`).
 - **sendfile chains**: builds `ngx_buf_t`/`ngx_chain_t` from the handle's fd + `read_sendfile_fd` cap.
 - **metrics**, **fd_cache**, **staged commit** (`vfs_staged.c` → `compat/staged_file.c`, export-confined), **scratch**, **copy**, **rename/unlink/mkdir/xattr** (the confined namespace mutations).
-- The public `xrootd_vfs_*` API the proto handlers call stays **source-compatible** (thin wrappers over `vfs` core + the confined open), so `src/read/*`, `src/write/*`, `src/protocols/webdav/*`, `src/protocols/s3/*` callers don't change.
+- The public `xrootd_vfs_*` API the proto handlers call stays **source-compatible** (thin wrappers over `vfs` core + the confined open), so `src/protocols/root/read/*`, `src/protocols/root/write/*`, `src/protocols/webdav/*`, `src/protocols/s3/*` callers don't change.
 
 ### client adapter — thin (the de-duplicated residue of today's `client/lib/vfs*.c`)
 Keeps the client-only shell over the shared `vfs`:

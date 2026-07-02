@@ -134,8 +134,8 @@ subsequent file traffic.
 
 | Concern | Source |
 |---|---|
-| GSI DH key exchange | `src/handshake/` (GSI auth state machine) |
-| Proxy chain verification (stream) | `src/handshake/policy.c`, OpenSSL `X509_verify_cert` |
+| GSI DH key exchange | `src/protocols/root/handshake/` (GSI auth state machine) |
+| Proxy chain verification (stream) | `src/protocols/root/handshake/policy.c`, OpenSSL `X509_verify_cert` |
 | Proxy chain verification (WebDAV) | `src/protocols/webdav/auth_cert.c:webdav_verify_proxy_cert()` |
 | TLS auth cache (WebDAV) | `src/protocols/webdav/auth_cert.c`, `SSL_get_ex_data` / `SSL_SESSION_get_ex_data` |
 | `X509_V_FLAG_ALLOW_PROXY_CERTS` setup | `src/protocols/webdav/postconfig.c:ngx_http_xrootd_webdav_postconfiguration()` (lines 104-106) |
@@ -145,9 +145,9 @@ subsequent file traffic.
 | VO path ACL enforcement | `src/auth/authz/find_rule.c`, `src/core/config/policy.c` |
 | CA bundle load | `src/auth/crypto/pki_load.c` |
 | CRL signature verification | `src/auth/crypto/pki_check.c:xrootd_pki_verify_crls()` |
-| kXR_login challenge string | `src/session/login.c:xrootd_handle_login()` |
+| kXR_login challenge string | `src/protocols/root/session/login.c:xrootd_handle_login()` |
 | Token (JWT/WLCG) validation | `src/auth/token/` |
-| Request signing (kXR_sigver) | `src/session/signing.c`, `src/handshake/sigver.c` |
+| Request signing (kXR_sigver) | `src/protocols/root/session/signing.c`, `src/protocols/root/handshake/sigver.c` |
 
 ---
 

@@ -21,9 +21,9 @@
 | File | Line(s) | What is guarded | Action |
 |------|---------|-----------------|--------|
 | `src/core/aio/config.c` | 3–72 | Entire file — thread pool resolution | Remove ifdef wrapper, always compile |
-| `src/connection/fd_table.c` | 295–end | AIO-related cleanup code | Remove ifdef, keep code |
-| `src/stream/module_cache_proxy_directives.c` | 170–end | Thread pool directive parsing | Remove ifdef, keep code |
-| `src/stream/module.c` | 541–end | Postconfiguration thread pool setup | Remove ifdef, always call |
+| `src/protocols/root/connection/fd_table.c` | 295–end | AIO-related cleanup code | Remove ifdef, keep code |
+| `src/protocols/root/stream/module_cache_proxy_directives.c` | 170–end | Thread pool directive parsing | Remove ifdef, keep code |
+| `src/protocols/root/stream/module.c` | 541–end | Postconfiguration thread pool setup | Remove ifdef, always call |
 | `src/protocols/webdav/postconfig.c` | 70–100 | WebDAV thread pool resolution loop | Remove ifdef, always run |
 | `src/protocols/webdav/tpc_thread.c` | 17–209 | Thread functions for HTTP-TPC | Remove ifdef wrapper, keep code |
 | `src/protocols/webdav/tpc.c` | 203–408 | TPC thread pool usage in pull handler | Remove ifdef, always use threads |
@@ -35,13 +35,13 @@
 | `src/protocols/s3/module.c` | 42–44 | Postconfiguration forward declaration | Remove ifdef |
 | `src/protocols/s3/module.c` | 106–143 | Postconfiguration function body | Remove ifdef, always compile |
 | `src/protocols/s3/module.c` | 147–151 | Module context postconfig slot (NGX_THREADS/else) | Collapse to single entry: `ngx_http_s3_postconfiguration` |
-| `src/write/pgwrite.c` | 237–255 | pgwrite thread pool path | Remove ifdef, always use aio |
-| `src/write/common.c` | 106–163 | Common write with thread pool | Remove ifdef, keep code |
+| `src/protocols/root/write/pgwrite.c` | 237–255 | pgwrite thread pool path | Remove ifdef, always use aio |
+| `src/protocols/root/write/common.c` | 106–163 | Common write with thread pool | Remove ifdef, keep code |
 | `src/core/aio/pgread.c` | 14–183 | AIO pgread thread/callback | Remove ifdef wrapper, keep code |
 | `src/core/aio/readv.c` | 15–134 | AIO readv thread/callback | Remove ifdef wrapper, keep code |
 | `src/core/aio/resume.c` | 3–139 | AIO resume callback plumbing | Remove ifdef wrapper, keep code |
-| `src/write/writev.c` | 110–175 | writev with thread pool | Remove ifdef, always use aio |
-| `src/write/sync.c` | 73–end | Sync with async fallback via thread pool | Remove ifdef, always compile |
+| `src/protocols/root/write/writev.c` | 110–175 | writev with thread pool | Remove ifdef, always use aio |
+| `src/protocols/root/write/sync.c` | 73–end | Sync with async fallback via thread pool | Remove ifdef, always compile |
 | `src/core/aio/dirlist.c` | 63–end | Dirlist async via thread pool | Remove ifdef wrapper, keep code |
 
 ### Runtime NULL checks (instead of compile-time conditionals)
@@ -50,7 +50,7 @@ These `.c` files check `conf->thread_pool == NULL` at runtime — after making t
 
 | File | Location | Pattern | Action |
 |------|----------|---------|--------|
-| `src/write/common.c` | ~line 106–163 | `if (conf->thread_pool == NULL) { /* sync fallback */ }` | Convert to assert or remove — pool always exists |
+| `src/protocols/root/write/common.c` | ~line 106–163 | `if (conf->thread_pool == NULL) { /* sync fallback */ }` | Convert to assert or remove — pool always exists |
 | `src/fs/cache/open_or_fill.c` | ~line X | `if (conf->thread_pool == NULL)` | Convert to assert |
 | `src/protocols/webdav/postconfig.c` | lines 88–92 | `if (wdcf->thread_pool == NULL) { NGX_LOG_NOTICE }` | Remove — pool always resolved, change log level if needed |
 | `src/protocols/s3/module.c` | lines 133–137 | `if (scf->thread_pool == NULL) { NGX_LOG_NOTICE }` | Remove |
@@ -160,12 +160,12 @@ For each .c file, remove the `#if (NGX_THREADS)` / `#endif` pair and keep all co
   - Collapse module context slot from `#if/else/#endif` pattern to single entry: `ngx_http_s3_postconfiguration, /* postconfiguration */`
 
 **Files with runtime NULL checks that become no-ops:**
-- `src/write/common.c`, `src/fs/cache/open_or_fill.c`: convert `conf->thread_pool == NULL` fallback paths to either assertions or remove entirely (pool always exists)
+- `src/protocols/root/write/common.c`, `src/fs/cache/open_or_fill.c`: convert `conf->thread_pool == NULL` fallback paths to either assertions or remove entirely (pool always exists)
 - `src/protocols/webdav/postconfig.c` lines 88–92: change "NOT found" notice to never-executed path, or remove the else branch
 - `src/protocols/s3/module.c` lines 133–137: same — pool always resolved
 
 **Files with inline thread blocks (remove ifdef pair only):**
-- `src/protocols/webdav/tpc.c`, `src/protocols/webdav/put.c`, `src/protocols/s3/put.c`, `src/write/pgwrite.c`, `src/write/common.c`, `src/core/aio/pgread.c`, `src/core/aio/readv.c`, `src/core/aio/resume.c`, `src/write/writev.c`, `src/write/sync.c`, `src/core/aio/dirlist.c`: each has a single `#if (NGX_THREADS)` / `#endif` pair wrapping a function or code block — remove the pair, keep the content
+- `src/protocols/webdav/tpc.c`, `src/protocols/webdav/put.c`, `src/protocols/s3/put.c`, `src/protocols/root/write/pgwrite.c`, `src/protocols/root/write/common.c`, `src/core/aio/pgread.c`, `src/core/aio/readv.c`, `src/core/aio/resume.c`, `src/protocols/root/write/writev.c`, `src/protocols/root/write/sync.c`, `src/core/aio/dirlist.c`: each has a single `#if (NGX_THREADS)` / `#endif` pair wrapping a function or code block — remove the pair, keep the content
 
 ### Phase D: WebDAV-specific conditionals (3 files)
 
@@ -190,7 +190,7 @@ For each .c file, remove the `#if (NGX_THREADS)` / `#endif` pair and keep all co
 | `docs/01-getting-started/getting-started-full.md` | Lines 79, 87, 447, 471 | Change thread_pool from "strongly recommended" → required; update build examples |
 | `docs/05-operations/operation-status.md` | Line 202 | Remove "is built with --with-threads and a working xrootd_thread_pool is configured" qualifier |
 | `docs/04-protocols/webdav-directives.md` | Line 171 (thread_pool directive) | Remove "(NGX_THREADS only)" note |
-| `src/stream/README.md` | Line 50 | Remove "NGX_THREADS only" from thread_pool directive description |
+| `src/protocols/root/stream/README.md` | Line 50 | Remove "NGX_THREADS only" from thread_pool directive description |
 | `src/core/aio/README.md` | Last paragraph ("All code in this directory is compiled only when nginx is built with thread support") | Change to: "All code in this directory is compiled unconditionally." |
 
 ### Phase F: Dockerfile Updates (4 files)

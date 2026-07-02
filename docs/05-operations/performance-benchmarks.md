@@ -323,7 +323,7 @@ measure both ways.
 ### Per-read fixed cost (remaining WS5 follow-ups, not yet implemented)
 
 - **Access-log batching:** the `root://` read path writes the access log
-  synchronously per read (`src/read/read.c`); a per-worker buffered/coalesced log
+  synchronously per read (`src/protocols/root/read/read.c`); a per-worker buffered/coalesced log
   writer would remove that fixed cost when logging is enabled. Tracked, not done.
 - **WebDAV per-request cuts:** reuse the dup'd send-fd across Range requests on a
   keepalive connection, cache the resolved path per connection, short-circuit

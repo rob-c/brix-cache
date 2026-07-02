@@ -45,7 +45,7 @@ a zero IV. Result: byte-for-byte interop restored both directions.
 - `src/auth/host/auth.c`: reverse-resolves the peer (`xrootd_acc_resolve_peer`) and
   matches `xrootd_host_allow` (exact host or `.suffix` patterns); **fail-closed**
   (empty/unset allowlist denies). Dispatched from `src/auth/gsi/auth.c` on credtype
-  `host`; advertised in `src/session/protocol.c`; registered in `config`.
+  `host`; advertised in `src/protocols/root/session/protocol.c`; registered in `config`.
 - Client: `client/lib/sec/sec_host.c` (sends `"host\0"`+FQDN, tried **last**),
   wired into both module lists in `client/lib/auth.c` and `client/Makefile`.
 - Off-by-default (requires `xrootd_auth host` + a non-empty `xrootd_host_allow`);
@@ -114,8 +114,8 @@ transport (`XrdTls/`), orthogonal to XrdSec.
 | `sss` (Blowfish-CFB64 + replay check) | `src/auth/sss/` | `client/lib/sec/sec_sss.c` |
 | `unix` (loopback-gated) | `src/auth/unix/auth.c` | `client/lib/sec/sec_unix.c` |
 | `krb5` (AP_REQ, compile-gated) | `src/auth/krb5/auth.c` | `client/lib/sec/sec_krb5.c` |
-| TLS transport (`roots://`, `kXR_*TLS`) | `src/connection/tls.c` | `client/lib/tls.c` |
-| Protocol-list advertise + negotiate | `src/session/protocol.c:151-176` | `client/lib/auth.c:22-44` |
+| TLS transport (`roots://`, `kXR_*TLS`) | `src/protocols/root/connection/tls.c` | `client/lib/tls.c` |
+| Protocol-list advertise + negotiate | `src/protocols/root/session/protocol.c:151-176` | `client/lib/auth.c:22-44` |
 
 ### 1.2 Gaps to "support all"
 
@@ -187,7 +187,7 @@ check and random-tag signing.
 - **B1. Server**: new `src/auth/pwd/` auth handler routed from `xrootd_gsi_auth.c`'s
   credtype dispatcher on `"pwd"`; password store backed by a hashed password file
   (NOT `/etc/shadow`; a dedicated `xrootd_pwd_file`), `xrootd_auth pwd` mode,
-  `XROOTD_AUTH_PWD` enum value, advertise `"pwd "` in `src/session/protocol.c`.
+  `XROOTD_AUTH_PWD` enum value, advertise `"pwd "` in `src/protocols/root/session/protocol.c`.
   Reuse the GSI DH/cipher table from WS-A for the session key.
 - **B2. Client**: `client/lib/sec/sec_pwd.c` — credential sourcing (`.xrd/pwd`
   file or prompt), DH exchange, password send under the negotiated cipher; add to
@@ -230,9 +230,9 @@ check and random-tag signing.
 - GSI cipher/digest (WS-A): `src/auth/gsi/gsi_core.{c,h}` (cipher descriptor + key
   derivation), `src/auth/gsi/parse_crypto_helpers.c` (advertise/parse list),
   `src/auth/gsi/cert_response.c` (server pick), `client/lib/sec/sec_gsi.c` (client
-  pick); directives in `src/core/config/server_conf.c` + `src/stream/module.c`.
+  pick); directives in `src/core/config/server_conf.c` + `src/protocols/root/stream/module.c`.
 - `pwd` (WS-B): new `src/auth/pwd/`, `client/lib/sec/sec_pwd.c`, dispatcher in
-  `src/auth/gsi/auth.c`, advertise in `src/session/protocol.c`, enum in
+  `src/auth/gsi/auth.c`, advertise in `src/protocols/root/session/protocol.c`, enum in
   `src/core/types/tunables.h`, `client/lib/auth.c` order; register new `.c` in `config`
   + `client/Makefile`, run `./configure`.
 - `host` (WS-C): `src/auth/host/` (or fold into `src/auth/unix/`), `client/lib/sec/sec_host.c`,

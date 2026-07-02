@@ -1,7 +1,7 @@
 #include "sss_internal.h"
 #include "fs/path/path.h"
-#include "response/response.h"
-#include "session/registry.h"
+#include "protocols/root/response/response.h"
+#include "protocols/root/session/registry.h"
 
 #include <openssl/crypto.h>
 #include <string.h>

@@ -54,7 +54,7 @@ response on success** (only `kXR_SigVerErr` on failure).
 from the spec in a way that only an independent client revealed.
 
 **Fix (coordinated):**
-- `src/session/signing.c` — success path returns `NGX_OK` with **no** queued
+- `src/protocols/root/session/signing.c` — success path returns `NGX_OK` with **no** queued
   response (the recv loop then reads the signed request, whose response is the
   only one); error paths still reply.
 - `client/lib/sigver.c` — no longer reads an ack after sending the sigver frame.
@@ -68,14 +68,14 @@ client** at `security_level ≥ 2` (which would have hit the identical desync).
 `xrootd: error 3007: Bad file descriptor` on `ls`/`cp` (the redirector answered
 the stat locally — it has no `xrootd_root` — instead of redirecting).
 
-**Root cause:** only `open` (`src/read/open_request.c`) and `locate`
-(`src/read/locate.c`) consulted `xrootd_find_manager_map()`. `stat`
-(`src/read/stat.c`) and `dirlist` (`src/dirlist/handler.c`) redirected **only via
+**Root cause:** only `open` (`src/protocols/root/read/open_request.c`) and `locate`
+(`src/protocols/root/read/locate.c`) consulted `xrootd_find_manager_map()`. `stat`
+(`src/protocols/root/read/stat.c`) and `dirlist` (`src/protocols/root/dirlist/handler.c`) redirected **only via
 the CMS registry**, so a static-map-only redirector never redirected them — and a
 stat-first client (go-hep, and stock `xrdfs`/`xrdcp`) failed before it ever
 opened anything.
 
-**Fix:** `src/read/stat.c` and `src/dirlist/handler.c` now consult
+**Fix:** `src/protocols/root/read/stat.c` and `src/protocols/root/dirlist/handler.c` now consult
 `xrootd_find_manager_map()` and emit a `kXR_redirect`, mirroring `open`.
 
 ### Bug #3 — Root prefix `/` matched only `/`, not its children

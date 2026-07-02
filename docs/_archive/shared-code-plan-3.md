@@ -338,7 +338,7 @@ helper that allocates an `EVP_MAC`, computes one MAC, and frees it.  This is a
 useful primitive that any future caller (WLCG discharge verification, new auth
 schemes) would need to reimplement.
 
-`src/handshake/sigver.c` caches the `EVP_MAC` handle across requests for
+`src/protocols/root/handshake/sigver.c` caches the `EVP_MAC` handle across requests for
 performance — it should **not** be unified with the S3 helper; the cached form
 is architecturally different.
 

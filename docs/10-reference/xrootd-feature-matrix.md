@@ -25,14 +25,14 @@ paths checked, see
 
 | Feature | Official XRootD | nginx-xrootd | Reviewer notes |
 |---|---:|---:|---|
-| Protocol 5.2 framing and login lifecycle | Yes | Yes | nginx-xrootd implements the stream lifecycle in `src/handshake`, `src/session`, and `src/protocol`. |
+| Protocol 5.2 framing and login lifecycle | Yes | Yes | nginx-xrootd implements the stream lifecycle in `src/protocols/root/handshake`, `src/protocols/root/session`, and `src/protocols/root/protocol`. |
 | Active request opcodes | Yes | Yes | All active wire opcodes reviewed are implemented or intentionally return the same class of unsupported response where upstream defaults do. |
 | Legacy `kXR_gpfile` | No/default unsupported | No/default unsupported | Upstream default path returns `kXR_Unsupported`; this is not a practical parity blocker. |
 | Vector, page, and signed reads | Yes | Yes | Includes readv, pgread CRC32c framing, and signature verification paths. |
 | Writes, page writes, sync, truncate | Yes | Yes | Includes pgwrite CRC32c validation and sync paths. |
 | Directory and namespace mutations | Yes | Yes | Includes dirlist, mkdir, rmdir, rm, mv, chmod, truncate, and fattr coverage. |
 | Locate, query, prepare, evict | Yes | Partial | Core query/locate coverage exists. nginx-xrootd has FRM/Tape REST gateway support, but not the full upstream XrdFrm/MSS ecosystem. |
-| Bind/session recovery | Yes | Yes | Implemented in `src/session/bind.c` and registry helpers. |
+| Bind/session recovery | Yes | Yes | Implemented in `src/protocols/root/session/bind.c` and registry helpers. |
 | Async attention packets | Yes | Partial | Operational paths exist around queue/wait behavior, but broad upstream attention semantics should be reviewed for each deployment mode. |
 | Protocol flags | Yes | Yes | Current flag set includes async, sendfile, attrMeta, attrVirtRdr, attrSuper, recoverWrites, collapseRedirect, and TLS advertisement. |
 | GPF/extended collection flags | Yes | No | Not advertised by nginx-xrootd; leaving this unimplemented is intentional unless a site depends on those upstream behaviors. |
@@ -78,7 +78,7 @@ paths checked, see
 | Full PSS proxy storage | Yes | No | Not implemented; upstream remains stronger for PSS/PFC deployments. |
 | Full proxy file cache (PFC) | Yes | Partial/No | nginx-xrootd has open/cache and local data-plane helpers, not the full upstream PFC subsystem. |
 | Ceph/Rados, CSI, OssArc, HDFS-style OSS plugins | Yes | No | Not implemented as upstream-compatible plugin stacks (these are the remaining hard backend gaps). |
-| ZIP-member access (`XrdZip`) | Yes | Partial | ZIP-member serving over HTTP implemented in `src/zip/`; not full upstream cross-protocol parity. |
+| ZIP-member access (`XrdZip`) | Yes | Partial | ZIP-member serving over HTTP implemented in `src/protocols/root/zip/`; not full upstream cross-protocol parity. |
 | Checksum plugin ecosystem | Yes | Partial | nginx-xrootd supports checksum query paths plus CRC-64/XZ and CRC-64/NVME, but not the full upstream checksum plugin matrix. |
 | XrdFrm/MSS/tape staging ecosystem | Yes | Partial | nginx-xrootd has FRM queue/Tape REST integration; full upstream migration, purge, space, and MSS driver behavior needs site review. |
 

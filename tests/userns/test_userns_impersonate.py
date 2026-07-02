@@ -48,7 +48,7 @@ SRCS = [
 def _inc_flags():
     subs = [
         "src/core", "src/event", "src/event/modules", "src/os/unix",
-        "objs", "src/stream",
+        "objs", "src/protocols/root/stream",
     ]
     return [f"-I{os.path.join(NGINX_SRC, s)}" for s in subs] + [f"-I{IMP}"]
 

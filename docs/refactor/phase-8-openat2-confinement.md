@@ -233,19 +233,19 @@ Remaining direct callers after Phase 3:
 
 | File | Call | Notes |
 |---|---|---|
-| `src/connection/fd_table.c` | `xrootd_open_confined()` | fd_table open |
-| `src/dirlist/handler.c` | `xrootd_resolve_path()`, `xrootd_open_confined()` | directory listing |
-| `src/fattr/dispatch.c` | `xrootd_resolve_path()` | extended attributes |
+| `src/protocols/root/connection/fd_table.c` | `xrootd_open_confined()` | fd_table open |
+| `src/protocols/root/dirlist/handler.c` | `xrootd_resolve_path()`, `xrootd_open_confined()` | directory listing |
+| `src/protocols/root/fattr/dispatch.c` | `xrootd_resolve_path()` | extended attributes |
 | `src/fs/vfs_open.c` | `xrootd_open_confined_canon()` | VFS open |
-| `src/query/checksum_ckscan_*.c` | `xrootd_open_confined_canon()`, `xrootd_resolve_path()` | checksum scan |
-| `src/query/checksum_qcksum.c` | `xrootd_resolve_path()`, `xrootd_open_confined()` | on-demand checksum |
-| `src/query/metadata.c` | `xrootd_resolve_path()` | metadata query |
-| `src/read/locate.c` | `xrootd_resolve_path()` | locate response |
-| `src/read/open_cache.c` | `xrootd_open_confined_canon()` | cache-layer open |
-| `src/read/open_request.c` | `xrootd_resolve_path_write()` | file open |
-| `src/read/open_resolved_file.c` | `xrootd_open_confined_canon()` | post-resolve open |
-| `src/read/pgread.c` | `xrootd_resolve_path()` | pgread path check |
-| `src/read/stat.c` | `xrootd_resolve_path()` | stat handler |
+| `src/protocols/root/query/checksum_ckscan_*.c` | `xrootd_open_confined_canon()`, `xrootd_resolve_path()` | checksum scan |
+| `src/protocols/root/query/checksum_qcksum.c` | `xrootd_resolve_path()`, `xrootd_open_confined()` | on-demand checksum |
+| `src/protocols/root/query/metadata.c` | `xrootd_resolve_path()` | metadata query |
+| `src/protocols/root/read/locate.c` | `xrootd_resolve_path()` | locate response |
+| `src/protocols/root/read/open_cache.c` | `xrootd_open_confined_canon()` | cache-layer open |
+| `src/protocols/root/read/open_request.c` | `xrootd_resolve_path_write()` | file open |
+| `src/protocols/root/read/open_resolved_file.c` | `xrootd_open_confined_canon()` | post-resolve open |
+| `src/protocols/root/read/pgread.c` | `xrootd_resolve_path()` | pgread path check |
+| `src/protocols/root/read/stat.c` | `xrootd_resolve_path()` | stat handler |
 
 ---
 
@@ -423,15 +423,15 @@ Phase 8 is executed in three ordered sub-steps:
 Replace the two-step `resolve_path` + `open_confined` pattern at each call
 site with a single `xrootd_open_beneath()` call.  Migrate in file order:
 
-1. `src/connection/fd_table.c`
+1. `src/protocols/root/connection/fd_table.c`
 2. `src/fs/vfs_open.c`
-3. `src/read/open_resolved_file.c`
-4. `src/read/open_cache.c`
-5. `src/read/stat.c`, `pgread.c`, `locate.c`
-6. `src/dirlist/handler.c`
-7. `src/query/` files (checksum, metadata)
-8. `src/fattr/dispatch.c`
-9. `src/read/open_request.c` (most complex; last)
+3. `src/protocols/root/read/open_resolved_file.c`
+4. `src/protocols/root/read/open_cache.c`
+5. `src/protocols/root/read/stat.c`, `pgread.c`, `locate.c`
+6. `src/protocols/root/dirlist/handler.c`
+7. `src/protocols/root/query/` files (checksum, metadata)
+8. `src/protocols/root/fattr/dispatch.c`
+9. `src/protocols/root/read/open_request.c` (most complex; last)
 
 After each file, build + run targeted tests for that subsystem.
 
@@ -452,7 +452,7 @@ Once all call sites are on `xrootd_open_beneath()`:
 
 ## Concrete Before/After
 
-### `src/read/stat.c` — before
+### `src/protocols/root/read/stat.c` — before
 
 ```c
 /* ~25 lines today */
@@ -477,7 +477,7 @@ if (stat(resolved, &st) != 0) {
 }
 ```
 
-### `src/read/stat.c` — after
+### `src/protocols/root/read/stat.c` — after
 
 ```c
 /* ~10 lines */
@@ -501,14 +501,14 @@ depth against deep path DoS), but can be inlined at the extract step.  The
 
 ---
 
-### `src/read/open_resolved_file.c` — before
+### `src/protocols/root/read/open_resolved_file.c` — before
 
 ```c
 int fd = xrootd_open_confined_canon(c->log, root_canon, resolved,
                                      O_RDONLY, 0);
 ```
 
-### `src/read/open_resolved_file.c` — after
+### `src/protocols/root/read/open_resolved_file.c` — after
 
 ```c
 int fd = xrootd_open_beneath(conf->rootfd, ctx->reqpath, O_RDONLY, 0);
@@ -519,7 +519,7 @@ The `resolved` buffer (computed from `realpath()`) is no longer needed.
 
 ---
 
-### `src/write/rmdir.c` — before (after Phase 3)
+### `src/protocols/root/write/rmdir.c` — before (after Phase 3)
 
 ```c
 /* Phase 3 already consolidated to: */
@@ -533,7 +533,7 @@ if (xrootd_unlink_confined_canon(c->log, root_canon, resolved, 1) != 0) {
 }
 ```
 
-### `src/write/rmdir.c` — after Phase 8
+### `src/protocols/root/write/rmdir.c` — after Phase 8
 
 ```c
 if (!xrootd_extract_path(c->log, ctx->payload, ctx->cur_dlen,

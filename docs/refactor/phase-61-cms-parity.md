@@ -57,7 +57,7 @@ Make tape/staging work across the cluster:
 - **Node side:** dispatch `CMS_RR_PREPADD`/`CMS_RR_PREPDEL` in `recv.c`; add the
   two actions to `node_ops.c`'s planner (`padArgs`/`pdlArgs` already decode via
   `rrdata.c`). Route into the **existing FRM request API** (`frm_request_*`,
-  `src/query/prepare.c` is the reference consumer): `prepadd`→enqueue stage with
+  `src/protocols/root/query/prepare.c` is the reference consumer): `prepadd`→enqueue stage with
   reqid/notify/prty/path; `prepdel`→`frm_request_delete(reqid)`. Reply byte-exact
   (silent success / `kYR_error`), same as the other forwarded ops.
 - **Manager side:** when a client `kXR_prepare` arrives in manager mode, forward

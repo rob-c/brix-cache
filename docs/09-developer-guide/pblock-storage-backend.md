@@ -942,10 +942,10 @@ unchanged.
 | `src/fs/vfs_open.c` | `ctx_init` backend resolve; the non-POSIX `driver->open` + `adopt_obj` path; `export_relative` |
 | `src/fs/vfs_xattr.c`, `vfs_unlink.c`, `vfs_copy.c`, `vfs_stat.c` | the per-op `driver-><op>` vs POSIX dispatch |
 | `src/core/compat/staged_file.c` | `xrootd_commit_staged` — backend-aware staged commit: POSIX rename / cross-device copy, **or** `commit_staged_to_backend` (driver `staged_*` upload) when the final export is non-POSIX (§10.1) |
-| `src/read/open_resolved_file.c` | `kXR_open`: keeps resume/POSC partials on the POSIX-fd path; opens the final through the driver otherwise (Layer 3) |
-| `src/read/stat.c` | `kXR_stat` — path stat via `driver->stat`; handle stat via the driver-backed `fstat` branch (§6.1) |
-| `src/read/close.c` | `kXR_close`: POSC/resume commit via `xrootd_commit_staged` |
-| `src/stream/module.c`, `src/protocols/webdav/module.c` | the `xrootd_storage_backend` / `xrootd_pblock_block_size` directives |
+| `src/protocols/root/read/open_resolved_file.c` | `kXR_open`: keeps resume/POSC partials on the POSIX-fd path; opens the final through the driver otherwise (Layer 3) |
+| `src/protocols/root/read/stat.c` | `kXR_stat` — path stat via `driver->stat`; handle stat via the driver-backed `fstat` branch (§6.1) |
+| `src/protocols/root/read/close.c` | `kXR_close`: POSC/resume commit via `xrootd_commit_staged` |
+| `src/protocols/root/stream/module.c`, `src/protocols/webdav/module.c` | the `xrootd_storage_backend` / `xrootd_pblock_block_size` directives |
 | `config` | build-gates `sd_pblock*.c` on `libsqlite3` (`-DXROOTD_HAVE_SQLITE=1`) |
 
 ## See also

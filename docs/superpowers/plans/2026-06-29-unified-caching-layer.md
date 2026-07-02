@@ -45,7 +45,7 @@
 
 **Files:**
 - Modify: `src/core/types/config.h` (`cache_high_watermark`, `cache_low_watermark`, `cache_reap_interval` — `ngx_uint_t`, `NGX_CONF_UNSET_UINT`)
-- Modify: `src/stream/module.c` (3 `ngx_command_t`: `xrootd_cache_high_watermark`, `_low_watermark` as percent parsers → store ppm; `xrootd_cache_reap_interval` seconds)
+- Modify: `src/protocols/root/stream/module.c` (3 `ngx_command_t`: `xrootd_cache_high_watermark`, `_low_watermark` as percent parsers → store ppm; `xrootd_cache_reap_interval` seconds)
 - Modify: `src/core/config/server_conf.c` (init UNSET; merge with defaults: high=`cache_eviction_threshold` if set else 900000 ppm, low=high−50000, interval=60)
 - Modify: `src/core/config/runtime_server.c` (EMERG validation: `0 < low < high < 1000000`)
 
@@ -108,7 +108,7 @@
 
 ### Task C1: Staging watermark config
 
-**Files:** `src/core/types/config.h`, `src/stream/module.c`, `src/core/config/server_conf.c`, `src/core/config/runtime_server.c` (validate `0<low<high<1e6`; no-op unless `cache_wt_stage_root` set).
+**Files:** `src/core/types/config.h`, `src/protocols/root/stream/module.c`, `src/core/config/server_conf.c`, `src/core/config/runtime_server.c` (validate `0<low<high<1e6`; no-op unless `cache_wt_stage_root` set).
 
 - [ ] Failing `nginx -t` test (low≥high fails) → implement percent→ppm + merge + validate → PASS.
 
@@ -125,7 +125,7 @@
 
 ### Task C3: Enforce at write-open (root://)
 
-**Files:** `src/read/open_resolved_file.c` (is_write path, before staging temp/object creation).
+**Files:** `src/protocols/root/read/open_resolved_file.c` (is_write path, before staging temp/object creation).
 
 - [ ] **Step 1: Failing e2e.** With staging pre-filled past high, a `root://` write-open returns `kXR_Overloaded`; in the soft band returns `kXR_wait`; reads still succeed.
 - [ ] **Step 2:** FAIL.

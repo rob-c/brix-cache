@@ -88,7 +88,7 @@ entirely, which can mask a Pattern 1 collision later.
 
 ### Instance found
 
-`src/query/prepare.c` — `xrootd_handle_prepare()` implemented fully (path validation,
+`src/protocols/root/query/prepare.c` — `xrootd_handle_prepare()` implemented fully (path validation,
 auth checks, staging command invocation, cancel/evict handling) with zero metric calls.
 No `XROOTD_OP_PREPARE` constant existed anywhere.
 
@@ -119,7 +119,7 @@ spikes or distinguish "low traffic" from "high error rate."
 
 ### Instance found
 
-`src/session/login.c` — `xrootd_count_login_ok()` (a small helper calling
+`src/protocols/root/session/login.c` — `xrootd_count_login_ok()` (a small helper calling
 `op_ok[XROOTD_OP_LOGIN]`) was called on both success paths. Neither the CMS-suspended
 rejection nor the invalid-username rejection called the corresponding `op_err`.
 

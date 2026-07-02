@@ -21,7 +21,7 @@
 ### Task 1: Revive the directive surface as `xrootd_tap_proxy*`
 
 **Files:**
-- Modify: `src/stream/module.c` (add directive table entries)
+- Modify: `src/protocols/root/stream/module.c` (add directive table entries)
 
 **Interfaces:**
 - Consumes: existing handlers `xrootd_conf_set_proxy_upstream`/`_auth`/`_login_user` (from `proxy/proxy.h`, already declared) and the config field offsets (`proxy_enable`, `proxy_audit_log`, `proxy_upstream_tls`).
@@ -34,9 +34,9 @@ Expected (before edit): FAIL `unknown directive "xrootd_tap_proxy"`.
 
 - [ ] **Step 2: Ensure module.c includes the proxy directive prototypes**
 
-Confirm `#include "../proxy/proxy.h"` is present in `src/stream/module.c` (the handlers are declared there). If absent, add it.
+Confirm `#include "../proxy/proxy.h"` is present in `src/protocols/root/stream/module.c` (the handlers are declared there). If absent, add it.
 
-- [ ] **Step 3: Add the directive entries** in `src/stream/module.c` (next to the `xrootd_transparent_proxy` block from Phase 3):
+- [ ] **Step 3: Add the directive entries** in `src/protocols/root/stream/module.c` (next to the `xrootd_transparent_proxy` block from Phase 3):
 
 ```c
     { ngx_string("xrootd_tap_proxy"),

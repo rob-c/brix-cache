@@ -143,7 +143,7 @@ Notes:
   (`src/observability/metrics/config.c`), called from the module's `init_module` hook
   (`src/auth/impersonate/lifecycle.c`); read by `/healthz` (`src/observability/metrics/health.c`).
 - SHM resize warning: `xrootd_shm_zone_warn_on_resize()` (`src/core/compat/shm_slots.c`),
-  called from the registry declarations (`src/session/registry.c`,
+  called from the registry declarations (`src/protocols/root/session/registry.c`,
   `src/net/manager/registry.c`).
 - Tests: `tests/test_reload.py` (self-contained; success + robustness +
   security-neg).

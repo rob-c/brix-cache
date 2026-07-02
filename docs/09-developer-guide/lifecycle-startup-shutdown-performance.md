@@ -280,6 +280,6 @@ connections — idle conns have no timer and never pin the worker.
 | `src/core/types/config.h` | `gsi_keypool_size` / `gsi_keypool_seed` fields |
 | `src/core/types/tunables.h` | `XROOTD_GSI_KEYPOOL_CAP` / `_SIZE_DEFAULT` / `_SEED_DEFAULT` |
 | `src/core/config/server_conf.c` | Merge defaults for the new directives |
-| `src/stream/module.c` | `xrootd_gsi_keypool_size` / `_seed` command entries |
+| `src/protocols/root/stream/module.c` | `xrootd_gsi_keypool_size` / `_seed` command entries |
 | `tests/profile_lifecycle.sh` | Throwaway lifecycle profiler |
 | `tests/test_lifecycle_speed.py` | Feature/regression guard |

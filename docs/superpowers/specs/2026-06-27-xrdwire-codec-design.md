@@ -10,7 +10,7 @@ The nginx module (`src/`) and the native client (`client/`) both implement the
 full XRootD wire protocol, in opposite directions: the client *builds* request
 bodies and *parses* response bodies; the server *parses* request bodies and
 *builds* response bodies. The binary **struct layouts** are already shared
-(`src/protocol/wire_core_requests.h` etc.), and three opcodes (`pgio`,
+(`src/protocols/root/protocol/wire_core_requests.h` etc.), and three opcodes (`pgio`,
 `vendor_ext`, `fattr_codec`) already have paired pack/unpack codecs in
 `libxrdproto`. But the *marshalling logic* for the other ~35 opcodes — the
 `htonl`/`ntohl` and fixed-offset field population — is hand-written twice, spread
@@ -53,7 +53,7 @@ The request codec operates on the 16-byte `body` region of `ClientRequestHdr`
 (path, payload, dirlist entries, stat-string) is appended/consumed by the caller
 — the codec owns only the fixed-offset fields.
 
-### Files (grouped by family, under `src/protocol/codec/`)
+### Files (grouped by family, under `src/protocols/root/protocol/codec/`)
 
 - `wire_codec.h` — umbrella header (declares all structs + functions; re-exports
   the existing `pgio` / `vendor_ext` / `fattr_codec`).
@@ -78,7 +78,7 @@ success and `<0` on a truncated/malformed fixed region — bounds-checked like
 
 ## Test harness
 
-`src/protocol/codec/wire_codec_unittest.c` — standalone `gcc` (no nginx), like
+`src/protocols/root/protocol/codec/wire_codec_unittest.c` — standalone `gcc` (no nginx), like
 `zip_dir_unittest`:
 
 1. **Round-trip:** for every opcode, populate a struct, `pack`, `unpack`, assert

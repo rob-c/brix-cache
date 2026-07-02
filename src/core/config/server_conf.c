@@ -16,7 +16,7 @@
 #include "net/cms/cns.h"               /* §6 CNS mode enum */
 #include "tpc/key_registry.h"
 #include "tpc/common/registry.h"   /* Phase 39 (WS5): registry reaper max-age */
-#include "session/registry.h"   /* XROOTD_SESSION_REGISTRY_SLOTS default */
+#include "protocols/root/session/registry.h"   /* XROOTD_SESSION_REGISTRY_SLOTS default */
 #include "net/manager/health_check.h" /* XROOTD_HC_TYPE_PING default */
 #include "net/manager/registry.h"     /* Phase 39 (WS7): srv staleness setter */
 

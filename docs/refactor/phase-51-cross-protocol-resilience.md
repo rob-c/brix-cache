@@ -49,8 +49,8 @@ observability/anti-abuse depth that "extremely hardened" implies.
 
 | Area | State | Evidence |
 |---|---|---|
-| `root://` stream deadlines (phase-39) | **FULL** | `src/connection/deadline.h` armed/disarmed at PDU boundaries in `recv.c`/`send.c`; pre-auth handshake deadline; response-drain write deadline; metrics `handshake_timeouts_total`/`read_pdu_timeouts_total`/`send_drain_timeouts_total` |
-| TCP dead-peer reaping | **FULL** | `src/connection/netopt.h` `xrootd_apply_tcp_deadpeer_opts()` at root:// accept (`handler.c`) + CMS sockets |
+| `root://` stream deadlines (phase-39) | **FULL** | `src/protocols/root/connection/deadline.h` armed/disarmed at PDU boundaries in `recv.c`/`send.c`; pre-auth handshake deadline; response-drain write deadline; metrics `handshake_timeouts_total`/`read_pdu_timeouts_total`/`send_drain_timeouts_total` |
+| TCP dead-peer reaping | **FULL** | `src/protocols/root/connection/netopt.h` `xrootd_apply_tcp_deadpeer_opts()` at root:// accept (`handler.c`) + CMS sockets |
 | Stream admission cap | **FULL** | pre-identity `xrootd_max_connections` in `handler.c` (atomic `connections_active`, `connections_rejected_total`) |
 | `cms://` hardening (phase-50) | **FULL** | client read-liveness + send-stall deadlines, server login + idle deadlines, per-worker conn cap, redirect-host validation, log-flood fix; 72 CMS tests green |
 | HTTP token auth | **FULL** | always-on per-worker L1 validation cache `src/auth/token/worker_cache.c` |
@@ -310,7 +310,7 @@ GSI DH keypool (`src/auth/gsi/keypool.c`) is the model for moving cost off the l
   `src/auth/crypto/pki_load.c` (E5), `src/observability/metrics/metrics.h` + `src/observability/metrics/stream.c` +
   `src/observability/metrics/http.c` (E6). New auth directives via the usual
   `NGX_CONF_UNSET`→merge→`ngx_command_t` pattern (`src/core/config/server_conf.c`,
-  `src/stream/module.c`, `src/protocols/webdav/module.c`).
+  `src/protocols/root/stream/module.c`, `src/protocols/webdav/module.c`).
 - Auth tests: `tests/test_auth_resilience.py` (new) — OCSP responder that
   black-holes (handshake fails fast within the timeout, not after 60 s; soft-fail
   allows, hard-fail denies, both bounded); a slow-NSS shim (LD_PRELOAD) proving the

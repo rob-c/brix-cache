@@ -154,21 +154,21 @@ This is zero-initialised at context allocation and is only meaningful immediatel
 
 | File | LoC before | Lines removed | LoC after |
 |---|---|---|---|
-| `src/write/rmdir.c` | 115 | −18 | 97 |
-| `src/write/mkdir.c` | 155 | −18 | 137 |
-| `src/write/truncate.c` | 150 | −12 | 138 |
-| `src/write/mv.c` | 163 | −15 | 148 |
-| `src/read/stat.c` | 211 | −12 | 199 |
-| `src/read/locate.c` | 225 | −12 | 213 |
-| `src/dirlist/handler.c` | 692 | −18 | 674 |
-| `src/read/open_request.c` | ~180 | −12 | ~168 |
-| `src/query/prepare.c` | ~120 | −9 | ~111 |
-| `src/query/prepare_cmd.c` | ~100 | −9 | ~91 |
+| `src/protocols/root/write/rmdir.c` | 115 | −18 | 97 |
+| `src/protocols/root/write/mkdir.c` | 155 | −18 | 137 |
+| `src/protocols/root/write/truncate.c` | 150 | −12 | 138 |
+| `src/protocols/root/write/mv.c` | 163 | −15 | 148 |
+| `src/protocols/root/read/stat.c` | 211 | −12 | 199 |
+| `src/protocols/root/read/locate.c` | 225 | −12 | 213 |
+| `src/protocols/root/dirlist/handler.c` | 692 | −18 | 674 |
+| `src/protocols/root/read/open_request.c` | ~180 | −12 | ~168 |
+| `src/protocols/root/query/prepare.c` | ~120 | −9 | ~111 |
+| `src/protocols/root/query/prepare_cmd.c` | ~100 | −9 | ~91 |
 | (others in read/ + session/) | ~150 | −30 | ~120 |
 | **New infrastructure** | 0 | +120 | 120 |
 | **Net** | | **−135** | |
 
-Note: `src/write/chmod.c` and `src/write/rm.c` already use `xrootd_write_resolve_existing_path` which wraps auth internally; those are converted in Phase 3 instead.
+Note: `src/protocols/root/write/chmod.c` and `src/protocols/root/write/rm.c` already use `xrootd_write_resolve_existing_path` which wraps auth internally; those are converted in Phase 3 instead.
 
 ### New files added to `src/core/config/config.h`
 
@@ -181,7 +181,7 @@ This requires a `./configure` run before `make`.
 
 ---
 
-## Concrete Before/After: `src/write/mkdir.c`
+## Concrete Before/After: `src/protocols/root/write/mkdir.c`
 
 **Before** (lines 109–123):
 

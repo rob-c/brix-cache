@@ -4,14 +4,14 @@
 
 **Goal:** A transparent pass-through relay (`xrootd_transparent_proxy host:port`) that relays a `root://` client's bytes verbatim to an upstream **official XRootD** server (auth handshake travels end-to-end, so x509/GSI just work), while a non-consuming tap decodes the cleartext frames in flight and emits them to a JSON audit log — the first live consumer of the Phase-2 tap core.
 
-**Architecture:** Two parts. (3a) `xrootd_tap_stream` — an ngx-free streaming state machine that accepts arbitrary byte chunks per direction, reassembles frame headers (24B request / 8B response), captures the path for path-bearing requests, and calls `xrootd_tap_emit` per frame; standalone-unit-tested. (3b) `src/relay/` — a bidirectional buffered TCP relay modeled directly on the proven `src/handoff/handoff.c` pump, that connects to the configured upstream, relays both directions verbatim, and feeds each direction's freshly-`recv`'d bytes into a `xrootd_tap_stream`. The relay engages at the top of the stream handler (before any XRootD frame is parsed). An audit sink writes each tap frame's JSON line to `error.log`.
+**Architecture:** Two parts. (3a) `xrootd_tap_stream` — an ngx-free streaming state machine that accepts arbitrary byte chunks per direction, reassembles frame headers (24B request / 8B response), captures the path for path-bearing requests, and calls `xrootd_tap_emit` per frame; standalone-unit-tested. (3b) `src/protocols/root/relay/` — a bidirectional buffered TCP relay modeled directly on the proven `src/protocols/root/handoff/handoff.c` pump, that connects to the configured upstream, relays both directions verbatim, and feeds each direction's freshly-`recv`'d bytes into a `xrootd_tap_stream`. The relay engages at the top of the stream handler (before any XRootD frame is parsed). An audit sink writes each tap frame's JSON line to `error.log`.
 
 **Tech Stack:** C nginx stream module, ngx event loop, standalone gcc unit test, bash+xrdfs integration test.
 
 ## Global Constraints
 
 - **NO `goto`**; functional/modular; explicit ctx; no new globals.
-- **HELPERS — reuse:** `xrootd_tap_decode_request`/`_response`/`xrootd_tap_emit`/`xrootd_tap_audit_format` (Phase 2); the `handoff_pump` relay pattern from `src/handoff/handoff.c`; `ngx_event_connect_peer`. Do not reimplement framing or a new event-loop relay from scratch — mirror handoff.
+- **HELPERS — reuse:** `xrootd_tap_decode_request`/`_response`/`xrootd_tap_emit`/`xrootd_tap_audit_format` (Phase 2); the `handoff_pump` relay pattern from `src/protocols/root/handoff/handoff.c`; `ngx_event_connect_peer`. Do not reimplement framing or a new event-loop relay from scratch — mirror handoff.
 - **Transparent = verbatim:** the relay MUST NOT alter, reorder, or drop client/upstream bytes; the tap is read-only (fed a copy of bytes already committed to forwarding).
 - **Tap each byte once:** feed the stream decoder only on a fresh `recv` (never on a re-send after `NGX_AGAIN`).
 - **Build governance:** new `.c` (tap_stream.c, relay/*.c) → register in top-level `./config`, then `./configure`.
@@ -260,9 +260,9 @@ Expected: PASS — `tap_unittest: all checks passed`.
 ### Task 2 (3b): Transparent relay subsystem + config + audit sink
 
 **Files:**
-- Create: `src/relay/relay.h`, `src/relay/relay.c`
-- Modify: `src/core/types/config.h` (relay addr/name fields), `src/core/config/server_conf.c` (init+merge), `src/stream/module.c` (directive), `src/connection/handler.c` (engage seam)
-- Modify: `config` (register `src/relay/relay.c`)
+- Create: `src/protocols/root/relay/relay.h`, `src/protocols/root/relay/relay.c`
+- Modify: `src/core/types/config.h` (relay addr/name fields), `src/core/config/server_conf.c` (init+merge), `src/protocols/root/stream/module.c` (directive), `src/protocols/root/connection/handler.c` (engage seam)
+- Modify: `config` (register `src/protocols/root/relay/relay.c`)
 
 **Interfaces:**
 - Consumes: `xrootd_tap_stream` (Task 1), `xrootd_tap_audit_format` (Phase 2), the handoff relay pattern.
@@ -324,17 +324,17 @@ exit $fail
 - [ ] **Step 2: Config field + directive + merge.**
   - `src/core/types/config.h`: near `http_handoff_addr`, add `ngx_addr_t *relay_addr; ngx_str_t relay_name;`.
   - `src/core/config/server_conf.c`: init `conf->relay_addr = NULL;`; merge-inherit like `http_handoff_addr` (copy from prev if unset).
-  - `src/stream/module.c`: register `{ ngx_string("xrootd_transparent_proxy"), NGX_STREAM_SRV_CONF|NGX_CONF_TAKE1, xrootd_conf_set_transparent_proxy, NGX_STREAM_SRV_CONF_OFFSET, 0, NULL }`.
+  - `src/protocols/root/stream/module.c`: register `{ ngx_string("xrootd_transparent_proxy"), NGX_STREAM_SRV_CONF|NGX_CONF_TAKE1, xrootd_conf_set_transparent_proxy, NGX_STREAM_SRV_CONF_OFFSET, 0, NULL }`.
   - Directive handler `xrootd_conf_set_transparent_proxy` (in `relay.c`): `ngx_parse_url` the arg (host:port), store `ngx_addr_t*` in `conf->relay_addr`, name in `conf->relay_name` (mirror `xrootd_conf_set_http_handoff` in handoff.c exactly). Declare its prototype in `relay.h`.
 
-- [ ] **Step 3: Write `src/relay/relay.{h,c}`** — copy `src/handoff/handoff.c`'s struct + `*_pump`/`*_cu`/`*_uc`/4 handlers/`*_begin_relay`/`*_connect_done`/peer-connect, renaming `handoff`→`relay`, with these changes:
+- [ ] **Step 3: Write `src/protocols/root/relay/relay.{h,c}`** — copy `src/protocols/root/handoff/handoff.c`'s struct + `*_pump`/`*_cu`/`*_uc`/4 handlers/`*_begin_relay`/`*_connect_done`/peer-connect, renaming `handoff`→`relay`, with these changes:
   1. The struct gains `xrootd_tap_ctx_t tap; xrootd_tap_stream_t cu_dec; xrootd_tap_stream_t uc_dec;` and registers the audit sink in `xrootd_relay_start`.
   2. In the pump, immediately after a successful `recv` (`n > 0`), call `xrootd_tap_stream_feed(dec, buf, (size_t) n);` where `dec` is the direction's decoder (pass it into `relay_pump`). This taps each byte exactly once.
   3. `xrootd_relay_start` takes no `prefix` (engages before any read): `cu_off = cu_end = 0`. Connect to `conf->relay_addr` (not http_handoff_addr).
   4. Store the relay hub on `ctx` (add `void *relay;` to `xrootd_ctx_t` next to `handoff`, or reuse a generic slot) so the client-side handlers can resolve it; upstream-side uses `u->data`.
   5. Audit sink: `static void relay_audit_sink(void *ctx, const xrootd_tap_frame_t *f, xrootd_tap_dir_t dir, const uint8_t *p, size_t pl)` → `char line[1200]; if (xrootd_tap_audit_format(f, dir, line, sizeof(line))) ngx_log_error(NGX_LOG_INFO, ((ngx_log_t*)ctx), 0, "xrootd tap: %s", line);` with `ctx = c->log`.
 
-- [ ] **Step 4: Engage seam** in `src/connection/handler.c` — after ctx init, before the normal handshake path:
+- [ ] **Step 4: Engage seam** in `src/protocols/root/connection/handler.c` — after ctx init, before the normal handshake path:
 
 ```c
     if (mconf->relay_addr != NULL) {
@@ -345,9 +345,9 @@ exit $fail
     }
 ```
 
-(Include `src/relay/relay.h`.) Confirm the exact local names (`mconf`/`s`/`c`) match handler.c.
+(Include `src/protocols/root/relay/relay.h`.) Confirm the exact local names (`mconf`/`s`/`c`) match handler.c.
 
-- [ ] **Step 5: Register + build.** Add `$ngx_addon_dir/src/relay/relay.c` to `config`; then:
+- [ ] **Step 5: Register + build.** Add `$ngx_addon_dir/src/protocols/root/relay/relay.c` to `config`; then:
 ```
 cd /tmp/nginx-1.28.3 && ./configure --with-stream --with-stream_ssl_module \
   --with-http_ssl_module --with-http_dav_module --with-threads \
@@ -373,5 +373,5 @@ Expected: PASS — passthrough byte-exact, stat works, tap logged `open` + `stat
 ## Self-Review
 
 - **Spec coverage:** spec §5 (transparent relay: verbatim byte relay + non-consuming cleartext decode + capture/hook) → Task 2 relay + Task 1 streaming decode; audit sink wires the tap; capture/hook sinks deferred (documented). §5.1 "reuse splice/relay" → mirrors handoff. The cleartext-only-visibility property holds: the relay taps the plaintext bytes it forwards; a full-TLS client↔origin session yields only ciphertext to the decoder (no frames emitted), as designed.
-- **Placeholder scan:** Task 1 is fully coded; Task 2 specifies the mirror-of-handoff edits precisely (struct additions, pump tap point, connect target, engage seam, audit sink) rather than re-pasting ~250 lines of handoff verbatim — the source to copy is named exactly (`src/handoff/handoff.c`).
+- **Placeholder scan:** Task 1 is fully coded; Task 2 specifies the mirror-of-handoff edits precisely (struct additions, pump tap point, connect target, engage seam, audit sink) rather than re-pasting ~250 lines of handoff verbatim — the source to copy is named exactly (`src/protocols/root/handoff/handoff.c`).
 - **Type consistency:** `xrootd_tap_stream_t`/`_init`/`_feed` defined in `tap.h` (Task 1), used in `relay.c` (Task 2); audit sink uses `xrootd_tap_audit_format` (Phase 2) unchanged.

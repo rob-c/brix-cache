@@ -155,8 +155,8 @@ the config file. Changing a server directive means a daemon restart
 ### nginx-xrootd: nginx blocks with `xrootd_*` directives
 
 Directives are nginx `ngx_command_t` entries declared in the module command
-tables (`src/stream/module.c`, `src/stream/module_core_directives.c`,
-`src/stream/module_cache_proxy_directives.c`, `src/protocols/webdav/module.c`,
+tables (`src/protocols/root/stream/module.c`, `src/protocols/root/stream/module_core_directives.c`,
+`src/protocols/root/stream/module_cache_proxy_directives.c`, `src/protocols/webdav/module.c`,
 `src/protocols/s3/module.c`, plus the metrics/dashboard/srr/pmark module tables). They are
 merged main→srv→loc by `src/core/config/` (`process.c`, `server_conf.c`,
 `postconfiguration.c`, `runtime_server.c`, `merge_macros.h`) and follow nginx
@@ -349,8 +349,8 @@ implementations encode the same `(experiment, activity)` and are fail-open
   bytes never reach Firefly JSON), `defsfile.c` (jansson defs registry),
   `mapping.c` (scitag → path-glob → VO → default priority), `sockstats.c`
   (`TCP_INFO`).
-- Integration: `root://` flow begun in `src/read/open_request.c`, ended in
-  `src/connection/disconnect.c`; WebDAV/S3 begun in `dispatch.c` / `handler.c`,
+- Integration: `root://` flow begun in `src/protocols/root/read/open_request.c`, ended in
+  `src/protocols/root/connection/disconnect.c`; WebDAV/S3 begun in `dispatch.c` / `handler.c`,
   ended via pool cleanup. **TPC is always marked; plain GET/PUT only with
   `xrootd_pmark_http_plain`.**
 - Directives: `xrootd_pmark`, `_firefly`, `_firefly_dest`, `_flowlabel`,
@@ -564,7 +564,7 @@ nginx-xrootd shapes by *identity* (VO/issuer/DN/IP/volume) uniformly across
 |---|---|
 | Metrics / Prometheus | `src/observability/metrics/{handler,stream,writer,unified,webdav,s3,cluster,tracking,stream_proxy,stream_cache,config,module,access_log,health}.c`, `metrics_macros.h`, `metrics.h`, `metrics_internal.h`, `README.md` |
 | Dashboard / admin | `src/observability/dashboard/{module,api,api_admin,config,config_download,auth,events,history,transfer_table,page}.c`, `README.md` |
-| Config model | `src/core/config/{process,server_conf,postconfiguration,runtime_server}.c`, `merge_macros.h`; directives in `src/stream/module.c`, `module_core_directives.c`, `module_cache_proxy_directives.c`, `src/protocols/webdav/module.c`, `src/protocols/s3/module.c` |
+| Config model | `src/core/config/{process,server_conf,postconfiguration,runtime_server}.c`, `merge_macros.h`; directives in `src/protocols/root/stream/module.c`, `module_core_directives.c`, `module_cache_proxy_directives.c`, `src/protocols/webdav/module.c`, `src/protocols/s3/module.c` |
 | SciTags / PMark | `src/observability/pmark/{firefly,flowlabel,scitag,mapping,config,defsfile,sockstats}.c`, `pmark.h`, `README.md` |
 | SRR | `src/protocols/srr/{builder,handler,module}.c`, `srr.h`, `README.md` |
 | Logging / sanitize | `src/observability/metrics/access_log.{c,h}`, `src/observability/accesslog/access_log.c`, `src/fs/path/path.h` (`xrootd_sanitize_log_string` decl) + `src/path/{acl,authdb,helpers,resolve_confined_helpers}.c` (uses) |

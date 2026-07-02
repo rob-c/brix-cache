@@ -27,7 +27,7 @@
 
 #include "xrdhttp.h"
 #include "webdav.h"
-#include "protocol/opcodes.h"
+#include "protocols/root/protocol/opcodes.h"
 #include "core/compat/integrity_info.h"
 #include "core/compat/net_target.h"
 #include "core/compat/checksum.h"

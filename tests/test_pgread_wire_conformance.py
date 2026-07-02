@@ -49,7 +49,7 @@ from settings import (
 
 
 # ---------------------------------------------------------------------------
-# Opcodes / status / error codes (src/protocol/opcodes.h, XProtocol.hh)
+# Opcodes / status / error codes (src/protocols/root/protocol/opcodes.h, XProtocol.hh)
 # ---------------------------------------------------------------------------
 
 kXR_login   = 3007

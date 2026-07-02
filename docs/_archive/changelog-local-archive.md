@@ -41,11 +41,11 @@ into dedicated subdirectories:
 
 | Deleted file | Moved into |
 |---|---|
-| `src/ngx_xrootd_connection.c` | `src/connection/` |
+| `src/ngx_xrootd_connection.c` | `src/protocols/root/connection/` |
 | `src/ngx_xrootd_config.c` | `src/core/config/` |
-| `src/ngx_xrootd_read_handlers.c` | `src/read/` (20 files) |
-| `src/ngx_xrootd_write_handlers.c` | `src/write/` (17 files) |
-| `src/ngx_xrootd_query.c` | `src/query/` |
+| `src/ngx_xrootd_read_handlers.c` | `src/protocols/root/read/` (20 files) |
+| `src/ngx_xrootd_write_handlers.c` | `src/protocols/root/write/` (17 files) |
+| `src/ngx_xrootd_query.c` | `src/protocols/root/query/` |
 | `src/ngx_xrootd_path.c` | `src/path/` (17 files) |
 | `src/ngx_xrootd_gsi.c` | `src/auth/gsi/` |
 | `src/ngx_xrootd_token.c` | `src/auth/token/` (16 files) |
@@ -53,12 +53,12 @@ into dedicated subdirectories:
 | `src/ngx_xrootd_voms.c` | `src/auth/voms/` |
 | `src/ngx_xrootd_aio.c` | `src/core/aio/` |
 | `src/ngx_xrootd_cms_heartbeat.c` | `src/net/cms/` |
-| `src/ngx_xrootd_handshake.c` | `src/handshake/` (10 files) |
-| `src/ngx_xrootd_session.c` | `src/session/` |
-| `src/ngx_xrootd_response.c` | `src/response/` |
+| `src/ngx_xrootd_handshake.c` | `src/protocols/root/handshake/` (10 files) |
+| `src/ngx_xrootd_session.c` | `src/protocols/root/session/` |
+| `src/ngx_xrootd_response.c` | `src/protocols/root/response/` |
 | `src/ngx_http_xrootd_webdav_*.c` (4 files) | `src/protocols/webdav/` (34 files) |
 | `src/ngx_http_xrootd_metrics_module.c` | `src/observability/metrics/` |
-| `src/xrootd_protocol.h` | `src/protocol/wire.h` + companion headers |
+| `src/xrootd_protocol.h` | `src/protocols/root/protocol/wire.h` + companion headers |
 | `src/ngx_xrootd_metrics.h` | `src/observability/metrics/metrics.h` |
 
 `src/core/ngx_xrootd_module.h` kept but substantially reorganised (−715 /+821 lines
@@ -66,7 +66,7 @@ net).
 
 ### 2.2 New protocol features
 
-- **`kXR_bind` — parallel streams** (`src/session/bind.c`, `src/session/`).
+- **`kXR_bind` — parallel streams** (`src/protocols/root/session/bind.c`, `src/protocols/root/session/`).
   Bound secondaries are read-only; primary is the control channel.
 
 - **XRootD TPC pull** (`src/tpc/`): full third-party-copy client.  Decomposed
@@ -74,11 +74,11 @@ net).
   `launch.c`, `source.c`, `thread.c`, `tpc_token.c`, `parse.c`.
 
 - **`kXR_set`** handler with `kXR_attrCache` and modifier constants
-  (`src/query/set.c`, `src/protocol/opcodes.h`).
+  (`src/protocols/root/query/set.c`, `src/protocols/root/protocol/opcodes.h`).
 
-- **`kXR_clone`** (`src/read/clone.c`) — fast-path TPC for local copies.
+- **`kXR_clone`** (`src/protocols/root/read/clone.c`) — fast-path TPC for local copies.
 
-- **`kXR_chkpoint`** (`src/write/chkpoint.c`, `src/write/chkpoint_xeq.c`).
+- **`kXR_chkpoint`** (`src/protocols/root/write/chkpoint.c`, `src/protocols/root/write/chkpoint_xeq.c`).
 
 - **pgread response framing fix** — `kXR_pgread` now correctly uses `kXR_status`
   (4007) with per-page CRC32c; was incorrectly using the standard chunk framing.
@@ -93,8 +93,8 @@ net).
 | `src/auth/sss/` | SSS (Shared-Secret-Security) authentication |
 | `src/net/manager/` | Dynamic manager/registry state |
 | `src/net/cms/` | CMS heartbeat, space/load reporting, multi-server config |
-| `src/fattr/` | Extended attribute operations (`kXR_fattr` get/set/del) |
-| `src/dirlist/` | Native directory listing (`kXR_dirlist`) |
+| `src/protocols/root/fattr/` | Extended attribute operations (`kXR_fattr` get/set/del) |
+| `src/protocols/root/dirlist/` | Native directory listing (`kXR_dirlist`) |
 | `src/auth/crypto/` | Shared PKI loading and verification helpers |
 
 ### 2.4 WebDAV (`src/protocols/webdav/`) — new and expanded handlers
@@ -122,7 +122,7 @@ moved to `src/protocols/webdav/metrics.c`, S3 metrics to `src/protocols/s3/metri
 
 | File | Change |
 |---|---|
-| `src/connection/handler.c` | +18 lines |
+| `src/protocols/root/connection/handler.c` | +18 lines |
 | `src/observability/metrics/metrics.h` | +62 lines (new counter definitions) |
 | `src/observability/metrics/stream.c` | +13 lines |
 | `src/net/proxy/connect.c` | +11 lines |
@@ -327,7 +327,7 @@ OIDC):
 
 ## 9. What is NOT changed relative to origin/main
 
-- Core XRootD stream module entry point logic (`src/stream/module.c` exists but
+- Core XRootD stream module entry point logic (`src/protocols/root/stream/module.c` exists but
   is a refactor destination, not net-new functionality)
 - The `config` build file (minor: +1 line in commit `3ff2ca4`)
 - `LICENSE`, `CONTRIBUTING.md`, `conftest.py` (root), `pytest.ini`,

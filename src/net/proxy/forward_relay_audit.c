@@ -6,7 +6,7 @@
  * directly (registered in ./config). See forward.c for the design overview. */
 
 #include "proxy_internal.h"
-#include "session/registry.h"
+#include "protocols/root/session/registry.h"
 
 void
 proxy_write_path_audit(xrootd_proxy_ctx_t *proxy, uint16_t status)

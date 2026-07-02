@@ -164,7 +164,7 @@ XRootD's fire-and-forget), counted in a metric.
 
 ## 4. Configuration design (nginx idiom, mirrors `pmark`)
 
-Keep the existing flat `xrootd_*` directive convention (see `src/stream/module.c` command
+Keep the existing flat `xrootd_*` directive convention (see `src/protocols/root/stream/module.c` command
 table). Directives are **per-server** (`NGX_STREAM_SRV_CONF` + matching HTTP `SRV/LOC`), so
 each `server {}` can have its own SciTags policy — consistent with cache/upstream/proxy.
 
@@ -262,17 +262,17 @@ request/connection
 ## 6. Per-protocol integration (with our file:line anchors)
 
 ### 6.1 root:// (stream) — primary
-- **Where:** mirror XRootD "begin on open". Hook in `src/read/open_request.c` (`xrootd_handle_open`,
+- **Where:** mirror XRootD "begin on open". Hook in `src/protocols/root/read/open_request.c` (`xrootd_handle_open`,
   ~`:140`) **after** the auth gate, where path + `ctx->identity` + `is_write` are known.
 - Store `xrootd_pmark_flow_t *pmark_flow` on `xrootd_ctx_t` (`src/core/types/context.h:142` area) plus a
   `pmark_done` flag (one flow per connection, like XRootD's `pmHandle`/`pmDone`).
 - **fd:** `c->fd` directly. **activity:** read vs write from the open mode; map via `mapping.c`.
 - **Identity timing gotcha** (from research): identity is only complete post-`kXR_auth`; do not
   mark during handshake. Open is always post-auth, so opening is the correct, safe hook.
-- **Bound secondaries** (`kXR_bind`, `src/session/` + `context.h:382-384`): a bound data channel
+- **Bound secondaries** (`kXR_bind`, `src/protocols/root/session/` + `context.h:382-384`): a bound data channel
   should inherit the primary's (exp,act) and emit its own firefly for its own `c->fd` — analogue
   of XRootD extending the handle to child streams.
-- **End:** `src/connection/disconnect.c` (`xrootd_on_disconnect`) → `firefly.c flow_end` (read
+- **End:** `src/protocols/root/connection/disconnect.c` (`xrootd_on_disconnect`) → `firefly.c flow_end` (read
   final TCP_INFO before nginx closes the fd).
 - `scitag.flow` arrives in the kXR_open **opaque/CGI** (`?scitag.flow=N`) — parse in `scitag.c`.
 

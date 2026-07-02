@@ -191,7 +191,7 @@ correct checksums, where the stock behaviour returned `file not found`.
 Rather than rejecting or stalling under pressure, the module uses the protocol's
 own backpressure primitives:
 
-- `xrootd_send_wait()` / `xrootd_send_waitresp()` (`src/response/control.c`) emit
+- `xrootd_send_wait()` / `xrootd_send_waitresp()` (`src/protocols/root/response/control.c`) emit
   `kXR_wait`/`kXR_waitresp` — telling a client to pause and retry after a bounded
   interval **without losing session context** — instead of an immediate
   `kXR_Overloaded` or a dropped connection.

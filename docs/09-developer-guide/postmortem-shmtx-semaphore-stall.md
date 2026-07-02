@@ -5,7 +5,7 @@ SHM-table mutex in **spin+yield-only** mode (POSIX semaphore disabled).
 **Severity:** High — under concurrent `root://` load on a multi-worker server, a
 random subset of connections stalled **60–450 s** (until the client gave up),
 collapsing aggregate read throughput (n=8 read ≈ 5700 → ≈ 26 MiB/s).
-**Component:** `src/session/handles.c` / `src/core/compat/shm_slots.c` (cross-worker
+**Component:** `src/protocols/root/session/handles.c` / `src/core/compat/shm_slots.c` (cross-worker
 shared-memory handle table, locked on every `kXR_open`).
 **Trigger surfaced by:** a read/write load benchmark — 8 concurrent `xrdcp` of a
 1 GiB file against a `worker_processes auto` (or any ≥ 2) nginx.
@@ -35,9 +35,9 @@ The authoritative evidence was a GDB backtrace of the stalled worker:
 ```
 #0  __futex_abstimed_wait_common
 #2  ngx_shmtx_lock (mtx=&xrootd_handle_mutex)        src/core/ngx_shmtx.c:111
-#3  xrootd_session_handle_publish                    src/session/handles.c:106
-#4  xrootd_open_resolved_file                        src/read/open_resolved_file.c:459
-#5  xrootd_handle_open                               src/read/open_request.c:641
+#3  xrootd_session_handle_publish                    src/protocols/root/session/handles.c:106
+#4  xrootd_open_resolved_file                        src/protocols/root/read/open_resolved_file.c:459
+#5  xrootd_handle_open                               src/protocols/root/read/open_request.c:641
 #6  xrootd_dispatch_read_opcode  ←  kXR_open
 ```
 

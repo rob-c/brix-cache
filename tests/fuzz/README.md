@@ -50,7 +50,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
 
 Recommended next targets (see Phase 27 W7 / Appendix B):
 
-- **Framing + per-opcode dispatch** — `src/connection/recv.c`, `src/handshake`
+- **Framing + per-opcode dispatch** — `src/protocols/root/connection/recv.c`, `src/protocols/root/handshake`
   (the `ClientRequestHdr` `dlen` / per-opcode cap table; F1 readv segment math).
 - **GSI/TPC bucket + PEM/cipher parsing** — `src/tpc/gsi_outbound_*`, `src/auth/gsi`
   (F2 — the densest external-handle error paths).

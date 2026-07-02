@@ -340,7 +340,7 @@ These are the auxiliary storage domains that INVARIANT #11 currently carves *out
 | 3 | **Read-through cache store** | `src/fs/cache/` — ~19 of 34 files still raw (`io.c`, `cache_storage.c`, `cstore.c`, `fetch.c`, `open_or_fill.c`, `evict_*`) | `sd_cache` + `tier`/`xfer` | Finish the phase-64 migration: cache-store byte/namespace I/O via the cstore/`sd_cache` instance, not raw cache-root POSIX. Highest leverage (biggest domain, infra already exists). |
 | 4 | **S3 multipart staging** | `src/protocols/s3/` — 5 `vfs-seam-allow` markers | — (none) | A staging instance (worker-identity scratch ctx) so part upload/assemble/commit route through the driver; commit stays a VFS↔VFS move. |
 | 5 | **TPC temp / assembly** | `src/tpc/`, `src/protocols/webdav/tpc*` — 8 markers | — (none) | In-progress transfer temps + multi-stream assembly onto the scratch ctx; final publish via `xrootd_commit_staged`. |
-| 6 | **Checkpoint journal** | `src/write/` (chkpoint) — handle-owned raw | — (none) | Journal file as a handle-owned scratch object; teardown path currently has "no export root" — the scratch ctx supplies one. |
+| 6 | **Checkpoint journal** | `src/protocols/root/write/` (chkpoint) — handle-owned raw | — (none) | Journal file as a handle-owned scratch object; teardown path currently has "no export root" — the scratch ctx supplies one. |
 | 7 | **FRM control/journal** | `src/frm/` — partial | `sd_frm` | Route FRM control/journal through `sd_frm`; reconcile with the `xfer` ledger. |
 
 **Sequencing rationale:** #3 first (infra exists, biggest win, de-risks the pattern). #4–#6 depend on the shared worker-identity scratch context, so that design (a brainstorming output) gates them. #7 last (smallest, and FRM/tape recall is itself a later phase-64 step, SP5).

@@ -76,7 +76,7 @@ PROPFIND /store/
 ```
 
 That means the code path is different too: native XRootD requests enter under
-`src/connection/`, `src/handshake/`, `src/read/`, and `src/write/`; WebDAV
+`src/protocols/root/connection/`, `src/protocols/root/handshake/`, `src/protocols/root/read/`, and `src/protocols/root/write/`; WebDAV
 requests enter through nginx HTTP and land under `src/protocols/webdav/`.
 
 ---

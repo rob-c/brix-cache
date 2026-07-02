@@ -47,9 +47,9 @@
  */
 
 #include "core/ngx_xrootd_module.h"
-#include "dirlist/dcksm.h"
+#include "protocols/root/dirlist/dcksm.h"
 #include "fs/path/path.h"
-#include "response/response.h"
+#include "protocols/root/response/response.h"
 #include "aio.h"
 #include "core/compat/error_mapping.h"
 

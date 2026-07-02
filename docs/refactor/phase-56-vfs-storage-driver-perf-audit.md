@@ -122,7 +122,7 @@ hot-path pillars. The split is itself the top architectural finding (**§3**).
 | `xrootd_vfs_opendir`/`readdir`/`closedir` | — | ✅ | PROPFIND-collection / S3 LIST streaming enumerators |
 | `xrootd_vfs_copy` | 4 | ✅ | `webdav/copy.c:424`, `s3/copy.c:129` |
 | `xrootd_vfs_staged_open`/`commit`/`abort` | 4 | ✅ | `webdav/put.c:390`, `s3/post_object.c:1138` |
-| `xrootd_vfs_io_execute` | 20+ | ✅ | all `src/core/aio/*.c`, `src/read/*.c`, `src/write/*.c` |
+| `xrootd_vfs_io_execute` | 20+ | ✅ | all `src/core/aio/*.c`, `src/protocols/root/read/*.c`, `src/protocols/root/write/*.c` |
 | `xrootd_vfs_file_sendfile_fd` | 2 | ✅ | `shared/file_serve.c:184`, `webdav/get.c:170` |
 | `xrootd_vfs_stat`/`sync`/`truncate` (handle) | — | ✅ | via `xrootd_vfs_io_execute` SYNC/TRUNCATE jobs |
 | **`xrootd_vfs_read`** | **0** | ❌ | — (dead chain-builder; `make_file_chain`/`make_memory_chain`) |
@@ -556,7 +556,7 @@ layers, applied *after* open by each protocol:
 
 - **WebDAV:** `webdav_fadvise_willneed` (`src/protocols/webdav/io.c:76`), called from
   `webdav/get.c:55` for the whole file.
-- **Stream read:** `src/read/prefetch.{c,h}` — windowed, sequential-pattern-aware
+- **Stream read:** `src/protocols/root/read/prefetch.{c,h}` — windowed, sequential-pattern-aware
   (`read_last_end`/`read_ahead_end`), HEP-tuned 1 MiB/32 MiB/8 MiB constants.
 
 The **S3 GetObject** path and any future backend get **no** hint, and
@@ -588,7 +588,7 @@ sd_posix_read_advise(xrootd_sd_obj_t *obj, off_t off, size_t len, int advice)
 ```
 
 The VFS read PREPARE calls `read_advise` once at open (`SEQUENTIAL` for a streaming
-GET) and the existing `src/read/prefetch.c` windowed `WILLNEED` logic is expressed
+GET) and the existing `src/protocols/root/read/prefetch.c` windowed `WILLNEED` logic is expressed
 *through* the slot. The ad-hoc `webdav/io.c` hint is then retired in favour of one
 seam-level implementation.
 
@@ -876,7 +876,7 @@ sub-ms range. Low-cardinality labels unchanged.
 
 Verified this sweep: there are only **10** references to `xrootd_metric_op_done`
 tree-wide (including its definition), and **none** in `src/core/aio/*.c`,
-`src/read/read.c`, or `src/write/write.c`. So the high-volume **stream read/write**
+`src/protocols/root/read/read.c`, or `src/protocols/root/write/write.c`. So the high-volume **stream read/write**
 and **HTTP sendfile** ops emit **no** per-op latency at all — their accounting is
 byte counters on the handle/session, not the op-latency histogram. The VFS latency
 series therefore covers only the metadata/namespace ops (stat/copy/rename/unlink/
@@ -1049,7 +1049,7 @@ plane (plus the §9.6 copy loop).
 
 Counts — **comment-filtered call sites** (the raw `grep` returns ~121, but ~16 of
 those are function names mentioned in file-header WHAT/WHY/HOW doc-blocks, not
-calls; `src/write/mv.c`'s header alone names `xrootd_ns_rename` eight times). The
+calls; `src/protocols/root/write/mv.c`'s header alone names `xrootd_ns_rename` eight times). The
 authoritative count, with doc-block lines stripped and `src/fs/cache/` excluded (it is
 reached *from* `xrootd_vfs_open` at `vfs_open.c:316`, so it is VFS-internal, not a
 handler bypass), is **105 sites across 39 files**:
@@ -1074,7 +1074,7 @@ functions — `sd_posix.c`), so each migration is **byte-identical behaviour** p
 the metric/log/cache/backend-routing the bypass currently skips. Notable sites by
 subsystem:
 
-- **Stream `root://` (`src/read`,`write`,`dirlist`,`connection`,`query`):**
+- **Stream `root://` (`src/protocols/root/read`,`write`,`dirlist`,`connection`,`query`):**
   `read/open_resolved_file.c:220` + `connection/fd_table.c:127` (the **hot** open —
   §9.5); `dirlist/handler.c:403,474` (dir open) + `:565` (`fstatat`/child) +
   `dirlist/dcksm.c:131` (`openat`); `write/mv.c:149,198`, `write/mkdir.c:93`,
@@ -1115,7 +1115,7 @@ migrated sibling is the literal copy-paste template for the un-migrated one.
 
 `read/open_resolved_file.c:220` and `connection/fd_table.c:127` open with
 `xrootd_open_beneath(conf->rootfd, rel, …)` and store the **bare `int` fd** in the
-0–255 `xrootd_file_t` handle table (`src/connection/fd_table.c`). There is even a
+0–255 `xrootd_file_t` handle table (`src/protocols/root/connection/fd_table.c`). There is even a
 deliberate raw `open(open_path, oflags | O_CLOEXEC, …)` branch
 (`open_resolved_file.c:~206`) whose comment cites *FD-leak avoidance into a forked
 `tpc_curl` child*. These bypass the VFS because the stream plane manages descriptor
@@ -1650,15 +1650,15 @@ COMPLETE), `src/fs/vfs_io_core.h`.
 (Funnel 1), `src/core/aio/reads.c` / `aio/write.c` (Funnels 2/4, D-2), `src/protocols/webdav/get.c`
 / `put.c`, `src/protocols/s3/object.c` / `post_object.c` / `copy.c`, `src/core/compat/fs_walk.c`
 (C-1 central tree walker), `src/core/compat/namespace_ops.c` (recursive delete),
-`src/fs/path/resolve_confined_ops.c` (impersonation stat — §0.3), `src/read/prefetch.c`
+`src/fs/path/resolve_confined_ops.c` (impersonation stat — §0.3), `src/protocols/root/read/prefetch.c`
 + `src/protocols/webdav/io.c` (B-2 existing fadvise), `src/observability/metrics/unified.{h,c}` (D-1/D-2),
 `src/fs/cache/writethrough_decision.c` (E-3).
 
 **Pillar F seam-closure backlog (the ~105 bypass sites to migrate — §9.4):**
-*stream* `src/read/open_resolved_file.c` (F6 hot), `src/connection/fd_table.c` (F6
-hot), `src/dirlist/handler.c` + `dirlist/dcksm.c`, `src/write/mv.c` / `mkdir.c` /
-`op_table.c` / `chkpoint.c`, `src/query/checksum_ckscan_common.c` /
-`checksum_ckscan_dispatch.c`, `src/path/op_path.c`; *WebDAV*
+*stream* `src/protocols/root/read/open_resolved_file.c` (F6 hot), `src/protocols/root/connection/fd_table.c` (F6
+hot), `src/protocols/root/dirlist/handler.c` + `dirlist/dcksm.c`, `src/protocols/root/write/mv.c` / `mkdir.c` /
+`op_table.c` / `chkpoint.c`, `src/protocols/root/query/checksum_ckscan_common.c` /
+`checksum_ckscan_dispatch.c`, `src/protocols/root/path/op_path.c`; *WebDAV*
 `src/protocols/webdav/propfind.c` / `lock.c` / `copy.c` / `fs/copy_engine.c` / `search.c` /
 `methods_basic.c` / `namespace.c` / `move.c` / `tpc.c` / `tpc_curl.c`; *S3*
 `src/protocols/s3/object.c` / `checksum.c` / `delete_objects.c` /
@@ -1751,7 +1751,7 @@ Families: **O**=open→`vfs_open`, **S**=stat→`vfs_stat`, **D**=opendir→`vfs
 **N**=ns-mutate→`vfs_mkdir`/`rename`/`unlink`/`rmdir`, **G**=staged→`vfs_staged_*`.
 (Line numbers drift; the file path + family is the stable key the CI guard matches.)
 
-### C.1 Stream `root://` (`src/read`, `write`, `dirlist`, `connection`, `query`, `fattr`, `tpc`, `path`) — 24 sites
+### C.1 Stream `root://` (`src/protocols/root/read`, `write`, `dirlist`, `connection`, `query`, `fattr`, `tpc`, `path`) — 24 sites
 
 | File | Fam (n) | Phase | Note |
 |---|---|---|---|

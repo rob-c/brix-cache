@@ -6,7 +6,7 @@ This ledger is the audit artifact for the clean-room claim of the native
 assertion that **no implementation logic was copied** from `XrdCl`/`XrdApps`/`XrdSec*`.
 
 **Permitted inputs:** `/tmp/xrootd-src/src/XProtocol/XProtocol.hh` (the published wire
-contract), this project's already-derived `src/protocol/*.h`, the `xrdcp.1`/`xrdfs.1`
+contract), this project's already-derived `src/protocols/root/protocol/*.h`, the `xrdcp.1`/`xrdfs.1`
 man pages, and black-box CLI behaviour (stdout/stderr/exit-code diff, packet capture)
 against a reference server. **Forbidden inputs:** the C++ implementation bodies in
 `XrdCl/`, `XrdApps/`, `XrdSec*/`, `XrdSut`, `XrdCrypto`.
@@ -21,17 +21,17 @@ entry here.
 
 **Upstream files consulted:** none.
 
-M0 only re-packaged files **already present in this project** (`src/protocol/*.h`,
+M0 only re-packaged files **already present in this project** (`src/protocols/root/protocol/*.h`,
 `src/core/compat/{crc32c,hex,crypto,error_mapping}.{c,h}`) into an ngx-free static library
 build. It derived no new wire facts and copied nothing from upstream. The wire
-vocabulary in `src/protocol/*.h` was established (and cross-checked) in earlier phases;
-its own provenance is documented in `src/protocol/README.md`.
+vocabulary in `src/protocols/root/protocol/*.h` was established (and cross-checked) in earlier phases;
+its own provenance is documented in `src/protocols/root/protocol/README.md`.
 
 ---
 
 ## M1 — connection spine + xrdfs stat/ls
 
-**Upstream files consulted:** none beyond the project's own `src/protocol` headers
+**Upstream files consulted:** none beyond the project's own `src/protocols/root/protocol` headers
 (themselves derived/cross-checked in earlier phases) and the project's own
 server-side handlers (read to learn the *server's* response framing — that is our
 own code, not XrdCl). The behavioural contract was then confirmed by **black-box
@@ -56,7 +56,7 @@ xrootd daemon (`:11098`); `ls` output is byte-identical after sort.
 
 ## M2/M3 — file ops (xrdcp download + upload)
 
-**Upstream files consulted:** none beyond `src/protocol` + black-box observation
+**Upstream files consulted:** none beyond `src/protocols/root/protocol` + black-box observation
 (diffing native vs system `xrdcp` md5 round-trips).
 
 | Fact | Source | Used in |
@@ -75,16 +75,16 @@ both nginx and (download) the reference xrootd.
 
 ## M4 — authentication (token / unix / GSI) + M7 — in-protocol TLS
 
-**Upstream files consulted:** none beyond our own server code (`src/session/login.c`,
+**Upstream files consulted:** none beyond our own server code (`src/protocols/root/session/login.c`,
 `src/auth/gsi/{auth,buffer,cert_response,parse_x509,parse_crypto_helpers,keypool}.c`,
-`src/handshake/sigver.c`, `src/auth/token/token.c`) + `src/protocol/{gsi,flags,
+`src/protocols/root/handshake/sigver.c`, `src/auth/token/token.c`) + `src/protocols/root/protocol/{gsi,flags,
 wire_write_extended_requests}.h` + black-box runs of the system client. No
 XrdSec*/XrdCrypto `.cc` read.
 
 | Fact | Source | Used in |
 |---|---|---|
 | kXR_auth: credtype[4] at body bytes 16-19; kXR_authmore=more, kXR_ok=done | wire_core_requests.h + auth.c | auth.c |
-| Login sec list `&P=<proto>[,args]&P=...` grammar | src/session/login.c | auth.c |
+| Login sec list `&P=<proto>[,args]&P=...` grammar | src/protocols/root/session/login.c | auth.c |
 | ztn payload = "ztn\0" + JWT (server skips 4-byte tag) | src/auth/token/token.c | sec_token.c |
 | unix payload = "unix\0" + user | src/auth/unix/auth.c | sec_unix.c |
 | GSI buffer = name\0 + step[4 BE] + {type[4] len[4] data}* + kXRS_none(0) | src/auth/gsi/buffer.c | gsi_bucket.c |
@@ -92,8 +92,8 @@ XrdSec*/XrdCrypto `.cc` read.
 | kXGC_cert (build): kXRS_puk(our pub) + kXRS_cipher_alg("aes-256-cbc") + kXRS_main(AES) ; inner = "gsi\0"+kXGC_cert+kXRS_x509(proxy PEM)+none | src/auth/gsi/parse_x509.c | sec_gsi.c |
 | DH ffdhe2048 (EVP_PKEY group); derive dh_pad=0; AES-256-CBC key = **first 32 bytes** of secret, IV=0; signing_key = SHA256(secret) | src/auth/gsi/{keypool,parse_x509}.c | sec_gsi.c |
 | Client DH pub blob format "---BPUB---<UPPERCASE hex>---EPUB--" (BN_bn2hex) | src/auth/gsi/parse_crypto_helpers.c | sec_gsi.c |
-| kXR_sigver frame = ClientSigverRequest{expectrid,version,flags,seqno[8 BE],crypto} + 32-byte HMAC; HMAC = HMAC-SHA256(signing_key, seqno_be(8) ‖ hdr(24) ‖ payload); server replies kXR_ok; opcode/level policy | src/handshake/sigver.c, src/session/signing.c | sigver.c |
-| TLS flags kXR_ableTLS/wantTLS (client), kXR_haveTLS/gotoTLS (server); upgrade after protocol reply, before login | flags.h + src/session/protocol.c | conn.c, tls.c |
+| kXR_sigver frame = ClientSigverRequest{expectrid,version,flags,seqno[8 BE],crypto} + 32-byte HMAC; HMAC = HMAC-SHA256(signing_key, seqno_be(8) ‖ hdr(24) ‖ payload); server replies kXR_ok; opcode/level policy | src/protocols/root/handshake/sigver.c, src/protocols/root/session/signing.c | sigver.c |
+| TLS flags kXR_ableTLS/wantTLS (client), kXR_haveTLS/gotoTLS (server); upgrade after protocol reply, before login | flags.h + src/protocols/root/session/protocol.c | conn.c, tls.c |
 
 ## Minimization — shared `gsi_core` (single source for module + client)
 
@@ -107,7 +107,7 @@ the bucket builder, ffdhe2048 `dh_keygen`, DH pub encode/decode, `build_peer`,
 
 Both sides now call it (no duplication): client `sec_gsi.c`/`sigver.c` use it
 directly; module `src/auth/gsi/{keypool,buffer,parse_crypto_helpers}.c` and
-`src/handshake/sigver.c` were rewired to thin wrappers/calls. The client's
+`src/protocols/root/handshake/sigver.c` were rewired to thin wrappers/calls. The client's
 `gsi_bucket.c` was deleted; client code shrank 3560→~3220 lines. (One small,
 intentional dup remains: the inline DH derive in `src/auth/gsi/parse_x509.c`, left on the
 server's critical decrypt path; gsi_core's derive is byte-identical.) The ngx-free
@@ -120,7 +120,7 @@ against $X509_CERT_DIR is enforced (empty CA dir → fail), no silent downgrade
 (roots:// to a non-TLS port refused), `--noverifyhost` relaxes only the name check.
 **kXR_sigver is implemented per the server verifier but NOT live-validated** — every
 harness GSI server runs at security_level 0, so signing is dormant (gated on
-sec_level>=2); the code is byte-for-byte the inverse of src/handshake/sigver.c.
+sec_level>=2); the code is byte-for-byte the inverse of src/protocols/root/handshake/sigver.c.
 
 ## M5 — redirect / cluster follow
 
@@ -128,8 +128,8 @@ Wire facts (verified against the module's own emitters, not XrdCl):
 
 | Fact | Module source (truth) | Client consumer |
 |---|---|---|
-| `kXR_redirect`(4004) body = `port[4 BE] + host[]` (host bare, already IPv6-bracketed by the server) | src/response/control.c `xrootd_send_redirect()` | lib/frame.c `parse_redirect()` |
-| `kXR_wait`(4005) body = `seconds[4 BE]`; client backs off then RE-SENDS the same request on the SAME connection | src/response/control.c `xrootd_send_wait()` | lib/frame.c `xrdc_roundtrip()` |
+| `kXR_redirect`(4004) body = `port[4 BE] + host[]` (host bare, already IPv6-bracketed by the server) | src/protocols/root/response/control.c `xrootd_send_redirect()` | lib/frame.c `parse_redirect()` |
+| `kXR_wait`(4005) body = `seconds[4 BE]`; client backs off then RE-SENDS the same request on the SAME connection | src/protocols/root/response/control.c `xrootd_send_wait()` | lib/frame.c `xrdc_roundtrip()` |
 | tried/triedrc loop-guard is purely client-side (the module does not track it) | — | lib/frame.c tried-set + redir_depth |
 
 Design: `xrdc_recv` now surfaces `kXR_redirect`/`kXR_wait` as normal (status+body)
@@ -160,19 +160,19 @@ load are the known harness contention flake, not the client.
 
 ## M6 — paged I/O integrity (kXR_pgread/pgwrite) + --cksum
 
-Wire facts (verified against src/read/pgread.c, src/write/pgwrite.c,
-src/response/status.c, wire_core_requests.h):
+Wire facts (verified against src/protocols/root/read/pgread.c, src/protocols/root/write/pgwrite.c,
+src/protocols/root/response/status.c, wire_core_requests.h):
 
 | Fact | Module source (truth) | Client consumer |
 |---|---|---|
 | kXR_pgread=3030, kXR_pgwrite=3026 (opcodes.h; struct comment "3031" is stale) | opcodes.h | ops_file.c |
-| Per-page unit is **[crc32c_be 4][data ≤4096]** — CRC FIRST, then data — aligned to the FILE offset (short first page) | src/read/pgread.c:83-87 | decode_pages / pgwrite build |
-| Reply uses kXR_status(4007): hdr.dlen=24 (Status16+offset8, NOT page data); bdy.dlen = page-data length that follows; trailing offset[8] | src/response/status.c:59-83 | read_status_frame |
-| kXR_status header crc32c covers the 20 bytes streamID..offset | src/response/status.c:66,85 | read_status_frame |
+| Per-page unit is **[crc32c_be 4][data ≤4096]** — CRC FIRST, then data — aligned to the FILE offset (short first page) | src/protocols/root/read/pgread.c:83-87 | decode_pages / pgwrite build |
+| Reply uses kXR_status(4007): hdr.dlen=24 (Status16+offset8, NOT page data); bdy.dlen = page-data length that follows; trailing offset[8] | src/protocols/root/response/status.c:59-83 | read_status_frame |
+| kXR_status header crc32c covers the 20 bytes streamID..offset | src/protocols/root/response/status.c:66,85 | read_status_frame |
 | inner requestid = opcode−kXR_1stRequest (pgread→30, pgwrite→26); resptype 0=Final/1=Partial | status.c:78-79 | — |
-| pgwrite CRC failure → plain kXR_error/kXR_ChkSumErr (NOT the pgWrCSE bad-page list) | src/write/pgwrite.c:245 | xrdc_file_pgwrite |
+| pgwrite CRC failure → plain kXR_error/kXR_ChkSumErr (NOT the pgWrCSE bad-page list) | src/protocols/root/write/pgwrite.c:245 | xrdc_file_pgwrite |
 | **crc32c is STANDARD Castagnoli** (init/xorout 0xFFFFFFFF, "123456789"→0xe3069283) — the header comment "init 0" in wire_core_requests.h is misleading; the libxrdproto routine the server, the client and Qcksum all use is the standard one | src/core/compat/crc32c.* (verified C-vs-Python) | checksum.c, decode_pages |
-| kXR_Qcksum(3) via kXR_query(3001): payload "<algo> <path>" (server splits on first ':'/' '), reply "<algo> <hex>"; manager mode redirects the query to the DS | src/query/checksum_qcksum.c | xrdc_query_cksum (roundtrip) |
+| kXR_Qcksum(3) via kXR_query(3001): payload "<algo> <path>" (server splits on first ':'/' '), reply "<algo> <hex>"; manager mode redirects the query to the DS | src/protocols/root/query/checksum_qcksum.c | xrdc_query_cksum (roundtrip) |
 
 Implementation: `xrdc_file_pgread`/`xrdc_file_pgwrite` in ops_file.c share a
 `read_status_frame()` helper (validates the kXR_status header CRC, surfaces
@@ -200,12 +200,12 @@ Wire facts (verified against the module handlers):
 |---|---|---|---|
 | mkdir | ClientMkdirRequest | options[0]=kXR_mkdirpath(0x01) for -p; mode at offset 18 | wire_write_extended_requests.h |
 | rm/rmdir | ClientRm/RmdirRequest | path payload | " |
-| mv | ClientMvRequest | payload = **"src ' ' dst"**, arg1len=htons(len(src)); server requires payload[arg1len]==0x20 | src/write/mv.c:80-89 |
+| mv | ClientMvRequest | payload = **"src ' ' dst"**, arg1len=htons(len(src)); server requires payload[arg1len]==0x20 | src/protocols/root/write/mv.c:80-89 |
 | chmod | ClientChmodRequest | mode at offset 18 | " |
 | truncate | ClientTruncateRequest | offset[8]=new length, fhandle=0 ⇒ path-based | " |
 | query | ClientQueryRequest | infotype at offset 4; Qconfig/Qspace/Qcksum/QStats; reply is text | wire_core_requests.h |
-| statvfs | ClientStatRequest, options=kXR_vfs(1) | reply text "<id> <size> <flags> <mtime>"-style vfs body | src/read/stat.c |
-| locate | ClientLocateRequest | reply "S<rw><host>:<port>" token | src/read/locate.c:189 |
+| statvfs | ClientStatRequest, options=kXR_vfs(1) | reply text "<id> <size> <flags> <mtime>"-style vfs body | src/protocols/root/read/stat.c |
+| locate | ClientLocateRequest | reply "S<rw><host>:<port>" token | src/protocols/root/read/locate.c:189 |
 | prepare | ClientPrepareRequest | options=kXR_stage etc; newline-separated paths | wire_core_requests.h |
 
 Implementation: new `lib/ops_fs.c` — one small function per op, all routed through
@@ -258,12 +258,12 @@ Wire facts (verified against the module + black-box):
 
 | Fact | Module source (truth) | Client consumer |
 |---|---|---|
-| `ClientBindRequest` = streamid[2] reqid[2] sessid[16] dlen[4] (24B); reply = kXR_ok + **1 byte pathid** (1-253) | src/protocol/wire_write_extended_requests.h:162, src/session/bind.c:130-138 | conn.c `xrdc_bind` |
-| A secondary stream **skips kXR_login**: handshake+kXR_protocol then kXR_bind{primary sessid}; identity inherited from the SHM session registry | src/session/bind.c:78-122 | conn.c `xrdc_bringup_ex(want_login=0)` |
+| `ClientBindRequest` = streamid[2] reqid[2] sessid[16] dlen[4] (24B); reply = kXR_ok + **1 byte pathid** (1-253) | src/protocols/root/protocol/wire_write_extended_requests.h:162, src/protocols/root/session/bind.c:130-138 | conn.c `xrdc_bind` |
+| A secondary stream **skips kXR_login**: handshake+kXR_protocol then kXR_bind{primary sessid}; identity inherited from the SHM session registry | src/protocols/root/session/bind.c:78-122 | conn.c `xrdc_bringup_ex(want_login=0)` |
 | **Caveat:** kXR_read carries no pathid (wire_core_requests.h ClientReadRequest), and the server never reads it to fan reads — so server-side stream parallelism is cosmetic. The gate only requires binds + byte-exactness. | — | streams.c (bind N-1, copy on primary) |
-| TPC source-first rendezvous: open SRC read `?tpc.key=K&tpc.dst=root://dest//dpath` (registers K), then open DST write `?tpc.src=root://src//spath&tpc.key=K`; opaque keys tpc.{src,dst,key,org,token_mode} | src/read/open_request.c:108-258, src/tpc/parse.c:310-356 | copy.c `copy_tpc` |
-| Two `kXR_sync` on the dest handle: 1st arms (`kXR_ok "tpc-arm"`), 2nd triggers the pull, reply **deferred** until done | src/write/sync.c:56-66, src/tpc/launch.c | ops_file.c `xrdc_file_sync` (+ bumped timeout) |
-| Server splits the open payload at `?` into path + opaque | src/read/open_overview.c open_extract_opaque | ops_file.c `xrdc_file_open_opaque` |
+| TPC source-first rendezvous: open SRC read `?tpc.key=K&tpc.dst=root://dest//dpath` (registers K), then open DST write `?tpc.src=root://src//spath&tpc.key=K`; opaque keys tpc.{src,dst,key,org,token_mode} | src/protocols/root/read/open_request.c:108-258, src/tpc/parse.c:310-356 | copy.c `copy_tpc` |
+| Two `kXR_sync` on the dest handle: 1st arms (`kXR_ok "tpc-arm"`), 2nd triggers the pull, reply **deferred** until done | src/protocols/root/write/sync.c:56-66, src/tpc/launch.c | ops_file.c `xrdc_file_sync` (+ bumped timeout) |
+| Server splits the open payload at `?` into path + opaque | src/protocols/root/read/open_overview.c open_extract_opaque | ops_file.c `xrdc_file_open_opaque` |
 
 Implementation: `conn.c` split into `xrdc_bringup_ex(want_login)` + `xrdc_bind`;
 new `lib/streams.c` (a best-effort N-1 bind set, torn down without endsess);
@@ -607,7 +607,7 @@ kXR_NotAuthorized-scope / overQuota / NoSpace) and, if a file is offline, a stag
 probe. Mutating probes require `--allow-write` AND (loopback-literal host OR `--i-am-authorized`).
 Findings render as a human `diagnosis:` block (verdict + cause + → remedy) and a JSON `diagnosis[]`
 array (new `fjson_str` escaper — issues/causes are wire-influenced). All kXR codes verified real
-in `src/protocol/opcodes.h`; the server's write-gate genuinely returns kXR_fsReadOnly
+in `src/protocols/root/protocol/opcodes.h`; the server's write-gate genuinely returns kXR_fsReadOnly
 (handshake/ + query/prepare.c). Also fixed a real client gap surfaced en route: nothing — the
 IPv6 url.c fix was the prior pass.
 
@@ -656,7 +656,7 @@ smoking gun (DX_FAIL/CRITICAL). Probes (all PII-free, verdict + kXR code only):
   decided on the exact code (`kXR_NotAuthorized`=enforced, `kXR_fsReadOnly`=read-only-export so
   inconclusive→WARN, success→FAIL).
 
-Mechanism (verified vs the server oracle in src/auth/token, src/handshake/policy.c): credentials are
+Mechanism (verified vs the server oracle in src/auth/token, src/protocols/root/handshake/policy.c): credentials are
 read at connect time, so injection is `setenv(BEARER_TOKEN)`/restore around scoped connects; one
 small client-only lib addition, `xrdc_opts.force_anon` (honored by an early `return 0` in
 `client/lib/auth.c` — log in, present nothing), plus a reusable `xrdc_token_meta_get` factored out

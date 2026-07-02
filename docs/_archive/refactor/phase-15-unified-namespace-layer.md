@@ -334,7 +334,7 @@ Add to `compat/namespace_ops.h` (as a comment at the top):
  * INVARIANT: All protocol handlers implementing user-visible namespace
  * mutations (delete, mkdir, rename) MUST route through these functions.
  * Direct calls to xrootd_*_confined*() from protocol handler files
- * (src/write/, src/protocols/s3/, src/protocols/webdav/ dispatch paths) are a defect.
+ * (src/protocols/root/write/, src/protocols/s3/, src/protocols/webdav/ dispatch paths) are a defect.
  * Internal staging code (TPC, multipart, copy engine, checksum) is exempt.
 ```
 

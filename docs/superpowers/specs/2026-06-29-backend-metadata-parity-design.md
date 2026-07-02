@@ -15,7 +15,7 @@ already implement the whole metadata phase-space**:
 
 ```
   CLIENT                 WIRE / PROTOCOL                 VFS                 DRIVER (SD seam)
-  xrdc_fattr      ──►  kXR_fattr (src/fattr/)     ──► xrootd_vfs_*xattr  ──►  getxattr/setxattr/…
+  xrdc_fattr      ──►  kXR_fattr (src/protocols/root/fattr/)     ──► xrootd_vfs_*xattr  ──►  getxattr/setxattr/…
   xrdc_chmod      ──►  kXR_chmod (write/chmod.c)  ──► xrootd_vfs_chmod   ──►  setattr  (or POSIX fallback)
   xrdc_setattr    ──►  kXR_setattr (write/ext_ops)──► xrootd_vfs_setattr ──►  setattr
   WebDAV PROPPATCH──►  dead_props.c               ──► xrootd_vfs_setxattr──►  setxattr

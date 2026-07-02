@@ -6,7 +6,7 @@
 
 **Goal:** Put nginx in front of ARC and a real XRootD instance as a credential-preserving MITM that classifies each request, bounces obvious junk, and emits one structured log line per bad-actor signal for fail2ban to ban on.
 
-**Architecture:** A protocol-agnostic, allocation-free guard core (`src/guard/`, no nginx — same discipline as `src/net/tap/`) exposes `guard_classify_pre/post` + `guard_audit_format` over a normalized `guard_request_t`. Three thin adapters feed it: one nginx HTTP module (`ngx_http_xrootd_guard_module`) serving ARC and XrdHttp/WebDAV via a `profile` directive (ACCESS phase = pre-backend bounce, LOG phase = audit), and the existing `src/relay/` stream relay (guard sink on the tap → drop the connection). Stock `ngx_http_proxy_module` moves the bytes.
+**Architecture:** A protocol-agnostic, allocation-free guard core (`src/guard/`, no nginx — same discipline as `src/net/tap/`) exposes `guard_classify_pre/post` + `guard_audit_format` over a normalized `guard_request_t`. Three thin adapters feed it: one nginx HTTP module (`ngx_http_xrootd_guard_module`) serving ARC and XrdHttp/WebDAV via a `profile` directive (ACCESS phase = pre-backend bounce, LOG phase = audit), and the existing `src/protocols/root/relay/` stream relay (guard sink on the tap → drop the connection). Stock `ngx_http_proxy_module` moves the bytes.
 
 **Tech Stack:** C (C99), nginx module API (stream + http), stock `ngx_http_proxy_module`, pytest test harness, fail2ban (nftables banaction), standalone `gcc` for pure-C unit tests.
 
@@ -43,7 +43,7 @@ Copied verbatim from CLAUDE.md / spec — every task's requirements implicitly i
 - `audit_handler.c` — LOG-phase handler (outcome mapping, `classify_post`, append audit line).
 - `guard_http_req.c` — `guard_request_t` builder from `ngx_http_request_t` (op mapping, cred_present, sanitized path) + audit-log file writer.
 
-**Stream adapter — extend `src/relay/`:**
+**Stream adapter — extend `src/protocols/root/relay/`:**
 - `relay_guard.c` (new) — opcode→op-class table, `xrootd_tap_frame_t`→`guard_request_t`, guard sink, drop-flag.
 - `relay.c` (modify) — register guard sink, check drop-flag in `relay_pump`.
 - `relay.h` (modify) — new fields / decl.
@@ -1318,8 +1318,8 @@ git commit -m "test(httpguard): XrdHttp/WebDAV profile parity matrix"
 ## Task 12: Stream adapter — opcode→op-class + guard sink + drop enforcement
 
 **Files:**
-- Create: `src/relay/relay_guard.c`
-- Modify: `src/relay/relay.h`, `src/relay/relay.c`
+- Create: `src/protocols/root/relay/relay_guard.c`
+- Modify: `src/protocols/root/relay/relay.h`, `src/protocols/root/relay/relay.c`
 - Modify: `src/core/config/*` stream srv-conf (add `guard_enable`, reuse existing audit/ruleset config) + `./config`
 - Test: `tests/test_stream_guard.py`
 
@@ -1337,7 +1337,7 @@ Add to the `xrootd_relay_t` struct in `relay.c` (and any needed decl in `relay.h
 ```
 Include `"../guard/guard.h"` at the top of `relay.c`.
 
-- [ ] **Step 2: Write `src/relay/relay_guard.c`**
+- [ ] **Step 2: Write `src/protocols/root/relay/relay_guard.c`**
 
 ```c
 #include "../ngx_xrootd_module.h"
@@ -1433,7 +1433,7 @@ xrootd_relay_guard_sink(void *ctx, const xrootd_tap_frame_t *f,
     }
 }
 ```
-Add a tiny `xrootd_relay_guard_timestamp()` using `ngx_gmtime(ngx_time(), &tm)` + `ngx_sprintf`. Confirm the exact `kXR_*` enum names against `/tmp/xrootd-src/src/XProtocol/XProtocol.hh` and `src/protocol/opcodes.h` (INVARIANT: wire spec is authoritative).
+Add a tiny `xrootd_relay_guard_timestamp()` using `ngx_gmtime(ngx_time(), &tm)` + `ngx_sprintf`. Confirm the exact `kXR_*` enum names against `/tmp/xrootd-src/src/XProtocol/XProtocol.hh` and `src/protocols/root/protocol/opcodes.h` (INVARIANT: wire spec is authoritative).
 
 - [ ] **Step 3: Wire the sink + drop check into `relay.c`**
 
@@ -1458,7 +1458,7 @@ In `relay_pump`, immediately after `xrootd_tap_stream_feed(dec, buf, (size_t) n)
 ```
 Because `relay_pump` doesn't currently receive the hub, add an `xrootd_relay_t *r` parameter to `relay_pump` (it already receives the per-direction decoder — thread the hub through the four call sites in `relay_cu`/`relay_uc`/`relay_begin`). This is a mechanical signature change; keep it functional (pass state explicitly, no globals).
 
-- [ ] **Step 4: Add the `guard_enable` stream directive** — `xrootd_guard_stream on|off` on the transparent-proxy server block. Add the field to `ngx_stream_xrootd_srv_conf_t` and a `ngx_command_t` (mirror the `xrootd_transparent_proxy` registration in `src/stream/module.c` per the note that live stream tables live there). Register `relay_guard.c` in `./config`.
+- [ ] **Step 4: Add the `guard_enable` stream directive** — `xrootd_guard_stream on|off` on the transparent-proxy server block. Add the field to `ngx_stream_xrootd_srv_conf_t` and a `ngx_command_t` (mirror the `xrootd_transparent_proxy` registration in `src/protocols/root/stream/module.c` per the note that live stream tables live there). Register `relay_guard.c` in `./config`.
 
 - [ ] **Step 5: Reconfigure + build**
 
@@ -1492,7 +1492,7 @@ Expected: PASS.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/relay/relay_guard.c src/relay/relay.c src/relay/relay.h src/stream/module.c config tests/test_stream_guard.py
+git add src/protocols/root/relay/relay_guard.c src/protocols/root/relay/relay.c src/protocols/root/relay/relay.h src/protocols/root/stream/module.c config tests/test_stream_guard.py
 git commit -m "feat(relay): stream guard sink — frame classify + connection drop"
 ```
 
@@ -1626,7 +1626,7 @@ git commit -m "feat(fail2ban): per-signal filters + jails + regex fixture test"
 
 - [ ] **Step 2: Add an OP→FILE row to `CLAUDE.md`**
 
-Under the HTTP table: `| guard / bad-actor / fail2ban | src/httpguard/*, src/guard/*, src/relay/relay_guard.c |`.
+Under the HTTP table: `| guard / bad-actor / fail2ban | src/httpguard/*, src/guard/*, src/protocols/root/relay/relay_guard.c |`.
 
 - [ ] **Step 3: Full guard-core + adapter test sweep**
 
@@ -1644,7 +1644,7 @@ Expected: `test is successful`.
 
 - [ ] **Step 5: Confirm the no-goto / build invariants**
 
-Run: `! grep -rn '\bgoto\b' src/guard src/httpguard src/relay/relay_guard.c`
+Run: `! grep -rn '\bgoto\b' src/guard src/httpguard src/protocols/root/relay/relay_guard.c`
 Expected: no matches (exit 0 from the negation).
 
 - [ ] **Step 6: Commit**

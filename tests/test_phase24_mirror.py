@@ -60,7 +60,7 @@ def test_mirror_modules_present():
 
 
 def test_stream_dispatch_hook_present():
-    d = _read("src/handshake/dispatch.c")
+    d = _read("src/protocols/root/handshake/dispatch.c")
     assert "xrootd_stream_mirror_maybe" in d
     sm = _read("src/net/mirror/stream_mirror.c")
     # Reuses the proven bootstrap wire builder; replays the saved request.
@@ -84,7 +84,7 @@ def test_directives_registered():
     for name in ("xrootd_mirror_url", "xrootd_mirror_methods",
                  "xrootd_mirror_sample", "xrootd_mirror_strip_auth"):
         assert name in wd, name
-    st = _read("src/stream/module.c")
+    st = _read("src/protocols/root/stream/module.c")
     for name in ("xrootd_stream_mirror_url", "xrootd_mirror_opcodes"):
         assert name in st, name
 

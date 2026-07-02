@@ -157,9 +157,9 @@ Important notes:
 
 Relevant code:
 
-- `src/handshake/*.c`
-- `src/session/*.c`
-- `src/connection/*.c`
+- `src/protocols/root/handshake/*.c`
+- `src/protocols/root/session/*.c`
+- `src/protocols/root/connection/*.c`
 - `src/auth/gsi/*.c`
 
 ### Common native download flow
@@ -192,8 +192,8 @@ Details worth knowing:
 
 The read-side handlers live in:
 
-- `src/read/*.c`
-- `src/query/*.c`
+- `src/protocols/root/read/*.c`
+- `src/protocols/root/query/*.c`
 - `src/core/aio/*.c`
 
 ### Common native upload flow
@@ -236,8 +236,8 @@ Important details:
 
 Relevant code:
 
-- `src/write/*.c`
-- `src/response/*.c`
+- `src/protocols/root/write/*.c`
+- `src/protocols/root/response/*.c`
 
 ### Optional follow-up operations
 
@@ -440,13 +440,13 @@ If you want to step through the server side of an `xrdcp` session:
 
 ### Native `root://`
 
-- `src/handshake/*.c`
-- `src/session/*.c`
+- `src/protocols/root/handshake/*.c`
+- `src/protocols/root/session/*.c`
 - `src/auth/gsi/*.c`
-- `src/read/*.c`
-- `src/write/*.c`
-- `src/query/*.c`
-- `src/connection/*.c`
+- `src/protocols/root/read/*.c`
+- `src/protocols/root/write/*.c`
+- `src/protocols/root/query/*.c`
+- `src/protocols/root/connection/*.c`
 
 ### WebDAV `davs://`
 

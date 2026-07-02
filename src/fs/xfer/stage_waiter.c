@@ -14,9 +14,9 @@
 #include "stage_request_registry.h"
 
 #include "core/compat/shm_slots.h"
-#include "read/open.h"
-#include "response/async.h"
-#include "connection/event_sched.h"
+#include "protocols/root/read/open.h"
+#include "protocols/root/response/async.h"
+#include "protocols/root/connection/event_sched.h"
 
 #include <ngx_shmtx.h>
 #include <string.h>

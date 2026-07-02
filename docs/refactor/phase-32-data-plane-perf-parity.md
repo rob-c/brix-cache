@@ -9,7 +9,7 @@ verified. WS3 **foundation** landed+verified (concurrent-AIO read-buffer/task po
 benchmark-backed session** (throughput-unvalidatable here + flaky harness). WS5
 access-log batching + WebDAV per-request cuts: tracked follow-ups (documented).
 
-> **WS4 (2026-06-13):** `src/read/read.c` memory single-shot path probes the page
+> **WS4 (2026-06-13):** `src/protocols/root/read/read.c` memory single-shot path probes the page
 > cache with `preadv2(RWF_NOWAIT)` before posting AIO; a full hit completes inline
 > (reusing the sync-fallback completion), skipping the thread round-trip on
 > cache-hot reads. Regular-files-only, thread-pool-only; short/EAGAIN → AIO.
@@ -44,7 +44,7 @@ access-log batching + WebDAV per-request cuts: tracked follow-ups (documented).
 >   `large200.bin` instead. Standalone TLS shell tests need
 >   `X509_USER_PROXY`/`X509_CERT_DIR` set (conftest sets them).
 **Scope:** the three bulk data planes — `davs://`/WebDAV+TLS, S3, and `root://` —
-`src/read`, `src/core/aio`, `src/connection`, `src/fs`, `src/shared`, `src/protocols/webdav`,
+`src/protocols/root/read`, `src/core/aio`, `src/protocols/root/connection`, `src/fs`, `src/shared`, `src/protocols/webdav`,
 `src/protocols/s3`, plus nginx runtime config.
 **Builds on:** Phase 29 (read bottlenecks), Phase 30 (hyper-opt), Phase 31
 (memory-budget streaming: windowing + budget + pipelining ring scaffold). This
@@ -284,9 +284,9 @@ No action: CRC32C (already SSE4.2), build `-O3` (already set), metric atomics
 
 ## WS3 implementation architecture — concurrent-AIO read pipeline (2026-06-13)
 
-Detailed design after tracing the send ring (`src/connection/write_helpers.c`
+Detailed design after tracing the send ring (`src/protocols/root/connection/write_helpers.c`
 `xrootd_queue_response_*` + `xrootd_flush_pending`) and the recv gates
-(`src/connection/recv.c`).
+(`src/protocols/root/connection/recv.c`).
 
 **Key constraint found:** the connection has a single state enum; recv returns
 immediately on both `XRD_ST_AIO` and `XRD_ST_SENDING` (recv.c:153,170). Every

@@ -392,7 +392,7 @@ bumps the `xrootd_registry_full_total` Prometheus counter.
 This is where CMS meets the data protocol. A `root://` client never speaks CMS;
 it speaks `kXR_locate` / `kXR_open` on the data port, and the manager answers
 with `kXR_redirect`. The lookup order, when `xrootd_manager_mode on`
-(`src/read/locate.c`, `src/read/open.c`):
+(`src/protocols/root/read/locate.c`, `src/protocols/root/read/open.c`):
 
 1. **Redirect-collapse cache** (`src/net/manager/redir_cache.c`) — if
    `xrootd_collapse_redir` is on and a recent identical lookup is cached, answer
@@ -564,7 +564,7 @@ three-tier configs.
 | `src/net/manager/registry.c` | shared-memory server registry + selection |
 | `src/net/manager/redir_cache.c` | redirect-collapse cache |
 | `src/net/manager/pending.c` | pending-locate bridge (suspend client ↔ CMS reply) |
-| `src/read/locate.c`, `src/read/open.c` | client-facing redirect / CMS-escalate logic |
+| `src/protocols/root/read/locate.c`, `src/protocols/root/read/open.c` | client-facing redirect / CMS-escalate logic |
 
 ---
 

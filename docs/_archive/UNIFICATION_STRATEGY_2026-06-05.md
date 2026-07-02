@@ -66,7 +66,7 @@ typedef struct {
 ---
 
 ### C. Unified VFS & I/O Orchestration
-The most significant duplication exists in the I/O path. Both `src/read/read.c` and `src/protocols/webdav/get.c` independently handle:
+The most significant duplication exists in the I/O path. Both `src/protocols/root/read/read.c` and `src/protocols/webdav/get.c` independently handle:
 - Read-through cache lookups.
 - AIO thread-pool dispatching.
 - dashboard transfer slot updates.
@@ -141,7 +141,7 @@ graph LR
 
 ### Phase 3: VFS Operation Abstraction
 - Implement `src/fs/` directory with full open/read/write/stat/dir/mutation API.
-- Replace direct I/O in `src/read/`, `src/write/`, `src/protocols/webdav/`, and `src/protocols/s3/` with VFS calls.
+- Replace direct I/O in `src/protocols/root/read/`, `src/protocols/root/write/`, `src/protocols/webdav/`, and `src/protocols/s3/` with VFS calls.
 - Enforce TLS buffer invariant and pgwrite CRC32c in VFS layer.
 
 ### Phase 4: Cache Unification

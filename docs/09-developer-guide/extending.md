@@ -4,7 +4,7 @@
 
 Step-by-step recipe: source file, dispatch entry, config, test. Follow these in order — each step is load-bearing.
 
-Use an existing single-opcode file as a template — `src/write/sync.c` is a
+Use an existing single-opcode file as a template — `src/protocols/root/write/sync.c` is a
 good minimal example.
 
 The seven steps touch seven places. This is the wiring you are completing —
@@ -39,7 +39,7 @@ build script knows your file exists:
 
 ### Step 1 — Add the opcode constant
 
-`src/protocol/opcodes.h` lists every opcode in numeric order.  Add yours with
+`src/protocols/root/protocol/opcodes.h` lists every opcode in numeric order.  Add yours with
 a brief comment, keeping the sequential order.
 
 ```c
@@ -48,7 +48,7 @@ a brief comment, keeping the sequential order.
 
 ### Step 2 — Add the wire struct
 
-`src/protocol/wire.h` has a `ClientXxxRequest` struct for every request
+`src/protocols/root/protocol/wire.h` has a `ClientXxxRequest` struct for every request
 type and a `ServerResponseBody_Xxx` for any non-trivial response body.
 Add both here.
 
@@ -112,7 +112,7 @@ Steps 6–8 (log + metric + send) must always run in that order.  See
 ### Step 5 — Add the dispatch case
 
 Decide whether the opcode is a session op, a read op, a write op, or a
-signing op, then add a `case` to the matching `src/handshake/dispatch_*.c`.
+signing op, then add a `case` to the matching `src/protocols/root/handshake/dispatch_*.c`.
 
 ```c
 /* dispatch_read.c */
@@ -133,10 +133,10 @@ Add the new `.h` to deps and the `.c` to srcs.
 
 ```sh
 # deps list
-$ngx_addon_dir/src/read/newop.h \
+$ngx_addon_dir/src/protocols/root/read/newop.h \
 
 # srcs list
-$ngx_addon_dir/src/read/newop.c \
+$ngx_addon_dir/src/protocols/root/read/newop.c \
 ```
 
 After editing `config`, re-run `./configure` in the nginx source tree to
@@ -167,7 +167,7 @@ ngx_flag_t  my_feature;  /* [xrootd_my_feature on|off] */
 ### Step 2 — Register the directive
 
 Add an `ngx_command_t` entry to the directive table in
-`src/stream/module.c`.  Pick the correct type flags (`NGX_STREAM_SRV_CONF`,
+`src/protocols/root/stream/module.c`.  Pick the correct type flags (`NGX_STREAM_SRV_CONF`,
 `NGX_CONF_FLAG` for on/off, `NGX_CONF_TAKE1` for a single string value).
 
 ```c

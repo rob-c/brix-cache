@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-The module has three protocol layers — XRootD stream (`src/`), WebDAV HTTP (`src/protocols/webdav/`), and S3 REST (`src/protocols/s3/`) — each with their own error pattern, path resolver, metric wrapper, async callback boilerplate, and staged file logic. Many of these are near-identical implementations that could be consolidated into `src/core/compat/` or `src/response/`, giving new contributors a clear mental model: **"common layer does X, protocol layer adds Y on top."**
+The module has three protocol layers — XRootD stream (`src/`), WebDAV HTTP (`src/protocols/webdav/`), and S3 REST (`src/protocols/s3/`) — each with their own error pattern, path resolver, metric wrapper, async callback boilerplate, and staged file logic. Many of these are near-identical implementations that could be consolidated into `src/core/compat/` or `src/protocols/root/response/`, giving new contributors a clear mental model: **"common layer does X, protocol layer adds Y on top."**
 
 ### Estimated Impact
 
@@ -44,7 +44,7 @@ This directory already provides shared utilities used by native XRootD stream, W
 - ETag computation (`etag.c`) — from file metadata (size + mtime)
 - Logging (`log.c`) — structured access logging with `xrootd_sanitize_log_string()`
 
-### `src/response/` — 4 files, XRootD wire response framing
+### `src/protocols/root/response/` — 4 files, XRootD wire response framing
 
 Low-level building blocks for stream protocol wire responses:
 - `basic.c` — `xrootd_build_resp_hdr`, `xrootd_send_ok`, `xrootd_send_error`
@@ -63,7 +63,7 @@ Already shares `conf->allow_write` across all protocol layers with unified merge
 ### 1. Error Response Unification (Highest Impact)
 
 **Current state:** Three independent error response paths with no shared wrapper:
-- **Stream:** `xrootd_send_error(ctx, c, kXR_code, msg)` — direct wire framing (`src/response/basic.c`)
+- **Stream:** `xrootd_send_error(ctx, c, kXR_code, msg)` — direct wire framing (`src/protocols/root/response/basic.c`)
 - **WebDAV:** Each handler builds HTTP status + optional XML body → calls `webdav_metrics_return()` to finalize (`src/protocols/webdav/dispatch.c` lines 37–181)
 - **S3:** `s3_send_xml_error(r, http_status, error_code, message)` wrapper around `xrootd_http_send_xml_error()` (`src/protocols/s3/util.c:90`)
 
@@ -213,12 +213,12 @@ Each protocol's config struct contains `ngx_xrootd_common_conf_t common` as a pr
 ### 7. HTTP Response Building Bridge (Stream ↔ HTTP)
 
 **Current state:** Two separate response building systems:
-- **Stream wire framing:** `src/response/` — builds ServerResponseHdr, kXR_status frames, CRC32c wrapping (`basic.c`, `status.c`, `control.c`)
+- **Stream wire framing:** `src/protocols/root/response/` — builds ServerResponseHdr, kXR_status frames, CRC32c wrapping (`basic.c`, `status.c`, `control.c`)
 - **HTTP response building:** `src/core/compat/http_body.c`, `http_file_response.c` — builds ngx_chain_t of ngx_buf_t for HTTP responses
 
 **Gap:** Stream handlers that serve HTTP-compatible responses (e.g., `/metrics` endpoint, dashboard) bridge between these systems manually. The wire framing system doesn't know about ngx_chain_t; the HTTP body system doesn't know about kXR_status frames.
 
-**Proposal:** A unified response abstraction in `src/response/bridge.c`:
+**Proposal:** A unified response abstraction in `src/protocols/root/response/bridge.c`:
 
 ```c
 // Converts wire buffer → ngx_chain_t for HTTP delivery
@@ -290,7 +290,7 @@ S3 put.c loses ~5 lines of duplicated temp path generation. One shared pattern f
 
 ### CRC32c Consolidation (Already Good)
 - Single implementation: `src/core/compat/crc32c.c` — SSE4.2 hardware/software fallback, single-pass CRC+copy fusion
-- Wire-facing wrappers in `src/response/crc32c.c` delegate to compat layer
+- Wire-facing wrappers in `src/protocols/root/response/crc32c.c` delegate to compat layer
 - pgread/pgwrite use `xrootd_crc32c_copy()` for per-page checksum verification
 
 ### Metrics Patterns
@@ -393,7 +393,7 @@ grep -rn "ETag\|etag\|mtime.*size\|size.*mtime" \
 
 ### Phase 1 — New Shared Files (7.5 h total)
 
-All three tasks can run in parallel. Each creates one new file in `src/core/compat/` or `src/response/` and updates callsites. Each requires registering the new `.c` in `src/core/config/config.h` under `NGX_ADDON_SRCS` and running `./configure` once.
+All three tasks can run in parallel. Each creates one new file in `src/core/compat/` or `src/protocols/root/response/` and updates callsites. Each requires registering the new `.c` in `src/core/config/config.h` under `NGX_ADDON_SRCS` and running `./configure` once.
 
 ---
 
@@ -493,16 +493,16 @@ PYTHONPATH=tests pytest tests/ -k "test_metrics" -v
 **Blocked by:** nothing.
 
 **Files to read before starting:**
-- `src/response/basic.c` — `xrootd_build_resp_hdr`, `xrootd_send_ok`, `xrootd_send_error`
-- `src/response/status.c` — `xrootd_send_pgwrite_status`, kXR_status framing
-- `src/response/response.h` — current wire-response API surface
+- `src/protocols/root/response/basic.c` — `xrootd_build_resp_hdr`, `xrootd_send_ok`, `xrootd_send_error`
+- `src/protocols/root/response/status.c` — `xrootd_send_pgwrite_status`, kXR_status framing
+- `src/protocols/root/response/response.h` — current wire-response API surface
 - `src/core/compat/http_body.c` — `ngx_chain_t` building API
 - `src/core/compat/http_body.h`
 - `src/observability/metrics/stream.c` — check whether it manually bridges wire→HTTP today
 - `src/observability/metrics/writer.c`
 
 **Files created:**
-- `src/response/bridge.c` (~120 lines):
+- `src/protocols/root/response/bridge.c` (~120 lines):
   ```c
   /* xrootd_wire_to_http_chain — wrap a wire buffer in an ngx_chain_t
    * for delivery via ngx_http_output_filter() without extra copy. */
@@ -522,10 +522,10 @@ PYTHONPATH=tests pytest tests/ -k "test_metrics" -v
 **Files modified:**
 | File | Change | Lines delta |
 |------|--------|-------------|
-| `src/response/response.h` | Declare `xrootd_wire_to_http_chain`, `xrootd_http_chain_to_kxr_status` | +6 |
+| `src/protocols/root/response/response.h` | Declare `xrootd_wire_to_http_chain`, `xrootd_http_chain_to_kxr_status` | +6 |
 | `src/observability/metrics/stream.c` | Replace manual wire→ngx_chain bridge (if present) with `xrootd_wire_to_http_chain` | ±0 to −15 |
 | `src/observability/metrics/writer.c` | Same as above | ±0 to −10 |
-| `src/core/config/config.h` | Add `src/response/bridge.c` to `NGX_ADDON_SRCS` | +1 |
+| `src/core/config/config.h` | Add `src/protocols/root/response/bridge.c` to `NGX_ADDON_SRCS` | +1 |
 
 **Build:** `./configure ... && make -j$(nproc)`
 
@@ -752,7 +752,7 @@ tests/manage_test_servers.sh restart && PYTHONPATH=tests pytest tests/ -v
 
 **After:**
 - **`src/core/compat/`** — ONE HTTP path resolver, ONE metric finalize call, ONE async PUT completion handler, ONE error response helper, verified-shared XML + ETag + staged-file utilities
-- **`src/response/`** — wire framing + bridge functions; stream handlers can produce HTTP responses through `xrootd_wire_to_http_chain` without knowing ngx_chain_t
+- **`src/protocols/root/response/`** — wire framing + bridge functions; stream handlers can produce HTTP responses through `xrootd_wire_to_http_chain` without knowing ngx_chain_t
 - **Protocol layers add on top** — Stream adds kXR opcodes + wire framing; WebDAV adds cert/token auth + CORS + locking; S3 adds SigV4 + bucket namespace mapping + sentinel directories
 
 Clear boundary: "common does X, protocol adds Y." A new contributor can learn the common layer once and understand all three protocols as additive specializations.

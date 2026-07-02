@@ -76,7 +76,7 @@
 #include <krb5.h>
 #endif
 
-#include "protocol/protocol.h"
+#include "protocols/root/protocol/protocol.h"
 #include "observability/metrics/metrics.h"
 #include "observability/dashboard/dashboard.h"
 #include "auth/token/token.h"
@@ -259,13 +259,13 @@ char *xrootd_conf_set_cache_allow_prefix(ngx_conf_t *cf, ngx_command_t *cmd,
  */
 
 /* connection/ — nginx event wiring and byte-accumulation state machine */
-#include "connection/handler.h"
-#include "connection/event_sched.h"
-#include "connection/write_helpers.h"
-#include "connection/tls.h"
-#include "connection/fd_table.h"
-#include "connection/disconnect.h"
-#include "connection/chain_helpers.h"
+#include "protocols/root/connection/handler.h"
+#include "protocols/root/connection/event_sched.h"
+#include "protocols/root/connection/write_helpers.h"
+#include "protocols/root/connection/tls.h"
+#include "protocols/root/connection/fd_table.h"
+#include "protocols/root/connection/disconnect.h"
+#include "protocols/root/connection/chain_helpers.h"
 
 /* handshake/ — initial client hello and opcode dispatcher entry points */
 /* Validate the 20-byte client hello and queue the 8-byte server reply
@@ -283,7 +283,7 @@ ngx_int_t xrootd_check_token_scope(xrootd_ctx_t *ctx,
     const char *logical_path, int need_write);
 
 /* session/ — protocol/login/auth/liveness/sigver/bind handlers */
-#include "session/session.h"
+#include "protocols/root/session/session.h"
 /* kXR_bind: attach a secondary data channel to a primary session (looked up
  * by sessid). Inherits logged_in/auth_done, assigns a pathid (1-253), and
  * replies kXR_ok + 1-byte pathid. Secondaries are read-only on primary
@@ -292,12 +292,12 @@ ngx_int_t xrootd_handle_bind(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf);
 
 /* read/ — stat/open/read/readv/pgread/locate/close handlers */
-#include "read/stat.h"
-#include "read/open.h"
-#include "read/read.h"
-#include "read/statx.h"
-#include "read/locate.h"
-#include "read/close.h"
+#include "protocols/root/read/stat.h"
+#include "protocols/root/read/open.h"
+#include "protocols/root/read/read.h"
+#include "protocols/root/read/statx.h"
+#include "protocols/root/read/locate.h"
+#include "protocols/root/read/close.h"
 
 /* query/ — kXR_query (checksum / space / config), kXR_prepare, kXR_set */
 /* kXR_query: dispatch on the infotype field to a sub-handler (checksum,
@@ -326,7 +326,7 @@ const xrootd_manager_map_t *xrootd_find_manager_map(const char *reqpath,
     ngx_array_t *map);
 
 /* fattr/ — kXR_fattr: file extended attributes */
-#include "fattr/ngx_xrootd_fattr.h"
+#include "protocols/root/fattr/ngx_xrootd_fattr.h"
 /* kXR_fattr: parse the overloaded frame (fhandle vs inline path; sub-codes
  * get/set/del/list), auth-gate path targets, then dispatch. Owns and closes
  * any fd it opens. NGX_OK on reply queued; error response otherwise. */
@@ -334,20 +334,20 @@ ngx_int_t xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf);
 
 /* dirlist/ — kXR_dirlist: directory listing with optional dStat */
-#include "dirlist/dirlist.h"
+#include "protocols/root/dirlist/dirlist.h"
 
 /* write/ — kXR_write / kXR_pgwrite / kXR_sync / kXR_truncate / mkdir / rm / mv / chmod */
-#include "write/write.h"
-#include "write/op_table.h"
+#include "protocols/root/write/write.h"
+#include "protocols/root/write/op_table.h"
 
 /* response/ — response formatting and wire send helpers */
-#include "response/response.h"
-#include "response/async.h"
+#include "protocols/root/response/response.h"
+#include "protocols/root/response/async.h"
 
 /* path/ — client path resolution, VO ACL, group policy, access log */
 #include "fs/path/path.h"
 #include "auth/authz/auth_gate.h"
-#include "path/op_path.h"
+#include "protocols/root/path/op_path.h"
 
 /* upstream/ — dynamic XRootD redirector query */
 #include "net/upstream/upstream.h"

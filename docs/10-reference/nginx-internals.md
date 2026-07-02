@@ -273,7 +273,7 @@ Starting a TLS handshake in the stream module (for the `kXR_haveTLS` in-protocol
 upgrade path) is one nginx API call:
 
 ```c
-/* src/connection/tls.c */
+/* src/protocols/root/connection/tls.c */
 if (ngx_ssl_create_connection(conf->tls_ctx, c, NGX_SSL_BUFFER) != NGX_OK) {
     ngx_log_error(NGX_LOG_ERR, c->log, 0, "xrootd: ngx_ssl_create_connection failed");
     /* ... */
@@ -456,32 +456,32 @@ the official XRootD daemon implements manually (or not at all):
 Looking at the full source tree, the breakdown is:
 
 ```
-src/stream/module.c      ← module registration only (~200 lines)
+src/protocols/root/stream/module.c      ← module registration only (~200 lines)
 src/core/config/              ← directive handlers, config merge, postconfiguration
-src/connection/          ← XRootD state machine, send/recv loop, TLS start
-src/handshake/           ← initial handshake, opcode dispatch, policy
-src/session/             ← login, auth, bind, ping, per-session opcodes
+src/protocols/root/connection/          ← XRootD state machine, send/recv loop, TLS start
+src/protocols/root/handshake/           ← initial handshake, opcode dispatch, policy
+src/protocols/root/session/             ← login, auth, bind, ping, per-session opcodes
 src/auth/gsi/                 ← GSI/x509 proxy handshake (protocol-specific)
 src/auth/token/               ← JWT/WLCG validation
 src/auth/sss/                 ← SSS shared-secret auth
 src/auth/voms/                ← VOMS VO extraction (via libvomsapi)
 src/auth/crypto/              ← PKI/CRL load and consistency checks
-src/read/                ← kXR_open, kXR_read, kXR_readv, kXR_pgread, kXR_stat
-src/write/               ← kXR_write, kXR_pgwrite, kXR_truncate, kXR_mkdir, etc.
+src/protocols/root/read/                ← kXR_open, kXR_read, kXR_readv, kXR_pgread, kXR_stat
+src/protocols/root/write/               ← kXR_write, kXR_pgwrite, kXR_truncate, kXR_mkdir, etc.
 src/core/aio/                 ← ngx_thread_task_t wrappers for all blocking I/O
 src/path/                ← path confinement, canonical resolution, VO ACL
-src/query/               ← kXR_query subtypes (cksum, space, config, stats)
-src/fattr/               ← kXR_fattr (xattr get/set/del via Linux xattrs)
+src/protocols/root/query/               ← kXR_query subtypes (cksum, space, config, stats)
+src/protocols/root/fattr/               ← kXR_fattr (xattr get/set/del via Linux xattrs)
 src/fs/cache/               ← read-through cache (origin fill, eviction)
 src/net/cms/                 ← CMS manager heartbeat (send/receive)
 src/tpc/                 ← native root:// TPC (pull path on destination)
-src/response/            ← XRootD response framing helpers
+src/protocols/root/response/            ← XRootD response framing helpers
 src/observability/metrics/             ← Prometheus counters and HTTP export endpoint
 src/net/upstream/            ← outbound XRootD redirect client
 src/protocols/webdav/              ← HTTP/WebDAV module (all methods, auth, TPC, S3)
 src/net/manager/             ← dynamic server registry for manager mode
 src/core/types/               ← shared type headers (xrootd_ctx_t, config.h, etc.)
-src/protocol/            ← wire format constants (kXR_* opcodes, flags)
+src/protocols/root/protocol/            ← wire format constants (kXR_* opcodes, flags)
 ```
 
 Everything in that list is **protocol logic, storage logic, or domain-specific

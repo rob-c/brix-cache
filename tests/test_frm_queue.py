@@ -36,7 +36,7 @@ kXR_QPrep    = 2
 kXR_ok       = 0
 kXR_error    = 4003
 
-# kXR_prepare option bits (src/protocol/flags.h)
+# kXR_prepare option bits (src/protocols/root/protocol/flags.h)
 kXR_cancel   = 0x01
 kXR_noerrs   = 0x04
 kXR_stage    = 0x08

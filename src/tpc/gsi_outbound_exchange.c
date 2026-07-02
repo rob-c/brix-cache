@@ -1,6 +1,6 @@
 #include "tpc_internal.h"
-#include "session/session.h"
-#include "protocol/gsi.h"
+#include "protocols/root/session/session.h"
+#include "protocols/root/protocol/gsi.h"
 #include "auth/gsi/gsi_core.h"   /* shared XrdSecgsi DH/cipher kernel (EOS-proven) */
 
 #include <stdio.h>

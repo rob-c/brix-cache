@@ -9,7 +9,7 @@
 #include "tpc_internal.h"
 #include "core/compat/net_target.h"
 #include "observability/pmark/pmark.h"
-#include "connection/netconnect.h"   /* shared outbound connect/I/O hardening */
+#include "protocols/root/connection/netconnect.h"   /* shared outbound connect/I/O hardening */
 
 
 #include <netdb.h>

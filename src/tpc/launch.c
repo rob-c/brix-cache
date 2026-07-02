@@ -8,7 +8,7 @@
  *
  * HOW: prepare_pull — conf->common.thread_pool == NULL → error; tpc->src_host/path empty → error; xrootd_tpc_check_src_policy → error if denied; idx = xrootd_alloc_fhandle(ctx) → fd = xrootd_open_confined(c->log, &conf->common.root, dst_path, tpc_destination_open_flags(options), create_mode) → fstat(fd, &st) → file[idx] metadata set (writable=1, readable=0, tpc_destination=1, tpc_key generated or echoed from tpc->key, token_mode stored) → send open response with fhandle idx + stat if kXR_retstat. start_pull — fhandle_idx valid + file->tpc_destination true → ngx_thread_task_alloc(sizeof(xrootd_tpc_pull_t)) → memcpy src_host/path/key/org/token_mode/dst_path from file fields → task->handler=xrootd_tpc_pull_thread, event.handler=xrootd_tpc_pull_done → ngx_thread_task_post(thread_pool, task) → file->tpc_started=1, ctx->state=XRD_ST_AIO.
  * */
-#include "session/registry.h"
+#include "protocols/root/session/registry.h"
 
 #include <string.h>
 #include <errno.h>

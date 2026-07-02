@@ -118,7 +118,7 @@ Keep final emission protocol-specific:
 1. `src/protocols/s3/object.c`: open/fstat/not-dir failures.
 2. `src/protocols/webdav/get.c`: cached-open and range failure handling.
 3. `src/protocols/webdav/xrdhttp.c`: replace its local HTTP-to-kXR switch with the shared result map.
-4. `src/read/stat.c`: path-based stat failure mapping only.
+4. `src/protocols/root/read/stat.c`: path-based stat failure mapping only.
 
 ### Tests
 
@@ -202,7 +202,7 @@ The same `stat` tuple is repeatedly converted into protocol-specific metadata:
 |---|---|
 | WebDAV HEAD/GET/PROPFIND | `src/protocols/webdav/resource.c`, `methods_basic.c`, `get.c`, `propfind.c` |
 | S3 GET/HEAD/ListObjectsV2 | `src/protocols/s3/object.c`, `src/protocols/s3/list_walk.c`, `src/protocols/s3/util.c` |
-| Native stat/statx/dirlist | `src/read/stat.c`, `src/read/statx.c`, `src/dirlist/handler.c` |
+| Native stat/statx/dirlist | `src/protocols/root/read/stat.c`, `src/protocols/root/read/statx.c`, `src/protocols/root/dirlist/handler.c` |
 | XrdHttp Digest/headers | `src/protocols/webdav/xrdhttp.c`, `src/protocols/webdav/get.c` |
 
 Each surface asks the same questions:
@@ -244,7 +244,7 @@ Keep wire serialization separate:
 
 | Serializer | Stays where |
 |---|---|
-| XRootD stat body | `src/path/stat_body.c` |
+| XRootD stat body | `src/protocols/root/path/stat_body.c` |
 | WebDAV PROPFIND XML | `src/protocols/webdav/propfind.c` |
 | S3 XML listing entry | `src/protocols/s3/list_objects_v2.c` |
 | HTTP ETag header | `src/core/compat/http_file_response.c` |
@@ -257,7 +257,7 @@ protocol differences.
 1. `src/protocols/s3/object.c`: GET/HEAD fstat handling.
 2. `src/protocols/webdav/methods_basic.c`: HEAD handling.
 3. `src/protocols/webdav/get.c`: metadata and range setup.
-4. `src/read/statx.c`: convert host stat to info before formatting.
+4. `src/protocols/root/read/statx.c`: convert host stat to info before formatting.
 
 ### Tests
 
@@ -498,8 +498,8 @@ Directory enumeration is still fragmented:
 
 | Surface | Files |
 |---|---|
-| Native `kXR_dirlist` | `src/dirlist/handler.c` |
-| Native `kXR_Qckscan` | `src/query/checksum_ckscan_common.c` |
+| Native `kXR_dirlist` | `src/protocols/root/dirlist/handler.c` |
+| Native `kXR_Qckscan` | `src/protocols/root/query/checksum_ckscan_common.c` |
 | WebDAV PROPFIND | `src/protocols/webdav/propfind.c` |
 | S3 ListObjectsV2 | `src/protocols/s3/list_walk.c`, `src/protocols/s3/list_objects_v2.c` |
 

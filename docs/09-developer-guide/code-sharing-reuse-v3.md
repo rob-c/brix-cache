@@ -234,7 +234,7 @@ proxy_handle = [local_fh assigned] → [map entry created with state FREE/pendin
 
 ### Current State
 
-Stream-layer cleanup uses **three-phase disconnect pattern** (`src/connection/disconnect.c:1–275`):
+Stream-layer cleanup uses **three-phase disconnect pattern** (`src/protocols/root/connection/disconnect.c:1–275`):
 
 ```
 xrootd_on_disconnect() [main entry point]
@@ -377,12 +377,12 @@ Before planning, audit what is already present to avoid duplicating existing doc
 | v3 Section | Target file | Current state | Gap |
 |---|---|---|---|
 | §1 Request lifecycle | `docs/09-developer-guide/dev-workflow.md` (290 lines) | Has source layout table + build/test commands | No unified accept→auth→parse→resolve→execute→respond→metric→cleanup diagram |
-| §2 Dispatch routing chain | `src/handshake/README.md` (54 lines) | Has full dispatch chain diagram with CONTINUE semantics | No cross-protocol comparison (WebDAV method table, S3 op table as simpler variants) |
-| §3 Response type selection | `src/response/README.md` | Not audited — read first | Unknown |
+| §2 Dispatch routing chain | `src/protocols/root/handshake/README.md` (54 lines) | Has full dispatch chain diagram with CONTINUE semantics | No cross-protocol comparison (WebDAV method table, S3 op table as simpler variants) |
+| §3 Response type selection | `src/protocols/root/response/README.md` | Not audited — read first | Unknown |
 | §4 Auth state management | `src/core/types/context.h` (273 lines) | Detailed WHAT/WHY/HOW block in header comment; auth fields grouped at lines 59–71 | No canonical "auth state layout" table; no cross-stream/WebDAV comparison note |
 | §5 Namespace translation | `src/core/compat/README.md` | Lists `path.c` and `namespace_ops.c` | No cross-protocol namespace input → canonicalizer table |
 | §6 Proxy handle translation | `src/net/proxy/README.md` (23 lines) | Sparse file table only | No fh_map lifecycle, state machine, lazy-open sequence |
-| §7 Disconnect cleanup | `src/connection/disconnect.c` (275 lines) | Has `/* ---- Buffer release ----`, `/* ---- Crypto state release ----`, `/* xrootd_disconnect_update_metrics */`, `/* ---- Log open files ----` separators | Separators exist but are inconsistently named; no `connection/README.md` phase summary |
+| §7 Disconnect cleanup | `src/protocols/root/connection/disconnect.c` (275 lines) | Has `/* ---- Buffer release ----`, `/* ---- Crypto state release ----`, `/* xrootd_disconnect_update_metrics */`, `/* ---- Log open files ----` separators | Separators exist but are inconsistently named; no `connection/README.md` phase summary |
 | §8 Test infrastructure | `docs/09-developer-guide/testing-runbook.md` (173 lines) | Has test philosophy + security policy | No LOCAL/REMOTE mode explanation, no conftest.py fixture hierarchy, no shared port table |
 | §9 Request context objects | `src/core/types/README.md` (13 lines) | Minimal — file-to-concept table only | No set_ctx/get_module_ctx pattern, no stream vs HTTP context lifecycle comparison |
 | §10 Metrics export pattern | `src/observability/metrics/README.md` (57 lines) | Has usage example | No label schema table, no low-cardinality constraint explanation, no "adding a metric" recipe |
@@ -400,9 +400,9 @@ Phase 0: Read all target files (no edits — verify current content)
 
 Phase 1: Source-adjacent documentation (5 parallel tasks — different files, no ordering)
          ├── T1: src/core/types/context.h          — auth state layout table          (2 h)
-         ├── T2: src/handshake/README.md       — cross-protocol dispatch section  (1 h)
-         ├── T3: src/connection/disconnect.c   — standardize phase separators     (1 h)
-         │         src/connection/README.md    — three-phase cleanup pattern      (+30 min)
+         ├── T2: src/protocols/root/handshake/README.md       — cross-protocol dispatch section  (1 h)
+         ├── T3: src/protocols/root/connection/disconnect.c   — standardize phase separators     (1 h)
+         │         src/protocols/root/connection/README.md    — three-phase cleanup pattern      (+30 min)
          ├── T4: src/net/proxy/README.md           — fh_map lifecycle expansion       (1.5 h)
          └── T5: src/observability/metrics/README.md         — label schema + low-cardinality   (1 h)
 
@@ -430,11 +430,11 @@ Phase 3: Capstone architecture doc (blocked by all of Phase 1 + Phase 2)
 | File to read | Why | Expected size |
 |---|---|---|
 | `src/core/types/context.h` | Identify exact line numbers of auth state fields (sessid, logged_in, auth_done, dn, vo_list) before adding the layout table | 273 lines |
-| `src/handshake/README.md` | Find the exact end of the dispatch chain diagram to know where to append the cross-protocol comparison section | 54 lines |
-| `src/connection/disconnect.c` | Map existing section separators; find exact line numbers of buffer/crypto/metrics/log phases to standardize | 275 lines |
+| `src/protocols/root/handshake/README.md` | Find the exact end of the dispatch chain diagram to know where to append the cross-protocol comparison section | 54 lines |
+| `src/protocols/root/connection/disconnect.c` | Map existing section separators; find exact line numbers of buffer/crypto/metrics/log phases to standardize | 275 lines |
 | `src/net/proxy/README.md` | Identify the 23 existing lines; plan expansion without repeating the file table | 23 lines |
 | `src/observability/metrics/README.md` | Find where the label schema section should be inserted relative to existing usage example | 57 lines |
-| `src/response/README.md` | Check whether the 5-step response pattern (§3) is already documented | unknown |
+| `src/protocols/root/response/README.md` | Check whether the 5-step response pattern (§3) is already documented | unknown |
 | `docs/09-developer-guide/dev-workflow.md` | Find the source layout table position to insert lifecycle diagram immediately after | 290 lines |
 | `docs/09-developer-guide/testing-runbook.md` | Find the test philosophy section end — lifecycle diagram inserts before it | 173 lines |
 | `src/core/types/README.md` | Understand the 13 lines present; plan expansion without duplicating the file-to-concept table | 13 lines |
@@ -487,7 +487,7 @@ Each task touches a different file. No build required for `.md` tasks. `disconne
 
 ---
 
-#### T2: Cross-Protocol Dispatch Comparison in `src/handshake/README.md` (1 h)
+#### T2: Cross-Protocol Dispatch Comparison in `src/protocols/root/handshake/README.md` (1 h)
 
 **Goal:** The existing 54-line README documents the stream dispatch chain thoroughly. Add a "Cross-Protocol Dispatch Pattern" section below the existing diagram showing how WebDAV and S3 implement simpler variants of the same CONTINUE/handle paradigm.
 
@@ -515,13 +515,13 @@ The stream 5-phase chain is the most complex variant of a pattern used in all th
 4. Register new `.c` in `src/core/config/config.h` under `NGX_ADDON_SRCS`
 ```
 
-**File modified:** `src/handshake/README.md`
+**File modified:** `src/protocols/root/handshake/README.md`
 **Lines added:** ~28
 **Lines removed:** 0
 
 ---
 
-#### T3: Standardize Disconnect Phase Separators in `src/connection/disconnect.c` + `connection/README.md` (1.5 h)
+#### T3: Standardize Disconnect Phase Separators in `src/protocols/root/connection/disconnect.c` + `connection/README.md` (1.5 h)
 
 **Goal:** The four existing separators (`/* ---- Buffer release ----`, `/* ---- Crypto state release ----`, etc.) use inconsistent formatting and unnamed phase numbers. Standardize to `/* === Phase N: <name> === */` blocks so the three-phase mental model is immediately scannable.
 
@@ -537,7 +537,7 @@ The stream 5-phase chain is the most complex variant of a pattern used in all th
 | `/* ---- Log open files — access-log entries for all handles at disconnect ----` | `/* === Phase 3A: Access log — interrupted file handles ===` | ~130 |
 | *(session detail format — if present below line 130)* | Add `/* === Phase 3B: Access log — session totals + throughput ===` | ~variable |
 
-**Changes to `src/connection/README.md`:**
+**Changes to `src/protocols/root/connection/README.md`:**
 
 Append a new "Disconnect phases" section after the existing file table:
 
@@ -559,7 +559,7 @@ Append a new "Disconnect phases" section after the existing file table:
 - Emit final session-level access-log entry with rx/tx MB/s throughput calculation
 ```
 
-**Files modified:** `src/connection/disconnect.c`, `src/connection/README.md`
+**Files modified:** `src/protocols/root/connection/disconnect.c`, `src/protocols/root/connection/README.md`
 **Lines added in disconnect.c:** ~5 (comment blocks only)
 **Lines added in README.md:** ~22
 **Compile check (mandatory):** `make -j$(nproc)` — confirm C file is syntactically valid after comment edits.
@@ -896,7 +896,7 @@ responsibility, or handles it and returns a terminal status:
 - **WebDAV:** method table (GET/PUT/MKCOL/DELETE/…) in `webdav/dispatch.c`
 - **S3:** path-style URI → operation table in `s3/handler.c`
 
-See `src/handshake/README.md` §Cross-Protocol Dispatch Pattern.
+See `src/protocols/root/handshake/README.md` §Cross-Protocol Dispatch Pattern.
 
 ### 3. Auth state (stream only — per-connection)
 
@@ -923,7 +923,7 @@ See `src/net/proxy/README.md` §Handle translation map.
 
 Phase 1 (resource release) → Phase 2 (metrics finalization) → Phase 3 (access log).
 All resource cleanup goes in Phase 1; never skip ahead. Implemented in `connection/disconnect.c`.
-See `src/connection/README.md` §Disconnect phases.
+See `src/protocols/root/connection/README.md` §Disconnect phases.
 
 ### 7. Context allocation
 
@@ -952,8 +952,8 @@ One macro per protocol: `XROOTD_SRV_METRIC_INC(slot)` (stream), `XROOTD_WEBDAV_M
 |---|---|---|---|---|---|---|---|
 | Phase 0: Reads | 0 | 2 | — | 0 (read-only) | 0 | 0 | No |
 | T1: context.h auth layout table | 1 | 2 | Phase 0 | `src/core/types/context.h` | ~18 | 0 | Verify (comment-only) |
-| T2: handshake dispatch comparison | 1 | 1 | Phase 0 | `src/handshake/README.md` | ~28 | 0 | No |
-| T3: disconnect phase separators | 1 | 1.5 | Phase 0 | `src/connection/disconnect.c`, `src/connection/README.md` | ~27 | 0 | **Yes — mandatory** |
+| T2: handshake dispatch comparison | 1 | 1 | Phase 0 | `src/protocols/root/handshake/README.md` | ~28 | 0 | No |
+| T3: disconnect phase separators | 1 | 1.5 | Phase 0 | `src/protocols/root/connection/disconnect.c`, `src/protocols/root/connection/README.md` | ~27 | 0 | **Yes — mandatory** |
 | T4: proxy fh_map expansion | 1 | 1.5 | Phase 0 | `src/net/proxy/README.md` | ~60 | 0 | No |
 | T5: metrics label schema | 1 | 1 | Phase 0 | `src/observability/metrics/README.md` | ~45 | 0 | No |
 | T6: lifecycle diagram in dev-workflow | 2 | 2 | T1, T2 | `docs/09-developer-guide/dev-workflow.md` | ~30 | 0 | No |
@@ -985,7 +985,7 @@ done
 
 # 3. No forward-references in Phase 1 docs (they must not reference T6–T10 content)
 grep -n "dev-workflow\|testing-runbook\|cross-protocol-unification" \
-    src/core/types/context.h src/handshake/README.md src/connection/disconnect.c \
+    src/core/types/context.h src/protocols/root/handshake/README.md src/protocols/root/connection/disconnect.c \
     src/net/proxy/README.md src/observability/metrics/README.md
 
 # 4. Port numbers in T7 testing-runbook match conftest.py actual values

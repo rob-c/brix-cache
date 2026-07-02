@@ -256,7 +256,7 @@ def _stat(sock, path, streamid=b"\x00\x0a"):
 def _statx(sock, paths, streamid=b"\x00\x0b"):
     """Path-based kXR_statx.  Shares ClientStatRequest's header layout
     (no dedicated ClientStatxRequest exists in XProtocol.hh); the payload is a
-    NUL-separated path list (src/read/statx.c)."""
+    NUL-separated path list (src/protocols/root/read/statx.c)."""
     if isinstance(paths, str):
         payload = paths.encode() + b"\x00"
     else:
@@ -283,7 +283,7 @@ def _error_code(body):
 def _stat_size(body):
     """Parse the size field out of a kXR_stat ASCII body.
 
-    Body format (src/path/stat_body.c, non-VFS mode):
+    Body format (src/protocols/root/path/stat_body.c, non-VFS mode):
     "<ino> <size> <flags> <mtime>", possibly NUL-terminated.  Returns the int
     in the 2nd field.  NOTE: in VFS mode the same field holds st_blocks*512
     (near-zero for a sparse file), so callers that assert logical size must
@@ -612,7 +612,7 @@ class TestOffsetLengthOverflow:
         """offset == INT64_MAX with a positive rlen: the naive end = offset +
         rlen would wrap negative.
 
-        The kXR_read handler (src/read/read.c) caps rlen to
+        The kXR_read handler (src/protocols/root/read/read.c) caps rlen to
         XROOTD_READ_REQUEST_MAX *before* any offset+rlen arithmetic, then
         short-circuits to an empty response because offset >= file_size — so
         the documented, secure outcome is a clean past-EOF short read (kXR_ok
@@ -654,7 +654,7 @@ class TestStatSizeAbove4GiB:
     """kXR_stat / kXR_statx must report the full 64-bit st_size for a file
     larger than 4 GiB; a %d / 32-bit format bug would report (size mod 2^32).
 
-    In VFS mode (src/path/stat_body.c) the 2nd field carries st_blocks*512
+    In VFS mode (src/protocols/root/path/stat_body.c) the 2nd field carries st_blocks*512
     instead of logical size — near-zero for a sparse file — which is a
     documented alternate encoding, not a 64-bit regression, so those tests
     skip rather than fail when they detect it."""

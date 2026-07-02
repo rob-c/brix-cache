@@ -50,7 +50,7 @@ The single largest source of redundant code is the **"Adapter Layer"** — the c
 
 ### Phase 20: Generic Frame Orchestrator
 **Goal**: Unify the 8-byte XRootD header and HTTP message accumulation.
-*   **Implementation**: Build a state machine that accumulates "Frame -> Payload -> Handler" for all protocols, removing the manual buffer management in `src/connection/`.
+*   **Implementation**: Build a state machine that accumulates "Frame -> Payload -> Handler" for all protocols, removing the manual buffer management in `src/protocols/root/connection/`.
 
 ---
 

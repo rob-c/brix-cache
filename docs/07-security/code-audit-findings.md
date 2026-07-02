@@ -240,7 +240,7 @@ curl no longer follows redirects at all.
 ## F-03: No Per-IP Auth Failure Rate Limit
 
 **Severity:** High  
-**Files:** `src/session/login.c`, `src/handshake/dispatch.c`
+**Files:** `src/protocols/root/session/login.c`, `src/protocols/root/handshake/dispatch.c`
 
 ### Vulnerability
 
@@ -281,7 +281,7 @@ Add a per-connection auth failure counter to `xrootd_ctx_t`:
 uint8_t     auth_attempts;      /* failed kXR_auth count on this connection */
 ```
 
-In `src/session/login.c` or `src/auth/gsi/parse.c` (wherever auth failure is returned):
+In `src/protocols/root/session/login.c` or `src/auth/gsi/parse.c` (wherever auth failure is returned):
 
 ```c
 #define XROOTD_MAX_AUTH_ATTEMPTS 5
@@ -363,7 +363,7 @@ flow tests.
 ## F-04: Username Field Accepts NUL / Binary Bytes
 
 **Severity:** Medium  
-**File:** `src/session/login.c:78`
+**File:** `src/protocols/root/session/login.c:78`
 
 ### Vulnerability
 
@@ -371,7 +371,7 @@ The XRootD wire format allocates exactly 8 bytes for the username in `ClientLogi
 The current handler copies all 8 bytes verbatim and adds a NUL terminator:
 
 ```c
-/* src/session/login.c:78 */
+/* src/protocols/root/session/login.c:78 */
 ngx_memcpy(user, req->username, 8);
 user[8] = '\0';
 ngx_memcpy(ctx->login_user, user, sizeof(ctx->login_user));
@@ -413,7 +413,7 @@ This aligns with the XRootD spec which says the username is a "null-padded ASCII
 
 ### Implementation
 
-**`src/session/login.c`** — added a validation loop between the wire copy and the
+**`src/protocols/root/session/login.c`** — added a validation loop between the wire copy and the
 `ctx->login_user` assignment. Any byte outside `[0x20, 0x7e]` (printable ASCII) causes
 an immediate `kXR_ArgInvalid` error response and the session is not established:
 
@@ -499,7 +499,7 @@ Add a startup check in `ngx_xrootd_init_process` that calls `SYS_openat2` on the
 configured root directory and fails hard if it returns `ENOSYS`:
 
 ```c
-/* src/connection/handler.c or module init */
+/* src/protocols/root/connection/handler.c or module init */
 if (!xrootd_kernel_has_openat2()) {
     ngx_log_error(NGX_LOG_EMERG, cycle->log, 0,
                   "xrootd: openat2(2) not available (kernel < 5.6); "
@@ -579,7 +579,7 @@ through the path confinement tests (`test_security_hardening.py::test_mkdir_with
 ## F-06: No Per-Connection Memory Budget
 
 **Severity:** Medium  
-**Files:** `src/core/types/tunables.h`, `src/connection/recv.c:77`
+**Files:** `src/core/types/tunables.h`, `src/protocols/root/connection/recv.c:77`
 
 ### Vulnerability
 
@@ -659,7 +659,7 @@ the dominant source of pool growth (~65 KB per call), so the guard was placed th
 **`src/core/types/context.h`** — added `size_t pool_bytes_used` field to `xrootd_ctx_t`
 (adjacent to `auth_fail_count`).
 
-**`src/dirlist/handler.c`** — added a budget check before the chunk allocation:
+**`src/protocols/root/dirlist/handler.c`** — added a budget check before the chunk allocation:
 
 ```c
 if (ctx->pool_bytes_used + XRD_RESPONSE_HDR_LEN + chunk_cap

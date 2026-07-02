@@ -27,8 +27,8 @@ window; the "peer accepts into buffer but never drains" case is covered at kerne
 level by WS5's `TCP_USER_TIMEOUT`.
 
 **Implementation note (WS5):** factored as a header-only `static ngx_inline`
-(`src/connection/netopt.h`) rather than a new `.c`, so the build source list is
-unchanged; `src/connection/handler.c` was refactored to call it (no behaviour
+(`src/protocols/root/connection/netopt.h`) rather than a new `.c`, so the build source list is
+unchanged; `src/protocols/root/connection/handler.c` was refactored to call it (no behaviour
 change on the root:// path).
 
 ---
@@ -81,7 +81,7 @@ The weakness is the **I/O and connection-lifecycle layer**.
 
 4. **TCP-level dead-peer reaping isn't applied to CMS sockets.** The phase-39
    `SO_KEEPALIVE` / `TCP_USER_TIMEOUT` block exists only in
-   `src/connection/handler.c:109-135` for `root://` accepts — neither the CMS
+   `src/protocols/root/connection/handler.c:109-135` for `root://` accepts — neither the CMS
    client connect socket nor CMS server accept sockets get it.
 
 5. **Manager-supplied redirect host is not validated.**
@@ -122,8 +122,8 @@ connection hang, spin, leak, or be DoS'd — while a conformant official
 | `ngx_add_timer` / `ngx_del_timer` / `ev->timedout` | `src/net/cms/connect.c`, `server_recv.c` | all new deadlines |
 | `xrootd_net_host_chars_valid()` | `src/net/manager/registry.c` (W1c choke point) | WS6 redirect-host gate |
 | `xrootd_sanitize_log_string()` | `src/fs/path/helpers.c` | wire-derived log lines |
-| phase-39 `SO_KEEPALIVE`/`TCP_USER_TIMEOUT` setsockopt block | `src/connection/handler.c:109-135` | WS5 shared helper |
-| `NGX_CONF_UNSET*` → `ngx_conf_merge_*` → `ngx_command_t` | `src/core/config/server_conf.c`, `src/stream/module.c`, `src/net/cms/server_module.c` | WS7 directives |
+| phase-39 `SO_KEEPALIVE`/`TCP_USER_TIMEOUT` setsockopt block | `src/protocols/root/connection/handler.c:109-135` | WS5 shared helper |
+| `NGX_CONF_UNSET*` → `ngx_conf_merge_*` → `ngx_command_t` | `src/core/config/server_conf.c`, `src/protocols/root/stream/module.c`, `src/net/cms/server_module.c` | WS7 directives |
 | Registry `last_seen` staleness | `src/net/manager/registry.c` | complements WS3 (selection-steer vs slot-reap) |
 
 ---
@@ -272,9 +272,9 @@ suite is the guardrail that these generous defaults never trip a conformant peer
 - `src/net/cms/server_recv.c` — WS3 idle-watchdog re-arm + read-timer cancel in close.
 - `src/net/cms/server.h` / `src/net/cms/server_module.c` — WS7 server-side conf + directives
   + merge.
-- `src/core/types/config.h`, `src/core/config/server_conf.c`, `src/stream/module.c` — WS7
+- `src/core/types/config.h`, `src/core/config/server_conf.c`, `src/protocols/root/stream/module.c` — WS7
   client-side conf + directives + merge.
-- `src/connection/handler.c` + new shared helper unit — WS5 setsockopt refactor
+- `src/protocols/root/connection/handler.c` + new shared helper unit — WS5 setsockopt refactor
   (register new `.c` in `src/core/config/config.h` `NGX_ADDON_SRCS`; run `./configure`
   once).
 - `tests/test_cms_resilience.py` (new); `docs/04-protocols/cms-protocol.md`.

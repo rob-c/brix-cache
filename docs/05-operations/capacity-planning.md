@@ -21,7 +21,7 @@ events { worker_connections 65536; }
   transfer in proxy/cluster topologies.
 - **`worker_rlimit_nofile`** must be larger than `worker_connections` plus the open
   file handles per connection. root:// gives each connection up to 256 file handles
-  (`src/connection/fd_table.c`), so an FD-starved worker shows up as failed `open`s.
+  (`src/protocols/root/connection/fd_table.c`), so an FD-starved worker shows up as failed `open`s.
   Watch `xrootd_connections_active` against your `worker_connections` ceiling.
 
 ## Async thread pool

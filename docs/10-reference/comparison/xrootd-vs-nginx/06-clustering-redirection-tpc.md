@@ -262,9 +262,9 @@ Official: the data server's `XrdXrootd` layer translates a client
 answers with a server list; `XrdXrootdProtocol.cc` sends
 `Response.Send(kXR_redirect, port, host)`.
 
-Module (manager mode): the read-path handlers `src/read/open_request.c` (open),
-`src/read/locate.c` (locate), `src/read/stat.c` (stat), and
-`src/dirlist/handler.c` resolve a target locally and emit `kXR_redirect`. The
+Module (manager mode): the read-path handlers `src/protocols/root/read/open_request.c` (open),
+`src/protocols/root/read/locate.c` (locate), `src/protocols/root/read/stat.c` (stat), and
+`src/protocols/root/dirlist/handler.c` resolve a target locally and emit `kXR_redirect`. The
 resolution order (`open_request.c`, `locate.c`):
 
 1. **`tried/triedrc` exhaustion check** (`xrootd_manager_tried_exhausted`) — if
@@ -307,7 +307,7 @@ FNV-1a-hashed bounded-probe open-addressing table that evicts soonest-to-expire.
 
 Beyond dynamic CMS membership, the module offers a **config-time static route
 table**: `xrootd_manager_map <prefix> <host>:<port>` (`src/core/config/manager_map.c`,
-consulted in `src/read/locate.c:150` via `xrootd_find_manager_map`). This routes
+consulted in `src/protocols/root/read/locate.c:150` via `xrootd_find_manager_map`). This routes
 `open/stat/dirlist/locate/checksum` for a path prefix straight to a fixed
 backend without any CMS handshake — useful for deterministic federation where the
 topology is known. `xrootd_virtual_redirector on` advertises `kXR_attrVirtRdr`
@@ -373,7 +373,7 @@ Two material differences from official:
 2. **Two-phase arm/flush keyed off `kXR_sync`.** Phase one (`kXR_open`,
    `launch.c::xrootd_tpc_prepare_pull`) runs the SSRF preflight, creates the
    confined destination file, generates/echoes the key, and returns a handle
-   immediately. Phase two is driven by `kXR_sync` (`src/write/sync.c`): the
+   immediately. Phase two is driven by `kXR_sync` (`src/protocols/root/write/sync.c`): the
    **first** sync arms the transfer (`ctx->tpc_armed`), the **second** fires it
    (`launch.c::xrootd_tpc_start_pull`), posting the blocking pull to the nginx
    thread pool. This matches `xrdcp`/`gfal` TPC semantics and lets the client
@@ -440,7 +440,7 @@ byte forwarder.
 ### Module `src/net/proxy/` (transparent frame relay)
 
 `xrootd_proxy on` makes the node a **transparent reverse proxy** at the wire
-level. After local auth + TLS termination, `src/handshake/dispatch.c` calls
+level. After local auth + TLS termination, `src/protocols/root/handshake/dispatch.c` calls
 `xrootd_proxy_dispatch()` for every post-login opcode (once
 `conf->proxy_enable && ctx->logged_in`), *before* any local read/write handler —
 so no local path is ever resolved. The proxy drives an independent event-loop
@@ -652,7 +652,7 @@ server {
 | On-demand select (`kYR_state`→`kYR_have`) | `XrdCmsNode.cc`/`Cluster.cc` | `src/net/cms/recv.c` (kernel-confined probe) | Parity + stronger confinement |
 | Ping/pong, load/space heartbeat | `XrdCmsNode.cc`, `XrdCmsMeter.cc` | `src/net/cms/send.c`/`recv.c`, `space.c` | Parity |
 | CMS resilience caps (frames/wakeup, per-IP, timeouts) | Not discrete `cmsd` knobs | `src/net/cms/server_*` directives + metrics | nginx+ |
-| Client redirect (`kXR_redirect`) | `XrdXrootd` + `XrdCmsFinder` | `src/read/open_request.c`/`locate.c`/`stat.c` | Parity |
+| Client redirect (`kXR_redirect`) | `XrdXrootd` + `XrdCmsFinder` | `src/protocols/root/read/open_request.c`/`locate.c`/`stat.c` | Parity |
 | `tried/triedrc` loop avoidance | Client CGI honoured by manager | `xrootd_manager_tried_exhausted`/`xrootd_srv_select` | Parity |
 | Redirect collapse cache | Client/server mechanics | SHM `redir_cache.c` + `kXR_collapseRedir` | nginx+ |
 | Static `manager_map` routing | n/a (always live `cmsd`) | `src/core/config/manager_map.c` | nginx+ |
@@ -699,15 +699,15 @@ nginx-xrootd (repo-relative `src/`):
 - Redirector control plane: `src/net/manager/` — `registry.c`/`.h`,
   `redir_cache.c`/`.h`, `pending.c`/`.h`, `health_check.c`/`.h`;
   static routes `src/core/config/manager_map.c`; read-path
-  `src/read/locate.c`, `src/read/open_request.c`, `src/read/stat.c`,
-  `src/dirlist/handler.c`; and [`src/net/manager/README.md`](../../../../src/net/manager/README.md).
+  `src/protocols/root/read/locate.c`, `src/protocols/root/read/open_request.c`, `src/protocols/root/read/stat.c`,
+  `src/protocols/root/dirlist/handler.c`; and [`src/net/manager/README.md`](../../../../src/net/manager/README.md).
 - Redirector-confirm client: `src/net/upstream/` — `start.c`, `bootstrap.c`,
   `request.c`, `response.c`, `tls.c`, `auth.c`, `events.c`, `lifecycle.c`,
   `directives.c`; and [`src/net/upstream/README.md`](../../../../src/net/upstream/README.md).
 - Native TPC: `src/tpc/` — `parse.c`, `launch.c`, `thread.c`, `connect.c`,
   `bootstrap.c`, `source.c`, `io.c`, `done.c`, `key_registry.c`/`.h`,
   `gsi_outbound_*.c`, `tpc_token.c`, `tpc_internal.h`, `common/`; arm/flush
-  trigger `src/write/sync.c`; and [`src/tpc/README.md`](../../../../src/tpc/README.md).
+  trigger `src/protocols/root/write/sync.c`; and [`src/tpc/README.md`](../../../../src/tpc/README.md).
 - Proxy: `src/net/proxy/` — `forward_relay_dispatch.c`, `connect_upstream.c`,
   `connect_lifecycle.c`, `events_read.c` (teardown-guard leak fix),
   `events_write.c`, `events_bootstrap.c`, `events_splice.c`,

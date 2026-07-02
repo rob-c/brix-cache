@@ -35,7 +35,7 @@ from settings import (
     VIRTUAL_REDIR_PORT,
 )
 
-# -- flag constants (mirror src/protocol/flags.h) --
+# -- flag constants (mirror src/protocols/root/protocol/flags.h) --
 _kXR_isServer    = 0x00000001
 _kXR_isManager   = 0x00000002
 _kXR_attrCache   = 0x00000080
@@ -379,7 +379,7 @@ class TestGpfFlags:
     """kXR_supgpf (0x400000) and kXR_anongpf (0x800000) must never be advertised.
 
     GPF (Grouped Parallel Fetch) uses kXR_gpfile opcode 3005, which is retired in
-    XRootD v5.  Neither flag may be set until src/query/gpfile.c is implemented and
+    XRootD v5.  Neither flag may be set until src/protocols/root/query/gpfile.c is implemented and
     the opcode is re-activated in the dispatch table.  Modern clients use kXR_readv
     for the same batching behaviour.
     """

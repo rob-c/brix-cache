@@ -112,7 +112,7 @@ re-exposes the crash).
 ## Fix applied (2026-06-12)
 
 A fail-safe bounds guard was added to the readv response-build loop
-(`src/read/readv.c`, just before the per-segment header `ngx_memcpy`): before
+(`src/protocols/root/read/readv.c`, just before the per-segment header `ngx_memcpy`): before
 writing each segment it checks
 `(response_cursor - response_buffer) + XROOTD_READV_SEGSIZE + read_length >
 ctx->read_scratch_size` and, if so, frees the descriptor array, releases the
@@ -158,7 +158,7 @@ A `kXR_readv` whose response is large (~MiB scale), issued on a connection that
 **already served a large `kXR_read`**, overflows / writes through the per-connection
 `read_scratch` buffer. The stream worker crashes:
 
-- **SIGSEGV at `src/read/readv.c:303`** (sync path) — `ngx_memcpy(response_cursor, …)`
+- **SIGSEGV at `src/protocols/root/read/readv.c:303`** (sync path) — `ngx_memcpy(response_cursor, …)`
   with `response_cursor` past the end of `read_scratch`, or
 - **`free(): invalid pointer` → SIGABRT** (thread-pool path) — the AIO `preadv`
   worker writes past `read_scratch`, corrupting heap metadata, detected at the
@@ -217,7 +217,7 @@ same server-side `xrootd_ctx_t`, sharing `read_scratch`.)
    repro — ASAN will report the *first* out-of-bounds write with the exact
    allocation, immediately localizing the corruption (read path vs readv path).
 2. Likely candidates to inspect once ASAN points the way:
-   - whether the large-read path (`src/read/read.c`, `src/core/aio/buffers.c`
+   - whether the large-read path (`src/protocols/root/read/read.c`, `src/core/aio/buffers.c`
      `build_sendfile_chain`/`build_chunked_chain`) ever writes `read_scratch` /
      mutates `read_scratch_size`;
    - whether a stalled large-read response leaves a chain referencing

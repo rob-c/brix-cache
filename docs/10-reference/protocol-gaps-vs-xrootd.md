@@ -202,7 +202,7 @@ paths where required.
 | `XrdCks` | Checksum framework | `kXR_query` checksums + pgread CRC |
 | `XrdOuc` | Utilities | `src/core/compat/` |
 | `XrdSys` | System | `src/core/types/` |
-| `XrdNet` | Networking | `src/connection/` |
+| `XrdNet` | Networking | `src/protocols/root/connection/` |
 | `XrdOfs` | Object file system | `src/fs/` |
 | `XrdOss` | Object storage | `src/fs/` (POSIX-backed) |
 | `XrdPss` | Parallel storage | ❌ Full upstream PSS is out of scope |
@@ -293,7 +293,7 @@ paths where required.
 | `kXR_oksofar` streaming reads | ✅ |
 | `kXR_status` extended response | ✅ |
 | `kXR_wait` / `kXR_waitresp` | ✅ |
-| `kXR_attn` attention codes | ✅ | Proxy mode relays upstream `kXR_attn` frames transparently; server generates native `kXR_attn` + `kXR_asyncms` (5002) frames; `xrootd_send_attn_asyncms()` / `xrootd_send_attn_asynresp()` in `src/response/async.c` — `kXR_notify` on `kXR_prepare` delivers immediate notification when files are on disk |
+| `kXR_attn` attention codes | ✅ | Proxy mode relays upstream `kXR_attn` frames transparently; server generates native `kXR_attn` + `kXR_asyncms` (5002) frames; `xrootd_send_attn_asyncms()` / `xrootd_send_attn_asynresp()` in `src/protocols/root/response/async.c` — `kXR_notify` on `kXR_prepare` delivers immediate notification when files are on disk |
 
 ---
 
@@ -318,7 +318,7 @@ paths where required.
 
 | Feature | Notes |
 |---------|-------|
-| **Native `kXR_attn` generation** | `xrootd_send_attn_asyncms()` / `xrootd_send_attn_asynresp()` in `src/response/async.c`; `kXR_notify` on `kXR_prepare` delivers immediate `kXR_asyncms` when files are on disk; `kXR_asynresp` available for deferred-response callers |
+| **Native `kXR_attn` generation** | `xrootd_send_attn_asyncms()` / `xrootd_send_attn_asynresp()` in `src/protocols/root/response/async.c`; `kXR_notify` on `kXR_prepare` delivers immediate `kXR_asyncms` when files are on disk; `kXR_asynresp` available for deferred-response callers |
 | `kXR_prepare` FRM/Tape REST support | Durable FRM queue + Tape REST gateway exists; full upstream XrdFrm/MSS parity is still partial |
 | Multi-tier CMS hierarchy | Three-tier (meta → sub-manager → leaf DS) implemented and tested |
 | `kXR_attrMeta` / `kXR_attrSuper` / `kXR_attrVirtRdr` | All three role flags advertised via `xrootd_metadata_only`, `xrootd_supervisor`, `xrootd_virtual_redirector` |
@@ -364,7 +364,7 @@ paths where required.
 | Gap | Effort | Implementation Notes |
 |-----|--------|---------------------|
 | **HTTP-TPC multi-stream** | ✅ | `X-Number-Of-Streams` negotiated; `curl_multi` Range-GETs; 202+Perf Markers (`src/protocols/webdav/tpc_marker.c`, `tpc_curl.c`) |
-| **Native `kXR_attn` generation** | ✅ | `xrootd_send_attn_asyncms()` / `xrootd_send_attn_asynresp()` in `src/response/async.c`; `kXR_notify` on `kXR_prepare` delivers immediate notification; `kXR_asynresp` ready for deferred-response callers |
+| **Native `kXR_attn` generation** | ✅ | `xrootd_send_attn_asyncms()` / `xrootd_send_attn_asynresp()` in `src/protocols/root/response/async.c`; `kXR_notify` on `kXR_prepare` delivers immediate notification; `kXR_asynresp` ready for deferred-response callers |
 | **Macaroons delegation** | ✅ | `POST /.oauth2/token` + `GET /.well-known/oauth-authorization-server`; HMAC-SHA256 issuance in `src/auth/token/macaroon_issue.c`; REST handler in `src/protocols/webdav/macaroon_endpoint.c` |
 | **XrdHttp protocol** | ✅ | `Want-Digest:` RFC 3230 on HEAD+GET; algo normalisation; `xrdhttp_add_checksum_header()` on HEAD; 405+Allow on unknown methods |
 | **Throttle** | Low | Per-connection rate limiter |
@@ -381,7 +381,7 @@ paths where required.
 | **`kXR_attrVirtRdr`** | `xrootd_virtual_redirector on` — path-map redirector without CMS |
 | **`kXR_collapseRedir`** | `xrootd_collapse_redir on` — SHM redirect-target cache (`src/net/manager/redir_cache.c`) |
 | **`kXR_attn` relay (proxy)** | Proxy mode transparently relays upstream `kXR_attn` frames |
-| **`kXR_attn` native generation** | `xrootd_send_attn_asyncms()` + `xrootd_send_attn_asynresp()` in `src/response/async.c`; `kXR_notify` on `kXR_prepare` wired; `kXR_asyncms` / `kXR_asynresp` constants in `src/protocol/opcodes.h` |
+| **`kXR_attn` native generation** | `xrootd_send_attn_asyncms()` + `xrootd_send_attn_asynresp()` in `src/protocols/root/response/async.c`; `kXR_notify` on `kXR_prepare` wired; `kXR_asyncms` / `kXR_asynresp` constants in `src/protocols/root/protocol/opcodes.h` |
 | **Server blacklisting** | 30 s blacklist on CMS disconnect; `xrootd_srv_blacklist()` + `error_count` in SHM; clears on reconnect |
 | **Per-server cluster metrics** | `xrootd_cluster_server_{free_megabytes,utilization_percent,last_seen_seconds,blacklisted,disconnect_total}` gauges in `src/observability/metrics/cluster.c` |
 | **Colocation hint** | `kXR_prefname` (0x0100) parsed; locate returns all matching servers for client-side locality selection |

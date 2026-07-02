@@ -7,7 +7,7 @@ This document outlines recommended architectural and implementation-level improv
 The XRootD protocol is a binary format with length-prefixed payloads. Malicious clients can send inconsistent `dlen` values or deeply nested structures to trigger overflows or excessive allocations.
 
 ### Recommendations:
-*   **Fuzz Testing Integration**: Implement a fuzzer (e.g., `AFL++` or `libFuzzer`) targeting the central dispatcher in `src/handshake/dispatch.c` and the query parser in `src/query/dispatch.c`.
+*   **Fuzz Testing Integration**: Implement a fuzzer (e.g., `AFL++` or `libFuzzer`) targeting the central dispatcher in `src/protocols/root/handshake/dispatch.c` and the query parser in `src/protocols/root/query/dispatch.c`.
 *   **Integer Overflow Audit**: Conduct a systematic audit of all `dlen` and `offset` calculations. Specifically, ensure that adding header sizes to `cur_dlen` does not wrap around before reaching `ngx_palloc`.
 *   **Strict String Boundaries**: While `ngx_str_t` is used extensively, some legacy handlers still convert to `char *`. Prohibit `strcpy` and `sprintf` in favor of `ngx_snprintf` and `ngx_cpystrn` with explicit boundary checks.
 *   **Parser State Machine**: Transition the `kXR_protocol` and `kXR_login` handlers to a formal state machine to prevent "out-of-order" attacks (e.g., sending `kXR_open` before `kXR_protocol` completes).
@@ -45,6 +45,6 @@ Attackers may attempt to bypass scope checks or exploit weak signature verificat
 |---|---|---|
 | **Critical** | `openat(2)` transition | `src/path/` |
 | **High** | Fuzzing framework | `tests/fuzzing/` |
-| **High** | Walk depth/count limits | `src/query/` |
-| **Medium** | State-machine enforcement | `src/handshake/` |
+| **High** | Walk depth/count limits | `src/protocols/root/query/` |
+| **Medium** | State-machine enforcement | `src/protocols/root/handshake/` |
 | **Medium** | Rate-limiting by ID | `src/core/config/` |

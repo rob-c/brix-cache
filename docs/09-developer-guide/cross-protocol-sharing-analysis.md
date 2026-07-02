@@ -108,7 +108,7 @@ All three functions in `src/core/compat/http_file_response.c` are shared between
 |---|---|---|
 | `xrootd_fs_walk()` / `xrootd_fs_walk_dir()` | `src/core/compat/fs_walk.c` | WebDAV PROPFIND, S3 ListObjectsV2 |
 
-**Current state:** Recursive directory traversal with callback and depth tracking is shared between WebDAV (PROPFIND) and S3 (ListObjectsV2). Stream protocol uses its own dirlist handler in `src/dirlist/handler.c` but could benefit from this unified walk engine.
+**Current state:** Recursive directory traversal with callback and depth tracking is shared between WebDAV (PROPFIND) and S3 (ListObjectsV2). Stream protocol uses its own dirlist handler in `src/protocols/root/dirlist/handler.c` but could benefit from this unified walk engine.
 
 ### 1.7 Error Mapping
 

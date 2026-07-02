@@ -138,7 +138,7 @@ def test_token_fs_usage_and_shm_slot_helpers_are_shared():
         _assert_markers(relpath, ["xrootd_oauth2_parse_access_token("])
 
     for relpath in (
-        "src/query/space.c",
+        "src/protocols/root/query/space.c",
         "src/observability/metrics/stream_cache.c",
         "src/protocols/webdav/propfind_props.c",
     ):
@@ -182,7 +182,7 @@ def test_phase5_tpc_common_layer_is_shared():
         ],
     )
     _assert_markers(
-        "src/read/open_request.c",
+        "src/protocols/root/read/open_request.c",
         ["xrootd_tpc_check_authz("],
     )
     _assert_markers(
@@ -313,12 +313,12 @@ def test_phase1_http_status_header_and_query_helpers_are_shared():
 
 def test_checksum_fs_walk_staging_and_cms_frame_helpers_are_shared():
     for relpath in (
-        "src/query/checksum_qcksum.c",
-        "src/query/checksum_qcksum_async.c",
-        "src/query/checksum_ckscan_common.c",
-        "src/query/checksum_ckscan_dispatch.c",
-        "src/query/checksum_ckscan_async.c",
-        "src/dirlist/dcksm.c",
+        "src/protocols/root/query/checksum_qcksum.c",
+        "src/protocols/root/query/checksum_qcksum_async.c",
+        "src/protocols/root/query/checksum_ckscan_common.c",
+        "src/protocols/root/query/checksum_ckscan_dispatch.c",
+        "src/protocols/root/query/checksum_ckscan_async.c",
+        "src/protocols/root/dirlist/dcksm.c",
         "src/protocols/webdav/xrdhttp.c",
     ):
         _assert_markers(relpath, ["../compat/checksum.h", "xrootd_checksum_"])
@@ -334,7 +334,7 @@ def test_checksum_fs_walk_staging_and_cms_frame_helpers_are_shared():
     # "."/".." centrally in src/fs/vfs_walk.c (the single xrootd_fs_is_dot_entry
     # caller) instead of each handler filtering dotted entries itself.
     _assert_markers("src/protocols/webdav/propfind_walk.c", ["xrootd_vfs_readdir("])
-    _assert_markers("src/query/checksum_ckscan_common.c", ["xrootd_vfs_walk("])
+    _assert_markers("src/protocols/root/query/checksum_ckscan_common.c", ["xrootd_vfs_walk("])
     _assert_markers("src/fs/vfs_walk.c", ["xrootd_fs_is_dot_entry("])
 
     # s3/put was split: the staged_file include is in s3_put_internal.h, the open

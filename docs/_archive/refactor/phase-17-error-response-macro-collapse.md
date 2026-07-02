@@ -59,12 +59,12 @@ return;
 These are `void` callback functions.  `XROOTD_RETURN_ERR` contains a
 `return ngx_int_t` and cannot be used here.
 
-**Body-carrying send_ok** (`src/read/locate.c`, `src/response/basic.c`,
-`src/query/checksum_qcksum.c` — instances where `send_ok` carries a non-NULL
+**Body-carrying send_ok** (`src/protocols/root/read/locate.c`, `src/protocols/root/response/basic.c`,
+`src/protocols/root/query/checksum_qcksum.c` — instances where `send_ok` carries a non-NULL
 body): these remain explicit because the response body size varies per call.
 
-**Deferred / pipelined completions** (`src/session/login.c`,
-`src/session/bind.c` — ~4 misc instances): log_access is called
+**Deferred / pipelined completions** (`src/protocols/root/session/login.c`,
+`src/protocols/root/session/bind.c` — ~4 misc instances): log_access is called
 unconditionally before the actual response is decided later in the flow.
 
 ---
@@ -119,7 +119,7 @@ an `ngx_int_t *rc` out-parameter:
 Files are listed in descending order of impact.  All changes are mechanical
 argument mapping; no logic changes.
 
-### `src/read/open_request.c` — 15 ERR, 4 REDIR
+### `src/protocols/root/read/open_request.c` — 15 ERR, 4 REDIR
 
 Largest single target.  Every instance follows the same three-argument shape:
 
@@ -140,14 +140,14 @@ The four redirect patterns (TPC redirect + static map redirects) use
 
 **Estimated savings: ~90 LoC** (15×5 + 4×3 = 87).
 
-### `src/read/open_resolved_file.c` — 10 ERR
+### `src/protocols/root/read/open_resolved_file.c` — 10 ERR
 
 All patterns are `kXR_OPEN_RD` or `kXR_OPEN_WR` op with consistent verb
 `"OPEN"`.
 
 **Estimated savings: ~55 LoC** (10×5.5 avg).
 
-### `src/dirlist/handler.c` — 9 ERR
+### `src/protocols/root/dirlist/handler.c` — 9 ERR
 
 Verb is `"DIRLIST"`, op is `XROOTD_OP_DIRLIST`.
 
@@ -165,7 +165,7 @@ Verb is `"KRB5"`, op is `XROOTD_OP_LOGIN`.
 
 **Estimated savings: ~28 LoC** (7×4 avg).
 
-### `src/write/common.c` — 5 BAIL_ERR
+### `src/protocols/root/write/common.c` — 5 BAIL_ERR
 
 These are in `xrootd_parse_op_path()` and `xrootd_check_write_gate()`, which
 return `int` (0/1) with `ngx_int_t *rc` out-parameter:
@@ -185,7 +185,7 @@ XROOTD_BAIL_ERR(ctx, c, op, verb, reqpath, "-", kXR_ArgInvalid,
 
 **Estimated savings: ~28 LoC** (5×5.6 avg).
 
-### `src/connection/fd_table.c` — 5 BAIL_ERR
+### `src/protocols/root/connection/fd_table.c` — 5 BAIL_ERR
 
 In `xrootd_validate_file_handle()`, `xrootd_validate_read_handle()`, and
 `xrootd_validate_write_handle()`:
@@ -211,7 +211,7 @@ Verb is `"OPEN"`, op is `XROOTD_OP_OPEN_RD`.
 
 **Estimated savings: ~16 LoC**.
 
-### `src/write/pgwrite.c` — 4 ERR
+### `src/protocols/root/write/pgwrite.c` — 4 ERR
 
 **Estimated savings: ~16 LoC**.
 
@@ -227,23 +227,23 @@ Verb is `"OPEN"`, op is `XROOTD_OP_OPEN_RD`.
 
 **Estimated savings: ~12 LoC**.
 
-### `src/query/metadata.c` — 3 ERR, 3 OK
+### `src/protocols/root/query/metadata.c` — 3 ERR, 3 OK
 
 **Estimated savings: ~18 LoC**.
 
 ### Remaining files (≤ 2 patterns each)
 
 `src/auth/sss/auth_identity_challenge.c`, `src/auth/sss/auth_request.c`,
-`src/session/lifecycle.c`, `src/read/stat.c`, `src/read/statx.c`,
-`src/read/locate.c` (REDIR), `src/write/truncate.c`,
-`src/write/writev.c`, `src/write/chkpoint.c`, `src/query/space.c`,
+`src/protocols/root/session/lifecycle.c`, `src/protocols/root/read/stat.c`, `src/protocols/root/read/statx.c`,
+`src/protocols/root/read/locate.c` (REDIR), `src/protocols/root/write/truncate.c`,
+`src/protocols/root/write/writev.c`, `src/protocols/root/write/chkpoint.c`, `src/protocols/root/query/space.c`,
 `src/fs/cache/writethrough_flush.c` (1 ERR only — not the void callbacks).
 
 **Estimated savings: ~30 LoC combined**.
 
 ---
 
-## Change C — fix missing metrics in `src/write/chkpoint_xeq.c`
+## Change C — fix missing metrics in `src/protocols/root/write/chkpoint_xeq.c`
 
 `chkpoint_xeq.c` contains 6 patterns that call `xrootd_log_access()` then
 `return xrootd_send_error()` with NO intervening `XROOTD_OP_ERR`.  The same

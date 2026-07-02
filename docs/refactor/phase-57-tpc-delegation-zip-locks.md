@@ -67,7 +67,7 @@ are `b->memory=1` only, cleartext file-backed sendfile (INVARIANT #2).
 | TPC rendezvous key registry (cross-worker SHM) | `src/tpc/key_registry.h` — `xrootd_tpc_key_table_t`, 256×`{key[128],expiry,in_use}` | Done |
 | `kXR_auth` frame builder (24-byte hdr, credtype @ body+12 = abs off 16) | `src/tpc/gsi_outbound_common.c:52-99` (`tpc_send_kxr_auth`) | Done |
 | Server-side **inbound** GSI handshake — **2 rounds only** (certreq→cert) | `src/auth/gsi/auth.c:235-258`; rejects any step past `kXGC_cert` at `:254-258` | Done (no delegation) |
-| GSI delegation opcodes defined but **unused** | `src/protocol/gsi.h:20` `kXGS_pxyreq=2002`, `:23` `kXGC_sigpxy=1002` | Constants only |
+| GSI delegation opcodes defined but **unused** | `src/protocols/root/protocol/gsi.h:20` `kXGS_pxyreq=2002`, `:23` `kXGC_sigpxy=1002` | Constants only |
 
 **Conclusion:** TLS-upgraded origins and single-round token/GSI auth already work
 for cache-fill, and TPC pull already does 2-round GSI. The title decomposes into
@@ -100,7 +100,7 @@ is `name("gsi\0") + step[4] + {type[4] len[4] data[len]}* + kXRS_none`. The
 module already has the buffer codec: `xrootd_gbuf_*` and `xrootd_gsi_find_bucket`
 (`src/auth/gsi/gsi_core.h:13-33`).
 
-**Step constants** — authoritative values from the module's `src/protocol/gsi.h`
+**Step constants** — authoritative values from the module's `src/protocols/root/protocol/gsi.h`
 (verified `:18-23`; these are what we implement against, not the stock enum
 ordinal arithmetic):
 
@@ -155,7 +155,7 @@ typedef struct {
     const char *cert, *key, *castore;  /* GSI module cert paths                     */
 } xrootd_oba_ctx_t;
 
-/* Anchored &P= parse (reuse src/protocol/sec_protocol.h) + local-credential
+/* Anchored &P= parse (reuse src/protocols/root/protocol/sec_protocol.h) + local-credential
  * availability → chosen method (ztn preferred, GSI fallback — same policy as
  * gsi_outbound_finish.c:61-75). */
 xrootd_oba_method_t xrootd_oba_select(const char *parms, size_t parms_len,
@@ -313,10 +313,10 @@ uint32_t xrootd_tpc_key_take_proxy(const char *key, u_char *buf, uint32_t bufsz)
 
 ## W2.1 Verified current state
 - **No ZIP support.** The opaque carrier already exists: `open_extract_opaque()`
-  (decl `src/read/open_request.c:16`) returns the substring after `?`, and the
+  (decl `src/protocols/root/read/open_request.c:16`) returns the substring after `?`, and the
   open path already scans it for `xrootd.compress=` (`open_request.c:62-88`) and
   `tpc.*` (`:176-184`). A `xrdcl.unzip=` scan slots into the **same** pattern with
-  **no change to `src/path/extract.c`** (which only strips CGI to make the POSIX
+  **no change to `src/protocols/root/path/extract.c`** (which only strips CGI to make the POSIX
   path for `open()`, `extract.c:43-48`).
 - **Inflate is in-tree and explicitly intended for this.** `codec_core.h:12`
   lists *"ZIP member inflate"* as a target surface; `:65` mandates a bomb guard
@@ -401,7 +401,7 @@ header time → **reject** such members (size required at open).
   reuse the posture of `xrootd_reject_dotdot_path` (`open_request.c:397`). (Intra-
   archive only; cannot escape the fs, but a hostile name must not be trusted.)
 
-### W2.4.b Central-directory reader — `src/zip/zip_dir.{c,h}` (ngx-free core)
+### W2.4.b Central-directory reader — `src/protocols/root/zip/zip_dir.{c,h}` (ngx-free core)
 ```c
 typedef struct {
     char      name[PATH_MAX];
@@ -473,7 +473,7 @@ CD read (e.g. ≤ 16 MiB) to bound memory on hostile archives.
   via the confined open and call `xrootd_zip_open_member()` to fill `zip_*` from
   `xrootd_zip_find_member()` instead of `xrootd_open_resolved_file()`
   (`open_request.c:658`).
-- `src/read/read.c`, `readv.c`, `pgread.c`, `stat.c`, `close.c`: one early
+- `src/protocols/root/read/read.c`, `readv.c`, `pgread.c`, `stat.c`, `close.c`: one early
   `if (fh->zip_mode)` dispatch to `zip_member.c` helpers (`xrootd_zip_read`,
   `..._stat`, `..._close`) — same shape as the `slice_mode` branch.
 - `src/protocols/webdav/get.c` (+ optional `src/protocols/s3/get.c`): with the member arg, open the
@@ -484,10 +484,10 @@ CD read (e.g. ≤ 16 MiB) to bound memory on hostile archives.
   INVARIANT #2 still holds since we never mix).
 
 ## W2.5 File-by-file changes
-**New:** `src/zip/zip_dir.{c,h}`, `src/zip/zip_member.{c,h}`, `src/zip/README.md`
+**New:** `src/protocols/root/zip/zip_dir.{c,h}`, `src/protocols/root/zip/zip_member.{c,h}`, `src/protocols/root/zip/README.md`
 (register `.c` in `./config` — see C0).
-**Modify:** `src/core/types/file.h` (handle fields), `src/read/open_request.c`
-(`open_negotiate_zip_member()` + dispatch), `src/read/{read,readv,pgread,stat,close}.c`
+**Modify:** `src/core/types/file.h` (handle fields), `src/protocols/root/read/open_request.c`
+(`open_negotiate_zip_member()` + dispatch), `src/protocols/root/read/{read,readv,pgread,stat,close}.c`
 (zip_mode branch), `src/protocols/webdav/get.c` (+ `s3/get.c` optional), `src/core/config/directives.c`.
 **Build:** `./configure` (new sources + directives).
 
@@ -808,7 +808,7 @@ Add a `kXR_gotoTLS` branch earlier (after the `kXR_protocol` reply parse) mirror
 Remove `authmore_count` from `src/net/upstream/upstream_internal.h:73`; add an
 `xrootd_oba_ctx_t oba;` field.
 
-### B2.3 `src/read/read.c:131-133` — insert the zip branch before slice_mode
+### B2.3 `src/protocols/root/read/read.c:131-133` — insert the zip branch before slice_mode
 ```c
     rconf = ngx_stream_get_module_srv_conf(...);
 
@@ -1016,7 +1016,7 @@ ngx_int_t xrootd_zip_read(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
 
 ## B4. Config directives — exact `ngx_command_t` + merge
 
-### W1 (stream, `src/stream/module.c` commands array; mirror `xrootd_upstream_tls:920`)
+### W1 (stream, `src/protocols/root/stream/module.c` commands array; mirror `xrootd_upstream_tls:920`)
 ```c
     { ngx_string("xrootd_tpc_delegate"),
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
@@ -1038,7 +1038,7 @@ merge in `merge_srv_conf`:
     ngx_conf_merge_value(conf->tpc_outbound_tls, prev->tpc_outbound_tls, 0);
 ```
 
-### W2 (WebDAV+stream loc/srv; gate read-side in `src/read`)
+### W2 (WebDAV+stream loc/srv; gate read-side in `src/protocols/root/read`)
 ```c
     { ngx_string("xrootd_zip_access"),     ... offsetof(..., zip_access),     NULL },
     { ngx_string("xrootd_zip_verify_crc"), ... offsetof(..., zip_verify_crc), NULL },
@@ -1079,7 +1079,7 @@ Merge: `ngx_conf_merge_value(...,0)` for the flags;
 - [ ] tests: 8 cases incl. reload/reboot survival (1)
 
 **W2 — ZIP member access (≈6–9 d)**
-- [ ] `src/zip/zip_dir.{c,h}`: EOCD/ZIP64/CDFH/LFH reader + LRU (2.5)
+- [ ] `src/protocols/root/zip/zip_dir.{c,h}`: EOCD/ZIP64/CDFH/LFH reader + LRU (2.5)
 - [ ] `file.h` fields + **full rebuild**; handle lifecycle in `zip_member.{c,h}` (1)
 - [ ] `open_request.c`: `open_negotiate_zip_member` + dispatch (0.5)
 - [ ] read/readv/pgread/stat/close branches; stored zero-copy (1.5)
@@ -1128,8 +1128,8 @@ config-field/command declarations, not the file list. A new `.c` must be added t
 #  variable that both link, or to each srcs list that references upstream/tpc.)
 
 # W2 — add a new ZIP block near the read sources (config:750 region):
-    $ngx_addon_dir/src/zip/zip_dir.c \
-    $ngx_addon_dir/src/zip/zip_member.c \
+    $ngx_addon_dir/src/protocols/root/zip/zip_dir.c \
+    $ngx_addon_dir/src/protocols/root/zip/zip_member.c \
 ```
 Headers (`.h`) are added to the `*_DEPS`/header lists (e.g. the
 `webdav/locks/request.h` entry at `config:407`); they do not compile on their own
@@ -1212,7 +1212,7 @@ void xrootd_oba_free(xrootd_oba_ctx_t *c);
 #endif /* XROOTD_UPSTREAM_AUTH_HANDSHAKE_H */
 ```
 
-## C2. `src/zip/zip_dir.h` (complete)
+## C2. `src/protocols/root/zip/zip_dir.h` (complete)
 ```c
 /*
  * zip_dir.h — ZIP central-directory reader for member access (W2).
@@ -1262,7 +1262,7 @@ ngx_int_t xrootd_zip_find_member(int fd, off_t sz, const char *member,
 #endif /* XROOTD_ZIP_DIR_H */
 ```
 
-## C3. `src/zip/zip_member.h` (complete)
+## C3. `src/protocols/root/zip/zip_member.h` (complete)
 ```c
 /*
  * zip_member.h — ZIP member virtual-handle I/O (W2).
@@ -1303,9 +1303,9 @@ void xrootd_zip_close(xrootd_file_t *fh);
 #endif /* XROOTD_ZIP_MEMBER_H */
 ```
 
-## C4. `src/zip/README.md` (skeleton)
+## C4. `src/protocols/root/zip/README.md` (skeleton)
 ```markdown
-# src/zip — ZIP member access (read-only)
+# src/protocols/root/zip — ZIP member access (read-only)
 
 Serves one file inside a ZIP archive as a standalone object across root://,
 WebDAV, and S3 GET (opaque `xrdcl.unzip=<member>`).
@@ -1652,7 +1652,7 @@ All numeric values above are authoritative — see the constants table in **Part
 
 > Every magic number this plan relies on, resolved from the actual headers so the
 > implementer copies values, not guesses. **A correction this pass surfaced:**
-> earlier drafts wrote `kXGC_certreq=1001`; the module's `src/protocol/gsi.h:21`
+> earlier drafts wrote `kXGC_certreq=1001`; the module's `src/protocols/root/protocol/gsi.h:21`
 > defines it as **1000** (`cert=1001`, `sigpxy=1002`). The W1.3 and D1/D4 tables
 > have been corrected to match.
 
@@ -1674,7 +1674,7 @@ from `kXR_auth=3000`).
 | `kXR_pgread` | 3030 | 0x0BD6 | W2 (stored ok / deflate reject) |
 
 ## E2. GSI handshake steps (`XrdSutBuffer` step word, big-endian)
-Source: `src/protocol/gsi.h:18-23` (module-authoritative).
+Source: `src/protocols/root/protocol/gsi.h:18-23` (module-authoritative).
 
 | Step | Dec | Hex | Direction |
 |---|---|---|---|
@@ -1686,7 +1686,7 @@ Source: `src/protocol/gsi.h:18-23` (module-authoritative).
 | `kXGS_pxyreq` | 2002 | 0x07D2 | server→client (delegation) |
 
 ## E3. GSI bucket type codes (`kXRS_*`, big-endian type word)
-Source: `src/protocol/gsi.h:35-51`.
+Source: `src/protocols/root/protocol/gsi.h:35-51`.
 
 | Bucket | Dec | Purpose (this plan) |
 |---|---|---|
@@ -1857,7 +1857,7 @@ diagnosis-first.**
    - client → **source** open with `tpc.dst=<dest>&tpc.key=<k>` (rendezvous
      registration over GSI), then
    - client → **dest** open (write) with `tpc.src=<source>&tpc.key=<k>` →
-     dest detects TPC-destination (`src/read/open_request.c:185`,
+     dest detects TPC-destination (`src/protocols/root/read/open_request.c:185`,
      `is_write && tpc.has_src`) → `xrootd_tpc_prepare_pull`, then
    - client → dest `kXR_sync` → `xrootd_tpc_start_pull` posts the pull thread.
 2. **Compare the native client's `--tpc only` emission to stock `xrdcp`.** The
@@ -1868,13 +1868,13 @@ diagnosis-first.**
 3. **Likely fix locations** (confirm with the trace before editing):
    - native client TPC orchestration (`client/` — the `--tpc` driver) if it omits
      the rendezvous leg;
-   - `src/read/open_request.c:176-339` (TPC detect) / `src/tpc/parse.c` if the
+   - `src/protocols/root/read/open_request.c:176-339` (TPC detect) / `src/tpc/parse.c` if the
      dest mis-parses the opaque;
    - `src/tpc/launch.c` (`xrootd_tpc_prepare_pull` / `xrootd_tpc_start_pull`) if
      the prepare/sync hand-off is the stall.
 4. Keep `tpc.org`/`tpc.key` SHM-registry flow (`src/tpc/key_registry.c`) in mind:
    the source registers the key on the `tpc.dst` open and consumes it on the
-   `tpc.org` reconnect (`src/read/open_request.c:301-337`).
+   `tpc.org` reconnect (`src/protocols/root/read/open_request.c:301-337`).
 
 **Exit criteria:** dest debug log shows `xrootd_tpc_prepare_pull` + the pull thread
 starting; the `--tpc only` failure now moves *into* the outbound GSI handshake

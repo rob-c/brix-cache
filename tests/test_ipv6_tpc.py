@@ -82,7 +82,7 @@ pytestmark = pytest.mark.timeout(60)
 # ---------------------------------------------------------------------------
 # Wire constants (mirror tests/test_tpc_ssrf_policy.py + test_handshake_*).
 # Verified against /tmp/xrootd-src/src/XProtocol/XProtocol.hh and
-# src/protocol/opcodes.h (kXR_open=3010=0x0bc2, kXR_sync=3016).
+# src/protocols/root/protocol/opcodes.h (kXR_open=3010=0x0bc2, kXR_sync=3016).
 # ---------------------------------------------------------------------------
 
 # IPv6 client host the test reaches (default ::1; env TEST_HOST6). All uses are
@@ -213,7 +213,7 @@ def _open_tpc_pull(sock, dst_path, src_url, streamid=b"\x00\x02"):
 
 
 def _sync_tpc_pull(sock, streamid, fhandle0):
-    """Arm then run a native TPC pull — the two-step kXR_sync of src/write/sync.c
+    """Arm then run a native TPC pull — the two-step kXR_sync of src/protocols/root/write/sync.c
     (first sync arms, second sync triggers xrootd_tpc_start_pull → the registry
     URL rebuild at launch.c:182)."""
     fh = bytes([fhandle0 & 0xFF, 0, 0, 0])

@@ -28,7 +28,7 @@ This file is a **lookup reference**, not memorization material. If your context 
 ## ROUTING
 | Proto | Layer | Entry | Test Port |
 |---|---|---|---|
-| `root://` / `roots://` | stream | `src/connection/handler.c`→`src/handshake/dispatch.c` | anon=11094 GSI=11095 TLS=11096 Token=11097 |
+| `root://` / `roots://` | stream | `src/protocols/root/connection/handler.c`→`src/protocols/root/handshake/dispatch.c` | anon=11094 GSI=11095 TLS=11096 Token=11097 |
 | `davs://` (GSI+TLS) | http | `src/protocols/webdav/dispatch.c`→method handler | 8444 |
 | `davs://` / `http://` (no GSI) | http | `src/protocols/webdav/dispatch.c`→method handler | 8443 |
 | S3 REST | http | `src/protocols/s3/handler.c`→method handler | 9001 |
@@ -197,7 +197,7 @@ tests/manage_test_servers.sh start|restart|stop
 | Stream ctx? | `xrootd_ctx_t *ctx = ngx_stream_get_module_ctx(s, ngx_stream_xrootd_module)` |
 | HTTP loc conf? | `ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module)` |
 | Conf merge? | main→srv→loc. Check `NGX_CONF_UNSET` in merge |
-| File handles? | 0–255 → `xrootd_file_t` in `src/connection/fd_table.c` |
+| File handles? | 0–255 → `xrootd_file_t` in `src/protocols/root/connection/fd_table.c` |
 | Log strings from wire? | `xrootd_sanitize_log_string()` — escapes control bytes, quotes, backslashes, non-ASCII to `\xNN` |
 | Config reload? | Standard nginx drain — new conns get new settings, in-flight finish on old workers. `config_generation`/`config_version` in `/healthz` + `xrootd_config_generation` gauge confirm it. Cert/key/keytab rotate **on reload** (not in-place); slot-count changes reset the SHM table (WARN). Full matrix: [docs/09-developer-guide/reload-semantics.md](docs/09-developer-guide/reload-semantics.md) |
 

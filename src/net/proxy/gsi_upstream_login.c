@@ -22,7 +22,7 @@
 #include "gsi_upstream.h"
 #include "fs/cache/cache_internal.h"          /* origin connect/bootstrap + fill_t */
 #include "core/aio/aio.h"                        /* xrootd_task_bind */
-#include "connection/event_sched.h"        /* xrootd_schedule_read_resume */
+#include "protocols/root/connection/event_sched.h"        /* xrootd_schedule_read_resume */
 #include "core/compat/af_policy.h"              /* XROOTD_AF_AUTO */
 
 #include <unistd.h>

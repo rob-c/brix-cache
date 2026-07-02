@@ -58,7 +58,7 @@ def test_w3_scoped_header():
 
 
 def test_f1_readv_segment_guard():
-    rv = _read("src/read/readv.c")
+    rv = _read("src/protocols/root/read/readv.c")
     assert "safe_size.h" in rv
     assert "XROOTD_READV_MAXSEGS" in rv
     assert "xrootd_size_mul" in rv
@@ -66,12 +66,12 @@ def test_f1_readv_segment_guard():
 
 
 def test_f4_session_reaper_and_f5_cap_drift():
-    h = _read("src/session/registry.h")
+    h = _read("src/protocols/root/session/registry.h")
     assert "last_seen" in h
     assert "XROOTD_SESSION_REAP_MIN_AGE_MS" in h
     # F5: cap-drift fixed — no stale "default 256" docstring remains.
     assert "default 256" not in h
-    c = _read("src/session/registry.c")
+    c = _read("src/protocols/root/session/registry.c")
     assert "session_evict_total" in c
     assert "session_registry_full_total" in c
 

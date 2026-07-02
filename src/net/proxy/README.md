@@ -16,7 +16,7 @@ origin, but this one speaks the binary XRootD protocol through nginx's **stream*
 module.
 
 Control enters here from a single short-circuit in the stream dispatcher:
-`src/handshake/dispatch.c` calls `xrootd_proxy_dispatch()` for every opcode once
+`src/protocols/root/handshake/dispatch.c` calls `xrootd_proxy_dispatch()` for every opcode once
 `conf->proxy_enable && ctx->logged_in` is true, *before* the local read/write
 handlers run (so no local filesystem path is ever resolved in proxy mode). From
 that point the proxy owns the request: it returns `NGX_OK`/`NGX_ERROR`/`NGX_DONE`

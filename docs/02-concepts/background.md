@@ -95,7 +95,7 @@ These views can serve the same files, but they do not share exactly the same
 wire semantics. For example, native `kXR_read` returns XRootD response frames,
 WebDAV `GET` returns HTTP headers and a response body, and S3-compatible
 `GET` returns S3-style headers and errors. This is why the source tree has
-separate `src/read/`, `src/protocols/webdav/`, and `src/protocols/s3/` implementations.
+separate `src/protocols/root/read/`, `src/protocols/webdav/`, and `src/protocols/s3/` implementations.
 
 ## What is an nginx stream module?
 

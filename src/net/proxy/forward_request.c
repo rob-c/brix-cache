@@ -1,5 +1,5 @@
 #include "proxy_internal.h"
-#include "session/registry.h"
+#include "protocols/root/session/registry.h"
 
 /*
  * WHAT: Build and forward a client XRootD request to the upstream server,

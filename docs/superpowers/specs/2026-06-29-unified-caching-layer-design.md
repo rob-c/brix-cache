@@ -44,7 +44,7 @@ That is the "fold both ways": one driver seam underneath, one caching layer on t
 - `src/fs/cache/reap_watermark.c` (+ prototypes in `cache_internal.h`): `xrootd_cache_watermark_purge(conf, log)` — sample → if over high, loop `evict_one` oldest-first until `≤ low` or no candidates — and the timer handler. (`evict_candidates.c`/`evict_policy.c` provide the reusable collection/sort/`evict_one` already.)
 - `src/fs/cache/fs_usage.c` (+ header): the TTL-cached `statvfs` sampler, shared with Component C.
 - `process.c`: arm the reaper timer per worker (gated on a cache + watermarks configured).
-- `src/core/config/` + `src/stream/module.c`: directives `xrootd_cache_high_watermark`, `xrootd_cache_low_watermark`, `xrootd_cache_reap_interval`; merge + EMERG validation (`0 < low < high < 100`).
+- `src/core/config/` + `src/protocols/root/stream/module.c`: directives `xrootd_cache_high_watermark`, `xrootd_cache_low_watermark`, `xrootd_cache_reap_interval`; merge + EMERG validation (`0 < low < high < 100`).
 
 ### Metrics (the "unique XCache-style" family) — `src/observability/metrics/unified.c`
 - `xrootd_cache_usage_ratio` — **gauge**, current cache_root occupancy (0–1).
@@ -73,14 +73,14 @@ Labels stay low-cardinality (no paths/keys), per the metrics invariant.
    - `low ≤ occupancy < high` (soft band) → **WAIT** (backpressure).
    - occupancy `≥ high` → **REJECT** until it drains below `low` (hysteresis).
 3. **Enforcement at write-open only — reads always flow.**
-   - `root://`: in `src/read/open_resolved_file.c` on the `is_write` path — `WAIT` → `kXR_wait` (server-directed retry delay); `REJECT` → `kXR_Overloaded`.
+   - `root://`: in `src/protocols/root/read/open_resolved_file.c` on the `is_write` path — `WAIT` → `kXR_wait` (server-directed retry delay); `REJECT` → `kXR_Overloaded`.
    - WebDAV/S3 `PUT`: in the respective PUT handlers — `WAIT` → `503` with `Retry-After`; `REJECT` → `429`.
    - The gate runs **before** a staging temp/object is created, so a rejected write never consumes staging space.
 
 ### New files / touch points
 - `src/fs/cache/stage_admit.c` (+ prototypes): `xrootd_wt_stage_admit()` + the action enum; pure decision over the sampler + conf.
-- `src/read/open_resolved_file.c`, WebDAV `put.c`, S3 `put.c`: call the gate on write-open/PUT, map the verdict to the protocol-correct response.
-- `src/core/config/` + `src/stream/module.c` (+ WebDAV/S3 directive plumbing where the cache is configured): `xrootd_wt_stage_high_watermark`, `xrootd_wt_stage_low_watermark`; merge + EMERG validation. No-op unless a staging root is configured.
+- `src/protocols/root/read/open_resolved_file.c`, WebDAV `put.c`, S3 `put.c`: call the gate on write-open/PUT, map the verdict to the protocol-correct response.
+- `src/core/config/` + `src/protocols/root/stream/module.c` (+ WebDAV/S3 directive plumbing where the cache is configured): `xrootd_wt_stage_high_watermark`, `xrootd_wt_stage_low_watermark`; merge + EMERG validation. No-op unless a staging root is configured.
 
 ### Metrics — `src/observability/metrics/unified.c`
 - `xrootd_wt_stage_usage_ratio` — **gauge**, staging occupancy (0–1).

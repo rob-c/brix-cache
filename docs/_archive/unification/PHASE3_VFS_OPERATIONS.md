@@ -13,7 +13,7 @@
 
 This is the central phase of the unification project. Today each protocol family implements its own open/read/write/stat logic, duplicating:
 
-- Cache hit/miss checks (three copies: `src/read/open_cache.c`, `src/protocols/webdav/get.c`, `src/protocols/s3/object.c`)
+- Cache hit/miss checks (three copies: `src/protocols/root/read/open_cache.c`, `src/protocols/webdav/get.c`, `src/protocols/s3/object.c`)
 - AIO thread-pool dispatch (four entry points across `src/core/aio/`)
 - Dashboard transfer slot registration (`src/observability/dashboard/transfer_table.c`)
 - Error-to-wire-status translation (errno → kXR → HTTP status scattered everywhere)
@@ -28,9 +28,9 @@ After Phase 3, each protocol handler calls a thin "wire-to-VFS" translation laye
 
 ```
 Stream kXR_read
-  └─ src/read/open_request.c      (open + stat)
-  └─ src/read/read.c              (pread → AIO dispatch)
-  └─ src/read/open_cache.c        (cache hit check)
+  └─ src/protocols/root/read/open_request.c      (open + stat)
+  └─ src/protocols/root/read/read.c              (pread → AIO dispatch)
+  └─ src/protocols/root/read/open_cache.c        (cache hit check)
   └─ src/core/aio/read.c               (thread-pool read)
   └─ src/observability/dashboard/transfer_table.c (slot tracking)
 
@@ -51,8 +51,8 @@ S3 GetObject
 
 ```
 Stream kXR_write / kXR_pgwrite
-  └─ src/write/write.c
-  └─ src/write/pgwrite.c          (CRC32c per page)
+  └─ src/protocols/root/write/write.c
+  └─ src/protocols/root/write/pgwrite.c          (CRC32c per page)
   └─ src/core/aio/write.c
 
 WebDAV PUT
@@ -69,8 +69,8 @@ S3 PutObject / UploadPart
 
 ```
 Stream kXR_stat / kXR_statx
-  └─ src/read/stat.c
-  └─ src/read/statx.c
+  └─ src/protocols/root/read/stat.c
+  └─ src/protocols/root/read/statx.c
 
 WebDAV PROPFIND / HEAD
   └─ src/protocols/webdav/propfind.c
@@ -242,7 +242,7 @@ ngx_int_t xrootd_vfs_sync(xrootd_vfs_file_t *fh);
 
 ```mermaid
 graph TD
-    A["Stream kXR_read\n(src/read/read.c)"] --> W["Wire→VFS Shim\n(thin; fills xrootd_vfs_ctx_t)"]
+    A["Stream kXR_read\n(src/protocols/root/read/read.c)"] --> W["Wire→VFS Shim\n(thin; fills xrootd_vfs_ctx_t)"]
     B["WebDAV GET\n(src/protocols/webdav/get.c)"] --> W
     C["S3 GetObject\n(src/protocols/s3/object.c)"] --> W
     W --> VFS["xrootd_vfs_read()\n(src/fs/vfs_read.c)"]
@@ -261,7 +261,7 @@ graph TD
 
 ### Step 1 — VFS Open (`src/fs/vfs_open.c`)
 
-Extract and merge logic from `src/read/open_request.c` and `src/protocols/webdav/fs/` fd cache:
+Extract and merge logic from `src/protocols/root/read/open_request.c` and `src/protocols/webdav/fs/` fd cache:
 
 1. Validate `conf->allow_write` if `XROOTD_VFS_O_WRITE` is set.
 2. Check fd cache (`src/protocols/webdav/fs/` → consolidate into `src/fs/fd_cache.c`).
@@ -286,7 +286,7 @@ struct xrootd_vfs_file_s {
 
 ### Step 2 — VFS Read (`src/fs/vfs_read.c`)
 
-Key invariant from AGENTS.md: TLS connections use `b->memory=1` (memory-backed buffers); cleartext connections use `b->file` for sendfile. This logic currently exists separately in `src/read/read.c` and `src/protocols/webdav/get.c`.
+Key invariant from AGENTS.md: TLS connections use `b->memory=1` (memory-backed buffers); cleartext connections use `b->file` for sendfile. This logic currently exists separately in `src/protocols/root/read/read.c` and `src/protocols/webdav/get.c`.
 
 ```
 xrootd_vfs_read():
@@ -304,7 +304,7 @@ xrootd_vfs_read():
 
 ### Step 3 — VFS Write (`src/fs/vfs_write.c`)
 
-Merge logic from `src/write/write.c` and `src/protocols/webdav/put.c`:
+Merge logic from `src/protocols/root/write/write.c` and `src/protocols/webdav/put.c`:
 
 - `pgwrite` mode (`XROOTD_VFS_O_WRITE` + `ctx->want_pgcrc`): validate CRC32c per 4K page before committing; return kXR_status 4007 framing error on mismatch (stream only — wire-layer concern, not VFS concern; VFS returns `NGX_DECLINED` and caller handles framing).
 - Normal write: `pwrite(2)` via `aio/write.c`.
@@ -312,7 +312,7 @@ Merge logic from `src/write/write.c` and `src/protocols/webdav/put.c`:
 
 ### Step 4 — VFS Stat (`src/fs/vfs_stat.c`)
 
-Merge `src/read/stat.c`, `src/read/statx.c`, and `src/protocols/webdav/resource.c` stat logic:
+Merge `src/protocols/root/read/stat.c`, `src/protocols/root/read/statx.c`, and `src/protocols/webdav/resource.c` stat logic:
 
 ```c
 ngx_int_t xrootd_vfs_stat(xrootd_vfs_ctx_t *ctx, xrootd_vfs_stat_t *out)
@@ -337,7 +337,7 @@ Protocol-specific translation (kXR_StatInfo bitmap, WebDAV `<D:resourcetype>`, S
 
 Once `src/fs/` is complete:
 
-**`src/read/read.c`** becomes:
+**`src/protocols/root/read/read.c`** becomes:
 ```c
 // 1. Build xrootd_vfs_ctx_t from stream context
 // 2. Call xrootd_vfs_open() + xrootd_vfs_read()
@@ -383,18 +383,18 @@ Once `src/fs/` is complete:
 ### Modified files (call sites updated to use VFS API)
 | File | Change |
 |:---|:---|
-| `src/read/read.c` | Replace direct I/O with `xrootd_vfs_read()` |
-| `src/read/open_request.c` | Delegate to `xrootd_vfs_open()` |
-| `src/read/open_cache.c` | Absorbed into `vfs_open.c` cache path |
-| `src/read/stat.c` | Delegate to `xrootd_vfs_stat()` |
-| `src/read/statx.c` | Delegate to `xrootd_vfs_stat()` (extended fields) |
-| `src/write/write.c` | Delegate to `xrootd_vfs_write()` |
-| `src/write/pgwrite.c` | Delegate to `xrootd_vfs_write()` with `want_pgcrc=1` |
-| `src/write/mv.c` | Delegate to `xrootd_vfs_rename()` |
-| `src/write/rm.c` | Delegate to `xrootd_vfs_unlink()` |
-| `src/write/mkdir.c` | Delegate to `xrootd_vfs_mkdir()` |
-| `src/write/sync.c` | Delegate to `xrootd_vfs_sync()` |
-| `src/write/truncate.c` | Delegate to `xrootd_vfs_truncate()` |
+| `src/protocols/root/read/read.c` | Replace direct I/O with `xrootd_vfs_read()` |
+| `src/protocols/root/read/open_request.c` | Delegate to `xrootd_vfs_open()` |
+| `src/protocols/root/read/open_cache.c` | Absorbed into `vfs_open.c` cache path |
+| `src/protocols/root/read/stat.c` | Delegate to `xrootd_vfs_stat()` |
+| `src/protocols/root/read/statx.c` | Delegate to `xrootd_vfs_stat()` (extended fields) |
+| `src/protocols/root/write/write.c` | Delegate to `xrootd_vfs_write()` |
+| `src/protocols/root/write/pgwrite.c` | Delegate to `xrootd_vfs_write()` with `want_pgcrc=1` |
+| `src/protocols/root/write/mv.c` | Delegate to `xrootd_vfs_rename()` |
+| `src/protocols/root/write/rm.c` | Delegate to `xrootd_vfs_unlink()` |
+| `src/protocols/root/write/mkdir.c` | Delegate to `xrootd_vfs_mkdir()` |
+| `src/protocols/root/write/sync.c` | Delegate to `xrootd_vfs_sync()` |
+| `src/protocols/root/write/truncate.c` | Delegate to `xrootd_vfs_truncate()` |
 | `src/protocols/webdav/get.c` | Replace direct I/O with `xrootd_vfs_read()` |
 | `src/protocols/webdav/put.c` | Replace direct I/O with `xrootd_vfs_write()` |
 | `src/protocols/webdav/namespace.c` | Replace move/rm/mkdir with VFS calls |
@@ -405,7 +405,7 @@ Once `src/fs/` is complete:
 | `src/protocols/s3/put.c` | Replace I/O with `xrootd_vfs_write()` |
 | `src/protocols/s3/list_objects_v2.c` | Replace opendir with `xrootd_vfs_opendir()` |
 | `src/protocols/s3/list_walk.c` | Replace readdir with `xrootd_vfs_readdir()` |
-| `src/dirlist/handler.c` | Replace opendir/readdir with VFS calls |
+| `src/protocols/root/dirlist/handler.c` | Replace opendir/readdir with VFS calls |
 | `src/core/config/config.h` | Add all `src/fs/*.c` to `NGX_ADDON_SRCS` |
 
 ---
@@ -470,7 +470,7 @@ After Phase 3 completes, regression must be < 2% on same hardware.
 ## Completion Criteria
 
 - [ ] `src/fs/` directory exists with all listed files
-- [ ] All stream read/write handlers call VFS API — no direct `open(2)`/`pread(2)` in `src/read/` or `src/write/`
+- [ ] All stream read/write handlers call VFS API — no direct `open(2)`/`pread(2)` in `src/protocols/root/read/` or `src/protocols/root/write/`
 - [ ] All WebDAV handlers call VFS API — no direct I/O in `src/protocols/webdav/get.c` or `src/protocols/webdav/put.c`
 - [ ] All S3 handlers call VFS API — no direct I/O in `src/protocols/s3/object.c` or `src/protocols/s3/put.c`
 - [ ] TLS/cleartext buffer invariant enforced and tested

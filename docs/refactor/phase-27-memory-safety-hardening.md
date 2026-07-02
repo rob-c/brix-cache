@@ -51,7 +51,7 @@ with overflow-checked arithmetic, and (c) freed on *every* exit path.
 The audit found the codebase is **already disciplined in its newest paths**; the
 work is to make that discipline universal.
 
-- **Per-opcode payload cap, pre-allocation.** `src/connection/recv.c` defines a
+- **Per-opcode payload cap, pre-allocation.** `src/protocols/root/connection/recv.c` defines a
   cap table consulted *before any allocation* — `auth → XROOTD_MAX_AUTH_PAYLOAD`
   (16 KB), `write → XROOTD_MAX_WRITE_PAYLOAD`, `prepare →
   XROOTD_MAX_PREPARE_PAYLOAD`, `readv → segments × segsize`, others →
@@ -63,7 +63,7 @@ work is to make that discipline universal.
   bound, allocate `dlen+1`, and free on the read-failure path. **These are the
   reference pattern.**
 - **Bounded shared-memory registries.** Session registry is fixed-capacity
-  (`XROOTD_SESSION_REGISTRY_SLOTS`, `src/session/registry.h:30`); manager
+  (`XROOTD_SESSION_REGISTRY_SLOTS`, `src/protocols/root/session/registry.h:30`); manager
   registry is 128 slots (`src/net/manager/registry.c`), rejects-on-full, and
   increments `xrootd_registry_full_total`. No unbounded growth.
 - **A rich cap vocabulary already exists** — `XROOTD_MAX_FILES`,
@@ -83,16 +83,16 @@ Severity reflects exploitability by an external peer.
 
 | # | File:line | Issue | Sev | Guard |
 |---|-----------|-------|-----|-------|
-| F1 | `src/read/readv.c:79`, `:250` | `malloc(segment_count * sizeof(*ranges))` / `ngx_alloc(segment_count * …)`. `segment_count = cur_dlen / SEGSIZE` (`:204`) is bounded by `recv.c`, but the **`* sizeof` multiply has no explicit overflow/`MAXSEGS` guard at the callsite** — defense-in-depth missing. | Med | Explicit `if (segment_count > XROOTD_READV_MAXSEGS) reject;` + checked-mul helper |
+| F1 | `src/protocols/root/read/readv.c:79`, `:250` | `malloc(segment_count * sizeof(*ranges))` / `ngx_alloc(segment_count * …)`. `segment_count = cur_dlen / SEGSIZE` (`:204`) is bounded by `recv.c`, but the **`* sizeof` multiply has no explicit overflow/`MAXSEGS` guard at the callsite** — defense-in-depth missing. | Med | Explicit `if (segment_count > XROOTD_READV_MAXSEGS) reject;` + checked-mul helper |
 | F2 | `src/tpc/gsi_outbound_exchange.c:222,271,335,404,439` | DH/cert exchange does ~5 `malloc`/`OPENSSL_malloc` + many OpenSSL handles with hand-rolled `goto round_fail/done`. Long, branchy error paths driven by a **remote origin's** buckets → high risk of handle/heap leak on any malformed bucket. | High | Scoped-cleanup idiom (W3); fuzz the bucket parser (W7) |
-| F3 | `src/read/readv.c:79` (and other per-request `malloc`) | Raw `malloc`/`free` used where a **request/transient pool** would auto-reclaim on the error paths. Each manual `free` is a chance to miss one. | Med | Prefer pool-backed alloc on per-request paths (W4) |
-| F4 | `src/session/registry.*`, `src/net/manager/registry.c` | Registries are **capacity-bounded but never time-evicted**. A peer that opens sessions/handles (or a flapping CMS server) can fill all slots → legitimate logins rejected (slot-exhaustion DoS). No `last_seen` TTL reaper on the session table. | High | TTL/LRU eviction + per-source quota (W5) |
-| F5 | `src/session/registry.h:30` vs `:36` docstring | `#define XROOTD_SESSION_REGISTRY_SLOTS 1024` but the doc comment says “default 256” — **cap drift** between declared limit and documentation; risk of wrong capacity assumptions in sizing/SHM math. | Low | Reconcile + single source of truth (W5) |
+| F3 | `src/protocols/root/read/readv.c:79` (and other per-request `malloc`) | Raw `malloc`/`free` used where a **request/transient pool** would auto-reclaim on the error paths. Each manual `free` is a chance to miss one. | Med | Prefer pool-backed alloc on per-request paths (W4) |
+| F4 | `src/protocols/root/session/registry.*`, `src/net/manager/registry.c` | Registries are **capacity-bounded but never time-evicted**. A peer that opens sessions/handles (or a flapping CMS server) can fill all slots → legitimate logins rejected (slot-exhaustion DoS). No `last_seen` TTL reaper on the session table. | High | TTL/LRU eviction + per-source quota (W5) |
+| F5 | `src/protocols/root/session/registry.h:30` vs `:36` docstring | `#define XROOTD_SESSION_REGISTRY_SLOTS 1024` but the doc comment says “default 256” — **cap drift** between declared limit and documentation; risk of wrong capacity assumptions in sizing/SHM math. | Low | Reconcile + single source of truth (W5) |
 | F6 | 26 files use `EVP_*`; `src/auth/gsi`, `src/tpc`, `src/auth/crypto`, `src/auth/token`, `src/protocols/s3` | OpenSSL `*_new`/`d2i_*`/`PEM_read_*`/`BIO_new` with error returns; needs per-function verification that **every** return path frees. Manual audit cannot guarantee coverage at this scale. | High | LSan/valgrind CI is the real guard (W6) + scoped idiom (W3) |
-| F7 | `src/observability/dashboard`, `src/auth/token`, `src/observability/metrics`, `src/query`, `src/protocols/s3` (jansson, 10 files) | `json_t` ownership (borrowed `json_object_get` vs owned `json_loads`/`*_new`; stealing `json_object_set_new`) is error-prone → leak or double-decref. | Med | Ownership audit + LSan (W6); jansson cheatsheet in W3 |
+| F7 | `src/observability/dashboard`, `src/auth/token`, `src/observability/metrics`, `src/protocols/root/query`, `src/protocols/s3` (jansson, 10 files) | `json_t` ownership (borrowed `json_object_get` vs owned `json_loads`/`*_new`; stealing `json_object_set_new`) is error-prone → leak or double-decref. | Med | Ownership audit + LSan (W6); jansson cheatsheet in W3 |
 | F8 | systemic: **33 files `ngx_alloc`** vs **7 files `ngx_pool_cleanup_add`** | Raw `ngx_alloc` on connection/persistent pools in the long-lived **stream path** relies on a manual `ngx_free` that a session-teardown error path can skip. | Med | Cleanup-registration discipline + lint (W4, W8) |
 | F9 | `src/fs/cache/evict_candidates.c:231,237` | `realloc` growth (`list->evicted`, `list->elts`) — classic “`p = realloc(p,…)` loses the old pointer on NULL” + unbounded growth risk if the candidate set is attacker-influenced. | Med | `realloc`-safe helper + cap (W1, W2) |
-| F10 | `src/connection/fd_table.c` (0–255 handles) | Confirm every error path that opens an fd into the table also releases it on session close / failed-open; an fd leaked into a slot is both a descriptor leak and a logic hazard. | Med | Audit + LSan/fd-count assertion in tests (W6) |
+| F10 | `src/protocols/root/connection/fd_table.c` (0–255 handles) | Confirm every error path that opens an fd into the table also releases it on session close / failed-open; an fd leaked into a slot is both a descriptor leak and a logic hazard. | Med | Audit + LSan/fd-count assertion in tests (W6) |
 
 No file using `ngx_alloc` was found to lack *any* free — so the risk is
 **error-path omission and lifetime**, not wholesale absence. That is exactly the
@@ -124,7 +124,7 @@ and `len + 1` / `a + b` size computation (start with F1, F9) to these helpers.
 
 ### W2 — Universal "cap before allocate" for wire-driven sizes
 
-Extend the `src/connection/recv.c` cap-table model so that **no allocation sized
+Extend the `src/protocols/root/connection/recv.c` cap-table model so that **no allocation sized
 by wire data happens without a preceding explicit cap check**. Concretely:
 
 - Add an explicit `XROOTD_READV_MAXSEGS` gate at `readv.c:79`/`:250` (F1).
@@ -158,8 +158,8 @@ makes leaks structurally hard rather than reviewer-dependent.
 - For per-request work on a long-lived stream session, prefer a **transient
   pool** or register `ngx_pool_cleanup_add` so teardown frees automatically
   (closes F3, F8).
-- Audit each raw `ngx_alloc` in `src/stream`, `src/session`, `src/net/cms`,
-  `src/net/manager`, `src/handshake`, `src/read`, `src/write`, `src/tpc` for a
+- Audit each raw `ngx_alloc` in `src/protocols/root/stream`, `src/protocols/root/session`, `src/net/cms`,
+  `src/net/manager`, `src/protocols/root/handshake`, `src/protocols/root/read`, `src/protocols/root/write`, `src/tpc` for a
   guaranteed free on the **session-close** and **error-disconnect** paths.
 - Where a buffer lives exactly as long as the session, attach it to the
   connection pool's cleanup chain at allocation time so there is no second place
@@ -196,7 +196,7 @@ This is the guard that makes all the above *stay* fixed.
 The attack surface is parsers of attacker-controlled bytes. Add libFuzzer
 targets (compiled standalone against the parser TUs, not full nginx):
 
-- Framing + per-opcode dispatch (`src/connection/recv.c`, `src/handshake`).
+- Framing + per-opcode dispatch (`src/protocols/root/connection/recv.c`, `src/protocols/root/handshake`).
 - GSI/TPC bucket + PEM/cipher parsing (`src/tpc/gsi_outbound_*`, `src/auth/gsi`).
 - Token/JWT/JWKS (`src/auth/token`), S3 SigV4 + multipart (`src/protocols/s3`), WebDAV
   XML / dead-props (`src/protocols/webdav/dead_props.c`).
@@ -310,10 +310,10 @@ edits guarded by the 3-test rule, revertible individually.
 Allocations whose size derives from attacker-controlled input, to be confirmed
 capped + overflow-checked:
 
-- `src/read/readv.c:79,250` — `segment_count * sizeof` *(F1, no callsite cap)*
+- `src/protocols/root/read/readv.c:79,250` — `segment_count * sizeof` *(F1, no callsite cap)*
 - `src/fs/cache/origin_response.c:60` — `*dlen+1` *(capped ✓ `max_body`)*
 - `src/tpc/io.c:118` — `*dlen+1` *(capped ✓ `TPC_RESP_MAX_BODY`)*
-- `src/query/prepare.c:317` — `cur_dlen+1` *(verify `MAX_PREPARE_PAYLOAD` gate)*
+- `src/protocols/root/query/prepare.c:317` — `cur_dlen+1` *(verify `MAX_PREPARE_PAYLOAD` gate)*
 - `src/fs/cache/origin_protocol.c:220,321` — `malloc(total)` *(verify cap)*
 - `src/net/proxy/forward_relay_dispatch.c:136`, `forward_rewrite_helpers.c:61,139`
   — `ngx_alloc(total/new_total)` *(verify `XROOTD_PROXY_MAX_BODY`)*
@@ -321,7 +321,7 @@ capped + overflow-checked:
 - `src/core/compat/namespace_ops.c:114` — `list_len` *(verify source)*
 - `src/fs/cache/evict_candidates.c:231,237,251` — `realloc` growth *(F9)*
 - `src/tpc/gsi_outbound_exchange.c:222,271,335,404,439` — exchange buffers *(F2)*
-- `src/protocols/s3/copy.c:41`, `src/auth/crypto/ocsp.c:524`, `src/write/chkpoint*.c:84,86`
+- `src/protocols/s3/copy.c:41`, `src/auth/crypto/ocsp.c:524`, `src/protocols/root/write/chkpoint*.c:84,86`
   — header/DER/path-len derived *(verify caps)*
 
 ## Appendix B — External-handle hotspots (audit checklist for W3/W6)
@@ -331,7 +331,7 @@ capped + overflow-checked:
   `src/auth/sss/*` — 26 files total.
 - libcurl: `src/protocols/webdav/tpc*`, `src/fs/cache/origin*` (1 `curl_easy_init` site —
   verify `curl_easy_cleanup` + `curl_slist_free_all` on all returns).
-- jansson: `src/observability/dashboard`, `src/auth/token`, `src/observability/metrics`, `src/query`, `src/protocols/s3`,
+- jansson: `src/observability/dashboard`, `src/auth/token`, `src/observability/metrics`, `src/protocols/root/query`, `src/protocols/s3`,
   `src/auth/gsi` — 10 files; audit borrowed-vs-owned refs.
-- File descriptors: `src/connection/fd_table.c` (F10), `src/core/compat/staged_file.c`,
+- File descriptors: `src/protocols/root/connection/fd_table.c` (F10), `src/core/compat/staged_file.c`,
   `src/fs/cache`, `src/tpc/io.c`.

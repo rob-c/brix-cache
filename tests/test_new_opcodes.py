@@ -295,7 +295,7 @@ class TestSigver:
 
             # kXR_sigver is a request PREFIX — a valid (or no-op) envelope draws
             # NO response (the reply belongs to the request that follows); see
-            # src/session/signing.c.  So do NOT read here.  Send the covered ping
+            # src/protocols/root/session/signing.c.  So do NOT read here.  Send the covered ping
             # and confirm it succeeds — proving the sigver was accepted and the
             # session is still live.
             ping_hdr = struct.pack(">BB H 16x I", 0, 3, 3011, 0)

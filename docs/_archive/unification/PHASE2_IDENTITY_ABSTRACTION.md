@@ -17,7 +17,7 @@ Authentication and authorization state is currently scattered across at least th
 
 | Protocol | Auth State Lives In | Populated By |
 |:---|:---|:---|
-| XRootD Stream | `xrootd_ctx_t` (`src/session/session.h`) | `src/session/login.c`, `src/auth/gsi/parse.c`, `src/auth/token/validate.c` |
+| XRootD Stream | `xrootd_ctx_t` (`src/protocols/root/session/session.h`) | `src/protocols/root/session/login.c`, `src/auth/gsi/parse.c`, `src/auth/token/validate.c` |
 | WebDAV/HTTPS | `ngx_http_xrootd_webdav_req_ctx_t` (`src/protocols/webdav/webdav.h`) | `src/protocols/webdav/auth_cert.c`, `src/protocols/webdav/auth_token.c` |
 | S3 REST | Inline locals in `src/protocols/s3/auth_sigv4_verify.c` | SigV4 HMAC verification; no persistent identity struct |
 
@@ -29,7 +29,7 @@ After this phase every auth path **produces** an `xrootd_identity_t` and every p
 
 ### Stream Identity (`xrootd_ctx_t`)
 
-Defined in `src/session/session.h`. Relevant fields:
+Defined in `src/protocols/root/session/session.h`. Relevant fields:
 
 ```c
 // Fields spread across the session context today
@@ -41,7 +41,7 @@ unsigned int authed:1;
 ```
 
 Populated by:
-- `src/session/login.c` — dispatches to GSI/Token/SSS sub-handlers
+- `src/protocols/root/session/login.c` — dispatches to GSI/Token/SSS sub-handlers
 - `src/auth/gsi/parse.c` — X.509 parse, proxy validation, VOMS extraction
 - `src/auth/token/validate.c` — JWT signature check, scope extraction
 - `src/auth/sss/` — Shared-Secret handshake
@@ -199,7 +199,7 @@ ngx_int_t xrootd_s3_sigv4_verify(ngx_http_request_t *r,
                                    ngx_log_t *log);
 ```
 
-### Step 5 — Policy: Update `src/auth/authz/acl.c` and `src/session/login.c`
+### Step 5 — Policy: Update `src/auth/authz/acl.c` and `src/protocols/root/session/login.c`
 
 `src/auth/authz/acl.c` currently takes a raw `dn` string. Change to:
 
@@ -210,7 +210,7 @@ ngx_int_t xrootd_check_authdb(const xrootd_identity_t *id,
                                ngx_log_t *log);
 ```
 
-`src/session/login.c` builds an `xrootd_identity_t` from GSI/Token/SSS results and stores it into `xrootd_ctx_t->identity` (a new pointer field).
+`src/protocols/root/session/login.c` builds an `xrootd_identity_t` from GSI/Token/SSS results and stores it into `xrootd_ctx_t->identity` (a new pointer field).
 
 WebDAV request context `ngx_http_xrootd_webdav_req_ctx_t` gains a single `xrootd_identity_t *identity` pointer; all individual auth fields (`client_dn`, `bearer_sub`, auth flags) are removed.
 
@@ -238,8 +238,8 @@ VOMS extraction (FQAN parsing) already produces an array. It now fills `id->vo_l
 | `src/protocols/s3/auth_sigv4_verify.c` | Add `xrootd_identity_t *` output |
 | `src/auth/voms/*.c` | Fill `id->vo_list` |
 | `src/auth/authz/acl.c` | Accept `xrootd_identity_t *` |
-| `src/session/session.h` | Add `xrootd_identity_t *identity` field |
-| `src/session/login.c` | Build and attach identity struct |
+| `src/protocols/root/session/session.h` | Add `xrootd_identity_t *identity` field |
+| `src/protocols/root/session/login.c` | Build and attach identity struct |
 | `src/protocols/webdav/webdav.h` | Replace scattered auth fields with `xrootd_identity_t *identity` |
 | `src/protocols/webdav/auth_cert.c` | Populate `xrootd_identity_t` via `xrootd_gsi_parse_cert()` |
 | `src/protocols/webdav/auth_token.c` | Populate `xrootd_identity_t` via `xrootd_token_validate()` |
@@ -251,7 +251,7 @@ VOMS extraction (FQAN parsing) already produces an array. It now fills `id->vo_l
 
 The following remain protocol-specific. Identity abstraction only applies **after** the wire-level credential has been parsed:
 
-- Stream: `kXR_login` / `kXR_auth` handshake framing (`src/handshake/dispatch.c`)
+- Stream: `kXR_login` / `kXR_auth` handshake framing (`src/protocols/root/handshake/dispatch.c`)
 - WebDAV: HTTP `Authorization:` header extraction, TLS client cert retrieval
 - S3: `Authorization: AWS4-HMAC-SHA256` header parsing and HMAC computation
 

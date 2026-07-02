@@ -87,13 +87,13 @@ xrootd_task_bind(ngx_thread_task_t *task,
 
 | File | Approx line | Handler pair |
 |------|-------------|--------------|
-| `src/read/read.c` | ~226 | `xrootd_read_aio_thread` / `xrootd_read_aio_done` |
-| `src/read/pgread.c` | ~157 | `xrootd_pgread_aio_thread` / `xrootd_pgread_aio_done` |
-| `src/read/readv.c` | ~307 | `xrootd_readv_aio_thread` / `xrootd_readv_aio_done` |
-| `src/write/common.c` | ~151 | `xrootd_write_aio_thread` / `xrootd_write_aio_done` |
-| `src/write/common.c` | ~? | `xrootd_writev_write_aio_thread` / `xrootd_writev_write_aio_done` |
-| `src/dirlist/handler.c` | ~176 | `xrootd_dirlist_aio_thread` / `xrootd_dirlist_aio_done` |
-| `src/query/checksum_ckscan_dispatch.c` | ~272 | ckscan pair |
+| `src/protocols/root/read/read.c` | ~226 | `xrootd_read_aio_thread` / `xrootd_read_aio_done` |
+| `src/protocols/root/read/pgread.c` | ~157 | `xrootd_pgread_aio_thread` / `xrootd_pgread_aio_done` |
+| `src/protocols/root/read/readv.c` | ~307 | `xrootd_readv_aio_thread` / `xrootd_readv_aio_done` |
+| `src/protocols/root/write/common.c` | ~151 | `xrootd_write_aio_thread` / `xrootd_write_aio_done` |
+| `src/protocols/root/write/common.c` | ~? | `xrootd_writev_write_aio_thread` / `xrootd_writev_write_aio_done` |
+| `src/protocols/root/dirlist/handler.c` | ~176 | `xrootd_dirlist_aio_thread` / `xrootd_dirlist_aio_done` |
+| `src/protocols/root/query/checksum_ckscan_dispatch.c` | ~272 | ckscan pair |
 | `src/tpc/launch.c` | ~350 | `xrootd_tpc_pull_thread` / `xrootd_tpc_pull_done` |
 | `src/fs/cache/open_or_fill.c` | ~54 | cache fill pair |
 
@@ -148,9 +148,9 @@ re-run once, then `make -j$(nproc)`.
 
 ## Change C — task caching for writev (optional, performance not LoC)
 
-While reading the dispatch sites, `src/read/read.c` caches its task struct
+While reading the dispatch sites, `src/protocols/root/read/read.c` caches its task struct
 in `ctx->read_aio_task` to avoid a pool alloc on every read request.
-`src/write/common.c` always calls `ngx_thread_task_alloc` fresh.
+`src/protocols/root/write/common.c` always calls `ngx_thread_task_alloc` fresh.
 
 If task caching is extended to writes (add `ctx->write_aio_task` to
 `xrootd_ctx_t`), the allocation savings per write request are measurable on

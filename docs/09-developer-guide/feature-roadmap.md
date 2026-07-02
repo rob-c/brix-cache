@@ -77,14 +77,14 @@ nginx↔nginx and nginx↔reference xrootd transfers.
 **What was done:**
 - Shared-memory TPC key registry (`src/tpc/key_registry.c`) with register,
   consume, and TTL eviction.
-- Source role in `src/read/open.c`: read-open with `tpc.dst` + `tpc.key`
+- Source role in `src/protocols/root/read/open.c`: read-open with `tpc.dst` + `tpc.key`
   registers the key; read-open with `tpc.org` + `tpc.key` consumes it before
   serving data (destination’s outbound pull presents `tpc.org` from
   `tpc_build_origin_id()` in `src/tpc/launch.c`).
 - Destination role: write-open with `tpc.src=` defers to the thread-pool pull
   (`src/tpc/thread.c`, `source.c`, …) which opens the remote file with
   `?tpc.key=` / `&tpc.org=` as needed.
-- Manager mode: `kXR_redirect` with `?tpc.key=` (`src/response/control.c`).
+- Manager mode: `kXR_redirect` with `?tpc.key=` (`src/protocols/root/response/control.c`).
 - Configurable TTL: `xrootd_tpc_key_ttl` (default 60s), merged in
   `src/core/config/server_conf.c`.
 
@@ -147,11 +147,11 @@ changes; the bound stream closes any stale local fd and the read fails with
 `kXR_FileNotOpen`.
 
 **Key files:**
-- `src/session/registry.c` / `.h` — session registry plus shared readable-handle
+- `src/protocols/root/session/registry.c` / `.h` — session registry plus shared readable-handle
   table.
-- `src/read/open.c` — publishes primary readable handles after successful open.
-- `src/connection/fd_table.c` — lazy bound-handle materialization and revocation.
-- `src/handshake/dispatch_read.c` and `src/handshake/policy.c` — reject
+- `src/protocols/root/read/open.c` — publishes primary readable handles after successful open.
+- `src/protocols/root/connection/fd_table.c` — lazy bound-handle materialization and revocation.
+- `src/protocols/root/handshake/dispatch_read.c` and `src/protocols/root/handshake/policy.c` — reject
   non-read file operations from bound streams.
 - `tests/test_session_bind.py` — bind, shared-handle read, invalid sessid, and
   secondary-open rejection coverage.
@@ -414,7 +414,7 @@ dirlist/query/fattr tests.
 - Authdb is loaded at startup/reload. Runtime policy refresh requires
   `nginx -s reload`; files larger than 1 MiB are rejected at config time.
 - `kXR_chmod` uses `XROOTD_AUTH_UPDATE`, not `ADMIN`, via the op-descriptor
-  dispatcher (`src/write/op_table.c` → `xrootd_auth_gate()`).
+  dispatcher (`src/protocols/root/write/op_table.c` → `xrootd_auth_gate()`).
 - Empty rule arrays mean allow-all; once rules are loaded, no matching grant
   means deny.
 
@@ -496,7 +496,7 @@ what is missing. Items are grouped by feature area.
 
 ### kXR_bind parallel streams (item 3)
 
-- **Write handle sharing not implemented:** `src/connection/fd_table.c:149,251`
+- **Write handle sharing not implemented:** `src/protocols/root/connection/fd_table.c:149,251`
   — bound secondary connections always receive `writable = 0`. Parallel write
   streams (e.g. for parallel upload) require the primary to be the sole writer.
   This matches `xrdcp` behavior (`-S` is read-only) but blocks any future
@@ -516,7 +516,7 @@ what is missing. Items are grouped by feature area.
   root token constraints. See `tests/test_macaroon_discharge.py`.
 
 - ~~**Static secret only — no key rotation**~~ ✓ **DONE:** `xrootd_macaroon_secret_old`
-  grace-period directive added to both stream (`src/stream/module.c`) and WebDAV
+  grace-period directive added to both stream (`src/protocols/root/stream/module.c`) and WebDAV
   (`src/protocols/webdav/module.c`) modules. `src/auth/gsi/token.c` and `src/protocols/webdav/auth_token.c`
   now fall back to the old secret when primary validation fails, allowing zero-
   downtime key rotation without reloading nginx.
@@ -652,7 +652,7 @@ mechanism are all implemented (M6 steps 1–6). Remaining gaps:
 ### Cross-cutting gaps
 
 - ~~**`kXR_chmod` has no access control check**~~ ✓ **CLARIFIED:**
-  `src/write/op_table.c`'s `xrootd_dispatch_op()` runs `xrootd_auth_gate()`
+  `src/protocols/root/write/op_table.c`'s `xrootd_dispatch_op()` runs `xrootd_auth_gate()`
   (authdb `XROOTD_AUTH_UPDATE` + VO ACL + token scope) before dispatching to
   `chmod(2)` via the `exec_chmod` descriptor. The roadmap entry was stale.
 
@@ -660,26 +660,26 @@ mechanism are all implemented (M6 steps 1–6). Remaining gaps:
   temp file (`.posc.<pid>.<rand>` in the same directory) and stores the final
   target in `xrootd_file_t.posc_final_path`. On `kXR_close` the temp is
   `fsync`d then atomically renamed to the final path. On disconnect or error the
-  temp is unlinked by `xrootd_free_fhandle()`. See `src/read/open.c`,
-  `src/read/close.c`, `src/connection/fd_table.c`.
+  temp is unlinked by `xrootd_free_fhandle()`. See `src/protocols/root/read/open.c`,
+  `src/protocols/root/read/close.c`, `src/protocols/root/connection/fd_table.c`.
 
 - **Former CRL delta-update gap** ✓ **DONE:**
   stream GSI and WebDAV X.509 stores enable `X509_V_FLAG_USE_DELTAS` alongside
   full-chain CRL checking when CRLs are configured.
 
 - **Former OCSP gap** ✓ **DONE:** `src/auth/crypto/ocsp.c` implements client-cert
-  OCSP responder queries and server-cert staple fetching; `src/session/tls_config.c`
+  OCSP responder queries and server-cert staple fetching; `src/protocols/root/session/tls_config.c`
   attaches cached staples during TLS handshakes. See `tests/test_ocsp.py`.
 
 - **Former WebDAV `PROPPATCH` 501 gap** ✓ **DONE:** See WebDAV PROPFIND section above.
 
-- **Former authdb `kXR_dirlist` bypass** ✓ **DONE:** `src/dirlist/handler.c` now
+- **Former authdb `kXR_dirlist` bypass** ✓ **DONE:** `src/protocols/root/dirlist/handler.c` now
   calls `xrootd_check_authdb(ctx, resolved, XROOTD_AUTH_LOOKUP)` before
   `xrootd_check_vo_acl()`.
 
 - ~~**Authdb not applied to `query/` or `fattr/` handlers**~~ ✓ **DONE:**
-  `src/query/checksum_qcksum.c`, `src/query/checksum_ckscan_dispatch.c`,
-  `src/query/metadata.c`, `src/query/prepare.c`, and `src/fattr/dispatch.c`
+  `src/protocols/root/query/checksum_qcksum.c`, `src/protocols/root/query/checksum_ckscan_dispatch.c`,
+  `src/protocols/root/query/metadata.c`, `src/protocols/root/query/prepare.c`, and `src/protocols/root/fattr/dispatch.c`
   all now call `xrootd_check_authdb()` with the
   appropriate privilege (`XROOTD_AUTH_READ` for queries; `XROOTD_AUTH_READ` or
   `XROOTD_AUTH_UPDATE` depending on fattr subcode) before the vo_acl check.
@@ -712,8 +712,8 @@ instruments or jobs.
 - `src/fs/cache/writethrough_decision.c` — WT policy evaluation.
 - `src/fs/cache/writethrough_flush.c` — local-to-origin mirror worker.
 - `src/fs/cache/origin_protocol.c` — origin write, truncate, sync, and close helpers.
-- `src/read/open_resolved_file.c`, `src/write/*.c`, `src/core/aio/write.c`,
-  `src/read/close.c`, `src/write/sync.c` — handle state, dirty tracking, and
+- `src/protocols/root/read/open_resolved_file.c`, `src/protocols/root/write/*.c`, `src/core/aio/write.c`,
+  `src/protocols/root/read/close.c`, `src/protocols/root/write/sync.c` — handle state, dirty tracking, and
   flush integration.
 
 **Caveat:** This is whole-file replacement at sync/close, not a persistent

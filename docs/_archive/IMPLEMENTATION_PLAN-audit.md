@@ -15,9 +15,9 @@ tree.
 
 | Area | Proposed Work | Current Implementation | Status |
 |------|---------------|------------------------|--------|
-| Stream | Dispatch `kXR_Stat`, `kXR_Statx`, `kXR_Locate`, and `kXR_Clone`. | `src/handshake/dispatch_read.c` routes these opcodes to `src/read/stat.c`, `src/read/statx.c`, `src/read/locate.c`, and `src/read/clone.c`. | Complete |
-| Stream | Preserve `pgread`/`pgwrite` framing and CRC32c invariants. | `src/read/pgread.c` and `src/write/pgwrite.c` use page CRC32c helpers and `kXR_status` progress replies. | Complete |
-| Stream | Implement checkpoint corner cases. | `src/write/chkpoint.c` handles checkpoint lifecycle and abandoned checkpoint recovery. `src/write/chkpoint_xeq.c` handles checkpointed write execution. | Complete |
+| Stream | Dispatch `kXR_Stat`, `kXR_Statx`, `kXR_Locate`, and `kXR_Clone`. | `src/protocols/root/handshake/dispatch_read.c` routes these opcodes to `src/protocols/root/read/stat.c`, `src/protocols/root/read/statx.c`, `src/protocols/root/read/locate.c`, and `src/protocols/root/read/clone.c`. | Complete |
+| Stream | Preserve `pgread`/`pgwrite` framing and CRC32c invariants. | `src/protocols/root/read/pgread.c` and `src/protocols/root/write/pgwrite.c` use page CRC32c helpers and `kXR_status` progress replies. | Complete |
+| Stream | Implement checkpoint corner cases. | `src/protocols/root/write/chkpoint.c` handles checkpoint lifecycle and abandoned checkpoint recovery. `src/protocols/root/write/chkpoint_xeq.c` handles checkpointed write execution. | Complete |
 | Native TPC | Add shared registry/auth/progress/metric plumbing. | `src/tpc/common/` centralizes TPC credentials, authorization, registry updates, progress emission, and metrics; native paths still use the SHM key registry. | Complete |
 | WebDAV | Verify proxy certificates before proxy handling. | `src/protocols/webdav/access.c` runs `webdav_verify_proxy_cert()` before delegating upstream proxy requests to `webdav_proxy_handler()`. | Complete |
 | WebDAV | Verify bearer tokens and scope-check mutating methods. | `src/protocols/webdav/access.c` verifies bearer tokens and calls `webdav_check_token_write_scope()` for write operations; token scopes are evaluated through the shared identity/scope helpers. | Complete |

@@ -21,7 +21,7 @@
 
 ### Task 1: `gsi` auth mode + delegation enablement (config, verifiable)
 
-**Files:** `src/core/types/config.h` (auth-mode enum value if needed), `src/net/proxy/directives.c` (`xrootd_conf_set_proxy_auth` accepts `gsi`), `src/stream/module.c` (already has `xrootd_tap_proxy_auth`).
+**Files:** `src/core/types/config.h` (auth-mode enum value if needed), `src/net/proxy/directives.c` (`xrootd_conf_set_proxy_auth` accepts `gsi`), `src/protocols/root/stream/module.c` (already has `xrootd_tap_proxy_auth`).
 
 **Interfaces:** Produces a parsed `proxy_auth == XROOTD_PROXY_AUTH_GSI`; when set, the proxy server must run with delegation capture on.
 

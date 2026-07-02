@@ -465,9 +465,9 @@ def test_qconfig_multikey_one_line_per_key(srv, fs_our):
         f"readv_iov_max line not integer-first: {lines[1]!r}"
 
 
-# --- do_Qconf coverage (FIXED: role/fattr cases added to src/query/config.c) - #
+# --- do_Qconf coverage (FIXED: role/fattr cases added to src/protocols/root/query/config.c) - #
 # query config `role` — stock recognises `role` (do_Qconf, XrdXrootdXeq.cc:2216
-# -> "%s\n" of XRDROLE, e.g. "server"/"none").  src/query/config.c now emits
+# -> "%s\n" of XRDROLE, e.g. "server"/"none").  src/protocols/root/query/config.c now emits
 # "server" (or "manager" in manager mode) instead of echoing the key.
 def test_qconfig_role_recognised_like_stock(srv, fs_our, fs_off):
     """`role` is a known do_Qconf key on stock; OUR server must not echo it back
@@ -498,7 +498,7 @@ def test_qconfig_sitename_shape(srv, fs_our, fs_off):
 
 # query config `fattr` — do_Qconf (XrdXrootdXeq.cc:2265) returns the
 # extended-attribute parameters (usxParms, two integers e.g. "248 65536").
-# FIXED: src/query/config.c now emits "248 65536" (the Linux user.* xattr
+# FIXED: src/protocols/root/query/config.c now emits "248 65536" (the Linux user.* xattr
 # name/value limits) instead of echoing the key.
 def test_qconfig_fattr_recognised_like_stock(srv, fs_our, fs_off):
     """`fattr` is a known do_Qconf key returning integer params on stock; OUR
@@ -693,8 +693,8 @@ def test_space_keys_parity(srv, fs_our, fs_off):
 # an empty/relative path (XrdXrootdXeq.cc:4405 "Stating relative path '' is
 # disallowed.", XErrorCode 3010 kXR_FSError), but OUR server accepts it (ok=True).
 # Our: ok=True ; Stock: ok=False errno=3010. Suspected fix: apply the same
-# relative/empty path rejection in OUR Qspace handler (src/query/*).
-# FIXED: src/query/space.c now applies the reference rpCheck guard and rejects an
+# relative/empty path rejection in OUR Qspace handler (src/protocols/root/query/*).
+# FIXED: src/protocols/root/query/space.c now applies the reference rpCheck guard and rejects an
 # empty/relative Qspace path with kXR_NotAuthorized (3010).
 def test_space_empty_path_rejected_like_stock(srv, fs_our, fs_off):
     """An empty-path space query is rejected by stock; OUR server must match its
@@ -812,7 +812,7 @@ def test_visa_rejected_both(srv, fs_our, fs_off):
 # empty body, i.e. it accepts an unknown prepare reqid. Our: ok=True, body=b'';
 # Stock: ok=False (errno 3000). Suspected fix: track issued prepare reqids in
 # OUR prepare/query path and reject unknown ones.
-# FIXED: src/query/prepare.c now rejects a Qprep status query for a reqid it has
+# FIXED: src/protocols/root/query/prepare.c now rejects a Qprep status query for a reqid it has
 # no record of (no stored paths and no FRM queue record) with kXR_ArgInvalid
 # "Prepare requestid owned by an unknown server", matching do_Prepare(isQuery).
 def test_prepare_unknown_reqid_rejected_like_stock(srv, fs_our, fs_off):

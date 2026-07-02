@@ -22,7 +22,7 @@ For handlers where step 3 is a single syscall with no special cases, the entire 
 
 ## Descriptor Design
 
-### `src/write/op_table.h` (new)
+### `src/protocols/root/write/op_table.h` (new)
 
 ```c
 #pragma once
@@ -65,7 +65,7 @@ ngx_int_t xrootd_dispatch_op(xrootd_ctx_t *ctx, ngx_connection_t *c,
                               uint16_t opcode);
 ```
 
-### `src/write/op_table.c` (new, ~120 LoC)
+### `src/protocols/root/write/op_table.c` (new, ~120 LoC)
 
 The interpreter:
 
@@ -178,7 +178,7 @@ xrootd_dispatch_op(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
 After Phase 3, the following handlers become wrappers that can be reduced to a single dispatch call:
 
-### `src/write/chmod.c` — 90 LoC → 12 LoC
+### `src/protocols/root/write/chmod.c` — 90 LoC → 12 LoC
 
 **Before:** Full handler with path resolution, three-tier auth, chmod, errno mapping (90 lines).
 
@@ -201,7 +201,7 @@ xrootd_handle_chmod(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
 12 lines.  **−78 LoC.**
 
-### `src/write/rm.c` — 98 LoC → 12 LoC
+### `src/protocols/root/write/rm.c` — 98 LoC → 12 LoC
 
 ```c
 /*
@@ -220,7 +220,7 @@ xrootd_handle_rm(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
 **−86 LoC.**
 
-### `src/write/rmdir.c` — 97 LoC (post-Phase-3) → 12 LoC
+### `src/protocols/root/write/rmdir.c` — 97 LoC (post-Phase-3) → 12 LoC
 
 **−85 LoC.**
 
@@ -232,15 +232,15 @@ These handlers have non-trivial logic that cannot be cleanly expressed in a desc
 
 | Handler | Reason to keep as-is |
 |---|---|
-| `src/write/sync.c` | TPC arm/flush dual semantics; TPC state machine in exec path |
-| `src/write/truncate.c` | Two modes: handle-based (fd lookup) vs path-based; both in same handler |
-| `src/write/mkdir.c` | Recursive vs non-recursive different syscall paths + group policy |
-| `src/write/mv.c` | Two-path operation (src + dst resolution); atomic rename semantics |
-| `src/write/pgwrite.c` | CRC32c per-page framing; async I/O path |
-| `src/write/write.c` | Write-recovery journal; async I/O path; cache writethrough |
-| `src/read/stat.c` | Complex stat response formatting (sbuf → kXR_StatRsp) |
-| `src/read/locate.c` | Cluster/manager mode redirector; complex response body |
-| `src/read/open_request.c` | Most complex handler: cache, TPC, compression, write-through |
+| `src/protocols/root/write/sync.c` | TPC arm/flush dual semantics; TPC state machine in exec path |
+| `src/protocols/root/write/truncate.c` | Two modes: handle-based (fd lookup) vs path-based; both in same handler |
+| `src/protocols/root/write/mkdir.c` | Recursive vs non-recursive different syscall paths + group policy |
+| `src/protocols/root/write/mv.c` | Two-path operation (src + dst resolution); atomic rename semantics |
+| `src/protocols/root/write/pgwrite.c` | CRC32c per-page framing; async I/O path |
+| `src/protocols/root/write/write.c` | Write-recovery journal; async I/O path; cache writethrough |
+| `src/protocols/root/read/stat.c` | Complex stat response formatting (sbuf → kXR_StatRsp) |
+| `src/protocols/root/read/locate.c` | Cluster/manager mode redirector; complex response body |
+| `src/protocols/root/read/open_request.c` | Most complex handler: cache, TPC, compression, write-through |
 
 These handlers benefit from Phases 2 and 3 (auth gate + path middleware) but do not reduce to simple descriptors.
 
@@ -250,11 +250,11 @@ These handlers benefit from Phases 2 and 3 (auth gate + path middleware) but do 
 
 | File | Before | After | Delta |
 |---|---|---|---|
-| `src/write/chmod.c` | 90 | 12 | −78 |
-| `src/write/rm.c` | 98 | 12 | −86 |
-| `src/write/rmdir.c` | 97* | 12 | −85 |
-| `src/write/op_table.c` (new) | 0 | 120 | +120 |
-| `src/write/op_table.h` (new) | 0 | 50 | +50 |
+| `src/protocols/root/write/chmod.c` | 90 | 12 | −78 |
+| `src/protocols/root/write/rm.c` | 98 | 12 | −86 |
+| `src/protocols/root/write/rmdir.c` | 97* | 12 | −85 |
+| `src/protocols/root/write/op_table.c` (new) | 0 | 120 | +120 |
+| `src/protocols/root/write/op_table.h` (new) | 0 | 50 | +50 |
 | **Net** | | | **−179** |
 
 *Post-Phase-3 size.
@@ -263,9 +263,9 @@ Additional LoC reductions in Phase 4 come from converting `stat.c` and `close.c`
 
 | Optional | File | Current | After | Delta |
 |---|---|---|---|---|
-| Optional | `src/read/close.c` | 206 | 80 | −126 |
-| Optional | `src/read/stat.c` (partial) | 211 | 150 | −61 |
-| Optional | `src/read/locate.c` (partial) | 213* | 175 | −38 |
+| Optional | `src/protocols/root/read/close.c` | 206 | 80 | −126 |
+| Optional | `src/protocols/root/read/stat.c` (partial) | 211 | 150 | −61 |
+| Optional | `src/protocols/root/read/locate.c` (partial) | 213* | 175 | −38 |
 
 With optional sub-tasks: total Phase 4 ΔLoC ≈ **−404**.
 
@@ -274,7 +274,7 @@ With optional sub-tasks: total Phase 4 ΔLoC ≈ **−404**.
 ## Files Added to `config.h`
 
 ```
-$ngx_addon_dir/src/write/op_table.c
+$ngx_addon_dir/src/protocols/root/write/op_table.c
 ```
 
 Requires `./configure`.

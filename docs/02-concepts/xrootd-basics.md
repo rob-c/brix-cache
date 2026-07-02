@@ -177,8 +177,8 @@ JWTs are web-standard tokens (like OAuth2). WLCG has defined a standard format t
               │               │               │
      ┌────────┴────────┐ ┌────┴────┐   ┌──────┴──────┐
      │  Read Handlers  │ │Write    │   │ Query/Stat  │
-     │ (src/read/)     │ │Handlers │   │ Handlers    │
-     └────────┬────────┘ │(src/write│   └─────────────┘
+     │ (src/protocols/root/read/)     │ │Handlers │   │ Handlers    │
+     └────────┬────────┘ │(src/protocols/root/write│   └─────────────┘
               │          │ /)       │
               └──────────┼──────────┘
                          │
