@@ -65,10 +65,17 @@ def parse_args(argv):
     ap = argparse.ArgumentParser(
         prog="xrdceph_striper_migrate.py",
         description="Migrate a libradosstriper (stock XrdCeph) pool into a "
-                    "CephFS — zero-move redirects by default.")
-    ap.add_argument("striper_pool")
-    ap.add_argument("cephfs_data_pool")
-    ap.add_argument("dest_prefix")
+                    "CephFS — zero-move redirects by default. Pools and "
+                    "connection identity can come from a --config site "
+                    "profile instead of positionals.")
+    ap.add_argument("striper_pool", nargs="?")
+    ap.add_argument("cephfs_data_pool", nargs="?")
+    ap.add_argument("dest_prefix", nargs="?")
+    ap.add_argument("--config",
+                    default=os.environ.get("XRDCEPH_MIGRATE_CONF"),
+                    help="site profile file (striper_pool/meta_pool/"
+                         "data_pool/conf/client/fs_name/dest_prefix/strip); "
+                         "default $XRDCEPH_MIGRATE_CONF")
     ap.add_argument("--mode", choices=("redirect", "copy"), default="redirect")
     ap.add_argument("--rollback", action="store_true")
     ap.add_argument("--finalize", action="store_true")
@@ -79,14 +86,45 @@ def parse_args(argv):
     ap.add_argument("--delete-source", dest="delete_source", action="store_true")
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--dry-run", dest="dry_run", action="store_true")
-    ap.add_argument("--conf", default=os.environ.get("CEPH_CONF",
-                                                     "/etc/ceph/ceph.conf"))
+    ap.add_argument("--conf", default=None,
+                    help="ceph.conf (CLI > config file > $CEPH_CONF > "
+                         "/etc/ceph/ceph.conf)")
     ap.add_argument("--json", dest="json_mode", action="store_true")
     ap.add_argument("--state", dest="state_file")
     ap.add_argument("--prefix")
     ap.add_argument("--match")
     ap.add_argument("--progress", action="store_true")
     args = ap.parse_args(argv)
+
+    # Site profile: explicit CLI > config file > built-in default. Positionals
+    # come in full legacy arity OR not at all (file supplies them) — a partial
+    # mix is ambiguous and refused.
+    try:
+        cfg = common.load_tool_config(args.config) if args.config else {}
+    except (OSError, ValueError) as e:
+        ap.error("--config: %s" % e)
+    given = [p is not None for p in
+             (args.striper_pool, args.cephfs_data_pool, args.dest_prefix)]
+    if any(given) and not all(given):
+        ap.error("give all three positionals (<striper_pool> "
+                 "<cephfs_data_pool> <dest_prefix>) or none (with --config)")
+    args.striper_pool = common.resolve_setting(args.striper_pool, cfg,
+                                               "striper_pool")
+    args.cephfs_data_pool = common.resolve_setting(args.cephfs_data_pool, cfg,
+                                                   "data_pool")
+    args.dest_prefix = common.resolve_setting(args.dest_prefix, cfg,
+                                              "dest_prefix")
+    for key, val in (("striper_pool", args.striper_pool),
+                     ("data_pool", args.cephfs_data_pool),
+                     ("dest_prefix", args.dest_prefix)):
+        if not val:
+            ap.error("missing %s: pass positionals or set it in --config" % key)
+    args.strip = common.resolve_setting(args.strip, cfg, "strip", "")
+    args.conf = common.resolve_setting(
+        args.conf, cfg, "conf",
+        os.environ.get("CEPH_CONF", "/etc/ceph/ceph.conf"))
+    args.client = common.resolve_setting(None, cfg, "client", "admin")
+    args.fs_name = common.resolve_setting(None, cfg, "fs_name")
 
     # --delete-source destroys the data the redirects point at.
     if args.delete_source and (args.mode == "redirect" or args.rollback):
@@ -108,15 +146,18 @@ class Migrator:
         self.action = ("rollback" if args.rollback
                        else "finalize" if args.finalize else "migrate")
 
-        self.cluster = rados.Rados(conffile=args.conf)
+        self.cluster = rados.Rados(conffile=args.conf, rados_id=args.client)
         self.cluster.connect()
         self.src = self.cluster.open_ioctx(args.striper_pool)
         self.dst = self.cluster.open_ioctx(args.cephfs_data_pool)
 
-        self.fs = cephfs.LibCephFS(conffile=args.conf)
-        self.fs.mount()
+        self.fs = cephfs.LibCephFS(conffile=args.conf, auth_id=args.client)
+        if args.fs_name:
+            self.fs.mount(filesystem_name=args.fs_name.encode())
+        else:
+            self.fs.mount()
 
-        self.bridge = ManifestBridge(conf_path=args.conf)
+        self.bridge = ManifestBridge(conf_path=args.conf, client=args.client)
         self.index = {}
         self._dst_index = None
         self._dst_lock = threading.Lock()
