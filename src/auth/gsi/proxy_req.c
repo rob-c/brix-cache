@@ -37,8 +37,15 @@
 #include "proxy_req.h"
 
 /* Overflow-checked size arithmetic (wire-length guard in xrootd_gsi_assemble_proxy).
- * The standalone unit-test build (proxy_req_unittest.c) compiles without nginx
- * headers; supply the minimal shims that safe_size.h's inline pool helpers need. */
+ * Two builds compile this file without nginx headers: the standalone unit test
+ * (proxy_req_unittest.c, which defines XROOTD_SAFE_SIZE_STANDALONE) and the
+ * libxrdproto client core (built with XRDPROTO_NO_NGX). Both must make
+ * safe_size.h skip its <ngx_config.h>/<ngx_core.h> includes AND supply the
+ * minimal shims its inline helpers need — so the ngx-free client build implies
+ * the standalone path. */
+#if defined(XRDPROTO_NO_NGX) && !defined(XROOTD_SAFE_SIZE_STANDALONE)
+#  define XROOTD_SAFE_SIZE_STANDALONE 1
+#endif
 #ifdef XROOTD_SAFE_SIZE_STANDALONE
 typedef long              ngx_int_t;
 typedef struct ngx_pool_s ngx_pool_t;
