@@ -123,14 +123,23 @@ NB2="$(curl -s "http://127.0.0.1:$MPORT/ctl/heads" | grep -oF "$BOGUS" | wc -l)"
 OBJ6="$(curl -s "http://127.0.0.1:$MPORT/ctl/objects" | python3 -c \
       'import json,sys; print(json.load(sys.stdin)[6])')"
 curl -s -o /dev/null -X POST -d '{"mode":"stall","count":1}' "http://127.0.0.1:$MPORT/ctl/fault"
-timeout 4 curl -s "http://127.0.0.1:$CPORT$OBJ6" -o /dev/null & STALLPID=$!
-sleep 1.2
-DTS="$(date +%s)"; DH="$(printf '%s' "$DTS" | openssl dgst -sha256 -hmac "t16" -hex | sed 's/^.*= //')"
-DJ="$(curl -s -H "Cookie: xrd_dashboard=${DH}.${DTS}" \
-      "http://127.0.0.1:$DPORT/xrootd/api/v1/transfers")"
-printf '%s' "$DJ" | grep -q '"protocol":"cvmfs"' \
-    && printf '%s' "$DJ" | grep -qF "\"path\":\"$OBJ6\"" \
-    && ok "dashboard: in-flight cvmfs fill visible (proto+path)" \
+# Keep the fill in flight long enough to observe: a 6s client timeout gives a
+# generous window, and we POLL the transfers API rather than scrape once at a
+# fixed instant — under load the slot can take >1s to appear, and a single
+# timed scrape raced it (flaky "no live cvmfs slot" on a busy box).
+timeout 6 curl -s "http://127.0.0.1:$CPORT$OBJ6" -o /dev/null & STALLPID=$!
+DJ=""; slot=0
+for _ in $(seq 1 25); do
+    DTS="$(date +%s)"; DH="$(printf '%s' "$DTS" | openssl dgst -sha256 -hmac "t16" -hex | sed 's/^.*= //')"
+    DJ="$(curl -s -H "Cookie: xrd_dashboard=${DH}.${DTS}" \
+          "http://127.0.0.1:$DPORT/xrootd/api/v1/transfers")"
+    if printf '%s' "$DJ" | grep -q '"protocol":"cvmfs"' \
+       && printf '%s' "$DJ" | grep -qF "\"path\":\"$OBJ6\""; then
+        slot=1; break
+    fi
+    sleep 0.3
+done
+[ "$slot" = 1 ] && ok "dashboard: in-flight cvmfs fill visible (proto+path)" \
     || bad "dashboard: no live cvmfs slot"
 printf '%s' "$DJ" | grep -q '"cvmfs_bytes_tx":' \
     && ok "dashboard: totals carry the cvmfs bucket" \
