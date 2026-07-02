@@ -20,19 +20,36 @@
 #define SD_HTTP_PATH_MAX   2048                 /* full URL path = base + key */
 #define SD_HTTP_AUTH_MAX   4160                 /* "Authorization: Bearer <tok>\r\n" */
 
+/* One ranked origin endpoint (phase-68 T11). fail_score is an integer EWMA of
+ * transport failures (0 = healthy, decays 7/8 per outcome); rank is the
+ * selection preference the T19 policies write (0 = most preferred). */
 typedef struct {
-    char                         host[256];
-    int                          port;
-    int                          tls;
-    char                         base_path[SD_HTTP_BASE_MAX];
+    char  host[256];
+    int   port;
+    int   tls;
+    char  base_path[SD_HTTP_BASE_MAX];
+    int   fail_score;
+    int   rank;
+} sd_http_endpoint;
+
+/* Health breaks ties inside a rank; a preferred-but-sick endpoint is only
+ * overridden after ~16 consecutive failures — preference is policy, health
+ * is protection (phase-68 T19 contract). */
+#define SD_HTTP_RANK_WEIGHT 4096
+
+typedef struct {
+    sd_http_endpoint             eps[SD_HTTP_EP_MAX];
+    int                          n_eps;
     const xrootd_s3_transport_t *transport;
     void                        *tctx;
     int                          timeout_ms;
+    unsigned                     probe_tick;  /* half-open recovery probe clock */
     char                         auth_hdr[SD_HTTP_AUTH_MAX]; /* §14 bearer hdr or "" */
 } sd_http_inst_state;
 
 typedef struct {
-    char path[SD_HTTP_PATH_MAX];   /* full URL path: base_path + key */
+    char key[SD_HTTP_PATH_MAX];    /* export-relative key (leading '/'); the
+                                      full URL path is composed per endpoint */
 } sd_http_obj_state;
 
 /* Per-staged-write state: HTTP has no streaming PUT through this transport, so the
@@ -45,28 +62,137 @@ typedef struct {
     size_t   cap;
 } sd_http_staged_state;
 
-/* Compose the full URL path "base_path + key" (key already carries a leading '/'). */
+/* Compose the WRITE-target URL path: writes (staged PUT, DELETE) always go
+ * to endpoint 0 — failing a write over to another origin would split-brain
+ * the store; read failover (sd_http_request_fo) never applies here. */
 static void
-sd_http_full_path(const sd_http_inst_state *is, const char *key, char *dst,
+sd_http_write_path(const sd_http_inst_state *is, const char *key, char *dst,
     size_t cap)
 {
-    snprintf(dst, cap, "%s%s", is->base_path, (key != NULL && key[0]) ? key : "/");
+    snprintf(dst, cap, "%s%s", is->eps[0].base_path,
+             (key != NULL && key[0]) ? key : "/");
 }
 
-/* HEAD `path` → *size_out (−1 if no Content-Length). 0, or −1 with errno. */
+/* Effective pick score: policy rank first, health inside a rank. */
 static int
-sd_http_head_size(sd_http_inst_state *is, const char *path, int64_t *size_out)
+sd_http_ep_score(const sd_http_endpoint *ep)
+{
+    return ep->rank * SD_HTTP_RANK_WEIGHT + ep->fail_score;
+}
+
+/* Pick the best endpoint (lowest effective score, order-stable ties). */
+static sd_http_endpoint *
+sd_http_pick(sd_http_inst_state *is)
+{
+    sd_http_endpoint *best = &is->eps[0];
+    int               i;
+
+    for (i = 1; i < is->n_eps; i++) {
+        if (sd_http_ep_score(&is->eps[i]) < sd_http_ep_score(best)) {
+            best = &is->eps[i];
+        }
+    }
+    return best;
+}
+
+/* Rank-preferred endpoint ignoring health — the half-open probe target. */
+static sd_http_endpoint *
+sd_http_preferred(sd_http_inst_state *is)
+{
+    sd_http_endpoint *best = &is->eps[0];
+    int               i;
+
+    for (i = 1; i < is->n_eps; i++) {
+        if (is->eps[i].rank < best->rank) {
+            best = &is->eps[i];
+        }
+    }
+    return best;
+}
+
+/* Record one transport outcome: score = score*7/8 + (ok ? 0 : 256). */
+static void
+sd_http_score(sd_http_endpoint *ep, int ok)
+{
+    ep->fail_score = ep->fail_score * 7 / 8 + (ok ? 0 : 256);
+}
+
+/* One request with read-failover (phase-68 T11): try the best endpoint, then
+ * ONE alternate on a TRANSPORT failure (an HTTP 4xx is NOT a transport
+ * failure — the object genuinely isn't there; do not mask it by failing
+ * over). `extra_hdrs` is the pre-joined header block (Range and/or auth).
+ * On success *used (when non-NULL) names the endpoint that answered. */
+static int
+sd_http_request_fo(sd_http_inst_state *is, const char *method, const char *key,
+    const char *extra_hdrs, xrootd_s3_resp_t *resp, sd_http_endpoint **used)
+{
+    sd_http_endpoint *ep = sd_http_pick(is);
+    sd_http_endpoint *first;
+    char              full[SD_HTTP_PATH_MAX], errbuf[256];
+    int               attempt, rc, i;
+
+    /* Half-open recovery: scores only move on outcomes, so a benched origin
+     * would stay benched forever. Every 4th request re-tries the rank-
+     * preferred endpoint; a recovered origin earns its score back (and the
+     * in-loop failover still answers the client if it is still down). */
+    if (is->n_eps > 1 && (++is->probe_tick & 3u) == 0) {
+        sd_http_endpoint *pref = sd_http_preferred(is);
+
+        if (pref->fail_score > 0) {
+            ep = pref;
+        }
+    }
+    first = ep;
+
+    for (attempt = 0; attempt < 2; attempt++) {
+        snprintf(full, sizeof(full), "%s%s", ep->base_path,
+                 (key != NULL && key[0]) ? key : "/");
+        rc = is->transport->request(is->tctx, ep->host, ep->port, ep->tls,
+                                    method, full, extra_hdrs, NULL, 0,
+                                    is->timeout_ms, resp,
+                                    errbuf, sizeof(errbuf));
+        sd_http_score(ep, rc == 0);
+        if (rc == 0) {
+            if (used != NULL) {
+                *used = ep;
+            }
+            return 0;
+        }
+        if (is->n_eps < 2) {
+            break;
+        }
+        /* next-best endpoint distinct from the first attempt */
+        ep = NULL;
+        for (i = 0; i < is->n_eps; i++) {
+            if (&is->eps[i] == first) {
+                continue;
+            }
+            if (ep == NULL
+                || sd_http_ep_score(&is->eps[i]) < sd_http_ep_score(ep))
+            {
+                ep = &is->eps[i];
+            }
+        }
+        if (ep == NULL) {
+            break;
+        }
+    }
+    errno = EIO;
+    return -1;
+}
+
+/* HEAD `key` → *size_out (−1 if no Content-Length). 0, or −1 with errno. */
+static int
+sd_http_head_size(sd_http_inst_state *is, const char *key, int64_t *size_out)
 {
     xrootd_s3_resp_t resp;
-    char             errbuf[256], cl[32];
+    char             cl[32];
 
-    if (is->transport->request(is->tctx, is->host, is->port, is->tls, "HEAD",
-                               path, is->auth_hdr[0] ? is->auth_hdr : NULL,
-                               NULL, 0, is->timeout_ms, &resp,
-                               errbuf, sizeof(errbuf)) != 0)
+    if (sd_http_request_fo(is, "HEAD", key,
+                           is->auth_hdr[0] ? is->auth_hdr : NULL,
+                           &resp, NULL) != 0)
     {
-        errno = EIO;
-        return -1;
+        return -1;                              /* errno = EIO */
     }
     if (resp.status == 404) {
         is->transport->resp_free(&resp);
@@ -95,7 +221,6 @@ sd_http_open(xrootd_sd_instance_t *inst, const char *path, int sd_flags,
     sd_http_obj_state  *st;
     xrootd_sd_obj_t    *obj;
     int64_t             size = 0;
-    char                full[SD_HTTP_PATH_MAX];
 
     (void) mode;
 
@@ -107,8 +232,7 @@ sd_http_open(xrootd_sd_instance_t *inst, const char *path, int sd_flags,
         return NULL;
     }
 
-    sd_http_full_path(is, path, full, sizeof(full));
-    if (sd_http_head_size(is, full, &size) != 0) {
+    if (sd_http_head_size(is, path, &size) != 0) {
         if (err_out) { *err_out = errno; }
         return NULL;
     }
@@ -121,7 +245,8 @@ sd_http_open(xrootd_sd_instance_t *inst, const char *path, int sd_flags,
         if (err_out) { *err_out = ENOMEM; }
         return NULL;
     }
-    snprintf(st->path, sizeof(st->path), "%s", full);
+    snprintf(st->key, sizeof(st->key), "%s",
+             (path != NULL && path[0]) ? path : "/");
 
     obj->driver     = inst->driver;
     obj->inst       = inst;
@@ -150,7 +275,7 @@ sd_http_pread(xrootd_sd_obj_t *obj, void *buf, size_t len, off_t off)
     sd_http_inst_state *is = obj->inst->state;
     sd_http_obj_state  *st = obj->state;
     xrootd_s3_resp_t    resp;
-    char                errbuf[256], hdrs[SD_HTTP_AUTH_MAX + 80];
+    char                hdrs[SD_HTTP_AUTH_MAX + 80];
     const void         *body;
     size_t              blen = 0, n;
     int64_t             end;
@@ -165,12 +290,8 @@ sd_http_pread(xrootd_sd_obj_t *obj, void *buf, size_t len, off_t off)
     snprintf(hdrs, sizeof(hdrs), "Range: bytes=%lld-%lld\r\n%s",
              (long long) off, (long long) end, is->auth_hdr);
 
-    if (is->transport->request(is->tctx, is->host, is->port, is->tls, "GET",
-                               st->path, hdrs, NULL, 0, is->timeout_ms, &resp,
-                               errbuf, sizeof(errbuf)) != 0)
-    {
-        errno = EIO;
-        return -1;
+    if (sd_http_request_fo(is, "GET", st->key, hdrs, &resp, NULL) != 0) {
+        return -1;                              /* errno = EIO */
     }
     if (resp.status == 416) {
         is->transport->resp_free(&resp);
@@ -219,10 +340,8 @@ sd_http_stat(xrootd_sd_instance_t *inst, const char *path,
 {
     sd_http_inst_state *is = inst->state;
     int64_t             size = 0;
-    char                full[SD_HTTP_PATH_MAX];
 
-    sd_http_full_path(is, path, full, sizeof(full));
-    if (sd_http_head_size(is, full, &size) != 0) {
+    if (sd_http_head_size(is, path, &size) != 0) {
         return NGX_ERROR;                       /* errno set by head_size */
     }
     ngx_memzero(out, sizeof(*out));
@@ -253,7 +372,7 @@ sd_http_staged_open(xrootd_sd_instance_t *inst, const char *final_path,
         if (err_out) { *err_out = ENOMEM; }
         return NULL;
     }
-    sd_http_full_path(is, final_path, ss->path, sizeof(ss->path));
+    sd_http_write_path(is, final_path, ss->path, sizeof(ss->path));
     h->inst  = inst;
     h->state = ss;
     return h;
@@ -300,7 +419,8 @@ sd_http_staged_commit(xrootd_sd_staged_t *h, int noreplace)
     ngx_int_t             rc = NGX_OK;
 
     (void) noreplace;                          /* HTTP PUT always replaces */
-    if (is->transport->request(is->tctx, is->host, is->port, is->tls, "PUT",
+    if (is->transport->request(is->tctx, is->eps[0].host, is->eps[0].port,
+                               is->eps[0].tls, "PUT",
                                ss->path, is->auth_hdr[0] ? is->auth_hdr : NULL,
                                ss->buf, ss->len, is->timeout_ms, &resp,
                                errbuf, sizeof(errbuf)) != 0)
@@ -340,8 +460,9 @@ sd_http_unlink(xrootd_sd_instance_t *inst, const char *path, int is_dir)
     char                errbuf[256], full[SD_HTTP_PATH_MAX];
 
     (void) is_dir;
-    sd_http_full_path(is, path, full, sizeof(full));
-    if (is->transport->request(is->tctx, is->host, is->port, is->tls, "DELETE",
+    sd_http_write_path(is, path, full, sizeof(full));
+    if (is->transport->request(is->tctx, is->eps[0].host, is->eps[0].port,
+                               is->eps[0].tls, "DELETE",
                                full, is->auth_hdr[0] ? is->auth_hdr : NULL,
                                NULL, 0, is->timeout_ms, &resp,
                                errbuf, sizeof(errbuf)) != 0)
@@ -396,11 +517,36 @@ xrootd_sd_http_create(const xrootd_sd_http_cfg_t *cfg, ngx_log_t *log)
         errno = ENOMEM;
         return NULL;
     }
-    snprintf(is->host, sizeof(is->host), "%s", cfg->host);
-    is->port = cfg->port;
-    is->tls  = cfg->tls;
-    snprintf(is->base_path, sizeof(is->base_path), "%s",
+    snprintf(is->eps[0].host, sizeof(is->eps[0].host), "%s", cfg->host);
+    is->eps[0].port = cfg->port;
+    is->eps[0].tls  = cfg->tls;
+    snprintf(is->eps[0].base_path, sizeof(is->eps[0].base_path), "%s",
              (cfg->base_path != NULL) ? cfg->base_path : "");
+    is->n_eps = 1;
+    if (cfg->extra != NULL && cfg->n_extra > 0) {
+        int i, n = cfg->n_extra;
+
+        if (n > SD_HTTP_EP_MAX - 1) {
+            n = SD_HTTP_EP_MAX - 1;
+        }
+        for (i = 0; i < n; i++) {
+            const xrootd_sd_http_ep_cfg_t *ec = &cfg->extra[i];
+
+            if (ec->host == NULL || ec->host[0] == '\0' || ec->port <= 0
+                || ec->port > 65535)
+            {
+                continue;
+            }
+            snprintf(is->eps[is->n_eps].host, sizeof(is->eps[0].host), "%s",
+                     ec->host);
+            is->eps[is->n_eps].port = ec->port;
+            is->eps[is->n_eps].tls  = ec->tls;
+            snprintf(is->eps[is->n_eps].base_path,
+                     sizeof(is->eps[0].base_path), "%s",
+                     (ec->base_path != NULL) ? ec->base_path : "");
+            is->n_eps++;
+        }
+    }
     is->transport  = cfg->transport;
     is->tctx       = cfg->tctx;
     is->timeout_ms = (cfg->timeout_ms > 0) ? cfg->timeout_ms : 60000;

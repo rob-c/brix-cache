@@ -203,7 +203,9 @@ xrootd_vfs_backend_build_source(xrootd_vfs_backend_entry_t *e, ngx_log_t *log)
     /* HTTP(S) source backend (read-only): the shared S3/libcurl transport does the
      * HEAD/Range-GET; sd_http carries no libcurl itself. */
     if (ngx_strcmp(e->backend, "http") == 0) {
-        xrootd_sd_http_cfg_t cfg;
+        xrootd_sd_http_cfg_t    cfg;
+        xrootd_sd_http_ep_cfg_t extra[7];
+        int                     i;
 
         ngx_memzero(&cfg, sizeof(cfg));
         cfg.host       = e->origin_host;
@@ -213,6 +215,15 @@ xrootd_vfs_backend_build_source(xrootd_vfs_backend_entry_t *e, ngx_log_t *log)
         cfg.transport  = &xrootd_s3_origin_curl_transport;
         cfg.timeout_ms = 60000;
         cfg.bearer_token = (e->origin_token[0] != '\0') ? e->origin_token : NULL;
+        /* phase-68 T11: the remaining pipe-separated failover origins */
+        for (i = 0; i < e->n_http_extra && i < 7; i++) {
+            extra[i].host      = e->http_extra[i].host;
+            extra[i].port      = e->http_extra[i].port;
+            extra[i].tls       = e->http_extra[i].tls;
+            extra[i].base_path = e->http_extra[i].base;
+        }
+        cfg.extra   = extra;
+        cfg.n_extra = (e->n_http_extra < 7) ? e->n_http_extra : 7;
 
         inst = xrootd_sd_http_create(&cfg, log);
         if (inst == NULL) {

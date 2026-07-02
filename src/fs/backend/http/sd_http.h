@@ -29,8 +29,22 @@
 #include "fs/backend/sd.h"
 #include "fs/backend/s3/sd_s3_transport.h"
 
+/* Cap on the ranked endpoint set of one instance (phase-68 T11 failover:
+ * mirrors CVMFS_SERVER_URL's ordered Stratum-1 list). */
+#define SD_HTTP_EP_MAX 8
+
+/* One additional endpoint of a multi-origin instance (strings are copied). */
+typedef struct {
+    const char *host;
+    int         port;
+    int         tls;
+    const char *base_path;
+} xrootd_sd_http_ep_cfg_t;
+
 /* Endpoint for one HTTP source instance. Strings are copied. `base_path` is the
- * URL path prefix ("" or "/dir"); a request key "/file" is appended to it. */
+ * URL path prefix ("" or "/dir"); a request key "/file" is appended to it.
+ * host/port/tls/base_path describe endpoint 0 (the primary and the WRITE
+ * target); `extra`/`n_extra` add ranked read-failover endpoints (phase-68). */
 typedef struct {
     const char                  *host;        /* endpoint host */
     int                          port;
@@ -40,6 +54,8 @@ typedef struct {
     void                        *tctx;        /* transport context (NULL for curl) */
     int                          timeout_ms;
     const char                  *bearer_token; /* §14: Authorization: Bearer, or NULL */
+    const xrootd_sd_http_ep_cfg_t *extra;      /* endpoints 1.. (may be NULL)   */
+    int                            n_extra;    /* count of `extra` entries      */
 } xrootd_sd_http_cfg_t;
 
 /* Build a read-only HTTP source instance. Returns a malloc-owned instance, or NULL
