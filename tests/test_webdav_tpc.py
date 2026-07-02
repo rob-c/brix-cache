@@ -42,6 +42,14 @@ from settings import (
     XRDHTTP_HTTP_PORT,
 )
 
+# Self-provisions a multi-instance WebDAV third-party-copy mesh (source +
+# cafile/cadir/readonly destination nginx instances). Under the parallel bulk
+# lane co-executing suites contended those shared instances and flaked the cadir
+# push (404) when the endpoints were up. Pin to the isolated serial lane, like
+# the other stateful mesh/topology suites. (In environments without the stock
+# XrdHttp reference endpoint the whole module skips via its autouse fixture.)
+pytestmark = [pytest.mark.serial]
+
 PKI_DIR = Path(PKI_DIR_STR)
 CA_DIR = PKI_DIR / "ca"
 CA_PEM = CA_DIR / "ca.pem"

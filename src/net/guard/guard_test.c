@@ -91,6 +91,25 @@ int main(void)
     CHECK(guard_classify_post(&off, &nf) == GUARD_R_NONE);
     CHECK(guard_classify_post(&off, &af) == GUARD_R_NONE);
 
+    /* --- audit format --- */
+    char line[512];
+    guard_request_t sigreq = { "203.0.113.9","arc",GUARD_OP_READ,
+                               "/wp-login.php",13,0,OUTCOME_PENDING,403 };
+    size_t n = guard_audit_format(&sigreq, GUARD_R_SIGNATURE,
+                                  "2026-07-01T12:00:00Z", line, sizeof(line));
+    CHECK(n > 0);
+    CHECK(strcmp(line,
+        "2026-07-01T12:00:00Z ip=203.0.113.9 proto=arc signal=signature "
+        "op=read path=\"/wp-login.php\" status=403") == 0);
+    /* token maps */
+    CHECK(strcmp(guard_reason_str(GUARD_R_AUTHFAIL), "authfail") == 0);
+    CHECK(strcmp(guard_reason_str(GUARD_R_NOTFOUND), "notfound") == 0);
+    CHECK(strcmp(guard_op_str(GUARD_OP_STAGE), "stage") == 0);
+    /* too-small buffer => 0, no overflow */
+    char tiny[8];
+    CHECK(guard_audit_format(&sigreq, GUARD_R_SIGNATURE,
+                             "2026-07-01T12:00:00Z", tiny, sizeof(tiny)) == 0);
+
     printf(fails ? "GUARD CORE: %d FAIL\n" : "GUARD CORE: all pass\n", fails);
     return fails ? 1 : 0;
 }
