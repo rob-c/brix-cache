@@ -29,7 +29,8 @@ trap 'rm -f "${CAT_BIN}" "${DRV_BIN}"' EXIT
 
 echo "== building + running sd_pblock_catalog_unittest =="
 # shellcheck disable=SC2086
-"${CC}" -O2 -Wall -Wextra -I"${BACKEND}/pblock" -I"${BACKEND}" ${SQLITE_CFLAGS} \
+"${CC}" -O2 -Wall -Wextra -DXROOTD_HAVE_SQLITE=1 \
+    -I"${BACKEND}/pblock" -I"${BACKEND}" -I"${HERE}/../../src" ${SQLITE_CFLAGS} \
     "${BACKEND}/pblock/sd_pblock_catalog_unittest.c" \
     "${BACKEND}/pblock/sd_pblock_catalog.c" \
     ${SQLITE_LIBS} -o "${CAT_BIN}"
@@ -38,7 +39,7 @@ echo "== building + running sd_pblock_catalog_unittest =="
 echo "== building + running sd_pblock_unittest (vtable + concurrency) =="
 # shellcheck disable=SC2086
 "${CC}" -O2 -Wall -Wextra -DXROOTD_HAVE_SQLITE=1 -DXRDPROTO_NO_NGX \
-    -I"${BACKEND}/pblock" -I"${BACKEND}" ${SQLITE_CFLAGS} \
+    -I"${BACKEND}/pblock" -I"${BACKEND}" -I"${HERE}/../../src" ${SQLITE_CFLAGS} \
     "${BACKEND}/pblock/sd_pblock_unittest.c" \
     "${BACKEND}/pblock/sd_pblock.c" \
     "${BACKEND}/pblock/sd_pblock_catalog.c" \

@@ -15,7 +15,13 @@
  *       race between threads) and finalized immediately. All paths are bound
  *       parameters — never string-formatted into SQL. Directory rename collects
  *       the affected paths first, then reparents each in one transaction.
+ *
+ * Compiled only when the build found libsqlite3 (XROOTD_HAVE_SQLITE), the
+ * same gate as sd_pblock.c — a no-sqlite build must stay byte-for-byte
+ * unchanged (see ./config).
  */
+#if XROOTD_HAVE_SQLITE
+
 #include "sd_pblock_catalog.h"
 #include "core/compat/snprintf_check.h"
 
@@ -985,3 +991,11 @@ pblock_catalog_removexattr(pblock_catalog *cat, const char *path,
     }
     return changed > 0 ? 0 : cat_fail(ENODATA);
 }
+
+#else
+
+/* ISO C forbids an empty translation unit; a no-sqlite build compiles this
+ * file to nothing but this placeholder (same contract as sd_pblock.c). */
+typedef int xrootd_sd_pblock_catalog_disabled_t;
+
+#endif /* XROOTD_HAVE_SQLITE */
