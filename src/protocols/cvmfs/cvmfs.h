@@ -85,6 +85,8 @@ typedef struct {
     xrootd_sd_instance_t *sd_override;     /* proxy mode (T14)               */
     const char           *up_root;         /* proxy-mode registry root key   */
     cvmfs_url_info_t      url;             /* classify result                */
+    ngx_xrootd_cvmfs_repo_metrics_t *repo; /* per-fqrn SHM counters (bounded
+                                              slot table; NULL = unmapped)   */
     ngx_uint_t            cache_status;    /* HIT/FILL/STALE/NEG — $cvmfs_cache
                                               (T16)                          */
     ngx_str_t             origin_used;     /* host:port of the fill origin —

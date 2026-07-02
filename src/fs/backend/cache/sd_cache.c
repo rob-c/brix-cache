@@ -81,18 +81,45 @@ sd_cache_admit(const xrootd_cache_policy_t *pol, const char *path, off_t size)
     return 1;
 }
 
-/* phase-68 T16: WAN-in byte accounting, gated on the cvmfs personality
- * (other exports' fills must not feed the cvmfs family). */
-static void
-sd_cache_note_origin_bytes(const sd_cache_inst_state *st, off_t bytes)
+/* 1 iff this cache instance carries the cvmfs personality (other exports'
+ * fills must not feed the cvmfs metric family). */
+static int
+sd_cache_is_cvmfs(const sd_cache_inst_state *st)
 {
-    if (bytes <= 0) {
+    return st->policy.verify == XROOTD_CACHE_VERIFY_CVMFS_CAS
+        || st->policy.cvmfs_manifest_ttl > 0;
+}
+
+/* Per-fqrn SHM counters for `key`, or NULL (non-cvmfs export / no repo /
+ * SHM unmapped). Runs on fill worker threads — the slot table is lock-free. */
+static ngx_xrootd_cvmfs_repo_metrics_t *
+sd_cache_repo_metrics(const sd_cache_inst_state *st, const char *key)
+{
+    cvmfs_url_info_t info;
+
+    if (!sd_cache_is_cvmfs(st) || key == NULL
+        || cvmfs_classify_url(key, strlen(key), &info) != 0
+        || info.repo == NULL)
+    {
+        return NULL;
+    }
+    return xrootd_cvmfs_repo_slot(info.repo, info.repo_len);
+}
+
+/* phase-68 T16: WAN-in byte accounting, gated on the cvmfs personality. */
+static void
+sd_cache_note_origin_bytes(const sd_cache_inst_state *st, const char *key,
+    off_t bytes)
+{
+    ngx_xrootd_cvmfs_repo_metrics_t *rm;
+
+    if (bytes <= 0 || !sd_cache_is_cvmfs(st)) {
         return;
     }
-    if (st->policy.verify == XROOTD_CACHE_VERIFY_CVMFS_CAS
-        || st->policy.cvmfs_manifest_ttl > 0)
-    {
-        XROOTD_CVMFS_METRIC_ADD(origin_bytes_total, (ngx_atomic_uint_t) bytes);
+    XROOTD_CVMFS_METRIC_ADD(origin_bytes_total, (ngx_atomic_uint_t) bytes);
+    rm = sd_cache_repo_metrics(st, key);
+    if (rm != NULL) {
+        XROOTD_ATOMIC_ADD(&rm->origin_bytes_total, (ngx_atomic_uint_t) bytes);
     }
 }
 
@@ -275,8 +302,14 @@ sd_cache_fill(sd_cache_inst_state *st, const char *key)
            ? xrootd_cache_verify_cvmfs_cas(pp, key, st->log, NULL, NULL)
            : XROOTD_CACHE_VERIFY_ERROR;
         if (vr == XROOTD_CACHE_VERIFY_MISMATCH) {
+            ngx_xrootd_cvmfs_repo_metrics_t *rm = sd_cache_repo_metrics(st,
+                                                                        key);
+
             XROOTD_CVMFS_METRIC_INC(verify_failures_total);
-            sd_cache_note_origin_bytes(st, off);   /* WAN cost is WAN cost */
+            if (rm != NULL) {
+                XROOTD_ATOMIC_INC(&rm->verify_failures_total);
+            }
+            sd_cache_note_origin_bytes(st, key, off); /* WAN cost is WAN cost */
             xrootd_cache_quarantine_part(pp, st->policy.quarantine_dir,
                                          st->log);
             xrootd_cstore_fill_abort(staged);   /* part already renamed away */
@@ -294,7 +327,7 @@ sd_cache_fill(sd_cache_inst_state *st, const char *key)
         verified = (vr == XROOTD_CACHE_VERIFY_VERIFIED);
     }
 
-    sd_cache_note_origin_bytes(st, off);       /* WAN in, this attempt */
+    sd_cache_note_origin_bytes(st, key, off);  /* WAN in, this attempt */
 
     if (xrootd_cstore_fill_commit(staged) != NGX_OK) {
         return NGX_ERROR;

@@ -235,8 +235,22 @@ cvmfs_finalize_observe(void *data)
                     (ngx_atomic_uint_t) r->headers_out.content_length_n);
             }
             xrootd_metric_cache_result(XROOTD_PROTO_CVMFS, 0, 0);
+            if (ctx->repo != NULL) {
+                XROOTD_ATOMIC_INC(&ctx->repo->fills_total);
+                XROOTD_ATOMIC_INC(&ctx->repo->cache_misses_total);
+                if (ctx->url.cls == CVMFS_URL_CAS) {
+                    XROOTD_ATOMIC_INC(&ctx->repo->files_accessed_total);
+                }
+                if (r->headers_out.content_length_n > 0) {
+                    XROOTD_ATOMIC_ADD(&ctx->repo->bytes_served_fill_total,
+                        (ngx_atomic_uint_t) r->headers_out.content_length_n);
+                }
+            }
         } else if (status == NGX_HTTP_BAD_GATEWAY) {
             XROOTD_CVMFS_METRIC_INC(fill_failures_total);
+            if (ctx->repo != NULL) {
+                XROOTD_ATOMIC_INC(&ctx->repo->fill_failures_total);
+            }
         }
         /* a 504 hold-expiry is NOT a definitive fill failure — the
          * detached fill may still publish for the client's retry */
@@ -249,6 +263,16 @@ cvmfs_finalize_observe(void *data)
                 (ngx_atomic_uint_t) r->headers_out.content_length_n);
         }
         xrootd_metric_cache_result(XROOTD_PROTO_CVMFS, 1, 0);
+        if (ctx->repo != NULL) {
+            XROOTD_ATOMIC_INC(&ctx->repo->cache_hits_total);
+            if (ctx->url.cls == CVMFS_URL_CAS) {
+                XROOTD_ATOMIC_INC(&ctx->repo->files_accessed_total);
+            }
+            if (r->headers_out.content_length_n > 0) {
+                XROOTD_ATOMIC_ADD(&ctx->repo->bytes_served_hit_total,
+                    (ngx_atomic_uint_t) r->headers_out.content_length_n);
+            }
+        }
     }
 }
 

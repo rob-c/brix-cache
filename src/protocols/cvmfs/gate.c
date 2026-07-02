@@ -145,19 +145,32 @@ xrootd_cvmfs_gate(ngx_http_request_t *r, ngx_http_xrootd_cvmfs_loc_conf_t *lcf)
                             "path is not a CVMFS traffic shape");
     }
 
+    /* per-repository accounting (bounded slot table — metrics.h) */
+    ctx->repo = xrootd_cvmfs_repo_slot(ctx->url.repo, ctx->url.repo_len);
+
     switch (ctx->url.cls) {
     case CVMFS_URL_CAS:
         XROOTD_CVMFS_METRIC_INC(requests_total[XROOTD_CVMFS_CLASS_CAS]);
+        if (ctx->repo != NULL) {
+            XROOTD_ATOMIC_INC(&ctx->repo->requests_total[XROOTD_CVMFS_CLASS_CAS]);
+        }
         if (lcf->cvmfs.negative_ttl > 0
             && cvmfs_neg_check(&r->uri, ngx_time()))
         {
             XROOTD_CVMFS_METRIC_INC(negative_hits_total);
+            if (ctx->repo != NULL) {
+                XROOTD_ATOMIC_INC(&ctx->repo->negative_hits_total);
+            }
             ctx->cache_status = XROOTD_CVMFS_CACHE_NEG;
             return NGX_HTTP_NOT_FOUND;    /* absorbed 404 storm (T13)    */
         }
         return NGX_DECLINED;              /* tier serve path (handler.c) */
     case CVMFS_URL_MANIFEST:
         XROOTD_CVMFS_METRIC_INC(requests_total[XROOTD_CVMFS_CLASS_MANIFEST]);
+        if (ctx->repo != NULL) {
+            XROOTD_ATOMIC_INC(
+                &ctx->repo->requests_total[XROOTD_CVMFS_CLASS_MANIFEST]);
+        }
         /* T12: signed metadata caches WITH a TTL — the fill stamps
          * expires_at (= now + xrootd_cvmfs_manifest_ttl) in the cinfo, an
          * expired entry refills, and a failed refill serves the stale copy
@@ -165,6 +178,9 @@ xrootd_cvmfs_gate(ngx_http_request_t *r, ngx_http_xrootd_cvmfs_loc_conf_t *lcf)
         return NGX_DECLINED;
     case CVMFS_URL_GEO:
         XROOTD_CVMFS_METRIC_INC(requests_total[XROOTD_CVMFS_CLASS_GEO]);
+        if (ctx->repo != NULL) {
+            XROOTD_ATOMIC_INC(&ctx->repo->requests_total[XROOTD_CVMFS_CLASS_GEO]);
+        }
         return xrootd_cvmfs_geo_passthrough(r, lcf);
     case CVMFS_URL_REJECT:
     default:

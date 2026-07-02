@@ -136,4 +136,30 @@ grep -q 'class=cas cache=hit' "$PFX/logs/cvmfs_access.log" \
 curl -s "http://127.0.0.1:$XPORT/healthz?verbose" | grep -q '"cvmfs_origins":\[{"host"' \
     && ok "healthz: cvmfs_origins present" || bad "healthz: no cvmfs_origins"
 
+# per-repository families (bounded fqrn label set)
+RREQ="$(printf '%s' "$M" | sed -n 's/^xrootd_cvmfs_repo_requests_total{repo="test.cern.ch",class="cas"} //p')"
+[ "${RREQ:-0}" -ge 1 ] && ok "repo metrics: per-fqrn cas requests ($RREQ)" \
+    || bad "repo metrics: no test.cern.ch cas row"
+RFA="$(printf '%s' "$M" | sed -n 's/^xrootd_cvmfs_repo_files_accessed_total{repo="test.cern.ch"} //p')"
+[ "${RFA:-0}" -ge 1 ] && ok "repo metrics: files_accessed counted ($RFA)" \
+    || bad "repo metrics: files_accessed zero"
+RHIT="$(printf '%s' "$M" | sed -n 's/^xrootd_cvmfs_repo_cache_hits_total{repo="test.cern.ch"} //p')"
+RFILL="$(printf '%s' "$M" | sed -n 's/^xrootd_cvmfs_repo_bytes_served_total{repo="test.cern.ch",source="fill"} //p')"
+ROB="$(printf '%s' "$M" | sed -n 's/^xrootd_cvmfs_repo_origin_bytes_total{repo="test.cern.ch"} //p')"
+[ "${RHIT:-0}" -ge 1 ] && [ "${RFILL:-0}" -ge 1 ] && [ "${ROB:-0}" -ge 1 ] \
+    && ok "repo metrics: hits/bytes-served/origin-bytes all counted" \
+    || bad "repo metrics: hit=$RHIT fillbytes=$RFILL originbytes=$ROB"
+
+# cardinality bound: 40 distinct (bogus) fqrns must NOT mint 40 label values —
+# past the 31 named slots everything folds into repo="_other"
+BOG="$(python3 -c 'print("ab"*19)')"
+for i in $(seq 1 40); do
+    curl -s -o /dev/null "http://127.0.0.1:$CPORT/cvmfs/flood$i.example.org/data/aa/$BOG"
+done
+M2="$(curl -s "http://127.0.0.1:$XPORT/metrics")"
+NREPO="$(printf '%s' "$M2" | grep -c '^xrootd_cvmfs_repo_files_accessed_total{')"
+printf '%s' "$M2" | grep -q 'repo="_other"' && [ "$NREPO" -le 32 ] \
+    && ok "repo metrics: label set bounded ($NREPO repos, overflow → _other)" \
+    || bad "repo metrics: cardinality bound broken (repos=$NREPO)"
+
 exit $fail
