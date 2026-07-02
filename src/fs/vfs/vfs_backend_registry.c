@@ -37,6 +37,24 @@ xrootd_vfs_backend_entry_find(const char *root_canon)
     return NULL;
 }
 
+/* See vfs_backend_registry.h — HTTP endpoint of an http backend, for the
+ * protocol-side uncached passthroughs that address the fill origin directly. */
+int
+xrootd_vfs_backend_http_endpoint(const char *root_canon,
+    const char **host, int *port, int *tls, const char **base)
+{
+    xrootd_vfs_backend_entry_t *e = xrootd_vfs_backend_entry_find(root_canon);
+
+    if (e == NULL || ngx_strcmp(e->backend, "http") != 0) {
+        return -1;
+    }
+    *host = e->origin_host;
+    *port = e->origin_port;
+    *tls  = e->origin_tls;
+    *base = e->origin_path;
+    return 0;
+}
+
 /* Find or create the entry for root_canon. A cache/stage tier may be registered
  * for a default-POSIX export that has no backend entry yet, so create one (backend
  * "" = default POSIX source). NULL when the table is full. */

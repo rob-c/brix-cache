@@ -54,6 +54,27 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, b"ok")
         self._send(404, b"")
 
+    def do_HEAD(self):
+        # Size probes (the cache fill HEADs before its Range GETs). Not written
+        # to the request log: /ctl/log counts data FETCHES, and tests assert on
+        # exact fetch counts (stampede coalescing).
+        repo = STATE["repo"]
+        if self.path == f"/cvmfs/{repo}/.cvmfspublished":
+            body = manifest(repo, STATE["revision"])
+        elif self.path == f"/cvmfs/{repo}/.cvmfswhitelist":
+            body = b"mock-whitelist\n"
+        else:
+            body = STATE["objects"].get(self.path)
+        if body is None:
+            self.send_response(404)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "application/octet-stream")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+
     def do_GET(self):
         repo = STATE["repo"]
         if self.path == "/ctl/log":
