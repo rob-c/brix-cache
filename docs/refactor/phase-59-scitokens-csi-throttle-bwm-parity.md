@@ -433,7 +433,7 @@ handlers. Default off; opt-in `xrootd_csi on`.
 reporting can advertise filesystem-checksum availability.
 
 **New directives**
-- `xrootd_csi on|off` (default off)
+- `xrootd_csi on|off` (default off at phase-59; flipped to **on** 2026-07-02)
 - `xrootd_csi_prefix <dir>` (default `/.xrdt`; empty = inline)
 - `xrootd_csi_space <name>` (optional storage-space name)
 - `xrootd_csi_fill on|off` (inverse of upstream `nofill`; default on)
