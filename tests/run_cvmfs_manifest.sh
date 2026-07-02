@@ -6,7 +6,7 @@
 set -u
 NGINX="${1:-/tmp/nginx-1.28.3/objs/nginx}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
-MPORT=12861; CPORT=12862; TTL=2
+MPORT=12861; CPORT=12862; TTL=4
 PFX="$(mktemp -d /tmp/cvmfs_man.XXXXXX)"; fail=0
 ok(){ printf '  ok   %s\n' "$1"; }; bad(){ printf '  FAIL %s\n' "$1"; fail=1; }
 cleanup(){ [ -f "$PFX/nginx.pid" ] && kill "$(cat "$PFX/nginx.pid")" 2>/dev/null

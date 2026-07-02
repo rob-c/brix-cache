@@ -268,6 +268,32 @@ typedef struct {
 } ngx_xrootd_s3_metrics_t;
 
 /*
+ * Per-process CVMFS protocol metrics (phase-68). Class labels are a fixed
+ * 4-value set, so cardinality is bounded by construction; repo names and
+ * object paths MUST NOT become label values.
+ */
+typedef enum {
+    XROOTD_CVMFS_CLASS_CAS = 0,
+    XROOTD_CVMFS_CLASS_MANIFEST,
+    XROOTD_CVMFS_CLASS_GEO,
+    XROOTD_CVMFS_CLASS_REJECT,
+    XROOTD_CVMFS_CLASS_COUNT
+} xrootd_cvmfs_class_metric_e;
+
+typedef struct {
+    ngx_atomic_t  requests_total[XROOTD_CVMFS_CLASS_COUNT]; /* by traffic class */
+    ngx_atomic_t  negative_hits_total;   /* 404s absorbed by the worker memo   */
+    ngx_atomic_t  fills_total;           /* origin fills that published        */
+    ngx_atomic_t  fill_failures_total;   /* fills that failed definitively     */
+    ngx_atomic_t  verify_failures_total; /* CAS mismatches (quarantined)       */
+    ngx_atomic_t  origin_failovers_total;/* second-endpoint attempts (T11)     */
+    ngx_atomic_t  secure_requests_total; /* scvmfs preamble passes (T22)       */
+    ngx_atomic_t  bytes_served_hit_total;  /* LAN out, served from cache       */
+    ngx_atomic_t  bytes_served_fill_total; /* LAN out, served via a fresh fill */
+    ngx_atomic_t  origin_bytes_total;      /* WAN in, pulled from Stratum-1s   */
+} ngx_xrootd_cvmfs_metrics_t;
+
+/*
  * Per-process FRM tape-stage metrics (phase-35).  All ngx_atomic_t, lock-free.
  * The whole block is process-global (one tape queue per node), so it lives
  * directly in the root metrics object rather than per-listener.  All fields are
@@ -594,6 +620,7 @@ typedef struct {
     ngx_xrootd_srv_metrics_t     servers[XROOTD_METRICS_MAX_SERVERS];
     ngx_xrootd_webdav_metrics_t  webdav;
     ngx_xrootd_s3_metrics_t      s3;
+    ngx_xrootd_cvmfs_metrics_t   cvmfs;   /* phase-68 cvmfs:// protocol plane */
     ngx_xrootd_unified_metrics_t unified;
     ngx_xrootd_frm_metrics_t     frm;
 

@@ -23,6 +23,9 @@
  */
 
 #include "metrics_internal.h"
+#include "fs/backend/cache/sd_cache.h"     /* unwrap to the http source (T16) */
+#include "fs/backend/http/sd_http.h"       /* per-origin health snapshot      */
+#include "fs/vfs/vfs_backend_registry.h"
 #include "core/http/http_headers.h"
 #include "core/compat/alloc_guard.h"
 #include "core/ident.h"
@@ -47,7 +50,7 @@ health_verbose_requested(ngx_http_request_t *r)
 static u_char *
 health_build_json(ngx_http_request_t *r, ngx_uint_t verbose, size_t *len)
 {
-    static const size_t   cap = 512;
+    static const size_t   cap = 2048;
     u_char               *buf;
     u_char               *p;
     const char           *shm_state;
@@ -92,9 +95,48 @@ health_build_json(ngx_http_request_t *r, ngx_uint_t verbose, size_t *len)
                      "\"metrics_shm\":\"%s\","
                      "\"worker_pid\":%P,"
                      "\"nginx_version\":\"%s\""
-                     "}}\n",
+                     "}",
                      generation, config_hash,
                      shm_state, ngx_pid, NGINX_VERSION);
+
+    /* phase-68: per-origin health of every http-backed export (the CVMFS
+     * Stratum-1 sets). fail_score is the sd_http EWMA (0 = healthy). */
+    {
+        ngx_uint_t  i, n_exports = xrootd_vfs_backend_export_count();
+        int         first = 1;
+
+        p = ngx_snprintf(p, (size_t) (buf + cap - p), ",\"cvmfs_origins\":[");
+        for (i = 0; i < n_exports; i++) {
+            xrootd_vfs_backend_info_t  info;
+            xrootd_sd_instance_t      *inst;
+            char                       hosts[SD_HTTP_EP_MAX][256];
+            int                        ports[SD_HTTP_EP_MAX];
+            int                        scores[SD_HTTP_EP_MAX];
+            int                        j, n;
+
+            if (xrootd_vfs_backend_export_info(i, &info) != NGX_OK
+                || ngx_strcmp(info.backend, "http") != 0)
+            {
+                continue;
+            }
+            inst = xrootd_vfs_backend_resolve(info.root_canon,
+                                              r->connection->log);
+            while (inst != NULL
+                   && ngx_strcmp(inst->driver->name, "http") != 0)
+            {
+                inst = xrootd_sd_cache_source_instance(inst);
+            }
+            n = sd_http_health_snapshot(inst, hosts, ports, scores,
+                                        SD_HTTP_EP_MAX);
+            for (j = 0; j < n; j++) {
+                p = ngx_snprintf(p, (size_t) (buf + cap - p),
+                        "%s{\"host\":\"%s\",\"port\":%d,\"fail_score\":%d}",
+                        first ? "" : ",", hosts[j], ports[j], scores[j]);
+                first = 0;
+            }
+        }
+        p = ngx_snprintf(p, (size_t) (buf + cap - p), "]}\n");
+    }
     *len = (size_t) (p - buf);
     return buf;
 }

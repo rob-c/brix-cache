@@ -13,9 +13,19 @@
 #include "fs/backend/frm/sd_frm.h"       /* phase-64 SP5 nearline (tape) backend */
 #include "fs/tier/tier.h"                /* phase-64 tier cfg/build + the cache/stage setters */
 #include "fs/cache/origin/s3_transport.h" /* xrootd_s3_origin_curl_transport (libcurl) */
+#include "observability/metrics/metrics.h"        /* phase-68 T16 failover hook */
+#include "observability/metrics/metrics_macros.h"
 
 #include <string.h>
 
+
+/* T16: the ngx-side failover-accounting hook injected into sd_http (the
+ * driver is pure C and cannot touch the SHM metrics itself). */
+static void
+xrootd_vfs_http_failover_note(void)
+{
+    XROOTD_CVMFS_METRIC_INC(origin_failovers_total);
+}
 
 static xrootd_vfs_backend_entry_t  xrootd_vfs_backends[XROOTD_VFS_BACKEND_MAX];
 static ngx_uint_t                  xrootd_vfs_backend_count;
@@ -215,6 +225,7 @@ xrootd_vfs_backend_build_source(xrootd_vfs_backend_entry_t *e, ngx_log_t *log)
         cfg.transport  = &xrootd_s3_origin_curl_transport;
         cfg.timeout_ms = 60000;
         cfg.bearer_token = (e->origin_token[0] != '\0') ? e->origin_token : NULL;
+        cfg.failover_note = xrootd_vfs_http_failover_note;   /* T16 */
         /* phase-68 T11: the remaining pipe-separated failover origins */
         for (i = 0; i < e->n_http_extra && i < 7; i++) {
             extra[i].host      = e->http_extra[i].host;

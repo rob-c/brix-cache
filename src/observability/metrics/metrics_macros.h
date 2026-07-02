@@ -93,6 +93,22 @@ xrootd_metrics_shared(void)
         }                                                                    \
     } while (0)
 
+#define XROOTD_CVMFS_METRIC_INC(field)                                       \
+    do {                                                                     \
+        ngx_xrootd_metrics_t *_xrootd_metrics = xrootd_metrics_shared();     \
+        if (_xrootd_metrics != NULL) {                                       \
+            XROOTD_ATOMIC_INC(&_xrootd_metrics->cvmfs.field);                \
+        }                                                                    \
+    } while (0)
+
+#define XROOTD_CVMFS_METRIC_ADD(field, amount)                               \
+    do {                                                                     \
+        ngx_xrootd_metrics_t *_xrootd_metrics = xrootd_metrics_shared();     \
+        if (_xrootd_metrics != NULL) {                                       \
+            XROOTD_ATOMIC_ADD(&_xrootd_metrics->cvmfs.field, (amount));      \
+        }                                                                    \
+    } while (0)
+
 /* SciTags packet-marking counters (phase-34) — global, low-cardinality.  Safe
  * from any context (firefly/flowlabel emit; open/dispatch call sites); no-op when
  * the metrics SHM is not yet mapped. */

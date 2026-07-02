@@ -19,6 +19,7 @@
 #include "fs/vfs/vfs.h"
 #include "fs/vfs/vfs_backend_registry.h"
 #include "observability/dashboard/dashboard.h"
+#include "observability/metrics/unified.h"
 #include "protocols/shared/file_serve.h"
 #include "protocols/shared/http_cache_fill.h"
 #include "protocols/shared/http_serve_offload.h"
@@ -44,7 +45,8 @@ cvmfs_errno_status(int err)
 }
 
 /* Re-entry trampoline for the off-loop cache fill: after the fill lands the
- * completion event re-runs the whole handler, which now takes the HIT path. */
+ * completion event re-runs the whole handler, which now takes the HIT path
+ * (the disposition stays FILL — the bytes came via a fresh origin fill). */
 static ngx_int_t
 cvmfs_reenter(ngx_http_request_t *r, void *data)
 {
@@ -111,8 +113,8 @@ cvmfs_tier_get(ngx_http_request_t *r, ngx_http_xrootd_cvmfs_loc_conf_t *lcf)
     is_tls = (r->connection->ssl != NULL) ? 1 : 0;
 #endif
     xrootd_vfs_ctx_init(&vctx, r->pool, r->connection->log,
-        XROOTD_PROTO_WEBDAV /* per-proto identity lands in T16 */,
-        root, "", /* allow_write */ 0, is_tls, NULL, path);
+        XROOTD_PROTO_CVMFS, root, "", /* allow_write */ 0, is_tls, NULL,
+        path);
     vctx.sd = cvmfs_resolve_sd(r, lcf);
     if (vctx.sd == NULL) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
@@ -127,7 +129,7 @@ cvmfs_tier_get(ngx_http_request_t *r, ngx_http_xrootd_cvmfs_loc_conf_t *lcf)
         xrootd_http_serve_opts_t sopts;
 
         ngx_memzero(&sopts, sizeof(sopts));
-        sopts.xfer_proto = XROOTD_XFER_PROTO_WEBDAV;
+        sopts.xfer_proto = XROOTD_XFER_PROTO_CVMFS;
         sopts.op_name    = "GET";
         sopts.identity   = "anonymous";
         sopts.etag_flags = XROOTD_ETAG_WEAK;
@@ -146,6 +148,9 @@ cvmfs_tier_get(ngx_http_request_t *r, ngx_http_xrootd_cvmfs_loc_conf_t *lcf)
     rc = xrootd_http_cache_fill_if_needed(r, vctx.sd, key, &lcf->common,
                                           cvmfs_reenter, NULL);
     if (rc == NGX_DONE) {
+        if (ctx != NULL) {
+            ctx->cache_status = XROOTD_CVMFS_CACHE_FILL;   /* $cvmfs_cache */
+        }
         return NGX_DONE;
     }
     if (rc == NGX_ERROR) {
@@ -155,6 +160,9 @@ cvmfs_tier_get(ngx_http_request_t *r, ngx_http_xrootd_cvmfs_loc_conf_t *lcf)
     fh = xrootd_vfs_open(&vctx, XROOTD_VFS_O_READ, &vfs_err);
     if (fh == NULL) {
         return (ngx_int_t) cvmfs_errno_status(vfs_err);
+    }
+    if (ctx != NULL && ctx->cache_status == XROOTD_CVMFS_CACHE_NONE) {
+        ctx->cache_status = XROOTD_CVMFS_CACHE_HIT;        /* $cvmfs_cache */
     }
     if (xrootd_vfs_file_stat(fh, &vst) != NGX_OK) {
         xrootd_vfs_close(fh, r->connection->log);
@@ -185,7 +193,7 @@ cvmfs_tier_get(ngx_http_request_t *r, ngx_http_xrootd_cvmfs_loc_conf_t *lcf)
         xrootd_http_serve_result_t result;
 
         ngx_memzero(&opts, sizeof(opts));
-        opts.xfer_proto = XROOTD_XFER_PROTO_WEBDAV;
+        opts.xfer_proto = XROOTD_XFER_PROTO_CVMFS;
         opts.op_name    = "GET";
         opts.identity   = "anonymous";
         opts.etag_flags = XROOTD_ETAG_WEAK;
@@ -205,9 +213,42 @@ cvmfs_finalize_observe(void *data)
     ngx_http_request_t               *r = data;
     ngx_http_xrootd_cvmfs_loc_conf_t *lcf =
         ngx_http_get_module_loc_conf(r, ngx_http_xrootd_cvmfs_module);
+    ngx_http_xrootd_cvmfs_ctx_t      *ctx =
+        ngx_http_get_module_ctx(r, ngx_http_xrootd_cvmfs_module);
+    ngx_uint_t                        status = r->headers_out.status;
 
     if (lcf != NULL) {
-        xrootd_cvmfs_notify_status(r, lcf, r->headers_out.status);
+        xrootd_cvmfs_notify_status(r, lcf, status);
+    }
+
+    /* T16: fill/byte accounting off the FINAL disposition + status. The
+     * byte counts use the response body length (content_length_n) — the
+     * serve pipeline set it before headers went out. */
+    if (ctx == NULL) {
+        return;
+    }
+    if (ctx->cache_status == XROOTD_CVMFS_CACHE_FILL) {
+        if (status == NGX_HTTP_OK || status == NGX_HTTP_PARTIAL_CONTENT) {
+            XROOTD_CVMFS_METRIC_INC(fills_total);
+            if (r->headers_out.content_length_n > 0) {
+                XROOTD_CVMFS_METRIC_ADD(bytes_served_fill_total,
+                    (ngx_atomic_uint_t) r->headers_out.content_length_n);
+            }
+            xrootd_metric_cache_result(XROOTD_PROTO_CVMFS, 0, 0);
+        } else if (status == NGX_HTTP_BAD_GATEWAY) {
+            XROOTD_CVMFS_METRIC_INC(fill_failures_total);
+        }
+        /* a 504 hold-expiry is NOT a definitive fill failure — the
+         * detached fill may still publish for the client's retry */
+    } else if (ctx->cache_status == XROOTD_CVMFS_CACHE_HIT
+               && (status == NGX_HTTP_OK
+                   || status == NGX_HTTP_PARTIAL_CONTENT))
+    {
+        if (r->headers_out.content_length_n > 0) {
+            XROOTD_CVMFS_METRIC_ADD(bytes_served_hit_total,
+                (ngx_atomic_uint_t) r->headers_out.content_length_n);
+        }
+        xrootd_metric_cache_result(XROOTD_PROTO_CVMFS, 1, 0);
     }
 }
 

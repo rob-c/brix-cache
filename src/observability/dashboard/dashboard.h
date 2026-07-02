@@ -46,6 +46,7 @@
 #define XROOTD_XFER_PROTO_ROOT    1   /* native XRootD stream (root://)   */
 #define XROOTD_XFER_PROTO_WEBDAV  2   /* WebDAV over HTTPS (davs://)      */
 #define XROOTD_XFER_PROTO_S3      3   /* S3-compatible REST API           */
+#define XROOTD_XFER_PROTO_CVMFS   4   /* cvmfs:// site cache (phase-68)   */
 
 /* Direction tag values stored in xrootd_transfer_slot_t.direction */
 #define XROOTD_XFER_DIR_READ   1   /* client downloading (egress)        */
