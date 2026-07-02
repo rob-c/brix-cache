@@ -22,7 +22,8 @@ echo "using CephFS data pool: $DPOOL"
 
 docker ps --format '{{.Names}}' | grep -qx "$WORK" \
     || { echo "work container '$WORK' not running" >&2; exit 1; }
-for f in tests/ceph/striper_seed.c tests/ceph/xrdceph_striper_migrate.cpp; do
+for f in tests/ceph/striper_seed.c tests/ceph/xrdceph_striper_migrate.cpp \
+         tests/ceph/xrdceph_migrate_config.h; do
     docker cp "$REPO/$f" "$WORK:/work/repo/$f" >/dev/null
 done
 
@@ -98,6 +99,24 @@ if $M xrdtest '"$DPOOL"' /zm --mode redirect --list /tmp/L --delete-source >/dev
 else
   echo "guard ok: redirect + --delete-source refused"
 fi
+
+echo "== CONFIG: site-profile file (--config, zero positionals) =="
+cat > /tmp/cxxsite.conf <<EOF
+striper_pool = xrdtest
+data_pool    = '"$DPOOL"'
+client       = admin
+dest_prefix  = /zm
+EOF
+$M --config /tmp/cxxsite.conf --list <(echo rm/a) --force --verify 2>&1 | grep -E "^OK" \
+  || { echo "CONFIG FAIL: zero-positional migrate did not OK"; exit 1; }
+if $M xrdtest --config /tmp/cxxsite.conf >/dev/null 2>&1; then
+  echo "CONFIG GUARD FAIL: partial positionals accepted"; exit 1
+fi
+echo "bad_key = x" > /tmp/cxxbad.conf
+if $M --config /tmp/cxxbad.conf >/dev/null 2>&1; then
+  echo "CONFIG GUARD FAIL: unknown key accepted"; exit 1
+fi
+echo "config ok: zero-positional migrate + both guards"
 
 echo "run_striper_migrate: checks complete"
 '

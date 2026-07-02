@@ -170,5 +170,28 @@ $REV --prefix pyrev/ --finalize --verify --delete-source 2>/dev/null | grep -c '
 # the striper reads in --verify above already proved the owned copies serve
 # the bytes with the CephFS data objects deleted.
 
+echo "== CONFIG: site-profile file (--config, zero positionals) =="
+cat > /tmp/pysite.conf <<EOF
+# site profile written by run_py_migrate.sh
+striper_pool = $SP
+meta_pool    = $META
+data_pool    = $DATA
+client       = admin
+dest_prefix  = /pyzm
+EOF
+python3 xrdceph_striper_migrate.py --config /tmp/pysite.conf \
+    --list <(echo pyrm/a) --force --verify 2>/dev/null | grep -q '^OK' \
+    || fail "config-file forward migrate"
+python3 xrdceph_cephfs_to_striper.py --config /tmp/pysite.conf \
+    --assume-quiesced --report-only 2>&1 | grep -q 'regular files to migrate' \
+    || fail "config-file reverse report-only"
+if python3 xrdceph_striper_migrate.py "$SP" --config /tmp/pysite.conf >/dev/null 2>&1; then
+  fail "config guard: partial positionals were accepted"
+fi
+echo "bad_key = x" > /tmp/pybad.conf
+if python3 xrdceph_striper_migrate.py --config /tmp/pybad.conf >/dev/null 2>&1; then
+  fail "config guard: unknown key was accepted"
+fi
+
 echo "run_py_migrate: ALL CHECKS PASSED"
 INNER
