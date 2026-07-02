@@ -14,11 +14,11 @@
  *       reduced to its path. Bounded entry count.
  *
  * Clean-room: parses the documented WebDAV multistatus shape this module emits
- * (src/webdav/propfind.c), not any client library.
+ * (src/protocols/webdav/propfind.c), not any client library.
  */
 #include "xrdc.h"
-#include "compat/uri.h"          /* shared RFC-3986 percent-decoder (libxrdproto) */
-#include "compat/host_format.h"  /* xrootd_format_host_port (IPv6-bracketed Host) */
+#include "core/compat/uri.h"          /* shared RFC-3986 percent-decoder (libxrdproto) */
+#include "core/compat/host_format.h"  /* xrootd_format_host_port (IPv6-bracketed Host) */
 
 #include <ctype.h>
 #include <stdlib.h>

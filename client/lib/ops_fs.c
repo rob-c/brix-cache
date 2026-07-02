@@ -10,8 +10,8 @@
  *       Mutating ops expect kXR_ok (no body); query/locate/statvfs return the
  *       server's text reply verbatim for the CLI to print.
  *
- * wire: kXR_mv payload is "src ' ' dst" with arg1len=len(src) (src/write/mv.c).
- * wire: kXR_locate reply is an "S<rw><host>:<port>" token (src/read/locate.c).
+ * wire: kXR_mv payload is "src ' ' dst" with arg1len=len(src) (src/protocols/root/write/mv.c).
+ * wire: kXR_locate reply is an "S<rw><host>:<port>" token (src/protocols/root/read/locate.c).
  */
 #include "xrdc.h"
 

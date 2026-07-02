@@ -10,7 +10,7 @@
  *       "ghost replica" failure mode a plain transfer never surfaces (§15.4).
  *       A thin, libXrdCl-free front-end over the public libxrdc — zero new wire.
  * HOW:  xrdc_locate(path) returns space-separated "S<r|w><host>:<port>" holder
- *       tokens (src/manager/registry.c / src/read/locate.c; IPv6 host bracketed).
+ *       tokens (src/net/manager/registry.c / src/protocols/root/read/locate.c; IPv6 host bracketed).
  *       Parse them, xrdc_query(kXR_Qspace) for free/total, and for --verify open
  *       a fresh session to each holder and xrdc_stat(path): PASS=serves,
  *       GHOST=connects but NotFound, UNREACHABLE=connect fails.
@@ -19,8 +19,8 @@
  * this project's own (registry.c). No XrdCl / xrdmapc source consulted.
  */
 #include "xrdc.h"
-#include "compat/crypto.h"
-#include "compat/host_split.h"   /* shared host:port parse (libxrdproto) */
+#include "core/compat/crypto.h"
+#include "core/compat/host_split.h"   /* shared host:port parse (libxrdproto) */
 
 #include <stdio.h>
 #include <stdlib.h>

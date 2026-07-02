@@ -11,7 +11,7 @@
  *       32-byte RAND_bytes key with id = max+1 (or --id), append, and write back;
  *       `list` prints id/user/group/name/keylen/expiry; `del --id N` removes one.
  *
- * Clean-room: keytab grammar matches src/sss/config.c; no XrdSecsssAdmin code.
+ * Clean-room: keytab grammar matches src/auth/sss/config.c; no XrdSecsssAdmin code.
  */
 #include "xrdc.h"
 #include "sss_keytab.h"

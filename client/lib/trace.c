@@ -12,12 +12,12 @@
  *       wire spec, never from XrdCl). All output goes to stderr so stdout stays
  *       clean for the conformance harness.
  *
- * names: src/protocol/opcodes.h request opcodes (3000–3032) + response statuses.
+ * names: src/protocols/root/protocol/opcodes.h request opcodes (3000–3032) + response statuses.
  */
 #include "xrdc.h"
 
-#include "compat/kxr_names.h"   /* shared kXR opcode/status name tables (libxrdproto) */
-#include "protocol/frame_hdr.h" /* unaligned-safe BE field accessors (libxrdproto) */
+#include "core/compat/kxr_names.h"   /* shared kXR opcode/status name tables (libxrdproto) */
+#include "protocols/root/protocol/frame_hdr.h" /* unaligned-safe BE field accessors (libxrdproto) */
 
 #include <arpa/inet.h>
 #include <string.h>

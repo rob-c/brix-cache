@@ -14,8 +14,8 @@ import subprocess
 import pytest
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SRC = os.path.join(REPO, "src", "gsi", "proxy_req.c")
-TEST = os.path.join(REPO, "src", "gsi", "proxy_req_unittest.c")
+SRC = os.path.join(REPO, "src", "auth", "gsi", "proxy_req.c")
+TEST = os.path.join(REPO, "src", "auth", "gsi", "proxy_req_unittest.c")
 
 
 @pytest.fixture(scope="module")

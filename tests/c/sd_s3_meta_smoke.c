@@ -7,7 +7,7 @@
  * The wrapper pre-PUTs the object with x-amz-meta-foo: bar.
  */
 #include "fs/backend/s3/sd_s3.h"
-#include "compat/crypto.h"   /* xrootd_crypto_init — fetch the HMAC/SHA handles */
+#include "core/compat/crypto.h"   /* xrootd_crypto_init — fetch the HMAC/SHA handles */
 
 #include <stdio.h>
 #include <stdlib.h>

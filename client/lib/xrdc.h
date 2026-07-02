@@ -2,7 +2,7 @@
  * xrdc.h — internal API for the native XRootD root:// client library.
  *
  * WHAT: Connection/session + metadata/file ops over the XRootD binary protocol,
- *       built directly on the project's wire vocabulary (the src/protocol headers,
+ *       built directly on the project's wire vocabulary (the src/protocols/root/protocol headers,
  *       shared via libxrdproto). This is the spine that xrdcp/xrdfs sit on.
  * WHY:  A pure-C, libXrdCl-free client (phase-37). Blocking sockets + poll(2)
  *       timeouts; one in-flight request per connection for now (the streamid
@@ -10,7 +10,7 @@
  * HOW:  Each request builds its packed ClientXxxRequest struct from wire.h, sets
  *       big-endian fields, and exchanges frames via frame.c. No ngx, no XrdCl.
  *
- * Clean-room: wire facts come only from the src/protocol headers (cross-checked
+ * Clean-room: wire facts come only from the src/protocols/root/protocol headers (cross-checked
  * against XProtocol.hh). See docs/refactor/phase-37-clean-room-log.md.
  */
 #ifndef XRDC_H
@@ -22,8 +22,8 @@
 #include <time.h>                /* struct timespec for xrdc_setattr */
 #include <sys/types.h>
 
-#include "protocol/protocol.h"   /* wire structs + kXR_* constants (-I src) */
-#include "protocol/codec/wire_codec.h" /* shared per-opcode wire-body codec */
+#include "protocols/root/protocol/protocol.h"   /* wire structs + kXR_* constants (-I src) */
+#include "protocols/root/protocol/codec/wire_codec.h" /* shared per-opcode wire-body codec */
 
 /* Public-API fixed sizes. Kept under their stable libxrdc-public XRDC_* names, but
  * the VALUE is now single-sourced from the shared wire header (protocol/opcodes.h

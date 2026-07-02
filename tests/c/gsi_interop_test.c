@@ -3,7 +3,7 @@
  *
  * WHAT: Pins the shared-gsi_core wire behaviors that real-XRootD interop depends
  *       on, so a refactor cannot silently regress support for EOS / dCache / stock
- *       XRootD. Compiled against the *shared* src/gsi/gsi_core.c + src/compat/
+ *       XRootD. Compiled against the *shared* src/auth/gsi/gsi_core.c + src/core/compat/
  *       crypto.c (the exact code in both the nginx server and the native client),
  *       and run with no live peer. Prints "ALL PASSED" on success; driven by
  *       tests/test_gsi_interop_guards.py.
@@ -19,8 +19,8 @@
  * Clean-room: links only the public gsi_core API. See
  *      docs/10-reference/comparison/xrootd-implementations.md §5.
  */
-#include "gsi/gsi_core.h"
-#include "protocol/gsi.h"
+#include "auth/gsi/gsi_core.h"
+#include "protocols/root/protocol/gsi.h"
 
 #include <stdio.h>
 #include <string.h>

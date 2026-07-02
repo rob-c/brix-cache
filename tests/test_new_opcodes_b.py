@@ -196,11 +196,11 @@ class TestChkpoint:
         """Startup recovery must rollback stale .ckp snapshots under a lock."""
         src = (
             Path(__file__).resolve().parents[1]
-            / "src" / "write" / "chkpoint.c"
+            / "src" / "protocols" / "root" / "write" / "chkpoint.c"
         ).read_text(encoding="utf-8")
         process = (
             Path(__file__).resolve().parents[1]
-            / "src" / "config" / "process.c"
+            / "src" / "core" / "config" / "process.c"
         ).read_text(encoding="utf-8")
 
         assert "xrootd_chkpoint_recover_root" in src

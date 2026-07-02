@@ -1,13 +1,13 @@
 /*
  * codec_test.c — standalone unit test for the shared codec abstraction
- * (src/compat/codec_core.c + codec_<name>.c). Builds ngx-free.
+ * (src/core/compat/codec_core.c + codec_<name>.c). Builds ngx-free.
  *
  * Build (from repo root):
- *   cc -std=c11 -Wall -Wextra -Isrc/compat -DXROOTD_HAVE_ZLIB -DXROOTD_HAVE_ZSTD \
+ *   cc -std=c11 -Wall -Wextra -Isrc/core/compat -DXROOTD_HAVE_ZLIB -DXROOTD_HAVE_ZSTD \
  *      -DXROOTD_HAVE_LZMA -DXROOTD_HAVE_BROTLI -DXROOTD_HAVE_BZIP2 \
- *      tests/c/codec_test.c src/compat/codec_core.c src/compat/codec_zlib.c \
- *      src/compat/codec_zstd.c src/compat/codec_lzma.c src/compat/codec_brotli.c \
- *      src/compat/codec_bzip2.c -lz -lzstd -llzma -lbrotlienc -lbrotlidec -lbz2 \
+ *      tests/c/codec_test.c src/core/compat/codec_core.c src/core/compat/codec_zlib.c \
+ *      src/core/compat/codec_zstd.c src/core/compat/codec_lzma.c src/core/compat/codec_brotli.c \
+ *      src/core/compat/codec_bzip2.c -lz -lzstd -llzma -lbrotlienc -lbrotlidec -lbz2 \
  *      -o /tmp/codec_test && /tmp/codec_test
  *
  * Covers: round-trip every available codec under many sizes + tiny streaming

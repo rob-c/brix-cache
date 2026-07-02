@@ -14,7 +14,7 @@
  * Clean-room: the shared wire structs + frame.c only. No XrdCl.
  */
 #include "xrdc.h"
-#include "compat/vendor_ext.h"   /* shared kXR_setattr prefix codec (libxrdproto) */
+#include "core/compat/vendor_ext.h"   /* shared kXR_setattr prefix codec (libxrdproto) */
 
 #include <endian.h>
 #include <arpa/inet.h>

@@ -15,10 +15,10 @@
  * Clean-room: implements the published SigV4 algorithm (AWS docs), not any SDK.
  */
 #include "xrdc.h"
-#include "compat/crypto.h"   /* xrootd_sha256 / xrootd_hmac_sha256 */
-#include "compat/hex.h"      /* xrootd_hex_encode */
-#include "compat/uri.h"      /* xrootd_http_urlencode (shared SigV4 canonical URI) */
-#include "compat/sigv4.h"    /* xrootd_sigv4_signing_key (shared 4-round HMAC chain) */
+#include "core/compat/crypto.h"   /* xrootd_sha256 / xrootd_hmac_sha256 */
+#include "core/compat/hex.h"      /* xrootd_hex_encode */
+#include "core/compat/uri.h"      /* xrootd_http_urlencode (shared SigV4 canonical URI) */
+#include "core/compat/sigv4.h"    /* xrootd_sigv4_signing_key (shared 4-round HMAC chain) */
 
 #include <stdio.h>
 #include <string.h>

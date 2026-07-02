@@ -6,13 +6,13 @@
 #define XROOTD_OPS_INTERNAL_H
 
 #include "xrdc.h"
-#include "compat/crc32c.h"   
-#include "compat/pgio.h"     
-#include "compat/codec_core.h" 
-#include "protocol/frame_hdr.h"
-#include "protocol/open_flags.h"
-#include "protocol/readv_seg.h"
-#include "protocol/codec/wire_codec.h"   /* shared per-opcode wire-body codec */
+#include "core/compat/crc32c.h"   
+#include "core/compat/pgio.h"     
+#include "core/compat/codec_core.h" 
+#include "protocols/root/protocol/frame_hdr.h"
+#include "protocols/root/protocol/open_flags.h"
+#include "protocols/root/protocol/readv_seg.h"
+#include "protocols/root/protocol/codec/wire_codec.h"   /* shared per-opcode wire-body codec */
 #include <arpa/inet.h>
 #include <endian.h>
 #include <string.h>

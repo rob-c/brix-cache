@@ -1,6 +1,6 @@
 /*
  * test_cache_admit.c — standalone unit tests for the shared admission filter
- * (src/cache/cache_admit.c). Links against the compiled cache_admit.o.
+ * (src/fs/cache/cache_admit.c). Links against the compiled cache_admit.o.
  *
  * cache_admit.o reads ngx_array_t (elts/nelts) of xrootd_wt_prefix_entry_t
  * (ngx_str_t prefix). We mirror those layouts byte-compatibly and build the

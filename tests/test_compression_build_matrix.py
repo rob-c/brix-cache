@@ -35,7 +35,7 @@ import pytest
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CDIR = os.path.join(REPO, "tests", "c")
 PROTO = os.path.join(REPO, "shared", "xrdproto", "libxrdproto.a")
-CM = os.path.join(REPO, "src", "compat")
+CM = os.path.join(REPO, "src", "core", "compat")
 
 
 def _cc():

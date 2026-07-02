@@ -6,8 +6,8 @@
 #define XROOTD_DIAG_INTERNAL_H
 
 #include "xrdc.h"
-#include "compat/crypto.h"   
-#include "compat/hex.h"      
+#include "core/compat/crypto.h"   
+#include "core/compat/hex.h"      
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>

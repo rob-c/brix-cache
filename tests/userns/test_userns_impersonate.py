@@ -30,7 +30,7 @@ REPO = os.path.dirname(os.path.dirname(HERE))
 NGINX_SRC = os.environ.get("TEST_NGINX_SRC", "/tmp/nginx-1.28.3")
 CC = os.environ.get("CC", "cc")
 
-IMP = os.path.join(REPO, "src", "impersonate")
+IMP = os.path.join(REPO, "src", "auth", "impersonate")
 # broker.c was split into broker.c (dispatch) + broker_creds.c (become/restore/
 # drop_caps + the svc-user uid/gid globals) + broker_ops.c (imp_do_op); the
 # standalone driver must link all three or the privilege-switch symbols are
@@ -48,9 +48,9 @@ SRCS = [
 def _inc_flags():
     subs = [
         "src/core", "src/event", "src/event/modules", "src/os/unix",
-        "objs", "src/protocols/root/stream",
+        "objs", "src/stream",
     ]
-    return [f"-I{os.path.join(NGINX_SRC, s)}" for s in subs] + [f"-I{IMP}"]
+    return [f"-I{os.path.join(NGINX_SRC, s)}" for s in subs] + [f"-I{IMP}", f"-I{os.path.join(REPO, 'src')}"]
 
 
 def _userns_supported():

@@ -1,8 +1,15 @@
 # Phase 66 — `src/` conceptual re-alignment: concept-bucketed directory topology
 
-**Status: DRAFT v2 (design only) — re-measured and re-aligned 2026-07-02 against the
-post-phase-64 tree (HEAD `a9da9b9`). No code touched. This is a topology plan: every
-file keeps its content, basename, and logic; only paths move.**
+**Status: EXECUTED 2026-07-02** — the plan below (v2, re-measured the same day against
+the post-phase-64 tree) was carried out in 8 commits: step 0 include normalization +
+one commit per bucket (core, auth, fs, net, observability, protocols, protocols/root),
+each validated with a full clean rebuild, `nginx -t`, the VFS seam guard, and
+per-plane smoke tests; a final commit swept the guards/docs. `src/` now contains
+exactly `auth/ core/ fs/ net/ observability/ protocols/ tpc/`. Every move was a pure
+`git mv` (content-identical outside `#include` lines, enforced by
+`tools/refactor/p66_apply.py --verify`); the executable mapping is
+[phase-66-map.tsv](phase-66-map.tsv). Historical plan text below is unchanged and
+still uses the pre-move paths by design.
 
 > **One-line intent.** Collapse the 51 flat top-level directories under `src/`
 > (959 `.c`/`.h` files) into seven concept buckets — `core/ protocols/ fs/ auth/

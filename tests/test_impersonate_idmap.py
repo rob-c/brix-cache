@@ -24,9 +24,9 @@ def _inc_flags():
     base = NGINX_SRC
     subs = [
         "src/core", "src/event", "src/event/modules", "src/os/unix",
-        "objs", "src/protocols/root/stream",
+        "objs", "src/stream",
     ]
-    return [f"-I{os.path.join(base, s)}" for s in subs]
+    return [f"-I{os.path.join(base, s)}" for s in subs] + [f"-I{os.path.join(REPO, 'src')}"]
 
 
 @pytest.mark.timeout(60)

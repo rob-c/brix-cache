@@ -9,8 +9,8 @@
 #include "cred.h"                 
 #include "vfs.h"                  
 #include "zip.h"                  
-#include "compat/host_format.h"  
-#include "compat/hex.h"          
+#include "core/compat/host_format.h"  
+#include "core/compat/hex.h"          
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

@@ -8,7 +8,7 @@
  * HOW:  Thin arg parse → xrdc_proxy_create/info/destroy.
  */
 #include "xrdc.h"
-#include "compat/crypto.h"
+#include "core/compat/crypto.h"
 
 #include <stdio.h>
 #include <stdlib.h>

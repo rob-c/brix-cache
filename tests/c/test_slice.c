@@ -1,6 +1,6 @@
 /*
  * test_slice.c — standalone unit tests for the Phase 26 slice library
- * (src/cache/slice.c).
+ * (src/fs/cache/slice.c).
  *
  * This links against the real compiled slice.o + meta.o objects from the nginx
  * build and provides tiny stubs for the two externals slice.o needs that live
@@ -10,7 +10,7 @@
  *
  * The slice.h struct/prototypes are forward-declared here (rather than including
  * slice.h, which pulls in the full nginx headers) so the test compiles with a
- * plain gcc.  The struct layout MUST match src/cache/slice.h exactly.
+ * plain gcc.  The struct layout MUST match src/fs/cache/slice.h exactly.
  */
 
 #include <stdio.h>
@@ -31,7 +31,7 @@ typedef intptr_t  ngx_int_t;
 
 #define SLICE_128M (128u * 1024u * 1024u)
 
-/* Mirror of xrootd_slice_t from src/cache/slice.h (layout must match). */
+/* Mirror of xrootd_slice_t from src/fs/cache/slice.h (layout must match). */
 typedef struct {
     off_t       file_start;
     off_t       file_end;
@@ -72,7 +72,7 @@ xrootd_cache_file_ready(const char *path)
     return (access(path, F_OK) == 0) ? 1 : 0;
 }
 
-/* Mirrors src/cache/paths.c: appends ".meta".  Stubbed here so the test need
+/* Mirrors src/fs/cache/paths.c: appends ".meta".  Stubbed here so the test need
  * not link paths.o (which pulls in the whole path module). */
 int
 xrootd_cache_meta_path(char *dst, size_t dstsz, const char *cache_path)
@@ -81,7 +81,7 @@ xrootd_cache_meta_path(char *dst, size_t dstsz, const char *cache_path)
     return (n < 0 || (size_t) n >= dstsz) ? NGX_ERROR : NGX_OK;
 }
 
-/* Mirrors src/cache/cinfo.c: appends ".cinfo" (slice.o drops it on evict). */
+/* Mirrors src/fs/cache/cinfo.c: appends ".cinfo" (slice.o drops it on evict). */
 int
 xrootd_cache_cinfo_path(char *dst, size_t dstsz, const char *cache_path)
 {

@@ -14,7 +14,7 @@
  * XrdCl::URL source.
  */
 #include "xrdc.h"
-#include "compat/host_split.h"   /* shared host:port parse (libxrdproto) */
+#include "core/compat/host_split.h"   /* shared host:port parse (libxrdproto) */
 
 #include <string.h>
 #include <stdlib.h>

@@ -2,7 +2,7 @@
  * userns_broker_test.c — end-to-end test of the phase-40 impersonation broker
  * inside an UNPRIVILEGED user namespace (no real root required).
  *
- * WHAT: Drives the real privileged broker (src/impersonate/broker.c) + worker
+ * WHAT: Drives the real privileged broker (src/auth/impersonate/broker.c) + worker
  *   client (client.c) + identity mapper (idmap.c) through the actual AF_UNIX wire
  *   protocol — including SCM_RIGHTS fd passing — and asserts the security
  *   properties that justify the whole design:

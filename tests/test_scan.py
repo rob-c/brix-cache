@@ -29,7 +29,7 @@ import zlib
 import pytest
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SCAN = os.path.join(REPO, "src", "scan")
+SCAN = os.path.join(REPO, "src", "fs", "scan")
 SRCS = [
     os.path.join(SCAN, "scan_unittest.c"),
     os.path.join(SCAN, "scan_record.c"),

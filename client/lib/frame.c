@@ -20,8 +20,8 @@
 #include <string.h>
 #include <unistd.h>   /* sleep() for kXR_wait backoff */
 #include <time.h>     /* nanosleep() for sub-second kXR_wait jitter */
-#include "protocol/frame_hdr.h"   /* shared resp-hdr / wait / error codecs */
-#include "compat/host_format.h"   /* IPv6-bracketing host:port (libxrdproto) */
+#include "protocols/root/protocol/frame_hdr.h"   /* shared resp-hdr / wait / error codecs */
+#include "core/compat/host_format.h"   /* IPv6-bracketing host:port (libxrdproto) */
 
 int
 xrdc_send(xrdc_conn *c, void *hdr24, const void *payload, uint32_t plen,

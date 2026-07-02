@@ -232,7 +232,7 @@ configure(ngx_conf_t *cf)
 """
 
 _SYNTHETIC_GOOD = """
-#include "../compat/shm_slots.h"
+#include "core/compat/shm_slots.h"
 typedef struct { ngx_shmtx_sh_t lock; ngx_uint_t capacity; } my_table_t;
 
 static ngx_int_t

@@ -17,10 +17,10 @@
  * wire: XProtocol.hh ServerLoginBody — sessid[16] [+ "&P=..." security list].
  */
 #include "xrdc.h"
-#include "protocol/frame_hdr.h"      /* shared resp-hdr codec (libxrdproto) */
-#include "protocol/bootstrap_pack.h" /* shared handshake/protocol/login packers */
-#include "compat/host_format.h"   /* IPv6-bracketing host:port (libxrdproto) */
-#include "compat/crypto.h"        /* xrootd_crypto_init (SHA/HMAC arming)     */
+#include "protocols/root/protocol/frame_hdr.h"      /* shared resp-hdr codec (libxrdproto) */
+#include "protocols/root/protocol/bootstrap_pack.h" /* shared handshake/protocol/login packers */
+#include "core/compat/host_format.h"   /* IPv6-bracketing host:port (libxrdproto) */
+#include "core/compat/crypto.h"        /* xrootd_crypto_init (SHA/HMAC arming)     */
 
 #include <pthread.h>
 
@@ -358,7 +358,7 @@ xrdc_bind(xrdc_conn *sec, const xrdc_conn *primary, xrdc_status *st)
 
     /* A secondary stream re-runs handshake + kXR_protocol [+ TLS] against the
      * SAME target but SKIPS kXR_login; the server inherits identity from the
-     * primary's session via kXR_bind{sessid}. (src/session/bind.c) */
+     * primary's session via kXR_bind{sessid}. (src/protocols/root/session/bind.c) */
     memset(sec, 0, sizeof(*sec));
     sec->io.timeout_ms = primary->io.timeout_ms;
     sec->opts          = primary->opts;

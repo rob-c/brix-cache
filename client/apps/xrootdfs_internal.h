@@ -11,8 +11,8 @@
 #include "posix_map.h"       
 #include "iobuf.h"           
 #include "fuse_ops.h"        
-#include "compat/crypto.h"   
-#include "protocol/open_flags.h" 
+#include "core/compat/crypto.h"   
+#include "protocols/root/protocol/open_flags.h" 
 #include <fuse3/fuse.h>
 #include <errno.h>
 #include <fcntl.h>

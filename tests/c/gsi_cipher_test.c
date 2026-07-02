@@ -1,13 +1,13 @@
 /*
  * gsi_cipher_test.c — unit vectors for the shared XrdCryptosslCipher-compatible
- * GSI primitives in src/gsi/gsi_core.c (phase-48 W4).  These verify the crypto
+ * GSI primitives in src/auth/gsi/gsi_core.c (phase-48 W4).  These verify the crypto
  * MATH is self-consistent (DH agreement survives the Public()/parse_peer wire
  * round-trip; AES-128 encrypt/decrypt round-trips) without needing a live peer —
  * the live-interop check is tests/test_native_gsi_interop.py.  Run by
  * tests/test_gsi_cipher.py.  Prints "ALL PASSED" on success.
  */
-#include "gsi/gsi_core.h"
-#include "protocol/gsi.h"
+#include "auth/gsi/gsi_core.h"
+#include "protocols/root/protocol/gsi.h"
 
 #include <stdio.h>
 #include <string.h>

@@ -3,14 +3,14 @@
  *
  * See sss_keytab.h for the contract. The CRC32 and Blowfish-CFB64 routines route
  * through the shared libxrdproto kernels (crc32_ieee / sss_bf), and the keytab
- * line grammar + permission check come from the shared src/sss/sss_keytab_kernel.c
+ * line grammar + permission check come from the shared src/auth/sss/sss_keytab_kernel.c
  * — one source of truth with the server's parser (no clean-room duplicate to drift).
  */
 #include "sss_keytab.h"
-#include "compat/crc32_ieee.h"   /* shared CRC-32/IEEE (libxrdproto) */
-#include "compat/sss_bf.h"       /* shared Blowfish-CFB64 (libxrdproto) */
-#include "compat/hex.h"          /* shared hex encode/from_char (libxrdproto) */
-#include "sss/sss_keytab_kernel.h" /* shared keytab line grammar + mode check */
+#include "core/compat/crc32_ieee.h"   /* shared CRC-32/IEEE (libxrdproto) */
+#include "core/compat/sss_bf.h"       /* shared Blowfish-CFB64 (libxrdproto) */
+#include "core/compat/hex.h"          /* shared hex encode/from_char (libxrdproto) */
+#include "auth/sss/sss_keytab_kernel.h" /* shared keytab line grammar + mode check */
 
 #include <ctype.h>
 #include <errno.h>

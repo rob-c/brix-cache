@@ -13,7 +13,7 @@
  *
  * Build (clang + libFuzzer + ASAN):
  *   clang -O1 -g -fsanitize=fuzzer,address,undefined \
- *       -I ../../src -I ../../src/shared fuzz_safe_size.c -o fuzz_safe_size
+ *       -I ../../src -I ../../src/core/compat fuzz_safe_size.c -o fuzz_safe_size
  *
  * The helpers depend only on <ngx_config.h>/<ngx_core.h> for ngx_int_t/size_t
  * and the alloc wrappers; to keep this target standalone we provide the minimal

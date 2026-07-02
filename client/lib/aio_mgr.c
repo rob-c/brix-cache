@@ -26,8 +26,8 @@
  */
 #include "aio.h"
 #include "xrdc.h"
-#include "protocol/protocol.h"
-#include "compat/codec_core.h"   /* phase-42 W4 inline read decompression */
+#include "protocols/root/protocol/protocol.h"
+#include "core/compat/codec_core.h"   /* phase-42 W4 inline read decompression */
 
 #include <pthread.h>
 #include <stdlib.h>

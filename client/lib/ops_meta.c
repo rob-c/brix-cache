@@ -14,8 +14,8 @@
  * wire: XProtocol.hh kXR_dirlist dstat — ".\n0 0 0 0" prefix, then name\nstat\n pairs.
  */
 #include "xrdc.h"
-#include "protocol/stat_line.h"    /* shared stat-line grammar (decode side) */
-#include "protocol/dirlist_fmt.h"  /* shared dstat lead-in sentinel */
+#include "protocols/root/protocol/stat_line.h"    /* shared stat-line grammar (decode side) */
+#include "protocols/root/protocol/dirlist_fmt.h"  /* shared dstat lead-in sentinel */
 
 #include <arpa/inet.h>
 #include <stdio.h>

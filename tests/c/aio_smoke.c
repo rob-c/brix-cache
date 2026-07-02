@@ -25,7 +25,7 @@
  */
 #include "aio.h"
 #include "xrdc.h"
-#include "protocol/protocol.h"
+#include "protocols/root/protocol/protocol.h"
 
 #include <pthread.h>
 #include <stdio.h>

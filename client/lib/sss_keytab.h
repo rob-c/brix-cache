@@ -5,7 +5,7 @@
  *       credential needs: the IEEE CRC32 integrity word and Blowfish-CFB64
  *       encryption. Shared by sec_sss.c (the auth module) and xrdsssadmin.c.
  * WHY:  The native client must speak SSS to an XRootD server byte-for-byte. The
- *       server's own implementation (src/sss/) is nginx-coupled, so the small,
+ *       server's own implementation (src/auth/sss/) is nginx-coupled, so the small,
  *       standard kernels are reimplemented here from the wire spec (NOT copied
  *       from XrdSecsss) — clean-room. The CRC is IEEE (poly 0xedb88320), NOT the
  *       Castagnoli crc32c in libxrdproto.
@@ -14,14 +14,14 @@
  *       variable key length, an all-zero 8-byte IV, and loads the OpenSSL-3
  *       "legacy" provider once.
  *
- * Cross-checked against src/sss/{config.c,auth_crypto_helpers.c,
+ * Cross-checked against src/auth/sss/{config.c,auth_crypto_helpers.c,
  * auth_proxy_credential.c}; see docs/refactor/phase-37-clean-room-log.md.
  */
 #ifndef XRDC_SSS_KEYTAB_H
 #define XRDC_SSS_KEYTAB_H
 
 #include "xrdc.h"
-#include "protocol/sss.h"   /* shared SSS wire constants (single source of truth) */
+#include "protocols/root/protocol/sss.h"   /* shared SSS wire constants (single source of truth) */
 
 /* Wire constants — aliased to the shared XROOTD_SSS_* so the two sides cannot
  * drift, while keeping the client's XRDC_SSS_* spelling at the call sites. */
