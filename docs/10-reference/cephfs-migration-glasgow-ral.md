@@ -122,13 +122,46 @@ g++ -std=c++17 -D_FILE_OFFSET_BITS=64 tests/ceph/xrdceph_striper_migrate.cpp \
 
 ## Procedure (zero-move)
 
-1. **Dry-run** to preview (no writes):
+1. **Dry-run** to preview (no writes) **and forecast the wall clock**:
    ```bash
    xrdceph_striper_migrate <striper_pool> <cephfs_data_pool> /<dest> \
-       --list files.txt --dry-run
+       --list files.txt --dry-run --threads 8
    ```
    `files.txt` = one **soid** (LFN) per line; omit `--list` to enumerate the pool.
    `--strip <pfx>` trims a leading prefix before joining `/<dest>`.
+
+   Besides listing every action, the dry-run **forecasts the wall clock** for
+   both modes. It does this the only way that is reliably accurate: it **really
+   migrates a small representative sample** of the work list (a handful of files
+   picked by an even stride across sizes) at the configured `--threads`, times
+   it, **rolls it back**, and scales the timing up to the full inventory —
+   redirect by file count, copy by bytes. Because the sample runs the exact
+   migration code path, every real cost is captured (MDS create + layout +
+   xattr carry + truncate, the per-file pool enumeration, per-object stub /
+   `copy_from`, and MDS/OSD contention at your thread count) — nothing is
+   modeled or guessed:
+
+   ```
+   == DRY-RUN ESTIMATE (pool 'xrdtest' -> '/dest', 8 thread(s)) ==
+   inventory: 1,204,331 file(s), 812.4 GiB, ~208,117 data object(s); pool holds 1,412,448 object(s)
+   calibration @ 8 thr: redirect sample 16 file(s) in 0.4 s (38 file/s), copy sample 8 file(s) in 6.1 s @ 105 MiB/s; enum 41220 obj/s; client read 480 MiB/s
+   mode redirect (zero-move):   ~8.8 h
+   mode copy (in-cluster):      ~2.2 h
+     + --verify:                +29 min
+   ```
+
+   **Safety:** the calibration's redirect sample is zero-move and rolled back
+   (stubs detached first, source intact); its copy sample creates owned objects
+   that are unlinked afterward. The **source pool is never written**, exactly as
+   in a real dry-run.
+
+   **Accuracy** improves the longer the real run is (a multi-hour migration is
+   dominated by the measured body, not by one-time connect/mount overhead), and
+   it depends on the sample being representative. For a **skewed file-size
+   distribution**, forecast per shard: split `files.txt` and dry-run each shard.
+   Note the tool scans the whole pool once per file to find its stripes, so for
+   very large pools the enumeration term (reported as `enum obj/s`) can dominate
+   — sharding with `--list` bounds it.
 
 2. **Migrate (zero-move) with verify**:
    ```bash
@@ -187,7 +220,8 @@ redirects point at).
 | `--verify` | read + compare `user.XrdCks.adler32` |
 | `--delete-source` | (copy mode only) drop striper objects after verify |
 | `--force` | re-migrate even if the target exists |
-| `--dry-run` | report actions, write nothing |
+| `--dry-run` | report actions, write nothing; probe the pool (read-only) and print a per-mode wall-clock estimate |
+| `--sample-mb N` | dry-run read-bandwidth probe budget in MiB (default 64) |
 | `--conf PATH` | ceph.conf (default `/etc/ceph/ceph.conf` / `$CEPH_CONF`) |
 
 ## Safety summary
