@@ -26,10 +26,10 @@ The Protocol Unification Initiative aims to consolidate XRootD (stream), WebDAV 
 ### What's Planned
 
 Consolidate two separate path resolution implementations:
-- **Stream Resolver** (`src/path/resolve_path_variants.c`) - XRootD protocol
+- **Stream Resolver** (`src/fs/path/resolve_path_variants.c`) - XRootD protocol
 - **HTTP Resolver** (`src/core/compat/path.c`) - WebDAV/S3 protocols
 
-Into a single unified resolver: `src/path/unified.c`
+Into a single unified resolver: `src/fs/path/unified.c`
 
 ### Design Artifacts Created
 

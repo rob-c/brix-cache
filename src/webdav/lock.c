@@ -10,7 +10,7 @@
  * O(path_depth) xattr reads rather than O(1024) SHM slot scans.
  */
 #include "webdav.h"
-#include "path/path.h"
+#include "fs/path/path.h"
 #include "fs/vfs.h"   /* lock-DB namespace ops via the VFS seam */
 #include "auth/impersonate/lifecycle.h"
 #include "webdav/locks/request.h"

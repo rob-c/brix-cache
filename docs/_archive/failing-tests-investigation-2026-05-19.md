@@ -259,7 +259,7 @@ assert _error_code(body) != kXR_ARG_INVALID, "shallow path must not be depth-rej
 
 ### Problem B — implementation: depth check returns silent null instead of kXR_ArgInvalid
 
-`src/path/resolve_path_variants.c` line 69–72:
+`src/fs/path/resolve_path_variants.c` line 69–72:
 
 ```c
 if (xrootd_count_path_depth(reqpath) != NGX_OK) {
@@ -316,7 +316,7 @@ cleaner. The same two-line block needs to be inserted in:
 - Any other opcode handler that calls `xrootd_resolve_path` with untrusted paths
 
 The `xrootd_count_path_depth` function already exists in
-`src/path/helpers.c:128` and `XROOTD_MAX_WALK_DEPTH` is defined in
+`src/fs/path/helpers.c:128` and `XROOTD_MAX_WALK_DEPTH` is defined in
 `src/core/types/tunables.h:36`.
 
 ### Tests
@@ -442,7 +442,7 @@ not reachable.
 |---|---------|------|--------|-----------------|
 | 1 | `TestCmsSelectWake` + `TestCmsKyrTry` (3) | Implementation bug | Medium | `src/cms/recv.c:57` |
 | 2 | `test_locate_waitresp_then_redirect` (1) | Implementation bug | Low | `src/proxy/forward_relay_response.c` |
-| 3B | `test_deep_path_rejected_by_guard` + `test_malicious_symlink_chain_blocked` (2) | Implementation bug | Low | `src/path/resolve_path_variants.c:71` |
+| 3B | `test_deep_path_rejected_by_guard` + `test_malicious_symlink_chain_blocked` (2) | Implementation bug | Low | `src/fs/path/resolve_path_variants.c:71` |
 | 3A | `test_normal_path_passes_depth_check` (1) | Test code bug | Trivial | `tests/test_path_depth_guards.py:151` |
 | 4a | xrdhttp (4+2+1=7) | Infra + test code bugs | Low–Medium | `tests/test_xrdhttp_*.py` |
 | 4b | interop_query (8) | Test code bugs + divergence | Low | `tests/test_interop_query.py` |
@@ -462,7 +462,7 @@ Test code bugs and divergences: **18 tests** requiring test-only changes.
 - The `tests/test_a_upstream_redirect.py` fixture `upstream_waitresp_nginx`
   starts its own isolated nginx instance; changes to the proxy relay path require
   a `make` rebuild before the fixture picks them up.
-- `src/path/resolve_path_variants.c` is called by the resolve path in all three
+- `src/fs/path/resolve_path_variants.c` is called by the resolve path in all three
   opcode families (read, write, namespace); any change to its null-return
   semantics must be validated across `src/read/open_request.c`,
   `src/write/mkdir.c`, `src/write/rm.c`, and `src/write/mv.c`.

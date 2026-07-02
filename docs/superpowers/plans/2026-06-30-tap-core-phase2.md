@@ -584,7 +584,7 @@ Expected: PASS — `tap_unittest: all checks passed`.
 
 - [ ] **Step 1: Find the addon source list**
 
-Run: `grep -n "src/cache/origin_connection.c\|ngx_addon_dir/src" config | head -3`
+Run: `grep -n "src/fs/cache/origin_connection.c\|ngx_addon_dir/src" config | head -3`
 Expected: shows the `$ngx_addon_dir/src/...c` list lines where each `.c` is registered.
 
 - [ ] **Step 2: Add the three tap sources**

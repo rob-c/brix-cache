@@ -118,7 +118,7 @@ valid rejections (no directory is created). The two probes pin the stable contra
 
 Running the wider suite against the full topology fleet surfaced a **latent
 self-consistency regression** introduced by fix #7 (4-byte open response): the
-write-through cache's hand-rolled origin client (`src/cache/origin_protocol.c`)
+write-through cache's hand-rolled origin client (`src/fs/cache/origin_protocol.c`)
 required the open reply to be `>= sizeof(ServerOpenBody)` (12 bytes), but a
 conformant non-`retstat` open now returns a bare **4-byte** fhandle. The cache
 rejected the valid reply, aborted the flush after opening the origin file, and

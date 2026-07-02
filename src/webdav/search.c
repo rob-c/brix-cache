@@ -8,7 +8,7 @@
 
 #include "webdav.h"
 #include "auth/impersonate/lifecycle.h"
-#include "path/path.h"
+#include "fs/path/path.h"
 #include "fs/vfs.h"   /* confined walk via vfs_opendir_quiet/readdir_kind/probe */
 #include "core/compat/fs_walk.h"
 #include "core/compat/http_body.h"

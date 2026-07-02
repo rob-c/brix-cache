@@ -352,5 +352,5 @@ are proven end-to-end without real root by the user-namespace test suite in
 `src/auth/impersonate/` — `idmap.c` (mapping), `broker.c` (privileged broker),
 `client.c` (worker client), `lifecycle.c` (directives + spawn + request hooks),
 `impersonate_proto.h` (wire frames). The confined-FS seam lives in
-`src/path/beneath.c` (stream) and `src/path/resolve_confined_ops.c` (HTTP/S3).
+`src/fs/path/beneath.c` (stream) and `src/fs/path/resolve_confined_ops.c` (HTTP/S3).
 Design doc: [`docs/refactor/phase-40-unix-impersonation.md`](../../docs/refactor/phase-40-unix-impersonation.md).

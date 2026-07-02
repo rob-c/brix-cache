@@ -14,7 +14,7 @@
  */
 
 #include "path.h"
-#include "path/beneath.h"
+#include "fs/path/beneath.h"
 #include "path/op_path.h"
 
 int

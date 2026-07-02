@@ -675,7 +675,7 @@ revertable). Every change honors the global rules in §0 and updates the touched
 - describes WebDAV locks as lost on reload — they are xattr-persisted (the real
   bug is reboot-expiry, W3.2 gap 1) and lock-null is already implemented;
 - understates outbound TLS/auth (cache-fill `gotoTLS` + single-round auth done,
-  TPC pull does 2-round GSI) and the proxy file cache (`src/cache/` is a real
+  TPC pull does 2-round GSI) and the proxy file cache (`src/fs/cache/` is a real
   read-through cache).
 Also retire the obsolete OAK discovery memories describing the SHM-1024-slot lock
 table.

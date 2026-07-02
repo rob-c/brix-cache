@@ -20,8 +20,8 @@
  */
 #include "core/ngx_xrootd_module.h"
 #include "op_path.h"
-#include "beneath.h"
-#include "path_internal.h"
+#include "fs/path/beneath.h"
+#include "fs/path/path_internal.h"
 #include "fs/vfs.h"   /* existence/type pre-gate via the VFS seam */
 #include "fs/vfs_backend_registry.h"  /* POSIX-vs-driver existence-gate routing */
 

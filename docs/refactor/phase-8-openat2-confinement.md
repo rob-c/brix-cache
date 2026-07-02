@@ -12,12 +12,12 @@
 
 This phase has moved beyond the partial state described in the original
 2026-06-12 audit. Runtime client paths now use the kernel-backed
-`openat2(RESOLVE_BENEATH)` flow documented in `src/path/README.md`: stream
+`openat2(RESOLVE_BENEATH)` flow documented in `src/fs/path/README.md`: stream
 handlers enter through `xrootd_resolve_op_path()` / `xrootd_path_resolve_beneath`,
 HTTP/S3 have `conf->common.rootfd`, and `realpath(3)` is retained only for
 trusted config-time policy canonicalisation. The older call-site map below is
 kept as migration history and should not be quoted as current status without
-rechecking `src/path/README.md` and the live callers.
+rechecking `src/fs/path/README.md` and the live callers.
 
 **Step A — persistent rootfd + `beneath` API: ✅ DONE (stream + HTTP).**
 `src/path/beneath.{c,h}` exist (`xrootd_open_beneath`, `xrootd_stat_beneath`,
@@ -47,7 +47,7 @@ migration" below is unblocked.
 |---|---|
 | Stream — migrated (use `beneath`) | `read/statx.c`, `read/open_cache.c`, `read/open_resolved_file.c`, `connection/fd_table.c`, `fs/vfs_open.c` (with fallback), `read/truncate`… `write/truncate.c`, `query/prepare.c`, `tpc/launch.c`, `query/checksum_ckscan_common.c` |
 | Stream — still OLD-only | `read/pgread.c`, `read/read.c`, `read/open_overview.c`, `aio/dirlist.c`, `write/chkpoint.c`, `write/mv.c` (12 old refs), `write/mkdir.c` |
-| **HTTP (WebDAV + S3)** | **Superseded:** `ngx_http_xrootd_shared_conf_t` now carries `common.rootfd`; HTTP/S3 reach the beneath/confined primitives through the shared compat layer. See `src/path/README.md` for current status. |
+| **HTTP (WebDAV + S3)** | **Superseded:** `ngx_http_xrootd_shared_conf_t` now carries `common.rootfd`; HTTP/S3 reach the beneath/confined primitives through the shared compat layer. See `src/fs/path/README.md` for current status. |
 
 **Step C — delete old stack: ❌ BLOCKED (correctly).** The old API is still called
 from ~30+ sites: `xrootd_resolve_path` (9 callers), `xrootd_open_confined_canon`
@@ -163,7 +163,7 @@ computes a relative path, then calls `openat2()` — and closes the rootfd.
 
 ### What `openat2(RESOLVE_BENEATH)` already provides
 
-From `src/path/resolve_confined_helpers.c`:
+From `src/fs/path/resolve_confined_helpers.c`:
 
 ```c
 static int
@@ -292,7 +292,7 @@ xrootd_exit_process(ngx_cycle_t *cycle)
 
 ### 2. New `xrootd_open_beneath()` API
 
-New file `src/path/beneath.h` + `src/path/beneath.c` (~100 LoC total):
+New file `src/fs/path/beneath.h` + `src/fs/path/beneath.c` (~100 LoC total):
 
 ```c
 /* beneath.h */
@@ -439,13 +439,13 @@ After each file, build + run targeted tests for that subsystem.
 
 Once all call sites are on `xrootd_open_beneath()`:
 
-1. Delete `src/path/resolve_path_variants.c`
-2. Delete `src/path/canonical.c`
-3. Delete the `realpath` logic in `src/path/unified.c` (down to ~200 LoC)
-4. Delete the fallback walker from `src/path/resolve_confined_helpers.c`
-5. Delete `src/path/resolve_confined_ops.c` (all callers gone)
-6. Slim `src/path/normalize.c` to the strip helper only
-7. Slim `src/path/helpers.c` to the log-sanitise helper only
+1. Delete `src/fs/path/resolve_path_variants.c`
+2. Delete `src/fs/path/canonical.c`
+3. Delete the `realpath` logic in `src/fs/path/unified.c` (down to ~200 LoC)
+4. Delete the fallback walker from `src/fs/path/resolve_confined_helpers.c`
+5. Delete `src/fs/path/resolve_confined_ops.c` (all callers gone)
+6. Slim `src/fs/path/normalize.c` to the strip helper only
+7. Slim `src/fs/path/helpers.c` to the log-sanitise helper only
 8. Remove unneeded entries from `config.h`; run `./configure` + `make`.
 
 ---
@@ -555,17 +555,17 @@ authoritative as any userspace prefix check.
 
 | File | Current LoC | After | Delta |
 |---|---|---|---|
-| `src/path/resolve_confined_helpers.c` | 438 | ~80 | −358 |
-| `src/path/resolve_confined_ops.c` | 414 | 0 (deleted) | −414 |
-| `src/path/resolve_path_variants.c` | 70 | 0 (deleted) | −70 |
-| `src/path/canonical.c` | 63 | 0 (deleted) | −63 |
-| `src/path/normalize.c` | 84 | ~20 | −64 |
-| `src/path/helpers.c` | 179 | ~40 | −139 |
-| `src/path/unified.c` | 663 | ~250 | −413 |
+| `src/fs/path/resolve_confined_helpers.c` | 438 | ~80 | −358 |
+| `src/fs/path/resolve_confined_ops.c` | 414 | 0 (deleted) | −414 |
+| `src/fs/path/resolve_path_variants.c` | 70 | 0 (deleted) | −70 |
+| `src/fs/path/canonical.c` | 63 | 0 (deleted) | −63 |
+| `src/fs/path/normalize.c` | 84 | ~20 | −64 |
+| `src/fs/path/helpers.c` | 179 | ~40 | −139 |
+| `src/fs/path/unified.c` | 663 | ~250 | −413 |
 | `src/core/compat/namespace_ops.c` | 303 | ~200 | −103 |
 | `src/core/compat/fs_walk.c` | 326 | ~250 | −76 |
-| `src/path/beneath.h` (new) | 0 | +45 | +45 |
-| `src/path/beneath.c` (new) | 0 | +80 | +80 |
+| `src/fs/path/beneath.h` (new) | 0 | +45 | +45 |
+| `src/fs/path/beneath.c` (new) | 0 | +80 | +80 |
 | **Net** | | | **−1,575** |
 
 Conservative estimate after accounting for missed deletions and partial
@@ -577,14 +577,14 @@ migrations: **−1,080 LoC**.
 
 ```
 # Add:
-$ngx_addon_dir/src/path/beneath.c
+$ngx_addon_dir/src/fs/path/beneath.c
 
 # Remove (Step C):
-$ngx_addon_dir/src/path/resolve_confined_helpers.c
-$ngx_addon_dir/src/path/resolve_confined_ops.c
-$ngx_addon_dir/src/path/resolve_path_variants.c
-$ngx_addon_dir/src/path/canonical.c
-$ngx_addon_dir/src/path/normalize.c     (replaced by strip helper in beneath.h)
+$ngx_addon_dir/src/fs/path/resolve_confined_helpers.c
+$ngx_addon_dir/src/fs/path/resolve_confined_ops.c
+$ngx_addon_dir/src/fs/path/resolve_path_variants.c
+$ngx_addon_dir/src/fs/path/canonical.c
+$ngx_addon_dir/src/fs/path/normalize.c     (replaced by strip helper in beneath.h)
 ```
 
 Requires `./configure` twice: once after Step A, once after Step C.
@@ -596,7 +596,7 @@ Requires `./configure` twice: once after Step A, once after Step C.
 The build must refuse to compile on kernels without openat2 support:
 
 ```c
-/* src/path/beneath.c top of file */
+/* src/fs/path/beneath.c top of file */
 #include <linux/openat2.h>
 
 #ifndef RESOLVE_BENEATH

@@ -4,7 +4,7 @@
 **Owner:** Rob Currie
 **Date:** 2026-06-29
 **Supersedes/extends:** [`2026-06-29-storage-scan-verify-design.md`](2026-06-29-storage-scan-verify-design.md)
-— that spec defined the `src/scan/` engine (`dump`/`verify`/`fill`/`compare`) and
+— that spec defined the `src/fs/scan/` engine (`dump`/`verify`/`fill`/`compare`) and
 the `xrdstorascan` client. This spec **folds the new backend-sysadmin feature
 menu into that same engine and tool** rather than spawning parallel tooling
 (operator decision 2026-06-29: "fold entirely into scan").
@@ -232,7 +232,7 @@ Built incrementally; each phase ships and is tested on its own.
 1. **Phase 1 — client-only, zero server dependency (ships now):** `xrdstorascan`
    tool foundation + `verify --wire` (A1) + client-side `bench` (B1, `--wire`).
    These answer both original example asks, work against any backend over today's
-   wire, and need no `src/scan` engine. *(TDD against the existing test fleet.)*
+   wire, and need no `src/fs/scan` engine. *(TDD against the existing test fleet.)*
 2. **Phase 2 — base scan engine** (`dump`/`verify`/`fill`/`compare`) per the
    superseded spec — the server-side foundation the rest of the modes ride on.
 3. **Phase 3 — introspection modes:** `inspect` (A2) + `health` (C1) (point

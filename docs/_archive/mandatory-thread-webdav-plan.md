@@ -51,7 +51,7 @@ These `.c` files check `conf->thread_pool == NULL` at runtime — after making t
 | File | Location | Pattern | Action |
 |------|----------|---------|--------|
 | `src/write/common.c` | ~line 106–163 | `if (conf->thread_pool == NULL) { /* sync fallback */ }` | Convert to assert or remove — pool always exists |
-| `src/cache/open_or_fill.c` | ~line X | `if (conf->thread_pool == NULL)` | Convert to assert |
+| `src/fs/cache/open_or_fill.c` | ~line X | `if (conf->thread_pool == NULL)` | Convert to assert |
 | `src/webdav/postconfig.c` | lines 88–92 | `if (wdcf->thread_pool == NULL) { NGX_LOG_NOTICE }` | Remove — pool always resolved, change log level if needed |
 | `src/s3/module.c` | lines 133–137 | `if (scf->thread_pool == NULL) { NGX_LOG_NOTICE }` | Remove |
 | `src/core/aio/config.c` | lines 49–61 | Cache-required pool check + fallback notice | Keep cache-required check; remove fallback notice path |
@@ -160,7 +160,7 @@ For each .c file, remove the `#if (NGX_THREADS)` / `#endif` pair and keep all co
   - Collapse module context slot from `#if/else/#endif` pattern to single entry: `ngx_http_s3_postconfiguration, /* postconfiguration */`
 
 **Files with runtime NULL checks that become no-ops:**
-- `src/write/common.c`, `src/cache/open_or_fill.c`: convert `conf->thread_pool == NULL` fallback paths to either assertions or remove entirely (pool always exists)
+- `src/write/common.c`, `src/fs/cache/open_or_fill.c`: convert `conf->thread_pool == NULL` fallback paths to either assertions or remove entirely (pool always exists)
 - `src/webdav/postconfig.c` lines 88–92: change "NOT found" notice to never-executed path, or remove the else branch
 - `src/s3/module.c` lines 133–137: same — pool always resolved
 

@@ -66,7 +66,7 @@ config-time validation enforces this.
 
 ## Component 1 — cache storage instances (always a driver)
 
-`src/cache/cache_storage.{c,h}` (new): config-time registration + per-worker
+`src/fs/cache/cache_storage.{c,h}` (new): config-time registration + per-worker
 resolution of the three role instances. `xrootd_cache_storage(conf)` and
 `xrootd_cache_wt_stage(conf)` return the bound `xrootd_sd_instance_t *` (POSIX
 driver bound to the role's root when no backend named — never NULL when the role
@@ -162,18 +162,18 @@ byte-for-byte unchanged (existing cache pytest + `run_pblock_writethrough.sh` +
 
 ## Files touched (high level)
 
-- `src/cache/cache_storage.{c,h}` (new) — the three role instances + resolution.
-- `src/cache/directives.c`/`module.c`/`src/core/types/config.h`/`server_conf.c` —
+- `src/fs/cache/cache_storage.{c,h}` (new) — the three role instances + resolution.
+- `src/fs/cache/directives.c`/`module.c`/`src/core/types/config.h`/`server_conf.c` —
   `xrootd_cache_storage_backend`, `xrootd_cache_wt_stage_backend`,
   `xrootd_cache_wt_stage_root`; state-root validation.
-- `src/cache/fetch.c` — `staged_*` fill + sink + commit-then-verify.
-- `src/cache/origin_protocol.c`/`origin_response.c` — read into the sink.
-- `src/cache/open.c` — driver hit-open + obj-adopt.
-- `src/cache/evict_candidates.c`/`evict_policy.c`/`cache_reap.c` — driver enumeration.
-- `src/cache/meta.c`/`cinfo.c` — sidecar byte I/O via the (POSIX) driver (pure
+- `src/fs/cache/fetch.c` — `staged_*` fill + sink + commit-then-verify.
+- `src/fs/cache/origin_protocol.c`/`origin_response.c` — read into the sink.
+- `src/fs/cache/open.c` — driver hit-open + obj-adopt.
+- `src/fs/cache/evict_candidates.c`/`evict_policy.c`/`cache_reap.c` — driver enumeration.
+- `src/fs/cache/meta.c`/`cinfo.c` — sidecar byte I/O via the (POSIX) driver (pure
   helpers unchanged; the standalone unit test keeps a raw-fd shim).
-- `src/cache/lock.c`/`paths.c` — lock sentinel + mkdir/stat via the driver.
-- `src/cache/writethrough_flush.c` — flush reads from the write-staging copy.
+- `src/fs/cache/lock.c`/`paths.c` — lock sentinel + mkdir/stat via the driver.
+- `src/fs/cache/writethrough_flush.c` — flush reads from the write-staging copy.
 - `config`, `tests/run_cache_pblock_posix.sh`, `tests/run_cache_pblock_pblock.sh`.
 
 ## Follow-on (north star, not here)

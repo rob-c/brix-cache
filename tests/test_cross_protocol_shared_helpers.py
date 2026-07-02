@@ -95,7 +95,7 @@ def test_iso8601_and_hex_helpers_are_shared():
         ["xrootd_hex_nibble(", "xrootd_hex_from_char(", "xrootd_hex_encode("],
     )
     _assert_markers(
-        "src/path/helpers.c",
+        "src/fs/path/helpers.c",
         ["../compat/hex.h", "xrootd_hex_nibble("],
     )
     _assert_markers(
@@ -118,7 +118,7 @@ def test_iso8601_and_hex_helpers_are_shared():
         "src/s3/auth_sigv4_verify.c",
         ["../compat/hex.h", "xrootd_hex_encode("],
     )
-    _assert_absent("src/path/helpers.c", ["xrootd_hex_digit("])
+    _assert_absent("src/fs/path/helpers.c", ["xrootd_hex_digit("])
     _assert_absent("src/core/compat/xml.c", ["xrootd_xml_hex_digit("])
     _assert_absent("src/auth/token/macaroon.c", ["hex_to_int("])
     _assert_absent("src/core/compat/uri.c", ["hex_val("])
@@ -374,12 +374,12 @@ def test_unified_path_resolver_is_registered():
     _assert_markers(
         "config",
         [
-            "src/path/unified.h",
-            "src/path/unified.c",
+            "src/fs/path/unified.h",
+            "src/fs/path/unified.c",
         ],
     )
     _assert_markers(
-        "src/path/unified.h",
+        "src/fs/path/unified.h",
         [
             "xrootd_path_resolve_cstr(",
             "allow_missing_tail",
@@ -395,7 +395,7 @@ def test_stream_path_resolver_uses_unified_adapter():
     # unified.h adapter (allow_missing_parents).  ("realpath(" survives only in
     # the explanatory comment, so it is no longer in the absent set.)
     _assert_markers(
-        "src/path/resolve_path_variants.c",
+        "src/fs/path/resolve_path_variants.c",
         [
             '#include "unified.h"',
             "xrootd_path_resolve_cstr(",
@@ -403,7 +403,7 @@ def test_stream_path_resolver_uses_unified_adapter():
         ],
     )
     _assert_absent(
-        "src/path/resolve_path_variants.c",
+        "src/fs/path/resolve_path_variants.c",
         [
             "lstat(",
             "xrootd_path_component_forbidden(",

@@ -56,8 +56,8 @@ its own export rootfd, so a worker bug cannot escape the export root.
 
 1. After auth, the dispatcher calls `xrootd_imp_request_begin(identity)` (no-op
    unless `map`), which sets the worker's current principal.
-2. The confined-FS helpers — `xrootd_*_beneath()` (`src/path/beneath.c`) and the
-   legacy `xrootd_open_confined_canon()` (`src/path/resolve_confined_ops.c`, the
+2. The confined-FS helpers — `xrootd_*_beneath()` (`src/fs/path/beneath.c`) and the
+   legacy `xrootd_open_confined_canon()` (`src/fs/path/resolve_confined_ops.c`, the
    HTTP/S3 path) — check `xrootd_imp_client_active()` and, when active, send the
    op to the broker instead of running the syscall locally.
 3. `xrootd_imp_request_end()` clears the principal so it never leaks across the

@@ -121,7 +121,7 @@ connection hang, spin, leak, or be DoS'd — while a conformant official
 |---|---|---|
 | `ngx_add_timer` / `ngx_del_timer` / `ev->timedout` | `src/cms/connect.c`, `server_recv.c` | all new deadlines |
 | `xrootd_net_host_chars_valid()` | `src/manager/registry.c` (W1c choke point) | WS6 redirect-host gate |
-| `xrootd_sanitize_log_string()` | `src/path/helpers.c` | wire-derived log lines |
+| `xrootd_sanitize_log_string()` | `src/fs/path/helpers.c` | wire-derived log lines |
 | phase-39 `SO_KEEPALIVE`/`TCP_USER_TIMEOUT` setsockopt block | `src/connection/handler.c:109-135` | WS5 shared helper |
 | `NGX_CONF_UNSET*` → `ngx_conf_merge_*` → `ngx_command_t` | `src/core/config/server_conf.c`, `src/stream/module.c`, `src/cms/server_module.c` | WS7 directives |
 | Registry `last_seen` staleness | `src/manager/registry.c` | complements WS3 (selection-steer vs slot-reap) |

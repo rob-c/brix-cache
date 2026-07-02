@@ -431,7 +431,7 @@ With Phase 6 complete, the full unification project achieves:
 
 | Concern | Before | After |
 |:---|:---|:---|
-| Path resolution | 2 resolvers (stream + HTTP) | 1 resolver (`src/path/unified.c`) |
+| Path resolution | 2 resolvers (stream + HTTP) | 1 resolver (`src/fs/path/unified.c`) |
 | Identity/Auth | 3 structs, 3 auth flows | 1 `xrootd_identity_t`, 4 auth backends |
 | File I/O | 3 open/read/write implementations | 1 VFS layer (`src/fs/`) |
 | Cache | Stream-only | All protocols, transparent in VFS |

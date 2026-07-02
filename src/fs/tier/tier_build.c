@@ -19,7 +19,7 @@
 #include "fs/backend/stage/sd_stage.h"    /* xrootd_sd_stage_create          */
 #include "fs/backend/frm/sd_frm.h"        /* xrootd_sd_frm_create (tape)     */
 #include "fs/backend/rados/sd_ceph.h"     /* xrootd_sd_ceph_conf_t (rados)   */
-#include "cache/origin/s3_transport.h"  /* xrootd_s3_origin_curl_transport */
+#include "fs/cache/origin/s3_transport.h"  /* xrootd_s3_origin_curl_transport */
 
 #include <string.h>
 

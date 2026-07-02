@@ -134,7 +134,7 @@ Both resolvers currently hardcode `hints.ai_family = AF_UNSPEC`:
    `hints.ai_family = (int) af_policy`. Update all existing callers to pass
    `XROOTD_AF_AUTO` (no behavior change) except where the new directive applies.
 
-2. **`xrootd_cache_origin_connect_addr()`** (`src/cache/origin_connection.c`) —
+2. **`xrootd_cache_origin_connect_addr()`** (`src/fs/cache/origin_connection.c`) —
    read the configured policy off the cache fill ctx / origin config and set
    `hints.ai_family` from it.
 

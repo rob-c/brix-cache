@@ -493,7 +493,7 @@ not "splitting is work."
    (few functions need to lose `static`).
 4. **Extract sibling files in the same directory** (`foo.c` → `foo.c` +
    `foo_response.c`, …). Keep names descriptive and consistent with existing
-   siblings (`src/cache/{fetch,evict,slice}.c` is the model).
+   siblings (`src/fs/cache/{fetch,evict,slice}.c` is the model).
 5. **Shared internal contract** → a private `*_internal.h` (existing pattern:
    `cms_internal.h`, `metrics_internal.h`, `cache_internal.h`, `evict_internal.h`).
    Functions that must cross the new boundary lose `static` and gain a prototype

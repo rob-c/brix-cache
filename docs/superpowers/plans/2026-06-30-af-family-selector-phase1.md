@@ -215,9 +215,9 @@ git commit -m "refactor(net): thread af_policy through xrootd_resolve_connect_so
 - Modify: `src/core/types/config.h:429` area (add `cache_origin_family` field)
 - Modify: `src/core/config/server_conf.c:110` area (create default `NGX_CONF_UNSET_UINT`) and `:530` area (merge to `XROOTD_AF_AUTO`)
 - Modify: `src/stream/module.c:1177` area (register directive in the live command table)
-- Modify: `src/cache/directives.c` (add `xrootd_conf_set_cache_origin_family` handler)
+- Modify: `src/fs/cache/directives.c` (add `xrootd_conf_set_cache_origin_family` handler)
 - Modify: `src/core/config/config.h` (declare the handler prototype, next to `xrootd_conf_set_cache_origin`)
-- Modify: `src/cache/origin_connection.c:70` (read the policy into `hints.ai_family`)
+- Modify: `src/fs/cache/origin_connection.c:70` (read the policy into `hints.ai_family`)
 
 **Interfaces:**
 - Consumes: `xrootd_af_policy_parse` (Task 1), `xrootd_resolve_connect_socket` af_policy (Task 2 — not directly used here; the cache uses its own connect path).
@@ -308,7 +308,7 @@ Ensure `server_conf.c` sees the enum: add `#include "../compat/af_policy.h"` wit
 
 - [ ] **Step 3c: Add the directive handler**
 
-In `src/cache/directives.c`, add (with `#include "../compat/af_policy.h"` at the top):
+In `src/fs/cache/directives.c`, add (with `#include "../compat/af_policy.h"` at the top):
 
 ```c
 /* xrootd_conf_set_cache_origin_family — parse auto|inet|inet6 into the origin
@@ -354,7 +354,7 @@ In `src/stream/module.c`, immediately after the `xrootd_cache_origin_tls` comman
 
 - [ ] **Step 3e: Enforce at the connect site**
 
-In `src/cache/origin_connection.c` (`xrootd_cache_origin_connect_addr`, ~line 70), replace `hints.ai_family = AF_UNSPEC;` with a read of the policy:
+In `src/fs/cache/origin_connection.c` (`xrootd_cache_origin_connect_addr`, ~line 70), replace `hints.ai_family = AF_UNSPEC;` with a read of the policy:
 
 ```c
     ngx_memzero(&hints, sizeof(hints));
@@ -383,7 +383,7 @@ Expected: PASS — `auto/inet/inet6` accepted, `ipv4` rejected.
 
 ```bash
 git add src/core/types/config.h src/core/config/server_conf.c src/stream/module.c \
-        src/cache/directives.c src/core/config/config.h src/cache/origin_connection.c \
+        src/fs/cache/directives.c src/core/config/config.h src/fs/cache/origin_connection.c \
         tests/run_af_family_conf.sh
 git commit -m "feat(cache): xrootd_cache_origin_family directive constrains origin connect address family"
 ```

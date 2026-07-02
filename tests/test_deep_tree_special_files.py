@@ -10,7 +10,7 @@ Two server bugs are pinned here, both fixed 2026-06-26 (memory
      worker in the kernel ``wait_for_partner`` rendezvous FOREVER, freezing its
      event loop and every connection pinned to it — a remotely triggerable denial
      of service that a plain ``xrdcp -r`` over a tree containing a named pipe
-     trips.  Fix: force ``O_NONBLOCK`` on real opens (``src/path/beneath.c`` and
+     trips.  Fix: force ``O_NONBLOCK`` on real opens (``src/fs/path/beneath.c`` and
      ``src/read/open_resolved_file.c``) and reject non-regular files after fstat.
 
   2. ``O_PATH | O_NONBLOCK`` -> ``EINVAL``.  The first cut of fix #1 added

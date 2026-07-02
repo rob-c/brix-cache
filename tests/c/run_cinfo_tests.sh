@@ -5,7 +5,7 @@
 # Links the test against the real compiled cinfo.o from the nginx build tree
 # (no running server needed).  cinfo.o references only libc, so no stubs are
 # required; test_cinfo.c mirrors the on-disk struct layout + the public
-# prototypes (kept byte-compatible with src/cache/cinfo.h).
+# prototypes (kept byte-compatible with src/fs/cache/cinfo.h).
 #
 # Usage:  tests/c/run_cinfo_tests.sh [path-to-nginx-objs-dir]
 # Default objs dir: /tmp/nginx-1.28.3/objs

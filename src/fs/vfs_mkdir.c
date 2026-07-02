@@ -15,7 +15,7 @@
  *       EIO) and observed as XROOTD_METRIC_OP_MKDIR on every path.
  */
 #include "vfs_internal.h"
-#include "path/path.h"   /* xrootd_chmod_confined_canon (impersonation-aware) */
+#include "fs/path/path.h"   /* xrootd_chmod_confined_canon (impersonation-aware) */
 
 /* Create the resolved ctx path as a directory (mode), creating parents when
  * `parents`. Write-gated and confined; metered as OP_MKDIR. */

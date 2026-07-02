@@ -64,11 +64,11 @@ All three protocols use the same confined filesystem operations from `src/path/`
 
 | Function | File | Used By |
 |---|---|---|
-| `xrootd_open_confined_canon()` | `src/path/resolve_confined_ops.c` | Stream, WebDAV, S3 |
-| `xrootd_unlink_confined_canon()` | `src/path/resolve_confined_ops.c` | Stream, WebDAV, S3 |
-| `xrootd_mkdir_confined_canon()` | `src/path/resolve_confined_ops.c` | Stream, WebDAV, S3 |
-| `xrootd_rename_confined_canon()` | `src/path/resolve_confined_ops.c` | Stream, WebDAV, S3 |
-| `xrootd_link_confined_canon()` | `src/path/resolve_confined_ops.c` | Stream, WebDAV, S3 |
+| `xrootd_open_confined_canon()` | `src/fs/path/resolve_confined_ops.c` | Stream, WebDAV, S3 |
+| `xrootd_unlink_confined_canon()` | `src/fs/path/resolve_confined_ops.c` | Stream, WebDAV, S3 |
+| `xrootd_mkdir_confined_canon()` | `src/fs/path/resolve_confined_ops.c` | Stream, WebDAV, S3 |
+| `xrootd_rename_confined_canon()` | `src/fs/path/resolve_confined_ops.c` | Stream, WebDAV, S3 |
+| `xrootd_link_confined_canon()` | `src/fs/path/resolve_confined_ops.c` | Stream, WebDAV, S3 |
 
 **Current state:** All three protocols use the same confined helpers — these enforce export root boundary via `openat2(RESOLVE_BENEATH)` on Linux or parent-directory walk with `O_NOFOLLOW` as fallback. TOCTOU race closure is consistent across all paths.
 
@@ -166,7 +166,7 @@ These patterns are structurally similar but currently implemented separately. Un
 
 | Protocol | Function | File | Input Format |
 |---|---|---|---|
-| Stream (XRootD) | `xrootd_resolve_path()` variants | `src/path/resolve_path_variants.c` | Raw wire payload string |
+| Stream (XRootD) | `xrootd_resolve_path()` variants | `src/fs/path/resolve_path_variants.c` | Raw wire payload string |
 | WebDAV | `ngx_http_xrootd_webdav_resolve_path()` | `src/webdav/path.c` → URL-decodes then calls `xrootd_http_resolve_path()` | HTTP URI (percent-encoded) |
 | S3 | `s3_resolve_key()` | `src/s3/util.c` → key-strips then calls `xrootd_http_resolve_path()` | S3 object key + bucket prefix stripping |
 
@@ -266,7 +266,7 @@ These are capabilities that one protocol has but others lack. Adding them would 
 
 ### 3.1 Read-Through Cache — Stream Only, Could Expand to HTTP
 
-**Current state:** The read-through cache (`src/cache/`) operates only on the stream (XRootD) layer:
+**Current state:** The read-through cache (`src/fs/cache/`) operates only on the stream (XRootD) layer:
 - Anonymous `root://`/`roots://` clients trigger direct-mode cache fills from origin
 - Per-file worker locks prevent concurrent fill collisions
 - Write-through mirroring is implemented on kXR_sync/kXR_close
@@ -282,7 +282,7 @@ These are capabilities that one protocol has but others lack. Adding them would 
 WebDAV GET (`src/webdav/get.c`) and S3 GetObject (`src/s3/object.c`). When
 `xrootd_webdav_cache_root` (WebDAV) or `xrootd_s3_cache_root` (S3) is
 configured, each handler checks `xrootd_cache_file_ready()` from
-`src/cache/paths.c` before opening the canonical file path. On a cache hit
+`src/fs/cache/paths.c` before opening the canonical file path. On a cache hit
 the handler redirects to the cached path while preserving root confinement
 (the confined open uses `cache_root_canon` as the confinement root for cache
 paths). The `cache_root` field is stored in `ngx_http_xrootd_shared_conf_t`
@@ -501,13 +501,13 @@ These existing invariants from AGENTS.md should be preserved or updated during c
 ## 7. Files to Reference for Each Consolidation
 
 ### Path Resolution (Section 2.1)
-- `src/path/resolve_path_variants.c` — stream resolver variants
+- `src/fs/path/resolve_path_variants.c` — stream resolver variants
 - `src/webdav/path.c` → URL-decodes then calls `xrootd_http_resolve_path()` — webdav wrapper
 - `src/core/compat/path.c` → `xrootd_http_resolve_path()` — shared core logic
 - `src/s3/util.c` → `s3_resolve_key()` — S3 key-to-path mapper
 
 ### Confined Ops (Section 1.2)
-- `src/path/resolve_confined_ops.c` — all confined helpers
+- `src/fs/path/resolve_confined_ops.c` — all confined helpers
 - `src/webdav/webdav.h` — declarations for WebDAV callers
 - `src/s3/s3.h` — declarations for S3 callers
 
@@ -522,8 +522,8 @@ These existing invariants from AGENTS.md should be preserved or updated during c
 - `src/webdav/put.c` — current WebDAV inline staging
 
 ### Read-Through Cache (Section 3.1)
-- `src/cache/paths.c` — cache path resolution
-- `src/cache/README.md` — cache architecture overview
+- `src/fs/cache/paths.c` — cache path resolution
+- `src/fs/cache/README.md` — cache architecture overview
 - `src/webdav/get.c` — target for cache integration
 - `src/s3/object.c` — target for cache integration
 

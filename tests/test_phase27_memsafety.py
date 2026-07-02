@@ -77,7 +77,7 @@ def test_f4_session_reaper_and_f5_cap_drift():
 
 
 def test_f9_evict_realloc_guard():
-    e = _read("src/cache/evict_candidates.c")
+    e = _read("src/fs/cache/evict_candidates.c")
     assert "xrootd_size_mul" in e
     assert "XROOTD_EVICT_MAX_CANDIDATES" in e
 

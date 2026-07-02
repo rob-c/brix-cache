@@ -12,7 +12,7 @@
 
 Phase 1 consolidates two separate path resolution implementations into a single, unified resolver. Currently:
 
-- **Stream Path Resolver** (`src/path/resolve_path_variants.c`) - XRootD protocol
+- **Stream Path Resolver** (`src/fs/path/resolve_path_variants.c`) - XRootD protocol
 - **HTTP Path Resolver** (`src/core/compat/path.c`) - WebDAV/S3 protocols
 
 This creates security inconsistencies and maintenance overhead. A unified resolver will:
@@ -25,7 +25,7 @@ This creates security inconsistencies and maintenance overhead. A unified resolv
 
 ## Current State Analysis
 
-### Stream Resolver (`src/path/resolve_path_variants.c`)
+### Stream Resolver (`src/fs/path/resolve_path_variants.c`)
 
 **Characteristics:**
 - Uses `ngx_str_t` for memory management
@@ -74,9 +74,9 @@ int ngx_http_xrootd_webdav_resolve_path(const char *root_canon,
 
 ## Unification Architecture
 
-### New Unified Resolver: `src/path/unified.c`
+### New Unified Resolver: `src/fs/path/unified.c`
 
-#### Header File: `src/path/unified.h`
+#### Header File: `src/fs/path/unified.h`
 
 ```c
 #ifndef XROOTD_PATH_UNIFIED_H
@@ -161,7 +161,7 @@ ngx_int_t xrootd_path_get_type(const ngx_str_t *resolved_path);
 #endif /* XROOTD_PATH_UNIFIED_H */
 ```
 
-#### Implementation: `src/path/unified.c`
+#### Implementation: `src/fs/path/unified.c`
 
 ```c
 #include <ngx_config.h>
@@ -555,7 +555,7 @@ xrootd_path_get_type(const ngx_str_t *resolved_path)
 ## Migration Path
 
 ### Step 1: Deploy Unified Resolver
-1. Create `src/path/unified.h` and `src/path/unified.c`
+1. Create `src/fs/path/unified.h` and `src/fs/path/unified.c`
 2. Add to `src/core/config/config.h` build list
 3. Compile and run unit tests
 4. Target: No behavior changes, identical output to old resolvers

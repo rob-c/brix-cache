@@ -11,7 +11,7 @@
 
 #include "config.h"
 #include "core/compat/af_policy.h"      /* XROOTD_AF_AUTO default for origin family */
-#include "cache/verify.h"          /* xrootd_cache_verify_mode_e default */
+#include "fs/cache/verify.h"          /* xrootd_cache_verify_mode_e default */
 #include "ratelimit/ratelimit.h"   /* phase-59 W3a: throttle zone lookup */
 #include "cms/cns.h"               /* §6 CNS mode enum */
 #include "tpc/key_registry.h"

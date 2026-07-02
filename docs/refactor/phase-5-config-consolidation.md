@@ -27,7 +27,7 @@ patterns nginx does **not** cover.
   (`server_conf.c`), `webdav` (`config.c`), `s3` (`module.c`), `dashboard`
   (`module.c`), `cms` server (`server_module.c`), `metrics` (`module.c`),
   `webdav/tpc_config.c`. No hand-rolled `== NGX_CONF_UNSET` merge blocks remain
-  (the lone occurrence in `src/cache/directives.c` is a scheme-default inside a
+  (the lone occurrence in `src/fs/cache/directives.c` is a scheme-default inside a
   *directive parser*, not a merge function). Genuinely custom inherits —
   struct-copy caches keyed on a `.kv` sentinel, the three-field `upstream_*`
   block, char-array `proxy_login_user_name`, and the `wt_origin →
@@ -163,7 +163,7 @@ Each block is 3–4 lines.  A merge function with 20 fields is 60–80 lines of 
 | `src/core/config/merge_http.c` | ~90 | 45 | −45 |
 | `src/webdav/postconfig.c` (merge section) | ~70 | 35 | −35 |
 | `src/s3/config.c` (merge section) | ~60 | 30 | −30 |
-| `src/cache/config.c` (merge section) | ~50 | 25 | −25 |
+| `src/fs/cache/config.c` (merge section) | ~50 | 25 | −25 |
 | `src/proxy/config.c` (merge section) | ~45 | 22 | −23 |
 | `src/metrics/config.c` (merge section) | ~30 | 15 | −15 |
 | `src/upstream/config.c` (merge section) | ~35 | 17 | −18 |

@@ -24,7 +24,7 @@
  * origin/advertise.go) are documented inline in pelican_register.c.
  */
 
-#include "cache/cache_internal.h"
+#include "fs/cache/cache_internal.h"
 #include <ngx_event.h>
 
 /*

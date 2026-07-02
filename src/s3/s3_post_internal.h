@@ -14,7 +14,7 @@
 #include "core/compat/http_body.h"
 #include "core/compat/http_headers.h"
 #include "fs/vfs.h"
-#include "path/path.h"
+#include "fs/path/path.h"
 #include <jansson.h>
 #include <openssl/crypto.h>
 #include <errno.h>

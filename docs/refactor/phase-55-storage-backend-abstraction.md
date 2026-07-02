@@ -62,7 +62,7 @@ five places:
 | Raw syscalls | `vfs_open/read/write/dir/stat/sync/copy/staged/xattr.c` + `vfs_io_core.c` (~199 syscall sites) | `open`/`pread`/`pwrite`/`readdir`/`rename`/`copy_file_range` have no object-store meaning |
 | `fd` as the universal handle | `struct xrootd_vfs_file_s.fd`; `xrootd_vfs_file_fd()` leaks through 4 use sites across 3 files (`webdav/get.c`, `s3/object.c`, `shared/file_serve.c`) | object stores have no fd; sendfile is impossible |
 | Sendfile / file-backed bufs | `vfs_read.c` `make_file_chain()` `dup`s the fd, emits an `in_file` buf | requires a kernel fd the backend doesn't have |
-| Kernel confinement = `RESOLVE_BENEATH` | `src/path/beneath.h`, `xrootd_ns_*` in `src/core/compat/namespace_ops.c` | `openat2(RESOLVE_BENEATH)` is a filesystem concept; object stores confine by **key prefix** |
+| Kernel confinement = `RESOLVE_BENEATH` | `src/fs/path/beneath.h`, `xrootd_ns_*` in `src/core/compat/namespace_ops.c` | `openat2(RESOLVE_BENEATH)` is a filesystem concept; object stores confine by **key prefix** |
 | Namespace mutation tier | `xrootd_ns_delete/mkdir/rename/local_copy` (also used directly by worker-thread code) | rename/mkdir/copy_file_range map to object COPY/no-op/multipart, not syscalls |
 
 ### 1.1.1 Current POSIX surface to migrate
@@ -77,7 +77,7 @@ where "VFS == POSIX" is still encoded:
 | Namespace | `src/fs/vfs_unlink.c`, `vfs_rename.c`, `vfs_mkdir.c`, `vfs_copy.c`, `src/core/compat/namespace_ops.c` | delete/rmdir/rename/mkdir/copy implementation and escape mapping |
 | Directory/stat | `src/fs/vfs_dir.c`, `src/fs/vfs_stat.c`, dirlist scan in `vfs_io_core.c` | opendir/readdir/closedir, lstat/stat, directory-entry stat |
 | Metadata | `src/fs/vfs_xattr.c` | user xattrs or backend metadata/tag/sidecar mapping |
-| Confinement helpers | `src/path/beneath.c`, `src/path/beneath.h` | POSIX driver's physical confinement primitive only |
+| Confinement helpers | `src/fs/path/beneath.c`, `src/fs/path/beneath.h` | POSIX driver's physical confinement primitive only |
 
 The migration is complete only when the above files contain VFS policy and result
 normalization, but no storage primitive whose equivalent would have to be rewritten
@@ -583,7 +583,7 @@ Move POSIX code in the order that minimizes blast radius:
 After each step, run the static scan:
 
 ```bash
-rg -n '\b(open|openat|pread|pwrite|fsync|ftruncate|stat|fstat|lstat|rename|unlink|mkdir|opendir|fdopendir|readdir|copy_file_range)\s*\(' src/fs src/core/compat/namespace_ops.c src/path/beneath.c
+rg -n '\b(open|openat|pread|pwrite|fsync|ftruncate|stat|fstat|lstat|rename|unlink|mkdir|opendir|fdopendir|readdir|copy_file_range)\s*\(' src/fs src/core/compat/namespace_ops.c src/fs/path/beneath.c
 ```
 
 The only remaining matches should be inside `src/fs/backend/sd_posix.c` (plus
@@ -979,7 +979,7 @@ Add a cheap CI check once 55.C lands:
 
 ```bash
 rg -n '\b(open|openat|pread|pwrite|fsync|ftruncate|stat|fstat|lstat|rename|unlink|mkdir|opendir|fdopendir|readdir|copy_file_range|getxattr|setxattr|listxattr|removexattr)\s*\(' \
-  src/fs src/core/compat/namespace_ops.c src/path/beneath.c \
+  src/fs src/core/compat/namespace_ops.c src/fs/path/beneath.c \
   | rg -v 'src/fs/backend/sd_posix\.c|allowed_compat_shim'
 ```
 
@@ -1057,7 +1057,7 @@ Also update examples:
 
 ## 12. Open questions (resolve before 55.E)
 
-1. **Caching interplay.** The read-through/write-through cache (`src/cache/`) is itself
+1. **Caching interplay.** The read-through/write-through cache (`src/fs/cache/`) is itself
    a POSIX store. With an object *main* backend, the cache likely becomes the POSIX
    driver in front of the object driver — i.e. caching is naturally re-expressed as a
    **two-driver tiering stack**. Decide whether to model the cache as a composing
@@ -4680,7 +4680,7 @@ Add `sd.h` to the **webdav** deps list (after line 391,
 ```diff
                          $ngx_addon_dir/src/fs/vfs.h \
 +                        $ngx_addon_dir/src/fs/backend/sd.h \
-                         $ngx_addon_dir/src/cache/open.h \
+                         $ngx_addon_dir/src/fs/cache/open.h \
 ```
 
 Add the new `.c` files to `NGX_ADDON_SRCS` (after line 510,
@@ -6763,7 +6763,7 @@ Conventions used below:
 #### PR-14 — §9.2 static-syscall-scan as a CI test
 - **Phase:** 55.C · **Risk:** Low
 - **Scope:** Add the §9.2 ripgrep allowlist check as a fast CI gate: raw storage syscalls
-  in `src/fs`, `src/core/compat/namespace_ops.c`, `src/path/beneath.c` must be **only** in
+  in `src/fs`, `src/core/compat/namespace_ops.c`, `src/fs/path/beneath.c` must be **only** in
   `sd_posix.c` or a small, named, documented `allowed_compat_shim`. New sites fail CI.
 - **Files:** `tests/test_static_syscall_scan.py` (or `tests/scan_syscalls.sh`), CI config.
 - **Depends-on:** PR-13
@@ -6964,7 +6964,7 @@ endpoint. "Required" = blocks merge; "Informational" = reported, advisory.
 
 #### J2 — `syscall-scan` (the §9.2 static gate)
 - **What:** the §9.2 ripgrep allowlist check — raw storage syscalls in
-  `src/fs`, `src/core/compat/namespace_ops.c`, `src/path/beneath.c` only in
+  `src/fs`, `src/core/compat/namespace_ops.c`, `src/fs/path/beneath.c` only in
   `sd_posix.c` / named `allowed_compat_shim`.
 - **Pass/fail:** **fail** if any matching syscall site appears outside the allowlist;
   fail if the allowlist grows without a documented, named shim. Runs in seconds.
@@ -7285,7 +7285,7 @@ traces to a design section, a phase/PR, and at least one test.
   object per file even for small metadata).
 
 ### ADR-13 — Defer cache-as-tiering-driver to 55.F
-- **Context:** The read-through/write-through cache (`src/cache/`) is itself a POSIX store and
+- **Context:** The read-through/write-through cache (`src/fs/cache/`) is itself a POSIX store and
   could become a composing driver in front of the object backend.
 - **Decision:** Keep the existing cache hooks VFS-owned for v1; evaluate `sd_cache.c` tiering in
   55.F (§12.1 recommendation).

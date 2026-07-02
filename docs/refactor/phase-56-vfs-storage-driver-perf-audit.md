@@ -135,7 +135,7 @@ impersonation is active, so it is called out once here. The confined metadata
 helpers branch on `xrootd_imp_client_active()`:
 
 ```c
-/* src/path/resolve_confined_ops.c:804 — xrootd_lstat_confined_canon */
+/* src/fs/path/resolve_confined_ops.c:804 — xrootd_lstat_confined_canon */
 if (xrootd_imp_client_active()) {
     char rel[PATH_MAX];
     xrootd_resolved_relative_to_root(log, root_canon, resolved, rel, sizeof rel);
@@ -1050,7 +1050,7 @@ plane (plus the §9.6 copy loop).
 Counts — **comment-filtered call sites** (the raw `grep` returns ~121, but ~16 of
 those are function names mentioned in file-header WHAT/WHY/HOW doc-blocks, not
 calls; `src/write/mv.c`'s header alone names `xrootd_ns_rename` eight times). The
-authoritative count, with doc-block lines stripped and `src/cache/` excluded (it is
+authoritative count, with doc-block lines stripped and `src/fs/cache/` excluded (it is
 reached *from* `xrootd_vfs_open` at `vfs_open.c:316`, so it is VFS-internal, not a
 handler bypass), is **105 sites across 39 files**:
 
@@ -1209,7 +1209,7 @@ VFS has two stores, a durable backend store and a staging store."*
 
 | Location | Why it is correct as-is |
 |---|---|
-| `src/path/beneath.c`, `resolve_confined_ops.c`, `resolve_confined_helpers.c` | These **define** the confined helpers — the POSIX layer the SD driver wraps. Their raw `openat2`/`unlinkat`/`mkdirat`/`renameat` belong here. |
+| `src/fs/path/beneath.c`, `resolve_confined_ops.c`, `resolve_confined_helpers.c` | These **define** the confined helpers — the POSIX layer the SD driver wraps. Their raw `openat2`/`unlinkat`/`mkdirat`/`renameat` belong here. |
 | `src/core/compat/namespace_ops.c`, `staged_file.c`, `fs_walk.c` | The namespace/staged/walk implementation `sd_posix.c` delegates to. Below the seam. |
 | `src/auth/impersonate/broker.c` | The **privileged broker process** that performs the syscall as the mapped user — the impersonation execution backend, reached via `xrootd_imp_*` *below* the confined helpers. |
 | `src/dashboard/files.c` | The admin file viewer over a **separate** `xrootd_dashboard_browse_root` with its own `openat2(RESOLVE_BENEATH)` confinement — not the protocol export data plane. |
@@ -1650,9 +1650,9 @@ COMPLETE), `src/fs/vfs_io_core.h`.
 (Funnel 1), `src/core/aio/reads.c` / `aio/write.c` (Funnels 2/4, D-2), `src/webdav/get.c`
 / `put.c`, `src/s3/object.c` / `post_object.c` / `copy.c`, `src/core/compat/fs_walk.c`
 (C-1 central tree walker), `src/core/compat/namespace_ops.c` (recursive delete),
-`src/path/resolve_confined_ops.c` (impersonation stat — §0.3), `src/read/prefetch.c`
+`src/fs/path/resolve_confined_ops.c` (impersonation stat — §0.3), `src/read/prefetch.c`
 + `src/webdav/io.c` (B-2 existing fadvise), `src/metrics/unified.{h,c}` (D-1/D-2),
-`src/cache/writethrough_decision.c` (E-3).
+`src/fs/cache/writethrough_decision.c` (E-3).
 
 **Pillar F seam-closure backlog (the ~105 bypass sites to migrate — §9.4):**
 *stream* `src/read/open_resolved_file.c` (F6 hot), `src/connection/fd_table.c` (F6
@@ -1666,7 +1666,7 @@ hot), `src/dirlist/handler.c` + `dirlist/dcksm.c`, `src/write/mv.c` / `mkdir.c` 
 **unconfined** (F2-priority) `src/s3/multipart_complete_upload_part_copy.c` /
 `multipart_helpers.c` (§9.6). **New files:** `tools/ci/check_vfs_seam.sh` +
 `tools/ci/vfs_seam_backlog.txt` (§9.9). **Legitimate non-targets (§9.8):**
-`src/path/beneath.c` / `resolve_confined_ops.c`, `src/core/compat/{namespace_ops,
+`src/fs/path/beneath.c` / `resolve_confined_ops.c`, `src/core/compat/{namespace_ops,
 staged_file,fs_walk}.c`, `src/auth/impersonate/broker.c`, `src/dashboard/files.c`.
 
 ---
@@ -1744,7 +1744,7 @@ advertises (§1.1).
 ## Appendix C — the complete enumerated seam-closure backlog (`vfs_seam_backlog.txt`)
 
 The full, comment-filtered inventory behind the §9.4 counts: **105 call sites in 39
-files** (`src/cache/` excluded — VFS-internal; the §9.6 raw-syscall sites are listed
+files** (`src/fs/cache/` excluded — VFS-internal; the §9.6 raw-syscall sites are listed
 separately at the end). This is the seed content for the §9.9 CI-guard allowlist —
 each migration phase deletes its rows; when the table is empty the seam is closed.
 Families: **O**=open→`vfs_open`, **S**=stat→`vfs_stat`, **D**=opendir→`vfs_opendir`,
@@ -1818,10 +1818,10 @@ src/s3/multipart_helpers.c:214                    lstat(full)
 ### C.5 Legitimate non-targets (allowlisted permanently, never migrate — §9.8)
 
 ```
-src/path/beneath.c  src/path/resolve_confined_ops.c  src/path/resolve_confined_helpers.c   # helper DEFINITIONS
+src/fs/path/beneath.c  src/fs/path/resolve_confined_ops.c  src/fs/path/resolve_confined_helpers.c   # helper DEFINITIONS
 src/core/compat/namespace_ops.c  src/core/compat/staged_file.c  src/core/compat/fs_walk.c                 # the layer sd_posix delegates to
 src/auth/impersonate/broker.c                                                                    # privileged execution backend (below seam)
 src/dashboard/files.c                                                                       # separate admin browse-root, own confinement
-src/cache/open.c                                                                            # VFS-internal (called from xrootd_vfs_open)
+src/fs/cache/open.c                                                                            # VFS-internal (called from xrootd_vfs_open)
 src/frm/reqfile.c                                                                           # tier-1.5: SD-vtable-direct on FRM-private journal (§9.3)
 ```

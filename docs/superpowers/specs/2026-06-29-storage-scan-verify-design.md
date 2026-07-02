@@ -4,7 +4,7 @@
 **Owner:** Rob Currie
 **Date:** 2026-06-29
 **Scope:** A server-side, throttled, parallel, streaming bulk-scan engine
-(`src/scan/`) that enumerates a confined export subtree and, per object, either
+(`src/fs/scan/`) that enumerates a confined export subtree and, per object, either
 dumps metadata + stored checksum, verifies stored vs recomputed, backfills
 missing checksums, or feeds a client-side compare against an external manifest.
 Streamed to an admin over an HTTP chunked NDJSON endpoint, driven by a thin
@@ -43,10 +43,10 @@ This phase composes them into one throttled, streaming engine + a thin client.
 
 ---
 
-## 1. Module layout — `src/scan/`
+## 1. Module layout — `src/fs/scan/`
 
 ```
-src/scan/
+src/fs/scan/
   scan_engine.c / scan_engine.h    walk → bounded queue → worker pool → emit; mode dispatch
   scan_throttle.c / scan_throttle.h shared token bucket: concurrency + byte-rate + adaptive
   scan_record.c / scan_record.h     NDJSON record formatting (file / cursor / summary)
@@ -61,7 +61,7 @@ nginx-coupled file; it owns the `ngx_http_request_t`, auth, and chunked output.
 This boundary is what lets a future `root://` scan opcode reuse the engine
 unchanged (drive it from a thread task, emit over `kXR_status` frames).
 
-New source files register in the top-level `./config` (`$ngx_addon_dir/src/scan/...`),
+New source files register in the top-level `./config` (`$ngx_addon_dir/src/fs/scan/...`),
 then `rm -rf objs && ./configure && make` (new-source build rule — never
 `./configure` over a stale `objs/`).
 
@@ -123,7 +123,7 @@ on-disk format is introduced.
 Every filesystem touch goes through the VFS seam — `xrootd_vfs_walk` for
 enumerate, `xrootd_vfs_open_fd_at` for the per-object fd, `xrootd_vfs_fgetxattr`
 for the stored value, `xrootd_integrity_get_fd` for compute/persist. No raw
-libc FS call in `src/scan/`. This is what makes the engine backend-neutral
+libc FS call in `src/fs/scan/`. This is what makes the engine backend-neutral
 (POSIX, pblock, S3, **RADOS**) with no scan-specific backend code.
 
 ---
@@ -277,7 +277,7 @@ From `/tmp/xrootd-src/src/XrdCeph` (`XrdCephPosix.cc`, `XrdCephXAttr.cc`):
 The scan engine adds **no** Ceph access path of its own — it only calls
 `xrootd_vfs_* → obj->driver->*` and the existing stock-compatible `XrdCksData`
 codec. Therefore byte-compatibility is satisfied by two existing/owed pieces, not
-by anything in `src/scan/`:
+by anything in `src/fs/scan/`:
 
 1. **Byte reads** (`verify`/`fill`) go through `obj->driver->pread`. For the
    result to equal what stock serves, the **`sd_ceph` driver must read via

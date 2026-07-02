@@ -448,7 +448,7 @@ sends a username containing `\n`, `\x1b`, and `"` control chars and asserts:
 ## F-05: O_NOFOLLOW Fallback Lacks RESOLVE_BENEATH Guarantees
 
 **Severity:** Medium  
-**File:** `src/path/resolve_confined_helpers.c:195`, `src/path/resolve_confined_ops.c:79`
+**File:** `src/fs/path/resolve_confined_helpers.c:195`, `src/fs/path/resolve_confined_ops.c:79`
 
 ### Vulnerability
 
@@ -457,7 +457,7 @@ which is kernel-enforced and immune to TOCTOU races. On older kernels, the code 
 back to `xrootd_open_confined_parent_fallback()`:
 
 ```c
-/* src/path/resolve_confined_ops.c */
+/* src/fs/path/resolve_confined_ops.c */
 fd = xrootd_openat2_confined(rootfd, rel, flags, mode);
 if (fd >= 0 || (errno != ENOSYS && errno != EINVAL && errno != EOPNOTSUPP)) {
     close(rootfd);
@@ -529,7 +529,7 @@ Option A was applied as a warning (not a hard refusal), so that the module conti
 to operate on pre-5.6 kernels while clearly communicating the degraded security posture
 to operators.
 
-**`src/path/resolve_confined_helpers.c`** — added `xrootd_openat2_runtime_available()`,
+**`src/fs/path/resolve_confined_helpers.c`** — added `xrootd_openat2_runtime_available()`,
 which probes whether `SYS_openat2` works at worker startup:
 
 ```c
@@ -550,7 +550,7 @@ xrootd_openat2_runtime_available(void)
 }
 ```
 
-**`src/path/path.h`** — added declaration `int xrootd_openat2_runtime_available(void);`
+**`src/fs/path/path.h`** — added declaration `int xrootd_openat2_runtime_available(void);`
 
 **`src/core/config/process.c`** — called the probe at the start of
 `ngx_stream_xrootd_init_process()` and emits `NGX_LOG_WARN` if unavailable:

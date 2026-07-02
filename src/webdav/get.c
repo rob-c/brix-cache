@@ -7,7 +7,7 @@
 #include "core/compat/error_mapping.h"
 #include "core/compat/etag.h"
 #include "core/compat/http_conditionals.h"
-#include "cache/open.h"
+#include "fs/cache/open.h"
 #include "dashboard/dashboard_tracking.h"
 #include "fs/vfs.h"
 #include "shared/file_serve.h"

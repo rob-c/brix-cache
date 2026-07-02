@@ -893,7 +893,7 @@ For each phase, reviewers should be able to answer "yes" to all of these:
 - `src/fs/vfs.h`, `src/fs/vfs_internal.h` — annotation tags; prepare/complete + `pread_full`/`pwrite_full` tagged THREAD-SAFE
 - `src/fs/vfs_read.c`, `vfs_write.c`, `vfs_dir.c` — prepare/complete helpers; beneath-confined opendir prepare
 - `src/core/aio/reads.c`, `write.c`, `readv.c`, `dirlist.c` — rewire `*_aio_thread` to the core
-- `src/cache/open.c` — `record_access` call moves to COMPLETE (no signature change)
+- `src/fs/cache/open.c` — `record_access` call moves to COMPLETE (no signature change)
 - `src/fs/README.md` — triad model + contract
 - `src/core/aio/README.md` — document worker allowlist and inline fallback rule
 - `tests/` — focused success/error/security-negative tests per phase plus a

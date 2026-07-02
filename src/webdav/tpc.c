@@ -3,7 +3,7 @@
  */
 
 #include "webdav.h"
-#include "path/path.h"
+#include "fs/path/path.h"
 #include "fs/vfs.h"   /* xrootd_vfs_probe (confined stat via the VFS seam) */
 #include "core/compat/http_headers.h"
 #include "core/compat/staged_file.h"

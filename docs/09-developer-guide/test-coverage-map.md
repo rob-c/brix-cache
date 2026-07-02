@@ -531,7 +531,7 @@ Upstream redirect handling (`kXR_redirect`, `kXR_wait`, `kXR_waitresp`):
 
 ## Cache write-through
 
-**Source:** `src/cache/`
+**Source:** `src/fs/cache/`
 
 ### `test_cache_write_through.py`
 

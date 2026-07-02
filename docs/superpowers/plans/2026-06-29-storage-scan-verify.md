@@ -4,7 +4,7 @@
 
 **Goal:** Ship an admin-grade bulk storage auditor — enumerate a confined export subtree and per object dump metadata + stored checksum, verify stored-vs-recomputed, backfill missing checksums, or feed a client-side compare — streamed as NDJSON over an admin HTTP endpoint, throttled to protect the backend (esp. CEPH).
 
-**Architecture:** A protocol-agnostic, ngx-free engine in `src/scan/` (throttle + NDJSON + per-object action + resumable walk) driven by one nginx-coupled HTTP handler (`scan_http.c`) that streams results with backpressure via the native HTTP thread-pool pattern. A thin clean-room client (`xrdstorascan`) wraps the endpoint. All FS access goes through `xrootd_vfs_*`/`obj->driver->*` and the existing `XrdCksData` codec, so it inherits stock-XrdCeph byte-compatibility for free.
+**Architecture:** A protocol-agnostic, ngx-free engine in `src/fs/scan/` (throttle + NDJSON + per-object action + resumable walk) driven by one nginx-coupled HTTP handler (`scan_http.c`) that streams results with backpressure via the native HTTP thread-pool pattern. A thin clean-room client (`xrdstorascan`) wraps the endpoint. All FS access goes through `xrootd_vfs_*`/`obj->driver->*` and the existing `XrdCksData` codec, so it inherits stock-XrdCeph byte-compatibility for free.
 
 **Tech Stack:** C (nginx HTTP module conventions), nginx thread pool, `xrootd_vfs_walk`, `xrootd_integrity_get_fd`, `xrootd_cksdata_decode/encode`, libxrdc/HTTP client.
 
@@ -14,10 +14,10 @@
 
 - **No `goto`** anywhere in `src/`, `shared/`, `client/`. Early-return + helper decomposition only.
 - **Functional/modular:** one job per function, explicit state (no new globals), section-level WHAT/WHY/HOW doc block on every function.
-- **VFS seam (INVARIANT 11):** zero raw libc FS calls in `src/scan/`. Use `xrootd_vfs_walk`, `xrootd_vfs_open_fd_at`, `xrootd_vfs_fgetxattr`, `xrootd_integrity_get_fd`. No `rados_*` symbol above `src/fs/backend/`.
+- **VFS seam (INVARIANT 11):** zero raw libc FS calls in `src/fs/scan/`. Use `xrootd_vfs_walk`, `xrootd_vfs_open_fd_at`, `xrootd_vfs_fgetxattr`, `xrootd_integrity_get_fd`. No `rados_*` symbol above `src/fs/backend/`.
 - **Byte-compatible with stock XrdCeph** (`/tmp/xrootd-src/src/XrdCeph`): bytes via `obj->driver->pread` (must be libradosstriper-backed for Ceph verify/fill — gated, Task 8); stored checksum is the binary `XrdCksData` blob in `XrdCks.<alg>` via `xrootd_cksdata_decode/encode`; honor `fmTime` staleness (`stale` ≠ `mismatch`).
 - **3 tests per change:** success + error + security-negative.
-- **Build:** new `.c`/`.h` files register in the top-level `./config` (`$ngx_addon_dir/src/scan/*.c`), NOT `src/core/config/config.h`. After adding a new source file: `rm -rf objs && ./configure --with-stream --with-stream_ssl_module --with-http_ssl_module --with-http_dav_module --with-threads --add-module=$REPO && make -j$(nproc)`. Incremental edits: `make -j$(nproc)` only. NEVER `./configure` over a stale `objs/` (mixed-ABI SIGSEGV).
+- **Build:** new `.c`/`.h` files register in the top-level `./config` (`$ngx_addon_dir/src/fs/scan/*.c`), NOT `src/core/config/config.h`. After adding a new source file: `rm -rf objs && ./configure --with-stream --with-stream_ssl_module --with-http_ssl_module --with-http_dav_module --with-threads --add-module=$REPO && make -j$(nproc)`. Incremental edits: `make -j$(nproc)` only. NEVER `./configure` over a stale `objs/` (mixed-ABI SIGSEGV).
 - **Metrics:** low-cardinality only — no paths/algorithms/reqids as labels.
 - **NEVER run git** without explicit user instruction. The `git commit` steps below are written for completeness; the executor must obtain the user's go-ahead before running any git command (project hard rule).
 
@@ -27,28 +27,28 @@
 
 | File | Responsibility |
 |---|---|
-| `src/scan/scan_throttle.h/.c` | Pure token bucket: concurrency gate, byte-rate leaky bucket, adaptive multiplier, budget. ngx-free. |
-| `src/scan/scan_record.h/.c` | Pure NDJSON formatters: `file`/`cursor`/`summary` records into a caller buffer. ngx-free. |
-| `src/scan/scan_engine.h/.c` | Engine: opts/stats types, mode enum, per-object action, resumable walk + emit callback. ngx-free (takes `rootfd`, `ngx_log_t*`). |
-| `src/scan/scan_engine_unittest.c` | Standalone gcc unit test (pattern: `src/fs/backend/csi_unittest.c`). |
-| `src/scan/scan_http.c` | nginx HTTP handler: route, admin auth, param parse, confinement, thread-pool batch drive, chunked NDJSON output. Only ngx-coupled file. |
-| `src/scan/README.md` | Module doc. |
+| `src/fs/scan/scan_throttle.h/.c` | Pure token bucket: concurrency gate, byte-rate leaky bucket, adaptive multiplier, budget. ngx-free. |
+| `src/fs/scan/scan_record.h/.c` | Pure NDJSON formatters: `file`/`cursor`/`summary` records into a caller buffer. ngx-free. |
+| `src/fs/scan/scan_engine.h/.c` | Engine: opts/stats types, mode enum, per-object action, resumable walk + emit callback. ngx-free (takes `rootfd`, `ngx_log_t*`). |
+| `src/fs/scan/scan_engine_unittest.c` | Standalone gcc unit test (pattern: `src/fs/backend/csi_unittest.c`). |
+| `src/fs/scan/scan_http.c` | nginx HTTP handler: route, admin auth, param parse, confinement, thread-pool batch drive, chunked NDJSON output. Only ngx-coupled file. |
+| `src/fs/scan/README.md` | Module doc. |
 | `src/core/config/config.h` | `xrootd_scan*` loc-conf fields. |
 | `src/core/config/directives.c` | `xrootd_scan*` `ngx_command_t` + merge. |
 | `src/dashboard/module.c` | Route `/xrootd/api/v1/scan` → `scan_http` handler. |
 | `client/tools/xrdstorascan.c` | Clean-room client wrapper. |
 | `client/Makefile` | Build `xrdstorascan`. |
 | `tests/test_scan.py` | Integration + security-neg suite. |
-| `config` (top-level) | Register new `src/scan/*.c` sources. |
+| `config` (top-level) | Register new `src/fs/scan/*.c` sources. |
 
 ---
 
 ## Task 1: Throttle token bucket (`scan_throttle`)
 
 **Files:**
-- Create: `src/scan/scan_throttle.h`, `src/scan/scan_throttle.c`
-- Create: `src/scan/scan_engine_unittest.c` (start the standalone harness here; extended in later tasks)
-- Modify: top-level `config` (add `src/scan/scan_throttle.c`)
+- Create: `src/fs/scan/scan_throttle.h`, `src/fs/scan/scan_throttle.c`
+- Create: `src/fs/scan/scan_engine_unittest.c` (start the standalone harness here; extended in later tasks)
+- Modify: top-level `config` (add `src/fs/scan/scan_throttle.c`)
 
 **Interfaces:**
 - Produces:
@@ -60,12 +60,12 @@
   - `void xrootd_scan_throttle_set_pressure(xrootd_scan_throttle_t *t, double foreground, double latency_ewma_ms);` — feed adaptive inputs; recomputes multiplier in `[0.1,1.0]`.
   - `int xrootd_scan_throttle_budget_hit(const xrootd_scan_throttle_t *t, uint64_t now_ms);` — 1 when `max_bytes` or `max_seconds` exceeded.
 
-- [ ] **Step 1: Write the failing test** — append to `src/scan/scan_engine_unittest.c`:
+- [ ] **Step 1: Write the failing test** — append to `src/fs/scan/scan_engine_unittest.c`:
 
 ```c
 /* scan_engine_unittest.c — standalone unit tests for the ngx-free scan cores.
- * Build: gcc -I src/scan -o /tmp/scan_ut src/scan/scan_engine_unittest.c \
- *            src/scan/scan_throttle.c && /tmp/scan_ut
+ * Build: gcc -I src/fs/scan -o /tmp/scan_ut src/fs/scan/scan_engine_unittest.c \
+ *            src/fs/scan/scan_throttle.c && /tmp/scan_ut
  * (extended in later tasks with record + engine-action cases). */
 #include "scan_throttle.h"
 #include <assert.h>
@@ -126,10 +126,10 @@ int main(void)
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `gcc -I src/scan -o /tmp/scan_ut src/scan/scan_engine_unittest.c src/scan/scan_throttle.c && /tmp/scan_ut`
+Run: `gcc -I src/fs/scan -o /tmp/scan_ut src/fs/scan/scan_engine_unittest.c src/fs/scan/scan_throttle.c && /tmp/scan_ut`
 Expected: FAIL — `scan_throttle.h` / `scan_throttle.c` do not exist (compile error).
 
-- [ ] **Step 3: Write `src/scan/scan_throttle.h`**
+- [ ] **Step 3: Write `src/fs/scan/scan_throttle.h`**
 
 ```c
 #ifndef XROOTD_SCAN_THROTTLE_H
@@ -180,7 +180,7 @@ int      xrootd_scan_throttle_budget_hit(const xrootd_scan_throttle_t *t,
 #endif /* XROOTD_SCAN_THROTTLE_H */
 ```
 
-- [ ] **Step 4: Write `src/scan/scan_throttle.c`**
+- [ ] **Step 4: Write `src/fs/scan/scan_throttle.c`**
 
 ```c
 /*
@@ -297,15 +297,15 @@ xrootd_scan_throttle_budget_hit(const xrootd_scan_throttle_t *t, uint64_t now_ms
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `gcc -I src/scan -o /tmp/scan_ut src/scan/scan_engine_unittest.c src/scan/scan_throttle.c && /tmp/scan_ut`
+Run: `gcc -I src/fs/scan -o /tmp/scan_ut src/fs/scan/scan_engine_unittest.c src/fs/scan/scan_throttle.c && /tmp/scan_ut`
 Expected: `OK`
 
 - [ ] **Step 6: Register source + commit**
 
-Add `$ngx_addon_dir/src/scan/scan_throttle.c` to the source list in the top-level `config` (next to the other module sources). Then (with user go-ahead):
+Add `$ngx_addon_dir/src/fs/scan/scan_throttle.c` to the source list in the top-level `config` (next to the other module sources). Then (with user go-ahead):
 
 ```bash
-git add src/scan/scan_throttle.h src/scan/scan_throttle.c src/scan/scan_engine_unittest.c config
+git add src/fs/scan/scan_throttle.h src/fs/scan/scan_throttle.c src/fs/scan/scan_engine_unittest.c config
 git commit -m "feat(scan): backend-protection throttle token bucket + unit tests"
 ```
 
@@ -314,8 +314,8 @@ git commit -m "feat(scan): backend-protection throttle token bucket + unit tests
 ## Task 2: NDJSON record formatter (`scan_record`)
 
 **Files:**
-- Create: `src/scan/scan_record.h`, `src/scan/scan_record.c`
-- Modify: `src/scan/scan_engine_unittest.c` (add record cases + link `scan_record.c`)
+- Create: `src/fs/scan/scan_record.h`, `src/fs/scan/scan_record.c`
+- Modify: `src/fs/scan/scan_engine_unittest.c` (add record cases + link `scan_record.c`)
 - Modify: top-level `config`
 
 **Interfaces:**
@@ -377,12 +377,12 @@ Add `test_record_file_ok(); test_record_file_escapes_and_nulls(); test_record_ov
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `gcc -I src/scan -o /tmp/scan_ut src/scan/scan_engine_unittest.c src/scan/scan_throttle.c src/scan/scan_record.c && /tmp/scan_ut`
+Run: `gcc -I src/fs/scan -o /tmp/scan_ut src/fs/scan/scan_engine_unittest.c src/fs/scan/scan_throttle.c src/fs/scan/scan_record.c && /tmp/scan_ut`
 Expected: FAIL — `scan_record.h`/`.c` missing.
 
-- [ ] **Step 3: Write `src/scan/scan_record.h`** — the types + prototypes from the Interfaces block above, wrapped in an include guard `XROOTD_SCAN_RECORD_H`, each with a one-line WHAT comment.
+- [ ] **Step 3: Write `src/fs/scan/scan_record.h`** — the types + prototypes from the Interfaces block above, wrapped in an include guard `XROOTD_SCAN_RECORD_H`, each with a one-line WHAT comment.
 
-- [ ] **Step 4: Write `src/scan/scan_record.c`**
+- [ ] **Step 4: Write `src/fs/scan/scan_record.c`**
 
 ```c
 /*
@@ -527,10 +527,10 @@ xrootd_scan_record_summary(const xrootd_scan_summary_t *s, char *out, size_t out
 
 - [ ] **Step 5: Run test to verify it passes** — same command as Step 2 → `OK`.
 
-- [ ] **Step 6: Register `src/scan/scan_record.c` in top-level `config`; commit** (with go-ahead):
+- [ ] **Step 6: Register `src/fs/scan/scan_record.c` in top-level `config`; commit** (with go-ahead):
 
 ```bash
-git add src/scan/scan_record.h src/scan/scan_record.c src/scan/scan_engine_unittest.c config
+git add src/fs/scan/scan_record.h src/fs/scan/scan_record.c src/fs/scan/scan_engine_unittest.c config
 git commit -m "feat(scan): NDJSON record formatters + unit tests"
 ```
 
@@ -539,8 +539,8 @@ git commit -m "feat(scan): NDJSON record formatters + unit tests"
 ## Task 3: Engine types + per-object action (`scan_engine` part 1)
 
 **Files:**
-- Create: `src/scan/scan_engine.h`, `src/scan/scan_engine.c`
-- Modify: `src/scan/scan_engine_unittest.c` (action cases against a temp fixture tree), top-level `config`
+- Create: `src/fs/scan/scan_engine.h`, `src/fs/scan/scan_engine.c`
+- Modify: `src/fs/scan/scan_engine_unittest.c` (action cases against a temp fixture tree), top-level `config`
 
 **Interfaces:**
 - Consumes: `scan_record.h` (status/rec types), `scan_throttle.h`, VFS (`src/fs/vfs.h`: `xrootd_vfs_open_fd_at`, `xrootd_vfs_fgetxattr`), integrity (`src/core/compat/integrity_info.h`: `xrootd_integrity_get_fd`, `xrootd_cksdata_decode`, `xrootd_integrity_info_t`, `xrootd_integrity_opts_t`).
@@ -562,7 +562,7 @@ The pure throttle/record tests stay in the default standalone build; the action 
 
 - [ ] **Step 2: Run** the standalone build (unchanged) to confirm it still passes, and confirm the new `scan_engine.c` is required by the in-tree build (it won't link until written). Expected: standalone `OK`; in-tree references unresolved.
 
-- [ ] **Step 3: Write `src/scan/scan_engine.h` + the action in `scan_engine.c`.** `xrootd_scan_action_one`:
+- [ ] **Step 3: Write `src/fs/scan/scan_engine.h` + the action in `scan_engine.c`.** `xrootd_scan_action_one`:
   1. **dump/compare:** read `XrdCks.<alg>` via `xrootd_vfs_fgetxattr` on an `xrootd_vfs_open_fd_at(rootfd, logical, O_RDONLY|O_NOFOLLOW, ...)` fd; `xrootd_cksdata_decode(buf,len, st->mtime, &info)` → on success `stored=info.hex`, `cks_mtime=info` fmTime, status `OK` (or `STALE` flag surfaced via `cks_mtime != st->mtime`); on absent xattr `stored=NULL, cks_mtime=-1`. No byte read. `*bytes_read_out=0`.
   2. **verify:** read stored as above; then `xrootd_integrity_get_fd(log, fd, st->obj, logical, alg, &{allow_xattr_cache:0, update_xattr_cache:0, require_regular_file:1, no_compute:0}, &computed)`. Compare: no stored → `MISSING`; stored present but `fmTime != st->mtime` → `STALE`; `computed.hex == stored` → `OK` else `MISMATCH`; open/read error → `UNREADABLE`. `*bytes_read_out = st->size`.
   3. **fill:** read stored; if present and fresh → `ALREADY`; else `xrootd_integrity_get_fd(..., {update_xattr_cache:1, ...})` to compute+persist → `FILLED`; error → `UNREADABLE`. `*bytes_read_out = st->size` only when it computed.
@@ -575,7 +575,7 @@ The pure throttle/record tests stay in the default standalone build; the action 
 - [ ] **Step 6: Commit** (with go-ahead):
 
 ```bash
-git add src/scan/scan_engine.h src/scan/scan_engine.c src/scan/scan_engine_unittest.c tests/test_scan_action.sh config
+git add src/fs/scan/scan_engine.h src/fs/scan/scan_engine.c src/fs/scan/scan_engine_unittest.c tests/test_scan_action.sh config
 git commit -m "feat(scan): per-object dump/verify/fill action over VFS + XrdCks codec"
 ```
 
@@ -584,7 +584,7 @@ git commit -m "feat(scan): per-object dump/verify/fill action over VFS + XrdCks 
 ## Task 4: Resumable batched walk + emit (`scan_engine` part 2)
 
 **Files:**
-- Modify: `src/scan/scan_engine.h`, `src/scan/scan_engine.c`, `src/scan/scan_engine_unittest.c`
+- Modify: `src/fs/scan/scan_engine.h`, `src/fs/scan/scan_engine.c`, `src/fs/scan/scan_engine_unittest.c`
 
 **Interfaces:**
 - Consumes: Task 3 action, `xrootd_vfs_walk`, `scan_throttle`.
@@ -631,7 +631,7 @@ git commit -m "feat(scan): per-object dump/verify/fill action over VFS + XrdCks 
 ## Task 6: HTTP endpoint + streaming drive (`scan_http.c`)
 
 **Files:**
-- Create: `src/scan/scan_http.c`
+- Create: `src/fs/scan/scan_http.c`
 - Modify: `src/dashboard/module.c` (route), `src/dashboard/dashboard_http.h` (declare `ngx_http_xrootd_scan_handler`), top-level `config`
 - Reference: `src/dashboard/files.c` (auth + `xrootd_beneath_open_root` confinement + status mapping), nginx `ngx_thread_task_post` + chunked output.
 
@@ -655,7 +655,7 @@ git commit -m "feat(scan): per-object dump/verify/fill action over VFS + XrdCks 
         return ngx_http_xrootd_scan_handler(r);
     }
 ```
-Register `src/scan/scan_http.c` in top-level `config`; `rm -rf objs && ./configure ... && make`.
+Register `src/fs/scan/scan_http.c` in top-level `config`; `rm -rf objs && ./configure ... && make`.
 
 - [ ] **Step 3: Run** `tests/test_scan.py::test_dump_manifest` → PASS. Also `test_scan_disabled_404` (Task 5) → PASS.
 
@@ -668,7 +668,7 @@ Register `src/scan/scan_http.c` in top-level `config`; `rm -rf objs && ./configu
 ## Task 7: CEPH byte-compat gate (verify/fill)
 
 **Files:**
-- Modify: `src/scan/scan_http.c` (or `scan_engine.c` action) — refuse `verify`/`fill` when the bound backend is a non-striper Ceph driver.
+- Modify: `src/fs/scan/scan_http.c` (or `scan_engine.c` action) — refuse `verify`/`fill` when the bound backend is a non-striper Ceph driver.
 - Reference: `src/fs/backend/sd.h` driver capability flags; phase-60 `sd_ceph` caps.
 
 **Interfaces:**
@@ -685,7 +685,7 @@ Register `src/scan/scan_http.c` in top-level `config`; `rm -rf objs && ./configu
 ## Task 8: Parallel worker pool (intra-run concurrency)
 
 **Files:**
-- Modify: `src/scan/scan_engine.{c,h}` (add an N-worker variant), `src/scan/scan_http.c` (use it when `parallel>1`)
+- Modify: `src/fs/scan/scan_engine.{c,h}` (add an N-worker variant), `src/fs/scan/scan_http.c` (use it when `parallel>1`)
 
 **Interfaces:**
 - Produces: an internal producer/consumer in the run — the step thread enqueues up to `parallel` files into a bounded ring; `parallel` is realized by issuing that batch's byte-reads concurrently *within one thread task* via... **decision:** to stay inside nginx threading rules (one task = one thread) without a bespoke multi-task choreography, realize concurrency by sizing each `step`'s batch and relying on multiple in-flight HTTP scan requests being the unit of cross-file parallelism is NOT acceptable (single admin request). Instead post up to `parallel` **independent worker tasks** to the pool from `scan_http_step_done`, each running one file's `xrootd_scan_action_one`; collect their records, emit in walk order once all in the batch complete, then post the next batch. The throttle (`delay_ms`/`charge`) is consulted under a mutex shared by the batch.
@@ -735,10 +735,10 @@ Register `src/scan/scan_http.c` in top-level `config`; `rm -rf objs && ./configu
 ## Task 11: Docs + CEPH stock-parity guard + suite green
 
 **Files:**
-- Create: `src/scan/README.md`; Modify: `docs/10-architecture/*` index + a reference page; `tests/test_scan.py` (Ceph parity, skipif no harness)
+- Create: `src/fs/scan/README.md`; Modify: `docs/10-architecture/*` index + a reference page; `tests/test_scan.py` (Ceph parity, skipif no harness)
 - Reference: `docs/refactor/phase-60-ceph-rados-backend.md` single-node Ceph harness.
 
-- [ ] **Step 1:** Write `src/scan/README.md` (Overview / Files / control+data flow / invariants — match the `src/query/README.md` shape).
+- [ ] **Step 1:** Write `src/fs/scan/README.md` (Overview / Files / control+data flow / invariants — match the `src/query/README.md` shape).
 - [ ] **Step 2:** `tests/test_scan.py::test_ceph_stock_parity` (skipif): write a fixture via **stock XrdCeph**, then assert the scan `dump` reproduces stock's `XrdCks.adler32` and `verify`→`ok` over striper-reassembled bytes; assert verify on a non-striper Ceph driver is gated (Task 7).
 - [ ] **Step 3:** Run the whole module suite: `PYTHONPATH=tests pytest tests/test_scan.py -v --tb=short` and the standalone unit (`/tmp/scan_ut`). Expected: all pass (Ceph cases skip without harness).
 - [ ] **Step 4:** Update `CLAUDE.md` OP→FILE (add a `scan` row) and the docs index. **Step 5: Commit** (go-ahead): `docs(scan): module README + architecture/index + CEPH parity guard`.

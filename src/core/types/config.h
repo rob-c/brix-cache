@@ -92,7 +92,7 @@ typedef struct {
     char       sss_keyname[XROOTD_SSS_NAME_MAX]; /* "" = use first key in conf->sss_keys       */
 } xrootd_proxy_upstream_t;
 
-#include "cache/writethrough_decision.h"
+#include "fs/cache/writethrough_decision.h"
 #include "core/config/shared_conf.h"
 
 /* Phase 20 — shared-memory KV consumers (token cache, auth cache, rate limit).

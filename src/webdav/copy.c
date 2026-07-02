@@ -11,7 +11,7 @@
 #include "core/compat/tmp_path.h"
 #include "fs/vfs.h"
 #include "auth/impersonate/impersonate.h"
-#include "path/path.h"
+#include "fs/path/path.h"
 
 #include <errno.h>
 #include <sys/stat.h>

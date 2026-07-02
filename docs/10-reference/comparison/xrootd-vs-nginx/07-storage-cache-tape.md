@@ -32,7 +32,7 @@ In scope:
   `src/fs/` (VFS) + `src/path/` (confinement) + `src/core/compat/namespace_ops.c`.
 - **POSC** (persist-on-successful-close): `XrdOfs` POSC queue vs `src/read/`
   open/close staging, including the documented disconnect-semantics difference.
-- **Caching**: `XrdPfc` (XCache) + `XrdPss` (proxy storage) vs `src/cache/`.
+- **Caching**: `XrdPfc` (XCache) + `XrdPss` (proxy storage) vs `src/fs/cache/`.
 - **Tape / FRM**: `XrdFrm`/`XrdFrc` multi-daemon ecosystem vs `src/frm/` +
   `src/query/prepare.c` + `src/webdav/tape_rest.c`.
 - The **operator view**: directives and what to monitor on each side.
@@ -97,14 +97,14 @@ process with a **unified VFS** and **no plugin ABI**:
 - **`src/path/` — confinement and the namespace boundary.** The export root is a
   **single local directory** (`xrootd_root`). Every client path is confined with
   Linux `openat2(2)` + `RESOLVE_BENEATH | RESOLVE_NO_MAGICLINKS`
-  (`src/path/beneath.c`), anchored to a per-worker `O_PATH` "rootfd". This is a
+  (`src/fs/path/beneath.c`), anchored to a per-worker `O_PATH` "rootfd". This is a
   *kernel-enforced* boundary, not a string prefix (see the next section). Auth/ACL
   gating (`auth_gate.c`, `authdb.c`, `acl.c`) lives here too.
 - **`src/core/compat/namespace_ops.c`** — the `xrootd_ns_*` mutation helpers
   (`mkdir`/`rename`/`unlink`/`link`) that the VFS and HTTP/S3 callers share, each
   confining through the beneath API. (Also `compat/staged_file.c`,
   `compat/shm_slots.c` for SHM-table allocation.)
-- **`src/cache/` — XCache-style read-through + write-through.** A caching gateway
+- **`src/fs/cache/` — XCache-style read-through + write-through.** A caching gateway
   in front of a remote XRootD origin: thread-pool workers speak the XRootD wire
   protocol as a *native client* (`origin_protocol.c`, `origin_connection.c`,
   `io.c`) to fill the local `cache_root` tree on a miss, and mirror local writes
@@ -152,24 +152,24 @@ call:
 This module exposes exactly **one local POSIX export** per server block:
 
 - **`xrootd_root <dir>`** is the export root. It is canonicalised once at startup
-  (`realpath(3)` in `src/path/canonical.c`) and a per-worker `O_PATH` rootfd is
+  (`realpath(3)` in `src/fs/path/canonical.c`) and a per-worker `O_PATH` rootfd is
   opened on it.
 - Confinement is **kernel-enforced**, not string-based: every client-path syscall
   goes through `xrootd_open_beneath` / `xrootd_stat_beneath` /
-  `xrootd_*_beneath` (`src/path/beneath.c`), which use
+  `xrootd_*_beneath` (`src/fs/path/beneath.c`), which use
   `openat2(RESOLVE_BENEATH | RESOLVE_NO_MAGICLINKS)` anchored to the rootfd. An
   escape attempt returns `EXDEV`, mapped to `kXR_NotAuthorized`/403. This is
   *stronger* than `oss.localroot`: a symlink that points outside the root is
-  refused by the kernel, not followed. (`src/path/README.md` invariants;
+  refused by the kernel, not followed. (`src/fs/path/README.md` invariants;
   `src/fs/README.md` invariant 1.)
 - Mutating ops (`mkdir`/`rename`/`unlink`/`link`) resolve the **parent** under
   `RESOLVE_BENEATH` and act on the final component only, because the bare `*at()`
   syscalls do not themselves honour `RESOLVE_BENEATH`
-  (SECURITY note, `src/path/beneath.c`).
+  (SECURITY note, `src/fs/path/beneath.c`).
 - There is **no named-space / partition model** and **no N2N plugin**. The cache
   uses a second directory tree (`xrootd_cache_root`) but that is a distinct
   feature, not a space-token system.
-- Recursive parent creation exists (`src/path/mkdir.c`,
+- Recursive parent creation exists (`src/fs/path/mkdir.c`,
   `xrootd_mkdir_recursive_beneath`) and is used where the operation calls for it.
 
 **The honest gap:** this module has **no OSS plugin ABI**. There is no
@@ -282,8 +282,8 @@ origin)**:
 
 ### nginx-xrootd: read-through + write-through, native-client origin fill
 
-This module's `src/cache/` is a practical caching gateway with **two halves**
-(`src/cache/README.md`):
+This module's `src/fs/cache/` is a practical caching gateway with **two halves**
+(`src/fs/cache/README.md`):
 
 - **Read-through (XCache).** On a read open of a not-yet-local file, a thread-pool
   worker connects to `xrootd_cache_origin`, speaks the XRootD wire protocol as an
@@ -453,7 +453,7 @@ such here.
 | Concern | Official XRootD | nginx-xrootd |
 |---|---|---|
 | Export base path | `oss.localroot <path>` (string prefix) | `xrootd_root <dir>` (kernel-confined export root) |
-| Confinement | none from `localroot`; symlinks followed | `openat2(RESOLVE_BENEATH)` per syscall (`src/path/beneath.c`) |
+| Confinement | none from `localroot`; symlinks followed | `openat2(RESOLVE_BENEATH)` per syscall (`src/fs/path/beneath.c`) |
 | LFN→PFN mapping | `oss.namelib <lib>` (N2N plugin) | none (lexical path only) |
 | Named spaces / partitions | `oss.space <name> <path> ...` | none |
 | Alternate backend (Ceph/PSS/CSI) | `ofs.osslib <lib>` (plugin ABI) | **none — POSIX only** |
@@ -515,7 +515,7 @@ such here.
 | POSC clean-close persist | `ofs.persist` + atomic visibility | stage-temp + `fsync`+`rename` | **Parity** | Both atomic on clean close. |
 | POSC disconnect handling | **hold `<sec>`** then remove; reconnect window | **remove partial immediately** | **Divergence (documented xfail)** | Defensible "successful-close" reading; no resume window. |
 | POSC durable queue + restart recovery | poscq file, replayed on restart | in-process per-handle only | **Missing** | No cross-restart POSC replay. |
-| Read-through cache (XCache role) | `XrdPfc` block cache + `XrdPss` origin | `src/cache/` whole-file + slice fill via native client | **Partial** | Practical cache; PFC has far broader policy/snapshot/resource machinery. |
+| Read-through cache (XCache role) | `XrdPfc` block cache + `XrdPss` origin | `src/fs/cache/` whole-file + slice fill via native client | **Partial** | Practical cache; PFC has far broader policy/snapshot/resource machinery. |
 | Cache prefetch / read-ahead | `pfc.prefetch` | none | **Missing** | Fill is request-driven only. |
 | Per-block presence metadata | `cinfo` block bitmap + access history | `.meta` (mtime/size/etag) per file/slice | **Partial** | Coarser staleness model; no per-block bitmap. |
 | Cache purge policy engine | watermark + quota + cold-file + snapshots | two-pass LRU on `statvfs` occupancy | **Partial** | Works; far less policy surface than PFC. |
@@ -575,16 +575,16 @@ monitor-only scaffolds delegated to operator commands). Do not claim full
 
 - VFS / storage: `src/fs/README.md`, `src/fs/vfs.h`, `src/fs/vfs_open.c`,
   `src/fs/vfs_read.c`, `src/fs/vfs_write.c`.
-- Confinement / namespace: `src/path/README.md`, `src/path/beneath.c/.h`,
-  `src/path/canonical.c`, `src/path/mkdir.c`, `src/core/compat/namespace_ops.c`,
+- Confinement / namespace: `src/fs/path/README.md`, `src/fs/path/beneath.c/.h`,
+  `src/fs/path/canonical.c`, `src/fs/path/mkdir.c`, `src/core/compat/namespace_ops.c`,
   `src/core/compat/staged_file.c`, `src/core/compat/shm_slots.c`.
 - POSC / open semantics: `src/read/open.h`, `src/read/open_request.c`,
   `src/read/close.c`, `src/connection/fd_table.c` (`xrootd_free_fhandle`).
-- Cache: `src/cache/README.md`, `src/cache/open.c`, `src/cache/fetch.c`,
-  `src/cache/slice.c`/`slice_fill.c`, `src/cache/origin_protocol.c`,
-  `src/cache/origin_connection.c`, `src/cache/io.c`,
-  `src/cache/writethrough_decision.c`, `src/cache/writethrough_flush.c`,
-  `src/cache/evict_policy.c`, `src/cache/directives.c`.
+- Cache: `src/fs/cache/README.md`, `src/fs/cache/open.c`, `src/fs/cache/fetch.c`,
+  `src/fs/cache/slice.c`/`slice_fill.c`, `src/fs/cache/origin_protocol.c`,
+  `src/fs/cache/origin_connection.c`, `src/fs/cache/io.c`,
+  `src/fs/cache/writethrough_decision.c`, `src/fs/cache/writethrough_flush.c`,
+  `src/fs/cache/evict_policy.c`, `src/fs/cache/directives.c`.
 - FRM / tape: `src/frm/README.md`, `src/frm/frm_format.h`, `src/frm/reqfile.c`,
   `src/frm/reqid.c`, `src/frm/index.c`, `src/frm/reconcile.c`,
   `src/frm/residency.c`, `src/frm/stage.c`, `src/frm/waiter.c`,

@@ -30,7 +30,7 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 
-#include "path/unified.h"
+#include "fs/path/unified.h"
 #include "core/types/identity.h"
 #include "metrics/unified.h"
 #include "fs/backend/sd.h"

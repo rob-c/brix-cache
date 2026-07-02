@@ -1,5 +1,5 @@
 """
-Storage-scan engine (src/scan/) — phase-2 base engine.
+Storage-scan engine (src/fs/scan/) — phase-2 base engine.
 
 This module currently covers the ngx-free, standalone-testable engine cores
 (compiled + run outside the nginx module, like csi_unittest.c):
@@ -11,7 +11,7 @@ This module currently covers the ngx-free, standalone-testable engine cores
                     emits in walk order; window-overflow / late-seq rejected).
 
 The HTTP-endpoint integration (dump/verify/fill/compare over chunked NDJSON)
-lands with src/scan/scan_http.c and will add a live fixture here.
+lands with src/fs/scan/scan_http.c and will add a live fixture here.
 
 See docs/superpowers/specs/2026-06-29-storage-scan-verify-design.md and
 docs/superpowers/specs/2026-06-29-client-backend-sysadmin-tooling-design.md.
@@ -45,7 +45,7 @@ def scan_core_bin(tmp_path_factory):
     if cc is None:
         pytest.skip("no C compiler")
     if not all(os.path.exists(s) for s in SRCS):
-        pytest.skip("src/scan sources missing")
+        pytest.skip("src/fs/scan sources missing")
     out = str(tmp_path_factory.mktemp("scan") / "ut")
     r = subprocess.run(
         [cc, "-Wall", "-Wextra", "-Werror", "-I", SCAN, "-o", out, *SRCS, "-lm"],

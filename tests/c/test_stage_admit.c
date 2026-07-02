@@ -6,7 +6,7 @@
 #include <assert.h>
 #include <stdio.h>
 
-#include "../../src/cache/stage_admit.h"   /* enum + pure xrootd_wt_stage_decide */
+#include "../../src/fs/cache/stage_admit.h"   /* enum + pure xrootd_wt_stage_decide */
 
 int main(void) {
     /* below LOW → ALLOW */

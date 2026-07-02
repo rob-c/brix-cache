@@ -293,7 +293,7 @@ nibble ↔ ASCII hex character conversion:
 
 | File | Function | Direction |
 |---|---|---|
-| `src/path/helpers.c` | `xrootd_hex_digit(u_char v)` | nibble → uppercase ASCII |
+| `src/fs/path/helpers.c` | `xrootd_hex_digit(u_char v)` | nibble → uppercase ASCII |
 | `src/core/compat/xml.c` | `xrootd_xml_hex_digit(unsigned char v)` | nibble → uppercase ASCII |
 | `src/auth/token/macaroon.c` | `hex_to_int(char c)` | ASCII → nibble |
 | `src/core/compat/uri.c` | `hex_val(unsigned char c, unsigned char *out)` | ASCII → nibble |

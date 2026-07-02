@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Fold the legacy Phase-26 root:// slice cache (`src/read/slice_read.c` + `src/cache/slice_fill.c` + `src/cache/slice.c`) into the unified phase-64 `sd_cache` partial mechanism, so §6.5's "there is no separate `slice_fill.c`" holds — one slice/partial implementation shared by root:// and WebDAV/S3.
+**Goal:** Fold the legacy Phase-26 root:// slice cache (`src/read/slice_read.c` + `src/fs/cache/slice_fill.c` + `src/fs/cache/slice.c`) into the unified phase-64 `sd_cache` partial mechanism, so §6.5's "there is no separate `slice_fill.c`" holds — one slice/partial implementation shared by root:// and WebDAV/S3.
 
 **Architecture:** The root:// read path already serves driver-backed cache objects: `xrootd_open_resolved_via_driver` adopts an `sd_cache` object into `fh->sd_obj`, and `src/read/read.c` serves it through `sd_obj.driver->pread` (the non-sendfile path). `sd_cache` already implements sparse slice fill (`sd_cache_partial_open` + the cstore serve loop). So the migration routes the slice branch in `open_cache.c` through an `sd_cache` decorator (source = the origin, store = `cache_root`, `slice_size` set) instead of `xrootd_open_slice_handle`, then deletes the three legacy files. The legacy `cache_origin_host`+`cache_slice_size` config is mapped onto an internally-composed `sd_cache` instance so no user-facing config changes.
 
-**Tech Stack:** C (nginx stream module), `sd_cache`/`cstore` (`src/fs/backend/cache/`, `src/cache/`), the tier composition (`src/fs/tier/tier_build.c`, `xrootd_sd_cache_create`, `xrootd_sd_xroot_create_origin`), the driver-backed open/read path (`src/read/open_resolved_file.c`, `read.c`), and the existing slice tests (`tests/test_slice_cache.py`, `tests/c/run_cinfo_tests.sh`) plus a new root:// slice harness as the parity gate.
+**Tech Stack:** C (nginx stream module), `sd_cache`/`cstore` (`src/fs/backend/cache/`, `src/fs/cache/`), the tier composition (`src/fs/tier/tier_build.c`, `xrootd_sd_cache_create`, `xrootd_sd_xroot_create_origin`), the driver-backed open/read path (`src/read/open_resolved_file.c`, `read.c`), and the existing slice tests (`tests/test_slice_cache.py`, `tests/c/run_cinfo_tests.sh`) plus a new root:// slice harness as the parity gate.
 
 ## Global Constraints
 
@@ -24,7 +24,7 @@
 Give the stream config an `sd_cache` decorator (source = origin, store = `cache_root` posix, `slice_size` set) built at config time when `cache_slice_size > 0` and an origin is configured — reachable from `open_cache.c` at open time. Reuses the existing `tier_build` composition rather than the legacy `slice_read` machinery.
 
 **Files:**
-- Modify: `src/cache/cache_storage.c` (build the slice `sd_cache` instance beside `cache_storage_inst`)
+- Modify: `src/fs/cache/cache_storage.c` (build the slice `sd_cache` instance beside `cache_storage_inst`)
 - Modify: `src/core/types/config.h` (a field to hold it, e.g. `void *cache_slice_inst`)
 - Test: config validation + a startup smoke (no serve yet)
 
@@ -84,7 +84,7 @@ A self-starting harness proving root:// slice reads over the new `sd_cache` path
 Once the new path passes parity, remove `slice_read.c`, `slice_fill.c`, `slice.c` (+ headers), their `config` entries, the legacy config plumbing they alone used, and the now-dead fallback in `open_cache.c`.
 
 **Files:**
-- Delete: `src/read/slice_read.{c,h}`, `src/cache/slice_fill.c`, `src/cache/slice.{c,h}`
+- Delete: `src/read/slice_read.{c,h}`, `src/fs/cache/slice_fill.c`, `src/fs/cache/slice.{c,h}`
 - Modify: `config` (remove the three `.c` from `NGX_ADDON_SRCS`), `open_cache.c` (drop the fallback), `cache_internal.h` (remove `xrootd_cache_slice_*` decls), `src/read/slice_read.h` includers, `src/core/types/file.h` (`slice_cache_path`/`slice_clean_path` if now unused)
 - Modify: `src/read/slice_read.c` callers (`src/read/slice_read.c` was called from `open_cache.c` only — confirm)
 

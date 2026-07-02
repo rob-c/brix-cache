@@ -10,7 +10,7 @@
 > **Companion docs:** [`pblock-storage-backend.md`](pblock-storage-backend.md),
 > [`vfs-shared-architecture.md`](vfs-shared-architecture.md),
 > [`src/fs/backend/README.md`](../../src/fs/backend/README.md),
-> [`src/cache/README.md`](../../src/cache/README.md).
+> [`src/fs/cache/README.md`](../../src/fs/cache/README.md).
 
 ---
 
@@ -112,7 +112,7 @@ truly has; the VFS degrades or rejects gracefully on the rest:
 > `ᵃ` — `xroot` (remote `root://` primary) **forwards** these to the origin: xattr
 > via `kXR_fattr` (get/set/list/del), rename via `kXR_mv`, server-copy as a gateway
 > read+write relay (not a remote zero-copy/TPC), and vectored read via per-segment
-> `preadv`. The origin wire helpers live in `src/cache/origin_protocol.c`
+> `preadv`. The origin wire helpers live in `src/fs/cache/origin_protocol.c`
 > (`xrootd_cache_origin_{getfattr,setfattr,listfattr,delfattr,rename}`). E2E:
 > `tests/run_remote_backend_meta.sh`. **Namespace:** the kXR_fattr handler maps a
 > user attr `X` to the on-disk key `user.U.X` *above* the VFS; since the origin
@@ -334,7 +334,7 @@ vtable**:
   └──────────────────────────────────────────────────────────────────┘
          ▲                                            ▲
          │ injected by the CLIENT                     │ injected by the SERVER
-  client/lib/vfs_s3_transport.c                src/cache/origin/s3_transport.c
+  client/lib/vfs_s3_transport.c                src/fs/cache/origin/s3_transport.c
   (xrdc_http stack)                            (libcurl)   ◄── NEW for the cache
 ```
 

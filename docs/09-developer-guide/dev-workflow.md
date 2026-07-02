@@ -14,7 +14,7 @@
 | `src/auth/crypto/pki_*.c` / `src/pki/*.c` | PKI/CRL startup consistency checks |
 | `src/auth/voms/*.c` | Runtime VOMS support via `dlopen("libvomsapi.so.1")` — VO extraction from proxy certs |
 | `src/read/*.c` | Read-side operations: open, read, readv, pgread, stat, statx, dirlist, locate, close |
-| `src/cache/*.c` | Read-through cache origin fetch, locking, and fill callbacks |
+| `src/fs/cache/*.c` | Read-through cache origin fetch, locking, and fill callbacks |
 | `src/query/*.c` | kXR_query subtypes (cksum, space, config, stats, xattr, finfo, fsinfo) and kXR_prepare, kXR_set |
 | `src/fattr/*.c` | kXR_fattr extended attributes (get / set / del / list via Linux xattrs) |
 | `src/upstream/*.c` | Outbound XRootD redirector client for manager/upstream misses |

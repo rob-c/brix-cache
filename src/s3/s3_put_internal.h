@@ -13,7 +13,7 @@
 #include "core/compat/http_headers.h"
 #include "core/compat/staged_file.h"
 #include "fs/vfs.h"
-#include "path/path.h"
+#include "fs/path/path.h"
 #include "dashboard/dashboard_tracking.h"
 #include "auth/impersonate/lifecycle.h"
 #include <fcntl.h>

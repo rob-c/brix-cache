@@ -7,7 +7,7 @@
  */
 
 #include "webdav.h"
-#include "path/path.h"
+#include "fs/path/path.h"
 #include "fs/vfs.h"
 #include "core/compat/http_xml.h"
 #include "core/compat/namespace_ops.h"

@@ -4,7 +4,7 @@ tests/test_slice_cache.py — Phase 26 slice-granular caching tests.
 Two layers:
 
   * TestSliceLibrary — compiles and runs the standalone C unit tests for the
-    shared slice library (src/cache/slice.c) against the real build objects.
+    shared slice library (src/fs/cache/slice.c) against the real build objects.
     This is the LANDED foundation (Phase 26 Step A) and runs with no server.
 
   * TestSliceCacheIntegration — end-to-end coverage of slice serving over the
@@ -494,7 +494,7 @@ def test_last_partial_slice_is_clamped(xcache):
 # §9 .cinfo block-present bitmap — record-keeping of which blocks are cached.
 #
 # Two layers, mirroring the slice tests above:
-#   * TestCinfoLibrary — the standalone C unit tests for src/cache/cinfo.c
+#   * TestCinfoLibrary — the standalone C unit tests for src/fs/cache/cinfo.c
 #     (format roundtrip, bit ops, garbage handling, record_block RMW). No server.
 #   * The integration tests assert that as the slice cache fills windows, the
 #     "<cachefile>.cinfo" bitmap records EXACTLY the blocks fetched (and flips to

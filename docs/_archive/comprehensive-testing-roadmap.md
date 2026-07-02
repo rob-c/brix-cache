@@ -242,7 +242,7 @@ This scenario is designed to exercise the largest possible number of internal `n
 ### C. Specific Code Paths Exercised
 *   **`src/session/signing.c`**: SSS internal auth.
 *   **`src/proxy/handle_table.c`**: Mapping handles across a 3-tier NAT-like hierarchy.
-*   **`src/cache/eviction.c`**: Triggered by writing a file larger than the Tier 2 cache disk partition.
+*   **`src/fs/cache/eviction.c`**: Triggered by writing a file larger than the Tier 2 cache disk partition.
 *   **`src/tpc/bridge.c`**: Moving data between the HTTP/S3 and Binary state machines.
 *   **`src/connection/fd_table.c`**: High-pressure FD usage with multi-stream TPC.
 

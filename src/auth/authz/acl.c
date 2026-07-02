@@ -3,7 +3,7 @@
 #include <stddef.h>
 #include <string.h>
 
-#include "path/path_internal.h"
+#include "fs/path/path_internal.h"
 
 /* Postconfig finalization of the VO-rule array: resolve each rule's path against
  * the export root. */

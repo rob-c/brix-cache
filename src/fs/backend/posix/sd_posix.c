@@ -31,8 +31,8 @@
 #include "core/compat/crc32c.h"
 #include "core/compat/namespace_ops.h"
 #include "core/compat/staged_file.h"
-#include "path/beneath.h"
-#include "path/path.h"
+#include "fs/path/beneath.h"
+#include "fs/path/path.h"
 #endif
 
 #include <dirent.h>

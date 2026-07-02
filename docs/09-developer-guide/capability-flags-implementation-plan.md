@@ -164,7 +164,7 @@ body.flags = htonl(kXR_isServer
 
 **Meaning**: this node is a read-through cache server (XCache-compatible). Clients may use this to understand why responses include `kXR_cachersp` stat bits, and federation tools route accordingly.
 
-**Current state**: Cache is implemented (`conf->cache_root`, `conf->cache_origin_host`, `src/cache/`). Flag exists in upstream spec but missing from our `flags.h` and not set.
+**Current state**: Cache is implemented (`conf->cache_root`, `conf->cache_origin_host`, `src/fs/cache/`). Flag exists in upstream spec but missing from our `flags.h` and not set.
 
 **Implementation**:
 

@@ -8,7 +8,7 @@
 #include "core/compat/staged_file.h"
 #include "core/compat/tmp_path.h"          /* SP4 orphan direct-write temp reaper */
 #include "fs/vfs_backend_registry.h"   /* per-export backend registration */
-#include "path/path.h"                 /* xrootd_mkdir_recursive (pblock:// init) */
+#include "fs/path/path.h"                 /* xrootd_mkdir_recursive (pblock:// init) */
 #include "fs/tier/tier.h"              /* phase-64 tier parse + cache/stage register */
 
 /* Directive setter for a tier store-URL directive: arg[1] = the store URL (into the

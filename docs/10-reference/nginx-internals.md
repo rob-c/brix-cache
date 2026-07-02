@@ -472,7 +472,7 @@ src/core/aio/                 ← ngx_thread_task_t wrappers for all blocking I/
 src/path/                ← path confinement, canonical resolution, VO ACL
 src/query/               ← kXR_query subtypes (cksum, space, config, stats)
 src/fattr/               ← kXR_fattr (xattr get/set/del via Linux xattrs)
-src/cache/               ← read-through cache (origin fill, eviction)
+src/fs/cache/               ← read-through cache (origin fill, eviction)
 src/cms/                 ← CMS manager heartbeat (send/receive)
 src/tpc/                 ← native root:// TPC (pull path on destination)
 src/response/            ← XRootD response framing helpers

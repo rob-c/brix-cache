@@ -10,7 +10,7 @@
 #include "fs/backend/cache/sd_cache.h"   /* phase-64 read-cache decorator */
 #include "fs/backend/frm/sd_frm.h"       /* phase-64 SP5 nearline (tape) backend */
 #include "fs/tier/tier.h"                /* phase-64 tier cfg/build + the cache/stage setters */
-#include "cache/origin/s3_transport.h" /* xrootd_s3_origin_curl_transport (libcurl) */
+#include "fs/cache/origin/s3_transport.h" /* xrootd_s3_origin_curl_transport (libcurl) */
 
 #include <string.h>
 

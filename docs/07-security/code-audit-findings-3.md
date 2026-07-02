@@ -27,7 +27,7 @@ evaluate symlink-swap risk.
   via `xrootd_make_tmp_path()`, and confined operations. ✅
 - `src/read/open_resolved_file.c` (POSC) — uses `xrootd_make_tmp_path()` (random name),
   `O_EXCL` on first open attempt, `xrootd_open_confined()` (path escape prevention). ✅
-- `src/cache/lock.c`, `src/cache/evict_candidates.c` — lock files use `O_CREAT|O_EXCL`;
+- `src/fs/cache/lock.c`, `src/fs/cache/evict_candidates.c` — lock files use `O_CREAT|O_EXCL`;
   correct for lock semantics, not temp-file semantics. ✅
 - `src/webdav/lock.c` — WebDAV lock token file uses `O_CREAT|O_EXCL`; zero-byte resource
   creation, not a staging temp file. ✅
@@ -37,7 +37,7 @@ evaluate symlink-swap risk.
 ## T-01: TOCTOU Race in `cache/fetch.c`
 
 **Severity:** High
-**File:** `src/cache/fetch.c` — `xrootd_cache_fetch_origin()`
+**File:** `src/fs/cache/fetch.c` — `xrootd_cache_fetch_origin()`
 
 ### Vulnerability
 
@@ -94,11 +94,11 @@ outfd = open(t->part_path,
 `O_TRUNC` already ensures a fresh file; the `unlink()` was redundant and harmful.
 Removing it collapses the two-step race into a single atomic operation.
 
-**Implementation:** `src/cache/fetch.c` — removed `unlink(t->part_path)` call
+**Implementation:** `src/fs/cache/fetch.c` — removed `unlink(t->part_path)` call
 preceding the `open()`; added `O_NOFOLLOW` to the `open()` flags.
 
 **Note on naming:** `t->part_path` intentionally keeps the predictable `.part` suffix
-rather than switching to `xrootd_make_tmp_path()`.  `src/cache/lock.c` uses the fixed
+rather than switching to `xrootd_make_tmp_path()`.  `src/fs/cache/lock.c` uses the fixed
 path for fill-lock coordination — exactly one worker holds the fill lock for a given
 cache entry at a time, preventing concurrent fetches.  Switching to a random name would
 break the lock protocol.  The security property that matters here is the atomic single

@@ -7,7 +7,7 @@ server (port 18457) serves anonymous HTTP WebDAV with:
     xrootd_webdav_root       /tmp/xrd-test/data-http-cache
     xrootd_webdav_cache_root /tmp/xrd-test/data-http-cache/cache
 
-Cache path formula (shared with src/cache/open.c):
+Cache path formula (shared with src/fs/cache/open.c):
     cache_path = cache_root_canon + (fs_path - root_canon)
     e.g. GET /foo.txt → check /tmp/xrd-test/data-http-cache/cache/foo.txt
     plus /tmp/xrd-test/data-http-cache/cache/foo.txt.meta metadata

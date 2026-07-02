@@ -29,7 +29,7 @@
  */
 
 #include "cache_internal.h"
-#include "cache/origin/transport.h"
+#include "fs/cache/origin/transport.h"
 
 
 /* Verification policy (config: xrootd_cache_verify off|best-effort|require). */

@@ -128,15 +128,15 @@ def test_phase4_cache_layer_is_registered():
     _assert_markers(
         "config",
         [
-            "src/cache/open.h",
-            "src/cache/meta.h",
-            "src/cache/writethrough.h",
-            "src/cache/open.c",
-            "src/cache/meta.c",
+            "src/fs/cache/open.h",
+            "src/fs/cache/meta.h",
+            "src/fs/cache/writethrough.h",
+            "src/fs/cache/open.c",
+            "src/fs/cache/meta.c",
         ],
     )
     _assert_markers(
-        "src/cache/open.h",
+        "src/fs/cache/open.h",
         [
             "xrootd_cache_open(",
             "xrootd_cache_record_access(",
@@ -144,7 +144,7 @@ def test_phase4_cache_layer_is_registered():
         ],
     )
     _assert_markers(
-        "src/cache/meta.h",
+        "src/fs/cache/meta.h",
         [
             "xrootd_cache_meta_t",
             "XROOTD_CACHE_META_ETAG_MAX",
@@ -180,7 +180,7 @@ def test_phase4_vfs_cache_hooks_are_present():
         ["../cache/open.h", "xrootd_cache_record_access("],
     )
     _assert_markers(
-        "src/cache/writethrough_decision.c",
+        "src/fs/cache/writethrough_decision.c",
         ["writethrough.h", "xrootd_cache_should_writethrough("],
     )
 
@@ -239,14 +239,14 @@ def test_phase4_http_protocols_use_vfs_cache_path():
 
 def test_phase4_cache_metadata_and_eviction_guardrails():
     _assert_markers(
-        "src/cache/fetch.c",
+        "src/fs/cache/fetch.c",
         [
             "xrootd_cache_meta_from_stat(",
             "xrootd_cache_meta_write(",
         ],
     )
     _assert_markers(
-        "src/cache/open.c",
+        "src/fs/cache/open.c",
         [
             "xrootd_cache_validate_meta(",
             "O_NOFOLLOW",
@@ -254,11 +254,11 @@ def test_phase4_cache_metadata_and_eviction_guardrails():
         ],
     )
     _assert_markers(
-        "src/cache/evict_candidates.c",
+        "src/fs/cache/evict_candidates.c",
         ['strcmp(name + name_len - suffix_len, ".meta")'],
     )
     _assert_markers(
-        "src/cache/evict_policy.c",
+        "src/fs/cache/evict_policy.c",
         ["xrootd_cache_meta_path(", "unlink(meta_path)"],
     )
 

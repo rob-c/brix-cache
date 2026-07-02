@@ -337,7 +337,7 @@ These are the auxiliary storage domains that INVARIANT #11 currently carves *out
 
 | # | Domain | Files (raw today) | Driver that exists | What the plan must design |
 |---|--------|-------------------|--------------------|---------------------------|
-| 3 | **Read-through cache store** | `src/cache/` — ~19 of 34 files still raw (`io.c`, `cache_storage.c`, `cstore.c`, `fetch.c`, `open_or_fill.c`, `evict_*`) | `sd_cache` + `tier`/`xfer` | Finish the phase-64 migration: cache-store byte/namespace I/O via the cstore/`sd_cache` instance, not raw cache-root POSIX. Highest leverage (biggest domain, infra already exists). |
+| 3 | **Read-through cache store** | `src/fs/cache/` — ~19 of 34 files still raw (`io.c`, `cache_storage.c`, `cstore.c`, `fetch.c`, `open_or_fill.c`, `evict_*`) | `sd_cache` + `tier`/`xfer` | Finish the phase-64 migration: cache-store byte/namespace I/O via the cstore/`sd_cache` instance, not raw cache-root POSIX. Highest leverage (biggest domain, infra already exists). |
 | 4 | **S3 multipart staging** | `src/s3/` — 5 `vfs-seam-allow` markers | — (none) | A staging instance (worker-identity scratch ctx) so part upload/assemble/commit route through the driver; commit stays a VFS↔VFS move. |
 | 5 | **TPC temp / assembly** | `src/tpc/`, `src/webdav/tpc*` — 8 markers | — (none) | In-progress transfer temps + multi-stream assembly onto the scratch ctx; final publish via `xrootd_commit_staged`. |
 | 6 | **Checkpoint journal** | `src/write/` (chkpoint) — handle-owned raw | — (none) | Journal file as a handle-owned scratch object; teardown path currently has "no export root" — the scratch ctx supplies one. |

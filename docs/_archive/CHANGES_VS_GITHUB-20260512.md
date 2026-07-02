@@ -85,7 +85,7 @@ net).
 
 | Directory | Purpose |
 |---|---|
-| `src/cache/` | Read-through cache (eviction, config, AIO integration) |
+| `src/fs/cache/` | Read-through cache (eviction, config, AIO integration) |
 | `src/proxy/` | Upstream proxy pool — connection pooling, event handling, forwarding |
 | `src/s3/` | S3-compatible REST gateway: GET/PUT/DELETE, ListObjectsV2, multipart upload, SigV4 auth |
 | `src/auth/sss/` | SSS (Shared-Secret-Security) authentication |

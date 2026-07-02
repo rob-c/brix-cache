@@ -25,7 +25,7 @@
 
 #include "core/aio/aio.h"
 #include "dirlist/dcksm.h"
-#include "path/path.h"
+#include "fs/path/path.h"
 #include "protocol/dirlist_fmt.h"
 #include "read/read.h"
 #include "response/response.h"

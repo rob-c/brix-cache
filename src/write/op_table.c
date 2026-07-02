@@ -9,7 +9,7 @@
 #include "op_table.h"
 #include "core/compat/namespace_ops.h"
 #include "core/compat/error_mapping.h"
-#include "path/path.h"
+#include "fs/path/path.h"
 #include "fs/vfs.h"   /* chmod/rm/rmdir via the VFS seam */
 
 /* Build a stream VFS ctx for a simple namespace op on e->resolved. */

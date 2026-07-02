@@ -125,7 +125,7 @@ a real XRootD SSI peer (per ADR-2).
 | 8.3 | checksum-on-ingest (S3) | **DONE (existing flow)** | S3 PUT already persists via `xrootd_integrity_get_fd("crc64nvme", update=1)` (`s3/util.c`) + multi-algo `s3/checksum.c`; with §8.x format it lands as binary `XrdCksData` too |
 | 8.3 | checksum-on-ingest (root:// close / TPC) | TODO (needs async) | a synchronous full-file digest on `kXR_close`/TPC-done would block the worker event loop on large files; correct impl offloads to the AIO pool (reuse `query/checksum_qcksum_async.c`). Deferred rather than add hot-path blocking |
 | 8.x | write-binary xattr format | **DONE** | `xrootd_integrity_set_xattr_format` + binary write in `integrity_xattr_write_rc`; `xrootd_webdav_checksum_xattr_format text\|xrdcks` directive (process-global); `tests/test_checksum_on_write.py::test_xrdcks_binary_format` proves on-disk `user.XrdCks.adler32` is a stock `XrdCksData` record (Name/Length/Value validated). M8 interop now complete BOTH directions |
-| 9 | `.cinfo` cache metadata | **DONE (stats + block bitmap)** | (stats) versioned tail (access_count/last_access/bytes_served + origin-digest) on `xrootd_cache_meta_t`, back-compat read, `xrootd_cache_meta_touch`, wired into slice-hit. (bitmap) new `src/cache/cinfo.{c,h}`: `<cachefile>.cinfo` = versioned header + `ceil(size/block_size)`-bit block-present bitmap; `xrootd_cache_cinfo_record_block` (flock-serialised RMW, origin-change reset, COMPLETE/PARTIAL flags) wired into `slice_fill.c` after each window lands; `slice.c` evict drops the `.cinfo`; load DECLINEs short/garbage (torn-write-safe). Unit-tested (`tests/c/test_cinfo.c`, 53 checks) + integration (`tests/test_slice_cache.py`: partial read records only touched blocks, full read → COMPLETE). Record-keeping only — read-time serve-present/fetch-gaps from the bitmap is the remaining follow-up |
+| 9 | `.cinfo` cache metadata | **DONE (stats + block bitmap)** | (stats) versioned tail (access_count/last_access/bytes_served + origin-digest) on `xrootd_cache_meta_t`, back-compat read, `xrootd_cache_meta_touch`, wired into slice-hit. (bitmap) new `src/fs/cache/cinfo.{c,h}`: `<cachefile>.cinfo` = versioned header + `ceil(size/block_size)`-bit block-present bitmap; `xrootd_cache_cinfo_record_block` (flock-serialised RMW, origin-change reset, COMPLETE/PARTIAL flags) wired into `slice_fill.c` after each window lands; `slice.c` evict drops the `.cinfo`; load DECLINEs short/garbage (torn-write-safe). Unit-tested (`tests/c/test_cinfo.c`, 53 checks) + integration (`tests/test_slice_cache.py`: partial read records only touched blocks, full read → COMPLETE). Record-keeping only — read-time serve-present/fetch-gaps from the bitmap is the remaining follow-up |
 | 3 | XrdDig (HTTP surface) | **DONE** | `src/dig/{dig.c,dig.h}`; WebDAV dispatch hook; directives `xrootd_webdav_dig` / `_dig_export <name> <dir>` (realpath anchor) / `_dig_auth <allowfile>`; RESOLVE_BENEATH confinement + fail-closed principal→export allow-file + GET/HEAD-only; `tests/test_dig.py` 7/7 (authorized read, unlisted→403, anon→403, **symlink-escape blocked**, unknown-export→404, write→405, disabled→fall-through). Follow-up: root:// surface + dirlist |
 | 4A | OssArc zip member read | **DONE (pre-existing)** | already in tree: `zip_member.c`/`zip_http.c`; `webdav/get.c` `zip_access`; root:// `xrdcl.unzip=` in `open_request.c`. Doc §4A was stale |
 | 5 | GSI delegation | **DONE (pre-existing)** | already in tree+build: `src/auth/gsi/delegation.c` (begin_delegation→`kXGS_pxyreq`, `handle_sigpxy`), `src/auth/gsi/proxy_req.c` (X509_REQ CSR + unittest), session-cipher encrypt, auth.c branches, TPC `tpc_delegate` consumption. `native_tpc_gsi_broken` memory was stale. Doc §5 was a stale TODO |
@@ -1104,7 +1104,7 @@ reconfigure); `on-write` touches existing handlers; `.csi` (8.4) would add
 ## §9. `.cinfo` cache-metadata upgrade — *requested*
 
 ### 9.0 Current state (verified)
-The cache writes a `.meta` sidecar per cached file (`src/cache/meta.{c,h}`):
+The cache writes a `.meta` sidecar per cached file (`src/fs/cache/meta.{c,h}`):
 ```c
 typedef struct { uint64_t mtime; uint64_t size;
                  uint8_t etag_len; char etag[55]; } xrootd_cache_meta_t;
@@ -1142,7 +1142,7 @@ typedef struct {                  /* fixed header; bitmap appended after */
 } xrootd_cache_cinfo_t;
 ```
 
-### 9.3 Functions (`src/cache/cinfo.c`, new)
+### 9.3 Functions (`src/fs/cache/cinfo.c`, new)
 ```c
 /* LOOP-ONLY (open) + EITHER (bit ops). load returns NGX_DECLINED on
  * missing/short/garbage (→ treat as empty cache = full refetch). */
@@ -1159,12 +1159,12 @@ ngx_int_t xrootd_cache_cinfo_from_meta(const xrootd_cache_meta_t *m,
 ```
 
 ### 9.4 Callers
-- `src/cache/slice_fill.c` — `mark_block` after each window fill; set `VERIFIED` after
+- `src/fs/cache/slice_fill.c` — `mark_block` after each window fill; set `VERIFIED` after
   digest check.
-- `src/cache/open.c` / `open_or_fill.c` — consult bitmap → serve present windows,
+- `src/fs/cache/open.c` / `open_or_fill.c` — consult bitmap → serve present windows,
   fetch only gaps.
-- `src/cache/evict_policy.c` — score by `last_access`/`access_count`/`bytes_served`.
-- `src/cache/fetch.c` / `slice_fill.c` — verify filled bytes against `cks` (§8) before
+- `src/fs/cache/evict_policy.c` — score by `last_access`/`access_count`/`bytes_served`.
+- `src/fs/cache/fetch.c` / `slice_fill.c` — verify filled bytes against `cks` (§8) before
   marking present; mismatch → discard window + WARN.
 
 ### 9.5 Concurrency & crash safety
@@ -1179,7 +1179,7 @@ xrootd_cache_cinfo on|off;        # default on; off keeps .meta behavior
 ```
 
 ### 9.7 Build
-`src/cache/cinfo.c` (+`cinfo.h`) → `./config` (the cache header list at ~line 274);
+`src/fs/cache/cinfo.c` (+`cinfo.h`) → `./config` (the cache header list at ~line 274);
 `./configure`.
 
 ### 9.8 Test matrix (`tests/test_cache_cinfo.py`)
@@ -2204,7 +2204,7 @@ xrootd_cks_sidecar_put(const char *file, const xrootd_integrity_info_t *in,
 }
 ```
 
-### EE.4 `src/cache/cinfo.c` — load (complements §S.6 store) (§9)
+### EE.4 `src/fs/cache/cinfo.c` — load (complements §S.6 store) (§9)
 ```c
 /* LOOP-ONLY. Load header + bitmap. NGX_DECLINED on missing/short/garbage (→ refetch).
  * *bitmap is pool-or-malloc owned by the caller; *bitmap_len may be 0. */
@@ -2553,7 +2553,7 @@ native writer is possible later but isn't on the critical path.
 ## §OO. Complete subsystem sources (dig, delegation, CNS, SSI)
 
 > These are whole-file drafts to the verified APIs: `xrootd_beneath_open_root` /
-> `xrootd_open_beneath` / `xrootd_stat_beneath` (`src/path/beneath.h`),
+> `xrootd_open_beneath` / `xrootd_stat_beneath` (`src/fs/path/beneath.h`),
 > `xrootd_alloc_fhandle` + `ctx->files[]` (`src/connection/fd_table.h`),
 > `xrootd_aio_post_task(ctx,c,…)` (`src/core/aio/aio.h`), `xrootd_build_resp_hdr` +
 > `xrootd_queue_response` + `kXR_authmore` (response path), `xrootd_gbuf_*` /
@@ -2963,14 +2963,14 @@ xrootd_ssi_read(xrootd_ssi_req_t *rq, ngx_connection_t *c,
 
 ## §PP. Exact `./config` additions (per new file)
 
-Append to the **header** list (near the existing `src/cache/*.h`, `src/auth/gsi/*.h`):
+Append to the **header** list (near the existing `src/fs/cache/*.h`, `src/auth/gsi/*.h`):
 ```sh
                         $ngx_addon_dir/src/dig/dig.h \
                         $ngx_addon_dir/src/auth/gsi/delegation.h \
                         $ngx_addon_dir/src/cms/cns.h \
                         $ngx_addon_dir/src/ssi/ssi.h \
                         $ngx_addon_dir/src/ssi/ssi_registry.h \
-                        $ngx_addon_dir/src/cache/cinfo.h \
+                        $ngx_addon_dir/src/fs/cache/cinfo.h \
                         $ngx_addon_dir/src/zip/zip_member.h \
                         $ngx_addon_dir/src/core/compat/iso8601.h \
 ```
@@ -2986,7 +2986,7 @@ Append to the **`NGX_ADDON_SRCS`** list (near `src/auth/gsi/*.c`, `src/cms/*.c`)
     $ngx_addon_dir/src/ssi/ssi.c \
     $ngx_addon_dir/src/ssi/ssi_registry.c \
     $ngx_addon_dir/src/zip/zip_member.c \
-    $ngx_addon_dir/src/cache/cinfo.c \
+    $ngx_addon_dir/src/fs/cache/cinfo.c \
     $ngx_addon_dir/src/frm/archive.c \
 ```
 Then **`./configure --with-stream --with-stream_ssl_module --with-http_ssl_module
@@ -3492,7 +3492,7 @@ combined) and parallelizable with the rest. **5.3** is blocked by the outbound-G
 | §6 | `docs/10-architecture/` CNS page; `src/cms/README.md` CNS note |
 | §7 | `docs/04-protocols/ssi.md`; `src/ssi/README.md` |
 | §8 | `docs/10-reference/crc64-checksums.md` (+at-rest/xattr/sidecar) |
-| §9 | `docs/02-concepts/` caching page (+cinfo); `src/cache/README.md` |
+| §9 | `docs/02-concepts/` caching page (+cinfo); `src/fs/cache/README.md` |
 | all | `docs/10-reference/gaps-vs-xrootd.md` rows flipped to "implemented" |
 
 Every new concept lands docs **in the same PR** (project rule). Doxygen file-header

@@ -3,7 +3,7 @@ test_http_origin_stall_timeout.py — guard: the libcurl cache-origin transport
 must bound a STALLED transfer, not just the connect phase.
 
 WHAT
-    A static guard that fails if src/cache/origin/http_transport.c performs a
+    A static guard that fails if src/fs/cache/origin/http_transport.c performs a
     curl transfer (curl_easy_perform) without a stall/idle timeout — i.e. with
     only CURLOPT_CONNECTTIMEOUT and no CURLOPT_LOW_SPEED_TIME (or CURLOPT_TIMEOUT).
 

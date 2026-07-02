@@ -621,20 +621,20 @@ New coverage in `tests/test_s3_presigned.py`:
 The codebase now contains the write-through configuration surface, write
 bookkeeping, and origin flush path needed for cache gateway deployments:
 
-- `src/core/types/config.h`, `src/cache/directives.c`, and `src/stream/module.c`
+- `src/core/types/config.h`, `src/fs/cache/directives.c`, and `src/stream/module.c`
   define `xrootd_write_through`, `xrootd_wt_mode`, `xrootd_wt_origin`,
   `xrootd_wt_deny_prefix`, and `xrootd_wt_allow_prefix`.
-- `src/cache/writethrough_decision.c` evaluates prefix/size policy at
+- `src/fs/cache/writethrough_decision.c` evaluates prefix/size policy at
   `kXR_open`.
 - `src/read/open_resolved_file.c` caches the decision on `xrootd_file_t`.
 - `src/write/write.c`, `src/write/pgwrite.c`, `src/write/writev.c`,
   `src/write/truncate.c`, and AIO write completions track dirty data.
-- `src/cache/origin_connection.c` can connect to either the read-through
+- `src/fs/cache/origin_connection.c` can connect to either the read-through
   cache origin or a dedicated `xrootd_wt_origin`.
-- `src/cache/origin_protocol.c` implements write-side origin operations:
+- `src/fs/cache/origin_protocol.c` implements write-side origin operations:
   `xrootd_cache_origin_open_write()`, `xrootd_cache_origin_write_chunk()`,
   `xrootd_cache_origin_truncate()`, and `xrootd_cache_origin_sync()`.
-- `src/cache/writethrough_flush.c` mirrors the final local file to the
+- `src/fs/cache/writethrough_flush.c` mirrors the final local file to the
   origin in chunks, then issues origin truncate, sync, and close.
 - `src/write/sync.c` performs a synchronous WT flush for dirty handles before
   returning `kXR_ok`; failures are returned as `kXR_IOError`.
@@ -652,10 +652,10 @@ close remains fail-open while logging WT errors.
 | Phase | Files | What |
 |---|---|---|
 | 1 | `src/core/types/file.h`, `src/core/types/config.h` | ✅ Config and handle WT state |
-| 2 | `src/cache/origin_protocol.c` | ✅ Origin write-open, write, truncate, sync, close |
+| 2 | `src/fs/cache/origin_protocol.c` | ✅ Origin write-open, write, truncate, sync, close |
 | 3 | `src/read/open_resolved_file.c` | ✅ Open-time WT policy cached on the handle |
 | 4 | `src/core/aio/`, `src/write/*.c` | ✅ Dirty tracking for write, pgwrite, writev, truncate |
-| 5 | `src/cache/writethrough_flush.c`, `src/read/close.c`, `src/write/sync.c` | ✅ Close/sync origin flush |
+| 5 | `src/fs/cache/writethrough_flush.c`, `src/read/close.c`, `src/write/sync.c` | ✅ Close/sync origin flush |
 
 **Remaining limitations:** the origin path must resolve under `xrootd_root` or
 `xrootd_cache_root`, the origin must be a direct data server (redirect-following
