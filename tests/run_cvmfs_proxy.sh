@@ -71,8 +71,11 @@ cat > "$PFX2/nginx.conf" <<EOF
 daemon on; error_log $PFX2/logs/e.log info; pid $PFX2/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 128; }
-http { access_log off; server {
+http {
+    log_format cvt '\$status class=\$cvmfs_class uri=\$request_uri';
+    server {
     listen 127.0.0.1:$CPORT2;
+    access_log $PFX2/logs/a.log cvt;
     location / {
         xrootd_cvmfs_cache_store posix:$PFX2/cache;
         xrootd_cvmfs on;
@@ -90,6 +93,19 @@ C="$(curl -s -o /dev/null -w '%{http_code}' -x "http://127.0.0.1:$CPORT2" \
      "http://evil.example.org/cvmfs/x/.cvmfspublished")"
 [ "$C" = 403 ] && ok "multi-host allowlist still rejects others" \
     || bad "multi-host allowlist over-allows: $C"
+
+# 5: regression — a REJECTED request must log its TRUE URL class in
+#    \$cvmfs_class (the allowlist 403 used to happen before classification,
+#    so every reject logged class=cas regardless of shape).
+curl -s -o /dev/null -x "http://127.0.0.1:$CPORT2" \
+     "http://evil.example.org/cvmfs/x/api/v1.0/geo/localhost/a,b" || true
+sleep 0.2
+grep -q "403 class=manifest uri=/cvmfs/x/.cvmfspublished" \
+     "$PFX2/logs/a.log" && ok "rejected manifest logs class=manifest" \
+    || bad "rejected manifest misclassified: $(grep cvmfspublished "$PFX2/logs/a.log")"
+grep -q "403 class=geo" "$PFX2/logs/a.log" \
+    && ok "rejected geo logs class=geo" \
+    || bad "rejected geo misclassified: $(grep 'api/v1.0/geo' "$PFX2/logs/a.log")"
 [ -f "$PFX2/nginx.pid" ] && kill "$(cat "$PFX2/nginx.pid")" 2>/dev/null
 rm -rf "$PFX2"
 exit $fail
