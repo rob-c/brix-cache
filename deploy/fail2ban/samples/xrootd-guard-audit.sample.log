@@ -1,0 +1,4 @@
+2026-07-01T12:00:00+00:00 ip=203.0.113.9 proto=arc signal=signature op=read path="/wp-login.php" status=444
+2026-07-01T12:00:01+00:00 ip=198.51.100.7 proto=arc signal=grammar op=read path="/random/scan" status=444
+2026-07-01T12:00:02+00:00 ip=203.0.113.9 proto=xrdhttp signal=notfound op=read path="/store/x" status=404
+2026-07-01T12:00:03+00:00 ip=192.0.2.5 proto=root signal=authfail op=unknown path="/store/p" status=4003
