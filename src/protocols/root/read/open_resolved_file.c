@@ -580,42 +580,26 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	ctx->files[idx].read_last_end  = -1;
 	ctx->files[idx].read_ahead_end = 0;
 
-	/* phase-59 W2: attach a CSI page-checksum tagstore to this handle when
-	 * enabled. A write handle creates/uses tags; a read handle verifies against
-	 * existing tags. An untagged file with require=on is refused at open.
+	/* xmeta P3: attach the CSI block-checksum engine to this handle when
+	 * enabled. A write handle folds block CRCs as bytes stream through and
+	 * merges them into the file's xmeta record at close; a read handle
+	 * verifies fully-spanned blocks against the record. A file without a
+	 * verifiable record and require=on is refused at open.
 	 * trust_fs (self-checksumming backing fs): a pure read handle skips the
-	 * tagstore entirely — no tag-file open, no per-read verify, and csi_require
-	 * is deliberately not enforced; a write handle still attaches so tags stay
-	 * fresh, with its own read-verify suppressed via csi->trust_fs. */
+	 * engine entirely — no record load, no per-read verify, and csi_require
+	 * is deliberately not enforced; a write handle still attaches so tags
+	 * stay fresh, with its own read-verify suppressed via csi->trust_fs. */
 	ctx->files[idx].csi = NULL;
 	if (conf->csi_enable && S_ISREG(st.st_mode)
 	    && !(conf->csi_trust_fs && !is_write))
 	{
-		const char *crel = resolved;
-		size_t      rlen = strlen(conf->common.root_canon);
-		xrootd_csi_t *csi;
+		xrootd_csi_t *csi = ngx_alloc(sizeof(xrootd_csi_t), c->log);
 
-		if (rlen > 0
-		    && ngx_strncmp((u_char *) resolved,
-		                   (u_char *) conf->common.root_canon, rlen) == 0
-		    && resolved[rlen] == '/')
-		{
-			crel = resolved + rlen;
-		}
-
-		csi = ngx_alloc(sizeof(xrootd_csi_t), c->log);
 		if (csi != NULL) {
-			int crc;
+			int crc = xrootd_csi_open(csi, resolved,
+			    (uint32_t) conf->csi_block, is_write);
 
-			ngx_memzero(csi, sizeof(xrootd_csi_t));
-			csi->fill    = conf->csi_fill ? 1 : 0;
-			csi->require = conf->csi_require ? 1 : 0;
-			csi->loose   = conf->csi_loose ? 1 : 0;
-			csi->strict  = conf->csi_loose ? 0 : 1;
 			csi->trust_fs = conf->csi_trust_fs ? 1 : 0;
-
-			crc = xrootd_csi_open(csi, conf->rootfd, crel,
-			    (const char *) conf->csi_prefix.data, is_write);
 			if (crc == XROOTD_CSI_OK) {
 				ctx->files[idx].csi = csi;
 			} else {
@@ -628,9 +612,9 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 					ctx->files[idx].fd = -1;
 					XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD,
 					    "OPEN", resolved, "rd",
-					    kXR_ChkSumErr, "integrity tags missing");
+					    kXR_ChkSumErr, "integrity record missing");
 				}
-				/* untagged read (require off) or write tag-setup error:
+				/* unrecorded read (require off) or engine error:
 				 * proceed without CSI for this handle (fail-open). */
 			}
 		}

@@ -743,21 +743,22 @@ stream {
 
 ---
 
-## CSI page-checksum integrity directives
+## CSI block-checksum integrity directives
 
-OssCsi-style at-rest integrity: one CRC32C per 4096-byte data page, stored in a
-`.xrdt` sidecar, verified on every read and updated on every write. **On by
-default** — set `xrootd_csi off` to opt out, or keep it on and set
-`xrootd_csi_trust_fs on` where the filesystem already checksums end-to-end.
-All directives are stream server-block scoped.
+At-rest integrity on the unified per-file metadata record ("xmeta"): one
+CRC32C per block (default 1MiB), stored in the file's own `user.xrd.cinfo`
+xattr (or a stock-readable `<file>.cinfo` sidecar when the xattr doesn't
+fit). Reads verify the blocks they fully span; writes fold fresh CRCs and
+merge them into the record at close. **On by default** — set `xrootd_csi off`
+to opt out, or keep it on and set `xrootd_csi_trust_fs on` where the
+filesystem already checksums end-to-end. All directives are stream
+server-block scoped.
 
 | Directive | Default | Meaning |
 |---|---|---|
-| `xrootd_csi on\|off` | `on` | Enable the per-page tagstore for this server |
-| `xrootd_csi_prefix <dir>` | `/.xrdt` | Directory for tag sidecars (`""` = inline next to data) |
-| `xrootd_csi_fill on\|off` | `on` | Tag implied-zero hole pages |
-| `xrootd_csi_require on\|off` | `off` | Refuse read-opens of untagged files |
-| `xrootd_csi_loose on\|off` | `off` | Accept retried interrupted writes on RMW verify |
+| `xrootd_csi on\|off` | `on` | Enable block-checksum integrity for this server |
+| `xrootd_csi_block <size>` | `1m` | CRC granule for NEW records (existing records keep their own) |
+| `xrootd_csi_require on\|off` | `off` | Refuse read-opens of files with no verifiable record |
 | `xrootd_csi_trust_fs on\|off` | `off` | Trust the backing filesystem: skip read-verify |
 
 ### `xrootd_csi_trust_fs on|off`
@@ -765,11 +766,11 @@ All directives are stream server-block scoped.
 **Default:** `off`
 
 Declares the backing filesystem self-checksumming (ZFS, CephFS, RADOS, Btrfs)
-and skips CSI verification on the read path: pure read handles don't open the
-tag sidecar at all, and reads through a read-write handle skip the tag check.
-The write side is untouched — writes keep tagging pages, the strict
-read-modify-write verify still runs, and pgwrite wire-CRC validation stays on —
-so tags remain fresh for scrubbing and for switching back to `off` later.
+and skips CSI verification on the read path: pure read handles don't load the
+record at all, and reads through a read-write handle skip the block check.
+The write side is untouched — writes keep folding block CRCs into the record
+at close, and pgwrite wire-CRC validation stays on — so records remain fresh
+for scrubbing and for switching back to `off` later.
 
 Only enable this on storage that provides its own end-to-end data checksums;
 on a plain filesystem it silently disables at-rest corruption detection for
@@ -781,11 +782,17 @@ stream {
         listen 1094;
         xrootd on;
         xrootd_root /zpool/data;      # ZFS: checksummed end-to-end already
-        xrootd_csi on;                # keep tagging writes
+        xrootd_csi on;                # keep recording block CRCs on write
         xrootd_csi_trust_fs on;       # but don't re-verify reads
     }
 }
 ```
+
+Semantics worth knowing: a read verifies only the blocks it FULLY covers
+(partial-edge blocks are skipped on the hot path); a CRC slot of zero means
+"not computed" and never fails a read; a crash between writing and close
+leaves stale CRCs, so reads of a torn upload fail with `kXR_ChkSumErr` until
+the file is rewritten (fail-closed).
 
 ---
 

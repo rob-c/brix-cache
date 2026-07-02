@@ -324,7 +324,8 @@ xrootd_free_fhandle(xrootd_ctx_t *ctx, int handle_index)
         close(file->fd);
     }
 
-    /* phase-59 W2: close + free the CSI tagstore (its own tag-file fd). */
+    /* xmeta P3: flush + free the CSI engine (merges folded block CRCs
+     * into the file's metadata record). */
     if (file->csi != NULL) {
         xrootd_csi_close((xrootd_csi_t *) file->csi);
         ngx_free(file->csi);

@@ -23,7 +23,8 @@ if [[ ! -f "${CACHE_OBJ}/cinfo.o" ]]; then
 fi
 
 cc -O -Wall -o "${BIN}" "${HERE}/test_cinfo.c" "${CACHE_OBJ}/cinfo.o" \
-    "${OBJS_DIR}/addon/meta/xmeta.o" "${OBJS_DIR}/addon/compat/crc32c.o"
+    "${OBJS_DIR}/addon/meta/xmeta.o" "${OBJS_DIR}/addon/meta/xmeta_path.o" \
+    "${OBJS_DIR}/addon/compat/crc32c.o"
 
 "${BIN}"
 rc=$?

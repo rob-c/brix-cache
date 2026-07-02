@@ -354,6 +354,7 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/core/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/fs/cache/cinfo.h \
                         $ngx_addon_dir/src/fs/cache/cinfo_l1.h \
                         $ngx_addon_dir/src/fs/meta/xmeta.h \
+                        $ngx_addon_dir/src/fs/meta/xmeta_path.h \
                         $ngx_addon_dir/src/fs/meta/xmeta_carrier.h \
                         $ngx_addon_dir/src/fs/cache/cstore.h \
                         $ngx_addon_dir/src/fs/cache/verify.h \
@@ -798,6 +799,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/cache/cinfo.c \
     $ngx_addon_dir/src/fs/cache/cinfo_l1.c \
     $ngx_addon_dir/src/fs/meta/xmeta.c \
+    $ngx_addon_dir/src/fs/meta/xmeta_path.c \
     $ngx_addon_dir/src/fs/meta/xmeta_carrier.c \
     $ngx_addon_dir/src/fs/cache/cstore.c \
     $ngx_addon_dir/src/fs/cache/verify.c \
@@ -1231,7 +1233,8 @@ ngx_module_srcs="$ngx_addon_dir/src/protocols/cvmfs/module.c \
                  $ngx_addon_dir/src/protocols/cvmfs/request.c \
                  $ngx_addon_dir/src/protocols/cvmfs/upstreams.c \
                  $ngx_addon_dir/src/protocols/cvmfs/origin_geo.c \
-                 $ngx_addon_dir/src/protocols/cvmfs/origin_probe.c"
+                 $ngx_addon_dir/src/protocols/cvmfs/origin_probe.c \
+                 $ngx_addon_dir/src/protocols/cvmfs/secure.c"
 ngx_module_deps="$ngx_addon_dir/src/protocols/cvmfs/cvmfs.h \
                  $ngx_addon_dir/src/protocols/cvmfs/classify.h \
                  $ngx_addon_dir/src/core/config/shared_conf.h \
