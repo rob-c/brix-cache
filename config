@@ -344,6 +344,7 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/core/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/net/ratelimit/ratelimit.h \
                         $ngx_addon_dir/src/core/types/config.h \
                         $ngx_addon_dir/src/core/types/proto_list.h \
+                        $ngx_addon_dir/src/core/types/fs_list.h \
                         $ngx_addon_dir/src/core/config/shared_conf.h \
                         $ngx_addon_dir/src/core/types/context.h \
                         $ngx_addon_dir/src/core/types/tunables.h \

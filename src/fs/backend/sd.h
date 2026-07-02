@@ -353,6 +353,10 @@ ngx_int_t xrootd_sd_supports(const xrootd_sd_instance_t *inst,
 
 /* Look up a registered driver by name (e.g. "posix"); NULL if unknown. */
 const xrootd_sd_driver_t *xrootd_sd_driver_find(const char *name);
+/* Census: iterate the registered (name-resolvable) filesystems — the table
+ * generates from core/types/fs_list.h. For tooling/health surfaces. */
+ngx_uint_t xrootd_sd_driver_count(void);
+const xrootd_sd_driver_t *xrootd_sd_driver_at(ngx_uint_t i);
 /* Build a per-export instance: alloc on pool, bind the named driver, run its
  * init() with driver_conf. Returns the instance, or NULL with *err_out set
  * (ENOENT = unknown driver). The POSIX driver_conf is the root_canon string. */
