@@ -8,7 +8,8 @@ Companion operational runbooks:
 - forward (XrdCeph → CephFS): [`cephfs-migration-glasgow-ral.md`](cephfs-migration-glasgow-ral.md)
 - reverse (CephFS → XrdCeph): [`cephfs-to-xrdceph-migration.md`](cephfs-to-xrdceph-migration.md)
 
-> **Python implementations.** Both tools also exist as pure-Python 3 CLIs with
+> **Python implementations** (full reference + operator guide:
+> [`python-migration-tools.md`](python-migration-tools.md)). Both tools also exist as pure-Python 3 CLIs with
 > identical semantics and CLI grammar — `tests/ceph/xrdceph_striper_migrate.py`
 > and `tests/ceph/xrdceph_cephfs_to_striper.py` — needing only the distro
 > `python3-rados` / `python3-cephfs` packages (the C++-only redirect ops are
