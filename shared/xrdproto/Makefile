@@ -4,7 +4,7 @@
 #       library that the native clients (xrdcp/xrdfs) link, while the nginx module
 #       keeps compiling the exact same source files via its own ./configure. The
 #       wire vocabulary itself (opcodes/flags/structs) is header-only in
-#       ../../src/protocol and needs no compilation.
+#       ../../src/protocols/root/protocol and needs no compilation.
 # WHY:  One source of truth for both consumers (phase-37 §3). Building with
 #       -DXRDPROTO_NO_NGX guarantees no ngx_* dependency leaks into the core;
 #       `make check` enforces that on the built archive (invariant #2).
@@ -16,7 +16,7 @@ AR ?= ar
 
 REPO   := ../..
 COMPAT := $(REPO)/src/core/compat
-PROTO  := $(REPO)/src/protocol
+PROTO  := $(REPO)/src/protocols/root/protocol
 
 # Hardening flags — mirror the module's ./configure (repo-root `config`).
 HARDEN := -D_GNU_SOURCE -D_FORTIFY_SOURCE=2 -fstack-protector-strong \
@@ -107,21 +107,21 @@ TOKEN_OBJS := $(BUILD)/scopes.o $(BUILD)/b64url.o
 BACKEND := $(REPO)/src/fs/backend
 BACKEND_OBJS := $(BUILD)/sd_posix.o $(BUILD)/sd_block.o $(BUILD)/sd_s3.o \
                 $(BUILD)/meta_advisory.o
-# ZIP central-directory parsing kernel (src/zip/zip_kernel.c): the pure-C,
+# ZIP central-directory parsing kernel (src/protocols/root/zip/zip_kernel.c): the pure-C,
 # callback-driven, bounds-checked EOCD/ZIP64 parser shared with the module's
-# src/zip. No nginx / OpenSSL / fixed I/O source — the client's clean-room ZIP
+# src/protocols/root/zip. No nginx / OpenSSL / fixed I/O source — the client's clean-room ZIP
 # reader (client/lib/zip.c) and the server's member-access path both link it.
-ZIP   := $(REPO)/src/zip
+ZIP   := $(REPO)/src/protocols/root/zip
 ZIP_OBJS := $(BUILD)/zip_kernel.o
 # SSS keytab text grammar (src/auth/sss/sss_keytab_kernel.c): the pure-C keytab line
 # parser + file-permission check shared with the module's src/auth/sss. The crypto
 # kernels (sss_bf) and hex codec are already shared above; this closes the gap.
 SSS   := $(REPO)/src/auth/sss
 SSS_OBJS := $(BUILD)/sss_keytab_kernel.o
-# xrdwire per-opcode wire-body codec (src/protocol/codec/*.c): the shared
+# xrdwire per-opcode wire-body codec (src/protocols/root/protocol/codec/*.c): the shared
 # pack/unpack of each opcode's fixed request/response body. ngx-free; the client
 # and module both marshal through it so the wire offsets cannot drift.
-PROTO_CODEC := $(REPO)/src/protocol/codec
+PROTO_CODEC := $(REPO)/src/protocols/root/protocol/codec
 CODEC_OBJS  := $(BUILD)/wire_codec_meta.o $(BUILD)/wire_codec_file.o \
                $(BUILD)/wire_codec_ns.o $(BUILD)/wire_codec_session.o
 # Shared, ngx-free VFS I/O verb core (src/fs/core/vfs_core.c): the `vfs` layer of
@@ -174,7 +174,7 @@ $(BUILD)/sd_s3.o: $(BACKEND)/s3/sd_s3.c | $(BUILD)
 $(BUILD)/meta_advisory.o: $(BACKEND)/meta_advisory.c | $(BUILD)
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 
-# ZIP parsing kernel lives under src/zip; explicit rule (its "zip_kernel.h"
+# ZIP parsing kernel lives under src/protocols/root/zip; explicit rule (its "zip_kernel.h"
 # resolves via the .c's own dir). Pure C — no I/O source, no nginx deps.
 $(BUILD)/zip_kernel.o: $(ZIP)/zip_kernel.c | $(BUILD)
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
@@ -184,7 +184,7 @@ $(BUILD)/zip_kernel.o: $(ZIP)/zip_kernel.c | $(BUILD)
 $(BUILD)/sss_keytab_kernel.o: $(SSS)/sss_keytab_kernel.c | $(BUILD)
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 
-# xrdwire codec family files live under src/protocol/codec; explicit rule (their
+# xrdwire codec family files live under src/protocols/root/protocol/codec; explicit rule (their
 # "wire_codec.h" resolves via the .c's own dir). Pure C — no nginx deps.
 $(BUILD)/wire_codec_%.o: $(PROTO_CODEC)/wire_codec_%.c | $(BUILD)
 	$(CC) $(ALL_CFLAGS) -c $< -o $@

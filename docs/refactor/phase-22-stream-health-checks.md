@@ -20,8 +20,8 @@ piece is TLS probing (Step F).
 |------|-----------|--------|-----------------------|
 | **A** | Registry extensions | ✅ **Done** | `xrootd_srv_entry_t` has `hc_next_check`/`hc_last_ok`/`hc_fail_count`/`hc_in_progress` (`registry.h:39-42`); snapshot entry has `hc_last_ok`/`hc_fail_count` (`:60-61`). `xrootd_srv_hc_claim` (`registry.c:626`), `xrootd_srv_hc_pass` (`:666`), `xrootd_srv_hc_fail` (`:701`). Note: `hc_fail` returns `int` (1 if it newly blacklisted), not `void` as sketched. |
 | **B** | Probe state machine | ✅ **Done — more granular states** | `src/net/manager/health_check.c`. States are `XRD_HC_HANDSHAKE → XRD_HC_PROTOCOL → XRD_HC_LOGIN → XRD_HC_PROBE` (mirroring the real upstream bootstrap phases), **not** the doc's `CONNECTING/BOOTSTRAP/PROBE/DONE`. Probe sends `kXR_ping` or `kXR_stat "/"` (`xrootd_hc_send_probe`, `:111`). The ctx is `xrootd_hc_ctx_t` (`:61`) — defined in the `.c`, not exported in the header as the doc proposed. |
-| **C** | Health-check timer | ✅ **Done — different start hook** | `xrootd_hc_mgr_t`, `xrootd_hc_timer_handler` (`:487`), `xrootd_hc_manager_start` (`:504`), `xrootd_hc_start` (`:368`). Started from **`src/core/config/process.c:163`** (the module's `init_process`), **not** `src/stream/module.c` as the file map said. Scan interval = `interval / slots`, min 100 ms. |
-| **D** | Config directives | ✅ **Done** | All six `xrootd_health_check[_interval/_timeout/_threshold/_blacklist/_type]` directives are registered in **`src/stream/module.c`** (not `src/core/config/directives.c`); conf fields `hc_enabled/hc_interval_ms/hc_timeout_ms/hc_threshold/hc_blacklist_ms/hc_type` in `src/core/types/config.h:357-362`. Off by default. |
+| **C** | Health-check timer | ✅ **Done — different start hook** | `xrootd_hc_mgr_t`, `xrootd_hc_timer_handler` (`:487`), `xrootd_hc_manager_start` (`:504`), `xrootd_hc_start` (`:368`). Started from **`src/core/config/process.c:163`** (the module's `init_process`), **not** `src/protocols/root/stream/module.c` as the file map said. Scan interval = `interval / slots`, min 100 ms. |
+| **D** | Config directives | ✅ **Done** | All six `xrootd_health_check[_interval/_timeout/_threshold/_blacklist/_type]` directives are registered in **`src/protocols/root/stream/module.c`** (not `src/core/config/directives.c`); conf fields `hc_enabled/hc_interval_ms/hc_timeout_ms/hc_threshold/hc_blacklist_ms/hc_type` in `src/core/types/config.h:357-362`. Off by default. |
 | **E** | Metrics | ✅ **Done — different counter set** | `src/observability/metrics/cluster.c` exports `xrootd_cluster_hc_{probes,pass,fail,blacklist}_total` (fields in `metrics.h:490-493`). Diverges from the plan: there is an **extra `hc_probes_total`** (probes started) and **no `hc_probe_active` gauge**. Per-server `hc_last_ok`/`hc_fail_count` are in the snapshot for the dashboard. |
 | **F** | TLS support for probes | ⚠️ **Not implemented as designed** | There is **no TLS upgrade** on the probe path and **no `xrootd_tls_upgrade_ctx_t` refactor** of `src/net/upstream/tls.c`. Instead, when a server advertises `kXR_gotoTLS` in its protocol response, the probe **stops at the protocol stage and counts it as alive (pass)** — see `health_check.c` `XRD_HC_PROTOCOL` (~`:240-256`). So TLS servers get a shallower liveness check (TCP + handshake + protocol), not the full login+ping/stat probe. |
 
@@ -31,7 +31,7 @@ piece is TLS probing (Step F).
    upstream bootstrap, and the probe can **finish early as a pass** at the protocol
    or login stage (e.g. server wants TLS, or login isn't required) — it confirms
    liveness without always reaching `kXR_ping`.
-2. **Directives live in `src/stream/module.c`**, the start hook in
+2. **Directives live in `src/protocols/root/stream/module.c`**, the start hook in
    `src/core/config/process.c`, and the ctx struct stays private to `health_check.c` —
    different files than the plan's File Map.
 3. **Metrics: `hc_probes_total` replaces the planned `hc_probe_active` gauge.**
@@ -477,7 +477,7 @@ xrootd_hc_manager_start(ngx_cycle_t *cycle,
 
 ## Step D — New Config Directives
 
-**File:** `src/core/config/directives.c` (register), `src/stream/module.c` (merge)
+**File:** `src/core/config/directives.c` (register), `src/protocols/root/stream/module.c` (merge)
 
 | Directive | Default | Notes |
 |---|---|---|
@@ -583,7 +583,7 @@ proxy and health check TLS behaviour.
 | `src/net/upstream/upstream_internal.h` | Modify | Use `xrootd_tls_upgrade_ctx_t` alias |
 | `src/core/config/directives.c` | Modify | Register 6 new `xrootd_health_check*` directives |
 | `src/core/types/config.h` | Modify | Add HC fields to `ngx_stream_xrootd_srv_conf_t` |
-| `src/stream/module.c` | Modify | Call `xrootd_hc_manager_start()` in `init_process` hook |
+| `src/protocols/root/stream/module.c` | Modify | Call `xrootd_hc_manager_start()` in `init_process` hook |
 | `src/observability/metrics/cluster.c` | Modify | Add 4 HC counters; wire `XROOTD_HC_METRIC_INC` macro |
 | `src/observability/metrics/metrics.h` | Modify | Declare new HC counter fields |
 | `src/core/config/config.h` | Modify | Add `health_check.c` to `NGX_ADDON_SRCS` |

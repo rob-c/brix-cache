@@ -11,7 +11,7 @@ WHY:  The official XRootD client (XrdCl / xrdcp / xrootdfs), recovering from a
       freshly-authenticated connection is de-authed and the client's next request
       (its recovery kXR_open) fails with kXR_NotAuthorized — which broke official
       client transfer recovery against this server on a lossy link. This test
-      locks in the fix (src/session/lifecycle.c).
+      locks in the fix (src/protocols/root/session/lifecycle.c).
 
 HOW:  Two raw sessions against the shared anon fleet:
        1. endsess naming a DIFFERENT sessid → the connection STAYS authenticated

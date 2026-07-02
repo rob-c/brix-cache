@@ -18,7 +18,7 @@
 #include "ocsp.h"
 #include "observability/metrics/metrics.h"          /* ngx_xrootd_metrics_t */
 #include "observability/metrics/metrics_macros.h"   /* Phase 51 (E6): ocsp_timeouts_total */
-#include "connection/netconnect.h"    /* shared SO_RCVTIMEO/SO_SNDTIMEO helper */
+#include "protocols/root/connection/netconnect.h"    /* shared SO_RCVTIMEO/SO_SNDTIMEO helper */
 
 #include <openssl/ocsp.h>
 #include <openssl/x509.h>

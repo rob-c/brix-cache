@@ -20,7 +20,7 @@ Measured from the current tree on 2026-05-20:
 | `src/net/proxy` | 3,897 | Native XRootD transparent proxy state machine. |
 | `src/tpc` | 3,796 | Native XRootD third-party copy and outbound GSI helpers. |
 | `src/fs/cache` | 3,709 | Cache origin client, fills, eviction, write-through. |
-| `src/query` | 2,765 | Query subtypes, checksum scans, prepare/stage. |
+| `src/protocols/root/query` | 2,765 | Query subtypes, checksum scans, prepare/stage. |
 | `src/auth/token` | 2,658 | JWT/JWKS/scopes/macaroons/base64/json. |
 | `src/path` | 2,885 | Path confinement, ACL/authdb; keep mostly local. |
 | `src/core/aio` | 2,131 | nginx thread-pool file I/O; keep mostly local. |
@@ -70,7 +70,7 @@ large outbound dependency.
 | AIO dispatch pattern consolidation (Candidate 13) | −80 to −160 | src/core/aio/*.c | Medium |
 | Pool alloc null-check macro (Candidate 15) | −150 to −200 | All of src/ | Low (mechanical) |
 | Dead code audit (Candidate 18) | −50 to −200 | All of src/ | Medium (audit first) |
-| Shared-memory registry template (Candidate 16) | −10 to −60 | src/tpc/, src/session/ | Low |
+| Shared-memory registry template (Candidate 16) | −10 to −60 | src/tpc/, src/protocols/root/session/ | Low |
 | GSI X.509 OpenSSL delegation (Candidate 17) | −30 to −70 | src/auth/gsi/ | Low (security-critical) |
 
 The correctness items (blocking event loop) are independent of the LOC
@@ -459,7 +459,7 @@ Current status:
 
 - `src/core/compat/crc32c.c` now owns CRC32C value, copy, and incremental update
   helpers.
-- `src/response/crc32c.c` keeps the public wire-facing API but delegates to
+- `src/protocols/root/response/crc32c.c` keeps the public wire-facing API but delegates to
   the shared adapter.
 - Unit coverage lives in `tests/unit/test_crc32c.c` and checks the standard
   `123456789` vector, fused copy, and incremental chunking.
@@ -787,7 +787,7 @@ table.  The deeper macro-generated-table design below remains a future option,
 but has not been applied because each registry still has distinct key matching,
 conflict, and cleanup semantics while holding its lock.
 
-`src/tpc/key_registry.c` (178 LOC) and `src/session/registry.c` (463 LOC)
+`src/tpc/key_registry.c` (178 LOC) and `src/protocols/root/session/registry.c` (463 LOC)
 both implement fixed-size shared-memory lookup tables:
 
 - Both use `ngx_shm_zone_t` + `ngx_shmtx_t` with a spinlock.

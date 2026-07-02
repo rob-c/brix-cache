@@ -48,7 +48,7 @@ XROOTD_PORT = int(os.environ.get("TEST_DROPIN_XROOTD_PORT") or _XROOTD_FREE)
 
 
 # ---------------------------------------------------------------------------
-# Opcodes / status / error codes (XProtocol.hh + src/protocol/opcodes.h)
+# Opcodes / status / error codes (XProtocol.hh + src/protocols/root/protocol/opcodes.h)
 # ---------------------------------------------------------------------------
 
 kXR_query    = 3001
@@ -554,7 +554,7 @@ def both(stack):
 
 class TestStatParity:
     """The kXR_stat response body begins with the ASCII string
-    '<id> <size> <flags> <mtime>' (src/path/stat_body.c).  nginx returns
+    '<id> <size> <flags> <mtime>' (src/protocols/root/path/stat_body.c).  nginx returns
     exactly those 4 fields; the OFFICIAL xrootd appends extended fields
     (ctime atime mode owner group) — the conformance contract is that the
     leading 4 fields appear in the SAME ORDER and FORMAT and that the
@@ -647,7 +647,7 @@ class TestStatParity:
 
 class TestQspaceParity:
     """kXR_Qspace returns 'oss.*' key=value pairs joined by '&'
-    (src/query/space.c).  The official server emits the same oss.cgroup /
+    (src/protocols/root/query/space.c).  The official server emits the same oss.cgroup /
     oss.space / oss.free / oss.maxf / oss.used / oss.quota key set."""
 
     def _oss_keys(self, sock):
@@ -701,7 +701,7 @@ class TestQspaceParity:
 # ===========================================================================
 
 class TestQconfigParity:
-    """kXR_Qconfig echoes a line per requested key (src/query/config.c).  For
+    """kXR_Qconfig echoes a line per requested key (src/protocols/root/query/config.c).  For
     'tpc' both servers return a bare numeric (0/1) line that XrdCl parses with
     atoi; for 'chksum' both return a 'chksum=...' line."""
 
@@ -712,7 +712,7 @@ class TestQconfigParity:
     def test_qconfig_tpc_first_char_is_digit(self, both):
         """nginx's 'tpc' response line must START WITH A DIGIT so
         XrdCl::Utils::CheckTPCLite's atoi() reads its capability correctly
-        (src/query/config.c deliberately emits a bare '0'/'1').  The official
+        (src/protocols/root/query/config.c deliberately emits a bare '0'/'1').  The official
         server here is built WITHOUT XRDTPC, so it echoes the literal 'tpc'
         token (atoi → 0, i.e. TPC unavailable) — a documented difference, not a
         format bug.  Both responses parse to a valid capability via atoi."""
@@ -927,7 +927,7 @@ def stack_data_dir():
 
 class TestCloneOpcodeParity:
     """kXR_clone (3032, protocol v5.2) is server-side range copy.  nginx
-    implements it (src/read/clone.c).  This asserts the DOCUMENTED behaviour:
+    implements it (src/protocols/root/read/clone.c).  This asserts the DOCUMENTED behaviour:
     a clone with a bad destination handle is rejected cleanly (not a crash) and
     the session survives — on both servers.  An empty clone-list is also a
     clean error.  If a server lacks the opcode it answers kXR_Unsupported,

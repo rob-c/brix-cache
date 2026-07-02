@@ -25,7 +25,7 @@ evaluate symlink-swap risk.
 - `src/protocols/webdav/copy.c`, `src/protocols/webdav/tpc.c`, `src/protocols/s3/put.c`, `src/protocols/s3/copy.c` — all
   use `xrootd_staged_open` which enforces `O_CREAT|O_EXCL|O_NOFOLLOW`, random names
   via `xrootd_make_tmp_path()`, and confined operations. ✅
-- `src/read/open_resolved_file.c` (POSC) — uses `xrootd_make_tmp_path()` (random name),
+- `src/protocols/root/read/open_resolved_file.c` (POSC) — uses `xrootd_make_tmp_path()` (random name),
   `O_EXCL` on first open attempt, `xrootd_open_confined()` (path escape prevention). ✅
 - `src/fs/cache/lock.c`, `src/fs/cache/evict_candidates.c` — lock files use `O_CREAT|O_EXCL`;
   correct for lock semantics, not temp-file semantics. ✅
@@ -109,7 +109,7 @@ break the lock protocol.  The security property that matters here is the atomic 
 ## T-02: Missing `O_NOFOLLOW` in `write/chkpoint.c`
 
 **Severity:** Medium
-**File:** `src/write/chkpoint.c` — `xrootd_handle_chkpoint_begin()`
+**File:** `src/protocols/root/write/chkpoint.c` — `xrootd_handle_chkpoint_begin()`
 
 ### Vulnerability
 
@@ -161,7 +161,7 @@ If the final path component is a symbolic link, `open()` returns `ELOOP`.  The e
 error handler in `chkpoint.c` converts this to `kXR_IOError` and a log entry — the
 client receives an appropriate error response and the checkpoint is not created.
 
-**Implementation:** `src/write/chkpoint.c` — added `O_NOFOLLOW` to `ckp_fd = open(...)`.
+**Implementation:** `src/protocols/root/write/chkpoint.c` — added `O_NOFOLLOW` to `ckp_fd = open(...)`.
 
 **Note on naming:** `f->ckp_path` uses a fixed `.ckp` suffix (rather than a random temp
 path) because the XRootD checkpoint protocol requires a client to locate its checkpoint

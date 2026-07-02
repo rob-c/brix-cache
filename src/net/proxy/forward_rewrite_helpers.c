@@ -1,5 +1,5 @@
 #include "proxy_internal.h"
-#include "session/registry.h"
+#include "protocols/root/session/registry.h"
 
 /*
  * WHAT: Path prefix rewriting and file handle translation helpers for the transparent XRootD proxy.

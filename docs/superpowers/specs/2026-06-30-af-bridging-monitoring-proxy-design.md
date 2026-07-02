@@ -111,7 +111,7 @@ Small, high-value, unblocks the IPv4/IPv6 bridge for the caches immediately.
 
 ### 3.1 Type
 
-Add to `src/connection/netconnect.h`:
+Add to `src/protocols/root/connection/netconnect.h`:
 
 ```c
 typedef enum {
@@ -128,7 +128,7 @@ straight into `hints.ai_family` with no mapping table.
 
 Both resolvers currently hardcode `hints.ai_family = AF_UNSPEC`:
 
-1. **`xrootd_resolve_connect_socket()`** (`src/connection/netconnect.h`) — used by
+1. **`xrootd_resolve_connect_socket()`** (`src/protocols/root/connection/netconnect.h`) — used by
    the event-driven outbound connectors (proxy upstream, `root://` upstream).
    Add an `xrootd_af_policy_t af_policy` parameter; set
    `hints.ai_family = (int) af_policy`. Update all existing callers to pass

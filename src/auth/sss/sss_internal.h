@@ -9,7 +9,7 @@
 #define XROOTD_SSS_SSS_INTERNAL_H
 
 #include "core/ngx_xrootd_module.h"
-#include "protocol/sss.h"   /* shared SSS wire constants (single source of truth) */
+#include "protocols/root/protocol/sss.h"   /* shared SSS wire constants (single source of truth) */
 
 /*
  * xrootd_sss_identity_t — decoded identity fields from an SSS cleartext

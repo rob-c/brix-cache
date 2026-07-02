@@ -17,11 +17,11 @@
 #include "registry.h"
 #include "deliver.h"
 #include "protocols/ssi/svc_cta/cta_service.h"
-#include "connection/fd_table.h"
-#include "response/response.h"
+#include "protocols/root/connection/fd_table.h"
+#include "protocols/root/response/response.h"
 #include "core/compat/error_mapping.h"   /* xrootd_kxr_from_errno */
-#include "protocol/opcodes.h"
-#include "protocol/wire_core_requests.h"
+#include "protocols/root/protocol/opcodes.h"
+#include "protocols/root/protocol/wire_core_requests.h"
 
 #include <fcntl.h>
 #include <string.h>

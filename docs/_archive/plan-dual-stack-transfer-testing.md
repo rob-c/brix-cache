@@ -412,7 +412,7 @@ The tests are expected to expose the gaps already documented in
 - `src/net/proxy/connect.c` must use `getaddrinfo(AF_UNSPEC)` and iterate returned
   addresses.
 - `src/net/proxy/directives.c` must parse bracketed IPv6 upstream addresses.
-- `src/read/locate.c` must format IPv6 locate entries as bracketed literals and
+- `src/protocols/root/read/locate.c` must format IPv6 locate entries as bracketed literals and
   must not fall back to `localhost`.
 - Any local-port extraction from `c->local_sockaddr` must branch on
   `AF_INET` vs `AF_INET6`.

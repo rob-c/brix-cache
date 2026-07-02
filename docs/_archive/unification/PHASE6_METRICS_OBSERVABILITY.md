@@ -168,7 +168,7 @@ void xrootd_metric_cache_result(xrootd_proto_t proto,
 
 /*
  * Record authentication outcome.
- * Called by src/session/login.c and src/protocols/webdav/auth_*.c (Phase 2).
+ * Called by src/protocols/root/session/login.c and src/protocols/webdav/auth_*.c (Phase 2).
  */
 void xrootd_metric_auth(xrootd_proto_t proto,
                          ngx_uint_t auth_method,   /* XROOTD_AUTHN_* */

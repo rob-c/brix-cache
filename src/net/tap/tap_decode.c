@@ -8,8 +8,8 @@
  */
 
 #include "tap.h"
-#include "protocol/opcodes.h"
-#include "protocol/frame_hdr.h"
+#include "protocols/root/protocol/opcodes.h"
+#include "protocols/root/protocol/frame_hdr.h"
 
 /* True for request opcodes whose data payload is (or begins with) a path. */
 int

@@ -155,5 +155,5 @@ def test_wiring_present():
     assert "xrootd_access_log_flush" in alog
     assert "xrootd_alog_emit" in alog
     assert "ngx_add_timer" in alog          # bounded-latency flush
-    assert "xrootd_access_log_flush" in rd("src/connection/disconnect.c")
+    assert "xrootd_access_log_flush" in rd("src/protocols/root/connection/disconnect.c")
     assert "xrootd_access_log_flush" in rd("src/fs/path/path.h")

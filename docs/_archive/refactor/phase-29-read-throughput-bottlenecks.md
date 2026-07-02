@@ -3,7 +3,7 @@
 **Date:** 2026-06-12
 **Author:** performance audit
 **Status:** PLAN — not yet begun
-**Scope:** `root://` large-file read path (`src/read`, `src/core/aio`, `src/connection/recv.c`)
+**Scope:** `root://` large-file read path (`src/protocols/root/read`, `src/core/aio`, `src/protocols/root/connection/recv.c`)
 **Premise:** nginx-xrootd *should* match or beat native xrootd for a single-stream
 large-file read (nginx's sendfile data plane is excellent).
 
@@ -69,7 +69,7 @@ one-off artifact:
 
 ## How the read path actually works (the relevant architecture)
 
-A `kXR_read` is served by `src/read/read.c`:
+A `kXR_read` is served by `src/protocols/root/read/read.c`:
 
 - **Cleartext + regular file** (`read.c:93` — `is_regular && !c->ssl`):
   `xrootd_build_sendfile_chain()` → an `ngx_buf_t` with `in_file=1` → nginx's
@@ -80,10 +80,10 @@ A `kXR_read` is served by `src/read/read.c`:
   pool** (`read.c:195–233`) that does a blocking `pread(2)` on a worker thread →
   on completion, build a chain pointing into the scratch buffer and send. For TLS
   the bytes are then **encrypted in userspace** (no sendfile).
-- **Prefetch** (`src/read/prefetch.c`) is **`POSIX_FADV_WILLNEED` hints only** — it
+- **Prefetch** (`src/protocols/root/read/prefetch.c`) is **`POSIX_FADV_WILLNEED` hints only** — it
   warms the page cache, it does **not** pipeline responses.
 
-The connection driver `src/connection/recv.c` is a **strictly serial state
+The connection driver `src/protocols/root/connection/recv.c` is a **strictly serial state
 machine**: `HANDSHAKE → REQ_HEADER → REQ_PAYLOAD → dispatch`, then it *resets for
 the next request*. Its own docstring: *"Suspend states (SENDING/AIO/UPSTREAM/TLS)
 return immediately without reading."*
@@ -120,7 +120,7 @@ suspend reads); `prefetch.c` is fadvise-only (no response pipelining).
 
 `read.c:93` gates sendfile on `!c->ssl`. The perf GSI server sets `xrootd_tls on`,
 and XRootD-5 `xrdcp` **prefers TLS when offered** (`kXR_wantTLS` after login,
-`src/session/tls_config.c:9`), so the connection becomes SSL → sendfile is
+`src/protocols/root/session/tls_config.c:9`), so the connection becomes SSL → sendfile is
 skipped → the **memory + thread-pool `pread` + userspace-encrypt** path runs. The
 nginx build has **no kTLS** (`nginx -V` shows plain OpenSSL, no
 `--with-openssl-opt=enable-ktls`), so TLS *cannot* use sendfile at all.
@@ -274,15 +274,15 @@ framing under the pipelined path.
 
 ## Appendix — key code references
 
-- `src/connection/recv.c` — serial state machine; SENDING/AIO suspend reads (B1).
-- `src/read/read.c:93` — sendfile gated on `!c->ssl` (B2); `:150` sendfile chain;
+- `src/protocols/root/connection/recv.c` — serial state machine; SENDING/AIO suspend reads (B1).
+- `src/protocols/root/read/read.c:93` — sendfile gated on `!c->ssl` (B2); `:150` sendfile chain;
   `:170`–`:233` memory + thread-pool `pread` path (B3).
 - `src/core/aio/reads.c` — thread-pool `pread` worker + completion wakeup (B3).
-- `src/read/prefetch.c` — `POSIX_FADV_WILLNEED` hints only (not pipelining; B1).
+- `src/protocols/root/read/prefetch.c` — `POSIX_FADV_WILLNEED` hints only (not pipelining; B1).
 - `src/core/aio/buffers.c` — sendfile/memory chain builders; 16 MiB frame split.
 - `src/core/types/tunables.h` — `XROOTD_READ_MAX` 4 MiB, `_CHUNK_MAX` 16 MiB,
   `_REQUEST_MAX` 64 MiB (B4/B5).
-- `src/session/tls_config.c` — `kXR_wantTLS` opt-in upgrade (B2).
+- `src/protocols/root/session/tls_config.c` — `kXR_wantTLS` opt-in upgrade (B2).
 - `tests/nginx.perf.conf` — `xrootd_tls on` on the GSI server (B2/B4);
   `sendfile/tcp_nopush/tcp_nodelay on` (B5).
 

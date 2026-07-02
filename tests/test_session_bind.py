@@ -267,15 +267,15 @@ class TestBindHandleSlotCache:
             return (root / rel).read_text(encoding="utf-8")
 
         assert "shared_handle_slot_hint" in rd("src/core/types/file.h")
-        assert "shared_handle_slot_hint = -1" in rd("src/connection/handler.c")
+        assert "shared_handle_slot_hint = -1" in rd("src/protocols/root/connection/handler.c")
         # Reset on free so a reopened/closed handle drops its stale slot.
-        assert "shared_handle_slot_hint = -1" in rd("src/connection/fd_table.c")
+        assert "shared_handle_slot_hint = -1" in rd("src/protocols/root/connection/fd_table.c")
         # Hinted lookup keeps the full key check (in_use guards revocation).
-        h = rd("src/session/handles.c")
+        h = rd("src/protocols/root/session/handles.c")
         assert "xrootd_session_handle_lookup_hint" in h
         assert "xrootd_shared_handle_same_key" in h
         # The read path uses the hinted variant.
-        assert "xrootd_session_handle_lookup_hint" in rd("src/connection/fd_table.c")
+        assert "xrootd_session_handle_lookup_hint" in rd("src/protocols/root/connection/fd_table.c")
 
     def test_repeated_reads_cache_hit_byte_exact(self, bind_nginx):
         """Reads 2..N on a bound handle (the slot-hint fast path) stay byte-exact."""

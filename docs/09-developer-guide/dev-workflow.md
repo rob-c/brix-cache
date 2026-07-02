@@ -4,23 +4,23 @@
 
 | File | Responsibility |
 |---|---|
-| `src/stream/module.c` | Module entry point, directive table, nginx module context |
+| `src/protocols/root/stream/module.c` | Module entry point, directive table, nginx module context |
 | `src/core/config/*.c` | Configuration parsing, inheritance, and startup validation |
-| `src/connection/*.c` | Session state machine, send/recv flow, buffering helpers |
-| `src/handshake/*.c` | Client hello, opcode dispatch, auth/write routing policy |
-| `src/session/*.c` | Protocol negotiation, login, bind, ping/end-session, request signing |
+| `src/protocols/root/connection/*.c` | Session state machine, send/recv flow, buffering helpers |
+| `src/protocols/root/handshake/*.c` | Client hello, opcode dispatch, auth/write routing policy |
+| `src/protocols/root/session/*.c` | Protocol negotiation, login, bind, ping/end-session, request signing |
 | `src/auth/gsi/*.c` | GSI/x509 proxy certificate authentication exchange (DH key exchange, cert chain validation) |
 | `src/auth/token/*.c` | JWT/JWKS validation, WLCG scope and group parsing, bearer-token (`ztn`) auth |
 | `src/auth/crypto/pki_*.c` / `src/pki/*.c` | PKI/CRL startup consistency checks |
 | `src/auth/voms/*.c` | Runtime VOMS support via `dlopen("libvomsapi.so.1")` — VO extraction from proxy certs |
-| `src/read/*.c` | Read-side operations: open, read, readv, pgread, stat, statx, dirlist, locate, close |
+| `src/protocols/root/read/*.c` | Read-side operations: open, read, readv, pgread, stat, statx, dirlist, locate, close |
 | `src/fs/cache/*.c` | Read-through cache origin fetch, locking, and fill callbacks |
-| `src/query/*.c` | kXR_query subtypes (cksum, space, config, stats, xattr, finfo, fsinfo) and kXR_prepare, kXR_set |
-| `src/fattr/*.c` | kXR_fattr extended attributes (get / set / del / list via Linux xattrs) |
+| `src/protocols/root/query/*.c` | kXR_query subtypes (cksum, space, config, stats, xattr, finfo, fsinfo) and kXR_prepare, kXR_set |
+| `src/protocols/root/fattr/*.c` | kXR_fattr extended attributes (get / set / del / list via Linux xattrs) |
 | `src/net/upstream/*.c` | Outbound XRootD redirector client for manager/upstream misses |
-| `src/write/*.c` | Write-side and namespace-mutating operations: write, pgwrite, writev, sync, truncate, mkdir, rm, rmdir, mv, chmod |
+| `src/protocols/root/write/*.c` | Write-side and namespace-mutating operations: write, pgwrite, writev, sync, truncate, mkdir, rm, rmdir, mv, chmod |
 | `src/core/aio/*.c` | Async I/O response builders and nginx thread-pool callbacks |
-| `src/response/*.c` | Response framing, control responses, status responses, CRC32C |
+| `src/protocols/root/response/*.c` | Response framing, control responses, status responses, CRC32C |
 | `src/path/*.c` | Path extraction, root confinement, policy matching, and log sanitization |
 | `src/net/cms/*.c` | CMS manager heartbeat: registration, ping/pong, space and load reporting |
 | `src/observability/metrics/` | Prometheus metrics: shared-memory counters and HTTP export endpoint |

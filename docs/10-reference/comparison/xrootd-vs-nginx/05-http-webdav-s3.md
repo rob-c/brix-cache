@@ -17,7 +17,7 @@ companion comparison documents, this doc reuses it rather than re-deriving it:
 - [`02-rootd-protocol.md`](./02-rootd-protocol.md) — the `root://` binary wire protocol.
 
 The companion `root://` document covers **native** XRootD third-party-copy (the SHM
-key-registry TPC in `src/tpc/` and `src/read/clone.c`). That is a *different*
+key-registry TPC in `src/tpc/` and `src/protocols/root/read/clone.c`). That is a *different*
 mechanism from the HTTP-TPC described here and is cross-referenced where the two
 meet — see [HTTP third-party-copy](#http-third-party-copy) below.
 

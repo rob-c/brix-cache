@@ -20,7 +20,7 @@ WebDAV (OPTIONS/PROPFIND + rw MKCOL/PUT/GET-verify/MOVE/DELETE) and S3 (list + r
 PUT/GET-verify/DELETE) faces — all emitted in the `--json` `tests[]` array. The battery
 surfaced (and we then FIXED) a real module bug: `rm`/delete followed a symlink's final
 component — the existence gate + delete probe now use lstat (POSIX unlink semantics), so
-`rm <symlink>` removes the link, not its target (`src/path/op_path.c`,
+`rm <symlink>` removes the link, not its target (`src/protocols/root/path/op_path.c`,
 `src/core/compat/namespace_ops.c`). pytest in `tests/test_xrd_busybox.py`,
 man page `client/man/xrd.1`, quirks in `docs/10-reference/quirks.md`. Two scope
 corrections: symbolic `chmod` (`u+x`) was dropped — the XRootD wire stat does not
@@ -115,7 +115,7 @@ All wire ops already exist as library calls (no new protocol work):
 
 The link/setattr/readlink ops are **capability-negotiated**: the client only emits
 them when the server advertises `kXR_Qconfig "xrdfs.ext"`, and they are fully
-implemented server-side (`src/write/ext_ops.c` — `kXR_setattr` 3500 / `symlink` 3501 /
+implemented server-side (`src/protocols/root/write/ext_ops.c` — `kXR_setattr` 3500 / `symlink` 3501 /
 `readlink` 3502 / `link` 3503), so the new verbs work end-to-end against the standard
 test servers, not only against real xrootd.
 

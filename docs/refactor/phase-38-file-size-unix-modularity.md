@@ -188,9 +188,9 @@ the logical-LoC counter scores every `{ ngx_string("…"), … }` row as a "code
 line, so a large table inflates the count without being a logic monolith. Two
 files in this repo are table-dominated, measured:
 
-- **`src/stream/module.c`** — **1251 of 1316 logical (95%) is the 213-entry
+- **`src/protocols/root/stream/module.c`** — **1251 of 1316 logical (95%) is the 213-entry
   directive table.** Its conf lifecycle is *already* extracted to
-  `src/core/config/server_conf.c` (create/merge) and `src/stream/module_definition.c`
+  `src/core/config/server_conf.c` (create/merge) and `src/protocols/root/stream/module_definition.c`
   (the `ngx_module_t` struct); what remains is essentially pure table + 8
   `ngx_conf_enum_t` value maps. There is nothing left to split — a C array cannot
   be cut across files without ugly macro re-assembly, and per-directive doc-blocks
@@ -249,7 +249,7 @@ assignments are in §6.
 
 | Logical | Raw | File | Tier | Seams (from function inventory) |
 |---|---|---|---|---|
-| 1316 | 1734 | `src/stream/module.c` | 🔴→**exempt** | **95% (1251) is the 213-entry `ngx_command_t` directive table**; conf lifecycle already in `config/server_conf.c` + `stream/module_definition.c` → declarative, exempt (§2.6, §6.10) |
+| 1316 | 1734 | `src/protocols/root/stream/module.c` | 🔴→**exempt** | **95% (1251) is the 213-entry `ngx_command_t` directive table**; conf lifecycle already in `config/server_conf.c` + `stream/module_definition.c` → declarative, exempt (§2.6, §6.10) |
 | 1033 | 1284 | `src/auth/gsi/gsi_core.c` | 🔴 | bucket/buffer codec · DH keygen/derive · cipher negotiation · RSA sign/verify · cert-request/response build (**shared** — also linked into client) |
 | 986 | 1290 | `src/observability/dashboard/api.c` | 🔴 | name/format helpers · live-transfer model · snapshot assembly · ratelimit view · JSON send/dispatch *(worked example §6.1)* |
 | 973 | 1452 | `src/protocols/s3/post_object.c` | 🔴 | multipart-form decode · POST-policy parse/verify · object write · response build *(worked example §6.2)* |
@@ -743,13 +743,13 @@ These are the largest files in the repo after the Python red-team. Both split on
   (mkdir/rm/rmdir/mv/chmod/truncate), `xrdfs_data.c` (cat/tail incl. the
   `tail_*` follow loop), with shared output formatting in `xrdfs_fmt.c`.
 
-### 6.10 `src/stream/module.c` (1316 / 1734 → **exempt**)
+### 6.10 `src/protocols/root/stream/module.c` (1316 / 1734 → **exempt**)
 
 Per §2.6 this is **1251/1316 logical = 95% a single 213-entry `ngx_command_t`
 directive table** plus 8 `ngx_conf_enum_t` value maps. Its logic is *already*
 extracted: `ngx_stream_xrootd_create_srv_conf`/`merge_srv_conf` live in
 `src/core/config/server_conf.c`, and the `ngx_module_t` struct in
-`src/stream/module_definition.c`. **No split.** Add the exemption comment and
+`src/protocols/root/stream/module_definition.c`. **No split.** Add the exemption comment and
 record the rationale:
 
 ```c
@@ -890,7 +890,7 @@ Watch-tier — no scheduled split, but if touched: `webfile.c` (PROPFIND/stat:
 
 ### 6.21 Exemption candidates (split would harm — use `loc-lint: exempt`)
 
-- **`src/stream/module.c`** — declarative `ngx_command_t` table (§2.6, §6.10).
+- **`src/protocols/root/stream/module.c`** — declarative `ngx_command_t` table (§2.6, §6.10).
 - **Large single functions that must stay whole** (not file exemptions, but
   "don't cut mid-function" notes for the splits above):
   `xrootd_gsi_build_cert_response` (210 lines, one cert-response assembly —

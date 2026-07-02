@@ -1,6 +1,6 @@
 #include "sss_internal.h"
 #include "fs/path/path.h"
-#include "response/response.h"
+#include "protocols/root/response/response.h"
 
 #include <openssl/rand.h>
 #include <string.h>

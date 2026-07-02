@@ -50,12 +50,12 @@ fewer files); the table maps plan → actual code.
 
 - **Stream-plane concurrency limiting (W7)** — *Closed 2026-06-13.*
   `xrootd_concurrency_limit` is now registered in the stream srv command table
-  (`src/stream/module.c`, reusing the conf-agnostic `xrootd_rl_conc_directive`), and
+  (`src/protocols/root/stream/module.c`, reusing the conf-agnostic `xrootd_rl_conc_directive`), and
   `xrootd_rl_stream_gate` calls `xrootd_rl_conc_acquire` on the first matching rule.
   Because the stream plane has **no LOG phase**, the slot is reserved per-connection
   (not per-request): it is stashed on `ctx->rl_conc_rule`/`ctx->rl_conc_key`
   (`src/core/types/context.h`) when acquired and released exactly once via the new
-  `xrootd_rl_release_ctx` from `xrootd_on_disconnect` (`src/connection/disconnect.c`).
+  `xrootd_rl_release_ctx` from `xrootd_on_disconnect` (`src/protocols/root/connection/disconnect.c`).
   This caps **concurrent connections per principal**; over-cap returns
   `kXR_wait(1)` so the client retries when a slot frees. Per-principal in-flight
   caps now apply to both `davs://`/HTTP and `root://`. Build clean; the stream
@@ -643,13 +643,13 @@ xrootd_rl_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
 ## Step E — XRootD Stream Enforcement
 
 **File:** `src/net/ratelimit/stream_check.c`  
-**Hook:** Called from `src/handshake/dispatch.c` before routing each opcode
+**Hook:** Called from `src/protocols/root/handshake/dispatch.c` before routing each opcode
 
 The stream dispatcher already has access to `xrootd_ctx_t *ctx` and the resolved path at the
 point each opcode is handled.  Rate limiting inserts a check before the handler runs:
 
 ```c
-/* In src/handshake/dispatch.c, after resolve_path, before calling handler: */
+/* In src/protocols/root/handshake/dispatch.c, after resolve_path, before calling handler: */
 static ngx_int_t
 xrootd_dispatch_maybe_ratelimit(xrootd_ctx_t *ctx, ngx_connection_t *c,
     uint16_t opcode, const char *path)
@@ -904,9 +904,9 @@ minimise lock hold time.
 |---|---|
 | `src/protocols/webdav/postconfig.c` | Register `xrootd_rl_http_handler` in `NGX_HTTP_ACCESS_PHASE` |
 | `src/protocols/webdav/postconfig.c` | Register `xrootd_rl_body_filter` in body filter chain |
-| `src/handshake/dispatch.c` | Call `xrootd_dispatch_maybe_ratelimit` before each opcode handler |
-| `src/read/read.c`, `pgread.c` | Call `xrootd_rl_charge_bytes` after `xrootd_send_ok` |
-| `src/write/write.c`, `pgwrite.c` | Call `xrootd_rl_charge_bytes` after write flush |
+| `src/protocols/root/handshake/dispatch.c` | Call `xrootd_dispatch_maybe_ratelimit` before each opcode handler |
+| `src/protocols/root/read/read.c`, `pgread.c` | Call `xrootd_rl_charge_bytes` after `xrootd_send_ok` |
+| `src/protocols/root/write/write.c`, `pgwrite.c` | Call `xrootd_rl_charge_bytes` after write flush |
 | `src/core/config/config.h` | Add `rl_zone`, `rl_rules`, `rl_bw_rules` to loc/srv conf structs |
 | `src/core/config/directives.c` | Parse `xrootd_rate_limit_zone`, `xrootd_rate_limit`, `xrootd_bandwidth_limit` |
 | `src/observability/metrics/metrics.h` | Add 4 new counters |

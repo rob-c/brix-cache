@@ -40,7 +40,7 @@ instance, factored generically rather than duplicated.
 | D3 | **All four signals in scope:** junk/scanner signatures (pre-backend), namespace-grammar violations (pre-backend), backend 404/non-existent-path storms (post-response), auth-failure/credential abuse (post-response). |
 | D4 | **Proxying uses stock `ngx_http_proxy_module`** (`proxy_pass`). Our module adds only classify (ACCESS phase) + audit (LOG phase) + credential-forwarding config + the ARC/XRootD decode. No bespoke HTTP proxy. |
 | D5 | **Protocol-agnostic guard core + thin adapters.** Bad-actor logic, audit format, rule config live once in `src/guard/` (pure C, no nginx). Adapters normalize their wire form into one `guard_request_t`. |
-| D6 | **Three surfaces guarded:** ARC-HTTP, XrdHttp/WebDAV-HTTP (same nginx module, different `profile`), and `root://` stream (via existing `src/relay` + `src/net/tap`, enforcement = drop connection). |
+| D6 | **Three surfaces guarded:** ARC-HTTP, XrdHttp/WebDAV-HTTP (same nginx module, different `profile`), and `root://` stream (via existing `src/protocols/root/relay` + `src/net/tap`, enforcement = drop connection). |
 
 ## 3. Architecture
 
@@ -53,7 +53,7 @@ instance, factored generically rather than duplicated.
     module, profile)│  guard_ruleset_t: signatures + per-proto grammar + outcome toggles      │
                     └────────────────────────────────────────────────────────────────────────┘
    root:// adapter ─► reuse src/net/tap decode → guard_request_t → verdict → close/RST connection
-   (src/relay tap)
+   (src/protocols/root/relay tap)
 ```
 
 ### 3.1 Guard core — `src/guard/`
@@ -126,7 +126,7 @@ differs; mechanism identical).
   `Authorization` pass through. The module never invents header keys; it only
   reads verify state to set `cred_present`.
 
-### 3.3 Stream adapter — extend `src/relay/`
+### 3.3 Stream adapter — extend `src/protocols/root/relay/`
 
 The relay already feeds a per-direction `xrootd_tap_stream`. Add a guard sink:
 
@@ -200,7 +200,7 @@ Deliverables under `deploy/fail2ban/`:
 
 ## 7. Testing (3 per unit: success + error + security-neg)
 
-- **Guard core** — standalone `gcc` unit test (like `src/zip/zip_dir`, tap tests):
+- **Guard core** — standalone `gcc` unit test (like `src/protocols/root/zip/zip_dir`, tap tests):
   signature match, grammar allow/deny, `guard_classify_post` mapping, audit-line
   exact bytes.
 - **HTTP adapter** (pytest): valid ARC req → proxied, no `signal`;
@@ -224,7 +224,7 @@ Deliverables under `deploy/fail2ban/`:
 
 ## 9. Reuse / invariants honoured
 
-- Reuses `src/net/tap/` decode + `tap_audit.c` JSON style; extends `src/relay/`.
+- Reuses `src/net/tap/` decode + `tap_audit.c` JSON style; extends `src/protocols/root/relay/`.
 - Uses stock `ngx_http_proxy_module` — no reimplemented proxy (HELPERS rule).
 - `xrootd_sanitize_log_string()` on every wire-derived path (log-sanitize inv.).
 - Guard-core allocation-free/pure like `src/net/tap/`; nginx allocation only in the

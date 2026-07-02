@@ -11,8 +11,8 @@ Source of truth for status: `docs/10-reference/xrootd-feature-matrix.md §13`.
 
 **Status:** Complete | **Effort:** Low | **Impact:** High
 
-Implemented in `src/query/checksum_qcksum.c` and
-`src/response/crc32c.c`. Raw protocol coverage lives in
+Implemented in `src/protocols/root/query/checksum_qcksum.c` and
+`src/protocols/root/response/crc32c.c`. Raw protocol coverage lives in
 `tests/test_query_extended.py::TestChecksumQueries`.
 
 ### Problem
@@ -22,7 +22,7 @@ Implemented in `src/query/checksum_qcksum.c` and
 `"crc32c <8-hex-chars>\0"` and still returns `kXR_ArgInvalid` for unknown
 algorithm names.
 
-The wire computation already exists in `src/response/crc32c.c` (`xrootd_crc32c()`
+The wire computation already exists in `src/protocols/root/response/crc32c.c` (`xrootd_crc32c()`
 and a file-streaming variant). It is used only for pgread/pgwrite page frames
 today.
 
@@ -32,7 +32,7 @@ today.
 
 ### Implemented Changes
 
-**`src/query/checksum_qcksum.c` — `xrootd_query_build_checksum()`**
+**`src/protocols/root/query/checksum_qcksum.c` — `xrootd_query_build_checksum()`**
 
 Includes a crc32c branch before the EVP block:
 
@@ -49,18 +49,18 @@ Includes a crc32c branch before the EVP block:
 }
 ```
 
-**`src/response/crc32c.c` / `src/response/response.h`**
+**`src/protocols/root/response/crc32c.c` / `src/protocols/root/response/response.h`**
 
 Provides `xrootd_crc32c_file(int fd, const char *path, ngx_log_t *log)`. It reads
 the file in 64 KiB chunks and accumulates the running CRC, same loop shape
 as `xrootd_query_adler32_fd`. Returns `(uint32_t)-1` on read error.
 
-**`src/query/config.c`**
+**`src/protocols/root/query/config.c`**
 
 `kXR_Qconfig chksum` advertises the supported list:
 `adler32,crc32c,md5,sha1,sha256`.
 
-**`src/response/response.h`**
+**`src/protocols/root/response/response.h`**
 
 Expose the declaration for `xrootd_crc32c_file`.
 
@@ -80,9 +80,9 @@ round trip:
 
 **Status:** Complete | **Effort:** Medium | **Impact:** High
 
-Implemented across `src/query/checksum_ckscan_common.c`,
-`src/query/checksum_ckscan_dispatch.c`, and
-`src/query/checksum_ckscan_async.c`. Coverage lives in
+Implemented across `src/protocols/root/query/checksum_ckscan_common.c`,
+`src/protocols/root/query/checksum_ckscan_dispatch.c`, and
+`src/protocols/root/query/checksum_ckscan_async.c`. Coverage lives in
 `tests/test_query_extended.py::TestQckscan`.
 
 ### Problem
@@ -117,7 +117,7 @@ If the path is a regular file, return exactly one line.
 
 ### Implemented Changes
 
-**`src/query/checksum_ckscan_*.c`**
+**`src/protocols/root/query/checksum_ckscan_*.c`**
 
 `xrootd_query_ckscan` parses the requested logical path, accepts optional
 `crc32c:` or `crc32c <path>` prefixes, resolves and authorizes the path, and
@@ -137,7 +137,7 @@ and `xrootd_aio_post_task` to move the file-walking loop off the event loop
 when a stream thread pool is configured. The completion callback queues the
 pre-built response back on the worker.
 
-**`src/core/types/config.h` / `src/stream/module.c`**
+**`src/core/types/config.h` / `src/protocols/root/stream/module.c`**
 
 Added `xrootd_ckscan_depth` (default 32) and `xrootd_ckscan_max_files`
 (default 100000) to bound runaway scans.
@@ -157,7 +157,7 @@ Coverage in `tests/test_query_extended.py::TestQckscan`:
 
 **Status:** Complete | **Effort:** Low | **Impact:** Medium
 
-Implemented in `src/query/prepare.c`. Coverage lives in
+Implemented in `src/protocols/root/query/prepare.c`. Coverage lives in
 `tests/test_prepare_staging.py::TestQPrepStatus`.
 
 ### Problem
@@ -177,7 +177,7 @@ the QPrep payload, and returns `"A <path>\n"` (available) or `"M <path>\n"`
 
 ### Implemented Changes
 
-**`src/query/prepare.c` — `xrootd_query_prep_status()`**
+**`src/protocols/root/query/prepare.c` — `xrootd_query_prep_status()`**
 
 When no paths are available, return an empty ok body (zero bytes), not
 the literal string. Clients that don't recognise the string may misparse it.
@@ -271,14 +271,14 @@ Important level behavior:
 
 ### Changed files
 
-- `src/core/types/config.h`, `src/core/config/server_conf.c`, `src/stream/module.c`
+- `src/core/types/config.h`, `src/core/config/server_conf.c`, `src/protocols/root/stream/module.c`
   carry and parse `security_level`.
-- `src/protocol/flags.h` defines `kXR_secOData` / `kXR_secOFrce`.
-- `src/session/protocol.c` appends the `ServerResponseReqs_Protocol` trailer.
-- `src/handshake/sigver.c` mirrors the XRootD request-protection table,
+- `src/protocols/root/protocol/flags.h` defines `kXR_secOData` / `kXR_secOFrce`.
+- `src/protocols/root/session/protocol.c` appends the `ServerResponseReqs_Protocol` trailer.
+- `src/protocols/root/handshake/sigver.c` mirrors the XRootD request-protection table,
   handles conditional opcodes, enforces missing signatures, and rejects pedantic
   `kXR_nodata` payload signatures.
-- `src/handshake/dispatch.c` calls the enforcement gate before opcode routing.
+- `src/protocols/root/handshake/dispatch.c` calls the enforcement gate before opcode routing.
 
 ### Tests
 

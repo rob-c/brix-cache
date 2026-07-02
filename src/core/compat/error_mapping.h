@@ -12,7 +12,7 @@
 #define XROOTD_COMPAT_ERROR_MAPPING_H
 
 #include <stdint.h>
-#include "protocol/opcodes.h"
+#include "protocols/root/protocol/opcodes.h"
 
 /*
  * Sections 1-2 are ngx-free (pure uint16_t/int) and compile into the standalone

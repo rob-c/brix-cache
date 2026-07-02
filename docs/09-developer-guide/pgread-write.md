@@ -51,9 +51,9 @@ Expected benefits:
 
 Relevant code:
 
-- `src/read/pgread.c`
+- `src/protocols/root/read/pgread.c`
 - `src/core/aio/pgread.c`
-- `src/response/crc32c.c`
+- `src/protocols/root/response/crc32c.c`
 
 ---
 
@@ -99,8 +99,8 @@ Expected benefits:
 
 Relevant code:
 
-- `src/read/pgread.c`
-- `src/response/crc32c.c`
+- `src/protocols/root/read/pgread.c`
+- `src/protocols/root/response/crc32c.c`
 
 ---
 
@@ -166,10 +166,10 @@ Expected benefits:
 
 Relevant code:
 
-- `src/write/pgwrite.c`
-- `src/write/chkpoint_xeq.c`
-- `src/write/write.h`
-- `src/response/crc32c.c`
+- `src/protocols/root/write/pgwrite.c`
+- `src/protocols/root/write/chkpoint_xeq.c`
+- `src/protocols/root/write/write.h`
+- `src/protocols/root/response/crc32c.c`
 
 ---
 
@@ -196,4 +196,4 @@ Relevant code:
 
 - `src/core/types/context.h`
 - `src/core/aio/buffers.c`
-- `src/write/pgwrite.c`
+- `src/protocols/root/write/pgwrite.c`

@@ -86,7 +86,7 @@ nginx front end and a modern kernel make cheap:
 - **Kernel-enforced confinement** via `openat2(RESOLVE_BENEATH |
   RESOLVE_NO_MAGICLINKS)` as the actual security boundary (`src/fs/path/beneath.c`),
   with the lexical `..` check kept only for protocol-conformance parity with
-  `rpCheck` (`src/fs/path/helpers.c`, `src/path/extract.c`).
+  `rpCheck` (`src/fs/path/helpers.c`, `src/protocols/root/path/extract.c`).
 - **Fail-closed auth gating** on the *completed* auth verdict (`auth_done`), the
   three-tier `xrootd_auth_gate` (authdb/XrdAcc → VO ACL → token scope), and a
   ported `XrdAcc` engine that denies on a missing table.
@@ -172,10 +172,10 @@ Two cheaper, defence-in-depth lexical guards sit in front:
 
 - **Embedded-NUL rejection at extract time.** `xrootd_extract_path()` rejects any
   path payload with a NUL that is not the final byte
-  (`src/path/extract.c:30-39`) — this blocks the `"a\x00evil"` truncation class
+  (`src/protocols/root/path/extract.c:30-39`) — this blocks the `"a\x00evil"` truncation class
   (where downstream C string handling sees `"a"` but a later layer sees more) and
   oversized payloads (`> XROOTD_MAX_PATH`). The login handler applies the same
-  NUL/non-printable rejection to the 8-byte username (`src/session/login.c`,
+  NUL/non-printable rejection to the 8-byte username (`src/protocols/root/session/login.c`,
   blocking truncation-impersonation).
 - **Lexical `..` rejection for parity.** `xrootd_path_has_dotdot()`
   (`helpers.c:79`) and `xrootd_path_component_forbidden()` (`helpers.c:59`) reject
@@ -203,7 +203,7 @@ The load-bearing rule in this module is: **gate access only on the COMPLETED aut
 verdict (`auth_done`), never on an intermediate state (`logged_in`, "has a
 token", "is mid-handshake")**. `kXR_login` sets `logged_in=1`; for any configured
 auth (gsi/token/sss) `auth_done` stays `0` until `kXR_auth` completes; only
-`auth=none` sets `auth_done=1` at login (`src/session/login.c:110-115`,
+`auth=none` sets `auth_done=1` at login (`src/protocols/root/session/login.c:110-115`,
 `session/session.h`).
 
 The canonical bug this prevents is a **proxy fail-open**: a client sends
@@ -213,7 +213,7 @@ under the proxy's own bridged credentials — an unauthenticated client reaching
 authenticated resources. The fix gates on `auth_done`:
 
 ```c
-// src/handshake/dispatch.c:71
+// src/protocols/root/handshake/dispatch.c:71
 if (conf->proxy_enable && ctx->auth_done) {
     return xrootd_proxy_dispatch(ctx, c, conf);
 }

@@ -14,11 +14,11 @@ The module has already consolidated a significant shared layer — path resoluti
 ┌────────────────────────────────────────────────────────────────────┐
 │                    Protocol handler layer                          │
 │                                                                    │
-│  stream/   ──────────────────────────────────  src/connection/    │
-│  (native XRootD)           WebDAV          S3  src/handshake/     │
-│  src/session/          src/protocols/webdav/      src/protocols/s3/                   │
-│  src/read/             src/protocols/webdav/tpc.c    src/protocols/s3/multipart*.c    │
-│  src/write/                                                        │
+│  stream/   ──────────────────────────────────  src/protocols/root/connection/    │
+│  (native XRootD)           WebDAV          S3  src/protocols/root/handshake/     │
+│  src/protocols/root/session/          src/protocols/webdav/      src/protocols/s3/                   │
+│  src/protocols/root/read/             src/protocols/webdav/tpc.c    src/protocols/s3/multipart*.c    │
+│  src/protocols/root/write/                                                        │
 │  src/tpc/                                                          │
 └────────────────────┬───────────────────────────────────────────────┘
                      │  calls into
@@ -64,7 +64,7 @@ See [cross-protocol-unification.md](cross-protocol-unification.md) for the full 
 | Protocol | File | Approach |
 |----------|------|----------|
 | WebDAV | `src/protocols/webdav/config.c` → `webdav_build_ca_store()` | Reads `cadir`, `cafile`, `crl` from location config, builds `X509_STORE`, caches per-worker |
-| Stream | `src/connection/postconfig.c` | Reads `cadir`, `cafile`, `crl` from server config, builds its own store during post-merge phase |
+| Stream | `src/protocols/root/connection/postconfig.c` | Reads `cadir`, `cafile`, `crl` from server config, builds its own store during post-merge phase |
 
 Both read the same file types (CA certs + CRLs), use OpenSSL APIs (`X509_STORE_add_cert`, `X509_CRL_load_file`), and cache the result. But they have separate implementations with different sentinel checks and error paths.
 
@@ -111,7 +111,7 @@ S3 and WebDAV both build XML error/respone chains. S3's builder is more structur
 | Protocol | Constants file | Values |
 |----------|---------------|--------|
 | WebDAV | `src/protocols/webdav/` headers | `WEBDAV_PATH_MAX`, `WEBDAV_PATH_MIN` |
-| Stream | `src/connection/` / `handshake/` | `XROOTD_PATH_MAX`, `XROOTD_PATH_*` |
+| Stream | `src/protocols/root/connection/` / `handshake/` | `XROOTD_PATH_MAX`, `XROOTD_PATH_*` |
 
 Both validate path length and component count, but use different constants. The actual filesystem limits are the same (PATH_MAX = 4096 on Linux). Different names create confusion when comparing code.
 
@@ -144,7 +144,7 @@ Both HTTP protocols call `ngx_http_read_client_request_body()` but each has its 
 
 | Protocol | File(s) | Algorithm |
 |----------|---------|-----------|
-| Stream (pgread/pgwrite) | `src/read/pgread.c`, `src/write/pgwrite.c` | CRC32c per-page, framed in kXR_status(4007) wire response |
+| Stream (pgread/pgwrite) | `src/protocols/root/read/pgread.c`, `src/protocols/root/write/pgwrite.c` | CRC32c per-page, framed in kXR_status(4007) wire response |
 | S3 (multipart) | `s3/multipart_upload.c`, `s3/multipart_complete.c` | MD5 of each part → ETag = concatenated hex MD5s |
 
 Stream uses CRC32c via `src/core/compat/crc32c.c`. S3 uses MD5 for multipart ETags. Different algorithms, different framing, but both compute checksums over file data in chunks.

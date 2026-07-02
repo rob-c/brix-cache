@@ -21,8 +21,8 @@ This document outlines the remaining feature gaps between the `nginx-xrootd` mod
 The current module recognizes the `kXR_prepare` opcode but treats it as a simple path validation. Sites with tape backends (CASTOR, EOS tape, dCache) require a mechanism to dispatch these requests to a tape-recall service.
 
 *   **Files to Modify:**
-    *   `src/query/prepare.c`: Implement backend dispatch logic.
-    *   `src/query/query_internal.h`: Add data structures for pending recalls.
+    *   `src/protocols/root/query/prepare.c`: Implement backend dispatch logic.
+    *   `src/protocols/root/query/query_internal.h`: Add data structures for pending recalls.
 *   **Work Required:** Create a dispatcher for tape recall commands. Update the `kXR_QPrep` query implementation to report recall status (pending, recalled, error).
 
 ### 2. Outbound TLS Auth (`kXR_authmore` / `kXR_gotoTLS`)
@@ -50,7 +50,7 @@ TPC transfers involving multiple network hops fail when the delegation of a GSI 
 `kXR_bind` handle sharing allows multiple streams to read from a single handle, but the handle table explicitly prohibits binding to write handles.
 
 *   **Files to Modify:**
-    *   `src/read/open.c`, `src/handshake/policy.c`: Adjust policies for `XROOTD_XFER_DIR_WRITE`.
+    *   `src/protocols/root/read/open.c`, `src/protocols/root/handshake/policy.c`: Adjust policies for `XROOTD_XFER_DIR_WRITE`.
 *   **Work Required:** Allow sharing of write handles; ensure concurrent write operations to the same handle are safely serialized by the stream handlers.
 
 ### 6. OCSP Support — COMPLETED

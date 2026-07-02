@@ -328,7 +328,7 @@ def _read(rel):
 def test_sigver_no_ack_tripwire():
     """Bug #1: the server's sigver success path must not send a response, and the
     client must not read one."""
-    signing = _read("src/session/signing.c")
+    signing = _read("src/protocols/root/session/signing.c")
     # The function must end by returning NGX_OK (no send_ok) after logging SIGVER.
     tail = signing[signing.rindex('"SIGVER"'):]
     assert "xrootd_send_ok" not in tail, (
@@ -342,9 +342,9 @@ def test_sigver_no_ack_tripwire():
 
 def test_static_map_redirect_tripwire():
     """Bug #2: stat and dirlist must consult the static manager_map."""
-    assert "xrootd_find_manager_map" in _read("src/read/stat.c"), (
+    assert "xrootd_find_manager_map" in _read("src/protocols/root/read/stat.c"), (
         "stat no longer consults the static manager_map (bug #2)")
-    assert "xrootd_find_manager_map" in _read("src/dirlist/handler.c"), (
+    assert "xrootd_find_manager_map" in _read("src/protocols/root/dirlist/handler.c"), (
         "dirlist no longer consults the static manager_map (bug #2)")
 
 

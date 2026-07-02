@@ -86,7 +86,7 @@ exists here.
   `XrdEcRedundancyProvider`, …) implements stripe/parity erasure-coded objects,
   paired with the `kXR_ecRedir`/`kXR_ecredir` redirect flags.
 - **Here:** no erasure-coding layer. `kXR_ecRedir` is defined in
-  `src/protocol/flags.h` but **never set** (asserted by tests).
+  `src/protocols/root/protocol/flags.h` but **never set** (asserted by tests).
 - **Why it matters / impact:** EC-backed XRootD sites (durable object storage
   without full replication) cannot be served. This is a hard blocker for those
   deployments.
@@ -199,7 +199,7 @@ exists here.
 
 - **Official:** `XrdZip/` (serve members of a ZIP archive as files), `XrdRmc/`
   (remanufactured memory cache), `XrdFrc/` (file replica catalog).
-- **Here:** **`XrdZip` partially implemented** — `src/zip/` (`zip_dir.c`
+- **Here:** **`XrdZip` partially implemented** — `src/protocols/root/zip/` (`zip_dir.c`
   pure-C central-directory reader, `zip_member.c`, `zip_http.c`) is wired into
   the build and serves ZIP members over HTTP. Not full upstream parity (e.g.
   cross-protocol member-open breadth). `XrdRmc`/`XrdFrc` have no equivalent.
@@ -299,7 +299,7 @@ beyond "same protocol, different daemon." Each is source-grounded.
 | **WLCG Storage Resource Reporting (SRR)** | `src/protocols/srr/` (`builder.c`, `handler.c`, `module.c`) | First-class HTTP/JSON SRR endpoint for site accounting/discovery; no core upstream server equivalent in the reviewed tree. |
 | **Resilient pure-C native client suite + FUSE** | `client/apps/` (`xrdcp`, `xrdfs`, `xrddiag`, `xrdmapc`, `xrdprep`, `xrdgsiproxy`, `xrdadler32`, `xrdcrc32c`, `xrdcrc64`, `xrdsssadmin`, …), `client/lib/`, `xrootdfs*` FUSE | A clean-room `libxrdc`-based client + FUSE driver with connect-vs-IO timeouts, fast-fail on permanent errors, IPv6→IPv4 auto-downgrade, atomic/cancellable transfers. Independent of `libXrdCl`. (Server-replacement scope aside, this is a genuine module-family extra.) |
 | **HTTP-based SciTags packet marking** | `src/observability/pmark/` (`firefly.c`, `flowlabel.c`, `scitag.c`, `mapping.c`) | Firefly UDP + IPv6 flow-label packet marking integrated with WebDAV/TPC; an HTTP-native marking path rather than a separate daemon. (Upstream also has `XrdNetPMark`; the surfaces differ.) |
-| **Unified multi-protocol namespace under nginx** | shared `src/path/` + `src/read/` + `src/protocols/webdav/` + `src/protocols/s3/` | One export serves `root://`, `davs://`/XrdHttp, and S3 with **common confinement and policy rules** and one set of nginx operational tooling (certs, reload, logging, reverse proxy). |
+| **Unified multi-protocol namespace under nginx** | shared `src/path/` + `src/protocols/root/read/` + `src/protocols/webdav/` + `src/protocols/s3/` | One export serves `root://`, `davs://`/XrdHttp, and S3 with **common confinement and policy rules** and one set of nginx operational tooling (certs, reload, logging, reverse proxy). |
 | **WebDAV beyond upstream XrdHttp's method set** | `src/protocols/webdav/lock.c`, `dead_props.c`, `search.c`, `acl.c`, `methods_basic.c` | `LOCK`/`UNLOCK`, `PROPPATCH` + dead-property storage (xattrs), `SEARCH` (RFC 5323), `ACL` discovery — needed by desktop WebDAV clients that treat `501` as fatal. Not found as server methods in the reviewed XrdHttp source. |
 | **Hardened HTTP-TPC** | `src/protocols/webdav/tpc_curl.c`, `tpc_cred.c`, `tpc_marker.c`, `tpc_headers.c` | SSRF/DNS-pinning controls, OIDC/RFC-8693 credential delegation, marker streaming, `curl_multi` multistream, dashboard visibility, low-cardinality metrics. Upstream **also** has HTTP-TPC (`XrdHttpTpc`); nginx's edge is hardening + integration, **not** the existence of HTTP-TPC. |
 | **WLCG Tape REST gateway** | `src/protocols/webdav/tape_rest.c` + `src/frm/` | FTS/gfal2-friendly HTTP tape control sharing the same durable stage queue as native `prepare`/`open`. |
@@ -328,8 +328,8 @@ interop break for some ops/clients; **Low** = edge/cosmetic.
 
 | # | Area | Official / reference behavior | Was (our bug) | Status | Severity | Found by |
 |---|---|---|---|---|---|---|
-| 1 | `kXR_sigver` | No response on success (it is a request *prefix*); only `kXR_SigVerErr` on failure | Server ACKed it; client read the ack (consistent-but-nonstandard pair) | FIXED (`src/session/signing.c`, `client/lib/sigver.c`) | High | go-hep |
-| 2 | `stat`/`dirlist` redirect | All ops consult the redirect map | Only `open`/`locate` used the static `manager_map` | FIXED (`src/read/stat.c`, `src/dirlist/handler.c`) | High | go-hep (mesh) |
+| 1 | `kXR_sigver` | No response on success (it is a request *prefix*); only `kXR_SigVerErr` on failure | Server ACKed it; client read the ack (consistent-but-nonstandard pair) | FIXED (`src/protocols/root/session/signing.c`, `client/lib/sigver.c`) | High | go-hep |
+| 2 | `stat`/`dirlist` redirect | All ops consult the redirect map | Only `open`/`locate` used the static `manager_map` | FIXED (`src/protocols/root/read/stat.c`, `src/protocols/root/dirlist/handler.c`) | High | go-hep (mesh) |
 | 3 | Root `/` prefix match | A prefix ending in `/` matches everything beneath | `/` matched only `/`, not `/child` | FIXED (`src/auth/authz/find_rule.c`) | High | go-hep (mesh) |
 | 4 | Unknown opcode | `kXR_InvalidRequest` (3006) | `kXR_Unsupported` (3013) | FIXED | Low | conformance |
 | 5 | `kXR_statx` framing | 1 flag byte/path; newline-separated request | 4 bytes + text line; `\0`-separated request | FIXED | Med | conformance |
@@ -447,20 +447,20 @@ Official XRootD (`/tmp/xrootd-src/src`):
 
 nginx-xrootd (`src/` and `client/`):
 
-- Protocol/dispatch: `src/protocol/opcodes.h`, `src/protocol/flags.h`,
-  `src/handshake/dispatch*.c`, `src/session/protocol.c`, `src/session/signing.c`
+- Protocol/dispatch: `src/protocols/root/protocol/opcodes.h`, `src/protocols/root/protocol/flags.h`,
+  `src/protocols/root/handshake/dispatch*.c`, `src/protocols/root/session/protocol.c`, `src/protocols/root/session/signing.c`
 - Auth: `src/auth/gsi/`, `src/auth/token/`, `src/auth/sss/`, `src/auth/unix/`, `src/auth/krb5/`,
   `src/auth/pwd/`, `src/auth/host/`, `src/auth/voms/`, `src/auth/authz/authdb.c`,
   `src/auth/authz/auth_gate.c`
-- Diagnostics / SSI / ZIP: `src/protocols/dig/`, `src/protocols/ssi/`, `src/zip/`
+- Diagnostics / SSI / ZIP: `src/protocols/dig/`, `src/protocols/ssi/`, `src/protocols/root/zip/`
 - Storage/cache/path: `src/fs/`, `src/path/`, `src/fs/cache/`,
   `src/core/compat/namespace_ops.c`, `src/fs/cache/origin_protocol.c`
-- FRM/tape: `src/frm/`, `src/query/prepare.c`, `src/protocols/webdav/tape_rest.c`
+- FRM/tape: `src/frm/`, `src/protocols/root/query/prepare.c`, `src/protocols/webdav/tape_rest.c`
 - HTTP/WebDAV/S3: `src/protocols/webdav/`, `src/protocols/s3/`
 - Extras: `src/net/mirror/`, `src/observability/metrics/`, `src/net/ratelimit/`, `src/observability/dashboard/`,
   `src/protocols/srr/`, `src/observability/pmark/`, `src/core/compat/codec_*.c`, `src/core/compat/http_compress.c`
 - Client suite: `client/apps/`, `client/lib/`, `client/lib/sigver.c`
-- Conformance fixes: `src/read/stat.c`, `src/dirlist/handler.c`,
+- Conformance fixes: `src/protocols/root/read/stat.c`, `src/protocols/root/dirlist/handler.c`,
   `src/auth/authz/find_rule.c`, `xrootd_stat_flags_from_stat`,
   `xrootd_reject_dotdot_path`
 

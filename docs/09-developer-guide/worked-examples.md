@@ -4,15 +4,15 @@
 
 Concrete before/after examples of adding dispatch entries, to make the pattern concrete before you write new code.
 
-`xrootd_dispatch()` in `src/handshake/dispatch.c` routes every request
+`xrootd_dispatch()` in `src/protocols/root/handshake/dispatch.c` routes every request
 through four dispatch functions in a fixed cascade:
 
 ```
 xrootd_dispatch()
-  ├── xrootd_dispatch_session_opcode   → src/handshake/dispatch_session.c
-  ├── xrootd_dispatch_read_opcode      → src/handshake/dispatch_read.c
-  ├── xrootd_dispatch_write_opcode     → src/handshake/dispatch_write.c
-  └── xrootd_dispatch_signing_opcode   → src/handshake/dispatch_signing.c
+  ├── xrootd_dispatch_session_opcode   → src/protocols/root/handshake/dispatch_session.c
+  ├── xrootd_dispatch_read_opcode      → src/protocols/root/handshake/dispatch_read.c
+  ├── xrootd_dispatch_write_opcode     → src/protocols/root/handshake/dispatch_write.c
+  └── xrootd_dispatch_signing_opcode   → src/protocols/root/handshake/dispatch_signing.c
 ```
 
 Each function returns `XROOTD_DISPATCH_CONTINUE` if the opcode is not its
@@ -66,7 +66,7 @@ shows the full contribution path concretely.
 
 ### Step 1 — Opcode constant
 
-`src/protocol/opcodes.h`:
+`src/protocols/root/protocol/opcodes.h`:
 ```c
 #define kXR_ping    3011  /* liveness check — zero payload in, zero payload out */
 ```
@@ -87,7 +87,7 @@ bytes: 2-byte stream ID, 2-byte request ID, 16-byte body, 4-byte dlen) with
 
 ### Step 4 — Handler
 
-`src/session/lifecycle.c` — `xrootd_handle_ping`:
+`src/protocols/root/session/lifecycle.c` — `xrootd_handle_ping`:
 ```c
 ngx_int_t
 xrootd_handle_ping(xrootd_ctx_t *ctx, ngx_connection_t *c)
@@ -99,7 +99,7 @@ Three lines. `XROOTD_RETURN_OK` handles log + metric + send in one call.
 
 ### Step 5 — Dispatch case
 
-`src/handshake/dispatch_session.c`:
+`src/protocols/root/handshake/dispatch_session.c`:
 ```c
 case kXR_ping:
     return xrootd_handle_ping(ctx, c);
@@ -108,7 +108,7 @@ No auth guard needed — ping is valid before login (used by health checkers).
 
 ### Step 6 — Build system
 
-`config` already lists `src/session/lifecycle.c`. No change needed because
+`config` already lists `src/protocols/root/session/lifecycle.c`. No change needed because
 `kXR_ping` shares the file with other lifecycle handlers.
 
 For a new opcode in a new file, add entries to both the deps and srcs lists
@@ -116,7 +116,7 @@ in `config` and re-run `./configure`.
 
 ### Step 7 — Subsystem README
 
-`src/session/README.md` lists `lifecycle.c` in its file table with a row for
+`src/protocols/root/session/README.md` lists `lifecycle.c` in its file table with a row for
 each handler including `kXR_ping`. Update the row if you change the handler.
 
 ### Step 8 — Test

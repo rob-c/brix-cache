@@ -31,7 +31,7 @@
 - Create: `tests/test_build_hardening.py` (asserts hardening on built artifacts via `readelf`)
 
 **Phase B — `safe_size.h` adoption on wire-driven allocations**
-- Modify: `src/zip/zip_dir.c` (central-directory + member buffer allocations)
+- Modify: `src/protocols/root/zip/zip_dir.c` (central-directory + member buffer allocations)
 - Modify: `src/auth/token/jwks.c` (JWKS file-size allocation)
 - Modify: `src/auth/gsi/gsi_buf.c` + `src/auth/gsi/proxy_req.c` (external-handle buffer allocations)
 - Create/Modify: `tests/c/safe_size_adoption_test.c` (standalone overflow unit checks)
@@ -215,7 +215,7 @@ git commit -m "harden: default RELRO/BIND_NOW/noexecstack on the dynamic module 
 ### Task 3: ZIP central-directory + member buffers
 
 **Files:**
-- Modify: `src/zip/zip_dir.c:101` (`cd = malloc((size_t) cd_size)`) and `:200` (`comp = malloc((size_t) m->comp_size)`)
+- Modify: `src/protocols/root/zip/zip_dir.c:101` (`cd = malloc((size_t) cd_size)`) and `:200` (`comp = malloc((size_t) m->comp_size)`)
 - Test: `tests/c/safe_size_adoption_test.c` (new standalone unit)
 
 **Interfaces:**
@@ -266,7 +266,7 @@ Expected: compiles and prints `OK` (this test guards the *helper* — it should 
 
 - [ ] **Step 3: Convert the `zip_dir.c` allocations**
 
-At top of `src/zip/zip_dir.c` add the include (after existing includes):
+At top of `src/protocols/root/zip/zip_dir.c` add the include (after existing includes):
 
 ```c
 #include "../shared/safe_size.h"   /* overflow-checked size math */
@@ -309,7 +309,7 @@ Expected: module builds clean; `safe_size_adoption_test: OK`; zip tests pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/zip/zip_dir.c tests/c/safe_size_adoption_test.c
+git add src/protocols/root/zip/zip_dir.c tests/c/safe_size_adoption_test.c
 git commit -m "harden(zip): overflow-checked central-directory/member allocations"
 ```
 
@@ -480,7 +480,7 @@ git commit -m "test(fuzz): in-process libFuzzer target for token base64url decod
 - Modify: `tests/fuzz/README.md`
 
 **Interfaces:**
-- Consumes: `xrootd_zip_find_member(int fd, off_t archive_size, const char *member, ...)` from `src/zip/zip_dir.h` (compiled against `src/zip/zip_dir.c` + its kernel dep). Uses `memfd_create` to turn fuzz bytes into an fd.
+- Consumes: `xrootd_zip_find_member(int fd, off_t archive_size, const char *member, ...)` from `src/protocols/root/zip/zip_dir.h` (compiled against `src/protocols/root/zip/zip_dir.c` + its kernel dep). Uses `memfd_create` to turn fuzz bytes into an fd.
 - Produces: a runnable `fuzz_zip_dir` target exercising the Task-3-hardened allocations.
 
 - [ ] **Step 1: Write the fuzz target**
@@ -495,7 +495,7 @@ git commit -m "test(fuzz): in-process libFuzzer target for token base64url decod
 #include <stdint.h>
 #include <unistd.h>
 #include <sys/mman.h>
-#include "../../src/zip/zip_dir.h"
+#include "../../src/protocols/root/zip/zip_dir.h"
 
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     int fd = memfd_create("zipfuzz", 0);
@@ -517,14 +517,14 @@ Run:
 ```bash
 cd /home/rcurrie/HEP-x/nginx-xrootd/tests/fuzz
 clang -O1 -g -fsanitize=fuzzer,address,undefined \
-    -I ../../src -I ../../src/zip \
-    fuzz_zip_dir.c ../../src/zip/zip_dir.c ../../src/zip/zip_kernel.c -o fuzz_zip_dir
+    -I ../../src -I ../../src/protocols/root/zip \
+    fuzz_zip_dir.c ../../src/protocols/root/zip/zip_dir.c ../../src/protocols/root/zip/zip_kernel.c -o fuzz_zip_dir
 mkdir -p corpus_zip_dir
 # seed from any sample archive available
 cp ../fixtures/*.zip corpus_zip_dir/ 2>/dev/null || true
 ./fuzz_zip_dir -runs=200000 -max_total_time=120 corpus_zip_dir/
 ```
-Expected: `Done ... exit 0`. (Resolve link errors by adding the exact kernel TU `zip_dir.c` depends on — `grep -n include src/zip/zip_dir.c` shows it.)
+Expected: `Done ... exit 0`. (Resolve link errors by adding the exact kernel TU `zip_dir.c` depends on — `grep -n include src/protocols/root/zip/zip_dir.c` shows it.)
 
 - [ ] **Step 3: Document + commit**
 
@@ -827,7 +827,7 @@ git commit -m "harden(deploy): sandboxed systemd unit + deployment-hardening gui
 
 **Placeholder scan:** Two intentional "use the file's existing error code" notes remain in Tasks 3/5 because the exact `ZIP_ERR_*`/`GSI_ERR` constant must be read from the surrounding function at implementation time — the step tells the engineer exactly where to look (read N surrounding lines) rather than inventing a wrong constant. The `execve` arg list in Task 10 likewise says "preserve the exact existing args" because they differ between the two call sites. These are deliberate, scoped lookups, not vague TODOs.
 
-**Type consistency:** `xrootd_size_mul`/`xrootd_size_add` signatures match `safe_size.h` exactly across Tasks 3–5; `b64url_decode` signature in Task 6 matches `src/auth/token/b64url.h`; `xrootd_zip_find_member`/`xrootd_zip_member_t` in Task 7 match `src/zip/zip_dir.h`; `_readelf`/`_find_module_so` helpers are defined once in Task 1 and reused in Task 2.
+**Type consistency:** `xrootd_size_mul`/`xrootd_size_add` signatures match `safe_size.h` exactly across Tasks 3–5; `b64url_decode` signature in Task 6 matches `src/auth/token/b64url.h`; `xrootd_zip_find_member`/`xrootd_zip_member_t` in Task 7 match `src/protocols/root/zip/zip_dir.h`; `_readelf`/`_find_module_so` helpers are defined once in Task 1 and reused in Task 2.
 
 ---
 

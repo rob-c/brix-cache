@@ -368,7 +368,7 @@ Initialise to `-1` alongside the other fields at the top of `open_resolved_file.
 
 Add `xrootd_configure_dashboard(cf, cmcf)` — registers the transfer table SHM zone exactly as metrics registers its zone. The zone name is `"xrootd_dashboard"`. The init callback zeros the table on first startup and preserves it across reloads (same pattern as metrics).
 
-### `src/read/open_resolved_file.c`
+### `src/protocols/root/read/open_resolved_file.c`
 
 After a successful `open()` returns a valid file descriptor, call:
 
@@ -385,7 +385,7 @@ if (ngx_xrootd_dashboard_shm_zone != NULL) {
 
 Failure to allocate a slot (`-1` returned) is silently ignored — the transfer proceeds untracked.
 
-### `src/read/read.c`, `readv.c`, `pgread.c`
+### `src/protocols/root/read/read.c`, `readv.c`, `pgread.c`
 
 After a successful data response is queued, add:
 
@@ -400,11 +400,11 @@ if (fh->dashboard_slot >= 0 && ngx_xrootd_dashboard_shm_zone) {
 
 For AIO reads (`src/core/aio/`), the update goes in the AIO completion callback, after `ctx->destroyed` is checked (same guard as the metrics update there).
 
-### `src/write/write.c`, `writev.c`, `pgwrite.c`
+### `src/protocols/root/write/write.c`, `writev.c`, `pgwrite.c`
 
 Same pattern: update slot with bytes written after a successful commit to disk.
 
-### `src/read/close.c`
+### `src/protocols/root/read/close.c`
 
 Before zeroing `fh`:
 
@@ -416,7 +416,7 @@ if (fh->dashboard_slot >= 0 && ngx_xrootd_dashboard_shm_zone) {
 }
 ```
 
-### `src/connection/disconnect.c` — `xrootd_on_disconnect()`
+### `src/protocols/root/connection/disconnect.c` — `xrootd_on_disconnect()`
 
 After the per-connection cleanup, add:
 

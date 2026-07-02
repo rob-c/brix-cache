@@ -57,7 +57,7 @@ timer). Think of it as writing handlers for a single-threaded async framework
 Entry points to start reading (full map in [AGENTS.md / CLAUDE.md OP→FILE table]):
 | Protocol | Entry |
 |---|---|
-| `root://` (binary, stream) | `src/connection/handler.c` → `src/handshake/dispatch.c` |
+| `root://` (binary, stream) | `src/protocols/root/connection/handler.c` → `src/protocols/root/handshake/dispatch.c` |
 | `davs://` / WebDAV (HTTP) | `src/protocols/webdav/dispatch.c` |
 | S3 (HTTP) | `src/protocols/s3/handler.c` |
 
@@ -101,7 +101,7 @@ what's available; call me again when there's more"* and returns to the loop. A
 function that returns `NGX_AGAIN` has **suspended a coroutine by hand**.
 
 The wire protocol has its own error space (`kXR_*` codes in
-`src/protocol/opcodes.h`); the boundary maps `errno → kXR → HTTP`
+`src/protocols/root/protocol/opcodes.h`); the boundary maps `errno → kXR → HTTP`
 (`src/core/compat/error_mapping.c`, table in the coding standard).
 
 ---
@@ -159,7 +159,7 @@ have canonical helpers — never re-implement them. The authoritative list is in
 | `xrootd_*_beneath(rootfd, rel, …)` | confined filesystem ops via `openat2(RESOLVE_BENEATH)` — **all** path I/O goes through these so nothing escapes the export root (think: a chroot-checked `std::filesystem` wrapper) |
 | `xrootd_resolve_op_path(...)` / `xrootd_path_resolve_beneath(...)` | extract + validate + confine a wire path before use |
 | `xrootd_extract_path(...)` | pull a path out of a wire payload (strips CGI, rejects embedded NUL) |
-| `xrootd_make_stat_body(...)` / `src/protocol/stat_flags.h` | encode the `kXR_stat` line + flags (single source of truth, shared with the client decoder) |
+| `xrootd_make_stat_body(...)` / `src/protocols/root/protocol/stat_flags.h` | encode the `kXR_stat` line + flags (single source of truth, shared with the client decoder) |
 | `xrootd_auth_gate(...)` | the access-control choke point |
 
 **Control flow:** **no `goto`** anywhere in `src/`/`client/` (hard rule). Errors
@@ -167,7 +167,7 @@ use **early-return**; deep cleanup is decomposed into helpers. Status is returne
 not thrown; "out" results come back via pointer parameters.
 
 **The error/response macros** (legend — these are the few macros worth learning,
-expansions in `src/protocol/` and the op headers):
+expansions in `src/protocols/root/protocol/` and the op headers):
 
 | Macro | Conceptually does |
 |---|---|

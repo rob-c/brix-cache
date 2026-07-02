@@ -13,7 +13,7 @@
 #include "namespace_ops.h"
 #include "fs/path/path.h"
 #include "fs/path/beneath.h"
-#include "fattr/ngx_xrootd_fattr.h"
+#include "protocols/root/fattr/ngx_xrootd_fattr.h"
 #include "fs_walk.h"
 #include "copy_range.h"
 #include "staged_file.h"

@@ -1,5 +1,5 @@
 #include "gsi_internal.h"
-#include "session/registry.h"
+#include "protocols/root/session/registry.h"
 #include "auth/token/macaroon.h"
 #include "auth/token/token_cache.h"
 #include "auth/token/worker_cache.h"

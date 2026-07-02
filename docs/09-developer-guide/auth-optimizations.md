@@ -59,10 +59,10 @@ Relevant code:
 
 - `src/auth/gsi/config.c`
 - `src/auth/gsi/cert_response.c`
-- `src/handshake/sigver.c`
-- `src/session/signing.c`
+- `src/protocols/root/handshake/sigver.c`
+- `src/protocols/root/session/signing.c`
 - `src/core/types/context.h`
-- `src/connection/disconnect.c`
+- `src/protocols/root/connection/disconnect.c`
 
 ---
 
@@ -136,10 +136,10 @@ Expected benefits:
 Relevant code:
 
 - `src/core/types/file.h`
-- `src/connection/fd_table.c`
-- `src/read/*.c`
-- `src/write/*.c`
-- `src/query/*.c`
+- `src/protocols/root/connection/fd_table.c`
+- `src/protocols/root/read/*.c`
+- `src/protocols/root/write/*.c`
+- `src/protocols/root/query/*.c`
 
 ---
 

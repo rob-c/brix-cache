@@ -67,13 +67,13 @@ implementation:
 
 | Opcode | Handler | File |
 |---|---|---|
-| `kXR_read` | `xrootd_handle_read` | `src/read/read.c:77` |
-| `kXR_readv` | `xrootd_handle_readv` | `src/read/readv.c:201` |
-| `kXR_pgread` | `xrootd_handle_pgread` | `src/read/pgread.c:181` |
-| `kXR_write` | `xrootd_handle_write` | `src/write/write.c:67` |
-| `kXR_writev` | `xrootd_handle_writev` | `src/write/writev.c:35` |
-| `kXR_pgwrite` | `xrootd_handle_pgwrite` | `src/write/pgwrite.c:146` |
-| `kXR_sync` | `xrootd_handle_sync` | `src/write/sync.c:42` |
+| `kXR_read` | `xrootd_handle_read` | `src/protocols/root/read/read.c:77` |
+| `kXR_readv` | `xrootd_handle_readv` | `src/protocols/root/read/readv.c:201` |
+| `kXR_pgread` | `xrootd_handle_pgread` | `src/protocols/root/read/pgread.c:181` |
+| `kXR_write` | `xrootd_handle_write` | `src/protocols/root/write/write.c:67` |
+| `kXR_writev` | `xrootd_handle_writev` | `src/protocols/root/write/writev.c:35` |
+| `kXR_pgwrite` | `xrootd_handle_pgwrite` | `src/protocols/root/write/pgwrite.c:146` |
+| `kXR_sync` | `xrootd_handle_sync` | `src/protocols/root/write/sync.c:42` |
 
 Asynchrony is the `src/core/aio/` subsystem: a thread-pool backend (nginx
 `ngx_thread_pool`) plus an optional `io_uring` backend (`src/core/aio/uring*.c`,
@@ -139,7 +139,7 @@ caps:
 
 | Cap | Constant | Value | Where |
 |---|---|---|---|
-| Max segment count | `XROOTD_READV_MAXSEGS` | 1024 | `src/protocol/flags.h:223` |
+| Max segment count | `XROOTD_READV_MAXSEGS` | 1024 | `src/protocols/root/protocol/flags.h:223` |
 | Per-segment header | `XROOTD_READV_SEGSIZE` | 16 B | `flags.h:222` |
 | Per-element byte cap | `readv_segment_size` (= official `maxReadv_ior`) | 2 MiB − 16 = 2 097 136 | `config/server_conf.c:380` |
 | Total response cap | `XROOTD_MAX_READV_TOTAL` | 256 MiB | `readv.c:57` |
@@ -390,7 +390,7 @@ library is absent. Decompression enforces an output cap and a maximum expansion
 ratio to defeat decompression bombs (`XROOTD_CODEC_ERR_BOMB`). Integration into
 root:// is **opt-in and off by default**:
 
-- **Read** — `xrootd_read_compressed` (`src/read/read_compress.c:110-228`) runs
+- **Read** — `xrootd_read_compressed` (`src/protocols/root/read/read_compress.c:110-228`) runs
   only when the handle was opened with `?xrootd.compress=<codec>`
   (`read_codec != IDENTITY`); it compresses one bounded plaintext window
   (clamped to `XROOTD_READ_CHUNK_MAX = 16 MiB`) into a single frame.

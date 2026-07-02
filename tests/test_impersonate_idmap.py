@@ -24,7 +24,7 @@ def _inc_flags():
     base = NGINX_SRC
     subs = [
         "src/core", "src/event", "src/event/modules", "src/os/unix",
-        "objs", "src/stream",
+        "objs", "src/protocols/root/stream",
     ]
     return [f"-I{os.path.join(base, s)}" for s in subs]
 

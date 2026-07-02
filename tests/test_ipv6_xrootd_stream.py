@@ -15,7 +15,7 @@ What this proves:
     the IPv6 loopback transport (REGRESSION / SMOKE — these work today);
   * the kXR_locate response for a server reached over IPv6 carries the
     BRACKETED "Sr[::1]:<port>" location token, never the bare "Sr::1:<port>"
-    form (GATING — proves the AF_INET6 bracket-on-emit in src/read/locate.c).
+    form (GATING — proves the AF_INET6 bracket-on-emit in src/protocols/root/read/locate.c).
 
 Wire framing verified against /tmp/xrootd-src/src/XProtocol/XProtocol.hh:
   * ClientInitHandShake — five 32-bit BE words; word4==4, word5==2012.
@@ -62,7 +62,7 @@ IPV6_PORT = IPV6_STREAM_PORT
 
 
 # ---------------------------------------------------------------------------
-# Wire constants (src/protocol/opcodes.h + flags.h, mirroring XProtocol.hh)
+# Wire constants (src/protocols/root/protocol/opcodes.h + flags.h, mirroring XProtocol.hh)
 # ---------------------------------------------------------------------------
 
 ROOTD_PQ         = 2012   # handshake 5th word magic
@@ -83,7 +83,7 @@ kXR_ok      = 0
 kXR_error   = 4003
 kXR_status  = 4007
 
-# Open option flags (src/protocol/flags.h)
+# Open option flags (src/protocols/root/protocol/flags.h)
 kXR_delete    = 0x0002   # open for write, truncating to zero (create-or-clobber)
 kXR_open_read = 0x0010   # O_RDONLY
 kXR_open_updt = 0x0020   # O_RDWR
@@ -363,7 +363,7 @@ class TestIpv6Read:
             _, status, body = _open(sock, HELLO_NAME, kXR_open_read)
             assert status == kXR_ok, f"open failed: {_error_code(body)}"
             assert len(body) >= 4, "open ok-response missing the 4-byte handle"
-            # Handles are slot indices 0-255 (src/connection/fd_table.c), so a
+            # Handles are slot indices 0-255 (src/protocols/root/connection/fd_table.c), so a
             # value of 0 is a perfectly valid first handle — the read below is
             # the real proof the handle works.
             fh = body[:4]
@@ -523,7 +523,7 @@ class TestIpv6Metadata:
 
 class TestIpv6Locate:
     """kXR_locate on a data server reached over IPv6.  The local-locate path
-    (src/read/locate.c, AF_INET6 branch) formats the response from
+    (src/protocols/root/read/locate.c, AF_INET6 branch) formats the response from
     c->local_sockaddr and MUST bracket the address."""
 
     def test_ipv6_locate_local_brackets_regression(self):
@@ -535,7 +535,7 @@ class TestIpv6Locate:
 
         and MUST NOT be the bare, colon-ambiguous form "S?::1:<port>".
 
-        src/read/locate.c emits "S%c[%s]:%d" via inet_ntop on the AF_INET6
+        src/protocols/root/read/locate.c emits "S%c[%s]:%d" via inet_ntop on the AF_INET6
         local sockaddr; a regression to bare "%s:%d" would make the client
         mis-parse the embedded colons.  Asserting "[::1]:" appears proves the
         bracket is on the wire.

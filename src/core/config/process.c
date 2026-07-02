@@ -10,7 +10,7 @@
 #include "net/proxy/proxy_internal.h"
 #include "core/compat/staged_file.h"
 #include "core/compat/tmp_path.h"          /* SP4 orphan direct-write temp reaper */
-#include "write/chkpoint.h"
+#include "protocols/root/write/chkpoint.h"
 #include "core/compat/crypto.h"
 #include "core/compat/log_diag.h"
 #include "core/compat/lifecycle_timing.h"

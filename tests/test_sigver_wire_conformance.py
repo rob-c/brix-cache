@@ -4,7 +4,7 @@ tests/test_sigver_wire_conformance.py — raw-wire conformance for kXR_sigver.
 This suite drives the XRootD request-signing opcode (kXR_sigver, 3029) over
 raw TCP sockets, where the high-level Python client would otherwise hide the
 seqno/expectrid/HMAC framing.  It exercises the two halves of the handler
-(src/session/signing.c records pending state; src/handshake/sigver.c verifies
+(src/protocols/root/session/signing.c records pending state; src/protocols/root/handshake/sigver.c verifies
 it before the covered request is routed).  The key behavioural split this file
 encodes: on a session whose signing_key is NOT active (anonymous / token auth,
 signing_active=0), kXR_sigver is a documented no-op — it is accepted with
@@ -42,7 +42,7 @@ except Exception:  # pragma: no cover - optional GSI assets
 
 
 # ---------------------------------------------------------------------------
-# Opcodes / status / error codes (from src/protocol/opcodes.h, XProtocol.hh)
+# Opcodes / status / error codes (from src/protocols/root/protocol/opcodes.h, XProtocol.hh)
 # ---------------------------------------------------------------------------
 
 kXR_login   = 3007
@@ -410,7 +410,7 @@ class TestSigverSigningActive:
 
     def test_expectrid_mismatch_rejected(self):
         """sigver expectrid=kXR_ping then send a kXR_stat: the dispatcher
-        (src/handshake/sigver.c) must reject with kXR_InvalidRequest
+        (src/protocols/root/handshake/sigver.c) must reject with kXR_InvalidRequest
         ("signed request opcode mismatch")."""
         sock = _gsi_session()  # skips unless a real signing key is available
         try:

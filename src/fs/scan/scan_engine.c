@@ -9,7 +9,7 @@
 
 #include "core/compat/integrity_info.h"
 #include "fs/vfs.h"
-#include "protocol/opcodes.h"
+#include "protocols/root/protocol/opcodes.h"
 
 #include <limits.h>
 #include <string.h>

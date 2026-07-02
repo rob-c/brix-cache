@@ -85,7 +85,7 @@ def _send_sigver(sock, streamid, body=b"", payload=b""):
     kXR_sigver is a request PREFIX, not a standalone request: on a VALID envelope
     the server arms pending-signature state and stays silent — the response is for
     the signed request that follows (reference ProcSig returns 0 without Send; cf.
-    src/session/signing.c).  An INVALID envelope (bad HMAC length, seqno replay)
+    src/protocols/root/session/signing.c).  An INVALID envelope (bad HMAC length, seqno replay)
     DOES draw an immediate kXR_error — read that with _recv_resp() instead.
     """
     hdr = struct.pack(">2sH", streamid, kXR_sigver) + body.ljust(16, b"\x00") + struct.pack(">I", len(payload))

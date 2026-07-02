@@ -88,11 +88,11 @@ OpenSSL, with a strong bias toward **doing validation in-process and
 fail-closed**, and toward operational hardening (per-worker caches, circuit
 breakers, in-flight caps).
 
-- **`root://` handshake:** `src/session/login.c` drives `kXR_protocol →
+- **`root://` handshake:** `src/protocols/root/session/login.c` drives `kXR_protocol →
   kXR_login → kXR_auth` from a single `xrootd_auth` enum
   (`tunables.h:221` `XROOTD_AUTH_{NONE,GSI,TOKEN,BOTH,SSS,UNIX,KRB5,HOST,PWD}`).
   `xrootd_handle_login()` (`login.c:61`) builds the `&P=` advertisement; the
-  per-method dispatch lives in `src/handshake/`.
+  per-method dispatch lives in `src/protocols/root/handshake/`.
 - **Per-method backends:** `src/auth/gsi/` (shared client/server core), `src/auth/token/`,
   `src/auth/sss/`, `src/auth/krb5/`, `src/auth/unix/`, `src/auth/pwd/`, `src/auth/host/`, `src/auth/voms/`.
 - **In-process token validation:** unlike upstream's `ztn`-delegates-to-plugin
@@ -106,7 +106,7 @@ breakers, in-flight caps).
 - **The decision pipeline** for `root://` runs through
   `src/auth/authz/auth_gate.c` `xrootd_auth_gate_op()` (authdb → VO ACL → token scope,
   fail-closed on first failure), behind the `auth_done` completion gate in
-  `src/handshake/policy.c`.
+  `src/protocols/root/handshake/policy.c`.
 - **HTTP/WebDAV/S3** auth lives in `src/protocols/webdav/auth_cert.c`,
   `src/protocols/webdav/auth_token.c`, and `src/protocols/s3/` (SigV4), all reusing the same
   `src/auth/token/` and `src/auth/authz/acc/` cores.
@@ -483,7 +483,7 @@ explicitly:
 1. **Gate on the *completed* auth verdict only.** Access is gated on
    `ctx->auth_done` (the final success verdict), **never** on the intermediate
    `ctx->logged_in`. The gate is `xrootd_dispatch_require_auth()` in
-   `src/handshake/policy.c:56`
+   `src/protocols/root/handshake/policy.c:56`
    (`if (!ctx->logged_in || !ctx->auth_done) → kXR_NotAuthorized`); `auth_done`
    is set only on per-backend success and cleared on `endsess`. This directly
    encodes the project-memory invariant "auth gate on completed-auth only (BAD
@@ -626,7 +626,7 @@ http {
 }
 ```
 
-Directive sources: stream table `src/stream/module.c`; WebDAV table
+Directive sources: stream table `src/protocols/root/stream/module.c`; WebDAV table
 `src/protocols/webdav/module.c`; per-module `config.c` files. Field conventions:
 `trusted_ca` directory → OpenSSL CApath (grid certs dir); CRLs `*.pem` or hash
 `*.r0..r9`; **JWKS is a local file with mtime reload** (no issuer fetch); SSS

@@ -614,7 +614,7 @@ class TestFattrRecurse:
         assert status == _kXR_ok, f"fattr list returned status={status}"
         entries = self._parse_entries(body)
         # Entry format is "<relpath>:<name>" where <name> is the WIRE attr name
-        # WITHOUT the internal "user.U." prefix (src/fattr/list.c strips it so the
+        # WITHOUT the internal "user.U." prefix (src/protocols/root/fattr/list.c strips it so the
         # listing matches stock and stays round-trippable: a re-get of "U.color"
         # would resolve to "user.U.U.color").  So expect "top.txt:color".
         assert any("top.txt" in e and e.endswith(":color") for e in entries), \

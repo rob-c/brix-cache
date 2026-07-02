@@ -3,8 +3,8 @@ tests/test_handshake_protocol_wire.py — raw-wire conformance of the XRootD
 connection bring-up sequence: the 20-byte ClientInitHandShake, the kXR_protocol
 capability negotiation, and the kXR_login session establishment, all driven over
 plain TCP sockets so the hostile / edge-case framing the official Python client
-would never emit reaches the real handler code (src/handshake/client_hello.c,
-src/session/protocol.c, src/session/login.c).  Each hostile request is followed
+would never emit reaches the real handler code (src/protocols/root/handshake/client_hello.c,
+src/protocols/root/session/protocol.c, src/protocols/root/session/login.c).  Each hostile request is followed
 by a sanity op (kXR_ping / kXR_protocol) proving the connection or a fresh
 session survived intact, exactly like tests/test_readv_security.py.  The suite
 runs against the shared anon stream fleet (root://localhost:11094, auth none)
@@ -12,12 +12,12 @@ and skips cleanly with a clear reason when that fleet is unreachable.
 
 Wire framing verified against /tmp/xrootd-src/src/XProtocol/XProtocol.hh:
   * ClientInitHandShake  — five 32-bit BE words; only word4==4 and word5==2012
-    are validated (src/handshake/client_hello.c).
+    are validated (src/protocols/root/handshake/client_hello.c).
   * ClientProtocolRequest — streamid[2] requestid[2] clientpv[4] flags[1]
     expect[1] reserved[10] dlen[4]; the flags byte lands at request offset 12,
-    which is ctx->cur_body[4] after recv.c copies hdr->body (src/session/protocol.c).
+    which is ctx->cur_body[4] after recv.c copies hdr->body (src/protocols/root/session/protocol.c).
   * ClientLoginRequest    — streamid[2] requestid[2] pid[4] username[8]
-    ability2[1] ability[1] capver[1] reserved2[1] dlen[4] (src/session/login.c).
+    ability2[1] ability[1] capver[1] reserved2[1] dlen[4] (src/protocols/root/session/login.c).
 
 Run:
     TEST_SKIP_SERVER_SETUP=1 PYTHONPATH=tests pytest tests/test_handshake_protocol_wire.py -v
@@ -32,7 +32,7 @@ from settings import NGINX_ANON_PORT, SERVER_HOST
 
 
 # ---------------------------------------------------------------------------
-# Wire constants (from src/protocol/opcodes.h + src/protocol/flags.h, which
+# Wire constants (from src/protocols/root/protocol/opcodes.h + src/protocols/root/protocol/flags.h, which
 # mirror /tmp/xrootd-src/src/XProtocol/XProtocol.hh)
 # ---------------------------------------------------------------------------
 
@@ -119,7 +119,7 @@ def _protocol_request(streamid=b"\x00\x01", clientpv=kXR_PROTOCOLVERSION,
 
         streamid[2] requestid[2] clientpv[4] flags[1] expect[1] reserved[10] dlen[4]
 
-    On src/connection/recv.c framing, recv copies hdr->body (request bytes
+    On src/protocols/root/connection/recv.c framing, recv copies hdr->body (request bytes
     [8:24]) into ctx->cur_body, so the flags byte at request offset 12 is read
     as ctx->cur_body[4] — exactly where the handler looks."""
     hdr = struct.pack("!2sHIBB10sI", streamid, kXR_protocol, clientpv,
@@ -322,7 +322,7 @@ class TestProtocol:
         ServerResponseReqs_Protocol record (tag 'S') is still present, so the
         body grows past the 8-byte short form and carries the 'S' tag.
 
-        Trailer layout (src/session/protocol.c): the 8-byte ServerProtocolBody
+        Trailer layout (src/protocols/root/session/protocol.c): the 8-byte ServerProtocolBody
         is followed by a 4-byte SecurityInfo header at body[8:12]
         (si[0]=0, si[1]=required, si[2]=sec_count, si[3]=0); the
         ServerResponseReqs_Protocol begins at body[12] with the 'S' tag."""
@@ -386,7 +386,7 @@ class TestProtocol:
 # ===========================================================================
 
 class TestLogin:
-    """Username/pid edge cases against src/session/login.c.  Anonymous mode
+    """Username/pid edge cases against src/protocols/root/session/login.c.  Anonymous mode
     returns a 16-byte session id and completes in a single round-trip."""
 
     def test_login_baseline_session_id(self):

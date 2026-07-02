@@ -669,7 +669,7 @@ def test_statvfs_root_node_present(fs_our, fs_off):
 #                 the value can never match across two distinct on-disk servers,
 #                 so we pin the SHAPE (clean, non-empty, base-0 integer) that
 #                 the bindings actually require — NOT the value.
-#   suspected src: src/read/stat.c / src/read/statx.c (StatGen-equivalent id
+#   suspected src: src/protocols/root/read/stat.c / src/protocols/root/read/statx.c (StatGen-equivalent id
 #                  composition: emit (dev<<32)|ino, not ino alone).
 # This test is the explicit, documented pin; it passes today because both
 # satisfy the shape contract.
@@ -685,7 +685,7 @@ def test_stat_id_shape_contract(fs_our, fs_off):
 @bindings_required
 def test_stat_id_composes_device_bits_like_stock(fs_our, fs_off):
     # Stock packs the inode into the high 32 bits (and st_dev into the low word),
-    # so its id is far larger than a bare inode. FIXED: src/path/stat_body.c now
+    # so its id is far larger than a bare inode. FIXED: src/protocols/root/path/stat_body.c now
     # composes (st_ino<<32)|(uint32_t)st_dev like the reference StatGen, so our
     # id ALSO carries bits above the low word (id >> 32 != 0).
     _, sio = _stat(fs_our, "/hello.txt")

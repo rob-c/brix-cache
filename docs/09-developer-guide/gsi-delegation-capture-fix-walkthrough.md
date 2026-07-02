@@ -543,7 +543,7 @@ nginx **source** (serves the read) — the destination authenticates to the sour
 
 The first attempt failed with the client error **"Source does not support third-party-copy"**.
 The client's `XrdCl::Utils::CheckTPCLite` queries **both** endpoints' `tpc` capability
-(`kXR_Qconfig`) before starting. Our `src/query/config.c` computed
+(`kXR_Qconfig`) before starting. Our `src/protocols/root/query/config.c` computed
 `tpc_capable = allow_write && thread_pool` — the **destination** (pull) requirement — so a
 read-only **source** reported `tpc=0` and the transfer never began. But a TPC source only serves
 reads; any data server qualifies. Fix: advertise `tpc=1` unconditionally (a comment records that

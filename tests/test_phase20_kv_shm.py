@@ -67,7 +67,7 @@ def test_phase20_kv_store_is_wired_into_consumers():
 
 
 def test_phase20_session_registry_is_runtime_sized():
-    reg = _read("src/session/registry.c")
+    reg = _read("src/protocols/root/session/registry.c")
     assert "tbl->capacity" in reg, "session scans must use runtime capacity"
     assert "xrootd_session_registry_nslots" in reg
 

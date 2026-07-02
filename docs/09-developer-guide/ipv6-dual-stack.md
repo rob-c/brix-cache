@@ -64,7 +64,7 @@ Understanding dual-stack support requires tracing IP addresses through three lay
 | `src/net/upstream/directives.c` | `xrootd_upstream host:port` parsing | Lines 24–54: checks for `[` prefix, extracts IPv6 address between brackets |
 | `src/core/config/manager_map.c` | `xrootd_manager_map prefix host:port` parsing | Lines 49–77: same bracket-aware IPv6 parsing |
 | `src/fs/cache/directives.c` | `xrootd_cache_origin host:port` parsing | Lines 62–90: same bracket-aware IPv6 parsing, handles `root://` and `roots://` prefixes |
-| `src/connection/handler.c` (lines 93–106) | Port extraction from `c->local_sockaddr` | Lines 93–106: checks `sa_family` and casts to correct type for `AF_INET` and `AF_INET6` |
+| `src/protocols/root/connection/handler.c` (lines 93–106) | Port extraction from `c->local_sockaddr` | Lines 93–106: checks `sa_family` and casts to correct type for `AF_INET` and `AF_INET6` |
 | `src/tpc/launch.c` (lines 82–86) | Client address for TPC logging | `getnameinfo()` with `NI_NAMEREQD` — dual-stack safe |
 | `src/observability/accesslog/access_log.c` | Access log client IP | Uses `c->addr_text` — nginx's pre-formatted address string which includes brackets for IPv6 |
 | `src/net/cms/server_handler.c` (line 23) | Server address logging | `ngx_sock_ntop()` — nginx's dual-stack address formatter |
@@ -101,7 +101,7 @@ XRootD daemons.
 
 ### 3.3 P1 failures — IPv4-only address formatting in responses
 
-#### `src/read/locate.c` (lines 114–123)
+#### `src/protocols/root/read/locate.c` (lines 114–123)
 
 ```c
 if (c->local_sockaddr != NULL
@@ -125,7 +125,7 @@ if (c->local_sockaddr != NULL
 **Impact**: IPv6 clients receive `Srlocalhost` or `Swlocalhost` from `kXR_locate`,
 which the XRootD client cannot parse or connect to.
 
-#### `src/query/metadata.c` (lines 83–89)
+#### `src/protocols/root/query/metadata.c` (lines 83–89)
 
 ```c
 if (port == 0) {
@@ -201,7 +201,7 @@ This should be the template for any other code that classifies addresses.
 | **WebDAV** (`src/protocols/webdav/`) | No direct socket code. Uses nginx's HTTP request machinery. TCP listening/connecting is handled by nginx core. TPC URLs come from HTTP headers (`Source:`, `Destination:`) and are passed verbatim to curl, which understands bracketed IPv6. |
 | **S3** (`src/protocols/s3/`) | No direct socket code. Same as WebDAV — uses nginx HTTP layer. |
 | **Metrics** (`src/observability/metrics/`) | No IP address handling. Uses shared atomic counters with fixed labels. |
-| **Response module** (`src/response/`) | `xrootd_send_redirect()` takes a `host` string and `port` number. The host string is embedded verbatim into the wire response. IPv6 formatting responsibility is on the *callers* (see §3.3). |
+| **Response module** (`src/protocols/root/response/`) | `xrootd_send_redirect()` takes a `host` string and `port` number. The host string is embedded verbatim into the wire response. IPv6 formatting responsibility is on the *callers* (see §3.3). |
 | **CMS protocol** | The CMS heartbeat sends `listen_port` but not hostname; the CMS manager provides the hostname in `kYR_select` redirects. The CMS subsystem doesn't format IPv6 addresses itself — it delegates to the CMS manager. This is a protocol-level dependency. |
 
 ---
@@ -277,7 +277,7 @@ RFC 2553 §3.1:
 
 ### 4.5 `inet_ntoa()` thread safety
 
-`src/read/locate.c` uses `inet_ntoa()` which returns a pointer to static internal
+`src/protocols/root/read/locate.c` uses `inet_ntoa()` which returns a pointer to static internal
 storage shared across all threads. In nginx's multi-threaded worker model:
 
 ```
@@ -325,7 +325,7 @@ doesn't use `inet_ntop()`.
 | `test_proxy_ipv6_config_parse` | `xrootd_proxy_upstream [2001:db8::1]:1094;` | Config parses correctly (currently fails) |
 | `test_proxy_dual_upstream` | Upstream resolves to both A and AAAA | Tries both address families |
 
-#### 5.1.3 kXR_locate response (`src/read/locate.c`)
+#### 5.1.3 kXR_locate response (`src/protocols/root/read/locate.c`)
 
 | Test | Description | Expected |
 |------|-------------|----------|
@@ -335,7 +335,7 @@ doesn't use `inet_ntop()`.
 | `test_locate_inet_ntoa_safety` | Many concurrent IPv6 connections | No buffer corruption in logs |
 | `test_locate_v4mapped_client` | IPv4-mapped IPv6 client (`::ffff:x.x.x.x`) | Returns IPv4 address, not "localhost" |
 
-#### 5.1.4 Query stats (`src/query/metadata.c`)
+#### 5.1.4 Query stats (`src/protocols/root/query/metadata.c`)
 
 | Test | Description | Expected |
 |------|-------------|----------|
@@ -580,7 +580,7 @@ the chosen endpoint in a `struct sockaddr_storage`.
 
 ### 7.2 P1 — Fix kXR_locate IPv6 response
 
-**File**: `src/read/locate.c` (lines 114–123)
+**File**: `src/protocols/root/read/locate.c` (lines 114–123)
 
 ```c
 if (c->local_sockaddr != NULL) {
@@ -654,7 +654,7 @@ if (c->local_sockaddr->sa_family == AF_INET) {
 
 ### 7.5 P2 — Fix stats query port extraction
 
-**File**: `src/query/metadata.c` (lines 83–89)
+**File**: `src/protocols/root/query/metadata.c` (lines 83–89)
 
 Add `AF_INET6` branch alongside existing `AF_INET` check.
 

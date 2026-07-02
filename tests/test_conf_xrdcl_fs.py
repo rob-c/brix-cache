@@ -338,7 +338,7 @@ def test_mkdir_existing_ok_status_parity(pair, name):
     success by XrdXrootd's mkdir handler), but OURS returns kXR_ItExists(3018).
     Contract: XProtocol.hh:1425-1427 maps EEXIST->kXR_ItExists, but stock's
     mkdir handler in /tmp/xrootd-src/src/XrdXrootd/XrdXrootdXeq.cc swallows the
-    existing-dir case and replies OK. Suspected src: src/write/mkdir.c.
+    existing-dir case and replies OK. Suspected src: src/protocols/root/write/mkdir.c.
     """
     sub = _mk_scratch(
         pair, f"mk_exist_{name}", lambda d: os.makedirs(os.path.join(d, "d"))
@@ -352,7 +352,7 @@ def test_mkdir_existing_ok_status_parity(pair, name):
     if res["our"] != res["off"]:
         pytest.xfail(
             "DIVERGENCE mkdir-existing: stock ok=True, ours kXR_ItExists(3018); "
-            "suspected src/write/mkdir.c"
+            "suspected src/protocols/root/write/mkdir.c"
         )
     assert res["our"] == res["off"]
 
@@ -525,7 +525,7 @@ def test_rm_directory_errno_parity(pair, trial):
     DIVERGENCE: errno differs. Stock maps ENOTEMPTY->kXR_ItExists(3018)
     (XProtocol.hh:1425-1427), ours returns kXR_FSError(3005). The data-loss
     guard holds on both (child survives), only the error code diverges.
-    Suspected src: src/write/rm.c error mapping.
+    Suspected src: src/protocols/root/write/rm.c error mapping.
     """
     sub = _mk_scratch(pair, f"rm_dir_err_{trial}", _dir_with_child)
     errs = {}
@@ -536,7 +536,7 @@ def test_rm_directory_errno_parity(pair, trial):
     if errs["our"] != errs["off"]:
         pytest.xfail(
             f"DIVERGENCE rm-of-dir errno: stock={errs['off']}(ItExists) "
-            f"ours={errs['our']}(FSError); suspected src/write/rm.c"
+            f"ours={errs['our']}(FSError); suspected src/protocols/root/write/rm.c"
         )
     assert errs["our"] == errs["off"]
 
@@ -592,7 +592,7 @@ def test_rmdir_nonempty_errno_parity(pair, trial):
 
     DIVERGENCE: stock maps ENOTEMPTY->kXR_ItExists(3018), ours returns
     kXR_FSError(3005). Citation: XProtocol.hh:1425-1427. Suspected src:
-    src/write/rm.c (rmdir error mapping).
+    src/protocols/root/write/rm.c (rmdir error mapping).
     """
     sub = _mk_scratch(pair, f"rmdir_ne_err_{trial}", _dir_with_child)
     errs = {}
@@ -603,7 +603,7 @@ def test_rmdir_nonempty_errno_parity(pair, trial):
     if errs["our"] != errs["off"]:
         pytest.xfail(
             f"DIVERGENCE rmdir-nonempty errno: stock={errs['off']}(ItExists) "
-            f"ours={errs['our']}; suspected src/write/rm.c"
+            f"ours={errs['our']}; suspected src/protocols/root/write/rm.c"
         )
     assert errs["our"] == errs["off"]
 
@@ -712,7 +712,7 @@ def test_truncate_missing_errno_parity(pair):
     DIVERGENCE: stock returns kXR_NotFound(3011) (ENOENT), ours returns
     kXR_IOError(3007). Citation: XProtocol.hh:1407 (ENOENT->kXR_NotFound).
     Both fail (no file created), only the error code diverges.
-    Suspected src: src/write/* truncate handler error mapping.
+    Suspected src: src/protocols/root/write/* truncate handler error mapping.
     """
     sub = _mk_scratch(pair, "trunc_miss", lambda d: None)
     errs = {}

@@ -21,16 +21,16 @@ This phase introduces a unified resolver `xrootd_resolve_op_path()` that replace
 ## Inventory of Inline Resolution Sites
 
 ```
-src/write/rmdir.c      lines 55-73   — extract + depth + resolve (two fallbacks)
-src/write/mkdir.c      lines 66-107  — extract + depth + conditional resolve
-src/write/truncate.c   lines 68-93   — extract + depth + write-fallback + read-fallback
-src/read/stat.c        lines ~40-65  — extract + depth + resolve
-src/read/locate.c      lines ~30-55  — extract + resolve
-src/read/open_request.c lines ~35-70 — extract + depth + resolve_write
-src/dirlist/handler.c  lines ~40-80  — extract + depth + resolve
-src/query/prepare.c    lines ~25-50  — extract + resolve
-src/query/prepare_cmd.c lines ~20-45 — extract + resolve
-src/write/mv.c         lines ~30-70  — extract (x2, src + dst) + depth (x2) + resolve
+src/protocols/root/write/rmdir.c      lines 55-73   — extract + depth + resolve (two fallbacks)
+src/protocols/root/write/mkdir.c      lines 66-107  — extract + depth + conditional resolve
+src/protocols/root/write/truncate.c   lines 68-93   — extract + depth + write-fallback + read-fallback
+src/protocols/root/read/stat.c        lines ~40-65  — extract + depth + resolve
+src/protocols/root/read/locate.c      lines ~30-55  — extract + resolve
+src/protocols/root/read/open_request.c lines ~35-70 — extract + depth + resolve_write
+src/protocols/root/dirlist/handler.c  lines ~40-80  — extract + depth + resolve
+src/protocols/root/query/prepare.c    lines ~25-50  — extract + resolve
+src/protocols/root/query/prepare_cmd.c lines ~20-45 — extract + resolve
+src/protocols/root/write/mv.c         lines ~30-70  — extract (x2, src + dst) + depth (x2) + resolve
 ```
 
 That is roughly 30 lines per handler × 10 handlers = 300 lines of near-identical extraction+resolution code.
@@ -39,7 +39,7 @@ That is roughly 30 lines per handler × 10 handlers = 300 lines of near-identica
 
 ## Proposed Unified Resolver
 
-### `src/path/op_path.h` (new)
+### `src/protocols/root/path/op_path.h` (new)
 
 ```c
 #pragma once
@@ -78,7 +78,7 @@ ngx_int_t xrootd_resolve_op_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
                                   char *resolved, size_t resolved_sz);
 ```
 
-### `src/path/op_path.c` (new, ~80 LoC)
+### `src/protocols/root/path/op_path.c` (new, ~80 LoC)
 
 ```c
 /*
@@ -153,7 +153,7 @@ xrootd_resolve_op_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
 ---
 
-## Concrete Before/After: `src/write/rmdir.c`
+## Concrete Before/After: `src/protocols/root/write/rmdir.c`
 
 **Before** (lines 55–73, ~18 lines):
 
@@ -193,7 +193,7 @@ Note: `XROOTD_PATH_EITHER` replaces the `XROOTD_PATH_NOEXIST` fallback pattern i
 
 ---
 
-## Concrete Before/After: `src/write/truncate.c`
+## Concrete Before/After: `src/protocols/root/write/truncate.c`
 
 **Before** (lines 68–93, ~25 lines):
 
@@ -233,16 +233,16 @@ if (xrootd_resolve_op_path(ctx, c, XROOTD_OP_TRUNCATE, "TRUNCATE", conf,
 
 | Handler | Path Mode | Lines removed | New LoC |
 |---|---|---|---|
-| `src/write/rmdir.c` | EITHER | −18 | 79 |
-| `src/write/mkdir.c` (recursive) | NOEXIST | −20 | 117 |
-| `src/write/mkdir.c` (non-recur) | WRITE | folded into above | — |
-| `src/write/truncate.c` (path) | EITHER | −25 | 113 |
-| `src/read/stat.c` | EXISTING | −18 | 181 |
-| `src/read/locate.c` | EXISTING | −15 | 198 |
-| `src/read/open_request.c` | WRITE | −18 | ~150 |
-| `src/dirlist/handler.c` | EXISTING | −20 | 654 |
-| `src/query/prepare.c` | EXISTING | −15 | ~96 |
-| `src/query/prepare_cmd.c` | EXISTING | −12 | ~79 |
+| `src/protocols/root/write/rmdir.c` | EITHER | −18 | 79 |
+| `src/protocols/root/write/mkdir.c` (recursive) | NOEXIST | −20 | 117 |
+| `src/protocols/root/write/mkdir.c` (non-recur) | WRITE | folded into above | — |
+| `src/protocols/root/write/truncate.c` (path) | EITHER | −25 | 113 |
+| `src/protocols/root/read/stat.c` | EXISTING | −18 | 181 |
+| `src/protocols/root/read/locate.c` | EXISTING | −15 | 198 |
+| `src/protocols/root/read/open_request.c` | WRITE | −18 | ~150 |
+| `src/protocols/root/dirlist/handler.c` | EXISTING | −20 | 654 |
+| `src/protocols/root/query/prepare.c` | EXISTING | −15 | ~96 |
+| `src/protocols/root/query/prepare_cmd.c` | EXISTING | −12 | ~79 |
 | **New infrastructure** | | +80 | 80 |
 | **Net** | | **−161** | |
 
@@ -253,14 +253,14 @@ Note: `mv.c` handles two paths (source + destination) and requires two calls to 
 ## Files Added to `config.h`
 
 ```
-$ngx_addon_dir/src/path/op_path.c
+$ngx_addon_dir/src/protocols/root/path/op_path.c
 ```
 
 Requires `./configure` before `make`.
 
 ---
 
-## Special Case: `src/write/mkdir.c` Recursive Flag
+## Special Case: `src/protocols/root/write/mkdir.c` Recursive Flag
 
 `mkdir.c` currently selects the resolver based on the `kXR_mkdirpath` flag:
 

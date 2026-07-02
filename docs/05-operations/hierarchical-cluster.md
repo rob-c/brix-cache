@@ -186,7 +186,7 @@ When `xrootd_manager_mode on` is set, the redirect lookup sequence is:
 The `kXR_isManager` capability flag is set in the `kXR_protocol` response so
 clients know this server can issue redirects.
 
-Key files: `src/read/locate.c`, `src/read/open.c`, `src/session/protocol.c`.
+Key files: `src/protocols/root/read/locate.c`, `src/protocols/root/read/open.c`, `src/protocols/root/session/protocol.c`.
 
 ### M4 — Sub-manager / hierarchical mode (partial)
 
@@ -311,7 +311,7 @@ exported as the `xrootd_registry_full_total` Prometheus counter.
 
 Files changed: `src/net/manager/registry.h`, `src/net/manager/registry.c`,
 `src/core/config/config.h`, `src/core/config/server_conf.c`,
-`src/core/config/postconfiguration.c`, `src/stream/module.c`,
+`src/core/config/postconfiguration.c`, `src/protocols/root/stream/module.c`,
 `src/core/types/config.h`, `src/observability/metrics/metrics.h`, `src/observability/metrics/stream.c`.
 
 ---
@@ -375,7 +375,7 @@ in `ngx_stream_xrootd_srv_conf_t`.
 
 Files added: `src/net/manager/pending.h`, `src/net/manager/pending.c`.
 Files changed: `src/core/config/config.h`, `src/core/config/postconfiguration.c`,
-`src/core/config/server_conf.c`, `src/stream/module.c`, `src/core/types/config.h`,
+`src/core/config/server_conf.c`, `src/protocols/root/stream/module.c`, `src/core/types/config.h`,
 `config`.
 
 ---
@@ -406,7 +406,7 @@ Files changed: `src/net/cms/send.c`, `src/net/cms/cms_internal.h`.
 Added `XRD_ST_WAITING_CMS` to the state enum in `src/core/types/state.h` and
 `cms_wait_streamid` to `xrootd_ctx_t` in `src/core/types/context.h`.
 
-In `src/read/locate.c`, inside the `conf->manager_mode && !is_wildcard` block,
+In `src/protocols/root/read/locate.c`, inside the `conf->manager_mode && !is_wildcard` block,
 after a registry miss: call `ngx_xrootd_cms_next_streamid()`, send a
 `kYR_locate` frame via `ngx_xrootd_cms_send_locate()`, insert into the pending
 table via `xrootd_pending_insert()`, set `ctx->state = XRD_ST_WAITING_CMS`,
@@ -414,9 +414,9 @@ arm `ngx_add_timer(c->read, conf->cms_locate_timeout)`, and return
 `NGX_AGAIN`. On failure of either send or insert the code falls through to
 the static-map / `kXR_notFound` path unchanged.
 
-The same pattern was applied to the registry-miss path in `src/read/open.c`.
+The same pattern was applied to the registry-miss path in `src/protocols/root/read/open.c`.
 
-In `src/connection/recv.c`:
+In `src/protocols/root/connection/recv.c`:
 - Added `#include "../manager/pending.h"`
 - Added a `XRD_ST_WAITING_CMS` guard in the inner recv loop (same re-arm +
   return pattern as `XRD_ST_UPSTREAM`).
@@ -428,7 +428,7 @@ In `src/connection/recv.c`:
   states.
 
 Files changed: `src/core/types/state.h`, `src/core/types/context.h`,
-`src/connection/recv.c`, `src/read/locate.c`, `src/read/open.c`.
+`src/protocols/root/connection/recv.c`, `src/protocols/root/read/locate.c`, `src/protocols/root/read/open.c`.
 
 ---
 
@@ -627,12 +627,12 @@ redirects to that server.
 | `src/net/manager/registry.c` | Runtime zone size; `tbl->capacity` loop bounds and sentinel; full-table log and counter | ✅ Steps 1b, 2 done |
 | `src/net/manager/pending.h` | New: `xrootd_pending_locate_t`, `xrootd_pending_table_t`, API declarations | ✅ Step 3 done |
 | `src/net/manager/pending.c` | New: shm zone init, insert/lookup/remove with lock, lazy expiry reaping | ✅ Step 3 done |
-| `src/read/locate.c` | CMS-suspend path when no registry match | ✅ Step 5 done |
-| `src/read/open.c` | Same | ✅ Step 5 done |
+| `src/protocols/root/read/locate.c` | CMS-suspend path when no registry match | ✅ Step 5 done |
+| `src/protocols/root/read/open.c` | Same | ✅ Step 5 done |
 | `src/core/config/config.h` | Updated `xrootd_srv_configure_registry` declaration; added `xrootd_pending_configure` declaration | ✅ Steps 1b, 3 done |
 | `src/core/config/server_conf.c` | `registry_slots` UNSET + default-128 merge; `cms_locate_timeout` UNSET_MSEC + 5000 ms merge | ✅ Steps 1b, 3 done |
-| `src/connection/recv.c` | Added `XRD_ST_WAITING_CMS` loop guard and timedout handler | ✅ Step 5 done |
-| `src/stream/module.c` | Added `xrootd_registry_slots` and `xrootd_cms_locate_timeout` directive entries | ✅ Steps 1b, 3 done |
+| `src/protocols/root/connection/recv.c` | Added `XRD_ST_WAITING_CMS` loop guard and timedout handler | ✅ Step 5 done |
+| `src/protocols/root/stream/module.c` | Added `xrootd_registry_slots` and `xrootd_cms_locate_timeout` directive entries | ✅ Steps 1b, 3 done |
 | `src/core/types/state.h` | Added `XRD_ST_WAITING_CMS` | ✅ Step 5 done |
 | `config` | Added `pending.c` to `ngx_module_srcs` | ✅ Step 3 done |
 | `src/observability/metrics/metrics.h` | Added `registry_full_total` counter to `ngx_xrootd_metrics_t` | ✅ Step 1b done |
@@ -781,7 +781,7 @@ action in `cms_wake_pending_session()` from `xrootd_send_redirect()` to
 `xrootd_proxy_cms_selected()`.
 
 **File:** `src/core/config/config.h` + `src/core/config/server_conf.c` + directive entry
-in `src/stream/module.c`.
+in `src/protocols/root/stream/module.c`.
 
 #### G2 — `xrootd_proxy_cms_selected()` in `src/net/upstream/start.c`
 

@@ -262,7 +262,7 @@ abort path.
 ### Real replacement
 The existing nginx at port 11096 already has `xrootd_tls on` (from `nginx_shared.conf`
 GSI+TLS block). When any upstream connects to it, the protocol response carries
-`kXR_haveTLS | kXR_gotoTLS | kXR_tlsLogin` flags (`src/session/protocol.c:93`).
+`kXR_haveTLS | kXR_gotoTLS | kXR_tlsLogin` flags (`src/protocols/root/session/protocol.c:93`).
 
 **`manage_test_servers.sh` changes:**
 - Remove `start_extra_ref_anon "upstream-gotorls-notls" 12126 ...`

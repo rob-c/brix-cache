@@ -228,7 +228,7 @@ def test_bindings_multi_set_list_value_parity(srv, count):
 @needs_bindings
 @pytest.mark.parametrize("count", [2, 3, 4])
 def test_bindings_multi_set_list_NAME_parity(srv, count):
-    """The list_xattr NAME-SET must equal stock's.  FIXED: src/fattr/list.c now
+    """The list_xattr NAME-SET must equal stock's.  FIXED: src/protocols/root/fattr/list.c now
     strips the full internal "user.U." prefix so the client sees the verbatim
     name it set (stock 'user.m0' == ours 'user.m0')."""
     rel = _scratch(srv)

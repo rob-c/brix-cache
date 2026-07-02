@@ -124,7 +124,7 @@ The `src/core/compat/` module (5,931 lines) bridges XRootD protocol semantics to
 
 **Impact:** ~178 lines in compat/path.c + path/resolve*.c could be reduced by ~30-40%. Keep confinement check and ENOENT-parent; simplify dot/dotdot validation to single-pass walk.
 
-### TLS Handling (`src/connection/tls.c`, `src/net/upstream/tls.c`) — Low Impact
+### TLS Handling (`src/protocols/root/connection/tls.c`, `src/net/upstream/tls.c`) — Low Impact
 
 **Custom implementation:** In-protocol TLS upgrade for native XRootD stream (kXR_ableTLS/kXR_haveTLS handshake). Wraps SSL on existing TCP connection, re-sends kXR_login over TLS after handshake completes. Upstream proxy: kXR_gotoTLS → upstream TLS upgrade with SNI. Total: 73 lines in tls.c + upstream TLS logic.
 
@@ -199,38 +199,38 @@ The `src/core/compat/` module (5,931 lines) bridges XRootD protocol semantics to
 
 From the opcode-to-file mapping analysis, several opcodes add significant code but have low usage by vanilla xrdcp/xrdfs clients. These are good candidates for removal or simplification.
 
-### kXR_set (`src/query/set.c` — ~162 lines) — Good Candidate
+### kXR_set (`src/protocols/root/query/set.c` — ~162 lines) — Good Candidate
 
 **Functionality:** Server config set — `appid` and `clttl` modifiers; unknown modifiers accepted as no-op. Used rarely in production per operation-status.md README.
 
 **Impact:** **ELIMINATE.** Returns kXR_ok for any modifier without side effects (except appid/clttl). Most clients never send this opcode after login. Removing it saves ~162 lines — dispatch to simple `kXR_ok` response, no parsing needed.
 
-### kXR_sigver (`src/handshake/dispatch_signing.c`, `src/session/signing.c`) — Good Candidate
+### kXR_sigver (`src/protocols/root/handshake/dispatch_signing.c`, `src/protocols/root/session/signing.c`) — Good Candidate
 
 **Functionality:** HMAC-SHA256 envelope for GSI sessions; replay (seqno) guard; RSA-signed pass-through. Total: ~149 lines across dispatch_signing.c (24 lines) and signing.c (125 lines). Only required for GSI sessions — not needed for anonymous or JWT/WLCG token auth.
 
 **Impact:** **SIMPLIFY.** Could reduce to HMAC-SHA256-only mode without RSA-signed pass-through (~80-90 lines saved). Anonymous and token-auth clients don't use kXR_sigver at all. Keep basic envelope signing; remove RSA-signed pass-through path.
 
-### kXR_bind (`src/session/bind.c` — ~123 lines) — Good Candidate
+### kXR_bind (`src/protocols/root/session/bind.c` — ~123 lines) — Good Candidate
 
 **Functionality:** Secondary stream binding — bound streams established for parallel read transfers, inherit primary auth state. Pathid cycling 1-253. Most clients use single-channel; xrdcp parallel reads are optional.
 
 **Impact:** **ELIMINATE.** Remove bind support while keeping session registry (used by CMS heartbeat). Single-channel operation is the default path — most physics pipelines don't use secondary streams. Save ~123 lines.
 
-### kXR_query Unsupported Subtypes (`src/query/metadata.c` — 345 lines)
+### kXR_query Unsupported Subtypes (`src/protocols/root/query/metadata.c` — 345 lines)
 
 **Functionality:** Single opcode with 14+ sub-handlers by infotype. Many subtypes (Qvisa, Qopaque, Qopaquf, Qopaqug) return "reference-compatible unsupported" because nginx-xrootd lacks the FSctl/fctl plugin layer — each is ~20-30 lines of stub handling.
 
 **Impact:** **SIMPLIFY.** Consolidate unsupported query hooks into single `query_unsupported()` helper (~5 lines replacing 80+ lines across Qvisa/Qopaque/Qopaquf/Qopaqug). Keep only the subtypes with real implementations (Qcksum, Qspace, QStats, Qxattr, QFinfo, QFSinfo, Qconfig). Save ~70-80 lines.
 
-### kXR_locate (`src/read/locate.c` — 199 lines) — Moderate Impact
+### kXR_locate (`src/protocols/root/read/locate.c` — 199 lines) — Moderate Impact
 
 **Functionality:** Wildcard (*), manager-map redirect, local reply, upstream delegation. Manager-map redirect is optional (see Section 1 above); wildcard and local reply are core. Upstream delegation in proxy mode is essential.
 
 **Impact:** **SIMPLIFY.** Remove manager-mode redirect path (~50 lines) when registry.c eliminated; keep wildcard + local reply + upstream delegation as-is. Save ~50 lines if manager elimination applied.
 
 ---
-### kXR_locate (`src/read/locate.c` — 199 lines) — Moderate Impact
+### kXR_locate (`src/protocols/root/read/locate.c` — 199 lines) — Moderate Impact
 
 **Functionality:** Wildcard (*), manager-map redirect, local reply, upstream delegation. Manager-map redirect is optional (see Section 1 above); wildcard and local reply are core. Upstream delegation in proxy mode is essential.
 
@@ -242,7 +242,7 @@ From the opcode-to-file mapping analysis, several opcodes add significant code b
 
 These opcodes add significant code but have low usage by vanilla xrdcp/xrdfs clients. The background explore agent confirmed usage patterns across test files and conformance tests.
 
-### kXR_chkpoint (`src/write/chkpoint.c` + `write/ckp*.c`) — Good Candidate
+### kXR_chkpoint (`src/protocols/root/write/chkpoint.c` + `write/ckp*.c`) — Good Candidate
 
 **Functionality:** Checkpoint/transaction writes: begin/commit/rollback/query/xeq; checkpoint stored as sibling `.ckp` file; `kXR_ckpXeq` supports write, pgwrite, truncate, writev sub-ops. Total across chkpoint/: ~200+ lines (check the exact count after reading).
 
@@ -250,7 +250,7 @@ These opcodes add significant code but have low usage by vanilla xrdcp/xrdfs cli
 
 **Impact:** **ELIMINATE.** Remove checkpoint/transaction write support while keeping basic write/pgwrite. Saves ~200 lines. Most clients never send kXR_chkpoint after login — the `.ckp` file sibling management adds complexity for minimal benefit. Single `kXR_ok` response for any checkpoint subtype without side effects, or return `kXR_Unsupported`.
 
-### kXR_prepare (`src/query/prepare.c`) — Good Candidate
+### kXR_prepare (`src/protocols/root/query/prepare.c`) — Good Candidate
 
 **Functionality:** Stage files from tape, cancel a staging request. Path validation + existence check only; no actual tape dispatch (no FTS/dCache integration). `kXR_cancel` and `kXR_evict` are no-ops.
 
@@ -258,7 +258,7 @@ These opcodes add significant code but have low usage by vanilla xrdcp/xrdfs cli
 
 **Impact:** **ELIMINATE for disk-only deployments; KEEP as optional.** For sites that only serve local POSIX storage (the majority of nginx-xrootd deployments), prepare adds ~100+ lines with no actual benefit — path validation + existence check. Remove it for disk-only mode, keep it as optional for tape-backed sites via config gate (`xrootd_prepare on`). Save ~80-100 lines for the common case.
 
-### kXR_fattr (`src/fattr/` — 6 files: get.c, set.c, del.c, list.c, dispatch.c, helpers.c) — Moderate Impact
+### kXR_fattr (`src/protocols/root/fattr/` — 6 files: get.c, set.c, del.c, list.c, dispatch.c, helpers.c) — Moderate Impact
 
 **Functionality:** Get/set/delete/list file extended attributes (Linux xattrs in `user.U.*` namespace). Backed by Linux xattr syscalls. Used by xrdfs and some Python XRootD clients for metadata queries. Total: ~860 lines across 6 files.
 
@@ -266,7 +266,7 @@ These opcodes add significant code but have low usage by vanilla xrdcp/xrdfs cli
 
 **Impact:** **SIMPLIFY.** Consolidate the 6-file dispatch into a single `fattr.c` file with inline handlers for each sub-opcode. The dispatch layer (`dispatch.c`) adds ~50 lines of routing overhead; get/set/del/list each add ~100-200 lines but follow identical xattr syscall patterns (getxattr/setxattr/unsetxattr). Replace individual files with parameterized xattr operations: one `fattr_get()` function that loops over attribute names, one `fattr_set()` for bulk set, one `fattr_del()` for delete. Save ~300-400 lines by removing dispatch overhead and consolidating into 1-2 focused files.
 
-### kXR_clone (`src/read/clone.c`) — Moderate Impact
+### kXR_clone (`src/protocols/root/read/clone.c`) — Moderate Impact
 
 **Functionality:** Server-side range copy using `copy_file_range(2)` with pread/pwrite fallback; up to 1024 copy items per request. Used by xrdcp for fast intra-server copies without client data transit.
 
@@ -274,7 +274,7 @@ These opcodes add significant code but have low usage by vanilla xrdcp/xrdfs cli
 
 **Impact:** **ELIMINATE.** Remove clone while keeping native TPC and WebDAV HTTP-TPC. Saves ~300+ lines (clone.c + related helpers). Most physics pipelines use xrdcp pull/pull for file copies; server-side clone is rarely needed when TPC is available.
 
-### kXR_statx (`src/read/statx.c`) — Moderate Impact
+### kXR_statx (`src/protocols/root/read/statx.c`) — Moderate Impact
 
 **Functionality:** Multi-path stat in one request (path list in payload). Batch stat operation for efficiency. Total: ~150+ lines across statx handler and dispatch.
 
@@ -282,7 +282,7 @@ These opcodes add significant code but have low usage by vanilla xrdcp/xrdfs cli
 
 **Impact:** **SIMPLIFY.** Keep basic kXR_stat (already implemented); remove kXR_statx multi-path batch variant. Save ~150 lines. Single-path stat covers 95%+ of use cases; the multi-path optimization adds complexity with minimal client benefit. Clients that need batch stats can issue multiple parallel requests.
 
-### kXR_writev (`src/write/writev.c`) — Moderate Impact
+### kXR_writev (`src/protocols/root/write/writev.c`) — Moderate Impact
 
 **Functionality:** Scatter-gather multi-handle vector write. Writes to multiple open handles from one request payload. Async via thread pool. Total: ~200+ lines across writev handler and dispatch.
 
@@ -290,7 +290,7 @@ These opcodes add significant code but have low usage by vanilla xrdcp/xrdfs cli
 
 **Impact:** **ELIMINATE.** Remove writev while keeping basic kXR_write. Save ~200 lines. Sequential write covers virtually all client usage patterns; scatter-gather is rarely needed.
 
-### kXR_readv (`src/read/readv.c`) — Moderate Impact
+### kXR_readv (`src/protocols/root/read/readv.c`) — Moderate Impact
 
 **Functionality:** Scatter-gather read: fetch multiple file segments from one open handle. Async via thread pool. Total: ~300+ lines across readv handler and dispatch. Used by xrdcp `-S N` for parallel segment reads.
 
@@ -298,7 +298,7 @@ These opcodes add significant code but have low usage by vanilla xrdcp/xrdfs cli
 
 **Impact:** **SIMPLIFY.** Keep basic kXR_read (already implemented); reduce readv to single-segment scatter (one segment per request) instead of multi-segment vector. Save ~150 lines by removing multi-segment parsing and dispatch overhead. Single-segment reads cover the common case; full multi-segment readv adds complexity for minimal benefit when basic read is available.
 
-### kXR_truncate (`src/write/truncate.c`) — Good Candidate
+### kXR_truncate (`src/protocols/root/write/truncate.c`) — Good Candidate
 
 **Functionality:** Truncate file by path or open handle. Total: ~100+ lines across truncate handler and dispatch.
 
@@ -306,7 +306,7 @@ These opcodes add significant code but have low usage by vanilla xrdcp/xrdfs cli
 
 **Impact:** **ELIMINATE.** Remove truncate while keeping basic write. Save ~100 lines. Single-path truncate covers the common case; handle-based truncate adds ~30-40 lines for marginal benefit. Clients that need truncation can open+write with zero-length payload as a workaround.
 
-### kXR_chmod (`src/write/chmod.c`) — Good Candidate
+### kXR_chmod (`src/protocols/root/write/chmod.c`) — Good Candidate
 
 **Functionality:** Change file permission bits via chmod syscall. Total: ~80+ lines across chmod handler and dispatch.
 
@@ -374,7 +374,7 @@ The background crypto/PKI analysis revealed the following auth landscape:
 
 ## 6. File Handle Management Simplification
 
-### Current State: `src/connection/fd_table.c` — 425 lines of handle lifecycle management
+### Current State: `src/protocols/root/connection/fd_table.c` — 425 lines of handle lifecycle management
 
 The fd_table implements a 0–XROOTD_MAX_FILES indexed array with extensive per-handle metadata tracking:
 
@@ -438,7 +438,7 @@ xrootd_file_t fields (from fd_table.c line 266-299):
 
 | System | Protocol | Files | Lines | Custom? |
 |---|---|---|---|---|
-| Stream wire framing | root:// | `src/response/` (basic.c, status.c, control.c) | ~421 | Custom — ServerResponseHdr + kXR_status frames |
+| Stream wire framing | root:// | `src/protocols/root/response/` (basic.c, status.c, control.c) | ~421 | Custom — ServerResponseHdr + kXR_status frames |
 | HTTP body building | WebDAV/S3 | `src/core/compat/http_body.c`, `http_file_response.c` | ~300+ | Custom — ngx_chain_t of ngx_buf_t builders |
 | XML generation | S3/WebDAV | `src/core/compat/xml.c`, `http_xml.c` | ~597 | Custom — XML escaping + chain building |
 
@@ -472,7 +472,7 @@ xrootd_file_t fields (from fd_table.c line 266-299):
 
 #### Stream Wire Framing — Low Impact (Essential)
 
-**Current state:** `src/response/` implements ServerResponseHdr construction, kXR_status(4007) frames with per-page CRC32c, redirect/wait responses. Total: ~421 lines across 3 files.
+**Current state:** `src/protocols/root/response/` implements ServerResponseHdr construction, kXR_status(4007) frames with per-page CRC32c, redirect/wait responses. Total: ~421 lines across 3 files.
 
 **nginx builtin:** nginx does not provide XRootD wire framing. The structured response types (ok, error, status, redirect, wait) are protocol-specific — cannot be replaced with off-the-shelf solutions.
 
@@ -549,13 +549,13 @@ Shared preamble in `src/core/config/shared_conf.h`: `enable`, `root`, `root_cano
 
 ### Query Subtypes — Moderate Impact
 
-**Current state:** `src/query/` directory has 14+ query subtype handlers. Operation-status.md confirms: Qvisa/Qopaque/Qopaquf/Qopaqug return "reference-compatible unsupported" because nginx-xrootd lacks the FSctl/fctl plugin layer. Each is ~20-30 lines of stub handling.
+**Current state:** `src/protocols/root/query/` directory has 14+ query subtype handlers. Operation-status.md confirms: Qvisa/Qopaque/Qopaquf/Qopaqug return "reference-compatible unsupported" because nginx-xrootd lacks the FSctl/fctl plugin layer. Each is ~20-30 lines of stub handling.
 
 **Impact:** **SIMPLIFY.** Consolidate all unsupported query hooks into single `query_unsupported()` helper (~5 lines replacing 80+ lines across Qvisa/Qopaque/Qopaquf/Qopaqug). Keep only subtypes with real implementations (Qcksum, Qspace, QStats, Qxattr, QFinfo, QFSinfo, Qconfig). Save ~70-80 lines.
 
 ### Prepare Staging — Moderate Impact
 
-**Current state:** `src/query/prepare.c` implements path validation + existence check for tape staging requests. Total: ~100+ lines across prepare handler and dispatch.
+**Current state:** `src/protocols/root/query/prepare.c` implements path validation + existence check for tape staging requests. Total: ~100+ lines across prepare handler and dispatch.
 
 **Impact:** **ELIMINATE for disk-only deployments.** Return kXR_ok for all prepare subtypes without side effects when xrootd_prepare is off (default). Save ~80 lines. Tape-backed sites enable `xrootd_prepare on` to get full path validation behavior.
 

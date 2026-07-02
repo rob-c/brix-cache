@@ -182,7 +182,7 @@ def test_cli_xattr_multi_list_count_parity(srv, count):
 # =========================================================================== #
 # Q. STOCK xrdfs xattr CLI — list shows ORIGINAL name (namespace-leak pin)
 # =========================================================================== #
-# FIXED: src/fattr/list.c strips the full internal "user.U." prefix, so
+# FIXED: src/protocols/root/fattr/list.c strips the full internal "user.U." prefix, so
 # `xrdfs xattr list` shows the verbatim client name like stock.
 @pytest.mark.parametrize("name", ["user.cn_a", "user.cn_b", "user.cn_c.dot"])
 def test_cli_xattr_list_no_namespace_leak(srv, name):

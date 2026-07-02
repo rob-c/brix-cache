@@ -3,9 +3,9 @@ tests/test_session_lifecycle_wire.py — raw-wire conformance for the XRootD
 session-lifecycle opcodes (kXR_set / kXR_endsess / kXR_bind) and the pre-login
 authorization gate.
 
-This suite drives the real handlers in src/handshake/dispatch_session.c,
-src/session/lifecycle.c, src/session/bind.c, src/query/set.c and the access
-gates in src/handshake/policy.c over raw TCP sockets, because the high-level
+This suite drives the real handlers in src/protocols/root/handshake/dispatch_session.c,
+src/protocols/root/session/lifecycle.c, src/protocols/root/session/bind.c, src/protocols/root/query/set.c and the access
+gates in src/protocols/root/handshake/policy.c over raw TCP sockets, because the high-level
 XRootD python client hides session state behind its own demultiplexer and would
 never let these malformed / out-of-order frames reach the wire. Every hostile or
 out-of-order request is followed by a sanity op (ping or a fresh session) to
@@ -53,7 +53,7 @@ from settings import (
 
 # ---------------------------------------------------------------------------
 # Opcodes / status / error codes
-#   request opcodes : src/protocol/opcodes.h
+#   request opcodes : src/protocols/root/protocol/opcodes.h
 #                     /tmp/xrootd-src/src/XProtocol/XProtocol.hh (XRequestTypes)
 #   error codes     : /tmp/xrootd-src/src/XProtocol/XProtocol.hh (XErrorCode)
 # ---------------------------------------------------------------------------
@@ -324,8 +324,8 @@ def pre_login():
 # ===========================================================================
 
 class TestSetOpcode:
-    """kXR_set is login-gated (src/handshake/dispatch_session.c) and otherwise
-    accepts every modifier with kXR_ok (src/query/set.c)."""
+    """kXR_set is login-gated (src/protocols/root/handshake/dispatch_session.c) and otherwise
+    accepts every modifier with kXR_ok (src/protocols/root/query/set.c)."""
 
     def test_set_before_login_rejected(self, pre_login):
         """kXR_set before kXR_login must be rejected with NotAuthorized, not ok.
@@ -350,7 +350,7 @@ class TestSetOpcode:
 
     def test_set_unknown_option_accepted(self, logged_in):
         """An unrecognised modifier byte is still accepted with ok per spec —
-        the server logs it but never rejects (src/query/set.c default case)."""
+        the server logs it but never rejects (src/protocols/root/query/set.c default case)."""
         sock, _ = logged_in
         _, status, body = _set(sock, 0xEE, b"opaque-value")
         assert status == kXR_ok, _error_code(body)
@@ -359,7 +359,7 @@ class TestSetOpcode:
 
     def test_set_cms_space_appid_ok(self, logged_in):
         """The CMS-grid 'cms.space <total> <free>' appid report is parsed and
-        accepted (src/query/set.c cms.space handling)."""
+        accepted (src/protocols/root/query/set.c cms.space handling)."""
         sock, _ = logged_in
         _, status, body = _set(sock, kXR_set_appid, b"cms.space 1000000 250000")
         assert status == kXR_ok, _error_code(body)
@@ -373,7 +373,7 @@ class TestSetOpcode:
 class TestEndsessOpcode:
     """kXR_endsess always returns ok. It terminates the session named in the
     request body; only the current session id clears this connection's
-    logged_in/auth_done state (src/session/lifecycle.c xrootd_handle_endsess)."""
+    logged_in/auth_done state (src/protocols/root/session/lifecycle.c xrootd_handle_endsess)."""
 
     def test_endsess_without_login_ok(self, pre_login):
         """kXR_endsess on a never-logged-in connection is a harmless no-op ok.
@@ -418,7 +418,7 @@ class TestEndsessOpcode:
         """After kXR_endsess the session is de-authorized: a file op (open) on
         the same connection must be rejected with NotAuthorized.
 
-        SECURITY: src/session/lifecycle.c clears logged_in/auth_done precisely so
+        SECURITY: src/protocols/root/session/lifecycle.c clears logged_in/auth_done precisely so
         a client cannot keep using the connection after ending its session
         (e.g. after the GSI proxy certificate that triggered the endsess has
         expired).
@@ -446,7 +446,7 @@ class TestEndsessOpcode:
 class TestBindOpcode:
     """kXR_bind attaches a secondary connection to an existing session and is
     only honoured for a sessid present in the shared registry; everything else
-    is NotAuthorized (src/session/bind.c xrootd_handle_bind)."""
+    is NotAuthorized (src/protocols/root/session/bind.c xrootd_handle_bind)."""
 
     def test_bind_random_sessid_rejected(self, pre_login):
         """A random/unknown 16-byte sessid is not in the registry -> rejected."""
@@ -473,7 +473,7 @@ class TestBindOpcode:
         """kXR_bind from a SECOND connection naming the primary's real sessid.
 
         On the anon endpoint the primary registers its session at login
-        (src/session/login.c calls xrootd_session_register), so a secondary that
+        (src/protocols/root/session/login.c calls xrootd_session_register), so a secondary that
         presents that sessid should bind (ok + 1-byte pathid in 1..253).  If
         this deployment does not register anon sessions in the cross-process
         registry, the documented fallback is NotAuthorized — both are valid
@@ -490,7 +490,7 @@ class TestBindOpcode:
             _, status, body = _bind(secondary, sessid=sessid)
             if status == kXR_ok:
                 # Pathid 0 is reserved for the primary; secondaries get 1..253
-                # (src/session/bind.c xrootd_next_pathid).  Body byte 0 is the
+                # (src/protocols/root/session/bind.c xrootd_next_pathid).  Body byte 0 is the
                 # pathid (it follows the 8-byte response header stripped by
                 # _read_response).
                 assert len(body) >= 1, "successful bind must carry a pathid byte"
@@ -507,7 +507,7 @@ class TestBindOpcode:
 
     def test_bound_pathid_zero_reserved(self, logged_in):
         """Pathid 0 is reserved for the primary connection: a successful bind
-        must NEVER hand out pathid 0 (src/session/bind.c cycles 1..253).
+        must NEVER hand out pathid 0 (src/protocols/root/session/bind.c cycles 1..253).
 
         We can only check this when the registry honours the bind; otherwise we
         skip with the documented reason rather than hard-fail an unregistered
@@ -537,8 +537,8 @@ class TestBindOpcode:
 
 # (opcode label, 16-byte request body, payload) for each gated operation.
 # The require_auth / require_write gate fires in the dispatcher BEFORE any
-# request-specific parsing (src/handshake/dispatch_read.c / dispatch_write.c,
-# src/handshake/policy.c), so a minimally-framed valid request is sufficient to
+# request-specific parsing (src/protocols/root/handshake/dispatch_read.c / dispatch_write.c,
+# src/protocols/root/handshake/policy.c), so a minimally-framed valid request is sufficient to
 # exercise the gate.  Both gates return kXR_NotAuthorized when unauthenticated:
 # require_write calls require_auth first, so the auth failure precedes the
 # allow_write / read-only check.
@@ -562,7 +562,7 @@ class TestPreLoginGate:
     """No file-system opcode may be performed before kXR_login.  Read-class ops
     hit require_auth, write-class ops hit require_write — both return
     kXR_NotAuthorized while the connection is unauthenticated
-    (src/handshake/policy.c)."""
+    (src/protocols/root/handshake/policy.c)."""
 
     @pytest.mark.parametrize("label,opcode,body16,payload", _GATED_OPS,
                              ids=[o[0] for o in _GATED_OPS])
@@ -613,11 +613,11 @@ class TestPingAndUnknownOpcodes:
     request before login, ping included — verified against stock xrootd, which
     answers a pre-login ping with kXR_error "Invalid request; user not logged
     in"); truly unknown opcodes (including legacy ids below kXR_auth=3000) fall
-    through every dispatcher to an error (src/handshake/dispatch.c)."""
+    through every dispatcher to an error (src/protocols/root/handshake/dispatch.c)."""
 
     def test_ping_before_login_rejected(self, pre_login):
         """kXR_ping before login is rejected with kXR_error, matching stock
-        xrootd (src/handshake/dispatch_session.c routes kXR_ping through
+        xrootd (src/protocols/root/handshake/dispatch_session.c routes kXR_ping through
         xrootd_dispatch_require_login).  A pre-login ping is NOT a liveness
         probe a stock server answers ok."""
         sock = pre_login
@@ -627,7 +627,7 @@ class TestPingAndUnknownOpcodes:
     def test_unknown_opcode_rejected(self, pre_login):
         """An opcode the server does not implement (e.g. 3999, well above the
         defined range) is rejected with kXR_InvalidRequest, and the connection
-        remains usable for a subsequent ping (src/handshake/dispatch.c default
+        remains usable for a subsequent ping (src/protocols/root/handshake/dispatch.c default
         falls through to xrootd_send_error(kXR_InvalidRequest), matching stock
         xrootd's "Invalid request code" reply for an unrecognised opcode)."""
         sock = pre_login

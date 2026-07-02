@@ -558,7 +558,7 @@ u *         /data  rl                 # everyone else: read
 | OS user/group + NIS netgroup resolution (`getpwnam`/`getgrouplist`/`innetgr`) | `src/auth/authz/acc/groups.c` |
 | VO ACL (`xrootd_require_vo`) | `src/auth/authz/acl.c`, `src/core/config/policy.c` |
 | Created-object group inheritance (`xrootd_inherit_parent_group`) | `src/auth/authz/group_policy.c` |
-| Directive tables | `src/stream/module.c` (root://), `src/protocols/webdav/module.c` (WebDAV/S3) |
+| Directive tables | `src/protocols/root/stream/module.c` (root://), `src/protocols/webdav/module.c` (WebDAV/S3) |
 
 ---
 

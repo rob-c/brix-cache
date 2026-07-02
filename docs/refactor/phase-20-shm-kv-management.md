@@ -31,7 +31,7 @@ few integration details diverge from the original design — all detailed below.
 | **F** | Configurable existing-table sizes | ⚠️ **3 of 4 done** | `xrootd_session_slots`, `xrootd_registry_slots`, `xrootd_redir_cache_slots` implemented (conf fields + directives). `xrootd_tpc_slots` **still deferred** — `XROOTD_TPC_REGISTRY_SLOTS` (1024) remains a compile-time array dimension (`src/tpc/common/registry.c:16`) for the dual-call-site reason below. |
 | — | Prometheus export | ✅ **Done** | `xrootd_kv_metrics_emit()` in `src/observability/metrics/writer.c` emits `xrootd_kv_{hits,misses,evictions}_total` + `xrootd_kv_{entries,capacity}` per zone. |
 | — | `config.h` / build registration | ✅ **Done** | The four sources (`shm/kv.c`, `token/token_cache.c`, `path/auth_cache.c`, `shm/rate_limit.c`) are registered in the module `config` (NGX_ADDON_SRCS). |
-| — | Directives wired | ✅ **Done** | `xrootd_kv_zone`, `xrootd_token_cache`, `xrootd_auth_cache`, `xrootd_rate_limit` registered in `src/stream/module.c` (stream) and `src/protocols/webdav/module.c` (HTTP — token_cache + rate_limit; auth_cache is stream-only). |
+| — | Directives wired | ✅ **Done** | `xrootd_kv_zone`, `xrootd_token_cache`, `xrootd_auth_cache`, `xrootd_rate_limit` registered in `src/protocols/root/stream/module.c` (stream) and `src/protocols/webdav/module.c` (HTTP — token_cache + rate_limit; auth_cache is stream-only). |
 
 ### As-built divergences from the design (none are defects)
 
@@ -724,7 +724,7 @@ follow-up work. The compile-time default (1024) remains in effect.
 `conf->session_slots * sizeof(entry)` instead of the compile-time constant to
 `ngx_shared_memory_add()`.
 
-**Files changed**: `src/session/registry.c` (+~10 LoC), `src/protocols/webdav/module.c` (+~10 LoC),
+**Files changed**: `src/protocols/root/session/registry.c` (+~10 LoC), `src/protocols/webdav/module.c` (+~10 LoC),
 `src/tpc/common/registry.c` (+~10 LoC), `src/net/manager/redir_cache.c` (+~10 LoC),
 `src/core/config/directives.c` (+~40 LoC), `src/core/config/config.h` (+~5 LoC)
 

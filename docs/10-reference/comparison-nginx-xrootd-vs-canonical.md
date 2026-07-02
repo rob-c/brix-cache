@@ -60,7 +60,7 @@
 |---|---|---|---|---|
 | kXR_ok=0 | Success | ✓ | ✓ | Implemented |
 | kXR_oksofar=4000 | Partial result | ✓ | ✓ | Used for pgread/pgwrite page responses |
-| kXR_attn=4001 | Unsolicited notification | ✓ | ✓ | Native server-originated generation implemented (`src/response/async.c`: `xrootd_send_attn_asyncms()`/`xrootd_send_attn_asynresp()`); proxy relay also implemented (`proxy/events_read.c`) |
+| kXR_attn=4001 | Unsolicited notification | ✓ | ✓ | Native server-originated generation implemented (`src/protocols/root/response/async.c`: `xrootd_send_attn_asyncms()`/`xrootd_send_attn_asynresp()`); proxy relay also implemented (`proxy/events_read.c`) |
 | kXR_authmore=4002 | Auth needs round-trip | ✓ | ✓ | Implemented (GSI negotiation) |
 | kXR_error=4003 | Request failed | ✓ | ✓ | Implemented with errno→kXR mapping |
 | kXR_redirect=4004 | Redirect to another server | ✓ | ✓ | Implemented (manager mode, CMS locate, upstream proxy relay — `response/control.c`, `upstream/response.c`) |
@@ -95,7 +95,7 @@ All error codes declared in `opcodes.h` and mapped via `errno → kXR_*` helpers
 - Falls back to stable v3 (`kXR_PROTOCOLVERSION_3 = 0x00000300u`)
 - Server type: `kXR_DataServer=1` by default; advertises `kXR_isManager` when `xrootd_manager_mode on` or `xrootd_manager_map` is configured (`session/protocol.c`)
 
-**Status:** The active async action codes `kXR_asyncms` (5002) and `kXR_asynresp` (5008) are declared in `opcodes.h`, and `src/response/async.c` (registered in `config`) implements native server-push generation via `xrootd_send_attn_asyncms()`. The deprecated codes 5000–5007 (except 5002) return `kXR_Unsupported` per the v5 spec; unknown async requests fall through to the generic `kXR_Unsupported` path.
+**Status:** The active async action codes `kXR_asyncms` (5002) and `kXR_asynresp` (5008) are declared in `opcodes.h`, and `src/protocols/root/response/async.c` (registered in `config`) implements native server-push generation via `xrootd_send_attn_asyncms()`. The deprecated codes 5000–5007 (except 5002) return `kXR_Unsupported` per the v5 spec; unknown async requests fall through to the generic `kXR_Unsupported` path.
 
 ---
 
@@ -108,12 +108,12 @@ All error codes declared in `opcodes.h` and mapped via `errno → kXR_*` helpers
 
 ### 3.2 `kXR_attn` Response (4001) — Unsolicited Notification
 - **Canonical:** Server pushes unsolicited notifications to client (e.g., drain, disconnect signals)
-- **nginx-xrootd:** Implemented — native `xrootd_send_attn_asyncms()` generation exists (`src/response/async.c`); proxy mode also relays upstream `kXR_attn` frames (`proxy/events_read.c`). Full coverage exists.
+- **nginx-xrootd:** Implemented — native `xrootd_send_attn_asyncms()` generation exists (`src/protocols/root/response/async.c`); proxy mode also relays upstream `kXR_attn` frames (`proxy/events_read.c`). Full coverage exists.
 - **Impact:** Both native server-originated notifications and proxy relay are supported
 
 ### 3.3 Async Operations (5000–5008) — Deprecated Legacy Actions
 - **Canonical:** Deprecated action codes exist for legacy async response workflows
-- **nginx-xrootd:** `kXR_asyncms` (5002) and `kXR_asynresp` (5008) ARE defined in `opcodes.h`; `src/response/async.c` is registered in `config` and contains the native `xrootd_send_attn_asyncms()` implementation. The remaining deprecated action codes (5000–5007, except 5002) return `kXR_Unsupported` per the v5 spec.
+- **nginx-xrootd:** `kXR_asyncms` (5002) and `kXR_asynresp` (5008) ARE defined in `opcodes.h`; `src/protocols/root/response/async.c` is registered in `config` and contains the native `xrootd_send_attn_asyncms()` implementation. The remaining deprecated action codes (5000–5007, except 5002) return `kXR_Unsupported` per the v5 spec.
 - **Impact:** Active async action codes are implemented natively; deprecated codes receive the generic `kXR_Unsupported` fallback
 
 ---
@@ -220,7 +220,7 @@ integration models and operational controls.
 
 ### 5.4 File Handle Management
 - **Canonical:** Uses file descriptor table with opaque handles
-- **nginx-xrootd:** Uses `xrootd_file_t` in `src/connection/fd_table.c`, handles mapped to 0–255 range (AGENTS.md FAQ)
+- **nginx-xrootd:** Uses `xrootd_file_t` in `src/protocols/root/connection/fd_table.c`, handles mapped to 0–255 range (AGENTS.md FAQ)
 
 **Status:** Similar — both use opaque handle tables. nginx's fixed 0–255 range provides predictable memory allocation via ngx_palloc.
 
@@ -315,7 +315,7 @@ without protocol conversion.
    are not reproduced (no sec-plugin ABI).
 3. **PSS/PFC/Ceph/OssCsi/OssArc/full XrdFrm-MSS ecosystem** — upstream remains
    broader for deployments built around those storage-backend plugins.
-   (ZIP-member access is implemented in `src/zip/`.)
+   (ZIP-member access is implemented in `src/protocols/root/zip/`.)
 
 ### Where nginx is superior
 - Confined path resolution as universal invariant gate
@@ -339,9 +339,9 @@ without protocol conversion.
 ## 10. Recommendations
 
 ### ✓ Done: `kXR_sigver` handler — fully implemented
-- `src/session/signing.c` — parses ClientSigverRequest, validates seqno monotonicity (replay protection), stores HMAC pending state
-- `src/handshake/sigver.c` — HMAC-SHA256 verification before next dispatch; enforces `xrootd_security_level` directive
-- `src/handshake/dispatch_signing.c` — routes `kXR_sigver` to handler
+- `src/protocols/root/session/signing.c` — parses ClientSigverRequest, validates seqno monotonicity (replay protection), stores HMAC pending state
+- `src/protocols/root/handshake/sigver.c` — HMAC-SHA256 verification before next dispatch; enforces `xrootd_security_level` directive
+- `src/protocols/root/handshake/dispatch_signing.c` — routes `kXR_sigver` to handler
 - GSI key derivation: `src/auth/gsi/parse_crypto_helpers.c` sets `ctx->signing_key` = SHA-256(DH shared secret), `ctx->signing_active = 1`
 
 ### ✓ Done: Manager/redirector mode
@@ -349,8 +349,8 @@ without protocol conversion.
 - `kXR_redirect`, `kXR_wait`, `kXR_waitresp` all generated by `response/control.c` and relayed by `upstream/response.c`
 
 ### ✓ Done: Native `kXR_attn` generation and active async action codes
-- `xrootd_send_attn()`, `xrootd_send_attn_asyncms()`, and `xrootd_send_attn_asynresp()` are declared in `src/response/async.h` and implemented in `src/response/async.c` (registered in `config`)
-- Active action codes `kXR_asyncms` (5002) and `kXR_asynresp` (5008) are declared in `opcodes.h`; native generation is used by `kXR_notify` on `kXR_prepare` (`src/query/prepare.c`). Deprecated codes 5000–5007 (except 5002) return `kXR_Unsupported` per the v5 spec
+- `xrootd_send_attn()`, `xrootd_send_attn_asyncms()`, and `xrootd_send_attn_asynresp()` are declared in `src/protocols/root/response/async.h` and implemented in `src/protocols/root/response/async.c` (registered in `config`)
+- Active action codes `kXR_asyncms` (5002) and `kXR_asynresp` (5008) are declared in `opcodes.h`; native generation is used by `kXR_notify` on `kXR_prepare` (`src/protocols/root/query/prepare.c`). Deprecated codes 5000–5007 (except 5002) return `kXR_Unsupported` per the v5 spec
 
 ### Request opcode coverage
 - 32 active request opcodes have parity or module-specific behavior.

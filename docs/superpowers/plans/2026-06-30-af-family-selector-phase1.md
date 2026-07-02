@@ -13,7 +13,7 @@
 - **NO `goto`** anywhere in `src/` — early-return + helper decomposition (verbatim from CLAUDE.md HARD BLOCKS).
 - **Functional/modular**: one job per function, pass state explicitly, no new globals.
 - **HELPERS — never reimplement**: reuse `xrootd_resolve_connect_socket`, the existing non-blocking connect deadline, the existing directive/merge machinery.
-- **Build governance**: a new `.c` requires registration in the top-level `./config` then `./configure`; header-only additions and edits to existing `.c` need only `make -j$(nproc)`. Live stream directive table is `src/stream/module.c` (the `module_*_directives.c` fragments are NOT compiled).
+- **Build governance**: a new `.c` requires registration in the top-level `./config` then `./configure`; header-only additions and edits to existing `.c` need only `make -j$(nproc)`. Live stream directive table is `src/protocols/root/stream/module.c` (the `module_*_directives.c` fragments are NOT compiled).
 - **Default must be backward-compatible**: absent directive ⇒ `AUTO` ⇒ today's `AF_UNSPEC` behavior, byte-for-byte.
 - **3 tests per change**: success + error + security/parity.
 - Build: `make -j$(nproc)`; validate: `/tmp/nginx-1.28.3/objs/nginx -t -c <conf>`.
@@ -124,7 +124,7 @@ git commit -m "feat(net): add xrootd_af_policy_t + parser for outbound address-f
 ### Task 2: Thread `af_policy` through the shared resolver (callers pass AUTO)
 
 **Files:**
-- Modify: `src/connection/netconnect.h` (the `xrootd_resolve_connect_socket` signature + `hints.ai_family`)
+- Modify: `src/protocols/root/connection/netconnect.h` (the `xrootd_resolve_connect_socket` signature + `hints.ai_family`)
 - Modify: `src/net/proxy/connect_upstream.c:269` (caller → `XROOTD_AF_AUTO`)
 - Modify: `src/net/upstream/start.c:111` (caller → `XROOTD_AF_AUTO`)
 
@@ -141,7 +141,7 @@ Expected: PASS (all `ok` lines) — this is the parity baseline we must preserve
 
 - [ ] **Step 2: Add the parameter to the resolver**
 
-In `src/connection/netconnect.h`, include the policy header near the top includes:
+In `src/protocols/root/connection/netconnect.h`, include the policy header near the top includes:
 
 ```c
 #include "../compat/af_policy.h"
@@ -203,7 +203,7 @@ Expected: PASS — identical to the Step 1 baseline (resolver behavior unchanged
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/connection/netconnect.h src/net/proxy/connect_upstream.c src/net/upstream/start.c
+git add src/protocols/root/connection/netconnect.h src/net/proxy/connect_upstream.c src/net/upstream/start.c
 git commit -m "refactor(net): thread af_policy through xrootd_resolve_connect_socket (callers AUTO, no behaviour change)"
 ```
 
@@ -214,7 +214,7 @@ git commit -m "refactor(net): thread af_policy through xrootd_resolve_connect_so
 **Files:**
 - Modify: `src/core/types/config.h:429` area (add `cache_origin_family` field)
 - Modify: `src/core/config/server_conf.c:110` area (create default `NGX_CONF_UNSET_UINT`) and `:530` area (merge to `XROOTD_AF_AUTO`)
-- Modify: `src/stream/module.c:1177` area (register directive in the live command table)
+- Modify: `src/protocols/root/stream/module.c:1177` area (register directive in the live command table)
 - Modify: `src/fs/cache/directives.c` (add `xrootd_conf_set_cache_origin_family` handler)
 - Modify: `src/core/config/config.h` (declare the handler prototype, next to `xrootd_conf_set_cache_origin`)
 - Modify: `src/fs/cache/origin_connection.c:70` (read the policy into `hints.ai_family`)
@@ -341,7 +341,7 @@ char *xrootd_conf_set_cache_origin_family(ngx_conf_t *cf, ngx_command_t *cmd,
 
 - [ ] **Step 3d: Register the directive in the live table**
 
-In `src/stream/module.c`, immediately after the `xrootd_cache_origin_tls` command block (~1183):
+In `src/protocols/root/stream/module.c`, immediately after the `xrootd_cache_origin_tls` command block (~1183):
 
 ```c
     { ngx_string("xrootd_cache_origin_family"),
@@ -382,7 +382,7 @@ Expected: PASS — `auto/inet/inet6` accepted, `ipv4` rejected.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/core/types/config.h src/core/config/server_conf.c src/stream/module.c \
+git add src/core/types/config.h src/core/config/server_conf.c src/protocols/root/stream/module.c \
         src/fs/cache/directives.c src/core/config/config.h src/fs/cache/origin_connection.c \
         tests/run_af_family_conf.sh
 git commit -m "feat(cache): xrootd_cache_origin_family directive constrains origin connect address family"
@@ -629,7 +629,7 @@ git commit -m "feat(cache): honor xrootd_cache_origin_family on the storage_back
 
 ## Notes / Deferred
 
-- **Proxy upstream family (`xrootd_proxy_upstream_family` + per-upstream `family=`):** deferred — the legacy `xrootd_proxy*` stream directive surface is currently DISABLED (`src/stream/module.c:1603`) ahead of the proxy rebuild. The resolver already accepts `af_policy` (Task 2), so the proxy knob is a thin add once the proxy directive surface returns in the Phase 2/3 work.
+- **Proxy upstream family (`xrootd_proxy_upstream_family` + per-upstream `family=`):** deferred — the legacy `xrootd_proxy*` stream directive surface is currently DISABLED (`src/protocols/root/stream/module.c:1603`) ahead of the proxy rebuild. The resolver already accepts `af_policy` (Task 2), so the proxy knob is a thin add once the proxy directive surface returns in the Phase 2/3 work.
 - **HTTP/Pelican + S3 origins:** this plan covers the `root://`/`sd_xroot` origin connect. The libcurl-based HTTP/S3 origin transports resolve inside libcurl; constraining their family (`CURLOPT_IPRESOLVE`) is a small follow-up if needed, tracked with the proxy phase.
 
 ## Self-Review

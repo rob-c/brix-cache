@@ -1,5 +1,5 @@
 #include "upstream_internal.h"
-#include "connection/netconnect.h"   /* shared outbound resolve/connect helper */
+#include "protocols/root/connection/netconnect.h"   /* shared outbound resolve/connect helper */
 
 /*
  * WHAT: Start an upstream XRootD connection — context allocation, DNS/TCP setup, bootstrap buffer build,

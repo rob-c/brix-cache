@@ -67,7 +67,7 @@ Tests need a running server. Start it with `tests/manage_test_servers.sh start`.
 
 ## Protocol and wire layer
 
-**Source:** `src/handshake/`, `src/connection/`, `src/session/protocol.c`, `src/stream/`
+**Source:** `src/protocols/root/handshake/`, `src/protocols/root/connection/`, `src/protocols/root/session/protocol.c`, `src/protocols/root/stream/`
 
 ### `test_wire_protocol_security.py`
 
@@ -106,7 +106,7 @@ Runs the same operations against both the nginx-xrootd endpoint and a reference 
 
 ## Authentication
 
-**Source:** `src/session/login.c`, `src/auth/gsi/`, `src/auth/token/`, `src/auth/sss/`
+**Source:** `src/protocols/root/session/login.c`, `src/auth/gsi/`, `src/auth/token/`, `src/auth/sss/`
 
 ### `test_gsi_security.py`
 
@@ -163,13 +163,13 @@ Macaroon token authentication. `test_macaroon_discharge.py` specifically validat
 
 ### `test_sigver_verify.py`
 
-`kXR_sigver` request-signing verification (`src/session/`): expectrid mismatch rejected, replay attacks (same / decreasing sequence number), body-too-short, anonymous and token sessions accept sigver without HMAC check, RSA-signed envelopes accepted.
+`kXR_sigver` request-signing verification (`src/protocols/root/session/`): expectrid mismatch rejected, replay attacks (same / decreasing sequence number), body-too-short, anonymous and token sessions accept sigver without HMAC check, RSA-signed envelopes accepted.
 
 ---
 
 ## Authorization
 
-**Source:** `src/auth/authz/acl.c`, `src/handshake/policy.c`, `src/auth/voms/`, `src/authdb.c`
+**Source:** `src/auth/authz/acl.c`, `src/protocols/root/handshake/policy.c`, `src/auth/voms/`, `src/authdb.c`
 
 ### `test_vo_acl.py`
 
@@ -201,7 +201,7 @@ Security hardening regression inventory. Run this whenever touching auth or path
 
 ## File I/O
 
-**Source:** `src/read/`, `src/write/`, `src/core/aio/`
+**Source:** `src/protocols/root/read/`, `src/protocols/root/write/`, `src/core/aio/`
 
 ### `test_file_api.py`
 
@@ -251,7 +251,7 @@ Good checksum accepted, bad checksum rejected, multi-page (first/second/middle p
 
 ## Advanced opcodes
 
-**Source:** `src/read/`, `src/write/`, `src/clone.c`, `src/fattr/`, `src/session/`
+**Source:** `src/protocols/root/read/`, `src/protocols/root/write/`, `src/clone.c`, `src/protocols/root/fattr/`, `src/protocols/root/session/`
 
 ### `test_new_opcodes.py`
 
@@ -280,7 +280,7 @@ Extended attributes and query sub-operations:
 
 ## Query system
 
-**Source:** `src/query/`
+**Source:** `src/protocols/root/query/`
 
 ### `test_query.py`
 
@@ -302,7 +302,7 @@ Less-tested query infotypes:
 
 ## Filesystem namespace
 
-**Source:** `src/write/mv.c`, `src/write/mkdir.c`, `src/write/rm.c`, `src/stat.c`, `src/statx.c`
+**Source:** `src/protocols/root/write/mv.c`, `src/protocols/root/write/mkdir.c`, `src/protocols/root/write/rm.c`, `src/stat.c`, `src/statx.c`
 
 ### `test_fs_ops.py`
 
@@ -369,7 +369,7 @@ Native root:// third-party copy (SHM key registry):
 
 ## Session bind (data channels)
 
-**Source:** `src/session/bind.c`, `src/registry.c`
+**Source:** `src/protocols/root/session/bind.c`, `src/registry.c`
 
 ### `test_session_bind.py`
 

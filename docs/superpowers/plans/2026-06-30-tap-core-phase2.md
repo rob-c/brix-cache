@@ -4,14 +4,14 @@
 
 **Goal:** A standalone, ngx-free, unit-tested **tap core** (`src/net/tap/`) that decodes XRootD wire frames (request + response) and fans each decoded frame out to registered sinks, with a JSON audit formatter as the first sink — ready to be wired into the transparent relay (Phase 3) and the new terminating proxy (Phase 4).
 
-**Architecture:** Pure C, no nginx / OpenSSL / allocation in the core. Reuses the existing single-source framing helpers in `src/protocol/frame_hdr.h` (unaligned-safe BE accessors, `xrd_resp_hdr_unpack`) and opcode constants in `src/protocol/opcodes.h` (`XRD_REQUEST_HDR_LEN`, `kXR_*`). The decoder turns a byte buffer into an `xrootd_tap_frame_t` (streamid, opcode/status, dlen, optional path slice); `xrootd_tap_emit` calls each registered `xrootd_tap_sink_fn`. Sinks that need nginx (log file, Prometheus metrics) are thin adapters added when the tap is wired into a consumer — NOT in this phase.
+**Architecture:** Pure C, no nginx / OpenSSL / allocation in the core. Reuses the existing single-source framing helpers in `src/protocols/root/protocol/frame_hdr.h` (unaligned-safe BE accessors, `xrd_resp_hdr_unpack`) and opcode constants in `src/protocols/root/protocol/opcodes.h` (`XRD_REQUEST_HDR_LEN`, `kXR_*`). The decoder turns a byte buffer into an `xrootd_tap_frame_t` (streamid, opcode/status, dlen, optional path slice); `xrootd_tap_emit` calls each registered `xrootd_tap_sink_fn`. Sinks that need nginx (log file, Prometheus metrics) are thin adapters added when the tap is wired into a consumer — NOT in this phase.
 
 **Tech Stack:** C, standalone gcc unit test, nginx `./config` source registration.
 
 ## Global Constraints
 
 - **NO `goto`**; functional/modular; one job per function; no new globals (pass `xrootd_tap_ctx_t`).
-- **HELPERS — never reimplement framing:** use `src/protocol/frame_hdr.h` accessors (`xrd_get_u16_be`/`xrd_get_u32_be`/`xrd_resp_hdr_unpack`) and `src/protocol/opcodes.h` constants. Do not hand-roll `ntohs`/`ntohl` or redefine `kXR_*`.
+- **HELPERS — never reimplement framing:** use `src/protocols/root/protocol/frame_hdr.h` accessors (`xrd_get_u16_be`/`xrd_get_u32_be`/`xrd_resp_hdr_unpack`) and `src/protocols/root/protocol/opcodes.h` constants. Do not hand-roll `ntohs`/`ntohl` or redefine `kXR_*`.
 - **Core stays ngx-free** so it unit-tests with plain gcc and embeds in any consumer.
 - **Metric cardinality (INVARIANT #8):** the future metrics sink must use low-cardinality labels only (no paths) — out of scope here but the audit sink is the path-bearing one by design.
 - **Build governance:** new `.c` files register in the top-level `./config` (`$ngx_addon_dir/src/net/tap/*.c`) then `./configure`; the standalone unit test does not need the module build.
@@ -39,7 +39,7 @@ Create `tests/tap_unittest.c`:
 #include <string.h>
 #include <stdio.h>
 #include <arpa/inet.h>
-#include "../src/protocol/opcodes.h"
+#include "../src/protocols/root/protocol/opcodes.h"
 #include "../src/net/tap/tap.h"
 
 /* Build a request frame: streamid + requestid(BE) + 16B body + dlen(BE) + payload */
@@ -148,7 +148,7 @@ Create `src/net/tap/tap.h`:
  *   relay (whatever travels in cleartext).
  * WHY:  one decoder + one fan-out, shared, instead of per-consumer frame parsing.
  * HOW:  pure C — no nginx, no allocation, no OpenSSL — so it embeds in any consumer
- *   and unit-tests standalone. Reuses src/protocol/frame_hdr.h + opcodes.h.
+ *   and unit-tests standalone. Reuses src/protocols/root/protocol/frame_hdr.h + opcodes.h.
  */
 
 #include <stddef.h>
@@ -293,7 +293,7 @@ xrootd_tap_decode_response(const uint8_t *buf, size_t len,
 Run: `gcc -Wall -Wextra -o /tmp/tap_unittest tests/tap_unittest.c src/net/tap/tap_decode.c && /tmp/tap_unittest`
 Expected: PASS — `tap_unittest: all checks passed`, exit 0, no warnings.
 
-(If `kXR_rmdir` / `kXR_locate` are absent from opcodes.h, drop them from `tap_opcode_has_path` — confirm names with `grep -n "define kXR_" src/protocol/opcodes.h` first.)
+(If `kXR_rmdir` / `kXR_locate` are absent from opcodes.h, drop them from `tap_opcode_has_path` — confirm names with `grep -n "define kXR_" src/protocols/root/protocol/opcodes.h` first.)
 
 - [ ] **Step 6: Commit** — SKIP (user runs git).
 

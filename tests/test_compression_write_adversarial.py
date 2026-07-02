@@ -4,7 +4,7 @@ root:// INLINE WRITE decompression, driven over the RAW root:// wire against the
 shared anon server (port 11094), which has `xrootd_write_compress on` and
 advertises `cmpwrite=...,zstd,...`.
 
-W5 (src/write/write_compress.c) is the write-direction counterpart of W4: a handle
+W5 (src/protocols/root/write/write_compress.c) is the write-direction counterpart of W4: a handle
 opened for write with the opaque "?xrootd.compress=<codec>" makes the server treat
 each kXR_write payload as ONE self-contained codec frame, decompress it under a
 decompression-bomb guard, and pwrite() the recovered PLAINTEXT to disk.  It is
@@ -57,7 +57,7 @@ zstandard = pytest.importorskip(
 
 
 # ---------------------------------------------------------------------------
-# Opcodes / status / error codes / open options (src/protocol/{opcodes,flags}.h)
+# Opcodes / status / error codes / open options (src/protocols/root/protocol/{opcodes,flags}.h)
 # ---------------------------------------------------------------------------
 
 kXR_login    = 3007
@@ -84,7 +84,7 @@ CODEC_ZSTD       = 3
 
 # Error code carried in a kXR_error body for a corrupt compressed write.  The
 # server maps the decode failure to kXR_IOError; on this wire build that ordinal
-# is 3007 (src/protocol/opcodes.h).  We assert the human-readable message rather
+# is 3007 (src/protocols/root/protocol/opcodes.h).  We assert the human-readable message rather
 # than hard-coding the ordinal as the primary check, but record it for clarity.
 CORRUPT_WRITE_MSG = b"corrupt or oversized compressed write"
 

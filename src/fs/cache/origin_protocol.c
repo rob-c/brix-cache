@@ -1,9 +1,9 @@
 #include "cache_internal.h"
-#include "protocol/bootstrap_pack.h"   /* shared handshake/protocol/login packers */
+#include "protocols/root/protocol/bootstrap_pack.h"   /* shared handshake/protocol/login packers */
 #include "core/compat/fattr_codec.h"        /* xrdp_fattr_nvec_parse (kXR_fattr replies) */
-#include "protocol/frame_hdr.h"        /* xrd_error_body_decode (kXR_error errnum) */
+#include "protocols/root/protocol/frame_hdr.h"        /* xrd_error_body_decode (kXR_error errnum) */
 #include "auth/gsi/gsi_core.h"              /* shared XrdSecgsi handshake kernel (C-3 GSI) */
-#include "protocol/gsi.h"              /* kXRS_x509 bucket id (origin-cert verify) */
+#include "protocols/root/protocol/gsi.h"              /* kXRS_x509 bucket id (origin-cert verify) */
 #include "auth/sss/sss_keytab_kernel.h"     /* §14 SSS: shared keytab line grammar */
 #include <stdio.h>                        /* fdopen/fgets for the keytab reader */
 

@@ -67,7 +67,7 @@ ANON_PORT = NGINX_ANON_PORT
 
 
 # ---------------------------------------------------------------------------
-# Opcodes / status (from src/protocol/opcodes.h)
+# Opcodes / status (from src/protocols/root/protocol/opcodes.h)
 # ---------------------------------------------------------------------------
 
 kXR_login = 3007

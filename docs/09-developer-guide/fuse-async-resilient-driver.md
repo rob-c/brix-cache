@@ -209,12 +209,12 @@ TEST_ROOT=/tmp/xrd-aio TEST_NGINX_ANON_PORT=11199 TEST_SKIP_SERVER_SETUP=1 \
 XRootD has no base-protocol opcode for set-mtime, chown, or links, so these are
 **capability-negotiated vendor opcodes** — `kXR_setattr` (3500), `kXR_symlink`
 (3501), `kXR_readlink` (3502), `kXR_link` (3503), defined in
-`src/protocol/wire_vendor_ext.h`, well above the standard range. The server
+`src/protocols/root/protocol/wire_vendor_ext.h`, well above the standard range. The server
 advertises support via `kXR_Qconfig "xrdfs.ext"`; the client probes it
 (`xrdc_ext_probe`) and only emits the opcodes when advertised, so a stock XRootD
 server never receives one and a stock client never triggers the handlers.
 
-* **Server** (`src/write/ext_ops.c`): handlers do confined `utimensat`/`fchownat`/
+* **Server** (`src/protocols/root/write/ext_ops.c`): handlers do confined `utimensat`/`fchownat`/
   `symlinkat`/`readlinkat`/`linkat` under the export jail (new
   `xrootd_setattr/symlink/readlink_confined_canon` in `resolve_confined_ops.c`,
   reusing the existing `xrootd_link_confined_canon`); registered in the write
@@ -237,7 +237,7 @@ server never receives one and a stock client never triggers the handlers.
 ### readdir-plus shows symlinks as links
 
 `ls -l <dir>` over the mount reports a symlink as a symlink, not its target: both
-dirlist stat paths (`src/dirlist/handler.c`, `src/core/aio/dirlist.c`) stat each entry
+dirlist stat paths (`src/protocols/root/dirlist/handler.c`, `src/core/aio/dirlist.c`) stat each entry
 with `fstatat(..., AT_SYMLINK_NOFOLLOW)`, so `xrootd_make_stat_body` flags it
 `kXR_other`, the client carries that in `xrdc_dirent.st.flags`, and `xfs_readdir`
 maps it to `S_IFLNK` via `FUSE_FILL_DIR_PLUS` — matching local `ls -l` (lstat)

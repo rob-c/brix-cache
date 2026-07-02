@@ -53,7 +53,7 @@ The stream module is the right fit because it exposes:
 
 - A raw `ngx_connection_t` — read and write callbacks directly on the TCP socket
 - Optional TLS (`ngx_ssl_handshake`, `ngx_ssl_create_connection`) layered on
-  top transparently — see `src/connection/tls.c`
+  top transparently — see `src/protocols/root/connection/tls.c`
 - Per-connection context (`ngx_stream_get_module_ctx`) that lives as long as the
   TCP connection
 - Write-ready and read-ready events so the module can implement its own
@@ -94,7 +94,7 @@ Every nginx module declares its type constant, which determines which API
 families are available at compile time:
 
 ```c
-/* Stream module — src/stream/module.c */
+/* Stream module — src/protocols/root/stream/module.c */
 ngx_module_t ngx_stream_xrootd_module = {
     NGX_MODULE_V1,
     &ngx_stream_xrootd_module_ctx,

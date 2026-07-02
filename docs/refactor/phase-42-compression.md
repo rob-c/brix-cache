@@ -10,7 +10,7 @@ of W4: a WRITE handle opened with `?xrootd.compress=<codec>` (gated by the new
 `xrootd_write_compress`, off by default; advertised via `kXR_Qconfig cmpwrite`) makes
 the client compress each `kXR_write` payload as a self-contained frame; the server
 decompresses it on ingest and stores the file **plaintext** (saving upload-wire
-bytes).  Isolated handler `src/write/write_compress.c` (`xrootd_write_compressed`)
+bytes).  Isolated handler `src/protocols/root/write/write_compress.c` (`xrootd_write_compressed`)
 branched at the top of `xrootd_handle_write` on `write_codec != 0` → the default
 write path (AIO + write-recovery journal) is byte-identical; `pgwrite`/`writev` never
 reach it (per-page CRC32c invariant preserved).  Decode is on UNTRUSTED input, so it
@@ -357,11 +357,11 @@ this preserves the mandatory pgread `kXR_status`(4007) + per-page-CRC32c INVARIA
 byte-for-byte (compression is a `kXR_read`-only handle property). Three-signal
 negotiation, all backward-compatible:
 1. Server advertises `cmpread=zstd,gzip,xz,…` via `kXR_Qconfig`
-   (`src/query/config.c`, modeled on `xrdfs.ext`).
+   (`src/protocols/root/query/config.c`, modeled on `xrdfs.ext`).
 2. Willing client opens with opaque `?xrootd.compress=zstd[:bs=N]` (rides the
    existing `path?opaque` channel; stock servers strip/ignore the unknown key).
 3. Server confirms by setting the *vestigial* `cpsize` (= block size) / `cptype`
-   (= codec tag) in the open reply (`src/read/open_resolved_file.c:412`, currently
+   (= codec tag) in the open reply (`src/protocols/root/read/open_resolved_file.c:412`, currently
    hardcoded 0; stock clients ignore them).
 
 Compatibility matrix: stock↔ours and ours↔stock both stay plaintext/byte-identical;
@@ -376,7 +376,7 @@ for free via `xrdc_mfile` + a `-o compress=zstd` mount option; `xrdcp --compress
 <codec>`.
 
 ### W5 — Optional, deferred
-Server-side **write** decompression (large surface: `src/write/*`, POSC, wrts
+Server-side **write** decompression (large surface: `src/protocols/root/write/*`, POSC, wrts
 journal, checkpoint — separate, off by default, only if justified). xrdcp whole-file
 single-stream mode (`--compress=zstd:stream`, download-only, max ratio) as an
 explicit opt-in on top of W4.
@@ -386,15 +386,15 @@ explicit opt-in on top of W4.
 ## 5. Critical files (pattern over enumeration)
 - **New:** `src/core/compat/codec_core.{c,h}`, `src/core/compat/codec_{zlib,zstd,lzma,brotli,
   bzip2}.c`, `src/core/compat/http_compress.{c,h}` (module-only), `client/lib/zip.{c,h}`,
-  `src/read/compress_negotiate.c`.
+  `src/protocols/root/read/compress_negotiate.c`.
 - **Build:** `config` (probes + stream-module `ngx_module_libs` + srcs),
   `shared/xrdproto/Makefile`, `client/Makefile`, `packaging/rpm/nginx-mod-xrootd.spec`.
 - **Inbound:** `src/core/compat/http_body.c`, `src/protocols/webdav/put.c`, `src/protocols/s3/put.c`.
 - **Outbound:** `src/protocols/shared/file_serve.c`, `src/core/compat/http_file_response.c`,
   `src/protocols/shared/file_serve.h`, `src/protocols/webdav/get.c`, `src/protocols/s3/object.c`.
-- **root:// (W4):** `src/query/config.c`, `src/read/open_request.c`,
-  `src/read/open_resolved_file.c`, `src/read/slice_read.c`, `src/read/read.c`,
-  `src/core/types/context.h`; `src/read/pgread.c` + `src/read/readv.c` + `src/core/aio/readv.c`
+- **root:// (W4):** `src/protocols/root/query/config.c`, `src/protocols/root/read/open_request.c`,
+  `src/protocols/root/read/open_resolved_file.c`, `src/protocols/root/read/slice_read.c`, `src/protocols/root/read/read.c`,
+  `src/core/types/context.h`; `src/protocols/root/read/pgread.c` + `src/protocols/root/read/readv.c` + `src/core/aio/readv.c`
   get only an invariant comment (stay plaintext).
 - **Client:** `client/lib/ops_file.c`, `client/lib/aio_mgr.c`, `client/lib/copy.c`,
   `client/apps/xrdcp.c`.

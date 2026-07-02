@@ -41,7 +41,7 @@ set). Concretely it covers:
 
 The native suite is the phase-37 clean-room rewrite. Its design log is
 `docs/refactor/phase-37-clean-room-log.md`; the wire facts it implements come
-only from the `src/protocol/` headers (cross-checked against
+only from the `src/protocols/root/protocol/` headers (cross-checked against
 `XProtocol.hh`), never from `XrdCl` source.
 
 ---

@@ -1,8 +1,8 @@
 #include "core/ngx_xrootd_module.h"
 #include "fs/cache/writethrough_metrics.h"
-#include "write/wrts_journal.h"
-#include "connection/disconnect.h"     /* deferred-teardown guards */
-#include "connection/event_sched.h"    /* xrootd_schedule_read_resume */
+#include "protocols/root/write/wrts_journal.h"
+#include "protocols/root/connection/disconnect.h"     /* deferred-teardown guards */
+#include "protocols/root/connection/event_sched.h"    /* xrootd_schedule_read_resume */
 
 /*
  * xrootd_write_aio_thread — thread-pool worker for kXR_write / kXR_pgwrite.

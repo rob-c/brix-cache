@@ -62,7 +62,7 @@ Run: `for h in run_tape_recall_stream run_tape_recall_async run_tape_exec_adapte
 
 **Files:**
 - Modify: `src/fs/vfs_residency.c` (or wherever `xrootd_vfs_residency` lives) — dispatch to the resolved SD instance's `->residency`/nearline slot instead of `frm_residency_probe`
-- Modify: `src/read/open_request.c`, `src/protocols/webdav/tape_rest.c` — call `xrootd_vfs_residency`/`sd_frm` locality, not `frm_residency_probe`/`frm_file_locality` directly
+- Modify: `src/protocols/root/read/open_request.c`, `src/protocols/webdav/tape_rest.c` — call `xrootd_vfs_residency`/`sd_frm` locality, not `frm_residency_probe`/`frm_file_locality` directly
 - Test: `run_s3_tape_residency.sh`, `test_frm_control_locality.py`, `run_tape_recall_stream.sh`
 
 **Interfaces:**
@@ -83,7 +83,7 @@ Run: `for h in run_tape_recall_stream run_tape_recall_async run_tape_exec_adapte
 > **INVESTIGATION 2026-07-01 — the engine waiter may need completing (client-visible).** Legacy `frm_waiter` API = `frm_waiter_add(reqid, options, ...)` + `frm_waiter_drop_conn(conn_fd, conn_number)` + `frm_waiter_configure(slots)`. Target: the stage_engine waiter — its header names "the durable queue + waiter", and `xrootd_stage_submit` returns a reqid "the caller may park on it" (`stage_engine.c:361`). BUT `sd_frm.c:501` notes the true async park "on the stage_engine waiter (the deferred async path)" is the DESIGN; the current stub/exec adapters complete synchronously or "park via client retry (§9.2)" — so the genuine async park/wake through the engine waiter may still be a stub and need WIRING here. This is client-visible (the async 202/park path) — `run_tape_recall_async.sh` + `test_frm_async.py` are the hard gate; a parked client MUST wake and receive the recalled bytes.
 
 **Files:**
-- Modify: `src/read/open_request.c` (`frm_waiter_add`), `src/connection/recv.c` (`frm_waiter_drop_conn`), `src/core/config/postconfiguration.c` (`frm_waiter_configure`)
+- Modify: `src/protocols/root/read/open_request.c` (`frm_waiter_add`), `src/protocols/root/connection/recv.c` (`frm_waiter_drop_conn`), `src/core/config/postconfiguration.c` (`frm_waiter_configure`)
 - Read: `src/frm/waiter.{c,h}`, `src/fs/xfer/stage_engine.c` (its waiter, if present) — the engine already has a park/wake for a slow recall (`sd_frm.h` mentions "the async park/wake of a slow recall via the stage_engine waiter")
 - Test: `run_tape_recall_async.sh`, `test_frm_async.py`
 
@@ -133,7 +133,7 @@ Run: `for h in run_tape_recall_stream run_tape_recall_async run_tape_exec_adapte
 > This is the exact re-home of `frm/queue.c` (630) + `frm/reqfile.c` (361) + `frm/reqid.c`/`index.c` operations onto the engine's durable records (adding the tape fields the engine record lacks: requester_dn/cs_type/lfn/status). ~1000 lines, and it is the wire-facing crux — gate every prepare + Tape REST response byte-identical.
 
 **Files:**
-- Modify: `src/query/prepare.c` (`frm_request_add/get/delete/find_by_path/owner_check`), `src/protocols/webdav/tape_rest.c` (`frm_request_add/cancel/list_active/list_files/owner_check`, `frm_pin_release`, `frm_singleton_queue`)
+- Modify: `src/protocols/root/query/prepare.c` (`frm_request_add/get/delete/find_by_path/owner_check`), `src/protocols/webdav/tape_rest.c` (`frm_request_add/cancel/list_active/list_files/owner_check`, `frm_pin_release`, `frm_singleton_queue`)
 - Create (if Task-0 strategy B): `src/fs/xfer/stage_request_registry.{c,h}` — reqid gen + owner + list + cancel over the engine's durable records
 - Read/DELETE: `src/frm/queue.c` (630), `src/frm/reqfile.c` (361), `src/frm/reqid.c`, `src/frm/index.c`, `src/frm/compact.c`
 - Test: `test_frm_async.py`, `run_s3_tape_residency.sh`, and a kXR_prepare + a Tape REST client check
@@ -153,7 +153,7 @@ Run: `for h in run_tape_recall_stream run_tape_recall_async run_tape_exec_adapte
 ### Task 5: Re-point config/init off `src/frm/` onto the engine + sd_frm
 
 **Files:**
-- Modify: `src/core/config/process.c` (`frm_queue_init`), `src/core/config/postconfiguration.c` (`frm_index_configure`, `frm_queue_get`, `frm_mark_configured`), `src/core/config/server_conf.c` (`xrootd_frm_conf_init`/`_merge`), `src/stream/module.c` (`xrootd_frm_*` directives)
+- Modify: `src/core/config/process.c` (`frm_queue_init`), `src/core/config/postconfiguration.c` (`frm_index_configure`, `frm_queue_get`, `frm_mark_configured`), `src/core/config/server_conf.c` (`xrootd_frm_conf_init`/`_merge`), `src/protocols/root/stream/module.c` (`xrootd_frm_*` directives)
 - Read: `src/frm/directives.c`, `src/frm/metrics.c`
 - Test: `nginx -t` on a tape config; full gating set
 

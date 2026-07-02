@@ -24,11 +24,11 @@
 #include "fs/backend/csi_tagstore.h"
 
 #include "core/aio/aio.h"
-#include "dirlist/dcksm.h"
+#include "protocols/root/dirlist/dcksm.h"
 #include "fs/path/path.h"
-#include "protocol/dirlist_fmt.h"
-#include "read/read.h"
-#include "response/response.h"
+#include "protocols/root/protocol/dirlist_fmt.h"
+#include "protocols/root/read/read.h"
+#include "protocols/root/response/response.h"
 
 #include <dirent.h>
 #include <errno.h>

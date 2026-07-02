@@ -257,10 +257,10 @@ We re-implement the **server** side natively (no C++ plugin ABI), in `src/protoc
 | `ssi_reply.{c,h}` | builds the `[RRInfoAttn][meta][data]` reply payload |
 | `ssi.{c,h}` | wire glue: `open` (resolves service, honours `kXR_retstat`), `write` (decode RRInfo, accumulate, dispatch), `query` (intercepts `kXR_Qopaqug` → response-wait / cancel), `read` (stream pull) |
 
-Integration points in the hot path: `src/read/open_request.c` (SSI path match →
-`ssi_open` with options), `src/write/write.c` (passes the raw offset bytes →
-`ssi_write`), `src/query/dispatch.c` (intercepts `kXR_Qopaqug` when the fhandle is
-an SSI session), `src/read/read.c` (stream pull). A native compiled-in service
+Integration points in the hot path: `src/protocols/root/read/open_request.c` (SSI path match →
+`ssi_open` with options), `src/protocols/root/write/write.c` (passes the raw offset bytes →
+`ssi_write`), `src/protocols/root/query/dispatch.c` (intercepts `kXR_Qopaqug` when the fhandle is
+an SSI session), `src/protocols/root/read/read.c` (stream pull). A native compiled-in service
 replaces the C++ `XrdSsiService` plugin; the resource path is `/.ssi/<service>`.
 
 **Proven working** against the real `libXrdSsi` client (`tests/ssi_client.cc`,

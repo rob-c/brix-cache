@@ -103,7 +103,7 @@ buffer the peer scans by type, but inside an **encrypted main** it is mis-read a
 a malformed bucket and the deserialize drops the real buckets → *"client
 certificate missing"*. **Build the inner main without `gbuf_end`.**
 
-Bucket type codes (`src/protocol/gsi.h`): `kXRS_cryptomod=3000`, `main=3001`,
+Bucket type codes (`src/protocols/root/protocol/gsi.h`): `kXRS_cryptomod=3000`, `main=3001`,
 `puk=3004`, `cipher=3005`, `rtag=3006`, `signed_rtag=3007`, `version=3014`,
 `clnt_opts=3019`, `x509=3022`, `issuer_hash=3023`, `cipher_alg=3025`,
 `md_alg=3026`. Steps: `kXGC_certreq=1000`, `kXGC_cert=1001`, `kXGS_cert=2001`.
@@ -306,7 +306,7 @@ the AES key is the first *keylen* bytes of the DH secret either way.
   client's signed-vs-unsigned decision (10000 = unsigned, 10600 = signed-capable).
 
 ### 9c. Configurability — `xrootd_gsi_signed_dh off|auto|require`
-A stream `server{}` directive (`src/stream/module.c`,
+A stream `server{}` directive (`src/protocols/root/stream/module.c`,
 `src/core/types/config.h` `gsi_signed_dh`):
 - `off` (default) — always emit unsigned `kXRS_puk`; advertise `v:10000`.
   Interoperates with every official client.

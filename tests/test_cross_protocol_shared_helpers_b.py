@@ -15,7 +15,7 @@ def test_phase2_policy_consumes_identity():
         ["xrootd_check_vo_acl_identity(", "xrootd_identity_vo_csv_cstr("],
     )
     _assert_markers(
-        "src/handshake/policy.c",
+        "src/protocols/root/handshake/policy.c",
         ["xrootd_identity_check_token_scope("],
     )
     # auth_gate.c is the canonical consumer of all three tiers; handlers that
@@ -31,15 +31,15 @@ def test_phase2_policy_consumes_identity():
     # the op-descriptor table / xrootd_auth_gate(), so it no longer calls the VO
     # ACL helper directly and is no longer listed here.)
     for relpath in (
-        "src/read/open_request.c",
-        "src/query/prepare.c",
+        "src/protocols/root/read/open_request.c",
+        "src/protocols/root/query/prepare.c",
     ):
         _assert_markers(relpath, ["xrootd_check_vo_acl_identity("])
         _assert_absent(relpath, ["ctx->vo_list) != NGX_OK"])
     # dirlist was fully converted to auth_gate; confirm it no longer duplicates
     # the triad and instead delegates to the gate.
-    _assert_markers("src/dirlist/handler.c", ["xrootd_auth_gate("])
-    _assert_absent("src/dirlist/handler.c",
+    _assert_markers("src/protocols/root/dirlist/handler.c", ["xrootd_auth_gate("])
+    _assert_absent("src/protocols/root/dirlist/handler.c",
                    ["ctx->vo_list) != NGX_OK", "xrootd_check_vo_acl_identity("])
 
 
@@ -265,11 +265,11 @@ def test_phase4_cache_metadata_and_eviction_guardrails():
 
 def test_security_level_enforcement_is_linked():
     _assert_markers(
-        "src/handshake/dispatch.c",
+        "src/protocols/root/handshake/dispatch.c",
         ["xrootd_verify_pending_sigver(", "xrootd_signing_enforce_level("],
     )
     _assert_markers(
-        "src/handshake/sigver.c",
+        "src/protocols/root/handshake/sigver.c",
         [
             "xrootd_signing_enforce_level(",
             "xrootd_sigver_opcode_requires(",
@@ -365,7 +365,7 @@ def test_phase6_unified_metrics_observability_is_wired():
 
 def test_implementation_plan_feature_gaps_are_closed():
     _assert_markers(
-        "src/handshake/dispatch_read.c",
+        "src/protocols/root/handshake/dispatch_read.c",
         [
             "case kXR_stat:",
             "xrootd_handle_stat",
@@ -378,7 +378,7 @@ def test_implementation_plan_feature_gaps_are_closed():
         ],
     )
     _assert_markers(
-        "src/handshake/dispatch_write.c",
+        "src/protocols/root/handshake/dispatch_write.c",
         [
             "case kXR_pgwrite:",
             "xrootd_handle_pgwrite",
@@ -387,7 +387,7 @@ def test_implementation_plan_feature_gaps_are_closed():
         ],
     )
     _assert_markers(
-        "src/read/pgread.c",
+        "src/protocols/root/read/pgread.c",
         [
             "xrootd_pgread_encode_pages(",
             # pgread uses the in-place 3-way CRC (zero-copy) rather than the
@@ -397,7 +397,7 @@ def test_implementation_plan_feature_gaps_are_closed():
         ],
     )
     _assert_markers(
-        "src/write/pgwrite.c",
+        "src/protocols/root/write/pgwrite.c",
         [
             "xrootd_pgwrite_decode_payload(",
             "xrootd_crc32c_copy(",
@@ -405,7 +405,7 @@ def test_implementation_plan_feature_gaps_are_closed():
         ],
     )
     _assert_markers(
-        "src/write/chkpoint.c",
+        "src/protocols/root/write/chkpoint.c",
         [
             "xrootd_handle_chkpoint(",
             "xrootd_chkpoint_recover_root(",
@@ -498,7 +498,7 @@ def test_stream_missing_auth_plugins_are_wired():
     # The auth-method name->enum table moved into module_enums.c; the krb5/unix
     # config directives stay in module.c (split out of the old monolith).
     _assert_markers(
-        "src/stream/module_enums.c",
+        "src/protocols/root/stream/module_enums.c",
         [
             'ngx_string("unix")',
             "XROOTD_AUTH_UNIX",
@@ -507,7 +507,7 @@ def test_stream_missing_auth_plugins_are_wired():
         ],
     )
     _assert_markers(
-        "src/stream/module.c",
+        "src/protocols/root/stream/module.c",
         [
             "xrootd_krb5_principal",
             "xrootd_krb5_keytab",
@@ -516,7 +516,7 @@ def test_stream_missing_auth_plugins_are_wired():
         ],
     )
     _assert_markers(
-        "src/session/protocol.c",
+        "src/protocols/root/session/protocol.c",
         [
             "want_unix",
             "want_krb5",
@@ -525,7 +525,7 @@ def test_stream_missing_auth_plugins_are_wired():
         ],
     )
     _assert_markers(
-        "src/session/login.c",
+        "src/protocols/root/session/login.c",
         [
             '"&P=unix"',
             '"&P=krb5,%s"',

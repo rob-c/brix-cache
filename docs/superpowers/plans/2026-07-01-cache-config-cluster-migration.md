@@ -282,7 +282,7 @@ Expected: pytest all pass/skip, guard GREEN.
 > This is the G6-literal, breaking step. It removes the `ngx_command_t` entries and config fields for the CORRECTED set above (NOT `xrootd_cache_root`), and REQUIRES migrating every legacy-`cache_origin` test to the composable grammar first. Because it rewrites tests + Rob's configs, it is a separate reviewed effort. Only the directive-removal inventory is specified here; the per-test migration is done test-by-test.
 
 **Files:**
-- Modify: `src/stream/module.c:1232-1407` (remove the legacy `ngx_command_t` entries)
+- Modify: `src/protocols/root/stream/module.c:1232-1407` (remove the legacy `ngx_command_t` entries)
 - Modify: `src/core/types/config.h:433-446+` (remove `cache_root`, `cache_origin*` fields)
 - Modify: `src/core/config/server_conf.c:922-929` (remove `XROOTD_MERGE_HOSTPORT(cache_origin...)`)
 - Modify: all 22 harnesses/tests listed by `grep -rlE 'xrootd_cache_origin|xrootd_cache_root' tests/`
@@ -301,7 +301,7 @@ Expected: `build: 0`.
 
 - [ ] **Step 5: G6 acceptance grep.**
 
-Run: `grep -rn '"xrootd_cache_origin"\|"xrootd_cache_root"\|"xrootd_cache_storage_backend"' src/stream/module.c`
+Run: `grep -rn '"xrootd_cache_origin"\|"xrootd_cache_root"\|"xrootd_cache_storage_backend"' src/protocols/root/stream/module.c`
 Expected: 0 matches.
 
 - [ ] **Step 6: Report** — G6/G9 acceptance for the cache-config cluster closed.

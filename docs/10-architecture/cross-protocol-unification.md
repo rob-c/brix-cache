@@ -22,11 +22,11 @@ shared helpers.
 ┌────────────────────────────────────────────────────────────────────┐
 │                   Protocol handler layer                           │
 │                                                                    │
-│  stream/   ──────────────────────────────────  src/connection/    │
-│  (native XRootD)           WebDAV          S3  src/handshake/     │
-│  src/session/          src/protocols/webdav/      src/protocols/s3/                   │
-│  src/read/             src/protocols/webdav/tpc.c    src/protocols/s3/multipart*.c    │
-│  src/write/                                                        │
+│  stream/   ──────────────────────────────────  src/protocols/root/connection/    │
+│  (native XRootD)           WebDAV          S3  src/protocols/root/handshake/     │
+│  src/protocols/root/session/          src/protocols/webdav/      src/protocols/s3/                   │
+│  src/protocols/root/read/             src/protocols/webdav/tpc.c    src/protocols/s3/multipart*.c    │
+│  src/protocols/root/write/                                                        │
 │  src/tpc/                                                          │
 └────────────────────────────┬───────────────────────────────────────┘
                              │  all file I/O (open/read/write/stat/copy)
@@ -50,7 +50,7 @@ shared helpers.
 │  src/observability/metrics/metrics.h  shared-memory layout        [all]         │
 │  src/observability/metrics/tracking.c VO/user activity accounting [all]         │
 │  src/tpc/key_registry.c SHM TPC key table           [stream+webdav]│
-│  src/session/registry.h bind session table          [stream]       │
+│  src/protocols/root/session/registry.h bind session table          [stream]       │
 │  src/core/compat/crc32c.c    CRC32c for pgread/pgwrite   [stream]      │
 │  src/core/compat/checksum.c  file checksums/digests      [stream+HTTP] │
 │  src/core/compat/range.c     HTTP Range header parse     [webdav+s3]   │
@@ -239,7 +239,7 @@ libcurl rather than the key registry — the two TPC mechanisms are not currentl
 
 | File | Exports | Used by |
 |------|---------|---------|
-| `crc32c.c` | `xrootd_crc32c()` | `src/read/pgread.c`, `src/write/pgwrite.c` |
+| `crc32c.c` | `xrootd_crc32c()` | `src/protocols/root/read/pgread.c`, `src/protocols/root/write/pgwrite.c` |
 | `checksum.c` | `xrootd_checksum_parse()`, `xrootd_checksum_hex_fd()` | `kXR_Qcksum`, `kXR_Qckscan`, dirlist checksums, XrdHttp Digest |
 | `etag.c` | `xrootd_http_etag_str()` | `src/protocols/webdav/get.c`, `src/protocols/s3/object.c` |
 | `range.c` | `xrootd_http_parse_range()` | `src/protocols/webdav/get.c`, `src/protocols/s3/object.c` |

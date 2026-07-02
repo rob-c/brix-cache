@@ -64,10 +64,10 @@ def test_ratelimit_module_present():
 
 
 def test_stream_gate_and_charge_wired():
-    d = _read("src/handshake/dispatch.c")
+    d = _read("src/protocols/root/handshake/dispatch.c")
     assert "xrootd_rl_stream_gate" in d
-    assert "xrootd_rl_charge_ctx" in _read("src/read/read.c")
-    assert "xrootd_rl_charge_ctx" in _read("src/write/write.c")
+    assert "xrootd_rl_charge_ctx" in _read("src/protocols/root/read/read.c")
+    assert "xrootd_rl_charge_ctx" in _read("src/protocols/root/write/write.c")
     s = _read("src/net/ratelimit/ratelimit_stream.c")
     assert "xrootd_send_wait" in s
 
@@ -85,7 +85,7 @@ def test_http_handler_and_filter_wired():
 def test_directives_distinct_from_phase20():
     # Phase 25 directives must be distinct from the Phase 20 xrootd_rate_limit.
     wd = _read("src/protocols/webdav/module.c")
-    st = _read("src/stream/module.c")
+    st = _read("src/protocols/root/stream/module.c")
     for name in ("xrootd_rate_limit_zone", "xrootd_rate_limit_rule",
                  "xrootd_bandwidth_limit"):
         assert name in wd, name
@@ -550,7 +550,7 @@ def test_stream_stat_never_throttled(tmp_path):
 
 def test_stream_concurrency_wiring():
     # The directive is registered on the stream srv table (not HTTP-only) ...
-    st = _read("src/stream/module.c")
+    st = _read("src/protocols/root/stream/module.c")
     assert "xrootd_concurrency_limit" in st
     assert "xrootd_rl_conc_directive" in st
     # ... the gate acquires a slot ...
@@ -562,7 +562,7 @@ def test_stream_concurrency_wiring():
     assert "rl_conc_rule" in ctx
     assert "rl_conc_key" in ctx
     # ... and the release is hooked on disconnect (no LOG phase on the stream).
-    dc = _read("src/connection/disconnect.c")
+    dc = _read("src/protocols/root/connection/disconnect.c")
     assert "xrootd_rl_release_ctx" in dc
 
 

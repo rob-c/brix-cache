@@ -135,7 +135,7 @@ run on the event thread, guard `ctx->destroyed` via
 `xrootd_aio_restore_stream/request()`, build the `ngx_chain_t`, queue the
 response, and call `xrootd_aio_resume()`. Phase-31 windowed reads
 (`xrootd_read_window_pump`, `src/core/aio/reads.c`) and the phase-32 warm-cache
-`preadv2(…, RWF_NOWAIT)` probe (`src/read/read.c`) sit *above* this seam and are
+`preadv2(…, RWF_NOWAIT)` probe (`src/protocols/root/read/read.c`) sit *above* this seam and are
 backend-agnostic.
 
 ### 2.2 Client (`client/`)
@@ -1652,7 +1652,7 @@ Deferred behind the same probe/off-by-default gating as the base ring.
 5. **Reaper.** Reads/drains the eventfd counter; `io_uring_peek_cqe`; decodes `idx`/`g`; generation matches; `xrootd_uring_apply_cqe` sets `t->nread = cqe->res` (or `t->io_errno = -cqe->res`, `t->nread = -1`); `task->event.complete = 1`; `ngx_post_event(&task->event, &ngx_posted_events)`; `xrootd_uring_slot_release` (generation++); `io_uring_cqe_seen`; `inflight--`.
 6. **Posted-event drain.** After `ngx_process_events`, nginx drains `ngx_posted_events` and calls `xrootd_read_aio_done(&task->event)`.
 7. **Done-callback.** `xrootd_aio_restore_stream` (checks `ctx->destroyed`); if `rd_win_active`, `xrootd_read_window_emit` queues the chunk; on a hard error (`t->nread < 0`) it emits `kXR_IOError`; otherwise it advances `rd_win_remaining`.
-8. **Re-pump or resume.** If more windows remain and the send completed synchronously, the callback calls `xrootd_read_window_pump` again — a fresh `xrootd_aio_post_task` → new SQE (re-entrancy-safe because we are on the posted-event stack, not inside the harvest loop). If `XRD_ST_SENDING`, `src/connection/send.c` re-enters the pump on drain. When the windowed read finishes, `xrootd_aio_resume` re-arms the read/write event for the next request.
+8. **Re-pump or resume.** If more windows remain and the send completed synchronously, the callback calls `xrootd_read_window_pump` again — a fresh `xrootd_aio_post_task` → new SQE (re-entrancy-safe because we are on the posted-event stack, not inside the harvest loop). If `XRD_ST_SENDING`, `src/protocols/root/connection/send.c` re-enters the pump on drain. When the windowed read finishes, `xrootd_aio_resume` re-arms the read/write event for the next request.
 
 ---
 
@@ -4893,8 +4893,8 @@ The hooks are no-op inlines when `XROOTD_HAVE_LIBURING` is undefined, so `proces
 ```
 **configure?** **No** (header in `ngx_module_deps`).
 
-### 22.6 `src/stream/module.c` (commands[]+enum) and `src/core/config/server_conf.c` (create/merge)
-> The compiled stream module is `src/stream/module.c`; `module_core_directives.c` is **not** in the build — do not edit it.
+### 22.6 `src/protocols/root/stream/module.c` (commands[]+enum) and `src/core/config/server_conf.c` (create/merge)
+> The compiled stream module is `src/protocols/root/stream/module.c`; `module_core_directives.c` is **not** in the build — do not edit it.
 ```diff
 +/* Phase 44 — io_uring selector mode. */
 +static ngx_conf_enum_t xrootd_io_uring_modes[] = {

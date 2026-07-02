@@ -1,5 +1,5 @@
 #include "cms_internal.h"
-#include "connection/netopt.h"   /* Phase 50: TCP dead-peer opts (WS5) */
+#include "protocols/root/connection/netopt.h"   /* Phase 50: TCP dead-peer opts (WS5) */
 #include "core/compat/log_diag.h"
 #include "core/compat/lifecycle_timing.h"   /* monotonic clock for settle timing */
 

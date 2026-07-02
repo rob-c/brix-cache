@@ -591,7 +591,7 @@ Expected: build exit 0; write-through tests pass (same as before the change).
 
 **Files:**
 - Modify: `src/core/types/config.h` (struct fields)
-- Modify: `src/fs/cache/directives.c` (parsers) + the module command table (`src/stream/module.c`)
+- Modify: `src/fs/cache/directives.c` (parsers) + the module command table (`src/protocols/root/stream/module.c`)
 - Modify: `src/core/config/server_conf.c` (merge defaults)
 
 **Interfaces:**
@@ -606,7 +606,7 @@ Expected: build exit 0; write-through tests pass (same as before the change).
     ngx_array_t *cache_allow_prefixes;   /* same; whitelist when non-empty */
 ```
 
-- [ ] **Step 2: Register the directives** — `src/stream/module.c`, in the `ngx_command_t` array (mirror the existing `xrootd_cache_root` / `xrootd_wt_deny_prefix` entries).
+- [ ] **Step 2: Register the directives** — `src/protocols/root/stream/module.c`, in the `ngx_command_t` array (mirror the existing `xrootd_cache_root` / `xrootd_wt_deny_prefix` entries).
 
 ```c
     { ngx_string("xrootd_cache_state_root"),
@@ -726,13 +726,13 @@ Expected: exit 0. (Behavioral e2e for prefix admit/redirect is in Task 10.)
 ### Task 7: durable dirty-on-write + clean-on-flush wiring
 
 **Files:**
-- Modify: `src/write/sync.c` and `src/read/close.c` (call `mark_dirty` at coarse points)
+- Modify: `src/protocols/root/write/sync.c` and `src/protocols/root/read/close.c` (call `mark_dirty` at coarse points)
 - Modify: `src/fs/cache/writethrough_flush.c` (call `mark_clean` on successful flush)
 
 **Interfaces:**
 - Consumes: `xrootd_cache_cinfo_mark_dirty` / `_mark_clean` (Task 2), `xrootd_cache_state_path` (Task 6), the handle's `wt_enabled` + dirty offset/bytes (`xrootd_file_t`).
 
-- [ ] **Step 1: Persist dirty at sync** — in `src/write/sync.c`, where a write-through handle is sync'd, after the successful sync and only when `ctx->files[idx].wt_enabled` and a state root resolves:
+- [ ] **Step 1: Persist dirty at sync** — in `src/protocols/root/write/sync.c`, where a write-through handle is sync'd, after the successful sync and only when `ctx->files[idx].wt_enabled` and a state root resolves:
 
 ```c
     {
@@ -753,7 +753,7 @@ Expected: exit 0. (Behavioral e2e for prefix admit/redirect is in Task 10.)
 ```
 Define `XROOTD_CACHE_DIRTY_BLOCK` (e.g. the cache slice size or a fixed 1 MiB) in `cinfo.h` — the block granule is only used for validity-key bookkeeping here, not for a present bitmap on the dirty record. Use the same constant everywhere the dirty record is keyed.
 
-- [ ] **Step 2: Persist dirty on the clean→dirty transition** — in the write handler that sets `wt_dirty_offset` from -1 to a value the first time (search `wt_dirty_offset` assignment in `src/write/write.c` / `writethrough_metrics.h` callers), add the same best-effort `mark_dirty` call guarded by the transition. (Do NOT put it in the `writethrough_metrics.h` inline — call it from the `.c` handler once per transition.)
+- [ ] **Step 2: Persist dirty on the clean→dirty transition** — in the write handler that sets `wt_dirty_offset` from -1 to a value the first time (search `wt_dirty_offset` assignment in `src/protocols/root/write/write.c` / `writethrough_metrics.h` callers), add the same best-effort `mark_dirty` call guarded by the transition. (Do NOT put it in the `writethrough_metrics.h` inline — call it from the `.c` handler once per transition.)
 
 - [ ] **Step 3: Clean on successful flush** — `src/fs/cache/writethrough_flush.c`, in the flush done/success path (`xrootd_wt_run_flush` returns success, or the done callback), after the handle is marked clean:
 

@@ -85,7 +85,7 @@ sweep surfaced and I verified.
 
 ### A.1 `[VERIFIED]` Duplicate bandwidth charge on every cleartext read — **P0-1**
 
-`src/read/read.c:136-137`:
+`src/protocols/root/read/read.c:136-137`:
 
 ```c
     xrootd_rl_charge_ctx(ctx, data_total);  /* Phase 25 bandwidth */
@@ -106,12 +106,12 @@ function) charges once, which is correct.
 
 ### A.2 `[VERIFIED]` Reuse AIO task structs for `pgread` and `readv` — **P1-5**
 
-`src/read/read.c:211-222` already caches and reuses `ctx->read_aio_task` across
+`src/protocols/root/read/read.c:211-222` already caches and reuses `ctx->read_aio_task` across
 requests on a connection (reset `->next`/`->event.complete` on reuse). But:
 
-- `src/read/pgread.c:158-161` allocates a fresh `ngx_thread_task_alloc(...)` every
+- `src/protocols/root/read/pgread.c:158-161` allocates a fresh `ngx_thread_task_alloc(...)` every
   pgread.
-- `src/read/readv.c:~331` allocates a fresh task every readv.
+- `src/protocols/root/read/readv.c:~331` allocates a fresh task every readv.
 
 pgread is the modern xrdcp v5 streaming opcode — this is squarely on the hot path.
 
@@ -124,7 +124,7 @@ pgread is the modern xrdcp v5 streaming opcode — this is squarely on the hot p
 
 ### A.3 `[AUDIT]` Zero-alloc fast path for pgread response chains — **P1-5 (adjacent)**
 
-`src/read/pgread.c:210-250` builds the 2-link response (header + data) with ~5
+`src/protocols/root/read/pgread.c:210-250` builds the 2-link response (header + data) with ~5
 fresh pool objects per request, whereas `read.c` reuses pre-allocated fast-path
 chain/buf structs. Mirror the `xrootd_build_single_memory_chain` pattern with
 `ctx->pgread_fast_*` structs.
@@ -134,7 +134,7 @@ chain/buf structs. Mirror the `xrootd_build_single_memory_chain` pattern with
 
 ### A.4 `[AUDIT]` Stack-allocate small `readv` working arrays
 
-`src/read/readv.c:93` (`malloc(ranges_sz)`) and `:273` (segment-descriptor array)
+`src/protocols/root/read/readv.c:93` (`malloc(ranges_sz)`) and `:273` (segment-descriptor array)
 allocate+free per readv. For the common case (≤ 64 segments) use a stack array and
 fall back to heap only above a threshold. This removes malloc-lock traffic on
 readv-heavy workloads.
@@ -144,7 +144,7 @@ readv-heavy workloads.
 
 ### A.5 `[AUDIT]` Writable-handle `fstat` per read
 
-`src/read/read.c:112-122` re-`fstat`s on every read of a writable handle so a
+`src/protocols/root/read/read.c:112-122` re-`fstat`s on every read of a writable handle so a
 concurrent write is visible. Correct, but one extra syscall per read for
 write-then-read streaming. Consider caching `cached_size` and bumping it in
 `write.c`/`pgwrite.c` on successful write, re-`fstat` only when a generation
@@ -461,7 +461,7 @@ flushed on a timer / size threshold. Sanitize once at parse time
 
 ### E.6 `[AUDIT]` TLS: resumption + per-handshake allocs
 
-`src/session/tls_config.c`: confirm session resumption / ticket policy is set
+`src/protocols/root/session/tls_config.c`: confirm session resumption / ticket policy is set
 intentionally (`:84-89` sets versions but no explicit ticket policy);
 `:54-60` `OPENSSL_malloc`s the OCSP staple copy per handshake (pre-allocate once).
 Evaluate `SSL_sendfile` (OpenSSL 3.2+, in RHEL 9's openssl) for the cleartext-to-TLS
@@ -636,7 +636,7 @@ sendfile on the cleartext path and make throughput worse.
 ### A.2 Items deferred as "measure first, likely low-impact"
 
 `copy_file_range` for repeated same-span reads (A-pillar), `POSIX_FADV_WILLNEED`
-prefetch effectiveness (`src/read/prefetch.c`), `safe_size.h` overflow-check branch
+prefetch effectiveness (`src/protocols/root/read/prefetch.c`), `safe_size.h` overflow-check branch
 cost — all plausible but probably noise; only pursue if the harness shows them on a
 flame graph. The Phase-27 memory-safety guards (`safe_size.h`, readv overflow
 checks) must **not** be removed for speed.

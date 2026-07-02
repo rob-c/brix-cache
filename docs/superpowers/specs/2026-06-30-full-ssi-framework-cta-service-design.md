@@ -51,7 +51,7 @@ and out of scope for this module:
 
 ### Reused existing primitives (the two hard pieces already exist)
 
-- **`xrootd_send_attn_asynresp()`** (`src/response/async.c`) — builds and sends a
+- **`xrootd_send_attn_asynresp()`** (`src/protocols/root/response/async.c`) — builds and sends a
   deferred `kXR_attn + kXR_asynresp` frame for a previously `kXR_waitresp`-acked
   request. This is exactly the unsolicited-response push SSI needs. Companions:
   `xrootd_send_attn_asyncms` (notification → alert) and generic `xrootd_send_attn`.
@@ -78,7 +78,7 @@ behind a single delivery primitive.
   │ ssi_rrinfo.c   │   │ (echo + cta registry) │   │ cta_queue.c (FSM)  │
   │ ssi_reply.c    │   └───────────────────────┘   │ cta_exec.c (vtable)│
   └────────────────┘                               └────────────────────┘
-        ▲  reuses src/response/async.c (kXR_attn) + src/core/aio/resume.c (event-loop post)
+        ▲  reuses src/protocols/root/response/async.c (kXR_attn) + src/core/aio/resume.c (event-loop post)
 ```
 
 ### Approach decision

@@ -738,7 +738,7 @@ Register `src/fs/scan/scan_http.c` in top-level `config`; `rm -rf objs && ./conf
 - Create: `src/fs/scan/README.md`; Modify: `docs/10-architecture/*` index + a reference page; `tests/test_scan.py` (Ceph parity, skipif no harness)
 - Reference: `docs/refactor/phase-60-ceph-rados-backend.md` single-node Ceph harness.
 
-- [ ] **Step 1:** Write `src/fs/scan/README.md` (Overview / Files / control+data flow / invariants — match the `src/query/README.md` shape).
+- [ ] **Step 1:** Write `src/fs/scan/README.md` (Overview / Files / control+data flow / invariants — match the `src/protocols/root/query/README.md` shape).
 - [ ] **Step 2:** `tests/test_scan.py::test_ceph_stock_parity` (skipif): write a fixture via **stock XrdCeph**, then assert the scan `dump` reproduces stock's `XrdCks.adler32` and `verify`→`ok` over striper-reassembled bytes; assert verify on a non-striper Ceph driver is gated (Task 7).
 - [ ] **Step 3:** Run the whole module suite: `PYTHONPATH=tests pytest tests/test_scan.py -v --tb=short` and the standalone unit (`/tmp/scan_ut`). Expected: all pass (Ceph cases skip without harness).
 - [ ] **Step 4:** Update `CLAUDE.md` OP→FILE (add a `scan` row) and the docs index. **Step 5: Commit** (go-ahead): `docs(scan): module README + architecture/index + CEPH parity guard`.

@@ -48,7 +48,7 @@ These boundaries should remain protocol-specific:
 
 | Area | Reason |
 |---|---|
-| Native XRootD frame emission | Binary stream responses and `kXR_status` framing must stay in `src/response/` and handlers |
+| Native XRootD frame emission | Binary stream responses and `kXR_status` framing must stay in `src/protocols/root/response/` and handlers |
 | S3 SigV4 canonical request logic | It is an S3 API contract, not a storage policy decision |
 | WebDAV lock model | RFC 4918 lock discovery, `If`, and `Lock-Token` stay in `src/protocols/webdav/lock.c` |
 | XrdHttp compatibility headers | `X-Xrootd-*` remains an HTTP dialect wrapper |
@@ -68,11 +68,11 @@ WebDAV, XrdHttp-through-WebDAV, and S3 surfaces.
 
 | Operation | Native root:// | WebDAV / XrdHttp | S3 |
 |---|---|---|---|
-| create directory | `src/write/mkdir.c` | `src/protocols/webdav/namespace.c` | directory sentinel paths in `src/protocols/s3/put.c`, MPU dirs |
-| delete | `src/write/rm.c`, `rmdir.c` | `src/protocols/webdav/namespace.c` | `src/protocols/s3/object.c`, `delete_objects.c`, MPU abort |
-| rename/move | `src/write/mv.c` | `src/protocols/webdav/move.c` | MPU complete temp-to-final rename |
-| local copy | `src/read/clone.c`, `src/write/chkpoint*.c` | `src/protocols/webdav/copy.c`, `fs/copy_engine.c` | `src/protocols/s3/copy.c`, upload-part-copy |
-| truncate/chmod | `src/write/truncate.c`, `chmod.c` | not generally exposed | not exposed |
+| create directory | `src/protocols/root/write/mkdir.c` | `src/protocols/webdav/namespace.c` | directory sentinel paths in `src/protocols/s3/put.c`, MPU dirs |
+| delete | `src/protocols/root/write/rm.c`, `rmdir.c` | `src/protocols/webdav/namespace.c` | `src/protocols/s3/object.c`, `delete_objects.c`, MPU abort |
+| rename/move | `src/protocols/root/write/mv.c` | `src/protocols/webdav/move.c` | MPU complete temp-to-final rename |
+| local copy | `src/protocols/root/read/clone.c`, `src/protocols/root/write/chkpoint*.c` | `src/protocols/webdav/copy.c`, `fs/copy_engine.c` | `src/protocols/s3/copy.c`, upload-part-copy |
+| truncate/chmod | `src/protocols/root/write/truncate.c`, `chmod.c` | not generally exposed | not exposed |
 
 The low-level confined helpers already exist and must remain canonical:
 
@@ -209,7 +209,7 @@ The module now has three related range paths:
 |---|---|---|
 | HTTP single range | `src/core/compat/range.c` | parses one `Range: bytes=...` value |
 | XrdHttp multi-range | `src/protocols/webdav/xrdhttp_multipart.c` | local parser for comma-separated ranges |
-| Native readv | `src/read/readv.c` | validates wire segments and coalesces adjacent reads |
+| Native readv | `src/protocols/root/read/readv.c` | validates wire segments and coalesces adjacent reads |
 
 These are not identical wire formats, but they share several decisions:
 
@@ -264,7 +264,7 @@ Keep serialization protocol-specific:
 
 | Protocol | Stays where |
 |---|---|
-| Native readv wire body | `src/read/readv.c` |
+| Native readv wire body | `src/protocols/root/read/readv.c` |
 | XrdHttp multipart/byteranges chain | `src/protocols/webdav/xrdhttp_multipart.c` |
 | WebDAV/S3 single-range response headers | `src/core/compat/http_file_response.c` |
 
@@ -273,7 +273,7 @@ Keep serialization protocol-specific:
 1. Replace `parse_multi_ranges()` in `src/protocols/webdav/xrdhttp_multipart.c`.
 2. Let `src/core/compat/range.c` become a thin max-one wrapper around the vector
    parser.
-3. Move the contiguous-run logic from `src/read/readv.c` into the coalescer
+3. Move the contiguous-run logic from `src/protocols/root/read/readv.c` into the coalescer
    while preserving native readv response layout.
 
 ### Tests
@@ -405,7 +405,7 @@ metadata policy is still split:
 |---|---|
 | native `kXR_Qcksum` | computes checksum by path or handle |
 | native `kXR_Qckscan` | computes checksums while walking |
-| native `kXR_dirlist` dcksm | has its own xattr cache in `src/dirlist/dcksm.c` |
+| native `kXR_dirlist` dcksm | has its own xattr cache in `src/protocols/root/dirlist/dcksm.c` |
 | XrdHttp `Want-Digest` | computes and injects `Digest` in `src/protocols/webdav/xrdhttp.c` |
 | fattr | exposes user metadata through POSIX xattrs |
 | WebDAV PROPFIND | emits selected metadata and ETag |
@@ -458,7 +458,7 @@ existing safe-log helper for errors. It should not invent new digest algorithms.
 
 ### First Migration Targets
 
-1. Move the dcksm xattr cache helpers from `src/dirlist/dcksm.c` into
+1. Move the dcksm xattr cache helpers from `src/protocols/root/dirlist/dcksm.c` into
    `src/core/compat/integrity_info.c`.
 2. Use `xrootd_integrity_get_fd()` in XrdHttp `xrdhttp_add_checksum_header()`.
 3. Use the same helper in `kXR_Qcksum` handle mode.
@@ -535,7 +535,7 @@ Protocol modules keep their own tables:
 |---|---|
 | WebDAV methods | `src/protocols/webdav/operation_table.c` |
 | S3 operations | `src/protocols/s3/operation_table.c` |
-| Native root opcode capabilities | `src/protocol/operation_table.c` or stream-local table |
+| Native root opcode capabilities | `src/protocols/root/protocol/operation_table.c` or stream-local table |
 
 Shared helpers format and query those tables:
 
@@ -649,10 +649,10 @@ Several features run work outside the main request path:
 
 | Feature | Current owner |
 |---|---|
-| native read/write AIO | `src/core/aio/*`, `src/read/readv.c` |
+| native read/write AIO | `src/core/aio/*`, `src/protocols/root/read/readv.c` |
 | native TPC pull | `src/tpc/thread.c`, `done.c`, `source.c` |
 | WebDAV HTTP-TPC curl thread | `src/protocols/webdav/tpc_thread.c`, `tpc_marker.c` |
-| Qckscan checksum scan | `src/query/checksum_ckscan_async.c` |
+| Qckscan checksum scan | `src/protocols/root/query/checksum_ckscan_async.c` |
 | request body callbacks | WebDAV PUT, S3 PUT, S3 multipart complete |
 
 These implementations cannot be collapsed into one generic job engine, but they

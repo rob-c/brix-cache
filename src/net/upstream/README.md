@@ -13,8 +13,8 @@ can confirm a file with the data server that owns it and hand the client a
 `kXR_redirect`, rather than blindly trusting its registry.
 
 It is entered from two opcode handlers, both only when a local lookup misses and
-`xrootd_upstream host:port` is configured. `src/read/locate.c` (kXR_locate) and
-`src/read/open_request.c` (kXR_open) call `xrootd_upstream_start()` after
+`xrootd_upstream host:port` is configured. `src/protocols/root/read/locate.c` (kXR_locate) and
+`src/protocols/root/read/open_request.c` (kXR_open) call `xrootd_upstream_start()` after
 `xrootd_stat_beneath()` returns "not found locally"; the gateway then asks the
 configured upstream to resolve the path and forwards whatever it answers
 (redirect / ok / error / wait / waitresp) verbatim to the client. The flow is
@@ -26,7 +26,7 @@ The entire exchange runs on nginx's single-threaded stream event loop with no
 blocking I/O. A dedicated outbound `ngx_connection_t` is created with its own
 small pool and its own read/write handlers; the client-facing connection is
 parked in state `XRD_ST_UPSTREAM` (its read event disarmed in
-`src/connection/recv.c`) until the upstream answers or aborts. Three response
+`src/protocols/root/connection/recv.c`) until the upstream answers or aborts. Three response
 classes get special treatment: `kXR_wait` schedules a retry timer and re-sends
 the same request later; `kXR_waitresp` flips the upstream into an async-reply
 mode and tells the client to keep waiting; everything else terminates the query

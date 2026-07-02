@@ -30,11 +30,11 @@ In scope:
 
 - The **storage abstraction**: XRootD `XrdOss`/`XrdOfs` vs this module's
   `src/fs/` (VFS) + `src/path/` (confinement) + `src/core/compat/namespace_ops.c`.
-- **POSC** (persist-on-successful-close): `XrdOfs` POSC queue vs `src/read/`
+- **POSC** (persist-on-successful-close): `XrdOfs` POSC queue vs `src/protocols/root/read/`
   open/close staging, including the documented disconnect-semantics difference.
 - **Caching**: `XrdPfc` (XCache) + `XrdPss` (proxy storage) vs `src/fs/cache/`.
 - **Tape / FRM**: `XrdFrm`/`XrdFrc` multi-daemon ecosystem vs `src/frm/` +
-  `src/query/prepare.c` + `src/protocols/webdav/tape_rest.c`.
+  `src/protocols/root/query/prepare.c` + `src/protocols/webdav/tape_rest.c`.
 - The **operator view**: directives and what to monitor on each side.
 
 Out of scope (covered elsewhere in the comparison set): the wire protocol, auth,
@@ -113,7 +113,7 @@ process with a **unified VFS** and **no plugin ABI**:
   fixed-record log (`frm_format.h`, modeled on `XrdFrcReqFile`) with an SHM hot
   index, backing `kXR_prepare`/`kXR_QPrep`, residency-aware opens, async recall
   (`waiter.c`), and the WLCG HTTP Tape REST API (`src/protocols/webdav/tape_rest.c`).
-  POSC commit logic lives in `src/read/close.c` / `src/connection/fd_table.c`.
+  POSC commit logic lives in `src/protocols/root/read/close.c` / `src/protocols/root/connection/fd_table.c`.
 
 The design point is **convergence and operability**: one process, one confinement
 model, cross-protocol metrics — at the explicit cost of **no pluggable OSS
@@ -218,13 +218,13 @@ This module implements POSC inline in the open/close path, gated on the wire fla
 `kXR_posc` on a write open (advertised as `kXR_supposc`):
 
 - On a `kXR_posc` write open, `xrootd_open_resolved_file()`
-  (`src/read/open.h`/`open_request.c`) **stages a temp file** and records its
+  (`src/protocols/root/read/open.h`/`open_request.c`) **stages a temp file** and records its
   intended final name in the handle's `posc_final_path`.
-- On a **clean `kXR_close`** (`src/read/close.c`): `fsync(fd)` then
+- On a **clean `kXR_close`** (`src/protocols/root/read/close.c`): `fsync(fd)` then
   `rename(temp → final)` atomically publishes the file, and `posc_final_path` is
   cleared so handle-free does not unlink it. A failed rename is reported as an
   error and the partial is removed.
-- On **session end / error without a clean close** (`src/connection/fd_table.c`,
+- On **session end / error without a clean close** (`src/protocols/root/connection/fd_table.c`,
   `xrootd_free_fhandle`): if `posc_final_path` is still set, the staging temp is
   **unlinked immediately** — the partial never becomes visible.
 - If write-through caching is on, the final POSC path is what gets mirrored (the
@@ -400,7 +400,7 @@ defining invariant is **file = truth, SHM = cache**:
 - **Prepare / QPrep.** `kXR_prepare(kXR_stage)` enqueues one durable record per
   resolved path and returns the first record's reqid; `kXR_QPrep` is stat-first
   (resident ⇒ `A`) then queue-fallback (`q`/`s`/`f`), unknown ⇒ `M`;
-  `kXR_cancel`/`kXR_evict` delete/release the record (`src/query/prepare.c`).
+  `kXR_cancel`/`kXR_evict` delete/release the record (`src/protocols/root/query/prepare.c`).
 - **Async recall** (`waiter.c`, `xrootd_frm_async_recall`): a nearline open is
   parked with `kXR_waitresp` and satisfied in place via `kXR_attn(asynresp)` when
   the recall lands — same-worker inline, cross-worker via an SHM waiter table
@@ -523,7 +523,7 @@ such here.
 | Write-through cache | `pfc.writethrough` | `xrootd_write_through` sync/async + prefix policy | **Parity / nginx+** | Cross-protocol, identity-agnostic edge writes. |
 | Proxy storage (remote origin as backend) | `XrdPss` OSS plugin | (no PSS-style storage backend; proxy/cache patterns instead) | **Missing** | See proxy/cache comparison pages for the bridge approach. |
 | Tape stage-in (recall) queue | `XrdFrm` durable req file + daemons | `src/frm/` durable file=truth+SHM queue | **Partial** | Real durable queue; not the daemon ecosystem. |
-| `kXR_prepare`/`kXR_QPrep` staging | `do_Prepare` + full FRM | `src/query/prepare.c` + `src/frm/` durable reqids | **Partial** | Real reqids + restart durability; legacy `"0"` only with FRM off. |
+| `kXR_prepare`/`kXR_QPrep` staging | `do_Prepare` + full FRM | `src/protocols/root/query/prepare.c` + `src/frm/` durable reqids | **Partial** | Real reqids + restart durability; legacy `"0"` only with FRM off. |
 | Async recall delivery | daemon-driven | `kXR_waitresp` + `kXR_attn(asynresp)` (`waiter.c`) | **Parity-ish** | In-process, no IPC; opt-in. |
 | Disk→tape migration (auto) | `frm_xfrd`/`XrdFrmMigrate` scan + `copycmd out` | `migrate_purge.c` **monitor-only scaffold** | **Missing / Partial** | No automatic migration scan; delegated to MSS/operator. |
 | Disk purge GC daemon | `frm_purged` watermark/hold/policy | watermark monitor scaffold | **Missing / Partial** | No in-process purge engine. |
@@ -578,8 +578,8 @@ monitor-only scaffolds delegated to operator commands). Do not claim full
 - Confinement / namespace: `src/fs/path/README.md`, `src/fs/path/beneath.c/.h`,
   `src/fs/path/canonical.c`, `src/fs/path/mkdir.c`, `src/core/compat/namespace_ops.c`,
   `src/core/compat/staged_file.c`, `src/core/compat/shm_slots.c`.
-- POSC / open semantics: `src/read/open.h`, `src/read/open_request.c`,
-  `src/read/close.c`, `src/connection/fd_table.c` (`xrootd_free_fhandle`).
+- POSC / open semantics: `src/protocols/root/read/open.h`, `src/protocols/root/read/open_request.c`,
+  `src/protocols/root/read/close.c`, `src/protocols/root/connection/fd_table.c` (`xrootd_free_fhandle`).
 - Cache: `src/fs/cache/README.md`, `src/fs/cache/open.c`, `src/fs/cache/fetch.c`,
   `src/fs/cache/slice.c`/`slice_fill.c`, `src/fs/cache/origin_protocol.c`,
   `src/fs/cache/origin_connection.c`, `src/fs/cache/io.c`,
@@ -588,7 +588,7 @@ monitor-only scaffolds delegated to operator commands). Do not claim full
 - FRM / tape: `src/frm/README.md`, `src/frm/frm_format.h`, `src/frm/reqfile.c`,
   `src/frm/reqid.c`, `src/frm/index.c`, `src/frm/reconcile.c`,
   `src/frm/residency.c`, `src/frm/stage.c`, `src/frm/waiter.c`,
-  `src/frm/migrate_purge.c`, `src/frm/directives.c`, `src/query/prepare.c`,
+  `src/frm/migrate_purge.c`, `src/frm/directives.c`, `src/protocols/root/query/prepare.c`,
   `src/protocols/webdav/tape_rest.c`.
 - Cross-checked against: `docs/10-reference/source-verified-xrootd-comparison.md`
   (Storage/Cache/Tape section) and `docs/10-reference/comparison/conformance-findings.md`

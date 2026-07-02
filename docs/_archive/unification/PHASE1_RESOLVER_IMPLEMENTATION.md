@@ -561,9 +561,9 @@ xrootd_path_get_type(const ngx_str_t *resolved_path)
 4. Target: No behavior changes, identical output to old resolvers
 
 ### Step 2: Update Stream Code
-1. Update `src/read/open.c` to use new resolver
-2. Update `src/write/open.c` to use new resolver
-3. Update `src/dirlist/handler.c` to use new resolver
+1. Update `src/protocols/root/read/open.c` to use new resolver
+2. Update `src/protocols/root/write/open.c` to use new resolver
+3. Update `src/protocols/root/dirlist/handler.c` to use new resolver
 4. Run existing stream tests, verify no regressions
 
 ### Step 3: Update HTTP/WebDAV Code

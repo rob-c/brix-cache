@@ -529,7 +529,7 @@ is unchanged (ADR-4).
 **Per-user counters.** `max_open_files` / `max_active_connections` are SHM
 counters keyed on the resolved username (reuse `xrootd_rl_*_locked` machinery,
 spin+yield mutex). Increment at open / first-open-on-connection; decrement at
-close / `xrootd_on_disconnect` (`src/connection/disconnect.c:288`). Over-limit ⇒
+close / `xrootd_on_disconnect` (`src/protocols/root/connection/disconnect.c:288`). Over-limit ⇒
 `kXR_error`/`429`.
 
 **delay-then-error.** Over a rate/load limit ⇒ `kXR_wait` (root://) /
@@ -830,7 +830,7 @@ xrootd_throttle_ioload_over(xrootd_rl_zone_t *zone, const char *user,
 +    XROOTD_RL_KEY_IOLOAD  = 5,         /* additive; request-count mode intact  */
 ```
 
-**T-8 `src/connection/disconnect.c:288`** (W3a) — decrement per-user counters in
+**T-8 `src/protocols/root/connection/disconnect.c:288`** (W3a) — decrement per-user counters in
 `xrootd_on_disconnect()` (active-connection + any still-open files).
 
 **T-9 `src/tpc/launch.c`, `src/protocols/webdav/tpc.c`** (W3b) — `xrootd_resv_schedule()`
@@ -1174,8 +1174,8 @@ modified: `validate.c` (strategy ladder: group/mapping grants), `src/auth/authz/
 **PR-3 (W2a)** — new: `src/fs/backend/csi_tagstore.{c,h}`,
 `src/fs/backend/csi_verify.{c,h}`; modified: `src/fs/vfs_io_core.{c,h}` (job
 `csi`/`csi_mismatch`, read/write/pgwrite wiring), `src/fs/backend/sd.h`
-(`CAP_FSCS`), `src/read/read.c` (`csi_mismatch`→`kXR_ChkSumErr`), `src/core/types/
-config.h` (+csi fields), `directives.c` (+csi directives), `src/read/open.c`
+(`CAP_FSCS`), `src/protocols/root/read/read.c` (`csi_mismatch`→`kXR_ChkSumErr`), `src/core/types/
+config.h` (+csi fields), `directives.c` (+csi directives), `src/protocols/root/read/open.c`
 (attach `xrootd_csi_t` to the handle when enabled), `./config`. Tests:
 `tests/test_csi_tagstore.py`. Unit: standalone `csi_*` + `crc32c` build.
 
@@ -1186,8 +1186,8 @@ Tests: `tests/test_csi_holes.py`.
 
 **PR-5 (W3a)** — new: `src/net/ratelimit/throttle_compat.{c,h}`; modified:
 `src/net/ratelimit/ratelimit.h` (node `io_time_us`/`io_window`/`open_files`,
-`KEY_IOLOAD`), `vfs_io_core.c` (charge_io at IO completion), `src/read/open.c` +
-`src/connection/disconnect.c` (open/conn counters), `directives.c` (+throttle
+`KEY_IOLOAD`), `vfs_io_core.c` (charge_io at IO completion), `src/protocols/root/read/open.c` +
+`src/protocols/root/connection/disconnect.c` (open/conn counters), `directives.c` (+throttle
 directives, custom parser), reuses `src/auth/token/ini.c` for userconfig, `./config`.
 Tests: `tests/test_throttle_contract.py`, `tests/fixtures/throttle-users.conf`.
 
@@ -1237,7 +1237,7 @@ calls are early-return-guarded on the feature flag.
 - After the data `pread` succeeds and before returning, the `job->csi != NULL`
   guard calls `xrootd_csi_verify_read`. On `CSI_MISMATCH` set
   `job->io_errno = EIO; job->csi_mismatch = 1;`. The stream read handler
-  (`src/read/read.c`) maps `csi_mismatch` → `kXR_ChkSumErr` (3031) instead of the
+  (`src/protocols/root/read/read.c`) maps `csi_mismatch` → `kXR_ChkSumErr` (3031) instead of the
   generic `kXR_IOError`.
 
 ### QQ.4 Stream write / pgwrite — `src/fs/vfs_io_core.c`
@@ -1255,7 +1255,7 @@ calls are early-return-guarded on the feature flag.
   picks **(a)** for HTTP GET when `xrootd_csi on` (documented perf trade-off);
   `root://` reads always verify since they already pass through the io-core buffer.
 
-### QQ.6 Open/close counters — `src/read/open.c`, `src/connection/disconnect.c`
+### QQ.6 Open/close counters — `src/protocols/root/read/open.c`, `src/protocols/root/connection/disconnect.c`
 - On a successful `kXR_open`: `xrootd_throttle_open_inc(t, user)`; reject with
   `kXR_error` if it returns 0.
 - On `kXR_close` and in `xrootd_on_disconnect()` (disconnect.c:288):
@@ -3773,7 +3773,7 @@ This module (`src/`): `src/auth/token/` (`token.h`, `token_internal.h`, `validat
 (token fields @215-229); `src/fs/vfs_io_core.{c,h}`, `src/fs/backend/sd.h`
 (caps @75-89), `src/core/compat/{crc32c,pgio,integrity_info}.{c,h}`;
 `src/net/ratelimit/` (`ratelimit.{c,h}`, `ratelimit_keys.c`, `ratelimit_zone.c`);
-`src/connection/disconnect.c` (`xrootd_on_disconnect` @288); `src/auth/authz/authdb.c`,
+`src/protocols/root/connection/disconnect.c` (`xrootd_on_disconnect` @288); `src/auth/authz/authdb.c`,
 `src/auth/authz/auth_gate.c`; callers `src/protocols/webdav/auth_token.c`, `src/auth/gsi/token.c`,
-`src/handshake/policy.c`, `src/core/types/identity.c`. Builds on Phase-58 §8/§9.
+`src/protocols/root/handshake/policy.c`, `src/core/types/identity.c`. Builds on Phase-58 §8/§9.
 </content>

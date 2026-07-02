@@ -748,7 +748,7 @@ stream {
 These directives configure transparent XRootD proxy mode, in which a stream
 listener forwards `root://` client requests to one or more upstream XRootD data
 servers or redirectors. All proxy directives are `server`-context (stream
-`server {}` block). Defaults below match `src/stream/module.c`.
+`server {}` block). Defaults below match `src/protocols/root/stream/module.c`.
 
 ### `xrootd_proxy on|off`
 

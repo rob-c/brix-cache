@@ -42,7 +42,7 @@
 #include "observability/dashboard/dashboard_tracking.h"
 #include "fs/cache/open.h"
 #include "protocols/webdav/webdav.h"          /* xrootd_tcp_congestion (webdav-owned directive) */
-#include "connection/netopt.h"      /* xrootd_apply_tcp_congestion */
+#include "protocols/root/connection/netopt.h"      /* xrootd_apply_tcp_congestion */
 
 #include <unistd.h>
 

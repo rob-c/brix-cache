@@ -1,5 +1,5 @@
 #include "proxy_internal.h"
-#include "connection/handler.h"
+#include "protocols/root/connection/handler.h"
 #include "core/compat/log_diag.h"
 #include <sys/socket.h>
 

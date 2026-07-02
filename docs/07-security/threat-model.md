@@ -112,7 +112,7 @@ terminator before the endpoint URL in `tpc_cred.c` and `src/tpc/tpc_token.c`.
 
 ### W4 — STATX authorization parity (MEDIUM)
 
-`src/read/statx.c` now applies the authdb check (`XROOTD_AUTH_LOOKUP`) that single-path STAT
+`src/protocols/root/read/statx.c` now applies the authdb check (`XROOTD_AUTH_LOOKUP`) that single-path STAT
 already enforced, so a batched statx cannot leak metadata for an authdb-denied path. Denials
 fall through to the per-entry "inaccessible" sentinel.
 

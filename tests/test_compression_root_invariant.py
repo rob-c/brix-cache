@@ -8,10 +8,10 @@ makes each kXR_read response a self-contained codec frame of the requested
 plaintext range.  The hard invariant we prove here is that this compression is
 confined to kXR_read ONLY:
 
-  * kXR_pgread (src/read/pgread.c) MUST stay plaintext — its kXR_status(4007)
+  * kXR_pgread (src/protocols/root/read/pgread.c) MUST stay plaintext — its kXR_status(4007)
     page framing with per-page CRC32c is byte-for-byte preserved.  Compressing
     it would break the CRC32c-over-plaintext contract.
-  * kXR_readv (src/read/readv.c) MUST stay plaintext — the scatter-gather
+  * kXR_readv (src/protocols/root/read/readv.c) MUST stay plaintext — the scatter-gather
     readahead_list payload is raw file bytes.
 
 The contrast control is a kXR_read on the *same* handle, which IS compressed
@@ -41,7 +41,7 @@ from settings import NGINX_ANON_PORT, SERVER_HOST
 
 
 # ---------------------------------------------------------------------------
-# Opcodes / status / error codes (from src/protocol/opcodes.h)
+# Opcodes / status / error codes (from src/protocols/root/protocol/opcodes.h)
 # ---------------------------------------------------------------------------
 
 kXR_login   = 3007

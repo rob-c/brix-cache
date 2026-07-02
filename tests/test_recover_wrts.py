@@ -1,6 +1,6 @@
 """tests/test_recover_wrts.py — kXR_recoverWrts write-recovery journal tests.
 
-Verifies the per-handle write journal (src/write/wrts_journal.c):
+Verifies the per-handle write journal (src/protocols/root/write/wrts_journal.c):
   1. A duplicate kXR_write at the same (offset, length) is treated as a replay —
      server returns kXR_ok but does not re-issue the pwrite, preserving the original data.
   2. A write at a DIFFERENT offset on the same handle is not a replay — it lands normally.

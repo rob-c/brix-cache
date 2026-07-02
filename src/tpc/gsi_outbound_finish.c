@@ -1,7 +1,7 @@
 #include "tpc_internal.h"
-#include "session/session.h"
-#include "protocol/gsi.h"
-#include "protocol/sec_protocol.h"   /* shared anchored "&P=" security-list parser */
+#include "protocols/root/session/session.h"
+#include "protocols/root/protocol/gsi.h"
+#include "protocols/root/protocol/sec_protocol.h"   /* shared anchored "&P=" security-list parser */
 
 #include <stdio.h>
 #include <ctype.h>

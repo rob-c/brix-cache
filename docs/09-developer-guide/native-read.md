@@ -37,8 +37,8 @@ thread-pool I/O paths below matter.
 
 Relevant code:
 
-- `src/connection/*.c`
-- `src/handshake/*.c`
+- `src/protocols/root/connection/*.c`
+- `src/protocols/root/handshake/*.c`
 - `src/protocols/webdav/*.c`
 
 ---
@@ -91,7 +91,7 @@ Relevant code:
 - `src/core/aio/reads.c`
 - `src/core/aio/readv.c`
 - `src/core/aio/write.c`
-- `src/write/*.c`
+- `src/protocols/root/write/*.c`
 - `src/protocols/webdav/put.c`
 
 ---
@@ -179,7 +179,7 @@ encrypted output over pretending sendfile still applies.
 
 Relevant code:
 
-- `src/read/read.c`
+- `src/protocols/root/read/read.c`
 - `src/core/aio/buffers.c`
 
 ---
@@ -245,8 +245,8 @@ Relevant code:
 
 - `src/core/types/tunables.h`
 - `src/core/aio/buffers.c`
-- `src/read/read.c`
-- `src/read/pgread.c`
+- `src/protocols/root/read/read.c`
+- `src/protocols/root/read/pgread.c`
 
 ---
 
@@ -305,7 +305,7 @@ Relevant code:
 
 - `src/core/types/context.h`
 - `src/core/aio/buffers.c`
-- `src/connection/write_helpers.c`
+- `src/protocols/root/connection/write_helpers.c`
 
 ---
 
@@ -342,9 +342,9 @@ Expected benefits:
 Relevant code:
 
 - `src/core/types/file.h`
-- `src/read/open.c`
-- `src/read/read.c`
-- `src/connection/fd_table.c`
+- `src/protocols/root/read/open.c`
+- `src/protocols/root/read/read.c`
+- `src/protocols/root/connection/fd_table.c`
 
 ---
 
@@ -407,9 +407,9 @@ middle ground.
 
 Relevant code:
 
-- `src/read/prefetch.h`
-- `src/read/prefetch.c`
-- `src/read/read.c`
+- `src/protocols/root/read/prefetch.h`
+- `src/protocols/root/read/prefetch.c`
+- `src/protocols/root/read/read.c`
 - `src/core/types/file.h`
 
 ### Native TLS Extension
@@ -483,7 +483,7 @@ Expected benefits:
 
 Relevant code:
 
-- `src/read/readv.c`
+- `src/protocols/root/read/readv.c`
 - `src/core/aio/readv.c`
 - `src/core/aio/buffers.c`
 
@@ -527,7 +527,7 @@ Expected benefits:
 
 Relevant code:
 
-- `src/read/readv.c`
+- `src/protocols/root/read/readv.c`
 - `src/core/aio/readv.c`
 - `src/core/aio/aio.h`
 
@@ -558,8 +558,8 @@ Expected benefits:
 
 Relevant code:
 
-- `src/read/prefetch.c`
-- `src/read/readv.c`
+- `src/protocols/root/read/prefetch.c`
+- `src/protocols/root/read/readv.c`
 
 ---
 
@@ -613,8 +613,8 @@ Expected benefits:
 
 Relevant code:
 
-- `src/connection/write_helpers.c`
-- `src/connection/event_sched.c`
+- `src/protocols/root/connection/write_helpers.c`
+- `src/protocols/root/connection/event_sched.c`
 
 ---
 
@@ -656,8 +656,8 @@ Expected benefits:
 Relevant code:
 
 - `src/core/types/context.h`
-- `src/connection/write_helpers.c`
-- `src/connection/chain_helpers.c`
+- `src/protocols/root/connection/write_helpers.c`
+- `src/protocols/root/connection/chain_helpers.c`
 
 ---
 
@@ -687,7 +687,7 @@ Expected benefits:
 
 Relevant code:
 
-- `src/read/read.c`
-- `src/read/readv.c`
-- `src/read/pgread.c`
+- `src/protocols/root/read/read.c`
+- `src/protocols/root/read/readv.c`
+- `src/protocols/root/read/pgread.c`
 - `src/observability/accesslog/access_log.c`

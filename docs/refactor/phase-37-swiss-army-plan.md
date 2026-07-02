@@ -22,7 +22,7 @@ it and silently does the right thing. Re-runs automatically on redirect because
   gotoTLS→tls_required, supposc→posc, role bits), `sec_level` (conn.c:137), TLS
   posture (roots:// + live io.ssl), the `&P=` list (conn.c:202).
 - ONE batched `kXR_Qconfig "chksum readv tpc tpcdlg xrdfs.ext"` (key set verified in
-  src/query/config.c:117-156). Server emits all 7 checksums; `tpc` is a bare digit
+  src/protocols/root/query/config.c:117-156). Server emits all 7 checksums; `tpc` is a bare digit
   (XrdCl compat); `xrdfs.ext` folds in the standalone probe in ops_ext.c:170 (delete it).
 - **Fail-open contract (mandatory):** the probe NEVER fails the connection; a missing
   answer or `key=0` leaves the cap false → client degrades to plain/compat paths.
@@ -39,7 +39,7 @@ it and silently does the right thing. Re-runs automatically on redirect because
 
 ## Engine 2 — Just-works auth (matches the nginx module's accepted set)
 
-Server accepts (verified): root:// `gsi, ztn(JWT), krb5, sss, unix` (src/session/login.c
+Server accepts (verified): root:// `gsi, ztn(JWT), krb5, sss, unix` (src/protocols/root/session/login.c
 `&P=`); web `Bearer JWT` (src/protocols/webdav/auth_token) + `S3 SigV4` (src/protocols/s3/auth_sigv4*);
 plus X.509 proxy/VOMS (src/auth/gsi), macaroons (WebDAV).
 

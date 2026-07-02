@@ -81,7 +81,7 @@ int xrootd_srv_select(const char *path, int for_write,
 list. For reads it picks the server with lowest `util_pct`; for writes the server
 with the most `free_mb`.
 
-**Implementation note**: follows the exact pattern in `src/session/registry.c`
+**Implementation note**: follows the exact pattern in `src/protocols/root/session/registry.c`
 (shm zone init, `ngx_shmtx_lock`/`unlock`, linear scan, `ngx_cpystrn` copies).
 
 **Wiring**: call `xrootd_srv_configure_registry(cf)` from
@@ -100,7 +100,7 @@ registry.
 
 | File | Purpose |
 |---|---|
-| `src/net/cms/server_handler.c` | nginx stream handler: allocates `xrootd_cms_server_ctx_t`, wires read handler. Mirrors `src/connection/handler.c`. |
+| `src/net/cms/server_handler.c` | nginx stream handler: allocates `xrootd_cms_server_ctx_t`, wires read handler. Mirrors `src/protocols/root/connection/handler.c`. |
 | `src/net/cms/server_recv.c` | Frame reader: accumulates 8-byte header + payload, dispatches on `rrCode`. Mirrors `src/net/cms/recv.c`. |
 | `src/net/cms/server_send.c` | `cms_server_send_ping()` and `cms_server_send_status()`. Reuses `src/net/cms/wire.c` helpers. |
 | `src/net/cms/server_timer.c` | Per-worker timer: pings each active CMS connection every `cms_server_interval` seconds (default 60); marks stale connections for disconnect. |
@@ -126,7 +126,7 @@ On disconnect: if the connection logged in, call `xrootd_srv_unregister()`.
 Inserts a registry query before the static `manager_map` fallback in the two
 redirect-capable handlers.
 
-**Changes to `src/read/locate.c`**:
+**Changes to `src/protocols/root/read/locate.c`**:
 ```c
 if (conf->manager_mode && !is_wildcard) {
     char     redir_host[256];
@@ -141,15 +141,15 @@ if (conf->manager_mode && !is_wildcard) {
 /* static manager_map fallback follows unchanged */
 ```
 
-**Changes to `src/read/open.c`**: same registry-then-fallback pattern before
+**Changes to `src/protocols/root/read/open.c`**: same registry-then-fallback pattern before
 the local open path.
 
-**Changes to `src/session/protocol.c`**: set `kXR_isManager` flag when
+**Changes to `src/protocols/root/session/protocol.c`**: set `kXR_isManager` flag when
 `conf->manager_mode` is on (extends the existing `manager_map` condition).
 
 **New config directive**: `xrootd_manager_mode on|off` (default off).
 Add `ngx_flag_t manager_mode` to `ngx_stream_xrootd_srv_conf_t` in
-`src/core/types/config.h`. Register in `src/stream/module.c`, initialise/merge in
+`src/core/types/config.h`. Register in `src/protocols/root/stream/module.c`, initialise/merge in
 `src/core/config/server_conf.c`.
 
 ---
@@ -219,7 +219,7 @@ stream {
 |---|---|---|
 | M1 registry | `src/net/manager/registry.h`, `registry.c` | `src/core/config/postconfiguration.c`, `config` |
 | M2 CMS server | `src/net/cms/server_handler.c`, `server_recv.c`, `server_send.c`, `server_timer.c`, `server_module.c` | `config` |
-| M3 dynamic redirect | — | `src/read/locate.c`, `src/read/open.c`, `src/session/protocol.c`, `src/core/types/config.h`, `src/stream/module.c`, `src/core/config/server_conf.c` |
+| M3 dynamic redirect | — | `src/protocols/root/read/locate.c`, `src/protocols/root/read/open.c`, `src/protocols/root/session/protocol.c`, `src/core/types/config.h`, `src/protocols/root/stream/module.c`, `src/core/config/server_conf.c` |
 | M4 sub-manager | — | `src/net/cms/send.c` |
 | M5 cache integration | — | `src/fs/cache/thread.c`, `src/fs/cache/evict.c`, `src/net/manager/registry.c` |
 
@@ -229,11 +229,11 @@ stream {
 
 | Component | Reuse |
 |---|---|
-| `src/session/registry.c` | shm zone + spinlock + fixed-slot array pattern for M1 |
+| `src/protocols/root/session/registry.c` | shm zone + spinlock + fixed-slot array pattern for M1 |
 | `src/net/cms/recv.c`, `send.c`, `wire.c` | CMS frame parser, encoder, byte-order helpers for M2 |
 | `src/net/cms/connect.c` | timer and backoff pattern for `server_timer.c` |
 | `src/core/config/manager_map.c` | longest-prefix matching algorithm (static fallback stays) |
-| `src/connection/handler.c` | per-connection context init pattern for `server_handler.c` |
+| `src/protocols/root/connection/handler.c` | per-connection context init pattern for `server_handler.c` |
 | `src/observability/metrics/config.c` | shm zone creation pattern for `src/core/config/postconfiguration.c` |
 
 ---

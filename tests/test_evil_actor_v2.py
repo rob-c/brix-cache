@@ -266,8 +266,8 @@ class _Srv:
             if "data race" not in txt:
                 continue
             # only fail on races whose stack names module / AIO frames
-            if any(m in txt for m in ("/src/core/aio/", "/src/read/", "/src/write/",
-                                      "/src/fs/cache/", "/src/session/", "/src/connection/",
+            if any(m in txt for m in ("/src/core/aio/", "/src/protocols/root/read/", "/src/protocols/root/write/",
+                                      "/src/fs/cache/", "/src/protocols/root/session/", "/src/protocols/root/connection/",
                                       "_aio_thread", "_aio_done", "read_scratch",
                                       "payload_to_free", "ctx->destroyed", "xrootd_")):
                 hits.append(fn)

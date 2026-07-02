@@ -6,7 +6,7 @@
  * ngx-free, so they build identically into the module and into libxrdproto.
  */
 #include "kxr_names.h"
-#include "protocol/opcodes.h"
+#include "protocols/root/protocol/opcodes.h"
 
 const char *
 xrootd_kxr_request_name(int reqid)

@@ -7,8 +7,8 @@
  * */
 
 #include "tpc_internal.h"
-#include "session/session.h"
-#include "protocol/gsi.h"
+#include "protocols/root/session/session.h"
+#include "protocols/root/protocol/gsi.h"
 #include "auth/token/file.h"
 
 #include <stdio.h>

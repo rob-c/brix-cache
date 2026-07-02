@@ -50,7 +50,7 @@ latent improvement, and are validated (build clean; GSI 13/13; N=16 bursts pass)
   (64/32/32). Keygen is only ~0.3 ms (`openssl speed ffdh2048`), so this is robustness
   under load, not a single-stream win.
 - **`ERR_clear_error()`** at the top of `xrootd_handle_auth` (`src/auth/gsi/auth.c`) and
-  `xrootd_start_tls` (`src/connection/tls.c`): closes the OpenSSL per-thread
+  `xrootd_start_tls` (`src/protocols/root/connection/tls.c`): closes the OpenSSL per-thread
   error-queue leak (there were zero `ERR_clear_error` in `src/`) that can make nginx
   misreport benign TLS closes as handshake failures under mixed GSI+TLS traffic.
 
@@ -116,7 +116,7 @@ optimization roadmap.
 
 From Phase 29 / Phase 32 (verified in code):
 
-- **Cleartext sendfile + single/multi-chunk pipelining** — `src/read/read.c:131`,
+- **Cleartext sendfile + single/multi-chunk pipelining** — `src/protocols/root/read/read.c:131`,
   `src/core/aio/buffers.c:332,550`; `resp_pipelinable=1` for ≤16 MiB and >16 MiB sendfile reads.
 - **Warm-cache inline fast path** — `read.c:312` `preadv2(…,RWF_NOWAIT)`; full page-cache hit
   completes inline without the thread-pool hop.

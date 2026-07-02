@@ -150,7 +150,7 @@ def _adler_hex(data):
 # =========================================================================
 
 class TestQconfigKnownKeys:
-    """kXR_Qconfig (infotype=7) — src/query/config.c"""
+    """kXR_Qconfig (infotype=7) — src/protocols/root/query/config.c"""
 
     def test_qconfig_chksum_returns_adler32(self):
         sock = _session()

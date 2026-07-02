@@ -87,7 +87,7 @@ return NGX_OK;
    `NGX_ERROR`, an error is being sent from within the write path; log it.
 
 3. Enable `error_log ... debug;` in the test nginx config and reproduce the
-   failure. The write-helper at `src/connection/write_helpers.c:173` increments
+   failure. The write-helper at `src/protocols/root/connection/write_helpers.c:173` increments
    `response_write_errors_total` on write error — check `/metrics` for that
    counter.
 
@@ -106,7 +106,7 @@ and restore it in `cms_wake_pending_session` before calling
 /* In xrootd_pending_locate_t (src/net/manager/pending.h): */
 u_char  streamid[2];  /* client streamid at kXR_locate time */
 
-/* In locate handler (src/read/locate.c), when adding to pending table: */
+/* In locate handler (src/protocols/root/read/locate.c), when adding to pending table: */
 pending->streamid[0] = ctx->cur_streamid[0];
 pending->streamid[1] = ctx->cur_streamid[1];
 
@@ -116,7 +116,7 @@ xrd_ctx->cur_streamid[1] = pending->streamid[1];
 ```
 
 If the root cause is different (pool or write-event state), fix in
-`xrootd_queue_response_base` (`src/connection/write_helpers.c`) to handle the
+`xrootd_queue_response_base` (`src/protocols/root/connection/write_helpers.c`) to handle the
 NGX_AGAIN case correctly when called from a non-client event context.
 
 ### Tests
@@ -300,7 +300,7 @@ Option B — let the depth check be the first call in each per-opcode handler
 before `xrootd_resolve_path`, and have it send the error directly:
 
 ```c
-/* In open handler (src/read/open_request.c), before resolve_path: */
+/* In open handler (src/protocols/root/read/open_request.c), before resolve_path: */
 if (xrootd_count_path_depth(reqpath) != NGX_OK) {
     return xrootd_send_error(ctx, c, kXR_ArgInvalid,
                              "path exceeds maximum depth");
@@ -309,10 +309,10 @@ if (xrootd_count_path_depth(reqpath) != NGX_OK) {
 
 This avoids coupling the path-resolution function to response sending, which is
 cleaner. The same two-line block needs to be inserted in:
-- `src/read/open_request.c`
-- `src/write/mkdir.c`
-- `src/write/rm.c`
-- `src/write/mv.c`
+- `src/protocols/root/read/open_request.c`
+- `src/protocols/root/write/mkdir.c`
+- `src/protocols/root/write/rm.c`
+- `src/protocols/root/write/mv.c`
 - Any other opcode handler that calls `xrootd_resolve_path` with untrusted paths
 
 The `xrootd_count_path_depth` function already exists in
@@ -464,5 +464,5 @@ Test code bugs and divergences: **18 tests** requiring test-only changes.
   a `make` rebuild before the fixture picks them up.
 - `src/fs/path/resolve_path_variants.c` is called by the resolve path in all three
   opcode families (read, write, namespace); any change to its null-return
-  semantics must be validated across `src/read/open_request.c`,
-  `src/write/mkdir.c`, `src/write/rm.c`, and `src/write/mv.c`.
+  semantics must be validated across `src/protocols/root/read/open_request.c`,
+  `src/protocols/root/write/mkdir.c`, `src/protocols/root/write/rm.c`, and `src/protocols/root/write/mv.c`.

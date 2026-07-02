@@ -236,7 +236,7 @@ path is byte-for-byte unchanged when no state root is configured.
 - `src/fs/cache/cache_admit.{c,h}` — **new** shared admission filter.
 - `src/fs/cache/writethrough_decision.c` — `xrootd_wt_decide` delegates to the shared filter.
 - `src/fs/cache/writethrough_flush.c` — `mark_clean` on successful flush.
-- `src/write/sync.c`, `src/read/close.c` (and the clean→dirty transition in the write
+- `src/protocols/root/write/sync.c`, `src/protocols/root/read/close.c` (and the clean→dirty transition in the write
   handler) — `mark_dirty` at coarse points only (NOT per write; NOT in the
   `writethrough_metrics.h` hot inline, which keeps only the in-memory field update).
 - `src/fs/cache/fetch.c` — read admission via the shared filter.

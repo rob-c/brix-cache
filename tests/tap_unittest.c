@@ -3,7 +3,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <arpa/inet.h>
-#include "../src/protocol/opcodes.h"
+#include "../src/protocols/root/protocol/opcodes.h"
 #include "../src/net/tap/tap.h"
 
 /* Build a request frame: streamid + requestid(BE) + 16B body + dlen(BE) + payload */

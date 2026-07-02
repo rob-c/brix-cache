@@ -27,12 +27,12 @@ This document maps the architectural pathways within the `nginx-xrootd` module, 
 These pathways represent the foundational functionality required for a single-node data server. They handle the essential "root://" protocol lifecycle.
 
 ### A. Handshake & Session Lifecycle
-- **Entry Point**: `src/connection/handler.c`
+- **Entry Point**: `src/protocols/root/connection/handler.c`
 - **Logic Flow**:
   1. `xrootd_conn_handshake_handler`: Detects protocol magic (ROOTD_PQ).
-  2. `xrootd_handle_protocol`: Negotiates version and capability flags (`src/session/protocol.c`).
-  3. `xrootd_handle_login`: Initial client identification (`src/session/login.c`).
-  4. `xrootd_handle_endsess`: Graceful termination (`src/session/lifecycle.c`).
+  2. `xrootd_handle_protocol`: Negotiates version and capability flags (`src/protocols/root/session/protocol.c`).
+  3. `xrootd_handle_login`: Initial client identification (`src/protocols/root/session/login.c`).
+  4. `xrootd_handle_endsess`: Graceful termination (`src/protocols/root/session/lifecycle.c`).
 
 ### B. Authentication & Authorization
 - **Logic Flow**:
@@ -44,7 +44,7 @@ These pathways represent the foundational functionality required for a single-no
   3. `xrootd_check_authdb`: Verifies file-path permissions against `authdb` rules (`src/auth/authz/authdb.c`).
 
 ### C. Basic File I/O
-- **Entry Point**: `src/handshake/dispatch_read.c` / `dispatch_write.c`
+- **Entry Point**: `src/protocols/root/handshake/dispatch_read.c` / `dispatch_write.c`
 - **Logic Flow**:
   1. `xrootd_handle_open`: Resolves logical paths to physical paths using `xrootd_resolve_path`.
   2. `xrootd_handle_read` / `xrootd_handle_write`: Standard POSIX-backed I/O.
@@ -59,7 +59,7 @@ These pathways provide interoperability with larger XRootD clusters and optimize
 ### A. Clustering & Redirection (CMS)
 - **Logic Flow**:
   1. `src/net/cms/send.c`: Heartbeat and free-space reporting to a manager node.
-  2. `xrootd_handle_locate`: Redirects clients to the actual data node (`src/read/locate.c`).
+  2. `xrootd_handle_locate`: Redirects clients to the actual data node (`src/protocols/root/read/locate.c`).
   3. `xrootd_manager_mode`: Toggles logic between a data server and a redirector.
 
 ### B. Third-Party Copy (TPC)
@@ -71,8 +71,8 @@ These pathways provide interoperability with larger XRootD clusters and optimize
 ### C. Advanced I/O (AIO & Page-based)
 - **Logic Flow**:
   1. `src/core/aio/`: Offloads blocking I/O to nginx thread pools.
-  2. `src/read/pgread.c` / `src/write/pgwrite.c`: Handles page-aligned transfers with in-wire CRC32c checksumming for data integrity.
-  3. `src/read/readv.c` / `src/write/writev.c`: Vectorized I/O for scatter/gather operations.
+  2. `src/protocols/root/read/pgread.c` / `src/protocols/root/write/pgwrite.c`: Handles page-aligned transfers with in-wire CRC32c checksumming for data integrity.
+  3. `src/protocols/root/read/readv.c` / `src/protocols/root/write/writev.c`: Vectorized I/O for scatter/gather operations.
 
 ### D. Multi-Protocol Gateway (WebDAV & S3)
 - **Logic Flow**:

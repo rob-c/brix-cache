@@ -25,9 +25,9 @@
  * byte-interop (pre-shared srvpuk + 3-RT rtag) is a documented follow-on.
  */
 #include "core/ngx_xrootd_module.h"
-#include "session/registry.h"
+#include "protocols/root/session/registry.h"
 #include "auth/gsi/gsi_core.h"
-#include "protocol/gsi.h"
+#include "protocols/root/protocol/gsi.h"
 #include "pwd.h"
 
 #include <openssl/evp.h>

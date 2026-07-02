@@ -5,7 +5,7 @@
 # WHY:  Tools "built atop the project's code" with NO libXrdCl / libXrdSec* — only
 #       libxrdproto + OpenSSL.
 # HOW:  Mirrors the module's hardening/optimize flags; pulls wire structs from the
-#       in-tree src/protocol headers via -I$(SRC) (build-in-place, no file moves).
+#       in-tree src/protocols/root/protocol headers via -I$(SRC) (build-in-place, no file moves).
 
 CC ?= cc
 AR ?= ar

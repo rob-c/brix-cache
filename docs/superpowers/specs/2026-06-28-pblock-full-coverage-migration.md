@@ -160,7 +160,7 @@ object to hash it:
   built by `xrootd_sd_posix_wrap(fd)`, so `driver == posix`. Feed it the real obj.
 - `src/protocols/webdav/put.c` `webdav_put_persist_checksums` reopens via `xrootd_vfs_open_fd`
   (bare fd ⇒ block-0 only). Migrate to a handle + `vfs_file_pread`.
-- `src/dirlist/dcksm.c` (per-entry dirlist checksum) — same.
+- `src/protocols/root/dirlist/dcksm.c` (per-entry dirlist checksum) — same.
 
 ### Layer 5 — read-through cache (only if cache enabled on a pblock export)
 

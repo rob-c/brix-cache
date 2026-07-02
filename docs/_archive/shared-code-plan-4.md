@@ -1,8 +1,8 @@
 # Shared-Code Plan 4: Cross-Protocol Audit (May 2026)
 
 This plan is the fourth pass over `src/` for duplicate or near-duplicate logic
-across the four protocol implementations — XRootD native stream (`src/session/`,
-`src/read/`, `src/write/`, `src/core/aio/`), WebDAV HTTP (`src/protocols/webdav/`), S3 REST
+across the four protocol implementations — XRootD native stream (`src/protocols/root/session/`,
+`src/protocols/root/read/`, `src/protocols/root/write/`, `src/core/aio/`), WebDAV HTTP (`src/protocols/webdav/`), S3 REST
 (`src/protocols/s3/`), and the already-shared compat layer (`src/core/compat/`).
 
 Plans 1–3 consolidated the compat layer itself.  This plan looks specifically at
@@ -204,7 +204,7 @@ S3 inlines the two-step pattern at 11 call sites across
 `src/protocols/s3/multipart_complete_body.c`.
 
 The XRootD stream protocol inlines the pattern at 24 call sites across
-`src/path/`, `src/read/`, `src/session/`, `src/dirlist/`, `src/auth/gsi/`, and
+`src/path/`, `src/protocols/root/read/`, `src/protocols/root/session/`, `src/protocols/root/dirlist/`, `src/auth/gsi/`, and
 others.
 
 The WebDAV helper itself uses a format string `"%s: \"%s\""` (prefix + quoted

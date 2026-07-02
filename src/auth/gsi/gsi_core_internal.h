@@ -21,8 +21,8 @@
 #include <openssl/provider.h>    
 #endif
 #include <openssl/rsa.h>         
-#include "protocol/gsi.h"      
-#include "protocol/opcodes.h"  
+#include "protocols/root/protocol/gsi.h"      
+#include "protocols/root/protocol/opcodes.h"  
 #include "core/compat/crypto.h"     
 
 extern const char xrootd_gsi_dh_params_pem[];

@@ -7,7 +7,7 @@
  * */
 
 #include "tpc_internal.h"
-#include "protocol/bootstrap_pack.h"   /* shared handshake/protocol/login packers */
+#include "protocols/root/protocol/bootstrap_pack.h"   /* shared handshake/protocol/login packers */
 
 
 #include <string.h>

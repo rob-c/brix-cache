@@ -41,7 +41,7 @@
 
 ### Task 0 (original): SPIKE — ⛔ was NO-GO before Option A.
 
-> **Result: NO-GO.** (1) `sd_stage`'s driver vtable is **staged-lifecycle-only** — `open`/`staged_open`/`staged_write`/`staged_commit`, **no `.pwrite`** (`src/fs/backend/stage/sd_stage.c`). (2) root:// kXR_write is **random-access direct pwrite** — `src/write/write.c:160-164` writes from the recv buffer via `driver->pwrite` on `fh->sd_obj` at arbitrary offsets; it never uses the staged lifecycle (`run_pblock_writethrough` runs `upload_resume off`). So Task 2's mechanism (adopt `sd_stage` into `fh->sd_obj` + `driver->pwrite`) would NULL-deref, and there is NO root:// composable stage test because root:// has never gone through `sd_stage`. `run_flush` exists *because* root:// writes to a local file at random offsets then flushes the whole file — a model `sd_stage` (build-then-commit, for HTTP PUT) does not cover. The proven `sd_stage` write-through (`run_tier_remote_stage.sh`) is WebDAV/S3, which DO use the staged lifecycle.
+> **Result: NO-GO.** (1) `sd_stage`'s driver vtable is **staged-lifecycle-only** — `open`/`staged_open`/`staged_write`/`staged_commit`, **no `.pwrite`** (`src/fs/backend/stage/sd_stage.c`). (2) root:// kXR_write is **random-access direct pwrite** — `src/protocols/root/write/write.c:160-164` writes from the recv buffer via `driver->pwrite` on `fh->sd_obj` at arbitrary offsets; it never uses the staged lifecycle (`run_pblock_writethrough` runs `upload_resume off`). So Task 2's mechanism (adopt `sd_stage` into `fh->sd_obj` + `driver->pwrite`) would NULL-deref, and there is NO root:// composable stage test because root:// has never gone through `sd_stage`. `run_flush` exists *because* root:// writes to a local file at random offsets then flushes the whole file — a model `sd_stage` (build-then-commit, for HTTP PUT) does not cover. The proven `sd_stage` write-through (`run_tier_remote_stage.sh`) is WebDAV/S3, which DO use the staged lifecycle.
 >
 > **Re-scope options (none is a task-by-task migration — each is a design effort):**
 > - **A. Extend `sd_stage` with a random-access write-back object** (`.open` returns a stage-store-backed writable object; `.pwrite` buffers; close/sync flushes to the backend). Makes `sd_stage` cover root:// too, but adds a second write model to `sd_stage` and a flush-on-close hook (close currently means cleanup, not flush). Medium-large, and it's a genuine `sd_stage` design change.
@@ -53,7 +53,7 @@
 ### Task 0 (original): SPIKE — prove a legacy writethrough config can resolve its write-open to `sd_stage` byte-exact (GATES EVERYTHING)
 
 **Files:**
-- Read: `src/fs/vfs_backend_registry.c:1055-1081` (how `sd_stage` is composed), `src/read/open_resolved_file.c:790-840` (the write-open writethrough-decision block), `src/write/sync.c:73-90`
+- Read: `src/fs/vfs_backend_registry.c:1055-1081` (how `sd_stage` is composed), `src/protocols/root/read/open_resolved_file.c:790-840` (the write-open writethrough-decision block), `src/protocols/root/write/sync.c:73-90`
 - Test: a throwaway config mirroring `tests/run_pblock_writethrough.sh` but composable
 
 **Interfaces:**
@@ -64,7 +64,7 @@
 
 Run: `bash tests/run_pblock_writethrough.sh` — Expected: `ALL PASS` (baseline).
 
-- [ ] **Step 2: Confirm the write-open resolves the backend through the registry for a stage_store config.** In `src/read/open_resolved_file.c`, trace whether a write-open with a composed `sd_stage` backend produces a staged handle (write → `sd_stage.staged_write`, close → `sd_stage_staged_commit`) with NO `wt_flush` involvement. Grep: `grep -n 'wt_enabled\|sd_stage\|staged' src/read/open_resolved_file.c`.
+- [ ] **Step 2: Confirm the write-open resolves the backend through the registry for a stage_store config.** In `src/protocols/root/read/open_resolved_file.c`, trace whether a write-open with a composed `sd_stage` backend produces a staged handle (write → `sd_stage.staged_write`, close → `sd_stage_staged_commit`) with NO `wt_flush` involvement. Grep: `grep -n 'wt_enabled\|sd_stage\|staged' src/protocols/root/read/open_resolved_file.c`.
 
 - [ ] **Step 3: Record GO/NO-GO.** GO iff a composable stage_store config write-throughs byte-exact via `sd_stage` with no `run_flush` — meaning the legacy config only needs *translating* to that shape. Write the finding into this plan's header. If NO-GO, STOP.
 
@@ -141,7 +141,7 @@ Run: `bash tests/run_pblock_writethrough.sh && bash tests/run_cache_wt_driver.sh
 ### Task 2: Route the write-open through the wt `sd_stage` instance
 
 **Files:**
-- Modify: `src/read/open_resolved_file.c:790-840` (the writethrough-decision block — when the decision is write-through AND `xrootd_cache_wt_stage_sd_inst(conf) != NULL`, adopt that instance as the handle's backend so the write is a staged write, instead of setting `wt_enabled` for the close-time flush)
+- Modify: `src/protocols/root/read/open_resolved_file.c:790-840` (the writethrough-decision block — when the decision is write-through AND `xrootd_cache_wt_stage_sd_inst(conf) != NULL`, adopt that instance as the handle's backend so the write is a staged write, instead of setting `wt_enabled` for the close-time flush)
 - Test: `tests/run_pblock_writethrough.sh`, `tests/run_cache_stage_throttle.sh`, `tests/test_integrity_matrix.py`
 
 **Interfaces:**
@@ -161,8 +161,8 @@ Run: `bash tests/run_pblock_writethrough.sh && bash tests/run_cache_wt_driver.sh
 ### Task 3: Remove the `run_flush` trigger from the write path
 
 **Files:**
-- Modify: `src/write/sync.c:73-90` (the `wt_enabled && wt_dirty_offset >= 0` → `xrootd_wt_flush_sync_handle` block)
-- Modify: `src/read/close.c` (any `wt_flush_on_close` call)
+- Modify: `src/protocols/root/write/sync.c:73-90` (the `wt_enabled && wt_dirty_offset >= 0` → `xrootd_wt_flush_sync_handle` block)
+- Modify: `src/protocols/root/read/close.c` (any `wt_flush_on_close` call)
 - Test: full writethrough harness set
 
 **Interfaces:**

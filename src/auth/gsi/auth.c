@@ -1,6 +1,6 @@
 #include "gsi_internal.h"
 #include "delegation.h"
-#include "session/registry.h"
+#include "protocols/root/session/registry.h"
 #include "auth/crypto/ocsp.h"
 #include "auth/crypto/gsi_verify.h"
 #include <openssl/err.h>

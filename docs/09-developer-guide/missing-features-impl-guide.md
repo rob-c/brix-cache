@@ -82,9 +82,9 @@ credential gaps from the transparent-upstream bootstrap code.
 - `src/core/config/server_conf.c` — init + merge for new upstream TLS fields.
 - `src/core/config/runtime_server.c` — builds `upstream_tls_ctx` SSL_CTX at
   postconfiguration when `xrootd_upstream_tls on`.
-- `src/stream/module.c` — `xrootd_upstream_tls`, `xrootd_upstream_tls_ca`,
+- `src/protocols/root/stream/module.c` — `xrootd_upstream_tls`, `xrootd_upstream_tls_ca`,
   `xrootd_upstream_tls_name` directives.
-- `src/protocol/wire_core_requests.h` — added `ClientAuthRequest` typedef.
+- `src/protocols/root/protocol/wire_core_requests.h` — added `ClientAuthRequest` typedef.
 - `config` (module build file) — added `tls.c` and `auth.c` to source list.
 
 **Configuration:**
@@ -121,7 +121,7 @@ the client.
   `authmore_count` field (prevents infinite auth loops).
 - `src/core/types/config.h` — `upstream_token_file` field.
 - `src/core/config/server_conf.c` — init + merge for `upstream_token_file`.
-- `src/stream/module.c` — `xrootd_upstream_token_file` directive.
+- `src/protocols/root/stream/module.c` — `xrootd_upstream_token_file` directive.
 
 **Configuration:**
 
@@ -179,7 +179,7 @@ semantics against their storage manager.
 
 ### Problem
 
-Before the FRM work, `src/query/prepare.c` validated paths, checked auth and VO
+Before the FRM work, `src/protocols/root/query/prepare.c` validated paths, checked auth and VO
 ACLs, then returned `kXR_ok` with a disk-only present/missing response. With
 `xrootd_frm on`, `src/frm/` now owns durable queue records, host-qualified
 request IDs, cancel handling, and queue-backed `kXR_QPrep` state. FRM-off mode
@@ -194,11 +194,11 @@ deployments use the durable queue and Tape REST gateway described in
 **New directive:** `xrootd_prepare_command /usr/local/bin/xrootd-stage.sh;`
 
 **Key files:**
-- `src/query/prepare_cmd.c` — `xrootd_prepare_invoke_command()`: `fork()+execv()` fire-and-forget launcher
-- `src/query/prepare.c` — `xrootd_handle_prepare()`: path collection + command dispatch
-- `src/query/query_internal.h` — `XROOTD_PREPARE_CMD_MAX_PATHS 512` constant
+- `src/protocols/root/query/prepare_cmd.c` — `xrootd_prepare_invoke_command()`: `fork()+execv()` fire-and-forget launcher
+- `src/protocols/root/query/prepare.c` — `xrootd_handle_prepare()`: path collection + command dispatch
+- `src/protocols/root/query/query_internal.h` — `XROOTD_PREPARE_CMD_MAX_PATHS 512` constant
 - `src/core/types/config.h` — `prepare_command` field (`ngx_str_t`)
-- `src/stream/module.c` — `xrootd_prepare_command` directive registration
+- `src/protocols/root/stream/module.c` — `xrootd_prepare_command` directive registration
 
 **Wire behaviour:**
 - `kXR_stage` set + `xrootd_prepare_command` configured → resolved absolute paths collected for all validated files (including missing files when `kXR_noerrs` is set via `xrootd_resolve_path_noexist()`), then `fork()+execv()` with `argv=[cmd, path1, path2, ...]`. Parent does not `waitpid()`.
@@ -211,7 +211,7 @@ deployments use the durable queue and Tape REST gateway described in
 ngx_str_t  prepare_command;   /* shell command for kXR_stage recall */
 ```
 
-**Directive** (in `src/stream/module.c`):
+**Directive** (in `src/protocols/root/stream/module.c`):
 ```c
 { ngx_string("xrootd_prepare_command"),
   NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
@@ -253,7 +253,7 @@ def test_stage_cancel_skips_command():
 **Status:** ✅ IMPLEMENTED — mtime-poll hot refresh via `xrootd_token_jwks_refresh_interval` directive  
 **Impact:** High for unattended production — WLCG IAM key rotation (≤24 h) causes token auth failures without operator intervention  
 **Effort:** 3–5 days  
-**Implemented in:** `src/auth/token/refresh.c` (new), `src/core/types/config.h`, `src/core/config/server_conf.c`, `src/auth/token/config.c`, `src/core/config/config.h`, `src/stream/module_core_directives.c`, `src/core/config/process.c`, `config`  
+**Implemented in:** `src/auth/token/refresh.c` (new), `src/core/types/config.h`, `src/core/config/server_conf.c`, `src/auth/token/config.c`, `src/core/config/config.h`, `src/protocols/root/stream/module_core_directives.c`, `src/core/config/process.c`, `config`  
 **Tests:** `tests/test_token_jwks_refresh.py`
 
 ### Problem
@@ -347,7 +347,7 @@ xrootd_token_jwks_schedule_refresh(ngx_cycle_t *cycle,
 ```
 
 Call `xrootd_token_jwks_schedule_refresh()` from the module's `init_worker`
-callback (add one in `src/stream/module.c` if not present).
+callback (add one in `src/protocols/root/stream/module.c` if not present).
 
 #### Option B — HTTP JWKS URI polling (for future work)
 
@@ -621,14 +621,14 @@ New coverage in `tests/test_s3_presigned.py`:
 The codebase now contains the write-through configuration surface, write
 bookkeeping, and origin flush path needed for cache gateway deployments:
 
-- `src/core/types/config.h`, `src/fs/cache/directives.c`, and `src/stream/module.c`
+- `src/core/types/config.h`, `src/fs/cache/directives.c`, and `src/protocols/root/stream/module.c`
   define `xrootd_write_through`, `xrootd_wt_mode`, `xrootd_wt_origin`,
   `xrootd_wt_deny_prefix`, and `xrootd_wt_allow_prefix`.
 - `src/fs/cache/writethrough_decision.c` evaluates prefix/size policy at
   `kXR_open`.
-- `src/read/open_resolved_file.c` caches the decision on `xrootd_file_t`.
-- `src/write/write.c`, `src/write/pgwrite.c`, `src/write/writev.c`,
-  `src/write/truncate.c`, and AIO write completions track dirty data.
+- `src/protocols/root/read/open_resolved_file.c` caches the decision on `xrootd_file_t`.
+- `src/protocols/root/write/write.c`, `src/protocols/root/write/pgwrite.c`, `src/protocols/root/write/writev.c`,
+  `src/protocols/root/write/truncate.c`, and AIO write completions track dirty data.
 - `src/fs/cache/origin_connection.c` can connect to either the read-through
   cache origin or a dedicated `xrootd_wt_origin`.
 - `src/fs/cache/origin_protocol.c` implements write-side origin operations:
@@ -636,9 +636,9 @@ bookkeeping, and origin flush path needed for cache gateway deployments:
   `xrootd_cache_origin_truncate()`, and `xrootd_cache_origin_sync()`.
 - `src/fs/cache/writethrough_flush.c` mirrors the final local file to the
   origin in chunks, then issues origin truncate, sync, and close.
-- `src/write/sync.c` performs a synchronous WT flush for dirty handles before
+- `src/protocols/root/write/sync.c` performs a synchronous WT flush for dirty handles before
   returning `kXR_ok`; failures are returned as `kXR_IOError`.
-- `src/read/close.c` flushes dirty WT handles on close. `sync` mode blocks
+- `src/protocols/root/read/close.c` flushes dirty WT handles on close. `sync` mode blocks
   during close; `async` mode posts an nginx thread-pool task and logs failures.
 
 This implementation deliberately uses a **whole-file replacement** strategy at
@@ -653,9 +653,9 @@ close remains fail-open while logging WT errors.
 |---|---|---|
 | 1 | `src/core/types/file.h`, `src/core/types/config.h` | ✅ Config and handle WT state |
 | 2 | `src/fs/cache/origin_protocol.c` | ✅ Origin write-open, write, truncate, sync, close |
-| 3 | `src/read/open_resolved_file.c` | ✅ Open-time WT policy cached on the handle |
-| 4 | `src/core/aio/`, `src/write/*.c` | ✅ Dirty tracking for write, pgwrite, writev, truncate |
-| 5 | `src/fs/cache/writethrough_flush.c`, `src/read/close.c`, `src/write/sync.c` | ✅ Close/sync origin flush |
+| 3 | `src/protocols/root/read/open_resolved_file.c` | ✅ Open-time WT policy cached on the handle |
+| 4 | `src/core/aio/`, `src/protocols/root/write/*.c` | ✅ Dirty tracking for write, pgwrite, writev, truncate |
+| 5 | `src/fs/cache/writethrough_flush.c`, `src/protocols/root/read/close.c`, `src/protocols/root/write/sync.c` | ✅ Close/sync origin flush |
 
 **Remaining limitations:** the origin path must resolve under `xrootd_root` or
 `xrootd_cache_root`, the origin must be a direct data server (redirect-following
@@ -711,7 +711,7 @@ validation pipeline:
 ### 8c. Authdb `HOST` (`p`) identity type
 
 **Status:** ✅ IMPLEMENTED — exact IP and CIDR host matching  
-**Implemented in:** `src/core/types/context.h`, `src/connection/handler.c`, `src/auth/authz/authdb.c`  
+**Implemented in:** `src/core/types/context.h`, `src/protocols/root/connection/handler.c`, `src/auth/authz/authdb.c`  
 **Tests:** `tests/test_authdb.py::test_host_rule_exact_peer_read`, `test_host_rule_cidr_peer_read`, `test_host_rule_nonmatching_peer_denied`
 
 `p` rules in the authdb file now match the remote peer address recorded at
@@ -737,7 +737,7 @@ base and delta CRLs during chain verification.
 ### 8e. OCSP stapling and responder queries
 
 **Status:** ✅ IMPLEMENTED — AIA responder queries and TLS stapling callback  
-**Implemented in:** `src/auth/crypto/ocsp.c`, `src/auth/crypto/ocsp.h`, `src/auth/gsi/auth.c`, `src/session/tls_config.c`  
+**Implemented in:** `src/auth/crypto/ocsp.c`, `src/auth/crypto/ocsp.h`, `src/auth/gsi/auth.c`, `src/protocols/root/session/tls_config.c`  
 **New directives:** `xrootd_ocsp_enable`, `xrootd_ocsp_soft_fail`, `xrootd_ocsp_stapling`  
 **Tests:** `tests/test_ocsp.py` (18/18 passing)
 
@@ -758,7 +758,7 @@ Two sub-features were implemented:
 2. **OCSP stapling** (server side): `xrootd_ocsp_staple_fetch()` fetches a DER
    OCSP response and caches it in the server config. A
    `SSL_CTX_set_tlsext_status_cb()` callback installed in
-   `src/session/tls_config.c` copies the cached DER blob into each TLS
+   `src/protocols/root/session/tls_config.c` copies the cached DER blob into each TLS
    handshake via `SSL_set_tlsext_status_ocsp_resp()`. Controlled by
    `xrootd_ocsp_stapling on/off` (default `off`).
 
@@ -795,7 +795,7 @@ temporary secret keys remains out of scope for this static-key module.
 ### 8g. `kXR_fattrRecurse` flag support
 
 **Status:** ✅ IMPLEMENTED (local extension bit `0x20`)  
-**Files:** `src/fattr/list.c`, `src/protocol/flags.h`, `src/fattr/ngx_xrootd_fattr.h`  
+**Files:** `src/protocols/root/fattr/list.c`, `src/protocols/root/protocol/flags.h`, `src/protocols/root/fattr/ngx_xrootd_fattr.h`  
 **Tests:** `tests/test_fattr_query.py::TestFattrRecurse` (3 tests, all passing)
 
 **Background:** `XProtocol.hh` (protocol 5.2) only defines two `options` bits for
@@ -805,15 +805,15 @@ implemented as a documented local extension.
 
 **Implementation:**
 
-- **`src/protocol/flags.h`** — defines `kXR_fa_recurse = 0x20` with a comment
+- **`src/protocols/root/protocol/flags.h`** — defines `kXR_fa_recurse = 0x20` with a comment
   marking it as a local extension not present in the upstream wire protocol.
-- **`src/fattr/list.c`** — when `options & kXR_fa_recurse` is set and the
+- **`src/protocols/root/fattr/list.c`** — when `options & kXR_fa_recurse` is set and the
   resolved path is a directory, `fattr_list()` delegates to a new
   `fattr_list_dir()` recursive helper instead of the single-file `listxattr(2)`
   path. `fattr_list_dir()` walks the tree with `opendir()`/`readdir()`, skips
   dot entries and non-regular files (via `lstat()` — symlinks are not followed),
   and appends one NUL-terminated entry per xattr found.
-- **`src/fattr/ngx_xrootd_fattr.h`** — updated `fattr_list` comment to document
+- **`src/protocols/root/fattr/ngx_xrootd_fattr.h`** — updated `fattr_list` comment to document
   the `kXR_fa_recurse` extension.
 
 **Response format:**

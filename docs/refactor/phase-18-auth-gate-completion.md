@@ -48,7 +48,7 @@ two additionally fix a **missing access log entry** for auth failures.
 
 ## Files and changes
 
-### `src/fattr/dispatch.c` — 1 full triad, auth_level varies by subcode
+### `src/protocols/root/fattr/dispatch.c` — 1 full triad, auth_level varies by subcode
 
 **Current** (~18 LoC across two separate scope blocks):
 
@@ -98,7 +98,7 @@ Note: `need_write` is computed once instead of twice (the two nested scopes
 were a defensive workaround for the variable scope issue that the merger
 eliminates).
 
-### `src/query/metadata.c` — 2 partial triads (authdb + vo, no token)
+### `src/protocols/root/query/metadata.c` — 2 partial triads (authdb + vo, no token)
 
 There are two independent query handlers in this file, each with an
 `xrootd_check_authdb` + `xrootd_check_vo_acl_identity` pair that omits both
@@ -130,7 +130,7 @@ if (xrootd_auth_gate(ctx, c, XROOTD_OP_QUERY_XATTR, "QUERY",
 **Saves ~10 LoC per instance × 2 = ~20 LoC.  Adds missing access log entries
 for auth failures AND adds the missing token scope check.**
 
-### `src/query/checksum_qcksum.c` — 1 partial triad (authdb + vo, no token)
+### `src/protocols/root/query/checksum_qcksum.c` — 1 partial triad (authdb + vo, no token)
 
 Uses `XROOTD_RETURN_ERR` (which includes log_access) — so logging is correct.
 Missing only the token scope check.
@@ -160,7 +160,7 @@ if (xrootd_auth_gate(ctx, c, XROOTD_OP_QUERY_CKSUM, "QUERY",
 
 **Saves ~5 LoC. Adds missing token scope check.**
 
-### `src/query/checksum_ckscan_dispatch.c` — 1 full triad using XROOTD_RETURN_ERR
+### `src/protocols/root/query/checksum_ckscan_dispatch.c` — 1 full triad using XROOTD_RETURN_ERR
 
 All three auth checks use `XROOTD_RETURN_ERR`, so logging is correct.
 Migration to `xrootd_auth_gate()` is purely structural deduplication.
@@ -198,7 +198,7 @@ if (xrootd_auth_gate(ctx, c, XROOTD_OP_QUERY_CKSCAN, "QUERY",
 
 ## What NOT to change
 
-### `src/query/prepare.c` — auth triads via `xrootd_prepare_check_fail()`
+### `src/protocols/root/query/prepare.c` — auth triads via `xrootd_prepare_check_fail()`
 
 `prepare.c` routes all errors through a local helper that already calls
 `xrootd_log_access()`:
@@ -227,7 +227,7 @@ wraps NGX_DONE for multi-path semantics.  Migrating to `xrootd_auth_gate()`
 would require making auth_gate configurable for per-call error sinks — not
 worth the complexity.  Leave as-is.
 
-### `src/query/prepare.c` — conjunction form at line ~514
+### `src/protocols/root/query/prepare.c` — conjunction form at line ~514
 
 ```c
 if (   xrootd_check_authdb(ctx, resolved, XROOTD_AUTH_READ) == NGX_OK

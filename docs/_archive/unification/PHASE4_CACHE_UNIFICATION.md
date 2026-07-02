@@ -14,7 +14,7 @@
 After Phase 3, all protocols open files through `xrootd_vfs_open()`. This phase makes the cache layer fully transparent inside that call — no protocol handler needs to know whether a file comes from cache or origin. It also unifies the writethrough decision logic (currently duplicated between stream and WebDAV) and gives the eviction policy a single view of all cached content regardless of which protocol placed it there.
 
 Currently:
-- Stream reads go through `src/read/open_cache.c` → `src/fs/cache/open_or_fill.c`
+- Stream reads go through `src/protocols/root/read/open_cache.c` → `src/fs/cache/open_or_fill.c`
 - WebDAV reads bypass the cache entirely unless TPC writethrough is involved
 - S3 reads have no cache integration at all
 
@@ -47,7 +47,7 @@ The target is: **one cache, three entry points, zero protocol-specific cache cod
 ### Stream Cache Path (Current)
 
 ```
-src/read/open_cache.c
+src/protocols/root/read/open_cache.c
   → xrootd_cache_open_or_fill()      -- in src/fs/cache/open_or_fill.c
     → cache lock acquire             -- src/fs/cache/lock.c
     → check cache path exists        -- src/fs/cache/paths.c
@@ -87,7 +87,7 @@ vfs_open_with_cache(xrootd_vfs_ctx_t *ctx, ngx_uint_t flags,
 }
 ```
 
-The `xrootd_cache_open()` function in `src/fs/cache/open.c` (new file) replaces the stream-specific `src/read/open_cache.c`.
+The `xrootd_cache_open()` function in `src/fs/cache/open.c` (new file) replaces the stream-specific `src/protocols/root/read/open_cache.c`.
 
 ### New and Modified Cache Files
 
@@ -205,7 +205,7 @@ The origin protocol is determined by the nginx config directive `xrootd_cache_or
 ### New files
 | File | Purpose |
 |:---|:---|
-| `src/fs/cache/open.c` | Unified cache open — replaces `src/read/open_cache.c` |
+| `src/fs/cache/open.c` | Unified cache open — replaces `src/protocols/root/read/open_cache.c` |
 | `src/fs/cache/open.h` | Public header for `xrootd_cache_open()` |
 | `src/fs/cache/writethrough.h` | Public header exposing writethrough decision |
 | `src/fs/cache/meta.c` | Read/write `.meta` sidecar files |
@@ -222,7 +222,7 @@ The origin protocol is determined by the nginx config directive `xrootd_cache_or
 | `src/fs/vfs_open.c` | Call `xrootd_cache_open()` (Phase 4 hook) |
 | `src/fs/vfs_write.c` | Call `xrootd_cache_should_writethrough()` |
 | `src/fs/vfs_read.c` | Call `xrootd_cache_record_access()` on cache hit |
-| `src/read/open_cache.c` | **Removed** — replaced by `src/fs/cache/open.c` |
+| `src/protocols/root/read/open_cache.c` | **Removed** — replaced by `src/fs/cache/open.c` |
 | `src/core/config/config.h` | Add `src/fs/cache/open.c`, `src/fs/cache/meta.c` to `NGX_ADDON_SRCS`; new `xrootd_cache_origin_protocol` directive |
 
 ---
@@ -265,7 +265,7 @@ The origin protocol is determined by the nginx config directive `xrootd_cache_or
 
 ## Completion Criteria
 
-- [ ] `src/fs/cache/open.c` exists; `src/read/open_cache.c` removed
+- [ ] `src/fs/cache/open.c` exists; `src/protocols/root/read/open_cache.c` removed
 - [ ] `xrootd_vfs_open()` calls `xrootd_cache_open()` for all protocols (no `XROOTD_VFS_O_NOCACHE`)
 - [ ] WebDAV GET served from cache for files previously fetched by stream — `from_cache=1` in log
 - [ ] S3 GetObject served from cache — `from_cache=1` in log

@@ -1,7 +1,7 @@
 # Server Capability Flags — Implementation Plan
 
 **Status**: Historical implementation plan — no longer current as a missing-feature list  
-**Current source**: `src/session/protocol.c` advertises the implemented capability
+**Current source**: `src/protocols/root/session/protocol.c` advertises the implemented capability
 bits, and `tests/test_protocol_flags.py` verifies `kXR_supposc`,
 `kXR_suppgrw`, `kXR_attrMeta`, `kXR_attrSuper`, `kXR_attrVirtRdr`,
 `kXR_recoverWrts`, and `kXR_collapseRedir` behavior. See
@@ -11,7 +11,7 @@ matrix.
 **Scope**: Original plan for `ServerProtocolBody.flags` capability bits that were
 not yet advertised when this document was written  
 **Wire spec**: `/tmp/xrootd-src/src/XProtocol/XProtocol.hh` lines 1198–1217  
-**Primary files**: `src/protocol/flags.h`, `src/session/protocol.c`
+**Primary files**: `src/protocols/root/protocol/flags.h`, `src/protocols/root/session/protocol.c`
 
 ---
 
@@ -19,7 +19,7 @@ not yet advertised when this document was written
 
 Every `kXR_protocol` response carries a 32-bit `flags` field that tells the client what this server node is and what optional features it supports. Clients use this to choose paths, optimise transfers, and avoid sending unsupported opcodes.
 
-Current nginx-xrootd advertisement (lines 112–114 of `src/session/protocol.c`):
+Current nginx-xrootd advertisement (lines 112–114 of `src/protocols/root/session/protocol.c`):
 
 ```c
 body.flags = htonl(kXR_isServer
@@ -59,7 +59,7 @@ This is severely under-reporting. The server silently omits flags for features i
 
 **Critical issue that must be resolved first.**
 
-Our `src/protocol/flags.h` currently defines `kXR_attrCache = 256` (0x100) under the *stat response* flags section. This is a local extension used in per-file `kXR_stat` responses to indicate cached xattr metadata.
+Our `src/protocols/root/protocol/flags.h` currently defines `kXR_attrCache = 256` (0x100) under the *stat response* flags section. This is a local extension used in per-file `kXR_stat` responses to indicate cached xattr metadata.
 
 The upstream spec defines `kXR_attrCache = 0x00000080` (0x80) under *protocol response* flags to indicate the server is a cache node.
 
@@ -67,7 +67,7 @@ These are different values for different wire fields, but the shared name will c
 
 **Resolution (prerequisite to all other work):**
 
-In `src/protocol/flags.h`, rename the stat-level definition:
+In `src/protocols/root/protocol/flags.h`, rename the stat-level definition:
 
 ```c
 /* Before — in "Stat response flags" section */
@@ -85,7 +85,7 @@ Then update every callsite that references `kXR_attrCache` in a stat context:
 grep -rn "kXR_attrCache" src/
 ```
 
-Affected files are in `src/read/stat.c`, `src/read/statx.c`, and `src/fattr/`.
+Affected files are in `src/protocols/root/read/stat.c`, `src/protocols/root/read/statx.c`, and `src/protocols/root/fattr/`.
 
 After the rename, add the protocol-level constant to the "Protocol response flags" section (see Phase 1).
 
@@ -99,17 +99,17 @@ These flags require no new features. They either unconditionally apply or are de
 
 **Meaning**: server implements paged read (`kXR_pgread`) and paged write (`kXR_pgwrite`) with per-page CRC32c checksums. Clients use this to know whether to use the faster paged path.
 
-**Current state**: Features fully implemented (`src/read/pgread.c`, `src/write/pgwrite.c`) but flag never set. Clients that check the flag before attempting pgread will fall back to plain `kXR_read`.
+**Current state**: Features fully implemented (`src/protocols/root/read/pgread.c`, `src/protocols/root/write/pgwrite.c`) but flag never set. Clients that check the flag before attempting pgread will fall back to plain `kXR_read`.
 
 **Implementation**:
 
-In `src/protocol/flags.h`, add to the "Protocol response flags" section:
+In `src/protocols/root/protocol/flags.h`, add to the "Protocol response flags" section:
 ```c
 #define kXR_suppgrw     0x00200000u  /* server supports kXR_pgread and kXR_pgwrite
                                         with per-page CRC32c integrity */
 ```
 
-In `src/session/protocol.c`, add unconditionally to the flags expression:
+In `src/protocols/root/session/protocol.c`, add unconditionally to the flags expression:
 ```c
 body.flags = htonl(kXR_isServer
                    | kXR_suppgrw   /* always: pgread/pgwrite implemented */
@@ -125,7 +125,7 @@ body.flags = htonl(kXR_isServer
 
 **Meaning**: server supports persist-on-successful-close (`kXR_posc` open flag). Files opened with POSC are held as temporary; abandoned opens are cleaned up automatically.
 
-**Current state**: POSC is implemented in `src/read/open_request.c` and `src/read/close.c`, but flag never advertised.
+**Current state**: POSC is implemented in `src/protocols/root/read/open_request.c` and `src/protocols/root/read/close.c`, but flag never advertised.
 
 **Implementation**: Same as 1.1 — add `kXR_supposc = 0x00100000u` to `flags.h` and include unconditionally in the flags expression.
 
@@ -143,13 +143,13 @@ body.flags = htonl(kXR_isServer
 
 **Implementation**:
 
-`src/protocol/flags.h`:
+`src/protocols/root/protocol/flags.h`:
 ```c
 #define kXR_attrProxy   0x00000200u  /* this node is a proxy; all file I/O is
                                         forwarded to a backend XRootD server */
 ```
 
-`src/session/protocol.c` — add to the flags expression:
+`src/protocols/root/session/protocol.c` — add to the flags expression:
 ```c
 | (conf->proxy_enable || conf->proxy_upstreams != NULL ? kXR_attrProxy : 0)
 ```
@@ -168,7 +168,7 @@ body.flags = htonl(kXR_isServer
 
 **Implementation**:
 
-`src/protocol/flags.h` — add to "Protocol response flags" section:
+`src/protocols/root/protocol/flags.h` — add to "Protocol response flags" section:
 ```c
 #define kXR_attrCache   0x00000080u  /* this node is a read-through cache (XCache);
                                         file data may be served from local cache_root */
@@ -176,7 +176,7 @@ body.flags = htonl(kXR_isServer
 
 **Note**: This is distinct from the stat-level `kXR_statAttrCache = 256` (renamed above). One is a server-level advertisement; the other is a per-file response hint.
 
-`src/session/protocol.c`:
+`src/protocols/root/session/protocol.c`:
 ```c
 | (conf->cache_root.len > 0 || conf->cache_origin_host.len > 0 ? kXR_attrCache : 0)
 ```
@@ -207,12 +207,12 @@ ngx_flag_t  metadata_only;   /* advertise kXR_attrMeta; reject open/read */
 ngx_conf_merge_value(conf->metadata_only, prev->metadata_only, 0);
 ```
 
-**Protocol flag** (`src/session/protocol.c`):
+**Protocol flag** (`src/protocols/root/session/protocol.c`):
 ```c
 | (conf->metadata_only ? kXR_attrMeta : 0)
 ```
 
-**Behavioral enforcement**: When `metadata_only` is set, the open handler (`src/read/open_request.c`) must reject `kXR_open` with `kXR_Unsupported` or redirect to a CMS-selected data server if a manager map is configured. A metadata-only node with a manager map is valid (it namespace-serves and redirects I/O).
+**Behavioral enforcement**: When `metadata_only` is set, the open handler (`src/protocols/root/read/open_request.c`) must reject `kXR_open` with `kXR_Unsupported` or redirect to a CMS-selected data server if a manager map is configured. A metadata-only node with a manager map is valid (it namespace-serves and redirects I/O).
 
 **Test cases**:
 1. Protocol response has `kXR_attrMeta` set when directive is on.
@@ -220,7 +220,7 @@ ngx_conf_merge_value(conf->metadata_only, prev->metadata_only, 0);
 3. `kXR_stat` and `kXR_dirlist` succeed normally.
 4. With a manager map configured, `kXR_open` redirects rather than failing.
 
-`src/protocol/flags.h`:
+`src/protocols/root/protocol/flags.h`:
 ```c
 #define kXR_attrMeta    0x00000100u  /* metadata-only: serves namespace ops but
                                         holds no file data; kXR_open redirected */
@@ -255,7 +255,7 @@ Note: `kXR_attrSuper` is only meaningful when `kXR_isManager` is also set. Enfor
 2. Sub-manager advertises `kXR_isManager` but not `kXR_attrSuper`.
 3. Data server advertises only `kXR_isServer`.
 
-`src/protocol/flags.h`:
+`src/protocols/root/protocol/flags.h`:
 ```c
 #define kXR_attrSuper   0x00000400u  /* supervisor role: top-tier manager in a
                                         three-level CMS hierarchy; implies kXR_isManager */
@@ -294,7 +294,7 @@ ngx_flag_t  virtual_redirector;  /* advertise kXR_attrVirtRdr */
 2. CMS-backed manager does not set `kXR_attrVirtRdr`.
 3. Explicit `xrootd_virtual_redirector on` sets the flag regardless.
 
-`src/protocol/flags.h`:
+`src/protocols/root/protocol/flags.h`:
 ```c
 #define kXR_attrVirtRdr 0x00000800u  /* virtual redirector: translates logical
                                         paths via static map, not CMS protocol */
@@ -320,14 +320,14 @@ These flags require new server-side behaviour, not just self-declaration. They m
 **Assessment**: Do not set `kXR_recoverWrts` until the write journal and `kXR_attn` resume-notification path are implemented. Setting it prematurely causes clients to retry writes they believe are safe, potentially creating double-write corruption.
 
 **Implementation steps** (ordered):
-1. Implement `kXR_attn` async server-push channel (`src/session/attn.c`)
-2. Add per-session write journal (`src/write/journal.c`): open file → allocate journal entry in connection pool; on `kXR_close` → discard; on `ngx_stream_session_t` cleanup without close → persist journal file alongside the data file
+1. Implement `kXR_attn` async server-push channel (`src/protocols/root/session/attn.c`)
+2. Add per-session write journal (`src/protocols/root/write/journal.c`): open file → allocate journal entry in connection pool; on `kXR_close` → discard; on `ngx_stream_session_t` cleanup without close → persist journal file alongside the data file
 3. On new session login: scan journal directory for matching `sessid`, if found send `kXR_attn` with resume offset
 4. Only after steps 1–3 pass integration tests: add `kXR_recoverWrts = 0x00001000u` to `flags.h` and set it when `conf->allow_write` is true
 
 **Config directive** (for explicit opt-in): `xrootd_recover_writes on|off` (default `off`; must not be auto-enabled)
 
-`src/protocol/flags.h`:
+`src/protocols/root/protocol/flags.h`:
 ```c
 #define kXR_recoverWrts 0x00001000u  /* server can recover partial writes;
                                         requires kXR_attn async notification */
@@ -343,7 +343,7 @@ These flags require new server-side behaviour, not just self-declaration. They m
 
 **Scope**: Medium effort. Requires:
 1. A small LRU map in shared memory (indexed by `(client_ip_prefix, canonical_path)`, value is `(host, port, expiry)`)
-2. Integration point in `src/read/locate.c` and `src/read/open_request.c`: before querying CMS, check the LRU map; on CMS response, insert into map
+2. Integration point in `src/protocols/root/read/locate.c` and `src/protocols/root/read/open_request.c`: before querying CMS, check the LRU map; on CMS response, insert into map
 3. Map eviction on configurable TTL (default 30 s)
 
 **Implementation steps**:
@@ -370,7 +370,7 @@ ngx_msec_t  collapse_redir_ttl; /* cache entry TTL, default 30000 ms */
 3. After TTL expires: cache miss, CMS consulted again.
 4. Flag absent when directive is off.
 
-`src/protocol/flags.h`:
+`src/protocols/root/protocol/flags.h`:
 ```c
 #define kXR_collapseRedir 0x00002000u /* server caches recent redirect targets;
                                           subsequent identical requests skip CMS */
@@ -395,11 +395,11 @@ Grouped Parallel Fetch is a protocol extension that allows a manager to collect 
 Setting `kXR_supgpf` without implementing GPF aggregation would cause clients to send batched reads that the server cannot service, resulting in `kXR_Unsupported` errors or hangs.
 
 **Recommendation**: Defer. If a concrete use case requires GPF (e.g., ROOT <6.28 compat), implement as a separate phase:
-1. Re-activate `kXR_gpfile` dispatch in `src/handshake/dispatch_ops.c`
-2. Implement `src/query/gpfile.c`: accept batch request, open N file handles, issue parallel `kXR_read` dispatches via thread pool, stream responses
+1. Re-activate `kXR_gpfile` dispatch in `src/protocols/root/handshake/dispatch_ops.c`
+2. Implement `src/protocols/root/query/gpfile.c`: accept batch request, open N file handles, issue parallel `kXR_read` dispatches via thread pool, stream responses
 3. Only then set `kXR_supgpf`; set `kXR_anongpf` additionally when `conf->auth == XROOTD_AUTH_NONE`
 
-`src/protocol/flags.h`:
+`src/protocols/root/protocol/flags.h`:
 ```c
 #define kXR_supgpf      0x00400000u  /* server supports Grouped Parallel Fetch */
 #define kXR_anongpf     0x00800000u  /* GPF available to anonymous clients */
@@ -411,7 +411,7 @@ Setting `kXR_supgpf` without implementing GPF aggregation would cause clients to
 
 `kXR_ecRedir = 0x00004000` indicates the server can redirect to erasure-coded storage segments. This requires an erasure-coding storage backend (Reed-Solomon stripe layout, parity servers, reconstruction protocol). nginx-xrootd is POSIX-backed only. This flag must not be set and is explicitly out of scope.
 
-`src/protocol/flags.h`:
+`src/protocols/root/protocol/flags.h`:
 ```c
 #define kXR_ecRedir     0x00004000u  /* redirect to erasure-coded storage shards;
                                         out of scope — requires EC storage backend */
@@ -441,7 +441,7 @@ Phases 0 and 1 are the highest-value items: they fix silent misreporting of alre
 
 ## Changes Per File
 
-### `src/protocol/flags.h`
+### `src/protocols/root/protocol/flags.h`
 
 1. Rename `kXR_attrCache = 256` → `kXR_statAttrCache = 256` (stat section)
 2. Add to "Protocol response flags" section:
@@ -460,7 +460,7 @@ Phases 0 and 1 are the highest-value items: they fix silent misreporting of alre
    #define kXR_anongpf       0x00800000u
    ```
 
-### `src/session/protocol.c`
+### `src/protocols/root/session/protocol.c`
 
 Replace lines 112–114 with a factored expression:
 
@@ -526,7 +526,7 @@ ngx_conf_merge_msec_value(conf->collapse_redir_ttl, prev->collapse_redir_ttl, 30
   offsetof(ngx_stream_xrootd_srv_conf_t, collapse_redir), NULL },
 ```
 
-### `src/read/open_request.c` (Phase 2a enforcement)
+### `src/protocols/root/read/open_request.c` (Phase 2a enforcement)
 
 After the existing manager-mode redirect block, add:
 
@@ -626,9 +626,9 @@ After renaming `kXR_attrCache → kXR_statAttrCache` in `flags.h`, update all ca
 grep -rn "kXR_attrCache" src/ tests/
 
 # Expected callsites (stat context, should become kXR_statAttrCache):
-#   src/read/stat.c         — stat response flag assembly
-#   src/read/statx.c        — statx response flag assembly
-#   src/fattr/dispatch.c    — fattr cache hint
+#   src/protocols/root/read/stat.c         — stat response flag assembly
+#   src/protocols/root/read/statx.c        — statx response flag assembly
+#   src/protocols/root/fattr/dispatch.c    — fattr cache hint
 ```
 
 Scope is small (3–5 callsites). Do the rename and verify build before any other Phase 1 changes.

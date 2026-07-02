@@ -213,12 +213,12 @@ ngx_stream_xrootd_module`, top-level `config`). It plugs into nginx's existing
 machinery:
 
 - The `root://` binary protocol is an **`NGX_STREAM_MODULE`** stream handler
-  (`src/stream/module_definition.c`).
+  (`src/protocols/root/stream/module_definition.c`).
 - WebDAV/XrdHttp, S3, and the dashboard/admin are **HTTP** handlers
   (`src/protocols/webdav/`, `src/protocols/s3/`, `src/observability/dashboard/`), and `/metrics` is a second HTTP
   module (`ngx_http_xrootd_metrics_module`, registered in `config`).
 
-The module descriptor (`src/stream/module_definition.c`) wires nginx's lifecycle
+The module descriptor (`src/protocols/root/stream/module_definition.c`) wires nginx's lifecycle
 hooks:
 
 ```c
@@ -286,7 +286,7 @@ processes and share nothing by default:
   #10 in CLAUDE.md and
   `docs/09-developer-guide/postmortem-shmtx-semaphore-stall.md`.
 - SHM-backed state includes per-server metrics (`ngx_xrootd_metrics_t`,
-  `src/connection/handler.c`), the session/handle/manager registries
+  `src/protocols/root/connection/handler.c`), the session/handle/manager registries
   (`src/net/manager/registry.c`), the redirect-collapse cache
   (`src/net/manager/redir_cache.c`), the native-TPC key registry
   (`src/tpc/key_registry.c`), the FRM durable queue, and rate-limit/KV zones.
@@ -295,7 +295,7 @@ processes and share nothing by default:
 
 Each accepted TCP connection gets one `xrootd_ctx_t` (`src/core/types/context.h`),
 allocated from the connection pool at connect time
-(`ngx_stream_xrootd_handler()`, `src/connection/handler.c`):
+(`ngx_stream_xrootd_handler()`, `src/protocols/root/connection/handler.c`):
 
 ```c
 ctx = ngx_pcalloc(c->pool, sizeof(xrootd_ctx_t));
@@ -319,7 +319,7 @@ via `ngx_stream_get_module_ctx(s, ngx_stream_xrootd_module)`.
 
 ### The recv state machine (the "Resume" equivalent)
 
-`src/connection/recv.c` (`ngx_stream_xrootd_recv`) is a byte-accumulating state
+`src/protocols/root/connection/recv.c` (`ngx_stream_xrootd_recv`) is a byte-accumulating state
 machine that replaces XRootD's `Resume` member-pointer with explicit
 `XRD_ST_*` states and the `NGX_AGAIN` yield convention:
 
@@ -337,7 +337,7 @@ allocated.
 
 ### Dispatch
 
-When a full request is framed, `xrootd_dispatch()` (`src/handshake/dispatch.c`)
+When a full request is framed, `xrootd_dispatch()` (`src/protocols/root/handshake/dispatch.c`)
 runs a **cascade of single-purpose dispatchers**, each returning
 `XROOTD_DISPATCH_CONTINUE` if the opcode is not its own:
 
@@ -415,7 +415,7 @@ nginx's own `src/core|event|http` are never edited.
 Runtime configuration is **nginx config**, not a separate `xrootd.cfg`. Directives
 live inside nginx `stream { server { … } }` (for `root://`) and `http { server {
 location { … } } }` (for WebDAV/S3/metrics) blocks. The directive table is
-`ngx_stream_xrootd_commands[]` (`src/stream/module.c`): `xrootd on;` enables the
+`ngx_stream_xrootd_commands[]` (`src/protocols/root/stream/module.c`): `xrootd on;` enables the
 handler, `xrootd_root`, `xrootd_auth`, `xrootd_allow_write`, `xrootd_tls`,
 `xrootd_token_jwks`, `xrootd_manager_mode`, `xrootd_frm`, etc. Almost every
 directive is `NGX_STREAM_SRV_CONF` (per-server, stored at an `offsetof` into
@@ -517,7 +517,7 @@ nginx access/error logs — UDP XrdMon is an explicit non-goal.
 | Partial-read survival | `Resume` member-fn-pointer continuation | `XRD_ST_*` suspend states + `NGX_AGAIN` | same idea, different mechanism |
 | Blocking I/O | done on the (blockable) pool thread | offloaded to `ngx_thread_pool` / io_uring; conn parked in `XRD_ST_AIO` | nginx *must* offload or it stalls the worker |
 | Crypto on the hot path | runs on a pool thread, fine to block | pooled/cached (DH keypool, GSI in-flight cap, token L1/L2) | a consequence of the shared event loop |
-| Protocol code | `.so` plugin (`XrdXrootdProtocol`), ABI-versioned, dlopened | compiled into the module; dispatch cascade in `src/handshake/` | XRootD = pluggable ABI; nginx = static module |
+| Protocol code | `.so` plugin (`XrdXrootdProtocol`), ABI-versioned, dlopened | compiled into the module; dispatch cascade in `src/protocols/root/handshake/` | XRootD = pluggable ABI; nginx = static module |
 | Storage abstraction | `XrdSfs`/`XrdOss` virtual plugins | confined `openat2(RESOLVE_BENEATH)` POSIX helpers (`src/path/`) | nginx is POSIX-focused; no plugin ABI for Ceph/PSS/PFC |
 | Cross-process state | shared in-process memory (threads) | SHM slab tables via `shm_slots.c`, spin+yield mutexes | nginx needs SHM because workers are processes |
 | Memory model | C++ `new`/`delete` + `XrdBuffManager` bucketed buffer pool | nginx arenas (`ngx_palloc`) + raw grow-only scratch + `cleanup_add` | recycle vs arena; both avoid per-request malloc on the hot path |
@@ -561,11 +561,11 @@ and *what the author must never do*.
 
 | Concern | Files / symbols |
 |---|---|
-| Module descriptor / hooks | `src/stream/module_definition.c` (`ngx_stream_xrootd_module`, postconfiguration, create/merge srv conf, init/exit process) |
-| Connection entry | `src/connection/handler.c` (`ngx_stream_xrootd_handler`, `xrootd_ctx_t` init, metrics slot, `max_connections` gate) |
-| Recv state machine | `src/connection/recv.c` (`ngx_stream_xrootd_recv`, `XRD_ST_*`, `xrootd_max_payload_for_request`, `xrootd_ensure_payload_buffer`) |
-| Dispatch | `src/handshake/dispatch.c` (`xrootd_dispatch`), `dispatch_{session,read,write,signing}.c` |
-| Directive table / config | `src/stream/module.c` (`ngx_stream_xrootd_commands[]`), `src/core/types/config.h` (`ngx_stream_xrootd_srv_conf_t`), `src/core/config/postconfiguration.c`, `src/core/config/config.h`, `src/core/types/tunables.h` |
+| Module descriptor / hooks | `src/protocols/root/stream/module_definition.c` (`ngx_stream_xrootd_module`, postconfiguration, create/merge srv conf, init/exit process) |
+| Connection entry | `src/protocols/root/connection/handler.c` (`ngx_stream_xrootd_handler`, `xrootd_ctx_t` init, metrics slot, `max_connections` gate) |
+| Recv state machine | `src/protocols/root/connection/recv.c` (`ngx_stream_xrootd_recv`, `XRD_ST_*`, `xrootd_max_payload_for_request`, `xrootd_ensure_payload_buffer`) |
+| Dispatch | `src/protocols/root/handshake/dispatch.c` (`xrootd_dispatch`), `dispatch_{session,read,write,signing}.c` |
+| Directive table / config | `src/protocols/root/stream/module.c` (`ngx_stream_xrootd_commands[]`), `src/core/types/config.h` (`ngx_stream_xrootd_srv_conf_t`), `src/core/config/postconfiguration.c`, `src/core/config/config.h`, `src/core/types/tunables.h` |
 | Per-connection state | `src/core/types/context.h` (`xrootd_ctx_t`, `files[]`, `out_ring`/`rd_pool`, `XRD_ST_*`) |
 | Thread-pool / io_uring offload | `src/core/aio/README.md`, `src/core/aio/resume.c` (`xrootd_aio_post_task`), `src/core/aio/buffers.c`, `src/core/aio/uring.c` |
 | SHM cross-worker state | `src/core/compat/shm_slots.c` (`xrootd_shm_table_alloc`, spin+yield mutex), `src/net/manager/registry.c`, `src/net/manager/redir_cache.c`, `src/tpc/key_registry.c` |

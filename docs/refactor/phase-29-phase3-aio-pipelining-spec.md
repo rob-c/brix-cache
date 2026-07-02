@@ -59,7 +59,7 @@ test harness to validate)
   On the `!restore_stream` (destroyed) early-bail branch it must STILL run
   task_complete (free its databuf slot first).
 
-### 3. Per-slot databuf + reusable task ring (`src/read/read.c` small-memory path,
+### 3. Per-slot databuf + reusable task ring (`src/protocols/root/read/read.c` small-memory path,
 lines ~298-337)
 - Replace the `ctx->read_aio_task` singleton + `databuf=read_scratch` with:
   claim slot `i = ctx->read_aio_next; ctx->read_aio_next = (i+1)%W;` lazily
@@ -68,7 +68,7 @@ lines ~298-337)
   `xrootd_read_aio_t` (`src/core/aio/aio.h`).
 - Slot is free because recv only dispatches while `outstanding < W` (see #4).
 
-### 4. recv decoupling (`src/connection/recv.c`) — mirror Phase 2's out_count
+### 4. recv decoupling (`src/protocols/root/connection/recv.c`) — mirror Phase 2's out_count
 - After dispatching a memory-AIO read: instead of returning on `state==XRD_ST_AIO`,
   if `outstanding < XROOTD_PIPELINE_MAX` set `state=REQ_HEADER` and keep reading;
   else suspend (leave AIO/SENDING). `outstanding++` happens at post.
@@ -79,12 +79,12 @@ lines ~298-337)
 - `xrootd_release_read_buffer`: teach it the `read_databuf[]` slots are retained
   (freed at disconnect), like `read_scratch` today.
 
-### 5. `src/connection/disconnect.c`
+### 5. `src/protocols/root/connection/disconnect.c`
 - Free `read_databuf[0..W-1]` in `xrootd_release_disconnect_owned_buffers` — but
   ONLY reached when `inflight_tasks==0` (guard in #2 guarantees it).
 
-### 6. Extend to pgread (`src/read/pgread.c` + `xrootd_pgread_aio_done`) and readv
-(`src/read/readv.c` + `xrootd_readv_aio_done`): same slot-claim + inflight++/--,
+### 6. Extend to pgread (`src/protocols/root/read/pgread.c` + `xrootd_pgread_aio_done`) and readv
+(`src/protocols/root/read/readv.c` + `xrootd_readv_aio_done`): same slot-claim + inflight++/--,
 and let them pipeline by removing their drain-barrier deferral for the
 `cur_reqid==kXR_pgread/kXR_readv` cases in recv (treat like kXR_read). pgread shares
 `read_scratch` with a CRC overlay — it needs the per-slot databuf too.

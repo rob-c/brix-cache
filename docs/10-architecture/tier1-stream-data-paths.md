@@ -1,6 +1,6 @@
 # Tier 1 XRootD Wire Protocol Operations — nginx-xrootd Module
 
-Comprehensive documentation of all Tier 1 XRootD wire protocol operations through the nginx-xrootd module. This covers the stream-layer operations that handle the XRootD binary wire protocol, as defined in `/tmp/xrootd-src/src/XProtocol/XProtocol.hh` and implemented via `src/protocol/wire_core_requests.h`.
+Comprehensive documentation of all Tier 1 XRootD wire protocol operations through the nginx-xrootd module. This covers the stream-layer operations that handle the XRootD binary wire protocol, as defined in `/tmp/xrootd-src/src/XProtocol/XProtocol.hh` and implemented via `src/protocols/root/protocol/wire_core_requests.h`.
 
 ## Operations Covered (8 total)
 
@@ -17,7 +17,7 @@ Comprehensive documentation of all Tier 1 XRootD wire protocol operations throug
 
 ## Shared Infrastructure
 
-### File Handle Management (`src/connection/fd_table.c`)
+### File Handle Management (`src/protocols/root/connection/fd_table.c`)
 
 The `fd_table` manages file handles using a slot-based system:
 
@@ -84,7 +84,7 @@ XROOTD_METRIC_DIRLIST_CALLS   // Directory listing calls
 ### 1. kXR_read (3013)
 
 #### Entry Point
-`xrootd_dispatch_read_opcode()` in `src/handshake/dispatch_read.c` handles opcode dispatch for read operations. The switch case for `kXR_read` calls the read handler with parsed parameters.
+`xrootd_dispatch_read_opcode()` in `src/protocols/root/handshake/dispatch_read.c` handles opcode dispatch for read operations. The switch case for `kXR_read` calls the read handler with parsed parameters.
 
 #### Request Parsing
 From `wire_core_requests.h`, the ClientReadRequest struct:
@@ -156,7 +156,7 @@ typedef struct {
 ### 2. kXR_write (3019)
 
 #### Entry Point
-`xrootd_dispatch_write_opcode()` in `src/handshake/dispatch_write.c` handles opcode dispatch for write operations, called from the switch case for `kXR_write`.
+`xrootd_dispatch_write_opcode()` in `src/protocols/root/handshake/dispatch_write.c` handles opcode dispatch for write operations, called from the switch case for `kXR_write`.
 
 #### Request Parsing
 From `wire_core_requests.h`, the ClientWriteRequest struct:
@@ -227,7 +227,7 @@ typedef struct {
 ### 3. kXR_stat (3017)
 
 #### Entry Point
-`xrootd_dispatch_read_opcode()` in `src/handshake/dispatch_read.c` handles opcode dispatch for stat operations via the switch case for `kXR_stat`.
+`xrootd_dispatch_read_opcode()` in `src/protocols/root/handshake/dispatch_read.c` handles opcode dispatch for stat operations via the switch case for `kXR_stat`.
 
 #### Request Parsing
 From `wire_core_requests.h`, the ClientStatRequest struct:
@@ -291,7 +291,7 @@ typedef struct {
 ### 4. kXR_close (3003)
 
 #### Entry Point
-`xrootd_dispatch_read_opcode()` in `src/handshake/dispatch_read.c` handles opcode dispatch for close operations via the switch case for `kXR_close`.
+`xrootd_dispatch_read_opcode()` in `src/protocols/root/handshake/dispatch_read.c` handles opcode dispatch for close operations via the switch case for `kXR_close`.
 
 #### Request Parsing
 From `wire_core_requests.h`, the ClientCloseRequest struct:
@@ -354,7 +354,7 @@ typedef struct {
 ### 5. kXR_ping (3011)
 
 #### Entry Point
-`xrootd_dispatch_read_opcode()` in `src/handshake/dispatch_read.c` handles opcode dispatch for ping operations via the switch case for `kXR_ping`.
+`xrootd_dispatch_read_opcode()` in `src/protocols/root/handshake/dispatch_read.c` handles opcode dispatch for ping operations via the switch case for `kXR_ping`.
 
 #### Request Parsing
 From `wire_core_requests.h`, the ClientPingRequest struct:
@@ -416,7 +416,7 @@ typedef struct {
 ### 6. kXR_dirlist (3004)
 
 #### Entry Point
-`xrootd_dispatch_read_opcode()` in `src/handshake/dispatch_read.c` handles opcode dispatch for directory listing operations via the switch case for `kXR_dirlist`.
+`xrootd_dispatch_read_opcode()` in `src/protocols/root/handshake/dispatch_read.c` handles opcode dispatch for directory listing operations via the switch case for `kXR_dirlist`.
 
 #### Request Parsing
 From `wire_core_requests.h`, the ClientDirListRequest struct:
@@ -480,7 +480,7 @@ typedef struct {
 ### 7. kXR_open (3010) — Boundary Case
 
 #### Entry Point
-`xrootd_dispatch_read_opcode()` in `src/handshake/dispatch_read.c` handles opcode dispatch for open operations via the switch case for `kXR_open`. The handler is implemented in `src/read/open_request.c`.
+`xrootd_dispatch_read_opcode()` in `src/protocols/root/handshake/dispatch_read.c` handles opcode dispatch for open operations via the switch case for `kXR_open`. The handler is implemented in `src/protocols/root/read/open_request.c`.
 
 #### Request Parsing
 From `wire_core_requests.h`, the ClientOpenRequest struct:
@@ -550,7 +550,7 @@ typedef struct {
 ### 8. kXR_statx (3022) — Boundary Case
 
 #### Entry Point
-`xrootd_dispatch_read_opcode()` in `src/handshake/dispatch_read.c` handles opcode dispatch for batch stat operations via the switch case for `kXR_statx`. The handler is implemented in `src/read/statx.c`.
+`xrootd_dispatch_read_opcode()` in `src/protocols/root/handshake/dispatch_read.c` handles opcode dispatch for batch stat operations via the switch case for `kXR_statx`. The handler is implemented in `src/protocols/root/read/statx.c`.
 
 #### Request Parsing
 From `wire_core_requests.h`, the ClientStatxRequest struct:
@@ -627,12 +627,12 @@ typedef struct {
 ## Reference Files
 
 - `/tmp/xrootd-src/src/XProtocol/XProtocol.hh` — wire protocol definitions (source of truth for wire details)
-- `src/protocol/wire_core_requests.h` — Client*Request struct definitions used by nginx-xrootd
+- `src/protocols/root/protocol/wire_core_requests.h` — Client*Request struct definitions used by nginx-xrootd
 - `.sisyphus/plans/tier1-kxr-read.md`, `.sisyphus/plans/tier1-kxr-stat.md` — format reference for section structure
-- `src/handshake/dispatch_read.c` — opcode dispatch switch cases for Tier 1 operations (xrootd_dispatch_read_opcode, xrootd_dispatch_write_opcode)
-- `src/read/open.c` — kXR_open handler implementation (boundary case)
-- `src/read/statx.c` — kXR_statx handler implementation (boundary case, batched stat)
-- `src/connection/fd_table.c` — file handle management, xrootd_file_t struct
+- `src/protocols/root/handshake/dispatch_read.c` — opcode dispatch switch cases for Tier 1 operations (xrootd_dispatch_read_opcode, xrootd_dispatch_write_opcode)
+- `src/protocols/root/read/open.c` — kXR_open handler implementation (boundary case)
+- `src/protocols/root/read/statx.c` — kXR_statx handler implementation (boundary case, batched stat)
+- `src/protocols/root/connection/fd_table.c` — file handle management, xrootd_file_t struct
 - `src/auth/authz/acl.c` — ACL enforcement for path-based operations
 
 ## Notes on Implementation Patterns
@@ -654,4 +654,4 @@ This documentation covers all 8 Tier 1 XRootD wire protocol operations through t
 - Invariants applied to Tier 1 ops (#2 TLS buffer, #3 allow_write gate, #4 resolve_path before open, #7 stat uses handle metadata)
 - errno → kXR → HTTP mapping reference table included at end of file
 
-All operations follow the wire protocol format defined in `/tmp/xrootd-src/src/XProtocol/XProtocol.hh` and use the Client*Request struct definitions from `src/protocol/wire_core_requests.h`.
+All operations follow the wire protocol format defined in `/tmp/xrootd-src/src/XProtocol/XProtocol.hh` and use the Client*Request struct definitions from `src/protocols/root/protocol/wire_core_requests.h`.

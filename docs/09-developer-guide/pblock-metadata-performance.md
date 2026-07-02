@@ -78,7 +78,7 @@ The catalog calls driving that SQLite mass (folded-stack sample counts):
 ```
 
 `pblock_catalog_lookup` dominates because it is called **redundantly**: the
-write/existing path-existence **gate** (`src/path/op_path.c`) probes a path, then
+write/existing path-existence **gate** (`src/protocols/root/path/op_path.c`) probes a path, then
 the handler does its **own** lookup; a `stat` looks the same path up twice; a
 create looks up parent then target; every sibling create re-probes the shared
 parent. Each lookup *also* re-`prepare`s + `finalize`s a fresh statement (no
@@ -155,7 +155,7 @@ writes and lowers CPU, which is the win on busier / multi-tenant workers.
 > **POSIX impact: none.** #2 is entirely inside `src/fs/backend/pblock/`. The
 > POSIX driver and confined-canon helpers are untouched.
 
-### #3 — Skip the redundant existence gate for non-POSIX exports (`src/path/op_path.c`)
+### #3 — Skip the redundant existence gate for non-POSIX exports (`src/protocols/root/path/op_path.c`)
 
 For an `EXISTING`-mode op (`stat`/`rm`/`chmod`/`setattr`/`truncate`), the gate's
 probe is redundant with the operation's own driver call, which already returns
