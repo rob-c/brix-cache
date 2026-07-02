@@ -123,10 +123,28 @@ def _sleep_off_throttle():
     time.sleep(1.5)
 
 
+def _unthrottled(fn, attempts=6):
+    """Issue a request (a zero-arg callable returning a Response), retrying on a
+    transient 429 by honouring Retry-After.  The per-IP leaky bucket (2r/s) that
+    these functional tests share can still be momentarily spent under heavy load
+    even after _sleep_off_throttle(); RFC 6585 says a client backs off and
+    retries, so the test does the same instead of failing on a transient
+    throttle.  A persistent 429 (bucket never refills — a real regression) still
+    surfaces after the attempts are exhausted; non-429 responses return at once."""
+    resp = fn()
+    for _ in range(attempts - 1):
+        if resp.status_code != 429:
+            return resp
+        ra = resp.headers.get("Retry-After", "").strip()
+        time.sleep((float(ra) if ra.isdigit() else 1.5) + 0.25)
+        resp = fn()
+    return resp
+
+
 def _sanity_ok(name=DATA_NAME):
     """A plain GET proving the server/connection survived the prior edge op."""
     _sleep_off_throttle()
-    resp = requests.get(_url(name), timeout=5)
+    resp = _unthrottled(lambda: requests.get(_url(name), timeout=5))
     assert resp.status_code in (200, 206), \
         f"sanity GET after edge op failed: {resp.status_code}"
     return resp
@@ -428,12 +446,12 @@ def test_proppatch_client_compatible_status(server):
         '<D:set><D:prop><Z:author>nobody</Z:author></D:prop></D:set>'
         '</D:propertyupdate>'
     )
-    resp = requests.request(
+    resp = _unthrottled(lambda: requests.request(
         "PROPPATCH", _url(),
         data=body.encode(),
         headers={"Content-Type": "application/xml"},
         timeout=5,
-    )
+    ))
     assert resp.status_code in (207, 200), \
         f"PROPPATCH must be client-compatible (207/200), got {resp.status_code}"
     assert resp.status_code != 501
@@ -452,7 +470,7 @@ def test_put_then_get_byte_exact(server):
     name = "roundtrip_xhw.bin"
     payload = bytes((i * 53 + 17) & 0xFF for i in range(33333))
 
-    put = requests.put(_url(name), data=payload, timeout=10)
+    put = _unthrottled(lambda: requests.put(_url(name), data=payload, timeout=10))
     if put.status_code in (403, 405):
         pytest.skip(f"writes not permitted in this build (PUT -> "
                     f"{put.status_code})")
@@ -460,7 +478,7 @@ def test_put_then_get_byte_exact(server):
         f"PUT failed: {put.status_code}"
 
     _sleep_off_throttle()
-    get = requests.get(_url(name), timeout=10)
+    get = _unthrottled(lambda: requests.get(_url(name), timeout=10))
     assert get.status_code == 200, get.status_code
     assert get.content == payload, "GET did not round-trip the PUT bytes"
 
