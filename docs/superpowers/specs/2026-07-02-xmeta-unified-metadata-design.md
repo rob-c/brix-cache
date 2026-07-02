@@ -168,3 +168,22 @@ BLOCKCRC updates under the same lock they already hold for block commit.
   trust_fs on self-checksumming stores are the compensating controls.
 - Files > ~15GiB exceed a 64KiB xattr with 1MiB granule and will ride the
   sidecar carrier; this is expected and invisible to consumers.
+
+## As-built deviations (2026-07-02, all four phases landed)
+
+1. **CSI write path** (§CSI bullet "writes immediately zero the touched
+   blocks"): implemented as a handle-local CRC fold with a single
+   lock+merge at close (`xrootd_csi_flush`) instead of per-write record
+   invalidation — zero record I/O on the write hot path, and fail-closed:
+   a crash before close leaves stale CRCs, so reads of a torn upload fail
+   `kXR_ChkSumErr` until rewritten. Bounded (32-block) disk recompute
+   covers unaligned edges; uncovered blocks stay UNSET (skipped, never
+   falsely failing).
+2. **`user.XrdCks.<alg>` stays** (§DIGEST scope): it is a stock-XrdCks
+   interop surface (binary XrdCksData readable by stock xrootd tools) and
+   already per-file xattr metadata. Only OUR `.cks` sidecar fallback (for
+   xattr-less filesystems) was replaced by the record's DIGEST section.
+3. **Carrier cap probe** (§Carriers): try-then-fallback per save replaces
+   the startup probe — same behavior, adapts per file, no probe machinery.
+4. **STATE/ORIGIN sections** grew beyond the sketch (flush stats, validity
+   strings, flags) so the full XCI1-v3 field set maps losslessly.
