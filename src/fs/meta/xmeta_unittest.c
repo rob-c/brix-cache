@@ -46,6 +46,13 @@ build_sample(xrootd_xmeta_t *m)
     xrootd_xmeta_block_set(m, 2);
     m->blockcrc[0] = 0xAABBCCDD;
     m->blockcrc[2] = 0x11223344;
+    m->last_flush    = 1751400500;
+    m->bytes_flushed = 4096;
+    m->filled_at     = 1751400600;
+    m->state_flags   = XROOTD_XMETA_F_VERIFIED;
+    m->etag_len = 8;      memcpy(m->etag, "\"abc123\"", 8);
+    m->cks_alg_len = 7;   memcpy(m->cks_alg, "adler32", 7);
+    m->cks_len = 8;       memcpy(m->cks_hex, "0badcafe", 8);
     xrootd_xmeta_digest_add(m, XROOTD_XMETA_ALG_CRC32C,
                             "\xde\xad\xbe\xef", 4);
     xrootd_xmeta_digest_add(m, XROOTD_XMETA_ALG_MD5,
@@ -74,8 +81,15 @@ main(int argc, char **argv)
           && xrootd_xmeta_block_test(&d, 2), "bitmap bits round-trip");
     CHECK(!xrootd_xmeta_complete(&d), "incomplete bitmap detected");
     CHECK(d.have_state && d.origin_mtime == 1751400000 && d.mode == 0644
-          && d.dirty_lo == 100 && d.dirty_hi == 200 && d.flush_gen == 7,
+          && d.dirty_lo == 100 && d.dirty_hi == 200 && d.flush_gen == 7
+          && d.last_flush == 1751400500 && d.bytes_flushed == 4096
+          && d.filled_at == 1751400600
+          && d.state_flags == XROOTD_XMETA_F_VERIFIED,
           "STATE section round-trips");
+    CHECK(d.etag_len == 8 && memcmp(d.etag, "\"abc123\"", 8) == 0
+          && d.cks_alg_len == 7 && memcmp(d.cks_alg, "adler32", 7) == 0
+          && d.cks_len == 8 && memcmp(d.cks_hex, "0badcafe", 8) == 0,
+          "ORIGIN section round-trips");
     CHECK(d.have_blockcrc && d.blockcrc[0] == 0xAABBCCDD
           && d.blockcrc[1] == XROOTD_XMETA_CRC_UNSET
           && d.blockcrc[2] == 0x11223344, "BLOCKCRC table round-trips");
@@ -133,11 +147,19 @@ main(int argc, char **argv)
         uint32_t plen, crc;
 
         memcpy(tmp, buf, blen);
-        /* find sections: ext header sits right after the stock trailer;
-         * walk: stock = 4+48+4 + bitmap(1) + astat(56) + 4 */
-        sec = 4 + 48 + 4 + 1 + 56 + 4 + 8;             /* first section */
-        memcpy(&plen, tmp + sec + 4, 4);
-        sec += 8 + plen + 4;                           /* second (DIGEST) */
+        /* walk the sections (ext header sits right after the stock trailer:
+         * 4+48+4 + bitmap(1) + astat(56) + 4 + 8) and find DIGEST by type */
+        sec = 4 + 48 + 4 + 1 + 56 + 4 + 8;
+        for ( ;; ) {
+            uint16_t t;
+
+            memcpy(&t, tmp + sec, 2);
+            if (t == XROOTD_XMETA_SEC_DIGEST) {
+                break;
+            }
+            memcpy(&plen, tmp + sec + 4, 4);
+            sec += 8 + plen + 4;
+        }
         tmp[sec] = 0x77; tmp[sec + 1] = 0x77;
         memcpy(&plen, tmp + sec + 4, 4);
         crc = xrootd_crc32c_value(tmp + sec, 8 + plen);

@@ -9,8 +9,7 @@
  * SIDECAR modes land in SP2 and return ENOSYS here until then.
  */
 #include "cstore.h"
-#include "cinfo_xattr.h"     /* cinfo as a store xattr (XATTR mode)            */
-#include "cinfo_sidecar.h"   /* cinfo as a co-located object (SIDECAR mode)    */
+#include "fs/meta/xmeta_carrier.h"   /* the unified record: xattr/sidecar carrier */
 
 #include <errno.h>
 #include <fcntl.h>
@@ -273,8 +272,10 @@ xrootd_cstore_evict(xrootd_cstore_t *cs, const char *key)
 
     xrootd_cinfo_l1_drop(cs->l1, key);
 
-    /* Drop the cinfo record. LOCAL: the byte-identical ".cinfo" sidecar next to
-     * the cache object (the cache tree is the read-cache's own raw domain). */
+    /* Drop the unified record (both carriers: xattr + sidecar). LOCAL stores
+     * also get the path-side unlink so a sidecar next to the local object is
+     * gone even when the store driver namespaces keys differently. */
+    (void) xrootd_xmeta_remove(cs->store, key);
     if (cs->meta_mode == XROOTD_CMETA_LOCAL) {
         char path[PATH_MAX];
         char cipath[PATH_MAX];
@@ -282,12 +283,8 @@ xrootd_cstore_evict(xrootd_cstore_t *cs, const char *key)
         if (cstore_local_path(cs, key, path, sizeof(path)) == 0
             && xrootd_cache_cinfo_path(cipath, sizeof(cipath), path) == 0)
         {
-            (void) unlink(cipath);   /* cache-store sidecar; ENOENT is fine */
+            (void) unlink(cipath);   /* vfs-seam-allow: svc-owned cache tree */
         }
-    } else if (cs->meta_mode == XROOTD_CMETA_XATTR) {
-        (void) xrootd_cinfo_xattr_remove(cs->store, key);
-    } else if (cs->meta_mode == XROOTD_CMETA_SIDECAR) {
-        (void) xrootd_cinfo_sidecar_remove(cs->store, key);  /* <key>.xrdcinfo obj */
     }
 
     if (cs->store->driver->unlink != NULL) {
@@ -302,10 +299,8 @@ ngx_int_t
 xrootd_cstore_cinfo_load(xrootd_cstore_t *cs, const char *key,
     xrootd_cache_cinfo_t *ci)
 {
-    char       path[PATH_MAX];
-    uint8_t   *bitmap = NULL;
-    size_t     bitmap_len = 0;
-    ngx_int_t  rc;
+    xrootd_xmeta_t xm;
+    ngx_int_t      rc;
 
     if (cs == NULL || key == NULL || ci == NULL) {
         errno = EINVAL;
@@ -314,99 +309,86 @@ xrootd_cstore_cinfo_load(xrootd_cstore_t *cs, const char *key,
     if (xrootd_cinfo_l1_get(cs->l1, key, ci) == NGX_OK) {
         return NGX_OK;                          /* warm: no store round-trip */
     }
-    if (cs->meta_mode == XROOTD_CMETA_XATTR) {
-        rc = xrootd_cinfo_xattr_load(cs->store, key, ci);   /* user.xrd.cinfo */
+    if (cs->meta_mode == XROOTD_CMETA_LOCAL) {
+        /* LOCAL: read via the path carrier so the record is shared with the
+         * partial-fill/writethrough path-based writers (same file, same lock
+         * discipline). */
+        char     path[PATH_MAX];
+        uint8_t *bitmap = NULL;
+        size_t   blen = 0;
+
+        if (cstore_local_path(cs, key, path, sizeof(path)) != 0) {
+            errno = ENAMETOOLONG;
+            return NGX_ERROR;
+        }
+        rc = xrootd_cache_cinfo_load(path, ci, &bitmap, &blen);
+        free(bitmap);                           /* L1 caches only the header */
         if (rc == NGX_OK) {
             xrootd_cinfo_l1_put(cs->l1, key, ci);
         }
         return rc;
     }
-    if (cs->meta_mode == XROOTD_CMETA_SIDECAR) {
-        rc = xrootd_cinfo_sidecar_load(cs->store, key, ci); /* <key>.xrdcinfo obj */
-        if (rc == NGX_OK) {
-            xrootd_cinfo_l1_put(cs->l1, key, ci);
-        }
+
+    rc = xrootd_xmeta_load(cs->store, key, &xm);
+    if (rc != NGX_OK) {
         return rc;
     }
-    if (cs->meta_mode != XROOTD_CMETA_LOCAL) {
-        errno = ENOSYS;                         /* unknown mode */
-        return NGX_ERROR;
-    }
-    if (cstore_local_path(cs, key, path, sizeof(path)) != 0) {
-        errno = ENAMETOOLONG;
-        return NGX_ERROR;
-    }
-    rc = xrootd_cache_cinfo_load(path, ci, &bitmap, &bitmap_len);
-    free(bitmap);                               /* L1 caches only the header */
-    if (rc == NGX_OK) {
-        xrootd_cinfo_l1_put(cs->l1, key, ci);
-    }
-    return rc;                                  /* NGX_OK | NGX_DECLINED | NGX_ERROR */
+    xrootd_cache_cinfo_from_xmeta(&xm, ci);
+    xrootd_xmeta_free(&xm);
+    xrootd_cinfo_l1_put(cs->l1, key, ci);
+    return NGX_OK;
 }
 
 ngx_int_t
 xrootd_cstore_cinfo_store(xrootd_cstore_t *cs, const char *key,
     const xrootd_cache_cinfo_t *ci)
 {
-    char                  path[PATH_MAX];
-    xrootd_cache_cinfo_t  old;
-    uint8_t              *bitmap = NULL;
-    size_t                existing_len = 0;
-    size_t                need_len;
-    ngx_int_t             rc;
+    xrootd_xmeta_t xm;
+    ngx_int_t      rc;
 
     if (cs == NULL || key == NULL || ci == NULL) {
         errno = EINVAL;
         return NGX_ERROR;
     }
-    if (cs->meta_mode == XROOTD_CMETA_XATTR) {
-        ngx_int_t xrc = xrootd_cinfo_xattr_store(cs->store, key, ci);
-        if (xrc == NGX_OK) {
-            xrootd_cinfo_l1_put(cs->l1, key, ci);    /* write-through (§6.4) */
-        }
-        return xrc;
-    }
-    if (cs->meta_mode == XROOTD_CMETA_SIDECAR) {
-        ngx_int_t src = xrootd_cinfo_sidecar_store(cs->store, key, ci);
-        if (src == NGX_OK) {
-            xrootd_cinfo_l1_put(cs->l1, key, ci);    /* write-through (§6.4) */
-        }
-        return src;
-    }
-    if (cs->meta_mode != XROOTD_CMETA_LOCAL) {
-        errno = ENOSYS;                         /* unknown mode */
-        return NGX_ERROR;
-    }
-    if (cstore_local_path(cs, key, path, sizeof(path)) != 0) {
-        errno = ENAMETOOLONG;
-        return NGX_ERROR;
-    }
 
-    /* Preserve an existing present-bitmap when its size still matches; otherwise
-     * synthesize one from the COMPLETE flag (whole-file caching, SP1 - a partial
-     * bitmap merge is section 6.5 / SP2). */
-    need_len = xrootd_cache_cinfo_bitmap_len(ci->nblocks);
-    if (xrootd_cache_cinfo_load(path, &old, &bitmap, &existing_len) != NGX_OK
-        || existing_len != need_len)
-    {
+    if (cs->meta_mode == XROOTD_CMETA_LOCAL) {
+        /* LOCAL: preserve an existing present-bitmap (partial fills advance it
+         * through the path-based writers under the per-file lock); a header
+         * write must not clobber it. */
+        char                  path[PATH_MAX];
+        xrootd_cache_cinfo_t  old;
+        uint8_t              *bitmap = NULL;
+        size_t                existing_len = 0;
+        size_t                need_len;
+
+        if (cstore_local_path(cs, key, path, sizeof(path)) != 0) {
+            errno = ENAMETOOLONG;
+            return NGX_ERROR;
+        }
+        need_len = xrootd_cache_cinfo_bitmap_len(ci->nblocks);
+        if (xrootd_cache_cinfo_load(path, &old, &bitmap, &existing_len)
+                != NGX_OK
+            || existing_len != need_len)
+        {
+            free(bitmap);
+            bitmap = NULL;
+        }
+        rc = xrootd_cache_cinfo_store(path, ci, bitmap,
+                                      bitmap != NULL ? need_len : 0);
         free(bitmap);
-        bitmap = NULL;
-        if (need_len > 0) {
-            bitmap = malloc(need_len);
-            if (bitmap == NULL) {
-                errno = ENOMEM;
-                return NGX_ERROR;
-            }
-            memset(bitmap,
-                   (ci->flags & XROOTD_CINFO_F_COMPLETE) ? 0xFF : 0x00,
-                   need_len);
+        if (rc == NGX_OK) {
+            xrootd_cinfo_l1_put(cs->l1, key, ci);    /* write-through (§6.4) */
         }
+        return rc;
     }
 
-    rc = xrootd_cache_cinfo_store(path, ci, bitmap, need_len);
-    free(bitmap);
+    if (xrootd_cache_cinfo_to_xmeta(ci, NULL, 0, &xm) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    rc = xrootd_xmeta_save(cs->store, key, &xm);
+    xrootd_xmeta_free(&xm);
     if (rc == NGX_OK) {
-        xrootd_cinfo_l1_put(cs->l1, key, ci);
+        xrootd_cinfo_l1_put(cs->l1, key, ci);        /* write-through (§6.4) */
     }
     return rc;
 }

@@ -38,6 +38,7 @@
 #include <stdint.h>
 
 #include "meta.h"   /* XROOTD_CACHE_META_ETAG_MAX + xrootd_cache_meta_t */
+#include "fs/meta/xmeta.h"   /* the unified on-disk record this maps to */
 
 #define XROOTD_CACHE_CINFO_MAGIC   0x58434931u   /* "XCI1", little-endian */
 #define XROOTD_CACHE_CINFO_VERSION 3
@@ -122,6 +123,17 @@ uint64_t xrootd_cache_cinfo_present_count(const uint8_t *bitmap, uint64_t nblock
  */
 void xrootd_cache_cinfo_refresh_flags(xrootd_cache_cinfo_t *hdr,
     const uint8_t *bitmap);
+
+/* ---- xmeta mapping (the on-disk form is the unified xmeta record) ------- */
+
+/* Populate *m (owned; caller must xrootd_xmeta_free) from *hdr and an
+ * optional present bitmap (NULL = synthesize from the COMPLETE flag). */
+ngx_int_t xrootd_cache_cinfo_to_xmeta(const xrootd_cache_cinfo_t *hdr,
+    const uint8_t *bitmap, size_t bitmap_len, xrootd_xmeta_t *m);
+
+/* Rebuild the in-memory header (flags included) from a decoded record. */
+void xrootd_cache_cinfo_from_xmeta(const xrootd_xmeta_t *m,
+    xrootd_cache_cinfo_t *hdr);
 
 /* Stamp an expiry (sets F_EXPIRES) — phase-68 manifest TTL. */
 void xrootd_cache_cinfo_set_expires(xrootd_cache_cinfo_t *ci, time_t when);

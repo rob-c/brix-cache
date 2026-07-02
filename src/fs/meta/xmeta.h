@@ -63,6 +63,11 @@ typedef struct {
 #define XROOTD_XMETA_SEC_STATE      0x0001
 #define XROOTD_XMETA_SEC_DIGEST     0x0002
 #define XROOTD_XMETA_SEC_BLOCKCRC   0x0003
+#define XROOTD_XMETA_SEC_ORIGIN     0x0004
+
+/* STATE section flags */
+#define XROOTD_XMETA_F_VERIFIED     0x0001u  /* contents checked vs digest */
+#define XROOTD_XMETA_F_EXPIRES      0x0002u  /* expires_at is armed        */
 
 /* BLOCKCRC crc slot value meaning "not computed / invalidated by a write"
  * (paired with stock Store.m_noCkSumTime, exactly stock's convention). */
@@ -103,10 +108,22 @@ typedef struct {
     uint64_t  origin_mtime;      /* origin validity                          */
     uint64_t  dirty_lo;          /* dirty byte extent [lo,hi); lo==hi=clean  */
     uint64_t  dirty_hi;
-    uint64_t  flush_gen;
+    uint64_t  flush_gen;         /* bumped per successful write-back         */
     uint64_t  dirty_since;
-    uint64_t  expires_at;        /* 0 = no expiry                            */
+    uint64_t  last_flush;        /* unix secs of last successful write-back  */
+    uint64_t  bytes_flushed;     /* cumulative mirrored bytes                */
+    uint64_t  expires_at;        /* stale when now >= this and F_EXPIRES     */
+    uint64_t  filled_at;         /* unix secs the fill published this entry  */
     uint32_t  mode;              /* origin st_mode perm bits; 0=unrecorded   */
+    uint32_t  state_flags;       /* XROOTD_XMETA_F_*                         */
+
+    /* ORIGIN section (validity strings; empty lengths when unrecorded) */
+    uint8_t   etag_len;
+    char      etag[128];         /* origin etag, not NUL-terminated          */
+    uint8_t   cks_alg_len;
+    char      cks_alg[16];       /* origin checksum algorithm name           */
+    uint8_t   cks_len;
+    char      cks_hex[129];      /* origin checksum, hex                     */
 
     /* DIGEST section: raw payload of {u16 alg, u16 len, u8[len]} entries */
     uint8_t  *digests;           /* owned; NULL when absent                  */
