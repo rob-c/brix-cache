@@ -133,17 +133,53 @@ ngx_http_xrootd_guard_build_request(ngx_http_request_t *r,
 
 /* ---- Append one audit line to the configured log ----
  *
- * WHAT: formats req/reason via guard_audit_format and appends the line.
- *   (Implementation lands with the LOG handler — stub is a no-op.)
+ * WHAT: formats req/reason via guard_audit_format and appends the line to
+ *   the location's audit log; silently a no-op when no log is configured or
+ *   the line does not fit.
  *
- * WHY: one atomic write per signal is the fail2ban contract.
+ * WHY: one atomic write per signal is the fail2ban contract — the file is
+ *   opened O_APPEND by ngx_conf_open_file, and a single sub-PIPE_BUF
+ *   write(2) never interleaves across workers.
  *
- * HOW: 1. Stub: no-op.
+ * HOW: 1. Bail without a usable log fd.
+ *      2. Timestamp from nginx's cached ISO-8601 clock (no syscall,
+ *         refreshed by the event loop; adapters own the clock per the
+ *         guard-core contract).
+ *      3. guard_audit_format into a stack line; append '\n'; one
+ *         ngx_write_fd. A failed write is reported once per request on the
+ *         connection log (fail2ban silently losing lines would be worse).
  */
 void
 ngx_http_xrootd_guard_write_audit(ngx_http_request_t *r,
     ngx_http_xrootd_guard_loc_conf_t *lcf, const guard_request_t *req,
     guard_reason_t reason)
 {
-    (void) r; (void) lcf; (void) req; (void) reason;
+    char    line[XROOTD_GUARD_PATH_BUF + 256];
+    char    ts[sizeof("YYYY-MM-DDThh:mm:ss+00:00")];
+    size_t  ts_len;
+    size_t  line_len;
+
+    if (lcf->audit_log == NULL || lcf->audit_log->fd == NGX_INVALID_FILE) {
+        return;
+    }
+
+    ts_len = ngx_cached_http_log_iso8601.len;
+    if (ts_len >= sizeof(ts)) {
+        ts_len = sizeof(ts) - 1;
+    }
+    ngx_memcpy(ts, ngx_cached_http_log_iso8601.data, ts_len);
+    ts[ts_len] = '\0';
+
+    line_len = guard_audit_format(req, reason, ts, line, sizeof(line) - 1);
+    if (line_len == 0) {
+        return;
+    }
+    line[line_len++] = '\n';
+
+    if (ngx_write_fd(lcf->audit_log->fd, line, line_len)
+        != (ssize_t) line_len)
+    {
+        ngx_log_error(NGX_LOG_ALERT, r->connection->log, ngx_errno,
+                      "xrootd_guard: audit log write failed");
+    }
 }

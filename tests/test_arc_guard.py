@@ -237,3 +237,45 @@ class TestArcGuardAccess:
         r = guard_server.get("/random/scan")
         assert r.status == 444, f"expected bounce, got {r.status}"
         assert stub_backend.hits == 0, "backend must never see off-namespace"
+
+
+class TestArcGuardAudit:
+    def test_backend_404_logged_notfound(self, guard_server, stub_backend,
+                                         audit_log):
+        """A backend 404 produces one signal=notfound audit line."""
+        baseline = audit_log.line_count()
+        stub_backend.reply_status = 404
+        r = guard_server.get("/arex/rest/1.0/jobs/does-not-exist")
+        assert r.status == 404
+        assert audit_log.wait_for_count(baseline + 1), "no audit line written"
+        assert audit_log.last_line_has(signal="notfound", status="404",
+                                       proto="arc")
+
+    def test_missing_cred_401_logged_authfail(self, guard_server,
+                                              stub_backend, audit_log):
+        """A backend 401 (no cert, no bearer) logs signal=authfail."""
+        baseline = audit_log.line_count()
+        stub_backend.reply_status = 401
+        r = guard_server.get("/arex/rest/1.0/jobs")
+        assert r.status == 401
+        assert audit_log.wait_for_count(baseline + 1), "no audit line written"
+        assert audit_log.last_line_has(signal="authfail", status="401")
+
+    def test_clean_request_not_logged(self, guard_server, stub_backend,
+                                      audit_log):
+        """A clean 200 round-trip adds no audit line."""
+        baseline = audit_log.line_count()
+        r = guard_server.get("/arex/rest/1.0/info")
+        assert r.status == 200
+        time.sleep(0.3)   # give the LOG phase a beat to (not) write
+        assert audit_log.line_count() == baseline, "clean traffic was logged"
+
+    def test_access_bounce_logged_once(self, guard_server, stub_backend,
+                                       audit_log):
+        """An ACCESS bounce writes exactly one line (no LOG-phase double)."""
+        baseline = audit_log.line_count()
+        guard_server.get("/wp-login.php")
+        assert audit_log.wait_for_count(baseline + 1), "no audit line written"
+        time.sleep(0.3)   # a double-log would land within this window
+        assert audit_log.line_count() == baseline + 1, "bounce double-logged"
+        assert audit_log.last_line_has(signal="signature")
