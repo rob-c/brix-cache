@@ -52,7 +52,7 @@ release (commit `e87c1ca`). The code is the source of truth; these are the plans
 
 | Document | Why archived |
 |---|---|
-| `dashboard-feature-implementation-plan.md` | HTTPS dashboard roadmap — implemented (`src/dashboard/`). |
+| `dashboard-feature-implementation-plan.md` | HTTPS dashboard roadmap — implemented (`src/observability/dashboard/`). |
 | `dedicated-test-servers-plan.md`, `plan-dual-stack-transfer-testing.md`, `plan-fd-stat-cache-migration-complete.md`, `no-mock-infrastructure-plan.md`, `mandatory-thread-webdav-plan.md`, `tier1-implementation-plan.md`, `missing-tests.md` | Completed implementation / test plans; the work is in `src/` and `tests/`. |
 | `shared-code-plan-v1-superseded.md`, `shared-code-plan-2.md` … `-6.md`, `-5-cleanup.md`, `code-sharing-reuse-v4.md` | Multi-iteration shared-code planning series; superseded by the realised `docs/refactor/phase-3…6` work. |
 

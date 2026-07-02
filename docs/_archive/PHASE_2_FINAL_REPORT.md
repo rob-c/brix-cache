@@ -105,9 +105,9 @@ Five modules consolidated with config merge helper macros:
 
 ### Modified Files (5 total)
 1. `src/webdav/tpc_config.c` - Added conf_helpers.h include, consolidated 8 merges
-2. `src/dashboard/module.c` - Added conf_helpers.h include, consolidated 10 merges
+2. `src/observability/dashboard/module.c` - Added conf_helpers.h include, consolidated 10 merges
 3. `src/webdav/config.c` - Added conf_helpers.h include, consolidated 22 merges
-4. `src/metrics/module.c` - Added conf_helpers.h include, consolidated 1 merge
+4. `src/observability/metrics/module.c` - Added conf_helpers.h include, consolidated 1 merge
 5. `src/s3/module.c` - Added conf_helpers.h include, consolidated 6 merges
 
 ### Helper Files Created (Phase 1, Used in Phase 2)

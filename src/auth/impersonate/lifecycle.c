@@ -14,7 +14,7 @@
 #include "lifecycle.h"
 #include "impersonate.h"
 #include "impersonate_proto.h"
-#include "metrics/metrics.h"   /* xrootd_config_version_publish() */
+#include "observability/metrics/metrics.h"   /* xrootd_config_version_publish() */
 #include "core/compat/log_diag.h"
 
 #include <errno.h>

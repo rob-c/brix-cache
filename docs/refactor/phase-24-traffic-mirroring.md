@@ -24,7 +24,7 @@ mirroring expansion.
 | **C** | XRootD stream mirror | ✅ **Done — granular bootstrap states** | `src/net/mirror/stream_mirror.c`; `xrootd_stream_mirror_maybe()` is called from **`src/handshake/dispatch.c:73`** after the read-opcode dispatch (as planned). Bootstrap states are `XRD_MIR_HANDSHAKE → XRD_MIR_PROTOCOL → XRD_MIR_LOGIN → XRD_MIR_REQUEST` (mirroring the real bootstrap phases), **not** the doc's `CONNECTING/BOOTSTRAP/REQUEST/DONE`. Replays the saved primary request frame, discards the response, compares status. |
 | **D** | Memory-safety invariant | ✅ **Done** | Stream mirror ctx is allocated off a process-lifetime pool (not the client connection pool) so it outlives the client; matches the Step-D requirement. |
 | **E** | Multi-target | ✅ **Done** | Up to `XROOTD_MIRROR_MAX_TARGETS` (4); HTTP fans out one background subrequest per target, stream loops over targets. |
-| **F** | Metrics | ✅ **Done — different metric names** | The 8 counter fields exist (`metrics.h:496-503`: `mirror_http_*` + `mirror_stream_*`). **Exported with a shared name + `surface="http"\|"stream"` label** (`xrootd_mirror_requests_total{surface=...}`, `xrootd_mirror_dropped_total{...}`, `xrootd_mirror_divergence_total{...}`, from `src/metrics/stream.c:416+`), **not** the plan's separate `xrootd_webdav_mirror_*` / `xrootd_stream_mirror_*` metric names. (`surface` is a 2-value label — low cardinality, honoring Invariant 8.) |
+| **F** | Metrics | ✅ **Done — different metric names** | The 8 counter fields exist (`metrics.h:496-503`: `mirror_http_*` + `mirror_stream_*`). **Exported with a shared name + `surface="http"\|"stream"` label** (`xrootd_mirror_requests_total{surface=...}`, `xrootd_mirror_dropped_total{...}`, `xrootd_mirror_divergence_total{...}`, from `src/observability/metrics/stream.c:416+`), **not** the plan's separate `xrootd_webdav_mirror_*` / `xrootd_stream_mirror_*` metric names. (`surface` is a 2-value label — low cardinality, honoring Invariant 8.) |
 | **G** | Opt-in write/data-write mirroring | ✅ **Done — added after original scope** | HTTP/WebDAV write methods are gated by `mirror_writes`; stream metadata mutations are replayed by `stream_mirror.c`; sequential `open(write) -> write -> close` data writes are buffered and replayed by `src/net/mirror/stream_wmirror.c`. `kXR_pgwrite`, non-sequential offsets, and over-cap payloads abort the data-write mirror safely. |
 
 ### As-built divergences (not defects)
@@ -708,12 +708,12 @@ loop.
 > (`metrics.h:496-503`), but they are exposed as **shared metric names with a
 > `surface="http"|"stream"` label** (`xrootd_mirror_requests_total`,
 > `xrootd_mirror_dropped_total`, `xrootd_mirror_divergence_total`, …) from
-> `src/metrics/stream.c`, **not** the per-surface `xrootd_webdav_mirror_*` /
+> `src/observability/metrics/stream.c`, **not** the per-surface `xrootd_webdav_mirror_*` /
 > `xrootd_stream_mirror_*` names listed below. Update Prometheus queries/alerts to
 > use `{surface="…"}` selectors accordingly.
 
-**File:** `src/metrics/metrics.h` (extend), `src/metrics/stream.c` and
-`src/metrics/webdav.c` (add counter increments)
+**File:** `src/observability/metrics/metrics.h` (extend), `src/observability/metrics/stream.c` and
+`src/observability/metrics/webdav.c` (add counter increments)
 
 ```c
 /* WebDAV mirror counters (add to ngx_xrootd_webdav_metrics_t) */
@@ -762,9 +762,9 @@ shadow backend starts behaving differently from production.
 | `src/webdav/webdav.h` | Modify | Add `xrootd_mirror_conf_t mirror` to `ngx_http_xrootd_webdav_loc_conf_t`; add `mirror_fired`, `primary_status` to req ctx |
 | `src/core/config/directives.c` | Modify | Register `xrootd_mirror_url`, `xrootd_mirror_sample`, `xrootd_mirror_methods`, etc. |
 | `src/core/types/config.h` | Modify | Add `xrootd_mirror_conf_t mirror` to `ngx_stream_xrootd_srv_conf_t` |
-| `src/metrics/metrics.h` | Modify | Add 8 mirror counter fields |
-| `src/metrics/webdav.c` | Modify | Expose 4 HTTP mirror counters in Prometheus output |
-| `src/metrics/stream.c` | Modify | Expose 4 stream mirror counters |
+| `src/observability/metrics/metrics.h` | Modify | Add 8 mirror counter fields |
+| `src/observability/metrics/webdav.c` | Modify | Expose 4 HTTP mirror counters in Prometheus output |
+| `src/observability/metrics/stream.c` | Modify | Expose 4 stream mirror counters |
 | `src/core/config/config.h` | Modify | Add `http_mirror.c`, `stream_mirror.c` to `NGX_ADDON_SRCS` |
 
 ---

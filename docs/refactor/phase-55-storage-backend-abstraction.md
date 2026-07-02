@@ -6062,7 +6062,7 @@ deployment running the **headline mode** — POSIX staging in front of a slow
 object/S3 backend — without guessing. Everything here is downstream of the
 §3.6 store binding and the Phase-31 transfer-heap memory budget
 (`xfer_heap_in_use` / `budget_waits_total` / `xrootd_memory_budget`, see
-`src/metrics/metrics.h`). None of it changes the default `staging==backend`
+`src/observability/metrics/metrics.h`). None of it changes the default `staging==backend`
 POSIX deployment, which keeps today's sizing exactly.
 
 The four capacity dimensions are independent and must each be sized:
@@ -6425,7 +6425,7 @@ from §3.5. Test hooks reference `tests/test_storage_backend_matrix.py` (§9.1) 
 Reproduces and extends §3.5. These are **new** metric families that appear only
 once a non-POSIX backend or capability degradation is selectable; the POSIX-only
 phases (55.A–C) add nothing. All counter/histogram names are Prometheus-style and
-live alongside the existing `xrootd_*` exporter output (`src/metrics/`).
+live alongside the existing `xrootd_*` exporter output (`src/observability/metrics/`).
 
 | Metric | Type | Labels | Notes |
 |---|---|---|---|
@@ -6799,7 +6799,7 @@ Conventions used below:
   metric** where absent. Add the §3.5 SD metrics
   (`xrootd_sd_ops_total`/`_bytes_total`/`_latency_seconds`/`_degraded_total`/
   `_unsupported_total`) — emitted only now that degradation is selectable.
-- **Files:** `tests/test_storage_backend_matrix.py`, `src/metrics/*` (SD metric enum/fields/export).
+- **Files:** `tests/test_storage_backend_matrix.py`, `src/observability/metrics/*` (SD metric enum/fields/export).
 - **Depends-on:** PR-15
 - **Review checklist:**
   - Metric labels are low-cardinality only — **no** path/bucket/key/upload-id/ETag/issuer (§3.5, INVARIANT 8).

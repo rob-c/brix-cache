@@ -13,7 +13,7 @@
 
 #include "webdav.h"
 #include "core/compat/net_target.h"
-#include "dashboard/dashboard_tracking.h"
+#include "observability/dashboard/dashboard_tracking.h"
 #include "tpc/common/metrics.h"
 #include "core/aio/aio.h"          /* xrootd_task_bind */
 #include "tpc/common/registry.h"

@@ -164,5 +164,5 @@ Expected benefits:
 
 Relevant code:
 
-- `src/metrics/*.c`
+- `src/observability/metrics/*.c`
 - `src/core/types/tunables.h`

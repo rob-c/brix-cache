@@ -28,8 +28,8 @@ fewer files); the table maps plan → actual code.
 | **D** — HTTP/WebDAV enforcement (429 + Retry-After; bw charge) | **DONE** | `ratelimit_http.c`: `xrootd_rl_http_access_handler` (`rl_reject` → 429+Retry-After), `xrootd_rl_http_log_handler` (bandwidth charge + concurrency release in LOG phase) |
 | **E** — XRootD stream enforcement (`kXR_wait`; bw charge) | **DONE** | `ratelimit_stream.c`: `xrootd_rl_stream_gate` (`xrootd_rl_check` + `xrootd_rl_bw_check` → `xrootd_send_wait`), `xrootd_rl_charge_ctx` (post-send); opcode gating `rl_op_rate_limited`/`rl_op_path_bearing` |
 | **F** — Config directives | **DONE (renamed)** | `xrootd_rate_limit_zone` (stream-main + http-main), `xrootd_rate_limit_rule` (stream-srv + http-loc), `xrootd_bandwidth_limit` (stream-srv + http-loc), `xrootd_concurrency_limit` (**stream-srv + http-loc**). Setters in `ratelimit_keys.c`; rules stored in `rl_rules` arrays on srv/loc conf |
-| **G** — Metrics | **DONE** | `src/metrics/ratelimit.c` `xrootd_export_ratelimit_metrics` → `rl_throttled_http_total`, `rl_throttled_stream_total`, `rl_eviction_total`, `rl_zone_full_errors` |
-| **H** — Dashboard endpoint | **DONE (path differs)** | `GET /xrootd/api/v1/ratelimit` (not `/api/v1/ratelimit/status`) → `dashboard_build_v1_ratelimit` (`src/dashboard/api.c`) via `xrootd_rl_snapshot`, sorted by throttle_count |
+| **G** — Metrics | **DONE** | `src/observability/metrics/ratelimit.c` `xrootd_export_ratelimit_metrics` → `rl_throttled_http_total`, `rl_throttled_stream_total`, `rl_eviction_total`, `rl_zone_full_errors` |
+| **H** — Dashboard endpoint | **DONE (path differs)** | `GET /xrootd/api/v1/ratelimit` (not `/api/v1/ratelimit/status`) → `dashboard_build_v1_ratelimit` (`src/observability/dashboard/api.c`) via `xrootd_rl_snapshot`, sorted by throttle_count |
 | **I** — Integration (dispatch gate + read/write bw charge) | **DONE** | Stream gate in dispatch; `xrootd_rl_charge_ctx` at read/write send sites |
 | **W7** — Per-principal concurrency cap | **DONE (HTTP + stream)** | *Beyond the original draft.* `xrootd_rl_conc_acquire/_release`, `req_conc`/`in_flight` on the node, `xrootd_concurrency_limit` directive. **HTTP**: acquired in the access handler, released in the LOG phase (per-request, leak-free). **Stream** (`root://`): acquired once in `xrootd_rl_stream_gate` on the first matching rule (over-cap → `kXR_wait`), slot stashed on `ctx->rl_conc_rule`/`rl_conc_key`, released once for the connection's lifetime via `xrootd_rl_release_ctx` in `xrootd_on_disconnect` (no LOG phase on the stream plane) |
 
@@ -38,7 +38,7 @@ fewer files); the table maps plan → actual code.
 - **Files consolidated**: planned `zone.c`/`keys.c`/`http_handler.c`/`stream_check.c`/`hash.c`
   shipped as `ratelimit_zone.c` / `ratelimit_keys.c` (keys **and** directive setters)
   / `ratelimit_http.c` / `ratelimit_stream.c`, with the hash folded into
-  `ratelimit_zone.c`. Core = `ratelimit.c`; metrics = `src/metrics/ratelimit.c`.
+  `ratelimit_zone.c`. Core = `ratelimit.c`; metrics = `src/observability/metrics/ratelimit.c`.
 - **Hash**: **FNV-1a32** (`xrootd_rl_hash`), not the planned xxhash32.
 - **Directive names**: `xrootd_rate_limit_rule` (not `xrootd_rate_limit`) to avoid
   colliding with the unrelated Phase-20 `xrootd_rate_limit`; concurrency uses
@@ -228,7 +228,7 @@ bucket, a safe degradation.
 
 **File:** `src/net/ratelimit/zone.c`
 
-Mirrors the pattern from `src/net/manager/registry.c` and `src/metrics/metrics.c`.
+Mirrors the pattern from `src/net/manager/registry.c` and `src/observability/metrics/metrics.c`.
 
 ```c
 /* Called from ngx_http_xrootd_webdav_module postconfiguration. */
@@ -819,7 +819,7 @@ stream {
 
 ## Step G — Metrics
 
-**New metric slots** in `src/metrics/metrics.h` (extend existing enum):
+**New metric slots** in `src/observability/metrics/metrics.h` (extend existing enum):
 
 ```c
 /* Rate limiting metrics */
@@ -829,7 +829,7 @@ ngx_atomic_t  rl_eviction_total;         /* SHM LRU evictions                  *
 ngx_atomic_t  rl_zone_full_errors;       /* alloc failures (zone exhausted)     */
 ```
 
-**Prometheus export** (`src/metrics/ratelimit.c`):
+**Prometheus export** (`src/observability/metrics/ratelimit.c`):
 
 ```
 # HELP xrootd_rl_throttled_http_total HTTP requests throttled (429)
@@ -856,7 +856,7 @@ Prometheus, to avoid high-cardinality label explosion — see INVARIANT 8 in CLA
 
 ## Step H — Dashboard API Endpoint
 
-**New route** in `src/dashboard/api.c`:
+**New route** in `src/observability/dashboard/api.c`:
 
 ```
 GET /api/v1/ratelimit/status
@@ -909,9 +909,9 @@ minimise lock hold time.
 | `src/write/write.c`, `pgwrite.c` | Call `xrootd_rl_charge_bytes` after write flush |
 | `src/core/config/config.h` | Add `rl_zone`, `rl_rules`, `rl_bw_rules` to loc/srv conf structs |
 | `src/core/config/directives.c` | Parse `xrootd_rate_limit_zone`, `xrootd_rate_limit`, `xrootd_bandwidth_limit` |
-| `src/metrics/metrics.h` | Add 4 new counters |
-| `src/metrics/ratelimit.c` | New file: Prometheus export for rate limit counters |
-| `src/dashboard/api.c` | New route `GET /api/v1/ratelimit/status` |
+| `src/observability/metrics/metrics.h` | Add 4 new counters |
+| `src/observability/metrics/ratelimit.c` | New file: Prometheus export for rate limit counters |
+| `src/observability/dashboard/api.c` | New route `GET /api/v1/ratelimit/status` |
 
 ---
 
@@ -926,7 +926,7 @@ minimise lock hold time.
 | `src/net/ratelimit/http_handler.c` | 160 | NGX_HTTP_ACCESS_PHASE handler |
 | `src/net/ratelimit/stream_check.c` | 100 | Stream dispatch gate |
 | `src/net/ratelimit/hash.c` | 50 | xxhash32 (small, license-compatible) |
-| `src/metrics/ratelimit.c` | 80 | Prometheus export |
+| `src/observability/metrics/ratelimit.c` | 80 | Prometheus export |
 
 All 8 files must be added to `NGX_ADDON_SRCS` in `src/core/config/config.h`.  No `./configure` rerun
 needed if the module was already configured with `--add-module=$REPO` (new `.c` files in

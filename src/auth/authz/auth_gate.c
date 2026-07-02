@@ -12,7 +12,7 @@
 #include "auth_gate_l1.h"
 #include "core/compat/crypto.h"
 #include "auth/authz/acc/acc.h"
-#include "metrics/metrics_macros.h"   /* Phase 51 (E6): auth-gate L1 counters */
+#include "observability/metrics/metrics_macros.h"   /* Phase 51 (E6): auth-gate L1 counters */
 
 /*
  * xrootd_acc_gate_engine — tier-1 authorization via the faithful XrdAcc engine

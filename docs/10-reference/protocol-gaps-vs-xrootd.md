@@ -163,7 +163,7 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 | Two-tier hierarchy | ✅ | Manager + data servers |
 | Multi-tier hierarchy | ✅ | Three-tier tested: meta-manager → sub-manager → leaf DS; `nginx_cluster_sub_manager.conf` |
 | Server blacklisting | ✅ | 30 s blacklist on CMS disconnect; `xrootd_srv_blacklist()` + `error_count` in SHM; cleared on reconnect |
-| Per-server performance metrics | ✅ | `xrootd_cluster_server_free_megabytes`, `_utilization_percent`, `_last_seen_seconds`, `_blacklisted`, `_disconnect_total` Prometheus gauges in `src/metrics/cluster.c` |
+| Per-server performance metrics | ✅ | `xrootd_cluster_server_free_megabytes`, `_utilization_percent`, `_last_seen_seconds`, `_blacklisted`, `_disconnect_total` Prometheus gauges in `src/observability/metrics/cluster.c` |
 | Virtual node ID | ❌ | |
 | CMS admin interface | ❌ | No admin socket |
 | Colocation hint | ✅ | `kXR_prefname` parsed; `kXR_locate` returns all matching servers — client selects by network locality |
@@ -324,7 +324,7 @@ paths where required.
 | `kXR_attrMeta` / `kXR_attrSuper` / `kXR_attrVirtRdr` | All three role flags advertised via `xrootd_metadata_only`, `xrootd_supervisor`, `xrootd_virtual_redirector` |
 | `kXR_collapseRedir` | SHM redirect-target cache implemented; advertised via `xrootd_collapse_redir on` |
 | **Server blacklisting** | 30 s temporary blacklist on CMS disconnect; `xrootd_srv_blacklist()` + `error_count` in SHM registry; cleared on reconnect (`src/net/manager/registry.c`) |
-| **Per-server cluster metrics** | `xrootd_cluster_server_free_megabytes`, `_utilization_percent`, `_last_seen_seconds`, `_blacklisted`, `_disconnect_total` Prometheus gauges (`src/metrics/cluster.c`) |
+| **Per-server cluster metrics** | `xrootd_cluster_server_free_megabytes`, `_utilization_percent`, `_last_seen_seconds`, `_blacklisted`, `_disconnect_total` Prometheus gauges (`src/observability/metrics/cluster.c`) |
 | **Colocation hint** | `kXR_prefname` parsed; `kXR_locate` returns all matching servers — client selects by network locality |
 | **Lateral redirect** | `kXR_locate` returns `kXR_ok` with full server list via `xrootd_srv_locate_all()`; no redirect chaining needed |
 | **XrdHttp (XRootD-over-HTTP)** | `Want-Digest:` RFC 3230 header parsed in `xrdhttp_parse_request()`; algo names normalised (SHA-256→sha256, SHA→sha1); HEAD opens fd for checksum via `xrdhttp_add_checksum_header()`; POST returns 405 + `Allow:`; XrdClHttp plugin fully compatible |
@@ -383,6 +383,6 @@ paths where required.
 | **`kXR_attn` relay (proxy)** | Proxy mode transparently relays upstream `kXR_attn` frames |
 | **`kXR_attn` native generation** | `xrootd_send_attn_asyncms()` + `xrootd_send_attn_asynresp()` in `src/response/async.c`; `kXR_notify` on `kXR_prepare` wired; `kXR_asyncms` / `kXR_asynresp` constants in `src/protocol/opcodes.h` |
 | **Server blacklisting** | 30 s blacklist on CMS disconnect; `xrootd_srv_blacklist()` + `error_count` in SHM; clears on reconnect |
-| **Per-server cluster metrics** | `xrootd_cluster_server_{free_megabytes,utilization_percent,last_seen_seconds,blacklisted,disconnect_total}` gauges in `src/metrics/cluster.c` |
+| **Per-server cluster metrics** | `xrootd_cluster_server_{free_megabytes,utilization_percent,last_seen_seconds,blacklisted,disconnect_total}` gauges in `src/observability/metrics/cluster.c` |
 | **Colocation hint** | `kXR_prefname` (0x0100) parsed; locate returns all matching servers for client-side locality selection |
 | **Lateral redirect** | `kXR_locate` returns `kXR_ok` with full server list via `xrootd_srv_locate_all()`; no redirect chaining |

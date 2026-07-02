@@ -8,7 +8,7 @@ access / leaked fd in **module** frames.
 On this WSL2 host Valgrind is the correct leak tool — LeakSanitizer's at-exit
 reporting does not fire for nginx here (see `docs/07-security/valgrind-findings.md`).
 Two real defects were found this way: an uninitialised `addr_text` read in
-`src/dashboard/http_tracking.c` and a JWKS `EVP_PKEY` reload leak in
+`src/observability/dashboard/http_tracking.c` and a JWKS `EVP_PKEY` reload leak in
 `src/auth/token/jwks.c`.
 
 ## Files

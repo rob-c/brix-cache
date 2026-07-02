@@ -1,7 +1,7 @@
 #ifndef XROOTD_CONN_TLS_H
 #define XROOTD_CONN_TLS_H
 #include "core/ngx_xrootd_module.h"
-#include "metrics/metrics.h"
+#include "observability/metrics/metrics.h"
 #include "event_sched.h"
 
 /*

@@ -766,15 +766,15 @@ levels, escalating in response time:
    **SHM atomic** `io_uring_disabled`, allocated in the module's SHM table via
    `xrootd_shm_table_alloc()` (`src/core/compat/shm_slots.c:14`) following the exact
    `ngx_atomic_t` pattern already used for the dashboard transfer table
-   (`src/dashboard/dashboard.h:109`, hot-path read at
-   `src/dashboard/transfer_table.c:155`, atomic write at `:322`):
+   (`src/observability/dashboard/dashboard.h:109`, hot-path read at
+   `src/observability/dashboard/transfer_table.c:155`, atomic write at `:322`):
    - **Read** lock-free on the submit hot path — one `ngx_atomic_load` added to
      the selector in `xrootd_aio_post_task` (§A.5): if set, skip the uring tier
      and fall straight to thread pool → inline. Every worker observes the change
      on its **next** op; no IPC, no restart.
    - **Set/clear** through the existing phase-23 admin API — a new
      `POST /xrootd/api/v1/admin/io_uring` body `{"enabled": false}` handler in
-     `src/dashboard/api_admin.c`, reusing `xrootd_admin_check_auth()` (`:189`,
+     `src/observability/dashboard/api_admin.c`, reusing `xrootd_admin_check_auth()` (`:189`,
      bearer-token *constant-time* compare + CIDR allowlist) and `admin_audit()`
      (`:236`, `NGX_LOG_NOTICE`). Re-enable with `{"enabled": true}` once patched.
    - **Drain semantics:** flipping the flag stops *new* submissions only; the
@@ -795,7 +795,7 @@ on a kernel/seccomp that blocks `io_uring_setup` (Google/containerd posture,
 
 **Observability:** add a per-worker gauge `io_uring_active{worker}` (1/0) and
 counters `io_uring_ops` / `io_uring_fallback` to the metrics enum
-(`src/metrics/metrics.h`), and emit one `NGX_LOG_NOTICE` audit line on every flip
+(`src/observability/metrics/metrics.h`), and emit one `NGX_LOG_NOTICE` audit line on every flip
 (via `admin_audit()` or the panic-file watcher) so the fleet-wide effect of a
 kill is visible in logs and `/metrics`.
 
@@ -2679,7 +2679,7 @@ io_uring is a *substrate swap*, not a wire change, so its observability has one 
 
 ### 16.1 New metrics
 
-All counters/gauges are `ngx_atomic_t` in a new `ngx_xrootd_uring_metrics_t` block hung off the root metrics struct (sibling of `frm`). The enum slots and INC/DEC/ADD macros follow the FRM precedent exactly (`src/metrics/metrics.h`). The submit-latency histogram reuses the `frm` seconds-bucket pattern but in **microseconds** (submit→CQE is sub-millisecond).
+All counters/gauges are `ngx_atomic_t` in a new `ngx_xrootd_uring_metrics_t` block hung off the root metrics struct (sibling of `frm`). The enum slots and INC/DEC/ADD macros follow the FRM precedent exactly (`src/observability/metrics/metrics.h`). The submit-latency histogram reuses the `frm` seconds-bucket pattern but in **microseconds** (submit→CQE is sub-millisecond).
 
 | Metric name | Type | Labels (low-cardinality only) | Meaning |
 |---|---|---|---|
@@ -3103,7 +3103,7 @@ Effort labels are **rough relative estimates** (person-days, single engineer fam
 
 **Goal.** Implement the §8.1 four-level kill switch — cross-worker SHM atomic readable lock-free on the submit hot path, settable via admin API and a watched panic-file, with metrics + audit logging.
 
-**Deliverables.** `src/core/compat/shm_slots.c` (`io_uring_disabled` atomic), `src/core/aio/resume.c` (hot-path read), `src/dashboard/api_admin.c` (endpoint), `src/core/config/process.c` (panic-file timer), `src/metrics/metrics.h` (gauges/counters).
+**Deliverables.** `src/core/compat/shm_slots.c` (`io_uring_disabled` atomic), `src/core/aio/resume.c` (hot-path read), `src/observability/dashboard/api_admin.c` (endpoint), `src/core/config/process.c` (panic-file timer), `src/observability/metrics/metrics.h` (gauges/counters).
 
 | # | Sub-task | Concrete change |
 |---|---|---|
@@ -4921,7 +4921,7 @@ The hooks are no-op inlines when `XROOTD_HAVE_LIBURING` is undefined, so `proces
 ```
 A `postconfiguration` check (`xrootd_uring_validate_conf`, §32.4) rejects `io_uring on` when the backend is not compiled in OR the runtime probe fails — returning `NGX_ERROR` so `nginx -t` fails and the master refuses to start (§32). **configure?** **No.**
 
-### 22.7 `src/dashboard/api_admin.c` — `POST /xrootd/api/v1/admin/io_uring`
+### 22.7 `src/observability/dashboard/api_admin.c` — `POST /xrootd/api/v1/admin/io_uring`
 ```diff
 @@ (body handler, beside admin_cluster_register)
 +static ngx_int_t admin_io_uring(ngx_http_request_t *r, json_t *body) {
@@ -4950,7 +4950,7 @@ A `postconfiguration` check (`xrootd_uring_validate_conf`, §32.4) rejects `io_u
 ```
 Inherits the `xrootd_admin_check_auth` gate (bearer `CRYPTO_memcmp` + CIDR) verbatim. **configure?** **No.**
 
-### 22.8 `src/metrics/metrics.h` (+ `metrics_macros.h`) — io_uring metric block
+### 22.8 `src/observability/metrics/metrics.h` (+ `metrics_macros.h`) — io_uring metric block
 ```diff
 @@ (enum widths, beside the FRM block)
 +#define XROOTD_URING_OP_READ  0 ... XROOTD_URING_NOP 4
@@ -4971,7 +4971,7 @@ Inherits the `xrootd_admin_check_auth` gate (bearer `CRYPTO_memcmp` + CIDR) verb
 ```
 Plus `XROOTD_URING_METRIC_INC/DEC/ADD` in `metrics_macros.h`, same `xrootd_metrics_shared()` no-op-when-unmapped pattern as FRM. **ABI note:** declare every field up-front (one-time SHM ABI bump; land with the rest of phase-44). **configure?** **No.**
 
-### 22.9 `src/dashboard/dashboard.h` — `io_uring_disabled` SHM control struct
+### 22.9 `src/observability/dashboard/dashboard.h` — `io_uring_disabled` SHM control struct
 ```diff
 +/* Phase 44 — io_uring kill-switch control block. Slab-safe (xrootd_shm_table_alloc);
 + * lock MUST be first (shm_slots.c contract). Hot path reads io_uring_disabled
@@ -6098,11 +6098,11 @@ pgread CRC boundary), `src/core/config/process.c` (worker init/exit hooks), `con
 (`ngx_module_srcs`/`ngx_module_libs`), `src/core/types/tunables.h`. **New:**
 `src/core/aio/uring.{c,h}`, `src/core/aio/uring_submit.c`.
 
-**Server — §8 hardening:** `src/dashboard/api_admin.c` (new
+**Server — §8 hardening:** `src/observability/dashboard/api_admin.c` (new
 `POST /xrootd/api/v1/admin/io_uring` handler; reuse `xrootd_admin_check_auth` +
 `admin_audit`), `src/core/compat/shm_slots.c` + the module SHM table (the
-`io_uring_disabled` atomic, `ngx_atomic_t` pattern from `src/dashboard/dashboard.h`),
-`src/metrics/metrics.h` (`io_uring_active`/`ops`/`fallback` gauges). **Reused
+`io_uring_disabled` atomic, `ngx_atomic_t` pattern from `src/observability/dashboard/dashboard.h`),
+`src/observability/metrics/metrics.h` (`io_uring_active`/`ops`/`fallback` gauges). **Reused
 read-only (no edits, just consumed):** the impersonation seam — `src/fs/path/beneath.c`
 / `src/fs/path/resolve_confined_ops.c` (broker-vs-local open routing),
 `src/auth/impersonate/broker.c` (`imp_openat2` `RESOLVE_BENEATH`, SCM_RIGHTS fd-pass),

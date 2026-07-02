@@ -19,7 +19,7 @@
 ## Consumed interfaces
 
 - Phase 1–5 SSI engine; `xrootd_ssi_max_inflight` cap (Phase 1), provider registry, CTA service + journal.
-- Existing config plumbing: `src/core/types/config.h` (`ngx_stream_xrootd_srv_conf_t`), the stream module directive table (`grep -rn "ngx_command_t" src/stream/`), metrics enums (`src/metrics/metrics_internal.h`) + `XROOTD_*_METRIC_INC`.
+- Existing config plumbing: `src/core/types/config.h` (`ngx_stream_xrootd_srv_conf_t`), the stream module directive table (`grep -rn "ngx_command_t" src/stream/`), metrics enums (`src/observability/metrics/metrics_internal.h`) + `XROOTD_*_METRIC_INC`.
 
 ---
 
@@ -48,7 +48,7 @@
 ### Task 2: Metrics
 
 **Files:**
-- Modify: `src/metrics/metrics_internal.h` (enum slots) + the relevant `src/metrics/*.c` export
+- Modify: `src/observability/metrics/metrics_internal.h` (enum slots) + the relevant `src/observability/metrics/*.c` export
 - Modify: `src/ssi/ssi.c` / `deliver.c` / `svc_cta/cta_service.c` (increment at callsites)
 - Test: `tests/test_ssi_metrics.py`
 

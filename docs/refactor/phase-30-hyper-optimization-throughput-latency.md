@@ -385,7 +385,7 @@ real ping/drain on reuse or rely on `SO_KEEPALIVE` + `TCP_KEEPIDLE/INTVL/CNT`.
 
 ### E.1 `[VERIFIED]` Cumulative latency histogram does up to 8 atomics/request — **P0-4**
 
-`src/metrics/unified.c:176-184`:
+`src/observability/metrics/unified.c:176-184`:
 
 ```c
 for (i = 0; i < XROOTD_IO_LATENCY_BUCKETS - 1; i++) {
@@ -401,7 +401,7 @@ XROOTD_ATOMIC_ADD(&shm->unified.io_latency_sum_usec[proto][op], latency_usec);
 This increments **every** bucket whose bound ≥ latency (a pre-cumulated histogram)
 → up to 8 atomic increments + count + sum per I/O. The standard pattern is to
 increment **one** bucket (the one the sample falls in) and compute the cumulative
-distribution **at scrape time** in the exporter (`src/metrics/writer.c`). That
+distribution **at scrape time** in the exporter (`src/observability/metrics/writer.c`). That
 turns 8–10 atomics into 3 (one bucket + count + sum).
 
 - **Invariant note:** Prometheus `_bucket` output stays cumulative (computed in the
@@ -412,7 +412,7 @@ turns 8–10 atomics into 3 (one bucket + count + sum).
 
 ### E.2 `[VERIFIED]` Hot metric counters are densely packed `ngx_atomic_t` arrays — **P1-3**
 
-`src/metrics/metrics.h` (op_ok/op_err per the file's own comment) and the WebDAV/S3
+`src/observability/metrics/metrics.h` (op_ok/op_err per the file's own comment) and the WebDAV/S3
 metric structs (`:193-235`) are contiguous `ngx_atomic_t` arrays with **no
 cache-line padding**. Adjacent counters touched by different cores on different
 requests share cache lines → RFO ping-pong (false sharing) on high-core machines.
@@ -428,21 +428,21 @@ requests share cache lines → RFO ping-pong (false sharing) on high-core machin
 
 ### E.3 `[AUDIT]` Repeated null-checks and time reads on the metric/RL path
 
-- `src/metrics/metrics_macros.h:35-47`: `if (ctx && ctx->metrics)` re-evaluated at
+- `src/observability/metrics/metrics_macros.h:35-47`: `if (ctx && ctx->metrics)` re-evaluated at
   20+ call sites/request. Hoist a validated `metrics` pointer into the context once
   at request entry.
 - `src/net/ratelimit/ratelimit.c:36,50,103,166,211`: `ngx_current_msec` re-read 5×/check
   — read once, pass down.
-- `src/metrics/tracking.c:154-158`: `gettimeofday()` syscall on new-user insert —
+- `src/observability/metrics/tracking.c:154-158`: `gettimeofday()` syscall on new-user insert —
   use cached `ngx_time()`.
-- `src/metrics/tracking.c:55-66`: linear VO-slot string scan — hash like the user
+- `src/observability/metrics/tracking.c:55-66`: linear VO-slot string scan — hash like the user
   path already does.
 
 ### E.4 `[AUDIT]` Rate-limit + dashboard SHM spinlock contention — **P2-3**
 
 `src/net/ratelimit/ratelimit.c:38-71` holds `shpool->mutex` across lookup + token-bucket
 arithmetic; `src/core/shm/kv.c:247-282` holds the KV mutex across a linear-probe scan;
-`src/dashboard/transfer_table.c:82-135` holds `xrootd_dashboard_mutex` across an
+`src/observability/dashboard/transfer_table.c:82-135` holds `xrootd_dashboard_mutex` across an
 O(512) free-slot scan + memzero + field copies on every open/close. Under a
 single-key burst (bulk client / DDoS) all cores serialize. Move to per-identity
 lock-free token buckets (CAS on a packed `{timestamp,tokens}` word), a free-list
@@ -450,7 +450,7 @@ for dashboard slots, and copy-out-then-compare-outside-lock for KV reads.
 
 ### E.5 `[AUDIT]` Access-log formatting + unbuffered writes
 
-`src/metrics/access_log.c:50-98` JSON-escapes path + subject (per-char scan) and
+`src/observability/metrics/access_log.c:50-98` JSON-escapes path + subject (per-char scan) and
 `ngx_log_error`s one line per request (one write/syslog datagram per request at
 1000+ rps). Single-pass builder writing straight to a per-worker ring buffer,
 flushed on a timer / size threshold. Sanitize once at parse time

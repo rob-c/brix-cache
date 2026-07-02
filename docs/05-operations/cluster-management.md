@@ -234,7 +234,7 @@ stream {
 | `src/net/cms/connect.c` | timer and backoff pattern for `server_timer.c` |
 | `src/core/config/manager_map.c` | longest-prefix matching algorithm (static fallback stays) |
 | `src/connection/handler.c` | per-connection context init pattern for `server_handler.c` |
-| `src/metrics/config.c` | shm zone creation pattern for `src/core/config/postconfiguration.c` |
+| `src/observability/metrics/config.c` | shm zone creation pattern for `src/core/config/postconfiguration.c` |
 
 ---
 

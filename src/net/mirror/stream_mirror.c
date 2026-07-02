@@ -17,7 +17,7 @@
  */
 #include "stream_mirror.h"
 #include "stream_mirror_io.h"
-#include "metrics/metrics_macros.h"
+#include "observability/metrics/metrics_macros.h"
 
 #include <netdb.h>
 #include <sys/socket.h>

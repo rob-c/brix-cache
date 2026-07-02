@@ -709,7 +709,7 @@ Plus the perf oracle from §8.1: `xroot+cache` ops/throughput vs the retired XCa
 
 ## 12. Observability surface (must be preserved across the move)
 
-Existing metrics (`src/metrics`, `src/fs/cache`) that the decorator must keep emitting:
+Existing metrics (`src/observability/metrics`, `src/fs/cache`) that the decorator must keep emitting:
 `cache_fill` / `cache_fill_done`, `cache_evictions_total`, `cache_evicted_bytes_total`,
 `cache_eviction_errors_total`, `cache_eviction_threshold_ratio`,
 `cache_dirty_reaped_total`, plus the `.cinfo` stats (`access_count`, `bytes_served`,

@@ -11,7 +11,7 @@
  */
 #include "ratelimit.h"
 #include "response/response.h"          /* xrootd_send_wait */
-#include "metrics/metrics_macros.h"
+#include "observability/metrics/metrics_macros.h"
 
 #define XROOTD_RL_METRIC_INC(field)                                          \
     do {                                                                     \

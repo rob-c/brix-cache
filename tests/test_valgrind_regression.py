@@ -3,7 +3,7 @@ Phase 27 W6c — regression guards for the two Valgrind-Memcheck-found defects,
 plus an optional end-to-end Memcheck run of the committed harness.
 
 Findings (see docs/07-security/valgrind-findings.md):
-  1. Uninitialised read of addr_text in src/dashboard/http_tracking.c — the
+  1. Uninitialised read of addr_text in src/observability/dashboard/http_tracking.c — the
      dashboard client-IP copy ran ngx_cpystrn() over a non-NUL-terminated
      ngx_str_t.  Fix: a length-bounded, NUL-terminated copy into a caller buffer.
   2. JWKS EVP_PKEY leak on every config reload in src/auth/token/jwks.c — the keys
@@ -41,7 +41,7 @@ def _read(rel):
 # --------------------------------------------------------------------------- #
 
 def test_finding1_addr_text_bounded_copy():
-    c = _read("src/dashboard/http_tracking.c")
+    c = _read("src/observability/dashboard/http_tracking.c")
     # The helper takes a caller-supplied buffer + size (not returning raw .data).
     assert re.search(
         r"dashboard_http_client\s*\(\s*ngx_http_request_t\s*\*\s*r\s*,"

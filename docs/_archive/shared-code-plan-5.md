@@ -26,7 +26,7 @@ Already shared and not re-planned here:
 | POSIX errno mapping | `src/core/compat/http_errno.c`, `src/core/compat/kxr_errno.c` |
 | Directory utility pieces | `src/core/compat/fs_walk.c` |
 | Token parsing and scope checks | `src/auth/token/*` |
-| Metrics storage and status classes | `src/metrics/*` |
+| Metrics storage and status classes | `src/observability/metrics/*` |
 
 XrdHttp is implemented as an extension layer inside the WebDAV HTTP module
 (`src/webdav/xrdhttp.c`), so this plan treats it as a protocol dialect sharing
@@ -585,11 +585,11 @@ The codebase has several identity fragments:
 | Native stream | `ctx->dn`, `ctx->vo_list`, auth mode, access log |
 | WebDAV | request context stores token/cert identity |
 | S3 | SigV4 identity and optional bearer-token fallback |
-| Metrics | VO and unique-user tracking in `src/metrics/tracking.c` |
+| Metrics | VO and unique-user tracking in `src/observability/metrics/tracking.c` |
 
 This makes it easy for a new handler to update one observability path but miss
 another. The stream protocol has a structured access log in
-`src/path/access_log.c`; HTTP protocols mostly rely on request metrics and
+`src/observability/accesslog/access_log.c`; HTTP protocols mostly rely on request metrics and
 nginx logs.
 
 ### Plan

@@ -1,5 +1,5 @@
 #include "dashboard.h"
-#include "metrics/metrics.h"
+#include "observability/metrics/metrics.h"
 #include "core/compat/shm_slots.h"
 
 #include <ngx_shmtx.h>

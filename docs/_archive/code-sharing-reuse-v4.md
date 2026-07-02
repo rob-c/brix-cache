@@ -49,7 +49,7 @@ The top 5 modules (webdav + compat + s3 + proxy + cache) account for **42% of al
 
 These features add significant code but are optional — not required by any XRootD client protocol. Removing them maintains full compatibility with vanilla xrdcp/xrdfs clients while reducing long-term support burden and barriers to entry for understanding.
 
-### Dashboard (`src/dashboard/` — ~3,414 lines)
+### Dashboard (`src/observability/dashboard/` — ~3,414 lines)
 
 **Files:** api.c (1087), auth.c (730), module.c (32), transfer_table.c (25), http_tracking.c (23), history.c (11), events.c (11), page.c (3), config.c (5)
 
@@ -57,7 +57,7 @@ These features add significant code but are optional — not required by any XRo
 
 **Assessment:** **ELIMINATE.** Not required by any XRootD client protocol. xrdcp/xrdfs do not use the dashboard at all. The SHM-backed transfer table (`transfer_table.c`, `http_tracking.c`) adds ~582 lines of slot allocation/free logic. HTML page rendering (`page.c`) is ~3 lines but depends on tracking infrastructure.
 
-**Impact:** -3,414 lines. Dashboard becomes optional — remove `src/dashboard/` directory and update dispatch to skip tracking callbacks. Prometheus metrics still available at `/metrics`.
+**Impact:** -3,414 lines. Dashboard becomes optional — remove `src/observability/dashboard/` directory and update dispatch to skip tracking callbacks. Prometheus metrics still available at `/metrics`.
 
 ### Cache Subsystem (`src/fs/cache/` — ~3,708 lines)
 
@@ -134,7 +134,7 @@ The `src/core/compat/` module (5,931 lines) bridges XRootD protocol semantics to
 
 **Impact:** ~0 lines removed. Keep as-is — in-protocol TLS upgrade is essential for roots:// compatibility.
 
-### Metrics Export (`src/metrics/` — 1,800 lines) — Medium Impact
+### Metrics Export (`src/observability/metrics/` — 1,800 lines) — Medium Impact
 
 **Custom implementation:** Prometheus text exposition format exporter with shared-memory atomic counters, label mapping tables (xrootd_op_names[]), per-protocol metric tracking (stream/webdav/s3). Custom `metrics_writer_t` buffer-chain writer. Total across metrics/: 1,800 lines in stream.c, webdav.c, s3.c, stream_cache.c, tracking.c, writer.c, module.c, stream_proxy.c, stream_tracking.c, config.c, handler.c.
 
@@ -506,7 +506,7 @@ Shared preamble in `src/core/config/shared_conf.h`: `enable`, `root`, `root_cano
 #### Reduce Config Directive Count — Moderate Impact
 
 **Current state:** ~50+ nginx config directives across all three protocol layers. Many are optional features that map directly to code modules (see Section 1 elimination candidates):
-- `xrootd_dashboard on/off` → src/dashboard/
+- `xrootd_dashboard on/off` → src/observability/dashboard/
 - `xrootd_cache on/off` + `xrootd_cache_root` → src/fs/cache/
 - `xrootd_manager_mode on/off` + `xrootd_manager_map` → src/net/manager/
 - `xrootd_cms_server on/off` + `xrootd_cms_manager` → src/net/cms/

@@ -1,7 +1,7 @@
 # Phase 14 — Table-Driven Prometheus Export
 
 **Target**: eliminate the per-block `# HELP / # TYPE / for-loop` duplication
-in `src/metrics/webdav.c` and `src/metrics/s3.c` by introducing two helper
+in `src/observability/metrics/webdav.c` and `src/observability/metrics/s3.c` by introducing two helper
 functions and moving two identical name tables to the existing shared header.
 
 **Net LoC reduction**: ~65–75 LoC  
@@ -59,7 +59,7 @@ double-counted the 2D loop).
 
 Replaces every single-label `# HELP / # TYPE / for` block.
 
-**Add to `src/metrics/writer.c`** (at the end of the file, before any
+**Add to `src/observability/metrics/writer.c`** (at the end of the file, before any
 `#ifdef`-guarded epilogue if present):
 
 ```c
@@ -87,7 +87,7 @@ pointer arithmetic `&counters[i]` is valid.  All current target arrays
 
 Replaces every plain three-line scalar block.
 
-**Add to `src/metrics/writer.c`**:
+**Add to `src/observability/metrics/writer.c`**:
 
 ```c
 void
@@ -102,7 +102,7 @@ mw_emit_scalar(metrics_writer_t *mw, const char *name, const char *help,
 
 ### Declarations
 
-**Add to `src/metrics/metrics_internal.h`** (after the existing `mw_printf`
+**Add to `src/observability/metrics/metrics_internal.h`** (after the existing `mw_printf`
 declaration):
 
 ```c
@@ -129,11 +129,11 @@ Total new code:                     +25 LoC
 27–34) and `s3.c` (lines 32–39) with identical content.
 `xrootd_webdav_range_names[]` and its s3 counterpart are also identical.
 
-Move both to `src/metrics/http_common.h`, which already exists as the shared
+Move both to `src/observability/metrics/http_common.h`, which already exists as the shared
 cross-protocol HTTP metrics header (it currently contains only
 `xrootd_http_status_class()`).
 
-**Add to `src/metrics/http_common.h`** (after the `xrootd_http_status_class`
+**Add to `src/observability/metrics/http_common.h`** (after the `xrootd_http_status_class`
 function):
 
 ```c
@@ -150,12 +150,12 @@ static const char *xrootd_http_range_result_names[3] = {
 };
 ```
 
-**Remove from `src/metrics/webdav.c`**:
+**Remove from `src/observability/metrics/webdav.c`**:
 - Lines 27–34: `static const char *xrootd_http_status_names[...]` (8 LoC)
 - Lines 44–48: `static const char *xrootd_webdav_range_names[...]` (5 LoC)
   — callers updated to use the shared name `xrootd_http_range_result_names`
 
-**Remove from `src/metrics/s3.c`**:
+**Remove from `src/observability/metrics/s3.c`**:
 - Lines 32–39: `static const char *xrootd_s3_status_names[...]` (8 LoC)
   — callers updated to use `xrootd_http_status_names`
 - The s3 range names table (5 LoC)

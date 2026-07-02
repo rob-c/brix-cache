@@ -73,8 +73,8 @@ def test_probe_state_machine_and_timer_present():
 
 
 def test_metrics_present():
-    assert "hc_pass_total" in _read("src/metrics/metrics.h")
-    assert "xrootd_cluster_hc_pass_total" in _read("src/metrics/cluster.c")
+    assert "hc_pass_total" in _read("src/observability/metrics/metrics.h")
+    assert "xrootd_cluster_hc_pass_total" in _read("src/observability/metrics/cluster.c")
 
 
 # --------------------------------------------------------------------------- #

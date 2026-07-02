@@ -97,7 +97,7 @@ their current documentation status after the 2026-06-14 cleanup.
 | `docs/refactor/phase-24-traffic-mirroring.md` | Write mirroring was out of scope/not implemented. | Source has HTTP/WebDAV write mirroring and stream data-write replay gated by `xrootd_mirror_writes`. | Corrected in the as-built status section. |
 | `docs/refactor/phase-35-frm-tape-staging.md` | `src/frm/` was greenfield and source-list guidance was ambiguous. | `src/frm/` exists and is registered in the top-level `config` script. | Marked historical and clarified current build registration. |
 | `docs/refactor/phase-8-openat2-confinement.md` | Runtime path confinement was genuinely incomplete; HTTP/S3 had no rootfd/beneath path. | `src/fs/path/README.md` documents runtime `openat2(RESOLVE_BENEATH)` confinement, stream rootfd, HTTP `common.rootfd`, and config-time-only `realpath`. | Marked as historical migration notes; stale HTTP/S3 row corrected. |
-| `docs/refactor/phase-34-packet-marking-scitags.md` | Packet marking/SciTags was a future plan. | `src/pmark/` implements Firefly UDP and IPv6 flow-label marking, including the XRootD-stubbed flow-label path. | Marked implemented/as-built. |
+| `docs/refactor/phase-34-packet-marking-scitags.md` | Packet marking/SciTags was a future plan. | `src/observability/pmark/` implements Firefly UDP and IPv6 flow-label marking, including the XRootD-stubbed flow-label path. | Marked implemented/as-built. |
 | `docs/refactor/phase-29-phase3-aio-pipelining-spec.md` and `docs/refactor/phase-30-hyper-optimization-throughput-latency.md` | AIO pipeline work was entirely unimplemented; build flags and CRC64/CRC32 premises were current. | Phase 32/33 landed response/read-buffer pipeline foundations and build defaults; CRC32C is hardware-accelerated; CRC64 is implemented separately. | Marked superseded/historical; visible stale table rows corrected. |
 | `docs/09-developer-guide/feature-roadmap.md` | OCSP, discharge macaroons, authdb host/query/fattr coverage, CMS escalation tests, FRM prepare, and write-through cache details were stale. | Source has OCSP responder/stapling, macaroon discharge bundles, authdb host/CIDR plus broader handler gates, CMS tests, FRM/Tape REST, and cache-origin anonymous-login limitations. | Corrected with current caveats. |
 | `docs/10-reference/comparison-nginx-xrootd-vs-canonical.md`, `docs/10-reference/gaps-vs-xrootd.md`, `docs/10-reference/xrootd-feature-matrix.md` | CRC64 was missing or grouped as a checksum gap. | `src/core/compat/crc64.c`, S3 CRC64NVME paths, and `docs/10-reference/crc64-checksums.md` show CRC64/CRC64NVME support. | Corrected; remaining checksum gap is plugin-framework breadth. |
@@ -256,14 +256,14 @@ Source anchors:
 | Feature | Upstream XRootD source | nginx-xrootd source | Status | Notes |
 |---|---|---|---|---|
 | UDP XrdMon stream monitoring | Upstream `XrdXrootdMon*` / XrdMon ecosystem. | Not implemented. | Not counted | Explicit product decision: do not implement. Use HTTP-native observability instead. |
-| Prometheus metrics | Upstream has some HTTP/monitoring counters but UDP monitoring is historical primary grid surface. | `src/metrics/`, `/metrics`, low-cardinality counters across stream/WebDAV/S3/rate-limit/cache/FRM/mirror. | nginx+ | Primary replacement for UDP monitoring. |
+| Prometheus metrics | Upstream has some HTTP/monitoring counters but UDP monitoring is historical primary grid surface. | `src/observability/metrics/`, `/metrics`, low-cardinality counters across stream/WebDAV/S3/rate-limit/cache/FRM/mirror. | nginx+ | Primary replacement for UDP monitoring. |
 | WLCG Storage Resource Reporting | Not a core upstream replacement surface in reviewed source. | `src/srr/`. | nginx+ | Useful for site accounting/discovery. |
-| Live transfer dashboard | Upstream has admin tools and monitoring ecosystem. | `src/dashboard/`, `/xrootd/api/v1/transfers`, events, history, cluster, cache, ratelimit, config. | nginx+ | Operator-friendly visibility built into the server. |
-| Admin API | Upstream admin commands/tools. | `src/dashboard/api_admin.c`, auth/cookie/HMAC paths. | nginx+ / Partial | Different operational model; not drop-in for XRootD admin command tooling. |
+| Live transfer dashboard | Upstream has admin tools and monitoring ecosystem. | `src/observability/dashboard/`, `/xrootd/api/v1/transfers`, events, history, cluster, cache, ratelimit, config. | nginx+ | Operator-friendly visibility built into the server. |
+| Admin API | Upstream admin commands/tools. | `src/observability/dashboard/api_admin.c`, auth/cookie/HMAC paths. | nginx+ / Partial | Different operational model; not drop-in for XRootD admin command tooling. |
 | Access logs | Upstream logs and monitor streams. | nginx access/error logs plus protocol-specific logs and sanitized wire strings. | nginx+ | Fits existing nginx observability/log shipping. |
 | Rate limiting / bandwidth / concurrency | Upstream `XrdThrottle` and `XrdBwm`. | `src/net/ratelimit/`, `xrootd_rate_limit_zone`, `xrootd_rate_limit_rule`, `xrootd_bandwidth_limit`, `xrootd_concurrency_limit`. | Parity / nginx+ | Upstream has throttle/BWM plugins; nginx implementation is cross-protocol and identity-aware. |
 | IPv6 completion and low-cardinality metrics | Upstream supports IPv6 at core network layer. | Phase-36 docs/tests cover stream, CMS redirect, WebDAV/XrdHttp, S3, TPC, admin, rate-limit, metrics. | Parity / nginx+ | Reviewer should prefer source/tests over stale docs where IPv6 gaps are mentioned. |
-| Packet marking / SciTags / PMark | Upstream has `XrdNetPMark`, XrdHttp PMark, XrdHttpTpc PMark manager. | `src/pmark/`, WebDAV/TPC integration, optional HTTP plain marking. | Partial / Parity | Both ecosystems have packet marking; implementation surfaces differ. |
+| Packet marking / SciTags / PMark | Upstream has `XrdNetPMark`, XrdHttp PMark, XrdHttpTpc PMark manager. | `src/observability/pmark/`, WebDAV/TPC integration, optional HTTP plain marking. | Partial / Parity | Both ecosystems have packet marking; implementation surfaces differ. |
 
 ## nginx-only or nginx-forward Features
 
@@ -274,8 +274,8 @@ These are the features that make the replacement case stronger than a simple
 |---|---|---|
 | S3-compatible server endpoint | `src/s3/` | Lets sites expose the same namespace to S3 clients without a separate gateway or data copy. Upstream has `XrdClS3` client code, not an S3 REST server in the reviewed tree. |
 | Unified multi-protocol namespace | `src/read/`, `src/webdav/`, `src/s3/`, shared path/auth helpers | One export can serve `root://`, `davs://`/XrdHttp, and S3-style clients with common confinement and policy rules. |
-| Prometheus-first monitoring | `src/metrics/`, `src/dashboard/`, `src/srr/` | Avoids UDP monitoring while integrating with modern site monitoring stacks. |
-| Dashboard/admin API | `src/dashboard/` | Makes transfer, cluster, cache, rate-limit, and config state inspectable over HTTP. |
+| Prometheus-first monitoring | `src/observability/metrics/`, `src/observability/dashboard/`, `src/srr/` | Avoids UDP monitoring while integrating with modern site monitoring stacks. |
+| Dashboard/admin API | `src/observability/dashboard/` | Makes transfer, cluster, cache, rate-limit, and config state inspectable over HTTP. |
 | Identity-aware shaping | `src/net/ratelimit/` | Applies request-rate, bandwidth, and concurrency controls by VO, issuer, DN hash, IP, or volume prefix across stream and HTTP. |
 | WebDAV desktop/client compatibility | `src/webdav/lock.c`, `dead_props.c`, `search.c`, `acl.c` | Supports clients that need locks or dead properties, beyond upstream XrdHttp's reviewed method set. |
 | Hardened HTTP-TPC | `src/webdav/tpc_curl.c`, `tpc_cred.c`, `tpc_marker.c` | Adds SSRF/DNS pinning, credential exchange, marker streaming, multistream, and metrics in one module. |
@@ -370,7 +370,7 @@ High-signal source files inspected for this comparison:
 | S3 | `src/s3/` | `/tmp/xrootd-src/src/XrdClS3` |
 | Cache/storage | `src/fs/cache/`, `src/fs/`, `src/path/`, `src/core/compat/namespace_ops.c` | `/tmp/xrootd-src/src/XrdPfc`, `/tmp/xrootd-src/src/XrdPss`, `/tmp/xrootd-src/src/XrdCeph`, `/tmp/xrootd-src/src/XrdOssCsi`, `/tmp/xrootd-src/src/XrdZip`, `/tmp/xrootd-src/src/XrdRmc` |
 | FRM/tape | `src/frm/`, `src/query/prepare.c`, `src/webdav/tape_rest.c` | `/tmp/xrootd-src/src/XrdFrm` |
-| Rate limiting | `src/net/ratelimit/`, `src/metrics/ratelimit.c` | `/tmp/xrootd-src/src/XrdThrottle`, `/tmp/xrootd-src/src/XrdBwm` |
+| Rate limiting | `src/net/ratelimit/`, `src/observability/metrics/ratelimit.c` | `/tmp/xrootd-src/src/XrdThrottle`, `/tmp/xrootd-src/src/XrdBwm` |
 | CMS/manager/proxy | `src/net/cms/`, `src/net/manager/`, `src/net/upstream/`, `src/net/proxy/` | `/tmp/xrootd-src/src/XrdCms`, `/tmp/xrootd-src/src/XrdXrootd` |
-| Observability | `src/metrics/`, `src/dashboard/`, `src/srr/` | `/tmp/xrootd-src/src/XrdMon`, `/tmp/xrootd-src/src/XrdXrootd/XrdXrootdMon*` |
+| Observability | `src/observability/metrics/`, `src/observability/dashboard/`, `src/srr/` | `/tmp/xrootd-src/src/XrdMon`, `/tmp/xrootd-src/src/XrdXrootd/XrdXrootdMon*` |
 | Migration/mirroring | `src/net/mirror/` | No comparable upstream server subsystem found in reviewed source. |

@@ -62,7 +62,7 @@ regress these, and should extend their rigor to the edges.
   (`:590`).
 - **SSS replay protection.** Timestamp-vs-`sss_lifetime` check, `RAND_bytes`
   nonce, CRC integrity for wrong-key detection (`src/auth/sss/auth_request.c`).
-- **Constant-time admin compare + network ACL.** `src/dashboard/api_admin.c:190`
+- **Constant-time admin compare + network ACL.** `src/observability/dashboard/api_admin.c:190`
   uses `CRYPTO_memcmp` against the bearer secret and enforces a CIDR allowlist
   (`:198`); body capped at 64 KB.
 - **Secret hygiene exists.** `OPENSSL_cleanse`/`ngx_memzero` wipe crypto material
@@ -131,8 +131,8 @@ attacker-controlled argv values**, which `--` + leading-dash rejection closes.
 
 | # | File:line | Issue | Sev | Guard |
 |---|-----------|-------|-----|-------|
-| E1 | `src/dashboard/api_admin.c`, dynamic upstream/proxy (Phase 23) | A holder of `admin_secret` can **repoint proxying/upstreams** (potentially to an attacker host) and exfiltrate traffic. Single secret = single point of total compromise. | High | (a) Append-only, tamper-evident **admin audit log** of every mutation (who/when/what/from-IP); (b) bound admin-settable upstream targets to an allowlist; (c) require the CIDR ACL *and* the secret (defense-in-depth, already partly present) |
-| E2 | `src/dashboard/module.c:103` | `admin_secret` default is `""` → if the directive is omitted the API is correctly disabled (`api_admin.c:175`), but a weak/static secret never rotates. | Med | Support secret rotation + minimum-length enforcement at config time; warn on short secrets |
+| E1 | `src/observability/dashboard/api_admin.c`, dynamic upstream/proxy (Phase 23) | A holder of `admin_secret` can **repoint proxying/upstreams** (potentially to an attacker host) and exfiltrate traffic. Single secret = single point of total compromise. | High | (a) Append-only, tamper-evident **admin audit log** of every mutation (who/when/what/from-IP); (b) bound admin-settable upstream targets to an allowlist; (c) require the CIDR ACL *and* the secret (defense-in-depth, already partly present) |
+| E2 | `src/observability/dashboard/module.c:103` | `admin_secret` default is `""` → if the directive is omitted the API is correctly disabled (`api_admin.c:175`), but a weak/static secret never rotates. | Med | Support secret rotation + minimum-length enforcement at config time; warn on short secrets |
 | E3 | admin API | No **separation of duties** — read-dashboard vs write-admin share posture. | Low-Med | Distinct read vs mutate credentials/scopes |
 | E4 | logging | Admin actions and config must **never log the secret/tokens**; confirm. | Med | Secret-redaction lint over log call sites |
 

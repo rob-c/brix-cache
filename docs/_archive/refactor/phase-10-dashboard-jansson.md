@@ -10,7 +10,7 @@
 
 ## Goal
 
-Replace the hand-rolled JSON serialiser in `src/dashboard/api.c` with jansson.  The
+Replace the hand-rolled JSON serialiser in `src/observability/dashboard/api.c` with jansson.  The
 current implementation uses a pointer-chasing pattern (`p = json_append(p, end, ...)`)
 over a pre-allocated 1 MB pool buffer.  jansson is already linked for `token/` and
 `s3/` code; switching the dashboard avoids the 1 MB fixed allocation, eliminates
@@ -297,7 +297,7 @@ snippet above has a logic error for illustration — correct order is: probe →
 
 | File | Current | Projected | ΔLoC |
 |---|---|---|---|
-| `src/dashboard/api.c` | 1,188 | ~990 | −198 |
+| `src/observability/dashboard/api.c` | 1,188 | ~990 | −198 |
 | No new files; jansson already in build | — | — | 0 |
 | **Net** | | | **≈−200** |
 

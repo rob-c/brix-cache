@@ -4,7 +4,7 @@
 #include "core/compat/crypto.h"
 #include "core/compat/uri.h"
 #include "core/compat/sigv4.h"   /* shared SigV4 signing-key derive (libxrdproto) */
-#include "metrics/unified.h"
+#include "observability/metrics/unified.h"
 
 #include <ctype.h>
 #include <string.h>

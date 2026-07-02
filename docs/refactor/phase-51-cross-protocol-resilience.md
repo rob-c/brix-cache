@@ -144,8 +144,8 @@ conformant slow-but-progressing transfer is never clipped.
 
 ## 3. Reusable building blocks
 
-- Metrics: `ngx_atomic_t` counters in `src/metrics/metrics.h` + export in
-  `src/metrics/stream.c` + `XROOTD_*_METRIC_INC` at the call site (the
+- Metrics: `ngx_atomic_t` counters in `src/observability/metrics/metrics.h` + export in
+  `src/observability/metrics/stream.c` + `XROOTD_*_METRIC_INC` at the call site (the
   `*_timeouts_total` family is the template).
 - `xrootd_apply_tcp_deadpeer_opts()` (`netopt.h`), CMS deadlines (`src/net/cms/*`),
   `xrootd_net_host_chars_valid()` / `xrootd_sanitize_log_string()`.
@@ -295,7 +295,7 @@ GSI DH keypool (`src/auth/gsi/keypool.c`) is the model for moving cost off the l
 - CMS: `src/net/cms/recv.c`, `server_recv.c`, `server_handler.c`, `connect.c`,
   `server.h`, `server_module.c` (A1 INCs, A2 work-cap, A3 per-IP cap).
 - Manager: `src/net/manager/pending.c`/`.h` (A4 reaper).
-- Metrics: `src/metrics/metrics.h` + `src/metrics/stream.c` (A1 counters/export).
+- Metrics: `src/observability/metrics/metrics.h` + `src/observability/metrics/stream.c` (A1 counters/export).
 - Defaults: `src/core/config/server_conf.c` (B1, B2).
 - TPC/durability: `src/webdav/tpc_curl.c` (confirm B2), WebDAV/S3 staged-commit
   site (C1 fsync).
@@ -307,8 +307,8 @@ GSI DH keypool (`src/auth/gsi/keypool.c`) is the model for moving cost off the l
   `src/auth/token/worker_cache.c` (E2), `src/auth/authz/acc/groups.c` + `src/auth/authz/acc/resolve.c` (E3
   negative cache + breaker), the GSI/token cold-verify call sites
   `src/auth/gsi/auth.c` / `src/auth/token/validate.c` + the W7 concurrency limiter (E4),
-  `src/auth/crypto/pki_load.c` (E5), `src/metrics/metrics.h` + `src/metrics/stream.c` +
-  `src/metrics/http.c` (E6). New auth directives via the usual
+  `src/auth/crypto/pki_load.c` (E5), `src/observability/metrics/metrics.h` + `src/observability/metrics/stream.c` +
+  `src/observability/metrics/http.c` (E6). New auth directives via the usual
   `NGX_CONF_UNSET`→merge→`ngx_command_t` pattern (`src/core/config/server_conf.c`,
   `src/stream/module.c`, `src/webdav/module.c`).
 - Auth tests: `tests/test_auth_resilience.py` (new) — OCSP responder that

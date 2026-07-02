@@ -10,7 +10,7 @@ peer-addressing paths of the IPv6 stream instance (``ipv6-stream`` on
       request URI (``/cluster/servers/[::1]/PORT``), strips the brackets, and the
       registered member round-trips *bare* in the dashboard cluster snapshot
       (``GET /xrootd/api/v1/cluster``).  This proves the bracket-aware URI parse
-      in ``src/dashboard/api_admin.c`` (``admin_parse_server_uri`` :395).
+      in ``src/observability/dashboard/api_admin.c`` (``admin_parse_server_uri`` :395).
       register / drain / undrain / remove are all driven through bracketed URIs.
 
   (b) REGRESSION — rate limiting keyed by an IPv6 client IP still throttles

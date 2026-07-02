@@ -2,7 +2,7 @@
 
 **Status:** ✅ Implemented (one security item pending — see status section)  
 **Depends on:** Phase 22 (health checks) recommended but not required  
-**Touches:** `src/dashboard/`, `src/net/manager/`, `src/webdav/`  
+**Touches:** `src/observability/dashboard/`, `src/net/manager/`, `src/webdav/`  
 **Net LoC:** +~920 new, ~60 modified
 
 ---
@@ -17,7 +17,7 @@ source files exist and are registered. The main gap vs. the plan is the admin-AP
 
 | Step | Capability | Status | Evidence / divergence |
 |------|-----------|--------|-----------------------|
-| **A** | Admin auth layer | ✅ **Done** | `xrootd_admin_check_auth()` (`api_admin.c:167`) — CIDR allowlist and/or bearer secret, with `xrootd_admin_require_both`. Directives `xrootd_admin_allow` / `xrootd_admin_secret` / `xrootd_admin_require_both` registered in `src/dashboard/module.c`. The `XROOTD_ADMIN_AUTH_METHOD_NOT_ALLOWED` enum value was dropped — only `OK`/`DENIED`. |
+| **A** | Admin auth layer | ✅ **Done** | `xrootd_admin_check_auth()` (`api_admin.c:167`) — CIDR allowlist and/or bearer secret, with `xrootd_admin_require_both`. Directives `xrootd_admin_allow` / `xrootd_admin_secret` / `xrootd_admin_require_both` registered in `src/observability/dashboard/module.c`. The `XROOTD_ADMIN_AUTH_METHOD_NOT_ALLOWED` enum value was dropped — only `OK`/`DENIED`. |
 | **B** | Async body reader | ✅ **Done** | `xrootd_admin_read_body()` (`api_admin.c:293`) coalesces the body, parses JSON (jansson), dispatches to a handler. |
 | **C** | Cluster registry endpoints | ✅ **Done** | `admin_cluster_register` (POST/PUT upsert), `admin_cluster_drain`, DELETE, and `xrootd_srv_undrain()` (`registry.c:591`, declared `registry.h:89`). Host/path whitelist validation present. |
 | **D** | WebDAV proxy backend pool | ✅ **Done** | `src/webdav/proxy_pool.{c,h}` — SHM table of `xrootd_proxy_be_entry_t`, `xrootd_proxy_pool_add/remove/drain/undrain/select/snapshot` + atomic `in_flight`. `proxy.c:50-87` selects from the pool when `proxy_pool_enabled` and reserves `in_flight`; `proxy_response.c:192` releases it in finalize. `select()` signature differs (`xrootd_proxy_pool_select(xrootd_proxy_be_pick_t *out)` returning `ngx_int_t`, not returning an entry pointer). |
@@ -94,7 +94,7 @@ Surface B requires a new SHM backend pool and changes to `proxy.c`'s selection l
 
 ## Step A — Admin API Auth Layer
 
-**Files:** `src/dashboard/api_admin.c` (new), `src/dashboard/api_admin.h` (new)
+**Files:** `src/observability/dashboard/api_admin.c` (new), `src/observability/dashboard/api_admin.h` (new)
 
 The existing dashboard auth (`ngx_http_xrootd_dashboard_check_auth`) uses IP allowlist
 or bearer token for read endpoints. Write endpoints need a stronger guard:
@@ -135,7 +135,7 @@ secret into `nginx -T` output.
 
 ## Step B — Request Body Reader Helper
 
-**File:** `src/dashboard/api_admin.c`
+**File:** `src/observability/dashboard/api_admin.c`
 
 All write endpoints need to read and parse a JSON request body. nginx body reading is
 async: `ngx_http_read_client_request_body()` fires a callback when the body is
@@ -217,7 +217,7 @@ xrootd_admin_body_callback(ngx_http_request_t *r)
 
 ## Step C — Stream Registry Admin Endpoints
 
-**Files:** `src/dashboard/api_admin.c`, `src/dashboard/module.c`
+**Files:** `src/observability/dashboard/api_admin.c`, `src/observability/dashboard/module.c`
 
 These endpoints call the existing `src/net/manager/registry.c` public API. No registry
 changes are required.
@@ -493,7 +493,7 @@ removing the backend.
 
 ## Step E — Proxy Backend Admin Endpoints
 
-**Files:** `src/dashboard/api_admin.c`, `src/dashboard/module.c`
+**Files:** `src/observability/dashboard/api_admin.c`, `src/observability/dashboard/module.c`
 
 | Method | URI | Action |
 |---|---|---|
@@ -585,7 +585,7 @@ curl -X DELETE -H "Authorization: Bearer $TOKEN" \
 
 ## Step F — Routing in module.c
 
-**File:** `src/dashboard/module.c`
+**File:** `src/observability/dashboard/module.c`
 
 The dashboard's `ngx_http_xrootd_dashboard_handler()` already routes GET requests by
 URI prefix. Extend it to dispatch write methods:
@@ -632,11 +632,11 @@ json_object_set_new(srv, "draining",
 
 | File | Action | Purpose |
 |---|---|---|
-| `src/dashboard/api_admin.h` | **New** | Admin API types; `xrootd_admin_dispatch()` declaration |
-| `src/dashboard/api_admin.c` | **New** | Auth check; body reader; all write endpoint handlers |
-| `src/dashboard/api.c` | Modify | Add `draining` field to cluster snapshot; add proxy pool GET |
-| `src/dashboard/module.c` | Modify | Route non-GET methods to `xrootd_admin_dispatch()`; add new endpoint enum values |
-| `src/dashboard/dashboard_http.h` | Modify | Add admin endpoint enum values |
+| `src/observability/dashboard/api_admin.h` | **New** | Admin API types; `xrootd_admin_dispatch()` declaration |
+| `src/observability/dashboard/api_admin.c` | **New** | Auth check; body reader; all write endpoint handlers |
+| `src/observability/dashboard/api.c` | Modify | Add `draining` field to cluster snapshot; add proxy pool GET |
+| `src/observability/dashboard/module.c` | Modify | Route non-GET methods to `xrootd_admin_dispatch()`; add new endpoint enum values |
+| `src/observability/dashboard/dashboard_http.h` | Modify | Add admin endpoint enum values |
 | `src/webdav/proxy_pool.h` | **New** | `xrootd_proxy_be_entry_t`, `xrootd_proxy_be_table_t`, pool API |
 | `src/webdav/proxy_pool.c` | **New** | SHM init, add/remove/drain/select/snapshot |
 | `src/webdav/proxy.c` | Modify | Pick from pool when `proxy_pool_enabled`; decrement `in_flight` in finalize |
@@ -652,7 +652,7 @@ json_object_set_new(srv, "draining",
 
 ## Build Registration
 
-Two new source files (`src/webdav/proxy_pool.c`, `src/dashboard/api_admin.c`) must
+Two new source files (`src/webdav/proxy_pool.c`, `src/observability/dashboard/api_admin.c`) must
 be added to `NGX_ADDON_SRCS` in `src/core/config/config.h` before running `./configure`
 once. All subsequent changes build with `make -j$(nproc)`.
 

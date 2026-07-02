@@ -47,7 +47,7 @@ bad-auth/anon), `SIGTERM`s nginx, waits for the Memcheck teardown, and appends a
 **Severity:** Medium (uninitialised-memory read; can copy garbage into a
 client-visible/dashboard field; not directly attacker-controlled).
 
-**File:** `src/dashboard/http_tracking.c`
+**File:** `src/observability/dashboard/http_tracking.c`
 
 **Symptom (Memcheck):** "Use of uninitialised value" on the WebDAV GET path,
 10 errors, traced into `dashboard_http_client()` →

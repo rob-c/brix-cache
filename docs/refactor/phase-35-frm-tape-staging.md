@@ -357,7 +357,7 @@ Merge in `ngx_stream_xrootd_merge_srv_conf` (`src/core/config/server_conf.c`), i
   `ngx_module_srcs`/deps lists; update `src/core/config/config.h` only for config
   structs/directive declarations. Wire `frm_stage_configure_registry(cf)` into
   `src/core/config/postconfiguration.c` alongside `xrootd_tpc_key_configure_registry`.
-- **config:** add `src/frm/metrics.c` to the **HTTP metrics module** srcs block; add the FRM `ngx_xrootd_frm_metrics_t frm;` block to `src/metrics/metrics.h` (state enum `XROOTD_FRM_STATE_*`, `XROOTD_FRM_FAIL_*`, latency buckets), `XROOTD_FRM_METRIC_INC/ADD` macros in `metrics_macros.h`, exporter prototype in `metrics_internal.h`, fan-out from `xrootd_export_prometheus_metrics` in `src/metrics/stream.c`. **Mixed-ABI rule applies** (`metrics.h` struct grows): clean rebuild or touch a `.c` in every module including `metrics.h`.
+- **config:** add `src/frm/metrics.c` to the **HTTP metrics module** srcs block; add the FRM `ngx_xrootd_frm_metrics_t frm;` block to `src/observability/metrics/metrics.h` (state enum `XROOTD_FRM_STATE_*`, `XROOTD_FRM_FAIL_*`, latency buckets), `XROOTD_FRM_METRIC_INC/ADD` macros in `metrics_macros.h`, exporter prototype in `metrics_internal.h`, fan-out from `xrootd_export_prometheus_metrics` in `src/observability/metrics/stream.c`. **Mixed-ABI rule applies** (`metrics.h` struct grows): clean rebuild or touch a `.c` in every module including `metrics.h`.
 
 **Reuse credit:** residency xattr is a structural clone of the WebDAV lock xattr; the dedup set and the worker thread/done binder are clones of the TPC key registry and cache-fill job respectively; the stall is the existing `xrootd_send_wait`. The genuinely new code is the copy→temp→verify→rename worker body and the open-path stall policy.
 

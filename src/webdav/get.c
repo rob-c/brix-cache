@@ -8,7 +8,7 @@
 #include "core/compat/etag.h"
 #include "core/compat/http_conditionals.h"
 #include "fs/cache/open.h"
-#include "dashboard/dashboard_tracking.h"
+#include "observability/dashboard/dashboard_tracking.h"
 #include "fs/vfs.h"
 #include "shared/file_serve.h"
 #include "shared/http_cache_fill.h"     /* phase-64 SP2: off-loop cache fill */

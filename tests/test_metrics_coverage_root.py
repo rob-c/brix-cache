@@ -197,7 +197,7 @@ class TestRootOpCountersOK:
         assert r.returncode == 0, r.stderr
         assert _op_ok(snap, "locate") >= 1, (
             "kXR_locate did not bump op=\"locate\" — op-name table skew "
-            "(see the phase-44 query_space fix in src/metrics/stream.c)")
+            "(see the phase-44 query_space fix in src/observability/metrics/stream.c)")
 
 
 # ------------------------------------------------------------------- error ----

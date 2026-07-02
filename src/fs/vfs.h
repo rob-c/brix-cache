@@ -32,7 +32,7 @@
 
 #include "fs/path/unified.h"
 #include "core/types/identity.h"
-#include "metrics/unified.h"
+#include "observability/metrics/unified.h"
 #include "fs/backend/sd.h"
 
 #define XROOTD_VFS_O_READ        0x01

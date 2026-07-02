@@ -30,7 +30,7 @@
 #include "core/compat/crc32c.h"
 #include "core/compat/namespace_ops.h"
 #include "core/compat/staged_file.h"
-#include "metrics/access_log.h"
+#include "observability/metrics/access_log.h"
 #include "fs/path/path.h"
 
 #include <dirent.h>

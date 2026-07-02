@@ -807,7 +807,7 @@ stream {
 
 ## Step G — Metrics
 
-**New Prometheus counters** in `src/metrics/metrics.h`:
+**New Prometheus counters** in `src/observability/metrics/metrics.h`:
 
 ```c
 ngx_atomic_t  cache_slice_hit_total;          /* slices served from cache      */
@@ -816,7 +816,7 @@ ngx_atomic_t  cache_slice_fill_active;        /* fills in-progress (gauge)     *
 ngx_atomic_t  cache_slice_etag_mismatch_total; /* origin file changed mid-fill  */
 ```
 
-Exported in `src/metrics/cache.c`:
+Exported in `src/observability/metrics/cache.c`:
 
 ```
 # HELP xrootd_cache_slice_hit_total Slice reads served entirely from local cache
@@ -894,8 +894,8 @@ All 3 files must be added to `NGX_ADDON_SRCS` in `src/core/config/config.h`.
 | `src/fs/cache/paths.c` | Add `xrootd_slice_evict_all()` (glob + unlink) |
 | `src/core/config/config.h` | Add `cache_slice_size`, `cache_slice_prefetch`, `cache_slice_fill_timeout_ms` |
 | `src/core/config/directives.c` | Parse new directives; validate slice_size is a multiple of 1 MiB |
-| `src/metrics/metrics.h` | Add 4 new counters |
-| `src/metrics/cache.c` | Export new Prometheus metrics |
+| `src/observability/metrics/metrics.h` | Add 4 new counters |
+| `src/observability/metrics/cache.c` | Export new Prometheus metrics |
 
 ---
 

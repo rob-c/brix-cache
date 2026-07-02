@@ -251,10 +251,10 @@ assignments are in §6.
 |---|---|---|---|---|
 | 1316 | 1734 | `src/stream/module.c` | 🔴→**exempt** | **95% (1251) is the 213-entry `ngx_command_t` directive table**; conf lifecycle already in `config/server_conf.c` + `stream/module_definition.c` → declarative, exempt (§2.6, §6.10) |
 | 1033 | 1284 | `src/auth/gsi/gsi_core.c` | 🔴 | bucket/buffer codec · DH keygen/derive · cipher negotiation · RSA sign/verify · cert-request/response build (**shared** — also linked into client) |
-| 986 | 1290 | `src/dashboard/api.c` | 🔴 | name/format helpers · live-transfer model · snapshot assembly · ratelimit view · JSON send/dispatch *(worked example §6.1)* |
+| 986 | 1290 | `src/observability/dashboard/api.c` | 🔴 | name/format helpers · live-transfer model · snapshot assembly · ratelimit view · JSON send/dispatch *(worked example §6.1)* |
 | 973 | 1452 | `src/s3/post_object.c` | 🔴 | multipart-form decode · POST-policy parse/verify · object write · response build *(worked example §6.2)* |
 | 904 | 1153 | `src/webdav/module.c` | 🔴→🟡 | **618 table + 286 logic**; extract the `webdav_conf_*` setters + phase handlers + module ctx → residual table drops to ~618 (watch) (§6.11) |
-| 894 | 1198 | `src/dashboard/api_admin.c` | 🔴 | admin auth · write endpoints · proxy-pool admin |
+| 894 | 1198 | `src/observability/dashboard/api_admin.c` | 🔴 | admin auth · write endpoints · proxy-pool admin |
 | 811 | 1149 | `src/webdav/propfind.c` | 🔴 | request/XML parse · property gather (`propfind_entry` is 308 lines alone) · tree walk · response build *(worked example §6.3)* |
 | 796 | 1186 | `src/s3/put.c` | 🟠 | body-mode/aio plumbing · finalize-result family (12 `s3_put_finalize_*`) · aws-chunked decode |
 | 725 | 1104 | `src/auth/impersonate/broker.c` | 🟠 | peer/cap gate · `imp_do_op` dispatch (288 lines) · xattr filter · request loop *(worked example §6.5)* |
@@ -288,7 +288,7 @@ Newly in scope (2026-06-26). Registration is `client/Makefile`, not the root
 | 518 | 790 | `src/core/types/config.h` | Module config structs. **Mixed-ABI** → full rebuild. Split by plane (stream conf · http/webdav conf · s3 conf · shared tunables) only if it grows; currently borderline. |
 
 > **Dropped from the old must-split list:** `src/webdav/webdav.h` (372 logical /
-> 827 raw) and `src/metrics/metrics.h` (390 logical / 639 raw) are **not** offenders
+> 827 raw) and `src/observability/metrics/metrics.h` (390 logical / 639 raw) are **not** offenders
 > by the logical metric — they are mostly declaration doc-blocks. Earlier revisions
 > flagged them on raw count; §2.5 explains why that was wrong. Leave them.
 
@@ -534,10 +534,10 @@ ngx_int_t foo_verify_policy(foo_ctx_t *ctx, ...);
 ### 5.3 A worked extraction (before → after)
 
 Concrete shape of one cut — pulling the live-transfer model out of
-`src/dashboard/api.c` (§6.1). **Before:** one file, the function `static`:
+`src/observability/dashboard/api.c` (§6.1). **Before:** one file, the function `static`:
 
 ```c
-/* src/dashboard/api.c (before) */
+/* src/observability/dashboard/api.c (before) */
 static json_t *
 dashboard_build_transfer_object(ngx_pool_t *pool, const xrootd_xfer_t *x,
                                 int64_t now_ms, ngx_uint_t redact)
@@ -552,7 +552,7 @@ rows = dashboard_build_transfer_rows(now_ms, pool, redact);
 prototype in a *new* private header that both files include:
 
 ```c
-/* src/dashboard/dashboard_api_internal.h (new) */
+/* src/observability/dashboard/dashboard_api_internal.h (new) */
 #ifndef XROOTD_DASHBOARD_API_INTERNAL_H
 #define XROOTD_DASHBOARD_API_INTERNAL_H
 #include "dashboard.h"
@@ -565,7 +565,7 @@ json_t *dashboard_build_transfer_rows(int64_t now_ms, ngx_pool_t *pool,
 ```
 
 ```c
-/* src/dashboard/api_transfers.c (new) — note: NO 'static' now */
+/* src/observability/dashboard/api_transfers.c (new) — note: NO 'static' now */
 #include "dashboard_api_internal.h"
 json_t *
 dashboard_build_transfer_object(ngx_pool_t *pool, const xrootd_xfer_t *x,
@@ -575,9 +575,9 @@ dashboard_build_transfer_object(ngx_pool_t *pool, const xrootd_xfer_t *x,
 }
 ```
 
-Then: add `$ngx_addon_dir/src/dashboard/api_transfers.c` to the root `config`
-`NGX_ADDON_SRCS`; add a row to `src/dashboard/README.md`; `./configure && make`;
-`tests/test_dashboard.py` green; `git grep -n 'goto' src/dashboard/api_transfers.c`
+Then: add `$ngx_addon_dir/src/observability/dashboard/api_transfers.c` to the root `config`
+`NGX_ADDON_SRCS`; add a row to `src/observability/dashboard/README.md`; `./configure && make`;
+`tests/test_dashboard.py` green; `git grep -n 'goto' src/observability/dashboard/api_transfers.c`
 empty. **Zero behavior change** — the bytes the endpoint emits are identical.
 
 ### 5.4 Anti-patterns (do NOT)
@@ -603,7 +603,7 @@ Confirm against the file before cutting (functions move between revisions).
 > de-`static`'d `*_internal.h`. The subsections here give the *shape and rationale*;
 > Appendix F gives the *copy-pasteable* line-by-line plan.
 
-### 6.1 `src/dashboard/api.c` (986 logical / 1290 raw → ~4 files) — worked example
+### 6.1 `src/observability/dashboard/api.c` (986 logical / 1290 raw → ~4 files) — worked example
 
 Four near-independent concerns sharing only small static helpers:
 
@@ -616,7 +616,7 @@ Four near-independent concerns sharing only small static helpers:
 
 Shared decls (the `summary` struct, helper prototypes) → new
 `dashboard_api_internal.h`. Register three new `.c` in `config`; update
-`src/dashboard/README.md`. No behavior change → `tests/test_dashboard.py` stays
+`src/observability/dashboard/README.md`. No behavior change → `tests/test_dashboard.py` stays
 green. (`api_snapshot.c` at ~480 is near the line; if `fill_cache`'s 104 lines
 push it over, peel `api_cache.c` out as a fifth file.)
 
@@ -776,7 +776,7 @@ Shared decls → `webdav.h` (already present) or a small `module_internal.h`.
 *(Alternatively, exempt the residual table per §2.6 — but extracting the four
 setters is cheap and keeps the table file genuinely table-only.)*
 
-### 6.12 `src/dashboard/api_admin.c` (894 / 1198 → ~4 files)
+### 6.12 `src/observability/dashboard/api_admin.c` (894 / 1198 → ~4 files)
 
 Admin write-plane, four concerns by prefix cluster:
 
@@ -1227,10 +1227,10 @@ lands in a dedicated target file, never split mid-body (§6.21).
 | File | Largest function | ~Lines | Isolated into (§6) |
 |---|---|---|---|
 | `src/auth/gsi/gsi_core.c` | `xrootd_gsi_build_cert_response` | 210 | cert-response file (P0) |
-| `src/dashboard/api.c` | `dashboard_build_transfer_object` | 134 | `api_transfers.c` (§6.1) |
+| `src/observability/dashboard/api.c` | `dashboard_build_transfer_object` | 134 | `api_transfers.c` (§6.1) |
 | `src/s3/post_object.c` | `s3_post_parse_form` | 156 | `post_form.c` (§6.2) |
 | `src/webdav/propfind.c` | `propfind_entry` | 308 | `propfind_props.c` (§6.3) |
-| `src/dashboard/api_admin.c` | `xrootd_admin_dispatch` | 93 | kept `api_admin.c` (§6.12) |
+| `src/observability/dashboard/api_admin.c` | `xrootd_admin_dispatch` | 93 | kept `api_admin.c` (§6.12) |
 | `src/net/manager/registry.c` | `srv_select_core` | 107 | `registry_select.c` (§6.4) |
 | `src/auth/impersonate/broker.c` | `imp_do_op` | 288 | `broker_ops.c` (§6.5) |
 | `src/s3/put.c` | `s3_put_streaming` | 89 | kept `put.c` (§6.13) |
@@ -1282,7 +1282,7 @@ copy-pasteable mechanical layer under the §6 specs.
 Regenerate any block with the Appendix A/B commands — the data drifts as code
 changes; treat these tables as a 2026-06-26 snapshot, not a contract.
 
-#### F.1 `src/dashboard/api.c` (986/1290 → 4 files; §6.1)
+#### F.1 `src/observability/dashboard/api.c` (986/1290 → 4 files; §6.1)
 
 **Move table** — current lines → target file:
 
@@ -1451,7 +1451,7 @@ ngx_int_t propfind_do(ngx_http_request_t *r);
 #endif
 ```
 
-#### F.4 `src/dashboard/api_admin.c` (894/1198 → 4 files; §6.12)
+#### F.4 `src/observability/dashboard/api_admin.c` (894/1198 → 4 files; §6.12)
 
 **Move table** — current lines → target file:
 

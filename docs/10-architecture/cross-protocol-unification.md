@@ -47,8 +47,8 @@ shared helpers.
 │  src/path/              xrootd_resolve_path_*()     [stream]      │
 │  src/auth/token/             JWT validate + scope check  [all]         │
 │  src/auth/crypto/            OCSP + PKI load             [all]         │
-│  src/metrics/metrics.h  shared-memory layout        [all]         │
-│  src/metrics/tracking.c VO/user activity accounting [all]         │
+│  src/observability/metrics/metrics.h  shared-memory layout        [all]         │
+│  src/observability/metrics/tracking.c VO/user activity accounting [all]         │
 │  src/tpc/key_registry.c SHM TPC key table           [stream+webdav]│
 │  src/session/registry.h bind session table          [stream]       │
 │  src/core/compat/crc32c.c    CRC32c for pgread/pgwrite   [stream]      │
@@ -176,9 +176,9 @@ src/auth/crypto/
 the two-round DH exchange; `src/auth/crypto/ocsp.c` is referenced by both `src/auth/gsi/` and the
 nginx TLS handshake hook registered by `src/webdav/pki.c`.
 
-### Prometheus shared-memory layout (`src/metrics/`)
+### Prometheus shared-memory layout (`src/observability/metrics/`)
 
-All counters live in `ngx_xrootd_metrics_t` (defined in `src/metrics/metrics.h`), a single
+All counters live in `ngx_xrootd_metrics_t` (defined in `src/observability/metrics/metrics.h`), a single
 shared-memory zone visible to all nginx worker processes:
 
 ```
@@ -204,11 +204,11 @@ metrics.h
 ```
 
 The stream module writes counters with `XROOTD_STREAM_METRIC_INC(op, status)` (increments
-atomic counters by slot index). The HTTP metrics handler (`src/metrics/handler.c`) reads the
+atomic counters by slot index). The HTTP metrics handler (`src/observability/metrics/handler.c`) reads the
 same zone and serialises all counter families to Prometheus text format via `metrics_writer_t`
-from `src/metrics/writer.c`.
+from `src/observability/metrics/writer.c`.
 
-`src/metrics/tracking.c` provides `xrootd_track_vo_activity()` and `xrootd_track_unique_user()`
+`src/observability/metrics/tracking.c` provides `xrootd_track_vo_activity()` and `xrootd_track_unique_user()`
 which are called from stream, WebDAV, and S3 paths alike after successful authentication.
 
 ### TPC key registry (`src/tpc/key_registry.c`)
@@ -331,7 +331,7 @@ HTTP and token-adjacent helpers.
 | Area | Shared helper | Callers now using it |
 |------|---------------|----------------------|
 | Blocking writes | `src/core/compat/io.c` | WebDAV PUT/COPY spooled writes, S3 PUT body writes |
-| HTTP status classes | `src/metrics/http_common.h` | WebDAV metrics, S3 metrics |
+| HTTP status classes | `src/observability/metrics/http_common.h` | WebDAV metrics, S3 metrics |
 | GSI verification core | `src/auth/crypto/gsi_verify.c` | stream GSI auth, WebDAV client-cert auth |
 | Server-side local copy | `src/core/compat/copy_range.c` | stream clone/checkpoint, WebDAV COPY, S3 CopyObject |
 | HTTP file/range response | `src/core/compat/http_file_response.c` | WebDAV GET, S3 GET |
@@ -417,6 +417,6 @@ consolidations is that security-sensitive mechanics now have one implementation 
 - [Stream architecture](stream.md) — state machine, dispatch, read/write paths
 - [WebDAV architecture](webdav.md) — method routing, TPC, GSI auth cache
 - [S3 architecture](s3.md) — SigV4, multipart staging
-- `src/metrics/metrics.h` — shared-memory counter layout
+- `src/observability/metrics/metrics.h` — shared-memory counter layout
 - `src/core/compat/path.h` — path resolver API contract
 - `src/auth/token/token.h` — JWT validation public API

@@ -79,11 +79,11 @@ bytes: 2-byte stream ID, 2-byte request ID, 16-byte body, 4-byte dlen) with
 
 ### Step 3 — Metrics slot
 
-`src/metrics/metrics.h`:
+`src/observability/metrics/metrics.h`:
 ```c
 #define XROOTD_OP_PING  16
 ```
-`src/metrics/export.c` — `xrootd_op_names[]` has `"ping"` at index 16.
+`src/observability/metrics/export.c` — `xrootd_op_names[]` has `"ping"` at index 16.
 
 ### Step 4 — Handler
 

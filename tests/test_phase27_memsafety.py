@@ -83,10 +83,10 @@ def test_f9_evict_realloc_guard():
 
 
 def test_metrics_present():
-    m = _read("src/metrics/metrics.h")
+    m = _read("src/observability/metrics/metrics.h")
     assert "session_registry_full_total" in m
     assert "session_evict_total" in m
-    s = _read("src/metrics/stream.c")
+    s = _read("src/observability/metrics/stream.c")
     assert "xrootd_session_evict_total" in s
 
 
@@ -154,7 +154,7 @@ def test_w6c_valgrind_findings_closed_and_harness_present():
     """
     # Finding 1: bounded copy in the dashboard client-IP path.
     assert "ngx_min(r->connection->addr_text.len" in _read(
-        "src/dashboard/http_tracking.c")
+        "src/observability/dashboard/http_tracking.c")
     # Finding 2: JWKS pool cleanup registered at both conf load sites.
     assert "xrootd_jwks_register_cleanup" in _read("src/webdav/config.c")
     assert "xrootd_jwks_register_cleanup" in _read("src/auth/token/config.c")

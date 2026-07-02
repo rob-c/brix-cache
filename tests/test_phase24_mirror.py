@@ -90,10 +90,10 @@ def test_directives_registered():
 
 
 def test_metrics_present():
-    m = _read("src/metrics/metrics.h")
+    m = _read("src/observability/metrics/metrics.h")
     assert "mirror_http_total" in m
     assert "mirror_stream_divergence_total" in m
-    assert "xrootd_mirror_requests_total" in _read("src/metrics/stream.c")
+    assert "xrootd_mirror_requests_total" in _read("src/observability/metrics/stream.c")
 
 
 # --------------------------------------------------------------------------- #

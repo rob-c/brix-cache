@@ -95,9 +95,9 @@ Phase 2 implementation successfully:
 ### Files Modified (Phase 2 Consolidations)
 1. `src/core/config/server_conf.c` - Added conf_helpers.h, consolidated 28 merges
 2. `src/s3/module.c` - Added conf_helpers.h, consolidated 6 merges
-3. `src/metrics/module.c` - Added conf_helpers.h, consolidated 1 merge
+3. `src/observability/metrics/module.c` - Added conf_helpers.h, consolidated 1 merge
 4. `src/webdav/config.c` - Added conf_helpers.h, consolidated 22 merges
-5. `src/dashboard/module.c` - Added conf_helpers.h, consolidated 10 merges
+5. `src/observability/dashboard/module.c` - Added conf_helpers.h, consolidated 10 merges
 6. `src/webdav/tpc_config.c` - Added conf_helpers.h, consolidated 8 merges
 
 ### Helper Infrastructure (Phase 1, deployed in Phase 2)

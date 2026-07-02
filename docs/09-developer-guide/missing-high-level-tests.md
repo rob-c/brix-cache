@@ -279,7 +279,7 @@ pytest tests/test_cross_backend_metrics.py -v TEST_CROSS_BACKEND=xrootd
 - Dashboard API schema: `tests/test_dashboard.py`
 - E2e redirector xrdcp (existing, no metrics): `tests/test_e2e_redirector_xrdcp.py`
 - Testing runbook (3-test pattern): `docs/09-developer-guide/testing-runbook.md`
-- Metrics enum definitions: `src/metrics/metrics.h`
+- Metrics enum definitions: `src/observability/metrics/metrics.h`
 
 ---
 

@@ -39,7 +39,7 @@
 #include "core/compat/http_file_response.h"
 #include "core/compat/http_compress.h"
 #include "core/compat/range.h"
-#include "dashboard/dashboard_tracking.h"
+#include "observability/dashboard/dashboard_tracking.h"
 #include "fs/cache/open.h"
 #include "webdav/webdav.h"          /* xrootd_tcp_congestion (webdav-owned directive) */
 #include "connection/netopt.h"      /* xrootd_apply_tcp_congestion */

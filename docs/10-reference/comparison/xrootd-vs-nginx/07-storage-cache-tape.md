@@ -497,7 +497,7 @@ such here.
   write-through pending/success/error and bytes; `xrootd_frm_*` (requests, stage
   success/fail, evict, migrate, async waiters/waitresp/asynresp,
   reject-inflight, dedup hits, cmsd-have); plus the live transfer dashboard
-  (`src/dashboard/`, including a cache view). Residency is observable via
+  (`src/observability/dashboard/`, including a cache view). Residency is observable via
   `kXR_offline` on stat, WebDAV PROPFIND `<xrd:locality>`, and S3 HEAD
   `x-amz-storage-class: GLACIER` (`src/frm/README.md`, Phase 1).
 

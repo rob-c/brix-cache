@@ -13,7 +13,7 @@
  * (cross-plane principal accounting).
  */
 #include "ratelimit.h"
-#include "metrics/metrics_macros.h"
+#include "observability/metrics/metrics_macros.h"
 #include "core/compat/alloc_guard.h"
 
 #define XROOTD_RL_MAX_ZONES   16

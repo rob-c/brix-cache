@@ -32,7 +32,7 @@ This file is a **lookup reference**, not memorization material. If your context 
 | `davs://` (GSI+TLS) | http | `src/webdav/dispatch.c`→method handler | 8444 |
 | `davs://` / `http://` (no GSI) | http | `src/webdav/dispatch.c`→method handler | 8443 |
 | S3 REST | http | `src/s3/handler.c`→method handler | 9001 |
-| `/metrics` | http | `src/metrics/stream.c`/`writer.c` | 9100 |
+| `/metrics` | http | `src/observability/metrics/stream.c`/`writer.c` | 9100 |
 
 ---
 
@@ -181,7 +181,7 @@ tests/manage_test_servers.sh start|restart|stop
 ## RECIPES (step-by-step implementation patterns)
 **New WebDAV method:** `src/webdav/op.c` → declare `webdav.h` → register `dispatch.c` → update Allow header test → `make` → 3 tests
 **New XRootD opcode:** `src/<sub>/op.c` → register `handshake/dispatch_<type>.c` → constants `protocol/opcodes.h`/`wire.h` → `./configure`+`make` → 3 tests
-**New metric:** enum `metrics.h` → field `metrics_internal.h` → export `src/metrics/<sub>.c` → `XROOTD_<TYPE>_METRIC_INC(slot)` at callsite
+**New metric:** enum `metrics.h` → field `metrics_internal.h` → export `src/observability/metrics/<sub>.c` → `XROOTD_<TYPE>_METRIC_INC(slot)` at callsite
 **New config directive:** field `src/core/config/config.h` (`NGX_CONF_UNSET`) → `ngx_command_t` `src/core/config/directives.c` → merge in `merge_*_conf()` — no `./configure` unless new top-level block
 
 ---

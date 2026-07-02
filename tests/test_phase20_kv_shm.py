@@ -63,7 +63,7 @@ def test_phase20_kv_store_is_wired_into_consumers():
     assert "xrootd_rate_limit_check(" in _read("src/webdav/access.c")
 
     # Prometheus export iterates the zone registry.
-    assert "xrootd_kv_metrics_emit(" in _read("src/metrics/handler.c")
+    assert "xrootd_kv_metrics_emit(" in _read("src/observability/metrics/handler.c")
 
 
 def test_phase20_session_registry_is_runtime_sized():

@@ -295,32 +295,32 @@ def test_new_shared_helpers_are_wired_into_module_config():
 
 def test_phase6_unified_metrics_observability_is_wired():
     for relpath in (
-        "src/metrics/unified.h",
-        "src/metrics/unified.c",
-        "src/metrics/access_log.h",
-        "src/metrics/access_log.c",
+        "src/observability/metrics/unified.h",
+        "src/observability/metrics/unified.c",
+        "src/observability/metrics/access_log.h",
+        "src/observability/metrics/access_log.c",
     ):
         _read(relpath)
 
     _assert_markers(
         "config",
         [
-            "src/metrics/unified.h",
-            "src/metrics/access_log.h",
-            "src/metrics/unified.c",
-            "src/metrics/access_log.c",
+            "src/observability/metrics/unified.h",
+            "src/observability/metrics/access_log.h",
+            "src/observability/metrics/unified.c",
+            "src/observability/metrics/access_log.c",
         ],
     )
     _assert_markers(
-        "src/metrics/metrics.h",
+        "src/observability/metrics/metrics.h",
         ["ngx_xrootd_unified_metrics_t", "ngx_xrootd_unified_metrics_t unified"],
     )
     _assert_markers(
-        "src/metrics/stream.c",
+        "src/observability/metrics/stream.c",
         ["xrootd_export_unified_metrics(mw, shm)", "DEPRECATED"],
     )
     _assert_markers(
-        "src/metrics/unified.c",
+        "src/observability/metrics/unified.c",
         [
             "xrootd_metric_op_done(",
             "xrootd_metric_cache_result(",
@@ -566,6 +566,6 @@ def test_stream_missing_auth_plugins_are_wired():
         ],
     )
     _assert_markers(
-        "src/metrics/unified.c",
+        "src/observability/metrics/unified.c",
         ['"unix"', '"krb5"', "XROOTD_METRIC_AUTH_UNIX", "XROOTD_METRIC_AUTH_KRB5"],
     )

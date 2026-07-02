@@ -466,7 +466,7 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/core/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/core/compat/range_vector.h \
                         $ngx_addon_dir/src/core/compat/integrity_info.h \
                         $ngx_addon_dir/src/core/compat/async_job.h \
-                        $ngx_addon_dir/src/pmark/pmark.h \
+                        $ngx_addon_dir/src/observability/pmark/pmark.h \
                         $ngx_addon_dir/src/net/manager/registry.h \
                         $ngx_addon_dir/src/net/proxy/proxy.h \
                         $ngx_addon_dir/src/net/proxy/proxy_internal.h \
@@ -476,10 +476,10 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/core/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/net/cms/rrdata.h \
                         $ngx_addon_dir/src/net/cms/node_ops.h \
                         $ngx_addon_dir/src/net/cms/forward.h \
-                        $ngx_addon_dir/src/metrics/metrics.h \
-                        $ngx_addon_dir/src/metrics/metrics_macros.h \
-                        $ngx_addon_dir/src/metrics/unified.h \
-                        $ngx_addon_dir/src/metrics/access_log.h \
+                        $ngx_addon_dir/src/observability/metrics/metrics.h \
+                        $ngx_addon_dir/src/observability/metrics/metrics_macros.h \
+                        $ngx_addon_dir/src/observability/metrics/unified.h \
+                        $ngx_addon_dir/src/observability/metrics/access_log.h \
                         $ngx_addon_dir/src/protocol/protocol.h \
                         $ngx_addon_dir/src/protocol/types.h \
                         $ngx_addon_dir/src/protocol/opcodes.h \
@@ -516,7 +516,7 @@ ngx_xrootd_webdav_deps="$ngx_addon_dir/src/webdav/webdav.h \
                         $ngx_addon_dir/src/tpc/common/metrics.h \
                         $ngx_addon_dir/src/tpc/common/registry.h \
                         $ngx_addon_dir/src/tpc/common/transfer.h \
-                        $ngx_addon_dir/src/metrics/unified.h \
+                        $ngx_addon_dir/src/observability/metrics/unified.h \
                         $ngx_addon_dir/src/webdav/fs/copy_engine.h \
                         $ngx_addon_dir/src/webdav/locks/request.h \
                         $ngx_addon_dir/src/webdav/methods/copy_conditionals.h \
@@ -608,13 +608,13 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/core/compat/fattr_codec.c \
     $ngx_addon_dir/src/core/compat/xml.c \
     $ngx_addon_dir/src/core/compat/log.c \
-    $ngx_addon_dir/src/pmark/scitag.c \
-    $ngx_addon_dir/src/pmark/config.c \
-    $ngx_addon_dir/src/pmark/sockstats.c \
-    $ngx_addon_dir/src/pmark/defsfile.c \
-    $ngx_addon_dir/src/pmark/mapping.c \
-    $ngx_addon_dir/src/pmark/firefly.c \
-    $ngx_addon_dir/src/pmark/flowlabel.c \
+    $ngx_addon_dir/src/observability/pmark/scitag.c \
+    $ngx_addon_dir/src/observability/pmark/config.c \
+    $ngx_addon_dir/src/observability/pmark/sockstats.c \
+    $ngx_addon_dir/src/observability/pmark/defsfile.c \
+    $ngx_addon_dir/src/observability/pmark/mapping.c \
+    $ngx_addon_dir/src/observability/pmark/firefly.c \
+    $ngx_addon_dir/src/observability/pmark/flowlabel.c \
     $ngx_addon_dir/src/core/types/identity.c \
     $ngx_addon_dir/src/fs/vfs_open.c \
     $ngx_addon_dir/src/fs/vfs_backend_registry.c \
@@ -680,14 +680,14 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/auth/sss/sss_keytab_kernel.c \
     $ngx_addon_dir/src/auth/sss/config.c \
     $ngx_addon_dir/src/auth/krb5/config.c \
-    $ngx_addon_dir/src/metrics/config.c \
-    $ngx_addon_dir/src/metrics/tracking.c \
-    $ngx_addon_dir/src/metrics/unified.c \
-    $ngx_addon_dir/src/metrics/access_log.c \
-    $ngx_addon_dir/src/dashboard/config.c \
-    $ngx_addon_dir/src/dashboard/transfer_table.c \
-    $ngx_addon_dir/src/dashboard/events.c \
-    $ngx_addon_dir/src/dashboard/history.c \
+    $ngx_addon_dir/src/observability/metrics/config.c \
+    $ngx_addon_dir/src/observability/metrics/tracking.c \
+    $ngx_addon_dir/src/observability/metrics/unified.c \
+    $ngx_addon_dir/src/observability/metrics/access_log.c \
+    $ngx_addon_dir/src/observability/dashboard/config.c \
+    $ngx_addon_dir/src/observability/dashboard/transfer_table.c \
+    $ngx_addon_dir/src/observability/dashboard/events.c \
+    $ngx_addon_dir/src/observability/dashboard/history.c \
     $ngx_addon_dir/src/core/aio/config.c \
     $ngx_addon_dir/src/net/upstream/directives.c \
     $ngx_addon_dir/src/fs/cache/directives.c \
@@ -751,7 +751,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fattr/set.c \
     $ngx_addon_dir/src/fattr/del.c \
     $ngx_addon_dir/src/fattr/list.c \
-    $ngx_addon_dir/src/path/access_log.c \
+    $ngx_addon_dir/src/observability/accesslog/access_log.c \
     $ngx_addon_dir/src/fs/path/helpers.c \
     $ngx_addon_dir/src/fs/path/resolve_confined_helpers.c \
     $ngx_addon_dir/src/fs/path/resolve_confined_ops.c \
@@ -1010,7 +1010,7 @@ ngx_module_srcs="\
 
 ngx_module_deps="$ngx_xrootd_stream_deps \
                  $ngx_addon_dir/src/core/aio/uring.h \
-                 $ngx_addon_dir/src/dashboard/dashboard.h"
+                 $ngx_addon_dir/src/observability/dashboard/dashboard.h"
 # Stream module .so links: OpenSSL + the external libs its own objects call —
 # jansson (token/JWT JSON), libxml2 (compat XML helpers), krb5 (krb5 auth).
 # Loaded first (RTLD_GLOBAL) per mod-xrootd.conf, so its symbols also back the
@@ -1021,24 +1021,24 @@ xrd_emit_module
 
 ngx_module_type=HTTP
 ngx_module_name=ngx_http_xrootd_metrics_module
- ngx_module_srcs="$ngx_addon_dir/src/metrics/module.c \
-                  $ngx_addon_dir/src/metrics/writer.c \
-                  $ngx_addon_dir/src/metrics/stream.c \
-                  $ngx_addon_dir/src/metrics/stream_cache.c \
-                  $ngx_addon_dir/src/metrics/stream_proxy.c \
-                  $ngx_addon_dir/src/metrics/stream_tracking.c \
-                  $ngx_addon_dir/src/metrics/webdav.c \
-                  $ngx_addon_dir/src/metrics/s3.c \
-                  $ngx_addon_dir/src/metrics/tracking.c \
-                  $ngx_addon_dir/src/metrics/cluster.c \
-                  $ngx_addon_dir/src/metrics/ratelimit.c \
-                  $ngx_addon_dir/src/metrics/frm_metrics.c \
-                  $ngx_addon_dir/src/metrics/handler.c \
-                  $ngx_addon_dir/src/metrics/health.c"
-ngx_module_deps="$ngx_addon_dir/src/metrics/metrics.h \
-                 $ngx_addon_dir/src/metrics/metrics_macros.h \
-                 $ngx_addon_dir/src/metrics/unified.h \
-                 $ngx_addon_dir/src/metrics/metrics_internal.h"
+ ngx_module_srcs="$ngx_addon_dir/src/observability/metrics/module.c \
+                  $ngx_addon_dir/src/observability/metrics/writer.c \
+                  $ngx_addon_dir/src/observability/metrics/stream.c \
+                  $ngx_addon_dir/src/observability/metrics/stream_cache.c \
+                  $ngx_addon_dir/src/observability/metrics/stream_proxy.c \
+                  $ngx_addon_dir/src/observability/metrics/stream_tracking.c \
+                  $ngx_addon_dir/src/observability/metrics/webdav.c \
+                  $ngx_addon_dir/src/observability/metrics/s3.c \
+                  $ngx_addon_dir/src/observability/metrics/tracking.c \
+                  $ngx_addon_dir/src/observability/metrics/cluster.c \
+                  $ngx_addon_dir/src/observability/metrics/ratelimit.c \
+                  $ngx_addon_dir/src/observability/metrics/frm_metrics.c \
+                  $ngx_addon_dir/src/observability/metrics/handler.c \
+                  $ngx_addon_dir/src/observability/metrics/health.c"
+ngx_module_deps="$ngx_addon_dir/src/observability/metrics/metrics.h \
+                 $ngx_addon_dir/src/observability/metrics/metrics_macros.h \
+                 $ngx_addon_dir/src/observability/metrics/unified.h \
+                 $ngx_addon_dir/src/observability/metrics/metrics_internal.h"
 ngx_module_libs=
 xrd_emit_module
 
@@ -1188,9 +1188,9 @@ ngx_module_deps="$ngx_addon_dir/src/s3/s3.h \
                  $ngx_addon_dir/src/fs/cache/open.h \
                  $ngx_addon_dir/src/core/compat/hex.h \
                  $ngx_addon_dir/src/core/compat/time.h \
-                 $ngx_addon_dir/src/metrics/metrics.h \
-                 $ngx_addon_dir/src/metrics/unified.h \
-                 $ngx_addon_dir/src/metrics/metrics_macros.h"
+                 $ngx_addon_dir/src/observability/metrics/metrics.h \
+                 $ngx_addon_dir/src/observability/metrics/unified.h \
+                 $ngx_addon_dir/src/observability/metrics/metrics_macros.h"
 # S3 module .so links: OpenSSL (SigV4 HMAC) + libxml2 (DeleteObjects request /
 # list-result XML) + jansson.
 ngx_module_libs="-lssl -lcrypto $XROOTD_XML2_LIBS $XROOTD_JANSSON_LIBS"
@@ -1198,36 +1198,36 @@ xrd_emit_module
 
 ngx_module_type=HTTP
 ngx_module_name=ngx_http_xrootd_dashboard_module
-ngx_module_srcs="$ngx_addon_dir/src/dashboard/module.c \
-                 $ngx_addon_dir/src/dashboard/auth.c \
-                 $ngx_addon_dir/src/dashboard/dashboard_json.c \
-                 $ngx_addon_dir/src/dashboard/api.c \
-                 $ngx_addon_dir/src/dashboard/api_transfers.c \
-                 $ngx_addon_dir/src/dashboard/api_snapshot.c \
-                 $ngx_addon_dir/src/dashboard/api_ratelimit.c \
-                 $ngx_addon_dir/src/dashboard/api_admin.c \
-                 $ngx_addon_dir/src/dashboard/api_admin_cluster.c \
-                 $ngx_addon_dir/src/dashboard/api_admin_proxy.c \
-                 $ngx_addon_dir/src/dashboard/api_admin_config.c \
-                 $ngx_addon_dir/src/dashboard/http_tracking.c \
-                 $ngx_addon_dir/src/dashboard/config_download.c \
-                 $ngx_addon_dir/src/dashboard/files.c \
-                 $ngx_addon_dir/src/dashboard/page.c \
+ngx_module_srcs="$ngx_addon_dir/src/observability/dashboard/module.c \
+                 $ngx_addon_dir/src/observability/dashboard/auth.c \
+                 $ngx_addon_dir/src/observability/dashboard/dashboard_json.c \
+                 $ngx_addon_dir/src/observability/dashboard/api.c \
+                 $ngx_addon_dir/src/observability/dashboard/api_transfers.c \
+                 $ngx_addon_dir/src/observability/dashboard/api_snapshot.c \
+                 $ngx_addon_dir/src/observability/dashboard/api_ratelimit.c \
+                 $ngx_addon_dir/src/observability/dashboard/api_admin.c \
+                 $ngx_addon_dir/src/observability/dashboard/api_admin_cluster.c \
+                 $ngx_addon_dir/src/observability/dashboard/api_admin_proxy.c \
+                 $ngx_addon_dir/src/observability/dashboard/api_admin_config.c \
+                 $ngx_addon_dir/src/observability/dashboard/http_tracking.c \
+                 $ngx_addon_dir/src/observability/dashboard/config_download.c \
+                 $ngx_addon_dir/src/observability/dashboard/files.c \
+                 $ngx_addon_dir/src/observability/dashboard/page.c \
                  $ngx_addon_dir/src/fs/scan/scan_record.c \
                  $ngx_addon_dir/src/fs/scan/scan_throttle.c \
                  $ngx_addon_dir/src/fs/scan/scan_emit.c \
                  $ngx_addon_dir/src/fs/scan/scan_engine.c \
                  $ngx_addon_dir/src/fs/scan/scan_http.c"
-ngx_module_deps="$ngx_addon_dir/src/dashboard/dashboard.h \
+ngx_module_deps="$ngx_addon_dir/src/observability/dashboard/dashboard.h \
                  $ngx_addon_dir/src/fs/scan/scan_record.h \
                  $ngx_addon_dir/src/fs/scan/scan_throttle.h \
                  $ngx_addon_dir/src/fs/scan/scan_emit.h \
                  $ngx_addon_dir/src/fs/scan/scan_engine.h \
-                 $ngx_addon_dir/src/dashboard/dashboard_http.h \
-                 $ngx_addon_dir/src/dashboard/dashboard_tracking.h \
-                 $ngx_addon_dir/src/dashboard/api_admin.h \
+                 $ngx_addon_dir/src/observability/dashboard/dashboard_http.h \
+                 $ngx_addon_dir/src/observability/dashboard/dashboard_tracking.h \
+                 $ngx_addon_dir/src/observability/dashboard/api_admin.h \
                  $ngx_addon_dir/src/webdav/proxy_pool.h \
-                 $ngx_addon_dir/src/metrics/metrics.h \
+                 $ngx_addon_dir/src/observability/metrics/metrics.h \
                  $ngx_addon_dir/src/tpc/common/registry.h \
                  $ngx_addon_dir/src/tpc/common/transfer.h"
 # Dashboard module .so links: OpenSSL + libcrypt (session-cookie HMAC/crypt) +

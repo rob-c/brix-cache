@@ -8,7 +8,7 @@
 
 #include "tpc_internal.h"
 #include "core/compat/net_target.h"
-#include "pmark/pmark.h"
+#include "observability/pmark/pmark.h"
 #include "connection/netconnect.h"   /* shared outbound connect/I/O hardening */
 
 

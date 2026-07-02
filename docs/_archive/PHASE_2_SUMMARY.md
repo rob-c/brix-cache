@@ -45,7 +45,7 @@ return webdav_send_empty_response(r, NGX_HTTP_NO_CONTENT);
 
 **Completed:** ✓ Partial consolidation of 3 key modules
 
-#### Dashboard Module (`src/dashboard/module.c`)
+#### Dashboard Module (`src/observability/dashboard/module.c`)
 - **Before:** 10 `ngx_conf_merge_*` calls (10 lines)
 - **After:** 8 `MERGE_*` macro calls (8 lines)
 - **Reduction:** ~2 lines
@@ -101,7 +101,7 @@ xrootd_parse_address(addr_str, addr_len, host, host_len, &port, &tls_enabled);
 
 ### Files Modified
 1. `src/webdav/tpc_config.c` - Added merge helper consolidation
-2. `src/dashboard/module.c` - Added conf_helpers include and consolidated merges
+2. `src/observability/dashboard/module.c` - Added conf_helpers include and consolidated merges
 3. `src/webdav/config.c` - Added conf_helpers include and consolidated merges
 4. `src/fs/cache/directives.c` - Phase 1 (allocation macro consolidation)
 

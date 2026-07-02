@@ -67,9 +67,9 @@ the endianness rules.
 
 ### Step 3 — Add a metrics slot
 
-`src/metrics/metrics.h` maintains a numbered list of operation indices.
+`src/observability/metrics/metrics.h` maintains a numbered list of operation indices.
 Add your slot at the bottom, increment `XROOTD_NOPS`, and add the matching
-name string to `xrootd_op_names[]` in `src/metrics/export.c`.
+name string to `xrootd_op_names[]` in `src/observability/metrics/export.c`.
 
 ```c
 /* metrics/metrics.h */

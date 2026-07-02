@@ -151,7 +151,7 @@ def test_wiring_present():
     def rd(rel):
         return (root / rel).read_text(encoding="utf-8")
 
-    alog = rd("src/path/access_log.c")
+    alog = rd("src/observability/accesslog/access_log.c")
     assert "xrootd_access_log_flush" in alog
     assert "xrootd_alog_emit" in alog
     assert "ngx_add_timer" in alog          # bounded-latency flush

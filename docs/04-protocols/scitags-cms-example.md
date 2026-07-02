@@ -1,6 +1,6 @@
 # SciTags packet marking — a CMS deployment example
 
-**Status:** how-to / configuration example (subsystem: [`src/pmark/`](../../src/pmark/README.md))
+**Status:** how-to / configuration example (subsystem: [`src/observability/pmark/`](../../src/observability/pmark/README.md))
 **Design reference:** [`docs/refactor/phase-34-packet-marking-scitags.md`](../refactor/phase-34-packet-marking-scitags.md)
 **Wire spec:** WLCG flow-label marking — IETF `draft-cc-v6ops-wlcg-flow-label-marking`
 **Worked from:** CMS data-access layer, [`cms-sw/cmssw` commit `c2797da`](https://github.com/cms-sw/cmssw/commit/c2797dac7df63c62c1aa66a48b65f51f3a764db4)
@@ -153,7 +153,7 @@ JSON the SciTags project publishes
 }
 ```
 
-> Key names matter: the parser ([`defsfile.c`](../../src/pmark/defsfile.c))
+> Key names matter: the parser ([`defsfile.c`](../../src/observability/pmark/defsfile.c))
 > reads `expId` / `expName` and `activityId` / `activityName`.
 
 The defsfile is **optional**: if a client always sends `scitag.flow=N`, the numeric
@@ -259,6 +259,6 @@ Marking counters are exported on `/metrics`:
 | `xrootd_pmark_http_plain on\|off` | off | also mark plain WebDAV/S3 GET/PUT (TPC always marked) |
 | `xrootd_pmark_echo <seconds>` | 0 (off) | periodic "ongoing" Firefly for long flows |
 
-See the [`src/pmark/` README](../../src/pmark/README.md) and the
+See the [`src/observability/pmark/` README](../../src/observability/pmark/README.md) and the
 [phase-34 design doc](../refactor/phase-34-packet-marking-scitags.md) for the full
 directive list, the XRootD `pmark` equivalence table, and the control/data flow.

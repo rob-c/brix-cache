@@ -994,7 +994,7 @@ backend, inherit it everywhere) **and** for honest observability.
 ### 9.2 Audit methodology (reproducible)
 
 ```bash
-EXC='^src/fs/|^src/path/|^src/core/compat/(namespace_ops|staged_file|fs_walk|resolve)|^src/auth/impersonate/|^src/dashboard/'
+EXC='^src/fs/|^src/path/|^src/core/compat/(namespace_ops|staged_file|fs_walk|resolve)|^src/auth/impersonate/|^src/observability/dashboard/'
 # Tier-1: raw data-plane syscalls outside the VFS/helper layer
 grep -rnE '\b(pread|pwrite|preadv2?|pwritev2?|copy_file_range|sendfile)\s*\(' src/ --include=*.c | grep -vE "$EXC|xrootd_vfs_|xrootd_sd_"
 # Tier-2: confined-helper calls outside the VFS/helper layer
@@ -1212,7 +1212,7 @@ VFS has two stores, a durable backend store and a staging store."*
 | `src/fs/path/beneath.c`, `resolve_confined_ops.c`, `resolve_confined_helpers.c` | These **define** the confined helpers — the POSIX layer the SD driver wraps. Their raw `openat2`/`unlinkat`/`mkdirat`/`renameat` belong here. |
 | `src/core/compat/namespace_ops.c`, `staged_file.c`, `fs_walk.c` | The namespace/staged/walk implementation `sd_posix.c` delegates to. Below the seam. |
 | `src/auth/impersonate/broker.c` | The **privileged broker process** that performs the syscall as the mapped user — the impersonation execution backend, reached via `xrootd_imp_*` *below* the confined helpers. |
-| `src/dashboard/files.c` | The admin file viewer over a **separate** `xrootd_dashboard_browse_root` with its own `openat2(RESOLVE_BENEATH)` confinement — not the protocol export data plane. |
+| `src/observability/dashboard/files.c` | The admin file viewer over a **separate** `xrootd_dashboard_browse_root` with its own `openat2(RESOLVE_BENEATH)` confinement — not the protocol export data plane. |
 
 ### 9.9 Enforcement — a CI seam guard (there is none today)
 
@@ -1651,7 +1651,7 @@ COMPLETE), `src/fs/vfs_io_core.h`.
 / `put.c`, `src/s3/object.c` / `post_object.c` / `copy.c`, `src/core/compat/fs_walk.c`
 (C-1 central tree walker), `src/core/compat/namespace_ops.c` (recursive delete),
 `src/fs/path/resolve_confined_ops.c` (impersonation stat — §0.3), `src/read/prefetch.c`
-+ `src/webdav/io.c` (B-2 existing fadvise), `src/metrics/unified.{h,c}` (D-1/D-2),
++ `src/webdav/io.c` (B-2 existing fadvise), `src/observability/metrics/unified.{h,c}` (D-1/D-2),
 `src/fs/cache/writethrough_decision.c` (E-3).
 
 **Pillar F seam-closure backlog (the ~105 bypass sites to migrate — §9.4):**
@@ -1667,7 +1667,7 @@ hot), `src/dirlist/handler.c` + `dirlist/dcksm.c`, `src/write/mv.c` / `mkdir.c` 
 `multipart_helpers.c` (§9.6). **New files:** `tools/ci/check_vfs_seam.sh` +
 `tools/ci/vfs_seam_backlog.txt` (§9.9). **Legitimate non-targets (§9.8):**
 `src/fs/path/beneath.c` / `resolve_confined_ops.c`, `src/core/compat/{namespace_ops,
-staged_file,fs_walk}.c`, `src/auth/impersonate/broker.c`, `src/dashboard/files.c`.
+staged_file,fs_walk}.c`, `src/auth/impersonate/broker.c`, `src/observability/dashboard/files.c`.
 
 ---
 
@@ -1821,7 +1821,7 @@ src/s3/multipart_helpers.c:214                    lstat(full)
 src/fs/path/beneath.c  src/fs/path/resolve_confined_ops.c  src/fs/path/resolve_confined_helpers.c   # helper DEFINITIONS
 src/core/compat/namespace_ops.c  src/core/compat/staged_file.c  src/core/compat/fs_walk.c                 # the layer sd_posix delegates to
 src/auth/impersonate/broker.c                                                                    # privileged execution backend (below seam)
-src/dashboard/files.c                                                                       # separate admin browse-root, own confinement
+src/observability/dashboard/files.c                                                                       # separate admin browse-root, own confinement
 src/fs/cache/open.c                                                                            # VFS-internal (called from xrootd_vfs_open)
 src/frm/reqfile.c                                                                           # tier-1.5: SD-vtable-direct on FRM-private journal (§9.3)
 ```

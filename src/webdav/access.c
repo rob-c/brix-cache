@@ -19,7 +19,7 @@
  */
 
 #include "webdav.h"
-#include "metrics/unified.h"
+#include "observability/metrics/unified.h"
 #include "auth/authz/acc/acc.h"
 
 /* Map a WebDAV HTTP method to the XrdAcc operation it requires. */

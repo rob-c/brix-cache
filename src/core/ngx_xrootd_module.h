@@ -77,8 +77,8 @@
 #endif
 
 #include "protocol/protocol.h"
-#include "metrics/metrics.h"
-#include "dashboard/dashboard.h"
+#include "observability/metrics/metrics.h"
+#include "observability/dashboard/dashboard.h"
 #include "auth/token/token.h"
 
 #include <ngx_thread_pool.h>

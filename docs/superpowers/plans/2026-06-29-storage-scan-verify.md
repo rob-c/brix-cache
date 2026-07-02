@@ -35,7 +35,7 @@
 | `src/fs/scan/README.md` | Module doc. |
 | `src/core/config/config.h` | `xrootd_scan*` loc-conf fields. |
 | `src/core/config/directives.c` | `xrootd_scan*` `ngx_command_t` + merge. |
-| `src/dashboard/module.c` | Route `/xrootd/api/v1/scan` → `scan_http` handler. |
+| `src/observability/dashboard/module.c` | Route `/xrootd/api/v1/scan` → `scan_http` handler. |
 | `client/tools/xrdstorascan.c` | Clean-room client wrapper. |
 | `client/Makefile` | Build `xrdstorascan`. |
 | `tests/test_scan.py` | Integration + security-neg suite. |
@@ -632,8 +632,8 @@ git commit -m "feat(scan): per-object dump/verify/fill action over VFS + XrdCks 
 
 **Files:**
 - Create: `src/fs/scan/scan_http.c`
-- Modify: `src/dashboard/module.c` (route), `src/dashboard/dashboard_http.h` (declare `ngx_http_xrootd_scan_handler`), top-level `config`
-- Reference: `src/dashboard/files.c` (auth + `xrootd_beneath_open_root` confinement + status mapping), nginx `ngx_thread_task_post` + chunked output.
+- Modify: `src/observability/dashboard/module.c` (route), `src/observability/dashboard/dashboard_http.h` (declare `ngx_http_xrootd_scan_handler`), top-level `config`
+- Reference: `src/observability/dashboard/files.c` (auth + `xrootd_beneath_open_root` confinement + status mapping), nginx `ngx_thread_task_post` + chunked output.
 
 **Interfaces:**
 - Consumes: `xrootd_scan_run_*` (engine), `ngx_http_xrootd_dashboard_check_auth`, `xrootd_beneath_open_root(conf->scan_root_canon)`.
