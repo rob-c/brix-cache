@@ -23,6 +23,8 @@ import pytest
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 FILTER_DIR = ROOT / "deploy" / "fail2ban" / "filter.d"
 SAMPLE = ROOT / "deploy" / "fail2ban" / "samples" / "xrootd-guard-audit.sample.log"
+CVMFS_SAMPLE = (ROOT / "deploy" / "fail2ban" / "samples"
+                / "nginx-xrootd-cvmfs.sample.log")
 
 CASES = [
     ("signature", "203.0.113.9"),
@@ -73,3 +75,27 @@ class TestFail2banRegexTool:
                              capture_output=True, text=True).stdout
         assert "matched 1" in out or host in out, out
         assert host in out, f"IP not extracted:\n{out}"
+
+
+class TestCvmfsFilterRegex:
+    """Phase-68: the cvmfs-reject filter vs its error-log sample lines."""
+
+    def _pattern(self):
+        parser = configparser.ConfigParser()
+        parser.read(FILTER_DIR / "nginx-xrootd-cvmfs.conf")
+        return parser["Definition"]["failregex"].replace("<HOST>", HOST_RE)
+
+    def test_matches_reject_lines_and_extracts_host(self):
+        pattern = self._pattern()
+        hits = [re.search(pattern, line)
+                for line in CVMFS_SAMPLE.read_text().splitlines()]
+        hosts = [m.group("host") for m in hits if m]
+        assert hosts == ["192.0.2.7", "192.0.2.7", "198.51.100.9"]
+
+    def test_ignores_non_reject_warnings(self):
+        pattern = self._pattern()
+        stale = [l for l in CVMFS_SAMPLE.read_text().splitlines()
+                 if "serving stale copy" in l]
+        assert stale, "sample must carry a NOMATCH control line"
+        for line in stale:
+            assert re.search(pattern, line) is None

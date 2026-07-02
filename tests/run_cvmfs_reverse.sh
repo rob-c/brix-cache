@@ -107,6 +107,10 @@ NB2="$(curl -s "http://127.0.0.1:$MPORT/ctl/heads" | grep -oF "$BOGUS" | wc -l)"
     && ok "negative cache absorbed repeat 404" \
     || bad "negative cache: codes=$CN1/$CN2 origin-probes=$NB1→$NB2"
 
+# T17: reject lines are guard/fail2ban-parsable (convention #4 shape)
+grep -q 'cvmfs-reject: method=GET uri=.*client=.*class=reject' "$PFX/logs/e.log" \
+    && ok "reject line guard-parsable" || bad "no cvmfs-reject log line"
+
 # T16: the three visibility surfaces
 M="$(curl -s "http://127.0.0.1:$XPORT/metrics")"
 CASN="$(printf '%s' "$M" | sed -n 's/^xrootd_cvmfs_requests_total{class="cas"} //p')"
