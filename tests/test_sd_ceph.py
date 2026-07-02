@@ -22,6 +22,10 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BACKEND = os.path.join(REPO, "src", "fs", "backend")
 RADOS = os.path.join(BACKEND, "rados")   # per-driver subdir (Ceph/RADOS backend)
 SRC = os.path.join(RADOS, "sd_ceph.c")
+# The pure OID/stripe helpers the unittest exercises live in sd_ceph_compat.c
+# (split out of sd_ceph.c); it must be linked too or the CEPH-off build fails
+# with undefined references to sd_ceph_oid_*.
+COMPAT = os.path.join(RADOS, "sd_ceph_compat.c")
 TEST = os.path.join(RADOS, "sd_ceph_unittest.c")
 
 
@@ -30,12 +34,12 @@ def ceph_map_bin(tmp_path_factory):
     cc = shutil.which("gcc") or shutil.which("cc")
     if cc is None:
         pytest.skip("no C compiler")
-    if not (os.path.exists(SRC) and os.path.exists(TEST)):
+    if not (os.path.exists(SRC) and os.path.exists(COMPAT) and os.path.exists(TEST)):
         pytest.skip("sd_ceph sources missing")
     out = str(tmp_path_factory.mktemp("sdceph") / "ut")
     r = subprocess.run(
         [cc, "-Wall", "-Wextra", "-Werror", "-I", RADOS, "-I", BACKEND,
-         SRC, TEST, "-o", out],
+         SRC, COMPAT, TEST, "-o", out],
         capture_output=True, text=True)
     if r.returncode != 0:
         pytest.fail(f"sd_ceph map suite failed to COMPILE (warnings are errors):"
