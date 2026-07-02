@@ -28,6 +28,8 @@ This file is a **lookup reference**, not memorization material. If your context 
 ## SRC TOPOLOGY (phase-66, 2026-07-02 — seven concept buckets)
 ```
 src/core/           platform primitives: compat/ types/ config/ shm/ aio/ + ngx_xrootd_module.h
+                    + http/ (shared HTTP semantics: headers/body/conditionals/etag/query/
+                    xml/file-response — split from compat/ 2026-07-02, security-load-bearing)
 src/protocols/      one subdir per wire protocol: root/ (all root:// machinery incl.
                     connection/ session/ protocol/ handshake/ read/ write/ zip/ stream/
                     handoff/ relay/ response/ path/) webdav/ s3/ ssi/ srr/ dig/ shared/
@@ -83,6 +85,7 @@ Full mapping: [docs/refactor/phase-66-map.tsv](docs/refactor/phase-66-map.tsv).
 | helpers | `path.c`, `resource.c`, `io.c`, `fd_cache.c`, `headers.c` |
 | s3 dispatch | `src/protocols/s3/handler.c`, `auth.c`, `util.c` |
 | s3 ops | `src/protocols/s3/get.c`, `put.c`, `list.c`, `multipart.c` |
+| guard / bad-actor / fail2ban | `src/net/httpguard/*`, `src/net/guard/*` (pure-C core), `src/protocols/root/relay/relay_guard.c`, `deploy/fail2ban/` |
 
 ---
 
