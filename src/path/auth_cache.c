@@ -5,7 +5,7 @@
  * where every key input is in scope; this file only parses the directive.
  */
 #include "ngx_xrootd_module.h"
-#include "path/auth_cache.h"
+#include "auth_cache.h"
 
 char *
 xrootd_auth_cache_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)

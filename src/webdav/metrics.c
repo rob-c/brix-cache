@@ -3,9 +3,9 @@
  */
 
 #include "webdav.h"
-#include "../compat/http_headers.h"
-#include "../metrics/http_common.h"
-#include "../metrics/unified.h"
+#include "compat/http_headers.h"
+#include "metrics/http_common.h"
+#include "metrics/unified.h"
 
 static xrootd_metric_op_t
 webdav_unified_op(ngx_uint_t method)

@@ -11,8 +11,8 @@
  */
 #include "zip_dir.h"
 #include "zip_kernel.h"
-#include "../fs/backend/sd.h"   /* route ZIP directory byte reads through the SD backend */
-#include "../shared/safe_size.h"   /* overflow-checked size arithmetic */
+#include "fs/backend/sd.h"   /* route ZIP directory byte reads through the SD backend */
+#include "shared/safe_size.h"   /* overflow-checked size arithmetic */
 
 #include <stdlib.h>
 #include <string.h>

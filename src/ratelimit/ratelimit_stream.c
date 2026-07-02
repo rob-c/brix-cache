@@ -9,7 +9,7 @@
  *
  * Returns NGX_DECLINED to proceed with normal dispatch.
  */
-#include "ratelimit/ratelimit.h"
+#include "ratelimit.h"
 #include "response/response.h"          /* xrootd_send_wait */
 #include "metrics/metrics_macros.h"
 

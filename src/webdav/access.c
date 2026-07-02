@@ -19,8 +19,8 @@
  */
 
 #include "webdav.h"
-#include "../metrics/unified.h"
-#include "../acc/acc.h"
+#include "metrics/unified.h"
+#include "acc/acc.h"
 
 /* Map a WebDAV HTTP method to the XrdAcc operation it requires. */
 static xrootd_acc_op_t

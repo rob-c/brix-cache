@@ -1,6 +1,6 @@
 #include "query_internal.h"
-#include "../compat/fs_usage.h"
-#include "../protocol/qspace.h"   /* shared oss.* space-report grammar (emit side) */
+#include "compat/fs_usage.h"
+#include "protocol/qspace.h"   /* shared oss.* space-report grammar (emit side) */
 
 #include <errno.h>
 

@@ -25,7 +25,7 @@
  */
 
 #include "proxy_internal.h"
-#include "../session/registry.h"
+#include "session/registry.h"
 
 /* proxy_write_audit — append a JSON line (path, bytes_read, bytes_written,
  * duration_ms) to the configured audit log for a local file-handle slot; no-op if

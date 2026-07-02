@@ -7,9 +7,9 @@
  * first failure, storing the nginx return code in ctx->write_rc.
  */
 #include "ngx_xrootd_module.h"
-#include "path/auth_gate.h"
-#include "path/auth_cache.h"
-#include "path/auth_gate_l1.h"
+#include "auth_gate.h"
+#include "auth_cache.h"
+#include "auth_gate_l1.h"
 #include "compat/crypto.h"
 #include "acc/acc.h"
 #include "metrics/metrics_macros.h"   /* Phase 51 (E6): auth-gate L1 counters */

@@ -30,7 +30,7 @@
 #include <ngx_core.h>
 #include <ngx_event.h>
 
-#include "../compat/af_policy.h"
+#include "compat/af_policy.h"
 
 #include <errno.h>
 #include <fcntl.h>

@@ -1,7 +1,7 @@
 #ifndef XROOTD_PATH_H
 #define XROOTD_PATH_H
 
-#include "../ngx_xrootd_module.h"
+#include "ngx_xrootd_module.h"
 #include <dirent.h>   /* for the DIR* return of xrootd_opendir_confined_canon */
 
 /* Sanitize a path string for safe logging (replaces control chars). */

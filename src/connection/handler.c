@@ -1,7 +1,7 @@
-#include "../ngx_xrootd_module.h"
+#include "ngx_xrootd_module.h"
 #include <netinet/tcp.h>   /* Phase 39: TCP_USER_TIMEOUT / TCP_KEEPIDLE etc. */
 #include "netopt.h"        /* Phase 50: shared dead-peer setsockopt helper */
-#include "../relay/relay.h"   /* transparent pass-through relay engage */
+#include "relay/relay.h"   /* transparent pass-through relay engage */
 
 void
 ngx_stream_xrootd_handler(ngx_stream_session_t *s)

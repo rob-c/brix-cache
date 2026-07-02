@@ -1,12 +1,12 @@
 #include "read.h"
-#include "../fs/backend/sd.h"      /* phase-55: route preadv through the SD seam */
-#include "../shared/safe_size.h"   /* Phase 27 W1: overflow-checked size math */
+#include "fs/backend/sd.h"      /* phase-55: route preadv through the SD seam */
+#include "shared/safe_size.h"   /* Phase 27 W1: overflow-checked size math */
 
-#include "../ngx_xrootd_module.h"
-#include "../connection/budget.h"
+#include "ngx_xrootd_module.h"
+#include "connection/budget.h"
 #include "prefetch.h"
-#include "../compat/range_vector.h"
-#include "../protocol/readv_seg.h"   /* shared kXR_readv segment-header codec */
+#include "compat/range_vector.h"
+#include "protocol/readv_seg.h"   /* shared kXR_readv segment-header codec */
 
 #include <stdlib.h>
 #include <sys/uio.h>

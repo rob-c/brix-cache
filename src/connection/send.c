@@ -5,7 +5,7 @@
  * WHAT: ngx_stream_xrootd_send() is the write event handler called by nginx whenever the kernel socket send buffer has room again after a previous c->send()/c->send_chain() returned NGX_AGAIN — drives the async flush cycle: (1) calls xrootd_flush_pending() to drain wbuf/wchain into the socket; (2) if NGX_AGAIN, returns and waits for next write event; (3) on success with state==XRD_ST_SENDING, transitions to XRD_ST_REQ_HEADER and re-enters recv loop for next request; (4) if tls_pending after flushing kXR_haveTLS response, triggers TLS handshake via xrootd_start_tls(). Security invariant: timeout → disconnect immediately. Thread safety: single-owner per connection on nginx event thread — no locking required. Returns only when flush=NGX_AGAIN or state≠SENDING. */
 
 /* WHY: This handler is the critical counterpart to recv() in the async I/O cycle — without it, response buffers would stall until the next natural epoll write event detection. Flush pending ensures all queued response data (wire protocol headers + payload) are sent efficiently to the client socket rather than accumulating in memory indefinitely. TLS handshake trigger enables in-protocol upgrade for roots:// clients when kXR_haveTLS response has been flushed and the server is ready to negotiate secure transport. */
-#include "../ngx_xrootd_module.h"
+#include "ngx_xrootd_module.h"
 #include "disconnect.h"
 #include "fd_table.h"
 #include "tls.h"

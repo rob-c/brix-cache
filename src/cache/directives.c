@@ -3,16 +3,16 @@
  * directives (called during startup when reading the configuration file).
  */
 
-#include "../config/config.h"
+#include "config/config.h"
 
 #include <errno.h>
 #include <regex.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../compat/alloc_guard.h"
-#include "../compat/str_dup.h"
-#include "../compat/checksum.h"  /* xrootd_checksum_parse */
-#include "../compat/af_policy.h" /* xrootd_af_policy_parse */
+#include "compat/alloc_guard.h"
+#include "compat/str_dup.h"
+#include "compat/checksum.h"  /* xrootd_checksum_parse */
+#include "compat/af_policy.h" /* xrootd_af_policy_parse */
 #include "verify.h"           /* xrootd_cache_verify_mode_e */
 
 /* §14 (phase-64): xrootd_conf_set_cache_origin is DELETED with the legacy

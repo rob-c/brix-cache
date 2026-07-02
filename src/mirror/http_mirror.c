@@ -16,8 +16,8 @@
  * in the request ctx; finalize compares status classes and updates metrics.  A
  * LOG-phase handler stamps the primary's final status for that comparison.
  */
-#include "mirror/http_mirror.h"
-#include "../compat/http_body.h"
+#include "http_mirror.h"
+#include "compat/http_body.h"
 
 /* Mirror counters live in the shared root metrics struct (low cardinality, no
  * per-target labels per metrics INVARIANT 8). */

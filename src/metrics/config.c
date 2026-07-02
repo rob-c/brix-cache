@@ -1,5 +1,5 @@
-#include "../config/config.h"
-#include "../compat/shm_slots.h"
+#include "config/config.h"
+#include "compat/shm_slots.h"
 
 /*
  * WHAT: Configure the Prometheus metrics shared-memory zone and assign per-listener slots.

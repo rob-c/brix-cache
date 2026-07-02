@@ -8,22 +8,22 @@
  * of xrootd_open_resolved_file(); none of the write/POSC/WT machinery applies.
  */
 #include "zip_member.h"
-#include "../fs/vfs.h"   /* xrootd_vfs_open_fd_at (handle-table confined open) */
+#include "fs/vfs.h"   /* xrootd_vfs_open_fd_at (handle-table confined open) */
 #include "zip_dir.h"
-#include "../fs/backend/sd.h"   /* route ZIP member byte reads through the SD backend */
-#include "../fs/core/vfs_core.h"  /* xvfs_stage_fd: materialize the archive to local scratch */
+#include "fs/backend/sd.h"   /* route ZIP member byte reads through the SD backend */
+#include "fs/core/vfs_core.h"  /* xvfs_stage_fd: materialize the archive to local scratch */
 
 #include <stdlib.h>             /* free (inflate state cleanup) */
 
-#include "../connection/fd_table.h"
-#include "../path/beneath.h"
-#include "../path/path.h"
-#include "../session/registry.h"
-#include "../response/response.h"
-#include "../protocol/wire_core_requests.h"
-#include "../protocol/opcodes.h"
-#include "../types/tunables.h"
-#include "../compat/codec_core.h"
+#include "connection/fd_table.h"
+#include "path/beneath.h"
+#include "path/path.h"
+#include "session/registry.h"
+#include "response/response.h"
+#include "protocol/wire_core_requests.h"
+#include "protocol/opcodes.h"
+#include "types/tunables.h"
+#include "compat/codec_core.h"
 
 #include <string.h>
 #include <unistd.h>

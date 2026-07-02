@@ -1,4 +1,4 @@
-#include "../ngx_xrootd_module.h"
+#include "ngx_xrootd_module.h"
 
 #include <stddef.h>
 #include <string.h>

@@ -9,12 +9,12 @@
  */
 
 #include "webdav.h"
-#include "../fs/vfs.h"   /* confined read-open for the Want-Digest checksum */
-#include "../impersonate/lifecycle.h"
-#include "../compat/etag.h"
-#include "../compat/http_body.h"
-#include "../compat/http_file_response.h"
-#include "../compat/http_xml.h"
+#include "fs/vfs.h"   /* confined read-open for the Want-Digest checksum */
+#include "impersonate/lifecycle.h"
+#include "compat/etag.h"
+#include "compat/http_body.h"
+#include "compat/http_file_response.h"
+#include "compat/http_xml.h"
 
 #include <libxml/parser.h>
 #include <libxml/tree.h>
@@ -24,7 +24,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include "../compat/alloc_guard.h"
+#include "compat/alloc_guard.h"
 
 #define WEBDAV_PROPPATCH_BODY_MAX 65536u
 

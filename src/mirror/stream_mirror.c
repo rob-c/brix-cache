@@ -15,8 +15,8 @@
  * the mirror outlives the client connection that triggered it.  All logging uses
  * ngx_cycle->log, never the (possibly freed) client connection log.
  */
-#include "mirror/stream_mirror.h"
-#include "mirror/stream_mirror_io.h"
+#include "stream_mirror.h"
+#include "stream_mirror_io.h"
 #include "metrics/metrics_macros.h"
 
 #include <netdb.h>

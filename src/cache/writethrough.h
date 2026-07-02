@@ -1,7 +1,7 @@
 #ifndef XROOTD_CACHE_WRITETHROUGH_H
 #define XROOTD_CACHE_WRITETHROUGH_H
 
-#include "../fs/vfs.h"
+#include "fs/vfs.h"
 #include "writethrough_decision.h"
 
 xrootd_wt_decision_t xrootd_cache_should_writethrough(

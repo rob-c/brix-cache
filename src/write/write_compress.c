@@ -28,10 +28,10 @@
 
 #include "write.h"
 
-#include "../ngx_xrootd_module.h"
-#include "../compat/codec_core.h"
-#include "../compat/http_body.h"   /* XROOTD_DECODE_MAX_RATIO */
-#include "../response/response.h"
+#include "ngx_xrootd_module.h"
+#include "compat/codec_core.h"
+#include "compat/http_body.h"   /* XROOTD_DECODE_MAX_RATIO */
+#include "response/response.h"
 
 #include <errno.h>
 #include <unistd.h>

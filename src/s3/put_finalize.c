@@ -3,7 +3,7 @@
  * Phase-38 split of put.c; behavior-identical.
  */
 #include "s3_put_internal.h"
-#include "../fs/xfer/xfer.h"   /* unified transfer audit ledger (S3 PUT = STAGE) */
+#include "fs/xfer/xfer.h"   /* unified transfer audit ledger (S3 PUT = STAGE) */
 
 #include <sys/stat.h>
 

@@ -1,9 +1,9 @@
 #include "config.h"
-#include "../manager/redir_cache.h"
-#include "../fs/xfer/stage_waiter.h"
-#include "../impersonate/lifecycle.h"
-#include "../aio/uring.h"
-#include "../compat/lifecycle_timing.h"
+#include "manager/redir_cache.h"
+#include "fs/xfer/stage_waiter.h"
+#include "impersonate/lifecycle.h"
+#include "aio/uring.h"
+#include "compat/lifecycle_timing.h"
 
 /* Human-readable name for an XROOTD_AUTH_* enum value (for the startup log). */
 static const char *

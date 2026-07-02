@@ -1,6 +1,6 @@
 #include "handshake.h"
-#include "../read/clone.h"
-#include "../write/ext_ops.h"   /* vendor readlink (read-side op) */
+#include "read/clone.h"
+#include "write/ext_ops.h"   /* vendor readlink (read-side op) */
 
 /* xrootd_reject_bound_nonread_file_op — on a bound (secondary) connection, reject a
  * non-read file op with kXR_NotAuthorized (a bound stream may only read primary

@@ -36,7 +36,7 @@
 
 #include <ngx_core.h>
 
-#include "../backend/sd.h"   /* xrootd_sd_instance_t */
+#include "fs/backend/sd.h"   /* xrootd_sd_instance_t */
 
 /* The four async-staging kinds (Appendix I). Values are stable wire identities so
  * a durable request record (SP4) survives a restart; they line up 1:1 with the

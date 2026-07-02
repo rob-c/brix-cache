@@ -1,11 +1,11 @@
 #include "query_internal.h"
-#include "../path/beneath.h"
-#include "../fs/xfer/stage_request_registry.h"
+#include "path/beneath.h"
+#include "fs/xfer/stage_request_registry.h"
 
 #include <errno.h>
 #include <sys/stat.h>
 #include <time.h>
-#include "../compat/alloc_guard.h"
+#include "compat/alloc_guard.h"
 
 #define XROOTD_PREPARE_OWNER_KEY_MAX  64
 

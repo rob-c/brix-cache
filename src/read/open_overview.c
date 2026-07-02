@@ -1,11 +1,11 @@
 #include "open.h"
 #include <string.h>
 #include <unistd.h>
-#include "../manager/registry.h"
-#include "../manager/pending.h"
-#include "../cms/cms_internal.h"
-#include "../session/registry.h"
-#include "../cache/writethrough_decision.h"
+#include "manager/registry.h"
+#include "manager/pending.h"
+#include "cms/cms_internal.h"
+#include "session/registry.h"
+#include "cache/writethrough_decision.h"
 
 /*
  * open_overview.c — kXR_open architecture map + the opaque-string helper.

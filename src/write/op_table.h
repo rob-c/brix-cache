@@ -1,7 +1,7 @@
 #ifndef XROOTD_WRITE_OP_TABLE_H
 #define XROOTD_WRITE_OP_TABLE_H
 #include "ngx_xrootd_module.h"
-#include "../path/op_path.h"
+#include "path/op_path.h"
 
 /*
  * xrootd_op_exec_t — execution context passed to every op exec function.

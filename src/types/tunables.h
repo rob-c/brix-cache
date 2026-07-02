@@ -1,7 +1,7 @@
 #ifndef XROOTD_TYPES_TUNABLES_H
 #define XROOTD_TYPES_TUNABLES_H
 
-#include "../compat/path.h"
+#include "compat/path.h"
 
 /* ---- File: tunables.h — Compile-time size limits, auth constants, metric macros ----
  *

@@ -1,7 +1,7 @@
 #ifndef XROOTD_BUDGET_H
 #define XROOTD_BUDGET_H
 
-#include "../ngx_xrootd_module.h"
+#include "ngx_xrootd_module.h"
 
 /*
  * Phase 31 W4 — transfer-heap memory budget (SHM-global pool).

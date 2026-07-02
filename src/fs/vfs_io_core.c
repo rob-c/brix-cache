@@ -19,16 +19,16 @@
 
 #include "vfs_internal.h"
 #include "vfs_io_core.h"
-#include "backend/sd.h"
-#include "core/vfs_core.h"   /* shared ngx-free VFS I/O verbs */
-#include "backend/csi_tagstore.h"
+#include "fs/backend/sd.h"
+#include "fs/core/vfs_core.h"   /* shared ngx-free VFS I/O verbs */
+#include "fs/backend/csi_tagstore.h"
 
-#include "../aio/aio.h"
-#include "../dirlist/dcksm.h"
-#include "../path/path.h"
-#include "../protocol/dirlist_fmt.h"
-#include "../read/read.h"
-#include "../response/response.h"
+#include "aio/aio.h"
+#include "dirlist/dcksm.h"
+#include "path/path.h"
+#include "protocol/dirlist_fmt.h"
+#include "read/read.h"
+#include "response/response.h"
 
 #include <dirent.h>
 #include <errno.h>

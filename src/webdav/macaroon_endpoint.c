@@ -21,11 +21,11 @@
  */
 
 #include "webdav.h"
-#include "../token/macaroon.h"
-#include "../token/macaroon_issue.h"
-#include "../compat/log_diag.h"
-#include "../compat/http_body.h"
-#include "../compat/json_min.h"
+#include "token/macaroon.h"
+#include "token/macaroon_issue.h"
+#include "compat/log_diag.h"
+#include "compat/http_body.h"
+#include "compat/json_min.h"
 
 #include <openssl/rand.h>
 #include <stdint.h>

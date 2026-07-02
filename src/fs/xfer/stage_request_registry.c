@@ -24,8 +24,8 @@
 
 #include "stage_request_registry.h"
 
-#include "../../compat/crc32c.h"
-#include "../backend/sd.h"   /* route the journal byte I/O through the SD seam */
+#include "compat/crc32c.h"
+#include "fs/backend/sd.h"   /* route the journal byte I/O through the SD seam */
 
 #include <errno.h>
 #include <fcntl.h>

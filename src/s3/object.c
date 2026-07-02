@@ -1,14 +1,14 @@
 #include "s3.h"
 #include "usermeta.h"
-#include "../cache/open.h"
-#include "../compat/http_file_response.h"
-#include "../compat/http_headers.h"
-#include "../dashboard/dashboard_tracking.h"
-#include "../fs/vfs.h"
-#include "../shared/file_serve.h"
-#include "../shared/http_cache_fill.h"     /* phase-64 SP2: off-loop cache fill */
-#include "../shared/http_serve_offload.h"  /* phase-64 SP3: off-loop remote serve */
-#include "../zip/zip_http.h"   /* phase-57 W2: ZIP member access over S3 GET */
+#include "cache/open.h"
+#include "compat/http_file_response.h"
+#include "compat/http_headers.h"
+#include "dashboard/dashboard_tracking.h"
+#include "fs/vfs.h"
+#include "shared/file_serve.h"
+#include "shared/http_cache_fill.h"     /* phase-64 SP2: off-loop cache fill */
+#include "shared/http_serve_offload.h"  /* phase-64 SP3: off-loop remote serve */
+#include "zip/zip_http.h"   /* phase-57 W2: ZIP member access over S3 GET */
 
 /* GetObject range/bytes metrics — shared by the inline serve and the off-loop
  * serve completion (xrootd_http_serve_offload), so both report identically. */

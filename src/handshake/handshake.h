@@ -1,7 +1,7 @@
 #ifndef XROOTD_HANDSHAKE_INTERNAL_H
 #define XROOTD_HANDSHAKE_INTERNAL_H
 
-#include "../ngx_xrootd_module.h"
+#include "ngx_xrootd_module.h"
 
 /*
  * Internal dispatcher helpers return this sentinel when routing should continue.

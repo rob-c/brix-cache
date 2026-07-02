@@ -21,9 +21,9 @@
  * The shadow MUST be an isolated namespace — replaying writes onto the primary's
  * backing store would corrupt it (see xrootd_mirror_writes).
  */
-#include "mirror/stream_wmirror.h"
-#include "mirror/mirror.h"
-#include "mirror/stream_mirror_io.h"
+#include "stream_wmirror.h"
+#include "mirror.h"
+#include "stream_mirror_io.h"
 #include "metrics/metrics_macros.h"
 
 #include <netdb.h>

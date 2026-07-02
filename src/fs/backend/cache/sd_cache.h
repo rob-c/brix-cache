@@ -38,8 +38,8 @@
 
 #include <ngx_core.h>
 
-#include "../sd.h"
-#include "../../tier/tier.h"          /* xrootd_cache_policy_t */
+#include "fs/backend/sd.h"
+#include "fs/tier/tier.h"          /* xrootd_cache_policy_t */
 
 /* Wrap `source` in a read-cache decorator backed by the `store` instance (the
  * cache_store tier). `store_local_root` is the store's absolute directory for

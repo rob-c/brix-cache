@@ -18,7 +18,7 @@
 #include <ngx_http.h>
 
 #include "dashboard.h"
-#include "../metrics/metrics.h"
+#include "metrics/metrics.h"
 
 /* The nginx HTTP module object - defined in module.c */
 extern ngx_module_t ngx_http_xrootd_dashboard_module;

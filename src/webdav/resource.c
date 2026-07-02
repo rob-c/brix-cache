@@ -3,8 +3,8 @@
  */
 
 #include "webdav.h"
-#include "../fs/vfs_backend_registry.h"
-#include "../fs/vfs.h"
+#include "fs/vfs_backend_registry.h"
+#include "fs/vfs.h"
 
 #include <errno.h>
 

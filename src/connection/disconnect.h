@@ -1,6 +1,6 @@
 #ifndef XROOTD_CONN_DISCONNECT_H
 #define XROOTD_CONN_DISCONNECT_H
-#include "../ngx_xrootd_module.h"
+#include "ngx_xrootd_module.h"
 
 /*
  * xrootd_on_disconnect — tear down all per-connection state when a client

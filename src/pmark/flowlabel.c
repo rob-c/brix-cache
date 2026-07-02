@@ -23,9 +23,9 @@
  */
 
 #include "pmark.h"
-#include "../metrics/metrics.h"
-#include "../metrics/metrics_macros.h"
-#include "../compat/log_diag.h"
+#include "metrics/metrics.h"
+#include "metrics/metrics_macros.h"
+#include "compat/log_diag.h"
 
 #if defined(__linux__)
 

@@ -1,8 +1,8 @@
 #ifndef XROOTD_WRITE_H
 #define XROOTD_WRITE_H
 
-#include "../ngx_xrootd_module.h"
-#include "../compat/pgio.h"   /* xrdp_pg_bad_t */
+#include "ngx_xrootd_module.h"
+#include "compat/pgio.h"   /* xrdp_pg_bad_t */
 
 /* kXR_write — write bytes from payload to an open file at a given offset. */
 ngx_int_t xrootd_handle_write(xrootd_ctx_t *ctx, ngx_connection_t *c);

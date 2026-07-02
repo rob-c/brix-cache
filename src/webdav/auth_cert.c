@@ -3,8 +3,8 @@
  */
 
 #include "webdav.h"
-#include "../crypto/gsi_verify.h"
-#include "../ngx_xrootd_module.h"
+#include "crypto/gsi_verify.h"
+#include "ngx_xrootd_module.h"
 
 #include <ngx_http_ssl_module.h>
 
@@ -12,7 +12,7 @@
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
 #include <openssl/x509_vfy.h>
-#include "../compat/alloc_guard.h"
+#include "compat/alloc_guard.h"
 
 /*
  * Per-TLS-connection auth result cache.

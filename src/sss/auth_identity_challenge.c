@@ -1,10 +1,10 @@
 #include "sss_internal.h"
-#include "../path/path.h"
-#include "../response/response.h"
+#include "path/path.h"
+#include "response/response.h"
 
 #include <openssl/rand.h>
 #include <string.h>
-#include "../compat/alloc_guard.h"
+#include "compat/alloc_guard.h"
 
 /*
  * WHAT: This file implements the SSS authentication identity layer. Includes copy_packed_string() for safe bounded string extraction from wire-format TLV fields, xrootd_sss_parse_identity() for parsing decrypted identity blocks (username, groups, host/IP), xrootd_sss_auth_failed() for sending auth failure responses, and xrootd_sss_send_authmore() for generating encrypted login-ID challenges with Blowfish-CFB + CRC32 integrity.

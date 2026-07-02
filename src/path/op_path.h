@@ -22,7 +22,7 @@ typedef enum {
     XROOTD_PATH_EITHER,
 } xrootd_path_mode_t;
 
-#include "../ngx_xrootd_module.h"
+#include "ngx_xrootd_module.h"
 
 /*
  * xrootd_resolve_op_path — extract, depth-check, and resolve a path from the

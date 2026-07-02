@@ -13,7 +13,7 @@
  * See also: src/read/locate.c (full implementation), src/read/README.md (read module overview).
  */
 
-#include "../ngx_xrootd_module.h"
+#include "ngx_xrootd_module.h"
 
 ngx_int_t xrootd_handle_locate(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf);

@@ -3,7 +3,7 @@
  */
 
 #include "webdav.h"
-#include "../crypto/pki_build.h"
+#include "crypto/pki_build.h"
 
 #include <limits.h>
 

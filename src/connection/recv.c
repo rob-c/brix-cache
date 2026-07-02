@@ -1,12 +1,12 @@
-#include "../ngx_xrootd_module.h"
+#include "ngx_xrootd_module.h"
 #include "disconnect.h"
 #include "fd_table.h"
 #include "tls.h"
 #include "budget.h"
 #include "deadline.h"
-#include "../manager/pending.h"
-#include "../fs/xfer/stage_waiter.h"
-#include "../handoff/handoff.h"
+#include "manager/pending.h"
+#include "fs/xfer/stage_waiter.h"
+#include "handoff/handoff.h"
 
 /* File: recv.c — TCP read-event loop and request framing state machine
  * WHAT: The core async recv loop that drives the XRootD protocol lifecycle on each TCP connection. Frames handshake (20-byte ClientInitHandShake), request headers (24-byte ClientRequestHdr), and payload bytes into a deterministic four-state machine — HANDSHAKE → REQ_HEADER → REQ_PAYLOAD → dispatch, with suspend states for SENDING/AIO/UPSTREAM/TLS. Security invariant: dlen must pass xrootd_max_payload_for_request() BEFORE any allocation. Timeout handling: CMS wait timeout sends retry response; other timeouts disconnect. Thread safety: single-owner per connection on nginx event thread — no locking required.

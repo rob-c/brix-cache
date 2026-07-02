@@ -20,7 +20,7 @@
  * See also: src/read/open.c (full implementation), src/read/README.md (read module overview).
  */
 
-#include "../ngx_xrootd_module.h"
+#include "ngx_xrootd_module.h"
 
 /*
  * kXR_open dispatch entry point. Parses ClientOpenRequest from ctx->hdr_buf,

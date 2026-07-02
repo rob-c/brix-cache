@@ -1,7 +1,7 @@
 #ifndef XROOTD_CONFIG_INTERNAL_H
 #define XROOTD_CONFIG_INTERNAL_H
 
-#include "../ngx_xrootd_module.h"
+#include "ngx_xrootd_module.h"
 
 /* Filesystem object kind checked by xrootd_validate_path. */
 

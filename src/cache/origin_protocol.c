@@ -1,10 +1,10 @@
 #include "cache_internal.h"
-#include "../protocol/bootstrap_pack.h"   /* shared handshake/protocol/login packers */
-#include "../compat/fattr_codec.h"        /* xrdp_fattr_nvec_parse (kXR_fattr replies) */
-#include "../protocol/frame_hdr.h"        /* xrd_error_body_decode (kXR_error errnum) */
-#include "../gsi/gsi_core.h"              /* shared XrdSecgsi handshake kernel (C-3 GSI) */
-#include "../protocol/gsi.h"              /* kXRS_x509 bucket id (origin-cert verify) */
-#include "../sss/sss_keytab_kernel.h"     /* §14 SSS: shared keytab line grammar */
+#include "protocol/bootstrap_pack.h"   /* shared handshake/protocol/login packers */
+#include "compat/fattr_codec.h"        /* xrdp_fattr_nvec_parse (kXR_fattr replies) */
+#include "protocol/frame_hdr.h"        /* xrd_error_body_decode (kXR_error errnum) */
+#include "gsi/gsi_core.h"              /* shared XrdSecgsi handshake kernel (C-3 GSI) */
+#include "protocol/gsi.h"              /* kXRS_x509 bucket id (origin-cert verify) */
+#include "sss/sss_keytab_kernel.h"     /* §14 SSS: shared keytab line grammar */
 #include <stdio.h>                        /* fdopen/fgets for the keytab reader */
 
 

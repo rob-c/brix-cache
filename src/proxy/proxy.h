@@ -20,7 +20,7 @@
  * auth bridging (GSI delegation, token forwarding) is a Phase 4 concern.
  */
 
-#include "../ngx_xrootd_module.h"
+#include "ngx_xrootd_module.h"
 
 /* Opaque: full definition in proxy_internal.h */
 typedef struct xrootd_proxy_ctx_s xrootd_proxy_ctx_t;

@@ -37,13 +37,13 @@
  */
 
 #include "s3.h"
-#include "../acc/acc.h"            /* XrdAcc engine directives + enum tables */
-#include "../config/root_prepare.h"
-#include "../config/http_rootfd.h"
-#include "../compat/tmp_path.h"          /* SP4 orphan direct-write temp reaper */
-#include "../config/credential_block.h"   /* §14 xrootd_credential lookup/bearer */
-#include "../fs/vfs_backend_registry.h"   /* per-export backend registration */
-#include "../compat/alloc_guard.h"
+#include "acc/acc.h"            /* XrdAcc engine directives + enum tables */
+#include "config/root_prepare.h"
+#include "config/http_rootfd.h"
+#include "compat/tmp_path.h"          /* SP4 orphan direct-write temp reaper */
+#include "config/credential_block.h"   /* §14 xrootd_credential lookup/bearer */
+#include "fs/vfs_backend_registry.h"   /* per-export backend registration */
+#include "compat/alloc_guard.h"
 
 static ngx_int_t ngx_http_s3_postconfiguration(ngx_conf_t *cf);
 

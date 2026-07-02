@@ -3,7 +3,7 @@
  * Phase-38 split of propfind.c; behavior-identical.
  */
 #include "propfind_internal.h"
-#include "../fs/vfs.h"   /* directory listing via the VFS seam (impersonation-aware) */
+#include "fs/vfs.h"   /* directory listing via the VFS seam (impersonation-aware) */
 
 
 /* Adapt the VFS stat (returned per-entry by xrootd_vfs_readdir, a no-follow

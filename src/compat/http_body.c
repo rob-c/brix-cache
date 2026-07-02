@@ -18,7 +18,7 @@
 #include "http_body.h"
 #include "copy_range.h"
 #include "codec_core.h"
-#include "../fs/vfs.h"   /* xrootd_vfs_pread_full / pwrite_full (storage seam) */
+#include "fs/vfs.h"   /* xrootd_vfs_pread_full / pwrite_full (storage seam) */
 
 #include <errno.h>
 #include <unistd.h>

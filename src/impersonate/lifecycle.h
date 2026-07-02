@@ -23,8 +23,8 @@
  *   spawns a process, opens a socket, or routes any I/O through the broker.
  */
 
-#include "../ngx_xrootd_module.h"
-#include "../types/identity.h"
+#include "ngx_xrootd_module.h"
+#include "types/identity.h"
 
 /* ----- Directive setters (ngx_command_t .set) --------------------- */
 

@@ -10,15 +10,15 @@
  */
 
 #include "config.h"
-#include "../compat/af_policy.h"      /* XROOTD_AF_AUTO default for origin family */
-#include "../cache/verify.h"          /* xrootd_cache_verify_mode_e default */
-#include "../ratelimit/ratelimit.h"   /* phase-59 W3a: throttle zone lookup */
-#include "../cms/cns.h"               /* §6 CNS mode enum */
-#include "../tpc/key_registry.h"
-#include "../tpc/common/registry.h"   /* Phase 39 (WS5): registry reaper max-age */
-#include "../session/registry.h"   /* XROOTD_SESSION_REGISTRY_SLOTS default */
-#include "../manager/health_check.h" /* XROOTD_HC_TYPE_PING default */
-#include "../manager/registry.h"     /* Phase 39 (WS7): srv staleness setter */
+#include "compat/af_policy.h"      /* XROOTD_AF_AUTO default for origin family */
+#include "cache/verify.h"          /* xrootd_cache_verify_mode_e default */
+#include "ratelimit/ratelimit.h"   /* phase-59 W3a: throttle zone lookup */
+#include "cms/cns.h"               /* §6 CNS mode enum */
+#include "tpc/key_registry.h"
+#include "tpc/common/registry.h"   /* Phase 39 (WS5): registry reaper max-age */
+#include "session/registry.h"   /* XROOTD_SESSION_REGISTRY_SLOTS default */
+#include "manager/health_check.h" /* XROOTD_HC_TYPE_PING default */
+#include "manager/registry.h"     /* Phase 39 (WS7): srv staleness setter */
 
 /*
  * This function creates a new server-level configuration object for nginx.

@@ -1,9 +1,9 @@
-#include "fattr/ngx_xrootd_fattr.h"
+#include "ngx_xrootd_fattr.h"
 #include <errno.h>
 #include <string.h>
 #include <sys/types.h>
 #include <arpa/inet.h>
-#include "../compat/alloc_guard.h"
+#include "compat/alloc_guard.h"
 
 /* kXR_fa_recurse support */
 /*

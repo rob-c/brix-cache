@@ -9,25 +9,25 @@
  */
 
 #include "webdav.h"
-#include "../compat/integrity_info.h"   /* §8.x checksum xattr write format */
-#include "../compat/tmp_path.h"          /* SP4 orphan direct-write temp reaper */
-#include "../token/issuer_registry.h"   /* phase-59 W1 multi-issuer registry */
+#include "compat/integrity_info.h"   /* §8.x checksum xattr write format */
+#include "compat/tmp_path.h"          /* SP4 orphan direct-write temp reaper */
+#include "token/issuer_registry.h"   /* phase-59 W1 multi-issuer registry */
 #include "proxy_internal.h"
-#include "../mirror/http_mirror.h"
-#include "../config/config.h"
-#include "../config/root_prepare.h"
-#include "../config/http_rootfd.h"
-#include "../compat/staged_file.h"
-#include "../fs/backend/sd.h"           /* SD registry: lazy per-worker instance */
-#include "../fs/vfs_backend_registry.h" /* per-export backend config + resolve */
+#include "mirror/http_mirror.h"
+#include "config/config.h"
+#include "config/root_prepare.h"
+#include "config/http_rootfd.h"
+#include "compat/staged_file.h"
+#include "fs/backend/sd.h"           /* SD registry: lazy per-worker instance */
+#include "fs/vfs_backend_registry.h" /* per-export backend config + resolve */
 
 #include <openssl/x509.h>
 
 #include <limits.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include "../compat/alloc_guard.h"
-#include "../config/credential_block.h"   /* §14 xrootd_credential lookup/bearer */
+#include "compat/alloc_guard.h"
+#include "config/credential_block.h"   /* §14 xrootd_credential lookup/bearer */
 
 #define webdav_validate_path          xrootd_validate_path
 #define WEBDAV_PATH_REGULAR_FILE      XROOTD_PATH_REGULAR_FILE

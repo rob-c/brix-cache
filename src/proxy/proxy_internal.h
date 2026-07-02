@@ -2,7 +2,7 @@
 #define XROOTD_PROXY_PROXY_INTERNAL_H
 
 #include "proxy.h"
-#include "../tap/tap.h"   /* Phase-4a observation tap */
+#include "tap/tap.h"   /* Phase-4a observation tap */
 
 /*
  * WHAT: Internal declarations for the transparent XRootD proxy module — state machine enums,

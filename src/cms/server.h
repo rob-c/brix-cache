@@ -14,7 +14,7 @@
  */
 
 #include "cms_internal.h"
-#include "../manager/registry.h"
+#include "manager/registry.h"
 
 /* Forward decl — the per-block config (defined below) is referenced by ctx. */
 typedef struct ngx_stream_xrootd_cms_srv_conf_s ngx_stream_xrootd_cms_srv_conf_t;

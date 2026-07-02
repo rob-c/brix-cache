@@ -31,7 +31,7 @@
  */
 
 #include "srr.h"
-#include "../compat/fs_usage.h"
+#include "compat/fs_usage.h"
 
 #include <jansson.h>
 #include <stdint.h>

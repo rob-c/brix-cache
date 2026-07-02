@@ -2,7 +2,7 @@
  * chmod.c — kXR_chmod: delegate to op descriptor table.
  */
 #include "ngx_xrootd_module.h"
-#include "write/op_table.h"
+#include "op_table.h"
 
 ngx_int_t
 xrootd_handle_chmod(xrootd_ctx_t *ctx, ngx_connection_t *c,

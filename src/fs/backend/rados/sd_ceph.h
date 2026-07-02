@@ -56,7 +56,7 @@ int sd_ceph_key(const char *key_prefix, const char *lfn, char *out, size_t cap);
 uint64_t sd_ceph_ino(const char *oid);
 
 #if XROOTD_HAVE_CEPH
-#include "../sd.h"
+#include "fs/backend/sd.h"
 #include <rados/librados.h>   /* rados_ioctx_t in the shared oid-level API */
 
 /*

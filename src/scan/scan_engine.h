@@ -18,7 +18,7 @@
 #include <ngx_core.h>
 
 #include "scan_record.h"
-#include "../fs/backend/sd.h"   /* xrootd_sd_instance_t (catalog-backed inventory) */
+#include "fs/backend/sd.h"   /* xrootd_sd_instance_t (catalog-backed inventory) */
 
 typedef enum {
     XROOTD_SCAN_DUMP = 0,   /* read stored checksum (no byte read)              */

@@ -1,6 +1,6 @@
 #include "ngx_xrootd_module.h"
-#include "aio/aio.h"
-#include "aio/uring.h"
+#include "aio.h"
+#include "uring.h"
 
 #if (XROOTD_HAVE_LIBURING)
 #include <sys/eventfd.h>

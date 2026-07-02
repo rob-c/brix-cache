@@ -7,7 +7,7 @@
  * */
 
 #include "tpc_internal.h"
-#include "../fs/vfs.h"   /* confined unlink of the export destination */
+#include "fs/vfs.h"   /* confined unlink of the export destination */
 
 #include <string.h>
 #include <unistd.h>

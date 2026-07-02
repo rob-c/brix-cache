@@ -2,7 +2,7 @@
  * rmdir.c — kXR_rmdir: delegate to op descriptor table.
  */
 #include "ngx_xrootd_module.h"
-#include "write/op_table.h"
+#include "op_table.h"
 
 ngx_int_t
 xrootd_handle_rmdir(xrootd_ctx_t *ctx, ngx_connection_t *c,

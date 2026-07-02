@@ -1,5 +1,5 @@
 #include "ngx_xrootd_module.h"
-#include "../connection/budget.h"
+#include "connection/budget.h"
 
 /*
  * reads.c — thread-pool offload for the stream kXR_read / kXR_pgread opcodes.

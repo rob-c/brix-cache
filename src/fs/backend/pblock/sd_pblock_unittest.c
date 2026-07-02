@@ -14,7 +14,7 @@
 #define _GNU_SOURCE   /* nftw(3) + FTW_PHYS for the on-disk block scan */
 #endif
 
-#include "../sd.h"
+#include "fs/backend/sd.h"
 #include "sd_pblock_catalog.h"
 
 #include <errno.h>

@@ -30,13 +30,13 @@
  *       fallback) and replying with xrootd_send_ok.
  */
 
-#include "../ngx_xrootd_module.h"
-#include "../upstream/upstream.h"
-#include "../path/op_path.h"
-#include "../manager/registry.h"
-#include "../manager/redir_cache.h"
-#include "../manager/pending.h"
-#include "../cms/cms_internal.h"
+#include "ngx_xrootd_module.h"
+#include "upstream/upstream.h"
+#include "path/op_path.h"
+#include "manager/registry.h"
+#include "manager/redir_cache.h"
+#include "manager/pending.h"
+#include "cms/cms_internal.h"
 
 #include <arpa/inet.h>
 

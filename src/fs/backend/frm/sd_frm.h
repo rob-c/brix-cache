@@ -32,7 +32,7 @@
  *       storage.md (section 9, 13b, 26, Appendix I).
  */
 
-#include "../sd.h"
+#include "fs/backend/sd.h"
 
 /* Residency of an object on the MSS (Appendix I). */
 #define XROOTD_RESIDENCY_ONLINE    0   /* in the MSS disk buffer, readable now    */

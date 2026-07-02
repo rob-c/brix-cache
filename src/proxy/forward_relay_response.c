@@ -1,6 +1,6 @@
 #include "proxy_internal.h"
-#include "../session/registry.h"
-#include "../protocol/frame_hdr.h"   /* shared kXR_wait seconds parse (libxrdproto) */
+#include "session/registry.h"
+#include "protocol/frame_hdr.h"   /* shared kXR_wait seconds parse (libxrdproto) */
 
 /*
  * WHAT: Relay upstream XRootD responses to the client, handling special cases:

@@ -14,8 +14,8 @@
  *       on EINTR and reporting the byte count in *nread even on error.
  */
 #include "vfs_internal.h"
-#include "backend/sd.h"
-#include "core/vfs_core.h"   /* shared ngx-free VFS I/O verbs */
+#include "fs/backend/sd.h"
+#include "fs/core/vfs_core.h"   /* shared ngx-free VFS I/O verbs */
 
 /* EINTR-safe, short-read-tolerant pread into buf. Loops until len bytes are
  * read or EOF; *nread (if non-NULL) reports the byte count even on error.

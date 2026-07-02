@@ -1,6 +1,6 @@
 #include "dashboard.h"
-#include "../metrics/metrics.h"
-#include "../compat/shm_slots.h"
+#include "metrics/metrics.h"
+#include "compat/shm_slots.h"
 
 #include <ngx_shmtx.h>
 

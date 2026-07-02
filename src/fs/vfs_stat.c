@@ -16,8 +16,8 @@
  *       xrootd_vfs_observe_ctx_op().
  */
 #include "vfs_internal.h"
-#include "backend/cache/sd_cache.h"
-#include "backend/stage/sd_stage.h"
+#include "fs/backend/cache/sd_cache.h"
+#include "fs/backend/stage/sd_stage.h"
 
 /*
  * Shared confined-stat body for both the lstat (no-follow) and stat (follow)

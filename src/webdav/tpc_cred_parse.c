@@ -7,7 +7,7 @@
 /* HOW: Call xrootd_oauth2_parse_access_token() from src/token/oauth2.c into a bounded stack buffer, allocate the exact ngx_str_t payload from r->pool, copy and NUL-terminate it. Errors are logged with the parser's diagnostic string. */
 
 #include "tpc_cred_internal.h"
-#include "../token/oauth2.h"
+#include "token/oauth2.h"
 
 #include <string.h>
 

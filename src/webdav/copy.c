@@ -3,15 +3,15 @@
  */
 
 #include "webdav.h"
-#include "fs/copy_engine.h"
-#include "methods/copy_conditionals.h"
-#include "../compat/http_conditionals.h"
-#include "../compat/error_mapping.h"
-#include "../compat/namespace_ops.h"
-#include "../compat/tmp_path.h"
-#include "../fs/vfs.h"
-#include "../impersonate/impersonate.h"
-#include "../path/path.h"
+#include "webdav/fs/copy_engine.h"
+#include "webdav/methods/copy_conditionals.h"
+#include "compat/http_conditionals.h"
+#include "compat/error_mapping.h"
+#include "compat/namespace_ops.h"
+#include "compat/tmp_path.h"
+#include "fs/vfs.h"
+#include "impersonate/impersonate.h"
+#include "path/path.h"
 
 #include <errno.h>
 #include <sys/stat.h>

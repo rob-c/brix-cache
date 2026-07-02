@@ -1,10 +1,10 @@
 #include "server.h"
 #include "router.h"                       /* table-driven opcode routing */
 #include "rrdata.h"                       /* Pup decode + statfs reply encode */
-#include "../manager/registry.h"          /* aggregate space for statfs reply */
+#include "manager/registry.h"          /* aggregate space for statfs reply */
 #include "cns.h"                          /* §6 CNS inventory + event codec */
-#include "../metrics/metrics_macros.h"   /* Phase 51 (A1): resilience counters */
-#include "../compat/log_diag.h"
+#include "metrics/metrics_macros.h"   /* Phase 51 (A1): resilience counters */
+#include "compat/log_diag.h"
 
 /* xrootd_cms_srv_close — tear down a CMS data-server connection: drop the ping
  * timer, unregister host/port from the server registry if logged_in (so locate

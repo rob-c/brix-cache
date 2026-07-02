@@ -3,7 +3,7 @@
  */
 
 #include "request.h"
-#include "../../compat/xml.h"
+#include "compat/xml.h"
 
 int64_t
 webdav_lock_parse_timeout(ngx_http_request_t *r,

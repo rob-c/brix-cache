@@ -6,7 +6,7 @@
 #include "cache/writethrough_metrics.h"
 #include "wrts_journal.h"
 #include "pgw_fob.h"          /* CSE uncorrected-page registry */
-#include "../compat/pgio.h"   /* shared kXR page-mode decode (libxrdproto) */
+#include "compat/pgio.h"   /* shared kXR page-mode decode (libxrdproto) */
 
 /* pgwrite_retry_spans_multiple_pages()
  * A kXR_pgRetry resend must correct exactly one page.  Mirrors stock

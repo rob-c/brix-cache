@@ -12,9 +12,9 @@
  * declared in both an http{} and a stream{} block resolves to ONE shared zone
  * (cross-plane principal accounting).
  */
-#include "ratelimit/ratelimit.h"
+#include "ratelimit.h"
 #include "metrics/metrics_macros.h"
-#include "../compat/alloc_guard.h"
+#include "compat/alloc_guard.h"
 
 #define XROOTD_RL_MAX_ZONES   16
 #define XROOTD_RL_MIN_SIZE    (64 * 1024)

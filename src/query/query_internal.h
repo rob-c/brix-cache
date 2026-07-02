@@ -1,9 +1,9 @@
 #ifndef XROOTD_QUERY_INTERNAL_H
 #define XROOTD_QUERY_INTERNAL_H
 
-#include "../ngx_xrootd_module.h"
-#include "../compat/checksum.h"
-#include "../fs/vfs.h"   /* VFS stat + xattr seam for kXR_Qxattr */
+#include "ngx_xrootd_module.h"
+#include "compat/checksum.h"
+#include "fs/vfs.h"   /* VFS stat + xattr seam for kXR_Qxattr */
 
 #define XROOTD_CKSCAN_INIT_CAP  (256 * 1024)
 

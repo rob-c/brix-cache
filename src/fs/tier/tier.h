@@ -36,11 +36,11 @@
 
 #include <regex.h>
 
-#include "../backend/sd.h"                     /* xrootd_sd_instance_t */
-#include "../../cache/verify.h"                /* xrootd_cache_verify_mode_e */
-#include "../../cache/writethrough_decision.h" /* xrootd_wt_decision_fn */
-#include "../../config/credential_block.h"     /* xrootd_credential_t */
-#include "../../types/config.h"                /* XROOTD_WT_MODE_SYNC/_ASYNC */
+#include "fs/backend/sd.h"                     /* xrootd_sd_instance_t */
+#include "cache/verify.h"                /* xrootd_cache_verify_mode_e */
+#include "cache/writethrough_decision.h" /* xrootd_wt_decision_fn */
+#include "config/credential_block.h"     /* xrootd_credential_t */
+#include "types/config.h"                /* XROOTD_WT_MODE_SYNC/_ASYNC */
 
 /* ---- tier role ------------------------------------------------------------ */
 

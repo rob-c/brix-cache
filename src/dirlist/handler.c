@@ -6,17 +6,17 @@
  * ending with a single kXR_ok frame to signal completion.
  */
 
-#include "../ngx_xrootd_module.h"
-#include "../aio/aio.h"
-#include "../path/op_path.h"
-#include "../manager/registry.h"
-#include "../protocol/dirlist_fmt.h"   /* shared dstat lead-in sentinel */
-#include "../fs/vfs.h"                 /* directory listing via the VFS seam */
+#include "ngx_xrootd_module.h"
+#include "aio/aio.h"
+#include "path/op_path.h"
+#include "manager/registry.h"
+#include "protocol/dirlist_fmt.h"   /* shared dstat lead-in sentinel */
+#include "fs/vfs.h"                 /* directory listing via the VFS seam */
 #include "dcksm.h"
 
 #include <spawn.h>
 #include <sys/wait.h>
-#include "../compat/alloc_guard.h"
+#include "compat/alloc_guard.h"
 
 extern char **environ;
 

@@ -13,7 +13,7 @@
  * See also: src/read/clone.c (full implementation), src/read/README.md (read module overview).
  */
 
-#include "../ngx_xrootd_module.h"
+#include "ngx_xrootd_module.h"
 
 ngx_int_t xrootd_handle_clone(xrootd_ctx_t *ctx, ngx_connection_t *c);
 

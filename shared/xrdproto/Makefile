@@ -66,8 +66,12 @@ endif
 # timespec then self-resolves to compat/time.h and time_t goes undefined). -iquote
 # serves only "..."-quoted includes (how every compat header here is referenced),
 # leaving <...> system headers untouched.
+# Phase-66: cross-dir includes in src/ are src-rooted (e.g. "compat/crypto.h"),
+# so the src root itself is on the quoted-include path too (-iquote, same
+# time.h-shadowing rationale as $(COMPAT)).
 ALL_CFLAGS := -std=c11 -Wall -Wextra -fPIC $(HARDEN) $(OPT) \
-              -DXRDPROTO_NO_NGX $(CODEC_CFLAGS) -iquote $(COMPAT) -I$(PROTO) $(CFLAGS)
+              -DXRDPROTO_NO_NGX $(CODEC_CFLAGS) -iquote $(REPO)/src \
+              -iquote $(COMPAT) -I$(PROTO) $(CFLAGS)
 
 BUILD := build
 LIB   := libxrdproto.a

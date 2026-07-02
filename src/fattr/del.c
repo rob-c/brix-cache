@@ -4,7 +4,7 @@
  *
  * WHY: Extended attribute deletion is batched — clients may request removal of multiple attributes in a single kXR_fattr_del opcode. Processing each attribute individually with error recording allows precise per-attribute status reporting rather than aborting on first failure. This matches XRootD semantics where partial success is valid and reported via vector status response (kXR_status, opcode 4007). Thread safety: no shared state — operates only on provided path/fd and local stack variables. */
 
-#include "fattr/ngx_xrootd_fattr.h"
+#include "ngx_xrootd_fattr.h"
 #include <errno.h>
 #include <sys/types.h>
 #include <arpa/inet.h>

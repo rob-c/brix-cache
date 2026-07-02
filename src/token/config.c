@@ -1,5 +1,5 @@
-#include "../config/config.h"
-#include "../token/issuer_registry.h"
+#include "config/config.h"
+#include "issuer_registry.h"
 #include <sys/stat.h>
 
 /*

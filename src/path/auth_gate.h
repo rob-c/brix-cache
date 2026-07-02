@@ -1,6 +1,6 @@
 #ifndef XROOTD_PATH_AUTH_GATE_H
 #define XROOTD_PATH_AUTH_GATE_H
-#include "../ngx_xrootd_module.h"
+#include "ngx_xrootd_module.h"
 
 /*
  * xrootd_auth_gate — three-tier auth check for path-based operations.

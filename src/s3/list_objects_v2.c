@@ -1,6 +1,6 @@
 #include "s3.h"
-#include "../token/b64url.h"
-#include "../compat/http_query.h"
+#include "token/b64url.h"
+#include "compat/http_query.h"
 #include <string.h>
 
 /*

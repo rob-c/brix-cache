@@ -3,7 +3,7 @@
  * Phase-38 split of module.c; behavior-identical.
  */
 #include "webdav_module_internal.h"
-#include "../config/credential_block.h"   /* §14 xrootd_credential block directive */
+#include "config/credential_block.h"   /* §14 xrootd_credential block directive */
 
 ngx_conf_enum_t  webdav_auth_values[] = {
     { ngx_string("none"),     WEBDAV_AUTH_NONE     },

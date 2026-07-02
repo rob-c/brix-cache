@@ -1,9 +1,9 @@
-#include "../config/config.h"
+#include "config/config.h"
 
 #include <stdlib.h>
 #include <string.h>
-#include "../compat/alloc_guard.h"
-#include "../compat/str_dup.h"
+#include "compat/alloc_guard.h"
+#include "compat/str_dup.h"
 
 /*
  *

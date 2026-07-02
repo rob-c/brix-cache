@@ -1,7 +1,7 @@
 #ifndef XROOTD_ROOT_PREPARE_H
 #define XROOTD_ROOT_PREPARE_H
 
-#include "../ngx_xrootd_module.h"
+#include "ngx_xrootd_module.h"
 
 /*
  * xrootd_export_root_opts_t — caller-supplied policy for export-root preparation.

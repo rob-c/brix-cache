@@ -2,7 +2,7 @@
  * signing.c — kXR_sigver opcode handler (request-signature verification).
  */
 
-#include "../ngx_xrootd_module.h"
+#include "ngx_xrootd_module.h"
 
 /*
  * xrootd_handle_sigver - XRootD request signing (kXR_sigver).

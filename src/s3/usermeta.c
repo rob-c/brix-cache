@@ -18,8 +18,8 @@
 
 #include "s3.h"
 #include "usermeta.h"
-#include "../compat/uri.h"
-#include "../fs/vfs.h"
+#include "compat/uri.h"
+#include "fs/vfs.h"
 
 #include <errno.h>
 #include <string.h>

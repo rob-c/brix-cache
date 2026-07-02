@@ -1,4 +1,4 @@
-#include "../ngx_xrootd_module.h"
+#include "ngx_xrootd_module.h"
 
 #include <errno.h>
 #include <limits.h>

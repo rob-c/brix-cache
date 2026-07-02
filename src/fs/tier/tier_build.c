@@ -12,14 +12,14 @@
  */
 #include "tier.h"
 
-#include "../backend/xroot/sd_xroot.h"    /* xrootd_sd_xroot_create_origin   */
-#include "../backend/http/sd_http.h"      /* xrootd_sd_http_create           */
-#include "../backend/remote/sd_remote.h"  /* xrootd_sd_remote_create (s3)    */
-#include "../backend/cache/sd_cache.h"    /* xrootd_sd_cache_create          */
-#include "../backend/stage/sd_stage.h"    /* xrootd_sd_stage_create          */
-#include "../backend/frm/sd_frm.h"        /* xrootd_sd_frm_create (tape)     */
-#include "../backend/rados/sd_ceph.h"     /* xrootd_sd_ceph_conf_t (rados)   */
-#include "../../cache/origin/s3_transport.h"  /* xrootd_s3_origin_curl_transport */
+#include "fs/backend/xroot/sd_xroot.h"    /* xrootd_sd_xroot_create_origin   */
+#include "fs/backend/http/sd_http.h"      /* xrootd_sd_http_create           */
+#include "fs/backend/remote/sd_remote.h"  /* xrootd_sd_remote_create (s3)    */
+#include "fs/backend/cache/sd_cache.h"    /* xrootd_sd_cache_create          */
+#include "fs/backend/stage/sd_stage.h"    /* xrootd_sd_stage_create          */
+#include "fs/backend/frm/sd_frm.h"        /* xrootd_sd_frm_create (tape)     */
+#include "fs/backend/rados/sd_ceph.h"     /* xrootd_sd_ceph_conf_t (rados)   */
+#include "cache/origin/s3_transport.h"  /* xrootd_s3_origin_curl_transport */
 
 #include <string.h>
 

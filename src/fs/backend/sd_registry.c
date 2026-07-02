@@ -16,7 +16,7 @@
  */
 
 #include "sd.h"
-#include "rados/sd_ceph.h"   /* xrootd_sd_ceph_driver (only under XROOTD_HAVE_CEPH) */
+#include "fs/backend/rados/sd_ceph.h"   /* xrootd_sd_ceph_driver (only under XROOTD_HAVE_CEPH) */
 
 #include <errno.h>
 

@@ -14,7 +14,7 @@
  *       retrying on EINTR and treating a 0-byte pwrite as EIO.
  */
 #include "vfs_internal.h"
-#include "backend/sd.h"
+#include "fs/backend/sd.h"
 
 /* EINTR-safe, short-write-safe pwrite loop. Writes exactly len bytes at offset
  * or returns NGX_ERROR; a 0-byte pwrite is treated as EIO. */

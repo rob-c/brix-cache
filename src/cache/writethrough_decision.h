@@ -32,8 +32,8 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 #include <regex.h>
-#include "../types/file.h"          /* xrootd_file_t forward decl context */
-#include "../protocol/flags.h"      /* kXR_open option constants */
+#include "types/file.h"          /* xrootd_file_t forward decl context */
+#include "protocol/flags.h"      /* kXR_open option constants */
 
 /* ---- Decision outcomes (mirrors XrdPfcDecision::Decide return) ---- */
 

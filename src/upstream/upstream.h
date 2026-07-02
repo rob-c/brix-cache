@@ -1,7 +1,7 @@
 #ifndef XROOTD_UPSTREAM_H
 #define XROOTD_UPSTREAM_H
 
-#include "../ngx_xrootd_module.h"
+#include "ngx_xrootd_module.h"
 
 /*
  * Upstream redirector query subsystem.

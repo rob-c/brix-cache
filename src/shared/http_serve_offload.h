@@ -36,8 +36,8 @@
 #include <ngx_http.h>
 
 #include "file_serve.h"                 /* xrootd_http_serve_opts_t/_result_t */
-#include "../config/shared_conf.h"      /* ngx_http_xrootd_shared_conf_t */
-#include "../fs/backend/sd.h"           /* xrootd_sd_instance_t */
+#include "config/shared_conf.h"      /* ngx_http_xrootd_shared_conf_t */
+#include "fs/backend/sd.h"           /* xrootd_sd_instance_t */
 
 /* Protocol metrics callback: run on the event loop after the materialised object is
  * served, with the same result the inline serve would report. WebDAV and S3 pass

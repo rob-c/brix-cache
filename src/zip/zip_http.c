@@ -8,7 +8,7 @@
  */
 #include "zip_http.h"
 #include "zip_dir.h"
-#include "../fs/vfs.h"   /* confined archive read-open via the VFS seam */
+#include "fs/vfs.h"   /* confined archive read-open via the VFS seam */
 
 #include <fcntl.h>
 #include <unistd.h>

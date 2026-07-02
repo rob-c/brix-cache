@@ -13,7 +13,7 @@
 #ifndef XROOTD_SHM_RATE_LIMIT_H
 #define XROOTD_SHM_RATE_LIMIT_H
 
-#include "shm/kv.h"
+#include "kv.h"
 
 /* Per-conf settings, filled by xrootd_rate_limit_directive(). */
 typedef struct {

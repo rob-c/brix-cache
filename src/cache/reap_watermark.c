@@ -4,7 +4,7 @@
 
 #include "reap_watermark.h"
 #include "evict_internal.h"   /* fs_usage sampler + purge_to_target + the lock */
-#include "../metrics/unified.h"   /* dedicated watermark-reaper telemetry */
+#include "metrics/unified.h"   /* dedicated watermark-reaper telemetry */
 
 #include <limits.h>
 

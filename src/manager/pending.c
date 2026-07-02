@@ -1,5 +1,5 @@
 #include "pending.h"
-#include "../compat/shm_slots.h"
+#include "compat/shm_slots.h"
 #include <ngx_shmtx.h>
 
 ngx_shm_zone_t *xrootd_pending_shm_zone;

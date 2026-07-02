@@ -6,7 +6,7 @@
  * Handlers with non-trivial exec paths remain as explicit handlers.
  */
 #include "ngx_xrootd_module.h"
-#include "write/op_table.h"
+#include "op_table.h"
 #include "compat/namespace_ops.h"
 #include "compat/error_mapping.h"
 #include "path/path.h"

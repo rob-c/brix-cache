@@ -9,7 +9,7 @@
  * byte-equivalent to phase-63's local-temp promote.
  */
 #include "sd_stage.h"
-#include "../../xfer/stage_engine.h"   /* xrootd_stage_run_inline (FLUSH) */
+#include "fs/xfer/stage_engine.h"   /* xrootd_stage_run_inline (FLUSH) */
 
 #include <errno.h>
 #include <limits.h>

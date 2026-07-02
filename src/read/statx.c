@@ -4,9 +4,9 @@
 
 #include "statx.h"
 #include "stat.h"
-#include "../ngx_xrootd_module.h"
-#include "../path/beneath.h"
-#include "../compat/alloc_guard.h"
+#include "ngx_xrootd_module.h"
+#include "path/beneath.h"
+#include "compat/alloc_guard.h"
 
 #include <stdlib.h>   /* realpath */
 

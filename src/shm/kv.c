@@ -22,9 +22,9 @@
  * xrootd_shm_zone_size() to cover the slab-pool overhead.
  */
 #include "ngx_xrootd_module.h"   /* full ngx core + stream (NGX_STREAM_MAIN_CONF) */
-#include "shm/kv.h"
-#include "../compat/shm_slots.h"
-#include "../compat/alloc_guard.h"
+#include "kv.h"
+#include "compat/shm_slots.h"
+#include "compat/alloc_guard.h"
 
 /* The directive may appear in either module's main block; both tags are
  * resolved at link time into the single combined binary. */

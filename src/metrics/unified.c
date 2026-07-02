@@ -1,5 +1,5 @@
 #include "metrics_internal.h"
-#include "../types/identity.h"
+#include "types/identity.h"
 
 #include <errno.h>
 #include <string.h>

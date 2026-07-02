@@ -26,8 +26,8 @@
  *      best-effort lookups.
  */
 
-#include "../../ngx_xrootd_module.h"
-#include "../../compat/shm_slots.h"
+#include "ngx_xrootd_module.h"
+#include "compat/shm_slots.h"
 
 #include <string.h>
 

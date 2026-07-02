@@ -5,11 +5,11 @@
 #include "config.h"
 #include "root_prepare.h"
 #include "credential_block.h"             /* §14 xrootd_credential lookup/bearer */
-#include "../compat/staged_file.h"
-#include "../compat/tmp_path.h"          /* SP4 orphan direct-write temp reaper */
-#include "../fs/vfs_backend_registry.h"   /* per-export backend registration */
-#include "../path/path.h"                 /* xrootd_mkdir_recursive (pblock:// init) */
-#include "../fs/tier/tier.h"              /* phase-64 tier parse + cache/stage register */
+#include "compat/staged_file.h"
+#include "compat/tmp_path.h"          /* SP4 orphan direct-write temp reaper */
+#include "fs/vfs_backend_registry.h"   /* per-export backend registration */
+#include "path/path.h"                 /* xrootd_mkdir_recursive (pblock:// init) */
+#include "fs/tier/tier.h"              /* phase-64 tier parse + cache/stage register */
 
 /* Directive setter for a tier store-URL directive: arg[1] = the store URL (into the
  * ngx_str_t at cmd->offset); args[2..] = trailing credential=/block_size= params

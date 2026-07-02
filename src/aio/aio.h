@@ -1,9 +1,9 @@
 #ifndef XROOTD_AIO_H
 #define XROOTD_AIO_H
 
-#include "../ngx_xrootd_module.h"
-#include "../compat/pgio.h"   /* xrdp_pg_bad_t — pgwrite CSE bad-page list */
-#include "../fs/vfs_io_core.h"
+#include "ngx_xrootd_module.h"
+#include "compat/pgio.h"   /* xrdp_pg_bad_t — pgwrite CSE bad-page list */
+#include "fs/vfs_io_core.h"
 
 /*
  * AIO — async file I/O via the nginx thread pool, plus response builders.

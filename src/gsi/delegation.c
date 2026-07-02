@@ -18,10 +18,10 @@
 #include "gsi_core.h"
 #include "delegation.h"
 #include "proxy_req.h"
-#include "../protocol/gsi.h"
-#include "../response/response.h"
-#include "../connection/write_helpers.h"
-#include "../compat/alloc_guard.h"
+#include "protocol/gsi.h"
+#include "response/response.h"
+#include "connection/write_helpers.h"
+#include "compat/alloc_guard.h"
 
 #include <string.h>
 #include <stdlib.h>

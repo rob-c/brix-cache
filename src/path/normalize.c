@@ -1,7 +1,7 @@
-#include "../ngx_xrootd_module.h"
+#include "ngx_xrootd_module.h"
 
 #include "path_internal.h"
-#include "../compat/alloc_guard.h"
+#include "compat/alloc_guard.h"
 
 /*
  * WHAT: Normalize a policy path from wire format into canonical form — collapses multiple slashes,

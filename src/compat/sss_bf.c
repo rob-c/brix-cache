@@ -7,7 +7,7 @@
  */
 #include "sss_bf.h"
 #include "crc32_ieee.h"          /* xrootd_crc32_ieee — shared IEEE CRC-32 */
-#include "../protocol/sss.h"     /* XROOTD_SSS_* wire constants (single source) */
+#include "protocol/sss.h"     /* XROOTD_SSS_* wire constants (single source) */
 
 #include <limits.h>
 #include <string.h>

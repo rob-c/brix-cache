@@ -19,7 +19,7 @@
  * XROOTD_SRV_MAX_PATHS bounds the colon-delimited path list stored per entry.
  */
 
-#include "../ngx_xrootd_module.h"
+#include "ngx_xrootd_module.h"
 
 #define XROOTD_SRV_REGISTRY_SLOTS  128   /* default; overridden by xrootd_registry_slots */
 #define XROOTD_SRV_MAX_PATHS      1024

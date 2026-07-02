@@ -1,6 +1,6 @@
 #include "open.h"
-#include "../cache/cache_storage.h"
-#include "../path/beneath.h"
+#include "cache/cache_storage.h"
+#include "path/beneath.h"
 
 /* Cache-aware read-open (XCache-style).  Checks the VO ACL against the export
  * root first, then resolves the cache path: with slice-caching enabled and an
