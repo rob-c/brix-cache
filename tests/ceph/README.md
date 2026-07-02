@@ -164,6 +164,25 @@ deep reference:
 > migrated estate read-only, or the source is silently modified and rollback
 > can no longer restore it.
 
+**Site-profile config (`--config`, all FOUR tools — Python and C++).** Pools
+and connection identity can live in a flat `key = value` file instead of
+positionals ('#' comments allowed; unknown keys are a hard error):
+```ini
+striper_pool = xrdtest
+meta_pool    = cephfs.cephfs.meta     # reverse tools
+data_pool    = cephfs.cephfs.data
+conf         = /etc/ceph/ceph.conf    # optional
+client       = admin                  # optional (was hardcoded before)
+fs_name      = cephfs                 # optional, forward tools (multi-fs clusters)
+dest_prefix  = /migrated              # forward tools
+strip        =                        # optional
+```
+Pass `--config PATH` (or set `$XRDCEPH_MIGRATE_CONF`). Precedence: explicit
+CLI > config file > built-in default. Give the tool its **full legacy
+positional arity or none** — a partial mix is refused. The C++ side shares
+the parser via the header-only `xrdceph_migrate_config.h` (compile with
+`-I tests/ceph`).
+
 **Dependencies:** distro `python3-rados` + `python3-cephfs` only. The
 C++-only redirect ops (`set_redirect`/`copy_from`/`tier_promote`/
 `unset_manifest`) are reached by `pymigrate/radosbridge.py` via ctypes against
