@@ -1,5 +1,5 @@
 #include "query_internal.h"
-#include "path/beneath.h"
+#include "fs/path/beneath.h"
 #include "fs/xfer/stage_request_registry.h"
 
 #include <errno.h>

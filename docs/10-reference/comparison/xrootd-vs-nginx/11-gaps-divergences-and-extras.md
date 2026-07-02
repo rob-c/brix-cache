@@ -106,7 +106,7 @@ exists here.
 - **Official:** `XrdPss/` (parallel storage / remote federation backend) and
   `XrdPfc/` (the full proxy-file-cache / XCache policy engine with purge,
   snapshot, resource monitoring).
-- **Here:** `src/cache/` provides a practical read-through/slice cache with
+- **Here:** `src/fs/cache/` provides a practical read-through/slice cache with
   eviction and write-through helpers and advertises `kXR_attrCache`; `src/proxy/`
   + `src/upstream/` provide protocol-bridge proxying. This is **not** a
   full PSS/PFC replacement.
@@ -354,7 +354,7 @@ interop break for some ops/clients; **Low** = edge/cosmetic.
 
 Latent self-consistency regression worth recording: fix **#7** (4-byte open
 reply) desynced the write-through cache's hand-rolled origin client
-(`src/cache/origin_protocol.c`), which had over-specified a 12-byte reply,
+(`src/fs/cache/origin_protocol.c`), which had over-specified a 12-byte reply,
 causing `[3007] write-through flush to origin failed`. Fixed to read only the
 4-byte fhandle. This is the canonical class of bug differential conformance work
 exposes — a spec-correct wire change breaking an internal peer that
@@ -453,8 +453,8 @@ nginx-xrootd (`src/` and `client/`):
   `src/auth/pwd/`, `src/auth/host/`, `src/auth/voms/`, `src/auth/authz/authdb.c`,
   `src/auth/authz/auth_gate.c`
 - Diagnostics / SSI / ZIP: `src/dig/`, `src/ssi/`, `src/zip/`
-- Storage/cache/path: `src/fs/`, `src/path/`, `src/cache/`,
-  `src/core/compat/namespace_ops.c`, `src/cache/origin_protocol.c`
+- Storage/cache/path: `src/fs/`, `src/path/`, `src/fs/cache/`,
+  `src/core/compat/namespace_ops.c`, `src/fs/cache/origin_protocol.c`
 - FRM/tape: `src/frm/`, `src/query/prepare.c`, `src/webdav/tape_rest.c`
 - HTTP/WebDAV/S3: `src/webdav/`, `src/s3/`
 - Extras: `src/mirror/`, `src/metrics/`, `src/ratelimit/`, `src/dashboard/`,

@@ -2,7 +2,7 @@
 #include "response/response.h"
 #include "core/aio/aio.h"
 #include "core/compat/checksum.h"
-#include "path/beneath.h"
+#include "fs/path/beneath.h"
 
 #include <dirent.h>
 #include <sys/stat.h>

@@ -13,7 +13,7 @@
 
 #include "dig.h"
 #include "webdav/webdav.h"
-#include "path/beneath.h"
+#include "fs/path/beneath.h"
 #include "fs/vfs.h"   /* serve diagnostics files through the VFS seam */
 
 #include <errno.h>

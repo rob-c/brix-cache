@@ -1,4 +1,4 @@
-# `src/scan/` — bulk storage scan / verify / inventory engine
+# `src/fs/scan/` — bulk storage scan / verify / inventory engine
 
 A throttled, confined, streaming, resumable, **backend-neutral** engine that
 enumerates storage and runs a per-object action, streaming one NDJSON record per
@@ -50,9 +50,9 @@ location /xrootd {
 - **Phase 2a (done):** the three ngx-free cores, TDD'd, run standalone
   (`tests/test_scan.py::test_scan_core_suite` — no server):
   ```
-  gcc -Wall -Wextra -Werror -I src/scan -o /tmp/scan_ut \
-      src/scan/scan_unittest.c src/scan/scan_record.c \
-      src/scan/scan_throttle.c src/scan/scan_emit.c -lm && /tmp/scan_ut
+  gcc -Wall -Wextra -Werror -I src/fs/scan -o /tmp/scan_ut \
+      src/fs/scan/scan_unittest.c src/fs/scan/scan_record.c \
+      src/fs/scan/scan_throttle.c src/fs/scan/scan_emit.c -lm && /tmp/scan_ut
   ```
 - **Phase 2b (done):** `scan_engine.c` + `scan_http.c` + the `xrootd_scan_root`/
   `xrootd_scan_max_files` directives + `./config` registration. HTTP integration
@@ -86,5 +86,5 @@ location /xrootd {
   harness rather than as untested scaffolding here.
 
 New source files register in the top-level `./config`
-(`$ngx_addon_dir/src/scan/...`), then `rm -rf objs && ./configure && make`.
+(`$ngx_addon_dir/src/fs/scan/...`), then `rm -rf objs && ./configure && make`.
 The standalone `scan_unittest.c` is **not** built into the module.

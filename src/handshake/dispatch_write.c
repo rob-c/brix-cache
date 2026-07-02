@@ -2,7 +2,7 @@
 #include "write/chkpoint.h"
 #include "write/ext_ops.h"   /* vendor setattr/symlink/link */
 #include "manager/registry.h"   /* xrootd_srv_select_or_blacklisted */
-#include "path/path.h"          /* xrootd_extract_path */
+#include "fs/path/path.h"          /* xrootd_extract_path */
 #include "response/response.h"  /* xrootd_send_redirect / xrootd_send_error */
 
 /* Gate macro: check write permission then invoke handler.

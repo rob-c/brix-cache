@@ -709,9 +709,9 @@ storage systems where regional caches need to handle data ingest from local
 instruments or jobs.
 
 **Implemented in:**
-- `src/cache/writethrough_decision.c` — WT policy evaluation.
-- `src/cache/writethrough_flush.c` — local-to-origin mirror worker.
-- `src/cache/origin_protocol.c` — origin write, truncate, sync, and close helpers.
+- `src/fs/cache/writethrough_decision.c` — WT policy evaluation.
+- `src/fs/cache/writethrough_flush.c` — local-to-origin mirror worker.
+- `src/fs/cache/origin_protocol.c` — origin write, truncate, sync, and close helpers.
 - `src/read/open_resolved_file.c`, `src/write/*.c`, `src/core/aio/write.c`,
   `src/read/close.c`, `src/write/sync.c` — handle state, dirty tracking, and
   flush integration.

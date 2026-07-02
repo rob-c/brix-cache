@@ -103,7 +103,7 @@ xrootd_parse_address(addr_str, addr_len, host, host_len, &port, &tls_enabled);
 1. `src/webdav/tpc_config.c` - Added merge helper consolidation
 2. `src/dashboard/module.c` - Added conf_helpers include and consolidated merges
 3. `src/webdav/config.c` - Added conf_helpers include and consolidated merges
-4. `src/cache/directives.c` - Phase 1 (allocation macro consolidation)
+4. `src/fs/cache/directives.c` - Phase 1 (allocation macro consolidation)
 
 ### Helper Infrastructure Created (Phase 1)
 1. `src/core/compat/alloc_helpers.h` - Memory allocation macros

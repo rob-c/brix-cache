@@ -58,7 +58,7 @@ work is to make that discipline universal.
   `path + 64`. Over-cap clients are disconnected. This is the model to extend.
 - **Auth brute-force / CPU-amplification cap.** `src/auth/gsi/auth.c:357` rejects once
   `auth_fail_count >= XROOTD_MAX_AUTH_ATTEMPTS`, skipping the certreq round.
-- **Body caps before `malloc` on remote responses.** `src/cache/origin_response.c:49`
+- **Body caps before `malloc` on remote responses.** `src/fs/cache/origin_response.c:49`
   (`*dlen > max_body`) and `src/tpc/io.c:115` (`*dlen > TPC_RESP_MAX_BODY`) both
   bound, allocate `dlen+1`, and free on the read-failure path. **These are the
   reference pattern.**
@@ -91,7 +91,7 @@ Severity reflects exploitability by an external peer.
 | F6 | 26 files use `EVP_*`; `src/auth/gsi`, `src/tpc`, `src/auth/crypto`, `src/auth/token`, `src/s3` | OpenSSL `*_new`/`d2i_*`/`PEM_read_*`/`BIO_new` with error returns; needs per-function verification that **every** return path frees. Manual audit cannot guarantee coverage at this scale. | High | LSan/valgrind CI is the real guard (W6) + scoped idiom (W3) |
 | F7 | `src/dashboard`, `src/auth/token`, `src/metrics`, `src/query`, `src/s3` (jansson, 10 files) | `json_t` ownership (borrowed `json_object_get` vs owned `json_loads`/`*_new`; stealing `json_object_set_new`) is error-prone → leak or double-decref. | Med | Ownership audit + LSan (W6); jansson cheatsheet in W3 |
 | F8 | systemic: **33 files `ngx_alloc`** vs **7 files `ngx_pool_cleanup_add`** | Raw `ngx_alloc` on connection/persistent pools in the long-lived **stream path** relies on a manual `ngx_free` that a session-teardown error path can skip. | Med | Cleanup-registration discipline + lint (W4, W8) |
-| F9 | `src/cache/evict_candidates.c:231,237` | `realloc` growth (`list->evicted`, `list->elts`) — classic “`p = realloc(p,…)` loses the old pointer on NULL” + unbounded growth risk if the candidate set is attacker-influenced. | Med | `realloc`-safe helper + cap (W1, W2) |
+| F9 | `src/fs/cache/evict_candidates.c:231,237` | `realloc` growth (`list->evicted`, `list->elts`) — classic “`p = realloc(p,…)` loses the old pointer on NULL” + unbounded growth risk if the candidate set is attacker-influenced. | Med | `realloc`-safe helper + cap (W1, W2) |
 | F10 | `src/connection/fd_table.c` (0–255 handles) | Confirm every error path that opens an fd into the table also releases it on session close / failed-open; an fd leaked into a slot is both a descriptor leak and a logic hazard. | Med | Audit + LSan/fd-count assertion in tests (W6) |
 
 No file using `ngx_alloc` was found to lack *any* free — so the risk is
@@ -311,15 +311,15 @@ Allocations whose size derives from attacker-controlled input, to be confirmed
 capped + overflow-checked:
 
 - `src/read/readv.c:79,250` — `segment_count * sizeof` *(F1, no callsite cap)*
-- `src/cache/origin_response.c:60` — `*dlen+1` *(capped ✓ `max_body`)*
+- `src/fs/cache/origin_response.c:60` — `*dlen+1` *(capped ✓ `max_body`)*
 - `src/tpc/io.c:118` — `*dlen+1` *(capped ✓ `TPC_RESP_MAX_BODY`)*
 - `src/query/prepare.c:317` — `cur_dlen+1` *(verify `MAX_PREPARE_PAYLOAD` gate)*
-- `src/cache/origin_protocol.c:220,321` — `malloc(total)` *(verify cap)*
+- `src/fs/cache/origin_protocol.c:220,321` — `malloc(total)` *(verify cap)*
 - `src/proxy/forward_relay_dispatch.c:136`, `forward_rewrite_helpers.c:61,139`
   — `ngx_alloc(total/new_total)` *(verify `XROOTD_PROXY_MAX_BODY`)*
 - `src/webdav/dead_props.c:129,285,321` — XML len-derived *(verify cap)*
 - `src/core/compat/namespace_ops.c:114` — `list_len` *(verify source)*
-- `src/cache/evict_candidates.c:231,237,251` — `realloc` growth *(F9)*
+- `src/fs/cache/evict_candidates.c:231,237,251` — `realloc` growth *(F9)*
 - `src/tpc/gsi_outbound_exchange.c:222,271,335,404,439` — exchange buffers *(F2)*
 - `src/s3/copy.c:41`, `src/auth/crypto/ocsp.c:524`, `src/write/chkpoint*.c:84,86`
   — header/DER/path-len derived *(verify caps)*
@@ -329,9 +329,9 @@ capped + overflow-checked:
 - OpenSSL EVP/BIO/X509/EC/BN: `src/tpc/gsi_outbound_*` (densest),
   `src/auth/gsi/*`, `src/auth/crypto/*`, `src/auth/token/*`, `src/s3/auth_sigv4_*`,
   `src/auth/sss/*` — 26 files total.
-- libcurl: `src/webdav/tpc*`, `src/cache/origin*` (1 `curl_easy_init` site —
+- libcurl: `src/webdav/tpc*`, `src/fs/cache/origin*` (1 `curl_easy_init` site —
   verify `curl_easy_cleanup` + `curl_slist_free_all` on all returns).
 - jansson: `src/dashboard`, `src/auth/token`, `src/metrics`, `src/query`, `src/s3`,
   `src/auth/gsi` — 10 files; audit borrowed-vs-owned refs.
 - File descriptors: `src/connection/fd_table.c` (F10), `src/core/compat/staged_file.c`,
-  `src/cache`, `src/tpc/io.c`.
+  `src/fs/cache`, `src/tpc/io.c`.

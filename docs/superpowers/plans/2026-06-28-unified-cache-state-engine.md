@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Give `src/cache/` one shared per-file persistence-state engine that both the read-fill and write-back halves consult, plus config/decision parity and a stale-dirty reaper, all on the existing POSIX cache path with zero regression.
+**Goal:** Give `src/fs/cache/` one shared per-file persistence-state engine that both the read-fill and write-back halves consult, plus config/decision parity and a stale-dirty reaper, all on the existing POSIX cache path with zero regression.
 
 **Architecture:** Extend the `.cinfo` sidecar (today a per-block *present* bitmap) to v3 with file-level *dirty*/write-back fields, keeping the `flock(2)` read-modify-write. Wire read-fill → present, the write path → dirty (coarsely, durably), write-through flush → clean. Lift the write-through prefix/size/regex matcher into one shared admission filter both halves call. Add a periodic per-worker reaper that removes dirty staging older than a configurable age.
 
@@ -18,15 +18,15 @@
 - **Every state-engine call is best-effort:** a failure logs and the caller proceeds; it never fails a client read/write.
 - **Zero regression:** when no state root resolves, the write/read paths behave exactly as today (in-memory handle dirty state only).
 - **Metrics low-cardinality:** no paths/UUIDs in labels.
-- **flock RMW template:** `open(O_RDWR|O_CREAT|O_NOCTTY|O_CLOEXEC|O_NOFOLLOW,0644)` → `flock(LOCK_EX)` (EINTR loop) → read-current → mutate → `cinfo_write_fd` → `flock(LOCK_UN)` → `close`. Copy from `xrootd_cache_cinfo_record_block` (`src/cache/cinfo.c:313`).
+- **flock RMW template:** `open(O_RDWR|O_CREAT|O_NOCTTY|O_CLOEXEC|O_NOFOLLOW,0644)` → `flock(LOCK_EX)` (EINTR loop) → read-current → mutate → `cinfo_write_fd` → `flock(LOCK_UN)` → `close`. Copy from `xrootd_cache_cinfo_record_block` (`src/fs/cache/cinfo.c:313`).
 
 ---
 
 ### Task 1: `.cinfo` v3 record — grow the header, bump version, v2-compat reader
 
 **Files:**
-- Modify: `src/cache/cinfo.h` (struct + version + new flag)
-- Modify: `src/cache/cinfo.c` (`cinfo_header_ok`, `xrootd_cache_cinfo_load`, a frozen v2 reader)
+- Modify: `src/fs/cache/cinfo.h` (struct + version + new flag)
+- Modify: `src/fs/cache/cinfo.c` (`cinfo_header_ok`, `xrootd_cache_cinfo_load`, a frozen v2 reader)
 - Test: `tests/c/test_cinfo.c` (+ run via `tests/c/run_cinfo_tests.sh`)
 
 **Interfaces:**
@@ -67,7 +67,7 @@ Register the call in `main()` next to the other `test_*()` calls.
 Run: `tests/c/run_cinfo_tests.sh`
 Expected: compile error (fields `dirty_lo`/… and `XROOTD_CINFO_F_DIRTY` undeclared) OR an assertion failure.
 
-- [ ] **Step 3: Add the fields + flag + version bump** — `src/cache/cinfo.h`.
+- [ ] **Step 3: Add the fields + flag + version bump** — `src/fs/cache/cinfo.h`.
 
 In the `flags` block add:
 ```c
@@ -87,7 +87,7 @@ Append to `xrootd_cache_cinfo_t`, immediately before `etag_len` (keep the uint64
     uint64_t bytes_flushed;  /* cumulative mirrored bytes */
 ```
 
-- [ ] **Step 4: Add the frozen v2 layout + compat read** — `src/cache/cinfo.c`, above `xrootd_cache_cinfo_load`.
+- [ ] **Step 4: Add the frozen v2 layout + compat read** — `src/fs/cache/cinfo.c`, above `xrootd_cache_cinfo_load`.
 
 ```c
 /* Frozen v2 on-disk header (pre-write-back fields). A v2 sidecar predates the
@@ -192,8 +192,8 @@ Register in `main()`. Run `tests/c/run_cinfo_tests.sh` → both new tests pass.
 ### Task 2: dirty API — `mark_dirty` / `mark_clean` / `dirty_extent`
 
 **Files:**
-- Modify: `src/cache/cinfo.h` (3 prototypes)
-- Modify: `src/cache/cinfo.c` (3 functions, flock RMW)
+- Modify: `src/fs/cache/cinfo.h` (3 prototypes)
+- Modify: `src/fs/cache/cinfo.c` (3 functions, flock RMW)
 - Test: `tests/c/test_cinfo.c`
 
 **Interfaces:**
@@ -242,7 +242,7 @@ Register in `main()`.
 Run: `tests/c/run_cinfo_tests.sh`
 Expected: link/compile error — the three functions are undeclared.
 
-- [ ] **Step 3: Declare the prototypes** — `src/cache/cinfo.h`, after `xrootd_cache_cinfo_record_block`.
+- [ ] **Step 3: Declare the prototypes** — `src/fs/cache/cinfo.h`, after `xrootd_cache_cinfo_record_block`.
 
 ```c
 /* Mark [off,off+len) dirty for cache_path; sets dirty_since on the clean→dirty
@@ -262,7 +262,7 @@ ngx_int_t xrootd_cache_cinfo_dirty_extent(const char *cache_path, uint64_t *lo,
     uint64_t *hi, uint64_t *dirty_since);
 ```
 
-- [ ] **Step 4: Implement the three functions** — `src/cache/cinfo.c`, after `xrootd_cache_cinfo_record_block`. Model the flock RMW on `record_block` (lines 313-400). `mark_dirty` reads the current record (header + present bitmap), mutates header dirty fields, rewrites header + the SAME bitmap (so present is preserved):
+- [ ] **Step 4: Implement the three functions** — `src/fs/cache/cinfo.c`, after `xrootd_cache_cinfo_record_block`. Model the flock RMW on `record_block` (lines 313-400). `mark_dirty` reads the current record (header + present bitmap), mutates header dirty fields, rewrites header + the SAME bitmap (so present is preserved):
 
 ```c
 /* Load header+bitmap from an flock'd fd into hdr/*bits (malloc'd); reset to fresh
@@ -401,7 +401,7 @@ Register in `main()`, run `tests/c/run_cinfo_tests.sh` → passes.
 ### Task 3: shared admission filter `cache_admit.{c,h}`
 
 **Files:**
-- Create: `src/cache/cache_admit.h`, `src/cache/cache_admit.c`
+- Create: `src/fs/cache/cache_admit.h`, `src/fs/cache/cache_admit.c`
 - Modify: repo-root `config` (register `cache_admit.c` in `NGX_ADDON_SRCS`)
 - Test: Create `tests/c/test_cache_admit.c` + `tests/c/run_cache_admit_tests.sh`
 
@@ -415,7 +415,7 @@ Register in `main()`, run `tests/c/run_cinfo_tests.sh` → passes.
 
 ```c
 /* test_cache_admit.c — deny>allow precedence, whitelist, size, regex. */
-#include "../../src/cache/cache_admit.h"
+#include "../../src/fs/cache/cache_admit.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -454,7 +454,7 @@ Create `tests/c/run_cache_admit_tests.sh` compiling `cache_admit.c` + the test w
 Run: `tests/c/run_cache_admit_tests.sh`
 Expected: compile error — `cache_admit.h` / `xrootd_cache_admit` do not exist.
 
-- [ ] **Step 3: Write the header** — `src/cache/cache_admit.h`.
+- [ ] **Step 3: Write the header** — `src/fs/cache/cache_admit.h`.
 
 ```c
 #ifndef XROOTD_CACHE_ADMIT_H
@@ -483,7 +483,7 @@ xrootd_cache_admit_e xrootd_cache_admit(const xrootd_cache_admit_cfg_t *cfg,
 #endif
 ```
 
-- [ ] **Step 4: Write the implementation** — `src/cache/cache_admit.c` (lift the matcher from `writethrough_decision.c`).
+- [ ] **Step 4: Write the implementation** — `src/fs/cache/cache_admit.c` (lift the matcher from `writethrough_decision.c`).
 
 ```c
 #include "cache_admit.h"
@@ -523,7 +523,7 @@ xrootd_cache_admit(const xrootd_cache_admit_cfg_t *cfg, const char *path,
 
 - [ ] **Step 5: Register the source + run the test**
 
-Add to the repo-root `config` `NGX_ADDON_SRCS` list (next to the other `src/cache/*.c`): `$ngx_addon_dir/src/cache/cache_admit.c`. Then:
+Add to the repo-root `config` `NGX_ADDON_SRCS` list (next to the other `src/fs/cache/*.c`): `$ngx_addon_dir/src/fs/cache/cache_admit.c`. Then:
 ```bash
 tests/c/run_cache_admit_tests.sh
 ```
@@ -541,7 +541,7 @@ Expected: build completes, `cache_admit.o` linked, exit 0.
 ### Task 4: write-through decision delegates to the shared filter
 
 **Files:**
-- Modify: `src/cache/writethrough_decision.c` (`xrootd_wt_default_decide`)
+- Modify: `src/fs/cache/writethrough_decision.c` (`xrootd_wt_default_decide`)
 - Test: existing write-through pytest suite (regression)
 
 **Interfaces:**
@@ -591,7 +591,7 @@ Expected: build exit 0; write-through tests pass (same as before the change).
 
 **Files:**
 - Modify: `src/core/types/config.h` (struct fields)
-- Modify: `src/cache/directives.c` (parsers) + the module command table (`src/stream/module.c`)
+- Modify: `src/fs/cache/directives.c` (parsers) + the module command table (`src/stream/module.c`)
 - Modify: `src/core/config/server_conf.c` (merge defaults)
 
 **Interfaces:**
@@ -625,7 +625,7 @@ Expected: build exit 0; write-through tests pass (same as before the change).
       NGX_STREAM_SRV_CONF_OFFSET, 0, NULL },
 ```
 
-- [ ] **Step 3: Write the prefix slot parsers** — `src/cache/directives.c` (mirror the write-through prefix parser; push an `xrootd_wt_prefix_entry_t`).
+- [ ] **Step 3: Write the prefix slot parsers** — `src/fs/cache/directives.c` (mirror the write-through prefix parser; push an `xrootd_wt_prefix_entry_t`).
 
 ```c
 static char *
@@ -675,15 +675,15 @@ Expected: `configuration file /tmp/cfgtest.conf test is successful`.
 ### Task 6: state-root resolution + read admission via the shared filter
 
 **Files:**
-- Modify: `src/cache/paths.c` (+ its header) — state-root resolver
-- Modify: `src/cache/fetch.c` — read admission through `xrootd_cache_admit`
+- Modify: `src/fs/cache/paths.c` (+ its header) — state-root resolver
+- Modify: `src/fs/cache/fetch.c` — read admission through `xrootd_cache_admit`
 - Test: e2e (Task 10) + a config-driven manual check here
 
 **Interfaces:**
 - Produces: `const char *xrootd_cache_state_root(const ngx_stream_xrootd_srv_conf_t *conf);` — returns `cache_state_root` if set, else `cache_root` if set, else `NULL`.
 - Produces: `int xrootd_cache_state_path(const ngx_stream_xrootd_srv_conf_t *conf, const char *clean_path, char *dst, size_t dstsz);` — maps a logical path to the `.cinfo`-bearing cache/state path under the state root (reuse `xrootd_cache_path_for_resolved` logic, but rooted at the state root). Returns 0/-1.
 
-- [ ] **Step 1: Implement the resolver** — `src/cache/paths.c`.
+- [ ] **Step 1: Implement the resolver** — `src/fs/cache/paths.c`.
 
 ```c
 const char *
@@ -696,7 +696,7 @@ xrootd_cache_state_root(const ngx_stream_xrootd_srv_conf_t *conf) {
 ```
 Declare it in the cache header that exposes `xrootd_cache_path_for_resolved` (`open.h` or `cache_internal.h`). For `xrootd_cache_state_path`, if `cache_state_root` is unset the state path IS the cache path (already produced by `xrootd_cache_path_for_resolved`); only when a *separate* `cache_state_root` is set do you remap. Implement as: if `cache_state_root.len==0`, delegate to `xrootd_cache_path_for_resolved`; else swap the root prefix.
 
-- [ ] **Step 2: Route read admission through the shared filter** — `src/cache/fetch.c`. Find the existing admission check (size + include_regex, returns `NGX_DECLINED`) and replace it with:
+- [ ] **Step 2: Route read admission through the shared filter** — `src/fs/cache/fetch.c`. Find the existing admission check (size + include_regex, returns `NGX_DECLINED`) and replace it with:
 
 ```c
     {
@@ -727,7 +727,7 @@ Expected: exit 0. (Behavioral e2e for prefix admit/redirect is in Task 10.)
 
 **Files:**
 - Modify: `src/write/sync.c` and `src/read/close.c` (call `mark_dirty` at coarse points)
-- Modify: `src/cache/writethrough_flush.c` (call `mark_clean` on successful flush)
+- Modify: `src/fs/cache/writethrough_flush.c` (call `mark_clean` on successful flush)
 
 **Interfaces:**
 - Consumes: `xrootd_cache_cinfo_mark_dirty` / `_mark_clean` (Task 2), `xrootd_cache_state_path` (Task 6), the handle's `wt_enabled` + dirty offset/bytes (`xrootd_file_t`).
@@ -755,7 +755,7 @@ Define `XROOTD_CACHE_DIRTY_BLOCK` (e.g. the cache slice size or a fixed 1 MiB) i
 
 - [ ] **Step 2: Persist dirty on the clean→dirty transition** — in the write handler that sets `wt_dirty_offset` from -1 to a value the first time (search `wt_dirty_offset` assignment in `src/write/write.c` / `writethrough_metrics.h` callers), add the same best-effort `mark_dirty` call guarded by the transition. (Do NOT put it in the `writethrough_metrics.h` inline — call it from the `.c` handler once per transition.)
 
-- [ ] **Step 3: Clean on successful flush** — `src/cache/writethrough_flush.c`, in the flush done/success path (`xrootd_wt_run_flush` returns success, or the done callback), after the handle is marked clean:
+- [ ] **Step 3: Clean on successful flush** — `src/fs/cache/writethrough_flush.c`, in the flush done/success path (`xrootd_wt_run_flush` returns success, or the done callback), after the handle is marked clean:
 
 ```c
     {
@@ -782,13 +782,13 @@ Expected: build exit 0; existing write-through tests still pass (the new calls a
 ### Task 8: eviction guard — never evict a dirty file
 
 **Files:**
-- Modify: `src/cache/evict_candidates.c` (skip dirty during the scan)
+- Modify: `src/fs/cache/evict_candidates.c` (skip dirty during the scan)
 - Test: e2e (Task 10) + a focused build check
 
 **Interfaces:**
 - Consumes: `xrootd_cache_cinfo_dirty_extent` (Task 2).
 
-- [ ] **Step 1: Skip dirty files in the candidate scan** — `src/cache/evict_candidates.c`, in `xrootd_cache_collect_dir`, after the per-file `lstat`/regular-file check and before pushing the candidate, add:
+- [ ] **Step 1: Skip dirty files in the candidate scan** — `src/fs/cache/evict_candidates.c`, in `xrootd_cache_collect_dir`, after the per-file `lstat`/regular-file check and before pushing the candidate, add:
 
 ```c
         {
@@ -812,7 +812,7 @@ Expected: exit 0.
 ### Task 9: stale-dirty reaper + maintenance timer + metric
 
 **Files:**
-- Create: `src/cache/cache_reap.h`, `src/cache/cache_reap.c`
+- Create: `src/fs/cache/cache_reap.h`, `src/fs/cache/cache_reap.c`
 - Modify: repo-root `config` (register `cache_reap.c`)
 - Modify: `src/core/config/process.c` (arm the reaper timer, mirror `xrootd_stage_reap_timer`)
 - Modify: `src/metrics/` (a `cache_dirty_reaped` counter — count + bytes)
@@ -820,7 +820,7 @@ Expected: exit 0.
 **Interfaces:**
 - Produces: `ngx_uint_t xrootd_cache_reap_dirty(const ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log);` — scans the state root, removes records `DIRTY && now-dirty_since > conf->cache_dirty_max_age` (data file + `.cinfo`/`.meta`/slice sidecars), returns the count reaped. No-op when `cache_dirty_max_age==0` or no state root.
 
-- [ ] **Step 1: Write the reaper** — `src/cache/cache_reap.c`. Reuse the recursive scan shape from `evict_candidates.c` (`opendir`/`readdir`/`skip_name`/`lstat`/recurse), but operate on each regular cache data file: load its dirty extent; if dirty and aged, `unlink` the data file + its sidecars and bump the metric.
+- [ ] **Step 1: Write the reaper** — `src/fs/cache/cache_reap.c`. Reuse the recursive scan shape from `evict_candidates.c` (`opendir`/`readdir`/`skip_name`/`lstat`/recurse), but operate on each regular cache data file: load its dirty extent; if dirty and aged, `unlink` the data file + its sidecars and bump the metric.
 
 ```c
 #include "cache_reap.h"
@@ -876,7 +876,7 @@ xrootd_cache_reap_dirty(const ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log
     return reap_dir(root, cutoff, rs.st_dev, log);
 }
 ```
-Header `cache_reap.h` declares `xrootd_cache_reap_dirty`. Register `src/cache/cache_reap.c` in the repo-root `config`.
+Header `cache_reap.h` declares `xrootd_cache_reap_dirty`. Register `src/fs/cache/cache_reap.c` in the repo-root `config`.
 
 - [ ] **Step 2: Arm the timer** — `src/core/config/process.c`, mirror `xrootd_stage_reap_timer` (lines 114-132 + the `ngx_add_timer` in `init_process`).
 
@@ -922,7 +922,7 @@ Expected: `cache_reap.o` linked, exit 0.
 
 **Files:**
 - Create: `tests/test_cache_state_engine.py`
-- Modify: `src/cache/README.md` (document v3 record, state root, reaper, parity directives)
+- Modify: `src/fs/cache/README.md` (document v3 record, state root, reaper, parity directives)
 
 **Interfaces:**
 - Consumes: all prior tasks.
@@ -962,7 +962,7 @@ def write_cinfo_dirty(path, size, block_size, mtime, dirty_since, dlo=0, dhi=409
         f.write(hdr + tail + bm)
 ```
 `CINFO_HDR_SIZE` = `sizeof(xrootd_cache_cinfo_t)`. Compute it once in the test's
-module-scope setup by compiling a 3-line C probe that includes `src/cache/cinfo.h`
+module-scope setup by compiling a 3-line C probe that includes `src/fs/cache/cinfo.h`
 and prints `sizeof(xrootd_cache_cinfo_t)`, reusing the exact `gcc`
 include/stub flags from `tests/c/run_cinfo_tests.sh` (which already compiles
 `cinfo.c` nginx-free). Cache the value as a module constant. In Task 1 Step 5, also
@@ -1056,7 +1056,7 @@ def test_dirty_file_not_evicted(tmp_path):
 Run: `TEST_SKIP_SERVER_SETUP=1 PYTHONPATH=tests pytest tests/test_cache_state_engine.py -v 2>&1 | tail -20`
 Expected: all pass. (If a dedicated-server-based test cannot resolve its cache dir, convert it to the self-spawned `_spawn_cache_nginx` form, which is fully self-contained.)
 
-- [ ] **Step 3: Update the README** — `src/cache/README.md`: document the v3 `.cinfo` dirty fields, `xrootd_cache_state_root` (defaults to cache_root), `xrootd_cache_dirty_max_age` + the reaper, the shared admission filter (`cache_admit.c`) + `xrootd_cache_{allow,deny}_prefix`, and the eviction guard. Note the deliberate no-read-mode-knob asymmetry.
+- [ ] **Step 3: Update the README** — `src/fs/cache/README.md`: document the v3 `.cinfo` dirty fields, `xrootd_cache_state_root` (defaults to cache_root), `xrootd_cache_dirty_max_age` + the reaper, the shared admission filter (`cache_admit.c`) + `xrootd_cache_{allow,deny}_prefix`, and the eviction guard. Note the deliberate no-read-mode-knob asymmetry.
 
 - [ ] **Step 4: Full regression**
 

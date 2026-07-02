@@ -716,7 +716,7 @@ def test_include_regex_excludes_nonmatch(tmp_path):
 Run: `PYTHONPATH=tests python -m pytest tests/test_cache_partial_fill.py -k "cached or excludes or cap" -v`
 Expected: all PASS (5 nodes).
 
-> If a directive name is rejected by `nginx -t` (surfaced as a node-start `RuntimeError`), confirm the exact directive spelling with `grep -rn 'ngx_string("xrootd_cache_' src/cache/directives.c` and adjust — do not invent directives.
+> If a directive name is rejected by `nginx -t` (surfaced as a node-start `RuntimeError`), confirm the exact directive spelling with `grep -rn 'ngx_string("xrootd_cache_' src/fs/cache/directives.c` and adjust — do not invent directives.
 
 - [ ] **Step 3: Stage + report.** Do NOT commit.
 
@@ -843,7 +843,7 @@ Create `docs/refactor/phase-64-generic-slice-fill.md`:
 2026-07-01).
 
 ## Gap
-`src/cache/cache_storage.c` composes the `sd_cache` slice decorator only when
+`src/fs/cache/cache_storage.c` composes the `sd_cache` slice decorator only when
 `cache_slice_size > 0 && cache_origin_host.len > 0`, hardwiring the source to
 `xrootd_sd_xroot_create_origin(...)`. So sparse partial fill works only for a
 root:// origin; posix/pblock/http/s3/rados backends silently ignore

@@ -245,13 +245,13 @@ These run on **every** request, so wins compound across all protocols.
 
 ### C.1 `[AUDIT]` One canonicalization + reuse the result — **P1-4**
 
-`src/path/unified.c` calls `realpath()` (and the missing-parent/tail variants)
+`src/fs/path/unified.c` calls `realpath()` (and the missing-parent/tail variants)
 multiple times per resolve (`:468`, `:334`, `:384`), plus
 `resolve_path_variants.c:16` re-derives the canonical root that the caller already
 has. Each `realpath` is O(depth) `lstat`s; a write into a deep tree can cost
 **10–30 syscalls**. Carry a per-request resolved-path struct (canonical path + its
 `stat` + the relative/base components) so downstream `beneath`/open/stat reuse it
-instead of re-scanning (`src/path/beneath.c:83`, `resolve_confined_helpers.c`).
+instead of re-scanning (`src/fs/path/beneath.c:83`, `resolve_confined_helpers.c`).
 
 - **Invariant note:** Invariant #4 — *every* wire path still resolves before
   `open()`. The optimization is to resolve **once** and thread the result, not to
@@ -263,7 +263,7 @@ instead of re-scanning (`src/path/beneath.c:83`, `resolve_confined_helpers.c`).
 
 `src/auth/authz/find_rule.c:58-71,93-106,128-143` calls `strlen(rule[i].resolved)`
 **inside** the match loop. Precompute `resolved_len` at config finalization
-(`src/path/helpers.c`) and store it on the rule struct. Pure config-time cost,
+(`src/fs/path/helpers.c`) and store it on the rule struct. Pure config-time cost,
 zero runtime.
 
 ### C.3 `[AUDIT]` Hash VO membership instead of comma-string scan — **P1-6**
@@ -330,7 +330,7 @@ lock scope. Pre-tokenize export paths at registration.
 
 ### D.3 `[AUDIT]` Cache fill blocks the thread pool on `fsync` — **P2-1**
 
-`src/cache/fetch.c:~113` does a full `fsync(outfd)` per completed fill on a pool
+`src/fs/cache/fetch.c:~113` does a full `fsync(outfd)` per completed fill on a pool
 thread; with a 32-thread pool and 10–100 ms `fsync`, fill throughput caps low and
 clients sit in `kXR_wait`. Use `sync_file_range(..., SYNC_FILE_RANGE_WRITE)` for
 async writeback and reserve a durability barrier for the final
@@ -344,13 +344,13 @@ high-RTT links.
 
 ### D.4 `[AUDIT]` Cache-hit metadata read per request
 
-`src/cache/meta.c:69-109` does open+read+close of the `.meta` sidecar on the cache
+`src/fs/cache/meta.c:69-109` does open+read+close of the `.meta` sidecar on the cache
 **hit** path (`open.c:155`). Cache parsed metadata per worker with a short TTL (or
 a small SHM metadata cache) to make hits truly syscall-light.
 
 ### D.5 `[AUDIT]` Slice eviction uses `glob()`
 
-`src/cache/slice_fill.c:72-77` → `slice.c:~201` `glob()` to enumerate slices on
+`src/fs/cache/slice_fill.c:72-77` → `slice.c:~201` `glob()` to enumerate slices on
 invalidation; pathological for files with 10⁵+ slices. Maintain a per-file slice
 list in the metadata sidecar for O(1) eviction.
 

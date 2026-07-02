@@ -218,7 +218,7 @@ module calls `xrootd_srv_register()` after each successful cache fill and
 exact current contents of the cache, and clients are redirected to the cache
 for files it holds.
 
-Key files: `src/cache/thread.c`, `src/cache/evict.c`.
+Key files: `src/fs/cache/thread.c`, `src/fs/cache/evict.c`.
 
 ---
 

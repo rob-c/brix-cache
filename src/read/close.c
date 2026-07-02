@@ -33,7 +33,7 @@
 #include "close.h"
 #include "core/ngx_xrootd_module.h"
 #include "ratelimit/throttle_compat.h"   /* phase-59 W3a: open-files release */
-#include "cache/cache_internal.h"
+#include "fs/cache/cache_internal.h"
 #include "core/compat/staged_file.h"
 #include "fs/xfer/xfer.h"   /* unified transfer audit ledger (root:// STAGE) */
 #include "write/wrts_journal.h"

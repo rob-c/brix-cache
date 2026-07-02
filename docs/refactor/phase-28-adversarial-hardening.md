@@ -48,7 +48,7 @@ integrity of redirect/routing decisions; availability for honest users.
 The audit found the security-critical core is **well built**. New work must not
 regress these, and should extend their rigor to the edges.
 
-- **Atomic, TOCTOU-free confinement.** `src/path/beneath.c` uses
+- **Atomic, TOCTOU-free confinement.** `src/fs/path/beneath.c` uses
   `openat2(2)` with `RESOLVE_BENEATH | RESOLVE_NO_MAGICLINKS` (hard-fails build
   on kernels < 5.6). No stat-then-open race, no symlink/magic-link escape. This
   is best-in-class — the gold standard the rest of the plan leans on.
@@ -107,7 +107,7 @@ attacker-controlled argv values**, which `--` + leading-dash rejection closes.
 | B2 | `src/webdav/tpc_curl.c` | Host is validated/policy-checked, then curl **re-resolves DNS** and connects → **DNS-rebinding TOCTOU**: policy sees a public IP, curl connects to an internal one. | High | Resolve once, validate the *resolved* IP set, pin curl to it (`CURLOPT_RESOLVE`/`OPENSOCKETFUNCTION`); re-check post-resolution |
 | B3 | `src/webdav/tpc_curl.c:63–72,275–287` | Sets `SSLCERT/SSLKEY/CAINFO/CAPATH` but **does not explicitly set `CURLOPT_SSL_VERIFYPEER=1` / `VERIFYHOST=2`** — relies on curl's compiled default. A build/default change silently disables verification. | Med | Set both explicitly; never expose a "disable verify" knob |
 | B4 | `src/webdav/tpc_cred.c`, `src/tpc/*` | **Confused deputy:** the server uses *its own* delegated credential/token to fetch a *client-named* source → client redirects the server's privileged identity at an unintended target. | Med | Bind the delegated credential's usable audience/host to the request's intended source; refuse cross-target reuse |
-| B5 | `src/cache/origin_connection.c`, `src/proxy/*`, `src/mirror/*` | Origin/upstream/mirror targets — confirm they are **config-fixed**, never request-derived; if any path lets a header pick the upstream, it is SSRF. | Med | Audit; assert upstream selection is config-bound only |
+| B5 | `src/fs/cache/origin_connection.c`, `src/proxy/*`, `src/mirror/*` | Origin/upstream/mirror targets — confirm they are **config-fixed**, never request-derived; if any path lets a header pick the upstream, it is SSRF. | Med | Audit; assert upstream selection is config-bound only |
 
 ### C — Trust & redirect poisoning (cluster/PKI integrity)
 

@@ -14,11 +14,11 @@ This document outlines the strategy for "Deep Unification"—moving core logic i
 
 ### A. The "Universal" Path Resolver
 Currently, the codebase has two primary path resolvers:
-1.  **Stream Resolver (`src/path/resolve_path_variants.c`):** Integrated with `ngx_str_t`, handles `mkdirpath` logic, and logs via stream context.
+1.  **Stream Resolver (`src/fs/path/resolve_path_variants.c`):** Integrated with `ngx_str_t`, handles `mkdirpath` logic, and logs via stream context.
 2.  **HTTP/S3 Resolver (`src/core/compat/path.c`):** Pure C, handles `ENOENT` parent walking for PUT/COPY, and uses numeric return codes.
 
 #### Proposed Architecture: `xrootd_path_v2`
-A single resolver will be implemented in `src/path/unified.c` with the following signature:
+A single resolver will be implemented in `src/fs/path/unified.c` with the following signature:
 
 ```c
 typedef struct {
@@ -107,7 +107,7 @@ Each phase has a dedicated implementation plan document. Phases must be complete
 
 | Phase | Document | Focus | Risk | Est. Effort |
 |:---|:---|:---|:---|:---|
-| 1 | [PHASE1_RESOLVER_IMPLEMENTATION.md](unification/PHASE1_RESOLVER_IMPLEMENTATION.md) | Unified path resolver (`src/path/unified.c`) | HIGH | 8–12 h |
+| 1 | [PHASE1_RESOLVER_IMPLEMENTATION.md](unification/PHASE1_RESOLVER_IMPLEMENTATION.md) | Unified path resolver (`src/fs/path/unified.c`) | HIGH | 8–12 h |
 | 2 | [PHASE2_IDENTITY_ABSTRACTION.md](unification/PHASE2_IDENTITY_ABSTRACTION.md) | Single `xrootd_identity_t` for GSI/Token/SSS/SigV4 | HIGH | 10–14 h |
 | 3 | [PHASE3_VFS_OPERATIONS.md](unification/PHASE3_VFS_OPERATIONS.md) | `src/fs/` VFS layer — open/read/write/stat/dir | CRITICAL | 16–24 h |
 | 4 | [PHASE4_CACHE_UNIFICATION.md](unification/PHASE4_CACHE_UNIFICATION.md) | Transparent cache for all three protocols | HIGH | 12–16 h |
@@ -130,7 +130,7 @@ graph LR
 ```
 
 ### Phase 1: Resolver Consolidation
-- Move `src/core/compat/path.c` logic into `src/path/unified.c`.
+- Move `src/core/compat/path.c` logic into `src/fs/path/unified.c`.
 - Replace all protocol-specific resolution calls with `xrootd_path_resolve()`.
 - **Validation:** Cross-protocol test suite (`tests/run_cross_compatible_tests.sh`).
 
@@ -145,7 +145,7 @@ graph LR
 - Enforce TLS buffer invariant and pgwrite CRC32c in VFS layer.
 
 ### Phase 4: Cache Unification
-- Introduce `src/cache/open.c` as the unified cache entry point called by `xrootd_vfs_open()`.
+- Introduce `src/fs/cache/open.c` as the unified cache entry point called by `xrootd_vfs_open()`.
 - Extend cache to serve WebDAV and S3 reads (currently stream-only).
 - Add `.meta` sidecar for ETag-based freshness; unify writethrough decision.
 

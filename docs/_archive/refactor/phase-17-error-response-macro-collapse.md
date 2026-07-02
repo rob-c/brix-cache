@@ -45,7 +45,7 @@ Three structurally different patterns share surface similarity but must be left
 as-is:
 
 **AIO/TPC callback pattern** (`src/core/aio/write.c`, `src/core/aio/dirlist.c`,
-`src/tpc/done.c`, `src/cache/thread.c`, `src/cache/writethrough_flush.c` —
+`src/tpc/done.c`, `src/fs/cache/thread.c`, `src/fs/cache/writethrough_flush.c` —
 ~30 instances):
 
 ```c
@@ -205,7 +205,7 @@ XROOTD_BAIL_ERR(ctx, c, op, verb, "-", "-", kXR_FileNotOpen,
 
 **Estimated savings: ~25 LoC** (5×5 avg).
 
-### `src/cache/open_or_fill.c` — 4 ERR
+### `src/fs/cache/open_or_fill.c` — 4 ERR
 
 Verb is `"OPEN"`, op is `XROOTD_OP_OPEN_RD`.
 
@@ -237,7 +237,7 @@ Verb is `"OPEN"`, op is `XROOTD_OP_OPEN_RD`.
 `src/session/lifecycle.c`, `src/read/stat.c`, `src/read/statx.c`,
 `src/read/locate.c` (REDIR), `src/write/truncate.c`,
 `src/write/writev.c`, `src/write/chkpoint.c`, `src/query/space.c`,
-`src/cache/writethrough_flush.c` (1 ERR only — not the void callbacks).
+`src/fs/cache/writethrough_flush.c` (1 ERR only — not the void callbacks).
 
 **Estimated savings: ~30 LoC combined**.
 

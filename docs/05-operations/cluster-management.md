@@ -167,11 +167,11 @@ recognises this node as a sub-manager rather than a leaf data server.
 
 ### M5 — Cache Node Integration
 
-After a cache fill completes (`src/cache/thread.c`), if `manager_mode` is on,
+After a cache fill completes (`src/fs/cache/thread.c`), if `manager_mode` is on,
 call `xrootd_srv_register(self_host, self_port, cached_path, ...)` so the
 registry reflects this cache node as a valid source for the file.
 
-When a file is evicted (`src/cache/evict.c`), call `xrootd_srv_unregister_path()`
+When a file is evicted (`src/fs/cache/evict.c`), call `xrootd_srv_unregister_path()`
 (a new single-path variant of unregister) to remove only that path from the
 cache node's entry.
 
@@ -221,7 +221,7 @@ stream {
 | M2 CMS server | `src/cms/server_handler.c`, `server_recv.c`, `server_send.c`, `server_timer.c`, `server_module.c` | `config` |
 | M3 dynamic redirect | — | `src/read/locate.c`, `src/read/open.c`, `src/session/protocol.c`, `src/core/types/config.h`, `src/stream/module.c`, `src/core/config/server_conf.c` |
 | M4 sub-manager | — | `src/cms/send.c` |
-| M5 cache integration | — | `src/cache/thread.c`, `src/cache/evict.c`, `src/manager/registry.c` |
+| M5 cache integration | — | `src/fs/cache/thread.c`, `src/fs/cache/evict.c`, `src/manager/registry.c` |
 
 ---
 

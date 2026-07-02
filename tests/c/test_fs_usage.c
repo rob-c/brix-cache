@@ -7,7 +7,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "../../src/cache/cache_fs_sampler.h"   /* xrootd_cache_sample_fresh (pure inline) */
+#include "../../src/fs/cache/cache_fs_sampler.h"   /* xrootd_cache_sample_fresh (pure inline) */
 
 int main(void) {
     /* never sampled (last_ms == 0) → always stale, regardless of ttl */

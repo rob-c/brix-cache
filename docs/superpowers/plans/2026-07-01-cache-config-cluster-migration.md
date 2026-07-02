@@ -6,7 +6,7 @@
 
 **Architecture:** `fetch.c` already has TWO fill paths: (a) the composable C-1 spine `xrootd_cache_fill_from_source(t, t->source_inst)` used when a registry/composable backend is the source, and (b) a legacy `cache_origin_scheme` switch (`http`/`s3`/`pelican`/`xroot`) that predates it. This migration builds a `source_inst` from the *legacy* `cache_origin` directives at config time, so path (a) serves every fill and path (b) becomes dead code and is deleted. The legacy DIRECTIVES keep parsing (they feed the translation), so all 22 tests keep working; the directive-removal (G6-literal) is a final, separately-gated task done only after every test is confirmed to run through the spine.
 
-**Tech Stack:** C (nginx stream module), the SD driver seam (`xrootd_sd_instance_t`), the composable cache spine (`src/cache/`, `src/fs/backend/cache/`), pytest + shell acceptance harnesses.
+**Tech Stack:** C (nginx stream module), the SD driver seam (`xrootd_sd_instance_t`), the composable cache spine (`src/fs/cache/`, `src/fs/backend/cache/`), pytest + shell acceptance harnesses.
 
 ## CLUSTER CLOSED 2026-07-01 — Row 2 landed, Task 5 declined by decision
 
@@ -16,7 +16,7 @@
 
 ## Findings During Execution (2026-07-01)
 
-- **Task 1 — DONE (confirmation, no code change).** The spine `xrootd_cache_fill_from_source` (`src/cache/fetch.c:331`) already does checksum-on-fill: it queries the xroot source's `kXR_Qcksum` into `t->origin_cks_*` (fetch.c:420-428) and finishes via `xrootd_cache_commit_staged` → `xrootd_cache_verify_part` under the `xrootd_cache_verify` policy. **Parity is intrinsic to the spine — no verify needs adding.** Confirmed against `tests/run_cache_backend_source.sh`.
+- **Task 1 — DONE (confirmation, no code change).** The spine `xrootd_cache_fill_from_source` (`src/fs/cache/fetch.c:331`) already does checksum-on-fill: it queries the xroot source's `kXR_Qcksum` into `t->origin_cks_*` (fetch.c:420-428) and finishes via `xrootd_cache_commit_staged` → `xrootd_cache_verify_part` under the `xrootd_cache_verify` policy. **Parity is intrinsic to the spine — no verify needs adding.** Confirmed against `tests/run_cache_backend_source.sh`.
 - **Concurrency resolved (was a suspected Task-2 blocker):** `sd_xroot_open` connects per `open()` call, storing the connection in *per-open* state (`st->oc`); the `xrootd_sd_instance_t` is stateless (conf-only). So a config-time SHARED `source_inst` is safe across concurrent thread-pool fills — no shared-connection hazard. (This also confirms the existing `cache_slice_inst` config-time sharing is safe.)
 - **GAP A — http/pelican had no SD instance. ✅ HTTP/HTTPS RESOLVED 2026-07-01; Pelican deferred.** The `sd_http` driver already existed (`src/fs/backend/http/sd_http.c` — HEAD-for-size + Range-GET pread + bearer auth, already used by the composable registry), so no new driver was needed. Added `xrootd_cache_build_http_origin` (fetch.c), wired HTTP/HTTPS into `cache_build_source`, removed the `http_download` branch from `xrootd_cache_fetch_origin`, and **deleted the dead `xrootd_cache_http_download`** (+ its header decl). HTTP/HTTPS now fill through the one spine. **Pelican stays on `pelican_download` — investigated 2026-07-01, deliberately NOT folded.** The fetch could route through a per-fill `sd_http` (discovery kept per-fill for resilience), BUT Pelican requires following the Director's **307 redirect** (`http_get_url` sets `CURLOPT_FOLLOWLOCATION`), and the shared S3 transport `sd_http` uses does NOT follow redirects and **cannot safely** — S3 SigV4 is signed for a specific host, so following a redirect would leak signed credentials to another host. The transport `request` vtable has no per-request redirect hook, so folding would need an invasive signature change (touching the S3-security-sensitive impl) or a parallel redirect-capable transport — poor cost/benefit for a niche feature that ALREADY reuses the shared verify path (`commit_part`). Decision: keep Pelican on `http_get_url`; **`http_get_url` is retained** (Pelican's redirect-following fetch). A full fold is only worth it alongside a general redirect-capable HTTP backend transport, tracked separately. Verified: `run_cache_http_source` + full cache regression green, guard GREEN. So after this, `xrootd_cache_fetch_origin` is just: `source_inst` (xroot/s3/http via the spine) → pelican (libcurl) → error.
 - **GAP B — two overlapping origin-credential field sets (auth-critical). ✅ RESOLVED 2026-07-01.** Root cause: the C-3 fields `cache_origin_bearer`/`x509_proxy`/`ca_dir` are populated ONLY from `wt_credential` (the WRITE-BACK flush credential, `runtime_server.c:301-337`) — they are NOT the read-origin credential. The read-origin credential is `cache_origin_proxy`/`cache_origin_cadir` (+ `cache_origin_token_file`, which has no directive → GSI-only in practice) + `cache_origin_family`. The slice block wrongly read the write-back fields AND hardcoded `XROOTD_AF_AUTO`, so a legacy `xrootd_cache_origin` + `xrootd_cache_origin_proxy` + `xrootd_cache_slice` config silently logged in ANONYMOUSLY (masked because `run_root_slice_fill.sh` uses `auth none`). **Fix:** extracted the read-origin mapping into ONE shared builder `xrootd_cache_build_origin(conf, log)` (`fetch.c`, declared in `cache_internal.h`), now called by BOTH `_xroot` (whole-file) and the slice block — they cannot drift. **Proof:** new `tests/run_cache_slice_gsi_legacy.sh` (legacy `cache_origin`+proxy+slice vs a GSI origin) PASSES with the fix and FAILS (`got=0`, anonymous rejected) with the bug reintroduced; negative control confirms the origin enforces GSI. Regression: 7 cache/credential harnesses green, guard GREEN. **The shared builder is now the single credential mapping the future `cache_source_inst` (Task 2) will use.**
@@ -37,15 +37,15 @@
 ### Task 1: Confirm the composable spine already does checksum-on-fill (parity baseline)
 
 **Files:**
-- Read: `src/cache/fill_source.c` (or wherever `xrootd_cache_fill_from_source` lives — `grep -rn 'xrootd_cache_fill_from_source' src/cache/`)
-- Read: `src/cache/commit.c` / `src/cache/fetch.c:37-63` (the `xrootd_cache_verify_part` call site)
+- Read: `src/fs/cache/fill_source.c` (or wherever `xrootd_cache_fill_from_source` lives — `grep -rn 'xrootd_cache_fill_from_source' src/fs/cache/`)
+- Read: `src/fs/cache/commit.c` / `src/fs/cache/fetch.c:37-63` (the `xrootd_cache_verify_part` call site)
 - Test: `tests/run_cache_backend_source.sh`
 
 **Interfaces:**
 - Consumes: `xrootd_cache_fill_from_source(xrootd_cache_fill_t *t, xrootd_sd_instance_t *source)` → `int` (0 ok, -1 err), `xrootd_cache_verify_part(xrootd_cache_fill_t *t, const char *part_path, ...)`.
 - Produces: a documented FACT (comment in `fetch.c`) — whether the spine path runs `verify_part`. Later tasks depend on knowing this.
 
-- [ ] **Step 1: Trace whether the spine verifies.** Run `grep -n 'verify_part\|cache_commit_part\|verify' src/cache/*.c | grep -iE 'from_source|commit'`. Establish whether `xrootd_cache_fill_from_source` ends in `xrootd_cache_commit_part` (which runs verify) the same way the legacy scheme paths do.
+- [ ] **Step 1: Trace whether the spine verifies.** Run `grep -n 'verify_part\|cache_commit_part\|verify' src/fs/cache/*.c | grep -iE 'from_source|commit'`. Establish whether `xrootd_cache_fill_from_source` ends in `xrootd_cache_commit_part` (which runs verify) the same way the legacy scheme paths do.
 
 - [ ] **Step 2: Run the composable-source acceptance harness to capture the baseline.**
 
@@ -79,10 +79,10 @@ Expected: `ALL PASS`.
 
 
 **Files:**
-- Modify: `src/cache/cache_storage.c` (the module that already builds `cache_storage_inst` + `cache_slice_inst`; add a `cache_source_inst`)
-- Modify: `src/cache/cache_storage.h` (accessor decl)
+- Modify: `src/fs/cache/cache_storage.c` (the module that already builds `cache_storage_inst` + `cache_slice_inst`; add a `cache_source_inst`)
+- Modify: `src/fs/cache/cache_storage.h` (accessor decl)
 - Modify: `src/core/types/config.h:~433` (add `void *cache_source_inst;` beside `cache_slice_inst`)
-- Read: `src/fs/backend/xroot/sd_xroot.h` (`xrootd_sd_xroot_create_origin`), `src/fs/backend/remote/sd_remote.*` (S3/HTTP source), `src/cache/http_transport.c`
+- Read: `src/fs/backend/xroot/sd_xroot.h` (`xrootd_sd_xroot_create_origin`), `src/fs/backend/remote/sd_remote.*` (S3/HTTP source), `src/fs/cache/http_transport.c`
 - Test: `tests/run_cache_xroot_origin.sh`, `tests/run_cache_s3_origin.sh`, `tests/run_cache_http_source.sh`
 
 **Interfaces:**
@@ -95,7 +95,7 @@ Expected: `ALL PASS`.
     void       *cache_source_inst;  /* composable source built from legacy cache_origin (§6.5 fold) */
 ```
 
-In `src/cache/cache_storage.h`:
+In `src/fs/cache/cache_storage.h`:
 
 ```c
 /* The composable SOURCE instance translated from the legacy xrootd_cache_origin
@@ -104,7 +104,7 @@ In `src/cache/cache_storage.h`:
 xrootd_sd_instance_t *xrootd_cache_source_inst(const ngx_stream_xrootd_srv_conf_t *conf);
 ```
 
-- [ ] **Step 2: Implement the builder** in `src/cache/cache_storage.c`, mirroring the existing `cache_slice_inst` build block but with `slice_size = 0` semantics is NOT needed — a source is a *bare* backend, not a cache decorator. For the xroot scheme reuse the origin builder already present:
+- [ ] **Step 2: Implement the builder** in `src/fs/cache/cache_storage.c`, mirroring the existing `cache_slice_inst` build block but with `slice_size = 0` semantics is NOT needed — a source is a *bare* backend, not a cache decorator. For the xroot scheme reuse the origin builder already present:
 
 ```c
 static xrootd_sd_instance_t *
@@ -176,16 +176,16 @@ Expected: three `ALL PASS`.
 ### Task 3 (original): Populate `t->source_inst` from `cache_source_inst`, route ALL fills through the spine
 
 **Files:**
-- Modify: `src/cache/thread.c:~49` (the `xrootd_cache_fetch_origin(t)` caller — ensure `t->source_inst` is set before the call)
-- Modify: `src/cache/fetch.c:447-485` (`xrootd_cache_fetch_origin` — collapse to the spine)
-- Read: `src/cache/cache_internal.h` (the `xrootd_cache_fill_t` struct — `source_inst` field)
+- Modify: `src/fs/cache/thread.c:~49` (the `xrootd_cache_fetch_origin(t)` caller — ensure `t->source_inst` is set before the call)
+- Modify: `src/fs/cache/fetch.c:447-485` (`xrootd_cache_fetch_origin` — collapse to the spine)
+- Read: `src/fs/cache/cache_internal.h` (the `xrootd_cache_fill_t` struct — `source_inst` field)
 - Test: `tests/run_cache_xroot_origin.sh`, `tests/run_cache_s3_origin.sh`, `tests/run_cache_http_source.sh`, `tests/run_cache_pblock_posix.sh`, `tests/run_root_slice_fill.sh`
 
 **Interfaces:**
 - Consumes: `xrootd_cache_source_inst(conf)` (Task 2), `t->source_inst`, `xrootd_cache_fill_from_source(t, source)`.
 - Produces: `xrootd_cache_fetch_origin` that dispatches ONLY on `t->source_inst` (populated from either the registry PRIMARY or the legacy-translated `cache_source_inst`).
 
-- [ ] **Step 1: Set `t->source_inst` from the legacy translation where the fill task is initialised.** Find where `xrootd_cache_fill_t.source_inst` is assigned (`grep -n 'source_inst' src/cache/*.c`). Add the fallback: if `t->source_inst == NULL`, set it from `xrootd_cache_source_inst(t->conf)`.
+- [ ] **Step 1: Set `t->source_inst` from the legacy translation where the fill task is initialised.** Find where `xrootd_cache_fill_t.source_inst` is assigned (`grep -n 'source_inst' src/fs/cache/*.c`). Add the fallback: if `t->source_inst == NULL`, set it from `xrootd_cache_source_inst(t->conf)`.
 
 ```c
     if (t->source_inst == NULL) {
@@ -241,9 +241,9 @@ Expected: GREEN.
 ### Task 4: Delete the now-dead per-scheme fetch code
 
 **Files:**
-- Modify: `src/cache/fetch.c` (delete `xrootd_cache_fetch_origin_s3` (234-281), `xrootd_cache_fetch_origin_xroot` (282-446), the scheme-branch bodies)
-- Modify: `src/cache/cache_internal.h` (remove the deleted function decls)
-- Modify: `src/cache/http_transport.c` / `pelican.c` — keep the download primitives IF still used by `cache_build_source_http`; delete only what is now unreachable
+- Modify: `src/fs/cache/fetch.c` (delete `xrootd_cache_fetch_origin_s3` (234-281), `xrootd_cache_fetch_origin_xroot` (282-446), the scheme-branch bodies)
+- Modify: `src/fs/cache/cache_internal.h` (remove the deleted function decls)
+- Modify: `src/fs/cache/http_transport.c` / `pelican.c` — keep the download primitives IF still used by `cache_build_source_http`; delete only what is now unreachable
 - Test: full cache harness set + `PYTHONPATH=tests pytest tests/ -k cache -v`
 
 **Interfaces:**

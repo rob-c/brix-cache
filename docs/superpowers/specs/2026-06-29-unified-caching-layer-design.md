@@ -2,11 +2,11 @@
 
 **Date:** 2026-06-29
 **Status:** Approved for planning
-**Builds on:** [unified cache state engine (.cinfo v3)](2026-06-28-unified-cache-state-engine-design.md), [cache storage on a driver](2026-06-29-cache-storage-on-a-driver-design.md), the SD driver seam (`src/fs/backend/sd.h`), `src/cache/`, `src/ratelimit/`, `src/metrics/unified.c`.
+**Builds on:** [unified cache state engine (.cinfo v3)](2026-06-28-unified-cache-state-engine-design.md), [cache storage on a driver](2026-06-29-cache-storage-on-a-driver-design.md), the SD driver seam (`src/fs/backend/sd.h`), `src/fs/cache/`, `src/ratelimit/`, `src/metrics/unified.c`.
 
 ## Goal
 
-Turn `src/cache/` into a single, origin-agnostic caching layer: a **read-through + caching** front for remote `root://`, `s3://`, and `http(s)://` (WebDAV) filesystems, with a **watermark-driven LRU reaper** (background timer, dedicated Prometheus metrics) and **two-tier backpressure** that throttles incoming writes when the write-back staging area fills.
+Turn `src/fs/cache/` into a single, origin-agnostic caching layer: a **read-through + caching** front for remote `root://`, `s3://`, and `http(s)://` (WebDAV) filesystems, with a **watermark-driven LRU reaper** (background timer, dedicated Prometheus metrics) and **two-tier backpressure** that throttles incoming writes when the write-back staging area fills.
 
 ## The unifying idea
 
@@ -41,8 +41,8 @@ That is the "fold both ways": one driver seam underneath, one caching layer on t
 4. **Fullness sampler (shared infra).** A tiny helper `xrootd_cache_fs_usage_cached(root, ttl_ms, *ratio)` wraps `statvfs` with a short per-worker TTL cache so neither the timer nor Component C calls `statvfs` per-operation.
 
 ### New files / touch points
-- `src/cache/reap_watermark.c` (+ prototypes in `cache_internal.h`): `xrootd_cache_watermark_purge(conf, log)` — sample → if over high, loop `evict_one` oldest-first until `≤ low` or no candidates — and the timer handler. (`evict_candidates.c`/`evict_policy.c` provide the reusable collection/sort/`evict_one` already.)
-- `src/cache/fs_usage.c` (+ header): the TTL-cached `statvfs` sampler, shared with Component C.
+- `src/fs/cache/reap_watermark.c` (+ prototypes in `cache_internal.h`): `xrootd_cache_watermark_purge(conf, log)` — sample → if over high, loop `evict_one` oldest-first until `≤ low` or no candidates — and the timer handler. (`evict_candidates.c`/`evict_policy.c` provide the reusable collection/sort/`evict_one` already.)
+- `src/fs/cache/fs_usage.c` (+ header): the TTL-cached `statvfs` sampler, shared with Component C.
 - `process.c`: arm the reaper timer per worker (gated on a cache + watermarks configured).
 - `src/core/config/` + `src/stream/module.c`: directives `xrootd_cache_high_watermark`, `xrootd_cache_low_watermark`, `xrootd_cache_reap_interval`; merge + EMERG validation (`0 < low < high < 100`).
 
@@ -78,7 +78,7 @@ Labels stay low-cardinality (no paths/keys), per the metrics invariant.
    - The gate runs **before** a staging temp/object is created, so a rejected write never consumes staging space.
 
 ### New files / touch points
-- `src/cache/stage_admit.c` (+ prototypes): `xrootd_wt_stage_admit()` + the action enum; pure decision over the sampler + conf.
+- `src/fs/cache/stage_admit.c` (+ prototypes): `xrootd_wt_stage_admit()` + the action enum; pure decision over the sampler + conf.
 - `src/read/open_resolved_file.c`, WebDAV `put.c`, S3 `put.c`: call the gate on write-open/PUT, map the verdict to the protocol-correct response.
 - `src/core/config/` + `src/stream/module.c` (+ WebDAV/S3 directive plumbing where the cache is configured): `xrootd_wt_stage_high_watermark`, `xrootd_wt_stage_low_watermark`; merge + EMERG validation. No-op unless a staging root is configured.
 
@@ -100,16 +100,16 @@ Introduce a read-only **remote SD driver** so the cache origin is an `xrootd_sd_
 
 1. **New driver** `src/fs/backend/sd_remote.c` — `xrootd_sd_driver_t name="remote"`, `caps = XROOTD_SD_CAP_RANGE_READ` only (no `CAP_FD`/`SENDFILE`/write caps → it can never be mistaken for a writable export primary; the write vtable slots are `NULL`). Implements `init/cleanup`, `open`, `close`, `pread` (+ optional `preadv`), `fstat`, `stat`, and optionally `opendir/readdir/closedir` (deferred — listing-cache is a follow-on). The instance holds the parsed origin URL + credentials; `open` returns an `xrootd_sd_obj_t` carrying the per-fetch transport handle.
 2. **Scheme dispatch to transports.** The driver picks a transport by URL scheme:
-   - `root://` / `roots://` → wrap the existing `src/cache/origin/origin_protocol.c` XRootD wire client.
-   - `http://` / `https://` / `davs://` → wrap the existing `src/cache/origin/http_transport.c` (libcurl).
-   - `s3://` → **new** `src/cache/origin/s3_transport.c` (libcurl + **SigV4 reused from `shared/xrdproto`**). This is the only missing protocol.
+   - `root://` / `roots://` → wrap the existing `src/fs/cache/origin/origin_protocol.c` XRootD wire client.
+   - `http://` / `https://` / `davs://` → wrap the existing `src/fs/cache/origin/http_transport.c` (libcurl).
+   - `s3://` → **new** `src/fs/cache/origin/s3_transport.c` (libcurl + **SigV4 reused from `shared/xrdproto`**). This is the only missing protocol.
 3. **`fetch.c` becomes origin-agnostic.** The whole-file/slice fill opens the remote object via the origin instance and `pread`s into the Phase-2 staged-write sink (`cache_storage->staged_write` → `staged_commit`), keeping commit-then-verify-checksum-then-evict-on-mismatch. The GSI `xrdcp`-exec path is retained only as a fallback for an origin the in-process transports cannot authenticate (documented), not as a primary route.
 4. **Config.** Extend `xrootd_cache_origin` to accept a full URL (`root://`, `s3://`, `https://`); a bare `host:port` stays back-compat (implies `root://`). Reuse `cache_origin_tls`/bearer/GSI knobs; add `xrootd_cache_origin_s3_{access_key,secret_key,region}` (and `_endpoint` for non-AWS). Credentials load via the existing credfile-hardening helpers.
 5. **Threading.** The remote driver's blocking ops run **only** in the existing thread-pool fill worker (matching today's blocking origin I/O); they are never called on the event loop.
 
 ### New files / touch points
 - `src/fs/backend/sd_remote.c` + registration in the driver registry; `./config`.
-- `src/cache/origin/s3_transport.{c,h}` + `./config`.
+- `src/fs/cache/origin/s3_transport.{c,h}` + `./config`.
 - `fetch.c` / `slice_fill.c`: replace the scheme-switch with the origin-instance copy.
 - `src/core/config/` + directive plumbing for the origin URL + S3 creds.
 
@@ -134,7 +134,7 @@ Introduce a read-only **remote SD driver** so the cache origin is an `xrootd_sd_
 ## Architecture summary
 
 ```
-            ┌──────────────────────────── cache layer (src/cache/) ───────────────────────────┐
+            ┌──────────────────────────── cache layer (src/fs/cache/) ───────────────────────────┐
  client ──▶ │  read:  remote_origin->pread  ──▶  cache_storage->staged_write ──▶ staged_commit │ ──▶ client
             │  write: client ──▶ cache_storage (primary)  ──▶ stage copy ──▶ origin (FRM flush) │
             │                                                                                   │

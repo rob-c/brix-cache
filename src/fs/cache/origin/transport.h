@@ -28,7 +28,7 @@
  *       best-effort verify policy commits the fill unverified).
  */
 
-#include "cache/cache_internal.h"
+#include "fs/cache/cache_internal.h"
 
 #include <stdint.h>
 

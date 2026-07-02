@@ -305,11 +305,11 @@ def test_xcache_origin_uses_native_client():
     handshake. If either half is removed, GSI origins fall back to anon and are
     rejected — so guard both halves of the in-process path.
     """
-    fetch = _read("src/cache/fetch.c")
+    fetch = _read("src/fs/cache/fetch.c")
     assert "xrootd_sd_xroot_create_origin" in fetch and "x509_proxy" in fetch, (
         "cache/fetch.c no longer builds a GSI-capable (X.509) sd_xroot origin — "
         "GSI origins (EOS/dCache) would fall back to anon login and be rejected")
-    origin = _read("src/cache/origin_protocol.c")
+    origin = _read("src/fs/cache/origin_protocol.c")
     assert "xrootd_cache_origin_auth_gsi" in origin, (
         "cache/origin_protocol.c no longer performs the in-process GSI (X.509) "
         "origin handshake — GSI origins would fall back to anon and be rejected")

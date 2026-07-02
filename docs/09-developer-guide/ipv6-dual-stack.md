@@ -59,11 +59,11 @@ Understanding dual-stack support requires tracing IP addresses through three lay
 | File | What it does | Why it's OK |
 |------|-------------|-------------|
 | `src/tpc/connect.c` | TPC outbound TCP connect | `getaddrinfo(AF_UNSPEC)`, iterates all addrinfo entries, IPv6 SSRF checks in `tpc_addr_is_prohibited()` |
-| `src/cache/origin_connection.c` | Cache-fill origin connect | `getaddrinfo(AF_UNSPEC)`, iterates all addrinfo entries |
+| `src/fs/cache/origin_connection.c` | Cache-fill origin connect | `getaddrinfo(AF_UNSPEC)`, iterates all addrinfo entries |
 | `src/cms/config.c` | CMS manager address parsing | Uses `ngx_parse_url()` which handles IPv6 literals via nginx's internal resolver |
 | `src/upstream/directives.c` | `xrootd_upstream host:port` parsing | Lines 24–54: checks for `[` prefix, extracts IPv6 address between brackets |
 | `src/core/config/manager_map.c` | `xrootd_manager_map prefix host:port` parsing | Lines 49–77: same bracket-aware IPv6 parsing |
-| `src/cache/directives.c` | `xrootd_cache_origin host:port` parsing | Lines 62–90: same bracket-aware IPv6 parsing, handles `root://` and `roots://` prefixes |
+| `src/fs/cache/directives.c` | `xrootd_cache_origin host:port` parsing | Lines 62–90: same bracket-aware IPv6 parsing, handles `root://` and `roots://` prefixes |
 | `src/connection/handler.c` (lines 93–106) | Port extraction from `c->local_sockaddr` | Lines 93–106: checks `sa_family` and casts to correct type for `AF_INET` and `AF_INET6` |
 | `src/tpc/launch.c` (lines 82–86) | Client address for TPC logging | `getnameinfo()` with `NI_NAMEREQD` — dual-stack safe |
 | `src/path/access_log.c` | Access log client IP | Uses `c->addr_text` — nginx's pre-formatted address string which includes brackets for IPv6 |
@@ -141,7 +141,7 @@ field in the XML stats response is `0`.
 
 **Impact**: `kXR_query` stats response shows port 0 for IPv6 listeners.
 
-#### `src/cache/thread.c` (lines 125–126)
+#### `src/fs/cache/thread.c` (lines 125–126)
 
 ```c
 self_port = ntohs(
@@ -153,7 +153,7 @@ self_port = ntohs(
 
 **Impact**: Cache registration in manager mode reports wrong port for IPv6 listeners.
 
-#### `src/cache/evict.c` (lines 406–407)
+#### `src/fs/cache/evict.c` (lines 406–407)
 
 Identical bug to `cache/thread.c`:
 
@@ -342,7 +342,7 @@ doesn't use `inet_ntop()`.
 | `test_stats_ipv4_port` | IPv4 listener | XML `<port>` contains correct port |
 | `test_stats_ipv6_port` | IPv6 listener | XML `<port>` contains correct port (not 0) |
 
-#### 5.1.5 Cache registration (`src/cache/thread.c`, `src/cache/evict.c`)
+#### 5.1.5 Cache registration (`src/fs/cache/thread.c`, `src/fs/cache/evict.c`)
 
 | Test | Description | Expected |
 |------|-------------|----------|
@@ -576,7 +576,7 @@ the chosen endpoint in a `struct sockaddr_storage`.
 - `src/upstream/start.c` — upstream redirector connect (dual-stack)
 - `src/proxy/connect_upstream.c` — proxy upstream connect (dual-stack)
 - `src/tpc/connect.c` — TPC connect
-- `src/cache/origin_connection.c` — cache origin connect
+- `src/fs/cache/origin_connection.c` — cache origin connect
 
 ### 7.2 P1 — Fix kXR_locate IPv6 response
 
@@ -642,7 +642,7 @@ if (addr_copy[0] == '[') {
 
 ### 7.4 P1 — Fix cache port extraction
 
-**Files**: `src/cache/thread.c` (line 125–126), `src/cache/evict.c` (line 406–407)
+**Files**: `src/fs/cache/thread.c` (line 125–126), `src/fs/cache/evict.c` (line 406–407)
 
 ```c
 if (c->local_sockaddr->sa_family == AF_INET) {

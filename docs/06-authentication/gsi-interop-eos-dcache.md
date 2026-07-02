@@ -50,7 +50,7 @@ suffix, so it interoperates with IV-advertising stock/EOS clients
 ## 2. Using the module as an xcache in front of EOS/dCache
 
 The read-through cache fetches a **GSI origin** by fork/exec'ing the native
-client (`cache_origin_client`, default `xrdcp`; `src/cache/fetch.c`,
+client (`cache_origin_client`, default `xrdcp`; `src/fs/cache/fetch.c`,
 `writethrough_flush.c`) — the built-in origin client only does anonymous login,
 which EOS/dCache reject. **Therefore the xcache origin GSI path is exactly the
 native-client path** and inherits all five fixes above.
@@ -100,7 +100,7 @@ destination; the guard test is gated on `TEST_TPC_DEST_ENDPOINT`.
 | Path | GSI implementation | EOS | dCache |
 |---|---|---|---|
 | native client read | `client/lib/sec/sec_gsi.c` | ✅ live | ✅ live |
-| **xcache origin** | execs native `xrdcp` (`src/cache/fetch.c`) | ✅ live (fetch + integrity) | ✅ live (fetch + integrity) |
+| **xcache origin** | execs native `xrdcp` (`src/fs/cache/fetch.c`) | ✅ live (fetch + integrity) | ✅ live (fetch + integrity) |
 | **TPC outbound** | `src/tpc/gsi_outbound_*.c` | ✅ live (stock-XRootD-class) | ✅ dialect correct (md_alg/cipher_alg) — live needs a TPC-authorized dest |
 
 ---

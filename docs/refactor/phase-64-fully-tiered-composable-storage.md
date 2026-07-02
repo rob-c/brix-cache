@@ -374,7 +374,7 @@ G4/G5).
 
 ## 6. Fully-tiered state via the generic `cstore` (G3, P3)
 
-### 6.1 `cstore` — the cache's one storage adapter (`src/cache/cstore.{c,h}`)
+### 6.1 `cstore` — the cache's one storage adapter (`src/fs/cache/cstore.{c,h}`)
 
 The *only* code touching a cache store driver:
 
@@ -559,13 +559,13 @@ is `tape`.
   call `ctx->sd->driver->*` exactly as today; no VFS branch knows about cache/stage/
   tiers (G4/G5). `xrootd_vfs_staged_*` (Mode-A passthrough after C-6) keeps delegating
   to `ctx->sd->driver->staged_*`.
-- **Cache** (`src/cache/*`): the policy modules (`cache_admit.c`, `evict_*.c`,
+- **Cache** (`src/fs/cache/*`): the policy modules (`cache_admit.c`, `evict_*.c`,
   `verify.c`, `cache_reap.c`, `reap_watermark.c`, `cache_fs_sampler.c`) keep their
   logic, swap storage calls to `cstore`. They never branch on driver type.
 - **The cache open path** (`open_or_fill.c`/`open.c`) becomes the `sd_cache` decorator
   `open` (§10); the legacy `fetch.c` scheme-dispatch is deleted (§14); there is one
   generic fill: `backend->open/pread → cstore_fill_*`.
-- **Code-review gate (G5):** no file under `src/cache/` or `src/fs/vfs_*.c` may
+- **Code-review gate (G5):** no file under `src/fs/cache/` or `src/fs/vfs_*.c` may
   `strcmp` a driver name or branch on a protocol — only `cstore`/`tier_build`/the
   staging engine may.
 
@@ -858,7 +858,7 @@ grammar (Appendix F). A pre-existing on-disk **local** cache tree is readable as
   `sd_stage.staged_commit`.
 - VFS: no change except the resolve returns a composed instance.
 
-Review gates: G5 (no driver `strcmp` under `src/cache/`/`src/fs/vfs_*.c`) and G9 (the
+Review gates: G5 (no driver `strcmp` under `src/fs/cache/`/`src/fs/vfs_*.c`) and G9 (the
 only data-movement primitives are `xrootd_stage_submit` + the two decorators).
 
 ---
@@ -1208,7 +1208,7 @@ typedef struct {
     char                        host[256];
 } sd_frm_inst_state;
 
-/* ---- src/cache/cstore.h : the cache's one storage adapter (full) ---- */
+/* ---- src/fs/cache/cstore.h : the cache's one storage adapter (full) ---- */
 
 typedef ngx_int_t (*xrootd_cstore_visit_fn)(const char *key,
     const xrootd_cinfo_t *ci, void *ctx);   /* eviction/reaper callback               */

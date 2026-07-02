@@ -1,7 +1,7 @@
 #include "fd_table.h"
 #include "fs/vfs.h"   /* xrootd_vfs_open_fd_at (handle-table confined open) */
 #include "session/registry.h"
-#include "cache/writethrough_metrics.h"
+#include "fs/cache/writethrough_metrics.h"
 #include "write/pgw_fob.h"
 #include "fs/backend/csi_tagstore.h"
 #include "zip/zip_member.h"   /* xrootd_zip_handle_cleanup (frees inflate stream) */

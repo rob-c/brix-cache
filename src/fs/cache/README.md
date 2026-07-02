@@ -1,4 +1,4 @@
-# `src/cache/` — XCache-style read-through cache and write-through origin mirroring
+# `src/fs/cache/` — XCache-style read-through cache and write-through origin mirroring
 
 ## Overview
 

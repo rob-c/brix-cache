@@ -59,7 +59,7 @@ These features add significant code but are optional — not required by any XRo
 
 **Impact:** -3,414 lines. Dashboard becomes optional — remove `src/dashboard/` directory and update dispatch to skip tracking callbacks. Prometheus metrics still available at `/metrics`.
 
-### Cache Subsystem (`src/cache/` — ~3,708 lines)
+### Cache Subsystem (`src/fs/cache/` — ~3,708 lines)
 
 **Files:** origin_protocol.c (623), writethrough_flush.c (553), directives.c (533), open_or_fill.c (101), fetch.c (143), evict_candidates.c (18), evict_policy.c (4), thread.c (4), io.c (6), lock.c (4), paths.c (6), errors.c (4), origin_connection.c (8), origin_response.c (4)
 
@@ -67,7 +67,7 @@ These features add significant code but are optional — not required by any XRo
 
 **Assessment:** **ELIMINATE.** Read-through caching is a performance optimization for repeated access patterns — not required by any XRootD client protocol. The write-through origin mirroring adds another 553 lines of flush logic. Removing the entire `cache/` directory would eliminate ~3,708 lines but retain all core protocol functionality.
 
-**Impact:** -3,708 lines. Remove `src/cache/` directory and update `config.h` to exclude all source files from compilation. Update `read/open_overview.c` callers to fall back to direct origin reads. The cache fill uses its own XRootD client protocol (origin_protocol.c: 623 lines) — removing it eliminates a full sub-protocol implementation.
+**Impact:** -3,708 lines. Remove `src/fs/cache/` directory and update `config.h` to exclude all source files from compilation. Update `read/open_overview.c` callers to fall back to direct origin reads. The cache fill uses its own XRootD client protocol (origin_protocol.c: 623 lines) — removing it eliminates a full sub-protocol implementation.
 
 ### Manager/Cluster Mode (`src/manager/` — ~794 lines)
 
@@ -507,7 +507,7 @@ Shared preamble in `src/core/config/shared_conf.h`: `enable`, `root`, `root_cano
 
 **Current state:** ~50+ nginx config directives across all three protocol layers. Many are optional features that map directly to code modules (see Section 1 elimination candidates):
 - `xrootd_dashboard on/off` → src/dashboard/
-- `xrootd_cache on/off` + `xrootd_cache_root` → src/cache/
+- `xrootd_cache on/off` + `xrootd_cache_root` → src/fs/cache/
 - `xrootd_manager_mode on/off` + `xrootd_manager_map` → src/manager/
 - `xrootd_cms_server on/off` + `xrootd_cms_manager` → src/cms/
 - `xrootd_tpc_outbound_bearer_file` → src/tpc/

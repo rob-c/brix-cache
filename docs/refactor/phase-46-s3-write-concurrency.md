@@ -121,7 +121,7 @@ new UAF/impersonation surface beyond the existing template.
   worker. Falls back to the synchronous path when no thread pool is configured (unchanged).
 
 ### W2 — Per-request syscall cuts (cheap, safe)
-**Files:** `src/s3/put.c` (or `src/path/mkdir.c`), `src/frm/residency.c`
+**Files:** `src/s3/put.c` (or `src/fs/path/mkdir.c`), `src/frm/residency.c`
 
 - **W2a — PUT parent-dir fast-path.** Before `xrootd_mkdir_recursive_confined_canon`
   (`put.c:692`), confined-`stat` the parent dir; if it exists and is a directory, skip the
@@ -186,7 +186,7 @@ plus `test_webdav.py` + `test_frm*.py` for the shared-seam changes (W2b).
 | W1a / W1b / W2a | `src/s3/put.c` (gate widen; chunked task; parent fast-path) |
 | W1b | `src/s3/aws_chunked.{c,h}` (offload task) |
 | W1c | `src/s3/multipart_complete_body.c` (offload task) |
-| W2a (shared option) | `src/path/mkdir.c` (stat fast-path if shared) |
+| W2a (shared option) | `src/fs/path/mkdir.c` (stat fast-path if shared) |
 | W2b | `src/frm/residency.c` + the FRM config/init hook (process-global guard) |
 | W3 (optional) | `src/s3/list_objects_v2.c` |
 | Tests | new `tests/test_s3_perf_characterization.py` additions (offload-occurs + syscall-delta); existing `test_s3*.py` / `test_s3_multipart.py` / `test_webdav.py` / `test_frm*.py` for regression |

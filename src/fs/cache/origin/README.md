@@ -1,9 +1,9 @@
-# `src/cache/origin/` — pluggable origin transports for the read-through cache
+# `src/fs/cache/origin/` — pluggable origin transports for the read-through cache
 
 ## Overview
 
 This directory holds the **origin-transport seam** for the read-through cache
-(`src/cache/`). The cache's fill engine (`../fetch.c`, `../slice_fill.c`) knows how
+(`src/fs/cache/`). The cache's fill engine (`../fetch.c`, `../slice_fill.c`) knows how
 to stage bytes into a local `.part` file, verify a checksum, and atomically
 publish — but it must not know *where* those bytes come from. That "where" is a
 driver vtable (`xrootd_cache_transport_t`, declared in `transport.h`) selected from

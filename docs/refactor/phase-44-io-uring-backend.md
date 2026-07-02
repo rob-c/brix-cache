@@ -3124,7 +3124,7 @@ Effort labels are **rough relative estimates** (person-days, single engineer fam
 
 **Goal.** Implement §8.2 / §14.4 containment: lock each ring to fd-only data opcodes, validate fd-provenance, prove interop with Phase-40 impersonation.
 
-**Deliverables.** `src/core/aio/uring.c` (restricted setup), `src/core/aio/uring_submit.c` (fd-provenance assertion), interop tests. **Read-only consumers:** `src/auth/impersonate/broker.c`, `src/fs/vfs_open.c`/`vfs.h`, `src/path/beneath.c`.
+**Deliverables.** `src/core/aio/uring.c` (restricted setup), `src/core/aio/uring_submit.c` (fd-provenance assertion), interop tests. **Read-only consumers:** `src/auth/impersonate/broker.c`, `src/fs/vfs_open.c`/`vfs.h`, `src/fs/path/beneath.c`.
 
 | # | Sub-task | Concrete change |
 |---|---|---|
@@ -6103,8 +6103,8 @@ pgread CRC boundary), `src/core/config/process.c` (worker init/exit hooks), `con
 `admin_audit`), `src/core/compat/shm_slots.c` + the module SHM table (the
 `io_uring_disabled` atomic, `ngx_atomic_t` pattern from `src/dashboard/dashboard.h`),
 `src/metrics/metrics.h` (`io_uring_active`/`ops`/`fallback` gauges). **Reused
-read-only (no edits, just consumed):** the impersonation seam — `src/path/beneath.c`
-/ `src/path/resolve_confined_ops.c` (broker-vs-local open routing),
+read-only (no edits, just consumed):** the impersonation seam — `src/fs/path/beneath.c`
+/ `src/fs/path/resolve_confined_ops.c` (broker-vs-local open routing),
 `src/auth/impersonate/broker.c` (`imp_openat2` `RESOLVE_BENEATH`, SCM_RIGHTS fd-pass),
 `src/fs/vfs_open.c` / `src/fs/vfs.h` (`fh->fd` provenance) — io_uring submits the
 fd these already produce, adding no privileged code.

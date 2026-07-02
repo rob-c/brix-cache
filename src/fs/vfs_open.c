@@ -25,8 +25,8 @@
  */
 #include "vfs_internal.h"
 #include "vfs_backend_registry.h"
-#include "cache/open.h"
-#include "path/beneath.h"
+#include "fs/cache/open.h"
+#include "fs/path/beneath.h"
 #include "core/compat/log_diag.h"
 
 /* Populate a per-request xrootd_vfs_ctx_t with the fields the HTTP front ends

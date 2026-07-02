@@ -5,7 +5,7 @@
 
 ## 1. Generic slice/partial fill over any backend
 
-**Gap.** `src/cache/cache_storage.c` composes the `sd_cache` slice decorator only
+**Gap.** `src/fs/cache/cache_storage.c` composes the `sd_cache` slice decorator only
 when `cache_slice_size > 0 && cache_origin_host.len > 0`, hardwiring the source to
 `xrootd_sd_xroot_create_origin(...)`. So sparse partial fill works only for a
 `root://` origin configured via `xrootd_cache_origin`; a `posix`/`pblock`/`http`/
@@ -28,8 +28,8 @@ test rewrite:
 
 ## 2. Read-fill admission filter (deny/allow prefix, include-regex, max_file_size)
 
-**Finding.** `xrootd_cache_admit` (`src/cache/cache_admit.c`) is invoked from
-`src/cache/fetch.c` (`xrootd_cache_fill_from_source`, the `cache_origin` fetch
+**Finding.** `xrootd_cache_admit` (`src/fs/cache/cache_admit.c`) is invoked from
+`src/fs/cache/fetch.c` (`xrootd_cache_fill_from_source`, the `cache_origin` fetch
 spine) with `deny_prefixes` / `allow_prefixes` / `size_limit`(=`cache_max_file_size`)
 / `include_regex`. In the partial-fill suite, **none of these gated a READ fill** on
 any exercised config — a denied-prefix / oversized (via `max_file_size`) file was

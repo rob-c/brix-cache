@@ -9,7 +9,7 @@
  * succeeds and the other gets EEXIST → NGX_DECLINED → 423 Locked.
  */
 #include "webdav.h"
-#include "path/path.h"
+#include "fs/path/path.h"
 #include "fs/vfs.h"
 
 #include <sys/xattr.h>

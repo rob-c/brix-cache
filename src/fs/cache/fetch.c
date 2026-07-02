@@ -4,7 +4,7 @@
 #include "meta.h"
 #include "verify.h"
 #include "core/compat/checksum.h"   /* xrootd_checksum_hex_obj / _parse (verify) */
-#include "cache/origin/s3_transport.h"               /* server libcurl S3 transport */
+#include "fs/cache/origin/s3_transport.h"               /* server libcurl S3 transport */
 #include "fs/backend/remote/sd_remote.h"    /* read-only S3 remote-origin driver */
 #include "fs/backend/xroot/sd_xroot.h"      /* read-only root:// remote-origin driver */
 #include "fs/backend/http/sd_http.h"        /* read-only HTTP(S) remote-origin driver */

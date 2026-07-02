@@ -11,7 +11,7 @@
 |---|---|---|
 | 0 | `idmap.c` — identity → `{uid,gid,gids}` (gridmap + getpwnam + policy + TTL cache) | **done** — `tests/c/idmap_test.c` (10/10) |
 | 1 | `broker.c` — privileged root broker: cap-drop to `{SETUID,SETGID}`, impersonate, confined ops (open/stat/mkdir/unlink/rmdir/rename/link/chmod/chown/truncate), `SCM_RIGHTS` fd passing, `SO_PEERCRED` gate | **done** |
-| 2 | `client.c` + the seam in `src/path/beneath.c` (stream) + `src/path/resolve_confined_ops.c` (HTTP/S3 legacy confined-open) + per-request principal | **done** |
+| 2 | `client.c` + the seam in `src/fs/path/beneath.c` (stream) + `src/fs/path/resolve_confined_ops.c` (HTTP/S3 legacy confined-open) + per-request principal | **done** |
 | 3 | remaining ops + `namespace_ops.c` (routes via the now-broker-aware beneath helpers) | **done**; `fs_walk` dir listing stays worker-side (read-only metadata) — noted limitation |
 | 4 | `lifecycle.c` — directives (`xrootd_impersonation` + 7 companions), config-time mode validation, master broker spawn (`init_module`, FRM double-fork), worker connect (`init_process`), request hooks in `xrootd_dispatch` + WebDAV/S3 | **done** — `tests/userns/test_impersonate_config.py` (6 `nginx -t` cases) |
 | 5 | hardening (cap-drop fail-closed, `SO_PEERCRED`, reserved-uid floor, bounded frames) + docs + userns tests | **done** — `tests/userns/` (27-assertion E2E) + operator guide |
@@ -57,7 +57,7 @@ sites; this is for deployments that explicitly need on-disk per-user ownership.
 ### Why the broker design is tractable here (verified against the code)
 
 - **The FS surface is extraordinarily concentrated.** Every confined open/metadata
-  syscall funnels through ~8 helpers in `src/path/beneath.c`
+  syscall funnels through ~8 helpers in `src/fs/path/beneath.c`
   (`xrootd_open_beneath`, `xrootd_stat_beneath`/`xrootd_lstat_beneath`,
   `xrootd_mkdir_beneath`, `xrootd_unlink_beneath`, `xrootd_rename_beneath`,
   `xrootd_link_beneath`) and one core `do_openat2(rootfd, rel, RESOLVE_BENEATH)`
@@ -163,14 +163,14 @@ Each phase is independently buildable/testable. New code lives in a new
   ops) → **restore creds** → reply. Start single-threaded (poll loop); bound
   request size/relpath length.
 
-### Phase 2 — Worker client + helper swap (`src/auth/impersonate/client.c`, `src/path/beneath.c`)
+### Phase 2 — Worker client + helper swap (`src/auth/impersonate/client.c`, `src/fs/path/beneath.c`)
 - Worker connects at `init_process` (`src/core/config/process.c` + `src/core/config/http_rootfd.c`),
   keeps the fd for its lifetime, registered as an nginx event with reconnect-on-EOF
   (mirror `frm_agent_on_reply` / `frm_agent_respawn`).
 - **Per-request "current identity":** the recv/dispatch loop sets a per-connection
   current principal pointer (from `ctx->identity`) *before* dispatching each op, so
   the confined helpers can read it **without** changing their signatures.
-- **Swap the helper bodies** in `src/path/beneath.c`: when `xrootd_impersonation`
+- **Swap the helper bodies** in `src/fs/path/beneath.c`: when `xrootd_impersonation`
   is on, `xrootd_open_beneath` etc. send the op to the broker and return the
   fd/status instead of calling `do_openat2` locally; when off, the existing local
   path runs unchanged. Same for the legacy `resolve_confined_ops.c` fallback
@@ -212,8 +212,8 @@ Each phase is independently buildable/testable. New code lives in a new
 - **New:** `src/auth/impersonate/idmap.c` (Phase 0), `broker.c` (Phase 1),
   `client.c` (Phase 2), `impersonate.h`, plus `src/auth/impersonate/README.md`;
   register all in the repo-root `config` (`./configure` once).
-- **Swap helper bodies (no caller changes):** `src/path/beneath.c` (the ~8
-  helpers + `do_openat2`), `src/path/resolve_confined_ops.c` (legacy fallback).
+- **Swap helper bodies (no caller changes):** `src/fs/path/beneath.c` (the ~8
+  helpers + `do_openat2`), `src/fs/path/resolve_confined_ops.c` (legacy fallback).
 - **Orchestrators routed through broker ops:** `src/core/compat/namespace_ops.c`,
   `src/core/compat/fs_walk.c`.
 - **Lifecycle hooks:** `src/core/config/process.c` (`ngx_stream_xrootd_init_process`)

@@ -13,7 +13,7 @@
 
 **Architecture:** `conf->cache_storage_inst` is a **bare store** SD instance with no `cstore`. We build one `xrootd_cstore_t` over it at config time (`conf->cache_storage_cstore`), in AUTO→LOCAL mode (byte-identical to today's co-located cache), and thread it into the eviction list / reaper / free-space measurement. Each policy site then calls `xrootd_cstore_scan` / `_evict` / `_freespace` instead of the bare driver. The hot-path fill/flush modules (`fetch.c`, `writethrough_flush.c`) are **explicitly out of scope** (active phase-64 SP2 work — see "Deferred").
 
-**Tech Stack:** C (nginx stream module), the `cstore` adapter (`src/cache/cstore.{c,h}`), the SD driver vtable (`src/fs/backend/sd.h`), the existing cache integration harnesses (`tests/run_cache_reaper.sh`, `tests/run_cinfo_tests`, eviction/watermark tests) as the behavior-preserving gate, and `tools/ci/check_vfs_seam.sh`.
+**Tech Stack:** C (nginx stream module), the `cstore` adapter (`src/fs/cache/cstore.{c,h}`), the SD driver vtable (`src/fs/backend/sd.h`), the existing cache integration harnesses (`tests/run_cache_reaper.sh`, `tests/run_cinfo_tests`, eviction/watermark tests) as the behavior-preserving gate, and `tools/ci/check_vfs_seam.sh`.
 
 ## Global Constraints
 
@@ -34,8 +34,8 @@ Give the legacy policy layer a `cstore` to drive. Build one `xrootd_cstore_t` ov
 
 **Files:**
 - Modify: `src/core/types/config.h` (add the `cache_storage_cstore` field to `ngx_stream_xrootd_srv_conf_t`)
-- Modify: `src/cache/cache_storage.c` (build it after `cache_storage_inst`; free it)
-- Modify: `src/cache/cache_storage.h` (declare an accessor `xrootd_cache_storage_cstore`)
+- Modify: `src/fs/cache/cache_storage.c` (build it after `cache_storage_inst`; free it)
+- Modify: `src/fs/cache/cache_storage.h` (declare an accessor `xrootd_cache_storage_cstore`)
 - Test: `tests/run_cache_reaper.sh` (existing; must still pass) + a new assertion added in Task 4
 
 **Interfaces:**
@@ -57,7 +57,7 @@ In `src/core/types/config.h`, in `ngx_stream_xrootd_srv_conf_t`, next to `cache_
 
 - [ ] **Step 2: Build it after the store instance**
 
-In `src/cache/cache_storage.c`, immediately after the `conf->cache_storage_inst = cache_build_instance(...)` assignment (and only when non-NULL), add:
+In `src/fs/cache/cache_storage.c`, immediately after the `conf->cache_storage_inst = cache_build_instance(...)` assignment (and only when non-NULL), add:
 
 ```c
     if (conf->cache_storage_inst != NULL) {
@@ -99,7 +99,7 @@ In `cache_storage.c`, wherever `cache_storage_inst` is torn down / reset to `NUL
 
 - [ ] **Step 4: Add the accessor**
 
-In `src/cache/cache_storage.h`, declare (with a WHAT/WHY/HOW block):
+In `src/fs/cache/cache_storage.h`, declare (with a WHAT/WHY/HOW block):
 
 ```c
 /* The policy-layer cstore adapter over the read cache's store (eviction, reaper,
@@ -139,9 +139,9 @@ Expected: existing reaper harness still **ALL PASS** (we only built an unused ha
 `xrootd_cache_collect_dir` recurses the store with `inst->driver->opendir/readdir/stat` directly and separately loads each `.cinfo` for the dirty guard. Replace it with a single `xrootd_cstore_scan` whose visitor collects candidates — `cstore_scan` already does the opendir/readdir/stat walk **and** hands the visitor the loaded cinfo, so the dirty guard reads it directly.
 
 **Files:**
-- Modify: `src/cache/evict_internal.h` (add `cstore` to the list struct; the visitor ctx)
-- Modify: `src/cache/evict_candidates.c` (`xrootd_cache_collect_dir` → a `cstore_scan` visitor)
-- Modify: `src/cache/evict_policy.c:206` (populate `list.cstore`)
+- Modify: `src/fs/cache/evict_internal.h` (add `cstore` to the list struct; the visitor ctx)
+- Modify: `src/fs/cache/evict_candidates.c` (`xrootd_cache_collect_dir` → a `cstore_scan` visitor)
+- Modify: `src/fs/cache/evict_policy.c:206` (populate `list.cstore`)
 - Test: `tests/run_cache_reaper.sh` + the eviction/watermark suite
 
 **Interfaces:**
@@ -150,7 +150,7 @@ Expected: existing reaper harness still **ALL PASS** (we only built an unused ha
 
 - [ ] **Step 1: Add `cstore` to the eviction list struct**
 
-In `src/cache/evict_internal.h`, in `xrootd_cache_evict_list_t` (next to `void *inst;`), add:
+In `src/fs/cache/evict_internal.h`, in `xrootd_cache_evict_list_t` (next to `void *inst;`), add:
 
 ```c
     void  *cstore;   /* xrootd_cstore_t* — policy-layer store adapter (P3/G5) */
@@ -158,7 +158,7 @@ In `src/cache/evict_internal.h`, in `xrootd_cache_evict_list_t` (next to `void *
 
 - [ ] **Step 2: Write the candidate-collecting visitor + rewrite `collect_dir`**
 
-In `src/cache/evict_candidates.c`, replace the body of `xrootd_cache_collect_dir` (the `inst->driver->opendir/readdir/stat` recursion) with a `cstore_scan` driven by a file-scoped visitor. The visitor reuses the existing skip-name + dirty-guard + `xrootd_cache_add_candidate` logic, lifted from the current loop:
+In `src/fs/cache/evict_candidates.c`, replace the body of `xrootd_cache_collect_dir` (the `inst->driver->opendir/readdir/stat` recursion) with a `cstore_scan` driven by a file-scoped visitor. The visitor reuses the existing skip-name + dirty-guard + `xrootd_cache_add_candidate` logic, lifted from the current loop:
 
 ```c
 /* cstore_scan visitor: one call per cached key with its loaded cinfo. Applies the
@@ -210,7 +210,7 @@ Notes for the implementer:
 
 - [ ] **Step 3: Populate `list.cstore` at the eviction entry**
 
-In `src/cache/evict_policy.c` around line 206, beside `list.inst = xrootd_cache_storage(conf);`, add:
+In `src/fs/cache/evict_policy.c` around line 206, beside `list.inst = xrootd_cache_storage(conf);`, add:
 
 ```c
     list.cstore = xrootd_cache_storage_cstore(conf);
@@ -249,7 +249,7 @@ Expected: `GUARD_GREEN` (we removed direct-driver calls; added none).
 `xrootd_cache_evict_one` removes a candidate via the bare driver / raw unlink. Route it through `xrootd_cstore_evict(cs, key)` (which unlinks the object **and** its cinfo via the store driver).
 
 **Files:**
-- Modify: `src/cache/evict_policy.c` (`xrootd_cache_evict_one`, ~line 46)
+- Modify: `src/fs/cache/evict_policy.c` (`xrootd_cache_evict_one`, ~line 46)
 - Test: `tests/run_cache_reaper.sh` + eviction suite
 
 **Interfaces:**
@@ -258,7 +258,7 @@ Expected: `GUARD_GREEN` (we removed direct-driver calls; added none).
 
 - [ ] **Step 1: Replace the remove call**
 
-In `xrootd_cache_evict_one` (`src/cache/evict_policy.c`), locate the per-file removal (the `driver->unlink` / `unlink(path)` of the candidate at `list`/`idx`) and replace it with:
+In `xrootd_cache_evict_one` (`src/fs/cache/evict_policy.c`), locate the per-file removal (the `driver->unlink` / `unlink(path)` of the candidate at `list`/`idx`) and replace it with:
 
 ```c
     {
@@ -298,7 +298,7 @@ Expected: `GUARD_GREEN`.
 `cache_reap.c` (the stale-dirty / TTL reaper) calls `xrootd_cache_storage(conf)` + `inst->driver->*` (one direct driver call at the scan). Give it the cstore and run its sweep through `cstore_scan` with a reaper visitor that removes via `cstore_evict`.
 
 **Files:**
-- Modify: `src/cache/cache_reap.c` (~line 190 where it passes `xrootd_cache_storage(conf)`)
+- Modify: `src/fs/cache/cache_reap.c` (~line 190 where it passes `xrootd_cache_storage(conf)`)
 - Test: `tests/run_cache_reaper.sh`
 
 **Interfaces:**
@@ -339,8 +339,8 @@ Expected: `GUARD_GREEN`.
 The eviction watermark check measures occupancy/free space (the `evict_policy.c` / `evict_candidates.c` free-space path, and `cache_fs_sampler.c`). Replace the direct `statvfs` / `driver->statf` with `xrootd_cstore_freespace(cs, &total, &avail)`.
 
 **Files:**
-- Modify: `src/cache/evict_policy.c` (the free-space measurement before the watermark decision)
-- Modify: `src/cache/cache_fs_sampler.c` if it independently samples free space
+- Modify: `src/fs/cache/evict_policy.c` (the free-space measurement before the watermark decision)
+- Modify: `src/fs/cache/cache_fs_sampler.c` if it independently samples free space
 - Test: eviction/watermark suite
 
 **Interfaces:**
@@ -391,9 +391,9 @@ These remain on direct `inst->driver->*` and are **intentionally not migrated he
 
 | Module | Direct `driver->*` calls | Why deferred |
 |--------|--------------------------|--------------|
-| `src/cache/fetch.c` | 16 | Origin fetch / async miss-fill spine — SP2 "shell→full" + remote-store path |
-| `src/cache/writethrough_flush.c` | 22 | Write-back flush to origin — SP2/SP4 durable staging engine |
-| `src/cache/slice_fill.c` | leaf | §6.5 folds slice-fill INTO `cstore_serve_pread` — a redesign, not a wiring change |
+| `src/fs/cache/fetch.c` | 16 | Origin fetch / async miss-fill spine — SP2 "shell→full" + remote-store path |
+| `src/fs/cache/writethrough_flush.c` | 22 | Write-back flush to origin — SP2/SP4 durable staging engine |
+| `src/fs/cache/slice_fill.c` | leaf | §6.5 folds slice-fill INTO `cstore_serve_pread` — a redesign, not a wiring change |
 
 When SP2 stabilizes, each becomes its own plan whose acceptance is: the module calls `cstore_*` (or the `sd_cache` decorator) only, and `tools/ci/check_vfs_seam.sh` plus the cache suite stay green.
 

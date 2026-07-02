@@ -70,17 +70,17 @@ Directives:
 ## Implementation
 
 Key files:
-- `src/cache/writethrough_decision.c` — open-time allow/deny decision.
+- `src/fs/cache/writethrough_decision.c` — open-time allow/deny decision.
 - `src/read/open_resolved_file.c` — stores WT policy and mode bits on the
   `xrootd_file_t` handle.
 - `src/write/write.c`, `src/write/pgwrite.c`, `src/write/writev.c`,
   `src/write/truncate.c`, `src/core/aio/write.c` — mark handles dirty after local
   write completion.
-- `src/cache/origin_connection.c` — connects to `xrootd_wt_origin` or the
+- `src/fs/cache/origin_connection.c` — connects to `xrootd_wt_origin` or the
   configured cache origin.
-- `src/cache/origin_protocol.c` — sends origin write-open, write, truncate,
+- `src/fs/cache/origin_protocol.c` — sends origin write-open, write, truncate,
   sync, and close operations.
-- `src/cache/writethrough_flush.c` — mirrors the local file to origin.
+- `src/fs/cache/writethrough_flush.c` — mirrors the local file to origin.
 - `src/write/sync.c` — flushes dirty WT handles synchronously and returns a
   client error if the origin flush fails.
 - `src/read/close.c` — runs sync close flush, or posts an async flush task when

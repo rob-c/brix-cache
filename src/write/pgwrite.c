@@ -3,7 +3,7 @@
  */
 
 #include "core/ngx_xrootd_module.h"
-#include "cache/writethrough_metrics.h"
+#include "fs/cache/writethrough_metrics.h"
 #include "wrts_journal.h"
 #include "pgw_fob.h"          /* CSE uncorrected-page registry */
 #include "core/compat/pgio.h"   /* shared kXR page-mode decode (libxrdproto) */

@@ -248,7 +248,7 @@ self-contained alternate stores with their own confinement):
 
 - **The VFS + resolution layer**: `src/fs/`, `src/path/`, `src/core/compat/`,
   `src/auth/impersonate/`.
-- **Separate storage/metadata domains**: `src/cache/` (read-through cache),
+- **Separate storage/metadata domains**: `src/fs/cache/` (read-through cache),
   `src/dashboard/` (admin browse, openat2-confined), `src/frm/` (residency
   markers + durable queue — a control/journal store keyed off a confined path,
   optionally under a separate `frm_g_control_dir`), `src/write/chkpoint` (the

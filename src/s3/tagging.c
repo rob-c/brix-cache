@@ -18,7 +18,7 @@
  */
 
 #include "s3.h"
-#include "path/path.h"
+#include "fs/path/path.h"
 #include "tagging.h"
 #include "core/compat/http_body.h"
 #include "core/compat/http_headers.h"

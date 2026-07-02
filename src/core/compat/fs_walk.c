@@ -15,8 +15,8 @@
  */
 
 #include "fs_walk.h"
-#include "path/path.h"
-#include "path/beneath.h"
+#include "fs/path/path.h"
+#include "fs/path/beneath.h"
 
 #include <errno.h>
 #include <stdio.h>

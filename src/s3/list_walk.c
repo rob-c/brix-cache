@@ -32,7 +32,7 @@
 #include "s3.h"
 #include "core/compat/fs_walk.h"
 #include "fs/vfs.h"   /* confined walk via vfs_opendir_quiet/readdir_kind/probe */
-#include "path/path.h"   /* xrootd_dirlist_access_ok (impersonation list gate) */
+#include "fs/path/path.h"   /* xrootd_dirlist_access_ok (impersonation list gate) */
 #include <errno.h>
 #include <stdlib.h>
 

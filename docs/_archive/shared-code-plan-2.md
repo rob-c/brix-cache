@@ -198,13 +198,13 @@ ngx_log_error(NGX_LOG_ERR, r->connection->log, ngx_errno,
 comes from the decoded S3 object key in the request URI.  An attacker can
 include `\n`, `\r`, or escape sequences in the object key to forge log entries.
 
-`xrootd_sanitize_log_string` is already declared in `src/path/path.h` (the
+`xrootd_sanitize_log_string` is already declared in `src/fs/path/path.h` (the
 stream-layer header) and re-declared in `src/webdav/webdav.h`.  The function
 is compiled into the stream module and available to all modules in the binary.
 
 **Fix:** In `src/s3/put.c`, before each `ngx_log_error` call that includes a
 user-derived path, pass it through `xrootd_sanitize_log_string`.  S3's `s3.h`
-should include `src/path/path.h` (or a compat wrapper) to get the declaration.
+should include `src/fs/path/path.h` (or a compat wrapper) to get the declaration.
 
 Files to update: `src/s3/put.c` (~6 log sites), `src/s3/object.c` (~2 log
 sites with `fs_path`).
@@ -269,7 +269,7 @@ security fix, not a reduction.  Worth doing regardless of LOC cost.
 
 ### Phase G — S3 log sanitization (0.5 day, security fix)
 
-1. Include `src/path/path.h` in `src/s3/s3.h` for
+1. Include `src/fs/path/path.h` in `src/s3/s3.h` for
    `xrootd_sanitize_log_string` declaration.
 2. In `src/s3/put.c`: wrap each user-derived path in a `safe_path[512]` buffer
    via `xrootd_sanitize_log_string` before passing to `ngx_log_error`.

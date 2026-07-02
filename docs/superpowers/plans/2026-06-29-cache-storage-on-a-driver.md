@@ -23,7 +23,7 @@
 ### Task 1: `cache_storage.{c,h}` — per-role driver instances (POSIX default)
 
 **Files:**
-- Create: `src/cache/cache_storage.h`, `src/cache/cache_storage.c`
+- Create: `src/fs/cache/cache_storage.h`, `src/fs/cache/cache_storage.c`
 - Modify: repo-root `config` (register `cache_storage.c`)
 - Test: `tests/c/test_cache_storage.c` + `tests/c/run_cache_storage_tests.sh`
 
@@ -168,7 +168,7 @@ xrootd_cache_wt_stage(const ngx_stream_xrootd_srv_conf_t *conf)
 ```
 (If `conf->common.log` is wrong, pass the cycle log available at the call site; the registry resolve takes a log only for diagnostics.)
 
-- [ ] **Step 6: Register + build + run the unit test.** Add `$ngx_addon_dir/src/cache/cache_storage.c` to `./config`; clean configure + make; `tests/c/run_cache_storage_tests.sh` → `test_cache_storage: ALL PASS`.
+- [ ] **Step 6: Register + build + run the unit test.** Add `$ngx_addon_dir/src/fs/cache/cache_storage.c` to `./config`; clean configure + make; `tests/c/run_cache_storage_tests.sh` → `test_cache_storage: ALL PASS`.
 
 ---
 
@@ -176,7 +176,7 @@ xrootd_cache_wt_stage(const ngx_stream_xrootd_srv_conf_t *conf)
 
 **Files:**
 - Create: nothing (sink type inline in `cache_internal.h`)
-- Modify: `src/cache/cache_internal.h` (sink type), `src/cache/fetch.c` (fill), `src/cache/origin_protocol.c` (read into sink)
+- Modify: `src/fs/cache/cache_internal.h` (sink type), `src/fs/cache/fetch.c` (fill), `src/fs/cache/origin_protocol.c` (read into sink)
 - Test: extend Test 2's e2e later; build-gate here
 
 **Interfaces:**
@@ -215,7 +215,7 @@ xrootd_cache_sink_write(xrootd_cache_sink_t *s, const void *buf, size_t len)
 
 ### Task 3: hit-serve through the driver
 
-**Files:** Modify `src/cache/open.c`
+**Files:** Modify `src/fs/cache/open.c`
 
 - [ ] **Step 1:** In `xrootd_cache_open`, when `xrootd_cache_storage(conf)` is bound, replace `open(cache_path)`+`fstat`+`adopt_fd` with:
   - `inst = xrootd_cache_storage(ctx->...conf)`; `xrootd_cache_key(...)`.
@@ -229,7 +229,7 @@ xrootd_cache_sink_write(xrootd_cache_sink_t *s, const void *buf, size_t len)
 
 ### Task 4: eviction + reaper through the driver namespace
 
-**Files:** Modify `src/cache/evict_candidates.c`, `src/cache/cache_reap.c`
+**Files:** Modify `src/fs/cache/evict_candidates.c`, `src/fs/cache/cache_reap.c`
 
 - [ ] **Step 1:** Add a driver-enumeration variant of the recursive scan: `inst->driver->opendir(inst, key_dir, &err)` → `readdir` entries → recurse / collect. Score by the `.cinfo` `last_access` (load via the state path) instead of `lstat` atime. Remove via `inst->driver->unlink(inst, key)` + sidecar unlink (state instance). Gate on `xrootd_cache_storage(conf)` being a non-POSIX driver; the POSIX driver keeps today's `opendir` path (functionally identical, but routed through the vtable for the exclusivity invariant — wrap `lstat`/`opendir` behind the POSIX driver's `opendir`/`stat`).
 - [ ] **Step 2:** Apply the same enumeration swap in `cache_reap.c` `reap_dir`.
@@ -239,7 +239,7 @@ xrootd_cache_sink_write(xrootd_cache_sink_t *s, const void *buf, size_t len)
 
 ### Task 5: sidecar byte-I/O via the (POSIX) state driver
 
-**Files:** Modify `src/cache/meta.c`, `src/cache/cinfo.c`, `src/cache/lock.c`, `src/cache/paths.c`
+**Files:** Modify `src/fs/cache/meta.c`, `src/fs/cache/cinfo.c`, `src/fs/cache/lock.c`, `src/fs/cache/paths.c`
 
 - [ ] **Step 1:** Route `meta.c` `.meta` read/write through `xrootd_cache_state_storage(conf)` (`driver->open`+`pread`/`pwrite`+`staged_*` for the atomic write). Keep the pure pack/parse helpers.
 - [ ] **Step 2:** `cinfo.c`: introduce a tiny I/O shim `cinfo_pio` already abstracts read/write on an fd. Add a driver-backed open/commit around the flock RMW: open the sidecar key via the state driver, RMW, commit. **Keep the raw-fd `cinfo_pio` for the standalone unit test** (the driver path wraps it: the POSIX driver yields a real fd). For a non-POSIX state root this is N/A (state root must be POSIX per the spec), so cinfo always sees a POSIX fd — meaning **cinfo.c can keep its raw fd I/O** as long as the fd comes from the state driver's open. Net: open the fd via `xrootd_cache_state_storage`→`driver->open` (POSIX driver returns a real fd) and pass that fd to the existing `cinfo_pio`/flock logic. (Document: state root is POSIX by invariant, so cinfo's fd-level I/O is compliant.)
@@ -274,9 +274,9 @@ xrootd_cache_sink_write(xrootd_cache_sink_t *s, const void *buf, size_t len)
 
 **Build on the existing write-back state engine.** The FRM journal + `writethrough_replay.c` already track each pending `wt` write-back durably (STAGING/QUEUED/FAILED, restart recovery). Do NOT add a parallel tracker. This task only provides the durable BYTES the journaled flush/replay reads from.
 
-**Files:** Modify `src/cache/writethrough_flush.c` (a `xrootd_cache_wt_stage_put` helper), the write/sync site that drives the dirty cadence.
+**Files:** Modify `src/fs/cache/writethrough_flush.c` (a `xrootd_cache_wt_stage_put` helper), the write/sync site that drives the dirty cadence.
 
-- [ ] **Step 1: Read the existing journal hooks first.** `src/cache/writethrough_flush.c` `xrootd_wt_journal_begin/finish/cancel` (uses `frm_request_add`/`frm_request_set_status`/`frm_request_delete`, `wt->xfer_reqid`, kind `FRM_XFER_WT`, `lfn = local_path`) and `src/cache/writethrough_replay.c` (re-drives `FAILED`/`QUEUED` `wt` records, bounded attempts). The staged copy must be keyed so BOTH the live flush and a replayed flush can find it from the journal record alone — i.e. keyed by the record's `lfn` (the logical path), via `xrootd_cache_key`.
+- [ ] **Step 1: Read the existing journal hooks first.** `src/fs/cache/writethrough_flush.c` `xrootd_wt_journal_begin/finish/cancel` (uses `frm_request_add`/`frm_request_set_status`/`frm_request_delete`, `wt->xfer_reqid`, kind `FRM_XFER_WT`, `lfn = local_path`) and `src/fs/cache/writethrough_replay.c` (re-drives `FAILED`/`QUEUED` `wt` records, bounded attempts). The staged copy must be keyed so BOTH the live flush and a replayed flush can find it from the journal record alone — i.e. keyed by the record's `lfn` (the logical path), via `xrootd_cache_key`.
 - [ ] **Step 2:** Add `int xrootd_cache_wt_stage_put(const ngx_stream_xrootd_srv_conf_t *conf, const char *resolved, const u_char *buf, off_t off, size_t len, ngx_log_t *log);` — when `xrootd_cache_wt_stage(conf)` is bound, driver `open`(CREATE) + `pwrite` the extent into the stage instance keyed by `xrootd_cache_key(resolved)`. No-op (return 0) when no stage role. Best-effort. (A committed object key per `lfn`; subsequent writes extend it.)
 - [ ] **Step 3:** Call it from the write path at the same coarse cadence as the Phase-1 dirty mark (clean→dirty transition + each `kXR_sync`), so the staged copy holds the synced bytes before the journaled flush runs.
 - [ ] **Step 4: Build** → exit 0. (No new state tracking added — the FRM journal already records the write-back; verify `writethrough_replay.c` is unchanged.)
@@ -285,7 +285,7 @@ xrootd_cache_sink_write(xrootd_cache_sink_t *s, const void *buf, size_t len)
 
 ### Task 9: flush + replay read from the staged copy (correct durable replay)
 
-**Files:** Modify `src/cache/writethrough_flush.c`
+**Files:** Modify `src/fs/cache/writethrough_flush.c`
 
 - [ ] **Step 1:** In `init_task`, resolve the read source in priority order: (1) `xrootd_cache_wt_stage(conf)` bound → open the READ object from the **stage** instance keyed by `xrootd_cache_key(local_path)` (set `wt->sd_obj`/`sd_size`/`sd_has_obj` from its `fstat`); (2) else the Phase-1 primary driver read (driver-backed primary); (3) else the raw confined POSIX read. Because the stage key is derived from the record's `lfn`, a flush re-driven by `writethrough_replay.c` after a restart reads the SAME immutable staged bytes — making the existing replay correct even if the primary changed/was evicted (this is the durability win; no new tracking).
 - [ ] **Step 2:** On flush success: the existing `xrootd_wt_journal_finish(wt, 1)` already deletes the FRM record; ALSO `mark_clean` (existing) and `stage_inst->driver->unlink(stage_inst, key)` to drop the now-mirrored staged copy. On failure, leave both the FRM `FAILED` record AND the staged copy for `writethrough_replay` to re-drive — do NOT unlink. (Lifecycle owned by the journal, per the spec.)
@@ -315,7 +315,7 @@ xrootd_cache_sink_write(xrootd_cache_sink_t *s, const void *buf, size_t len)
 
 ### Task 12: docs + full regression
 
-**Files:** Modify `src/cache/README.md`
+**Files:** Modify `src/fs/cache/README.md`
 
 - [ ] **Step 1:** Document the three storage roles + directives, the exclusively-VFS principle (and the documented sidecar/control-plane POSIX exemption if kept), the write-back staging flow, and the two tests.
 - [ ] **Step 2: Full gate:** `tests/c/run_cinfo_tests.sh` (81), `run_cache_admit_tests.sh` (11), `run_cache_reaper.sh`, `run_pblock_root.sh`, `run_pblock_webdav.sh`, `run_pblock_writethrough.sh`, `run_cache_pblock_posix.sh`, `run_cache_pblock_pblock.sh` — all green; and a no-cache-backend config still serves a POSIX cache unchanged.

@@ -7,7 +7,7 @@
 
 #include "webdav.h"
 #include "fs/vfs.h"
-#include "path/path.h"
+#include "fs/path/path.h"
 #include "auth/impersonate/lifecycle.h"
 #include "core/compat/etag.h"
 #include "core/compat/fs_walk.h"

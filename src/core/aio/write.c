@@ -1,5 +1,5 @@
 #include "core/ngx_xrootd_module.h"
-#include "cache/writethrough_metrics.h"
+#include "fs/cache/writethrough_metrics.h"
 #include "write/wrts_journal.h"
 #include "connection/disconnect.h"     /* deferred-teardown guards */
 #include "connection/event_sched.h"    /* xrootd_schedule_read_resume */

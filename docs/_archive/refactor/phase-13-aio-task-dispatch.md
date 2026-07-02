@@ -95,7 +95,7 @@ xrootd_task_bind(ngx_thread_task_t *task,
 | `src/dirlist/handler.c` | ~176 | `xrootd_dirlist_aio_thread` / `xrootd_dirlist_aio_done` |
 | `src/query/checksum_ckscan_dispatch.c` | ~272 | ckscan pair |
 | `src/tpc/launch.c` | ~350 | `xrootd_tpc_pull_thread` / `xrootd_tpc_pull_done` |
-| `src/cache/open_or_fill.c` | ~54 | cache fill pair |
+| `src/fs/cache/open_or_fill.c` | ~54 | cache fill pair |
 
 *webdav/tpc_thread.c, webdav/put.c, webdav/copy.c, webdav/move.c, and
 webdav/tpc_marker.c* each use their own private task patterns with HTTP

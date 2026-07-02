@@ -24,7 +24,7 @@
 
 #include "xfer.h"
 
-#include "path/path.h"   /* xrootd_sanitize_log_string — shared, never reimpl */
+#include "fs/path/path.h"   /* xrootd_sanitize_log_string — shared, never reimpl */
 
 #include <fcntl.h>
 #include <limits.h>

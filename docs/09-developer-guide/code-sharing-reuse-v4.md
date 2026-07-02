@@ -279,7 +279,7 @@ assembly**, ranked by audit cost (not LoC):
 | **GSI-client handshake** | `client/lib/sec/sec_gsi.c` (on `gsi_core`) **vs** `src/tpc/gsi_outbound_*.c` (raw OpenSSL) | ⚙️ **DONE** — §4.3 (built a TPC-pull-from-GSI-origin gate, then migrated onto `gsi_core`) |
 | **Token JWT split** | `client/lib/credinfo.c` (`xrdjwt_split`) ↔ `src/auth/token/validate.c` (inline `memchr`) | ⚙️ **DONE** — §4.4 (server switched to the shared `xrdjwt_split`) |
 | **Session-bootstrap packing** (handshake + kXR_protocol + kXR_login) | `client/lib/conn.c` ↔ `src/upstream/bootstrap.c` (×2) ↔ `src/tpc/bootstrap.c` | ⚙️ **DONE** — §4.5 (new `protocol/bootstrap_pack.h`, 4 sites → 1) |
-| **kXR_error decode adoption** | already-shared `xrd_error_body_decode` ↔ hand-rolled in `src/tpc/source.c`, `src/cache/origin_response.c` | ⚙️ **DONE** — §4.5 (adopted shared decoder; fixed a non-NUL `%s` over-read) |
+| **kXR_error decode adoption** | already-shared `xrd_error_body_decode` ↔ hand-rolled in `src/tpc/source.c`, `src/fs/cache/origin_response.c` | ⚙️ **DONE** — §4.5 (adopted shared decoder; fixed a non-NUL `%s` over-read) |
 | **Stat-line grammar** `"<id> <size> <flags> <mtime>"` | `src/path/stat_body.c` (encoder) ↔ `client/lib/ops_meta.c` (decoder) | ⚙️ **DONE** — §4.6 (new `protocol/stat_line.h`, encode + decode co-located) |
 | **`root://` URL authority split** | `client/lib/url.c` (on shared `host_split`) ↔ `src/tpc/parse.c` (bespoke) | ⚙️ **DONE** — §4.7 (server routed onto the shared `xrootd_split_host_port`) |
 | **kXR_open flag semantics** (options ↔ POSIX `O_*`) | `src/read/open_resolved_file.c` (decoder) ↔ `client/lib/ops_file.c` + both FUSE drivers (encoders) | ⚙️ **DONE** — §4.8 (new `protocol/open_flags.h`, 1 decoder + 3 encoders → 1) |
@@ -436,7 +436,7 @@ use a fixed `{0,1}` streamid, no TLS flags (TLS is driven by `kXR_gotoTLS`), and
 **Bonus adoption (no new code):** while in the outbound-client paths, switched two sites that
 hand-rolled the `kXR_error` body layout (`ntohl(*(uint32_t*)body)` + message slice) to the
 already-shared `xrd_error_body_decode()` from `frame_hdr.h` — `src/tpc/source.c` and
-`src/cache/origin_response.c`. This also **fixed a latent bug**: the TPC site printed the
+`src/fs/cache/origin_response.c`. This also **fixed a latent bug**: the TPC site printed the
 non-NUL-terminated wire message with `%s` (the exact over-read `frame_hdr.h`'s own doc warns
 about); it now uses the decoder's bounded slice with `%.*s`.
 

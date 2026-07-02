@@ -91,7 +91,7 @@
 #include "core/config/merge_macros.h"
 
 /* path/ — kernel-confined file operations (beneath API) */
-#include "path/beneath.h"
+#include "fs/path/beneath.h"
 
 /* ------------------------------------------------------------------ */
 /* Module forward declaration                                           */
@@ -345,7 +345,7 @@ ngx_int_t xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
 #include "response/async.h"
 
 /* path/ — client path resolution, VO ACL, group policy, access log */
-#include "path/path.h"
+#include "fs/path/path.h"
 #include "auth/authz/auth_gate.h"
 #include "path/op_path.h"
 

@@ -19,7 +19,7 @@ Measured from the current tree on 2026-05-20:
 | `src/s3` | 4,923 | SigV4, XML responses, object/multipart operations. |
 | `src/proxy` | 3,897 | Native XRootD transparent proxy state machine. |
 | `src/tpc` | 3,796 | Native XRootD third-party copy and outbound GSI helpers. |
-| `src/cache` | 3,709 | Cache origin client, fills, eviction, write-through. |
+| `src/fs/cache` | 3,709 | Cache origin client, fills, eviction, write-through. |
 | `src/query` | 2,765 | Query subtypes, checksum scans, prepare/stage. |
 | `src/auth/token` | 2,658 | JWT/JWKS/scopes/macaroons/base64/json. |
 | `src/path` | 2,885 | Path confinement, ACL/authdb; keep mostly local. |

@@ -22,7 +22,7 @@ files under `tests/`.
 ### Size and Focus
 
 - **Smaller files are preferred.** Each file should have a single, focused responsibility.
-- Files split by job (e.g., `src/cache/fetch.c`, `src/cache/evict.c`) over monolithic modules.
+- Files split by job (e.g., `src/fs/cache/fetch.c`, `src/fs/cache/evict.c`) over monolithic modules.
 - If a file exceeds ~500 lines, consider whether it owns more than one concept and split accordingly.
 
 ### Directory Organization

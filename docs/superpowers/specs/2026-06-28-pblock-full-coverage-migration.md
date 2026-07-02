@@ -164,7 +164,7 @@ object to hash it:
 
 ### Layer 5 — read-through cache (only if cache enabled on a pblock export)
 
-`src/cache/io.c`, `src/cache/writethrough_flush.c` `posix_wrap`. The cache *store*
+`src/fs/cache/io.c`, `src/fs/cache/writethrough_flush.c` `posix_wrap`. The cache *store*
 lives in `cache_root` (a separate POSIX domain — can stay POSIX), but write-through
 **reads the export object** (pblock). Edge case; revisit after Layers 1–4.
 

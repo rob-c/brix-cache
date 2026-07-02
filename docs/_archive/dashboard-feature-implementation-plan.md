@@ -654,7 +654,7 @@ Update in:
 - `src/write/write.c`
 - `src/write/pgwrite.c`
 - `src/read/close.c`
-- `src/cache/writethrough_flush.c`
+- `src/fs/cache/writethrough_flush.c`
 
 ### API/UI
 

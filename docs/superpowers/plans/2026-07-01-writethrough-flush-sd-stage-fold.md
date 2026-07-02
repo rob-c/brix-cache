@@ -73,11 +73,11 @@ Run: `bash tests/run_pblock_writethrough.sh` — Expected: `ALL PASS` (baseline)
 ### Task 1: Build the wt `sd_stage` instance from the legacy writethrough config
 
 **Files:**
-- Modify: `src/cache/cache_storage.c` (add `cache_build_wt_stage`, mirroring `cache_build_source`)
-- Modify: `src/cache/cache_storage.h` (accessor decl)
+- Modify: `src/fs/cache/cache_storage.c` (add `cache_build_wt_stage`, mirroring `cache_build_source`)
+- Modify: `src/fs/cache/cache_storage.h` (accessor decl)
 - Modify: `src/core/types/config.h` (add `void *cache_wt_stage_sd_inst;` beside `cache_wt_stage_inst`)
-- Modify: `src/cache/cache_internal.h` (add `xrootd_cache_build_wt_origin` decl)
-- Modify: `src/cache/writethrough_flush.c:645-668` (extract the inline write-back origin build → shared `xrootd_cache_build_wt_origin`)
+- Modify: `src/fs/cache/cache_internal.h` (add `xrootd_cache_build_wt_origin` decl)
+- Modify: `src/fs/cache/writethrough_flush.c:645-668` (extract the inline write-back origin build → shared `xrootd_cache_build_wt_origin`)
 - Test: `tests/run_pblock_writethrough.sh`, `tests/run_cache_wt_driver.sh`, `tests/run_credential_wt_ztn.sh`
 
 **Interfaces:**
@@ -179,7 +179,7 @@ Run: `bash tests/run_pblock_writethrough.sh && bash tests/run_cache_wt_driver.sh
 ### Task 4: Re-home crash-recovery replay to the staging engine (DURABILITY GATE — sequence against the FRM row)
 
 **Files:**
-- Modify: `src/cache/writethrough_replay.c` (re-point the journal-replay consumer from `run_flush` to the staging engine's flush; the journal + `frm_reconcile` scan are already shared and stay)
+- Modify: `src/fs/cache/writethrough_replay.c` (re-point the journal-replay consumer from `run_flush` to the staging engine's flush; the journal + `frm_reconcile` scan are already shared and stay)
 - Read: `src/fs/xfer/xfer_reconcile.{c,h}`, `src/fs/xfer/stage_engine.c`
 - Test: `tests/run_credential_wt_ztn.sh` (durability path), a crash-recovery harness
 
@@ -200,7 +200,7 @@ Run: `bash tests/run_pblock_writethrough.sh && bash tests/run_cache_wt_driver.sh
 ### Task 5: Delete the bespoke `run_flush` loop
 
 **Files:**
-- Modify: `src/cache/writethrough_flush.c` (delete `run_flush`, `copy_body_driver`, `stage_copy`, `open_local_confined`, `flush_sync_handle`, `flush_on_close`, `flush_thread`, `flush_done` — everything now dead)
+- Modify: `src/fs/cache/writethrough_flush.c` (delete `run_flush`, `copy_body_driver`, `stage_copy`, `open_local_confined`, `flush_sync_handle`, `flush_on_close`, `flush_thread`, `flush_done` — everything now dead)
 - Keep: `writethrough_decision.c` (policy), `writethrough_replay.c` (re-homed), `xrootd_cache_build_wt_origin` (used by the wt-stage build), the wt metrics
 - Modify: `config` (drop `writethrough_flush.c` if the WHOLE file is now dead; else keep the surviving helpers)
 - Test: full suite

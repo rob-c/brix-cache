@@ -5,7 +5,7 @@
 #include "manager/pending.h"
 #include "cms/cms_internal.h"
 #include "session/registry.h"
-#include "cache/writethrough_decision.h"
+#include "fs/cache/writethrough_decision.h"
 
 /*
  * open_overview.c — kXR_open architecture map + the opaque-string helper.

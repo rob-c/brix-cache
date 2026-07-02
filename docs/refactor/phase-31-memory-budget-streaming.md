@@ -6,7 +6,7 @@
 W2.1 windowed read + W2.2 PUT + W4 budget all landed & verified; W2.3 readv is
 budget-bounded (full resident windowing is a follow-up)
 **Scope:** all bulk data paths — `src/read`, `src/write`, `src/core/aio`, `src/webdav`,
-`src/s3`, `src/cache`, `src/session`, `src/core/types/context.h`, `src/core/types/tunables.h`
+`src/s3`, `src/fs/cache`, `src/session`, `src/core/types/context.h`, `src/core/types/tunables.h`
 **Companion:** Phase 29 (read throughput) and Phase 30 (whole-src hyper-opt). 29/30
 make a single stream *fast*; 31 makes N concurrent streams *cheap*. They share the
 data plane and must land consistently — do not regress the sendfile path.
@@ -179,7 +179,7 @@ disappears.
 1. **TLS read = bounded fill/drain loop** (depends on W1's window). Replace
    "pread whole request into `read_scratch`" with: `pread` ≤ window → submit to
    SSL `send_chain` → on drain, refill next window. This is the same
-   suspend/resume the slice-cache fill already uses (`src/cache/`). The wire
+   suspend/resume the slice-cache fill already uses (`src/fs/cache/`). The wire
    framing is unchanged (chunks are still `XROOTD_READ_CHUNK_MAX`); only the
    resident slice shrinks. This also *helps Phase 29's TLS number* — smaller
    working set, better L2/L3 residency, earlier first-byte.

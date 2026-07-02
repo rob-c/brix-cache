@@ -14,7 +14,7 @@ capability, not a cache bolt-on.
 
 `sd_xroot` (the remote `root://` SD driver) is **read-only** — built by the cache
 for byte *fill* only, never a writable primary. Write-through to a remote origin
-*does* exist (`xrootd_write_through`, `src/cache/writethrough_flush.c`) but it is a
+*does* exist (`xrootd_write_through`, `src/fs/cache/writethrough_flush.c`) but it is a
 **cache bolt-on**: opt-in, and it always lands writes locally first. There is no
 single, generic story for "this node's storage *is* a remote `root://`, write to it
 like any other backend." The transparent proxy already forwards the full *live*
@@ -57,7 +57,7 @@ the write semantics — both driven by the **same** `xrootd_vfs_staged_*` seam:
 ## 3. Architecture — `sd_xroot` becomes writable
 
 Fill the write slots on the `xrootd_sd_xroot_driver` vtable, each a thin wrapper
-over the **already-complete** origin write wire client (`src/cache/origin_protocol.c`):
+over the **already-complete** origin write wire client (`src/fs/cache/origin_protocol.c`):
 
 | SD slot | wraps | notes |
 |---|---|---|

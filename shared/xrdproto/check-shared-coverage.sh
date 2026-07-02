@@ -28,7 +28,7 @@ lib="${1:-$here/libxrdproto.a}"
 #   time — server emits ISO8601; no consumer, and the filename shadows the system
 #          <time.h> when src/core/compat is on the include path in a standalone build.
 #   xml  — server-side WebDAV/SRR XML generation (libxml2); the client only parses.
-#   path — depends on src/path/beneath.h (ngx-coupled); not standalone-extractable.
+#   path — depends on src/fs/path/beneath.h (ngx-coupled); not standalone-extractable.
 allowlist="etag time xml path"
 
 if [ ! -f "$lib" ]; then

@@ -32,7 +32,7 @@
 #include "s3.h"
 #include "multipart_internal.h"
 #include "core/compat/fs_walk.h"
-#include "path/path.h"
+#include "fs/path/path.h"
 #include "fs/vfs.h"   /* reap_stale scan via vfs_opendir_quiet/readdir_kind/probe */
 #include "core/compat/http_query.h"
 

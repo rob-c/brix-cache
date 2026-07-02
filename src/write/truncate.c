@@ -3,7 +3,7 @@
  */
 
 #include "core/ngx_xrootd_module.h"
-#include "cache/writethrough_metrics.h"
+#include "fs/cache/writethrough_metrics.h"
 #include "fs/vfs.h"   /* path-based truncate via the VFS seam */
 
 #include <fcntl.h>

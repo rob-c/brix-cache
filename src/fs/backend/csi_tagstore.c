@@ -11,7 +11,7 @@
 
 #include "csi_tagstore.h"
 #include "core/compat/crc32c.h"
-#include "path/beneath.h"
+#include "fs/path/beneath.h"
 
 #include <string.h>
 #include <unistd.h>

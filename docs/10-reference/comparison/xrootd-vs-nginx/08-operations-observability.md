@@ -110,7 +110,7 @@ endpoints:
   `/.well-known/wlcg-storage-resource-reporting`.
 - **Logging:** `src/metrics/access_log.c` emits a per-op JSON access log; nginx's
   own error log carries diagnostics; `xrootd_sanitize_log_string()`
-  (declared `src/path/path.h`) escapes wire-derived strings to defeat log
+  (declared `src/fs/path/path.h`) escapes wire-derived strings to defeat log
   injection.
 - **Health & packaging:** `src/metrics/health.c` serves `/healthz`;
   `packaging/rpm/nginx-mod-xrootd.spec` builds three RPMs; `contrib/` ships a
@@ -424,7 +424,7 @@ generator and serves the file out of band; an nginx-xrootd operator turns on
   configured with `xrootd_access_log` (opened in `src/core/config/runtime_server.c`,
   set `off` to disable). A separate path-layer access log lives in
   `src/path/access_log.c`. nginx's own `error_log` carries diagnostics/debug.
-- **`xrootd_sanitize_log_string()`** (declared `src/path/path.h`, used across
+- **`xrootd_sanitize_log_string()`** (declared `src/fs/path/path.h`, used across
   `src/auth/authz/acl.c`, `authdb.c`, `resolve_confined_helpers.c`, token validation,
   dirlist, host auth): escapes control bytes, quotes, backslashes, and non-ASCII
   to `\xNN`, so wire-derived strings cannot inject or forge log lines. Mandated
@@ -567,7 +567,7 @@ nginx-xrootd shapes by *identity* (VO/issuer/DN/IP/volume) uniformly across
 | Config model | `src/core/config/{process,server_conf,postconfiguration,runtime_server}.c`, `merge_macros.h`; directives in `src/stream/module.c`, `module_core_directives.c`, `module_cache_proxy_directives.c`, `src/webdav/module.c`, `src/s3/module.c` |
 | SciTags / PMark | `src/pmark/{firefly,flowlabel,scitag,mapping,config,defsfile,sockstats}.c`, `pmark.h`, `README.md` |
 | SRR | `src/srr/{builder,handler,module}.c`, `srr.h`, `README.md` |
-| Logging / sanitize | `src/metrics/access_log.{c,h}`, `src/path/access_log.c`, `src/path/path.h` (`xrootd_sanitize_log_string` decl) + `src/path/{acl,authdb,helpers,resolve_confined_helpers}.c` (uses) |
+| Logging / sanitize | `src/metrics/access_log.{c,h}`, `src/path/access_log.c`, `src/fs/path/path.h` (`xrootd_sanitize_log_string` decl) + `src/path/{acl,authdb,helpers,resolve_confined_helpers}.c` (uses) |
 | Health | `src/metrics/health.c` |
 | Rate limiting | `src/ratelimit/{ratelimit,ratelimit_keys,ratelimit_zone,ratelimit_http,ratelimit_stream}.c`, `ratelimit.h`, `README.md`; `src/metrics/ratelimit.c` |
 | Packaging / ops | `packaging/rpm/nginx-mod-xrootd.spec`; `contrib/{grafana-dashboard.json,prometheus-alerts.yml,logrotate.d/nginx-xrootd,xrootd.conf.example}`; `docs/09-developer-guide/testing-runbook.md` |

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make `src/cache/` an origin-agnostic caching layer (root/s3/http remote origins) with a watermark-driven LRU reaper (background timer + dedicated metrics) and two-tier staging backpressure on writes.
+**Goal:** Make `src/fs/cache/` an origin-agnostic caching layer (root/s3/http remote origins) with a watermark-driven LRU reaper (background timer + dedicated metrics) and two-tier staging backpressure on writes.
 
 **Architecture:** Both the local cache storage and the remote origin are SD instances (`xrootd_sd_instance_t`); the cache is driver→driver copies. A shared `statvfs`+TTL fullness sampler feeds the reaper (cache_root) and the staging gate (stage_root).
 
@@ -31,8 +31,8 @@
 ### Task B1: Shared TTL fullness sampler
 
 **Files:**
-- Create: `src/cache/fs_usage.c`
-- Modify: `src/cache/evict_internal.h` (declare `xrootd_cache_fs_usage_sampled`)
+- Create: `src/fs/cache/fs_usage.c`
+- Modify: `src/fs/cache/evict_internal.h` (declare `xrootd_cache_fs_usage_sampled`)
 - Modify: `./config` (register `fs_usage.c`)
 - Test: `tests/c/test_fs_usage.c`, `tests/c/run_fs_usage_tests.sh`
 
@@ -57,9 +57,9 @@
 ### Task B3: Watermark purge core (refactor eviction to a conf-based target loop)
 
 **Files:**
-- Create: `src/cache/reap_watermark.c`
-- Modify: `src/cache/evict_policy.c` — extract the list-build + two-pass loop into `xrootd_cache_purge_to_target(conf, ctx_or_null, protect_path, target_ppm, log, *files, *bytes)`; `evict_if_needed` becomes a thin caller (`target = threshold`).
-- Modify: `src/cache/evict_internal.h` (declare the core + the ctx-optional metric path)
+- Create: `src/fs/cache/reap_watermark.c`
+- Modify: `src/fs/cache/evict_policy.c` — extract the list-build + two-pass loop into `xrootd_cache_purge_to_target(conf, ctx_or_null, protect_path, target_ppm, log, *files, *bytes)`; `evict_if_needed` becomes a thin caller (`target = threshold`).
+- Modify: `src/fs/cache/evict_internal.h` (declare the core + the ctx-optional metric path)
 - Modify: `./config`
 - Test: `tests/run_cache_watermark.sh`
 
@@ -74,7 +74,7 @@
 
 **Files:**
 - Modify: `src/core/config/process.c` (add `xrootd_cache_watermark_timer` per worker, mirroring `xrootd_cache_reap_handler`; arm on cache + watermarks configured; re-arm at `cache_reap_interval`)
-- Modify: `src/cache/reap_watermark.h` (handler prototype)
+- Modify: `src/fs/cache/reap_watermark.h` (handler prototype)
 
 - [ ] **Step 1: Failing e2e** (extends B3): without manually invoking, the **timer alone** drives a too-full cache to `≤ low` within ~2 intervals.
 - [ ] **Step 2:** Run → FAIL (no timer).
@@ -94,7 +94,7 @@
 
 ### Task B6: Phase-B regression + docs
 
-- [ ] Update `src/cache/README.md` (reaper section: watermark + timer + metrics).
+- [ ] Update `src/fs/cache/README.md` (reaper section: watermark + timer + metrics).
 - [ ] Run: `tests/c/run_cinfo_tests.sh`, `tests/c/run_fs_usage_tests.sh`, `tests/run_cache_reaper.sh`, `tests/run_cache_watermark.sh`, the cache pytest group, the seam guard. All green.
 
 ---
@@ -115,7 +115,7 @@
 ### Task C2: Admission decision
 
 **Files:**
-- Create: `src/cache/stage_admit.c` (+ enum/proto in a header), `./config`
+- Create: `src/fs/cache/stage_admit.c` (+ enum/proto in a header), `./config`
 - Test: `tests/c/test_stage_admit.c`, `tests/c/run_stage_admit_tests.sh`
 
 - [ ] **Step 1: Failing unit test** over a stubbed sampler: `<low→ALLOW`, `[low,high)→WAIT`, `≥high→REJECT`; a `statvfs` error → ALLOW (fail-open).
@@ -140,7 +140,7 @@
 
 ### Task C5: Metrics + docs
 
-**Files:** `src/metrics/unified.c`/`.h`: `wt_stage_usage_ratio` gauge, `wt_stage_throttled_total{action}`; set gauge from the admit sampler. `src/cache/README.md` write-through section.
+**Files:** `src/metrics/unified.c`/`.h`: `wt_stage_usage_ratio` gauge, `wt_stage_throttled_total{action}`; set gauge from the admit sampler. `src/fs/cache/README.md` write-through section.
 
 - [ ] Failing `/metrics` assertion → implement → PASS. Phase-C regression green.
 
@@ -150,12 +150,12 @@
 
 **Interfaces produced:**
 - `sd_remote` driver (`xrootd_sd_driver_t name="remote"`, `caps=XROOTD_SD_CAP_RANGE_READ`), built from a parsed origin URL.
-- `src/cache/origin/s3_transport.{c,h}`: `s3_open/read/stat/close` (libcurl + SigV4).
+- `src/fs/cache/origin/s3_transport.{c,h}`: `s3_open/read/stat/close` (libcurl + SigV4).
 - `xrootd_cache_origin` accepts a full URL; `xrootd_cache_origin_s3_{access_key,secret_key,region,endpoint}`.
 
 ### Task A1: S3 transport
 
-**Files:** Create `src/cache/origin/s3_transport.{c,h}`; `./config`. Test: `tests/run_cache_s3_origin.sh` (front a local S3 endpoint — the module's own S3 server on 9001 — as origin).
+**Files:** Create `src/fs/cache/origin/s3_transport.{c,h}`; `./config`. Test: `tests/run_cache_s3_origin.sh` (front a local S3 endpoint — the module's own S3 server on 9001 — as origin).
 
 - [ ] **Step 1: Failing e2e.** Cache node with `xrootd_cache_origin s3://…` fills byte-exact from an object PUT to the S3 origin. → FAIL → implement libcurl GET + range + SigV4 (reuse `shared/xrdproto` `xrootd_sigv4_*`), HEAD for stat → PASS.
 - [ ] **Step 2:** Error: object-not-found → `kXR_NotFound`/404; SigV4 creds never logged.
@@ -169,7 +169,7 @@
 
 ### Task A3: Origin URL config + `fetch.c` rewrite
 
-**Files:** `src/cache/origin_*`, `fetch.c`, `slice_fill.c`; config plumbing for the URL + S3 creds.
+**Files:** `src/fs/cache/origin_*`, `fetch.c`, `slice_fill.c`; config plumbing for the URL + S3 creds.
 
 - [ ] **Step 1: Failing e2e.** Existing `root://` + `http(s)` origin tests stay green through the unified driver path; `fetch.c` opens the origin instance and `pread`s into the staged-write sink (commit-then-verify retained). GSI `xrdcp`-exec retained as documented fallback.
 - [ ] **Step 2:** FAIL → implement the origin-instance copy; keep the scheme→transport mapping inside `sd_remote` → PASS.
@@ -177,7 +177,7 @@
 
 ### Task A4: Phase-A regression + docs
 
-- [ ] `src/cache/README.md` origin section; full cache + pblock + origin e2e + seam guard green; `xrootd_cache_origin_fetch_*` scrape asserts.
+- [ ] `src/fs/cache/README.md` origin section; full cache + pblock + origin e2e + seam guard green; `xrootd_cache_origin_fetch_*` scrape asserts.
 
 ---
 

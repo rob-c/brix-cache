@@ -16,8 +16,8 @@
 #include <stdlib.h>             /* free (inflate state cleanup) */
 
 #include "connection/fd_table.h"
-#include "path/beneath.h"
-#include "path/path.h"
+#include "fs/path/beneath.h"
+#include "fs/path/path.h"
 #include "session/registry.h"
 #include "response/response.h"
 #include "protocol/wire_core_requests.h"

@@ -90,7 +90,7 @@ ngx_int_t xrootd_stream_error(xrootd_ctx_t *ctx, ngx_connection_t *c,
 ### 2. Path Resolution Triplet Consolidation
 
 **Current state:** Three separate path resolution wrappers, each doing the same core work:
-- **Stream:** `xrootd_resolve_path()`, `xrootd_resolve_path_write()`, `xrootd_resolve_path_noexist()` (`src/path/resolve_path_variants.c`) — takes `ngx_str_t *root`
+- **Stream:** `xrootd_resolve_path()`, `xrootd_resolve_path_write()`, `xrootd_resolve_path_noexist()` (`src/fs/path/resolve_path_variants.c`) — takes `ngx_str_t *root`
 - **WebDAV:** `ngx_http_xrootd_webdav_resolve_path(r, root_canon, path)` → wraps `xrootd_resolve_path_input()` with URI decoding + slash stripping (`src/webdav/path.c:58`)
 - **S3:** `s3_resolve_key(root, key, out, outsz)` → wraps `xrootd_resolve_path_input()` with URL decoding (`src/s3/util.c:50`)
 

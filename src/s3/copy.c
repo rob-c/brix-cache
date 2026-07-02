@@ -18,7 +18,7 @@
 #include "s3.h"
 #include "usermeta.h"
 #include "fs/vfs.h"
-#include "path/path.h"
+#include "fs/path/path.h"
 #include "core/compat/copy_range.h"
 #include "core/compat/http_headers.h"
 #include "core/compat/staged_file.h"

@@ -5,7 +5,7 @@
 #include "statx.h"
 #include "stat.h"
 #include "core/ngx_xrootd_module.h"
-#include "path/beneath.h"
+#include "fs/path/beneath.h"
 #include "core/compat/alloc_guard.h"
 
 #include <stdlib.h>   /* realpath */

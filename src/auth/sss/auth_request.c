@@ -1,5 +1,5 @@
 #include "sss_internal.h"
-#include "path/path.h"
+#include "fs/path/path.h"
 #include "response/response.h"
 #include "session/registry.h"
 

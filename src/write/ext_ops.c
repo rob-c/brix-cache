@@ -23,7 +23,7 @@
 #include "core/compat/vendor_ext.h"   /* shared kXR_setattr prefix codec (libxrdproto) */
 #include "path/op_path.h"
 #include "auth/authz/auth_gate.h"
-#include "path/path.h"
+#include "fs/path/path.h"
 #include "fs/vfs.h"   /* xrootd_vfs_setattr — driver-routed metadata mutation */
 
 #include <arpa/inet.h>

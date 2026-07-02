@@ -19,7 +19,7 @@ re-deriving them:
 
 - [`../conformance-findings.md`](../conformance-findings.md) — fixed wire divergences vs. the spec + stock tools (incl. the framing batch).
 - `tests/test_conf_framing.py` — raw-socket malformed/boundary framing differential vs. the stock data server.
-- `src/auth/impersonate/README.md`, `src/path/README.md`, `src/ratelimit/README.md` — subsystem invariants.
+- `src/auth/impersonate/README.md`, `src/fs/path/README.md`, `src/ratelimit/README.md` — subsystem invariants.
 
 ---
 
@@ -84,9 +84,9 @@ This module re-implements the same protections and adds several that the
 nginx front end and a modern kernel make cheap:
 
 - **Kernel-enforced confinement** via `openat2(RESOLVE_BENEATH |
-  RESOLVE_NO_MAGICLINKS)` as the actual security boundary (`src/path/beneath.c`),
+  RESOLVE_NO_MAGICLINKS)` as the actual security boundary (`src/fs/path/beneath.c`),
   with the lexical `..` check kept only for protocol-conformance parity with
-  `rpCheck` (`src/path/helpers.c`, `src/path/extract.c`).
+  `rpCheck` (`src/fs/path/helpers.c`, `src/path/extract.c`).
 - **Fail-closed auth gating** on the *completed* auth verdict (`auth_done`), the
   three-tier `xrootd_auth_gate` (authdb/XrdAcc → VO ACL → token scope), and a
   ported `XrdAcc` engine that denies on a missing table.
@@ -139,7 +139,7 @@ This module makes the **kernel** the confinement authority. Every confined open
 goes through one chokepoint, `do_openat2()`:
 
 ```c
-// src/path/beneath.c
+// src/fs/path/beneath.c
 how.resolve = RESOLVE_BENEATH | RESOLVE_NO_MAGICLINKS;
 return (int) syscall(SYS_openat2, rootfd, rel, &how, sizeof(how));
 ```
@@ -185,7 +185,7 @@ Two cheaper, defence-in-depth lexical guards sit in front:
   otherwise be silently collapsed by `RESOLVE_BENEATH` instead of rejected, and
   an out-of-tree `..` is *independently* confined by the kernel
   (`helpers.c:66-78`). Policy paths are likewise canonicalised and validated
-  component-by-component before longest-prefix matching (`src/path/normalize.c`),
+  component-by-component before longest-prefix matching (`src/fs/path/normalize.c`),
   so a policy bypass via path tricks cannot occur.
 
 **Net.** Both servers reject `..` lexically. nginx-xrootd additionally makes

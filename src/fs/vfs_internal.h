@@ -31,7 +31,7 @@
 #include "core/compat/namespace_ops.h"
 #include "core/compat/staged_file.h"
 #include "metrics/access_log.h"
-#include "path/path.h"
+#include "fs/path/path.h"
 
 #include <dirent.h>
 #include <errno.h>

@@ -2,7 +2,7 @@
 
 **Status:** Draft — 2026-06-11  
 **Effort:** Large (≈ 1,800 LoC new, ≈ 350 LoC integration changes)  
-**Depends on:** existing cache layer (`src/cache/`), Phase 3 (path resolution)  
+**Depends on:** existing cache layer (`src/fs/cache/`), Phase 3 (path resolution)  
 **Optional:** Phase 20 (SHM KV store) for in-progress slice-fill tracking across workers
 
 ---
@@ -32,7 +32,7 @@ No separate implementation per protocol.
 
 ```
                  ┌──────────────────────────────────────────────────┐
-                 │               src/cache/slice.h / slice.c         │
+                 │               src/fs/cache/slice.h / slice.c         │
                  │  xrootd_slice_t, xrootd_slice_enumerate(),        │
                  │  xrootd_slice_path(), xrootd_slice_meta_*()       │
                  └────────────┬──────────────────┬───────────────────┘
@@ -44,7 +44,7 @@ No separate implementation per protocol.
               └───────────────┬──┘       └───────┬─────────────────┘
                               │                  │
               ┌───────────────▼──────────────────▼─────────────────┐
-              │             src/cache/slice_fill.c                  │
+              │             src/fs/cache/slice_fill.c                  │
               │  xrootd_slice_fill_schedule()                        │
               │  (thread pool, reuses origin_protocol.c primitives) │
               └─────────────────────────────────────────────────────┘
@@ -90,9 +90,9 @@ In-progress and lock files for each slice follow the existing patterns:
 
 ## Step A — Shared Slice Library
 
-**New files:** `src/cache/slice.h`, `src/cache/slice.c`
+**New files:** `src/fs/cache/slice.h`, `src/fs/cache/slice.c`
 
-### `src/cache/slice.h`
+### `src/fs/cache/slice.h`
 
 ```c
 #ifndef XROOTD_CACHE_SLICE_H
@@ -175,7 +175,7 @@ ngx_int_t xrootd_slice_meta_write(const char *cache_path,
 #endif /* XROOTD_CACHE_SLICE_H */
 ```
 
-### `src/cache/slice.c` — key implementation
+### `src/fs/cache/slice.c` — key implementation
 
 ```c
 ngx_int_t
@@ -240,8 +240,8 @@ xrootd_slice_enumerate(const char *cache_path, off_t file_size,
 
 ## Step B — Slice Fill from Origin
 
-**New file:** `src/cache/slice_fill.c`  
-**New header additions in:** `src/cache/cache_internal.h`
+**New file:** `src/fs/cache/slice_fill.c`  
+**New header additions in:** `src/fs/cache/cache_internal.h`
 
 The existing `xrootd_cache_fill_t` fetches an entire file.  The slice fill context adds
 `slice_start` and `slice_size` to constrain origin reads to the slice window:
@@ -840,7 +840,7 @@ xrootd_cache_slice_etag_mismatch_total 0
 
 ## Step H — Eviction Integration
 
-`src/cache/evict_candidates.c` currently enumerates files under `cache_root` and returns
+`src/fs/cache/evict_candidates.c` currently enumerates files under `cache_root` and returns
 those that exceed their TTL.  It must be updated to treat slice files and the meta file
 as a unit:
 
@@ -877,9 +877,9 @@ bypasses the whole-file cache check before nginx's proxy layer can intercept.
 
 | File | LoC | Purpose |
 |---|---|---|
-| `src/cache/slice.h` | 80 | Public API and `xrootd_slice_t` struct |
-| `src/cache/slice.c` | 160 | `xrootd_slice_path`, `xrootd_slice_enumerate`, meta helpers |
-| `src/cache/slice_fill.c` | 220 | Thread-pool fill worker + `xrootd_slice_fill_schedule` |
+| `src/fs/cache/slice.h` | 80 | Public API and `xrootd_slice_t` struct |
+| `src/fs/cache/slice.c` | 160 | `xrootd_slice_path`, `xrootd_slice_enumerate`, meta helpers |
+| `src/fs/cache/slice_fill.c` | 220 | Thread-pool fill worker + `xrootd_slice_fill_schedule` |
 
 All 3 files must be added to `NGX_ADDON_SRCS` in `src/core/config/config.h`.
 
@@ -889,9 +889,9 @@ All 3 files must be added to `NGX_ADDON_SRCS` in `src/core/config/config.h`.
 |---|---|
 | `src/webdav/get.c` | Add `webdav_get_slice()` and `webdav_get_slice_with_fill()` |
 | `src/read/read.c` | Add `xrootd_read_from_slices()` and dispatch guard |
-| `src/cache/cache_internal.h` | Add `xrootd_slice_fill_t` struct |
-| `src/cache/evict_candidates.c` | Add paired-eviction logic for slice file sets |
-| `src/cache/paths.c` | Add `xrootd_slice_evict_all()` (glob + unlink) |
+| `src/fs/cache/cache_internal.h` | Add `xrootd_slice_fill_t` struct |
+| `src/fs/cache/evict_candidates.c` | Add paired-eviction logic for slice file sets |
+| `src/fs/cache/paths.c` | Add `xrootd_slice_evict_all()` (glob + unlink) |
 | `src/core/config/config.h` | Add `cache_slice_size`, `cache_slice_prefetch`, `cache_slice_fill_timeout_ms` |
 | `src/core/config/directives.c` | Parse new directives; validate slice_size is a multiple of 1 MiB |
 | `src/metrics/metrics.h` | Add 4 new counters |

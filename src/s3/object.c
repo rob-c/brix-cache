@@ -1,6 +1,6 @@
 #include "s3.h"
 #include "usermeta.h"
-#include "cache/open.h"
+#include "fs/cache/open.h"
 #include "core/compat/http_file_response.h"
 #include "core/compat/http_headers.h"
 #include "dashboard/dashboard_tracking.h"

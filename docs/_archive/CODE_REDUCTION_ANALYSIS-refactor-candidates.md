@@ -170,7 +170,7 @@ Repeats with minor variations across 300+ lines
 |------|------------|---|---|---|
 | src/dashboard/api.c | 1104 | -150 | Medium | Repetitive JSON building |
 | src/webdav/propfind.c | 998 | -180 | Medium | XML property generation |
-| src/cache/directives.c | 533 | -80 | High | Address parsing patterns |
+| src/fs/cache/directives.c | 533 | -80 | High | Address parsing patterns |
 | src/webdav/module.c | 582 | -40 | High | Config merge boilerplate |
 | src/dashboard/module.c | ~300 | -20 | High | Config merge + setter wrappers |
 | src/webdav/auth_cert.c | 498 | -30 | High | Memory allocation patterns |
@@ -204,7 +204,7 @@ NGX_ALLOC_OR_CONF_ERROR(ptr, pool, size);
 ```
 
 **Found in:**
-- src/cache/directives.c (lines 65-68, 80-81, 94-95)
+- src/fs/cache/directives.c (lines 65-68, 80-81, 94-95)
 - src/tpc_config.c
 - src/upstream/directives.c
 - Multiple other directive files
@@ -265,7 +265,7 @@ CONF_MERGE_UINT(port, 1094);
 - src/dashboard/module.c (lines 84-92)
 - src/webdav/module.c
 - src/metrics/module.c
-- src/cache/module.c
+- src/fs/cache/module.c
 - And 10+ other module files
 
 ### Example 4: Address Parsing Helper

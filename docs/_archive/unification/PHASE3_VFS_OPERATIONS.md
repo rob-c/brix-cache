@@ -246,7 +246,7 @@ graph TD
     B["WebDAV GET\n(src/webdav/get.c)"] --> W
     C["S3 GetObject\n(src/s3/object.c)"] --> W
     W --> VFS["xrootd_vfs_read()\n(src/fs/vfs_read.c)"]
-    VFS --> CACHE{"Cache Hit?\n(src/cache/)"}
+    VFS --> CACHE{"Cache Hit?\n(src/fs/cache/)"}
     CACHE -- Yes --> CREAD["Read from cache root\n(cache/io.c → aio/read.c)"]
     CACHE -- No --> OREAD["Read from origin root\n(aio/read.c direct)"]
     CREAD --> DASH["Update Dashboard Slot\n(dashboard/transfer_table.c)"]

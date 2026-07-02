@@ -111,7 +111,7 @@ void xrootd_log_access(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_uint_t xrd_ok, uint16_t errcode, const char *errmsg, size_t bytes);
 ```
 
-Declared in `src/path/path.h`, implemented in `src/path/access_log.c`.
+Declared in `src/fs/path/path.h`, implemented in `src/path/access_log.c`.
 
 | Parameter | Meaning |
 |---|---|

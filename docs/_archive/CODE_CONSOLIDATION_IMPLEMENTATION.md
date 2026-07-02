@@ -198,7 +198,7 @@ Files to migrate (14+ modules):
 - src/dashboard/module.c
 - src/webdav/module.c
 - src/metrics/module.c
-- src/cache/module.c
+- src/fs/cache/module.c
 - src/upstream/module.c
 - And 9+ more
 
@@ -265,7 +265,7 @@ Files to migrate (14+ modules):
 | src/core/config/conf_helpers.h | Created | Header | Config merge macros |
 | src/core/config/addr_parse.h | Created | Header | Address parsing declaration |
 | src/core/config/addr_parse.c | Created | Source | Address parsing implementation |
-| src/cache/directives.c | Modified | Source | Migrated 3 allocation patterns |
+| src/fs/cache/directives.c | Modified | Source | Migrated 3 allocation patterns |
 
 ---
 

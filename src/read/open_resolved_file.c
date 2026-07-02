@@ -10,8 +10,8 @@
 #include "mirror/stream_wmirror.h"
 #include "write/wrts_journal.h"
 #include "core/compat/tmp_path.h"
-#include "cache/writethrough_metrics.h"
-#include "cache/cache_storage.h"   /* driver-backed read-cache serve + key helper */
+#include "fs/cache/writethrough_metrics.h"
+#include "fs/cache/cache_storage.h"   /* driver-backed read-cache serve + key helper */
 #include "manager/registry.h"
 #include "manager/pending.h"
 #include "session/registry.h"

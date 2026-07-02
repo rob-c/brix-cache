@@ -20,7 +20,7 @@ serve with the backend removed.
 
 ## 2. Background — the mechanism (verified in the tree)
 
-- The cache records residency in a per-object `.cinfo` sidecar (`src/cache/cinfo.h`,
+- The cache records residency in a per-object `.cinfo` sidecar (`src/fs/cache/cinfo.h`,
   magic `XCI1`, version 3): a fixed LE header (`flags`, `block_size`, `size`, `nblocks`,
   …) followed immediately by a present-bitmap of `ceil(nblocks/8)` bytes.
   Flags: `F_COMPLETE 0x1` (every block present), `F_PARTIAL 0x2` (some, not all).
@@ -28,12 +28,12 @@ serve with the backend removed.
   (`xrootd_sd_cache_create(src, store, policy, …)` in `src/fs/backend/cache/sd_cache.c`),
   whose `policy.slice_size` drives fixed-block sparse fill → a range read marks only the
   touched blocks (`F_PARTIAL`).
-- **The wiring gap (drives the Hybrid decision):** `src/cache/cache_storage.c` only builds
+- **The wiring gap (drives the Hybrid decision):** `src/fs/cache/cache_storage.c` only builds
   that decorator when `cache_slice_size > 0 && cache_origin_host.len > 0`, and hardwires the
   source to `xrootd_sd_xroot_create_origin(...)` — i.e. **partial fill is currently wired
   only for a `root://` (xroot) origin** configured via `xrootd_cache_origin HOST:PORT`.
   Every other backend (posix/pblock/http/s3/rados as `xrootd_storage_backend`) takes the
-  default **whole-file fill** path ("SP1 whole-file caching", `src/cache/open_or_fill.c` →
+  default **whole-file fill** path ("SP1 whole-file caching", `src/fs/cache/open_or_fill.c` →
   `COMPLETE`); `cache_slice_size` is silently ignored for them.
 
 So current behavior:
@@ -67,7 +67,7 @@ generic `$(BINDIR)/%: apps/%.o $(CLIENT_LIB)` rule).
 
 - **Usage:** `xrdcinfo <path-to.cinfo>` — dump a sidecar; `xrdcinfo --xattr <object>` — read
   the `user.xrd.cinfo` xattr of a cache object instead.
-- **Faithfulness:** reuses the on-disk layout from `src/cache/cinfo.h` (the `XCI1`/v3 struct
+- **Faithfulness:** reuses the on-disk layout from `src/fs/cache/cinfo.h` (the `XCI1`/v3 struct
   + magic). If `cinfo.h` is not ngx-free-includable, the tool carries a minimal standalone
   mirror of the frozen versioned header (the format is version-stable). It validates
   `magic == XCI1` and `version == 3`, then locates the present-bitmap as the **trailing

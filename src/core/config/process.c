@@ -16,12 +16,12 @@
 #include "core/compat/lifecycle_timing.h"
 #include "manager/health_check.h"
 #include "manager/pending.h"
-#include "cache/origin/pelican_register.h"
-#include "cache/cache_internal.h"   /* xrootd_wt_replay_register (durable WT) */
-#include "cache/cache_reap.h"       /* stale-dirty reaper (cache-state engine) */
-#include "cache/reap_watermark.h"  /* proactive watermark LRU reaper */
+#include "fs/cache/origin/pelican_register.h"
+#include "fs/cache/cache_internal.h"   /* xrootd_wt_replay_register (durable WT) */
+#include "fs/cache/cache_reap.h"       /* stale-dirty reaper (cache-state engine) */
+#include "fs/cache/reap_watermark.h"  /* proactive watermark LRU reaper */
 #include "fs/xfer/stage_request_registry.h"  /* FRM-dissolution: composable registry */
-#include "cache/cache_storage.h"    /* per-role SD storage instances (exclusively-VFS) */
+#include "fs/cache/cache_storage.h"    /* per-role SD storage instances (exclusively-VFS) */
 #include "fs/xfer/xfer.h"           /* xrootd_xfer_resume_sweep_register      */
 #include "fs/xfer/stage_engine.h"   /* phase-64 SP4 async stage scheduler     */
 #include "auth/gsi/keypool.h"

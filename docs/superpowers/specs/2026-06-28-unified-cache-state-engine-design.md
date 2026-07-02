@@ -4,7 +4,7 @@
 
 ## North star (context, not all in this spec)
 
-Grow `src/cache/` from two loosely-related halves (XCache-style read-through fill;
+Grow `src/fs/cache/` from two loosely-related halves (XCache-style read-through fill;
 write-through origin mirroring) into a **universal caching layer** that any backend
 can turn on — POSIX, tape, S3, or as a classic standalone read/write cache in front
 of remote storage — with **one shared persistence-state engine** underneath both the
@@ -48,7 +48,7 @@ That north star is several sub-projects. **This spec is the foundation only:**
 
 ## Component 1 — the unified state record (`.cinfo` v3)
 
-Generalize the existing `.cinfo` sidecar (`src/cache/cinfo.{c,h}`) — today a per-block
+Generalize the existing `.cinfo` sidecar (`src/fs/cache/cinfo.{c,h}`) — today a per-block
 **present** bitmap with a fixed header — to also carry **file-level write-back state**.
 Keep the sidecar name, path, and the `flock(2)`-serialized read-modify-write (it
 already works cross-process and cross-UID). Bump `XROOTD_CACHE_CINFO_VERSION` 2 → 3 and
@@ -232,22 +232,22 @@ path is byte-for-byte unchanged when no state root is configured.
 
 ## Files touched
 
-- `src/cache/cinfo.{c,h}` — v3 record + dirty API.
-- `src/cache/cache_admit.{c,h}` — **new** shared admission filter.
-- `src/cache/writethrough_decision.c` — `xrootd_wt_decide` delegates to the shared filter.
-- `src/cache/writethrough_flush.c` — `mark_clean` on successful flush.
+- `src/fs/cache/cinfo.{c,h}` — v3 record + dirty API.
+- `src/fs/cache/cache_admit.{c,h}` — **new** shared admission filter.
+- `src/fs/cache/writethrough_decision.c` — `xrootd_wt_decide` delegates to the shared filter.
+- `src/fs/cache/writethrough_flush.c` — `mark_clean` on successful flush.
 - `src/write/sync.c`, `src/read/close.c` (and the clean→dirty transition in the write
   handler) — `mark_dirty` at coarse points only (NOT per write; NOT in the
   `writethrough_metrics.h` hot inline, which keeps only the in-memory field update).
-- `src/cache/fetch.c` — read admission via the shared filter.
-- `src/cache/evict_candidates.c` / `evict_policy.c` — dirty-file eviction guard;
+- `src/fs/cache/fetch.c` — read admission via the shared filter.
+- `src/fs/cache/evict_candidates.c` / `evict_policy.c` — dirty-file eviction guard;
   expose the recursive scan for reuse by the reaper.
-- `src/cache/cache_reap.{c,h}` — **new** stale-dirty reaper + its maintenance timer
+- `src/fs/cache/cache_reap.{c,h}` — **new** stale-dirty reaper + its maintenance timer
   (armed in `init_process`, like `pelican_register`'s advertise timer).
-- `src/cache/directives.c` + config struct — `xrootd_cache_state_root`,
+- `src/fs/cache/directives.c` + config struct — `xrootd_cache_state_root`,
   `xrootd_cache_dirty_max_age`, `xrootd_cache_allow_prefix`, `xrootd_cache_deny_prefix`;
   route existing size/regex through the shared cfg.
-- `src/cache/paths.c` — state-root resolution (default to `cache_root`).
+- `src/fs/cache/paths.c` — state-root resolution (default to `cache_root`).
 - `src/metrics/` — a `cache_dirty_reaped` counter (count + bytes), low-cardinality.
 - `config` (NGX_ADDON_SRCS) — register `cache_admit.c`, `cache_reap.c`; `./configure` once.
 - `tests/c/test_cinfo.c`, `tests/c/test_cache_admit.c`, e2e tests.
