@@ -25,6 +25,21 @@ int main(void)
     CHECK(rs.n_sigs == 0);
     CHECK(rs.n_prefixes == 0);
 
+    /* --- signatures --- */
+    guard_ruleset_t sg; guard_ruleset_init(&sg);
+    guard_ruleset_add_default_signatures(&sg);
+    CHECK(guard_signature_match(&sg, "/wp-login.php", 13));   /* suffix .php */
+    CHECK(guard_signature_match(&sg, "/wp-admin/", 10));       /* prefix /wp- */
+    CHECK(guard_signature_match(&sg, "/x/.env", 7));           /* substr .env */
+    CHECK(guard_signature_match(&sg, "/a/../b", 7));           /* substr /../ */
+    CHECK(!guard_signature_match(&sg, "/rest/1.0/jobs", 14));  /* clean */
+    CHECK(!guard_signature_match(&sg, "/data/file.root", 15)); /* clean */
+    /* custom substring */
+    guard_ruleset_t cs; guard_ruleset_init(&cs);
+    CHECK(guard_ruleset_add_signature(&cs, GUARD_SIG_SUBSTR, "phpMyAdmin", 10));
+    CHECK(guard_signature_match(&cs, "/phpMyAdmin/index", 17));
+    CHECK(!guard_signature_match(&cs, "/data/ok", 8));
+
     printf(fails ? "GUARD CORE: %d FAIL\n" : "GUARD CORE: all pass\n", fails);
     return fails ? 1 : 0;
 }
