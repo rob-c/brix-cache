@@ -26,6 +26,8 @@ typedef struct {
     int            is_request;  /* 1 = request frame, 0 = response frame */
     uint16_t       opcode;      /* request: kXR_* requestid; 0 on a response */
     uint16_t       status;      /* response: kXR_* status; 0 on a request */
+    uint32_t       errnum;      /* kXR_error response with payload seen: the
+                                 * BE errnum (kXR_NotFound, …); else 0 */
     uint32_t       dlen;        /* payload length declared by the header */
     const uint8_t *path;        /* path-bearing request w/ payload present; else NULL */
     size_t         path_len;
@@ -97,6 +99,15 @@ typedef struct {
     size_t             path_cap;                 /* bytes still to capture */
     size_t             path_got;
     int                emitted;                  /* cur already emitted? */
+
+    /* kXR_writev trailing data (stock framing: dlen frames only the 16-byte
+     * write_list descriptors; sum(wlen) data bytes stream after the frame).
+     * While the descriptor payload passes through, each descriptor's wlen is
+     * accumulated so the trailing bytes can be consumed without buffering. */
+    int                wv_active;                /* summing writev descriptors */
+    uint8_t            wv_desc[16];              /* current descriptor bytes */
+    size_t             wv_desc_got;
+    uint64_t           wv_extra;                 /* sum(wlen) so far */
 } xrootd_tap_stream_t;
 
 void xrootd_tap_stream_init(xrootd_tap_stream_t *st, xrootd_tap_ctx_t *tap,

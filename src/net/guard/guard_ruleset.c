@@ -174,7 +174,7 @@ guard_ruleset_load_profile(guard_ruleset_t *rs, const char *profile)
     } else if (strcmp(profile, "root") == 0) {
         static const guard_op_class_t root_ops[] = {
             GUARD_OP_READ, GUARD_OP_WRITE, GUARD_OP_LIST, GUARD_OP_DELETE,
-            GUARD_OP_INFO, GUARD_OP_HANDSHAKE };
+            GUARD_OP_INFO, GUARD_OP_STAGE, GUARD_OP_HANDSHAKE };
         allow_ops(rs, root_ops,
             (int) (sizeof(root_ops) / sizeof(root_ops[0])));
     } else {

@@ -198,6 +198,7 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     conf->cms_addr     = NULL;
     conf->http_handoff_addr = NULL;
     conf->relay_addr = NULL;
+    conf->relay_guard_enable = NGX_CONF_UNSET;
     conf->upstream_addr = NULL;
     conf->cms_interval = NGX_CONF_UNSET;
     conf->cms_read_timeout     = NGX_CONF_UNSET_MSEC;
@@ -850,6 +851,7 @@ xrootd_merge_srv_proxy_net(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
     ngx_conf_merge_str_value(conf->upstream_token_file,
                              prev->upstream_token_file, "");
 
+    ngx_conf_merge_value(conf->relay_guard_enable, prev->relay_guard_enable, 0);
     ngx_conf_merge_value(conf->proxy_enable,       prev->proxy_enable,       0);
     ngx_conf_merge_value(conf->proxy_port,         prev->proxy_port,         1094);
     ngx_conf_merge_value(conf->proxy_upstream_tls, prev->proxy_upstream_tls, 0);

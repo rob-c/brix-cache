@@ -749,6 +749,11 @@ typedef struct {
     ngx_addr_t *relay_addr;
     ngx_str_t   relay_name;
 
+    /* [xrootd_guard_stream on|off] — bad-actor guard on the transparent relay:
+     * classify each tapped frame (src/net/guard/), drop the connection on junk
+     * signatures / grammar violations, audit notfound/authfail responses. */
+    ngx_flag_t  relay_guard_enable;
+
     /* ---- transparent proxy mode ---- */
     ngx_flag_t  proxy_enable;  /* [xrootd_proxy on|off] */
     ngx_str_t   proxy_host;    /* [xrootd_proxy_upstream host] */

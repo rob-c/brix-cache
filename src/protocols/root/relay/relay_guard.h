@@ -1,0 +1,43 @@
+#ifndef NGX_XROOTD_RELAY_GUARD_H
+#define NGX_XROOTD_RELAY_GUARD_H
+
+/*
+ * relay_guard.h — bad-actor guard sink for the transparent stream relay.
+ *
+ * WHAT: per-relay guard state plus the tap sink that classifies each decoded
+ *   root:// frame (requests pre-verdict, responses post-signal) and asks the
+ *   relay to drop the connection on a BOUNCE.
+ * WHY:  the relay is a credential-preserving MITM in front of a real XRootD
+ *   server; the guard gives it the same junk-bounce + fail2ban audit contract
+ *   the HTTP guard module gives ARC/XrdHttp (see src/net/guard/).
+ * HOW:  registered as an additional sink on the relay's tap; enforcement is a
+ *   drop flag the relay pump checks after every tap feed (a stream has no
+ *   "403" — the bounce is connection teardown).
+ */
+
+#include <ngx_config.h>
+#include <ngx_core.h>
+#include "net/tap/tap.h"
+#include "net/guard/guard.h"
+
+typedef struct {
+    guard_ruleset_t  rules;      /* built once at relay start ("root" profile) */
+    int              enable;
+    int              drop;       /* set by the sink -> the pump tears down */
+    char             ip[64];     /* NUL-terminated client address for audit */
+    ngx_log_t       *log;        /* relay's stable log (no session appender) */
+} xrootd_relay_guard_t;
+
+/* Build the ruleset (default signatures + "root" profile) and record the
+ * client address; a disabled guard leaves the sink a no-op. */
+void xrootd_relay_guard_init(xrootd_relay_guard_t *g, int enable,
+    const ngx_str_t *client_addr, ngx_log_t *log);
+
+/* Tap sink (xrootd_tap_sink_fn): ctx is the xrootd_relay_guard_t. */
+void xrootd_relay_guard_sink(void *ctx, const xrootd_tap_frame_t *f,
+    xrootd_tap_dir_t dir, const uint8_t *payload, size_t payload_len);
+
+/* 1 when a classified frame demanded the connection be dropped. */
+int xrootd_relay_guard_should_drop(const xrootd_relay_guard_t *g);
+
+#endif /* NGX_XROOTD_RELAY_GUARD_H */

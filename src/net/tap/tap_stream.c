@@ -11,6 +11,7 @@
  */
 
 #include "tap.h"
+#include "protocols/root/protocol/opcodes.h"   /* kXR_writev */
 
 #include <string.h>
 
@@ -40,6 +41,19 @@ tap_stream_on_header(xrootd_tap_stream_t *st)
     st->path_got     = 0;
     st->path_cap     = 0;
 
+    /* kXR_writev stock framing: dlen frames only the 16-byte write_list
+     * descriptors; sum(wlen) segment-data bytes stream after the frame.  Sum
+     * the wlen fields as the descriptors pass through so the trailing data can
+     * be consumed afterwards, keeping the stream aligned on the next header.
+     * (A non-16-aligned dlen is malformed — the server drops that link — so no
+     * extension is attempted and plain dlen consumption is fine.) */
+    st->wv_active   = (st->dir == XROOTD_TAP_C2U
+                       && st->cur.opcode == kXR_writev
+                       && st->cur.dlen > 0
+                       && st->cur.dlen % 16 == 0);
+    st->wv_desc_got = 0;
+    st->wv_extra    = 0;
+
     /* The path lives in the payload that follows the header (not in our 24B hdr
      * buffer), so decide path-capture from the opcode and capture it ourselves. */
     st->cur.path     = NULL;
@@ -49,6 +63,15 @@ tap_stream_on_header(xrootd_tap_stream_t *st)
     {
         st->path_cap = (st->cur.dlen < XROOTD_TAP_PATH_CAP)
                      ? st->cur.dlen : XROOTD_TAP_PATH_CAP;
+    }
+
+    /* A kXR_error body is errnum[4 BE] + errmsg — capture just the errnum
+     * (reusing the path-capture machinery) so the frame emits with the error
+     * code (kXR_NotFound, …) the bad-actor guard classifies on. */
+    if (st->dir == XROOTD_TAP_U2C && st->cur.status == kXR_error
+        && st->cur.dlen > 0)
+    {
+        st->path_cap = (st->cur.dlen < 4) ? st->cur.dlen : 4;
     }
 
     if (st->path_cap == 0) {                 /* nothing to wait for → emit now */
@@ -95,17 +118,53 @@ xrootd_tap_stream_feed(xrootd_tap_stream_t *st, const uint8_t *buf, size_t len)
                 memcpy(st->pathbuf + st->path_got, buf, cap);
                 st->path_got += cap;
             }
+
+            /* writev descriptor pass: fold each completed 16-byte descriptor's
+             * big-endian wlen (offset 4) into the trailing-data total. */
+            if (st->wv_active) {
+                size_t k;
+                for (k = 0; k < take; k++) {
+                    st->wv_desc[st->wv_desc_got++] = buf[k];
+                    if (st->wv_desc_got == sizeof(st->wv_desc)) {
+                        st->wv_extra += ((uint64_t) st->wv_desc[4] << 24)
+                                      | ((uint64_t) st->wv_desc[5] << 16)
+                                      | ((uint64_t) st->wv_desc[6] << 8)
+                                      |  (uint64_t) st->wv_desc[7];
+                        st->wv_desc_got = 0;
+                    }
+                }
+            }
+
             buf += take;
             len -= take;
             st->payload_left -= take;
 
             if (!st->emitted && st->path_got >= st->path_cap) {
-                st->cur.path     = st->pathbuf;
-                st->cur.path_len = st->path_got;
+                if (st->dir == XROOTD_TAP_U2C) {
+                    /* captured bytes = the kXR_error errnum, not a path */
+                    if (st->path_got >= 4) {
+                        st->cur.errnum = ((uint32_t) st->pathbuf[0] << 24)
+                                       | ((uint32_t) st->pathbuf[1] << 16)
+                                       | ((uint32_t) st->pathbuf[2] << 8)
+                                       |  (uint32_t) st->pathbuf[3];
+                    }
+                } else {
+                    st->cur.path     = st->pathbuf;
+                    st->cur.path_len = st->path_got;
+                }
                 xrootd_tap_emit(st->tap, &st->cur, st->dir, NULL, 0);
                 st->emitted = 1;
             }
             if (st->payload_left == 0) {
+                /* Descriptors done: the segment data (sum(wlen) bytes) streams
+                 * next — extend consumption instead of closing the frame. */
+                if (st->wv_active) {
+                    st->wv_active = 0;
+                    if (st->wv_extra > 0) {
+                        st->payload_left = st->wv_extra;
+                        continue;
+                    }
+                }
                 if (!st->emitted) {          /* defensive: emit even if no path */
                     xrootd_tap_emit(st->tap, &st->cur, st->dir, NULL, 0);
                 }

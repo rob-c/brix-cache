@@ -436,21 +436,21 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/core/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/core/compat/checksum.h \
                         $ngx_addon_dir/src/core/compat/codec_core.h \
                         $ngx_addon_dir/src/core/compat/crc32c.h \
-                        $ngx_addon_dir/src/core/compat/etag.h \
+                        $ngx_addon_dir/src/core/http/etag.h \
                         $ngx_addon_dir/src/core/compat/crypto.h \
                         $ngx_addon_dir/src/core/compat/hex.h \
                         $ngx_addon_dir/src/core/compat/fs_walk.h \
                         $ngx_addon_dir/src/core/compat/fs_usage.h \
-                        $ngx_addon_dir/src/core/compat/http_body.h \
-                        $ngx_addon_dir/src/core/compat/http_conditionals.h \
+                        $ngx_addon_dir/src/core/http/http_body.h \
+                        $ngx_addon_dir/src/core/http/http_conditionals.h \
                         $ngx_addon_dir/src/protocols/shared/file_serve.h \
                         $ngx_addon_dir/src/protocols/shared/http_cache_fill.h \
                         $ngx_addon_dir/src/protocols/shared/http_serve_offload.h \
-                        $ngx_addon_dir/src/core/compat/http_file_response.h \
-                        $ngx_addon_dir/src/core/compat/http_headers.h \
+                        $ngx_addon_dir/src/core/http/http_file_response.h \
+                        $ngx_addon_dir/src/core/http/http_headers.h \
                         $ngx_addon_dir/src/core/compat/error_mapping.h \
-                        $ngx_addon_dir/src/core/compat/http_query.h \
-                        $ngx_addon_dir/src/core/compat/http_xml.h \
+                        $ngx_addon_dir/src/core/http/http_query.h \
+                        $ngx_addon_dir/src/core/http/http_xml.h \
                         $ngx_addon_dir/src/core/compat/copy_range.h \
                         $ngx_addon_dir/src/core/compat/staged_file.h \
                         $ngx_addon_dir/src/core/compat/tmp_path.h \
@@ -566,20 +566,20 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/core/compat/codec_brotli.c \
     $ngx_addon_dir/src/core/compat/codec_bzip2.c \
     $ngx_addon_dir/src/core/compat/codec_lz4.c \
-    $ngx_addon_dir/src/core/compat/etag.c \
+    $ngx_addon_dir/src/core/http/etag.c \
     $ngx_addon_dir/src/core/compat/crypto.c \
     $ngx_addon_dir/src/core/compat/hex.c \
     $ngx_addon_dir/src/core/compat/fs_walk.c \
     $ngx_addon_dir/src/core/compat/fs_usage.c \
     $ngx_addon_dir/src/core/compat/shm_slots.c \
-    $ngx_addon_dir/src/core/compat/http_body.c \
-    $ngx_addon_dir/src/core/compat/http_conditionals.c \
+    $ngx_addon_dir/src/core/http/http_body.c \
+    $ngx_addon_dir/src/core/http/http_conditionals.c \
     $ngx_addon_dir/src/protocols/shared/file_serve.c \
     $ngx_addon_dir/src/protocols/shared/http_cache_fill.c \
     $ngx_addon_dir/src/protocols/shared/http_serve_offload.c \
-    $ngx_addon_dir/src/core/compat/http_file_response.c \
-    $ngx_addon_dir/src/core/compat/http_compress.c \
-    $ngx_addon_dir/src/core/compat/http_headers.c \
+    $ngx_addon_dir/src/core/http/http_file_response.c \
+    $ngx_addon_dir/src/core/http/http_compress.c \
+    $ngx_addon_dir/src/core/http/http_headers.c \
     $ngx_addon_dir/src/core/compat/json_min.c \
     $ngx_addon_dir/src/core/compat/protocol_caps.c \
     $ngx_addon_dir/src/core/compat/net_target.c \
@@ -591,8 +591,8 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/core/compat/integrity_info.c \
     $ngx_addon_dir/src/core/compat/async_job.c \
     $ngx_addon_dir/src/core/compat/error_mapping.c \
-    $ngx_addon_dir/src/core/compat/http_query.c \
-    $ngx_addon_dir/src/core/compat/http_xml.c \
+    $ngx_addon_dir/src/core/http/http_query.c \
+    $ngx_addon_dir/src/core/http/http_xml.c \
     $ngx_addon_dir/src/core/compat/copy_range.c \
     $ngx_addon_dir/src/core/compat/staged_file.c \
     $ngx_addon_dir/src/core/compat/tmp_path.c \
@@ -825,6 +825,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/net/guard/guard_audit.c \
     $ngx_addon_dir/src/net/guard/guard_ruleset.c \
     $ngx_addon_dir/src/protocols/root/relay/relay.c \
+    $ngx_addon_dir/src/protocols/root/relay/relay_guard.c \
     $ngx_addon_dir/src/net/proxy/gsi_upstream.c \
     $ngx_addon_dir/src/net/proxy/gsi_upstream_login.c \
     $ngx_addon_dir/src/net/cms/wire.c \

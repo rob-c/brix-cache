@@ -71,6 +71,24 @@ static void test_decode_response(void)
     assert(f.dlen == 0);
 }
 
+static void test_decode_response_errnum(void)
+{
+    /* kXR_error with body = errnum[4 BE] + errmsg */
+    uint8_t buf[64];
+    uint32_t errnum_be = htonl(3011);          /* kXR_NotFound */
+    mk_response(buf, 3, kXR_error, 4 + 5);
+    memcpy(buf + 8, &errnum_be, 4);
+    memcpy(buf + 12, "gone", 5);
+    xrootd_tap_frame_t f;
+    assert(xrootd_tap_decode_response(buf, 17, &f) == 8);
+    assert(f.status == kXR_error);
+    assert(f.errnum == 3011);
+
+    /* header-only view: errnum unknown -> 0 */
+    assert(xrootd_tap_decode_response(buf, 8, &f) == 8);
+    assert(f.errnum == 0);
+}
+
 static void test_truncated(void)
 {
     uint8_t buf[4] = {0};
@@ -126,7 +144,7 @@ static void test_audit_format(void)
 }
 
 /* records every frame the stream decoder emits */
-struct rec_ctx { int n; uint16_t op[16]; char path[16][64]; };
+struct rec_ctx { int n; uint16_t op[16]; uint32_t errnum[16]; char path[16][64]; };
 static void rec_sink(void *ctx, const xrootd_tap_frame_t *f,
     xrootd_tap_dir_t dir, const uint8_t *payload, size_t payload_len)
 {
@@ -134,6 +152,7 @@ static void rec_sink(void *ctx, const xrootd_tap_frame_t *f,
     (void) dir; (void) payload; (void) payload_len;
     if (r->n >= 16) { return; }
     r->op[r->n] = f->is_request ? f->opcode : f->status;
+    r->errnum[r->n] = f->errnum;
     r->path[r->n][0] = '\0';
     if (f->path && f->path_len < 64) {
         memcpy(r->path[r->n], f->path, f->path_len);
@@ -194,6 +213,48 @@ static void test_stream_response_and_skip(void)
     assert(rs.n == 1 && rs.op[0] == kXR_ok);
 }
 
+static void test_stream_writev_trailing_data(void)
+{
+    /* kXR_writev stock framing: dlen frames only the 16-byte descriptors; the
+     * segment data (sum(wlen) bytes) streams after the frame.  The decoder
+     * must consume that trailing data or it would misparse it as the next
+     * header.  Frame: writev with 2 descriptors (wlen 5 + 7 = 12 data bytes),
+     * then a kXR_stat request — fed one byte at a time. */
+    uint8_t wire[512]; memset(wire, 0, 20);              /* handshake */
+    size_t  off = 20;
+
+    uint16_t sid = htons(4), op = htons(3031 /* kXR_writev */);
+    uint32_t dlen = htonl(32);                           /* 2 descriptors */
+    memcpy(wire + off, &sid, 2); memcpy(wire + off + 2, &op, 2);
+    memcpy(wire + off + 20, &dlen, 4);
+    off += 24;
+    uint32_t w1 = htonl(5), w2 = htonl(7);
+    memset(wire + off, 0, 32);                           /* fhandle+offset zero */
+    memcpy(wire + off + 4, &w1, 4);                      /* desc[0].wlen = 5 */
+    memcpy(wire + off + 16 + 4, &w2, 4);                 /* desc[1].wlen = 7 */
+    off += 32;
+    memset(wire + off, 'D', 12);                         /* trailing segment data */
+    off += 12;
+
+    uint8_t req[256];
+    size_t nreq = mk_request(req, 5, kXR_stat, "/after");
+    memcpy(wire + off, req, nreq);
+    size_t total = off + nreq;
+
+    xrootd_tap_ctx_t tap; memset(&tap, 0, sizeof(tap));
+    struct rec_ctx r; memset(&r, 0, sizeof(r));
+    xrootd_tap_register_sink(&tap, rec_sink, &r);
+    xrootd_tap_stream_t st;
+    xrootd_tap_stream_init(&st, &tap, XROOTD_TAP_C2U);
+    for (size_t i = 0; i < total; i++) {
+        xrootd_tap_stream_feed(&st, wire + i, 1);        /* 1-byte chunks */
+    }
+
+    assert(r.n == 2);
+    assert(r.op[0] == 3031);
+    assert(r.op[1] == kXR_stat && strcmp(r.path[1], "/after") == 0);
+}
+
 static void test_stream_c2u_handshake_skip(void)
 {
     /* C2U opens with a 20-byte handshake, then a real kXR_open request */
@@ -214,16 +275,41 @@ static void test_stream_c2u_handshake_skip(void)
     assert(r.op[0] == kXR_open && strcmp(r.path[0], "/p/q") == 0);
 }
 
+static void test_stream_error_errnum(void)
+{
+    /* U2C: kXR_ok, then kXR_error(errnum + msg), fed one byte at a time */
+    uint8_t wire[64];
+    size_t  off = mk_response(wire, 1, kXR_ok, 0);
+    uint32_t errnum_be = htonl(3010);          /* kXR_NotAuthorized */
+    off += mk_response(wire + off, 2, kXR_error, 4 + 3);
+    memcpy(wire + off, &errnum_be, 4); off += 4;
+    memcpy(wire + off, "no", 3); off += 3;
+
+    xrootd_tap_ctx_t tap; memset(&tap, 0, sizeof(tap));
+    struct rec_ctx r; memset(&r, 0, sizeof(r));
+    xrootd_tap_register_sink(&tap, rec_sink, &r);
+    xrootd_tap_stream_t uc; xrootd_tap_stream_init(&uc, &tap, XROOTD_TAP_U2C);
+    for (size_t i = 0; i < off; i++) {
+        xrootd_tap_stream_feed(&uc, wire + i, 1);
+    }
+    assert(r.n == 2);
+    assert(r.op[0] == kXR_ok && r.errnum[0] == 0);
+    assert(r.op[1] == kXR_error && r.errnum[1] == 3010);
+}
+
 int main(void)
 {
     test_decode_request();
     test_decode_request_no_path();
     test_decode_response();
+    test_decode_response_errnum();
+    test_stream_error_errnum();
     test_truncated();
     test_emit_fanout();
     test_audit_format();
     test_stream_chunked();
     test_stream_response_and_skip();
+    test_stream_writev_trailing_data();
     test_stream_c2u_handshake_skip();
     printf("tap_unittest: all checks passed\n");
     return 0;
