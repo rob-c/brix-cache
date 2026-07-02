@@ -40,6 +40,39 @@ int main(void)
     CHECK(guard_signature_match(&cs, "/phpMyAdmin/index", 17));
     CHECK(!guard_signature_match(&cs, "/data/ok", 8));
 
+    /* --- grammar + classify_pre --- */
+    guard_ruleset_t ar; guard_ruleset_init(&ar);
+    guard_ruleset_add_default_signatures(&ar);
+    guard_ruleset_load_profile(&ar, "arc");   /* sets prefixes + op_allowed */
+
+    guard_reason_t why = GUARD_R_NONE;
+    guard_request_t ok = { "1.2.3.4", "arc", GUARD_OP_READ,
+                           "/arex/rest/1.0/jobs", 19, 1, OUTCOME_PENDING, 0 };
+    CHECK(guard_classify_pre(&ar, &ok, &why) == GUARD_ALLOW);
+    CHECK(why == GUARD_R_NONE);
+
+    guard_request_t junk = { "1.2.3.4", "arc", GUARD_OP_READ,
+                             "/wp-login.php", 13, 0, OUTCOME_PENDING, 0 };
+    CHECK(guard_classify_pre(&ar, &junk, &why) == GUARD_BOUNCE);
+    CHECK(why == GUARD_R_SIGNATURE);
+
+    guard_request_t offns = { "1.2.3.4", "arc", GUARD_OP_READ,
+                              "/random/path", 12, 0, OUTCOME_PENDING, 0 };
+    CHECK(guard_classify_pre(&ar, &offns, &why) == GUARD_BOUNCE);
+    CHECK(why == GUARD_R_GRAMMAR);
+
+    /* signatures take precedence over grammar (both would fire) */
+    guard_request_t both = { "1.2.3.4", "arc", GUARD_OP_READ,
+                             "/evil/.env", 10, 0, OUTCOME_PENDING, 0 };
+    CHECK(guard_classify_pre(&ar, &both, &why) == GUARD_BOUNCE);
+    CHECK(why == GUARD_R_SIGNATURE);
+
+    /* advisory grammar: off-namespace ALLOWED when enforce_grammar==0 */
+    guard_ruleset_t adv; guard_ruleset_init(&adv);
+    guard_ruleset_add_prefix(&adv, "/arex", 5);
+    adv.enforce_grammar = 0;
+    CHECK(guard_classify_pre(&adv, &offns, &why) == GUARD_ALLOW);
+
     printf(fails ? "GUARD CORE: %d FAIL\n" : "GUARD CORE: all pass\n", fails);
     return fails ? 1 : 0;
 }

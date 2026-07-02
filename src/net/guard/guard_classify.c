@@ -76,3 +76,73 @@ guard_signature_match(const guard_ruleset_t *rs, const char *path, size_t len)
     }
     return 0;
 }
+
+/* ---- Check (op, path) against the namespace grammar ----
+ *
+ * WHAT: returns 1 if the op-class is permitted and the path starts with one
+ *   of the configured namespace prefixes (or no prefixes are configured),
+ *   else 0.
+ *
+ * WHY: each fronted service has a tiny legitimate namespace (ARC REST roots,
+ *   an export root); anything outside it is scanner traffic even when no
+ *   signature fires.
+ *
+ * HOW: 1. Reject ops the profile does not allow.
+ *      2. With no prefixes configured, any path is in-grammar (op-only mode).
+ *      3. Otherwise accept on the first prefix that heads the path.
+ */
+int
+guard_grammar_ok(const guard_ruleset_t *rs, guard_op_class_t op,
+    const char *path, size_t len)
+{
+    int prefix_index;
+
+    if (!rs->op_allowed[op]) {
+        return 0;
+    }
+    if (rs->n_prefixes == 0) {
+        return 1;                       /* no prefixes configured = any path */
+    }
+    for (prefix_index = 0; prefix_index < rs->n_prefixes; prefix_index++) {
+        if (len >= rs->prefix_len[prefix_index]
+            && memcmp(path, rs->prefixes[prefix_index],
+                      rs->prefix_len[prefix_index]) == 0)
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* ---- Pre-backend verdict: bounce or allow ----
+ *
+ * WHAT: classifies a request before it reaches the backend. Returns
+ *   GUARD_BOUNCE with *why set to the firing signal (signature > grammar),
+ *   or GUARD_ALLOW with *why = GUARD_R_NONE.
+ *
+ * WHY: bouncing junk pre-backend keeps scanner noise out of ARC/XRootD logs
+ *   and off their worker threads, and gives fail2ban a single high-signal
+ *   line to ban on.
+ *
+ * HOW: 1. Signature blocklist first — highest confidence, wins over grammar.
+ *      2. Grammar check only when the ruleset enforces it (advisory mode
+ *         still allows, adapters may log separately).
+ *      3. Otherwise allow.
+ */
+guard_verdict_t
+guard_classify_pre(const guard_ruleset_t *rs, const guard_request_t *req,
+    guard_reason_t *why)
+{
+    if (guard_signature_match(rs, req->path, req->path_len)) {
+        *why = GUARD_R_SIGNATURE;       /* signatures win over grammar */
+        return GUARD_BOUNCE;
+    }
+    if (rs->enforce_grammar
+        && !guard_grammar_ok(rs, req->op, req->path, req->path_len))
+    {
+        *why = GUARD_R_GRAMMAR;
+        return GUARD_BOUNCE;
+    }
+    *why = GUARD_R_NONE;
+    return GUARD_ALLOW;
+}
