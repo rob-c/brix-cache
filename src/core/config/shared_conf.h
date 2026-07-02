@@ -75,6 +75,13 @@ typedef struct {
     time_t              cache_manifest_ttl; /* phase-68 cvmfs: TTL stamped on
                                              * MANIFEST-class cache fills (secs;
                                              * 0 = no expiry stamping).           */
+    time_t              cache_client_hold;  /* phase-68 T20: keep retrying a
+                                             * failing fill this long while a
+                                             * client waits, then 504+Retry-After
+                                             * on a kept-alive conn. 0 = today's
+                                             * single-pass fill.                  */
+    time_t              cache_fill_max_life; /* T20: detached-fill retry budget
+                                             * once every client has gone.       */
     ngx_uint_t          cache_batch_cinfo;  /* xrootd_cache_batch_cinfo (0 off/1 on/2 auto) */
     size_t              cache_index_cache;  /* xrootd_cache_index_cache (L1 entries) */
     size_t              cache_slice_size;   /* xrootd_cache_slice_size (0 = whole-file) */

@@ -42,10 +42,12 @@ OBJ="$(curl -s "http://127.0.0.1:$MPORT/ctl/objects" | python3 -c \
 conf cvmfs-cas
 "$NGINX" -c "$PFX/nginx.conf" -p "$PFX"; sleep 0.5
 
-# 1: corrupt fill rejected
-curl -s -o /dev/null -X POST -d '{"mode":"corrupt","count":1}' "http://127.0.0.1:$MPORT/ctl/fault"
+# 1: PERSISTENTLY corrupt origin → mismatch-retry budget exhausts → 502
+# (a one-shot corruption would be healed by the T20 retry — by design)
+curl -s -o /dev/null -X POST -d '{"mode":"corrupt","count":8}' "http://127.0.0.1:$MPORT/ctl/fault"
 C="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$CPORT$OBJ")"
 [ "$C" = 502 ] && ok "corrupt fill → 502, not admitted" || bad "corrupt fill: $C"
+curl -s -o /dev/null -X POST -d '{"mode":"none","count":0}' "http://127.0.0.1:$MPORT/ctl/fault"
 [ -n "$(ls -A "$PFX/quarantine")" ] && ok "corrupt part quarantined" \
     || bad "quarantine empty"
 
