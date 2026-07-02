@@ -21,6 +21,21 @@
 #include "core/config/shared_conf.h"
 #include "fs/backend/sd.h"
 
+/* T19: origin-selection policy for the multi-endpoint backend. */
+typedef enum {
+    XROOTD_CVMFS_SELECT_STATIC = 0,   /* configured order (default)        */
+    XROOTD_CVMFS_SELECT_GEO,          /* haversine(here, origin coords)    */
+    XROOTD_CVMFS_SELECT_RTT           /* measured TCP connect RTT (EWMA)   */
+} xrootd_cvmfs_select_e;
+
+/* One xrootd_cvmfs_origin_coords entry: an entry WITH a port matches only
+ * that endpoint; without one it matches every endpoint on that host. */
+typedef struct {
+    ngx_str_t    host;
+    in_port_t    port;             /* 0 = any port on this host              */
+    double       lat, lon;
+} xrootd_cvmfs_coord_t;
+
 typedef struct {
     ngx_flag_t   enable;           /* xrootd_cvmfs on|off (default off)       */
     time_t       manifest_ttl;     /* xrootd_cvmfs_manifest_ttl (default 61s) */
@@ -28,6 +43,10 @@ typedef struct {
     ngx_str_t    quarantine_dir;   /* xrootd_cvmfs_quarantine_dir (optional)  */
     ngx_array_t *upstream_allow;   /* xrootd_cvmfs_upstream_allow host…       */
     ngx_uint_t   upstream_max;     /* xrootd_cvmfs_upstream_max (default 8)   */
+    ngx_uint_t   origin_select;    /* xrootd_cvmfs_origin_select (T19)        */
+    ngx_array_t *origin_coords;    /* xrootd_cvmfs_origin_coords entries      */
+    ngx_str_t    here;             /* xrootd_cvmfs_here lat:lon (geo mode)    */
+    time_t       rtt_interval;     /* xrootd_cvmfs_rtt_interval (default 60)  */
 } xrootd_cvmfs_conf_t;
 
 typedef struct {
@@ -88,6 +107,12 @@ xrootd_sd_instance_t *xrootd_cvmfs_upstream_get(ngx_http_request_t *r,
  * inline open, off-loop fill, future hold/retry — feeds the memo. */
 void xrootd_cvmfs_notify_status(ngx_http_request_t *r,
     ngx_http_xrootd_cvmfs_loc_conf_t *lcf, ngx_uint_t status);
+
+/* T19 rtt mode: record (at config time) that the export at `root_canon` runs
+ * the per-worker RTT probe; arm the probe timers at worker init. */
+void      xrootd_cvmfs_rtt_register(const char *root_canon, time_t interval,
+    const ngx_str_t *pool_name);
+ngx_int_t xrootd_cvmfs_rtt_init_worker(ngx_cycle_t *cycle);
 
 /* Metric slots (Task 16 wires the macro body; call sites are placed now). */
 #define XROOTD_CVMFS_METRIC_INC(slot) /* wired in phase-4 (T16) */

@@ -44,9 +44,9 @@ OBJ="$(curl -s "http://127.0.0.1:$MPORT/ctl/objects" | python3 -c \
 
 # success: cold fill + warm hit, byte-exact, second read served without origin
 curl -s "http://127.0.0.1:$CPORT$OBJ" -o "$PFX/cold.bin"
-N_AFTER_COLD="$(curl -s "http://127.0.0.1:$MPORT/ctl/log" | grep -c "$OBJ")"
+N_AFTER_COLD="$(curl -s "http://127.0.0.1:$MPORT/ctl/log" | grep -oF "$OBJ" | wc -l)"
 curl -s "http://127.0.0.1:$CPORT$OBJ" -o "$PFX/warm.bin"
-N_AFTER_WARM="$(curl -s "http://127.0.0.1:$MPORT/ctl/log" | grep -c "$OBJ")"
+N_AFTER_WARM="$(curl -s "http://127.0.0.1:$MPORT/ctl/log" | grep -oF "$OBJ" | wc -l)"
 curl -s "http://127.0.0.1:$MPORT$OBJ" -o "$PFX/orig.bin"
 cmp -s "$PFX/cold.bin" "$PFX/orig.bin" && cmp -s "$PFX/warm.bin" "$PFX/orig.bin" \
     && ok "cold+warm byte-exact" || bad "byte mismatch"
@@ -58,7 +58,7 @@ OBJ2="$(curl -s "http://127.0.0.1:$MPORT/ctl/objects" | python3 -c \
       'import json,sys; print(json.load(sys.stdin)[4])')"
 ( for i in $(seq 1 40); do curl -s "http://127.0.0.1:$CPORT$OBJ2" -o /dev/null & done
   wait )
-N2="$(curl -s "http://127.0.0.1:$MPORT/ctl/log" | grep -c "$OBJ2")"
+N2="$(curl -s "http://127.0.0.1:$MPORT/ctl/log" | grep -oF "$OBJ2" | wc -l)"
 [ "$N2" = 1 ] && ok "stampede: exactly 1 origin fetch" || bad "stampede: $N2 fetches"
 
 # manifest: cached with a 1s TTL — a bump becomes visible after expiry (T12)
@@ -86,9 +86,9 @@ C3="$(curl -s -o /dev/null -w '%{http_code}' -X PUT --data x \
 # (origin existence probes are HEADs; the mock logs them at /ctl/heads)
 BOGUS="/cvmfs/test.cern.ch/data/aa/$(python3 -c 'print("ab"*19)')"
 CN1="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$CPORT$BOGUS")"
-NB1="$(curl -s "http://127.0.0.1:$MPORT/ctl/heads" | grep -c "$BOGUS")"
+NB1="$(curl -s "http://127.0.0.1:$MPORT/ctl/heads" | grep -oF "$BOGUS" | wc -l)"
 CN2="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$CPORT$BOGUS")"
-NB2="$(curl -s "http://127.0.0.1:$MPORT/ctl/heads" | grep -c "$BOGUS")"
+NB2="$(curl -s "http://127.0.0.1:$MPORT/ctl/heads" | grep -oF "$BOGUS" | wc -l)"
 [ "$CN1" = 404 ] && [ "$CN2" = 404 ] && [ "$NB1" -ge 1 ] && [ "$NB1" = "$NB2" ] \
     && ok "negative cache absorbed repeat 404" \
     || bad "negative cache: codes=$CN1/$CN2 origin-probes=$NB1→$NB2"

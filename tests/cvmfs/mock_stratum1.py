@@ -126,6 +126,31 @@ class Handler(BaseHTTPRequestHandler):
         if mode == "corrupt":
             body = bytes(b ^ 0xFF if i == len(body) // 2 else b
                          for i, b in enumerate(body))
+        # single-range support (bytes=a-b / bytes=a-), like a real Stratum-1
+        rng = self.headers.get("Range")
+        if rng and rng.startswith("bytes="):
+            try:
+                a, _, b = rng[len("bytes="):].partition("-")
+                start = int(a)
+                end = int(b) if b else len(body) - 1
+            except ValueError:
+                start, end = 0, len(body) - 1
+            if start >= len(body):
+                self.send_response(416)
+                self.send_header("Content-Range", f"bytes */{len(body)}")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            end = min(end, len(body) - 1)
+            part = body[start:end + 1]
+            self.send_response(206)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Range",
+                             f"bytes {start}-{end}/{len(body)}")
+            self.send_header("Content-Length", str(len(part)))
+            self.end_headers()
+            self.wfile.write(part)
+            return
         self._send(200, body)
 
 def main():

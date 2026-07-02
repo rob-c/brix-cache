@@ -45,9 +45,9 @@ O2="$(curl -s "http://127.0.0.1:$M2/ctl/objects" | python3 -c \
 curl -s -x "$PROXY" "http://127.0.0.1:$M1$O1" -o "$PFX/p1.bin"
 curl -s "http://127.0.0.1:$M1$O1" -o "$PFX/r1.bin"
 cmp -s "$PFX/p1.bin" "$PFX/r1.bin" && ok "proxy-mode byte-exact" || bad "proxy bytes"
-NA="$(curl -s "http://127.0.0.1:$M1/ctl/log" | grep -c "$O1")"
+NA="$(curl -s "http://127.0.0.1:$M1/ctl/log" | grep -oF "$O1" | wc -l)"
 curl -s -x "$PROXY" "http://127.0.0.1:$M1$O1" -o /dev/null
-NB="$(curl -s "http://127.0.0.1:$M1/ctl/log" | grep -c "$O1")"
+NB="$(curl -s "http://127.0.0.1:$M1/ctl/log" | grep -oF "$O1" | wc -l)"
 [ "$NA" = "$NB" ] && ok "proxy-mode warm hit cached" || bad "warm went upstream"
 
 # 2: second upstream is independent (different seed → different objects)

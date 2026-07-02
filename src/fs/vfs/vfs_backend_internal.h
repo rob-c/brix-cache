@@ -42,6 +42,10 @@ typedef struct {
         char base[256];
     }                     http_extra[7];
     int                   n_http_extra;
+    /* T19: config-time selection ranks (geo/static), applied to the built
+     * sd_http instance; the rtt policy overwrites them at runtime. */
+    int                   http_ranks[8];
+    int                   has_http_ranks;
     char                  origin_token[4096]; /* §14: bearer token for the source
                                                * upstream ("" = anonymous) */
     char                  origin_x509_proxy[1024]; /* §14/C-3 GSI: proxy PEM path */

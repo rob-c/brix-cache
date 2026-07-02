@@ -236,6 +236,9 @@ sd_cache_fill(sd_cache_inst_state *st, const char *key)
             return NGX_ERROR;
         }
         off += r;
+        if (snap.size > 0 && off >= snap.size) {
+            break;               /* size known: skip the EOF-probe round-trip */
+        }
     }
     free(buf);
     so->driver->close(so);

@@ -43,14 +43,14 @@ curl -s --max-time 25 "http://127.0.0.1:$CPORT${OBJS[0]}" -o "$PFX/a.bin"
 curl -s "http://127.0.0.1:$M2${OBJS[0]}" -o "$PFX/ref.bin"
 cmp -s "$PFX/a.bin" "$PFX/ref.bin" && ok "failover fill from secondary" \
     || bad "failover fill failed"
-N2="$(curl -s "http://127.0.0.1:$M2/ctl/log" | grep -c "${OBJS[0]}")"
+N2="$(curl -s "http://127.0.0.1:$M2/ctl/log" | grep -oF "${OBJS[0]}" | wc -l)"
 [ "$N2" -ge 1 ] && ok "secondary actually served it" || bad "secondary untouched"
 
 # 2: primary back → eventually reused (health decay). Restart it on same port.
 python3 "$HERE/cvmfs/mock_stratum1.py" --port $M1 --objects 6 --seed 5 & MOCK1=$!
 sleep 0.5
 for u in "${OBJS[@]:1:4}"; do curl -s "http://127.0.0.1:$CPORT$u" -o /dev/null; done
-NP="$(curl -s "http://127.0.0.1:$M1/ctl/log" | grep -c '/data/' || true)"
+NP="$(curl -s "http://127.0.0.1:$M1/ctl/log" | grep -oF '/data/' | wc -l || true)"
 [ "$NP" -ge 1 ] && ok "primary reused after recovery ($NP fills)" \
     || bad "primary never reused"
 

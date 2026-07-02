@@ -741,6 +741,50 @@ xrootd_vfs_backend_config_cache_store(const char *root_canon,
     e->inst = NULL;                            /* recompose on next resolve */
 }
 
+/* Endpoint (host,port) at `idx` of the http backend registered at
+ * `root_canon` — index 0 is the primary, 1.. the T11 failover list. Returns
+ * 0, or -1 past the end / not an http backend. Pointers alias the registry's
+ * stable storage. */
+int
+xrootd_vfs_backend_http_endpoint_at(const char *root_canon, int idx,
+    const char **host, int *port)
+{
+    xrootd_vfs_backend_entry_t *e = xrootd_vfs_backend_entry_find(root_canon);
+
+    if (e == NULL || ngx_strcmp(e->backend, "http") != 0 || idx < 0
+        || idx > e->n_http_extra)
+    {
+        return -1;
+    }
+    if (idx == 0) {
+        *host = e->origin_host;
+        *port = e->origin_port;
+    } else {
+        *host = e->http_extra[idx - 1].host;
+        *port = e->http_extra[idx - 1].port;
+    }
+    return 0;
+}
+
+/* Record config-time selection ranks for the http backend at `root_canon`
+ * (T19 geo/static policies); applied when the per-worker instance builds. */
+void
+xrootd_vfs_backend_set_http_ranks(const char *root_canon, const int *ranks,
+    int n)
+{
+    xrootd_vfs_backend_entry_t *e = xrootd_vfs_backend_entry_find(root_canon);
+    int                         i;
+
+    if (e == NULL || ngx_strcmp(e->backend, "http") != 0) {
+        return;
+    }
+    for (i = 0; i < n && i < 8; i++) {
+        e->http_ranks[i] = ranks[i];
+    }
+    e->has_http_ranks = 1;
+    e->inst = NULL;                            /* re-apply on next resolve */
+}
+
 /* Runtime twin of the config-time http registration (phase-68 T14 proxy
  * mode): register (or reuse) a synthetic per-upstream export entry keyed
  * `up_root`, whose source is the http origin `host`:`port` and whose cache

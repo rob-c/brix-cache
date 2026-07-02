@@ -66,4 +66,14 @@ xrootd_sd_instance_t *xrootd_sd_http_create(const xrootd_sd_http_cfg_t *cfg,
 /* Free an instance built by xrootd_sd_http_create. NULL-safe. */
 void xrootd_sd_http_destroy(xrootd_sd_instance_t *inst);
 
+/* ---- T19/T20 selection + introspection (no-ops on non-http instances) ----
+ * Effective pick score = rank*4096 + fail_score: preference is policy, health
+ * is protection — a preferred-but-sick origin is overridden only after ~16
+ * consecutive failures. Ranks are relaxed atomics (event loop writes, fill
+ * threads read; a momentarily stale rank costs one suboptimal fill). */
+void sd_http_set_ranks(xrootd_sd_instance_t *inst, const int *ranks, int n);
+int  sd_http_endpoint_list(xrootd_sd_instance_t *inst, char hosts[][256],
+                           int *ports, int max);
+int  sd_http_n_endpoints(xrootd_sd_instance_t *inst);
+
 #endif /* XROOTD_SD_HTTP_H */
