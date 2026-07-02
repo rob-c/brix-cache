@@ -2,7 +2,7 @@
 # tests/cvmfs/harness.py — measures a CVMFS cache: TTFB, errors, coalescing,
 # corruption admission. Output JSON is the comparison currency across
 # squid/varnish/stock-nginx/module runs.
-import argparse, concurrent.futures, hashlib, json, time, urllib.request
+import argparse, concurrent.futures, hashlib, json, time, urllib.error, urllib.request
 
 def percentile(vals, p):
     xs = sorted(vals)
@@ -23,15 +23,22 @@ def fetch(url, expect_sha1, timeout=20):
             body = first + r.read()
         return {"ok": True, "ttfb_ms": ttfb,
                 "body_sha1": hashlib.sha1(body).hexdigest(),
-                "expect_sha1": expect_sha1}
+                "expect_sha1": expect_sha1, "conn_fail": False}
+    except urllib.error.HTTPError:
+        # a well-formed HTTP error answer: the CONNECTION worked (the cache
+        # spoke proper HTTP); only transport-level breakage counts against
+        # the never-drop contract
+        return {"ok": False, "ttfb_ms": None, "body_sha1": None,
+                "expect_sha1": expect_sha1, "conn_fail": False}
     except Exception:
         return {"ok": False, "ttfb_ms": None, "body_sha1": None,
-                "expect_sha1": expect_sha1}
+                "expect_sha1": expect_sha1, "conn_fail": True}
 
 def summarize(samples):
     oks = [s for s in samples if s["ok"]]
     return {
         "error_rate": (len(samples) - len(oks)) / len(samples) if samples else 0,
+        "conn_failures": sum(1 for s in samples if s.get("conn_fail")),
         "corrupt_served": sum(1 for s in oks
                               if s["body_sha1"] != s["expect_sha1"]),
         "ttfb_p50_ms": percentile([s["ttfb_ms"] for s in oks], 50),
@@ -54,6 +61,7 @@ def run_scenarios(cache, mock, objects, stampede_n=50):
     warm = [fetch(cache + u, _expect(u)) for u in objects]
     out["warm_ttfb_p50_ms"] = summarize(warm)["ttfb_p50_ms"]
     out["error_rate"] = summarize(cold + warm)["error_rate"]
+    out["conn_failures"] = summarize(cold + warm)["conn_failures"]
     out["corrupt_served"] = summarize(cold + warm)["corrupt_served"]
 
     # stampede: N concurrent cold requests for ONE object → count origin hits
