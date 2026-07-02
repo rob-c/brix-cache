@@ -33,9 +33,16 @@
  *   --delete-source     (finalize only) delete the CephFS data objects after verify
  *   --dry-run           report actions, write nothing
  *   --conf PATH         ceph.conf (default /etc/ceph/ceph.conf or $CEPH_CONF)
+ *   --config PATH       site profile (or $XRDCEPH_MIGRATE_CONF): flat
+ *                       key = value lines supplying meta_pool/data_pool/
+ *                       striper_pool/strip/conf/client once per site.
+ *                       Precedence: explicit CLI > file > default. Give the
+ *                       full 3 positionals or NONE (the file supplies them).
  */
 #include <rados/librados.hpp>
 #include <radosstriper/libradosstriper.h>
+
+#include "xrdceph_migrate_config.h"
 extern "C" {
 #include "cephfs_layout.h"
 }
@@ -59,6 +66,8 @@ namespace {
 
 struct Opts {
     std::string meta, cdata, spool, conf, strip;
+    std::string config;                 /* --config site profile path            */
+    std::string client = "admin";       /* ceph client id (config key `client`)  */
     int  threads = 4;
     bool quiesced = false, finalize = false, rollback = false;
     bool verify = false, del = false, dry = false, report_only = false;
@@ -278,7 +287,7 @@ void stamp(const std::string &first, const FileEnt &fe)
 int verify_striper(const FileEnt &fe)
 {
     rados_t rc; rados_ioctx_t io; rados_striper_t st;
-    if (rados_create(&rc,"admin")<0||rados_conf_read_file(rc,g.conf.c_str())<0||rados_connect(rc)<0) return -1;
+    if (rados_create(&rc,g.client.c_str())<0||rados_conf_read_file(rc,g.conf.c_str())<0||rados_connect(rc)<0) return -1;
     rados_ioctx_create(rc,g.spool.c_str(),&io); rados_striper_create(io,&st);
     std::vector<char> b(fe.size?fe.size:1);
     int got = rados_striper_read(st, fe.soid.c_str(), b.data(), fe.size, 0);
@@ -371,6 +380,7 @@ main(int argc, char **argv)
         if      (a=="--strip"  && i+1<argc) g.strip=argv[++i];
         else if (a=="--threads"&& i+1<argc) g.threads=atoi(argv[++i]);
         else if (a=="--conf"   && i+1<argc) g.conf=argv[++i];
+        else if (a=="--config" && i+1<argc) g.config=argv[++i];
         else if (a=="--assume-quiesced") g.quiesced=true;
         else if (a=="--finalize") g.finalize=true;
         else if (a=="--rollback") g.rollback=true;
@@ -381,14 +391,39 @@ main(int argc, char **argv)
         else if (a.rfind("--",0)==0){ fprintf(stderr,"unknown option %s\n",a.c_str()); return 2; }
         else pos.push_back(a);
     }
-    if (pos.size()!=3){ fprintf(stderr,"usage: %s <meta_pool> <cephfs_data_pool> <striper_pool> [opts]\n",argv[0]); return 2; }
-    g.meta=pos[0]; g.cdata=pos[1]; g.spool=pos[2];
+    /* site profile: explicit CLI > config file > default; full positional
+     * arity or NONE (a partial mix is ambiguous and refused). */
+    if (g.config.empty() && getenv("XRDCEPH_MIGRATE_CONF") != NULL) {
+        g.config = getenv("XRDCEPH_MIGRATE_CONF");
+    }
+    xrdceph_migrate_cfg cfg;
+    if (!g.config.empty() && !xrdceph_migrate_cfg_load(g.config, &cfg)) { return 2; }
+    if (pos.size()!=3 && pos.size()!=0){
+        fprintf(stderr,"usage: %s <meta_pool> <cephfs_data_pool> <striper_pool> [opts]\n"
+                "       (give all three positionals, or none with --config)\n",argv[0]);
+        return 2;
+    }
+    if (pos.size()==3){ g.meta=pos[0]; g.cdata=pos[1]; g.spool=pos[2]; }
+    g.meta   = xrdceph_migrate_cfg_resolve(g.meta,  cfg, "meta_pool");
+    g.cdata  = xrdceph_migrate_cfg_resolve(g.cdata, cfg, "data_pool");
+    g.spool  = xrdceph_migrate_cfg_resolve(g.spool, cfg, "striper_pool");
+    g.strip  = xrdceph_migrate_cfg_resolve(g.strip, cfg, "strip");
+    g.client = xrdceph_migrate_cfg_resolve("", cfg, "client", "admin");
+    for (auto req : { std::make_pair("meta_pool", &g.meta),
+                      std::make_pair("data_pool", &g.cdata),
+                      std::make_pair("striper_pool", &g.spool) }) {
+        if (req.second->empty()) {
+            fprintf(stderr, "missing %s: pass positionals or set it in --config\n", req.first);
+            return 2;
+        }
+    }
+    if (g.conf.empty()) g.conf = xrdceph_migrate_cfg_resolve("", cfg, "conf");
     if (g.conf.empty()) g.conf=getenv("CEPH_CONF")?getenv("CEPH_CONF"):"/etc/ceph/ceph.conf";
     if (g.threads<1) g.threads=1;
     if (!g.quiesced){ fprintf(stderr,"refusing to run: pass --assume-quiesced (CephFS MUST be unmounted / fs failed, journal flushed)\n"); return 2; }
     if (g.del && !g.finalize){ fprintf(stderr,"--delete-source is only valid with --finalize\n"); return 2; }
 
-    if (g_cl.init("admin")<0||g_cl.conf_read_file(g.conf.c_str())<0||g_cl.connect()<0){ fprintf(stderr,"rados connect\n"); return 1; }
+    if (g_cl.init(g.client.c_str())<0||g_cl.conf_read_file(g.conf.c_str())<0||g_cl.connect()<0){ fprintf(stderr,"rados connect\n"); return 1; }
     g_cl.ioctx_create(g.meta.c_str(),g_meta);
     g_cl.ioctx_create(g.cdata.c_str(),g_cdata);
     g_cl.ioctx_create(g.spool.c_str(),g_sp);
