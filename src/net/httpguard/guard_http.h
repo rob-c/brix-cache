@@ -51,6 +51,11 @@ typedef struct {
     unsigned          bounced:1;
 } ngx_http_xrootd_guard_ctx_t;
 
+/* Stack scratch sizes for the request builder (sanitizer may expand every
+ * byte to \xNN, so the path buffer is generous). */
+#define XROOTD_GUARD_PATH_BUF  1024
+#define XROOTD_GUARD_IP_BUF    64
+
 extern ngx_module_t ngx_http_xrootd_guard_module;
 
 /* classify_handler.c */
@@ -60,7 +65,7 @@ ngx_int_t ngx_http_xrootd_guard_log_handler(ngx_http_request_t *r);
 /* guard_http_req.c */
 void ngx_http_xrootd_guard_build_request(ngx_http_request_t *r,
     ngx_http_xrootd_guard_loc_conf_t *lcf, guard_request_t *out,
-    char *pathbuf, size_t pathbuf_sz);
+    char *pathbuf, size_t pathbuf_sz, char *ipbuf, size_t ipbuf_sz);
 void ngx_http_xrootd_guard_write_audit(ngx_http_request_t *r,
     ngx_http_xrootd_guard_loc_conf_t *lcf, const guard_request_t *req,
     guard_reason_t reason);
