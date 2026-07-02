@@ -32,6 +32,16 @@ typedef struct {
     int                   origin_tls;
     int                   origin_family;       /* xrootd_af_policy_t for origin connect */
     char                  origin_path[1024];  /* http: URL base path ("" / "/sub") */
+    /* phase-68 T11: additional ranked http endpoints (endpoint 0 is
+     * origin_host/port/tls/path above; these are the remaining pipe-separated
+     * failover origins in configured order). */
+    struct {
+        char host[128];
+        int  port;
+        int  tls;
+        char base[256];
+    }                     http_extra[7];
+    int                   n_http_extra;
     char                  origin_token[4096]; /* §14: bearer token for the source
                                                * upstream ("" = anonymous) */
     char                  origin_x509_proxy[1024]; /* §14/C-3 GSI: proxy PEM path */

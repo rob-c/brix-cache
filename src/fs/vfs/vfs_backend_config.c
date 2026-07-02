@@ -98,6 +98,7 @@ xrootd_vfs_backend_config_http(const char *root_canon, const char *host,
     e->origin_tls  = tls;
     ngx_cpystrn((u_char *) e->origin_path, (u_char *) (base_path ? base_path : ""),
                 sizeof(e->origin_path));
+    e->n_http_extra = 0;                       /* reload resets the T11 list */
     e->inst = NULL;                            /* rebuilt on next resolve */
 }
 
@@ -257,6 +258,134 @@ xrootd_vfs_backend_set_credential(const char *root_canon,
         e->inst = NULL;                          /* rebuilt with the credential */
     }
 }
+
+/* 1 iff `data`/`len` starts with an http:// or https:// scheme. */
+static int
+vfs_backend_is_http_url(const u_char *data, size_t len)
+{
+    return (len > sizeof("http://") - 1
+            && ngx_strncmp(data, "http://", sizeof("http://") - 1) == 0)
+        || (len > sizeof("https://") - 1
+            && ngx_strncmp(data, "https://", sizeof("https://") - 1) == 0);
+}
+
+/* Parse ONE "http(s)://host[:port][/base]" segment into host/port/tls/base.
+ * Returns NGX_OK, or NGX_ERROR after an [emerg] for a malformed segment. */
+static ngx_int_t
+vfs_parse_http_origin(ngx_conf_t *cf, u_char *seg, size_t segn,
+    char *host, size_t host_cap, int *port_out, int *tls_out,
+    char *base, size_t base_cap)
+{
+    u_char     *h = NULL;
+    size_t      hn = 0;
+    int         htls = 0;
+    size_t      i, slash, hplen, pathlen, hostn;
+    u_char     *colon = NULL;
+    const char *path;
+    int         port;
+
+    if (segn > sizeof("https://") - 1
+        && ngx_strncmp(seg, "https://", sizeof("https://") - 1) == 0)
+    {
+        h = seg + sizeof("https://") - 1;
+        hn = segn - (sizeof("https://") - 1);
+        htls = 1;
+    } else if (segn > sizeof("http://") - 1
+        && ngx_strncmp(seg, "http://", sizeof("http://") - 1) == 0)
+    {
+        h = seg + sizeof("http://") - 1;
+        hn = segn - (sizeof("http://") - 1);
+    } else {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "xrootd_storage_backend: every |-separated origin must be an "
+            "http:// or https:// URL");
+        return NGX_ERROR;
+    }
+
+    slash = hn;
+    for (i = 0; i < hn; i++) {
+        if (h[i] == '/') { slash = i; break; }
+    }
+    hplen   = slash;
+    path    = (slash < hn) ? (const char *) (h + slash) : "";
+    pathlen = (slash < hn) ? hn - slash : 0;
+
+    for (i = hplen; i > 0; i--) {
+        if (h[i - 1] == ':') { colon = h + i - 1; break; }
+    }
+    if (colon != NULL) {
+        ngx_int_t pn = ngx_atoi(colon + 1, (size_t) (h + hplen - (colon + 1)));
+
+        hostn = (size_t) (colon - h);
+        if (pn == NGX_ERROR || pn <= 0 || pn > 65535) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "xrootd_storage_backend: invalid http origin port");
+            return NGX_ERROR;
+        }
+        port = (int) pn;
+    } else {
+        hostn = hplen;
+        port  = htls ? 443 : 80;
+    }
+    if (hostn == 0 || hostn >= host_cap || pathlen >= base_cap) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "xrootd_storage_backend: invalid http origin host/path");
+        return NGX_ERROR;
+    }
+    ngx_memcpy(host, h, hostn);
+    host[hostn] = '\0';
+    if (pathlen > 0) {
+        ngx_memcpy(base, path, pathlen);
+        base[pathlen] = '\0';
+    } else {
+        base[0] = '\0';
+    }
+    *port_out = port;
+    *tls_out  = htls;
+    return NGX_OK;
+}
+
+/* Append one failover endpoint to the export's http backend entry (phase-68
+ * T11). Must run AFTER xrootd_vfs_backend_config_http registered endpoint 0
+ * for the same root. */
+static ngx_int_t
+vfs_backend_add_http_endpoint(ngx_conf_t *cf, const char *root_canon,
+    const char *host, int port, int tls, const char *base)
+{
+    xrootd_vfs_backend_entry_t *e = xrootd_vfs_backend_entry_find(root_canon);
+    size_t                      n;
+
+    if (e == NULL || ngx_strcmp(e->backend, "http") != 0) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "xrootd_storage_backend: internal - endpoint list before primary");
+        return NGX_ERROR;
+    }
+    n = sizeof(e->http_extra) / sizeof(e->http_extra[0]);
+    if ((size_t) e->n_http_extra >= n) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "xrootd_storage_backend: too many |-separated origins (max %uz)",
+            n + 1);
+        return NGX_ERROR;
+    }
+    if (ngx_strlen(host) >= sizeof(e->http_extra[0].host)
+        || ngx_strlen(base) >= sizeof(e->http_extra[0].base))
+    {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "xrootd_storage_backend: origin host/base too long for the "
+            "endpoint table");
+        return NGX_ERROR;
+    }
+    ngx_cpystrn((u_char *) e->http_extra[e->n_http_extra].host,
+                (u_char *) host, sizeof(e->http_extra[0].host));
+    e->http_extra[e->n_http_extra].port = port;
+    e->http_extra[e->n_http_extra].tls  = tls;
+    ngx_cpystrn((u_char *) e->http_extra[e->n_http_extra].base,
+                (u_char *) base, sizeof(e->http_extra[0].base));
+    e->n_http_extra++;
+    e->inst = NULL;                            /* rebuilt on next resolve */
+    return NGX_OK;
+}
+
 
 ngx_int_t
 xrootd_vfs_backend_config_str(ngx_conf_t *cf, const char *root_canon,
@@ -438,74 +567,42 @@ xrootd_vfs_backend_config_str(ngx_conf_t *cf, const char *root_canon,
         }
     }
 
-    /* "http://host[:port]/base" / "https://..." → a read-only HTTP SOURCE backend
-     * (split host[:port] from the URL /path; default port 80/443). */
-    {
-        u_char *h = NULL;
-        size_t  hn = 0;
-        int     htls = 0;
+    /* "http://host[:port]/base" / "https://..." → a read-only HTTP SOURCE
+     * backend. phase-68 T11: a PIPE-SEPARATED ordered list of such URLs
+     * registers a multi-endpoint origin set with health-scored read failover
+     * (mirrors the CVMFS_SERVER_URL syntax); the first URL is the primary
+     * and the write target. */
+    if (vfs_backend_is_http_url(sb->data, sb->len)) {
+        u_char *seg = sb->data;
+        u_char *end = sb->data + sb->len;
+        int     first = 1;
 
-        if (sb->len > sizeof("https://") - 1
-            && ngx_strncmp(sb->data, "https://", sizeof("https://") - 1) == 0)
-        {
-            h = sb->data + sizeof("https://") - 1;
-            hn = sb->len - (sizeof("https://") - 1);
-            htls = 1;
-        } else if (sb->len > sizeof("http://") - 1
-            && ngx_strncmp(sb->data, "http://", sizeof("http://") - 1) == 0)
-        {
-            h = sb->data + sizeof("http://") - 1;
-            hn = sb->len - (sizeof("http://") - 1);
-        }
+        while (seg < end) {
+            u_char *pipe = ngx_strlchr(seg, end, '|');
+            size_t  segn = (pipe != NULL) ? (size_t) (pipe - seg)
+                                          : (size_t) (end - seg);
+            char    host[256], base[1024];
+            int     port, htls;
 
-        if (h != NULL) {
-            size_t     i, slash = hn, hplen, pathlen;
-            u_char    *colon = NULL;
-            const char *path;
-            char       host[256], base[1024];
-            size_t     hostn;
-            int        port;
-
-            for (i = 0; i < hn; i++) {
-                if (h[i] == '/') { slash = i; break; }
+            if (vfs_parse_http_origin(cf, seg, segn, host, sizeof(host),
+                                      &port, &htls, base, sizeof(base))
+                != NGX_OK)
+            {
+                return NGX_ERROR;              /* [emerg] already logged */
             }
-            hplen   = slash;
-            path    = (slash < hn) ? (const char *) (h + slash) : "";
-            pathlen = (slash < hn) ? hn - slash : 0;
-
-            for (i = hplen; i > 0; i--) {
-                if (h[i - 1] == ':') { colon = h + i - 1; break; }
-            }
-            if (colon != NULL) {
-                ngx_int_t pn = ngx_atoi(colon + 1,
-                                        (size_t) (h + hplen - (colon + 1)));
-                hostn = (size_t) (colon - h);
-                if (pn == NGX_ERROR || pn <= 0 || pn > 65535) {
-                    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                        "xrootd_storage_backend: invalid http origin port");
-                    return NGX_ERROR;
-                }
-                port = (int) pn;
-            } else {
-                hostn = hplen;
-                port  = htls ? 443 : 80;
-            }
-            if (hostn == 0 || hostn >= sizeof(host) || pathlen >= sizeof(base)) {
-                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                    "xrootd_storage_backend: invalid http origin host/path");
+            if (first) {
+                xrootd_vfs_backend_config_http(root_canon, host, port, htls,
+                                               base);
+                first = 0;
+            } else if (vfs_backend_add_http_endpoint(cf, root_canon, host,
+                                                     port, htls, base)
+                       != NGX_OK)
+            {
                 return NGX_ERROR;
             }
-            ngx_memcpy(host, h, hostn);
-            host[hostn] = '\0';
-            if (pathlen > 0) {
-                ngx_memcpy(base, path, pathlen);
-                base[pathlen] = '\0';
-            } else {
-                base[0] = '\0';
-            }
-            xrootd_vfs_backend_config_http(root_canon, host, port, htls, base);
-            return NGX_OK;
+            seg = (pipe != NULL) ? pipe + 1 : end;
         }
+        return NGX_OK;
     }
 
     /* "s3://host[:port]/bucket" → a read-only S3 source backend (path-style): the
