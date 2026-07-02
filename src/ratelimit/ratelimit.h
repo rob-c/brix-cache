@@ -115,6 +115,18 @@ xrootd_rl_zone_t *xrootd_rl_zone_get(ngx_str_t *name);
 /* Copy up to max declared-zone handles into out[]; returns the count. */
 ngx_uint_t xrootd_rl_zones_all(xrootd_rl_zone_t **out, ngx_uint_t max);
 
+/*
+ * Zero the in-use gauges (in_flight, open_files) on every node of a shared
+ * zone. Called on reload adoption: these gauges self-heal only via a matched
+ * decrement, so a worker SIGKILLed (e.g. at reload's worker_shutdown_timeout)
+ * mid-request leaks its increment permanently, it survives reload in the SHM
+ * zone, and accumulates every restart cycle until the gauge reaches the
+ * configured cap and rejects that key forever. Resetting at each reload bounds
+ * any crash-leak to a single generation. The time-windowed rate/bandwidth
+ * buckets are deliberately preserved (they self-heal and must survive reload).
+ */
+void xrootd_rl_zone_reset_gauges(xrootd_rl_shctx_t *sh);
+
 /* Internal helpers (ratelimit_zone.c) used by the leaky-bucket core.  All the
  * lookup/create helpers require the caller to hold zone->shpool->mutex. */
 

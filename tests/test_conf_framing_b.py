@@ -17,8 +17,7 @@ def test_half_close_before_any_request(srv):
         finally:
             s.close()
 
-    o = runner(srv["our"])
-    f = runner(srv["off"])
+    o, f = _run_pair(srv, runner)
     assert o != HANG, f"HIGH: OUR server hung after a bare half-close (stock={f})"
 
 
@@ -96,8 +95,7 @@ def test_streamid_echoed_verbatim(srv, sid):
         finally:
             s.close()
 
-    o = runner(srv["our"])
-    f = runner(srv["off"])
+    o, f = _run_pair(srv, runner)
     assert o[0] != "HANG", f"HIGH: OUR server hung echoing streamid {sid.hex()}"
     assert o == (sid, kXR_ok), f"OUR streamid not echoed verbatim: {o!r} (sent {sid!r})"
     assert f == (sid, kXR_ok), f"oracle: STOCK streamid echo unexpected: {f!r}"
@@ -122,8 +120,7 @@ def test_ping_dlen_set_but_no_body_no_hang(srv):
     forever. Pin OUR class to STOCK."""
     def send(s):
         s.sendall(struct.pack("!2sH16sI", b"\x00\x6b", kXR_ping, b"\x00" * 16, 16))
-    st_o, en_o = _run_probe(srv["our"], send)
-    st_f, en_f = _run_probe(srv["off"], send)
+    (st_o, en_o), (st_f, en_f) = _run_probe_pair(srv, send)
     assert _class(st_o) == _class(st_f), (
         f"ping-dlen-no-body class diverges: our={_class(st_o)}({st_o!r}) "
         f"stock={_class(st_f)}({st_f!r}) (BUG)")
@@ -152,8 +149,7 @@ def test_recover_after_error_response(srv):
         finally:
             s.close()
 
-    o = runner(srv["our"])
-    f = runner(srv["off"])
+    o, f = _run_pair(srv, runner)
     assert o[1] != HANG, f"HIGH: OUR server hung after an error response: {o}"
     assert o[0] == kXR_error, f"OUR first (missing) stat should be error: {o}"
     # Either both keep serving (st2 ok) or both close — pin OUR to STOCK.
@@ -184,8 +180,7 @@ def test_recover_after_unknown_opcode(srv):
         finally:
             s.close()
 
-    o = runner(srv["our"])
-    f = runner(srv["off"])
+    o, f = _run_pair(srv, runner)
     assert o[1] != HANG, f"HIGH: OUR server hung after an unknown-opcode reject: {o}"
     assert _class(o[1]) == _class(f[1]), (
         f"post-unknown-opcode recovery class diverges: our={o} stock={f} (BUG)")
@@ -218,8 +213,7 @@ def test_read_absurd_length_bounded(srv):
         finally:
             s.close()
 
-    o = runner(srv["our"])
-    f = runner(srv["off"])
+    o, f = _run_pair(srv, runner)
     assert o[0] != HANG, f"HIGH: OUR server hung on an absurd read length: {o}"
     assert o[0] != "OPENFAIL", f"OUR open of /hello.txt failed: {o}"
     # Outcome class (ok/oksofar vs error vs EOF) must match STOCK.
@@ -236,8 +230,7 @@ def test_readv_absurd_segment_count_rejected(srv):
         # dlen = 16 * 1,000,000 (claim a million segments) but send nothing.
         s.sendall(struct.pack("!2sH16sI", b"\x00\x72", kXR_readv,
                               b"\x00" * 16, 16 * 1000000))
-    st_o, en_o = _run_probe(srv["our"], send)
-    st_f, en_f = _run_probe(srv["off"], send)
+    (st_o, en_o), (st_f, en_f) = _run_probe_pair(srv, send)
     _assert_no_hang("readv-absurd-count", st_o, st_f)
     assert _class(st_o) == _class(st_f), (
         f"readv-absurd-count class diverges: our={_class(st_o)}({st_o!r}/{en_o}) "
@@ -252,8 +245,7 @@ def test_readv_garbage_segment_handle_rejected(srv):
         seg = struct.pack("!4siq", b"\xff\xff\xff\xff", 512, 0)
         s.sendall(struct.pack("!2sH16sI", b"\x00\x73", kXR_readv,
                               b"\x00" * 16, len(seg)) + seg)
-    st_o, en_o = _run_probe(srv["our"], send)
-    st_f, en_f = _run_probe(srv["off"], send)
+    (st_o, en_o), (st_f, en_f) = _run_probe_pair(srv, send)
     _assert_no_hang("readv-bad-handle", st_o, st_f)
     assert _is_reject(st_o), f"OUR did not reject readv on a bogus handle: {st_o!r}/{en_o}"
     assert _is_reject(st_f), f"oracle: STOCK accepted readv on a bogus handle: {st_f!r}"
@@ -291,8 +283,7 @@ def test_read_negative_length_robust(srv):
         finally:
             s.close()
 
-    o = runner(srv["our"])
-    f = runner(srv["off"])
+    o, f = _run_pair(srv, runner)
     assert o[0] != HANG, f"HIGH: OUR server hung on a negative read length: {o[0]!r}"
     assert o[0] != "OPENFAIL", "OUR open of /hello.txt failed"
     assert o[0] in (kXR_ok, kXR_oksofar, kXR_error, EOF), (
@@ -331,8 +322,7 @@ def test_read_negative_offset_class_parity(srv):
         finally:
             s.close()
 
-    o = runner(srv["our"])
-    f = runner(srv["off"])
+    o, f = _run_pair(srv, runner)
     assert o[0] != HANG, f"HIGH: OUR server hung on a negative read offset: {o}"
     assert o[0] != "OPENFAIL", f"OUR open failed: {o}"
     assert _class(o[0]) == _class(f[0]), (
@@ -421,10 +411,8 @@ def test_prelogin_op_rejected(srv, name, mk):
     well-formed outcome from each server (no hang/crash), not equal classes."""
     payload = mk()
     if name == "ping":
-        st_o, en_o = _run_probe(srv["our"], lambda s: s.sendall(payload),
-                                prelogin=True)
-        st_f, en_f = _run_probe(srv["off"], lambda s: s.sendall(payload),
-                                prelogin=True)
+        (st_o, en_o), (st_f, en_f) = _run_probe_pair(
+            srv, lambda s: s.sendall(payload), prelogin=True)
         _assert_no_hang("prelogin-ping", st_o, st_f)
         assert st_o in (kXR_ok, kXR_error, EOF), (
             f"OUR pre-login ping gave no definite outcome: {st_o!r}/{en_o}")
@@ -443,8 +431,7 @@ def test_open_truncated_header_no_hang(srv):
     server must not hang waiting indefinitely; pin OUR class to STOCK."""
     def send(s):
         s.sendall(struct.pack("!2sHHH", b"\x00\x85", kXR_open, 0, kXR_open_read))
-    st_o, en_o = _run_probe(srv["our"], send)
-    st_f, en_f = _run_probe(srv["off"], send)
+    (st_o, en_o), (st_f, en_f) = _run_probe_pair(srv, send)
     assert _class(st_o) == _class(st_f), (
         f"truncated-open-header class diverges: our={_class(st_o)}({st_o!r}) "
         f"stock={_class(st_f)}({st_f!r}) (BUG)")
@@ -468,8 +455,7 @@ def test_dirlist_root_ok(srv):
         finally:
             s.close()
 
-    o = runner(srv["our"])
-    f = runner(srv["off"])
+    o, f = _run_pair(srv, runner)
     assert o != HANG, f"HIGH: OUR server hung on dirlist / (stock={f})"
     assert _is_ok(o), f"OUR dirlist / not ok: {o!r}"
     assert _is_ok(f), f"oracle: STOCK dirlist / unexpected: {f!r}"
@@ -514,8 +500,7 @@ def test_double_login_robust(srv):
         finally:
             s.close()
 
-    o = runner(srv["our"])
-    f = runner(srv["off"])
+    o, f = _run_pair(srv, runner)
     assert o[0] != HANG and o[1] != HANG, (
         f"HIGH: OUR server hung on a double login (our={o} stock={f})")
     assert o[0] in (kXR_ok, kXR_error, EOF), (
@@ -555,8 +540,7 @@ def test_two_full_sessions_serial(srv):
                 ok.append(False)
         return ok
 
-    o = runner(srv["our"])
-    f = runner(srv["off"])
+    o, f = _run_pair(srv, runner)
     assert o == [True, True], f"OUR two serial sessions failed: {o} (stock {f})"
     assert f == [True, True], f"oracle: STOCK two serial sessions unexpected: {f}"
 
@@ -580,8 +564,7 @@ def test_interleaved_two_connections(srv):
             a.close()
             b.close()
 
-    o = runner(srv["our"])
-    f = runner(srv["off"])
+    o, f = _run_pair(srv, runner)
     assert o != "HANG", "HIGH: OUR server hung on interleaved connections"
     assert o == (b"\x00\x8c", kXR_ok, b"\x00\x8d", kXR_ok), \
         f"OUR interleaved responses wrong: {o} (stock {f})"

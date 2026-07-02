@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 #
-# run_cache_pblock_posix.sh — Test 1 of the exclusively-VFS caching layer:
-# a pblock PRIMARY export with a POSIX read cache and a POSIX write-back staging
-# cache. Verifies (a) a write to the pblock primary is mirrored to a root:// origin
-# THROUGH the POSIX staging copy (byte-exact, multi-block), and (b) a read miss of
-# an origin-only file fills the POSIX read cache and serves byte-exact.
+# run_cache_pblock_posix.sh — Test 1 of the exclusively-VFS caching layer, on the
+# phase-64 TIER grammar (§14: the legacy xrootd_cache_origin model is retired).
+# Two server blocks on one node cover the two legacy assertions:
+#   W (pblock primary + write-through): a write to the pblock primary is mirrored
+#     to a root:// origin byte-exact (multi-block, driver read-back).
+#   R (tier read cache): storage_backend root://O + a POSIX cache_store — a read
+#     miss of an origin-only file fills the local cache and serves byte-exact.
 #
 # The origin runs as a SEPARATE nginx process (a sync-mode flush blocks the worker
 # loop, so a same-worker origin would deadlock — real deployments have a distinct
@@ -19,13 +21,14 @@ XRDCP="$HERE/client/bin/xrdcp"
 XRDFS="$HERE/client/bin/xrdfs"
 ORIGIN_PORT=11562
 NODE_PORT=11563
+READ_PORT=11568
 PFX="$(mktemp -d /tmp/cache_pp.XXXXXX)"
 fail=0
 ok()  { printf '  ok   %s\n' "$1"; }
 bad() { printf '  FAIL %s\n' "$1"; fail=1; }
 
 mkdir -p "$PFX/o/root" "$PFX/o/logs" \
-         "$PFX/n/root" "$PFX/n/cache" "$PFX/n/stage" "$PFX/n/logs"
+         "$PFX/n/root" "$PFX/n/rroot" "$PFX/n/cache" "$PFX/n/stage" "$PFX/n/logs"
 
 cat > "$PFX/o/nginx.conf" <<EOF
 daemon on; error_log $PFX/o/logs/e.log info; pid $PFX/o/nginx.pid;
@@ -39,6 +42,7 @@ daemon on; error_log $PFX/n/logs/e.log info; pid $PFX/n/nginx.pid;
 events { worker_connections 64; }
 thread_pool default threads=2;
 stream {
+    # W: pblock PRIMARY + write-through mirror to the origin (sd_stage Option A).
     server {
         listen 127.0.0.1:${NODE_PORT};
         xrootd on;
@@ -47,13 +51,20 @@ stream {
         xrootd_upload_resume off;
         xrootd_storage_backend  pblock://$PFX/n/root/;   # pblock PRIMARY (path = root, created on init)
         xrootd_pblock_block_size 1m;
-        xrootd_cache on;                          # POSIX read cache
-        xrootd_cache_root   $PFX/n/cache;
-        xrootd_cache_origin 127.0.0.1:${ORIGIN_PORT};
-        xrootd_write_through on;                  # POSIX write-back staging
+        xrootd_write_through on;
         xrootd_wt_mode sync;
         xrootd_wt_origin 127.0.0.1:${ORIGIN_PORT};
         xrootd_cache_wt_stage_root $PFX/n/stage;
+    }
+    # R: tier read cache — the origin is the storage backend, cached locally.
+    server {
+        listen 127.0.0.1:${READ_PORT};
+        xrootd on;
+        xrootd_auth none;
+        xrootd_root $PFX/n/rroot;
+        xrootd_storage_backend root://127.0.0.1:${ORIGIN_PORT};
+        xrootd_cache_store posix:$PFX/n/cache;
+        xrootd_cache_root /;
     }
 }
 EOF
@@ -88,9 +99,9 @@ fi
 # origin-mirror byte-exact check above is the functional write-through assertion.
 ok "write-through mirrored via sd_stage (no separate POSIX staging copy — expected)"
 
-echo "== read miss of an origin-only file → fills the POSIX read cache =="
+echo "== read miss of an origin-only file → fills the POSIX read cache (tier R) =="
 head -c 1500000 /dev/urandom > "$PFX/o/root/r.bin"   # origin-only
-"$XRDFS" root://127.0.0.1:${NODE_PORT} cat /r.bin > /tmp/cpp_r.got 2>/dev/null
+"$XRDFS" root://127.0.0.1:${READ_PORT} cat /r.bin > /tmp/cpp_r.got 2>/dev/null
 cmp -s "$PFX/o/root/r.bin" /tmp/cpp_r.got && ok "read-through fill byte-exact" || bad "read fill DIFFERS"
 [ -f "$PFX/n/cache/r.bin" ] && ok "POSIX read cache file present" || bad "no POSIX read cache file"
 

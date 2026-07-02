@@ -36,6 +36,22 @@
 
 #include "proxy_req.h"
 
+/* Overflow-checked size arithmetic (wire-length guard in xrootd_gsi_assemble_proxy).
+ * The standalone unit-test build (proxy_req_unittest.c) compiles without nginx
+ * headers; supply the minimal shims that safe_size.h's inline pool helpers need. */
+#ifdef XROOTD_SAFE_SIZE_STANDALONE
+typedef long              ngx_int_t;
+typedef struct ngx_pool_s ngx_pool_t;
+typedef struct ngx_log_s  ngx_log_t;
+#  define NGX_OK    0
+#  define NGX_ERROR (-1)
+#  define ngx_inline inline    /* safe_size.h writes "static ngx_inline"; not "static static" */
+static inline void *ngx_palloc(ngx_pool_t *p, size_t n)  { (void)p; return malloc(n);    }
+static inline void *ngx_pcalloc(ngx_pool_t *p, size_t n) { (void)p; return calloc(1, n); }
+static inline void *ngx_alloc(size_t n, ngx_log_t *l)    { (void)l; return malloc(n);    }
+#endif
+#include "../shared/safe_size.h"
+
 #define GSI_PROXYCERTINFO_OID          "1.3.6.1.5.5.7.1.14"
 #define GSI_PROXYCERTINFO_OLD_OID      "1.3.6.1.4.1.3536.1.222"
 #define GSI_PROXYPOLICY_IMPERSONATION  "1.3.6.1.5.5.7.21.1"
@@ -583,9 +599,17 @@ xrootd_gsi_assemble_proxy(const uint8_t *proxy_pem, size_t proxy_pem_len,
         return -1;
     }
 
-    /* Delegated credential chain PEM = proxy (leaf) followed by the signer chain. */
-    total = proxy_pem_len + chain_pem_len;
-    out = malloc(total + 1);
+    /* Delegated credential chain PEM = proxy (leaf) followed by the signer chain.
+     * proxy_pem_len is wire-supplied (client-sent kXGC_sigpxy); guard the addition. */
+    {
+        size_t need;
+        if (xrootd_size_add(proxy_pem_len, chain_pem_len, &total) != NGX_OK
+            || xrootd_size_add(total, 1, &need) != NGX_OK) {
+            if (err) snprintf(err, errcap, "gsi assemble: PEM length overflow");
+            return -1;
+        }
+        out = malloc(need);
+    }
     if (out == NULL) {
         if (err) snprintf(err, errcap, "gsi assemble: out of memory");
         return -1;

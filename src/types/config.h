@@ -438,32 +438,10 @@ typedef struct {
     ngx_uint_t  cache_origin_family; /* [xrootd_cache_origin_family auto|inet|inet6]
                                         xrootd_af_policy_t for the origin connect;
                                         default XROOTD_AF_AUTO (AF_UNSPEC). */
-    /* GSI/X.509-proxy auth to the origin (e.g. EOS). When cache_origin_proxy is
-     * set, cache fills are performed by fork/exec'ing the native client
-     * (cache_origin_client, default "xrdcp") with X509_USER_PROXY/X509_CERT_DIR
-     * pointed at these — so the cache authenticates to a GSI origin that rejects
-     * the built-in anonymous login. Empty = anonymous (the legacy path). */
-    ngx_str_t   cache_origin_proxy; /* [xrootd_cache_origin_proxy /tmp/x509up_uNNNN] */
-    ngx_str_t   cache_origin_cadir; /* [xrootd_cache_origin_cadir /etc/grid-security/certificates] */
-    ngx_str_t   cache_origin_client;/* [xrootd_cache_origin_client /path/to/xrdcp] */
-    /* ---- HTTP(S)/Pelican origin transport (src/cache/origin/) ----
-     * cache_origin_scheme records which transport the xrootd_cache_origin URL
-     * selected (xrootd_cache_scheme_e: 0=root/roots, 1=http, 2=https/davs,
-     * 3=pelican). http/https fills run over libcurl (http_transport.c) instead of
-     * the root:// client; pelican adds federation discovery (Phase 3). */
-    ngx_uint_t  cache_origin_scheme;        /* xrootd_cache_scheme_e; 0 = xroot */
-    /* ---- S3 origin (scheme s3://) ----
-     * The bucket comes from the s3://host[:port]/BUCKET path; the access/secret
-     * keys + region are the SigV4 credentials. Fills run through the sd_remote
-     * driver (delegating to the shared sd_s3 driver over the server libcurl
-     * transport). cache_origin_tls selects http vs https to the endpoint. */
-    ngx_str_t   cache_origin_s3_bucket;     /* parsed from the s3:// URL path */
-    ngx_str_t   cache_origin_s3_access_key; /* [xrootd_cache_origin_s3_access_key] */
-    ngx_str_t   cache_origin_s3_secret_key; /* [xrootd_cache_origin_s3_secret_key] */
-    ngx_str_t   cache_origin_s3_region;     /* [xrootd_cache_origin_s3_region] def us-east-1 */
-    ngx_str_t   cache_origin_token_file;    /* [xrootd_cache_origin_token_file <path>]
-                                               bearer token the cache presents to an
-                                               HTTP/Pelican origin (re-read per fill). */
+    /* §14 (phase-64): the legacy cache_origin credential/scheme/S3 fields are
+     * DELETED with their directives — a cache source's identity is a named
+     * xrootd_credential. The fields below remain as the sd_xroot SYNTHETIC-conf
+     * parameter block for the in-process origin wire client. */
     ngx_str_t   cache_origin_bearer;        /* §14/C-3: in-process bearer token the
                                                root:// origin login presents via ztn
                                                (XrdSecztn). Set on sd_xroot's synthetic
@@ -475,9 +453,11 @@ typedef struct {
     ngx_str_t   cache_origin_ca_dir;        /* §14/C-3 GSI: CA file/hashed-dir used to
                                                VERIFY the origin's server cert (MITM
                                                protection); "" = no verification. */
-    ngx_flag_t  cache_origin_forward_token; /* [xrootd_cache_origin_forward_token on]
-                                               replay the client's bearer token upstream
-                                               instead of / before the cache credential. */
+    ngx_str_t   cache_origin_sss_keytab;    /* §14 SSS: shared-secret keytab path the
+                                               root:// origin login presents via the
+                                               XrdSecsss protocol; "" = no SSS. Set on
+                                               sd_xroot's synthetic conf from the
+                                               credential (sss_keytab field). */
     /* ---- Pelican cache registration / advertisement (origin/pelican_register.c) ----
      * When enabled, this node periodically POSTs a signed OriginAdvertiseV2 to the
      * federation Director's /api/v1.0/director/registerCache so it is discoverable
@@ -552,8 +532,7 @@ typedef struct {
      * Built once at worker init (xrootd_cache_storage_init), torn down at exit.
      * The *_inst pointers are xrootd_sd_instance_t* (void* here to keep config.h
      * free of the sd.h include). _backend "" ⇒ POSIX on the role's rootfd. */
-    ngx_str_t  cache_storage_backend;     /* [xrootd_cache_storage_backend] read cache */
-    size_t     cache_storage_block_size;  /* [xrootd_cache_storage_block_size] */
+    /* §14: cache_storage_backend/_block_size deleted (tier xrootd_cache_store). */
     ngx_str_t  cache_wt_stage_root;       /* [xrootd_cache_wt_stage_root] */
     ngx_str_t  cache_wt_stage_backend;    /* [xrootd_cache_wt_stage_backend] */
     size_t     cache_wt_stage_block_size; /* [xrootd_cache_wt_stage_block_size] */
@@ -574,11 +553,6 @@ typedef struct {
      * (eviction / reaper / free-space drive the store through this, never the
      * bare driver — phase-64 P3/G5). NULL when the read cache is off. */
     void      *cache_storage_cstore;      /* xrootd_cstore_t* */
-    /* Composed sd_cache slice/partial decorator (source=origin, store=cache_root)
-     * built at config time when cache_slice_size>0 + cache_origin configured — the
-     * root:// slice read serves through this instead of the legacy slice_read path
-     * (phase-64 §6.5). NULL when slice caching is off. */
-    void      *cache_slice_inst;          /* xrootd_sd_instance_t* (sd_cache) */
     /* Whole-file cache SOURCE built from the legacy cache_origin config (xroot/s3),
      * so every fill runs through the one xrootd_cache_fill_from_source spine
      * (phase-64 §6.5 fold). NULL for http/pelican (libcurl) or no legacy origin. */
@@ -603,12 +577,8 @@ typedef struct {
                                           HTTP origin (Want-Digest); empty = take
                                           whatever the origin reports. */
 
-    /* ---- Phase 26: slice-granular caching (stream plane) ----
-     * cache_slice_size > 0 stores files as fixed-size slices (src/cache/slice.h)
-     * so a partial kXR_read fetches only the slices it touches.  0 = whole-file
-     * mode (historical behaviour).  Requires cache + cache_origin configured. */
-    size_t      cache_slice_size;      /* [xrootd_cache_slice 128m] bytes; 0 = off.
-                                          Multiple of 1 MiB (validated in merge). */
+    /* §14: the legacy cache_slice_size field is deleted — slice/partial caching
+     * is common.cache_slice_size (xrootd_cache_slice_size, tier grammar). */
 
     /* ---- write-through mode ----
      *

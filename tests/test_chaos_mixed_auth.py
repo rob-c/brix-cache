@@ -10,10 +10,11 @@ Topology
         anon client ──► cache-gsi ──(X.509 VOMS proxy)──► gsi-origin   (xrootd_auth gsi)
         anon client ──► proxy-sss ──(SSS keytab)────────► sss-origin   (xrootd_auth sss)
 
-  gsi-origin : data server requiring GSI.  cache-gsi is an xcache whose
-               xrootd_cache_origin_proxy is a temp proxy minted by a
-               voms-proxy-init-like call (utils/voms_proxy_fake.py) against the
-               temp PKI framework — so the cache authenticates UPSTREAM with X.509.
+  gsi-origin : data server requiring GSI.  cache-gsi is a tier cache
+               (storage_backend root://gsi-origin) whose xrootd_credential
+               x509_proxy is a temp proxy minted by a voms-proxy-init-like call
+               (utils/voms_proxy_fake.py) against the temp PKI framework — so
+               the cache authenticates UPSTREAM with X.509.
   sss-origin : data server requiring SSS.  proxy-sss forwards to it with an SSS
                credential built from a shared keytab — so the proxy authenticates
                UPSTREAM with SSS.
@@ -264,6 +265,7 @@ def mesh(tmp_path_factory):
         (d / "logs").mkdir(parents=True)
         if not (d / "data").exists():
             (d / "data").mkdir(parents=True)
+        (d / "cache").mkdir(parents=True, exist_ok=True)  # tier cache_store dir
         port = _free_port()
         conf = str(d / "conf" / "nginx.conf")
         pidf = str(d / "logs" / "nginx.pid")
@@ -301,24 +303,26 @@ stream {{ server {{
 }} }}
 """)
 
-    # cache-gsi: anon front, X.509 UPSTREAM auth to gsi-origin
+    # cache-gsi: anon front, X.509 UPSTREAM auth to gsi-origin (phase-64 tier
+    # grammar: the GSI origin is the storage backend, its credential a named
+    # xrootd_credential block, the local read cache a posix cache_store).
     cache_gsi = mk("cache-gsi", lambda port, d, pidf, logf: f"""
 worker_processes 1; error_log {logf} info; pid {pidf};
 events {{ worker_connections 128; }}
 thread_pool chaos_cache threads=2 max_queue=8192;
-stream {{ server {{
+stream {{
+xrootd_credential chaosgsi {{ x509_proxy {proxy_pem}; ca_dir {CA_DIR}; }}
+server {{
     listen {BIND_HOST}:{port};
     xrootd on;
     xrootd_root {d}/data;
     xrootd_auth none;
     xrootd_allow_write off;
     xrootd_thread_pool chaos_cache;
-    xrootd_cache on;
-    xrootd_cache_root {d}/data;
-    xrootd_cache_origin {BIND_HOST}:{gsi_origin.port};
-    xrootd_cache_origin_proxy {proxy_pem};
-    xrootd_cache_origin_cadir {CA_DIR};
-    xrootd_cache_origin_client {XRDCP};
+    xrootd_storage_backend root://{BIND_HOST}:{gsi_origin.port};
+    xrootd_storage_credential chaosgsi;
+    xrootd_cache_store posix:{d}/cache;
+    xrootd_cache_root /;
 }} }}
 """)
 

@@ -795,6 +795,29 @@ not new capability. Step 1 (the residency seam) is the smallest self-contained s
 
 ## 14. Legacy removal manifest (P2: DELETE)
 
+> **STATUS (2026-07-02): LANDED, reconciled scope.** Deleted: the directives
+> `xrootd_cache_origin{,_tls,_proxy,_cadir,_client,_s3_*}`,
+> `xrootd_cache_storage_backend{,_block_size}` and the legacy
+> `xrootd_cache_slice` (its 1 MiB-multiple validation moved to
+> `xrootd_cache_slice_size`); their conf fields, setter, scheme enum consumers,
+> the per-scheme fetch dispatch, the fork/exec origin stat/dirlist forwards,
+> the legacy slice decorator (`cache_slice_inst`), and the files
+> `origin/pelican.c/h` + `origin/http_transport.c/h` (the pelican/http FETCH —
+> reachable only via `cache_origin`). **Kept by reconciliation:**
+> `xrootd_cache_root`/`cache_state_root` (repurposed: advertised root + state
+> tree), `xrootd_cache on` (fills from the REMOTE `xrootd_storage_backend` via
+> the C-1 spine — validated at config time), `xrootd_cache_origin_family` (the
+> tier backend's connect-AF policy), `origin_*.c` (the sd_xroot wire client;
+> the `cache_origin_host/port/tls/family/bearer/x509_proxy/ca_dir/sss_keytab`
+> conf fields remain as its synthetic-conf parameter block),
+> `pelican_register.c` (cache ADVERTISE — self-contained, tier-compatible), and
+> the `cache_wt_stage_*` write-back staging family. An old config fails
+> `nginx -t` with a pointer to the tier grammar. All former legacy tests are
+> migrated to the tier grammar and green; the migration surfaced + fixed a real
+> cache-over-stage composition bug (object ops must dispatch via `so->driver`,
+> not `src->driver`) and flipped the "generic-backend slice" strict-xfail to a
+> passing capability test.
+
 **Directives + conf fields + setters deleted:** `xrootd_cache_origin`, `_origin_tls`,
 `_origin_proxy`, `_origin_cadir`, `_origin_client`, `_origin_token_file`,
 `_origin_forward_token`, `_origin_s3_*`, `xrootd_cache_root`,

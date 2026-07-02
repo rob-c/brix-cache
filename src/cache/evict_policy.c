@@ -184,8 +184,18 @@ xrootd_cache_purge_to_target(ngx_stream_xrootd_srv_conf_t *conf,
     if (evicted_files_out != NULL) { *evicted_files_out = 0; }
     if (evicted_bytes_out != NULL) { *evicted_bytes_out = 0; }
 
+    /* §14a: measure + device-scope the PHYSICAL cache root (tier-aware). A pure
+     * tier cache advertises cache_root "/", whose device differs from the store
+     * dir — using it for root_dev would make the same-device candidate filter drop
+     * every object. */
+    const char *phys_root = xrootd_cache_state_root(conf);
+
+    if (phys_root == NULL) {
+        xrootd_cache_metric_add(ctx, cache_eviction_errors_total, 1);
+        return NGX_ERROR;
+    }
     if (xrootd_cache_usage_measure(xrootd_cache_storage_cstore(conf),
-            (char *) conf->cache_root.data, &usage) != NGX_OK)
+            phys_root, &usage) != NGX_OK)
     {
         xrootd_cache_metric_add(ctx, cache_eviction_errors_total, 1);
         return NGX_ERROR;
@@ -193,7 +203,7 @@ xrootd_cache_purge_to_target(ngx_stream_xrootd_srv_conf_t *conf,
     if (usage.occupancy_ppm <= target_ppm) {
         return NGX_OK;                       /* already at/below target */
     }
-    if (stat((char *) conf->cache_root.data, &root_st) != 0) {
+    if (stat(phys_root, &root_st) != 0) {
         xrootd_cache_metric_add(ctx, cache_eviction_errors_total, 1);
         return NGX_ERROR;
     }
@@ -203,10 +213,11 @@ xrootd_cache_purge_to_target(ngx_stream_xrootd_srv_conf_t *conf,
     list.protect_path = protect_path;
     list.inst = xrootd_cache_storage(conf);          /* store instance (removal)   */
     list.cstore = xrootd_cache_storage_cstore(conf); /* enumerate via the adapter  */
-    list.cache_root = (const char *) conf->cache_root.data;
-    list.state_root = conf->cache_state_root.len
-                      ? (const char *) conf->cache_state_root.data
-                      : (const char *) conf->cache_root.data;
+    /* §14a: walk the PHYSICAL cache root (tier-aware — the posix cache_store dir
+     * for the tier grammar, else cache_state_root/cache_root), so a pure tier cache
+     * (advertised cache_root "/") still evicts from the real store directory. */
+    list.cache_root = phys_root;
+    list.state_root = phys_root;
 
     if (list.inst == NULL || list.cstore == NULL
         || xrootd_cache_collect_dir(&list, "/", log) != NGX_OK)

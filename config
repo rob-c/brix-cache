@@ -357,8 +357,6 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/cache/cstore.h \
                         $ngx_addon_dir/src/cache/verify.h \
                         $ngx_addon_dir/src/cache/origin/transport.h \
-                        $ngx_addon_dir/src/cache/origin/http_transport.h \
-                        $ngx_addon_dir/src/cache/origin/pelican.h \
                         $ngx_addon_dir/src/cache/origin/pelican_register.h \
                         $ngx_addon_dir/src/token/jwt_sign.h \
                         $ngx_addon_dir/src/cache/writethrough.h \
@@ -800,9 +798,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/cache/cinfo_sidecar.c \
     $ngx_addon_dir/src/cache/cstore.c \
     $ngx_addon_dir/src/cache/verify.c \
-    $ngx_addon_dir/src/cache/origin/http_transport.c \
     $ngx_addon_dir/src/cache/origin/s3_transport.c \
-    $ngx_addon_dir/src/cache/origin/pelican.c \
     $ngx_addon_dir/src/cache/origin/pelican_register.c \
     $ngx_addon_dir/src/cache/lock.c \
     $ngx_addon_dir/src/cache/cache_admit.c \

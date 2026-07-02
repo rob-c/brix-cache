@@ -388,7 +388,8 @@ ngx_stream_xrootd_init_process(ngx_cycle_t *cycle)
         /* Watermark-driven LRU reaper: arm the proactive per-worker timer when a
          * cache is configured with a valid HIGH watermark. A small per-worker
          * jitter on the first tick keeps the workers from all firing together. */
-        if (xcf->cache && xcf->cache_root.len > 0
+        if ((xcf->cache || xcf->common.cache_store.len > 0)
+            && xrootd_cache_state_root(xcf) != NULL
             && xcf->cache_high_watermark > 0
             && xcf->cache_high_watermark < 1000000)
         {

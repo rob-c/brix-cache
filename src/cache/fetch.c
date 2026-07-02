@@ -4,8 +4,6 @@
 #include "meta.h"
 #include "verify.h"
 #include "../compat/checksum.h"   /* xrootd_checksum_hex_obj / _parse (verify) */
-#include "origin/http_transport.h"
-#include "origin/pelican.h"
 #include "origin/s3_transport.h"               /* server libcurl S3 transport */
 #include "../fs/backend/remote/sd_remote.h"    /* read-only S3 remote-origin driver */
 #include "../fs/backend/xroot/sd_xroot.h"      /* read-only root:// remote-origin driver */
@@ -24,81 +22,6 @@
 
 extern char **environ;
 
-/* xrootd_cache_commit_part — publish the downloaded part file: atomically rename
- * part_path → cache_path, write the .meta sidecar, and record the cached size on
- * the task. Shared by the anonymous-protocol and exec-GSI fills. Returns 0 / -1
- * (t error set). */
-static int
-xrootd_cache_commit_part(xrootd_cache_fill_t *t)
-{
-    struct stat                   st;
-    xrootd_cache_meta_t           meta;
-    ngx_log_t                    *log;
-    xrootd_cache_digest_t         origin;
-    xrootd_cache_verify_result_e  vr;
-    char                          vy_alg[16];
-    char                          vy_hex[129];
-
-    log = (t->c != NULL) ? t->c->log : NULL;
-
-    /*
-     * Checksum-on-fill: verify the staged part against the origin's advertised
-     * digest BEFORE the atomic rename, so a corrupted/truncated transfer never
-     * becomes a served cache entry. Fail-closed best-effort by default
-     * (xrootd_cache_verify). t->origin_cks_* is empty when the origin offered no
-     * checksum (e.g. the GSI-exec fetch path) — the verify policy then governs.
-     */
-    ngx_memzero(&origin, sizeof(origin));
-    if (t->origin_cks_alg[0] != '\0') {
-        size_t an = ngx_min(ngx_strlen(t->origin_cks_alg), sizeof(origin.alg) - 1);
-        size_t hn = ngx_min(ngx_strlen(t->origin_cks_hex), sizeof(origin.hex) - 1);
-        ngx_memcpy(origin.alg, t->origin_cks_alg, an);
-        ngx_memcpy(origin.hex, t->origin_cks_hex, hn);
-    }
-
-    vy_alg[0] = '\0';
-    vy_hex[0] = '\0';
-    vr = xrootd_cache_verify_part(t, t->part_path, &origin,
-            (xrootd_cache_verify_mode_e) t->conf->cache_verify, vy_alg, vy_hex);
-    if (vr == XROOTD_CACHE_VERIFY_MISMATCH || vr == XROOTD_CACHE_VERIFY_ERROR) {
-        unlink(t->part_path);          /* t error already set by verify */
-        return -1;
-    }
-
-    if (rename(t->part_path, t->cache_path) != 0) {
-        unlink(t->part_path);
-        xrootd_cache_set_syserror(t, kXR_IOError, "cache part file rename failed");
-        return -1;
-    }
-
-    if (stat(t->cache_path, &st) == 0
-        && xrootd_cache_meta_from_stat(&st, NULL, &meta) == NGX_OK)
-    {
-        t->file_size = (uint64_t) st.st_size;
-
-        /* Record a verified digest into the sidecar for durable provenance. */
-        if (vr == XROOTD_CACHE_VERIFY_VERIFIED && vy_alg[0] != '\0') {
-            size_t an = ngx_min(ngx_strlen(vy_alg), sizeof(meta.cks_alg) - 1);
-            size_t hn = ngx_min(ngx_strlen(vy_hex), sizeof(meta.cks_hex) - 1);
-            meta.version     = XROOTD_CACHE_META_VERSION;
-            meta.cks_alg_len = (uint8_t) an;
-            ngx_memcpy(meta.cks_alg, vy_alg, an);
-            meta.cks_alg[an] = '\0';
-            meta.cks_len     = (uint8_t) hn;
-            ngx_memcpy(meta.cks_hex, vy_hex, hn);
-            meta.cks_hex[hn] = '\0';
-        }
-
-        if (xrootd_cache_meta_write(log, t->cache_path, &meta) != NGX_OK
-            && log != NULL)
-        {
-            ngx_log_error(NGX_LOG_WARN, log, errno,
-                          "xrootd: cache metadata write failed \"%s\"",
-                          t->cache_path);
-        }
-    }
-    return 0;
-}
 
 /* The cache key (suffix under cache_root) for this fill's cache_path — what the
  * cache STORAGE driver keys its namespace on. NULL if cache_path is not under
@@ -190,38 +113,6 @@ xrootd_cache_commit_staged(xrootd_cache_fill_t *t, xrootd_sd_instance_t *inst,
     return 0;
 }
 
-/* Read the first whitespace-delimited token (a bearer JWT) from `path` into out
- * (NUL-terminated, truncated to cap). O_NOFOLLOW — a config-domain token file, not
- * export storage. Best-effort: on any error out stays "". */
-static void
-xrootd_cache_read_token_file(const char *path, char *out, size_t cap)
-{
-    int     fd;
-    ssize_t n;
-    size_t  i;
-
-    if (cap == 0) {
-        return;
-    }
-    out[0] = '\0';
-    fd = open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);  /* vfs-seam-allow: config-domain bearer token file (not export storage) */
-    if (fd < 0) {
-        return;
-    }
-    n = read(fd, out, cap - 1);
-    close(fd);
-    if (n < 0) {
-        out[0] = '\0';
-        return;
-    }
-    out[n] = '\0';
-    for (i = 0; i < (size_t) n; i++) {
-        if (out[i] == '\r' || out[i] == '\n' || out[i] == ' ' || out[i] == '\t') {
-            out[i] = '\0';
-            break;
-        }
-    }
-}
 
 /* Forward decl of the shared fill spine (defined below): open the SD source object,
  * pread sequential ranges into the cache's staged-write sink, then commit + verify.
@@ -229,140 +120,40 @@ xrootd_cache_read_token_file(const char *path, char *out, size_t cap)
 static int xrootd_cache_fill_from_source(xrootd_cache_fill_t *t,
     xrootd_sd_instance_t *source);
 
-/* xrootd_cache_build_s3_origin — THE single mapping from the legacy cache_origin S3
- * config (s3://endpoint/bucket + access/secret/region) to a bare read-only sd_remote
- * (SigV4) origin instance. Both the whole-file fetch (below) and the config-time
- * source builder (cache_storage.c) build through here so their S3 origin config
- * cannot drift. Caller owns the instance (xrootd_sd_remote_destroy). NULL on failure
- * (errno set) or when no bucket is configured. */
-xrootd_sd_instance_t *
-xrootd_cache_build_s3_origin(const ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log)
-{
-    xrootd_sd_remote_cfg_t cfg;
-
-    if (conf->cache_origin_s3_bucket.len == 0) {
-        return NULL;
-    }
-    ngx_memzero(&cfg, sizeof(cfg));
-    cfg.scheme = XROOTD_SD_REMOTE_S3;
-    cfg.port   = (int) conf->cache_origin_port;
-    cfg.tls    = (conf->cache_origin_tls == 1) ? 1 : 0;
-    cfg.timeout_ms = 60000;
-    cfg.transport  = &xrootd_s3_origin_curl_transport;
-    ngx_snprintf((u_char *) cfg.host, sizeof(cfg.host) - 1, "%V%Z",
-                 &conf->cache_origin_host);
-    ngx_snprintf((u_char *) cfg.bucket, sizeof(cfg.bucket) - 1, "%V%Z",
-                 &conf->cache_origin_s3_bucket);
-    ngx_snprintf((u_char *) cfg.access_key, sizeof(cfg.access_key) - 1, "%V%Z",
-                 &conf->cache_origin_s3_access_key);
-    ngx_snprintf((u_char *) cfg.secret_key, sizeof(cfg.secret_key) - 1, "%V%Z",
-                 &conf->cache_origin_s3_secret_key);
-    ngx_snprintf((u_char *) cfg.region, sizeof(cfg.region) - 1, "%V%Z",
-                 &conf->cache_origin_s3_region);
-    return xrootd_sd_remote_create(&cfg, log);
-}
-
-/* xrootd_cache_build_http_origin — map the legacy cache_origin HTTP(S) config to a
- * bare read-only sd_http instance (HEAD for size, Range-GET for pread, via the shared
- * libcurl transport). scheme https ⇒ TLS. The path prefix is empty — the fill key IS
- * the object path. Bearer comes from cache_origin_token_file (anonymous otherwise).
- * Caller owns the instance (xrootd_sd_http_destroy). NULL on failure (errno set). */
-xrootd_sd_instance_t *
-xrootd_cache_build_http_origin(const ngx_stream_xrootd_srv_conf_t *conf,
-                               ngx_log_t *log)
-{
-    xrootd_sd_http_cfg_t cfg;
-    char                 host_z[256];
-    char                 bearer[4096];
-
-    ngx_snprintf((u_char *) host_z, sizeof(host_z) - 1, "%V%Z",
-                 &conf->cache_origin_host);
-    bearer[0] = '\0';
-    if (conf->cache_origin_token_file.len > 0) {
-        (void) xrootd_cache_read_token_file(
-            (const char *) conf->cache_origin_token_file.data,
-            bearer, sizeof(bearer));
-    }
-    ngx_memzero(&cfg, sizeof(cfg));
-    cfg.host         = host_z;                    /* copied by sd_http_create */
-    cfg.port         = (int) conf->cache_origin_port;
-    cfg.tls          = (conf->cache_origin_scheme == XROOTD_CACHE_SCHEME_HTTPS
-                        || conf->cache_origin_tls == 1) ? 1 : 0;
-    cfg.base_path    = "";
-    cfg.transport    = &xrootd_s3_origin_curl_transport;
-    cfg.timeout_ms   = 60000;
-    cfg.bearer_token = (bearer[0] != '\0') ? bearer : NULL;
-    return xrootd_sd_http_create(&cfg, log);
-}
+/* §14 (phase-64): the legacy cache_origin s3/http/READ-origin builders are
+ * DELETED — a cache fills from the export's registered storage backend (the C-1
+ * spine), whose credential is the attached xrootd_credential. */
 
 /* xrootd_cache_build_wt_origin — the WRITE-BACK origin (flush target): host from
- * wt_origin (else cache_origin), with the WRITE-BACK credential precedence — the C-3
- * in-process fields (cache_origin_bearer/x509_proxy/ca_dir) FIRST, falling back to the
- * legacy cache_origin_proxy/cadir. This is the write-side counterpart of
- * xrootd_cache_build_origin (which uses the READ credential); keep them distinct.
- * Caller owns the instance (xrootd_sd_xroot_destroy). NULL if no origin configured. */
+ * xrootd_wt_origin, credentials from the C-3 in-process fields
+ * (cache_origin_bearer/x509_proxy/ca_dir — populated from xrootd_wt_credential).
+ * §14: the legacy cache_origin host/credential fallbacks are deleted with the
+ * cache_origin config model. Caller owns the instance (xrootd_sd_xroot_destroy).
+ * NULL if no wt_origin configured. */
 xrootd_sd_instance_t *
 xrootd_cache_build_wt_origin(const ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log)
 {
-    const ngx_str_t *host = conf->wt_origin_host.len > 0 ? &conf->wt_origin_host
-                                                         : &conf->cache_origin_host;
-    uint16_t         port = conf->wt_origin_host.len > 0 ? conf->wt_origin_port
-                                                         : conf->cache_origin_port;
-    char             host_z[256];
+    char host_z[256];
 
-    if (host->len == 0 || port == 0) {
+    if (conf->wt_origin_host.len == 0 || conf->wt_origin_port == 0) {
         errno = EINVAL;
         return NULL;
     }
-    ngx_cpystrn((u_char *) host_z, host->data,
-                ngx_min(host->len + 1, sizeof(host_z)));
-    return xrootd_sd_xroot_create_origin(host_z, (int) port,
-        (conf->cache_origin_tls == 1) ? 1 : 0, (int) conf->cache_origin_family,
+    ngx_cpystrn((u_char *) host_z, conf->wt_origin_host.data,
+                ngx_min(conf->wt_origin_host.len + 1, sizeof(host_z)));
+    return xrootd_sd_xroot_create_origin(host_z, (int) conf->wt_origin_port,
+        0 /* tls: legacy cache_origin_tls retired */,
+        (int) conf->cache_origin_family,
         (conf->cache_origin_bearer.len > 0)
             ? (const char *) conf->cache_origin_bearer.data : NULL,
         (conf->cache_origin_x509_proxy.len > 0)
-            ? (const char *) conf->cache_origin_x509_proxy.data
-        : (conf->cache_origin_proxy.len > 0)
-            ? (const char *) conf->cache_origin_proxy.data : NULL,
+            ? (const char *) conf->cache_origin_x509_proxy.data : NULL,
         (conf->cache_origin_ca_dir.len > 0)
-            ? (const char *) conf->cache_origin_ca_dir.data
-        : (conf->cache_origin_cadir.len > 0)
-            ? (const char *) conf->cache_origin_cadir.data : NULL,
+            ? (const char *) conf->cache_origin_ca_dir.data : NULL,
+        NULL /* sss_keytab: SSS is a tier-grammar credential, not legacy */,
         log);
 }
 
-/* xrootd_cache_build_origin — THE single mapping from the legacy cache_origin READ
- * credentials to a bare sd_xroot origin instance: cache_origin_proxy → GSI X.509,
- * cache_origin_cadir → origin-cert verify CA, cache_origin_token_file → ztn bearer,
- * cache_origin_family → connect address family. Both the whole-file fetch (below)
- * and the slice decorator (cache_storage.c) build through here so their read-origin
- * auth cannot drift (the C-3 cache_origin_bearer/x509_proxy/ca_dir fields are the
- * WRITE-BACK credential — wrong for a read fill). Caller owns the instance
- * (xrootd_sd_xroot_destroy). Returns NULL on failure (errno set by the driver). */
-xrootd_sd_instance_t *
-xrootd_cache_build_origin(const ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log)
-{
-    char        host_z[256];
-    char        bearer[4096];
-    const char *proxy;
-    const char *ca_dir;
-
-    ngx_snprintf((u_char *) host_z, sizeof(host_z) - 1, "%V%Z",
-                 &conf->cache_origin_host);
-    proxy  = (conf->cache_origin_proxy.len > 0)
-             ? (const char *) conf->cache_origin_proxy.data : NULL;
-    ca_dir = (conf->cache_origin_cadir.len > 0)
-             ? (const char *) conf->cache_origin_cadir.data : NULL;
-    bearer[0] = '\0';
-    if (conf->cache_origin_token_file.len > 0) {
-        (void) xrootd_cache_read_token_file(
-            (const char *) conf->cache_origin_token_file.data,
-            bearer, sizeof(bearer));
-    }
-    return xrootd_sd_xroot_create_origin(host_z, (int) conf->cache_origin_port,
-        (conf->cache_origin_tls == 1) ? 1 : 0, (int) conf->cache_origin_family,
-        (bearer[0] != '\0') ? bearer : NULL, proxy, ca_dir, log);
-}
 
 /* xrootd_cache_fill_from_source — THE single cache-fill spine (phase-63): fill from
  * any SD source instance generically — `source->driver->open` → `pread` loop →
@@ -489,33 +280,16 @@ xrootd_cache_fill_from_source(xrootd_cache_fill_t *t,
 int
 xrootd_cache_fetch_origin(xrootd_cache_fill_t *t)
 {
-    /* Legacy cache_origin fold (phase-64 §6.5): translate the xroot/s3 origin config
-     * to the config-time source instance so a legacy cache_origin fills through the
-     * SAME spine as a registry PRIMARY backend (C-1) — not the per-scheme functions
-     * below. http/https/pelican have no SD instance (they fill via libcurl), so their
-     * source stays NULL and the branches below still handle them. */
-    if (t->source_inst == NULL) {
-        t->source_inst = xrootd_cache_source_inst(t->conf);
-    }
-
-    /* C-1 (phase-63): the export's registered PRIMARY storage backend, or (fold
-     * above) the legacy cache_origin xroot/s3 source — fill through the one spine. */
+    /* §14 (phase-64): ONE fill path — the export's registered storage backend
+     * (resolved on the main thread by open_or_fill, C-1) through the one spine.
+     * The legacy cache_origin per-scheme fetches (xroot/s3/http/pelican) are
+     * deleted with their config model. */
     if (t->source_inst != NULL) {
         return xrootd_cache_fill_from_source(t, t->source_inst);
     }
 
-    /* Pelican federation: discover the Director, then fetch through it (libcurl
-     * follows the 307 to the chosen cache/origin). Same commit+verify path. */
-    if (t->conf->cache_origin_scheme == XROOTD_CACHE_SCHEME_PELICAN) {
-        if (xrootd_cache_pelican_download(t) != 0) {
-            return -1;
-        }
-        return xrootd_cache_commit_part(t);
-    }
-
-    /* No usable source: xroot/s3 origins are handled above via source_inst; a
-     * missing/unbuildable one (e.g. s3:// without a bucket) lands here. */
     xrootd_cache_set_error(t, kXR_ServerError, 0,
-                           "cache: no usable origin source configured");
+                           "cache: no storage backend to fill from "
+                           "(xrootd_cache on requires xrootd_storage_backend)");
     return -1;
 }

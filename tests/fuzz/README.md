@@ -27,6 +27,8 @@ A clean run prints `Done … exit 0` with no crash artifacts.
 | Target | Parser under test | Status |
 |---|---|---|
 | `fuzz_safe_size.c` | W1 overflow-checked size math + array alloc | ✅ runnable |
+| `fuzz_b64url.c`  | token base64url decode (pre-auth)       | ✅ runnable |
+| `fuzz_zip_dir.c` | server ZIP central-directory walk (Task-7; Phase-B hardened allocs) | ✅ runnable |
 
 ## Adding a parser target (template)
 

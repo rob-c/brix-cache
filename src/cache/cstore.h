@@ -82,6 +82,13 @@ ngx_int_t xrootd_cstore_init(xrootd_cstore_t *cs, xrootd_sd_instance_t *store,
 /* Release the L1 (the store instance is borrowed - not freed here). NULL-safe. */
 void xrootd_cstore_cleanup(xrootd_cstore_t *cs);
 
+/* The store's authoritative local POSIX directory (LOCAL meta_mode), or NULL for a
+ * non-local store (s3/rados/remote — it has no local dir). This is the ONLY safe
+ * source for "where does this cache physically live"; the reaper/state layer keys
+ * off it and MUST decline filesystem reaping when it is NULL, never guess a path
+ * from the advertised cache_root. NULL-safe. */
+const char *xrootd_cstore_local_root(const xrootd_cstore_t *cs);
+
 /* ---- fill spine (a cache miss writes the object into the store) ------------ */
 
 /* Open a fill sink for `key` (a staged write on the store). Returns the store's

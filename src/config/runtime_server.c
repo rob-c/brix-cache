@@ -289,10 +289,25 @@ xrootd_config_prepare_server(ngx_conf_t *cf,
             {
                 return NGX_ERROR;
             }
-            xrootd_vfs_backend_set_credential(xcf->common.root_canon, bearer,
-                (cred->x509_proxy.len > 0)
-                    ? (const char *) cred->x509_proxy.data : NULL,
-                (cred->ca_dir.len > 0) ? (const char *) cred->ca_dir.data : NULL);
+            {
+                xrootd_vfs_backend_cred_t bcred;
+
+                ngx_memzero(&bcred, sizeof(bcred));
+                bcred.bearer = (bearer[0] != '\0') ? bearer : NULL;
+                bcred.x509_proxy = (cred->x509_proxy.len > 0)
+                    ? (const char *) cred->x509_proxy.data : NULL;
+                bcred.ca_dir = (cred->ca_dir.len > 0)
+                    ? (const char *) cred->ca_dir.data : NULL;
+                bcred.s3_access_key = (cred->s3_access_key.len > 0)
+                    ? (const char *) cred->s3_access_key.data : NULL;
+                bcred.s3_secret_key = (cred->s3_secret_key.len > 0)
+                    ? (const char *) cred->s3_secret_key.data : NULL;
+                bcred.s3_region = (cred->s3_region.len > 0)
+                    ? (const char *) cred->s3_region.data : NULL;
+                bcred.sss_keytab = (cred->sss_keytab.len > 0)
+                    ? (const char *) cred->sss_keytab.data : NULL;
+                xrootd_vfs_backend_set_credential(xcf->common.root_canon, &bcred);
+            }
         }
 
         /* §14 + C-3/C-5: the write-back flush authenticates to its wt_origin with a
@@ -374,27 +389,8 @@ xrootd_config_prepare_server(ngx_conf_t *cf,
             return NGX_ERROR;
         }
 
-        /* A driver-backed read cache keeps its bytes in the storage backend, so
-         * its POSIX .meta/.cinfo sidecars cannot live under cache_root — require a
-         * distinct xrootd_cache_state_root. Then register the backend keyed on the
-         * cache root for VFS resolution (no-op for the default POSIX backend). */
-        if (xcf->cache_storage_backend.len > 0) {
-            if (xcf->cache_state_root.len == 0
-                || (xcf->cache_state_root.len == xcf->cache_root.len
-                    && ngx_strncmp(xcf->cache_state_root.data,
-                                   xcf->cache_root.data,
-                                   xcf->cache_root.len) == 0))
-            {
-                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                    "xrootd_cache_storage_backend requires a distinct POSIX "
-                    "xrootd_cache_state_root (sidecars cannot live in a "
-                    "driver-backed cache_root)");
-                return NGX_ERROR;
-            }
-            xrootd_vfs_backend_config((const char *) xcf->cache_root.data,
-                                      &xcf->cache_storage_backend,
-                                      xcf->cache_storage_block_size);
-        }
+        /* §14: xrootd_cache_storage_backend is retired — a driver-backed cache
+         * is the tier grammar's xrootd_cache_store. */
 
         /* Write-back staging cache backend (its own root). Same sidecar rule. */
         if (xcf->cache_wt_stage_backend.len > 0) {
@@ -433,13 +429,14 @@ xrootd_config_prepare_server(ngx_conf_t *cf,
                     && ngx_strncmp(sb->data, "https://",
                                    sizeof("https://") - 1) == 0);
 
-            if (xcf->cache_root.len == 0
-                || (xcf->cache_origin_host.len == 0 && !remote_source))
-            {
+            /* §14: the legacy xrootd_cache_origin is retired — an `xrootd_cache
+             * on` cache fills from the export's REMOTE storage backend. */
+            if (xcf->cache_root.len == 0 || !remote_source) {
                 ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                    "xrootd_cache on requires xrootd_cache_root and either "
-                    "xrootd_cache_origin or a remote xrootd_storage_backend "
-                    "(root://host:port)");
+                    "xrootd_cache on requires xrootd_cache_root and a remote "
+                    "xrootd_storage_backend (root://host:port); the retired "
+                    "xrootd_cache_origin model is the tier grammar now "
+                    "(xrootd_storage_backend + xrootd_cache_store)");
                 return NGX_ERROR;
             }
         }

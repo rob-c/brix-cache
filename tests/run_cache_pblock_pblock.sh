@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 #
-# run_cache_pblock_pblock.sh — Test 2 of the exclusively-VFS caching layer:
-# every storage plane is a pblock backend, with the .meta/.cinfo sidecars on a
-# separate POSIX state root.
+# run_cache_pblock_pblock.sh — Test 2 of the exclusively-VFS caching layer, on the
+# phase-64 TIER grammar (§14: the legacy cache_origin/cache_storage_backend model
+# is retired): every TIER store is a pblock catalog over a root:// backend.
 #
-#   loc A (xrootd_root)            pblock PRIMARY
-#   loc B (cache_root)             pblock READ cache       (cache_storage_backend)
-#   loc C (cache_wt_stage_root)    pblock WRITE staging    (cache_wt_stage_backend)
-#   state (cache_state_root)       POSIX sidecars (.meta/.cinfo)
+#   backend                        root://O (the origin IS the storage backend)
+#   cache tier  (cache_store)      pblock READ cache
+#   stage tier  (stage_store)      pblock WRITE staging, sync flush
 #
-# Verifies the bytes of B and C land in pblock (data/ + catalog, NOT a plain POSIX
-# file), the sidecars are POSIX under the state root, a write is mirrored to a
-# root:// origin THROUGH the pblock staging copy (byte-exact), and a read miss is
-# served byte-exact from the pblock read cache. The origin is a SEPARATE process
-# (a sync flush blocks the worker loop).
+# Verifies the bytes of the cache and stage tiers land in pblock (data/ + catalog,
+# NOT a plain POSIX file), a write is flushed to the root:// backend THROUGH the
+# pblock staging copy (byte-exact), a read miss is served byte-exact from the
+# pblock read cache, the cinfo rides IN the pblock catalog (no POSIX sidecar
+# leak), and a warm hit serves with the backend file hidden (G3). The origin is a
+# SEPARATE process (a sync flush blocks the worker loop).
 #
 # Usage: tests/run_cache_pblock_pblock.sh [nginx-binary]
 set -u
@@ -54,20 +54,12 @@ stream {
         xrootd_auth none;
         xrootd_allow_write on;
         xrootd_upload_resume off;
-        xrootd_storage_backend  pblock;              # loc A primary
-        xrootd_pblock_block_size 1m;
-        xrootd_cache on;
-        xrootd_cache_root             $PFX/n/cacheB;  # loc B read cache (pblock)
-        xrootd_cache_storage_backend  pblock;
-        xrootd_cache_storage_block_size 1m;
-        xrootd_cache_state_root       $PFX/n/state;   # POSIX sidecars
-        xrootd_cache_origin 127.0.0.1:${ORIGIN_PORT};
-        xrootd_write_through on;
-        xrootd_wt_mode sync;
-        xrootd_wt_origin 127.0.0.1:${ORIGIN_PORT};
-        xrootd_cache_wt_stage_root       $PFX/n/stageC; # loc C write staging (pblock)
-        xrootd_cache_wt_stage_backend    pblock;
-        xrootd_cache_wt_stage_block_size 1m;
+        xrootd_storage_backend root://127.0.0.1:${ORIGIN_PORT};
+        xrootd_cache_store pblock:$PFX/n/cacheB block_size=1m;
+        xrootd_cache_root  /;
+        xrootd_stage on;
+        xrootd_stage_store pblock:$PFX/n/stageC block_size=1m;
+        xrootd_stage_flush sync;
     }
 }
 EOF
@@ -82,32 +74,34 @@ trap cleanup EXIT
 "$NGINX" -p "$PFX/n" -c "$PFX/n/nginx.conf" 2>"$PFX/n/err" || { echo "node failed"; cat "$PFX/n/err"; exit 2; }
 sleep 1
 
-echo "== write to pblock primary → mirror to origin via the pblock staging copy =="
+echo "== write → staged on the pblock stage tier, sync-flushed to the backend =="
 head -c 2621440 /dev/urandom > /tmp/cpb_w.bin    # 2.5 blocks
 "$XRDCP" -f /tmp/cpb_w.bin "root://127.0.0.1:${NODE_PORT}//w.bin" >/dev/null 2>&1 \
-    && ok "PUT to pblock primary" || bad "PUT to pblock primary"
+    && ok "PUT through the stage tier" || bad "PUT through the stage tier"
 sleep 1
 if [ -f "$PFX/o/root/w.bin" ]; then
-    cmp -s /tmp/cpb_w.bin "$PFX/o/root/w.bin" && ok "origin mirror byte-exact (via pblock stage)" \
-        || bad "origin mirror DIFFERS"
+    cmp -s /tmp/cpb_w.bin "$PFX/o/root/w.bin" && ok "backend copy byte-exact (via pblock stage)" \
+        || bad "backend copy DIFFERS"
 else
-    bad "origin file missing — write-through did not mirror"
-    grep -iE 'wt: flush|stage' "$PFX/n/logs/e.log" | tail -3
+    bad "backend file missing — stage flush did not run"
+    grep -iE 'stage' "$PFX/n/logs/e.log" | tail -3
 fi
-is_pblock "$PFX/n/root"   && ok "loc A primary is pblock"        || bad "loc A primary not pblock"
-is_pblock "$PFX/n/stageC" && ok "loc C write-staging is pblock"  || bad "loc C staging not pblock"
+is_pblock "$PFX/n/stageC" && ok "stage tier is pblock"  || bad "stage tier not pblock"
 
-echo "== read miss of an origin-only file → fills the pblock read cache (loc B) =="
-head -c 1500000 /dev/urandom > "$PFX/o/root/r.bin"   # origin-only
+echo "== read miss of a backend-only file → fills the pblock read cache =="
+head -c 1500000 /dev/urandom > "$PFX/o/root/r.bin"   # backend-only
 "$XRDFS" root://127.0.0.1:${NODE_PORT} cat /r.bin > /tmp/cpb_r.got 2>/dev/null
 cmp -s "$PFX/o/root/r.bin" /tmp/cpb_r.got && ok "read-through fill byte-exact" || bad "read fill DIFFERS"
-is_pblock "$PFX/n/cacheB" && ok "loc B read cache is pblock" || bad "loc B read cache not pblock"
+is_pblock "$PFX/n/cacheB" && ok "read cache is pblock" || bad "read cache not pblock"
 
-echo "== sidecars are POSIX under the state root, not in the pblock stores =="
-[ -n "$(find "$PFX/n/state" -name '*.meta' -o -name '*.cinfo' 2>/dev/null | head -1)" ] \
-    && ok "POSIX .meta/.cinfo sidecars under state root" || bad "no sidecars under state root"
-[ -z "$(find "$PFX/n/cacheB" "$PFX/n/stageC" -name '*.meta' 2>/dev/null | head -1)" ] \
+echo "== cinfo rides IN the pblock catalog (no POSIX sidecar leak) + warm hit (G3) =="
+[ -z "$(find "$PFX/n/cacheB" "$PFX/n/stageC" -name '*.meta' -o -name '*.cinfo' 2>/dev/null | head -1)" ] \
     && ok "no POSIX sidecars leaked into the pblock stores" || bad "sidecar leaked into a pblock store"
+mv "$PFX/o/root/r.bin" "$PFX/o/root/r.bin.hidden"
+"$XRDFS" root://127.0.0.1:${NODE_PORT} cat /r.bin > /tmp/cpb_r2.got 2>/dev/null
+cmp -s "$PFX/o/root/r.bin.hidden" /tmp/cpb_r2.got \
+    && ok "warm hit byte-exact with the backend file hidden (cinfo in-catalog)" \
+    || bad "warm hit failed — cinfo not persisted in the pblock catalog"
 
 [ "$fail" = 0 ] && echo "run_cache_pblock_pblock: ALL PASS" || echo "run_cache_pblock_pblock: FAILURES"
 exit "$fail"

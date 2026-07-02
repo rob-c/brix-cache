@@ -81,4 +81,10 @@ xrootd_sd_instance_t *xrootd_sd_cache_store_instance(
 xrootd_sd_instance_t *xrootd_sd_cache_source_instance(
     const xrootd_sd_instance_t *inst);
 
+/* The decorator's internal cstore (an (xrootd_cstore_t *); returned void* to keep
+ * this header free of cstore.h), or NULL if `inst` is not a cache decorator. Lets
+ * the eviction/reaper enumerate a composed tier cache through its own store adapter
+ * (§14a — the same cstore the read path fills into). */
+void *xrootd_sd_cache_cstore(const xrootd_sd_instance_t *inst);
+
 #endif /* XROOTD_SD_CACHE_H */

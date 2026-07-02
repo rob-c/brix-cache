@@ -58,9 +58,6 @@ stream {
         xrootd_upload_resume off;
         xrootd_storage_backend  pblock://$PFX/p/root/;
         xrootd_pblock_block_size 1m;
-        xrootd_cache on;
-        xrootd_cache_root   $PFX/p/cache;
-        xrootd_cache_origin 127.0.0.1:${ORIGIN_PORT};
         xrootd_write_through on;
         xrootd_wt_mode sync;
         xrootd_wt_origin 127.0.0.1:${ORIGIN_PORT};

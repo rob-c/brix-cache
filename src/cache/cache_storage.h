@@ -40,14 +40,9 @@ xrootd_sd_instance_t *xrootd_cache_storage(const ngx_stream_xrootd_srv_conf_t *c
  * free-space drive the store through this — never the bare driver). NULL if the
  * cache is off. Built at config time in xrootd_cache_storage_init. */
 xrootd_cstore_t *xrootd_cache_storage_cstore(const ngx_stream_xrootd_srv_conf_t *conf);
-/* The composed sd_cache slice/partial decorator (source=origin, store=cache_root),
- * or NULL when slice caching is off. The root:// slice read serves through this
- * (phase-64 §6.5). Built in xrootd_cache_storage_init. */
-xrootd_sd_instance_t *xrootd_cache_slice_inst(const ngx_stream_xrootd_srv_conf_t *conf);
-/* The whole-file cache SOURCE instance built from the legacy cache_origin config
- * (xroot/s3), or NULL (http/pelican use libcurl, or no legacy origin). Consumed by
- * fetch.c so a legacy cache_origin fills through the one xrootd_cache_fill_from_source
- * spine. Built in xrootd_cache_storage_init. */
+/* §14: always NULL now (the legacy cache_origin whole-file source is retired —
+ * an `xrootd_cache on` cache fills from the export's registered backend, resolved
+ * per fill by the C-1 spine). Kept for the transitional callers. */
 xrootd_sd_instance_t *xrootd_cache_source_inst(const ngx_stream_xrootd_srv_conf_t *conf);
 /* The write-through sd_stage instance (source=wt_origin, store=export backend), or
  * NULL (write-through off / no backend → legacy run_flush). A write-open routes

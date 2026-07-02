@@ -44,10 +44,9 @@ stream {
         xrootd on;
         xrootd_root $PFX/c/export;
         xrootd_auth none;
-        xrootd_cache on;
-        xrootd_cache_root $PFX/c/cache;
-        xrootd_cache_origin 127.0.0.1:${OPORT};
-        xrootd_cache_slice 1m;
+        xrootd_storage_backend root://127.0.0.1:${OPORT};
+        xrootd_cache_store posix:$PFX/c/cache; xrootd_cache_root /;
+        xrootd_cache_slice_size 1m;
     }
 }
 EOF

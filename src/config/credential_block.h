@@ -41,6 +41,10 @@ typedef struct {
     ngx_flag_t  token_forward;   /* on = delegate the CLIENT's token (C-3)        */
     ngx_flag_t  tls;             /* roots:// / https to the upstream              */
     ngx_str_t   vo;              /* optional VOMS FQAN                (C-3)        */
+    ngx_str_t   s3_access_key;   /* S3 SigV4 access-key id      (s3:// backend)   */
+    ngx_str_t   s3_secret_key;   /* S3 SigV4 secret key         (s3:// backend)   */
+    ngx_str_t   s3_region;       /* S3 SigV4 region scope       (s3:// backend)   */
+    ngx_str_t   sss_keytab;      /* SSS shared-secret keytab    (root:// origin)  */
 } xrootd_credential_t;
 
 /* The `xrootd_credential <name> { … }` block directive handler (stream scope). */

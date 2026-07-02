@@ -176,8 +176,6 @@ char *xrootd_conf_set_upstream(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
 /* "xrootd_cache_origin [root[s]://]host:port": cache origin; roots:// turns
  * on origin TLS. */
-char *xrootd_conf_set_cache_origin(ngx_conf_t *cf, ngx_command_t *cmd,
-    void *conf);
 /* "xrootd_cache_origin_family auto|inet|inet6": address-family policy for the
  * origin connect (xrootd_af_policy_t). */
 char *xrootd_conf_set_cache_origin_family(ngx_conf_t *cf, ngx_command_t *cmd,
@@ -363,6 +361,18 @@ ngx_int_t xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
 ngx_int_t xrootd_cache_open_or_fill(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf, const char *clean_path,
     const char *cache_path, uint16_t options, uint16_t mode_bits);
+
+/* Composed-cache (tier grammar) slow-tier miss offload (phase-64 SP2, the
+ * stream twin of shared/http_cache_fill.c): run the whole-file fill of
+ * `full_path` through `inst` (the registry's composed sd_cache) on the async
+ * thread pool with the connection parked in XRD_ST_AIO; the done callback
+ * serves the now-cached object. Call only when
+ * xrootd_sd_cache_fill_needs_offload() said 1. NGX_OK = parked/async;
+ * NGX_DECLINED = no pool (caller opens inline); else a queued-error rc. */
+ngx_int_t xrootd_cache_open_fill_offload(xrootd_ctx_t *ctx,
+    ngx_connection_t *c, ngx_stream_xrootd_srv_conf_t *conf,
+    const char *clean_path, const char *full_path, xrootd_sd_instance_t *inst,
+    uint16_t options, uint16_t mode_bits);
 
 /* tpc/ — XRootD root:// third-party copy (TPC) */
 #include "tpc/tpc_internal.h"

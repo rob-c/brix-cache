@@ -15,6 +15,7 @@
 #include "../fs/vfs_backend_registry.h" /* Layer 3: per-export storage driver */
 #include "../fs/vfs_internal.h"         /* xrootd_vfs_export_relative_root */
 #include "../fs/backend/sd.h"           /* driver stat for read existence check */
+#include "../fs/backend/cache/sd_cache.h" /* slow-tier miss offload probe (SP2) */
 
 #include <string.h>
 #include <unistd.h>
@@ -44,6 +45,17 @@ xrootd_open_read_probe(ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log,
         xrootd_sd_stat_t  sst;
         const char       *key =
             xrootd_vfs_export_relative_root(full_path, conf->common.root_canon);
+
+        /* Slow-tier composed-cache MISS (phase-64 SP2): a source stat here would
+         * be a blocking wire round-trip on the event loop. Report the path as
+         * provisionally existing (a regular file) and let the OFFLOADED fill
+         * resolve the truth — a missing origin object surfaces as kXR_NotFound
+         * from the parked open's done callback. A COMPLETE hit answers below via
+         * the decorator's cinfo-backed stat (no source touch). */
+        if (xrootd_sd_cache_fill_needs_offload(sd, key)) {
+            *is_dir = 0;
+            return 1;
+        }
 
         if (sd->driver->stat(sd, key, &sst) != NGX_OK) {
             return 0;
@@ -822,6 +834,28 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 			ctx->pmark_echo_ev.data     = ctx;
 			ctx->pmark_echo_ev.log      = c->log;
 			ngx_add_timer(&ctx->pmark_echo_ev, ctx->pmark_echo_ms);
+		}
+	}
+
+	/* Slow-tier composed-cache MISS (phase-64 SP2): the decorator's inline open
+	 * would run the whole-file fill as a blocking wire transfer on the event
+	 * loop (and self-connect deadlock when this worker also serves the source).
+	 * Park the open in XRD_ST_AIO and fill on the async thread pool instead —
+	 * the stream twin of the HTTP plane's http_cache_fill.c. A hit / slice /
+	 * all-local stack has needs_offload == 0 and opens inline as before. */
+	if (!is_write) {
+		xrootd_sd_instance_t *gsd =
+		    xrootd_vfs_backend_resolve(conf->common.root_canon, c->log);
+		const char *gkey =
+		    xrootd_vfs_export_relative_root(full_path, conf->common.root_canon);
+
+		if (gsd != NULL && xrootd_sd_cache_fill_needs_offload(gsd, gkey)) {
+			ngx_int_t grc = xrootd_cache_open_fill_offload(ctx, c, conf,
+			                    clean_path, full_path, gsd, options, mode_bits);
+			if (grc != NGX_DECLINED) {
+				return grc;   /* parked (async) or a queued-error rc */
+			}
+			/* NGX_DECLINED: no thread pool — inline open below (may stall). */
 		}
 	}
 

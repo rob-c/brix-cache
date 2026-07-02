@@ -15,8 +15,15 @@ xrootd_cache_watermark_purge(ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log)
     char                    lock_path[PATH_MAX];
     ngx_uint_t              evicted_files = 0;
     uint64_t                evicted_bytes = 0;
+    /* §14a unification: a cache is active under EITHER the legacy activation
+     * (conf->cache, set by xrootd_cache on) OR the composable tier grammar (a
+     * cache_store, conf->cache==0). The physical dir the reaper walks comes from
+     * xrootd_cache_state_root, now tier-aware (returns the posix cache_store dir). */
+    int         cache_active = (conf->cache != 0)
+                             || (conf->common.cache_store.len > 0);
+    const char *phys_root    = xrootd_cache_state_root(conf);
 
-    if (conf == NULL || !conf->cache || conf->cache_root.len == 0
+    if (conf == NULL || !cache_active || phys_root == NULL
         || conf->cache_high_watermark == 0
         || conf->cache_high_watermark >= 1000000)
     {
@@ -28,12 +35,11 @@ xrootd_cache_watermark_purge(ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log)
      * cross-worker lock while the cache is calm. A statvfs failure here is a
      * monitoring fault, not a cache fault: log-and-skip rather than wedge.
      */
-    if (xrootd_cache_fs_usage_sampled((char *) conf->cache_root.data, 1000,
-                                      &usage) != NGX_OK)
+    if (xrootd_cache_fs_usage_sampled((char *) phys_root, 1000, &usage) != NGX_OK)
     {
         ngx_log_error(NGX_LOG_WARN, log, errno,
-                      "xrootd: watermark reaper could not stat cache_root \"%V\"",
-                      &conf->cache_root);
+                      "xrootd: watermark reaper could not stat cache root \"%s\"",
+                      phys_root);
         return 0;
     }
 
@@ -62,9 +68,9 @@ xrootd_cache_watermark_purge(ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log)
         xrootd_metric_cache_watermark_purge(evicted_files, evicted_bytes);
         ngx_log_error(NGX_LOG_NOTICE, log, 0,
                       "xrootd: watermark reaper purged %ui file(s), %uL bytes "
-                      "from \"%V\" (low=0.%06ui)",
+                      "from \"%s\" (low=0.%06ui)",
                       evicted_files, (uint64_t) evicted_bytes,
-                      &conf->cache_root, conf->cache_low_watermark);
+                      phys_root, conf->cache_low_watermark);
     }
     return evicted_files;
 }
