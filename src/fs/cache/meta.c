@@ -44,6 +44,37 @@ brix_cache_meta_from_stat(const struct stat *st, const char *etag,
  * exists (ENOENT), the file is truncated, or etag_len is out of range (treat as
  * cache miss); NGX_ERROR on any other I/O error.
  */
+/* Legacy fixed-size ".meta" sidecar reader (pre-xmeta-migration caches). The
+ * on-disk layout is exactly the brix_cache_meta_t legacy base — origin mtime,
+ * size, and a bounded etag — so a cache written before the unified metadata
+ * record still validates. NGX_OK on a good record; NGX_DECLINED (cache miss)
+ * when the sidecar is absent, truncated, or its etag length is out of range. */
+static ngx_int_t
+cache_meta_read_legacy(const char *cache_path, brix_cache_meta_t *meta)
+{
+    char    path[PATH_MAX];
+    int     fd;
+    ssize_t n;
+
+    if (brix_cache_meta_path(path, sizeof(path), cache_path) != 0) {
+        return NGX_DECLINED;
+    }
+    fd = open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);  /* vfs-seam-allow: server-managed cache-root sidecar, opened as worker */
+    if (fd < 0) {
+        return NGX_DECLINED;   /* ENOENT / no legacy sidecar -> cache miss */
+    }
+    ngx_memzero(meta, sizeof(*meta));
+    n = read(fd, meta, BRIX_CACHE_META_BASE_SIZE);
+    (void) close(fd);
+    if (n != (ssize_t) BRIX_CACHE_META_BASE_SIZE
+        || meta->etag_len > BRIX_CACHE_META_ETAG_MAX)
+    {
+        return NGX_DECLINED;   /* truncated / corrupt -> treat as miss */
+    }
+    meta->version = 0;         /* legacy base: no versioned tail */
+    return NGX_OK;
+}
+
 ngx_int_t
 brix_cache_meta_read(ngx_log_t *log, const char *cache_path,
     brix_cache_meta_t *meta)
@@ -59,7 +90,14 @@ brix_cache_meta_read(ngx_log_t *log, const char *cache_path,
     }
     rc = brix_xmeta_path_load(cache_path, &xm);
     if (rc != BRIX_XMETA_OK) {
-        return (rc == BRIX_XMETA_FOREIGN) ? NGX_DECLINED : NGX_ERROR;
+        /* No unified brix record (FOREIGN covers both "absent" and a foreign/
+         * stock record): fall back to a legacy ".meta" sidecar so caches written
+         * before the xmeta migration still validate. NGX_ERROR only on a genuine
+         * I/O fault loading the unified record. */
+        if (rc == BRIX_XMETA_FOREIGN) {
+            return cache_meta_read_legacy(cache_path, meta);
+        }
+        return NGX_ERROR;
     }
 
     ngx_memzero(meta, sizeof(*meta));
