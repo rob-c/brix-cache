@@ -182,8 +182,22 @@ def test_cache_reap_reason_metrics(tmp_path):
     plant("dirty", completed)                  # DIRTY ...
     plant("clean", completed)                  # ... CLEAN, flush_gen=1 (finished)
 
+    # The cinfo record is persisted via the unified xmeta carrier — xattr-
+    # preferred, ".cinfo" sidecar only as a fallback where xattrs are
+    # unsupported. On an xattr-capable state fs the record rides the data
+    # file's user.xrd.cinfo xattr (and is removed with the file), so assert the
+    # record exists via either carrier rather than assuming a sidecar file.
+    def _has_cinfo_record(f):
+        if os.path.exists(f + ".cinfo"):
+            return True
+        try:
+            os.getxattr(f, "user.xrd.cinfo")
+            return True
+        except OSError:
+            return False
+
     for f in (abandoned, incomplete, completed):
-        assert os.path.exists(f + ".cinfo"), "planted .cinfo missing for " + f
+        assert _has_cinfo_record(f), "planted cinfo record missing for " + f
 
     # 3. Stand up nginx (stream cache reaper + HTTP /metrics).
     sport = _free_port()
@@ -205,15 +219,15 @@ def test_cache_reap_reason_metrics(tmp_path):
         #    back, so wait for both to avoid observing the in-between state).
         deadline = time.time() + 25
         while time.time() < deadline and (os.path.exists(abandoned)
-                                          or os.path.exists(abandoned + ".cinfo")):
+                                          or _has_cinfo_record(abandoned)):
             time.sleep(0.5)
 
-        # 5. The three classified files (+ sidecars) are gone; the clean
-        #    no-record control survives.
+        # 5. The three classified files (+ their cinfo records) are gone; the
+        #    clean no-record control survives.
         assert not os.path.exists(abandoned), "abandoned file not reaped"
         assert not os.path.exists(incomplete), "incomplete file not reaped"
         assert not os.path.exists(completed), "completed file not reaped"
-        assert not os.path.exists(abandoned + ".cinfo"), "sidecar not reaped"
+        assert not _has_cinfo_record(abandoned), "cinfo record not reaped"
         assert os.path.exists(keepme), "clean no-record file wrongly reaped"
 
         # 6. /metrics reports exactly one reap per reason.
