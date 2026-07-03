@@ -324,12 +324,17 @@ xrootd_vfs_to_sd_flags(ngx_uint_t flags)
 }
 
 /* For XROOTD_VFS_O_MKDIRPATH: create the target's parent directory chain
- * (confined under root_canon, mode 0755) before the file open is attempted. */
+ * (mode 0755) before the file open is attempted. A driver-backed export gets
+ * the chain in the DRIVER's namespace (xrootd_vfs_backend_mkpath — for e.g.
+ * pblock the catalog IS the namespace; raw host mkdirs would leave the new
+ * file an orphan no readdir can reach); the default posix export keeps the
+ * confined host mkdir. */
 static ngx_int_t
 xrootd_vfs_mkdir_parent_path(xrootd_vfs_ctx_t *ctx, const char *path)
 {
-    char  *parent;
-    char  *slash;
+    char       *parent;
+    char       *slash;
+    ngx_int_t   rc;
 
     if (ctx->root_canon == NULL || path == NULL) {
         return NGX_OK;
@@ -346,6 +351,14 @@ xrootd_vfs_mkdir_parent_path(xrootd_vfs_ctx_t *ctx, const char *path)
     }
 
     *slash = '\0';
+
+    rc = xrootd_vfs_backend_mkpath(ctx->root_canon,
+             xrootd_vfs_export_relative_root(parent, ctx->root_canon),
+             0755, ctx->log);
+    if (rc != NGX_DECLINED) {
+        return (rc == 0) ? NGX_OK : NGX_ERROR;
+    }
+
     if (xrootd_mkdir_recursive_confined_canon(ctx->log, ctx->root_canon,
                                               parent, 0755, NULL) != 0)
     {

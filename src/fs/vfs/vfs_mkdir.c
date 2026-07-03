@@ -46,14 +46,25 @@ xrootd_vfs_mkdir(xrootd_vfs_ctx_t *ctx, mode_t mode, unsigned parents)
         return NGX_ERROR;
     }
 
-    /* Non-POSIX backend: create the directory entry in the driver's namespace.
-     * (`parents` is advisory — an object/block backend's mkdir is a flat catalog
-     * insert; the leaf appears regardless of parent rows.) */
+    /* Non-POSIX backend: create the directory entry in the driver's
+     * namespace. The catalog enforces POSIX parent existence (a lone mkdir
+     * with missing ancestors is ENOENT), so `parents` walks the whole chain
+     * through the driver — prefix by prefix, EEXIST-tolerant. */
     drv = xrootd_vfs_ctx_driver(ctx);
     if (drv != NULL) {
-        ngx_int_t rc = (drv->mkdir != NULL)
-            ? drv->mkdir(ctx->sd, xrootd_vfs_export_relative(ctx, path), mode)
-            : (errno = ENOSYS, NGX_ERROR);
+        ngx_int_t rc;
+
+        if (drv->mkdir == NULL) {
+            errno = ENOSYS;
+            rc = NGX_ERROR;
+        } else if (parents) {
+            rc = (xrootd_vfs_backend_mkpath(ctx->root_canon,
+                      xrootd_vfs_export_relative(ctx, path), mode,
+                      ctx->log) == 0) ? NGX_OK : NGX_ERROR;
+        } else {
+            rc = drv->mkdir(ctx->sd, xrootd_vfs_export_relative(ctx, path),
+                            mode);
+        }
 
         saved_errno = errno;
         xrootd_vfs_observe_ctx_op(ctx, path, XROOTD_METRIC_OP_MKDIR, NULL, 0,
