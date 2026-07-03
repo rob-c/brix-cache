@@ -1,10 +1,10 @@
 /* client/tests/c/vfs_s3_smoke.c
  *
- * WHAT: Smoke driver for the xrdc_vfs S3 backend (Task A5).
+ * WHAT: Smoke driver for the brix_vfs S3 backend (Task A5).
  *       Exercises the VFS S3 backend directly — NOT via xrdcp — so that the test
  *       confirms A5's backend code without waiting for task C3 to rewire xrdcp.
  * WHY:  xrdcp's s3:// path currently goes through copy_web, not the VFS backend.
- *       A direct smoke driver bypasses that routing and calls xrdc_vfs_open /
+ *       A direct smoke driver bypasses that routing and calls brix_vfs_open /
  *       pwrite / commit / pread end-to-end.
  * HOW:  Mode selected via argv[1] (or default if absent):
  *         (default)  "roundtrip"  — single-PUT + multipart write→read round-trip
@@ -24,8 +24,8 @@
  */
 
 #include "../../lib/vfs.h"
-#include "../../lib/xrdc.h"
-#include "../../src/core/compat/crypto.h"   /* xrootd_crypto_init — arms SHA-256/HMAC */
+#include "../../lib/brix.h"
+#include "../../src/core/compat/crypto.h"   /* brix_crypto_init — arms SHA-256/HMAC */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,7 +33,7 @@
 
 /* Helpers */
 static void
-die(const char *tag, const xrdc_status *st)
+die(const char *tag, const brix_status *st)
 {
     fprintf(stderr, "FAIL [%s]: kxr=%d errno=%d msg=%s\n",
             tag, st ? st->kxr : 0, st ? st->sys_errno : 0,
@@ -81,10 +81,10 @@ test_single_put(const char *url)
     static const char payload[] = "vfs_s3_smoke: single-PUT round-trip test";
     size_t            payload_len = sizeof(payload) - 1;
 
-    xrdc_status       st;
-    xrdc_vfs_open_opts opts;
-    xrdc_vfs_file    *wf = NULL;
-    xrdc_vfs_file    *rf = NULL;
+    brix_status       st;
+    brix_vfs_open_opts opts;
+    brix_vfs_file    *wf = NULL;
+    brix_vfs_file    *rf = NULL;
     char              url_key[2048];
     char              buf[256];
     ssize_t           nr;
@@ -93,36 +93,36 @@ test_single_put(const char *url)
     make_key_url(url, "smoke_single.bin", url_key, sizeof(url_key));
     printf("  test_single_put: %s\n", url_key);
 
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     memset(&opts, 0, sizeof(opts));
     opts.expected_size = (int64_t) payload_len;
     opts.cred          = NULL;
 
     /* Open for write (single-PUT path: expected_size <= S3_PART_MAX) */
-    rc = xrdc_vfs_open(url_key, XRDC_VFS_WRITE | XRDC_VFS_FORCE,
+    rc = brix_vfs_open(url_key, XRDC_VFS_WRITE | XRDC_VFS_FORCE,
                        &opts, &wf, &st);
     if (rc != 0) { die("single-PUT open write", &st); }
 
     /* pwrite — sequential at offset 0 */
-    rc = xrdc_vfs_pwrite(wf, 0, payload, payload_len, &st);
+    rc = brix_vfs_pwrite(wf, 0, payload, payload_len, &st);
     if (rc != 0) { die("single-PUT pwrite", &st); }
 
     /* commit — issues the actual PUT */
-    rc = xrdc_vfs_commit(wf, &st);
+    rc = brix_vfs_commit(wf, &st);
     if (rc != 0) { die("single-PUT commit", &st); }
-    xrdc_vfs_close(wf);
+    brix_vfs_close(wf);
     wf = NULL;
 
     /* Reopen for read */
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     opts.expected_size = -1;
-    rc = xrdc_vfs_open(url_key, XRDC_VFS_READ, &opts, &rf, &st);
+    rc = brix_vfs_open(url_key, XRDC_VFS_READ, &opts, &rf, &st);
     if (rc != 0) { die("single-PUT open read", &st); }
 
     /* pread the whole object */
-    nr = xrdc_vfs_pread(rf, 0, buf, sizeof(buf), &st);
+    nr = brix_vfs_pread(rf, 0, buf, sizeof(buf), &st);
     if (nr < 0) { die("single-PUT pread", &st); }
-    xrdc_vfs_close(rf);
+    brix_vfs_close(rf);
     rf = NULL;
 
     /* Verify bytes */
@@ -163,10 +163,10 @@ test_multipart(const char *url)
     size_t            total    = part_sz * (size_t) n_parts;
     char             *wbuf     = malloc(total);
     char             *rbuf     = malloc(total);
-    xrdc_status       st;
-    xrdc_vfs_open_opts opts;
-    xrdc_vfs_file    *wf = NULL;
-    xrdc_vfs_file    *rf = NULL;
+    brix_status       st;
+    brix_vfs_open_opts opts;
+    brix_vfs_file    *wf = NULL;
+    brix_vfs_file    *rf = NULL;
     char              url_key[2048];
     int               i;
     ssize_t           nr;
@@ -187,45 +187,45 @@ test_multipart(const char *url)
     printf("  test_multipart: %s (part_sz=%zu, n_parts=%d, total=%zu)\n",
            url_key, part_sz, n_parts, total);
 
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     memset(&opts, 0, sizeof(opts));
     opts.expected_size = -1;   /* unknown size → forces MPU path */
     opts.cred          = NULL;
 
     /* Open for write (MPU path: expected_size < 0) */
-    rc = xrdc_vfs_open(url_key, XRDC_VFS_WRITE | XRDC_VFS_FORCE,
+    rc = brix_vfs_open(url_key, XRDC_VFS_WRITE | XRDC_VFS_FORCE,
                        &opts, &wf, &st);
     if (rc != 0) { die("multipart open write", &st); }
 
     /* Write part_sz bytes at a time so each call fills one part */
     for (i = 0; i < n_parts; i++) {
         int64_t off = (int64_t) ((size_t) i * part_sz);
-        rc = xrdc_vfs_pwrite(wf, off, wbuf + (size_t) off, part_sz, &st);
+        rc = brix_vfs_pwrite(wf, off, wbuf + (size_t) off, part_sz, &st);
         if (rc != 0) { die("multipart pwrite", &st); }
     }
 
     /* commit — flushes remaining part buffer + CompleteMultipartUpload */
-    rc = xrdc_vfs_commit(wf, &st);
+    rc = brix_vfs_commit(wf, &st);
     if (rc != 0) { die("multipart commit", &st); }
-    xrdc_vfs_close(wf);
+    brix_vfs_close(wf);
     wf = NULL;
 
     /* Reopen for read */
-    xrdc_status_clear(&st);
-    rc = xrdc_vfs_open(url_key, XRDC_VFS_READ, &opts, &rf, &st);
+    brix_status_clear(&st);
+    rc = brix_vfs_open(url_key, XRDC_VFS_READ, &opts, &rf, &st);
     if (rc != 0) { die("multipart open read", &st); }
 
     /* pread all bytes (possibly in multiple calls if S3_PREAD_MAX is small) */
     total_read = 0;
     while (total_read < total) {
         size_t want = total - total_read;
-        nr = xrdc_vfs_pread(rf, (int64_t) total_read,
+        nr = brix_vfs_pread(rf, (int64_t) total_read,
                             rbuf + total_read, want, &st);
         if (nr < 0) { die("multipart pread", &st); }
         if (nr == 0) { break; }   /* EOF */
         total_read += (size_t) nr;
     }
-    xrdc_vfs_close(rf);
+    brix_vfs_close(rf);
     rf = NULL;
 
     if (total_read != total) {
@@ -260,9 +260,9 @@ static void
 test_bad_creds(const char *url)
 {
     char              url_key[2048];
-    xrdc_status       st;
-    xrdc_vfs_open_opts opts;
-    xrdc_vfs_file    *wf = NULL;
+    brix_status       st;
+    brix_vfs_open_opts opts;
+    brix_vfs_file    *wf = NULL;
     const char       *orig_ak = getenv("AWS_ACCESS_KEY_ID");
     int               rc;
 
@@ -272,12 +272,12 @@ test_bad_creds(const char *url)
     /* Temporarily install a bogus access key */
     setenv("AWS_ACCESS_KEY_ID", "BADKEYBADKEYBADKEY01", 1);
 
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     memset(&opts, 0, sizeof(opts));
     opts.expected_size = -1;   /* MPU: auth error surfaces at CreateMPU (POST ?uploads) */
     opts.cred          = NULL;
 
-    rc = xrdc_vfs_open(url_key, XRDC_VFS_WRITE | XRDC_VFS_FORCE,
+    rc = brix_vfs_open(url_key, XRDC_VFS_WRITE | XRDC_VFS_FORCE,
                        &opts, &wf, &st);
 
     /* Restore the original key before any assertions */
@@ -289,9 +289,9 @@ test_bad_creds(const char *url)
 
     if (rc == 0) {
         /* open succeeded (rare: server may have cached the session) — try commit */
-        rc = xrdc_vfs_commit(wf, &st);
-        xrdc_vfs_abort(wf);
-        xrdc_vfs_close(wf);
+        rc = brix_vfs_commit(wf, &st);
+        brix_vfs_abort(wf);
+        brix_vfs_close(wf);
     }
 
     if (rc == 0) {
@@ -321,9 +321,9 @@ static void
 test_nonseq(const char *url)
 {
     char              url_key[2048];
-    xrdc_status       st;
-    xrdc_vfs_open_opts opts;
-    xrdc_vfs_file    *wf = NULL;
+    brix_status       st;
+    brix_vfs_open_opts opts;
+    brix_vfs_file    *wf = NULL;
     char              buf[32];
     int               rc;
 
@@ -331,25 +331,25 @@ test_nonseq(const char *url)
     printf("  test_nonseq: %s\n", url_key);
 
     memset(buf, 'X', sizeof(buf));
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     memset(&opts, 0, sizeof(opts));
     opts.expected_size = -1;   /* MPU path */
     opts.cred          = NULL;
 
-    rc = xrdc_vfs_open(url_key, XRDC_VFS_WRITE | XRDC_VFS_FORCE,
+    rc = brix_vfs_open(url_key, XRDC_VFS_WRITE | XRDC_VFS_FORCE,
                        &opts, &wf, &st);
     if (rc != 0) { die("nonseq open", &st); }
 
     /* First write at offset 0 — must succeed */
-    rc = xrdc_vfs_pwrite(wf, 0, buf, sizeof(buf), &st);
+    rc = brix_vfs_pwrite(wf, 0, buf, sizeof(buf), &st);
     if (rc != 0) { die("nonseq first pwrite", &st); }
 
     /* Second write at a non-contiguous offset — must fail with XRDC_EUSAGE */
-    xrdc_status_clear(&st);
-    rc = xrdc_vfs_pwrite(wf, 100, buf, sizeof(buf), &st);
+    brix_status_clear(&st);
+    rc = brix_vfs_pwrite(wf, 100, buf, sizeof(buf), &st);
 
-    xrdc_vfs_abort(wf);
-    xrdc_vfs_close(wf);
+    brix_vfs_abort(wf);
+    brix_vfs_close(wf);
     wf = NULL;
 
     if (rc == 0) {
@@ -372,9 +372,9 @@ main(int argc, char **argv)
     const char *url  = s3_url();
 
     /* Arm the shared HMAC-SHA256/SHA-256 kernels (libxrdproto EVP_MAC/EVP_MD).
-     * Without this, xrootd_hmac_sha256 returns 0 and every SigV4 call fails.
+     * Without this, brix_hmac_sha256 returns 0 and every SigV4 call fails.
      * xrdcp does this in its main(); smoke drivers must do it too. */
-    xrootd_crypto_init();
+    brix_crypto_init();
 
     if (strcmp(mode, "roundtrip") == 0) {
         printf("=== vfs_s3_smoke: roundtrip ===\n");

@@ -5,7 +5,7 @@
  * WHY:  Each handler is validated against real env vars, temp files, and missing
  *       paths.  The store-core cases (cache/expiry/refresh) that need a
  *       controllable stub live in cred_store_unit.c to avoid a duplicate-symbol
- *       link error with the real xrdc_cred_s3keys() defined in cred_s3.c.
+ *       link error with the real brix_cred_s3keys() defined in cred_s3.c.
  *       The X509 cases (B3) test path discovery.  The bearer cases (B4) test
  *       token discovery.  The SSS cases (B5) test keytab resolution and error
  *       paths.  The krb5 cases (B5) test ccache error paths; a live TGT positive
@@ -20,7 +20,7 @@
  *   HAVE_KRB5=$(pkg-config --exists krb5 2>/dev/null && echo yes)
  *   KRB5_FLAGS=$([ "$HAVE_KRB5" = yes ] && pkg-config --cflags --libs krb5)
  *   gcc -std=c11 -D_GNU_SOURCE -DXRDPROTO_NO_NGX \
- *       $([ "$HAVE_KRB5" = yes ] && echo -DXROOTD_HAVE_KRB5) \
+ *       $([ "$HAVE_KRB5" = yes ] && echo -DBRIX_HAVE_KRB5) \
  *       -I lib -I ../src \
  *       tests/c/cred_unit.c lib/cred.c lib/cred_x509.c lib/cred_bearer.c \
  *       lib/cred_sss.c lib/cred_krb5.c lib/cred_s3.c lib/status.c \
@@ -64,22 +64,22 @@ test_x509_env_success(void)
 
     setenv("X509_USER_PROXY", tmpl, 1);
 
-    xrdc_cred_config cfg = {0};
-    xrdc_cred_store *s   = xrdc_cred_store_new(&cfg);
+    brix_cred_config cfg = {0};
+    brix_cred_store *s   = brix_cred_store_new(&cfg);
     assert(s != NULL);
 
-    assert(xrdc_cred_available(s, XRDC_CRED_X509_PROXY) == 1);
+    assert(brix_cred_available(s, XRDC_CRED_X509_PROXY) == 1);
 
-    xrdc_status   st = {0};
-    xrdc_cred_view v  = {0};
-    int rc = xrdc_cred_acquire(s, XRDC_CRED_X509_PROXY, 0, &v, &st);
+    brix_status   st = {0};
+    brix_cred_view v  = {0};
+    int rc = brix_cred_acquire(s, XRDC_CRED_X509_PROXY, 0, &v, &st);
     assert(rc == 0);
     assert(v.path != NULL);
     assert(strcmp(v.path, tmpl) == 0);
     /* empty file → not_after is best-effort zero, not an error */
     assert(v.not_after == 0);
 
-    xrdc_cred_store_free(s);
+    brix_cred_store_free(s);
     unsetenv("X509_USER_PROXY");
     unlink(tmpl);
     printf("test_x509_env_success: PASS\n");
@@ -99,22 +99,22 @@ test_x509_missing(void)
 {
     unsetenv("X509_USER_PROXY");
 
-    xrdc_cred_config cfg  = {0};
-    cfg.proxy_path        = "/tmp/xrdc_cred_unit_no_such_proxy_XXXXXX";
+    brix_cred_config cfg  = {0};
+    cfg.proxy_path        = "/tmp/brix_cred_unit_no_such_proxy_XXXXXX";
 
-    xrdc_cred_store *s = xrdc_cred_store_new(&cfg);
+    brix_cred_store *s = brix_cred_store_new(&cfg);
     assert(s != NULL);
 
-    assert(xrdc_cred_available(s, XRDC_CRED_X509_PROXY) == 0);
+    assert(brix_cred_available(s, XRDC_CRED_X509_PROXY) == 0);
 
-    xrdc_status   st = {0};
-    xrdc_cred_view v  = {0};
-    int rc = xrdc_cred_acquire(s, XRDC_CRED_X509_PROXY, 0, &v, &st);
+    brix_status   st = {0};
+    brix_cred_view v  = {0};
+    int rc = brix_cred_acquire(s, XRDC_CRED_X509_PROXY, 0, &v, &st);
     assert(rc == -1);
     assert(st.kxr == XRDC_ENOENT);
     assert(st.msg[0] != '\0');
 
-    xrdc_cred_store_free(s);
+    brix_cred_store_free(s);
     printf("test_x509_missing: PASS\n");
 }
 
@@ -140,23 +140,23 @@ test_x509_cfg_precedence(void)
 
     setenv("X509_USER_PROXY", env_tmpl, 1);
 
-    xrdc_cred_config cfg = {0};
+    brix_cred_config cfg = {0};
     cfg.proxy_path       = cfg_tmpl;   /* explicit override beats env */
 
-    xrdc_cred_store *s = xrdc_cred_store_new(&cfg);
+    brix_cred_store *s = brix_cred_store_new(&cfg);
     assert(s != NULL);
 
-    assert(xrdc_cred_available(s, XRDC_CRED_X509_PROXY) == 1);
+    assert(brix_cred_available(s, XRDC_CRED_X509_PROXY) == 1);
 
-    xrdc_status   st = {0};
-    xrdc_cred_view v  = {0};
-    int rc = xrdc_cred_acquire(s, XRDC_CRED_X509_PROXY, 0, &v, &st);
+    brix_status   st = {0};
+    brix_cred_view v  = {0};
+    int rc = brix_cred_acquire(s, XRDC_CRED_X509_PROXY, 0, &v, &st);
     assert(rc == 0);
     assert(v.path != NULL);
     /* cfg->proxy_path wins over $X509_USER_PROXY */
     assert(strcmp(v.path, cfg_tmpl) == 0);
 
-    xrdc_cred_store_free(s);
+    brix_cred_store_free(s);
     unsetenv("X509_USER_PROXY");
     unlink(env_tmpl);
     unlink(cfg_tmpl);
@@ -181,22 +181,22 @@ test_bearer_env_success(void)
     setenv("BEARER_TOKEN", tok, 1);
     unsetenv("BEARER_TOKEN_FILE");
 
-    xrdc_cred_config cfg  = {0};
-    xrdc_cred_store *s    = xrdc_cred_store_new(&cfg);
+    brix_cred_config cfg  = {0};
+    brix_cred_store *s    = brix_cred_store_new(&cfg);
     assert(s != NULL);
 
-    assert(xrdc_cred_available(s, XRDC_CRED_BEARER) == 1);
+    assert(brix_cred_available(s, XRDC_CRED_BEARER) == 1);
 
-    xrdc_status    st = {0};
-    xrdc_cred_view v  = {0};
-    int rc = xrdc_cred_acquire(s, XRDC_CRED_BEARER, 0, &v, &st);
+    brix_status    st = {0};
+    brix_cred_view v  = {0};
+    int rc = brix_cred_acquire(s, XRDC_CRED_BEARER, 0, &v, &st);
     assert(rc == 0);
     assert(v.token != NULL);
     assert(strcmp(v.token, tok) == 0);
     /* non-JWT value → not_after is best-effort zero, not an error */
     assert(v.not_after == 0);
 
-    xrdc_cred_store_free(s);
+    brix_cred_store_free(s);
     unsetenv("BEARER_TOKEN");
     printf("test_bearer_env_success: PASS\n");
 }
@@ -219,23 +219,23 @@ test_bearer_missing(void)
     unsetenv("XDG_RUNTIME_DIR");
 
     /* Point cfg at a path we know doesn't exist and no literal/env set, so
-     * xrdc_token_discover also returns NULL (BEARER_TOKEN cleared above). */
-    xrdc_cred_config cfg = {0};
-    cfg.bearer_path = "/tmp/xrdc_cred_unit_no_such_bearer_XXXXXX";
+     * brix_token_discover also returns NULL (BEARER_TOKEN cleared above). */
+    brix_cred_config cfg = {0};
+    cfg.bearer_path = "/tmp/brix_cred_unit_no_such_bearer_XXXXXX";
 
-    xrdc_cred_store *s = xrdc_cred_store_new(&cfg);
+    brix_cred_store *s = brix_cred_store_new(&cfg);
     assert(s != NULL);
 
-    assert(xrdc_cred_available(s, XRDC_CRED_BEARER) == 0);
+    assert(brix_cred_available(s, XRDC_CRED_BEARER) == 0);
 
-    xrdc_status    st = {0};
-    xrdc_cred_view v  = {0};
-    int rc = xrdc_cred_acquire(s, XRDC_CRED_BEARER, 0, &v, &st);
+    brix_status    st = {0};
+    brix_cred_view v  = {0};
+    int rc = brix_cred_acquire(s, XRDC_CRED_BEARER, 0, &v, &st);
     assert(rc == -1);
     assert(st.kxr == XRDC_EAUTH);
     assert(st.msg[0] != '\0');
 
-    xrdc_cred_store_free(s);
+    brix_cred_store_free(s);
     printf("test_bearer_missing: PASS\n");
 }
 
@@ -255,22 +255,22 @@ test_bearer_literal_precedence(void)
 
     setenv("BEARER_TOKEN", env_tok, 1);
 
-    xrdc_cred_config cfg = {0};
+    brix_cred_config cfg = {0};
     cfg.bearer_literal   = lit_tok;   /* explicit override beats $BEARER_TOKEN */
 
-    xrdc_cred_store *s = xrdc_cred_store_new(&cfg);
+    brix_cred_store *s = brix_cred_store_new(&cfg);
     assert(s != NULL);
 
-    assert(xrdc_cred_available(s, XRDC_CRED_BEARER) == 1);
+    assert(brix_cred_available(s, XRDC_CRED_BEARER) == 1);
 
-    xrdc_status    st = {0};
-    xrdc_cred_view v  = {0};
-    int rc = xrdc_cred_acquire(s, XRDC_CRED_BEARER, 0, &v, &st);
+    brix_status    st = {0};
+    brix_cred_view v  = {0};
+    int rc = brix_cred_acquire(s, XRDC_CRED_BEARER, 0, &v, &st);
     assert(rc == 0);
     assert(v.token != NULL);
     assert(strcmp(v.token, lit_tok) == 0);   /* literal wins */
 
-    xrdc_cred_store_free(s);
+    brix_cred_store_free(s);
     unsetenv("BEARER_TOKEN");
     printf("test_bearer_literal_precedence: PASS\n");
 }
@@ -280,9 +280,9 @@ test_bearer_literal_precedence(void)
  *
  * WHAT: supply a minimal (unsigned) JWT whose payload is {"exp":9999999999};
  *       confirm not_after == 9999999999 after acquire.
- * WHY:  proves xrdc_token_meta_get is called and its result wired into not_after.
+ * WHY:  proves brix_token_meta_get is called and its result wired into not_after.
  * HOW:  the JWT is crafted as base64url(header).base64url(payload).base64url(sig)
- *       where the payload is {"exp":9999999999}.  xrdc_token_meta_get does NOT
+ *       where the payload is {"exp":9999999999}.  brix_token_meta_get does NOT
  *       verify signatures, so this exercises the real exp-parse path.
  *       Token: eyJhbGciOiJub25lIn0.eyJleHAiOjk5OTk5OTk5OTl9.ZmFrZXNpZw
  */
@@ -295,20 +295,20 @@ test_bearer_jwt_not_after(void)
     setenv("BEARER_TOKEN", jwt, 1);
     unsetenv("BEARER_TOKEN_FILE");
 
-    xrdc_cred_config cfg  = {0};
-    xrdc_cred_store *s    = xrdc_cred_store_new(&cfg);
+    brix_cred_config cfg  = {0};
+    brix_cred_store *s    = brix_cred_store_new(&cfg);
     assert(s != NULL);
 
-    xrdc_status    st = {0};
-    xrdc_cred_view v  = {0};
-    int rc = xrdc_cred_acquire(s, XRDC_CRED_BEARER, 0, &v, &st);
+    brix_status    st = {0};
+    brix_cred_view v  = {0};
+    int rc = brix_cred_acquire(s, XRDC_CRED_BEARER, 0, &v, &st);
     assert(rc == 0);
     assert(v.token != NULL);
     assert(strcmp(v.token, jwt) == 0);
     /* exp claim 9999999999 must propagate to not_after */
     assert(v.not_after == (int64_t)9999999999LL);
 
-    xrdc_cred_store_free(s);
+    brix_cred_store_free(s);
     unsetenv("BEARER_TOKEN");
     printf("test_bearer_jwt_not_after: PASS\n");
 }
@@ -330,22 +330,22 @@ test_sss_missing_keytab(void)
     unsetenv("XrdSecSSSKT");
     unsetenv("XrdSecsssKT");
 
-    xrdc_cred_config cfg = {0};
-    cfg.keytab_path = "/tmp/xrdc_cred_unit_no_such_keytab_XXXXXX";
+    brix_cred_config cfg = {0};
+    cfg.keytab_path = "/tmp/brix_cred_unit_no_such_keytab_XXXXXX";
 
-    xrdc_cred_store *s = xrdc_cred_store_new(&cfg);
+    brix_cred_store *s = brix_cred_store_new(&cfg);
     assert(s != NULL);
 
-    assert(xrdc_cred_available(s, XRDC_CRED_SSS) == 0);
+    assert(brix_cred_available(s, XRDC_CRED_SSS) == 0);
 
-    xrdc_status    st = {0};
-    xrdc_cred_view v  = {0};
-    int rc = xrdc_cred_acquire(s, XRDC_CRED_SSS, 0, &v, &st);
+    brix_status    st = {0};
+    brix_cred_view v  = {0};
+    int rc = brix_cred_acquire(s, XRDC_CRED_SSS, 0, &v, &st);
     assert(rc == -1);
     assert(st.kxr == XRDC_EAUTH);
     assert(st.msg[0] != '\0');
 
-    xrdc_cred_store_free(s);
+    brix_cred_store_free(s);
     printf("test_sss_missing_keytab: PASS\n");
 }
 
@@ -355,7 +355,7 @@ test_sss_missing_keytab(void)
  *
  * WHAT: set $XrdSecSSSKT to a missing path; confirm acquire()==-1 and that the
  *       error message contains the expected path, proving the env var was resolved.
- * WHY:  validates the xrdc_sss_keytab_default() > env-var branch so the caller
+ * WHY:  validates the brix_sss_keytab_default() > env-var branch so the caller
  *       can trust that the right location was probed.
  * HOW:  setenv $XrdSecSSSKT to a path we know does not exist; acquire; check
  *       st.msg contains that path string.  unsetenv after.
@@ -363,26 +363,26 @@ test_sss_missing_keytab(void)
 static void
 test_sss_path_resolution(void)
 {
-    const char *missing = "/tmp/xrdc_cred_unit_sss_env_path_XXXXXX";
+    const char *missing = "/tmp/brix_cred_unit_sss_env_path_XXXXXX";
     setenv("XrdSecSSSKT", missing, 1);
     unsetenv("XrdSecsssKT");
 
-    xrdc_cred_config cfg = {0};   /* cfg->keytab_path is NULL: env wins */
+    brix_cred_config cfg = {0};   /* cfg->keytab_path is NULL: env wins */
 
-    xrdc_cred_store *s = xrdc_cred_store_new(&cfg);
+    brix_cred_store *s = brix_cred_store_new(&cfg);
     assert(s != NULL);
 
-    assert(xrdc_cred_available(s, XRDC_CRED_SSS) == 0);
+    assert(brix_cred_available(s, XRDC_CRED_SSS) == 0);
 
-    xrdc_status    st = {0};
-    xrdc_cred_view v  = {0};
-    int rc = xrdc_cred_acquire(s, XRDC_CRED_SSS, 0, &v, &st);
+    brix_status    st = {0};
+    brix_cred_view v  = {0};
+    int rc = brix_cred_acquire(s, XRDC_CRED_SSS, 0, &v, &st);
     assert(rc == -1);
     assert(st.kxr == XRDC_EAUTH);
     /* The error message must mention the path that was actually probed. */
     assert(strstr(st.msg, missing) != NULL);
 
-    xrdc_cred_store_free(s);
+    brix_cred_store_free(s);
     unsetenv("XrdSecSSSKT");
     printf("test_sss_path_resolution: PASS\n");
 }
@@ -391,11 +391,11 @@ test_sss_path_resolution(void)
  * test_sss_positive — a synthesised minimal keytab → available()==1 and
  * acquire() fills view.path with the keytab path.
  *
- * WHAT: creates a valid SSS keytab via xrdc_sss_keytab_write, then confirms the
+ * WHAT: creates a valid SSS keytab via brix_sss_keytab_write, then confirms the
  *       handler finds and returns it.
  * WHY:  the other two SSS tests are error-path only; a positive case is needed to
  *       confirm the success branch end-to-end.
- * HOW:  1) mkstemp → xrdc_sss_keytab_write with one synthetic key;
+ * HOW:  1) mkstemp → brix_sss_keytab_write with one synthetic key;
  *       2) point cfg->keytab_path at that file;
  *       3) assert available()==1 and acquire returns view.path == keytab path;
  *       4) unlink + cleanup.
@@ -403,7 +403,7 @@ test_sss_path_resolution(void)
 static void
 test_sss_positive(void)
 {
-    /* Create a temp file that xrdc_sss_keytab_write will target (it opens with
+    /* Create a temp file that brix_sss_keytab_write will target (it opens with
      * O_TRUNC so the initial empty content is fine; we just need the path). */
     char tmpl[] = "/tmp/sss_keytab_XXXXXX";
     int  fd     = mkstemp(tmpl);
@@ -411,7 +411,7 @@ test_sss_positive(void)
     close(fd);
 
     /* Synthesise a valid key entry. */
-    xrdc_sss_key key;
+    brix_sss_key key;
     memset(&key, 0, sizeof(key));
     key.id      = 1;
     key.key[0]  = 0xde; key.key[1] = 0xad;
@@ -422,28 +422,28 @@ test_sss_positive(void)
     snprintf(key.name,  sizeof(key.name),  "%s", "testkey");
     key.exp = 0;   /* never expires */
 
-    xrdc_status wst = {0};
-    int wrc = xrdc_sss_keytab_write(tmpl, &key, 1, &wst);
+    brix_status wst = {0};
+    int wrc = brix_sss_keytab_write(tmpl, &key, 1, &wst);
     assert(wrc == 0);
 
     /* Point the cfg at the newly written keytab. */
-    xrdc_cred_config cfg = {0};
+    brix_cred_config cfg = {0};
     cfg.keytab_path = tmpl;
 
-    xrdc_cred_store *s = xrdc_cred_store_new(&cfg);
+    brix_cred_store *s = brix_cred_store_new(&cfg);
     assert(s != NULL);
 
-    assert(xrdc_cred_available(s, XRDC_CRED_SSS) == 1);
+    assert(brix_cred_available(s, XRDC_CRED_SSS) == 1);
 
-    xrdc_status    st = {0};
-    xrdc_cred_view v  = {0};
-    int rc = xrdc_cred_acquire(s, XRDC_CRED_SSS, 0, &v, &st);
+    brix_status    st = {0};
+    brix_cred_view v  = {0};
+    int rc = brix_cred_acquire(s, XRDC_CRED_SSS, 0, &v, &st);
     assert(rc == 0);
     assert(v.path != NULL);
     assert(strcmp(v.path, tmpl) == 0);
     assert(v.not_after == 0);   /* keytab has no per-use expiry */
 
-    xrdc_cred_store_free(s);
+    brix_cred_store_free(s);
     unlink(tmpl);
     printf("test_sss_positive: PASS\n");
 }
@@ -466,41 +466,41 @@ test_sss_positive(void)
 static void
 test_krb5_missing_ccache(void)
 {
-#ifndef XROOTD_HAVE_KRB5
+#ifndef BRIX_HAVE_KRB5
     /* When krb5 is compiled out, the accessor returns NULL and the store
      * reports XRDC_EAUTH for every acquire; that path is covered by the
      * invalid-kind test above.  Skip the ccache-specific test. */
-    printf("test_krb5_missing_ccache: SKIP (XROOTD_HAVE_KRB5 not defined)\n");
+    printf("test_krb5_missing_ccache: SKIP (BRIX_HAVE_KRB5 not defined)\n");
     return;
 #else
-    const char *missing_cc = "FILE:/tmp/xrdc_cred_unit_no_such_krb5cc_XXXXXX";
+    const char *missing_cc = "FILE:/tmp/brix_cred_unit_no_such_krb5cc_XXXXXX";
     setenv("KRB5CCNAME", missing_cc, 1);
 
-    xrdc_cred_config cfg = {0};   /* cfg->ccache is NULL: $KRB5CCNAME is used */
+    brix_cred_config cfg = {0};   /* cfg->ccache is NULL: $KRB5CCNAME is used */
 
-    xrdc_cred_store *s = xrdc_cred_store_new(&cfg);
+    brix_cred_store *s = brix_cred_store_new(&cfg);
     assert(s != NULL);
 
-    assert(xrdc_cred_available(s, XRDC_CRED_KRB5) == 0);
+    assert(brix_cred_available(s, XRDC_CRED_KRB5) == 0);
 
-    xrdc_status    st = {0};
-    xrdc_cred_view v  = {0};
-    int rc = xrdc_cred_acquire(s, XRDC_CRED_KRB5, 0, &v, &st);
+    brix_status    st = {0};
+    brix_cred_view v  = {0};
+    int rc = brix_cred_acquire(s, XRDC_CRED_KRB5, 0, &v, &st);
     assert(rc == -1);
     assert(st.kxr == XRDC_EAUTH);
     assert(st.msg[0] != '\0');
 
-    xrdc_cred_store_free(s);
+    brix_cred_store_free(s);
     unsetenv("KRB5CCNAME");
     printf("test_krb5_missing_ccache: PASS\n");
 #endif
 }
 
 /*
- * test_krb5_null_accessor — when XROOTD_HAVE_KRB5 is NOT defined, the accessor
+ * test_krb5_null_accessor — when BRIX_HAVE_KRB5 is NOT defined, the accessor
  * must return NULL so the store treats KRB5 as absent.
  *
- * WHAT: assert xrdc_cred_krb5() == NULL in the stub build.
+ * WHAT: assert brix_cred_krb5() == NULL in the stub build.
  * WHY:  mirrors the contract in cred.h: "NULL when compiled out".
  * HOW:  compile-time branch: in the stub case assert NULL; in the real case skip
  *       (the accessor returns a real handler pointer, so != NULL is expected).
@@ -508,12 +508,12 @@ test_krb5_missing_ccache(void)
 static void
 test_krb5_null_accessor(void)
 {
-#ifndef XROOTD_HAVE_KRB5
-    assert(xrdc_cred_krb5() == NULL);
+#ifndef BRIX_HAVE_KRB5
+    assert(brix_cred_krb5() == NULL);
     printf("test_krb5_null_accessor: PASS (krb5 compiled out)\n");
 #else
-    /* XROOTD_HAVE_KRB5 is defined: accessor returns a real handler, not NULL. */
-    assert(xrdc_cred_krb5() != NULL);
+    /* BRIX_HAVE_KRB5 is defined: accessor returns a real handler, not NULL. */
+    assert(brix_cred_krb5() != NULL);
     printf("test_krb5_null_accessor: PASS (real krb5 handler present)\n");
 #endif
 }
@@ -539,21 +539,21 @@ test_s3keys_env_success(void)
     setenv("AWS_ACCESS_KEY_ID",     acc, 1);
     setenv("AWS_SECRET_ACCESS_KEY", sec, 1);
 
-    xrdc_cred_config cfg  = {0};
-    xrdc_cred_store *s    = xrdc_cred_store_new(&cfg);
+    brix_cred_config cfg  = {0};
+    brix_cred_store *s    = brix_cred_store_new(&cfg);
     assert(s != NULL);
 
-    assert(xrdc_cred_available(s, XRDC_CRED_S3KEYS) == 1);
+    assert(brix_cred_available(s, XRDC_CRED_S3KEYS) == 1);
 
-    xrdc_status    st = {0};
-    xrdc_cred_view v  = {0};
-    int rc = xrdc_cred_acquire(s, XRDC_CRED_S3KEYS, 0, &v, &st);
+    brix_status    st = {0};
+    brix_cred_view v  = {0};
+    int rc = brix_cred_acquire(s, XRDC_CRED_S3KEYS, 0, &v, &st);
     assert(rc == 0);
     assert(v.s3_access != NULL && strcmp(v.s3_access, acc) == 0);
     assert(v.s3_secret != NULL && strcmp(v.s3_secret, sec) == 0);
     assert(v.not_after == 0);   /* static keys have no per-use expiry */
 
-    xrdc_cred_store_free(s);
+    brix_cred_store_free(s);
     unsetenv("AWS_ACCESS_KEY_ID");
     unsetenv("AWS_SECRET_ACCESS_KEY");
     printf("test_s3keys_env_success: PASS\n");
@@ -573,7 +573,7 @@ static void
 test_s3keys_missing(void)
 {
     const char *orig_home = getenv("HOME");
-    char tmphome[] = "/tmp/xrdc_s3test_home_XXXXXX";
+    char tmphome[] = "/tmp/brix_s3test_home_XXXXXX";
 
     assert(mkdtemp(tmphome) != NULL);
 
@@ -581,20 +581,20 @@ test_s3keys_missing(void)
     unsetenv("AWS_SECRET_ACCESS_KEY");
     setenv("HOME", tmphome, 1);
 
-    xrdc_cred_config cfg = {0};
-    xrdc_cred_store *s   = xrdc_cred_store_new(&cfg);
+    brix_cred_config cfg = {0};
+    brix_cred_store *s   = brix_cred_store_new(&cfg);
     assert(s != NULL);
 
-    assert(xrdc_cred_available(s, XRDC_CRED_S3KEYS) == 0);
+    assert(brix_cred_available(s, XRDC_CRED_S3KEYS) == 0);
 
-    xrdc_status    st = {0};
-    xrdc_cred_view v  = {0};
-    int rc = xrdc_cred_acquire(s, XRDC_CRED_S3KEYS, 0, &v, &st);
+    brix_status    st = {0};
+    brix_cred_view v  = {0};
+    int rc = brix_cred_acquire(s, XRDC_CRED_S3KEYS, 0, &v, &st);
     assert(rc == -1);
     assert(st.kxr == XRDC_EAUTH);
     assert(st.msg[0] != '\0');
 
-    xrdc_cred_store_free(s);
+    brix_cred_store_free(s);
 
     /* Restore env */
     if (orig_home != NULL) {
@@ -627,23 +627,23 @@ test_s3keys_cfg_precedence(void)
     setenv("AWS_ACCESS_KEY_ID",     env_acc, 1);
     setenv("AWS_SECRET_ACCESS_KEY", env_sec, 1);
 
-    xrdc_cred_config cfg = {0};
+    brix_cred_config cfg = {0};
     cfg.s3_access = cfg_acc;   /* explicit override beats env */
     cfg.s3_secret = cfg_sec;
 
-    xrdc_cred_store *s = xrdc_cred_store_new(&cfg);
+    brix_cred_store *s = brix_cred_store_new(&cfg);
     assert(s != NULL);
 
-    assert(xrdc_cred_available(s, XRDC_CRED_S3KEYS) == 1);
+    assert(brix_cred_available(s, XRDC_CRED_S3KEYS) == 1);
 
-    xrdc_status    st = {0};
-    xrdc_cred_view v  = {0};
-    int rc = xrdc_cred_acquire(s, XRDC_CRED_S3KEYS, 0, &v, &st);
+    brix_status    st = {0};
+    brix_cred_view v  = {0};
+    int rc = brix_cred_acquire(s, XRDC_CRED_S3KEYS, 0, &v, &st);
     assert(rc == 0);
     assert(v.s3_access != NULL && strcmp(v.s3_access, cfg_acc) == 0);
     assert(v.s3_secret != NULL && strcmp(v.s3_secret, cfg_sec) == 0);
 
-    xrdc_cred_store_free(s);
+    brix_cred_store_free(s);
     unsetenv("AWS_ACCESS_KEY_ID");
     unsetenv("AWS_SECRET_ACCESS_KEY");
     printf("test_s3keys_cfg_precedence: PASS\n");
@@ -667,7 +667,7 @@ static void
 test_s3keys_file_success(void)
 {
     const char *orig_home = getenv("HOME");
-    char  tmphome[] = "/tmp/xrdc_s3file_home_XXXXXX";
+    char  tmphome[] = "/tmp/brix_s3file_home_XXXXXX";
     char  awsdir[512];
     char  credpath[512];
     FILE *f;
@@ -700,15 +700,15 @@ test_s3keys_file_success(void)
     unsetenv("AWS_SECRET_ACCESS_KEY");
     setenv("HOME", tmphome, 1);
 
-    xrdc_cred_config cfg = {0};   /* s3_access/s3_secret NULL: falls to Level 3 */
-    xrdc_cred_store *s   = xrdc_cred_store_new(&cfg);
+    brix_cred_config cfg = {0};   /* s3_access/s3_secret NULL: falls to Level 3 */
+    brix_cred_store *s   = brix_cred_store_new(&cfg);
     assert(s != NULL);
 
-    assert(xrdc_cred_available(s, XRDC_CRED_S3KEYS) == 1);
+    assert(brix_cred_available(s, XRDC_CRED_S3KEYS) == 1);
 
-    xrdc_status    st = {0};
-    xrdc_cred_view v  = {0};
-    int rc = xrdc_cred_acquire(s, XRDC_CRED_S3KEYS, 0, &v, &st);
+    brix_status    st = {0};
+    brix_cred_view v  = {0};
+    int rc = brix_cred_acquire(s, XRDC_CRED_S3KEYS, 0, &v, &st);
     assert(rc == 0);
     /* [default] keys must be returned. */
     assert(v.s3_access != NULL && strcmp(v.s3_access, "AKIA_FROM_FILE") == 0);
@@ -718,7 +718,7 @@ test_s3keys_file_success(void)
     assert(strcmp(v.s3_access, "AKIA_WRONG_BEFORE") != 0);
     assert(strcmp(v.s3_access, "AKIA_WRONG_AFTER")  != 0);
 
-    xrdc_cred_store_free(s);
+    brix_cred_store_free(s);
 
     /* Restore env */
     if (orig_home != NULL) {

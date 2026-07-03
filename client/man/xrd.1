@@ -238,7 +238,7 @@ Consumed by the credential helpers behind \fBdoctor\fR/\fBlogin\fR.
 .BR XRDC_NO_IPV6_FALLBACK " (EXPANDED)"
 By default, on a dual-stack host whose IPv6 path is broken but whose IPv4 backend
 works, every native tool (this driver, \fBxrdcp\fR, \fBxrdfs\fR, the \fBxrootdfs\fR
-mounts, \fBxrddiag\fR \(em all libxrdc clients) downgrades the whole run to
+mounts, \fBxrddiag\fR \(em all libbrix clients) downgrades the whole run to
 IPv4-only and logs it once to standard error. It triggers either when an IPv6
 connect fails where IPv4 then succeeds, or when a connection that came up over
 IPv6 fails over the wire; thereafter IPv6 is skipped on every connection. Set
