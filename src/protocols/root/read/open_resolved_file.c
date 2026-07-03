@@ -114,6 +114,17 @@ brix_open_resolved_via_driver(brix_sd_instance_t *sd, const char *logical,
     }
     fh->sd_obj.heap_shell = 0;
 
+    /* The driver's open may defer metadata (the POSIX driver deliberately skips
+     * the fstat at open — see sd_posix_open). Populate the snapshot now via the
+     * driver's own fstat so the synthesized `struct stat` (and hence the handle's
+     * cached_size) is correct: a driver-aware fstat reports the LOGICAL object
+     * size (e.g. pblock's whole-object size, not block 0). Without this the
+     * cached_size stays 0 and the buffered read path — inline read compression,
+     * and any non-sendfile serve — sees EOF immediately and returns nothing. */
+    if (sd->driver->fstat != NULL && fh->sd_obj.snap.size == 0) {
+        (void) sd->driver->fstat(&fh->sd_obj, &fh->sd_obj.snap);
+    }
+
     ngx_memzero(st, sizeof(*st));
     st->st_size  = fh->sd_obj.snap.size;
     st->st_mtime = fh->sd_obj.snap.mtime;
