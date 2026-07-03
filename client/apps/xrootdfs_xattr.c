@@ -5,8 +5,8 @@
 #include "xrootdfs_internal.h"
 
 
-int op_qspace(xrdc_conn *c, void *v, xrdc_status *st)
-{ struct ctx_qspace *a = v; return xrdc_query(c, kXR_Qspace, a->path, a->out, a->outsz, st); }
+int op_qspace(brix_conn *c, void *v, brix_status *st)
+{ struct ctx_qspace *a = v; return brix_query(c, kXR_Qspace, a->path, a->out, a->outsz, st); }
 
 
 /* extended attributes (opt-in --xattr) — sync pool                    */
@@ -21,19 +21,19 @@ xfs_xattr_to_fattr(const char *name)
 }
 
 
-int op_cks(xrdc_conn *c, void *v, xrdc_status *st)
-{ struct ctx_cks *a = v; return xrdc_query_cksum(c, a->path, a->algo, a->hex, a->hexsz, st); }
+int op_cks(brix_conn *c, void *v, brix_status *st)
+{ struct ctx_cks *a = v; return brix_query_cksum(c, a->path, a->algo, a->hex, a->hexsz, st); }
 
 
-int op_faget(xrdc_conn *c, void *v, xrdc_status *st)
-{ struct ctx_faget *a = v; return xrdc_fattr_get(c, a->path, a->name, a->val, a->bufsz, a->vlen, st); }
+int op_faget(brix_conn *c, void *v, brix_status *st)
+{ struct ctx_faget *a = v; return brix_fattr_get(c, a->path, a->name, a->val, a->bufsz, a->vlen, st); }
 
 
 int
 xfs_getxattr(const char *path, const char *name, char *value, size_t size)
 {
     if (g_web) return -ENOTSUP;
-    xrdc_status st;
+    brix_status st;
     int         rc;
     size_t      vlen = 0;
     const char *fname;
@@ -41,7 +41,7 @@ xfs_getxattr(const char *path, const char *name, char *value, size_t size)
     if (!g_xattr) {
         return -ENOTSUP;
     }
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     char pbuf[XRDC_PATH_MAX];
     path = srv_path(path, pbuf, sizeof(pbuf));
 
@@ -86,16 +86,16 @@ xfs_getxattr(const char *path, const char *name, char *value, size_t size)
 }
 
 
-int op_faset(xrdc_conn *c, void *v, xrdc_status *st)
+int op_faset(brix_conn *c, void *v, brix_status *st)
 { struct ctx_faset *a = v;
-  return xrdc_fattr_set(c, a->path, a->name, a->val, a->vlen, a->create_only, st); }
+  return brix_fattr_set(c, a->path, a->name, a->val, a->vlen, a->create_only, st); }
 
 int
 xfs_setxattr(const char *path, const char *name, const char *value,
              size_t size, int flags)
 {
     if (g_web) return -EROFS;
-    xrdc_status st;
+    brix_status st;
     const char *fname;
     if (!g_xattr) {
         return -ENOTSUP;
@@ -107,7 +107,7 @@ xfs_setxattr(const char *path, const char *name, const char *value,
     if (fname == NULL) {
         return -ENOTSUP;
     }
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     char pbuf[XRDC_PATH_MAX];
     struct ctx_faset a = { srv_path(path, pbuf, sizeof(pbuf)), fname, value, size,
                            (flags & XATTR_CREATE) ? 1 : 0 };
@@ -115,15 +115,15 @@ xfs_setxattr(const char *path, const char *name, const char *value,
 }
 
 
-int op_fadel(xrdc_conn *c, void *v, xrdc_status *st)
-{ struct ctx_fadel *a = v; return xrdc_fattr_del(c, a->path, a->name, st); }
+int op_fadel(brix_conn *c, void *v, brix_status *st)
+{ struct ctx_fadel *a = v; return brix_fattr_del(c, a->path, a->name, st); }
 
 
 int
 xfs_removexattr(const char *path, const char *name)
 {
     if (g_web) return -EROFS;
-    xrdc_status st;
+    brix_status st;
     const char *fname;
     if (!g_xattr) {
         return -ENOTSUP;
@@ -135,29 +135,29 @@ xfs_removexattr(const char *path, const char *name)
     if (fname == NULL) {
         return -ENODATA;
     }
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     char pbuf[XRDC_PATH_MAX];
     struct ctx_fadel a = { srv_path(path, pbuf, sizeof(pbuf)), fname };
     return xfs_meta(op_fadel, &a, &st);
 }
 
 
-int op_falist(xrdc_conn *c, void *v, xrdc_status *st)
-{ struct ctx_falist *a = v; return xrdc_fattr_list(c, a->path, a->raw, a->rawsz, a->rawlen, st); }
+int op_falist(brix_conn *c, void *v, brix_status *st)
+{ struct ctx_falist *a = v; return brix_fattr_list(c, a->path, a->raw, a->rawsz, a->rawlen, st); }
 
 
 int
 xfs_listxattr(const char *path, char *list, size_t size)
 {
     if (g_web) return -ENOTSUP;
-    xrdc_status st;
+    brix_status st;
     char        raw[16384];
     size_t      rawlen = 0;
 
     if (!g_xattr) {
         return -ENOTSUP;
     }
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     char pbuf[XRDC_PATH_MAX];
     struct ctx_falist a = { srv_path(path, pbuf, sizeof(pbuf)), raw, sizeof(raw),
                             &rawlen };
@@ -169,5 +169,5 @@ xfs_listxattr(const char *path, char *list, size_t size)
         rawlen = sizeof(raw);
     }
     /* Convert each server name "U.<x>" → the FUSE name "user.<x>". */
-    return xrdc_fattr_listxattr_xlate(raw, rawlen, list, size);
+    return brix_fattr_listxattr_xlate(raw, rawlen, list, size);
 }

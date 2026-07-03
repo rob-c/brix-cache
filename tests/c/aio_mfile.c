@@ -7,14 +7,14 @@
  *            the server is killed+restarted mid-read; every byte must match.
  *        (2) WRITE across a bounce: write a file in chunks while the server is
  *            bounced mid-write, then re-read it on a fresh handle; byte-exact.
- *       Both rely on xrdc_mfile reopening (fresh handle, non-destructive) and
+ *       Both rely on brix_mfile reopening (fresh handle, non-destructive) and
  *       re-issuing the failed read/write at the same offset (idempotent).
  * WHY:   "Survives a mid-transfer server bounce" — the core M3 deliverable.
  *
  * Usage: XRD_BOUNCE_CMD="<restart server>" aio_mfile [endpoint]
  */
 #include "aio.h"
-#include "xrdc.h"
+#include "brix.h"
 
 #include <signal.h>
 #include <stdio.h>
@@ -50,10 +50,10 @@ maybe_bounce(int chunk)
 
 /* Fill `path` with the pattern (no bounce). Returns 0/-1. */
 static int
-fill_file(xrdc_aconn *ac, const char *path)
+fill_file(brix_aconn *ac, const char *path)
 {
-    xrdc_status st;
-    xrdc_mfile *mf = xrdc_mfile_open(ac, path, 1 /*writable*/, 1 /*truncate*/,
+    brix_status st;
+    brix_mfile *mf = brix_mfile_open(ac, path, 1 /*writable*/, 1 /*truncate*/,
                                      0, NULL, 20000, 8, &st);
     if (mf == NULL) {
         fprintf(stderr, "fill open: %s\n", st.msg);
@@ -65,23 +65,23 @@ fill_file(xrdc_aconn *ac, const char *path)
         for (int i = 0; i < CHUNK; i++) {
             blk[i] = pat(off + i);
         }
-        if (xrdc_mfile_pwrite(mf, off, blk, CHUNK, &st) != 0) {
+        if (brix_mfile_pwrite(mf, off, blk, CHUNK, &st) != 0) {
             fprintf(stderr, "fill write @%lld: %s\n", (long long) off, st.msg);
-            xrdc_mfile_close(mf, &st);
+            brix_mfile_close(mf, &st);
             return -1;
         }
     }
-    xrdc_mfile_sync(mf, &st);
-    xrdc_mfile_close(mf, &st);
+    brix_mfile_sync(mf, &st);
+    brix_mfile_close(mf, &st);
     return 0;
 }
 
 /* Read `path` in chunks (optionally bouncing mid-read); verify byte-exact. */
 static int
-read_verify(xrdc_aconn *ac, const char *path, int do_bounce)
+read_verify(brix_aconn *ac, const char *path, int do_bounce)
 {
-    xrdc_status st;
-    xrdc_mfile *mf = xrdc_mfile_open(ac, path, 0, 0, 0, NULL, 20000, 8, &st);
+    brix_status st;
+    brix_mfile *mf = brix_mfile_open(ac, path, 0, 0, 0, NULL, 20000, 8, &st);
     if (mf == NULL) {
         fprintf(stderr, "read open: %s\n", st.msg);
         return -1;
@@ -93,7 +93,7 @@ read_verify(xrdc_aconn *ac, const char *path, int do_bounce)
             maybe_bounce(c);
         }
         int64_t off = (int64_t) c * CHUNK;
-        ssize_t n = xrdc_mfile_pread(mf, off, blk, CHUNK, &st);
+        ssize_t n = brix_mfile_pread(mf, off, blk, CHUNK, &st);
         if (n != CHUNK) {
             fprintf(stderr, "read @%lld got %zd want %d: %s\n",
                     (long long) off, n, CHUNK, (n < 0) ? st.msg : "(short)");
@@ -108,16 +108,16 @@ read_verify(xrdc_aconn *ac, const char *path, int do_bounce)
             }
         }
     }
-    xrdc_mfile_close(mf, &st);
+    brix_mfile_close(mf, &st);
     return fails;
 }
 
 /* Write `path` in chunks while bouncing mid-write. */
 static int
-write_with_bounce(xrdc_aconn *ac, const char *path)
+write_with_bounce(brix_aconn *ac, const char *path)
 {
-    xrdc_status st;
-    xrdc_mfile *mf = xrdc_mfile_open(ac, path, 1, 1 /*truncate*/, 0, NULL,
+    brix_status st;
+    brix_mfile *mf = brix_mfile_open(ac, path, 1, 1 /*truncate*/, 0, NULL,
                                      20000, 8, &st);
     if (mf == NULL) {
         fprintf(stderr, "wbounce open: %s\n", st.msg);
@@ -131,13 +131,13 @@ write_with_bounce(xrdc_aconn *ac, const char *path)
         for (int i = 0; i < CHUNK; i++) {
             blk[i] = pat(off + i);
         }
-        if (xrdc_mfile_pwrite(mf, off, blk, CHUNK, &st) != 0) {
+        if (brix_mfile_pwrite(mf, off, blk, CHUNK, &st) != 0) {
             fprintf(stderr, "wbounce write @%lld: %s\n", (long long) off, st.msg);
             fails++;
         }
     }
-    xrdc_mfile_sync(mf, &st);
-    xrdc_mfile_close(mf, &st);
+    brix_mfile_sync(mf, &st);
+    brix_mfile_close(mf, &st);
     return fails;
 }
 
@@ -148,26 +148,26 @@ main(int argc, char **argv)
     g_bounce = getenv("XRD_BOUNCE_CMD");
     signal(SIGPIPE, SIG_IGN);
 
-    xrdc_status st;
-    xrdc_url    url;
-    if (xrdc_endpoint_parse(endpoint, &url, &st) != 0) {
+    brix_status st;
+    brix_url    url;
+    if (brix_endpoint_parse(endpoint, &url, &st) != 0) {
         fprintf(stderr, "endpoint parse: %s\n", st.msg);
         return 2;
     }
 
-    xrdc_mgr *mgr = xrdc_mgr_create(&url, NULL, 2, 20000, 3000, 8, &st);
+    brix_mgr *mgr = brix_mgr_create(&url, NULL, 2, 20000, 3000, 8, &st);
     if (mgr == NULL) {
         fprintf(stderr, "mgr create: %s\n", st.msg);
         return 2;
     }
-    xrdc_aconn *ac = xrdc_mgr_pick(mgr);
+    brix_aconn *ac = brix_mgr_pick(mgr);
 
     int total_fails = 0;
 
     /* (1) READ across a bounce */
     printf("[1] read across a server bounce\n");
     if (fill_file(ac, "/aio_mfile_r.bin") != 0) {
-        xrdc_mgr_destroy(mgr);
+        brix_mgr_destroy(mgr);
         return 2;
     }
     g_bounced = 0;
@@ -185,7 +185,7 @@ main(int argc, char **argv)
            (wf == 0 && vf == 0) ? "OK" : "FAIL", wf, vf);
     total_fails += wf + vf;
 
-    xrdc_mgr_destroy(mgr);
+    brix_mgr_destroy(mgr);
 
     if (total_fails == 0) {
         printf("\nM3 PASS — files survive a mid-transfer server bounce, byte-exact\n");

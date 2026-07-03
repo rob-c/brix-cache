@@ -1,6 +1,6 @@
 # client/Makefile — native xrdcp/xrdfs built on libxrdproto (phase-37).
 #
-# WHAT: Builds libxrdc.a (the root:// connection/session/ops layer) and the
+# WHAT: Builds libbrix.a (the root:// connection/session/ops layer) and the
 #       CLI tools, linking the project's ngx-free protocol core (libxrdproto.a).
 # WHY:  Tools "built atop the project's code" with NO libXrdCl / libXrdSec* — only
 #       libxrdproto + OpenSSL.
@@ -20,38 +20,38 @@ HARDEN := -D_GNU_SOURCE -D_FORTIFY_SOURCE=2 -fstack-protector-strong \
           -fstack-clash-protection -fcf-protection=full -fPIE \
           -Wformat -Werror=format-security
 
-# Optimize profile — same knob/default as the module (XROOTD_OPTIMIZE, default v2).
-XROOTD_OPTIMIZE ?= v2
+# Optimize profile — same knob/default as the module (BRIX_OPTIMIZE, default v2).
+BRIX_OPTIMIZE ?= v2
 OPT_v2     := -O3 -march=x86-64-v2 -fno-plt
 OPT_v3     := -O3 -march=x86-64-v3 -fno-plt
 OPT_native := -O3 -march=native -fno-plt
-OPT := $(OPT_$(XROOTD_OPTIMIZE))
+OPT := $(OPT_$(BRIX_OPTIMIZE))
 ifeq ($(OPT),)
   OPT := $(OPT_v2)
 endif
 
 # -MMD -MP: emit a .d per object listing every header it includes, so editing a
-# header (e.g. lib/xrdc.h, which changes struct layout) reliably recompiles every
+# header (e.g. lib/brix.h, which changes struct layout) reliably recompiles every
 # dependent object — without this, incremental `make` leaves stale, mixed-ABI .o
 # files that crash or read garbage. The generated .d files are -included below.
 # krb5 (sec_krb5.c) is compile-gated like fuse3: when libkrb5 dev is present,
-# arm -DXROOTD_HAVE_KRB5 + its cflags/libs; otherwise sec_krb5.c is an inert stub
+# arm -DBRIX_HAVE_KRB5 + its cflags/libs; otherwise sec_krb5.c is an inert stub
 # and the auth driver simply skips krb5. Kept ngx-free (client-only).
 HAVE_KRB5 := $(shell pkg-config --exists krb5 2>/dev/null && echo yes)
 ifeq ($(HAVE_KRB5),yes)
-  KRB5_CFLAGS := -DXROOTD_HAVE_KRB5 $(shell pkg-config --cflags krb5 2>/dev/null)
+  KRB5_CFLAGS := -DBRIX_HAVE_KRB5 $(shell pkg-config --cflags krb5 2>/dev/null)
   KRB5_LIBS   := $(shell pkg-config --libs krb5 2>/dev/null)
 endif
 
 # io_uring (phase-44): lib/uring.c is ALWAYS in LIB_SRCS and stubs out under
-# #ifndef XROOTD_HAVE_LIBURING (the always-compiled-stub model, like sec_krb5.c),
+# #ifndef BRIX_HAVE_LIBURING (the always-compiled-stub model, like sec_krb5.c),
 # so the library API is stable regardless of build config. When liburing-dev is
-# present, arm -DXROOTD_HAVE_LIBURING + its cflags/libs; otherwise the disk ring
+# present, arm -DBRIX_HAVE_LIBURING + its cflags/libs; otherwise the disk ring
 # and loop engine compile to inert stubs and the epoll/pread path is the only one
 # in the binary (no -luring dependency). Kept ngx-free (client-only).
 HAVE_LIBURING := $(shell pkg-config --exists liburing 2>/dev/null && echo yes)
 ifeq ($(HAVE_LIBURING),yes)
-  URING_CFLAGS := -DXROOTD_HAVE_LIBURING $(shell pkg-config --cflags liburing 2>/dev/null)
+  URING_CFLAGS := -DBRIX_HAVE_LIBURING $(shell pkg-config --cflags liburing 2>/dev/null)
   URING_LIBS   := $(shell pkg-config --libs liburing 2>/dev/null)
 endif
 
@@ -73,12 +73,12 @@ ifeq ($(shell pkg-config --exists bzip2 2>/dev/null && echo y),y)
 else ifeq ($(shell printf '\#include <bzlib.h>\n' | $(CC) -E - >/dev/null 2>&1 && echo y),y)
   CODEC_LIBS += -lbz2
 endif
-# lz4 (phase-42 extension): an env hint (XROOTD_LZ4_LIBS) supplies the link for a
+# lz4 (phase-42 extension): an env hint (BRIX_LZ4_LIBS) supplies the link for a
 # non-system liblz4 (default the bare soname from the default loader path); else
 # pkg-config.  Never propagate a non-system -L (it would pull that prefix's other
 # codec sonames, not on the runtime path) — see config's lz4 block.
-ifneq ($(strip $(XROOTD_LZ4_CFLAGS)$(XROOTD_LZ4_LIBS)),)
-  CODEC_LIBS += $(if $(strip $(XROOTD_LZ4_LIBS)),$(XROOTD_LZ4_LIBS),-l:liblz4.so.1)
+ifneq ($(strip $(BRIX_LZ4_CFLAGS)$(BRIX_LZ4_LIBS)),)
+  CODEC_LIBS += $(if $(strip $(BRIX_LZ4_LIBS)),$(BRIX_LZ4_LIBS),-l:liblz4.so.1)
 else ifeq ($(shell pkg-config --exists liblz4 2>/dev/null && echo y),y)
   CODEC_LIBS += -l:liblz4.so.1
 endif
@@ -111,16 +111,16 @@ LIB_SRCS   := lib/sock.c lib/netpref.c lib/nettmo.c lib/url.c lib/status.c lib/t
               lib/metabench.c lib/metabench_run.c
 LIB_OBJS   := $(LIB_SRCS:.c=.o)
 
-# §14.1: the connection/session layer is the public libxrdc — a clean-room,
-# libXrdCl-free C client library. Shipped as libxrdc.a + a versioned .so + a
-# pkg-config file, so any C program can speak root:// with only libxrdc +
+# §14.1: the connection/session layer is the public libbrix — a clean-room,
+# libXrdCl-free C client library. Shipped as libbrix.a + a versioned .so + a
+# pkg-config file, so any C program can speak root:// with only libbrix +
 # libxrdproto + OpenSSL/zlib.
-CLIENT_LIB     := libxrdc.a
-XRDC_VERSION   := 0.1.0
-XRDC_SOMAJOR   := 0
-LIBXRDC_SO     := libxrdc.so
-LIBXRDC_SONAME := libxrdc.so.$(XRDC_SOMAJOR)
-LIBXRDC_REAL   := libxrdc.so.$(XRDC_VERSION)
+CLIENT_LIB     := libbrix.a
+BRIX_VERSION   := 0.1.0
+BRIX_SOMAJOR   := 0
+LIBBRIX_SO     := libbrix.so
+LIBBRIX_SONAME := libbrix.so.$(BRIX_SOMAJOR)
+LIBBRIX_REAL   := libbrix.so.$(BRIX_VERSION)
 PIC_OBJS       := $(LIB_SRCS:.c=.pic.o)
 
 PREFIX     ?= /usr/local
@@ -146,7 +146,7 @@ BIN_EXES := $(addprefix $(BINDIR)/,$(BINS))
 HAVE_FUSE3   := $(shell pkg-config --exists fuse3 2>/dev/null && echo yes)
 FUSE3_CFLAGS := $(shell pkg-config --cflags fuse3 2>/dev/null)
 FUSE3_LIBS   := $(shell pkg-config --libs fuse3 2>/dev/null)
-PRELOAD_SO   := libxrdposix_preload.so
+PRELOAD_SO   := libbrixposix_preload.so
 OPT_BINS     := $(PRELOAD_SO)
 OPT_EXES     :=
 # The FUSE mount is ONE binary (xrootdfs) that contains both drivers: the
@@ -159,7 +159,7 @@ endif
 ALL_OBJS := $(LIB_OBJS) $(addprefix apps/,$(addsuffix .o,$(BINS)))
 DEPS     := $(ALL_OBJS:.o=.d)
 
-.PHONY: all proto clean lib install install-bin example-test libxrdc.pc $(BINS) xrootdfs
+.PHONY: all proto clean lib install install-bin example-test libbrix.pc $(BINS) xrootdfs
 all: $(BIN_EXES) $(OPT_BINS) $(OPT_EXES)
 
 # Keep intermediates (apps/*.o, lib/*.o built via the chained pattern rules). Without
@@ -247,7 +247,7 @@ $(BINDIR)/xrootdfs: apps/xrootdfs_main.o apps/xrootdfs.o apps/xrootdfs_legacy.o 
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) apps/xrootdfs_main.o apps/xrootdfs.o apps/xrootdfs_legacy.o $(XROOTDFS_SPLIT) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) $(FUSE3_LIBS) -o $@
 	@echo " + built $@ (libfuse3; unified async+legacy; no libXrdCl/libXrdSec*)"
 
-# A5 VFS S3 backend smoke test — exercises the xrdc_vfs S3 backend directly.
+# A5 VFS S3 backend smoke test — exercises the brix_vfs S3 backend directly.
 # Run against a live S3 server: S3_URL=s3://host:port/bucket/key AWS_* ./vfs_s3_smoke
 .PHONY: vfs-s3-smoke
 vfs-s3-smoke: tests/c/vfs_s3_smoke.c $(CLIENT_LIB) | $(BINDIR)
@@ -291,7 +291,7 @@ aio-mfile: ../tests/c/aio_mfile.c $(CLIENT_LIB) | $(BINDIR)
 	@echo " + built $(BINDIR)/aio_mfile (no libXrdCl/libXrdSec*)"
 
 # M6 root-free TCP fault-injection proxy (latency/drop/outage) for the resilience
-# pytest. Standalone — no libxrdc needed.
+# pytest. Standalone — no libbrix needed.
 fault-proxy: ../tests/c/fault_proxy.c | $(BINDIR)
 	$(CC) -std=c11 -O2 -pthread ../tests/c/fault_proxy.c -o $(BINDIR)/fault_proxy
 	@echo " + built $(BINDIR)/fault_proxy"
@@ -314,54 +314,54 @@ nettmo: ../tests/c/nettmo_test.c $(CLIENT_LIB) | $(BINDIR)
 	@echo " + built $(BINDIR)/nettmo_test"
 
 # §14.4 LD_PRELOAD POSIX shim — fold the PIC client + protocol kernels into a .so.
-$(PRELOAD_SO): preload/xrdposix_preload.pic.o $(PIC_OBJS) $(PROTO_LIB)
-	$(CC) -shared $(LDFLAGS) -o $@ preload/xrdposix_preload.pic.o $(PIC_OBJS) \
+$(PRELOAD_SO): preload/brixposix_preload.pic.o $(PIC_OBJS) $(PROTO_LIB)
+	$(CC) -shared $(LDFLAGS) -o $@ preload/brixposix_preload.pic.o $(PIC_OBJS) \
 	    -Wl,--whole-archive $(PROTO_LIB) -Wl,--no-whole-archive $(LDLIBS) -ldl
 	@echo " + built $@ (no libXrdCl/libXrdSec*)"
 
-# ---- public library: libxrdc.{a,so} + pkg-config (§14.1) ----
-lib: $(CLIENT_LIB) $(LIBXRDC_SO) libxrdc.pc
+# ---- public library: libbrix.{a,so} + pkg-config (§14.1) ----
+lib: $(CLIENT_LIB) $(LIBBRIX_SO) libbrix.pc
 
 %.pic.o: %.c | proto
 	$(CC) $(ALL_CFLAGS) -fPIC -c $< -o $@
 
-# Fold the (PIC, ngx-free) protocol kernels into the .so so a single -lxrdc links.
-$(LIBXRDC_SO): $(PIC_OBJS) $(PROTO_LIB)
-	$(CC) -shared -Wl,-soname,$(LIBXRDC_SONAME) -o $(LIBXRDC_REAL) \
+# Fold the (PIC, ngx-free) protocol kernels into the .so so a single -lbrix links.
+$(LIBBRIX_SO): $(PIC_OBJS) $(PROTO_LIB)
+	$(CC) -shared -Wl,-soname,$(LIBBRIX_SONAME) -o $(LIBBRIX_REAL) \
 	    $(PIC_OBJS) -Wl,--whole-archive $(PROTO_LIB) -Wl,--no-whole-archive $(LDLIBS)
-	ln -sf $(LIBXRDC_REAL) $(LIBXRDC_SONAME)
-	ln -sf $(LIBXRDC_SONAME) $(LIBXRDC_SO)
-	@echo " + built $(LIBXRDC_REAL) (no libXrdCl/libXrdSec*)"
+	ln -sf $(LIBBRIX_REAL) $(LIBBRIX_SONAME)
+	ln -sf $(LIBBRIX_SONAME) $(LIBBRIX_SO)
+	@echo " + built $(LIBBRIX_REAL) (no libXrdCl/libXrdSec*)"
 
-libxrdc.pc:
+libbrix.pc:
 	@printf '%s\n' \
 	  'prefix=$(PREFIX)' \
 	  'libdir=$(LIBDIR)' \
 	  'includedir=$(INCLUDEDIR)' \
 	  '' \
-	  'Name: libxrdc' \
+	  'Name: libbrix' \
 	  'Description: Clean-room native XRootD root:// client library (libXrdCl-free)' \
-	  'Version: $(XRDC_VERSION)' \
+	  'Version: $(BRIX_VERSION)' \
 	  'Requires.private: libssl libcrypto zlib' \
-	  'Libs: -L$${libdir} -lxrdc' \
-	  'Cflags: -I$${includedir}/xrdc -I$${includedir}/xrdc/xrdproto' > $@
+	  'Libs: -L$${libdir} -lbrix' \
+	  'Cflags: -I$${includedir}/brix -I$${includedir}/brix/xrdproto' > $@
 
 # Install the lib, the public header, and the (self-contained) protocol headers it
 # includes. libxrdproto.a ships alongside for static consumers.
 install: lib
 	install -d $(DESTDIR)$(LIBDIR) $(DESTDIR)$(PKGCONFDIR) \
-	           $(DESTDIR)$(INCLUDEDIR)/xrdc $(DESTDIR)$(INCLUDEDIR)/xrdc/xrdproto/protocol \
-	           $(DESTDIR)$(INCLUDEDIR)/xrdc/xrdproto/protocol/codec
+	           $(DESTDIR)$(INCLUDEDIR)/brix $(DESTDIR)$(INCLUDEDIR)/brix/xrdproto/protocol \
+	           $(DESTDIR)$(INCLUDEDIR)/brix/xrdproto/protocol/codec
 	install -m644 $(CLIENT_LIB) $(PROTO_LIB) $(DESTDIR)$(LIBDIR)/
-	install -m755 $(LIBXRDC_REAL) $(DESTDIR)$(LIBDIR)/
-	cp -P $(LIBXRDC_SONAME) $(LIBXRDC_SO) $(DESTDIR)$(LIBDIR)/
-	# xrdc.h is an umbrella that includes the split xrdc_net/auth/ops headers.
-	install -m644 lib/xrdc.h lib/xrdc_net.h lib/xrdc_auth.h lib/xrdc_ops.h \
-	              $(DESTDIR)$(INCLUDEDIR)/xrdc/
-	install -m644 $(SRC)/protocol/*.h $(DESTDIR)$(INCLUDEDIR)/xrdc/xrdproto/protocol/
+	install -m755 $(LIBBRIX_REAL) $(DESTDIR)$(LIBDIR)/
+	cp -P $(LIBBRIX_SONAME) $(LIBBRIX_SO) $(DESTDIR)$(LIBDIR)/
+	# brix.h is an umbrella that includes the split brix_net/auth/ops headers.
+	install -m644 lib/brix.h lib/brix_net.h lib/brix_auth.h lib/brix_ops.h \
+	              $(DESTDIR)$(INCLUDEDIR)/brix/
+	install -m644 $(SRC)/protocol/*.h $(DESTDIR)$(INCLUDEDIR)/brix/xrdproto/protocol/
 	# protocol.h pulls in codec/wire_codec.h — ship the codec subdir too.
-	install -m644 $(SRC)/protocol/codec/*.h $(DESTDIR)$(INCLUDEDIR)/xrdc/xrdproto/protocol/codec/
-	install -m644 libxrdc.pc $(DESTDIR)$(PKGCONFDIR)/
+	install -m644 $(SRC)/protocol/codec/*.h $(DESTDIR)$(INCLUDEDIR)/brix/xrdproto/protocol/codec/
+	install -m644 libbrix.pc $(DESTDIR)$(PKGCONFDIR)/
 
 # Install the CLI binaries + the xrootdfs man page (build them first).
 install-bin: $(BIN_EXES) $(OPT_BINS) $(OPT_EXES)
@@ -372,14 +372,14 @@ install-bin: $(BIN_EXES) $(OPT_BINS) $(OPT_EXES)
 
 # Build the sample consumer against the INSTALLED library via pkg-config.
 example-test:
-	$(CC) -std=c11 examples/xrdc_stat_demo.c \
-	    $$(PKG_CONFIG_PATH=$(DESTDIR)$(PKGCONFDIR) pkg-config --cflags --libs libxrdc) \
-	    -o $(DESTDIR)/xrdc_stat_demo
+	$(CC) -std=c11 examples/brix_stat_demo.c \
+	    $$(PKG_CONFIG_PATH=$(DESTDIR)$(PKGCONFDIR) pkg-config --cflags --libs libbrix) \
+	    -o $(DESTDIR)/brix_stat_demo
 
 clean:
 	rm -f $(LIB_OBJS) $(PIC_OBJS) apps/*.o apps/*.d lib/*.d lib/sec/*.d \
 	    preload/*.o preload/*.d \
-	    $(CLIENT_LIB) $(LIBXRDC_SO) $(LIBXRDC_SONAME) $(LIBXRDC_REAL) libxrdc.pc \
+	    $(CLIENT_LIB) $(LIBBRIX_SO) $(LIBBRIX_SONAME) $(LIBBRIX_REAL) libbrix.pc \
 	    $(PRELOAD_SO)
 	rm -rf $(BINDIR)
 

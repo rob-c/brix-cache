@@ -10,7 +10,7 @@
  *                           large reads that force kXR_oksofar) are verified
  *                           byte-exact against a known pattern (demux + reply-body
  *                           accumulation + delivery).
- *        (3) MT CALLS     — several threads each issue blocking xrdc_aio_call pings
+ *        (3) MT CALLS     — several threads each issue blocking brix_aio_call pings
  *                           concurrently over a shared aconn (the sync wrapper +
  *                           cross-thread pipelining the FUSE driver will rely on).
  * WHY:  M1 is the substrate everything else builds on; prove demux/accumulation/
@@ -24,7 +24,7 @@
  *        endpoint default root://localhost:11199 ; remote_path default /aio_smoke.bin
  */
 #include "aio.h"
-#include "xrdc.h"
+#include "brix.h"
 #include "protocols/root/protocol/protocol.h"
 
 #include <pthread.h>
@@ -114,7 +114,7 @@ build_read(uint8_t hdr[XRD_REQUEST_HDR_LEN], const uint8_t fhandle[4],
 /* ---- (1) ping flood ---- */
 static void
 ping_cb(void *ctx, int rc, uint16_t kxr, uint8_t *body, uint32_t blen,
-        const xrdc_status *st)
+        const brix_status *st)
 {
     (void) blen;
     barrier *b = (barrier *) ctx;
@@ -127,7 +127,7 @@ ping_cb(void *ctx, int rc, uint16_t kxr, uint8_t *body, uint32_t blen,
 }
 
 static int
-test_ping_flood(xrdc_aconn *ac)
+test_ping_flood(brix_aconn *ac)
 {
     barrier b;
     barrier_init(&b, PING_FLOOD);
@@ -135,8 +135,8 @@ test_ping_flood(xrdc_aconn *ac)
     build_ping(hdr);
 
     for (int i = 0; i < PING_FLOOD; i++) {
-        xrdc_status st;
-        if (xrdc_aio_submit(ac, hdr, NULL, 0, ping_cb, &b, 10000, &st) != 0) {
+        brix_status st;
+        if (brix_aio_submit(ac, hdr, NULL, 0, ping_cb, &b, 10000, &st) != 0) {
             fprintf(stderr, "  submit failed: %s\n", st.msg);
             barrier_done(&b, 0);
         }
@@ -155,7 +155,7 @@ typedef struct {
 
 static void
 read_cb(void *ctx, int rc, uint16_t kxr, uint8_t *body, uint32_t blen,
-        const xrdc_status *st)
+        const brix_status *st)
 {
     rdctx *q = (rdctx *) ctx;
     int ok = 1;
@@ -185,7 +185,7 @@ read_cb(void *ctx, int rc, uint16_t kxr, uint8_t *body, uint32_t blen,
 }
 
 static int
-test_read_fanout(xrdc_aconn *ac, const uint8_t fhandle[4])
+test_read_fanout(brix_aconn *ac, const uint8_t fhandle[4])
 {
     /* mix: 64 KiB tiled chunks across the file + a few 1 MiB reads (force oksofar) */
     int      nchunks = FILE_SIZE / 65536;          /* 64 */
@@ -201,8 +201,8 @@ test_read_fanout(xrdc_aconn *ac, const uint8_t fhandle[4])
         q->len = 65536;
         uint8_t hdr[XRD_REQUEST_HDR_LEN];
         build_read(hdr, fhandle, q->off, q->len);
-        xrdc_status st;
-        if (xrdc_aio_submit(ac, hdr, NULL, 0, read_cb, q, 20000, &st) != 0) {
+        brix_status st;
+        if (brix_aio_submit(ac, hdr, NULL, 0, read_cb, q, 20000, &st) != 0) {
             fprintf(stderr, "  read submit failed: %s\n", st.msg);
             free(q);
             barrier_done(&b, 0);
@@ -215,8 +215,8 @@ test_read_fanout(xrdc_aconn *ac, const uint8_t fhandle[4])
         q->len = 1024 * 1024;
         uint8_t hdr[XRD_REQUEST_HDR_LEN];
         build_read(hdr, fhandle, q->off, q->len);
-        xrdc_status st;
-        if (xrdc_aio_submit(ac, hdr, NULL, 0, read_cb, q, 20000, &st) != 0) {
+        brix_status st;
+        if (brix_aio_submit(ac, hdr, NULL, 0, read_cb, q, 20000, &st) != 0) {
             fprintf(stderr, "  big read submit failed: %s\n", st.msg);
             free(q);
             barrier_done(&b, 0);
@@ -230,7 +230,7 @@ test_read_fanout(xrdc_aconn *ac, const uint8_t fhandle[4])
 
 /* ---- (3) multi-threaded blocking calls ---- */
 typedef struct {
-    xrdc_aconn *ac;
+    brix_aconn *ac;
     int         failures;
 } mtarg;
 
@@ -242,8 +242,8 @@ mt_worker(void *arg)
     build_ping(hdr);
     for (int i = 0; i < MT_PER; i++) {
         uint16_t kxr = 0;
-        xrdc_status st;
-        if (xrdc_aio_call(a->ac, hdr, NULL, 0, &kxr, NULL, NULL, 10000, &st) != 0
+        brix_status st;
+        if (brix_aio_call(a->ac, hdr, NULL, 0, &kxr, NULL, NULL, 10000, &st) != 0
             || kxr != kXR_ok) {
             __atomic_fetch_add(&a->failures, 1, __ATOMIC_RELAXED);
         }
@@ -252,7 +252,7 @@ mt_worker(void *arg)
 }
 
 static int
-test_mt_calls(xrdc_aconn *ac)
+test_mt_calls(brix_aconn *ac)
 {
     mtarg a = { ac, 0 };
     pthread_t th[MT_THREADS];
@@ -274,23 +274,23 @@ main(int argc, char **argv)
     const char *endpoint = (argc > 1) ? argv[1] : "root://localhost:11199";
     const char *rpath    = (argc > 2) ? argv[2] : "/aio_smoke.bin";
 
-    xrdc_status st;
-    xrdc_url    url;
-    if (xrdc_endpoint_parse(endpoint, &url, &st) != 0) {
+    brix_status st;
+    brix_url    url;
+    if (brix_endpoint_parse(endpoint, &url, &st) != 0) {
         fprintf(stderr, "endpoint parse: %s\n", st.msg);
         return 2;
     }
 
     /* --- create the test file with the known pattern (sync API) --- */
-    xrdc_conn cw;
-    if (xrdc_connect(&cw, &url, NULL, &st) != 0) {
+    brix_conn cw;
+    if (brix_connect(&cw, &url, NULL, &st) != 0) {
         fprintf(stderr, "connect(writer): %s\n", st.msg);
         return 2;
     }
-    xrdc_file fw;
-    if (xrdc_file_open_write(&cw, rpath, 1 /*force/truncate*/, 0, &fw, &st) != 0) {
+    brix_file fw;
+    if (brix_file_open_write(&cw, rpath, 1 /*force/truncate*/, 0, &fw, &st) != 0) {
         fprintf(stderr, "open(write) %s: %s\n", rpath, st.msg);
-        xrdc_close(&cw);
+        brix_close(&cw);
         return 2;
     }
     {
@@ -300,44 +300,44 @@ main(int argc, char **argv)
             for (int i = 0; i < 65536; i++) {
                 blk[i] = pat(off + i);
             }
-            if (xrdc_file_write(&cw, &fw, off, blk, 65536, &st) != 0) {
+            if (brix_file_write(&cw, &fw, off, blk, 65536, &st) != 0) {
                 fprintf(stderr, "write @%lld: %s\n", (long long) off, st.msg);
                 free(blk);
-                xrdc_close(&cw);
+                brix_close(&cw);
                 return 2;
             }
             off += 65536;
         }
         free(blk);
     }
-    xrdc_file_close(&cw, &fw, &st);
-    xrdc_close(&cw);
+    brix_file_close(&cw, &fw, &st);
+    brix_close(&cw);
 
     /* --- reopen for read; the fhandle is bound to THIS connection --- */
-    xrdc_conn cr;
-    if (xrdc_connect(&cr, &url, NULL, &st) != 0) {
+    brix_conn cr;
+    if (brix_connect(&cr, &url, NULL, &st) != 0) {
         fprintf(stderr, "connect(reader): %s\n", st.msg);
         return 2;
     }
-    xrdc_file fr;
-    if (xrdc_file_open_read(&cr, rpath, &fr, &st) != 0) {
+    brix_file fr;
+    if (brix_file_open_read(&cr, rpath, &fr, &st) != 0) {
         fprintf(stderr, "open(read) %s: %s\n", rpath, st.msg);
-        xrdc_close(&cr);
+        brix_close(&cr);
         return 2;
     }
 
     /* --- hand the reader connection to the loop and run the tests --- */
-    xrdc_loop *loop = xrdc_loop_create(&st);
+    brix_loop *loop = brix_loop_create(&st);
     if (loop == NULL) {
         fprintf(stderr, "loop create: %s\n", st.msg);
-        xrdc_close(&cr);
+        brix_close(&cr);
         return 2;
     }
-    xrdc_aconn *ac = xrdc_aconn_attach(loop, &cr, &st);
+    brix_aconn *ac = brix_aconn_attach(loop, &cr, &st);
     if (ac == NULL) {
         fprintf(stderr, "attach: %s\n", st.msg);
-        xrdc_loop_destroy(loop);
-        xrdc_close(&cr);
+        brix_loop_destroy(loop);
+        brix_close(&cr);
         return 2;
     }
 
@@ -347,12 +347,12 @@ main(int argc, char **argv)
     fails += test_mt_calls(ac);
 
     /* --- teardown --- */
-    xrdc_aconn_close(ac);
-    xrdc_loop_destroy(loop);
+    brix_aconn_close(ac);
+    brix_loop_destroy(loop);
     /* The fhandle is released server-side when cr disconnects; no sync close here
      * (the fd is left non-blocking after detach). */
     (void) fr;
-    xrdc_close(&cr);
+    brix_close(&cr);
 
     if (fails == 0) {
         printf("\nM1 PASS — async demux + accumulation + sync wrapper all correct\n");

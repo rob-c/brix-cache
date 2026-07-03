@@ -15,8 +15,8 @@ const dx_rule DX_RULES[] = {
       "verify the token signature/issuer or GSI proxy chain; check clock sync" },
 
     /* namespace (export root) */    { "namespace", kXR_NotFound, DX_FAIL,
-      "export root not found (xrootd_root misconfigured or unmounted)",
-      "verify xrootd_root points to an existing, mounted, readable directory" },
+      "export root not found (brix_root misconfigured or unmounted)",
+      "verify brix_root points to an existing, mounted, readable directory" },
     { "namespace", kXR_NotAuthorized, DX_FAIL,
       "listing the export root is denied (ACL/scope)",
       "check path ACLs / token scope for the root path" },
@@ -35,7 +35,7 @@ const dx_rule DX_RULES[] = {
       "re-check the path; flush any stale redirect/namespace cache" },
     { "read", kXR_NoMemory, DX_FAIL,
       "server out of memory on read (budget shed)",
-      "retry later; raise xrootd_memory_pool_size or lower concurrency/read size" },
+      "retry later; raise brix_memory_pool_size or lower concurrency/read size" },
     { "read", kXR_Overloaded, DX_WARN,
       "server overloaded on read",
       "retry with backoff; the server is at a connection/request cap" },
@@ -53,7 +53,7 @@ const dx_rule DX_RULES[] = {
 
     /* write path (gated) */    { "write", kXR_fsReadOnly, DX_FAIL,
       "export is read-only (allow_write off or filesystem mounted ro)",
-      "enable xrootd_allow_write, or direct writes to a read-write replica" },
+      "enable brix_allow_write, or direct writes to a read-write replica" },
     { "write", kXR_NotAuthorized, DX_FAIL,
       "write denied (token lacks write scope, or ACL)",
       "obtain a credential with write scope; check the write ACL for the path" },
@@ -128,7 +128,7 @@ dx_record(doctor_ep *e, const char *probe, int verdict, int kxr,
  * (kxr==0, return 0 → caller records DX_OK) is handled by the caller.
  */
 void
-dx_record_status(doctor_ep *e, const char *probe, const xrdc_status *st)
+dx_record_status(doctor_ep *e, const char *probe, const brix_status *st)
 {
     size_t i;
     int    kxr = st ? st->kxr : 0;
@@ -148,7 +148,7 @@ dx_record_status(doctor_ep *e, const char *probe, const xrdc_status *st)
         char cause[160];
         if (kxr > 0) {
             snprintf(cause, sizeof(cause), "%s probe failed: server returned %s",
-                     probe, xrdc_kxr_name(kxr));
+                     probe, brix_kxr_name(kxr));
         } else {
             /* PII: never echo st->msg — server wire text may carry a path. */
             snprintf(cause, sizeof(cause), "%s probe failed (local/transport error)",
@@ -230,11 +230,11 @@ dx_make_jwt(const char *header, const char *payload, const char *sig,
  * so the credential matrix never leaks between probes. 0 on connect, -1 + *st.
  */
 int
-dx_connect_as(const diag_args *a, const xrdc_url *u, int force_anon,
+dx_connect_as(const diag_args *a, const brix_url *u, int force_anon,
               const char *token_override, const char *auth_force,
-              xrdc_conn *c, xrdc_status *st)
+              brix_conn *c, brix_status *st)
 {
-    xrdc_opts opts = a->conn;
+    brix_opts opts = a->conn;
     char     *saved = NULL;
     int       had = 0;
     int       rc;
@@ -248,8 +248,8 @@ dx_connect_as(const diag_args *a, const xrdc_url *u, int force_anon,
         if (cur != NULL) { saved = strdup(cur); had = (saved != NULL); }
         setenv("BEARER_TOKEN", token_override, 1);  /* checked first in discovery */
     }
-    xrdc_status_clear(st);
-    rc = xrdc_connect(c, u, &opts, st);
+    brix_status_clear(st);
+    rc = brix_connect(c, u, &opts, st);
     if (token_override != NULL) {
         if (had) { setenv("BEARER_TOKEN", saved, 1); free(saved); }
         else     { unsetenv("BEARER_TOKEN"); }
@@ -365,7 +365,7 @@ dx_http_status(doctor_ep *e, const char *probe, int status)
 
 /* Classify an HTTP-family transport failure (connect / TLS) on e. */
 void
-dx_http_fail(doctor_ep *e, int tls, const xrdc_status *st)
+dx_http_fail(doctor_ep *e, int tls, const brix_status *st)
 {
     const char *cause  = "connection setup failed";
     const char *remedy = "check the endpoint is up and the port is correct";
@@ -394,7 +394,7 @@ s3_sign(const char *method, const char *host, const char *uri,
         const char *ak, const char *sk, const char *region,
         char *hdrs, size_t hdrsz)
 {
-    return xrdc_s3_sign_v4(method, host, uri, ak, sk, region,
+    return brix_s3_sign_v4(method, host, uri, ak, sk, region,
                            "UNSIGNED-PAYLOAD", hdrs, hdrsz);
 }
 
@@ -573,12 +573,12 @@ main(int argc, char **argv)
     a.conn.verify_host = 1;
     a.metrics_port = 9100;
     a.verify_tls = 1;       /* verify HTTPS/davs/s3 peer certs unless --no-verify-tls */
-    xrootd_crypto_init();   /* arm libxrdproto SHA-256/HMAC for GSI + sigver */
+    brix_crypto_init();   /* arm libxrdproto SHA-256/HMAC for GSI + sigver */
 
     for (i = 2; i < argc; i++) {
         const char *p = argv[i];
         if (p[0] == '-' && p[1] != '\0' && strcmp(p, "-") != 0) {
-            if (xrdc_opts_parse_arg(&a.conn, argc, argv, &i)) { continue; }
+            if (brix_opts_parse_arg(&a.conn, argc, argv, &i)) { continue; }
             if ((strcmp(p, "-S") == 0 || strcmp(p, "--streams") == 0) && i + 1 < argc) { a.streams = atoi(argv[++i]); }
             else if (strcmp(p, "--vs-reference") == 0 && i + 1 < argc) { a.ref_url = argv[++i]; }
             else if (strcmp(p, "--metrics-port") == 0 && i + 1 < argc) { a.metrics_port = atoi(argv[++i]); }

@@ -1,6 +1,6 @@
 /*
  * zip_fuzz_test.c — adversarial/security fuzz of the ZIP central-directory
- * parser in client/lib/zip.c (xrdc_zip_open / xrdc_zip_member_extract).
+ * parser in client/lib/zip.c (brix_zip_open / brix_zip_member_extract).
  *
  * Build (from repo root):
  *   cc -std=c11 -Wall -Wextra -D_GNU_SOURCE -I client/lib \
@@ -11,7 +11,7 @@
  * "ok ..." lines and "== ALL PASSED ==" / nonzero exit on failure.  It builds a
  * valid base archive with python3's zipfile, slurps it into memory, then mutates
  * raw bytes to drive the parser down its bounds-check / reject paths.  Every case
- * must return a NEGATIVE xrdc_zip_* code (never crash / read OOB / ASAN-trip):
+ * must return a NEGATIVE brix_zip_* code (never crash / read OOB / ASAN-trip):
  *
  *   (1) corrupted EOCD signature            -> ENOTZIP
  *   (2) CD offset beyond archive            -> EBADF
@@ -46,7 +46,7 @@ static int g_fail = 0;
 typedef struct { const uint8_t *data; size_t len; } membuf;
 
 /* Discard sink: accepts and drops all inflated bytes (returns 0 = continue).
- * xrdc_zip_member_extract requires a non-NULL sink — it calls it unconditionally
+ * brix_zip_member_extract requires a non-NULL sink — it calls it unconditionally
  * for produced bytes — so the fuzz must supply one; we only care about the rc. */
 static int
 discard_sink(void *sink_ctx, const uint8_t *data, size_t len)
@@ -131,7 +131,7 @@ dup_base(const uint8_t *base, size_t len)
     return c;
 }
 
-/* Run xrdc_zip_open over a mutated buffer and assert the rc is negative.
+/* Run brix_zip_open over a mutated buffer and assert the rc is negative.
  * `accept`, when non-zero, is the exact code we expect (the prompt's primary
  * intent); we still pass on ANY negative code (the contract = "negative + no
  * crash"), but log a note if the exact code differs. */
@@ -139,12 +139,12 @@ static int
 open_expect_neg(const char *label, const uint8_t *buf, size_t len, int accept)
 {
     membuf       m = { buf, len };
-    xrdc_zip_dir dir;
-    int          rc = xrdc_zip_open(mem_pread, &m, len, &dir);
+    brix_zip_dir dir;
+    int          rc = brix_zip_open(mem_pread, &m, len, &dir);
 
     CHECK(rc < 0, "%s: expected negative rc, got %d", label, rc);
     if (rc == XRDC_ZIP_OK) {
-        xrdc_zip_dir_free(&dir);   /* defensive: shouldn't happen */
+        brix_zip_dir_free(&dir);   /* defensive: shouldn't happen */
         return rc;
     }
     if (accept != 0 && rc != accept) {
@@ -198,14 +198,14 @@ main(void)
      * and pread adapter are correct before we start corrupting bytes). */
     {
         membuf       m = { base, base_len };
-        xrdc_zip_dir dir;
-        int          rc = xrdc_zip_open(mem_pread, &m, base_len, &dir);
+        brix_zip_dir dir;
+        int          rc = brix_zip_open(mem_pread, &m, base_len, &dir);
         CHECK(rc == XRDC_ZIP_OK, "base open rc=%d", rc);
         if (rc == XRDC_ZIP_OK) {
-            const xrdc_zip_entry *e = xrdc_zip_find(&dir, "store.bin");
+            const brix_zip_entry *e = brix_zip_find(&dir, "store.bin");
             CHECK(e != NULL, "base find store.bin");
             CHECK(dir.n == 2, "base entry count %zu != 2", dir.n);
-            xrdc_zip_dir_free(&dir);
+            brix_zip_dir_free(&dir);
         }
         printf("  ok   base archive opens cleanly (n=2)\n");
     }
@@ -276,7 +276,7 @@ main(void)
         }
     }
 
-    /* (5) A CDFH lfh_off set beyond the archive: xrdc_zip_open's per-entry extent
+    /* (5) A CDFH lfh_off set beyond the archive: brix_zip_open's per-entry extent
      * check (lfh_off >= archive_size) must reject; even if it slipped through,
      * member_data_offset's read_exact would return negative — never an OOB read. */
     {
@@ -286,20 +286,20 @@ main(void)
             /* CDFH local-header-offset is at field +42. */
             put32(b + cdfh + 42, (uint32_t) (base_len + 0x2000));
             membuf       m = { b, base_len };
-            xrdc_zip_dir dir;
-            int          rc = xrdc_zip_open(mem_pread, &m, base_len, &dir);
+            brix_zip_dir dir;
+            int          rc = brix_zip_open(mem_pread, &m, base_len, &dir);
 
             if (rc == XRDC_ZIP_OK) {
                 /* Open tolerated it — then locate + extract MUST go negative. */
-                const xrdc_zip_entry *e = xrdc_zip_find(&dir, "store.bin");
+                const brix_zip_entry *e = brix_zip_find(&dir, "store.bin");
                 CHECK(e != NULL, "case5 find after lenient open");
                 if (e != NULL) {
-                    int xrc = xrdc_zip_member_extract(mem_pread, &m, e,
+                    int xrc = brix_zip_member_extract(mem_pread, &m, e,
                                                       discard_sink, NULL);
                     CHECK(xrc < 0, "case5 extract expected negative, got %d", xrc);
                     printf("  ok   (5) lfh_off OOB -> open OK, extract %d (negative)\n", xrc);
                 }
-                xrdc_zip_dir_free(&dir);
+                brix_zip_dir_free(&dir);
             } else {
                 CHECK(rc < 0, "case5 open expected negative, got %d", rc);
                 printf("  ok   (5) lfh_off beyond archive -> open %d (negative)\n", rc);
@@ -317,21 +317,21 @@ main(void)
         if (b != NULL) {
             put16(b + cdfh + 10, 12);                  /* bogus method */
             membuf       m = { b, base_len };
-            xrdc_zip_dir dir;
-            int          rc = xrdc_zip_open(mem_pread, &m, base_len, &dir);
+            brix_zip_dir dir;
+            int          rc = brix_zip_open(mem_pread, &m, base_len, &dir);
             CHECK(rc == XRDC_ZIP_OK, "case6 open rc=%d", rc);
             if (rc == XRDC_ZIP_OK) {
-                const xrdc_zip_entry *e = xrdc_zip_find(&dir, "store.bin");
+                const brix_zip_entry *e = brix_zip_find(&dir, "store.bin");
                 CHECK(e != NULL, "case6 find store.bin");
                 if (e != NULL) {
                     CHECK(e->method == 12, "case6 method parsed as %u", e->method);
-                    int xrc = xrdc_zip_member_extract(mem_pread, &m, e,
+                    int xrc = brix_zip_member_extract(mem_pread, &m, e,
                                                       discard_sink, NULL);
                     CHECK(xrc == XRDC_ZIP_EMETHOD,
                           "case6 expected EMETHOD, got %d", xrc);
                     printf("  ok   (6) bogus method 12 -> %d (EMETHOD)\n", xrc);
                 }
-                xrdc_zip_dir_free(&dir);
+                brix_zip_dir_free(&dir);
             }
             free(b);
         }
@@ -344,11 +344,11 @@ main(void)
         CHECK(b != NULL, "dup case7");
         if (b != NULL) {
             membuf       m = { b, base_len };
-            xrdc_zip_dir dir;
-            int          rc = xrdc_zip_open(mem_pread, &m, base_len, &dir);
+            brix_zip_dir dir;
+            int          rc = brix_zip_open(mem_pread, &m, base_len, &dir);
             CHECK(rc == XRDC_ZIP_OK, "case7 open rc=%d", rc);
             if (rc == XRDC_ZIP_OK) {
-                const xrdc_zip_entry *e = xrdc_zip_find(&dir, "store.bin");
+                const brix_zip_entry *e = brix_zip_find(&dir, "store.bin");
                 CHECK(e != NULL, "case7 find store.bin");
                 if (e != NULL && e->comp_size > 0) {
                     /* Flip a byte inside the STORE member's data region (just past
@@ -358,14 +358,14 @@ main(void)
                     CHECK(doff < base_len, "case7 data offset in range");
                     if (doff < base_len) {
                         b[doff] ^= 0xFF;
-                        int xrc = xrdc_zip_member_extract(mem_pread, &m, e,
+                        int xrc = brix_zip_member_extract(mem_pread, &m, e,
                                                           discard_sink, NULL);
                         CHECK(xrc == XRDC_ZIP_ECRC,
                               "case7 expected ECRC, got %d", xrc);
                         printf("  ok   (7) corrupted data byte -> %d (ECRC)\n", xrc);
                     }
                 }
-                xrdc_zip_dir_free(&dir);
+                brix_zip_dir_free(&dir);
             }
             free(b);
         }
@@ -394,11 +394,11 @@ main(void)
         CHECK(b != NULL, "dup case9");
         if (b != NULL) {
             membuf       m = { b, base_len };
-            xrdc_zip_dir dir;
-            int          rc = xrdc_zip_open(mem_pread, &m, base_len, &dir);
+            brix_zip_dir dir;
+            int          rc = brix_zip_open(mem_pread, &m, base_len, &dir);
             CHECK(rc == XRDC_ZIP_OK, "case9 open rc=%d", rc);
             if (rc == XRDC_ZIP_OK) {
-                const xrdc_zip_entry *e = xrdc_zip_find(&dir, "defl.txt");
+                const brix_zip_entry *e = brix_zip_find(&dir, "defl.txt");
                 CHECK(e != NULL && e->method == 8, "case9 find defl.txt (DEFLATE)");
                 if (e != NULL && e->comp_size > 4) {
                     uint8_t *lfh  = b + e->lfh_off;
@@ -409,7 +409,7 @@ main(void)
                     CHECK(hit < base_len, "case9 data offset in range");
                     if (hit < base_len) {
                         b[hit] ^= 0x55;
-                        int xrc = xrdc_zip_member_extract(mem_pread, &m, e,
+                        int xrc = brix_zip_member_extract(mem_pread, &m, e,
                                                           discard_sink, NULL);
                         CHECK(xrc < 0,
                               "case9 corrupt deflate must go negative, got %d", xrc);
@@ -420,7 +420,7 @@ main(void)
                         printf("  ok   (9) corrupt DEFLATE stream -> %d (negative)\n", xrc);
                     }
                 }
-                xrdc_zip_dir_free(&dir);
+                brix_zip_dir_free(&dir);
             }
             free(b);
         }
@@ -442,20 +442,20 @@ main(void)
             if (b != NULL) {
                 put32(b + cdfh2 + 24, 8);              /* lie: uncomp_size = 8 */
                 membuf       m = { b, base_len };
-                xrdc_zip_dir dir;
-                int          rc = xrdc_zip_open(mem_pread, &m, base_len, &dir);
+                brix_zip_dir dir;
+                int          rc = brix_zip_open(mem_pread, &m, base_len, &dir);
                 CHECK(rc == XRDC_ZIP_OK, "case10 open rc=%d", rc);
                 if (rc == XRDC_ZIP_OK) {
-                    const xrdc_zip_entry *e = xrdc_zip_find(&dir, "defl.txt");
+                    const brix_zip_entry *e = brix_zip_find(&dir, "defl.txt");
                     CHECK(e != NULL && e->uncomp_size == 8, "case10 uncomp_size lied");
                     if (e != NULL) {
-                        int xrc = xrdc_zip_member_extract(mem_pread, &m, e,
+                        int xrc = brix_zip_member_extract(mem_pread, &m, e,
                                                           discard_sink, NULL);
                         CHECK(xrc == XRDC_ZIP_EBOMB,
                               "case10 expected EBOMB, got %d", xrc);
                         printf("  ok   (10) output > declared uncomp_size -> %d (EBOMB)\n", xrc);
                     }
-                    xrdc_zip_dir_free(&dir);
+                    brix_zip_dir_free(&dir);
                 }
                 free(b);
             }
@@ -473,20 +473,20 @@ main(void)
             uint32_t real_un = le32(b + cdfh + 24);
             put32(b + cdfh + 24, real_un + 4096);      /* declare 4 KiB too many */
             membuf       m = { b, base_len };
-            xrdc_zip_dir dir;
-            int          rc = xrdc_zip_open(mem_pread, &m, base_len, &dir);
+            brix_zip_dir dir;
+            int          rc = brix_zip_open(mem_pread, &m, base_len, &dir);
             CHECK(rc == XRDC_ZIP_OK, "case11 open rc=%d", rc);
             if (rc == XRDC_ZIP_OK) {
-                const xrdc_zip_entry *e = xrdc_zip_find(&dir, "store.bin");
+                const brix_zip_entry *e = brix_zip_find(&dir, "store.bin");
                 CHECK(e != NULL, "case11 find store.bin");
                 if (e != NULL) {
-                    int xrc = xrdc_zip_member_extract(mem_pread, &m, e,
+                    int xrc = brix_zip_member_extract(mem_pread, &m, e,
                                                       discard_sink, NULL);
                     CHECK(xrc == XRDC_ZIP_EBADF,
                           "case11 STORE size mismatch expected EBADF, got %d", xrc);
                     printf("  ok   (11) STORE size mismatch -> %d (EBADF)\n", xrc);
                 }
-                xrdc_zip_dir_free(&dir);
+                brix_zip_dir_free(&dir);
             }
             free(b);
         }
@@ -507,15 +507,15 @@ main(void)
             fclose(f);
             if (eb != NULL) {
                 membuf       m = { eb, elen };
-                xrdc_zip_dir dir;
-                int          rc = xrdc_zip_open(mem_pread, &m, elen, &dir);
+                brix_zip_dir dir;
+                int          rc = brix_zip_open(mem_pread, &m, elen, &dir);
                 CHECK(rc == XRDC_ZIP_OK, "case12 empty open rc=%d", rc);
                 if (rc == XRDC_ZIP_OK) {
                     CHECK(dir.n == 0, "case12 empty archive n=%zu != 0", dir.n);
-                    CHECK(xrdc_zip_find(&dir, "anything") == NULL,
+                    CHECK(brix_zip_find(&dir, "anything") == NULL,
                           "case12 find in empty must be NULL");
                     printf("  ok   (12) valid empty archive -> open OK, n=0\n");
-                    xrdc_zip_dir_free(&dir);
+                    brix_zip_dir_free(&dir);
                 }
                 free(eb);
             }

@@ -10,13 +10,13 @@
 /* Recursively walk the remote tree under `path` (depth-first, pre-order), invoking
  * `visit` for every entry. Directories are descended up to XRDFS_MAXDEPTH. 0 / -1. */
 int
-walk_dir(xrdc_conn *c, const char *path, int depth, xrdfs_visit visit, void *u,
-         xrdc_status *st)
+walk_dir(brix_conn *c, const char *path, int depth, xrdfs_visit visit, void *u,
+         brix_status *st)
 {
-    xrdc_dirent *ents = NULL;
+    brix_dirent *ents = NULL;
     size_t       n = 0, i;
 
-    if (xrdc_dirlist(c, path, 1 /*want_stat*/, &ents, &n, st) != 0) {
+    if (brix_dirlist(c, path, 1 /*want_stat*/, &ents, &n, st) != 0) {
         return -1;
     }
     for (i = 0; i < n; i++) {
@@ -47,13 +47,13 @@ walk_dir(xrdc_conn *c, const char *path, int depth, xrdfs_visit visit, void *u,
 /* walk_dir visitor: chmod each entry, counting (and reporting) per-entry failures
  * without aborting the walk. */
 int
-chmod_visit(const char *full, const xrdc_dirent *e, int depth, void *u)
+chmod_visit(const char *full, const brix_dirent *e, int depth, void *u)
 {
     chmod_walk *w = (chmod_walk *) u;
-    xrdc_status st;
+    brix_status st;
     (void) e; (void) depth;
-    xrdc_status_clear(&st);
-    if (xrdc_chmod(w->c, full, w->mode, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_chmod(w->c, full, w->mode, &st) != 0) {
         fprintf(stderr, "xrdfs: chmod %s: %s\n", full, st.msg);
         w->failures++;
     }
@@ -64,8 +64,8 @@ chmod_visit(const char *full, const xrdc_dirent *e, int depth, void *u)
 /* Recursively chmod every entry under `path` (the top path is chmod'd by the caller).
  * *failures accumulates per-entry errors; returns 0 / -1 (walk-level error, st set). */
 int
-chmod_recursive(xrdc_conn *c, const char *path, int mode, int *failures,
-                xrdc_status *st)
+chmod_recursive(brix_conn *c, const char *path, int mode, int *failures,
+                brix_status *st)
 {
     chmod_walk w;
     int        rc;
@@ -79,7 +79,7 @@ chmod_recursive(xrdc_conn *c, const char *path, int mode, int *failures,
 /* du */
 
 int
-du_visit(const char *full, const xrdc_dirent *e, int depth, void *u)
+du_visit(const char *full, const brix_dirent *e, int depth, void *u)
 {
     du_acc *a = (du_acc *) u;
     (void) full;
@@ -96,7 +96,7 @@ du_visit(const char *full, const xrdc_dirent *e, int depth, void *u)
 
 /* du [-h] <path>... — recursive total size + file/dir counts per argument. */
 int
-do_du(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_du(brix_conn *c, const char *cwd, int argc, char **argv)
 {
     int human = 0, i, rc = 0, any = 0;
 
@@ -105,15 +105,15 @@ do_du(xrdc_conn *c, const char *cwd, int argc, char **argv)
     }
     for (i = 1; i < argc; i++) {
         char        path[XRDC_PATH_MAX], sz[32];
-        xrdc_status st;
+        brix_status st;
         du_acc      a = { 0, 0, 0 };
         if (argv[i][0] == '-') { continue; }
         any = 1;
         build_path(cwd, argv[i], path, sizeof(path));
-        xrdc_status_clear(&st);
+        brix_status_clear(&st);
         if (walk_dir(c, path, 0, du_visit, &a, &st) != 0) {
             fprintf(stderr, "xrdfs: du %s: %s\n", path, st.msg);
-            rc = xrdc_shellcode(&st);
+            rc = brix_shellcode(&st);
             continue;
         }
         fmt_size(a.bytes, sz, sizeof(sz), human);
@@ -121,13 +121,13 @@ do_du(xrdc_conn *c, const char *cwd, int argc, char **argv)
     }
     if (!any) {
         char        path[XRDC_PATH_MAX], sz[32];
-        xrdc_status st;
+        brix_status st;
         du_acc      a = { 0, 0, 0 };
         build_path(cwd, ".", path, sizeof(path));
-        xrdc_status_clear(&st);
+        brix_status_clear(&st);
         if (walk_dir(c, path, 0, du_visit, &a, &st) != 0) {
             fprintf(stderr, "xrdfs: du %s: %s\n", path, st.msg);
-            return xrdc_shellcode(&st);
+            return brix_shellcode(&st);
         }
         fmt_size(a.bytes, sz, sizeof(sz), human);
         printf("%-10s %s  (%ld files, %ld dirs)\n", sz, path, a.files, a.dirs);
@@ -139,7 +139,7 @@ do_du(xrdc_conn *c, const char *cwd, int argc, char **argv)
 /* find */
 
 int
-find_visit(const char *full, const xrdc_dirent *e, int depth, void *u)
+find_visit(const char *full, const brix_dirent *e, int depth, void *u)
 {
     const find_pred *p = (const find_pred *) u;
     int  is_dir = e->have_stat && (e->st.flags & kXR_isDir);
@@ -159,9 +159,9 @@ find_visit(const char *full, const xrdc_dirent *e, int depth, void *u)
 
 /* find <path> [-name GLOB] [-type f|d] [-size +N|-N] — recursive predicate search. */
 int
-do_find(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_find(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    xrdc_status st;
+    brix_status st;
     char        path[XRDC_PATH_MAX];
     find_pred   p = { NULL, 0, 0, 0 };
     const char *start = ".";
@@ -183,10 +183,10 @@ do_find(xrdc_conn *c, const char *cwd, int argc, char **argv)
         }
     }
     build_path(cwd, start, path, sizeof(path));
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     if (walk_dir(c, path, 0, find_visit, &p, &st) != 0) {
         fprintf(stderr, "xrdfs: find %s: %s\n", path, st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
     return 0;
 }
@@ -195,20 +195,20 @@ do_find(xrdc_conn *c, const char *cwd, int argc, char **argv)
 /* tree */
 
 int
-tree_recurse(xrdc_conn *c, const char *path, const char *prefix, int depth,
-             tree_opts *o, xrdc_status *st)
+tree_recurse(brix_conn *c, const char *path, const char *prefix, int depth,
+             tree_opts *o, brix_status *st)
 {
-    xrdc_dirent *ents = NULL;
+    brix_dirent *ents = NULL;
     size_t       n = 0, i;
     int         *keep, nk = 0, j;
 
     if (o->maxdepth >= 0 && depth > o->maxdepth) { return 0; }
-    if (xrdc_dirlist(c, path, 1, &ents, &n, st) != 0) { return -1; }
+    if (brix_dirlist(c, path, 1, &ents, &n, st) != 0) { return -1; }
 
     keep = (int *) malloc((n ? n : 1) * sizeof(int));
     if (keep == NULL) {
         free(ents);
-        xrdc_status_set(st, XRDC_EPROTO, 0, "tree: out of memory");
+        brix_status_set(st, XRDC_EPROTO, 0, "tree: out of memory");
         return -1;
     }
     for (i = 0; i < n; i++) {
@@ -218,7 +218,7 @@ tree_recurse(xrdc_conn *c, const char *path, const char *prefix, int depth,
         keep[nk++] = (int) i;
     }
     for (j = 0; j < nk; j++) {
-        xrdc_dirent *e = &ents[keep[j]];
+        brix_dirent *e = &ents[keep[j]];
         int   last   = (j == nk - 1);
         int   is_dir = e->have_stat && (e->st.flags & kXR_isDir);
         char  full[XRDC_PATH_MAX];
@@ -245,9 +245,9 @@ tree_recurse(xrdc_conn *c, const char *path, const char *prefix, int depth,
 
 /* tree [-d] [-L N] [path] — visual directory tree. */
 int
-do_tree(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_tree(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    xrdc_status st;
+    brix_status st;
     char        path[XRDC_PATH_MAX];
     tree_opts   o = { 0, 0, -1, 0 };
     const char *start = ".";
@@ -260,10 +260,10 @@ do_tree(xrdc_conn *c, const char *cwd, int argc, char **argv)
     }
     build_path(cwd, start, path, sizeof(path));
     printf("%s\n", path);
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     if (tree_recurse(c, path, "", 0, &o, &st) != 0) {
         fprintf(stderr, "xrdfs: tree %s: %s\n", path, st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
     printf("\n%ld directories, %ld files\n", o.ndirs, o.nfiles);
     return 0;

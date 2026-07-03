@@ -11,7 +11,7 @@ ssize_t
 zip_remote_pread(void *vctx, uint64_t off, void *buf, size_t len)
 {
     zip_remote_ctx *z = vctx;
-    return xrdc_file_read(z->c, z->f, (int64_t) off, buf, len, z->st);
+    return brix_file_read(z->c, z->f, (int64_t) off, buf, len, z->st);
 }
 
 
@@ -37,29 +37,29 @@ unzip_sink_write(void *sc, const uint8_t *d, size_t l)
  * destination du. The server is untouched (serves raw archive bytes); the client
  * parses the directory and inflates the member locally (zlib-only). */
 int
-copy_unzip(const xrdc_url *su, const char *archive_path, const char *member,
-           const xrdc_url *du, const xrdc_copy_opts *o, const xrdc_opts *co,
-           xrdc_status *st)
+copy_unzip(const brix_url *su, const char *archive_path, const char *member,
+           const brix_url *du, const brix_copy_opts *o, const brix_opts *co,
+           brix_status *st)
 {
-    xrdc_conn      c;
-    xrdc_statinfo  si;
-    xrdc_file      f;
-    xrdc_zip_dir   dir;
+    brix_conn      c;
+    brix_statinfo  si;
+    brix_file      f;
+    brix_zip_dir   dir;
     zip_remote_ctx zc;
-    const xrdc_zip_entry *e;
+    const brix_zip_entry *e;
     int            outfd = -1, to_stdout = (du->scheme == XRDC_SCHEME_STDIO);
     int            use_tmp = 0, rc = -1, zr;
     char           tmp[XRDC_PATH_MAX];
 
-    if (xrdc_connect(&c, su, co, st) != 0) {
+    if (brix_connect(&c, su, co, st) != 0) {
         return -1;
     }
-    if (xrdc_stat(&c, archive_path, &si, st) != 0) {
-        xrdc_close(&c);
+    if (brix_stat(&c, archive_path, &si, st) != 0) {
+        brix_close(&c);
         return -1;
     }
-    if (xrdc_file_open_read(&c, archive_path, &f, st) != 0) {
-        xrdc_close(&c);
+    if (brix_file_open_read(&c, archive_path, &f, st) != 0) {
+        brix_close(&c);
         return -1;
     }
 
@@ -67,49 +67,49 @@ copy_unzip(const xrdc_url *su, const char *archive_path, const char *member,
         outfd = STDOUT_FILENO;
     } else {
         if (!o->force && access(du->path, F_OK) == 0) {
-            xrdc_status_set(st, XRDC_EUSAGE, 0,
+            brix_status_set(st, XRDC_EUSAGE, 0,
                             "destination exists (use -f): %s", du->path);
-            xrdc_file_close(&c, &f, st); xrdc_close(&c); return -1;
+            brix_file_close(&c, &f, st); brix_close(&c); return -1;
         }
         outfd = open_download_temp(du->path, tmp, sizeof(tmp), st);
         if (outfd < 0) {
-            xrdc_file_close(&c, &f, st); xrdc_close(&c); return -1;
+            brix_file_close(&c, &f, st); brix_close(&c); return -1;
         }
         use_tmp = 1;
     }
 
     zc.c = &c; zc.f = &f; zc.st = st;
-    zr = xrdc_zip_open(zip_remote_pread, &zc, (uint64_t) si.size, &dir);
+    zr = brix_zip_open(zip_remote_pread, &zc, (uint64_t) si.size, &dir);
     if (zr != XRDC_ZIP_OK) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0,
+        brix_status_set(st, XRDC_EUSAGE, 0,
                         "ZIP open failed (%d) for %s", zr, archive_path);
     } else {
-        e = xrdc_zip_find(&dir, member);
+        e = brix_zip_find(&dir, member);
         if (e == NULL) {
-            xrdc_status_set(st, XRDC_EUSAGE, 0,
+            brix_status_set(st, XRDC_EUSAGE, 0,
                             "ZIP member not found: %s", member);
         } else {
             unzip_sink_ctx sink = { outfd };
-            zr = xrdc_zip_member_extract(zip_remote_pread, &zc, e,
+            zr = brix_zip_member_extract(zip_remote_pread, &zc, e,
                                          unzip_sink_write, &sink);
             if (zr == XRDC_ZIP_OK) {
                 rc = 0;
             } else {
-                xrdc_status_set(st, XRDC_EUSAGE, 0,
+                brix_status_set(st, XRDC_EUSAGE, 0,
                                 "ZIP member extract failed (%d): %s", zr, member);
             }
         }
-        xrdc_zip_dir_free(&dir);
+        brix_zip_dir_free(&dir);
     }
 
-    xrdc_file_close(&c, &f, st);
+    brix_file_close(&c, &f, st);
     if (outfd >= 0 && !to_stdout) {
         close(outfd);
     }
     if (use_tmp) {
         if (rc == 0) {
             if (rename(tmp, du->path) != 0) {
-                xrdc_status_set(st, XRDC_EUSAGE, errno, "rename to %s", du->path);
+                brix_status_set(st, XRDC_EUSAGE, errno, "rename to %s", du->path);
                 unlink(tmp);
                 rc = -1;
             }
@@ -117,7 +117,7 @@ copy_unzip(const xrdc_url *su, const char *archive_path, const char *member,
             unlink(tmp);
         }
     }
-    xrdc_close(&c);
+    brix_close(&c);
     return rc;
 }
 
@@ -126,7 +126,7 @@ copy_unzip(const xrdc_url *su, const char *archive_path, const char *member,
  * (caller buffer) and the archive path (opaque stripped) into arch; return 1.
  * Otherwise return 0. */
 int
-unzip_member_from_src(const char *src, const xrdc_url *su,
+unzip_member_from_src(const char *src, const brix_url *su,
                       char *member, size_t member_sz, char *arch, size_t arch_sz)
 {
     const char *q = strstr(src, "xrdcl.unzip=");
@@ -181,7 +181,7 @@ int
 zipw_remote_write(void *cx, const void *d, size_t n)
 {
     zipw_remote_sink *s = cx;
-    if (xrdc_file_write(s->c, s->f, (int64_t) s->off, d, n, s->st) != 0) {
+    if (brix_file_write(s->c, s->f, (int64_t) s->off, d, n, s->st) != 0) {
         return -1;
     }
     s->off += n;
@@ -208,33 +208,33 @@ zip_member_basename(const char *p)
  * ZIP64 archive (append-in-place would need 64-bit CD rewrite). Returns 0 with a
  * malloc'd *seed_cd (caller frees), or -1 on error. */
 int
-zip_read_seed(xrdc_zip_pread_fn pr, void *ctx, uint64_t size, uint64_t *base,
-              uint8_t **seed_cd, size_t *seed_len, size_t *seed_n, xrdc_status *st)
+zip_read_seed(brix_zip_pread_fn pr, void *ctx, uint64_t size, uint64_t *base,
+              uint8_t **seed_cd, size_t *seed_len, size_t *seed_n, brix_status *st)
 {
     uint64_t cd_off, cd_size, n;
     int      z64;
     uint8_t *buf;
 
-    if (xrdc_zip_read_eocd(pr, ctx, size, &cd_off, &cd_size, &n, &z64)
+    if (brix_zip_read_eocd(pr, ctx, size, &cd_off, &cd_size, &n, &z64)
         != XRDC_ZIP_OK)
     {
-        xrdc_status_set(st, XRDC_EUSAGE, 0,
+        brix_status_set(st, XRDC_EUSAGE, 0,
                         "--zip-append: destination is not a valid ZIP archive");
         return -1;
     }
     if (z64) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0,
+        brix_status_set(st, XRDC_EUSAGE, 0,
                         "--zip-append: ZIP64 archives are not supported for append");
         return -1;
     }
     buf = malloc(cd_size ? (size_t) cd_size : 1);
     if (buf == NULL) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "out of memory");
+        brix_status_set(st, XRDC_EPROTO, 0, "out of memory");
         return -1;
     }
     if (pr(ctx, cd_off, buf, (size_t) cd_size) != (ssize_t) cd_size) {
         free(buf);
-        xrdc_status_set(st, XRDC_ESOCK, 0, "--zip-append: cannot read central directory");
+        brix_status_set(st, XRDC_ESOCK, 0, "--zip-append: cannot read central directory");
         return -1;
     }
     *base = cd_off;
@@ -247,16 +247,16 @@ zip_read_seed(xrdc_zip_pread_fn pr, void *ctx, uint64_t size, uint64_t *base,
 
 /* Drive a writer (already created) to add the source member then finish. */
 int
-zip_emit_member(xrdc_zip_writer *w, const char *member, int srcfd, xrdc_status *st)
+zip_emit_member(brix_zip_writer *w, const char *member, int srcfd, brix_status *st)
 {
     if (w == NULL) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "out of memory (zip writer)");
+        brix_status_set(st, XRDC_EPROTO, 0, "out of memory (zip writer)");
         return -1;
     }
-    if (xrdc_zip_writer_add_fd(w, member, srcfd) != XRDC_ZIP_OK
-        || xrdc_zip_writer_finish(w) != XRDC_ZIP_OK)
+    if (brix_zip_writer_add_fd(w, member, srcfd) != XRDC_ZIP_OK
+        || brix_zip_writer_finish(w) != XRDC_ZIP_OK)
     {
-        xrdc_status_set(st, XRDC_ESOCK, 0, "zip write failed");
+        brix_status_set(st, XRDC_ESOCK, 0, "zip write failed");
         return -1;
     }
     return 0;
@@ -264,8 +264,8 @@ zip_emit_member(xrdc_zip_writer *w, const char *member, int srcfd, xrdc_status *
 
 
 int
-copy_zip_store_local(const char *member, int srcfd, const xrdc_url *du,
-                     int append, xrdc_status *st)
+copy_zip_store_local(const char *member, int srcfd, const brix_url *du,
+                     int append, brix_status *st)
 {
     int             flags = append ? (O_RDWR | O_CREAT) : (O_WRONLY | O_CREAT | O_TRUNC);
     int             dfd = open(du->path, flags, 0644);
@@ -273,11 +273,11 @@ copy_zip_store_local(const char *member, int srcfd, const xrdc_url *du,
     uint8_t        *seed = NULL;
     size_t          seed_len = 0, seed_n = 0;
     zipw_local_sink sink;
-    xrdc_zip_writer *w;
+    brix_zip_writer *w;
     int             rc;
 
     if (dfd < 0) {
-        xrdc_status_set(st, XRDC_EUSAGE, errno, "open %s: %s",
+        brix_status_set(st, XRDC_EUSAGE, errno, "open %s: %s",
                         du->path, strerror(errno));
         return -1;
     }
@@ -293,11 +293,11 @@ copy_zip_store_local(const char *member, int srcfd, const xrdc_url *du,
     }
     sink.fd = dfd;
     sink.off = base;
-    w = seed ? xrdc_zip_writer_new_append(zipw_local_write, &sink, base,
+    w = seed ? brix_zip_writer_new_append(zipw_local_write, &sink, base,
                                           seed, seed_len, seed_n)
-             : xrdc_zip_writer_new(zipw_local_write, &sink);
+             : brix_zip_writer_new(zipw_local_write, &sink);
     rc = zip_emit_member(w, member, srcfd, st);
-    xrdc_zip_writer_free(w);
+    brix_zip_writer_free(w);
     free(seed);
     /* Append always grows the archive (new member + larger CD), and create uses
      * O_TRUNC, so the written length is authoritative — no tail to trim. */
@@ -307,39 +307,39 @@ copy_zip_store_local(const char *member, int srcfd, const xrdc_url *du,
 
 
 int
-copy_zip_store_remote(const char *member, int srcfd, const xrdc_url *du,
-                      int append, const xrdc_opts *co, xrdc_status *st)
+copy_zip_store_remote(const char *member, int srcfd, const brix_url *du,
+                      int append, const brix_opts *co, brix_status *st)
 {
-    xrdc_conn         c;
-    xrdc_file         f;
-    xrdc_statinfo     si;
+    brix_conn         c;
+    brix_file         f;
+    brix_statinfo     si;
     uint64_t          base = 0;
     uint8_t          *seed = NULL;
     size_t            seed_len = 0, seed_n = 0;
     int               existed = 0, rc;
     zipw_remote_sink  sink;
-    xrdc_zip_writer  *w;
+    brix_zip_writer  *w;
 
-    if (xrdc_connect(&c, du, co, st) != 0) {
+    if (brix_connect(&c, du, co, st) != 0) {
         return -1;
     }
-    if (append && xrdc_stat(&c, du->path, &si, st) == 0 && si.size > 0) {
+    if (append && brix_stat(&c, du->path, &si, st) == 0 && si.size > 0) {
         existed = 1;
     }
     if (existed) {
-        if (xrdc_file_open_update(&c, du->path, 0, &f, st) != 0) {
-            xrdc_close(&c);
+        if (brix_file_open_update(&c, du->path, 0, &f, st) != 0) {
+            brix_close(&c);
             return -1;
         }
         zip_remote_ctx zc = { &c, &f, st };
         if (zip_read_seed(zip_remote_pread, &zc, (uint64_t) si.size,
                           &base, &seed, &seed_len, &seed_n, st) != 0) {
-            xrdc_file_close(&c, &f, st);
-            xrdc_close(&c);
+            brix_file_close(&c, &f, st);
+            brix_close(&c);
             return -1;
         }
-    } else if (xrdc_file_open_write(&c, du->path, 1 /*truncate*/, 0, &f, st) != 0) {
-        xrdc_close(&c);
+    } else if (brix_file_open_write(&c, du->path, 1 /*truncate*/, 0, &f, st) != 0) {
+        brix_close(&c);
         return -1;
     }
 
@@ -347,21 +347,21 @@ copy_zip_store_remote(const char *member, int srcfd, const xrdc_url *du,
     sink.f = &f;
     sink.off = base;
     sink.st = st;
-    w = seed ? xrdc_zip_writer_new_append(zipw_remote_write, &sink, base,
+    w = seed ? brix_zip_writer_new_append(zipw_remote_write, &sink, base,
                                           seed, seed_len, seed_n)
-             : xrdc_zip_writer_new(zipw_remote_write, &sink);
+             : brix_zip_writer_new(zipw_remote_write, &sink);
     rc = zip_emit_member(w, member, srcfd, st);
-    xrdc_zip_writer_free(w);
+    brix_zip_writer_free(w);
     free(seed);
 
     {
-        xrdc_status tw;
-        xrdc_status_clear(&tw);
-        if (xrdc_file_close(&c, &f, rc == 0 ? st : &tw) != 0 && rc == 0) {
+        brix_status tw;
+        brix_status_clear(&tw);
+        if (brix_file_close(&c, &f, rc == 0 ? st : &tw) != 0 && rc == 0) {
             rc = -1;
         }
     }
-    xrdc_close(&c);
+    brix_close(&c);
     return rc;
 }
 
@@ -369,20 +369,20 @@ copy_zip_store_remote(const char *member, int srcfd, const xrdc_url *du,
 /* xrdcp --zip / --zip-append: store the local source as a STORE member of the
  * destination ZIP archive (create, or append to an existing non-ZIP64 archive). */
 int
-copy_zip_store(const xrdc_url *su, const xrdc_url *du, const xrdc_copy_opts *o,
-               const xrdc_opts *co, xrdc_status *st)
+copy_zip_store(const brix_url *su, const brix_url *du, const brix_copy_opts *o,
+               const brix_opts *co, brix_status *st)
 {
     const char *member;
     int         srcfd, append, dst_remote, rc;
 
     if (su->scheme == XRDC_SCHEME_STDIO) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "--zip requires a regular-file source");
+        brix_status_set(st, XRDC_EUSAGE, 0, "--zip requires a regular-file source");
         return -1;
     }
     member = zip_member_basename(su->path);
     srcfd = open(su->path, O_RDONLY);
     if (srcfd < 0) {
-        xrdc_status_set(st, XRDC_EUSAGE, errno, "open %s: %s",
+        brix_status_set(st, XRDC_EUSAGE, errno, "open %s: %s",
                         su->path, strerror(errno));
         return -1;
     }

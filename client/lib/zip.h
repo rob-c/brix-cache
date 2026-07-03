@@ -10,7 +10,7 @@
  * WHY:  XRootD's only at-rest data compression is client-side ZIP member reads
  *       (?xrdcl.unzip=<member> / xrdcp --zip). The server serves the raw .zip
  *       bytes; ALL ZIP logic is here, client-side, zlib-only (no libXrdCl, no
- *       libzip) — keeping libxrdc clean-room.
+ *       libzip) — keeping libbrix clean-room.
  * HOW:  zlib raw-inflate (windowBits -15) for DEFLATE members, direct copy for
  *       STORE; CRC-32 verified against the central-directory value.
  *
@@ -30,10 +30,10 @@
 
 /* Read exactly `len` bytes at archive offset `off` into `buf`. Returns the count
  * read (short read or -1 = error). ctx is the caller's archive handle. */
-typedef ssize_t (*xrdc_zip_pread_fn)(void *ctx, uint64_t off, void *buf, size_t len);
+typedef ssize_t (*brix_zip_pread_fn)(void *ctx, uint64_t off, void *buf, size_t len);
 
 /* Sink for streamed inflated member bytes. Returns 0 to continue, <0 to abort. */
-typedef int (*xrdc_zip_sink_fn)(void *sink_ctx, const uint8_t *data, size_t len);
+typedef int (*brix_zip_sink_fn)(void *sink_ctx, const uint8_t *data, size_t len);
 
 typedef struct {
     char     *name;          /* heap; NUL-terminated member name             */
@@ -43,13 +43,13 @@ typedef struct {
     uint64_t  lfh_off;       /* local-file-header offset in the archive      */
     uint32_t  crc32;         /* expected CRC-32 of the inflated member       */
     uint64_t  archive_size;  /* total archive size (for bounds checks)       */
-} xrdc_zip_entry;
+} brix_zip_entry;
 
 typedef struct {
-    xrdc_zip_entry *entries;
+    brix_zip_entry *entries;
     size_t          n;
     uint64_t        archive_size;
-} xrdc_zip_dir;
+} brix_zip_dir;
 
 /* Result codes (negative = error). */
 #define XRDC_ZIP_OK         0
@@ -70,20 +70,20 @@ typedef struct {
 #define XRDC_ZIP_MAX_OUTPUT    (64ULL * 1024 * 1024 * 1024)   /* 64 GiB ceiling */
 
 /* Parse the archive directory. archive_size is the total .zip size. On success
- * fills *out (free with xrdc_zip_dir_free). Returns XRDC_ZIP_OK or a negative code. */
-int xrdc_zip_open(xrdc_zip_pread_fn pread, void *ctx, uint64_t archive_size,
-                  xrdc_zip_dir *out);
+ * fills *out (free with brix_zip_dir_free). Returns XRDC_ZIP_OK or a negative code. */
+int brix_zip_open(brix_zip_pread_fn pread, void *ctx, uint64_t archive_size,
+                  brix_zip_dir *out);
 
 /* Find a member by exact name, or NULL. */
-const xrdc_zip_entry *xrdc_zip_find(const xrdc_zip_dir *d, const char *name);
+const brix_zip_entry *brix_zip_find(const brix_zip_dir *d, const char *name);
 
-void xrdc_zip_dir_free(xrdc_zip_dir *d);
+void brix_zip_dir_free(brix_zip_dir *d);
 
 /* Stream the fully-inflated member to sink(); verifies CRC-32 + declared size.
  * Returns XRDC_ZIP_OK or a negative code. */
-int xrdc_zip_member_extract(xrdc_zip_pread_fn pread, void *ctx,
-                            const xrdc_zip_entry *e,
-                            xrdc_zip_sink_fn sink, void *sink_ctx);
+int brix_zip_member_extract(brix_zip_pread_fn pread, void *ctx,
+                            const brix_zip_entry *e,
+                            brix_zip_sink_fn sink, void *sink_ctx);
 
 /* ---- STORE-only ZIP writer (phase-42 W3 write side) ----------------------- *
  *
@@ -97,38 +97,38 @@ int xrdc_zip_member_extract(xrdc_zip_pread_fn pread, void *ctx,
  */
 
 /* Sequential write sink: write exactly `len` bytes; return 0 ok, <0 on error. */
-typedef int (*xrdc_zip_write_fn)(void *ctx, const void *data, size_t len);
+typedef int (*brix_zip_write_fn)(void *ctx, const void *data, size_t len);
 
-typedef struct xrdc_zip_writer xrdc_zip_writer;
+typedef struct brix_zip_writer brix_zip_writer;
 
 /* New empty-archive writer.  base_offset is the byte offset at which the first
  * local file header is written (0 for a fresh archive; the old central-directory
- * offset for append — see xrdc_zip_writer_new_append). */
-xrdc_zip_writer *xrdc_zip_writer_new(xrdc_zip_write_fn wr, void *ctx);
+ * offset for append — see brix_zip_writer_new_append). */
+brix_zip_writer *brix_zip_writer_new(brix_zip_write_fn wr, void *ctx);
 
 /* Append-mode writer: seeds the central directory with `seed_cd` (the verbatim
  * existing CD bytes, `seed_n` entries) and starts writing new local headers at
  * base_offset (the existing archive's old CD offset, which the new member data
  * overwrites).  Used by `xrdcp --zip-append`.  Rejects ZIP64 seed archives
- * (caller checks via xrdc_zip_read_eocd) — returns NULL on allocation failure. */
-xrdc_zip_writer *xrdc_zip_writer_new_append(xrdc_zip_write_fn wr, void *ctx,
+ * (caller checks via brix_zip_read_eocd) — returns NULL on allocation failure. */
+brix_zip_writer *brix_zip_writer_new_append(brix_zip_write_fn wr, void *ctx,
                                             uint64_t base_offset,
                                             const uint8_t *seed_cd,
                                             size_t seed_cd_len, size_t seed_n);
 
 /* Add one STORE member named `name`, data streamed from `fd` (pread, two-pass).
  * Returns XRDC_ZIP_OK or a negative code. */
-int xrdc_zip_writer_add_fd(xrdc_zip_writer *w, const char *name, int fd);
+int brix_zip_writer_add_fd(brix_zip_writer *w, const char *name, int fd);
 
 /* Emit the central directory + (ZIP64) EOCD.  Returns XRDC_ZIP_OK or negative. */
-int xrdc_zip_writer_finish(xrdc_zip_writer *w);
+int brix_zip_writer_finish(brix_zip_writer *w);
 
-void xrdc_zip_writer_free(xrdc_zip_writer *w);
+void brix_zip_writer_free(brix_zip_writer *w);
 
 /* Read just the EOCD of an existing archive (for append): yields the central-
  * directory offset/size, entry count, and whether the archive is ZIP64.
  * Returns XRDC_ZIP_OK or a negative code. */
-int xrdc_zip_read_eocd(xrdc_zip_pread_fn pread, void *ctx, uint64_t archive_size,
+int brix_zip_read_eocd(brix_zip_pread_fn pread, void *ctx, uint64_t archive_size,
                        uint64_t *cd_off, uint64_t *cd_size, uint64_t *n_entries,
                        int *is_zip64);
 

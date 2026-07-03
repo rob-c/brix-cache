@@ -11,8 +11,8 @@
 #include <string.h>
 
 void
-xrdc_iobuf_init(xrdc_iobuf *b, void *be, xrdc_iobuf_pread_fn pr,
-                xrdc_iobuf_pwrite_fn pw, int writable,
+brix_iobuf_init(brix_iobuf *b, void *be, brix_iobuf_pread_fn pr,
+                brix_iobuf_pwrite_fn pw, int writable,
                 size_t ra_size, size_t wb_size)
 {
     memset(b, 0, sizeof(*b));
@@ -25,7 +25,7 @@ xrdc_iobuf_init(xrdc_iobuf *b, void *be, xrdc_iobuf_pread_fn pr,
 }
 
 int
-xrdc_iobuf_flush(xrdc_iobuf *b, xrdc_status *st)
+brix_iobuf_flush(brix_iobuf *b, brix_status *st)
 {
     if (b->wbuf == NULL || b->wbuf_len == 0) {
         return 0;
@@ -38,13 +38,13 @@ xrdc_iobuf_flush(xrdc_iobuf *b, xrdc_status *st)
 }
 
 ssize_t
-xrdc_iobuf_read(xrdc_iobuf *b, off_t off, char *out, size_t n, xrdc_status *st)
+brix_iobuf_read(brix_iobuf *b, off_t off, char *out, size_t n, brix_status *st)
 {
     ssize_t r;
     size_t  avail;
 
     /* Coherence: a read on a writable handle must see pending buffered writes. */
-    if (b->wbuf_len > 0 && xrdc_iobuf_flush(b, st) != 0) {
+    if (b->wbuf_len > 0 && brix_iobuf_flush(b, st) != 0) {
         return -1;
     }
 
@@ -87,13 +87,13 @@ xrdc_iobuf_read(xrdc_iobuf *b, off_t off, char *out, size_t n, xrdc_status *st)
 }
 
 int
-xrdc_iobuf_write(xrdc_iobuf *b, off_t off, const char *in, size_t n,
-                 xrdc_status *st)
+brix_iobuf_write(brix_iobuf *b, off_t off, const char *in, size_t n,
+                 brix_status *st)
 {
     /* Write-back disabled, or a write at/above the buffer size: flush any pending
      * buffer and write straight through. */
     if (b->wb_size == 0 || n >= b->wb_size) {
-        if (xrdc_iobuf_flush(b, st) != 0) {
+        if (brix_iobuf_flush(b, st) != 0) {
             return -1;
         }
         return b->pwrite(b->be, (int64_t) off, in, n, st);
@@ -111,7 +111,7 @@ xrdc_iobuf_write(xrdc_iobuf *b, off_t off, const char *in, size_t n,
     if (b->wbuf_len > 0
         && (off != b->wbuf_off + (off_t) b->wbuf_len
             || b->wbuf_len + n > b->wb_size)) {
-        if (xrdc_iobuf_flush(b, st) != 0) {
+        if (brix_iobuf_flush(b, st) != 0) {
             return -1;
         }
     }
@@ -124,7 +124,7 @@ xrdc_iobuf_write(xrdc_iobuf *b, off_t off, const char *in, size_t n,
 }
 
 void
-xrdc_iobuf_dispose(xrdc_iobuf *b)
+brix_iobuf_dispose(brix_iobuf *b)
 {
     free(b->rbuf);
     free(b->wbuf);

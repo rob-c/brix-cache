@@ -2,12 +2,12 @@
 xrddiag (phase-37 §15.3–15.7): the consolidated deployment-diagnostic CLI.
 
 `xrddiag` is a single clean-room (libXrdCl-free) binary that exercises the same
-libxrdc paths a real client uses and reports pass/fail + numbers:
+libbrix paths a real client uses and reports pass/fail + numbers:
 
     check    — protocol-correctness probes (auth-as-advertised, no-TLS-downgrade,
                path-confinement, dirlist dstat==stat, checksum-works, pgread CRC)
     bench    — timed download, single-stream vs --streams N (MB/s)
-    topology — xrdc_locate + redirect-loop convergence (nonexistent → NotFound)
+    topology — brix_locate + redirect-loop convergence (nonexistent → NotFound)
     status   — pull /metrics over the built-in HTTP/1.0 GET and summarise it
     compare  — root-vs-reference: stat size, dirlist set, md5
 

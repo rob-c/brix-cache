@@ -5,10 +5,10 @@
 #include "xrdcp_internal.h"
 
 
-/* Expand one source into `out`: a root:// glob via xrdc_glob, a local glob via
+/* Expand one source into `out`: a root:// glob via brix_glob, a local glob via
  * glob(3), otherwise the literal. Returns 0; -1 only on a hard (alloc) failure.
  * A glob that matches nothing appends nothing and warns. */
-/* Like xrdc_has_glob, but a '?' that introduces an opaque section
+/* Like brix_has_glob, but a '?' that introduces an opaque section
  * (root://...?key=val, e.g. ?xrdcl.unzip=member) is the opaque separator, not a
  * wildcard — so only the path before it is considered for globbing. */
 int
@@ -25,29 +25,29 @@ source_has_glob(const char *s)
         }
         return 0;
     }
-    return xrdc_has_glob(s);
+    return brix_has_glob(s);
 }
 
 
 int
-expand_source(const char *s_in, const xrdc_opts *co, char ***out, size_t *n, size_t *cap)
+expand_source(const char *s_in, const brix_opts *co, char ***out, size_t *n, size_t *cap)
 {
     char        rs[XRDC_PATH_MAX];
     const char *s;
-    xrdc_alias_resolve(s_in, rs, sizeof(rs));   /* ~/.xrdrc: name:suffix -> URL */
+    brix_alias_resolve(s_in, rs, sizeof(rs));   /* ~/.xrdrc: name:suffix -> URL */
     s = rs;
     if (!source_has_glob(s)) {
         return str_append(out, n, cap, s);
     }
-    if (xrdc_is_web_url(s)) {
+    if (brix_is_web_url(s)) {
         return str_append(out, n, cap, s);   /* web globbing not supported; literal */
     }
     if (is_root_url(s)) {
         char      **m = NULL;
         size_t      nm = 0, i;
-        xrdc_status st;
-        xrdc_status_clear(&st);
-        if (xrdc_glob(s, co, &m, &nm, &st) < 0) {
+        brix_status st;
+        brix_status_clear(&st);
+        if (brix_glob(s, co, &m, &nm, &st) < 0) {
             if (st.kxr == XRDC_EUSAGE) {
                 return str_append(out, n, cap, s);   /* genuinely not a glob → literal */
             }
@@ -60,9 +60,9 @@ expand_source(const char *s_in, const xrdc_opts *co, char ***out, size_t *n, siz
             fprintf(stderr, "xrdcp: no matches for %s\n", s);
         }
         for (i = 0; i < nm; i++) {
-            if (str_append(out, n, cap, m[i]) != 0) { xrdc_glob_free(m, nm); return -1; }
+            if (str_append(out, n, cap, m[i]) != 0) { brix_glob_free(m, nm); return -1; }
         }
-        xrdc_glob_free(m, nm);
+        brix_glob_free(m, nm);
         return 0;
     }
     {
@@ -111,8 +111,8 @@ mkdirs_for(const char *filepath)
  * (davs/http only; S3 keys are flat → no-op). Idempotent, created top-down so a
  * deeper PUT never hits 409. 0 / -1 (st set). */
 int
-mkcol_parents(const xrdc_weburl *du, const char *base, const char *rel,
-              const char *bearer, const xrdc_opts *co, xrdc_status *st)
+mkcol_parents(const brix_weburl *du, const char *base, const char *rel,
+              const char *bearer, const brix_opts *co, brix_status *st)
 {
     char        acc[XRDC_PATH_MAX * 2];
     const char *slash;
@@ -125,7 +125,7 @@ mkcol_parents(const xrdc_weburl *du, const char *base, const char *rel,
         int w = snprintf(acc + blen, sizeof(acc) - blen, "/%.*s",
                          (int) (slash - rel), rel);
         if (w < 0 || blen + (size_t) w >= sizeof(acc)) { return -1; }
-        if (xrdc_webdav_mkcol(du, acc, bearer, co ? co->verify_host : 1,
+        if (brix_webdav_mkcol(du, acc, bearer, co ? co->verify_host : 1,
                               co ? co->ca_dir : NULL, st) != 0) {
             return -1;
         }
@@ -141,16 +141,16 @@ mkcol_parents(const xrdc_weburl *du, const char *base, const char *rel,
  * tree OR another web endpoint (web->web). 0 / -1 (st set). */
 int
 recursive_place(const char *dstroot, const char *rel, const char *srcurl,
-                const xrdc_copy_opts *fo, const xrdc_opts *co, int retries,
-                xrdc_status *st)
+                const brix_copy_opts *fo, const brix_opts *co, int retries,
+                brix_status *st)
 {
-    if (xrdc_is_web_url(dstroot)) {
-        xrdc_weburl du;
+    if (brix_is_web_url(dstroot)) {
+        brix_weburl du;
         char        dbase[XRDC_PATH_MAX], dsturl[XRDC_PATH_MAX * 2 + 320];
         const char *dbearer;
         size_t      blen;
-        if (xrdc_weburl_parse(dstroot, &du) != 0) {
-            xrdc_status_set(st, XRDC_EUSAGE, 0, "bad web dst URL %s", dstroot);
+        if (brix_weburl_parse(dstroot, &du) != 0) {
+            brix_status_set(st, XRDC_EUSAGE, 0, "bad web dst URL %s", dstroot);
             return -1;
         }
         snprintf(dbase, sizeof(dbase), "%s", du.path);
@@ -164,7 +164,7 @@ recursive_place(const char *dstroot, const char *rel, const char *srcurl,
         if ((size_t) snprintf(dsturl, sizeof(dsturl), "%s://%s:%d%s/%s",
                               web_scheme_str(du.proto), du.host, du.port, dbase, rel)
                 >= sizeof(dsturl)) {
-            xrdc_status_set(st, XRDC_EUSAGE, 0, "web->web dst path too long");
+            brix_status_set(st, XRDC_EUSAGE, 0, "web->web dst path too long");
             return -1;
         }
         return copy_one_with_retry(srcurl, dsturl, fo, co, retries, st);
@@ -172,7 +172,7 @@ recursive_place(const char *dstroot, const char *rel, const char *srcurl,
         char dstfile[XRDC_PATH_MAX];
         if ((size_t) snprintf(dstfile, sizeof(dstfile), "%s/%s", dstroot, rel)
                 >= sizeof(dstfile)) {
-            xrdc_status_set(st, XRDC_EUSAGE, 0, "dst path too long");
+            brix_status_set(st, XRDC_EUSAGE, 0, "dst path too long");
             return -1;
         }
         mkdirs_for(dstfile);
@@ -185,16 +185,16 @@ recursive_place(const char *dstroot, const char *rel, const char *srcurl,
  * collection once (idempotent) so the first per-file PUT doesn't 409. No-op for a
  * local destination or an S3 bucket (flat keys need no collections). */
 void
-ensure_web_dst_base(const char *dstroot, const xrdc_copy_opts *fo,
-                    const xrdc_opts *co)
+ensure_web_dst_base(const char *dstroot, const brix_copy_opts *fo,
+                    const brix_opts *co)
 {
-    xrdc_weburl  du;
+    brix_weburl  du;
     char         dbase[XRDC_PATH_MAX];
     const char  *dbearer;
     size_t       blen;
-    xrdc_status  st;
+    brix_status  st;
 
-    if (!xrdc_is_web_url(dstroot) || xrdc_weburl_parse(dstroot, &du) != 0
+    if (!brix_is_web_url(dstroot) || brix_weburl_parse(dstroot, &du) != 0
         || du.is_s3) {
         return;
     }
@@ -204,8 +204,8 @@ ensure_web_dst_base(const char *dstroot, const xrdc_copy_opts *fo,
     if (dbase[0] == '\0') { return; }   /* root collection needs no MKCOL */
     dbearer = (fo != NULL && fo->bearer != NULL) ? fo->bearer
                                                  : getenv("BEARER_TOKEN");
-    xrdc_status_clear(&st);
-    (void) xrdc_webdav_mkcol(&du, dbase, dbearer, co ? co->verify_host : 1,
+    brix_status_clear(&st);
+    (void) brix_webdav_mkcol(&du, dbase, dbearer, co ? co->verify_host : 1,
                              co ? co->ca_dir : NULL, &st);   /* best-effort */
 }
 
@@ -214,33 +214,33 @@ ensure_web_dst_base(const char *dstroot, const xrdc_copy_opts *fo,
  * SigV4-signed) then copy each key to dstdir/<key-minus-prefix>, preserving the
  * tree. `fo` is a non-recursive opts copy carrying the S3 creds. Returns 0/1. */
 int
-recursive_s3_download(const xrdc_weburl *u, const char *dstdir,
-                      const xrdc_copy_opts *fo, const xrdc_opts *co, int retries)
+recursive_s3_download(const brix_weburl *u, const char *dstdir,
+                      const brix_copy_opts *fo, const brix_opts *co, int retries)
 {
-    xrdc_status st;
+    brix_status st;
     char      **keys = NULL;
     char        bucket[256], prefix[XRDC_PATH_MAX];
     const char *ak, *sk, *region, *scheme, *bsl;
     size_t      n = 0, i, plen, ok = 0, fail = 0;
 
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     ak     = fo->s3_access ? fo->s3_access : getenv("AWS_ACCESS_KEY_ID");
     sk     = fo->s3_secret ? fo->s3_secret : getenv("AWS_SECRET_ACCESS_KEY");
     region = fo->s3_region ? fo->s3_region : getenv("AWS_DEFAULT_REGION");
-    if (xrdc_s3_list(u, ak, sk, region, co ? co->verify_host : 1,
+    if (brix_s3_list(u, ak, sk, region, co ? co->verify_host : 1,
                      co ? co->ca_dir : NULL, &keys, &n, &st) != 0) {
         fprintf(stderr, "xrdcp: s3 list: %s\n", st.msg);
         return 1;
     }
     /* split u->path "/bucket[/prefix]" into bucket + prefix (no trailing slash).
      * One guarded memcpy for the bucket covers both the no-slash and prefix cases
-     * (xrdc_s3_list already validated the same split, but stay defensive). */
+     * (brix_s3_list already validated the same split, but stay defensive). */
     bsl = strchr(u->path + 1, '/');
     {
         size_t bl = bsl ? (size_t) (bsl - (u->path + 1)) : strlen(u->path + 1);
         if (bl >= sizeof(bucket)) {
             fprintf(stderr, "xrdcp: s3 bucket name too long\n");
-            xrdc_strv_free(keys, n);
+            brix_strv_free(keys, n);
             return 1;
         }
         memcpy(bucket, u->path + 1, bl);
@@ -261,7 +261,7 @@ recursive_s3_download(const xrdc_weburl *u, const char *dstdir,
         const char *rel;
         char        relbuf[XRDC_NAME_MAX];
         char        srcurl[XRDC_PATH_MAX + 320];
-        xrdc_status cst;
+        brix_status cst;
 
         if (plen == 0) {
             rel = key;
@@ -285,7 +285,7 @@ recursive_s3_download(const xrdc_weburl *u, const char *dstdir,
             continue;
         }
         /* dstdir may be a local dir OR a web collection (recursive s3->web). */
-        xrdc_status_clear(&cst);
+        brix_status_clear(&cst);
         if (recursive_place(dstdir, rel, srcurl, fo, co, retries, &cst) == 0) {
             ok++;
             if (!fo->silent) {
@@ -296,7 +296,7 @@ recursive_s3_download(const xrdc_weburl *u, const char *dstdir,
             fprintf(stderr, "xrdcp: %s: %s\n", srcurl, cst.msg);
         }
     }
-    xrdc_strv_free(keys, n);
+    brix_strv_free(keys, n);
     if (!fo->silent) {
         fprintf(stderr, "xrdcp: %zu copied, %zu failed (recursive s3)\n", ok, fail);
     }
@@ -305,23 +305,23 @@ recursive_s3_download(const xrdc_weburl *u, const char *dstdir,
 
 
 int
-recursive_web_download(const char *src, const char *dstdir, const xrdc_copy_opts *o,
-                       const xrdc_opts *co, int retries)
+recursive_web_download(const char *src, const char *dstdir, const brix_copy_opts *o,
+                       const brix_opts *co, int retries)
 {
-    xrdc_weburl    u;
-    xrdc_status    st;
-    xrdc_copy_opts fo;
+    brix_weburl    u;
+    brix_status    st;
+    brix_copy_opts fo;
     char         **paths = NULL;
     char           prefix[XRDC_PATH_MAX];
     const char    *bearer, *scheme;
     size_t         n = 0, i, plen, ok = 0, fail = 0;
 
     /* Each listed file is a plain (non-recursive) copy; clear the -r flag so the
-     * per-file xrdc_copy doesn't bounce off the "no recursive web" guard. */
+     * per-file brix_copy doesn't bounce off the "no recursive web" guard. */
     fo = *o;
     fo.recursive = 0;
-    xrdc_status_clear(&st);
-    if (xrdc_weburl_parse(src, &u) != 0) {
+    brix_status_clear(&st);
+    if (brix_weburl_parse(src, &u) != 0) {
         fprintf(stderr, "xrdcp: bad web URL %s\n", src);
         return 1;
     }
@@ -329,7 +329,7 @@ recursive_web_download(const char *src, const char *dstdir, const xrdc_copy_opts
         return recursive_s3_download(&u, dstdir, &fo, co, retries);
     }
     bearer = (o != NULL && o->bearer != NULL) ? o->bearer : getenv("BEARER_TOKEN");
-    if (xrdc_webdav_list(&u, bearer, co ? co->verify_host : 1,
+    if (brix_webdav_list(&u, bearer, co ? co->verify_host : 1,
                          co ? co->ca_dir : NULL, &paths, &n, &st) != 0) {
         fprintf(stderr, "xrdcp: list %s: %s\n", src, st.msg);
         return 1;
@@ -345,7 +345,7 @@ recursive_web_download(const char *src, const char *dstdir, const xrdc_copy_opts
         const char *rel;
         char        relbuf[XRDC_NAME_MAX];
         char        srcurl[XRDC_PATH_MAX + 320];
-        xrdc_status cst;
+        brix_status cst;
 
         if (strncmp(path, prefix, plen) == 0 && (path[plen] == '/' || path[plen] == '\0')) {
             rel = path + plen + (path[plen] == '/' ? 1 : 0);
@@ -368,7 +368,7 @@ recursive_web_download(const char *src, const char *dstdir, const xrdc_copy_opts
             continue;
         }
         /* dstdir may be a local dir OR a web collection (recursive web->web). */
-        xrdc_status_clear(&cst);
+        brix_status_clear(&cst);
         if (recursive_place(dstdir, rel, srcurl, &fo, co, retries, &cst) == 0) {
             ok++;
             if (o == NULL || !o->silent) {
@@ -379,7 +379,7 @@ recursive_web_download(const char *src, const char *dstdir, const xrdc_copy_opts
             fprintf(stderr, "xrdcp: %s: %s\n", srcurl, cst.msg);
         }
     }
-    xrdc_strv_free(paths, n);
+    brix_strv_free(paths, n);
     if (o == NULL || !o->silent) {
         fprintf(stderr, "xrdcp: %zu copied, %zu failed (recursive web)\n", ok, fail);
     }
@@ -445,10 +445,10 @@ web_upload_walk(web_upload_ctx *c, const char *localdir, const char *rel)
              * child PUTs/MKCOLs don't hit 409 Conflict. S3 has no real dirs. */
             if (!c->u->is_s3) {
                 char        rpath[XRDC_PATH_MAX * 2];
-                xrdc_status mst;
-                xrdc_status_clear(&mst);
+                brix_status mst;
+                brix_status_clear(&mst);
                 if (web_join(c->base, childrel, rpath, sizeof(rpath)) != 0
-                    || xrdc_webdav_mkcol(c->u, rpath, c->bearer,
+                    || brix_webdav_mkcol(c->u, rpath, c->bearer,
                                          c->co ? c->co->verify_host : 1,
                                          c->co ? c->co->ca_dir : NULL, &mst) != 0) {
                     fprintf(stderr, "xrdcp: mkcol %s: %s\n", childrel, mst.msg);
@@ -460,7 +460,7 @@ web_upload_walk(web_upload_ctx *c, const char *localdir, const char *rel)
         } else if (S_ISREG(sb.st_mode)) {
             char        rurl[XRDC_PATH_MAX * 2 + 320];
             char        rpath[XRDC_PATH_MAX * 2];
-            xrdc_status cst;
+            brix_status cst;
             if (web_join(c->base, childrel, rpath, sizeof(rpath)) != 0
                 || (size_t) snprintf(rurl, sizeof(rurl), "%s://%s:%d%s",
                                      c->scheme, c->u->host, c->u->port, rpath)
@@ -469,7 +469,7 @@ web_upload_walk(web_upload_ctx *c, const char *localdir, const char *rel)
                 c->fail++;
                 continue;
             }
-            xrdc_status_clear(&cst);
+            brix_status_clear(&cst);
             if (copy_one_with_retry(childlocal, rurl, c->fo, c->co, c->retries,
                                     &cst) == 0) {
                 c->ok++;
@@ -493,20 +493,20 @@ web_upload_walk(web_upload_ctx *c, const char *localdir, const char *rel)
  * has no recursive transfer op, so walk locally + MKCOL + per-file PUT. Returns
  * 0 if every file uploaded, 1 otherwise. */
 int
-recursive_web_upload(const char *localdir, const char *dst, const xrdc_copy_opts *o,
-                     const xrdc_opts *co, int retries)
+recursive_web_upload(const char *localdir, const char *dst, const brix_copy_opts *o,
+                     const brix_opts *co, int retries)
 {
-    xrdc_weburl     u;
-    xrdc_copy_opts  fo;
+    brix_weburl     u;
+    brix_copy_opts  fo;
     char            base[XRDC_PATH_MAX];
     web_upload_ctx  c;
     size_t          blen;
 
-    if (xrdc_weburl_parse(dst, &u) != 0) {
+    if (brix_weburl_parse(dst, &u) != 0) {
         fprintf(stderr, "xrdcp: bad web URL %s\n", dst);
         return 1;
     }
-    /* Each file is a plain (non-recursive) copy so xrdc_copy's "no recursive web"
+    /* Each file is a plain (non-recursive) copy so brix_copy's "no recursive web"
      * guard doesn't trip. */
     fo = *o;
     fo.recursive = 0;
@@ -528,9 +528,9 @@ recursive_web_upload(const char *localdir, const char *dst, const xrdc_copy_opts
     /* Ensure the destination collection itself exists (idempotent). Root ("")
      * and S3 buckets need no MKCOL. */
     if (!u.is_s3 && base[0] != '\0') {
-        xrdc_status mst;
-        xrdc_status_clear(&mst);
-        if (xrdc_webdav_mkcol(&u, base, c.bearer, co ? co->verify_host : 1,
+        brix_status mst;
+        brix_status_clear(&mst);
+        if (brix_webdav_mkcol(&u, base, c.bearer, co ? co->verify_host : 1,
                               co ? co->ca_dir : NULL, &mst) != 0) {
             fprintf(stderr, "xrdcp: mkcol %s: %s\n", base, mst.msg);
             /* proceed anyway — PUTs will surface any real problem */

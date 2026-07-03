@@ -8,7 +8,7 @@
 
 /* Append `len` bytes to the in-memory central directory buffer. */
 int
-cd_append(xrdc_zip_writer *w, const uint8_t *p, size_t len)
+cd_append(brix_zip_writer *w, const uint8_t *p, size_t len)
 {
     if (w->cd_len + len > w->cd_cap) {
         size_t ncap = w->cd_cap ? w->cd_cap * 2 : 4096;
@@ -29,13 +29,13 @@ cd_append(xrdc_zip_writer *w, const uint8_t *p, size_t len)
 }
 
 
-xrdc_zip_writer *
-xrdc_zip_writer_new(xrdc_zip_write_fn wr, void *ctx)
+brix_zip_writer *
+brix_zip_writer_new(brix_zip_write_fn wr, void *ctx)
 {
     if (wr == NULL) {
         return NULL;
     }
-    xrdc_zip_writer *w = calloc(1, sizeof(*w));
+    brix_zip_writer *w = calloc(1, sizeof(*w));
     if (w == NULL) {
         return NULL;
     }
@@ -45,19 +45,19 @@ xrdc_zip_writer_new(xrdc_zip_write_fn wr, void *ctx)
 }
 
 
-xrdc_zip_writer *
-xrdc_zip_writer_new_append(xrdc_zip_write_fn wr, void *ctx, uint64_t base_offset,
+brix_zip_writer *
+brix_zip_writer_new_append(brix_zip_write_fn wr, void *ctx, uint64_t base_offset,
                            const uint8_t *seed_cd, size_t seed_cd_len,
                            size_t seed_n)
 {
-    xrdc_zip_writer *w = xrdc_zip_writer_new(wr, ctx);
+    brix_zip_writer *w = brix_zip_writer_new(wr, ctx);
     if (w == NULL) {
         return NULL;
     }
     w->offset = base_offset;
     w->n      = seed_n;
     if (seed_cd_len > 0 && cd_append(w, seed_cd, seed_cd_len) != XRDC_ZIP_OK) {
-        xrdc_zip_writer_free(w);
+        brix_zip_writer_free(w);
         return NULL;
     }
     return w;
@@ -66,7 +66,7 @@ xrdc_zip_writer_new_append(xrdc_zip_write_fn wr, void *ctx, uint64_t base_offset
 
 /* Emit raw bytes through the sink, advancing the offset and latching errors. */
 int
-w_emit(xrdc_zip_writer *w, const void *p, size_t len)
+w_emit(brix_zip_writer *w, const void *p, size_t len)
 {
     if (w->err != XRDC_ZIP_OK) {
         return w->err;
@@ -81,7 +81,7 @@ w_emit(xrdc_zip_writer *w, const void *p, size_t len)
 
 
 int
-xrdc_zip_writer_add_fd(xrdc_zip_writer *w, const char *name, int fd)
+brix_zip_writer_add_fd(brix_zip_writer *w, const char *name, int fd)
 {
     struct stat   stbuf;
     uint64_t      size, lfh_off;
@@ -222,7 +222,7 @@ xrdc_zip_writer_add_fd(xrdc_zip_writer *w, const char *name, int fd)
 
 
 int
-xrdc_zip_writer_finish(xrdc_zip_writer *w)
+brix_zip_writer_finish(brix_zip_writer *w)
 {
     uint64_t cd_off, cd_size;
     int      zip64_eocd;
@@ -295,7 +295,7 @@ xrdc_zip_writer_finish(xrdc_zip_writer *w)
 
 
 void
-xrdc_zip_writer_free(xrdc_zip_writer *w)
+brix_zip_writer_free(brix_zip_writer *w)
 {
     if (w == NULL) {
         return;

@@ -1,8 +1,8 @@
 /*
  * cli_opts.c — shared parser for the common connection/trace CLI flags.
  *
- * WHAT: xrdc_opts_init() zero-inits an xrdc_opts with the canonical defaults
- *       (verify_host on); xrdc_opts_parse_arg() recognises the connection flags
+ * WHAT: brix_opts_init() zero-inits an brix_opts with the canonical defaults
+ *       (verify_host on); brix_opts_parse_arg() recognises the connection flags
  *       every connecting tool accepts — --tls / --notlsok / --noverifyhost /
  *       --auth <p> / --wire-trace[=N] / --timing / --redirect-trace / --capture
  *       <p> — plus the resilience knobs --max-stall <ms> / --no-retry — and
@@ -11,18 +11,18 @@
  *       xrddiag, xrdmapc, xrdgsitest, both FUSE drivers, ...); centralising it
  *       guarantees one canonical spelling/semantics and lets each tool's parse
  *       loop fall through to its OWN flags.
- * HOW:  A tool's option loop calls xrdc_opts_parse_arg() first; on 1 it `continue`s,
+ * HOW:  A tool's option loop calls brix_opts_parse_arg() first; on 1 it `continue`s,
  *       on 0 it handles the arg itself.  Value-taking flags advance *i past the
  *       value, mirroring the historical `argv[++i]` idiom exactly (behaviour-
  *       preserving — the fields set are identical to the inline ladders).
  */
-#include "xrdc.h"
+#include "brix.h"
 
 #include <stdlib.h>
 #include <string.h>
 
 void
-xrdc_opts_init(xrdc_opts *o)
+brix_opts_init(brix_opts *o)
 {
     memset(o, 0, sizeof(*o));
     o->verify_host = 1;   /* default: check the server cert name */
@@ -42,7 +42,7 @@ xrdc_opts_init(xrdc_opts *o)
 }
 
 int
-xrdc_opts_parse_arg(xrdc_opts *o, int argc, char **argv, int *i)
+brix_opts_parse_arg(brix_opts *o, int argc, char **argv, int *i)
 {
     const char *a = argv[*i];
 

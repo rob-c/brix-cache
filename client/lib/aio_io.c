@@ -22,7 +22,7 @@
 /* io */
 /* Drain the outgoing queue. Non-blocking; tolerates short writes and TLS WANT_*. */
 void
-aconn_do_write(xrdc_aconn *ac)
+aconn_do_write(brix_aconn *ac)
 {
     ac->tls_want_read_on_write = 0;
 
@@ -47,8 +47,8 @@ aconn_do_write(xrdc_aconn *ac)
                 break;
             }
             {
-                xrdc_status st;
-                xrdc_status_set(&st, XRDC_ESOCK, 0, "TLS write failed (ssl err %d)", err);
+                brix_status st;
+                brix_status_set(&st, XRDC_ESOCK, 0, "TLS write failed (ssl err %d)", err);
                 aconn_on_transport_error(ac, &st);
             }
             return;
@@ -67,8 +67,8 @@ aconn_do_write(xrdc_aconn *ac)
             break;                           /* re-armed via EPOLLOUT */
         }
         {
-            xrdc_status st;
-            xrdc_status_set(&st, XRDC_ESOCK, errno, "write: %s", strerror(errno));
+            brix_status st;
+            brix_status_set(&st, XRDC_ESOCK, errno, "write: %s", strerror(errno));
             aconn_on_transport_error(ac, &st);
         }
         return;
@@ -87,12 +87,12 @@ aconn_do_write(xrdc_aconn *ac)
  * detection — all bounded.
  */
 void
-aconn_note_rtt(xrdc_aconn *ac, const xrdc_areq *r)
+aconn_note_rtt(brix_aconn *ac, const brix_areq *r)
 {
     if (r->submit_ns == 0) {
         return;
     }
-    uint64_t now = xrdc_mono_ns();
+    uint64_t now = brix_mono_ns();
     if (now <= r->submit_ns) {
         return;
     }
@@ -111,7 +111,7 @@ aconn_note_rtt(xrdc_aconn *ac, const xrdc_areq *r)
 
 /* srtt + 4·rttvar, clamped to [200 ms, 30 s]; 1 s before any sample. */
 uint64_t
-aconn_rto_ns(const xrdc_aconn *ac)
+aconn_rto_ns(const brix_aconn *ac)
 {
     if (!ac->have_rtt) {
         return 1000000000ULL;
@@ -135,13 +135,13 @@ aconn_rto_ns(const xrdc_aconn *ac)
  * measure the deferral, not the link). Mirrors the sync path's read-window
  * extension (frame.c recv_after_waitresp); clamps match frame.c (570 s + 30 s). */
 static void
-areq_note_deferral(xrdc_areq *r, const uint8_t *body, uint32_t dlen)
+areq_note_deferral(brix_areq *r, const uint8_t *body, uint32_t dlen)
 {
     uint64_t secs = xrd_wait_secs_parse(body, dlen, 0, 570);
 
     r->deferred = 1;
     if (r->deadline_ns != 0) {
-        uint64_t want = xrdc_mono_ns() + secs * 1000000000ULL + 30000000000ULL;
+        uint64_t want = brix_mono_ns() + secs * 1000000000ULL + 30000000000ULL;
         if (want > r->deadline_ns) {
             r->deadline_ns = want;
         }
@@ -155,10 +155,10 @@ areq_note_deferral(xrdc_areq *r, const uint8_t *body, uint32_t dlen)
  * attn inside an asynresp lands in the unexpected-status arm and fails the
  * request cleanly instead of recursing. */
 static void
-aconn_dispatch_response(xrdc_aconn *ac, uint16_t sid, uint16_t stat,
+aconn_dispatch_response(brix_aconn *ac, uint16_t sid, uint16_t stat,
                         const uint8_t *body, uint32_t dlen)
 {
-    xrdc_areq *r = reqmap_get(&ac->inflight, sid);
+    brix_areq *r = reqmap_get(&ac->inflight, sid);
     if (r == NULL) {
         return;   /* late frame for a completed/cancelled request — ignore */
     }
@@ -190,20 +190,20 @@ aconn_dispatch_response(xrdc_aconn *ac, uint16_t sid, uint16_t stat,
         int         errnum = 0;
         const char *emsg = "";
         size_t      emlen = 0;
-        xrdc_status st;
+        brix_status st;
         /* msg is NOT NUL-terminated on the wire — decode to a bounded slice and
          * print with %.*s (the old %s on body+4 was a heap over-read). */
         xrd_error_body_decode(body, dlen, &errnum, &emsg, &emlen);
-        xrdc_status_set(&st, errnum, 0, "%.*s (%s)", (int) emlen,
-                        emsg ? emsg : "", xrdc_kxr_name(errnum));
+        brix_status_set(&st, errnum, 0, "%.*s (%s)", (int) emlen,
+                        emsg ? emsg : "", brix_kxr_name(errnum));
         reqmap_del(&ac->inflight, sid);
         areq_complete(r, -1, (uint16_t) errnum, &st);
         return;
     }
 
     default: {
-        xrdc_status st;
-        xrdc_status_set(&st, XRDC_EPROTO, 0, "unexpected response status %u", stat);
+        brix_status st;
+        brix_status_set(&st, XRDC_EPROTO, 0, "unexpected response status %u", stat);
         reqmap_del(&ac->inflight, sid);
         areq_complete(r, -1, XRDC_EPROTO, &st);
         return;
@@ -220,7 +220,7 @@ aconn_dispatch_response(xrdc_aconn *ac, uint16_t sid, uint16_t stat,
  * text, obsolete actions, truncated envelopes) is informational at most: drop
  * it — it must never complete or fail an in-flight request. */
 static void
-aconn_handle_attn(xrdc_aconn *ac, const uint8_t *body, uint32_t dlen)
+aconn_handle_attn(brix_aconn *ac, const uint8_t *body, uint32_t dlen)
 {
     uint16_t esid, estat;
     uint32_t edlen;
@@ -243,10 +243,10 @@ aconn_handle_attn(xrdc_aconn *ac, const uint8_t *body, uint32_t dlen)
  * BEFORE any in-flight lookup (their outer streamid is not a reliable request
  * key); everything else is a direct response matched by streamid. */
 void
-aconn_dispatch_frame(xrdc_aconn *ac, uint16_t sid, uint16_t stat,
+aconn_dispatch_frame(brix_aconn *ac, uint16_t sid, uint16_t stat,
                      const uint8_t *body, uint32_t dlen)
 {
-    ac->last_activity_ns = xrdc_mono_ns();   /* we heard from the server */
+    ac->last_activity_ns = brix_mono_ns();   /* we heard from the server */
 
     if (stat == kXR_attn) {
         aconn_handle_attn(ac, body, dlen);
@@ -258,7 +258,7 @@ aconn_dispatch_frame(xrdc_aconn *ac, uint16_t sid, uint16_t stat,
 
 /* Parse all complete frames sitting in rbuf, then compact. */
 void
-aconn_parse(xrdc_aconn *ac)
+aconn_parse(brix_aconn *ac)
 {
     for (;;) {
         size_t avail = ac->rbuf.len - ac->rbuf.start;
@@ -271,8 +271,8 @@ aconn_parse(xrdc_aconn *ac)
         xrd_resp_hdr_unpack(p, &sid, &stat, &dlen);   /* unaligned-safe */
 
         if (dlen > XRDC_DLEN_MAX) {
-            xrdc_status st;
-            xrdc_status_set(&st, XRDC_EPROTO, 0, "response body too large (%u)", dlen);
+            brix_status st;
+            brix_status_set(&st, XRDC_EPROTO, 0, "response body too large (%u)", dlen);
             aconn_on_transport_error(ac, &st);
             return;
         }
@@ -291,14 +291,14 @@ aconn_parse(xrdc_aconn *ac)
 
 /* Read everything available into rbuf, then parse. Non-blocking; tolerates TLS. */
 void
-aconn_do_read(xrdc_aconn *ac)
+aconn_do_read(brix_aconn *ac)
 {
     ac->tls_want_write_on_read = 0;
 
     for (;;) {
         if (xbuf_reserve(&ac->rbuf, AIO_READ_CHUNK) != 0) {
-            xrdc_status st;
-            xrdc_status_set(&st, XRDC_EPROTO, 0, "out of memory (read buffer)");
+            brix_status st;
+            brix_status_set(&st, XRDC_EPROTO, 0, "out of memory (read buffer)");
             aconn_on_transport_error(ac, &st);
             return;
         }
@@ -321,11 +321,11 @@ aconn_do_read(xrdc_aconn *ac)
                 break;
             }
             {
-                xrdc_status st;
+                brix_status st;
                 if (err == SSL_ERROR_ZERO_RETURN) {
-                    xrdc_status_set(&st, XRDC_ESOCK, 0, "connection closed by peer (TLS)");
+                    brix_status_set(&st, XRDC_ESOCK, 0, "connection closed by peer (TLS)");
                 } else {
-                    xrdc_status_set(&st, XRDC_ESOCK, 0, "TLS read failed (ssl err %d)", err);
+                    brix_status_set(&st, XRDC_ESOCK, 0, "TLS read failed (ssl err %d)", err);
                 }
                 aconn_parse(ac);             /* deliver any complete frames first */
                 if (!ac->dead) {
@@ -341,8 +341,8 @@ aconn_do_read(xrdc_aconn *ac)
             continue;
         }
         if (r == 0) {
-            xrdc_status st;
-            xrdc_status_set(&st, XRDC_ESOCK, 0, "connection closed by peer");
+            brix_status st;
+            brix_status_set(&st, XRDC_ESOCK, 0, "connection closed by peer");
             aconn_parse(ac);
             if (!ac->dead) {
                 aconn_on_transport_error(ac, &st);
@@ -356,8 +356,8 @@ aconn_do_read(xrdc_aconn *ac)
             break;
         }
         {
-            xrdc_status st;
-            xrdc_status_set(&st, XRDC_ESOCK, errno, "read: %s", strerror(errno));
+            brix_status st;
+            brix_status_set(&st, XRDC_ESOCK, errno, "read: %s", strerror(errno));
             aconn_on_transport_error(ac, &st);
         }
         return;
@@ -369,7 +369,7 @@ aconn_do_read(xrdc_aconn *ac)
 
 /* React to epoll readiness for one connection. */
 void
-aconn_handle_io(xrdc_aconn *ac, uint32_t events)
+aconn_handle_io(brix_aconn *ac, uint32_t events)
 {
     if (ac->dead) {
         return;
@@ -378,8 +378,8 @@ aconn_handle_io(xrdc_aconn *ac, uint32_t events)
         /* still try to drain any final readable bytes before failing */
         aconn_do_read(ac);
         if (!ac->dead) {
-            xrdc_status st;
-            xrdc_status_set(&st, XRDC_ESOCK, 0, "socket error/hangup");
+            brix_status st;
+            brix_status_set(&st, XRDC_ESOCK, 0, "socket error/hangup");
             aconn_on_transport_error(ac, &st);
         }
         return;

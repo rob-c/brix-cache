@@ -9,7 +9,7 @@
  * WHY:  prove pblock metadata correctness + performance under concurrency.
  * HOW:  this header/TU is PURE (planning + percentile + result printers, no wire
  *       I/O) so it compiles + unit-tests standalone with only libc. The threaded
- *       GSI runner that needs libxrdc lives in metabench_run.{c,h}.
+ *       GSI runner that needs libbrix lives in metabench_run.{c,h}.
  */
 #ifndef XRDC_METABENCH_H
 #define XRDC_METABENCH_H

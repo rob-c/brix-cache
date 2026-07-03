@@ -28,7 +28,7 @@
  *
  * Clean-room: C library + <stdatomic.h> only.
  */
-#include "xrdc.h"
+#include "brix.h"
 
 #include <stdatomic.h>
 #include <stdlib.h>
@@ -56,20 +56,20 @@ resolve_ms(atomic_int *slot, const char *env, int dflt)
 }
 
 int
-xrdc_tmo_connect_ms(void)
+brix_tmo_connect_ms(void)
 {
     return resolve_ms(&g_connect_ms, "XRDC_CONNECT_TIMEOUT_MS",
                       XRDC_TMO_CONNECT_DEFAULT_MS);
 }
 
 int
-xrdc_tmo_io_ms(void)
+brix_tmo_io_ms(void)
 {
     return resolve_ms(&g_io_ms, "XRDC_IO_TIMEOUT_MS", XRDC_TMO_IO_DEFAULT_MS);
 }
 
 void
-xrdc_tmo_set_connect_ms(int ms)
+brix_tmo_set_connect_ms(int ms)
 {
     if (ms > 0) {
         atomic_store_explicit(&g_connect_ms, ms, memory_order_relaxed);
@@ -77,7 +77,7 @@ xrdc_tmo_set_connect_ms(int ms)
 }
 
 void
-xrdc_tmo_set_io_ms(int ms)
+brix_tmo_set_io_ms(int ms)
 {
     if (ms > 0) {
         atomic_store_explicit(&g_io_ms, ms, memory_order_relaxed);
@@ -85,7 +85,7 @@ xrdc_tmo_set_io_ms(int ms)
 }
 
 unsigned
-xrdc_backoff_delay_ms(unsigned attempt, uint64_t *seed)
+brix_backoff_delay_ms(unsigned attempt, uint64_t *seed)
 {
     /* Exponential base 100ms<<attempt, capped at 5s; attempt exponent clamped so
      * a long-running retry loop cannot overflow the shift. */
@@ -131,7 +131,7 @@ backoff_base_ms(void)
 }
 
 unsigned
-xrdc_backoff_delay_fast_ms(unsigned attempt, uint64_t *seed)
+brix_backoff_delay_fast_ms(unsigned attempt, uint64_t *seed)
 {
     /* Fast backoff for TRANSPORT faults (a connection reset/EOF is instant and
      * not a sign of server overload): BASE<<attempt capped at 10x BASE (>=250ms
@@ -160,7 +160,7 @@ static void
 sleep_ms_cancelable(unsigned ms)
 {
     while (ms > 0) {
-        if (xrdc_copy_quit_requested()) {
+        if (brix_copy_quit_requested()) {
             return;
         }
         unsigned        slice = (ms > 50) ? 50 : ms;
@@ -172,21 +172,21 @@ sleep_ms_cancelable(unsigned ms)
 }
 
 void
-xrdc_backoff_sleep(unsigned attempt)
+brix_backoff_sleep(unsigned attempt)
 {
     static _Thread_local uint64_t seed = 0;
     if (seed == 0) {
-        seed = (uint64_t) xrdc_mono_ns() ^ (uint64_t) (uintptr_t) &seed;
+        seed = (uint64_t) brix_mono_ns() ^ (uint64_t) (uintptr_t) &seed;
     }
-    sleep_ms_cancelable(xrdc_backoff_delay_ms(attempt, &seed));
+    sleep_ms_cancelable(brix_backoff_delay_ms(attempt, &seed));
 }
 
 void
-xrdc_backoff_sleep_fast(unsigned attempt)
+brix_backoff_sleep_fast(unsigned attempt)
 {
     static _Thread_local uint64_t seed = 0;
     if (seed == 0) {
-        seed = (uint64_t) xrdc_mono_ns() ^ (uint64_t) (uintptr_t) &seed ^ 0x55;
+        seed = (uint64_t) brix_mono_ns() ^ (uint64_t) (uintptr_t) &seed ^ 0x55;
     }
-    sleep_ms_cancelable(xrdc_backoff_delay_fast_ms(attempt, &seed));
+    sleep_ms_cancelable(brix_backoff_delay_fast_ms(attempt, &seed));
 }

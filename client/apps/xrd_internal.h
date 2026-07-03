@@ -2,10 +2,10 @@
  * xrd_internal.h - private split contract for xrd.c and its Phase-38 siblings.
  * Not a public API: include only from client/apps/.  See docs/refactor/phase-38-file-size-unix-modularity.md.
  */
-#ifndef XROOTD_XRD_INTERNAL_H
-#define XROOTD_XRD_INTERNAL_H
+#ifndef BRIX_XRD_INTERNAL_H
+#define BRIX_XRD_INTERNAL_H
 
-#include "xrdc.h"   
+#include "brix.h"   
 #include "core/compat/crypto.h"  
 #include <ctype.h>      
 #include <errno.h>
@@ -28,14 +28,14 @@ typedef struct {
     char           host[256];
     int            port;
     int            connected;
-    char           err[XRDC_MSG_MAX];   /* holds a full xrdc_status message */
+    char           err[XRDC_MSG_MAX];   /* holds a full brix_status message */
     int            tls_active;
     const char    *tls_ver;
     const char    *tls_cipher;
     uint32_t       server_flags;
     char           auth[40];        /* negotiated auth ("anonymous" if none) */
     char           sec_list[256];
-    xrdc_cert_info cert;
+    brix_cert_info cert;
     xrd_cap_kv     caps[XRD_CAPS_MAX];
     int            ncaps;
     int            clock_have;
@@ -76,9 +76,9 @@ char * map_fs_arg(const char *arg, const char *ehost, int eport, int *mismatch);
 void bat_add(xrd_battery *b, const char *name, int status, const char *fmt, ...);
 void fill_pattern(uint8_t *buf, size_t n);
 int tmpfile_with(const uint8_t *buf, size_t n);
-void battery_root(const xrdc_url *u, const xrdc_opts *o, int do_write, xrd_battery *b);
-void battery_web(const xrdc_weburl *u, int do_write, const char *bearer, int verify, xrd_battery *b);
-void battery_s3(const xrdc_weburl *u, int do_write, const char *ak, const char *sk, const char *region, int verify, xrd_battery *b);
+void battery_root(const brix_url *u, const brix_opts *o, int do_write, xrd_battery *b);
+void battery_web(const brix_weburl *u, int do_write, const char *bearer, int verify, xrd_battery *b);
+void battery_s3(const brix_weburl *u, int do_write, const char *ak, const char *sk, const char *region, int verify, xrd_battery *b);
 void xrd_run_battery(const char *endpoint, int do_write, int verify, xrd_battery *b);
 
 /* xrd_doctor.c */
@@ -97,13 +97,13 @@ void xrd_fmt_epoch(long e, char *buf, size_t sz);
 double xrd_fabs(double x);
 
 /* xrd_doctor.c */
-void xrd_probe_caps(xrdc_conn *c, xrd_probe *p);
+void xrd_probe_caps(brix_conn *c, xrd_probe *p);
 
 /* xrd_clockskew.c */
 int xrd_parse_http_date(const char *s, time_t *out);
 int xrd_clockskew_http(const char *endpoint, xrd_probe *p, char *err, size_t errsz);
-int xrd_clockskew_root(const char *endpoint, const xrdc_opts *o, xrd_probe *p, char *err, size_t errsz);
-int xrd_measure_clock_skew(const char *endpoint, const xrdc_opts *o, xrd_probe *p, char *err, size_t errsz);
+int xrd_clockskew_root(const char *endpoint, const brix_opts *o, xrd_probe *p, char *err, size_t errsz);
+int xrd_measure_clock_skew(const char *endpoint, const brix_opts *o, xrd_probe *p, char *err, size_t errsz);
 
 /* xrd_doctor.c */
 int xrd_certinfo(int argc, char **argv);
@@ -120,4 +120,4 @@ int xrd_list_mounts(void);
 int xrd_mount(int argc, char **argv);
 int xrd_unmount(int argc, char **argv);
 
-#endif /* XROOTD_XRD_INTERNAL_H */
+#endif /* BRIX_XRD_INTERNAL_H */

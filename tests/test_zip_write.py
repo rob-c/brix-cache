@@ -3,7 +3,7 @@ Phase-42 W3 (write) — xrdcp ZIP writer end-to-end.
 
 Exercises `xrdcp --zip` / `--zip-append`, which store a LOCAL source as a STORE
 member of a ZIP archive (member name == source basename). The server is never
-touched for the local cases — all ZIP logic lives in libxrdc (client/lib/copy.c,
+touched for the local cases — all ZIP logic lives in libbrix (client/lib/copy.c,
 client/lib/zip.c). Coverage:
 
   (1) local create:  --zip <file> <dst.zip>      -> unzip -t OK + member byte-exact

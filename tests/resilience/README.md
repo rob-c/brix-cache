@@ -1,7 +1,7 @@
 # Resilience / wire-loss testing (dedicated, isolated)
 
 > Status: the client tools were hardened to xrootdfs-level resilience — see
-> "Client resilience (libxrdc)" below. This harness is both the regression proof
+> "Client resilience (libbrix)" below. This harness is both the regression proof
 > and the way to measure the loss-vs-time curve.
 
 Self-contained fault-injection tests for the native client over **`root://` + GSI**,
@@ -120,13 +120,13 @@ write-back-buffered writes):
 | 2 | ~68 | ~75 |
 | 3 | ~38 | ~48 |
 
-## Client resilience (libxrdc)
+## Client resilience (libbrix)
 
 The synchronous client tools are now network-resilient like the `xrootdfs` FUSE
 driver: on a sever they reconnect, re-authenticate (full GSI/token re-login),
 reopen the handle, and resume at the same offset, bounded by a patience window
-with backoff. This lives in `client/lib/resilient.c` (`xrdc_rfile` for streaming,
-`xrdc_with_resilience` / `xrdc_roundtrip_resilient` for stateless ops) and is
+with backoff. This lives in `client/lib/resilient.c` (`brix_rfile` for streaming,
+`brix_with_resilience` / `brix_roundtrip_resilient` for stateless ops) and is
 wired into the high-level library ops, so every tool inherits it.
 
 - **On by default** (window `XRDC_DEFAULT_MAX_STALL_MS` = 30 s).

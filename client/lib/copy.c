@@ -5,36 +5,36 @@
 #include "copy_internal.h"
 
 /* VFS backend link anchors — Phase 38: kept in copy.o (NOT the shared header) so
- * the weak posix/block backends are pulled from libxrdc.a when copy.o links. */
-extern const xrdc_vfs_backend *xrdc_vfs_posix_backend(void);
+ * the weak posix/block backends are pulled from libbrix.a when copy.o links. */
+extern const brix_vfs_backend *brix_vfs_posix_backend(void);
 __attribute__((used))
-static const xrdc_vfs_backend *(*const s_vfs_posix_anchor)(void) =
-    xrdc_vfs_posix_backend;
-extern const xrdc_vfs_backend *xrdc_vfs_block_backend(void);
+static const brix_vfs_backend *(*const s_vfs_posix_anchor)(void) =
+    brix_vfs_posix_backend;
+extern const brix_vfs_backend *brix_vfs_block_backend(void);
 __attribute__((used))
-static const xrdc_vfs_backend *(*const s_vfs_block_anchor)(void) =
-    xrdc_vfs_block_backend;
+static const brix_vfs_backend *(*const s_vfs_block_anchor)(void) =
+    brix_vfs_block_backend;
 
-volatile sig_atomic_t g_xrdc_copy_quit;
+volatile sig_atomic_t g_brix_copy_quit;
 
 
 void
 copy_signal_handler(int sig)
 {
     (void) sig;
-    g_xrdc_copy_quit = 1;
+    g_brix_copy_quit = 1;
 }
 
 
 int
-xrdc_copy_quit_requested(void)
+brix_copy_quit_requested(void)
 {
-    return g_xrdc_copy_quit != 0;
+    return g_brix_copy_quit != 0;
 }
 
 
 void
-xrdc_copy_install_signal_handlers(void)
+brix_copy_install_signal_handlers(void)
 {
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
@@ -84,7 +84,7 @@ xrdc_copy_install_signal_handlers(void)
  * never again be silently dropped (the raw `max_stall_ms > 0 ? : DEFAULT`
  * ternary could not distinguish "fail fast" from "use the default"). */
 int
-copy_stall_ms(const xrdc_copy_opts *o, int dflt)
+copy_stall_ms(const brix_copy_opts *o, int dflt)
 {
     if (o != NULL && o->no_retry) {
         return 0;
@@ -104,17 +104,17 @@ copy_stall_ms(const xrdc_copy_opts *o, int dflt)
  * gets. On success `c` is connected and `*si` is filled. 0 / -1 (st set).
  */
 int
-resilient_setup(xrdc_conn *c, const xrdc_url *su, const xrdc_opts *co,
-                xrdc_statinfo *si, int max_stall_ms, xrdc_status *st)
+resilient_setup(brix_conn *c, const brix_url *su, const brix_opts *co,
+                brix_statinfo *si, int max_stall_ms, brix_status *st)
 {
-    uint64_t deadline = xrdc_mono_ns() + (uint64_t) max_stall_ms * 1000000ULL;
+    uint64_t deadline = brix_mono_ns() + (uint64_t) max_stall_ms * 1000000ULL;
     unsigned attempt = 0;
     int      up = 0;
     for (;;) {
-        if (!up && xrdc_connect(c, su, co, st) == 0) {
+        if (!up && brix_connect(c, su, co, st) == 0) {
             up = 1;
         }
-        if (up && xrdc_stat(c, su->path, si, st) == 0) {
+        if (up && brix_stat(c, su->path, si, st) == 0) {
             return 0;
         }
         /* A connection that has NEVER established and is actively REFUSED is a
@@ -126,18 +126,18 @@ resilient_setup(xrdc_conn *c, const xrdc_url *su, const xrdc_opts *co,
         if (!up && st->kxr == XRDC_ESOCK && st->sys_errno == ECONNREFUSED) {
             return -1;
         }
-        if (!xrdc_status_retryable(st) || xrdc_copy_quit_requested()
-            || xrdc_mono_ns() >= deadline) {
+        if (!brix_status_retryable(st) || brix_copy_quit_requested()
+            || brix_mono_ns() >= deadline) {
             if (up) {
-                xrdc_close(c);
+                brix_close(c);
             }
             return -1;
         }
         if (up) {            /* drop the suspect session before reconnecting */
-            xrdc_close(c);
+            brix_close(c);
             up = 0;
         }
-        xrdc_backoff_sleep_fast(attempt++);
+        brix_backoff_sleep_fast(attempt++);
     }
 }
 
@@ -146,17 +146,17 @@ resilient_setup(xrdc_conn *c, const xrdc_url *su, const xrdc_opts *co,
 
 /* Copy one remote file (open under conn c) to a fresh local file. */
 int
-copy_one_r2l(xrdc_conn *c, const char *rpath, const char *lpath,
-             int64_t expected_size, xrdc_status *st)
+copy_one_r2l(brix_conn *c, const char *rpath, const char *lpath,
+             int64_t expected_size, brix_status *st)
 {
-    xrdc_file         f;
-    xrdc_vfs_file    *vf = NULL;
-    xrdc_vfs_open_opts vopts;
+    brix_file         f;
+    brix_vfs_file    *vf = NULL;
+    brix_vfs_open_opts vopts;
     pump_local_t       lc;
     pump_remote_t      src = {0};
     int                rc;
 
-    if (xrdc_file_open_read(c, rpath, &f, st) != 0) {
+    if (brix_file_open_read(c, rpath, &f, st) != 0) {
         return -1;
     }
 
@@ -166,9 +166,9 @@ copy_one_r2l(xrdc_conn *c, const char *rpath, const char *lpath,
     vopts.io_uring      = XRDC_IO_URING_AUTO;
     vopts.expected_size = expected_size;
     vopts.cred          = NULL;
-    if (xrdc_vfs_open(lpath, XRDC_VFS_WRITE | XRDC_VFS_FORCE,
+    if (brix_vfs_open(lpath, XRDC_VFS_WRITE | XRDC_VFS_FORCE,
                       &vopts, &vf, st) != 0) {
-        xrdc_file_close(c, &f, st);
+        brix_file_close(c, &f, st);
         return -1;
     }
 
@@ -181,24 +181,24 @@ copy_one_r2l(xrdc_conn *c, const char *rpath, const char *lpath,
                        expected_size, NULL, expected_size, st);
 
     if (rc == 0) {
-        rc = xrdc_vfs_commit(vf, st);
+        rc = brix_vfs_commit(vf, st);
     } else {
-        xrdc_vfs_abort(vf);
+        brix_vfs_abort(vf);
     }
-    xrdc_vfs_close(vf);
-    xrdc_file_close(c, &f, st);
+    brix_vfs_close(vf);
+    brix_file_close(c, &f, st);
     return rc;
 }
 
 
 /* Copy one local file to a fresh remote file (open under conn c). */
 int
-copy_one_l2r(xrdc_conn *c, const char *lpath, const char *rpath,
-             const xrdc_copy_opts *o, xrdc_status *st)
+copy_one_l2r(brix_conn *c, const char *lpath, const char *rpath,
+             const brix_copy_opts *o, brix_status *st)
 {
-    xrdc_file         f;
-    xrdc_vfs_file    *vf = NULL;
-    xrdc_vfs_open_opts vopts;
+    brix_file         f;
+    brix_vfs_file    *vf = NULL;
+    brix_vfs_open_opts vopts;
     pump_local_t       lc;
     pump_remote_t      sink = {0};
     int                rc;
@@ -206,11 +206,11 @@ copy_one_l2r(xrdc_conn *c, const char *lpath, const char *rpath,
     vopts.io_uring      = (o != NULL) ? o->io_uring : XRDC_IO_URING_AUTO;
     vopts.expected_size = -1;
     vopts.cred          = NULL;
-    if (xrdc_vfs_open(lpath, XRDC_VFS_READ, &vopts, &vf, st) != 0) {
+    if (brix_vfs_open(lpath, XRDC_VFS_READ, &vopts, &vf, st) != 0) {
         return -1;
     }
-    if (xrdc_file_open_write(c, rpath, 1 /*force*/, o ? o->posc : 0, &f, st) != 0) {
-        xrdc_vfs_close(vf);
+    if (brix_file_open_write(c, rpath, 1 /*force*/, o ? o->posc : 0, &f, st) != 0) {
+        brix_vfs_close(vf);
         return -1;
     }
 
@@ -224,27 +224,27 @@ copy_one_l2r(xrdc_conn *c, const char *lpath, const char *rpath,
     rc = transfer_pump(pump_src_local_vfs, &lc, pump_sink_remote, &sink,
                        -1, NULL, 0, st);
 
-    xrdc_vfs_close(vf);
+    brix_vfs_close(vf);
     if (rc != 0) {
-        xrdc_file_close(c, &f, st);
+        brix_file_close(c, &f, st);
         return -1;
     }
-    return xrdc_file_close(c, &f, st);
+    return brix_file_close(c, &f, st);
 }
 
 
 int
-xrdc_copy(const char *src, const char *dst, const xrdc_copy_opts *o,
-          const xrdc_opts *co_in, xrdc_status *st)
+brix_copy(const char *src, const char *dst, const brix_copy_opts *o,
+          const brix_opts *co_in, brix_status *st)
 {
-    xrdc_url su, du;
+    brix_url su, du;
     int      src_remote, dst_remote, src_local, dst_local;
 
     /* copy.c manages its OWN reconnect/retry — resilient_setup() for the multi-RTT
      * bring-up and the read pump (pump_src_remote) for mid-transfer severs. Disable
      * the library's op-level baked resilience on the connections this path owns, so
      * stat/dirlist/mkdir don't double-retry inside copy's already-bounded loops. */
-    xrdc_opts co_local;
+    brix_opts co_local;
     if (co_in != NULL) {
         co_local = *co_in;
     } else {
@@ -252,25 +252,25 @@ xrdc_copy(const char *src, const char *dst, const xrdc_copy_opts *o,
         co_local.verify_host = 1;
     }
     co_local.no_retry = 1;
-    const xrdc_opts *co = &co_local;
+    const brix_opts *co = &co_local;
 
     /* Web schemes (davs/http(s)/s3) take the HTTP transfer path, never the root://
-     * session machinery. Check before xrdc_url_parse (which is root-only). */
-    if (xrdc_is_web_url(src) || xrdc_is_web_url(dst)) {
+     * session machinery. Check before brix_url_parse (which is root-only). */
+    if (brix_is_web_url(src) || brix_is_web_url(dst)) {
         return copy_web(src, dst, o, co, st);
     }
 
     /* block:// (and /dev/) endpoints route through the VFS block backend.
-     * xrdc_url_parse does not know the block:// scheme and would reject it,
+     * brix_url_parse does not know the block:// scheme and would reject it,
      * so intercept here before the parse. */
-    if (xrdc_is_block_url(src) || xrdc_is_block_url(dst)) {
+    if (brix_is_block_url(src) || brix_is_block_url(dst)) {
         return copy_block(src, dst, o, co, st);
     }
 
-    if (xrdc_url_parse(src, &su, st) != 0) {
+    if (brix_url_parse(src, &su, st) != 0) {
         return -1;
     }
-    if (xrdc_url_parse(dst, &du, st) != 0) {
+    if (brix_url_parse(dst, &du, st) != 0) {
         return -1;
     }
 
@@ -286,7 +286,7 @@ xrdc_copy(const char *src, const char *dst, const xrdc_copy_opts *o,
         if (src_local && dst_remote) {
             return copy_recursive(&su, &du, 0, o, co, st);   /* local tree → remote */
         }
-        xrdc_status_set(st, XRDC_EUSAGE, 0,
+        brix_status_set(st, XRDC_EUSAGE, 0,
                         "recursive copy requires one remote and one local endpoint");
         return -1;
     }
@@ -295,7 +295,7 @@ xrdc_copy(const char *src, const char *dst, const xrdc_copy_opts *o,
      * member of the destination ZIP archive (local or remote dst). */
     if (o != NULL && (o->zip || o->zip_append)) {
         if (!src_local) {
-            xrdc_status_set(st, XRDC_EUSAGE, 0,
+            brix_status_set(st, XRDC_EUSAGE, 0,
                             "--zip requires a local-file source");
             return -1;
         }
@@ -331,7 +331,7 @@ xrdc_copy(const char *src, const char *dst, const xrdc_copy_opts *o,
         return copy_remote_to_remote(&su, &du, o, co, st);   /* default: client-mediated */
     }
 
-    xrdc_status_set(st, XRDC_EUSAGE, 0,
+    brix_status_set(st, XRDC_EUSAGE, 0,
                     "unsupported copy direction (local→local not supported)");
     return -1;
 }

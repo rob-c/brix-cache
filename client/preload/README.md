@@ -4,17 +4,17 @@
 
 An `LD_PRELOAD` shim that lets **unmodified POSIX tools** (`cat`, `md5sum`, `ls`,
 analysis jobs) read data from a remote XRootD `root://` export with no recompile
-and **no libXrdCl / XrdPosix** — just `libxrdc`. It interposes the libc read-path
+and **no libXrdCl / XrdPosix** — just `libbrix`. It interposes the libc read-path
 calls and routes any path under a configured prefix to the remote server; every
 other path falls straight through to the real libc call.
 
 ```
-LD_PRELOAD=libxrdposix_preload.so XROOTD_VMP=/xrd=root://host:port/ cat /xrd/file
+LD_PRELOAD=libbrixposix_preload.so BRIX_VMP=/xrd=root://host:port/ cat /xrd/file
 ```
 
-`$XROOTD_VMP = "<localprefix>=root://host[:port][/base]"`. A path starting with
+`$BRIX_VMP = "<localprefix>=root://host[:port][/base]"`. A path starting with
 `<localprefix>` is rewritten to the remote logical path and opened through a single
-lazily-connected, mutex-guarded `libxrdc` session (one request in flight).
+lazily-connected, mutex-guarded `libbrix` session (one request in flight).
 
 ## How it works
 
@@ -36,10 +36,10 @@ symbols, which are interposed directly).
 
 | File | Responsibility |
 |---|---|
-| `xrdposix_preload.c` | The entire shim: env parsing, the interposed wrappers, the shadow fd table, and the lazy `libxrdc` session. |
+| `brixposix_preload.c` | The entire shim: env parsing, the interposed wrappers, the shadow fd table, and the lazy `libbrix` session. |
 
 ## See also
 
-- `../lib/README.md` — the `libxrdc` library the shim opens its sessions through.
+- `../lib/README.md` — the `libbrix` library the shim opens its sessions through.
 - `../README.md` (client tree) and the FUSE driver (`xrootdfs`) for the
   mount-based alternative to this preload approach.

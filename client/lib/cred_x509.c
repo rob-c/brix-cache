@@ -1,7 +1,7 @@
 /* client/lib/cred_x509.c
  *
  * WHAT: X.509 proxy credential handler for the unified credential store (cred.c).
- *       Implements xrdc_cred_x509() returning the XRDC_CRED_X509_PROXY handler
+ *       Implements brix_cred_x509() returning the XRDC_CRED_X509_PROXY handler
  *       with available / acquire / refresh operations.
  * WHY:  Proxy discovery (path resolution, readability probe, cert expiry) was
  *       duplicated across sec_gsi.c and credrefresh.c.  Centralising it here
@@ -16,7 +16,7 @@
  *       notAfter via OpenSSL to fill *not_after (0 on parse failure, which is
  *       acceptable for non-PEM stubs used in tests).  refresh() is a documented
  *       no-op for B3; full wiring to credrefresh.c is deferred to task C2 because
- *       xrdc_cred_autorefresh() takes (want_write, oidc_account, verbose, out)
+ *       brix_cred_autorefresh() takes (want_write, oidc_account, verbose, out)
  *       rather than (cfg, st), requiring a small adapter that is out of scope here.
  *
  * ngx-free.  No goto.  Functional/modular: one responsibility per function.
@@ -27,7 +27,7 @@
 #endif
 
 #include "cred.h"
-#include "xrdc.h"
+#include "brix.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -49,7 +49,7 @@
  *       (snprintf guarantees it within outsz).
  */
 static void
-resolve_proxy_path(const xrdc_cred_config *cfg, char *out, size_t outsz)
+resolve_proxy_path(const brix_cred_config *cfg, char *out, size_t outsz)
 {
     const char *env;
 
@@ -132,12 +132,12 @@ parse_notafter(const char *path, int64_t *result)
  * x509_available — 1 if the resolved proxy path exists and is readable.
  *
  * WHAT: fast probe used by auth pre-flight diagnostics and the cred store's
- *       xrdc_cred_available() API.  Does NOT load the cert.
+ *       brix_cred_available() API.  Does NOT load the cert.
  * WHY:  matches sec_gsi.c:gsi_have() semantics (access(R_OK) on resolved path).
  * HOW:  resolve path; access(path, R_OK).
  */
 static int
-x509_available(const xrdc_cred_config *cfg)
+x509_available(const brix_cred_config *cfg)
 {
     char path[512];
     resolve_proxy_path(cfg, path, sizeof(path));
@@ -162,8 +162,8 @@ x509_available(const xrdc_cred_config *cfg)
  * so the single static buffer is safe for this window.
  */
 static int
-x509_acquire(const xrdc_cred_config *cfg, xrdc_cred_view *out,
-             int64_t *not_after, xrdc_status *st)
+x509_acquire(const brix_cred_config *cfg, brix_cred_view *out,
+             int64_t *not_after, brix_status *st)
 {
     /* static: must outlive this return so slot_store_view can strdup it. */
     static char path[512];
@@ -171,7 +171,7 @@ x509_acquire(const xrdc_cred_config *cfg, xrdc_cred_view *out,
     resolve_proxy_path(cfg, path, sizeof(path));
 
     if (access(path, R_OK) != 0) {
-        xrdc_status_set(st, XRDC_ENOENT, 0,
+        brix_status_set(st, XRDC_ENOENT, 0,
                         "x509 proxy not found or not readable: %s", path);
         return -1;
     }
@@ -196,7 +196,7 @@ x509_acquire(const xrdc_cred_config *cfg, xrdc_cred_view *out,
  *
  * WHAT: called by the store when auto_refresh is set and the proxy is near
  *       expiry; currently does nothing.
- * WHY:  credrefresh.c's xrdc_cred_autorefresh(want_write, oidc_account, verbose,
+ * WHY:  credrefresh.c's brix_cred_autorefresh(want_write, oidc_account, verbose,
  *       out) does not match the (cfg, st) handler contract.  Adapting it (mapping
  *       cfg->oidc_account into the call and running the proxy regeneration path)
  *       is deferred to task C2, where the full auth suite validates the end-to-end
@@ -205,15 +205,15 @@ x509_acquire(const xrdc_cred_config *cfg, xrdc_cred_view *out,
  * HOW:  no-op; suppress unused-parameter warnings.
  */
 static int
-x509_refresh(const xrdc_cred_config *cfg, xrdc_status *st)
+x509_refresh(const brix_cred_config *cfg, brix_status *st)
 {
     (void)cfg;
     (void)st;
-    return 0;   /* no-op; C2 will wire xrdc_cred_autorefresh here */
+    return 0;   /* no-op; C2 will wire brix_cred_autorefresh here */
 }
 
 /* handler accessor */
-static const xrdc_cred_handler s_x509_handler = {
+static const brix_cred_handler s_x509_handler = {
     .kind      = XRDC_CRED_X509_PROXY,
     .available = x509_available,
     .acquire   = x509_acquire,
@@ -221,15 +221,15 @@ static const xrdc_cred_handler s_x509_handler = {
 };
 
 /*
- * xrdc_cred_x509 — return the static X.509 proxy handler.
+ * brix_cred_x509 — return the static X.509 proxy handler.
  *
  * WHAT: strong definition that overrides the weak accessor in cred.c.
  * WHY:  weak/strong pattern lets lib and unit-test binaries link without every
  *       handler compiled in; this file provides the real X509 implementation.
  * HOW:  returns a pointer to the file-scoped static handler struct.
  */
-const xrdc_cred_handler *
-xrdc_cred_x509(void)
+const brix_cred_handler *
+brix_cred_x509(void)
 {
     return &s_x509_handler;
 }

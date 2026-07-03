@@ -1,6 +1,6 @@
 /*
  * zip_write_test.c — standalone unit test for the ZIP *writer* in
- * client/lib/zip.c (phase-42 W3 write side: xrdc_zip_writer_*).
+ * client/lib/zip.c (phase-42 W3 write side: brix_zip_writer_*).
  *
  * Build (from repo root):
  *   cc -std=c11 -Wall -Wextra -D_GNU_SOURCE -I client/lib \
@@ -17,12 +17,12 @@
  *
  * Coverage:
  *   (1) write 2 STORE members into an in-memory growable buffer via a write
- *       callback, finish; re-parse the SAME buffer with xrdc_zip_open +
- *       xrdc_zip_member_extract and assert both members byte-exact + CRC-OK.
+ *       callback, finish; re-parse the SAME buffer with brix_zip_open +
+ *       brix_zip_member_extract and assert both members byte-exact + CRC-OK.
  *   (2) persist that buffer to a temp .zip and assert `unzip -t` is OK and
  *       `unzip -p <file> <member>` reproduces each member byte-exact.
  *   (3) append: build a 1-member archive on disk, read its EOCD via
- *       xrdc_zip_read_eocd, seed an append-writer (xrdc_zip_writer_new_append)
+ *       brix_zip_read_eocd, seed an append-writer (brix_zip_writer_new_append)
  *       writing in-place into a copy, add a 2nd member, finish; re-parse and
  *       assert BOTH members byte-exact, and `unzip -t` OK.
  *   (4) empty-member: a 0-byte source fd stores and reads back as 0 bytes.
@@ -76,7 +76,7 @@ membuf_reserve(membuf *m, size_t end)
     return 0;
 }
 
-/* xrdc_zip_write_fn: write exactly `len` bytes at the current cursor. The cursor
+/* brix_zip_write_fn: write exactly `len` bytes at the current cursor. The cursor
  * starts at 0 for a fresh writer and at `base_offset` for an append writer, so a
  * single positional sink serves both — overwriting the old central directory and
  * then growing past it, exactly like the on-disk append path in copy.c. */
@@ -92,7 +92,7 @@ membuf_write(void *ctx, const void *data, size_t len)
     return 0;
 }
 
-/* xrdc_zip_pread_fn over the in-memory archive (bounds-checked short read). */
+/* brix_zip_pread_fn over the in-memory archive (bounds-checked short read). */
 static ssize_t
 membuf_pread(void *ctx, uint64_t off, void *buf, size_t len)
 {
@@ -163,23 +163,23 @@ tmpfd_with(const uint8_t *data, size_t len)
 static void
 expect_member(membuf *arc, const char *member, const uint8_t *want, size_t want_len)
 {
-    xrdc_zip_dir          dir;
-    const xrdc_zip_entry *e;
+    brix_zip_dir          dir;
+    const brix_zip_entry *e;
     sinkbuf               out = {0};
     int                   rc;
 
-    rc = xrdc_zip_open(membuf_pread, arc, arc->len, &dir);
+    rc = brix_zip_open(membuf_pread, arc, arc->len, &dir);
     CHECK(rc == XRDC_ZIP_OK, "zip_open(mem) rc=%d", rc);
     if (rc != XRDC_ZIP_OK) {
         return;
     }
-    e = xrdc_zip_find(&dir, member);
+    e = brix_zip_find(&dir, member);
     CHECK(e != NULL, "find %s", member);
     if (e != NULL) {
         CHECK(e->method == 0, "%s method=%u (want STORE 0)", member, e->method);
         CHECK(e->uncomp_size == want_len, "%s cd-uncomp %llu != %zu",
               member, (unsigned long long) e->uncomp_size, want_len);
-        rc = xrdc_zip_member_extract(membuf_pread, arc, e, sink_append, &out);
+        rc = brix_zip_member_extract(membuf_pread, arc, e, sink_append, &out);
         CHECK(rc == XRDC_ZIP_OK, "extract %s rc=%d", member, rc);
         if (rc == XRDC_ZIP_OK) {
             CHECK(out.len == want_len, "%s len %zu != %zu", member, out.len, want_len);
@@ -189,7 +189,7 @@ expect_member(membuf *arc, const char *member, const uint8_t *want, size_t want_
         }
     }
     free(out.data);
-    xrdc_zip_dir_free(&dir);
+    brix_zip_dir_free(&dir);
 }
 
 /* Write membuf to `path`. Returns 0 on success. */
@@ -257,7 +257,7 @@ test_create_two_members(const uint8_t *a, size_t alen,
                          const uint8_t *b, size_t blen)
 {
     membuf           arc = {0};
-    xrdc_zip_writer *w;
+    brix_zip_writer *w;
     int              fda, fdb, rc;
 
     fda = tmpfd_with(a, alen);
@@ -269,16 +269,16 @@ test_create_two_members(const uint8_t *a, size_t alen,
         return;
     }
 
-    w = xrdc_zip_writer_new(membuf_write, &arc);
+    w = brix_zip_writer_new(membuf_write, &arc);
     CHECK(w != NULL, "writer_new");
     if (w != NULL) {
-        rc = xrdc_zip_writer_add_fd(w, "alpha.bin", fda);
+        rc = brix_zip_writer_add_fd(w, "alpha.bin", fda);
         CHECK(rc == XRDC_ZIP_OK, "add alpha rc=%d", rc);
-        rc = xrdc_zip_writer_add_fd(w, "nested/beta.txt", fdb);
+        rc = brix_zip_writer_add_fd(w, "nested/beta.txt", fdb);
         CHECK(rc == XRDC_ZIP_OK, "add beta rc=%d", rc);
-        rc = xrdc_zip_writer_finish(w);
+        rc = brix_zip_writer_finish(w);
         CHECK(rc == XRDC_ZIP_OK, "finish rc=%d", rc);
-        xrdc_zip_writer_free(w);
+        brix_zip_writer_free(w);
     }
     close(fda);
     close(fdb);
@@ -304,7 +304,7 @@ test_append_member(const uint8_t *a, size_t alen,
 {
     membuf           base_arc = {0};
     membuf           app_arc  = {0};
-    xrdc_zip_writer *w;
+    brix_zip_writer *w;
     int              fda, fdb, rc;
     uint64_t         cd_off = 0, cd_size = 0, n = 0;
     int              z64 = 1;
@@ -315,19 +315,19 @@ test_append_member(const uint8_t *a, size_t alen,
     if (fda < 0) {
         return;
     }
-    w = xrdc_zip_writer_new(membuf_write, &base_arc);
+    w = brix_zip_writer_new(membuf_write, &base_arc);
     CHECK(w != NULL, "append: base writer_new");
     if (w != NULL) {
-        rc = xrdc_zip_writer_add_fd(w, "first.dat", fda);
+        rc = brix_zip_writer_add_fd(w, "first.dat", fda);
         CHECK(rc == XRDC_ZIP_OK, "append: add first rc=%d", rc);
-        rc = xrdc_zip_writer_finish(w);
+        rc = brix_zip_writer_finish(w);
         CHECK(rc == XRDC_ZIP_OK, "append: base finish rc=%d", rc);
-        xrdc_zip_writer_free(w);
+        brix_zip_writer_free(w);
     }
     close(fda);
 
     /* --- read its EOCD to locate the central directory --- */
-    rc = xrdc_zip_read_eocd(membuf_pread, &base_arc, base_arc.len,
+    rc = brix_zip_read_eocd(membuf_pread, &base_arc, base_arc.len,
                             &cd_off, &cd_size, &n, &z64);
     CHECK(rc == XRDC_ZIP_OK, "append: read_eocd rc=%d", rc);
     CHECK(n == 1, "append: base entry count %llu != 1", (unsigned long long) n);
@@ -356,15 +356,15 @@ test_append_member(const uint8_t *a, size_t alen,
     fdb = tmpfd_with(b, blen);
     CHECK(fdb >= 0, "append: create 2nd src fd");
     if (fdb >= 0) {
-        w = xrdc_zip_writer_new_append(membuf_write, &app_arc, cd_off,
+        w = brix_zip_writer_new_append(membuf_write, &app_arc, cd_off,
                                        seed, (size_t) cd_size, (size_t) n);
         CHECK(w != NULL, "append: writer_new_append");
         if (w != NULL) {
-            rc = xrdc_zip_writer_add_fd(w, "second.dat", fdb);
+            rc = brix_zip_writer_add_fd(w, "second.dat", fdb);
             CHECK(rc == XRDC_ZIP_OK, "append: add second rc=%d", rc);
-            rc = xrdc_zip_writer_finish(w);
+            rc = brix_zip_writer_finish(w);
             CHECK(rc == XRDC_ZIP_OK, "append: finish rc=%d", rc);
-            xrdc_zip_writer_free(w);
+            brix_zip_writer_free(w);
         }
         close(fdb);
 
@@ -389,7 +389,7 @@ static void
 test_empty_member(void)
 {
     membuf           arc = {0};
-    xrdc_zip_writer *w;
+    brix_zip_writer *w;
     int              fd, rc;
     static const uint8_t payload[] = "non-empty companion";
 
@@ -403,16 +403,16 @@ test_empty_member(void)
     }
     fd = fde;
 
-    w = xrdc_zip_writer_new(membuf_write, &arc);
+    w = brix_zip_writer_new(membuf_write, &arc);
     CHECK(w != NULL, "empty: writer_new");
     if (w != NULL) {
-        rc = xrdc_zip_writer_add_fd(w, "empty.dat", fd);
+        rc = brix_zip_writer_add_fd(w, "empty.dat", fd);
         CHECK(rc == XRDC_ZIP_OK, "empty: add empty rc=%d", rc);
-        rc = xrdc_zip_writer_add_fd(w, "filled.dat", fdc);
+        rc = brix_zip_writer_add_fd(w, "filled.dat", fdc);
         CHECK(rc == XRDC_ZIP_OK, "empty: add filled rc=%d", rc);
-        rc = xrdc_zip_writer_finish(w);
+        rc = brix_zip_writer_finish(w);
         CHECK(rc == XRDC_ZIP_OK, "empty: finish rc=%d", rc);
-        xrdc_zip_writer_free(w);
+        brix_zip_writer_free(w);
     }
     close(fde);
     close(fdc);

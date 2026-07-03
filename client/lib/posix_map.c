@@ -13,7 +13,7 @@
 #include <string.h>
 
 void
-xrdc_statinfo_to_stat(const xrdc_statinfo *si, int allow_symlink,
+brix_statinfo_to_stat(const brix_statinfo *si, int allow_symlink,
                       struct stat *stbuf)
 {
     memset(stbuf, 0, sizeof(*stbuf));
@@ -23,7 +23,7 @@ xrdc_statinfo_to_stat(const xrdc_statinfo *si, int allow_symlink,
      * link count / size policy stays here: a directory advertises nlink 2 and no
      * size; a symlink (lstat) or regular file advertises nlink 1 and the wire
      * size (for a symlink that is the target length, which drives readlink). */
-    stbuf->st_mode = xrootd_stat_mode_from_flags(si->flags, allow_symlink);
+    stbuf->st_mode = brix_stat_mode_from_flags(si->flags, allow_symlink);
     if (S_ISDIR(stbuf->st_mode)) {
         stbuf->st_nlink = 2;
     } else {
@@ -41,15 +41,15 @@ xrdc_statinfo_to_stat(const xrdc_statinfo *si, int allow_symlink,
 }
 
 void
-xrdc_parse_qspace(const char *text, unsigned long long *total,
+brix_parse_qspace(const char *text, unsigned long long *total,
                   unsigned long long *freeb)
 {
     /* oss.* token grammar is shared with the server's emitter (protocol/qspace.h). */
-    xrootd_qspace_parse(text, total, freeb);
+    brix_qspace_parse(text, total, freeb);
 }
 
 int
-xrdc_fattr_listxattr_xlate(const char *raw, size_t rawlen, char *list, size_t size)
+brix_fattr_listxattr_xlate(const char *raw, size_t rawlen, char *list, size_t size)
 {
     size_t total = 0, i = 0;
 

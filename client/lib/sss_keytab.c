@@ -32,26 +32,26 @@
 /* Forwards to the shared CRC-32/IEEE kernel (libxrdproto) so client-mint and
  * server-verify of the SSS blob use one source of truth. */
 uint32_t
-xrdc_sss_crc32(const uint8_t *p, size_t len)
+brix_sss_crc32(const uint8_t *p, size_t len)
 {
-    return xrootd_crc32_ieee(p, len);
+    return brix_crc32_ieee(p, len);
 }
 
 /* Forwards to the shared Blowfish-CFB64 kernel (libxrdproto), which owns the
  * OpenSSL-3 legacy-provider load — one source of truth with the server's SSS path. */
 int
-xrdc_sss_bf32_encrypt(const uint8_t *key, size_t key_len,
+brix_sss_bf32_encrypt(const uint8_t *key, size_t key_len,
                       const uint8_t *src, size_t src_len,
                       uint8_t *dst, size_t dst_max, size_t *out_len,
-                      xrdc_status *st)
+                      brix_status *st)
 {
     if (key_len == 0 || src_len == 0 || dst_max < src_len) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "sss bf32: bad lengths");
+        brix_status_set(st, XRDC_EUSAGE, 0, "sss bf32: bad lengths");
         return -1;
     }
-    if (xrootd_sss_bf_crypt(1, key, key_len, src, src_len,
+    if (brix_sss_bf_crypt(1, key, key_len, src, src_len,
                             dst, dst_max, out_len) != 0) {
-        xrdc_status_set(st, XRDC_EPROTO, 0,
+        brix_status_set(st, XRDC_EPROTO, 0,
                         "sss bf32: Blowfish encrypt failed (legacy provider?)");
         return -1;
     }
@@ -61,7 +61,7 @@ xrdc_sss_bf32_encrypt(const uint8_t *key, size_t key_len,
 /* keytab I/O                                                          */
 
 void
-xrdc_sss_keytab_default(char *out, size_t outsz)
+brix_sss_keytab_default(char *out, size_t outsz)
 {
     const char *env = getenv("XrdSecSSSKT");
     const char *home;
@@ -83,20 +83,20 @@ xrdc_sss_keytab_default(char *out, size_t outsz)
 
 /* The neutral kernel entry must hold any field this struct can — else the copy
  * below could truncate a valid key/name (a drift in either would be a real bug). */
-_Static_assert(sizeof(((xrdc_sss_key *) 0)->key)   == SSS_K_KEY_MAX,
+_Static_assert(sizeof(((brix_sss_key *) 0)->key)   == SSS_K_KEY_MAX,
                "SSS key buffer size drift vs shared kernel");
-_Static_assert(sizeof(((xrdc_sss_key *) 0)->user)  == SSS_K_USER_MAX,
+_Static_assert(sizeof(((brix_sss_key *) 0)->user)  == SSS_K_USER_MAX,
                "SSS user buffer size drift vs shared kernel");
-_Static_assert(sizeof(((xrdc_sss_key *) 0)->group) == SSS_K_GROUP_MAX,
+_Static_assert(sizeof(((brix_sss_key *) 0)->group) == SSS_K_GROUP_MAX,
                "SSS group buffer size drift vs shared kernel");
-_Static_assert(sizeof(((xrdc_sss_key *) 0)->name)  == SSS_K_NAME_MAX,
+_Static_assert(sizeof(((brix_sss_key *) 0)->name)  == SSS_K_NAME_MAX,
                "SSS name buffer size drift vs shared kernel");
 
 /* Parse one keytab line (mutated by strtok_r) via the shared grammar kernel.
  * Returns 1 if a key was filled, 0 for blank/comment/expired, -1 on a malformed
  * required field. */
 static int
-parse_line(char *line, xrdc_sss_key *k)
+parse_line(char *line, brix_sss_key *k)
 {
     sss_keytab_entry_t entry;
     int                rc;
@@ -118,8 +118,8 @@ parse_line(char *line, xrdc_sss_key *k)
 }
 
 int
-xrdc_sss_keytab_read(const char *path, xrdc_sss_key *keys, int max, int *n,
-                     xrdc_status *st)
+brix_sss_keytab_read(const char *path, brix_sss_key *keys, int max, int *n,
+                     brix_status *st)
 {
     struct stat sb;
     int         fd;
@@ -130,25 +130,25 @@ xrdc_sss_keytab_read(const char *path, xrdc_sss_key *keys, int max, int *n,
     *n = 0;
     fd = open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
     if (fd < 0) {
-        xrdc_status_set(st, XRDC_EAUTH, errno, "open keytab %s: %s",
+        brix_status_set(st, XRDC_EAUTH, errno, "open keytab %s: %s",
                         path, strerror(errno));
         return -1;
     }
     if (fstat(fd, &sb) != 0 || !S_ISREG(sb.st_mode)) {
         close(fd);
-        xrdc_status_set(st, XRDC_EAUTH, 0, "keytab %s is not a regular file", path);
+        brix_status_set(st, XRDC_EAUTH, 0, "keytab %s is not a regular file", path);
         return -1;
     }
     if (sss_keytab_mode_ok(path, sb.st_mode, 0) != 0) {
         close(fd);
-        xrdc_status_set(st, XRDC_EAUTH, 0,
+        brix_status_set(st, XRDC_EAUTH, 0,
                         "keytab %s must be mode 0600 (group/other bits set)", path);
         return -1;
     }
     fp = fdopen(fd, "r");
     if (fp == NULL) {
         close(fd);
-        xrdc_status_set(st, XRDC_EAUTH, errno, "fdopen keytab: %s", strerror(errno));
+        brix_status_set(st, XRDC_EAUTH, errno, "fdopen keytab: %s", strerror(errno));
         return -1;
     }
 
@@ -158,7 +158,7 @@ xrdc_sss_keytab_read(const char *path, xrdc_sss_key *keys, int max, int *n,
         rc = parse_line(line, &keys[count]);
         if (rc < 0) {
             fclose(fp);
-            xrdc_status_set(st, XRDC_EAUTH, 0,
+            brix_status_set(st, XRDC_EAUTH, 0,
                             "keytab %s: malformed key on line %d", path, lineno);
             return -1;
         }
@@ -172,8 +172,8 @@ xrdc_sss_keytab_read(const char *path, xrdc_sss_key *keys, int max, int *n,
 }
 
 int
-xrdc_sss_keytab_write(const char *path, const xrdc_sss_key *keys, int n,
-                      xrdc_status *st)
+brix_sss_keytab_write(const char *path, const brix_sss_key *keys, int n,
+                      brix_status *st)
 {
     int  fd, i;
     FILE *fp;
@@ -181,24 +181,24 @@ xrdc_sss_keytab_write(const char *path, const xrdc_sss_key *keys, int n,
 
     fd = open(path, O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW | O_CLOEXEC, 0600);
     if (fd < 0) {
-        xrdc_status_set(st, XRDC_EAUTH, errno, "create keytab %s: %s",
+        brix_status_set(st, XRDC_EAUTH, errno, "create keytab %s: %s",
                         path, strerror(errno));
         return -1;
     }
     /* Enforce 0600 even if the file pre-existed with looser bits. */
     if (fchmod(fd, 0600) != 0) {
         close(fd);
-        xrdc_status_set(st, XRDC_EAUTH, errno, "chmod keytab: %s", strerror(errno));
+        brix_status_set(st, XRDC_EAUTH, errno, "chmod keytab: %s", strerror(errno));
         return -1;
     }
     fp = fdopen(fd, "w");
     if (fp == NULL) {
         close(fd);
-        xrdc_status_set(st, XRDC_EAUTH, errno, "fdopen keytab: %s", strerror(errno));
+        brix_status_set(st, XRDC_EAUTH, errno, "fdopen keytab: %s", strerror(errno));
         return -1;
     }
     for (i = 0; i < n; i++) {
-        xrootd_hex_encode(keys[i].key, keys[i].key_len, hex);
+        brix_hex_encode(keys[i].key, keys[i].key_len, hex);
         fprintf(fp, "0 u:%s g:%s N:%lld k:%s n:%s",
                 keys[i].user, keys[i].group, (long long) keys[i].id, hex,
                 keys[i].name);
@@ -208,7 +208,7 @@ xrdc_sss_keytab_write(const char *path, const xrdc_sss_key *keys, int n,
         fputc('\n', fp);
     }
     if (fclose(fp) != 0) {
-        xrdc_status_set(st, XRDC_EAUTH, errno, "write keytab: %s", strerror(errno));
+        brix_status_set(st, XRDC_EAUTH, errno, "write keytab: %s", strerror(errno));
         return -1;
     }
     return 0;

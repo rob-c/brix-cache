@@ -7,7 +7,7 @@
 
 /* `xrd login [--oidc-account N] [--read] [-v]` — acquire/refresh a bearer token
  * (oidc-agent) and/or a GSI proxy (xrdgsiproxy), then show the resulting posture.
- * Pure composition of xrdc_cred_autorefresh (best-effort: skips what isn't
+ * Pure composition of brix_cred_autorefresh (best-effort: skips what isn't
  * configured). */
 int
 xrd_login(int argc, char **argv)
@@ -28,10 +28,10 @@ xrd_login(int argc, char **argv)
             return 50;
         }
     }
-    xrootd_crypto_init();
-    n = xrdc_cred_autorefresh(want_write, account, verbose, stderr);
+    brix_crypto_init();
+    n = brix_cred_autorefresh(want_write, account, verbose, stderr);
     printf("xrd login: %d credential(s) acquired/refreshed\n", n);
-    (void) xrdc_cred_diagnose(want_write, "  ", stdout);
+    (void) brix_cred_diagnose(want_write, "  ", stdout);
     return 0;
 }
 
@@ -46,10 +46,10 @@ xrd_ping(int argc, char **argv)
     const char *endpoint = NULL;
     int         count = 4, i, ok = 0;
     double      tmin = 1e30, tmax = 0.0, tsum = 0.0;
-    xrdc_url    u;
-    xrdc_opts   o;
-    xrdc_conn   c;
-    xrdc_status st;
+    brix_url    u;
+    brix_opts   o;
+    brix_conn   c;
+    brix_status st;
 
     for (i = 2; i < argc; i++) {
         if (strcmp(argv[i], "-c") == 0 && i + 1 < argc) { count = atoi(argv[++i]); }
@@ -61,25 +61,25 @@ xrd_ping(int argc, char **argv)
     }
     memset(&o, 0, sizeof(o));
     o.verify_host = 1;
-    xrootd_crypto_init();
-    xrdc_status_clear(&st);
-    if (xrdc_endpoint_parse(endpoint, &u, &st) != 0) {
+    brix_crypto_init();
+    brix_status_clear(&st);
+    if (brix_endpoint_parse(endpoint, &u, &st) != 0) {
         fprintf(stderr, "xrd ping: %s\n", st.msg);
         return 50;
     }
-    if (xrdc_connect(&c, &u, &o, &st) != 0) {
+    if (brix_connect(&c, &u, &o, &st) != 0) {
         fprintf(stderr, "xrd ping: connect %s:%d: %s\n", u.host, u.port, st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
     printf("PING %s:%d  (%d stat round-trips to /)\n", u.host, u.port, count);
     for (i = 0; i < count; i++) {
         struct timespec t0, t1;
-        xrdc_statinfo   si;
-        xrdc_status     pst;
+        brix_statinfo   si;
+        brix_status     pst;
         double          ms;
-        xrdc_status_clear(&pst);
+        brix_status_clear(&pst);
         clock_gettime(CLOCK_MONOTONIC, &t0);
-        if (xrdc_stat(&c, "/", &si, &pst) != 0) {
+        if (brix_stat(&c, "/", &si, &pst) != 0) {
             printf("  seq %d: FAILED (%s)\n", i + 1, pst.msg);
             continue;
         }
@@ -92,7 +92,7 @@ xrd_ping(int argc, char **argv)
         if (ms < tmin) { tmin = ms; }
         if (ms > tmax) { tmax = ms; }
     }
-    xrdc_close(&c);
+    brix_close(&c);
     if (ok == 0) {
         printf("%d probes, 0 successful\n", count);
         return 1;
@@ -130,35 +130,35 @@ int
 xrd_whoami(int argc, char **argv)
 {
     const char *endpoint = (argc >= 3 && argv[2][0] != '-') ? argv[2] : NULL;
-    xrdc_url    u;
-    xrdc_opts   o;
-    xrdc_conn   c;
-    xrdc_status st;
+    brix_url    u;
+    brix_opts   o;
+    brix_conn   c;
+    brix_status st;
     char       *tok;
     char        pxp[1024];
 
     if (endpoint == NULL) { fprintf(stderr, "usage: xrd whoami <endpoint>\n"); return 50; }
     memset(&o, 0, sizeof(o)); o.verify_host = 1;
-    xrootd_crypto_init();
-    xrdc_status_clear(&st);
-    if (xrdc_endpoint_parse(endpoint, &u, &st) != 0) {
+    brix_crypto_init();
+    brix_status_clear(&st);
+    if (brix_endpoint_parse(endpoint, &u, &st) != 0) {
         fprintf(stderr, "xrd whoami: %s\n", st.msg); return 50;
     }
-    if (xrdc_connect(&c, &u, &o, &st) != 0) {
+    if (brix_connect(&c, &u, &o, &st) != 0) {
         fprintf(stderr, "xrd whoami: connect %s:%d: %s\n", u.host, u.port, st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
     printf("endpoint:   %s:%d\n", u.host, u.port);
     printf("auth used:  %s\n", c.diag.chosen_auth != NULL ? c.diag.chosen_auth : "anonymous (no credential)");
     if (c.sec_list[0] != '\0') { printf("offered:    %s\n", c.sec_list); }
     printf("presenting:\n");
-    tok = xrdc_token_discover();
-    if (tok != NULL) { xrdc_token_explain(tok, stdout); free(tok); }
+    tok = brix_token_discover();
+    if (tok != NULL) { brix_token_explain(tok, stdout); free(tok); }
     else             { printf("  bearer token: none discovered\n"); }
-    xrdc_proxy_default_path(pxp, sizeof(pxp));
-    if (access(pxp, R_OK) == 0) { xrdc_gsi_cert_explain(pxp, stdout); }
+    brix_proxy_default_path(pxp, sizeof(pxp));
+    if (access(pxp, R_OK) == 0) { brix_gsi_cert_explain(pxp, stdout); }
     else                        { printf("  GSI proxy: none at %s\n", pxp); }
-    xrdc_close(&c);
+    brix_close(&c);
     return 0;
 }
 
@@ -168,10 +168,10 @@ int
 xrd_caps(int argc, char **argv)
 {
     const char *endpoint = (argc >= 3 && argv[2][0] != '-') ? argv[2] : NULL;
-    xrdc_url    u;
-    xrdc_opts   o;
-    xrdc_conn   c;
-    xrdc_status st;
+    brix_url    u;
+    brix_opts   o;
+    brix_conn   c;
+    brix_status st;
     xrd_probe   p;
     const char *ver = NULL, *cipher = NULL;
     int         i;
@@ -179,24 +179,24 @@ xrd_caps(int argc, char **argv)
     if (endpoint == NULL) { fprintf(stderr, "usage: xrd caps <endpoint>\n"); return 50; }
     memset(&o, 0, sizeof(o)); o.verify_host = 1;
     memset(&p, 0, sizeof(p));
-    xrootd_crypto_init();
-    xrdc_status_clear(&st);
-    if (xrdc_endpoint_parse(endpoint, &u, &st) != 0) {
+    brix_crypto_init();
+    brix_status_clear(&st);
+    if (brix_endpoint_parse(endpoint, &u, &st) != 0) {
         fprintf(stderr, "xrd caps: %s\n", st.msg); return 50;
     }
-    if (xrdc_connect(&c, &u, &o, &st) != 0) {
+    if (brix_connect(&c, &u, &o, &st) != 0) {
         fprintf(stderr, "xrd caps: connect %s:%d: %s\n", u.host, u.port, st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
     printf("server %s:%d  role=%s  tls=%s\n", u.host, u.port,
            xrd_role_str(c.server_flags),
-           xrdc_tls_info(&c, &ver, &cipher) ? (ver ? ver : "yes") : "cleartext");
+           brix_tls_info(&c, &ver, &cipher) ? (ver ? ver : "yes") : "cleartext");
     printf("capabilities (kXR_Qconfig; 0 = unset/unsupported):\n");
     xrd_probe_caps(&c, &p);
     for (i = 0; i < p.ncaps; i++) {
         printf("  %-12s %s\n", p.caps[i].key, p.caps[i].val);
     }
-    xrdc_close(&c);
+    brix_close(&c);
     return 0;
 }
 
@@ -369,7 +369,7 @@ xrd_mount(int argc, char **argv)
      * token) so `xrd mount lab:/data /mnt` works like the rest of xrd; the driver
      * itself doesn't expand aliases. A bare URL passes through verbatim. */
     if (i < argc && argv[i][0] != '-') {
-        xrdc_alias_resolve(argv[i], endpoint, sizeof(endpoint));
+        brix_alias_resolve(argv[i], endpoint, sizeof(endpoint));
         nv[k++] = endpoint;
         i++;
     }

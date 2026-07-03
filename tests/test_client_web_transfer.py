@@ -484,7 +484,7 @@ def test_s3_unsigned_put_rejected(web_servers, tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Task A5: xrdc_vfs S3 backend smoke tests
+# Task A5: brix_vfs S3 backend smoke tests
 # ---------------------------------------------------------------------------
 
 VFS_S3_SMOKE = os.path.join(CLIENT_DIR, "bin", "vfs_s3_smoke")
@@ -503,7 +503,7 @@ def _build_vfs_s3_smoke():
 
 
 def test_vfs_s3_backend_roundtrip(web_servers):
-    """A5: xrdc_vfs S3 backend — single-PUT + multipart write→read round-trip.
+    """A5: brix_vfs S3 backend — single-PUT + multipart write→read round-trip.
 
     Builds the vfs_s3_smoke C driver and runs it against the module's own S3
     endpoint (web_servers fixture).  S3_PART_MAX_OVERRIDE is set to 512 bytes

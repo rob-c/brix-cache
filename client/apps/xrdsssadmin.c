@@ -13,7 +13,7 @@
  *
  * Clean-room: keytab grammar matches src/auth/sss/config.c; no XrdSecsssAdmin code.
  */
-#include "xrdc.h"
+#include "brix.h"
 #include "sss_keytab.h"
 
 #include <stdio.h>
@@ -43,15 +43,15 @@ usage(void)
 
 /* Load the keytab, tolerating a not-yet-existing file (treated as empty). */
 static int
-load_or_empty(const char *path, xrdc_sss_key *keys, int max, int *n)
+load_or_empty(const char *path, brix_sss_key *keys, int max, int *n)
 {
-    xrdc_status st;
+    brix_status st;
     if (access(path, F_OK) != 0) {
         *n = 0;
         return 0;
     }
-    xrdc_status_clear(&st);
-    if (xrdc_sss_keytab_read(path, keys, max, n, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_sss_keytab_read(path, keys, max, n, &st) != 0) {
         fprintf(stderr, "xrdsssadmin: %s\n", st.msg);
         return -1;
     }
@@ -62,9 +62,9 @@ static int
 cmd_add(const char *path, const char *user, const char *group, const char *name,
         int64_t want_id, int lifetime_days, int keylen)
 {
-    xrdc_sss_key keys[XRDC_SSS_KEYS_MAX];
-    xrdc_sss_key chk[XRDC_SSS_KEYS_MAX];
-    xrdc_status  st;
+    brix_sss_key keys[XRDC_SSS_KEYS_MAX];
+    brix_sss_key chk[XRDC_SSS_KEYS_MAX];
+    brix_status  st;
     int          n = 0, i, m = 0;
     int64_t      maxid = 0;
     char         hostname[128];
@@ -86,7 +86,7 @@ cmd_add(const char *path, const char *user, const char *group, const char *name,
     }
 
     {
-        xrdc_sss_key *k = &keys[n];
+        brix_sss_key *k = &keys[n];
         memset(k, 0, sizeof(*k));
         k->id = (want_id >= 0) ? want_id : maxid + 1;
         k->key_len = (size_t) keylen;
@@ -110,14 +110,14 @@ cmd_add(const char *path, const char *user, const char *group, const char *name,
         n++;
     }
 
-    xrdc_status_clear(&st);
-    if (xrdc_sss_keytab_write(path, keys, n, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_sss_keytab_write(path, keys, n, &st) != 0) {
         fprintf(stderr, "xrdsssadmin: %s\n", st.msg);
         return 1;
     }
     /* Self-validate: re-read and confirm the new id is present. */
-    xrdc_status_clear(&st);
-    if (xrdc_sss_keytab_read(path, chk, XRDC_SSS_KEYS_MAX, &m, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_sss_keytab_read(path, chk, XRDC_SSS_KEYS_MAX, &m, &st) != 0) {
         fprintf(stderr, "xrdsssadmin: re-read failed: %s\n", st.msg);
         return 1;
     }
@@ -129,12 +129,12 @@ cmd_add(const char *path, const char *user, const char *group, const char *name,
 static int
 cmd_list(const char *path)
 {
-    xrdc_sss_key keys[XRDC_SSS_KEYS_MAX];
-    xrdc_status  st;
+    brix_sss_key keys[XRDC_SSS_KEYS_MAX];
+    brix_status  st;
     int          n = 0, i;
 
-    xrdc_status_clear(&st);
-    if (xrdc_sss_keytab_read(path, keys, XRDC_SSS_KEYS_MAX, &n, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_sss_keytab_read(path, keys, XRDC_SSS_KEYS_MAX, &n, &st) != 0) {
         fprintf(stderr, "xrdsssadmin: %s\n", st.msg);
         return 1;
     }
@@ -154,16 +154,16 @@ cmd_list(const char *path)
 static int
 cmd_del(const char *path, int64_t id)
 {
-    xrdc_sss_key keys[XRDC_SSS_KEYS_MAX];
-    xrdc_status  st;
+    brix_sss_key keys[XRDC_SSS_KEYS_MAX];
+    brix_status  st;
     int          n = 0, i, out = 0, removed = 0;
 
     if (id < 0) {
         fprintf(stderr, "xrdsssadmin: del requires --id N\n");
         return 1;
     }
-    xrdc_status_clear(&st);
-    if (xrdc_sss_keytab_read(path, keys, XRDC_SSS_KEYS_MAX, &n, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_sss_keytab_read(path, keys, XRDC_SSS_KEYS_MAX, &n, &st) != 0) {
         fprintf(stderr, "xrdsssadmin: %s\n", st.msg);
         return 1;
     }
@@ -181,8 +181,8 @@ cmd_del(const char *path, int64_t id)
         fprintf(stderr, "xrdsssadmin: no key with id=%lld\n", (long long) id);
         return 1;
     }
-    xrdc_status_clear(&st);
-    if (xrdc_sss_keytab_write(path, keys, out, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_sss_keytab_write(path, keys, out, &st) != 0) {
         fprintf(stderr, "xrdsssadmin: %s\n", st.msg);
         return 1;
     }
@@ -221,7 +221,7 @@ main(int argc, char **argv)
         return 2;
     }
     if (keytab == NULL) {
-        xrdc_sss_keytab_default(kt, sizeof(kt));
+        brix_sss_keytab_default(kt, sizeof(kt));
         keytab = kt;
     }
 

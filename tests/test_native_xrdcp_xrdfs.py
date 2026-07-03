@@ -289,7 +289,7 @@ def test_bad_url_scheme_rejected(native_xrdfs):
     assert rc == 50, f"expected usage error 50, got {rc}: {err}"
 
 
-def test_no_libxrdcl_dependency(native_xrdfs):
+def test_no_libbrixl_dependency(native_xrdfs):
     """The whole point of phase-37: zero libXrdCl/libXrdSec* linkage."""
     out = subprocess.run(["ldd", native_xrdfs], capture_output=True, text=True).stdout
     bad = [ln for ln in out.splitlines() if re.search(r"XrdCl|XrdSec|libXrd", ln)]

@@ -2,11 +2,11 @@
  * units.c — byte-count formatting/parsing + transfer rate pacing shared by the
  * front-end tools (xrdfs dd/upload/download, and any future throttled transfer).
  *
- * xrdc_fmt_size  : render a byte count (raw, or human "1.5G").
- * xrdc_parse_bytes: parse "4096" / "1.5G" (K/M/G/T) → bytes, or -1 if malformed.
- * xrdc_rate_pace : token-bucket sleep so an average stays at/below a byte/s rate.
+ * brix_fmt_size  : render a byte count (raw, or human "1.5G").
+ * brix_parse_bytes: parse "4096" / "1.5G" (K/M/G/T) → bytes, or -1 if malformed.
+ * brix_rate_pace : token-bucket sleep so an average stays at/below a byte/s rate.
  */
-#include "xrdc.h"
+#include "brix.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -14,7 +14,7 @@
 #include <time.h>
 
 void
-xrdc_fmt_size(int64_t n, char *out, size_t sz, int human)
+brix_fmt_size(int64_t n, char *out, size_t sz, int human)
 {
     if (!human) {
         snprintf(out, sz, "%lld", (long long) n);
@@ -31,7 +31,7 @@ xrdc_fmt_size(int64_t n, char *out, size_t sz, int human)
 }
 
 int64_t
-xrdc_parse_bytes(const char *s)
+brix_parse_bytes(const char *s)
 {
     char   *end;
     double  v;
@@ -55,7 +55,7 @@ xrdc_parse_bytes(const char *s)
 }
 
 void
-xrdc_rate_pace(const struct timespec *start, int64_t sent, double rate)
+brix_rate_pace(const struct timespec *start, int64_t sent, double rate)
 {
     struct timespec now, ts;
     double          elapsed, target, deficit;

@@ -2,10 +2,10 @@
  * aio_mgr.c — connection manager + transparent file-handle resumption (M3).
  *
  * WHAT: Two layers on top of the async loop (aio.c):
- *        - xrdc_mgr: the loop plus a small pool of attached connections. Metadata
+ *        - brix_mgr: the loop plus a small pool of attached connections. Metadata
  *          requests round-robin across them; idempotent ones survive a reconnect
  *          transparently (retry_safe at the transport layer, M2).
- *        - xrdc_mfile: an open file that survives a connection drop. Because an
+ *        - brix_mfile: an open file that survives a connection drop. Because an
  *          XRootD file handle is valid only on the session that opened it, a
  *          reconnect invalidates it; so on a transport failure or a stale-handle
  *          error this layer REOPENS the file (fresh handle, NON-destructively — no
@@ -16,7 +16,7 @@
  * WHY:   M2 makes the transport reconnect; M3 makes *open files* recover, which is
  *        what "survives a server bounce mid-transfer" actually requires.
  * HOW:   mfile is a blocking façade over the async loop: each pread/pwrite is one
- *        xrdc_aio_call, and the (many) FUSE worker threads calling concurrently
+ *        brix_aio_call, and the (many) FUSE worker threads calling concurrently
  *        pipeline over the shared connection. A per-file mutex + generation counter
  *        serialises reopen so concurrent callers reopen at most once and then reuse
  *        the fresh handle.
@@ -25,7 +25,7 @@
  * + the async loop. No XrdCl.
  */
 #include "aio.h"
-#include "xrdc.h"
+#include "brix.h"
 #include "protocols/root/protocol/protocol.h"
 #include "core/compat/codec_core.h"   /* phase-42 W4 inline read decompression */
 
@@ -38,31 +38,31 @@
 #include <endian.h>
 
 /* mgr */
-struct xrdc_mgr {
-    xrdc_loop   *loop;
+struct brix_mgr {
+    brix_loop   *loop;
     int          n;        /* total stream slots */
-    xrdc_conn   *conns;    /* array[n], owned */
-    xrdc_aconn **acs;      /* array[n]; acs[i]==NULL ⇒ slot i not yet connected */
+    brix_conn   *conns;    /* array[n], owned */
+    brix_aconn **acs;      /* array[n]; acs[i]==NULL ⇒ slot i not yet connected */
     int          rr;       /* round-robin cursor */
     int          max_stall_ms;
     int          keepalive_ms;
     int          max_retries;
     /* Retained so lazily-opened streams (eager < n) can connect on first use. */
-    xrdc_url        url;
-    xrdc_opts       opts;
+    brix_url        url;
+    brix_opts       opts;
     int             have_opts;   /* opts captured (vs caller passed NULL) */
     pthread_mutex_t lazy_lock;   /* serialises first-use connect of a lazy slot */
 };
 
-/* One parallel-connect job: a worker thread runs xrdc_connect on its own slot so
+/* One parallel-connect job: a worker thread runs brix_connect on its own slot so
  * the eager streams' connect+TLS+login+auth round-trips overlap (mount-time wall
  * collapses from eager×RTT to ~1×RTT). Threads are joined before mgr_create
  * returns, so they never cross a later fuse daemonize fork. */
 typedef struct {
-    const xrdc_url  *u;
-    const xrdc_opts *o;
-    xrdc_conn       *conn;   /* slot to fill */
-    xrdc_status      st;     /* per-thread status (no shared writes) */
+    const brix_url  *u;
+    const brix_opts *o;
+    brix_conn       *conn;   /* slot to fill */
+    brix_status      st;     /* per-thread status (no shared writes) */
     int              rc;     /* 0 ok, -1 fail */
 } mgr_connect_job;
 
@@ -70,7 +70,7 @@ static void *
 mgr_connect_worker(void *arg)
 {
     mgr_connect_job *j = (mgr_connect_job *) arg;
-    j->rc = xrdc_connect(j->conn, j->u, j->o, &j->st);
+    j->rc = brix_connect(j->conn, j->u, j->o, &j->st);
     return NULL;
 }
 
@@ -100,15 +100,15 @@ mgr_connect_parallel(mgr_connect_job *jobs, int count)
 
 /* Tear down a partially-built manager (used on any create-time failure). */
 static void
-mgr_free(xrdc_mgr *m)
+mgr_free(brix_mgr *m)
 {
     int i;
     for (i = 0; i < m->n; i++) {
-        if (m->acs[i] != NULL) { xrdc_aconn_close(m->acs[i]); }
+        if (m->acs[i] != NULL) { brix_aconn_close(m->acs[i]); }
     }
-    if (m->loop != NULL) { xrdc_loop_destroy(m->loop); }
+    if (m->loop != NULL) { brix_loop_destroy(m->loop); }
     for (i = 0; i < m->n; i++) {
-        if (m->acs[i] != NULL) { xrdc_close(&m->conns[i]); }
+        if (m->acs[i] != NULL) { brix_close(&m->conns[i]); }
     }
     pthread_mutex_destroy(&m->lazy_lock);
     free(m->conns);
@@ -116,10 +116,10 @@ mgr_free(xrdc_mgr *m)
     free(m);
 }
 
-xrdc_mgr *
-xrdc_mgr_create(const xrdc_url *u, const xrdc_opts *o, int nconns, int eager,
+brix_mgr *
+brix_mgr_create(const brix_url *u, const brix_opts *o, int nconns, int eager,
                 int max_stall_ms, int keepalive_ms, int max_retries,
-                xrdc_status *st)
+                brix_status *st)
 {
     mgr_connect_job *jobs;
     int              i;
@@ -132,18 +132,18 @@ xrdc_mgr_create(const xrdc_url *u, const xrdc_opts *o, int nconns, int eager,
     if (eager < 1)      { eager = 1; }
     if (eager > nconns) { eager = nconns; }
 
-    xrdc_mgr *m = (xrdc_mgr *) calloc(1, sizeof(*m));
+    brix_mgr *m = (brix_mgr *) calloc(1, sizeof(*m));
     if (m == NULL) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "out of memory (mgr)");
+        brix_status_set(st, XRDC_EPROTO, 0, "out of memory (mgr)");
         return NULL;
     }
-    m->conns = (xrdc_conn *) calloc((size_t) nconns, sizeof(*m->conns));
-    m->acs   = (xrdc_aconn **) calloc((size_t) nconns, sizeof(*m->acs));
+    m->conns = (brix_conn *) calloc((size_t) nconns, sizeof(*m->conns));
+    m->acs   = (brix_aconn **) calloc((size_t) nconns, sizeof(*m->acs));
     if (m->conns == NULL || m->acs == NULL) {
         free(m->conns);
         free(m->acs);
         free(m);
-        xrdc_status_set(st, XRDC_EPROTO, 0, "out of memory (mgr arrays)");
+        brix_status_set(st, XRDC_EPROTO, 0, "out of memory (mgr arrays)");
         return NULL;
     }
     m->n            = nconns;
@@ -154,7 +154,7 @@ xrdc_mgr_create(const xrdc_url *u, const xrdc_opts *o, int nconns, int eager,
     if (o != NULL) { m->opts = *o; m->have_opts = 1; }
     pthread_mutex_init(&m->lazy_lock, NULL);
 
-    m->loop = xrdc_loop_create(st);
+    m->loop = brix_loop_create(st);
     if (m->loop == NULL) {
         mgr_free(m);
         return NULL;
@@ -164,7 +164,7 @@ xrdc_mgr_create(const xrdc_url *u, const xrdc_opts *o, int nconns, int eager,
      * serially (attach touches the shared loop and is not the slow part). */
     jobs = (mgr_connect_job *) calloc((size_t) eager, sizeof(*jobs));
     if (jobs == NULL) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "out of memory (mgr jobs)");
+        brix_status_set(st, XRDC_EPROTO, 0, "out of memory (mgr jobs)");
         mgr_free(m);
         return NULL;
     }
@@ -178,7 +178,7 @@ xrdc_mgr_create(const xrdc_url *u, const xrdc_opts *o, int nconns, int eager,
         if (jobs[i].rc != 0) {
             *st = jobs[i].st;                 /* surface the first real failure */
             for (int k = 0; k < eager; k++) { /* close any that DID connect */
-                if (k != i && jobs[k].rc == 0) { xrdc_close(&m->conns[k]); }
+                if (k != i && jobs[k].rc == 0) { brix_close(&m->conns[k]); }
             }
             free(jobs);
             mgr_free(m);                       /* acs all NULL ⇒ frees loop+arrays */
@@ -188,21 +188,21 @@ xrdc_mgr_create(const xrdc_url *u, const xrdc_opts *o, int nconns, int eager,
     free(jobs);
 
     for (i = 0; i < eager; i++) {
-        m->acs[i] = xrdc_aconn_attach(m->loop, &m->conns[i], st);
+        m->acs[i] = brix_aconn_attach(m->loop, &m->conns[i], st);
         if (m->acs[i] == NULL) {
-            xrdc_close(&m->conns[i]);          /* this one attached failed */
-            for (int k = i + 1; k < eager; k++) { xrdc_close(&m->conns[k]); }
+            brix_close(&m->conns[i]);          /* this one attached failed */
+            for (int k = i + 1; k < eager; k++) { brix_close(&m->conns[k]); }
             mgr_free(m);
             return NULL;
         }
-        xrdc_aconn_set_resilience(m->acs[i], max_stall_ms, keepalive_ms,
+        brix_aconn_set_resilience(m->acs[i], max_stall_ms, keepalive_ms,
                                   max_retries);
     }
     return m;
 }
 
 void
-xrdc_mgr_destroy(xrdc_mgr *m)
+brix_mgr_destroy(brix_mgr *m)
 {
     if (m == NULL) {
         return;
@@ -214,11 +214,11 @@ xrdc_mgr_destroy(xrdc_mgr *m)
  * resilience under lazy_lock (double-checked so concurrent pickers connect it
  * at most once). On failure the slot stays NULL and the caller falls back to an
  * already-live stream — eager ≥ 1 guarantees one exists. */
-static xrdc_aconn *
-mgr_ensure_slot(xrdc_mgr *m, int i)
+static brix_aconn *
+mgr_ensure_slot(brix_mgr *m, int i)
 {
-    xrdc_aconn *ac = __atomic_load_n(&m->acs[i], __ATOMIC_ACQUIRE);
-    xrdc_status st;
+    brix_aconn *ac = __atomic_load_n(&m->acs[i], __ATOMIC_ACQUIRE);
+    brix_status st;
 
     if (ac != NULL) {
         return ac;
@@ -226,15 +226,15 @@ mgr_ensure_slot(xrdc_mgr *m, int i)
     pthread_mutex_lock(&m->lazy_lock);
     ac = m->acs[i];                            /* re-check under the lock */
     if (ac == NULL) {
-        if (xrdc_connect(&m->conns[i], &m->url,
+        if (brix_connect(&m->conns[i], &m->url,
                          m->have_opts ? &m->opts : NULL, &st) == 0) {
-            ac = xrdc_aconn_attach(m->loop, &m->conns[i], &st);
+            ac = brix_aconn_attach(m->loop, &m->conns[i], &st);
             if (ac != NULL) {
-                xrdc_aconn_set_resilience(ac, m->max_stall_ms, m->keepalive_ms,
+                brix_aconn_set_resilience(ac, m->max_stall_ms, m->keepalive_ms,
                                           m->max_retries);
                 __atomic_store_n(&m->acs[i], ac, __ATOMIC_RELEASE);
             } else {
-                xrdc_close(&m->conns[i]);
+                brix_close(&m->conns[i]);
             }
         }
     }
@@ -242,11 +242,11 @@ mgr_ensure_slot(xrdc_mgr *m, int i)
     return ac;
 }
 
-xrdc_aconn *
-xrdc_mgr_pick(xrdc_mgr *m)
+brix_aconn *
+brix_mgr_pick(brix_mgr *m)
 {
     int         i = __atomic_fetch_add(&m->rr, 1, __ATOMIC_RELAXED);
-    xrdc_aconn *ac;
+    brix_aconn *ac;
     int         k;
 
     if (i < 0) {
@@ -270,18 +270,18 @@ xrdc_mgr_pick(xrdc_mgr *m)
 }
 
 int
-xrdc_mgr_call(xrdc_mgr *m, const void *hdr24, const void *payload,
+brix_mgr_call(brix_mgr *m, const void *hdr24, const void *payload,
               uint32_t plen, int retry_safe, uint16_t *kxr,
-              uint8_t **body, uint32_t *blen, xrdc_status *st)
+              uint8_t **body, uint32_t *blen, brix_status *st)
 {
-    xrdc_aconn   *ac = xrdc_mgr_pick(m);
-    xrdc_aio_opts o  = { 0 /*adaptive*/, m->max_retries, retry_safe };
-    return xrdc_aio_call_ex(ac, hdr24, payload, plen, &o, kxr, body, blen, st);
+    brix_aconn   *ac = brix_mgr_pick(m);
+    brix_aio_opts o  = { 0 /*adaptive*/, m->max_retries, retry_safe };
+    return brix_aio_call_ex(ac, hdr24, payload, plen, &o, kxr, body, blen, st);
 }
 
 /* mfile */
-struct xrdc_mfile {
-    xrdc_aconn     *ac;
+struct brix_mfile {
+    brix_aconn     *ac;
     char            path[XRDC_PATH_MAX];
     char            opaque[256];
     int             have_opaque;
@@ -299,7 +299,7 @@ struct xrdc_mfile {
      * that declines simply yields 0 and reads stay plaintext. */
     uint8_t         read_codec;
     /* phase-42 W5: inline write-compression codec (write opens only); each
-     * xrdc_mfile_pwrite compresses its payload as a self-contained frame the
+     * brix_mfile_pwrite compresses its payload as a self-contained frame the
      * server decompresses on ingest.  Re-learned on every (re)open. */
     uint8_t         write_codec;
 };
@@ -307,13 +307,13 @@ struct xrdc_mfile {
 static uint64_t
 now_ns(void)
 {
-    return xrdc_mono_ns();
+    return brix_mono_ns();
 }
 
-/* Build + send a kXR_open with the given force tri-state (see xrdc_file_open_opaque).
+/* Build + send a kXR_open with the given force tri-state (see brix_file_open_opaque).
  * On success copies the fresh handle into mf->fhandle. Caller holds no lock. */
 static int
-mfile_do_open(xrdc_mfile *mf, int force, xrdc_status *st)
+mfile_do_open(brix_mfile *mf, int force, brix_status *st)
 {
     ClientOpenRequest req;
     uint16_t          options;
@@ -341,7 +341,7 @@ mfile_do_open(xrdc_mfile *mf, int force, xrdc_status *st)
     need = strlen(mf->path) + 1 + (mf->have_opaque ? strlen(mf->opaque) + 1 : 0);
     payload = (char *) malloc(need);
     if (payload == NULL) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "out of memory (open payload)");
+        brix_status_set(st, XRDC_EPROTO, 0, "out of memory (open payload)");
         return -1;
     }
     plen = mf->have_opaque
@@ -356,15 +356,15 @@ mfile_do_open(xrdc_mfile *mf, int force, xrdc_status *st)
         xrdw_open_req_pack(&b, ((ClientRequestHdr *) &req)->body);
     }
 
-    xrdc_aio_opts o = { mf->max_stall_ms, mf->max_retries, 1 /*open is idempotent*/ };
-    int rc = xrdc_aio_call_ex(mf->ac, &req, payload, (uint32_t) plen, &o,
+    brix_aio_opts o = { mf->max_stall_ms, mf->max_retries, 1 /*open is idempotent*/ };
+    int rc = brix_aio_call_ex(mf->ac, &req, payload, (uint32_t) plen, &o,
                               &kxr, &body, &blen, st);
     free(payload);
     if (rc != 0) {
         return -1;
     }
     if (blen < XRD_FHANDLE_LEN) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "open reply too short (%u bytes)", blen);
+        brix_status_set(st, XRDC_EPROTO, 0, "open reply too short (%u bytes)", blen);
         free(body);
         return -1;
     }
@@ -373,7 +373,7 @@ mfile_do_open(xrdc_mfile *mf, int force, xrdc_status *st)
     /* phase-42 W4/W5: learn the inline-compression codec from the open reply
      * (ServerOpenBody = fhandle[4] cpsize[4] cptype[4]).  Per the dual-check
      * contract (codec_core.h) adopt cptype[0] ONLY when cpsize == the big-endian
-     * XROOTD_INLINE_CMP_MAGIC: cptype is a legacy field a non-cooperating server
+     * BRIX_INLINE_CMP_MAGIC: cptype is a legacy field a non-cooperating server
      * may reuse, and trusting it alone would inflate plaintext and corrupt data.
      * Read opens inflate responses (W4); write opens compress payloads (W5).
      * Stock servers leave cpsize 0 → plaintext.  Re-learned on every (re)open, so
@@ -384,12 +384,12 @@ mfile_do_open(xrdc_mfile *mf, int force, xrdc_status *st)
         uint32_t cpsize = ((uint32_t) body[4] << 24) | ((uint32_t) body[5] << 16)
                         | ((uint32_t) body[6] << 8)  |  (uint32_t) body[7];
         uint8_t  cid    = body[8];   /* cptype[0] */
-        if (cpsize == XROOTD_INLINE_CMP_MAGIC && cid >= 1 && cid < XROOTD_CODEC_MAX) {
+        if (cpsize == BRIX_INLINE_CMP_MAGIC && cid >= 1 && cid < BRIX_CODEC_MAX) {
             /* Server confirmed codec `cid`; if this build cannot handle it, fail
              * the open rather than silently copying compressed bytes as plaintext
              * (asymmetric-build corruption). */
-            if (!xrootd_codec_available(cid)) {
-                xrdc_status_set(st, XRDC_EUNSUPPORTED, 0,
+            if (!brix_codec_available(cid)) {
+                brix_status_set(st, XRDC_EUNSUPPORTED, 0,
                     "server negotiated inline-compression codec %u that this "
                     "client build cannot decode", (unsigned) cid);
                 free(body);
@@ -407,14 +407,14 @@ mfile_do_open(xrdc_mfile *mf, int force, xrdc_status *st)
     return 0;
 }
 
-xrdc_mfile *
-xrdc_mfile_open(xrdc_aconn *ac, const char *path, int writable, int force,
+brix_mfile *
+brix_mfile_open(brix_aconn *ac, const char *path, int writable, int force,
                 int posc, const char *opaque, int max_stall_ms, int max_retries,
-                xrdc_status *st)
+                brix_status *st)
 {
-    xrdc_mfile *mf = (xrdc_mfile *) calloc(1, sizeof(*mf));
+    brix_mfile *mf = (brix_mfile *) calloc(1, sizeof(*mf));
     if (mf == NULL) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "out of memory (mfile)");
+        brix_status_set(st, XRDC_EPROTO, 0, "out of memory (mfile)");
         return NULL;
     }
     mf->ac = ac;
@@ -442,15 +442,15 @@ xrdc_mfile_open(xrdc_aconn *ac, const char *path, int writable, int force,
 /* A failure that a reopen + retry might fix: a transient transport fault, or a
  * stale handle after the session was re-established. */
 static int
-mfile_should_reopen(const xrdc_status *st)
+mfile_should_reopen(const brix_status *st)
 {
-    return xrdc_status_retryable(st) || st->kxr == kXR_FileNotOpen;
+    return brix_status_retryable(st) || st->kxr == kXR_FileNotOpen;
 }
 
 /* Reopen the file NON-destructively if no one else already did (generation match).
  * Returns 0 if the file is open (by us or a racing caller), -1 on failure. */
 static int
-mfile_reopen(xrdc_mfile *mf, uint64_t expected_gen, xrdc_status *st)
+mfile_reopen(brix_mfile *mf, uint64_t expected_gen, brix_status *st)
 {
     pthread_mutex_lock(&mf->lock);
     if (mf->gen != expected_gen && mf->have_handle) {
@@ -470,7 +470,7 @@ mfile_reopen(xrdc_mfile *mf, uint64_t expected_gen, xrdc_status *st)
 /* Snapshot the current handle + generation (+ optional read/write codecs) under
  * the lock.  rcodec/wcodec may be NULL for callers that don't need them. */
 static int
-mfile_snapshot(xrdc_mfile *mf, uint8_t fh[XRD_FHANDLE_LEN], uint64_t *gen,
+mfile_snapshot(brix_mfile *mf, uint8_t fh[XRD_FHANDLE_LEN], uint64_t *gen,
                uint8_t *rcodec, uint8_t *wcodec)
 {
     pthread_mutex_lock(&mf->lock);
@@ -490,8 +490,8 @@ mfile_snapshot(xrdc_mfile *mf, uint8_t fh[XRD_FHANDLE_LEN], uint64_t *gen,
 }
 
 ssize_t
-xrdc_mfile_pread(xrdc_mfile *mf, int64_t off, void *buf, size_t len,
-                 xrdc_status *st)
+brix_mfile_pread(brix_mfile *mf, int64_t off, void *buf, size_t len,
+                 brix_status *st)
 {
     /* Retry transport faults until the max_stall patience window elapses, with
      * exponential backoff between attempts — NOT a fixed small count. Under
@@ -510,7 +510,7 @@ xrdc_mfile_pread(xrdc_mfile *mf, int64_t off, void *buf, size_t len,
                 if (now_ns() >= deadline) {
                     return -1;
                 }
-                xrdc_backoff_sleep_fast(attempt++);
+                brix_backoff_sleep_fast(attempt++);
             }
             continue;
         }
@@ -527,14 +527,14 @@ xrdc_mfile_pread(xrdc_mfile *mf, int64_t off, void *buf, size_t len,
         uint16_t kxr = 0;
         uint8_t *body = NULL;
         uint32_t blen = 0;
-        xrdc_aio_opts o = { mf->max_stall_ms, 0, 0 /*we own reopen/retry*/ };
-        if (xrdc_aio_call_ex(mf->ac, &req, NULL, 0, &o, &kxr, &body, &blen, st) == 0) {
+        brix_aio_opts o = { mf->max_stall_ms, 0, 0 /*we own reopen/retry*/ };
+        if (brix_aio_call_ex(mf->ac, &req, NULL, 0, &o, &kxr, &body, &blen, st) == 0) {
             /* phase-42 W4: a compressed handle returns one self-contained codec
              * frame per request (aio_call_ex has already accumulated all
              * oksofar frames into `body`); inflate it into the caller's buffer.
              * A corrupt frame is not a transport fault — do not reopen/retry. */
             if (codec != 0) {
-                ssize_t pl = xrdc_inflate_frame(codec, body, blen, buf, len, st);
+                ssize_t pl = brix_inflate_frame(codec, body, blen, buf, len, st);
                 free(body);
                 return pl;
             }
@@ -548,16 +548,16 @@ xrdc_mfile_pread(xrdc_mfile *mf, int64_t off, void *buf, size_t len,
         if (!mfile_should_reopen(st) || now_ns() >= deadline) {
             return -1;
         }
-        xrdc_backoff_sleep_fast(attempt++);          /* don't tight-spin under loss */
+        brix_backoff_sleep_fast(attempt++);          /* don't tight-spin under loss */
         (void) mfile_reopen(mf, gen, st);       /* refresh handle, then retry */
     }
 }
 
 int
-xrdc_mfile_pwrite(xrdc_mfile *mf, int64_t off, const void *buf, size_t len,
-                  xrdc_status *st)
+brix_mfile_pwrite(brix_mfile *mf, int64_t off, const void *buf, size_t len,
+                  brix_status *st)
 {
-    /* Deadline-bounded retry with backoff (see xrdc_mfile_pread). */
+    /* Deadline-bounded retry with backoff (see brix_mfile_pread). */
     uint64_t deadline = now_ns() + (uint64_t) mf->max_stall_ms * 1000000ULL;
     unsigned attempt = 0;
 
@@ -570,7 +570,7 @@ xrdc_mfile_pwrite(xrdc_mfile *mf, int64_t off, const void *buf, size_t len,
                 if (now_ns() >= deadline) {
                     return -1;
                 }
-                xrdc_backoff_sleep_fast(attempt++);
+                brix_backoff_sleep_fast(attempt++);
             }
             continue;
         }
@@ -583,7 +583,7 @@ xrdc_mfile_pwrite(xrdc_mfile *mf, int64_t off, const void *buf, size_t len,
         uint8_t    *frame   = NULL;
         if (wcodec != 0 && len > 0) {
             size_t flen = 0;
-            frame = xrdc_deflate_frame(wcodec, buf, len, &flen, st);
+            frame = brix_deflate_frame(wcodec, buf, len, &flen, st);
             if (frame == NULL) {
                 return -1;   /* compress failure is not a transport fault */
             }
@@ -601,8 +601,8 @@ xrdc_mfile_pwrite(xrdc_mfile *mf, int64_t off, const void *buf, size_t len,
         }
 
         uint16_t kxr = 0;
-        xrdc_aio_opts o = { mf->max_stall_ms, 0, 0 };
-        int rc = xrdc_aio_call_ex(mf->ac, &req, payload, (uint32_t) plen, &o,
+        brix_aio_opts o = { mf->max_stall_ms, 0, 0 };
+        int rc = brix_aio_call_ex(mf->ac, &req, payload, (uint32_t) plen, &o,
                                   &kxr, NULL, NULL, st);
         free(frame);
         if (rc == 0) {
@@ -611,13 +611,13 @@ xrdc_mfile_pwrite(xrdc_mfile *mf, int64_t off, const void *buf, size_t len,
         if (!mfile_should_reopen(st) || now_ns() >= deadline) {
             return -1;
         }
-        xrdc_backoff_sleep_fast(attempt++);
+        brix_backoff_sleep_fast(attempt++);
         (void) mfile_reopen(mf, gen, st);
     }
 }
 
 int
-xrdc_mfile_sync(xrdc_mfile *mf, xrdc_status *st)
+brix_mfile_sync(brix_mfile *mf, brix_status *st)
 {
     uint8_t  fh[XRD_FHANDLE_LEN] = { 0 };
     uint64_t gen;
@@ -638,12 +638,12 @@ xrdc_mfile_sync(xrdc_mfile *mf, xrdc_status *st)
     uint16_t kxr = 0;
     /* A sync after a reopen is meaningless (fresh handle), but re-issuing is
      * harmless; do not loop — a failed sync is reported, not retried forever. */
-    return xrdc_aio_call(mf->ac, &req, NULL, 0, &kxr, NULL, NULL,
+    return brix_aio_call(mf->ac, &req, NULL, 0, &kxr, NULL, NULL,
                          mf->max_stall_ms, st);
 }
 
 int
-xrdc_mfile_close(xrdc_mfile *mf, xrdc_status *st)
+brix_mfile_close(brix_mfile *mf, brix_status *st)
 {
     int rc = 0;
     if (mf->have_handle) {
@@ -658,7 +658,7 @@ xrdc_mfile_close(xrdc_mfile *mf, xrdc_status *st)
         uint16_t kxr = 0;
         /* Best-effort: if the conn is down the server reaps the handle on
          * disconnect anyway, so a close failure is not fatal. */
-        rc = xrdc_aio_call(mf->ac, &req, NULL, 0, &kxr, NULL, NULL, 5000, st);
+        rc = brix_aio_call(mf->ac, &req, NULL, 0, &kxr, NULL, NULL, 5000, st);
     }
     pthread_mutex_destroy(&mf->lock);
     free(mf);

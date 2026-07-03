@@ -8,13 +8,13 @@
  * WHY:  The stock mpxstats relays the xrootd summary-stats stream; this is the
  *       parse-only, libXrdCl-free equivalent over the observability plane this
  *       project already exposes — handy for a one-screen server health glance.
- * HOW:  Reuse xrdc_http_get (the same cleartext pull `xrddiag status` uses) or
+ * HOW:  Reuse brix_http_get (the same cleartext pull `xrddiag status` uses) or
  *       read stdin; parse "name{labels} value" lines (skip # comments), fold by
  *       base metric name into a small table, print it sorted-as-seen.
  *
  * Clean-room: parse-only; no protocol core, no XrdCl.
  */
-#include "xrdc.h"
+#include "brix.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -150,7 +150,7 @@ main(int argc, char **argv)
         char        h[256];
         char       *colon;
         char       *body;
-        xrdc_status st;
+        brix_status st;
         int         http = 0;
         snprintf(h, sizeof(h), "%s", host);
         colon = strrchr(h, ':');
@@ -163,8 +163,8 @@ main(int argc, char **argv)
             fprintf(stderr, "mpxstats: out of memory\n");
             return 51;
         }
-        xrdc_status_clear(&st);
-        if (xrdc_http_get(h, metrics_port, "/metrics", 5000, &http, body,
+        brix_status_clear(&st);
+        if (brix_http_get(h, metrics_port, "/metrics", 5000, &http, body,
                           1u << 20, NULL, &st) != 0) {
             fprintf(stderr, "mpxstats: GET %s:%d/metrics: %s\n", h, metrics_port,
                     st.msg);

@@ -16,7 +16,7 @@
  *
  * Clean-room: our own framing; reuses trace.c name decoders. No XrdCl.
  */
-#include "xrdc.h"
+#include "brix.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,7 +26,7 @@
 #define XRDCAP_MAGIC_LEN 8
 #define XRDCAP_WIRE_MAX  (XRDC_DLEN_MAX + 64u)
 
-struct xrdc_capture {
+struct brix_capture {
     FILE *fp;
 };
 
@@ -47,10 +47,10 @@ put_u32(FILE *fp, uint32_t v)
 }
 
 /* writer */
-struct xrdc_capture *
-xrdc_capture_open(const char *path)
+struct brix_capture *
+brix_capture_open(const char *path)
 {
-    struct xrdc_capture *cap = (struct xrdc_capture *) calloc(1, sizeof(*cap));
+    struct brix_capture *cap = (struct brix_capture *) calloc(1, sizeof(*cap));
     if (cap == NULL) {
         return NULL;
     }
@@ -64,7 +64,7 @@ xrdc_capture_open(const char *path)
 }
 
 void
-xrdc_capture_meta(struct xrdc_capture *cap, const char *key, const char *val)
+brix_capture_meta(struct brix_capture *cap, const char *key, const char *val)
 {
     size_t kl, vl;
     if (cap == NULL || cap->fp == NULL || key == NULL) {
@@ -83,7 +83,7 @@ xrdc_capture_meta(struct xrdc_capture *cap, const char *key, const char *val)
 }
 
 void
-xrdc_capture_frame(struct xrdc_capture *cap, int dir, uint16_t sid, int code,
+brix_capture_frame(struct brix_capture *cap, int dir, uint16_t sid, int code,
                    int is_request, const void *hdr, uint32_t hdrlen,
                    const void *body, uint32_t blen)
 {
@@ -105,7 +105,7 @@ xrdc_capture_frame(struct xrdc_capture *cap, int dir, uint16_t sid, int code,
 }
 
 void
-xrdc_capture_close(struct xrdc_capture *cap)
+brix_capture_close(struct brix_capture *cap)
 {
     if (cap == NULL) {
         return;
@@ -118,12 +118,12 @@ xrdc_capture_close(struct xrdc_capture *cap)
 
 /* readers (offline decode + live playback) */
 static int
-read_magic(FILE *fp, xrdc_status *st)
+read_magic(FILE *fp, brix_status *st)
 {
     char m[XRDCAP_MAGIC_LEN];
     if (fread(m, 1, XRDCAP_MAGIC_LEN, fp) != XRDCAP_MAGIC_LEN
         || memcmp(m, XRDCAP_MAGIC, XRDCAP_MAGIC_LEN) != 0) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "not an .xrdcap bundle (bad magic)");
+        brix_status_set(st, XRDC_EPROTO, 0, "not an .xrdcap bundle (bad magic)");
         return -1;
     }
     return 0;
@@ -137,13 +137,13 @@ static uint32_t rd_u32(FILE *fp) {
 }
 
 int
-xrdc_capture_replay(const char *path, int verbose, FILE *out, xrdc_status *st)
+brix_capture_replay(const char *path, int verbose, FILE *out, brix_status *st)
 {
     FILE *fp = fopen(path, "rb");
     int   type, frames = 0, metas = 0;
 
     if (fp == NULL) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "cannot open %s", path);
+        brix_status_set(st, XRDC_EUSAGE, 0, "cannot open %s", path);
         return -1;
     }
     if (read_magic(fp, st) != 0) {
@@ -176,7 +176,7 @@ xrdc_capture_replay(const char *path, int verbose, FILE *out, xrdc_status *st)
             w = (uint8_t *) malloc(wlen ? wlen : 1);
             if (w == NULL || fread(w, 1, wlen, fp) != wlen) { free(w); break; }
             fprintf(out, "%c sid=%u %-14s wire=%u\n", dir, sid,
-                    isreq ? xrdc_reqid_name(code) : xrdc_status_name(code), wlen);
+                    isreq ? brix_reqid_name(code) : brix_status_name(code), wlen);
             if (verbose >= 1) {
                 uint32_t i;
                 for (i = 0; i < wlen && i < 64; i++) {
@@ -205,24 +205,24 @@ is_session_op(int reqid)
 }
 
 int
-xrdc_capture_playback(const char *path, const char *url, const xrdc_opts *co,
-                      FILE *out, xrdc_status *st)
+brix_capture_playback(const char *path, const char *url, const brix_opts *co,
+                      FILE *out, brix_status *st)
 {
     FILE     *fp;
-    xrdc_url  u;
-    xrdc_conn c;
+    brix_url  u;
+    brix_conn c;
     int       type, issued = 0, ok = 0;
 
     fp = fopen(path, "rb");
     if (fp == NULL) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "cannot open %s", path);
+        brix_status_set(st, XRDC_EUSAGE, 0, "cannot open %s", path);
         return -1;
     }
     if (read_magic(fp, st) != 0) {
         fclose(fp);
         return -1;
     }
-    if (xrdc_endpoint_parse(url, &u, st) != 0 || xrdc_connect(&c, &u, co, st) != 0) {
+    if (brix_endpoint_parse(url, &u, st) != 0 || brix_connect(&c, &u, co, st) != 0) {
         fclose(fp);
         return -1;
     }
@@ -253,26 +253,26 @@ xrdc_capture_playback(const char *path, const char *url, const xrdc_opts *co,
             if (w == NULL || fread(w, 1, wlen, fp) != wlen) { free(w); break; }
             /* Replay only client REQUEST frames that are real operations. */
             if (isreq == 1 && dir == '>' && wlen >= 24 && !is_session_op(code)) {
-                xrdc_status rst;
+                brix_status rst;
                 uint16_t    rstat = 0;
                 uint8_t    *rb = NULL;
                 uint32_t    rl = 0;
                 int         rc;
-                xrdc_status_clear(&rst);
-                if (xrdc_write_full(&c.io, w, wlen, &rst) == 0) {
-                    rc = xrdc_recv(&c, 0xffff, &rstat, &rb, &rl, &rst);
+                brix_status_clear(&rst);
+                if (brix_write_full(&c.io, w, wlen, &rst) == 0) {
+                    rc = brix_recv(&c, 0xffff, &rstat, &rb, &rl, &rst);
                     free(rb);
                     issued++;
                     if (rc == 0) { ok++; }
-                    fprintf(out, "  re-issue %-14s -> %s\n", xrdc_reqid_name(code),
-                            rc == 0 ? xrdc_status_name(rstat) : rst.msg);
+                    fprintf(out, "  re-issue %-14s -> %s\n", brix_reqid_name(code),
+                            rc == 0 ? brix_status_name(rstat) : rst.msg);
                 }
             }
             free(w);
         }
     }
     fclose(fp);
-    xrdc_close(&c);
+    brix_close(&c);
     fprintf(out, "(%d request(s) re-issued, %d ok)\n", issued, ok);
     return 0;
 }

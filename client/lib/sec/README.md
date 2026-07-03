@@ -29,7 +29,7 @@ advertises, trying strongest-first; the weak host/unix/pwd schemes are preferred
 ## Invariants
 
 - **No libXrdSec.** Every credential is built from first principles here +
-  `gsi_core` + libxrdproto primitives (e.g. `xrootd_sha256`).
+  `gsi_core` + libxrdproto primitives (e.g. `brix_sha256`).
 - **Strongest-first selection** with the spoofable/cleartext-adjacent schemes
   (`host`, `unix`, `pwd`) preferred last — see `client/lib/auth.c`.
 - **Wire-exact framing.** Each payload matches the server decoder byte-for-byte
@@ -38,6 +38,6 @@ advertises, trying strongest-first; the weak host/unix/pwd schemes are preferred
 
 ## See also
 
-- `../README.md` — the `libxrdc` library overview.
+- `../README.md` — the `libbrix` library overview.
 - Server side: [`src/auth/gsi/`](../../../src/auth/gsi/), [`src/auth/token/`](../../../src/auth/token/),
   [`src/auth/sss/`](../../../src/auth/sss/), [`src/auth/krb5/`](../../../src/auth/krb5/).

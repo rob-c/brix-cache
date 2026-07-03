@@ -256,7 +256,7 @@ def test_block_url_remote_to_block(rw, tmp_path):
 
 
 def test_block_url_local_to_block(tmp_path):
-    """local-file → block:// copy: both sides go through xrdc_vfs (POSIX → block).
+    """local-file → block:// copy: both sides go through brix_vfs (POSIX → block).
 
     No server required.  The source is a plain local file; the destination is a
     pre-allocated file opened via the block:// scheme (in-place write, no rename).

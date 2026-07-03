@@ -10,14 +10,14 @@
 int
 do_status(const diag_args *a)
 {
-    xrdc_url    u;
-    xrdc_status st;
+    brix_url    u;
+    brix_status st;
     char       *body;
     int         http = 0, lines = 0, shown = 0;
     char       *line, *save;
 
-    xrdc_status_clear(&st);
-    if (xrdc_endpoint_parse(a->url, &u, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_endpoint_parse(a->url, &u, &st) != 0) {
         fprintf(stderr, "xrddiag: %s\n", st.msg);
         return 50;
     }
@@ -26,7 +26,7 @@ do_status(const diag_args *a)
         fprintf(stderr, "xrddiag: out of memory\n");
         return 51;
     }
-    if (xrdc_http_get(u.host, a->metrics_port, "/metrics", 5000, &http, body,
+    if (brix_http_get(u.host, a->metrics_port, "/metrics", 5000, &http, body,
                       1u << 20, NULL, &st) != 0) {
         fprintf(stderr, "xrddiag: GET %s:%d/metrics: %s\n",
                 u.host, a->metrics_port, st.msg);
@@ -108,12 +108,12 @@ watch_prom_label(const char *s, char *out, size_t osz)
 int
 watch_probe_once(const diag_args *a, const char *url, watch_sample *out)
 {
-    xrdc_url      u;
-    xrdc_conn     c;
-    xrdc_status   st;
-    xrdc_netfacts f;
+    brix_url      u;
+    brix_conn     c;
+    brix_status   st;
+    brix_netfacts f;
     char          target[XRDC_PATH_MAX];
-    xrdc_statinfo sti;
+    brix_statinfo sti;
     uint64_t      t0;
 
     memset(out, 0, sizeof(*out));
@@ -122,8 +122,8 @@ watch_probe_once(const diag_args *a, const char *url, watch_sample *out)
     out->holders = -1;
     out->proto = "root";
 
-    xrdc_status_clear(&st);
-    if (xrdc_endpoint_parse(url, &u, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_endpoint_parse(url, &u, &st) != 0) {
         /* PII-free contract: never let a raw URL's path/query reach a label. */
         snprintf(out->endpoint, sizeof(out->endpoint), "(unparseable)");
         return 0;   /* unparseable → down */
@@ -132,51 +132,51 @@ watch_probe_once(const diag_args *a, const char *url, watch_sample *out)
     /* Label on host:port only — never the path (PII-free metric/label contract). */
     snprintf(out->endpoint, sizeof(out->endpoint), "%s:%d", u.host, u.port);
 
-    t0 = xrdc_mono_ns();
-    if (xrdc_connect(&c, &u, &a->conn, &st) != 0) {
-        out->connect_ms = (double) (xrdc_mono_ns() - t0) / 1e6;
+    t0 = brix_mono_ns();
+    if (brix_connect(&c, &u, &a->conn, &st) != 0) {
+        out->connect_ms = (double) (brix_mono_ns() - t0) / 1e6;
         return 0;   /* down — reported, not an error */
     }
     out->up = 1;
-    out->connect_ms = (double) (xrdc_mono_ns() - t0) / 1e6;
+    out->connect_ms = (double) (brix_mono_ns() - t0) / 1e6;
     if (a->probe_timeout_ms > 0) { c.io.timeout_ms = a->probe_timeout_ms; }
 
-    xrdc_netdiag_facts(&c, &f);
+    brix_netdiag_facts(&c, &f);
     out->tcp_ms = f.tcp_ms;
     out->tls_ms = f.tls_ms;
     out->auth_ms = f.auth_ms;
     {
         const char *ver = NULL, *cipher = NULL;
-        out->tls_active = (xrdc_tls_info(&c, &ver, &cipher) == 1);
+        out->tls_active = (brix_tls_info(&c, &ver, &cipher) == 1);
     }
 
     /* tiny read (TTFB) against the biggest regular file under the namespace */
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     if (resolve_target(&c, &u, target, sizeof(target), &sti, &st) == 0) {
-        xrdc_file   fh;
-        xrdc_status rst;
-        xrdc_status_clear(&rst);
-        t0 = xrdc_mono_ns();
-        if (xrdc_file_open_read(&c, target, &fh, &rst) == 0) {
+        brix_file   fh;
+        brix_status rst;
+        brix_status_clear(&rst);
+        t0 = brix_mono_ns();
+        if (brix_file_open_read(&c, target, &fh, &rst) == 0) {
             char    b[4096];
-            ssize_t got = xrdc_file_read(&c, &fh, 0, b, sizeof(b), &rst);
+            ssize_t got = brix_file_read(&c, &fh, 0, b, sizeof(b), &rst);
             if (got >= 0) {
-                out->read_ms = (double) (xrdc_mono_ns() - t0) / 1e6;
+                out->read_ms = (double) (brix_mono_ns() - t0) / 1e6;
             }
-            xrdc_file_close(&c, &fh, &rst);
+            brix_file_close(&c, &fh, &rst);
         }
         {
             char        lb[8192];
-            xrdc_status lst;
-            uint64_t    l0 = xrdc_mono_ns();
-            xrdc_status_clear(&lst);
-            if (xrdc_locate(&c, target, lb, sizeof(lb), &lst) == 0) {
-                out->locate_ms = (double) (xrdc_mono_ns() - l0) / 1e6;
+            brix_status lst;
+            uint64_t    l0 = brix_mono_ns();
+            brix_status_clear(&lst);
+            if (brix_locate(&c, target, lb, sizeof(lb), &lst) == 0) {
+                out->locate_ms = (double) (brix_mono_ns() - l0) / 1e6;
                 out->holders = watch_count_tokens(lb);
             }
         }
     }
-    xrdc_close(&c);
+    brix_close(&c);
     return 0;
 }
 
@@ -215,39 +215,39 @@ watch_emit_prom(const watch_sample *samples, int n, FILE *out)
     int  i;
     char ep[576], pr[64];
 
-    fputs("# HELP xrootd_probe_up Endpoint reachable (1) or down (0).\n"
-          "# TYPE xrootd_probe_up gauge\n", out);
+    fputs("# HELP brix_probe_up Endpoint reachable (1) or down (0).\n"
+          "# TYPE brix_probe_up gauge\n", out);
     for (i = 0; i < n; i++) {
         watch_prom_label(samples[i].endpoint, ep, sizeof(ep));
         watch_prom_label(samples[i].proto, pr, sizeof(pr));
-        fprintf(out, "xrootd_probe_up{endpoint=\"%s\",proto=\"%s\"} %d\n",
+        fprintf(out, "brix_probe_up{endpoint=\"%s\",proto=\"%s\"} %d\n",
                 ep, pr, samples[i].up);
     }
-    fputs("# HELP xrootd_probe_connect_seconds Full connect (TCP+TLS+auth).\n"
-          "# TYPE xrootd_probe_connect_seconds gauge\n", out);
+    fputs("# HELP brix_probe_connect_seconds Full connect (TCP+TLS+auth).\n"
+          "# TYPE brix_probe_connect_seconds gauge\n", out);
     for (i = 0; i < n; i++) {
         watch_prom_label(samples[i].endpoint, ep, sizeof(ep));
         watch_prom_label(samples[i].proto, pr, sizeof(pr));
-        fprintf(out, "xrootd_probe_connect_seconds{endpoint=\"%s\",proto=\"%s\"} %.6f\n",
+        fprintf(out, "brix_probe_connect_seconds{endpoint=\"%s\",proto=\"%s\"} %.6f\n",
                 ep, pr, samples[i].connect_ms / 1000.0);
     }
     /* phase split + read/locate only for endpoints that came up */
-    fputs("# HELP xrootd_probe_read_seconds Tiny-read time-to-first-byte.\n"
-          "# TYPE xrootd_probe_read_seconds gauge\n", out);
+    fputs("# HELP brix_probe_read_seconds Tiny-read time-to-first-byte.\n"
+          "# TYPE brix_probe_read_seconds gauge\n", out);
     for (i = 0; i < n; i++) {
         if (!samples[i].up || samples[i].read_ms < 0) { continue; }
         watch_prom_label(samples[i].endpoint, ep, sizeof(ep));
         watch_prom_label(samples[i].proto, pr, sizeof(pr));
-        fprintf(out, "xrootd_probe_read_seconds{endpoint=\"%s\",proto=\"%s\"} %.6f\n",
+        fprintf(out, "brix_probe_read_seconds{endpoint=\"%s\",proto=\"%s\"} %.6f\n",
                 ep, pr, samples[i].read_ms / 1000.0);
     }
-    fputs("# HELP xrootd_probe_locate_holders Located replica count.\n"
-          "# TYPE xrootd_probe_locate_holders gauge\n", out);
+    fputs("# HELP brix_probe_locate_holders Located replica count.\n"
+          "# TYPE brix_probe_locate_holders gauge\n", out);
     for (i = 0; i < n; i++) {
         if (!samples[i].up || samples[i].holders < 0) { continue; }
         watch_prom_label(samples[i].endpoint, ep, sizeof(ep));
         watch_prom_label(samples[i].proto, pr, sizeof(pr));
-        fprintf(out, "xrootd_probe_locate_holders{endpoint=\"%s\",proto=\"%s\"} %d\n",
+        fprintf(out, "brix_probe_locate_holders{endpoint=\"%s\",proto=\"%s\"} %d\n",
                 ep, pr, samples[i].holders);
     }
 }
@@ -257,19 +257,19 @@ watch_emit_prom(const watch_sample *samples, int n, FILE *out)
  * node_exporter textfile-collector contract (never expose a half-written file). */
 int
 watch_write_prom_atomic(const char *path, const watch_sample *samples, int n,
-                        xrdc_status *st)
+                        brix_status *st)
 {
     char  tmp[XRDC_PATH_MAX];
     FILE *f;
     int   fd;
 
     if ((size_t) snprintf(tmp, sizeof(tmp), "%s.XXXXXX", path) >= sizeof(tmp)) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "watch: prometheus path too long");
+        brix_status_set(st, XRDC_EUSAGE, 0, "watch: prometheus path too long");
         return -1;
     }
     fd = mkstemp(tmp);
     if (fd < 0) {
-        xrdc_status_set(st, XRDC_ESOCK, errno, "watch: mkstemp %s: %s",
+        brix_status_set(st, XRDC_ESOCK, errno, "watch: mkstemp %s: %s",
                         path, strerror(errno));
         return -1;
     }
@@ -277,13 +277,13 @@ watch_write_prom_atomic(const char *path, const watch_sample *samples, int n,
     if (f == NULL) {
         close(fd);
         (void) unlink(tmp);
-        xrdc_status_set(st, XRDC_ESOCK, errno, "watch: fdopen: %s", strerror(errno));
+        brix_status_set(st, XRDC_ESOCK, errno, "watch: fdopen: %s", strerror(errno));
         return -1;
     }
     watch_emit_prom(samples, n, f);
     if (fclose(f) != 0 || rename(tmp, path) != 0) {
         (void) unlink(tmp);
-        xrdc_status_set(st, XRDC_ESOCK, errno, "watch: write %s: %s",
+        brix_status_set(st, XRDC_ESOCK, errno, "watch: write %s: %s",
                         path, strerror(errno));
         return -1;
     }
@@ -324,8 +324,8 @@ do_watch(const diag_args *a)
         }
         if (a->watch_prom) {
             if (a->prom_path != NULL) {
-                xrdc_status wst;
-                xrdc_status_clear(&wst);
+                brix_status wst;
+                brix_status_clear(&wst);
                 if (watch_write_prom_atomic(a->prom_path, samples, a->nurls, &wst) != 0) {
                     fprintf(stderr, "xrddiag: %s\n", wst.msg);
                 }

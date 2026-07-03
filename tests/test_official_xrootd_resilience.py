@@ -3,7 +3,7 @@ test_official_brix_resilience.py — this repo's FUSE client vs a REAL XRootD
 server, through an on-the-wire fault injector.
 
 WHAT: Mounts THIS codebase's clean-room FUSE driver (client/xrootdfs, built on
-      libxrdc — no libXrdCl) against the OFFICIAL `xrootd` daemon, with the
+      libbrix — no libXrdCl) against the OFFICIAL `xrootd` daemon, with the
       in-repo TCP fault proxy (tests/c/fault_proxy.c) spliced in between, and
       asserts that a file reads back byte-exact under a matrix of wire faults:
       latency, tiny segmentation, sustained packet loss (incl. 12%), single and

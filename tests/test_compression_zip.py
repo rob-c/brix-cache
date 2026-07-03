@@ -4,7 +4,7 @@ Phase-42 W3 — ZIP archive member reads over root:// (client-side, zlib-only).
 Builds a real ZIP (STORE + DEFLATE + a force-ZIP64 member), uploads it to the
 anonymous root:// server with xrdcp, then extracts each member with
 `xrdcp "root://host//archive.zip?xrdcl.unzip=<member>" out` and asserts the
-output is byte-exact. The server is untouched — all ZIP logic is in libxrdc
+output is byte-exact. The server is untouched — all ZIP logic is in libbrix
 (client/lib/zip.c). Also checks a missing member fails cleanly.
 
 Uses the native clean-room xrdcp (client/xrdcp) against the harness anon server.

@@ -4,7 +4,7 @@
  */
 #include "vfs_s3_internal.h"
 
-const xrdc_vfs_ops s_s3_ops = {
+const brix_vfs_ops s_s3_ops = {
     .pread    = s3_pread,
     .pwrite   = s3_pwrite,
     .fstat    = s3_fstat,
@@ -15,7 +15,7 @@ const xrdc_vfs_ops s_s3_ops = {
     .close    = s3_close,
 };
 
-const xrdc_vfs_backend s_s3_backend = {
+const brix_vfs_backend s_s3_backend = {
     .scheme = "s3",
     .caps   = 0,   /* no RANDOM_WRITE, no TRUNCATE, no ATOMIC_TEMP */
     .open   = s3_be_open,
@@ -51,7 +51,7 @@ s3_part_size_from_env(void)
 
 
 int
-s3_xrdc_from_errno(int e)
+s3_brix_from_errno(int e)
 {
     switch (e) {
     case EACCES:
@@ -87,7 +87,7 @@ s3_alloc_handle(void)
  * HOW:  set obj_size = -1; base ops/caps are set by s3_be_open after dispatch.
  */
 int
-s3_open_read(vfs_s3_file *sf, xrdc_status *st)
+s3_open_read(vfs_s3_file *sf, brix_status *st)
 {
     char              errbuf[256] = "";
     sd_s3_open_params p;
@@ -104,13 +104,13 @@ s3_open_read(vfs_s3_file *sf, xrdc_status *st)
     p.ak         = sf->ak;
     p.sk         = sf->sk;
     p.region     = sf->region;
-    p.transport  = &xrdc_s3_http_transport;
+    p.transport  = &brix_s3_http_transport;
     p.tctx       = NULL;
     p.timeout_ms = S3_REQ_TIMEOUT_MS;
 
     sf->sd = sd_s3_open_read(&p, errbuf, sizeof(errbuf));
     if (sf->sd == NULL) {
-        xrdc_status_set(st, XRDC_EIO, 0, "s3 open read: %s", errbuf);
+        brix_status_set(st, XRDC_EIO, 0, "s3 open read: %s", errbuf);
         return -1;
     }
     return 0;
@@ -126,16 +126,16 @@ s3_open_read(vfs_s3_file *sf, xrdc_status *st)
  *       returns a ready handle in *out.
  * WHY:  single entry point for the S3 backend; hides URL/mode routing from the
  *       façade.
- * HOW:  xrdc_weburl_parse; s3_alloc_handle; route to s3_open_read /
+ * HOW:  brix_weburl_parse; s3_alloc_handle; route to s3_open_read /
  *       s3_open_write_single / s3_open_write_mpu based on flags + expected_size.
  *       On any failure, free sf and return -1.
  */
 int
-s3_be_open(const xrdc_vfs_backend *be, const char *url, int flags,
-           const xrdc_vfs_open_opts *opts, xrdc_vfs_file **out,
-           xrdc_status *st)
+s3_be_open(const brix_vfs_backend *be, const char *url, int flags,
+           const brix_vfs_open_opts *opts, brix_vfs_file **out,
+           brix_status *st)
 {
-    xrdc_weburl     wu;
+    brix_weburl     wu;
     vfs_s3_file    *sf;
     int             rc;
 
@@ -143,15 +143,15 @@ s3_be_open(const xrdc_vfs_backend *be, const char *url, int flags,
 
     *out = NULL;
 
-    if (xrdc_weburl_parse(url, &wu) != 0 || !wu.is_s3) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0,
+    if (brix_weburl_parse(url, &wu) != 0 || !wu.is_s3) {
+        brix_status_set(st, XRDC_EUSAGE, 0,
                         "s3 backend: not an S3 URL: %s", url);
         return -1;
     }
 
     sf = s3_alloc_handle();
     if (sf == NULL) {
-        xrdc_status_set(st, XRDC_EIO, ENOMEM,
+        brix_status_set(st, XRDC_EIO, ENOMEM,
                         "s3 open: out of memory allocating handle");
         return -1;
     }
@@ -176,7 +176,7 @@ s3_be_open(const xrdc_vfs_backend *be, const char *url, int flags,
         p.ak         = sf->ak;
         p.sk         = sf->sk;
         p.region     = sf->region;
-        p.transport  = &xrdc_s3_http_transport;
+        p.transport  = &brix_s3_http_transport;
         p.tctx       = NULL;
         p.timeout_ms = S3_REQ_TIMEOUT_MS;
 
@@ -185,7 +185,7 @@ s3_be_open(const xrdc_vfs_backend *be, const char *url, int flags,
                                   errbuf, sizeof(errbuf));
         if (sf->sd == NULL) {
             int e = errno;
-            xrdc_status_set(st, s3_xrdc_from_errno(e), e,
+            brix_status_set(st, s3_brix_from_errno(e), e,
                             "s3 open write: %s", errbuf);
             rc = -1;
         } else {
@@ -214,28 +214,28 @@ s3_be_open(const xrdc_vfs_backend *be, const char *url, int flags,
  *
  * WHAT: allocates a temporary handle, issues HEAD, fills *out, frees the handle.
  * WHY:  allows existence/size checks without a full open (mirrors posix_be_stat).
- * HOW:  s3_alloc_handle; parse URL; s3_load_size; fill xrdc_vfs_stat; free.
+ * HOW:  s3_alloc_handle; parse URL; s3_load_size; fill brix_vfs_stat; free.
  *       ENOENT-equivalent (404) → exists=0, return 0; other errors → -1.
  */
 int
-s3_be_stat(const xrdc_vfs_backend *be, const char *url,
-           xrdc_vfs_stat *out, xrdc_status *st)
+s3_be_stat(const brix_vfs_backend *be, const char *url,
+           brix_vfs_stat *out, brix_status *st)
 {
-    xrdc_weburl     wu;
+    brix_weburl     wu;
     vfs_s3_file    *sf;
     int             rc;
 
     (void) be;
 
-    if (xrdc_weburl_parse(url, &wu) != 0 || !wu.is_s3) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0,
+    if (brix_weburl_parse(url, &wu) != 0 || !wu.is_s3) {
+        brix_status_set(st, XRDC_EUSAGE, 0,
                         "s3 stat: not an S3 URL: %s", url);
         return -1;
     }
 
     sf = s3_alloc_handle();
     if (sf == NULL) {
-        xrdc_status_set(st, XRDC_EIO, ENOMEM,
+        brix_status_set(st, XRDC_EIO, ENOMEM,
                         "s3 stat: out of memory");
         return -1;
     }
@@ -246,7 +246,7 @@ s3_be_stat(const xrdc_vfs_backend *be, const char *url,
 
     /* Use no-op open_opts for stat (no cred store yet). */
     {
-        xrdc_vfs_open_opts dummy_opts;
+        brix_vfs_open_opts dummy_opts;
         memset(&dummy_opts, 0, sizeof(dummy_opts));
         dummy_opts.expected_size = -1;
         s3_creds_load(sf, &dummy_opts);
@@ -267,7 +267,7 @@ s3_be_stat(const xrdc_vfs_backend *be, const char *url,
             out->is_dir = 0;
             sd_s3_close(sf->sd);
             free(sf);
-            xrdc_status_clear(st);
+            brix_status_clear(st);
             return 0;
         }
         sd_s3_close(sf->sd);
@@ -288,17 +288,17 @@ s3_be_stat(const xrdc_vfs_backend *be, const char *url,
 /* Backend descriptor + accessor */
 
 /*
- * xrdc_vfs_s3_backend — pure factory: return the S3 backend descriptor.
+ * brix_vfs_s3_backend — pure factory: return the S3 backend descriptor.
  *
  * WHAT: strong definition that overrides the weak stub in vfs.c; called once
  *       during vfs_init_backends() (pthread_once).  Returns the static
- *       descriptor; vfs.c's init owns the xrdc_vfs_register_backend() call.
+ *       descriptor; vfs.c's init owns the brix_vfs_register_backend() call.
  * WHY:  registration is the façade's responsibility — the accessor must not
  *       double-register (which would consume registry slots).
  * HOW:  return the static descriptor directly.
  */
-const xrdc_vfs_backend *
-xrdc_vfs_s3_backend(void)
+const brix_vfs_backend *
+brix_vfs_s3_backend(void)
 {
     return &s_s3_backend;
 }

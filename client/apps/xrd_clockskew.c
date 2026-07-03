@@ -49,31 +49,31 @@ xrd_parse_http_date(const char *s, time_t *out)
 int
 xrd_clockskew_http(const char *endpoint, xrd_probe *p, char *err, size_t errsz)
 {
-    xrdc_weburl     w;
-    xrdc_http_resp  resp;
-    xrdc_status     st;
+    brix_weburl     w;
+    brix_http_resp  resp;
+    brix_status     st;
     struct timespec t0, t1;
     char            date[128];
     time_t          srv;
     double          rtt_s, local_mid;
 
-    if (xrdc_weburl_parse(endpoint, &w) != 0) { snprintf(err, errsz, "bad URL"); return -1; }
+    if (brix_weburl_parse(endpoint, &w) != 0) { snprintf(err, errsz, "bad URL"); return -1; }
     clock_gettime(CLOCK_REALTIME, &t0);
-    xrdc_status_clear(&st);
-    if (xrdc_http_req(w.host, w.port, w.tls, "HEAD", w.path[0] ? w.path : "/",
+    brix_status_clear(&st);
+    if (brix_http_req(w.host, w.port, w.tls, "HEAD", w.path[0] ? w.path : "/",
                       NULL, NULL, 0, 5000, 0 /*verify off for a clock probe*/,
                       NULL, &resp, &st) != 0) {
         snprintf(err, errsz, "%s", st.msg);
         return -1;
     }
     clock_gettime(CLOCK_REALTIME, &t1);
-    if (!xrdc_http_header(&resp, "Date", date, sizeof(date))
+    if (!brix_http_header(&resp, "Date", date, sizeof(date))
         || xrd_parse_http_date(date, &srv) != 0) {
         snprintf(err, errsz, "no parseable Date header");
-        xrdc_http_resp_free(&resp);
+        brix_http_resp_free(&resp);
         return -1;
     }
-    xrdc_http_resp_free(&resp);
+    brix_http_resp_free(&resp);
     rtt_s     = (double) (t1.tv_sec - t0.tv_sec) + (double) (t1.tv_nsec - t0.tv_nsec) / 1e9;
     local_mid = (double) t0.tv_sec + (double) t0.tv_nsec / 1e9 + rtt_s / 2.0;
     p->clock_have   = 1;
@@ -88,52 +88,52 @@ xrd_clockskew_http(const char *endpoint, xrd_probe *p, char *err, size_t errsz)
 /* Clock skew via root://: create a temp file (server stamps mtime with its wall
  * clock), stat it, compare to the local clock, then remove it. Needs write access. */
 int
-xrd_clockskew_root(const char *endpoint, const xrdc_opts *o, xrd_probe *p,
+xrd_clockskew_root(const char *endpoint, const brix_opts *o, xrd_probe *p,
                    char *err, size_t errsz)
 {
-    xrdc_url      u;
-    xrdc_conn     c;
-    xrdc_status   st;
-    xrdc_file     f;
-    xrdc_statinfo si;
+    brix_url      u;
+    brix_conn     c;
+    brix_status   st;
+    brix_file     f;
+    brix_statinfo si;
     char          tmp[128];
     time_t        t0, t1;
 
-    xrdc_status_clear(&st);
-    if (xrdc_endpoint_parse(endpoint, &u, &st) != 0) { snprintf(err, errsz, "%s", st.msg); return -1; }
-    if (xrdc_connect(&c, &u, o, &st) != 0) { snprintf(err, errsz, "connect: %s", st.msg); return -1; }
+    brix_status_clear(&st);
+    if (brix_endpoint_parse(endpoint, &u, &st) != 0) { snprintf(err, errsz, "%s", st.msg); return -1; }
+    if (brix_connect(&c, &u, o, &st) != 0) { snprintf(err, errsz, "connect: %s", st.msg); return -1; }
     snprintf(tmp, sizeof(tmp), "/.xrd_clockskew_%ld", (long) getpid());
     t0 = time(NULL);
-    if (xrdc_file_open_write(&c, tmp, 1 /*force*/, 0, &f, &st) != 0) {
+    if (brix_file_open_write(&c, tmp, 1 /*force*/, 0, &f, &st) != 0) {
         snprintf(err, errsz, "need an HTTP endpoint or write access (%s)", st.msg);
-        xrdc_close(&c);
+        brix_close(&c);
         return -1;
     }
-    xrdc_file_close(&c, &f, &st);
-    if (xrdc_stat(&c, tmp, &si, &st) != 0) {
+    brix_file_close(&c, &f, &st);
+    if (brix_stat(&c, tmp, &si, &st) != 0) {
         snprintf(err, errsz, "stat: %s", st.msg);
-        { xrdc_status rs; xrdc_status_clear(&rs); xrdc_rm(&c, tmp, &rs); }
-        xrdc_close(&c);
+        { brix_status rs; brix_status_clear(&rs); brix_rm(&c, tmp, &rs); }
+        brix_close(&c);
         return -1;
     }
     t1 = time(NULL);
-    { xrdc_status rs; xrdc_status_clear(&rs); xrdc_rm(&c, tmp, &rs); }
+    { brix_status rs; brix_status_clear(&rs); brix_rm(&c, tmp, &rs); }
     p->clock_have   = 1;
     p->clock_method = "root:// touch+stat (1s granularity)";
     p->server_epoch = (long) si.mtime;
     p->offset_s     = (double) si.mtime - ((double) t0 + (double) t1) / 2.0;
     p->rtt_ms       = (double) (t1 - t0) * 1000.0;
-    xrdc_close(&c);
+    brix_close(&c);
     return 0;
 }
 
 
 /* Measure client↔server clock skew: HTTP Date for web URLs, touch+stat for root://. */
 int
-xrd_measure_clock_skew(const char *endpoint, const xrdc_opts *o, xrd_probe *p,
+xrd_measure_clock_skew(const char *endpoint, const brix_opts *o, xrd_probe *p,
                        char *err, size_t errsz)
 {
-    if (xrdc_is_web_url(endpoint)) {
+    if (brix_is_web_url(endpoint)) {
         return xrd_clockskew_http(endpoint, p, err, errsz);
     }
     return xrd_clockskew_root(endpoint, o, p, err, errsz);
@@ -146,7 +146,7 @@ int
 xrd_clockskew(int argc, char **argv)
 {
     const char *endpoint = (argc >= 3 && argv[2][0] != '-') ? argv[2] : NULL;
-    xrdc_opts   o;
+    brix_opts   o;
     xrd_probe   p;
     char        err[XRDC_MSG_MAX + 64] = "", sb[32];   /* room for a prefixed msg */
     double      ao;
@@ -154,7 +154,7 @@ xrd_clockskew(int argc, char **argv)
     if (endpoint == NULL) { fprintf(stderr, "usage: xrd clockskew <endpoint>\n"); return 50; }
     memset(&o, 0, sizeof(o)); o.verify_host = 1;
     memset(&p, 0, sizeof(p));
-    xrootd_crypto_init();
+    brix_crypto_init();
     if (xrd_measure_clock_skew(endpoint, &o, &p, err, sizeof(err)) != 0 || !p.clock_have) {
         fprintf(stderr, "xrd clockskew: %s\n", err[0] ? err : "unavailable");
         return 1;

@@ -10,7 +10,7 @@ load (/metrics), then runs a cross-endpoint diff engine (TLS-downgrade,
 auth-fallback, cwnd-limited, retrans-surge, v4/v6-asymmetry, …) and emits a
 green/yellow/red report. `--json` emits a machine-readable form.
 
-Pure composition of the public libxrdc API — no new wire, no libcurl, no OpenSSL.
+Pure composition of the public libbrix API — no new wire, no libcurl, no OpenSSL.
 PII-free by construction: families / microseconds / counts / hex caps only — never
 a resolved IP, a path, or a credential.
 

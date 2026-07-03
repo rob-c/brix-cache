@@ -34,18 +34,18 @@ getattr_from_open_writer(struct fuse_file_info *fi, struct stat *stbuf)
 int
 xfs_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi)
 {
-    xrdc_statinfo si;
-    xrdc_status   st;
+    brix_statinfo si;
+    brix_status   st;
     if (strcmp(path, "/") == 0) {
         memset(stbuf, 0, sizeof(*stbuf));
         stbuf->st_mode = S_IFDIR | 0755;
         stbuf->st_nlink = 2;
         return 0;
     }
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     if (g_web) {
         char pbuf[XRDC_PATH_MAX];
-        if (xrdc_web_stat(&g_weburl, srv_path(path, pbuf, sizeof(pbuf)), g_bearer,
+        if (brix_web_stat(&g_weburl, srv_path(path, pbuf, sizeof(pbuf)), g_bearer,
                           g_web_verify, g_web_ca, &si, &st) != 0) {
             return xfs_err(&st);
         }
@@ -53,8 +53,8 @@ xfs_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi)
         return 0;
     }
     char pbuf[XRDC_PATH_MAX];
-    struct xrdc_fuse_ctx_stat a = { srv_path(path, pbuf, sizeof(pbuf)), &si };
-    int rc = xfs_meta(xrdc_fuse_op_lstat, &a, &st);   /* lstat: symlinks present as S_IFLNK */
+    struct brix_fuse_ctx_stat a = { srv_path(path, pbuf, sizeof(pbuf)), &si };
+    int rc = xfs_meta(brix_fuse_op_lstat, &a, &st);   /* lstat: symlinks present as S_IFLNK */
     if (rc != 0) {
         /* A newly created file we still hold open is staged server-side until
          * close, so its final path is not yet visible to stat (ENOENT). Report
@@ -73,21 +73,21 @@ int
 xfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset,
             struct fuse_file_info *fi, enum fuse_readdir_flags flags)
 {
-    xrdc_dirent *ents = NULL;
+    brix_dirent *ents = NULL;
     size_t       n = 0, i;
-    xrdc_status  st;
+    brix_status  st;
     (void) offset; (void) fi; (void) flags;
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     if (g_web) {
         char pbuf[XRDC_PATH_MAX];
-        if (xrdc_web_readdir(&g_weburl, srv_path(path, pbuf, sizeof(pbuf)), g_bearer,
+        if (brix_web_readdir(&g_weburl, srv_path(path, pbuf, sizeof(pbuf)), g_bearer,
                              g_web_verify, g_web_ca, &ents, &n, &st) != 0) {
             return xfs_err(&st);
         }
     } else {
         char pbuf[XRDC_PATH_MAX];
-        struct xrdc_fuse_ctx_dir a = { srv_path(path, pbuf, sizeof(pbuf)), &ents, &n };
-        int rc = xfs_meta(xrdc_fuse_op_dirlist, &a, &st);
+        struct brix_fuse_ctx_dir a = { srv_path(path, pbuf, sizeof(pbuf)), &ents, &n };
+        int rc = xfs_meta(brix_fuse_op_dirlist, &a, &st);
         if (rc != 0) {
             return rc;
         }
@@ -114,11 +114,11 @@ int
 xfs_mkdir(const char *path, mode_t mode)
 {
     if (g_web) return -EROFS;
-    xrdc_status st; xrdc_status_clear(&st);
+    brix_status st; brix_status_clear(&st);
     char pbuf[XRDC_PATH_MAX];
-    struct xrdc_fuse_ctx_mkdir a = { srv_path(path, pbuf, sizeof(pbuf)), (int) (mode & 0777) };
+    struct brix_fuse_ctx_mkdir a = { srv_path(path, pbuf, sizeof(pbuf)), (int) (mode & 0777) };
     /* a re-issued mkdir whose first reply was lost reports EEXIST → success */
-    return xfs_meta_idem(xrdc_fuse_op_mkdir, &a, EEXIST, &st);
+    return xfs_meta_idem(brix_fuse_op_mkdir, &a, EEXIST, &st);
 }
 
 
@@ -126,10 +126,10 @@ int
 xfs_unlink(const char *path)
 {
     if (g_web) return -EROFS;
-    xrdc_status st; xrdc_status_clear(&st);
+    brix_status st; brix_status_clear(&st);
     char pbuf[XRDC_PATH_MAX];
     /* a re-issued rm whose first reply was lost reports ENOENT → success */
-    return xfs_meta_idem(xrdc_fuse_op_rm,
+    return xfs_meta_idem(brix_fuse_op_rm,
                          (void *) srv_path(path, pbuf, sizeof(pbuf)), ENOENT, &st);
 }
 
@@ -138,10 +138,10 @@ int
 xfs_rmdir(const char *path)
 {
     if (g_web) return -EROFS;
-    xrdc_status st; xrdc_status_clear(&st);
+    brix_status st; brix_status_clear(&st);
     char pbuf[XRDC_PATH_MAX];
     /* a re-issued rmdir whose first reply was lost reports ENOENT → success */
-    return xfs_meta_idem(xrdc_fuse_op_rmdir,
+    return xfs_meta_idem(brix_fuse_op_rmdir,
                          (void *) srv_path(path, pbuf, sizeof(pbuf)), ENOENT, &st);
 }
 
@@ -153,13 +153,13 @@ xfs_rename(const char *from, const char *to, unsigned int flags)
     if (flags != 0) {
         return -EINVAL;
     }
-    xrdc_status st; xrdc_status_clear(&st);
+    brix_status st; brix_status_clear(&st);
     char fbuf[XRDC_PATH_MAX], tbuf[XRDC_PATH_MAX];
-    struct xrdc_fuse_ctx_mv a = { srv_path(from, fbuf, sizeof(fbuf)),
+    struct brix_fuse_ctx_mv a = { srv_path(from, fbuf, sizeof(fbuf)),
                         srv_path(to, tbuf, sizeof(tbuf)) };
     /* a re-issued mv whose first reply was lost reports ENOENT (source already
      * renamed) → success */
-    return xfs_meta_idem(xrdc_fuse_op_mv, &a, ENOENT, &st);
+    return xfs_meta_idem(brix_fuse_op_mv, &a, ENOENT, &st);
 }
 
 
@@ -168,10 +168,10 @@ xfs_chmod(const char *path, mode_t mode, struct fuse_file_info *fi)
 {
     if (g_web) return -EROFS;
     (void) fi;
-    xrdc_status st; xrdc_status_clear(&st);
+    brix_status st; brix_status_clear(&st);
     char pbuf[XRDC_PATH_MAX];
-    struct xrdc_fuse_ctx_chmod a = { srv_path(path, pbuf, sizeof(pbuf)), (int) (mode & 0777) };
-    return xfs_meta(xrdc_fuse_op_chmod, &a, &st);
+    struct brix_fuse_ctx_chmod a = { srv_path(path, pbuf, sizeof(pbuf)), (int) (mode & 0777) };
+    return xfs_meta(brix_fuse_op_chmod, &a, &st);
 }
 
 
@@ -180,10 +180,10 @@ xfs_truncate(const char *path, off_t size, struct fuse_file_info *fi)
 {
     if (g_web) return -EROFS;
     (void) fi;
-    xrdc_status st; xrdc_status_clear(&st);
+    brix_status st; brix_status_clear(&st);
     char pbuf[XRDC_PATH_MAX];
-    struct xrdc_fuse_ctx_trunc a = { srv_path(path, pbuf, sizeof(pbuf)), (int64_t) size };
-    return xfs_meta(xrdc_fuse_op_trunc, &a, &st);
+    struct brix_fuse_ctx_trunc a = { srv_path(path, pbuf, sizeof(pbuf)), (int64_t) size };
+    return xfs_meta(brix_fuse_op_trunc, &a, &st);
 }
 
 
@@ -199,11 +199,11 @@ xfs_utimens(const char *path, const struct timespec tv[2],
     if (!g_ext_setattr) {
         return 0;   /* honest no-op fallback */
     }
-    xrdc_status st; xrdc_status_clear(&st);
+    brix_status st; brix_status_clear(&st);
     char pbuf[XRDC_PATH_MAX];
-    struct xrdc_fuse_ctx_setattr a = { srv_path(path, pbuf, sizeof(pbuf)),
+    struct brix_fuse_ctx_setattr a = { srv_path(path, pbuf, sizeof(pbuf)),
                              1, { tv[0], tv[1] }, 0, 0, 0 };
-    return xfs_meta(xrdc_fuse_op_setattr, &a, &st);
+    return xfs_meta(brix_fuse_op_setattr, &a, &st);
 }
 
 
@@ -215,15 +215,15 @@ xfs_chown(const char *path, uid_t uid, gid_t gid, struct fuse_file_info *fi)
     if (!g_ext_setattr) {
         return 0;
     }
-    xrdc_status st; xrdc_status_clear(&st);
+    brix_status st; brix_status_clear(&st);
     char pbuf[XRDC_PATH_MAX];
-    struct xrdc_fuse_ctx_setattr a;
+    struct brix_fuse_ctx_setattr a;
     memset(&a, 0, sizeof(a));
     a.path = srv_path(path, pbuf, sizeof(pbuf));
     a.set_owner = 1;
     a.uid = (uint32_t) uid;
     a.gid = (uint32_t) gid;
-    return xfs_meta(xrdc_fuse_op_setattr, &a, &st);
+    return xfs_meta(brix_fuse_op_setattr, &a, &st);
 }
 
 
@@ -235,13 +235,13 @@ xfs_symlink(const char *target, const char *linkpath)
     if (!g_ext_symlink) {
         return -ENOTSUP;
     }
-    xrdc_status st; xrdc_status_clear(&st);
+    brix_status st; brix_status_clear(&st);
     /* `target` is the symlink's literal content (stored verbatim); only `linkpath`
      * is a namespace path to create, so only it is rebased. */
     char lbuf[XRDC_PATH_MAX];
-    struct xrdc_fuse_ctx_link2 a = { target, srv_path(linkpath, lbuf, sizeof(lbuf)) };
+    struct brix_fuse_ctx_link2 a = { target, srv_path(linkpath, lbuf, sizeof(lbuf)) };
     /* a re-issued symlink whose first reply was lost reports EEXIST → success */
-    return xfs_meta_idem(xrdc_fuse_op_symlink, &a, EEXIST, &st);
+    return xfs_meta_idem(brix_fuse_op_symlink, &a, EEXIST, &st);
 }
 
 
@@ -252,30 +252,30 @@ xfs_readlink(const char *path, char *buf, size_t size)
     if (!g_ext_readlink || size == 0) {
         return -ENOTSUP;
     }
-    xrdc_status st; xrdc_status_clear(&st);
+    brix_status st; brix_status_clear(&st);
     char pbuf[XRDC_PATH_MAX];
     const char *sp = srv_path(path, pbuf, sizeof(pbuf));
     /* readlink is read-only + idempotent → retry-safe. Deadline-bounded like the
      * rest of the metadata path (ride a lossy link out for g_max_stall rather than
      * a fixed count); g_max_stall <= 0 falls back to the g_max_retries count. */
     uint64_t deadline = (g_max_stall > 0)
-                        ? xrdc_mono_ns() + (uint64_t) g_max_stall * 1000000ULL : 0;
+                        ? brix_mono_ns() + (uint64_t) g_max_stall * 1000000ULL : 0;
     unsigned max = g_max_retries > 0 ? (unsigned) g_max_retries : 0;
     unsigned attempt;
     for (attempt = 0; ; attempt++) {
-        int done = deadline ? (xrdc_mono_ns() >= deadline) : (attempt >= max);
-        if (attempt > 0) { xrdc_backoff_sleep_fast(attempt - 1); }
-        xrdc_conn *c = xrdc_pool_checkout(g_pool, &st);
+        int done = deadline ? (brix_mono_ns() >= deadline) : (attempt >= max);
+        if (attempt > 0) { brix_backoff_sleep_fast(attempt - 1); }
+        brix_conn *c = brix_pool_checkout(g_pool, &st);
         if (c == NULL) {
-            if (xrdc_status_retryable(&st) && !done) { continue; }
+            if (brix_status_retryable(&st) && !done) { continue; }
             return xfs_err(&st);
         }
-        ssize_t n = xrdc_readlink(c, sp, buf, size, &st);
-        xrdc_pool_checkin(g_pool, c, n >= 0 ? 1 : xfs_conn_healthy(&st));
+        ssize_t n = brix_readlink(c, sp, buf, size, &st);
+        brix_pool_checkin(g_pool, c, n >= 0 ? 1 : xfs_conn_healthy(&st));
         if (n >= 0) {
             return 0;   /* FUSE: buf is NUL-terminated, return 0 on success */
         }
-        if (!xrdc_status_retryable(&st) || done) {
+        if (!brix_status_retryable(&st) || done) {
             return xfs_err(&st);
         }
     }
@@ -286,7 +286,7 @@ int
 xfs_statfs(const char *path, struct statvfs *stbuf)
 {
     char               text[1024];
-    xrdc_status        st;
+    brix_status        st;
     unsigned long long total = 0, freeb = 0;
 
     memset(stbuf, 0, sizeof(*stbuf));
@@ -295,7 +295,7 @@ xfs_statfs(const char *path, struct statvfs *stbuf)
         stbuf->f_namemax = 255;
         return 0;
     }
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     char pbuf[XRDC_PATH_MAX];
     struct ctx_qspace a = { srv_path((path && path[0]) ? path : "/", pbuf,
                                      sizeof(pbuf)), text, sizeof(text) };
@@ -303,7 +303,7 @@ xfs_statfs(const char *path, struct statvfs *stbuf)
     if (rc != 0) {
         return rc;
     }
-    xrdc_parse_qspace(text, &total, &freeb);
+    brix_parse_qspace(text, &total, &freeb);
 
     stbuf->f_bsize   = 1024 * 1024;
     stbuf->f_frsize  = stbuf->f_bsize;
@@ -319,14 +319,14 @@ int
 xfs_access(const char *path, int mask)
 {
     if (g_web) return (mask & W_OK) ? -EROFS : 0;
-    xrdc_statinfo si;
-    xrdc_status   st;
+    brix_statinfo si;
+    brix_status   st;
     (void) mask;
     if (strcmp(path, "/") == 0) {
         return 0;
     }
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     char pbuf[XRDC_PATH_MAX];
-    struct xrdc_fuse_ctx_stat a = { srv_path(path, pbuf, sizeof(pbuf)), &si };
-    return xfs_meta(xrdc_fuse_op_stat, &a, &st);
+    struct brix_fuse_ctx_stat a = { srv_path(path, pbuf, sizeof(pbuf)), &si };
+    return xfs_meta(brix_fuse_op_stat, &a, &st);
 }

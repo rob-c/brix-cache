@@ -13,7 +13,7 @@
  * wire: XProtocol.hh kXR_stat response — ASCII "<id> <size> <flags> <mtime>".
  * wire: XProtocol.hh kXR_dirlist dstat — ".\n0 0 0 0" prefix, then name\nstat\n pairs.
  */
-#include "xrdc.h"
+#include "brix.h"
 #include "protocols/root/protocol/stat_line.h"    /* shared stat-line grammar (decode side) */
 #include "protocols/root/protocol/dirlist_fmt.h"  /* shared dstat lead-in sentinel */
 
@@ -23,15 +23,15 @@
 #include <string.h>
 
 static int
-parse_statinfo(const char *s, xrdc_statinfo *out)
+parse_statinfo(const char *s, brix_statinfo *out)
 {
-    xrootd_statline_ext ext;
+    brix_statline_ext ext;
 
     /* The stat-line grammar (mandatory "<id> <size> <flags> <mtime>" + optional
      * EOS "<ctime> <atime> <mode> <owner> <group>" tail) is owned by the shared
      * protocol/stat_line.h so this decoder stays in lockstep with the server's
      * encoder. */
-    if (xrootd_statline_parse(s, &out->id, &out->size, &out->flags, &out->mtime,
+    if (brix_statline_parse(s, &out->id, &out->size, &out->flags, &out->mtime,
                               &ext) != 0) {
         return -1;
     }
@@ -48,8 +48,8 @@ parse_statinfo(const char *s, xrdc_statinfo *out)
 /* Shared core: stat a path with the given kXR_stat options byte (0 = follow
  * symlinks, kXR_statNoFollow = lstat). */
 static int
-stat_opt(xrdc_conn *c, const char *path, uint8_t options, xrdc_statinfo *out,
-         xrdc_status *st)
+stat_opt(brix_conn *c, const char *path, uint8_t options, brix_statinfo *out,
+         brix_status *st)
 {
     ClientStatRequest req;
     uint16_t          status;
@@ -65,7 +65,7 @@ stat_opt(xrdc_conn *c, const char *path, uint8_t options, xrdc_statinfo *out,
         xrdw_stat_req_pack(&b, ((ClientRequestHdr *) &req)->body);
     }
 
-    if (xrdc_roundtrip_resilient(c, &req, path, (uint32_t) strlen(path),
+    if (brix_roundtrip_resilient(c, &req, path, (uint32_t) strlen(path),
                                  XRDC_OP_READONLY, 0,
                                  &status, &body, &blen, st) != 0) {
         return -1;
@@ -77,20 +77,20 @@ stat_opt(xrdc_conn *c, const char *path, uint8_t options, xrdc_statinfo *out,
     free(body);
 
     if (parse_statinfo(tmp, out) != 0) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "unparseable stat body: \"%s\"", tmp);
+        brix_status_set(st, XRDC_EPROTO, 0, "unparseable stat body: \"%s\"", tmp);
         return -1;
     }
     return 0;
 }
 
 int
-xrdc_stat(xrdc_conn *c, const char *path, xrdc_statinfo *out, xrdc_status *st)
+brix_stat(brix_conn *c, const char *path, brix_statinfo *out, brix_status *st)
 {
     return stat_opt(c, path, 0, out, st);
 }
 
 int
-xrdc_lstat(xrdc_conn *c, const char *path, xrdc_statinfo *out, xrdc_status *st)
+brix_lstat(brix_conn *c, const char *path, brix_statinfo *out, brix_status *st)
 {
     /* kXR_statNoFollow: report a final symlink as itself (kXR_other + target-len
      * size). A server without the vendor extension ignores the bit and follows. */
@@ -141,11 +141,11 @@ next_line(const uint8_t *b, size_t len, size_t i, size_t *start, size_t *linelen
 }
 
 static int
-dirent_push(xrdc_dirent **ents, size_t *count, size_t *cap, const xrdc_dirent *e)
+dirent_push(brix_dirent **ents, size_t *count, size_t *cap, const brix_dirent *e)
 {
     if (*count == *cap) {
         size_t       newcap = (*cap == 0) ? 64 : *cap * 2;
-        xrdc_dirent *na = (xrdc_dirent *) realloc(*ents, newcap * sizeof(**ents));
+        brix_dirent *na = (brix_dirent *) realloc(*ents, newcap * sizeof(**ents));
         if (na == NULL) {
             return -1;
         }
@@ -161,14 +161,14 @@ dirent_push(xrdc_dirent **ents, size_t *count, size_t *cap, const xrdc_dirent *e
  * accumulation) on the current connection. On any failure it leaves *ents_out
  * NULL and frees its working buffers, so a resilient retry starts clean. */
 static int
-dirlist_once(xrdc_conn *c, const char *path, int want_stat,
-             xrdc_dirent **ents_out, size_t *count_out, xrdc_status *st)
+dirlist_once(brix_conn *c, const char *path, int want_stat,
+             brix_dirent **ents_out, size_t *count_out, brix_status *st)
 {
     ClientDirlistRequest req;
     uint16_t             status;
     uint8_t             *acc = NULL;
     size_t               acclen = 0, acccap = 0;
-    xrdc_dirent         *ents = NULL;
+    brix_dirent         *ents = NULL;
     size_t               count = 0, entcap = 0;
     size_t               i;
 
@@ -191,13 +191,13 @@ dirlist_once(xrdc_conn *c, const char *path, int want_stat,
 
         for (;;) {
             if (first) {
-                if (xrdc_roundtrip(c, &req, path, (uint32_t) strlen(path),
+                if (brix_roundtrip(c, &req, path, (uint32_t) strlen(path),
                                    &status, &body, &blen, st) != 0) {
                     free(acc);
                     return -1;
                 }
                 first = 0;
-            } else if (xrdc_recv(c, 0xffff, &status, &body, &blen, st) != 0) {
+            } else if (brix_recv(c, 0xffff, &status, &body, &blen, st) != 0) {
                 free(acc);
                 return -1;
             }
@@ -205,7 +205,7 @@ dirlist_once(xrdc_conn *c, const char *path, int want_stat,
                 && buf_append(&acc, &acclen, &acccap, body, blen) != 0) {
                 free(body);
                 free(acc);
-                xrdc_status_set(st, XRDC_EPROTO, 0, "out of memory in dirlist");
+                brix_status_set(st, XRDC_EPROTO, 0, "out of memory in dirlist");
                 return -1;
             }
             free(body);
@@ -220,8 +220,8 @@ dirlist_once(xrdc_conn *c, const char *path, int want_stat,
     /* Skip the dstat lead-in prefix ".\n0 0 0 0" up to and including its '\n'.
      * The sentinel + match length are shared with the server (dirlist_fmt.h). */
     i = 0;
-    if (want_stat && acclen >= XROOTD_DSTAT_PREFIX_LEN
-        && memcmp(acc, XROOTD_DSTAT_LEADIN, XROOTD_DSTAT_PREFIX_LEN) == 0) {
+    if (want_stat && acclen >= BRIX_DSTAT_PREFIX_LEN
+        && memcmp(acc, BRIX_DSTAT_LEADIN, BRIX_DSTAT_PREFIX_LEN) == 0) {
         while (i < acclen && acc[i] != '\n') { i++; }   /* ".\n..." first \n */
         if (i < acclen) { i++; }                        /* now at "0 0 0 0\n" */
         while (i < acclen && acc[i] != '\n') { i++; }   /* end of "0 0 0 0" */
@@ -231,7 +231,7 @@ dirlist_once(xrdc_conn *c, const char *path, int want_stat,
     while (i < acclen) {
         size_t      ns, nl, ss, sl;
         int         term = 0;
-        xrdc_dirent e;
+        brix_dirent e;
 
         i = next_line(acc, acclen, i, &ns, &nl, &term);
         if (nl == 0) {
@@ -258,7 +258,7 @@ dirlist_once(xrdc_conn *c, const char *path, int want_stat,
         }
 
         if (dirent_push(&ents, &count, &entcap, &e) != 0) {
-            xrdc_status_set(st, XRDC_EPROTO, 0, "out of memory in dirlist");
+            brix_status_set(st, XRDC_EPROTO, 0, "out of memory in dirlist");
             /* Error exit: both buffers still owned here; free both, return -1. */
             free(acc);
             free(ents);
@@ -281,12 +281,12 @@ dirlist_once(xrdc_conn *c, const char *path, int want_stat,
 struct dirlist_args {
     const char   *path;
     int           want_stat;
-    xrdc_dirent **ents_out;
+    brix_dirent **ents_out;
     size_t       *count_out;
 };
 
 static int
-dirlist_op(xrdc_conn *c, void *arg, xrdc_status *st)
+dirlist_op(brix_conn *c, void *arg, brix_status *st)
 {
     struct dirlist_args *a = (struct dirlist_args *) arg;
     return dirlist_once(c, a->path, a->want_stat, a->ents_out, a->count_out, st);
@@ -294,12 +294,12 @@ dirlist_op(xrdc_conn *c, void *arg, xrdc_status *st)
 
 /* A directory listing is read-only and idempotent: re-running it on a fresh
  * connection after a sever yields the same entries, so the whole pass is wrapped
- * in xrdc_with_resilience — every tool that lists directories inherits this. */
+ * in brix_with_resilience — every tool that lists directories inherits this. */
 int
-xrdc_dirlist(xrdc_conn *c, const char *path, int want_stat,
-             xrdc_dirent **ents_out, size_t *count_out, xrdc_status *st)
+brix_dirlist(brix_conn *c, const char *path, int want_stat,
+             brix_dirent **ents_out, size_t *count_out, brix_status *st)
 {
     struct dirlist_args a = { path, want_stat, ents_out, count_out };
-    return xrdc_with_resilience(c, xrdc_resilient_window_ms(c), XRDC_OP_READONLY,
+    return brix_with_resilience(c, brix_resilient_window_ms(c), XRDC_OP_READONLY,
                                 0, dirlist_op, &a, st);
 }

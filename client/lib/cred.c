@@ -8,10 +8,10 @@
  *       transports. One store removes the drift and makes auto-refresh uniform.
  * HOW:  Per-kind handler accessors are declared __attribute__((weak)) here so
  *       the library and unit-test binaries compile before any handler (B3-B6)
- *       exists. xrdc_cred_store_new() calls each non-NULL weak accessor and
+ *       exists. brix_cred_store_new() calls each non-NULL weak accessor and
  *       stores the returned handler pointer in a fixed-size per-kind slot array.
  *       A per-kind cache slot (loaded flag + owned string copies + not_after)
- *       is checked on every xrdc_cred_acquire; if auto_refresh is set and the
+ *       is checked on every brix_cred_acquire; if auto_refresh is set and the
  *       credential is within min_remaining_s of its expiry, handler->refresh
  *       (if non-NULL) then handler->acquire are called and the cache is updated.
  *       ngx-free; no goto; functional/modular design (one job per function).
@@ -25,7 +25,7 @@
 #endif
 
 #include "cred.h"
-#include "xrdc.h"
+#include "brix.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -33,11 +33,11 @@
 
 /* Forward declaration: cfg_copy_free is used inside the DUP_FIELD macro in
  * cfg_copy_alloc, which appears earlier in the file. */
-static void cfg_copy_free(xrdc_cred_config *c);
+static void cfg_copy_free(brix_cred_config *c);
 
 /* weak accessor declarations */
 /*
- * Per-kind handler accessors, declared weak so libxrdc.{a,so} (and any test
+ * Per-kind handler accessors, declared weak so libbrix.{a,so} (and any test
  * binary that provides only a subset) links cleanly without all B3-B6 objects.
  * A unit test that needs a specific kind overrides one accessor with a STRONG
  * definition (the linker prefers a strong symbol over a weak one).
@@ -45,26 +45,26 @@ static void cfg_copy_free(xrdc_cred_config *c);
  * Guarded checks against NULL before any call — a NULL weak symbol means the
  * compilation unit that would have provided it was not linked.
  */
-extern const xrdc_cred_handler *xrdc_cred_x509(void)   __attribute__((weak));
-extern const xrdc_cred_handler *xrdc_cred_bearer(void)  __attribute__((weak));
-extern const xrdc_cred_handler *xrdc_cred_krb5(void)    __attribute__((weak));
-extern const xrdc_cred_handler *xrdc_cred_sss(void)     __attribute__((weak));
-extern const xrdc_cred_handler *xrdc_cred_s3keys(void)  __attribute__((weak));
+extern const brix_cred_handler *brix_cred_x509(void)   __attribute__((weak));
+extern const brix_cred_handler *brix_cred_bearer(void)  __attribute__((weak));
+extern const brix_cred_handler *brix_cred_krb5(void)    __attribute__((weak));
+extern const brix_cred_handler *brix_cred_sss(void)     __attribute__((weak));
+extern const brix_cred_handler *brix_cred_s3keys(void)  __attribute__((weak));
 
 /* config deep-copy helpers */
 /*
- * cfg_copy_alloc — deep-copy the caller's xrdc_cred_config onto the heap.
+ * cfg_copy_alloc — deep-copy the caller's brix_cred_config onto the heap.
  *
- * WHAT: allocates a new xrdc_cred_config whose string fields are independent
+ * WHAT: allocates a new brix_cred_config whose string fields are independent
  *       heap copies of the originals so the store outlives the caller's cfg.
  * WHY:  safe design: store OWNS all strings → no lifetime coupling to caller.
  * HOW:  struct copy + individual strdup for every const char * field.
  *       Returns NULL on any allocation failure; partial copies are freed.
  */
-static xrdc_cred_config *
-cfg_copy_alloc(const xrdc_cred_config *src)
+static brix_cred_config *
+cfg_copy_alloc(const brix_cred_config *src)
 {
-    xrdc_cred_config *c = calloc(1, sizeof(*c));
+    brix_cred_config *c = calloc(1, sizeof(*c));
     if (c == NULL) {
         return NULL;
     }
@@ -104,7 +104,7 @@ cfg_copy_alloc(const xrdc_cred_config *src)
  * HOW:  explicit free for each field (safe on NULL; free(NULL) is a no-op).
  */
 static void
-cfg_copy_free(xrdc_cred_config *c)
+cfg_copy_free(brix_cred_config *c)
 {
     if (c == NULL) {
         return;
@@ -122,16 +122,16 @@ cfg_copy_free(xrdc_cred_config *c)
 
 /* per-kind cache slot */
 /*
- * cred_slot — one per xrdc_cred_kind; holds the cached view + owned strings.
+ * cred_slot — one per brix_cred_kind; holds the cached view + owned strings.
  *
- * The xrdc_cred_view.s3_access / .s3_secret / .path / .token fields point at
+ * The brix_cred_view.s3_access / .s3_secret / .path / .token fields point at
  * the owned[] array below (valid until the SAME kind's next acquire), exactly
  * as documented in cred.h: "valid until the next acquire of the SAME kind on
  * the SAME store."
  */
 typedef struct {
     int             loaded;
-    xrdc_cred_view  view;
+    brix_cred_view  view;
     int64_t         not_after;   /* unix epoch expiry; 0 = no expiry known  */
 
     /* Heap-owned copies of view strings — view.* pointers alias into these. */
@@ -142,9 +142,9 @@ typedef struct {
 } cred_slot;
 
 /* store struct */
-struct xrdc_cred_store {
-    xrdc_cred_config          *cfg;                         /* deep copy         */
-    const xrdc_cred_handler   *handlers[XRDC_CRED_KIND_COUNT]; /* may be NULL   */
+struct brix_cred_store {
+    brix_cred_config          *cfg;                         /* deep copy         */
+    const brix_cred_handler   *handlers[XRDC_CRED_KIND_COUNT]; /* may be NULL   */
     cred_slot                  slots[XRDC_CRED_KIND_COUNT];
 };
 
@@ -181,7 +181,7 @@ slot_clear_owned(cred_slot *sl)
  *       return -1.  The caller marks sl->loaded on success.
  */
 static int
-slot_store_view(cred_slot *sl, const xrdc_cred_view *v, int64_t not_after)
+slot_store_view(cred_slot *sl, const brix_cred_view *v, int64_t not_after)
 {
     slot_clear_owned(sl);
     /* Synchronise view pointers so any early-return (OOM) path leaves the slot
@@ -234,7 +234,7 @@ slot_store_view(cred_slot *sl, const xrdc_cred_view *v, int64_t not_after)
 
 /* kind name table (for error messages) */
 static const char *
-kind_name(xrdc_cred_kind k)
+kind_name(brix_cred_kind k)
 {
     switch (k) {
     case XRDC_CRED_X509_PROXY: return "x509_proxy";
@@ -248,7 +248,7 @@ kind_name(xrdc_cred_kind k)
 
 /* public API */
 /*
- * xrdc_cred_store_new — allocate and initialise a credential store.
+ * brix_cred_store_new — allocate and initialise a credential store.
  *
  * WHAT: deep-copies cfg, queries each weak accessor for its handler, and
  *       stores non-NULL results in the per-kind slot array.
@@ -257,10 +257,10 @@ kind_name(xrdc_cred_kind k)
  * HOW:  calloc the store; cfg_copy_alloc; call each weak accessor (guarding
  *       NULL) and store the returned handler pointer. Returns NULL on OOM.
  */
-xrdc_cred_store *
-xrdc_cred_store_new(const xrdc_cred_config *cfg)
+brix_cred_store *
+brix_cred_store_new(const brix_cred_config *cfg)
 {
-    xrdc_cred_store *s = calloc(1, sizeof(*s));
+    brix_cred_store *s = calloc(1, sizeof(*s));
     if (s == NULL) {
         return NULL;
     }
@@ -272,35 +272,35 @@ xrdc_cred_store_new(const xrdc_cred_config *cfg)
     }
 
     /* Populate handler slots from the (possibly weak-NULL) accessors. */
-    if (xrdc_cred_x509 != NULL) {
-        s->handlers[XRDC_CRED_X509_PROXY] = xrdc_cred_x509();
+    if (brix_cred_x509 != NULL) {
+        s->handlers[XRDC_CRED_X509_PROXY] = brix_cred_x509();
     }
-    if (xrdc_cred_bearer != NULL) {
-        s->handlers[XRDC_CRED_BEARER] = xrdc_cred_bearer();
+    if (brix_cred_bearer != NULL) {
+        s->handlers[XRDC_CRED_BEARER] = brix_cred_bearer();
     }
-    if (xrdc_cred_krb5 != NULL) {
-        s->handlers[XRDC_CRED_KRB5] = xrdc_cred_krb5();
+    if (brix_cred_krb5 != NULL) {
+        s->handlers[XRDC_CRED_KRB5] = brix_cred_krb5();
     }
-    if (xrdc_cred_sss != NULL) {
-        s->handlers[XRDC_CRED_SSS] = xrdc_cred_sss();
+    if (brix_cred_sss != NULL) {
+        s->handlers[XRDC_CRED_SSS] = brix_cred_sss();
     }
-    if (xrdc_cred_s3keys != NULL) {
-        s->handlers[XRDC_CRED_S3KEYS] = xrdc_cred_s3keys();
+    if (brix_cred_s3keys != NULL) {
+        s->handlers[XRDC_CRED_S3KEYS] = brix_cred_s3keys();
     }
 
     return s;
 }
 
 /*
- * xrdc_cred_store_free — release all store resources.
+ * brix_cred_store_free — release all store resources.
  *
  * WHAT: frees the per-kind owned strings, the deep-copied config, and the
  *       store itself.
- * WHY:  public teardown; matches xrdc_cred_store_new.
+ * WHY:  public teardown; matches brix_cred_store_new.
  * HOW:  iterate slots calling slot_clear_owned; then cfg_copy_free; then free.
  */
 void
-xrdc_cred_store_free(xrdc_cred_store *s)
+brix_cred_store_free(brix_cred_store *s)
 {
     int i;
 
@@ -315,7 +315,7 @@ xrdc_cred_store_free(xrdc_cred_store *s)
 }
 
 /*
- * xrdc_cred_available — probe whether a credential of `kind` appears usable.
+ * brix_cred_available — probe whether a credential of `kind` appears usable.
  *
  * WHAT: returns 1 if a handler is registered for `kind` AND handler->available
  *       returns non-zero; 0 otherwise. Does NOT load or cache anything.
@@ -323,9 +323,9 @@ xrdc_cred_store_free(xrdc_cred_store *s)
  * HOW:  bounds-check kind; guard NULL handler; delegate to available(cfg).
  */
 int
-xrdc_cred_available(xrdc_cred_store *s, xrdc_cred_kind kind)
+brix_cred_available(brix_cred_store *s, brix_cred_kind kind)
 {
-    const xrdc_cred_handler *h;
+    const brix_cred_handler *h;
 
     if (s == NULL || (unsigned)kind >= XRDC_CRED_KIND_COUNT) {
         return 0;
@@ -342,13 +342,13 @@ xrdc_cred_available(xrdc_cred_store *s, xrdc_cred_kind kind)
  *
  * WHAT: returns 1 when auto_refresh is enabled, an expiry is known, and the
  *       credential expires within min_remaining_s seconds.
- * WHY:  centralises the expiry-gate logic so xrdc_cred_acquire is readable.
+ * WHY:  centralises the expiry-gate logic so brix_cred_acquire is readable.
  * HOW:  pure predicate; no side effects.  min_remaining_s<=0 disables the check.
- *       Called only from the `else if (sl->loaded)` branch in xrdc_cred_acquire,
+ *       Called only from the `else if (sl->loaded)` branch in brix_cred_acquire,
  *       so no redundant loaded-check here.
  */
 static int
-should_refresh(const xrdc_cred_store *s, const cred_slot *sl, int min_remaining_s)
+should_refresh(const brix_cred_store *s, const cred_slot *sl, int min_remaining_s)
 {
     int64_t now;
 
@@ -376,10 +376,10 @@ should_refresh(const xrdc_cred_store *s, const cred_slot *sl, int min_remaining_
  *       slot_store_view sets XRDC_EAUTH + message.  Returns 0 on success.
  */
 static int
-do_acquire(xrdc_cred_store *s, xrdc_cred_kind kind,
-           const xrdc_cred_handler *h, cred_slot *sl, xrdc_status *st)
+do_acquire(brix_cred_store *s, brix_cred_kind kind,
+           const brix_cred_handler *h, cred_slot *sl, brix_status *st)
 {
-    xrdc_cred_view raw = {0};
+    brix_cred_view raw = {0};
     int64_t not_after  = 0;
     int rc;
 
@@ -388,7 +388,7 @@ do_acquire(xrdc_cred_store *s, xrdc_cred_kind kind,
         return -1;
     }
     if (slot_store_view(sl, &raw, not_after) != 0) {
-        xrdc_status_set(st, XRDC_EAUTH, 0,
+        brix_status_set(st, XRDC_EAUTH, 0,
                         "cred store: OOM caching %s credential",
                         kind_name(kind));
         return -1;
@@ -397,7 +397,7 @@ do_acquire(xrdc_cred_store *s, xrdc_cred_kind kind,
 }
 
 /*
- * xrdc_cred_acquire — discover, cache, and return a credential view.
+ * brix_cred_acquire — discover, cache, and return a credential view.
  *
  * WHAT: resolves the handler for `kind`; returns the cached view unless the
  *       slot is empty (cold miss) or auto_refresh is set and the credential
@@ -411,20 +411,20 @@ do_acquire(xrdc_cred_store *s, xrdc_cred_kind kind,
  *       4) fill *view from the cached slot.
  */
 int
-xrdc_cred_acquire(xrdc_cred_store *s, xrdc_cred_kind kind,
-                  int min_remaining_s, xrdc_cred_view *view, xrdc_status *st)
+brix_cred_acquire(brix_cred_store *s, brix_cred_kind kind,
+                  int min_remaining_s, brix_cred_view *view, brix_status *st)
 {
-    const xrdc_cred_handler *h;
+    const brix_cred_handler *h;
     cred_slot *sl;
 
     if (s == NULL || (unsigned)kind >= XRDC_CRED_KIND_COUNT) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "cred_acquire: invalid store or kind");
+        brix_status_set(st, XRDC_EUSAGE, 0, "cred_acquire: invalid store or kind");
         return -1;
     }
 
     h = s->handlers[kind];
     if (h == NULL) {
-        xrdc_status_set(st, XRDC_EAUTH, 0,
+        brix_status_set(st, XRDC_EAUTH, 0,
                         "no %s credential handler available",
                         kind_name(kind));
         return -1;

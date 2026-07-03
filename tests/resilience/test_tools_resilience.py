@@ -4,11 +4,11 @@ test_tools_resilience.py — every networked client tool rides out wire loss.
 WHAT: drives a spread of tools (xrdfs cat/ls/stat/cksum/mkdir, xrdcp download)
       through the fault proxy's `lossy` sever lever and asserts they recover
       (succeed within the resilience window) instead of failing on the first
-      sever — the xrootdfs-parity contract, now centralized in libxrdc.
+      sever — the xrootdfs-parity contract, now centralized in libbrix.
 
 WHY:  proves the resilient seam (client/lib/resilient.c) reaches all tools:
-      streaming via xrdc_rfile, metadata via the baked xrdc_roundtrip_resilient /
-      xrdc_with_resilience, xrdcp via its own copy.c loop.
+      streaming via brix_rfile, metadata via the baked brix_roundtrip_resilient /
+      brix_with_resilience, xrdcp via its own copy.c loop.
 
 HOW:  client -> fault_proxy(lossy) -> dedicated nginx (GSI, port 13901), isolated
       from the main suite. Metadata ops are tiny (few frames) so a high loss rate
@@ -110,7 +110,7 @@ def test_xrdcp_download_recovers(nginx, tmp_path):
 ])
 def test_xrdfs_metadata_recovers(nginx, cmd, needle):
     """Tiny ops over a lossy link: the loss-fragile multi-RTT GSI connect is
-    retried (xrdc_connect_resilient) and the op itself is resilient, so they
+    retried (brix_connect_resilient) and the op itself is resilient, so they
     succeed instead of failing on a severed handshake."""
     with servers.FaultProxy(nginx.port) as fp:
         fp.set_loss(12)

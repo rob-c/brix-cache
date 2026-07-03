@@ -11,7 +11,7 @@
 #ifndef XRDC_SEC_H
 #define XRDC_SEC_H
 
-#include "../xrdc.h"
+#include "../brix.h"
 
 typedef struct {
     const char *name;          /* matches &P=<name> (e.g. "ztn","gsi","unix") */
@@ -20,28 +20,28 @@ typedef struct {
     /* Do we have usable credentials for this protocol? (env/file probe).
      * c may be NULL (e.g. explain path); when c->opts.cred is non-NULL the
      * store's availability probe is used in place of the inline env probe. */
-    int  (*have_creds)(xrdc_conn *c);
+    int  (*have_creds)(brix_conn *c);
 
     /* Build the first kXR_auth payload. parms = args after "&P=<name>," ("" if
      * none). Allocates *payload (caller frees); sets *plen. 0 / -1. */
-    int  (*first)(xrdc_conn *c, const char *parms,
-                  uint8_t **payload, uint32_t *plen, xrdc_status *st);
+    int  (*first)(brix_conn *c, const char *parms,
+                  uint8_t **payload, uint32_t *plen, brix_status *st);
 
     /* Handle a kXR_authmore challenge; build the next payload. Set *payload=NULL
      * when no further round is expected. NULL for single-round protocols. */
-    int  (*more)(xrdc_conn *c, const uint8_t *sbody, uint32_t slen,
-                 uint8_t **payload, uint32_t *plen, xrdc_status *st);
+    int  (*more)(brix_conn *c, const uint8_t *sbody, uint32_t slen,
+                 uint8_t **payload, uint32_t *plen, brix_status *st);
 
-    void (*cleanup)(xrdc_conn *c);   /* optional teardown */
-} xrdc_sec_module;
+    void (*cleanup)(brix_conn *c);   /* optional teardown */
+} brix_sec_module;
 
 /* Module accessors. */
-const xrdc_sec_module *xrdc_sec_token(void);
-const xrdc_sec_module *xrdc_sec_unix(void);
-const xrdc_sec_module *xrdc_sec_sss(void);   /* shared-secret (sss_keytab.c) */
-const xrdc_sec_module *xrdc_sec_krb5(void);  /* Kerberos 5; NULL unless XROOTD_HAVE_KRB5 */
-const xrdc_sec_module *xrdc_sec_gsi(void);   /* NULL until Step 5 (sec_gsi.c) */
-const xrdc_sec_module *xrdc_sec_host(void);  /* host-based; weakest, tried last */
-const xrdc_sec_module *xrdc_sec_pwd(void);   /* XrdSecpwd password; opt-in, last */
+const brix_sec_module *brix_sec_token(void);
+const brix_sec_module *brix_sec_unix(void);
+const brix_sec_module *brix_sec_sss(void);   /* shared-secret (sss_keytab.c) */
+const brix_sec_module *brix_sec_krb5(void);  /* Kerberos 5; NULL unless BRIX_HAVE_KRB5 */
+const brix_sec_module *brix_sec_gsi(void);   /* NULL until Step 5 (sec_gsi.c) */
+const brix_sec_module *brix_sec_host(void);  /* host-based; weakest, tried last */
+const brix_sec_module *brix_sec_pwd(void);   /* XrdSecpwd password; opt-in, last */
 
 #endif /* XRDC_SEC_H */

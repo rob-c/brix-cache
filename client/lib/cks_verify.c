@@ -1,7 +1,7 @@
 /*
  * cks_verify.c — verify a file ON DISK against its recorded checksum.
  *
- * WHAT: xrdc_cks_verify_file() recomputes a local file's checksum (using the
+ * WHAT: brix_cks_verify_file() recomputes a local file's checksum (using the
  *       same shared engine as the server / xrdcrc32c) and compares it to the
  *       checksum already recorded for that file, looking in every place this
  *       project records one:
@@ -16,14 +16,14 @@
  *       running server. The front-end is apps/xrdckverify.c.
  *
  * HOW:  Collect the recorded (algorithm, hex) records for the selected sources,
- *       then recompute each distinct algorithm once over the file (xrdc_cksum_fd)
+ *       then recompute each distinct algorithm once over the file (brix_cksum_fd)
  *       and compare. The on-disk binary records (XrdCksData, .cinfo, .meta) are
  *       mirrored here as fixed-layout structs — kept byte-compatible with their
  *       canonical definitions in src/core/compat/integrity_info.c, src/fs/cache/cinfo.h
  *       and src/fs/cache/meta.h (same x86-64 ABI, read verbatim).
  */
 
-#include "xrdc.h"
+#include "brix.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -51,7 +51,7 @@ struct ckv_cksdata {
     char      Value[64];
 };
 
-/* src/fs/cache/meta.h xrootd_cache_meta_t. */
+/* src/fs/cache/meta.h brix_cache_meta_t. */
 struct ckv_meta {
     uint64_t mtime;
     uint64_t size;
@@ -67,7 +67,7 @@ struct ckv_meta {
     char     cks_hex[129];
 };
 
-/* src/fs/cache/cinfo.h xrootd_cache_cinfo_t (header only; bitmap follows on disk). */
+/* src/fs/cache/cinfo.h brix_cache_cinfo_t (header only; bitmap follows on disk). */
 struct ckv_cinfo {
     uint32_t magic;
     uint16_t version;
@@ -258,9 +258,9 @@ ckv_collect_cache(const char *path, ckv_record *recs, size_t max, size_t *n)
 }
 
 /* public entry point */
-xrdc_ckv_result
-xrdc_cks_verify_file(const char *path, const char *want_algo,
-    xrdc_ckv_mode mode, xrdc_ckv_report *rep, xrdc_status *st)
+brix_ckv_result
+brix_cks_verify_file(const char *path, const char *want_algo,
+    brix_ckv_mode mode, brix_ckv_report *rep, brix_status *st)
 {
     ckv_record recs[CKV_MAX_RECORDS];
     size_t     nrec = 0, i;
@@ -283,32 +283,32 @@ xrdc_cks_verify_file(const char *path, const char *want_algo,
     }
 
     if (nrec == 0) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0,
+        brix_status_set(st, XRDC_EUSAGE, 0,
                         "no recorded checksum found for %s", path);
         return XRDC_CKV_NO_RECORD;
     }
 
     fd = open(path, O_RDONLY | O_CLOEXEC | O_NOCTTY);
     if (fd < 0) {
-        xrdc_status_set(st, XRDC_ESOCK, errno, "open %s: %s",
+        brix_status_set(st, XRDC_ESOCK, errno, "open %s: %s",
                         path, strerror(errno));
         return XRDC_CKV_ERROR;
     }
 
     for (i = 0; i < nrec; i++) {
-        xrdc_cksum_algo alg;
+        brix_cksum_algo alg;
 
         if (want_algo != NULL && strcmp(recs[i].algo, want_algo) != 0) {
             continue;
         }
-        if (xrdc_cksum_algo_parse(recs[i].algo, &alg) != 0
+        if (brix_cksum_algo_parse(recs[i].algo, &alg) != 0
             || (int) alg > XRDC_CK_ZCRC32) {
             unsupported = 1;
             continue;                 /* recorded with an engine we cannot compute */
         }
         if (!comp_done[alg]) {
             if (lseek(fd, 0, SEEK_SET) < 0
-                || xrdc_cksum_fd(fd, alg, comp[alg], XRDC_CKV_HEX_MAX, st) != 0) {
+                || brix_cksum_fd(fd, alg, comp[alg], XRDC_CKV_HEX_MAX, st) != 0) {
                 close(fd);
                 return XRDC_CKV_ERROR;
             }
@@ -323,7 +323,7 @@ xrdc_cks_verify_file(const char *path, const char *want_algo,
         }
         if (strcasecmp(recs[i].hex, comp[alg]) != 0) {
             close(fd);
-            xrdc_status_set(st, XRDC_EINTEGRITY, 0,
+            brix_status_set(st, XRDC_EINTEGRITY, 0,
                             "%s checksum mismatch on %s: recorded %s != computed %s",
                             recs[i].algo, path, recs[i].hex, comp[alg]);
             return XRDC_CKV_MISMATCH;
@@ -337,11 +337,11 @@ xrdc_cks_verify_file(const char *path, const char *want_algo,
         return XRDC_CKV_OK;
     }
     if (unsupported) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0,
+        brix_status_set(st, XRDC_EUSAGE, 0,
                         "recorded checksum uses an algorithm this tool cannot compute");
         return XRDC_CKV_UNSUPPORTED;
     }
-    xrdc_status_set(st, XRDC_EUSAGE, 0,
+    brix_status_set(st, XRDC_EUSAGE, 0,
                     "no recorded %s checksum for %s",
                     want_algo ? want_algo : "matching", path);
     return XRDC_CKV_NO_RECORD;

@@ -73,7 +73,7 @@ xbuf_free(xbuf *b)
  */
 
 void
-areq_free(xrdc_areq *r)
+areq_free(brix_areq *r)
 {
     if (r == NULL) {
         return;
@@ -85,7 +85,7 @@ areq_free(xrdc_areq *r)
 
 
 int
-areq_accumulate(xrdc_areq *r, const uint8_t *body, uint32_t n)
+areq_accumulate(brix_areq *r, const uint8_t *body, uint32_t n)
 {
     if (n == 0) {
         return 0;
@@ -111,7 +111,7 @@ areq_accumulate(xrdc_areq *r, const uint8_t *body, uint32_t n)
 /* Invoke the completion callback exactly once and free the request. On success the
  * accumulated body ownership transfers to the callback; on failure body is NULL. */
 void
-areq_complete(xrdc_areq *r, int rc, uint16_t kxr, const xrdc_status *st)
+areq_complete(brix_areq *r, int rc, uint16_t kxr, const brix_status *st)
 {
     uint8_t  *body = NULL;
     uint32_t  blen = 0;
@@ -136,12 +136,12 @@ areq_complete(xrdc_areq *r, int rc, uint16_t kxr, const xrdc_status *st)
 int
 reqmap_rehash(reqmap *m, uint32_t newcap)
 {
-    xrdc_areq **ns = (xrdc_areq **) calloc(newcap, sizeof(*ns));
+    brix_areq **ns = (brix_areq **) calloc(newcap, sizeof(*ns));
     if (ns == NULL) {
         return -1;
     }
     for (uint32_t i = 0; i < m->cap; i++) {
-        xrdc_areq *r = m->slots[i];
+        brix_areq *r = m->slots[i];
         if (r == NULL || r == REQMAP_TOMB) {
             continue;
         }
@@ -160,7 +160,7 @@ reqmap_rehash(reqmap *m, uint32_t newcap)
 
 
 int
-reqmap_put(reqmap *m, xrdc_areq *r)
+reqmap_put(reqmap *m, brix_areq *r)
 {
     if (m->cap == 0) {
         if (reqmap_rehash(m, 64) != 0) {
@@ -189,7 +189,7 @@ reqmap_put(reqmap *m, xrdc_areq *r)
 }
 
 
-xrdc_areq *
+brix_areq *
 reqmap_get(reqmap *m, uint16_t sid)
 {
     if (m->cap == 0) {
@@ -197,7 +197,7 @@ reqmap_get(reqmap *m, uint16_t sid)
     }
     uint32_t idx = sid & (m->cap - 1);
     for (uint32_t n = 0; n < m->cap; n++) {
-        xrdc_areq *r = m->slots[idx];
+        brix_areq *r = m->slots[idx];
         if (r == NULL) {
             return NULL;
         }
@@ -218,7 +218,7 @@ reqmap_del(reqmap *m, uint16_t sid)
     }
     uint32_t idx = sid & (m->cap - 1);
     for (uint32_t n = 0; n < m->cap; n++) {
-        xrdc_areq *r = m->slots[idx];
+        brix_areq *r = m->slots[idx];
         if (r == NULL) {
             return;
         }

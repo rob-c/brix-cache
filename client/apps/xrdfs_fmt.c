@@ -5,11 +5,11 @@
 #include "xrdfs_internal.h"
 
 int
-endpoint_to_url(const char *ep, xrdc_url *u, xrdc_status *st)
+endpoint_to_url(const char *ep, brix_url *u, brix_status *st)
 {
     char resolved[XRDC_PATH_MAX];
-    xrdc_alias_resolve(ep, resolved, sizeof(resolved));
-    return xrdc_endpoint_parse(resolved, u, st);
+    brix_alias_resolve(ep, resolved, sizeof(resolved));
+    return brix_endpoint_parse(resolved, u, st);
 }
 
 
@@ -18,7 +18,7 @@ endpoint_to_url(const char *ep, xrdc_url *u, xrdc_status *st)
 void
 build_path(const char *cwd, const char *arg, char *out, size_t outsz)
 {
-    xrdc_path_resolve(cwd, arg, out, outsz);   /* shared (lib/path.c) */
+    brix_path_resolve(cwd, arg, out, outsz);   /* shared (lib/path.c) */
 }
 
 
@@ -78,7 +78,7 @@ print_stat_time(const char *label, long epoch)
 /* Print a stat report in the official xrdfs field order. CTime/ATime/Mode/
  * Owner/Group are emitted only when the server supplied them (have_ext). */
 void
-print_statinfo(const char *path, const xrdc_statinfo *si)
+print_statinfo(const char *path, const brix_statinfo *si)
 {
     char fbuf[256];
 
@@ -234,14 +234,14 @@ touch_parse_time(const char *s, struct timespec *out)
 int64_t
 parse_bytes(const char *s)
 {
-    return xrdc_parse_bytes(s);   /* shared (lib/units.c) */
+    return brix_parse_bytes(s);   /* shared (lib/units.c) */
 }
 
 
 void
 rate_pace(const struct timespec *start, int64_t sent, double rate)
 {
-    xrdc_rate_pace(start, sent, rate);   /* shared (lib/units.c) */
+    brix_rate_pace(start, sent, rate);   /* shared (lib/units.c) */
 }
 
 
@@ -281,7 +281,7 @@ is_dot(const char *name)
 void
 fmt_size(int64_t n, char *out, size_t sz, int human)
 {
-    xrdc_fmt_size(n, out, sz, human);   /* shared (lib/units.c) */
+    brix_fmt_size(n, out, sz, human);   /* shared (lib/units.c) */
 }
 
 

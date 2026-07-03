@@ -16,11 +16,11 @@
  * wire: XProtocol.hh ServerProtocolBody — pval[4] flags[4]; flags carry server caps.
  * wire: XProtocol.hh ServerLoginBody — sessid[16] [+ "&P=..." security list].
  */
-#include "xrdc.h"
+#include "brix.h"
 #include "protocols/root/protocol/frame_hdr.h"      /* shared resp-hdr codec (libxrdproto) */
 #include "protocols/root/protocol/bootstrap_pack.h" /* shared handshake/protocol/login packers */
 #include "core/compat/host_format.h"   /* IPv6-bracketing host:port (libxrdproto) */
-#include "core/compat/crypto.h"        /* xrootd_crypto_init (SHA/HMAC arming)     */
+#include "core/compat/crypto.h"        /* brix_crypto_init (SHA/HMAC arming)     */
 
 #include <pthread.h>
 
@@ -50,7 +50,7 @@
  * Returns a borrowed string (env/literal/argument); never allocates.
  */
 const char *
-xrdc_resolve_ca_dir(const char *opt_ca_dir)
+brix_resolve_ca_dir(const char *opt_ca_dir)
 {
     const char *env;
 
@@ -98,34 +98,34 @@ fill_username(char out[9])
 /* Read one response frame raw (header + body), bypassing streamid checks; used
  * for the handshake exchange where the first reply carries streamid {0,0}. */
 static int
-recv_raw(xrdc_conn *c, uint16_t *sid, uint16_t *status,
-         uint8_t *body, uint32_t bodycap, uint32_t *blen, xrdc_status *st)
+recv_raw(brix_conn *c, uint16_t *sid, uint16_t *status,
+         uint8_t *body, uint32_t bodycap, uint32_t *blen, brix_status *st)
 {
     uint8_t  hdr[XRD_RESPONSE_HDR_LEN];
     uint32_t dlen;
 
-    if (xrdc_read_full(&c->io, hdr, sizeof(hdr), st) != 0) {
+    if (brix_read_full(&c->io, hdr, sizeof(hdr), st) != 0) {
         return -1;
     }
     xrd_resp_hdr_unpack(hdr, sid, status, &dlen);   /* unaligned-safe */
 
     if (dlen > bodycap) {
-        xrdc_status_set(st, XRDC_EPROTO, 0,
+        brix_status_set(st, XRDC_EPROTO, 0,
                         "handshake body too large (%u > %u)", dlen, bodycap);
         return -1;
     }
-    if (dlen > 0 && xrdc_read_full(&c->io, body, dlen, st) != 0) {
+    if (dlen > 0 && brix_read_full(&c->io, body, dlen, st) != 0) {
         return -1;
     }
     *blen = dlen;
     if (c->diag.wire_trace) {   /* §15: trace handshake/protocol replies too */
-        xrdc_trace_frame(c, '<', *sid, *status, 0, dlen, body, dlen);
+        brix_trace_frame(c, '<', *sid, *status, 0, dlen, body, dlen);
     }
     return 0;
 }
 
 static int
-do_handshake(xrdc_conn *c, uint16_t proto_sid, int want_tls, xrdc_status *st)
+do_handshake(brix_conn *c, uint16_t proto_sid, int want_tls, brix_status *st)
 {
     uint8_t              seg[XRD_HANDSHAKE_LEN + XRD_REQUEST_HDR_LEN];
     ClientInitHandShake  hs;
@@ -152,7 +152,7 @@ do_handshake(xrdc_conn *c, uint16_t proto_sid, int want_tls, xrdc_status *st)
     memcpy(seg, &hs, XRD_HANDSHAKE_LEN);
     memcpy(seg + XRD_HANDSHAKE_LEN, &pr, XRD_REQUEST_HDR_LEN);
 
-    if (xrdc_write_full(&c->io, seg, sizeof(seg), st) != 0) {
+    if (brix_write_full(&c->io, seg, sizeof(seg), st) != 0) {
         return -1;
     }
     if (c->diag.wire_trace) {   /* §15: the 20B init has no streamid/requestid */
@@ -173,13 +173,13 @@ do_handshake(xrdc_conn *c, uint16_t proto_sid, int want_tls, xrdc_status *st)
              * own status code (not the retryable XRDC_EPROTO framing-desync
              * code) so the resilient loop fails fast instead of re-handshaking
              * the same rejection until its stall window expires. */
-            xrdc_status_set(st, (int) status, 0,
+            brix_status_set(st, (int) status, 0,
                             "handshake: server status %u", status);
             return -1;
         }
         if (sid == proto_sid) {
             if (blen < sizeof(ServerProtocolBody)) {
-                xrdc_status_set(st, XRDC_EPROTO, 0,
+                brix_status_set(st, XRDC_EPROTO, 0,
                                 "protocol reply too short (%u bytes)", blen);
                 return -1;
             }
@@ -203,21 +203,21 @@ do_handshake(xrdc_conn *c, uint16_t proto_sid, int want_tls, xrdc_status *st)
     }
 
     if (!saw_proto) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "no protocol reply from server");
+        brix_status_set(st, XRDC_EPROTO, 0, "no protocol reply from server");
         return -1;
     }
     return 0;
 }
 
 static int
-do_login(xrdc_conn *c, const xrdc_opts *o, xrdc_status *st)
+do_login(brix_conn *c, const brix_opts *o, brix_status *st)
 {
     ClientLoginRequest req;
     uint16_t           sid, status;
     uint8_t           *body = NULL;
     uint32_t           blen = 0;
 
-    /* streamid {0,0}: xrdc_send stamps the real streamid (and dlen) after
+    /* streamid {0,0}: brix_send stamps the real streamid (and dlen) after
      * packing. The username is the OS identity; advertise async-response
      * capability. dlen=0 → anonymous (no credential/CGI payload). */
     {
@@ -228,36 +228,36 @@ do_login(xrdc_conn *c, const xrdc_opts *o, xrdc_status *st)
                                (uint8_t) (kXR_ver005 | kXR_asyncap));
     }
 
-    if (xrdc_send(c, &req, NULL, 0, &sid, st) != 0) {
+    if (brix_send(c, &req, NULL, 0, &sid, st) != 0) {
         return -1;
     }
-    if (xrdc_recv(c, sid, &status, &body, &blen, st) != 0) {
+    if (brix_recv(c, sid, &status, &body, &blen, st) != 0) {
         return -1;
     }
     if (status != kXR_ok) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "login: server status %u", status);
+        brix_status_set(st, XRDC_EPROTO, 0, "login: server status %u", status);
         free(body);
         return -1;
     }
-    if (blen < XROOTD_SESSION_ID_LEN) {
-        xrdc_status_set(st, XRDC_EPROTO, 0,
+    if (blen < BRIX_SESSION_ID_LEN) {
+        brix_status_set(st, XRDC_EPROTO, 0,
                         "login reply too short (%u bytes)", blen);
         free(body);
         return -1;
     }
-    memcpy(c->sessid, body, XROOTD_SESSION_ID_LEN);
+    memcpy(c->sessid, body, BRIX_SESSION_ID_LEN);
 
     /* Anything past the 16-byte sessid is a "&P=<proto>,..." security list:
      * the server demands authentication. Hand off to the auth driver. */
-    if (blen > XROOTD_SESSION_ID_LEN) {
+    if (blen > BRIX_SESSION_ID_LEN) {
         char     sec[256];
-        uint32_t n = blen - XROOTD_SESSION_ID_LEN;
+        uint32_t n = blen - BRIX_SESSION_ID_LEN;
         if (n >= sizeof(sec)) { n = sizeof(sec) - 1; }
-        memcpy(sec, body + XROOTD_SESSION_ID_LEN, n);
+        memcpy(sec, body + BRIX_SESSION_ID_LEN, n);
         sec[n] = '\0';
         free(body);
         snprintf(c->sec_list, sizeof(c->sec_list), "%s", sec);  /* §15 explain */
-        return xrdc_authenticate(c, sec, o, st);
+        return brix_authenticate(c, sec, o, st);
     }
 
     free(body);
@@ -266,9 +266,9 @@ do_login(xrdc_conn *c, const xrdc_opts *o, xrdc_status *st)
 
 /* Establish the session on the already-set c->host/c->port using c->want_tls +
  * c->opts: connect → handshake → [TLS] → login → auth. Resets per-connection state
- * so it is safe to call again from xrdc_reconnect after a redirect. */
+ * so it is safe to call again from brix_reconnect after a redirect. */
 static int
-xrdc_bringup_ex(xrdc_conn *c, int want_login, xrdc_status *st)
+brix_bringup_ex(brix_conn *c, int want_login, brix_status *st)
 {
     c->io.fd = -1;
     c->io.ssl = NULL;
@@ -290,19 +290,19 @@ xrdc_bringup_ex(xrdc_conn *c, int want_login, xrdc_status *st)
      * completes the TCP handshake then black-holes the protocol bytes must fail
      * promptly so the reconnect machinery can ride over it, rather than hanging
      * the caller. The steady-state timeout is restored once the session is up. */
-    c->io.timeout_ms = xrdc_tmo_connect_ms();
+    c->io.timeout_ms = brix_tmo_connect_ms();
 
-    c->diag.phase_ns[0] = xrdc_mono_ns();   /* §15.3: connect-phase breakdown */
-    c->io.fd = xrdc_tcp_connect(c->host, c->port, c->io.timeout_ms, st);
+    c->diag.phase_ns[0] = brix_mono_ns();   /* §15.3: connect-phase breakdown */
+    c->io.fd = brix_tcp_connect(c->host, c->port, c->io.timeout_ms, st);
     if (c->io.fd < 0) {
         return -1;
     }
-    c->diag.phase_ns[1] = xrdc_mono_ns();   /* tcp connected */
+    c->diag.phase_ns[1] = brix_mono_ns();   /* tcp connected */
 
     /* Reserve streamid 1 for the protocol request; subsequent ops start at 2. */
     c->next_sid = 2;
     if (do_handshake(c, 1, c->want_tls, st) != 0) {
-        xrdc_close(c);
+        brix_close(c);
         return -1;
     }
 
@@ -311,45 +311,45 @@ xrdc_bringup_ex(xrdc_conn *c, int want_login, xrdc_status *st)
         int have_tls = (c->server_flags & kXR_haveTLS) != 0;
         int goto_tls = (c->server_flags & kXR_gotoTLS) != 0;
         if (goto_tls || (c->want_tls && have_tls)) {
-            const char *ca = xrdc_resolve_ca_dir(c->opts.ca_dir);
-            if (xrdc_tls_upgrade(c, !c->opts.insecure_tls, c->opts.verify_host, ca, st) != 0) {
-                xrdc_close(c);
+            const char *ca = brix_resolve_ca_dir(c->opts.ca_dir);
+            if (brix_tls_upgrade(c, !c->opts.insecure_tls, c->opts.verify_host, ca, st) != 0) {
+                brix_close(c);
                 return -1;
             }
         } else if (c->want_tls && !have_tls) {
             if (c->tls_strict || !c->opts.notlsok) {
-                xrdc_status_set(st, XRDC_EAUTH, 0,
+                brix_status_set(st, XRDC_EAUTH, 0,
                                 "server offers no TLS; refusing cleartext "
                                 "(use --notlsok with root:// to override)");
-                xrdc_close(c);
+                brix_close(c);
                 return -1;
             }
             /* root:// + --notlsok: proceed cleartext. */
         }
     }
-    c->diag.phase_ns[2] = xrdc_mono_ns();   /* tls negotiated (==tcp if cleartext) */
+    c->diag.phase_ns[2] = brix_mono_ns();   /* tls negotiated (==tcp if cleartext) */
 
     if (want_login && do_login(c, &c->opts, st) != 0) {
-        xrdc_close(c);
+        brix_close(c);
         return -1;
     }
-    c->diag.phase_ns[3] = xrdc_mono_ns();   /* login + auth done */
+    c->diag.phase_ns[3] = brix_mono_ns();   /* login + auth done */
 
     /* Session is up: switch from the short bring-up cap to the steady-state I/O
      * timeout so a legitimately long read/write is not cut off. */
-    c->io.timeout_ms = xrdc_tmo_io_ms();
+    c->io.timeout_ms = brix_tmo_io_ms();
     return 0;
 }
 
 /* The common case: full bring-up including kXR_login + auth. */
 static int
-xrdc_bringup(xrdc_conn *c, xrdc_status *st)
+brix_bringup(brix_conn *c, brix_status *st)
 {
-    return xrdc_bringup_ex(c, 1, st);
+    return brix_bringup_ex(c, 1, st);
 }
 
 int
-xrdc_bind(xrdc_conn *sec, const xrdc_conn *primary, xrdc_status *st)
+brix_bind(brix_conn *sec, const brix_conn *primary, brix_status *st)
 {
     ClientBindRequest req;
     uint16_t          sid, status;
@@ -367,7 +367,7 @@ xrdc_bind(xrdc_conn *sec, const xrdc_conn *primary, xrdc_status *st)
     snprintf(sec->host, sizeof(sec->host), "%s", primary->host);
     sec->port = primary->port;
 
-    if (xrdc_bringup_ex(sec, 0, st) != 0) {
+    if (brix_bringup_ex(sec, 0, st) != 0) {
         return -1;
     }
 
@@ -375,14 +375,14 @@ xrdc_bind(xrdc_conn *sec, const xrdc_conn *primary, xrdc_status *st)
     req.requestid = htons(kXR_bind);
     {
         xrdw_sessid_req_t b;
-        memcpy(b.sessid, primary->sessid, XROOTD_SESSION_ID_LEN);
+        memcpy(b.sessid, primary->sessid, BRIX_SESSION_ID_LEN);
         xrdw_sessid_req_pack(&b, ((ClientRequestHdr *) &req)->body);
     }
 
-    if (xrdc_send(sec, &req, NULL, 0, &sid, st) != 0
-        || xrdc_recv(sec, sid, &status, &body, &blen, st) != 0) {
+    if (brix_send(sec, &req, NULL, 0, &sid, st) != 0
+        || brix_recv(sec, sid, &status, &body, &blen, st) != 0) {
         /* Quiet teardown: a bound stream has no session of its own to end. */
-        xrdc_tls_free(sec);
+        brix_tls_free(sec);
         if (sec->io.fd >= 0) { close(sec->io.fd); sec->io.fd = -1; }
         return -1;
     }
@@ -392,28 +392,28 @@ xrdc_bind(xrdc_conn *sec, const xrdc_conn *primary, xrdc_status *st)
 
 /* phase-49: arm the libxrdproto crypto (SHA/HMAC) exactly once, lazily, so every
  * connecting tool gets working GSI/token digests without an explicit
- * xrootd_crypto_init() call — removing the easy-to-forget "GSI silently breaks if
+ * brix_crypto_init() call — removing the easy-to-forget "GSI silently breaks if
  * you forgot to init crypto" footgun.  Idempotent + thread-safe via pthread_once;
  * any remaining explicit caller is harmless. */
 static void
-xrdc_crypto_init_void(void)
+brix_crypto_init_void(void)
 {
-    (void) xrootd_crypto_init();   /* int-returning; pthread_once needs void(void) */
+    (void) brix_crypto_init();   /* int-returning; pthread_once needs void(void) */
 }
 
 static void
-xrdc_crypto_once(void)
+brix_crypto_once(void)
 {
     static pthread_once_t once = PTHREAD_ONCE_INIT;
-    pthread_once(&once, xrdc_crypto_init_void);
+    pthread_once(&once, brix_crypto_init_void);
 }
 
 int
-xrdc_connect(xrdc_conn *c, const xrdc_url *u, const xrdc_opts *o, xrdc_status *st)
+brix_connect(brix_conn *c, const brix_url *u, const brix_opts *o, brix_status *st)
 {
-    xrdc_crypto_once();
+    brix_crypto_once();
     memset(c, 0, sizeof(*c));
-    c->io.timeout_ms = xrdc_tmo_io_ms();   /* steady-state; bring-up uses the short cap */
+    c->io.timeout_ms = brix_tmo_io_ms();   /* steady-state; bring-up uses the short cap */
 
     if (o != NULL) {
         c->opts = *o;
@@ -422,7 +422,7 @@ xrdc_connect(xrdc_conn *c, const xrdc_url *u, const xrdc_opts *o, xrdc_status *s
     }
 
     if (u->scheme != XRDC_SCHEME_ROOT && u->scheme != XRDC_SCHEME_ROOTS) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0,
+        brix_status_set(st, XRDC_EUSAGE, 0,
                         "native client speaks root:// / roots:// only (scheme %d)",
                         (int) u->scheme);
         return -1;
@@ -432,7 +432,7 @@ xrdc_connect(xrdc_conn *c, const xrdc_url *u, const xrdc_opts *o, xrdc_status *s
     c->port = u->port;
     /* Phase 40 (a): remember the ORIGINAL endpoint (the manager) so a dead
      * redirect target can fall back here for a fresh server selection. Set once
-     * at connect; xrdc_reconnect deliberately does NOT touch it. */
+     * at connect; brix_reconnect deliberately does NOT touch it. */
     snprintf(c->home_host, sizeof(c->home_host), "%s", u->host);
     c->home_port = u->port;
     c->tls_strict = (u->scheme == XRDC_SCHEME_ROOTS);
@@ -442,42 +442,42 @@ xrdc_connect(xrdc_conn *c, const xrdc_url *u, const xrdc_opts *o, xrdc_status *s
      * reconnect appends rather than truncates). Frames are recorded by frame.c. */
     if (c->opts.capture != NULL && c->opts.capture[0] != '\0') {
         char ep[320];
-        c->diag.cap = xrdc_capture_open(c->opts.capture);
-        xrootd_format_host_port(c->host, (uint16_t) c->port, ep, sizeof(ep));
-        xrdc_capture_meta(c->diag.cap, "endpoint", ep);
+        c->diag.cap = brix_capture_open(c->opts.capture);
+        brix_format_host_port(c->host, (uint16_t) c->port, ep, sizeof(ep));
+        brix_capture_meta(c->diag.cap, "endpoint", ep);
     }
 
     {
-        int rc = xrdc_bringup(c, st);
+        int rc = brix_bringup(c, st);
         if (rc == 0 && c->diag.cap != NULL) {   /* snapshot negotiated session */
-            char buf[64], sx[2 * XROOTD_SESSION_ID_LEN + 1];
+            char buf[64], sx[2 * BRIX_SESSION_ID_LEN + 1];
             int  i;
             snprintf(buf, sizeof(buf), "0x%x", (unsigned) c->server_flags);
-            xrdc_capture_meta(c->diag.cap, "caps", buf);
-            xrdc_capture_meta(c->diag.cap, "auth",
+            brix_capture_meta(c->diag.cap, "caps", buf);
+            brix_capture_meta(c->diag.cap, "auth",
                               c->diag.chosen_auth ? c->diag.chosen_auth : "anon");
-            xrdc_capture_meta(c->diag.cap, "seclist",
+            brix_capture_meta(c->diag.cap, "seclist",
                               c->sec_list[0] ? c->sec_list : "(none)");
-            for (i = 0; i < XROOTD_SESSION_ID_LEN; i++) {
+            for (i = 0; i < BRIX_SESSION_ID_LEN; i++) {
                 snprintf(sx + i * 2, 3, "%02x", c->sessid[i]);
             }
-            xrdc_capture_meta(c->diag.cap, "sessid", sx);
+            brix_capture_meta(c->diag.cap, "sessid", sx);
         }
         return rc;
     }
 }
 
 int
-xrdc_connect_no_login(xrdc_conn *c, const xrdc_url *u, const xrdc_opts *o,
-                      xrdc_status *st)
+brix_connect_no_login(brix_conn *c, const brix_url *u, const brix_opts *o,
+                      brix_status *st)
 {
-    xrdc_crypto_once();
+    brix_crypto_once();
     memset(c, 0, sizeof(*c));
-    c->io.timeout_ms = xrdc_tmo_io_ms();   /* steady-state; bring-up uses the short cap */
+    c->io.timeout_ms = brix_tmo_io_ms();   /* steady-state; bring-up uses the short cap */
     if (o != NULL) { c->opts = *o; } else { c->opts.verify_host = 1; }
 
     if (u->scheme != XRDC_SCHEME_ROOT && u->scheme != XRDC_SCHEME_ROOTS) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0,
+        brix_status_set(st, XRDC_EUSAGE, 0,
                         "native client speaks root:// / roots:// only");
         return -1;
     }
@@ -493,22 +493,22 @@ xrdc_connect_no_login(xrdc_conn *c, const xrdc_url *u, const xrdc_opts *o,
      * that sends kXR_gotoTLS still upgrades regardless. */
     c->want_tls     = c->tls_strict;
     c->opts.notlsok = 1;
-    return xrdc_bringup_ex(c, 0 /*want_login*/, st);
+    return brix_bringup_ex(c, 0 /*want_login*/, st);
 }
 
 int
-xrdc_reconnect(xrdc_conn *c, const char *host, int port, xrdc_status *st)
+brix_reconnect(brix_conn *c, const char *host, int port, brix_status *st)
 {
     /* Abandon the current transport (no endsess — we are leaving this server) but
      * keep opts/want_tls/redirect-state, then re-establish against the new target. */
-    xrdc_tls_free(c);
+    brix_tls_free(c);
     if (c->io.fd >= 0) {
         close(c->io.fd);
         c->io.fd = -1;
     }
     snprintf(c->host, sizeof(c->host), "%s", host);
     c->port = port;
-    return xrdc_bringup(c, st);
+    return brix_bringup(c, st);
 }
 
 /* 1 if the session id is all-zero — i.e. no session was ever established (login
@@ -517,7 +517,7 @@ static int
 sessid_is_zero(const uint8_t *s)
 {
     int i;
-    for (i = 0; i < XROOTD_SESSION_ID_LEN; i++) {
+    for (i = 0; i < BRIX_SESSION_ID_LEN; i++) {
         if (s[i] != 0) {
             return 0;
         }
@@ -526,13 +526,13 @@ sessid_is_zero(const uint8_t *s)
 }
 
 void
-xrdc_close(xrdc_conn *c)
+brix_close(brix_conn *c)
 {
     if (c != NULL && c->diag.timing) {   /* §15: one summary per session at exit */
-        xrdc_timing_report(c);
+        brix_timing_report(c);
     }
     if (c != NULL && c->diag.cap != NULL) {   /* §15.1: flush + close the capture */
-        xrdc_capture_close(c->diag.cap);
+        brix_capture_close(c->diag.cap);
         c->diag.cap = NULL;                   /* idempotent: safe on double close */
     }
     if (c == NULL || c->io.fd < 0) {
@@ -549,7 +549,7 @@ xrdc_close(xrdc_conn *c)
     if (!sessid_is_zero(c->sessid)) {
         uint8_t     req[XRD_REQUEST_HDR_LEN];
         uint16_t    sid;
-        xrdc_status throwaway;
+        brix_status throwaway;
 
         if (c->io.timeout_ms <= 0 || c->io.timeout_ms > 2000) {
             c->io.timeout_ms = 2000;   /* teardown send must not hang */
@@ -559,32 +559,32 @@ xrdc_close(xrdc_conn *c)
         req[3] = (uint8_t) (kXR_endsess & 0xff);
         {
             xrdw_sessid_req_t b;   /* body[16] = sessid (shared codec) */
-            memcpy(b.sessid, c->sessid, XROOTD_SESSION_ID_LEN);
+            memcpy(b.sessid, c->sessid, BRIX_SESSION_ID_LEN);
             xrdw_sessid_req_pack(&b, req + 4);
         }
-        xrdc_status_clear(&throwaway);
-        (void) xrdc_send(c, req, NULL, 0, &sid, &throwaway);
+        brix_status_clear(&throwaway);
+        (void) brix_send(c, req, NULL, 0, &sid, &throwaway);
     }
 
-    xrdc_tls_free(c);            /* SSL_shutdown/free + SSL_CTX_free (no-op if none) */
+    brix_tls_free(c);            /* SSL_shutdown/free + SSL_CTX_free (no-op if none) */
     close(c->io.fd);
     c->io.fd = -1;
     OPENSSL_cleanse(c->signing_key, sizeof(c->signing_key));
 }
 
 /*
- * xrdc_explain_conn — narrate an established session: endpoint, server roles,
+ * brix_explain_conn — narrate an established session: endpoint, server roles,
  * negotiated caps, signing, the auth choice, the TLS state, and the session id.
  *
  * WHAT: a read-only report over the conn fields conn.c/auth.c already populated.
  * WHY:  both `xrdfs explain` and `xrddiag check` want the same human-readable
  *       picture of what the handshake actually negotiated — single-source it here.
  * HOW:  decode server_flags into roles/caps, defer the per-module auth detail to
- *       xrdc_auth_explain, and call xrdc_tls_info for the live cipher (flagging a
+ *       brix_auth_explain, and call brix_tls_info for the live cipher (flagging a
  *       gotoTLS→cleartext downgrade as a warning).
  */
 void
-xrdc_explain_conn(xrdc_conn *c, const xrdc_opts *opts, FILE *out)
+brix_explain_conn(brix_conn *c, const brix_opts *opts, FILE *out)
 {
     const char *ver = NULL, *cipher = NULL;
     unsigned    f;
@@ -611,9 +611,9 @@ xrdc_explain_conn(xrdc_conn *c, const xrdc_opts *opts, FILE *out)
             c->signing_active ? " (kXR_sigver active)" : "");
 
     fprintf(out, "Auth:\n");
-    xrdc_auth_explain(c, opts != NULL ? opts : &c->opts, out);
+    brix_auth_explain(c, opts != NULL ? opts : &c->opts, out);
 
-    if (xrdc_tls_info(c, &ver, &cipher)) {
+    if (brix_tls_info(c, &ver, &cipher)) {
         fprintf(out, "TLS:      active — %s / %s\n",
                 ver ? ver : "?", cipher ? cipher : "?");
     } else if (f & kXR_gotoTLS) {
@@ -627,16 +627,16 @@ xrdc_explain_conn(xrdc_conn *c, const xrdc_opts *opts, FILE *out)
      * when not the chosen protocol, so "you have a token but the server didn't
      * offer ztn" and "your proxy is expired" are both visible. Best-effort. */
     {
-        char       *tok = xrdc_token_discover();
+        char       *tok = brix_token_discover();
         const char *proxy = getenv("X509_USER_PROXY");
         if (tok != NULL || (proxy != NULL && proxy[0] != '\0')) {
             fprintf(out, "Credentials (in environment):\n");
             if (tok != NULL) {
-                xrdc_token_explain(tok, out);
+                brix_token_explain(tok, out);
                 free(tok);
             }
             if (proxy != NULL && proxy[0] != '\0') {
-                xrdc_gsi_cert_explain(proxy, out);
+                brix_gsi_cert_explain(proxy, out);
             }
         }
     }

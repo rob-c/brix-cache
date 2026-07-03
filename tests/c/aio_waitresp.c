@@ -8,8 +8,8 @@
  *       answers synchronously, so this flow only shows up against a deferring
  *       server — the pytest harness (test_aio_waitresp.py) stands up a mock one
  *       and asserts on this driver's exit code / stderr.
- * HOW:  Standard bring-up (xrdc_connect, anonymous login) → xrdc_aconn_attach →
- *       blocking xrdc_aio_call. Keepalive and transport retries are disabled so
+ * HOW:  Standard bring-up (brix_connect, anonymous login) → brix_aconn_attach →
+ *       blocking brix_aio_call. Keepalive and transport retries are disabled so
  *       the mock server's scripted frames are the only traffic that matters.
  *
  * Usage: aio_waitresp <endpoint> [deadline_ms]   (default deadline 30000)
@@ -17,7 +17,7 @@
  *        2 = harness/bring-up failure.
  */
 #include "aio.h"
-#include "xrdc.h"
+#include "brix.h"
 #include "protocols/root/protocol/protocol.h"
 
 #include <signal.h>
@@ -38,35 +38,35 @@ main(int argc, char **argv)
 
     signal(SIGPIPE, SIG_IGN);   /* a dropped peer must not kill the process */
 
-    xrdc_status st;
-    xrdc_url    url;
-    if (xrdc_endpoint_parse(endpoint, &url, &st) != 0) {
+    brix_status st;
+    brix_url    url;
+    if (brix_endpoint_parse(endpoint, &url, &st) != 0) {
         fprintf(stderr, "endpoint parse: %s\n", st.msg);
         return 2;
     }
 
-    xrdc_conn conn;
-    if (xrdc_connect(&conn, &url, NULL, &st) != 0) {
+    brix_conn conn;
+    if (brix_connect(&conn, &url, NULL, &st) != 0) {
         fprintf(stderr, "connect: %s\n", st.msg);
         return 2;
     }
 
-    xrdc_loop *loop = xrdc_loop_create(&st);
+    brix_loop *loop = brix_loop_create(&st);
     if (loop == NULL) {
         fprintf(stderr, "loop create: %s\n", st.msg);
-        xrdc_close(&conn);
+        brix_close(&conn);
         return 2;
     }
-    xrdc_aconn *ac = xrdc_aconn_attach(loop, &conn, &st);
+    brix_aconn *ac = brix_aconn_attach(loop, &conn, &st);
     if (ac == NULL) {
         fprintf(stderr, "attach: %s\n", st.msg);
-        xrdc_loop_destroy(loop);
-        xrdc_close(&conn);
+        brix_loop_destroy(loop);
+        brix_close(&conn);
         return 2;
     }
     /* keepalive off + no transport retries: the mock's scripted frames are the
      * whole conversation, and a surprise heartbeat would desynchronize it. */
-    xrdc_aconn_set_resilience(ac, deadline_ms, 0, 0);
+    brix_aconn_set_resilience(ac, deadline_ms, 0, 0);
 
     uint8_t hdr[XRD_REQUEST_HDR_LEN];
     memset(hdr, 0, sizeof(hdr));
@@ -76,12 +76,12 @@ main(int argc, char **argv)
     uint16_t kxr  = 0;
     uint8_t *body = NULL;
     uint32_t blen = 0;
-    int rc = xrdc_aio_call(ac, hdr, NULL, 0, &kxr, &body, &blen,
+    int rc = brix_aio_call(ac, hdr, NULL, 0, &kxr, &body, &blen,
                            deadline_ms, &st);
 
-    xrdc_aconn_close(ac);
-    xrdc_loop_destroy(loop);
-    xrdc_close(&conn);
+    brix_aconn_close(ac);
+    brix_loop_destroy(loop);
+    brix_close(&conn);
 
     if (rc == 0 && kxr == kXR_ok) {
         printf("OK blen=%u\n", blen);

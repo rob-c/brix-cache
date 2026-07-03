@@ -1,12 +1,12 @@
 """
-xrootdfs (FUSE mount) + libxrdposix_preload.so (LD_PRELOAD POSIX shim) — phase-37
+xrootdfs (FUSE mount) + libbrixposix_preload.so (LD_PRELOAD POSIX shim) — phase-37
 §14.4.
 
-Two clean-room (libXrdCl-free) POSIX surfaces over the native libxrdc:
+Two clean-room (libXrdCl-free) POSIX surfaces over the native libbrix:
 
   * xrootdfs — `xrootdfs root://host[:port]/ /mnt` mounts the remote namespace so
     ls/cat/cp/mkdir/rm work through the kernel VFS (libfuse3, single-threaded).
-  * libxrdposix_preload.so — `LD_PRELOAD=… BRIX_VMP=/xrd=root://host:port/`
+  * libbrixposix_preload.so — `LD_PRELOAD=… BRIX_VMP=/xrd=root://host:port/`
     diverts the POSIX READ path (open/read/stat/statx) for paths under the prefix
     to XRootD; everything else passes straight through to libc.
 
@@ -39,7 +39,7 @@ CLIENT_DIR = os.path.join(REPO, "client")
 _XROOTDFS_NAME = os.environ.get("XROOTDFS_BIN", "xrootdfs")
 XROOTDFS = _XROOTDFS_NAME if os.path.isabs(_XROOTDFS_NAME) \
     else os.path.join(CLIENT_DIR, "bin", _XROOTDFS_NAME)
-PRELOAD = os.path.join(CLIENT_DIR, "libxrdposix_preload.so")
+PRELOAD = os.path.join(CLIENT_DIR, "libbrixposix_preload.so")
 ANON_URL = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}/"
 
 _FUSE_OK = os.path.exists("/dev/fuse") and shutil.which("fusermount3") is not None
@@ -62,7 +62,7 @@ def built():
     if shutil.which("cc") is None and shutil.which("gcc") is None:
         pytest.skip("no C compiler to build the native client")
     # Build the preload .so always; the selected FUSE driver when fuse3 is present.
-    targets = ["libxrdposix_preload.so"]
+    targets = ["libbrixposix_preload.so"]
     if _FUSE_OK:
         targets.append(os.path.basename(XROOTDFS))
     proc = subprocess.run(["make", "-C", CLIENT_DIR, *targets],

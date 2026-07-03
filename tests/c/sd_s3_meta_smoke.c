@@ -13,8 +13,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* The client-side HTTP transport for the shared S3 driver (libxrdc.a). */
-extern const brix_s3_transport_t xrdc_s3_http_transport;
+/* The client-side HTTP transport for the shared S3 driver (libbrix.a). */
+extern const brix_s3_transport_t brix_s3_http_transport;
 
 static int fails = 0;
 static void check(int cond, const char *msg)
@@ -56,7 +56,7 @@ main(int argc, char **argv)
     p.ak         = "anon";          /* anonymous server ignores the signature */
     p.sk         = "anonsecret";
     p.region     = "us-east-1";
-    p.transport  = &xrdc_s3_http_transport;
+    p.transport  = &brix_s3_http_transport;
     p.tctx       = NULL;
     p.timeout_ms = 10000;
 

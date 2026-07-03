@@ -79,8 +79,8 @@ static void
 check_member(const char *zip, const char *member, const char *expect_path)
 {
     fdctx        c;
-    xrdc_zip_dir dir;
-    const xrdc_zip_entry *e;
+    brix_zip_dir dir;
+    const brix_zip_entry *e;
     sinkbuf      out = {0};
     uint8_t     *want;
     size_t       want_len;
@@ -90,15 +90,15 @@ check_member(const char *zip, const char *member, const char *expect_path)
     CHECK(c.fd >= 0, "open %s", zip);
     if (c.fd < 0) { return; }
 
-    rc = xrdc_zip_open(fd_pread, &c, file_size(zip), &dir);
+    rc = brix_zip_open(fd_pread, &c, file_size(zip), &dir);
     CHECK(rc == XRDC_ZIP_OK, "zip_open %s rc=%d", zip, rc);
     if (rc != XRDC_ZIP_OK) { close(c.fd); return; }
 
-    e = xrdc_zip_find(&dir, member);
+    e = brix_zip_find(&dir, member);
     CHECK(e != NULL, "find %s", member);
     int method = e ? (int) e->method : -1;
     if (e != NULL) {
-        rc = xrdc_zip_member_extract(fd_pread, &c, e, sink_append, &out);
+        rc = brix_zip_member_extract(fd_pread, &c, e, sink_append, &out);
         CHECK(rc == XRDC_ZIP_OK, "extract %s rc=%d", member, rc);
         want = read_file(expect_path, &want_len);
         CHECK(want != NULL, "read expect %s", expect_path);
@@ -110,7 +110,7 @@ check_member(const char *zip, const char *member, const char *expect_path)
         free(want);
     }
     free(out.data);
-    xrdc_zip_dir_free(&dir);
+    brix_zip_dir_free(&dir);
     close(c.fd);
     printf("  ok   member %-12s (method %s)\n", member,
            method == 0 ? "STORE" : "DEFLATE");
@@ -119,13 +119,13 @@ check_member(const char *zip, const char *member, const char *expect_path)
 static void
 test_not_found(const char *zip)
 {
-    fdctx c; xrdc_zip_dir dir; int rc;
+    fdctx c; brix_zip_dir dir; int rc;
     c.fd = open(zip, O_RDONLY);
-    rc = xrdc_zip_open(fd_pread, &c, file_size(zip), &dir);
+    rc = brix_zip_open(fd_pread, &c, file_size(zip), &dir);
     CHECK(rc == XRDC_ZIP_OK, "open for not-found");
     if (rc == XRDC_ZIP_OK) {
-        CHECK(xrdc_zip_find(&dir, "does/not/exist") == NULL, "missing member -> NULL");
-        xrdc_zip_dir_free(&dir);
+        CHECK(brix_zip_find(&dir, "does/not/exist") == NULL, "missing member -> NULL");
+        brix_zip_dir_free(&dir);
     }
     close(c.fd);
     printf("  ok   member-not-found\n");
@@ -135,12 +135,12 @@ static void
 test_corrupt(void)
 {
     /* A truncated archive (no EOCD) must be rejected, not crash. */
-    fdctx c; xrdc_zip_dir dir; int rc;
+    fdctx c; brix_zip_dir dir; int rc;
     system("head -c 64 /tmp/zt/multi.zip > /tmp/zt/trunc.zip");
     c.fd = open("/tmp/zt/trunc.zip", O_RDONLY);
-    rc = xrdc_zip_open(fd_pread, &c, file_size("/tmp/zt/trunc.zip"), &dir);
+    rc = brix_zip_open(fd_pread, &c, file_size("/tmp/zt/trunc.zip"), &dir);
     CHECK(rc < 0, "truncated archive rejected rc=%d", rc);
-    if (rc == XRDC_ZIP_OK) { xrdc_zip_dir_free(&dir); }
+    if (rc == XRDC_ZIP_OK) { brix_zip_dir_free(&dir); }
     close(c.fd);
     printf("  ok   corrupt/truncated rejection\n");
 }

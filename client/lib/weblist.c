@@ -1,7 +1,7 @@
 /*
  * weblist.c — list the files under a WebDAV collection (for recursive web copy).
  *
- * WHAT: xrdc_webdav_list() issues one PROPFIND Depth: infinity against a davs/http
+ * WHAT: brix_webdav_list() issues one PROPFIND Depth: infinity against a davs/http
  *       collection and returns the absolute server paths of every FILE beneath it
  *       (collections themselves are skipped — subdirs are recreated locally from the
  *       file paths).
@@ -16,9 +16,9 @@
  * Clean-room: parses the documented WebDAV multistatus shape this module emits
  * (src/protocols/webdav/propfind.c), not any client library.
  */
-#include "xrdc.h"
+#include "brix.h"
 #include "core/compat/uri.h"          /* shared RFC-3986 percent-decoder (libxrdproto) */
-#include "core/compat/host_format.h"  /* xrootd_format_host_port (IPv6-bracketed Host) */
+#include "core/compat/host_format.h"  /* brix_format_host_port (IPv6-bracketed Host) */
 
 #include <ctype.h>
 #include <stdlib.h>
@@ -45,7 +45,7 @@ push(char ***arr, size_t *n, size_t *cap, const char *s)
 }
 
 void
-xrdc_strv_free(char **arr, size_t n)
+brix_strv_free(char **arr, size_t n)
 {
     size_t i;
     if (arr == NULL) { return; }
@@ -89,7 +89,7 @@ s3_canon_qs(const char *token, const char *encp, int have_prefix,
     int    w;
 
     if (token[0] != '\0') {
-        if (xrootd_http_urlencode((const unsigned char *) token, strlen(token),
+        if (brix_http_urlencode((const unsigned char *) token, strlen(token),
                                   enctok, sizeof(enctok), "") < 0) {
             return -1;
         }
@@ -109,9 +109,9 @@ s3_canon_qs(const char *token, const char *encp, int have_prefix,
 }
 
 int
-xrdc_s3_list(const xrdc_weburl *u, const char *ak, const char *sk,
+brix_s3_list(const brix_weburl *u, const char *ak, const char *sk,
              const char *region, int verify, const char *ca_dir,
-             char ***keys, size_t *n_out, xrdc_status *st)
+             char ***keys, size_t *n_out, brix_status *st)
 {
     char        bucket[256], prefix[XRDC_PATH_MAX], encp[XRDC_PATH_MAX * 3];
     char        hostport[300];
@@ -129,7 +129,7 @@ xrdc_s3_list(const xrdc_weburl *u, const char *ak, const char *sk,
     if (region == NULL || region[0] == '\0') { region = "us-east-1"; }
     /* u->path = "/bucket[/prefix...]" → split bucket vs prefix. */
     if (u->path[0] != '/') {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "s3 list: bad path");
+        brix_status_set(st, XRDC_EUSAGE, 0, "s3 list: bad path");
         return -1;
     }
     bsl = strchr(u->path + 1, '/');
@@ -138,17 +138,17 @@ xrdc_s3_list(const xrdc_weburl *u, const char *ak, const char *sk,
         prefix[0] = '\0';
     } else {
         size_t bl = (size_t) (bsl - (u->path + 1));
-        if (bl >= sizeof(bucket)) { xrdc_status_set(st, XRDC_EUSAGE, 0, "s3: bucket too long"); return -1; }
+        if (bl >= sizeof(bucket)) { brix_status_set(st, XRDC_EUSAGE, 0, "s3: bucket too long"); return -1; }
         memcpy(bucket, u->path + 1, bl);
         bucket[bl] = '\0';
         snprintf(prefix, sizeof(prefix), "%s", bsl + 1);
     }
     /* The SigV4 signed host MUST match the wire Host header byte-for-byte; that
      * header is built bracketed for IPv6 literals ([::1]:9000), so sign the same. */
-    xrootd_format_host_port(u->host, (uint16_t) u->port, hostport, sizeof(hostport));
-    if (xrootd_http_urlencode((const unsigned char *) prefix, strlen(prefix),
+    brix_format_host_port(u->host, (uint16_t) u->port, hostport, sizeof(hostport));
+    if (brix_http_urlencode((const unsigned char *) prefix, strlen(prefix),
                               encp, sizeof(encp), "") < 0) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "s3: prefix too long");
+        brix_status_set(st, XRDC_EUSAGE, 0, "s3: prefix too long");
         return -1;
     }
     token[0] = '\0';
@@ -156,43 +156,43 @@ xrdc_s3_list(const xrdc_weburl *u, const char *ak, const char *sk,
     do {
         char           canon_uri[300], canon_qs[XRDC_PATH_MAX * 4], path[XRDC_PATH_MAX * 5];
         char           hdrs[2048];
-        xrdc_http_resp r;
+        brix_http_resp r;
         const char    *p;
         char           trunc[8];
         int            more = 0;
 
         if (++rounds > 100000) {
-            xrdc_strv_free(arr, n);
-            xrdc_status_set(st, XRDC_EPROTO, 0, "s3 list: too many pages");
+            brix_strv_free(arr, n);
+            brix_status_set(st, XRDC_EPROTO, 0, "s3 list: too many pages");
             return -1;
         }
         snprintf(canon_uri, sizeof(canon_uri), "/%s", bucket);
         if (s3_canon_qs(token, encp, prefix[0] != '\0', canon_qs, sizeof(canon_qs)) != 0
             || (size_t) snprintf(path, sizeof(path), "%s?%s", canon_uri, canon_qs)
                    >= sizeof(path)) {
-            xrdc_strv_free(arr, n);
-            xrdc_status_set(st, XRDC_EUSAGE, 0, "s3 list: prefix/continuation too long");
+            brix_strv_free(arr, n);
+            brix_status_set(st, XRDC_EUSAGE, 0, "s3 list: prefix/continuation too long");
             return -1;
         }
 
         hdrs[0] = '\0';
         if (ak != NULL && sk != NULL && ak[0] != '\0' && sk[0] != '\0') {
-            if (xrdc_s3_sign_v4_q("GET", hostport, canon_uri, canon_qs, ak, sk,
+            if (brix_s3_sign_v4_q("GET", hostport, canon_uri, canon_qs, ak, sk,
                                   region, "UNSIGNED-PAYLOAD", hdrs, sizeof(hdrs)) != 0) {
-                xrdc_strv_free(arr, n);
-                xrdc_status_set(st, XRDC_EAUTH, 0, "s3 list: failed to sign request");
+                brix_strv_free(arr, n);
+                brix_status_set(st, XRDC_EAUTH, 0, "s3 list: failed to sign request");
                 return -1;
             }
         }
-        if (xrdc_http_req(u->host, u->port, u->tls, "GET", path, hdrs[0] ? hdrs : NULL,
+        if (brix_http_req(u->host, u->port, u->tls, "GET", path, hdrs[0] ? hdrs : NULL,
                           NULL, 0, XRDC_WEBLIST_TIMEOUT, verify, ca_dir, &r, st) != 0) {
-            xrdc_strv_free(arr, n);
+            brix_strv_free(arr, n);
             return -1;
         }
         if (r.status != 200) {
-            xrdc_status_set(st, XRDC_EPROTO, 0, "s3 ListObjectsV2 returned HTTP %d", r.status);
-            xrdc_http_resp_free(&r);
-            xrdc_strv_free(arr, n);
+            brix_status_set(st, XRDC_EPROTO, 0, "s3 ListObjectsV2 returned HTTP %d", r.status);
+            brix_http_resp_free(&r);
+            brix_strv_free(arr, n);
             return -1;
         }
         p = r.body ? r.body : "";
@@ -205,16 +205,16 @@ xrdc_s3_list(const xrdc_weburl *u, const char *ak, const char *sk,
             if (kr < 0) {
                 /* A key longer than our buffer would yield a wrong download URL —
                  * fail loudly rather than silently dropping or mangling it. */
-                xrdc_http_resp_free(&r);
-                xrdc_strv_free(arr, n);
-                xrdc_status_set(st, XRDC_EPROTO, 0,
+                brix_http_resp_free(&r);
+                brix_strv_free(arr, n);
+                brix_status_set(st, XRDC_EPROTO, 0,
                                 "s3 list: object key exceeds %zu bytes", sizeof(key));
                 return -1;
             }
             if (push(&arr, &n, &cap, key) != 0) {
-                xrdc_http_resp_free(&r);
-                xrdc_strv_free(arr, n);
-                xrdc_status_set(st, XRDC_EPROTO, 0, "s3 list: out of memory");
+                brix_http_resp_free(&r);
+                brix_strv_free(arr, n);
+                brix_status_set(st, XRDC_EPROTO, 0, "s3 list: out of memory");
                 return -1;
             }
         }
@@ -229,16 +229,16 @@ xrdc_s3_list(const xrdc_weburl *u, const char *ak, const char *sk,
                                          "</NextContinuationToken>", token, sizeof(token));
                 if (tr < 0) {
                     /* token truncated → continuing would corrupt the listing */
-                    xrdc_http_resp_free(&r);
-                    xrdc_strv_free(arr, n);
-                    xrdc_status_set(st, XRDC_EPROTO, 0,
+                    brix_http_resp_free(&r);
+                    brix_strv_free(arr, n);
+                    brix_status_set(st, XRDC_EPROTO, 0,
                                     "s3 list: continuation token too long");
                     return -1;
                 }
                 more = (tr == 1);
             }
         }
-        xrdc_http_resp_free(&r);
+        brix_http_resp_free(&r);
         if (!more) { break; }
     } while (1);
 
@@ -248,11 +248,11 @@ xrdc_s3_list(const xrdc_weburl *u, const char *ak, const char *sk,
 }
 
 int
-xrdc_webdav_mkcol(const xrdc_weburl *u, const char *path, const char *bearer,
-                  int verify, const char *ca_dir, xrdc_status *st)
+brix_webdav_mkcol(const brix_weburl *u, const char *path, const char *bearer,
+                  int verify, const char *ca_dir, brix_status *st)
 {
     char           headers[8192];
-    xrdc_http_resp r;
+    brix_http_resp r;
     int            ok;
 
     if (bearer != NULL && bearer[0] != '\0') {
@@ -260,7 +260,7 @@ xrdc_webdav_mkcol(const xrdc_weburl *u, const char *path, const char *bearer,
     } else {
         headers[0] = '\0';
     }
-    if (xrdc_http_req(u->host, u->port, u->tls, "MKCOL", path,
+    if (brix_http_req(u->host, u->port, u->tls, "MKCOL", path,
                       headers[0] ? headers : NULL, NULL, 0, XRDC_WEBLIST_TIMEOUT,
                       verify, ca_dir, &r, st) != 0) {
         return -1;
@@ -269,18 +269,18 @@ xrdc_webdav_mkcol(const xrdc_weburl *u, const char *path, const char *bearer,
      * already exists → idempotent success. Anything else is a real failure. */
     ok = (r.status == 201 || r.status == 200 || r.status == 405 || r.status == 301);
     if (!ok) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "MKCOL returned HTTP %d", r.status);
+        brix_status_set(st, XRDC_EPROTO, 0, "MKCOL returned HTTP %d", r.status);
     }
-    xrdc_http_resp_free(&r);
+    brix_http_resp_free(&r);
     return ok ? 0 : -1;
 }
 
 int
-xrdc_webdav_list(const xrdc_weburl *u, const char *bearer, int verify,
-                 const char *ca_dir, char ***paths, size_t *n_out, xrdc_status *st)
+brix_webdav_list(const brix_weburl *u, const char *bearer, int verify,
+                 const char *ca_dir, char ***paths, size_t *n_out, brix_status *st)
 {
     char           headers[8192];
-    xrdc_http_resp r;
+    brix_http_resp r;
     char         **arr = NULL;
     size_t         n = 0, cap = 0;
     const char    *p;
@@ -289,7 +289,7 @@ xrdc_webdav_list(const xrdc_weburl *u, const char *bearer, int verify,
     *paths = NULL;
     *n_out = 0;
     if (u->is_s3) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "recursive copy: s3:// listing not supported yet");
+        brix_status_set(st, XRDC_EUSAGE, 0, "recursive copy: s3:// listing not supported yet");
         return -1;
     }
     if (bearer != NULL && bearer[0] != '\0') {
@@ -298,13 +298,13 @@ xrdc_webdav_list(const xrdc_weburl *u, const char *bearer, int verify,
     } else {
         snprintf(headers, sizeof(headers), "Depth: infinity\r\n");
     }
-    if (xrdc_http_req(u->host, u->port, u->tls, "PROPFIND", u->path, headers,
+    if (brix_http_req(u->host, u->port, u->tls, "PROPFIND", u->path, headers,
                       NULL, 0, XRDC_WEBLIST_TIMEOUT, verify, ca_dir, &r, st) != 0) {
         return -1;
     }
     if (r.status != 207 && r.status != 200) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "PROPFIND returned HTTP %d", r.status);
-        xrdc_http_resp_free(&r);
+        brix_status_set(st, XRDC_EPROTO, 0, "PROPFIND returned HTTP %d", r.status);
+        brix_http_resp_free(&r);
         return -1;
     }
 
@@ -328,10 +328,10 @@ xrdc_webdav_list(const xrdc_weburl *u, const char *bearer, int verify,
                     const char *path = href;
                     /* flags=0: keep a literal '+' (it is a real path byte in an
                      * href, not a form-encoded space). */
-                    if (xrootd_http_urldecode((const unsigned char *) h,
+                    if (brix_http_urldecode((const unsigned char *) h,
                                               (size_t) (he - h), href,
                                               sizeof(href), 0)
-                        != XROOTD_URLDECODE_OK) {
+                        != BRIX_URLDECODE_OK) {
                         href[0] = '\0';   /* overflow/malformed → skip content */
                     }
                     /* reduce an absolute-URL href to its path component */
@@ -341,9 +341,9 @@ xrdc_webdav_list(const xrdc_weburl *u, const char *bearer, int verify,
                         path = ps ? ps : "/";
                     }
                     if (push(&arr, &n, &cap, path) != 0) {
-                        xrdc_strv_free(arr, n);
-                        xrdc_http_resp_free(&r);
-                        xrdc_status_set(st, XRDC_EPROTO, 0, "webdav list: out of memory");
+                        brix_strv_free(arr, n);
+                        brix_http_resp_free(&r);
+                        brix_status_set(st, XRDC_EPROTO, 0, "webdav list: out of memory");
                         return -1;
                     }
                 }
@@ -351,7 +351,7 @@ xrdc_webdav_list(const xrdc_weburl *u, const char *bearer, int verify,
         }
         p = end + 12;
     }
-    xrdc_http_resp_free(&r);
+    brix_http_resp_free(&r);
     *paths = arr;
     *n_out = n;
     rc = 0;

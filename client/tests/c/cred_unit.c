@@ -33,7 +33,7 @@
 
 #include "cred.h"
 #include "sss_keytab.h"
-#include "xrdc.h"
+#include "brix.h"
 
 #include <assert.h>
 #include <stdio.h>

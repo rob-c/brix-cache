@@ -4,7 +4,7 @@
  * WHAT: For the sentinel host "dualstack.invalid" it synthesises a dual-stack
  *       result — ::1 first, then 127.0.0.1, both on the requested port — so a
  *       connect exercises the real happy-eyeballs + auto-downgrade path in
- *       xrdc_tcp_connect (sock.c) regardless of how the host resolves localhost.
+ *       brix_tcp_connect (sock.c) regardless of how the host resolves localhost.
  *       It also honours the ai_family hint, returning ONLY the IPv4 record when
  *       the caller pins AF_INET — exactly what netpref does after demotion — so
  *       the test can prove the resolver stops offering v6 once demoted.

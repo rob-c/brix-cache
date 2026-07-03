@@ -5,10 +5,10 @@
  *       reachable (TCP connect; with --full, a complete handshake+login). Exits 0
  *       when ready, non-zero on timeout. The readiness helper the harness wants.
  * WHY:  A tiny front-end over the client transport/session layer. libXrdCl-free.
- * HOW:  Loop xrdc_tcp_connect (or xrdc_connect with --full) until a deadline,
+ * HOW:  Loop brix_tcp_connect (or brix_connect with --full) until a deadline,
  *       sleeping 1s between attempts.
  */
-#include "xrdc.h"
+#include "brix.h"
 #include "core/compat/crypto.h"
 
 #include <stdio.h>
@@ -20,8 +20,8 @@
 int
 main(int argc, char **argv)
 {
-    xrdc_url    u;
-    xrdc_status st;
+    brix_url    u;
+    brix_status st;
     const char *endpoint = NULL;
     int         timeout_s = 60, full = 0, i;
     time_t      deadline;
@@ -40,25 +40,25 @@ main(int argc, char **argv)
         return 50;
     }
 
-    xrootd_crypto_init();
-    xrdc_status_clear(&st);
-    if (xrdc_endpoint_parse(endpoint, &u, &st) != 0) {
+    brix_crypto_init();
+    brix_status_clear(&st);
+    if (brix_endpoint_parse(endpoint, &u, &st) != 0) {
         fprintf(stderr, "%s: %s\n", argv[0], st.msg);
         return 50;
     }
 
     deadline = time(NULL) + timeout_s;
     for (;;) {
-        xrdc_status_clear(&st);
+        brix_status_clear(&st);
         if (full) {
-            xrdc_conn c;
-            if (xrdc_connect(&c, &u, NULL, &st) == 0) {
-                xrdc_close(&c);
+            brix_conn c;
+            if (brix_connect(&c, &u, NULL, &st) == 0) {
+                brix_close(&c);
                 printf("%s:%d ready\n", u.host, u.port);
                 return 0;
             }
         } else {
-            int fd = xrdc_tcp_connect(u.host, u.port, 1000, &st);
+            int fd = brix_tcp_connect(u.host, u.port, 1000, &st);
             if (fd >= 0) {
                 close(fd);
                 printf("%s:%d ready\n", u.host, u.port);

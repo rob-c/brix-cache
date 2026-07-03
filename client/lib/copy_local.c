@@ -41,14 +41,14 @@ make_temp_path(const char *dst, char *out, size_t outsz)
  *      fills tmp[], or -1 with *st set.
  */
 int
-open_download_temp(const char *dst, char *tmp, size_t tmpsz, xrdc_status *st)
+open_download_temp(const char *dst, char *tmp, size_t tmpsz, brix_status *st)
 {
     int attempt;
 
     for (attempt = 0; attempt < 64; attempt++) {
         int fd;
         if (make_temp_path(dst, tmp, tmpsz) != 0) {
-            xrdc_status_set(st, XRDC_EUSAGE, 0, "destination path too long: %s", dst);
+            brix_status_set(st, XRDC_EUSAGE, 0, "destination path too long: %s", dst);
             return -1;
         }
         fd = open(tmp, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0644);
@@ -56,12 +56,12 @@ open_download_temp(const char *dst, char *tmp, size_t tmpsz, xrdc_status *st)
             return fd;
         }
         if (errno != EEXIST) {
-            xrdc_status_set(st, XRDC_EUSAGE, errno, "open %s: %s",
+            brix_status_set(st, XRDC_EUSAGE, errno, "open %s: %s",
                             tmp, strerror(errno));
             return -1;
         }
     }
-    xrdc_status_set(st, XRDC_EUSAGE, EEXIST,
+    brix_status_set(st, XRDC_EUSAGE, EEXIST,
                     "could not create a unique temp for %s", dst);
     return -1;
 }
@@ -74,11 +74,11 @@ open_download_temp(const char *dst, char *tmp, size_t tmpsz, xrdc_status *st)
  * "atomic dest" guarantee lives in one place.
  */
 int
-atomic_dest_finish(const char *tmp, const char *dest, int rc, xrdc_status *st)
+atomic_dest_finish(const char *tmp, const char *dest, int rc, brix_status *st)
 {
     if (rc == 0) {
         if (rename(tmp, dest) != 0) {
-            xrdc_status_set(st, XRDC_ESOCK, errno, "rename %s -> %s: %s",
+            brix_status_set(st, XRDC_ESOCK, errno, "rename %s -> %s: %s",
                             tmp, dest, strerror(errno));
             unlink(tmp);
             return -1;
@@ -107,12 +107,12 @@ atomic_dest_finish(const char *tmp, const char *dest, int rc, xrdc_status *st)
  *       before tearing down.
  */
 int
-download_stream_body(xrdc_conn *c, const xrdc_url *su, const xrdc_statinfo *si,
+download_stream_body(brix_conn *c, const brix_url *su, const brix_statinfo *si,
                      pump_sink_fn sink, void *sinkctx,
-                     const xrdc_copy_opts *o, xrdc_streamset *ss,
-                     xrdc_status *st)
+                     const brix_copy_opts *o, brix_streamset *ss,
+                     brix_status *st)
 {
-    xrdc_file     f;
+    brix_file     f;
     pump_remote_t src = {0};
     int           rc;
     char          opq[80];
@@ -120,7 +120,7 @@ download_stream_body(xrdc_conn *c, const xrdc_url *su, const xrdc_statinfo *si,
 
     /* phase-42 W4: request inline read compression when --compress was given.
      * Rides the open opaque; the server confirms via the open reply and
-     * xrdc_file_read transparently inflates.  A server that doesn't support it
+     * brix_file_read transparently inflates.  A server that doesn't support it
      * just returns plaintext (f.read_codec stays 0), so this is always safe. */
     if (o->compress != NULL && o->compress[0] != '\0') {
         snprintf(opq, sizeof(opq), "xrootd.compress=%s", o->compress);
@@ -131,28 +131,28 @@ download_stream_body(xrdc_conn *c, const xrdc_url *su, const xrdc_statinfo *si,
      * setup and is just as sever-prone as connect/stat on a lossy link. */
     {
         int      stall = copy_stall_ms(o, 60000);
-        uint64_t deadline = xrdc_mono_ns() + (uint64_t) stall * 1000000ULL;
+        uint64_t deadline = brix_mono_ns() + (uint64_t) stall * 1000000ULL;
         unsigned attempt = 0;
         for (;;) {
             int orc = (opaque != NULL)
-                      ? xrdc_file_open_opaque(c, su->path, opq, 0, 0, 0, &f, st)
-                      : xrdc_file_open_read(c, su->path, &f, st);
+                      ? brix_file_open_opaque(c, su->path, opq, 0, 0, 0, &f, st)
+                      : brix_file_open_read(c, su->path, &f, st);
             if (orc == 0) {
                 break;
             }
-            if (!xrdc_status_retryable(st) || xrdc_copy_quit_requested()
-                || xrdc_mono_ns() >= deadline) {
+            if (!brix_status_retryable(st) || brix_copy_quit_requested()
+                || brix_mono_ns() >= deadline) {
                 return -1;
             }
-            xrdc_backoff_sleep_fast(attempt++);
+            brix_backoff_sleep_fast(attempt++);
             const char *h = (c->home_host[0] != '\0') ? c->home_host : c->host;
             int         p = (c->home_port != 0) ? c->home_port : c->port;
-            (void) xrdc_reconnect(c, h, p, st);   /* re-establish, then reopen */
+            (void) brix_reconnect(c, h, p, st);   /* re-establish, then reopen */
         }
     }
 
     /* M8: attach N-1 bound secondary streams to the (post-redirect) session. */
-    xrdc_streams_open(ss, c, o->streams, st);
+    brix_streams_open(ss, c, o->streams, st);
 
     /* remote (known si->size) → caller-supplied sink, with progress.  Resilient:
      * a sever mid-read reconnects + reopens at offset and adapts the request size,
@@ -169,21 +169,21 @@ download_stream_body(xrdc_conn *c, const xrdc_url *su, const xrdc_statinfo *si,
                        si->size, o, si->size, st);
 
     {
-        xrdc_status throwaway;
-        xrdc_status_clear(&throwaway);
-        xrdc_file_close(c, &f, rc == 0 ? st : &throwaway);
+        brix_status throwaway;
+        brix_status_clear(&throwaway);
+        brix_file_close(c, &f, rc == 0 ? st : &throwaway);
     }
     return rc;
 }
 
 
 int
-copy_download(const xrdc_url *su, const xrdc_url *du, const xrdc_copy_opts *o,
-              const xrdc_opts *co, xrdc_status *st)
+copy_download(const brix_url *su, const brix_url *du, const brix_copy_opts *o,
+              const brix_opts *co, brix_status *st)
 {
-    xrdc_conn     c;
-    xrdc_statinfo si;
-    xrdc_streamset ss;
+    brix_conn     c;
+    brix_statinfo si;
+    brix_streamset ss;
     int            to_stdout = (du->scheme == XRDC_SCHEME_STDIO);
     int            stall = copy_stall_ms(o, 60000);
     int            rc;
@@ -193,8 +193,8 @@ copy_download(const xrdc_url *su, const xrdc_url *du, const xrdc_copy_opts *o,
         return -1;
     }
     if (si.flags & kXR_isDir) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "source is a directory (use -r, M5)");
-        xrdc_close(&c);
+        brix_status_set(st, XRDC_EUSAGE, 0, "source is a directory (use -r, M5)");
+        brix_close(&c);
         return -1;
     }
 
@@ -213,11 +213,11 @@ copy_download(const xrdc_url *su, const xrdc_url *du, const xrdc_copy_opts *o,
                     fprintf(stderr, "xrdcp: %s downloaded but checksum NOT verified: "
                                     "%s\n", du->path, st->msg);
                 }
-                xrdc_status_clear(st);
+                brix_status_clear(st);
             }
         }
-        xrdc_streams_close(&ss);
-        xrdc_close(&c);
+        brix_streams_close(&ss);
+        brix_close(&c);
         return rc;
     }
 
@@ -226,16 +226,16 @@ copy_download(const xrdc_url *su, const xrdc_url *du, const xrdc_copy_opts *o,
      * commit() does fsync+rename; abort() unlinks the temp on any failure or
      * checksum mismatch so the final destination is never a partial/corrupt file. */
     if (!o->force && access(du->path, F_OK) == 0) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0,
+        brix_status_set(st, XRDC_EUSAGE, 0,
                         "destination exists (use -f to overwrite): %s",
                         du->path);
-        xrdc_close(&c);
+        brix_close(&c);
         return -1;
     }
 
     {
-        xrdc_vfs_file     *vf = NULL;
-        xrdc_vfs_open_opts vopts;
+        brix_vfs_file     *vf = NULL;
+        brix_vfs_open_opts vopts;
         pump_local_t       lc;
         int                committed = 0;
 
@@ -243,10 +243,10 @@ copy_download(const xrdc_url *su, const xrdc_url *du, const xrdc_copy_opts *o,
         vopts.expected_size = si.size;
         vopts.cred          = NULL;
 
-        if (xrdc_vfs_open(du->path,
+        if (brix_vfs_open(du->path,
                           XRDC_VFS_WRITE | (o->force ? XRDC_VFS_FORCE : 0),
                           &vopts, &vf, st) != 0) {
-            xrdc_close(&c);
+            brix_close(&c);
             return -1;
         }
 
@@ -259,7 +259,7 @@ copy_download(const xrdc_url *su, const xrdc_url *du, const xrdc_copy_opts *o,
          * committed file and returns error — it is an integrity failure, not a
          * transient fault.  A query hiccup (UNVERIFIED) keeps the good bytes. */
         if (rc == 0) {
-            rc = xrdc_vfs_commit(vf, st);
+            rc = brix_vfs_commit(vf, st);
             if (rc == 0) {
                 committed = 1;
                 if (o->cksum != NULL) {
@@ -274,19 +274,19 @@ copy_download(const xrdc_url *su, const xrdc_url *du, const xrdc_copy_opts *o,
                                             "NOT verified: %s\n",
                                     du->path, st->msg);
                         }
-                        xrdc_status_clear(st);
+                        brix_status_clear(st);
                     }
                 }
             }
         }
         if (rc != 0 && !committed) {
-            xrdc_vfs_abort(vf);   /* discard the partial temp */
+            brix_vfs_abort(vf);   /* discard the partial temp */
         }
-        xrdc_vfs_close(vf);
+        brix_vfs_close(vf);
     }
 
-    xrdc_streams_close(&ss);
-    xrdc_close(&c);
+    brix_streams_close(&ss);
+    brix_close(&c);
     return rc;
 }
 
@@ -303,27 +303,27 @@ copy_download(const xrdc_url *su, const xrdc_url *du, const xrdc_copy_opts *o,
  * HOW:  connect → open_write → streams_open → transfer_pump(src→remote) → finish.
  *       `total` is the known source size for progress and resilient-close checks
  *       (-1 for stdin / unknown).  src is either pump_src_local (stdin) or
- *       pump_src_local_vfs (local file via xrdc_vfs).  su->path is used as the
+ *       pump_src_local_vfs (local file via brix_vfs).  su->path is used as the
  *       local checksum source path (NULL ≡ stdin → cksum_verify skips gracefully).
  */
 int
-upload_stream_body(const xrdc_url *su, const xrdc_url *du,
-                   const xrdc_copy_opts *o, const xrdc_opts *co,
+upload_stream_body(const brix_url *su, const brix_url *du,
+                   const brix_copy_opts *o, const brix_opts *co,
                    pump_src_fn src, void *srcctx, int64_t total,
-                   xrdc_status *st)
+                   brix_status *st)
 {
-    xrdc_conn      c;
-    xrdc_file      f;
-    xrdc_streamset ss;
+    brix_conn      c;
+    brix_file      f;
+    brix_streamset ss;
     pump_remote_t  sink = {0};
     int            rc;
 
     ss.n = 0;
-    if (xrdc_connect_resilient(&c, du, co, st) != 0) {
+    if (brix_connect_resilient(&c, du, co, st) != 0) {
         return -1;
     }
     /* phase-42 W5: request inline write compression when --compress was given —
-     * the server decompresses each payload on ingest (xrdc_file_write compresses
+     * the server decompresses each payload on ingest (brix_file_write compresses
      * transparently once the handle's write_codec is learned).  A server that
      * doesn't support it returns plaintext (write_codec stays 0), so this is safe.
      * Streams are disabled under write compression (the secondaries would carry
@@ -339,36 +339,36 @@ upload_stream_body(const xrdc_url *su, const xrdc_url *du,
          * the write loop's resilient sink is reached.  Retry the open with
          * reconnect within the stall window — nothing is written yet, so a fresh
          * create/truncate retry is safe (matches download_stream_body and
-         * xrdc_rfile_open_write).  Subsequent reopens (pump_sink_reopen) switch
+         * brix_rfile_open_write).  Subsequent reopens (pump_sink_reopen) switch
          * to in-place update so resumed bytes are never re-truncated. */
         int      stall = copy_stall_ms(o, 60000);
-        uint64_t deadline = xrdc_mono_ns() + (uint64_t) stall * 1000000ULL;
+        uint64_t deadline = brix_mono_ns() + (uint64_t) stall * 1000000ULL;
         unsigned attempt = 0;
         for (;;) {
             int orc = (copq != NULL)
-                      ? xrdc_file_open_opaque(&c, du->path, opq, 1, o->force,
+                      ? brix_file_open_opaque(&c, du->path, opq, 1, o->force,
                                               o->posc, &f, st)
-                      : xrdc_file_open_write(&c, du->path, o->force, o->posc,
+                      : brix_file_open_write(&c, du->path, o->force, o->posc,
                                              &f, st);
             if (orc == 0) {
                 break;
             }
-            if (!xrdc_status_retryable(st) || xrdc_copy_quit_requested()
-                || xrdc_mono_ns() >= deadline) {
-                xrdc_close(&c);
+            if (!brix_status_retryable(st) || brix_copy_quit_requested()
+                || brix_mono_ns() >= deadline) {
+                brix_close(&c);
                 return -1;
             }
-            xrdc_backoff_sleep_fast(attempt++);
+            brix_backoff_sleep_fast(attempt++);
             const char *h = (c.home_host[0] != '\0') ? c.home_host : c.host;
             int         p = (c.home_port != 0) ? c.home_port : c.port;
-            (void) xrdc_reconnect(&c, h, p, st);
+            (void) brix_reconnect(&c, h, p, st);
         }
     }
 
     /* M8: attach N-1 bound secondary streams to the (post-redirect) session.
      * Skip them when write compression is active (see above). */
     if (f.write_codec == 0) {
-        xrdc_streams_open(&ss, &c, o->streams, st);
+        brix_streams_open(&ss, &c, o->streams, st);
     }
 
     /* local src → remote (EOF-driven), with progress (total = file size or -1).
@@ -377,7 +377,7 @@ upload_stream_body(const xrdc_url *su, const xrdc_url *du,
      * upload survives an nginx restart and resumes from where it left off.  This
      * needs the bytes below the offset to still be on the server: true for a
      * direct-to-final write (default, posc off) and for a server with
-     * xrootd_upload_resume on (deterministic preserved partial).  Re-issuing the
+     * brix_upload_resume on (deterministic preserved partial).  Re-issuing the
      * same buffer at the same offset is idempotent. */
     sink.c = &c;
     sink.f = &f;
@@ -398,18 +398,18 @@ upload_stream_body(const xrdc_url *su, const xrdc_url *du,
      * within the stall window, reconnecting + reopening IN PLACE between attempts
      * — the bytes are all there, so reopen+close simply commits. */
     if (rc == 0) {
-        uint64_t deadline = xrdc_mono_ns()
+        uint64_t deadline = brix_mono_ns()
                           + (uint64_t) sink.max_stall_ms * 1000000ULL;
         unsigned attempt = 0;
         for (;;) {
-            if (xrdc_file_close(&c, &f, st) == 0) {
+            if (brix_file_close(&c, &f, st) == 0) {
                 break;
             }
-            if (xrdc_copy_quit_requested() || xrdc_mono_ns() >= deadline) {
+            if (brix_copy_quit_requested() || brix_mono_ns() >= deadline) {
                 rc = -1;
                 break;
             }
-            xrdc_backoff_sleep_fast(attempt++);
+            brix_backoff_sleep_fast(attempt++);
             if (pump_sink_reopen(&sink, st) == 0) {
                 continue;   /* reopened the partial in place — loop re-commits */
             }
@@ -421,14 +421,14 @@ upload_stream_body(const xrdc_url *su, const xrdc_url *du,
              * (total < 0 = stdin: no known size, so fall back to retryability.)
              */
             if (total >= 0) {
-                xrdc_statinfo si;
-                if (xrdc_stat(&c, du->path, &si, st) == 0 && si.size == total) {
-                    xrdc_status_clear(st);
+                brix_statinfo si;
+                if (brix_stat(&c, du->path, &si, st) == 0 && si.size == total) {
+                    brix_status_clear(st);
                     rc = 0;
                     break;
                 }
             }
-            if (!xrdc_status_retryable(st) || xrdc_mono_ns() >= deadline) {
+            if (!brix_status_retryable(st) || brix_mono_ns() >= deadline) {
                 rc = -1;
                 break;
             }
@@ -449,18 +449,18 @@ upload_stream_body(const xrdc_url *su, const xrdc_url *du,
                 fprintf(stderr, "xrdcp: uploaded but checksum NOT verified: %s\n",
                         st->msg);
             }
-            xrdc_status_clear(st);   /* could-not-verify is not a transfer failure */
+            brix_status_clear(st);   /* could-not-verify is not a transfer failure */
         }
     }
-    xrdc_streams_close(&ss);
-    xrdc_close(&c);
+    brix_streams_close(&ss);
+    brix_close(&c);
     return rc;
 }
 
 
 int
-copy_upload(const xrdc_url *su, const xrdc_url *du, const xrdc_copy_opts *o,
-            const xrdc_opts *co, xrdc_status *st)
+copy_upload(const brix_url *su, const brix_url *du, const brix_copy_opts *o,
+            const brix_opts *co, brix_status *st)
 {
     if (su->scheme == XRDC_SCHEME_STDIO) {
         /* stdio path: pump from raw STDIN_FILENO; no VFS open */
@@ -471,10 +471,10 @@ copy_upload(const xrdc_url *su, const xrdc_url *du, const xrdc_copy_opts *o,
 
     /* Local file path: open via VFS (io_uring selection inside the backend) */
     {
-        xrdc_vfs_file     *vf = NULL;
-        xrdc_vfs_open_opts vopts;
-        xrdc_vfs_stat      vst;
-        xrdc_status        tmp_st;
+        brix_vfs_file     *vf = NULL;
+        brix_vfs_open_opts vopts;
+        brix_vfs_stat      vst;
+        brix_status        tmp_st;
         pump_local_t       lc;
         int64_t            total = -1;
         int                rc;
@@ -483,45 +483,45 @@ copy_upload(const xrdc_url *su, const xrdc_url *du, const xrdc_copy_opts *o,
         vopts.expected_size = -1;   /* read-only open; hint unused */
         vopts.cred          = NULL;
 
-        if (xrdc_vfs_open(su->path, XRDC_VFS_READ, &vopts, &vf, st) != 0) {
+        if (brix_vfs_open(su->path, XRDC_VFS_READ, &vopts, &vf, st) != 0) {
             return -1;
         }
-        xrdc_status_clear(&tmp_st);
-        if (xrdc_vfs_fstat(vf, &vst, &tmp_st) == 0) {
+        brix_status_clear(&tmp_st);
+        if (brix_vfs_fstat(vf, &vst, &tmp_st) == 0) {
             total = vst.size;
         }
 
         lc.vf = vf;
         rc = upload_stream_body(su, du, o, co, pump_src_local_vfs, &lc,
                                 total, st);
-        xrdc_vfs_close(vf);
+        brix_vfs_close(vf);
         return rc;
     }
 }
 
 
 /* VFS-backed pull source for an HTTP PUT body: the local source is read through
- * xrdc_vfs (so its bytes route through the shared SD driver, not a raw fd). */
+ * brix_vfs (so its bytes route through the shared SD driver, not a raw fd). */
 static ssize_t
 web_upload_src_vfs(void *ctx, uint8_t *buf, int64_t off, size_t cap,
-                   xrdc_status *st)
+                   brix_status *st)
 {
-    return xrdc_vfs_pread((xrdc_vfs_file *) ctx, off, buf, cap, st);
+    return brix_vfs_pread((brix_vfs_file *) ctx, off, buf, cap, st);
 }
 
 
 int
-copy_web_upload(const xrdc_url *su, const xrdc_weburl *du, const xrdc_copy_opts *o,
-                const xrdc_opts *co, xrdc_status *st)
+copy_web_upload(const brix_url *su, const brix_weburl *du, const brix_copy_opts *o,
+                const brix_opts *co, brix_status *st)
 {
     char               hdrs[8192];
-    xrdc_vfs_file     *vf = NULL;
-    xrdc_vfs_open_opts vopts;
-    xrdc_vfs_stat      vst;
+    brix_vfs_file     *vf = NULL;
+    brix_vfs_open_opts vopts;
+    brix_vfs_stat      vst;
     int                status = 0, rc;
 
     if (su->scheme == XRDC_SCHEME_STDIO) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0,
+        brix_status_set(st, XRDC_EUSAGE, 0,
                         "web upload needs a regular local file (Content-Length); "
                         "stdin not supported");
         return -1;
@@ -532,37 +532,37 @@ copy_web_upload(const xrdc_url *su, const xrdc_weburl *du, const xrdc_copy_opts 
     vopts.io_uring      = o ? o->io_uring : 0;
     vopts.expected_size = -1;   /* read-only open; hint unused */
     vopts.cred          = NULL;
-    if (xrdc_vfs_open(su->path, XRDC_VFS_READ, &vopts, &vf, st) != 0) {
+    if (brix_vfs_open(su->path, XRDC_VFS_READ, &vopts, &vf, st) != 0) {
         return -1;
     }
-    if (xrdc_vfs_fstat(vf, &vst, st) != 0) {
-        xrdc_vfs_close(vf);
+    if (brix_vfs_fstat(vf, &vst, st) != 0) {
+        brix_vfs_close(vf);
         return -1;
     }
     if (vst.is_dir) {
         /* st_size is only a reliable Content-Length for a non-directory file. */
-        xrdc_vfs_close(vf);
-        xrdc_status_set(st, XRDC_EUSAGE, 0,
+        brix_vfs_close(vf);
+        brix_status_set(st, XRDC_EUSAGE, 0,
                         "web upload source must be a regular file: %s", su->path);
         return -1;
     }
     if (web_auth_headers(du, "PUT", o, co, hdrs, sizeof(hdrs), st) != 0) {
-        xrdc_vfs_close(vf);
+        brix_vfs_close(vf);
         return -1;
     }
     {
         /* Resilient by default: Content-Range PUT chunks that reconnect + resume
          * from the server's durable offset, so the upload survives an nginx
-         * restart (server xrootd_webdav_upload_resume).  A plain server commits on
+         * restart (server brix_webdav_upload_resume).  A plain server commits on
          * the first whole-range chunk, so a single-shot upload still works. */
         int stall = copy_stall_ms(o, XRDC_DEFAULT_MAX_STALL_MS);
-        rc = xrdc_http_upload_resumable(du->host, du->port, du->tls, du->path,
+        rc = brix_http_upload_resumable(du->host, du->port, du->tls, du->path,
                           hdrs[0] ? hdrs : NULL, web_upload_src_vfs, vf,
                           (long long) vst.size,
                           co ? co->verify_host : 1, co ? co->ca_dir : NULL,
                           XRDC_WEB_TIMEOUT_MS, stall, &status, st);
     }
-    xrdc_vfs_close(vf);
+    brix_vfs_close(vf);
     if (rc == 0 && o && !o->silent) {
         fprintf(stderr, "xrdcp: uploaded %lld bytes (HTTP %d)\n",
                 (long long) vst.size, status);
@@ -573,52 +573,52 @@ copy_web_upload(const xrdc_url *su, const xrdc_weburl *du, const xrdc_copy_opts 
 
 /* Dispatch a copy where at least one endpoint is a web URL. */
 int
-copy_web(const char *src, const char *dst, const xrdc_copy_opts *o,
-         const xrdc_opts *co, xrdc_status *st)
+copy_web(const char *src, const char *dst, const brix_copy_opts *o,
+         const brix_opts *co, brix_status *st)
 {
-    int src_web = xrdc_is_web_url(src);
-    int dst_web = xrdc_is_web_url(dst);
+    int src_web = brix_is_web_url(src);
+    int dst_web = brix_is_web_url(dst);
 
     if (o && o->recursive) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0,
+        brix_status_set(st, XRDC_EUSAGE, 0,
                         "recursive copy is not supported for web (davs/s3) endpoints");
         return -1;
     }
     if (src_web && !dst_web) {                 /* download: web → local/stdout */
-        xrdc_weburl su;
-        xrdc_url    du;
-        if (xrdc_weburl_parse(src, &su) != 0) {
-            xrdc_status_set(st, XRDC_EUSAGE, 0, "bad web source URL");
+        brix_weburl su;
+        brix_url    du;
+        if (brix_weburl_parse(src, &su) != 0) {
+            brix_status_set(st, XRDC_EUSAGE, 0, "bad web source URL");
             return -1;
         }
-        if (xrdc_url_parse(dst, &du, st) != 0) {
+        if (brix_url_parse(dst, &du, st) != 0) {
             return -1;
         }
         if (du.scheme != XRDC_SCHEME_LOCAL && du.scheme != XRDC_SCHEME_STDIO) {
-            xrdc_status_set(st, XRDC_EUSAGE, 0,
+            brix_status_set(st, XRDC_EUSAGE, 0,
                             "web download destination must be local or '-'");
             return -1;
         }
         return copy_web_download(&su, &du, du.scheme == XRDC_SCHEME_STDIO, o, co, st);
     }
     if (!src_web && dst_web) {                 /* upload: local → web */
-        xrdc_url    su;
-        xrdc_weburl du;
-        if (xrdc_url_parse(src, &su, st) != 0) {
+        brix_url    su;
+        brix_weburl du;
+        if (brix_url_parse(src, &su, st) != 0) {
             return -1;
         }
-        if (xrdc_weburl_parse(dst, &du) != 0) {
-            xrdc_status_set(st, XRDC_EUSAGE, 0, "bad web destination URL");
+        if (brix_weburl_parse(dst, &du) != 0) {
+            brix_status_set(st, XRDC_EUSAGE, 0, "bad web destination URL");
             return -1;
         }
         if (su.scheme != XRDC_SCHEME_LOCAL && su.scheme != XRDC_SCHEME_STDIO) {
-            xrdc_status_set(st, XRDC_EUSAGE, 0,
+            brix_status_set(st, XRDC_EUSAGE, 0,
                             "web upload source must be a local file");
             return -1;
         }
         return copy_web_upload(&su, &du, o, co, st);
     }
-    xrdc_status_set(st, XRDC_EUSAGE, 0,
+    brix_status_set(st, XRDC_EUSAGE, 0,
                     "web→web copy is not supported (stage via a local file)");
     return -1;
 }

@@ -11,28 +11,28 @@
  * sets *out_bytes to the number of bytes written. Reuses the authenticated conn
  * (no reconnect), so it measures the data path itself. */
 int
-download_to_fd(xrdc_conn *c, const char *path, int fd, int64_t *out_bytes,
-               xrdc_status *st)
+download_to_fd(brix_conn *c, const char *path, int fd, int64_t *out_bytes,
+               brix_status *st)
 {
-    xrdc_file f;
+    brix_file f;
     int64_t   off = 0;
     char     *buf;
 
-    if (xrdc_file_open_read(c, path, &f, st) != 0) {
+    if (brix_file_open_read(c, path, &f, st) != 0) {
         return -1;
     }
     buf = (char *) malloc(1u << 20);
     if (buf == NULL) {
-        xrdc_file_close(c, &f, st);
-        xrdc_status_set(st, XRDC_EPROTO, 0, "download: out of memory");
+        brix_file_close(c, &f, st);
+        brix_status_set(st, XRDC_EPROTO, 0, "download: out of memory");
         return -1;
     }
     for (;;) {
-        ssize_t r = xrdc_file_read(c, &f, off, buf, 1u << 20, st);
+        ssize_t r = brix_file_read(c, &f, off, buf, 1u << 20, st);
         ssize_t w = 0;
         if (r < 0) {
             free(buf);
-            xrdc_file_close(c, &f, st);
+            brix_file_close(c, &f, st);
             return -1;
         }
         if (r == 0) {
@@ -42,8 +42,8 @@ download_to_fd(xrdc_conn *c, const char *path, int fd, int64_t *out_bytes,
             ssize_t k = write(fd, buf + w, (size_t) (r - w));
             if (k < 0) {
                 free(buf);
-                xrdc_file_close(c, &f, st);
-                xrdc_status_set(st, XRDC_ESOCK, 0, "download: local write failed");
+                brix_file_close(c, &f, st);
+                brix_status_set(st, XRDC_ESOCK, 0, "download: local write failed");
                 return -1;
             }
             w += k;
@@ -54,7 +54,7 @@ download_to_fd(xrdc_conn *c, const char *path, int fd, int64_t *out_bytes,
     if (out_bytes != NULL) {
         *out_bytes = off;
     }
-    return xrdc_file_close(c, &f, st);
+    return brix_file_close(c, &f, st);
 }
 
 
@@ -88,35 +88,35 @@ doc_issue(doctor_ep *e, int sev, const char *fmt, ...)
 
 /* Throughput probe over an established conn: TTFB (first read) + MB/s (whole file). */
 int
-doctor_xfer(xrdc_conn *c, const char *path, double *ttfb_ms, double *mbps,
+doctor_xfer(brix_conn *c, const char *path, double *ttfb_ms, double *mbps,
             int64_t *bytes)
 {
-    xrdc_file   f;
-    xrdc_status st;
+    brix_file   f;
+    brix_status st;
     uint8_t    *buf;
     int64_t     off = 0;
     uint64_t    t0, tf = 0, t1;
 
-    xrdc_status_clear(&st);
-    if (xrdc_file_open_read(c, path, &f, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_file_open_read(c, path, &f, &st) != 0) {
         return -1;
     }
     buf = (uint8_t *) malloc(1u << 20);
     if (buf == NULL) {
-        xrdc_file_close(c, &f, &st);
+        brix_file_close(c, &f, &st);
         return -1;
     }
-    t0 = xrdc_mono_ns();
+    t0 = brix_mono_ns();
     for (;;) {
-        ssize_t r = xrdc_file_read(c, &f, off, buf, 1u << 20, &st);
-        if (r < 0) { free(buf); xrdc_file_close(c, &f, &st); return -1; }
-        if (tf == 0) { tf = xrdc_mono_ns(); }     /* time-to-first-byte */
+        ssize_t r = brix_file_read(c, &f, off, buf, 1u << 20, &st);
+        if (r < 0) { free(buf); brix_file_close(c, &f, &st); return -1; }
+        if (tf == 0) { tf = brix_mono_ns(); }     /* time-to-first-byte */
         if (r == 0) { break; }
         off += r;
     }
-    t1 = xrdc_mono_ns();
+    t1 = brix_mono_ns();
     free(buf);
-    xrdc_file_close(c, &f, &st);
+    brix_file_close(c, &f, &st);
     *ttfb_ms = (double) (tf - t0) / 1e6;
     *bytes   = off;
     {
@@ -133,7 +133,7 @@ void
 doctor_metrics(const char *host, int port, doctor_ep *e)
 {
     char       *body;
-    xrdc_status st;
+    brix_status st;
     int         http = 0;
     char       *line, *save;
 
@@ -141,8 +141,8 @@ doctor_metrics(const char *host, int port, doctor_ep *e)
     if (body == NULL) {
         return;
     }
-    xrdc_status_clear(&st);
-    if (xrdc_http_get(host, port, "/metrics", 4000, &http, body, 1u << 20, NULL,
+    brix_status_clear(&st);
+    if (brix_http_get(host, port, "/metrics", 4000, &http, body, 1u << 20, NULL,
                       &st) != 0) {
         free(body);
         return;
@@ -173,7 +173,7 @@ doctor_metrics(const char *host, int port, doctor_ep *e)
  * kXR codes are recorded, never token/cert/scope contents.
  */
 void
-doctor_auth_suite(const diag_args *a, const xrdc_url *u, const char *target,
+doctor_auth_suite(const diag_args *a, const brix_url *u, const char *target,
                   int have_target, doctor_ep *e)
 {
     char  sec_list[256];
@@ -212,10 +212,10 @@ doctor_auth_suite(const diag_args *a, const xrdc_url *u, const char *target,
     }
 
     /* 4,5) tests that require the operator's real token. */
-    tok = xrdc_token_discover();
+    tok = brix_token_discover();
     if (tok != NULL) {
-        xrdc_token_meta m;
-        xrdc_token_meta_get(tok, &m);
+        brix_token_meta m;
+        brix_token_meta_get(tok, &m);
         if (ztn_adv && m.valid && m.expired) {
             dx_authz_expired(a, u, tok, e);
         }
@@ -235,7 +235,7 @@ doctor_auth_suite(const diag_args *a, const xrdc_url *u, const char *target,
  * loopback or the operator passed --i-am-authorized (mutations on a remote server).
  */
 void
-doctor_diagnose(const diag_args *a, xrdc_conn *c, const xrdc_url *u,
+doctor_diagnose(const diag_args *a, brix_conn *c, const brix_url *u,
                 const char *target, int have_target, doctor_ep *e)
 {
     dx_probe_auth(c, e);
@@ -246,9 +246,9 @@ doctor_diagnose(const diag_args *a, xrdc_conn *c, const xrdc_url *u,
     }
     {
         char        loc[2048];
-        xrdc_status lst;
-        xrdc_status_clear(&lst);
-        if (xrdc_locate(c, u->path[0] ? u->path : "/", loc, sizeof(loc), &lst) != 0) {
+        brix_status lst;
+        brix_status_clear(&lst);
+        if (brix_locate(c, u->path[0] ? u->path : "/", loc, sizeof(loc), &lst) != 0) {
             dx_record_status(e, "locate", &lst);
         } else {
             char *t, *save;
@@ -293,8 +293,8 @@ void
 doctor_http(const diag_args *a, dx_proto proto, int tls, const char *host,
             int port, const char *path, doctor_ep *e)
 {
-    xrdc_http_resp r;
-    xrdc_status    st;
+    brix_http_resp r;
+    brix_status    st;
     int            verify = a->verify_tls;
     int            tmo = a->probe_timeout_ms > 0 ? a->probe_timeout_ms : 8000;
     char           val[512];
@@ -307,11 +307,11 @@ doctor_http(const diag_args *a, dx_proto proto, int tls, const char *host,
 
     /* Stage 1: reachability + (TLS handshake/cert). Try HEAD; fall back to a 1-byte
      * ranged GET if HEAD is refused, so we still measure connect/TLS. */
-    xrdc_status_clear(&st);
-    if (xrdc_http_req(host, port, tls, "HEAD", path, NULL, NULL, 0, tmo, verify,
+    brix_status_clear(&st);
+    if (brix_http_req(host, port, tls, "HEAD", path, NULL, NULL, 0, tmo, verify,
                       NULL, &r, &st) != 0) {
-        xrdc_status_clear(&st);
-        if (xrdc_http_req(host, port, tls, "GET", path, "Range: bytes=0-0\r\n",
+        brix_status_clear(&st);
+        if (brix_http_req(host, port, tls, "GET", path, "Range: bytes=0-0\r\n",
                           NULL, 0, tmo, verify, NULL, &r, &st) != 0) {
             dx_http_fail(e, tls, &st);
             return;
@@ -329,7 +329,7 @@ doctor_http(const diag_args *a, dx_proto proto, int tls, const char *host,
     dx_http_status(e, "http", r.status);
 
     /* Stage 3: byte ranges (partial reads / multi-stream transfers depend on this). */
-    if (xrdc_http_header(&r, "Accept-Ranges", val, sizeof(val))
+    if (brix_http_header(&r, "Accept-Ranges", val, sizeof(val))
         && strstr(val, "bytes") != NULL) {
         dx_record(e, "ranges", DX_OK, 0, "byte-range reads supported (Accept-Ranges: bytes)", "");
     } else {
@@ -339,7 +339,7 @@ doctor_http(const diag_args *a, dx_proto proto, int tls, const char *host,
     }
 
     /* Stage 4: checksum advertisement (RFC-3230 Digest, WLCG transfers rely on it). */
-    if (xrdc_http_header(&r, "Digest", val, sizeof(val)) && strchr(val, '=') != NULL) {
+    if (brix_http_header(&r, "Digest", val, sizeof(val)) && strchr(val, '=') != NULL) {
         /* RFC-3230 form is "algo=value"; require the '=' so a malformed header
          * isn't counted as a working checksum. */
         dx_record(e, "checksum", DX_OK, 0, "server advertises a content Digest (checksum)", "");
@@ -350,17 +350,17 @@ doctor_http(const diag_args *a, dx_proto proto, int tls, const char *host,
     }
 
     /* Stage 5: content-length present (sized transfers). */
-    if (xrdc_http_header(&r, "Content-Length", val, sizeof(val))) {
+    if (brix_http_header(&r, "Content-Length", val, sizeof(val))) {
         dx_record(e, "content-length", DX_OK, 0, "response is sized (Content-Length present)", "");
     }
-    xrdc_http_resp_free(&r);
+    brix_http_resp_free(&r);
 
     /* davs extras: OPTIONS (WebDAV class) + PROPFIND (collection listing). */
     if (proto == DXP_DAVS) {
-        xrdc_status_clear(&st);
-        if (xrdc_http_req(host, port, tls, "OPTIONS", path, NULL, NULL, 0, tmo,
+        brix_status_clear(&st);
+        if (brix_http_req(host, port, tls, "OPTIONS", path, NULL, NULL, 0, tmo,
                           verify, NULL, &r, &st) == 0) {
-            if (xrdc_http_header(&r, "DAV", val, sizeof(val))) {
+            if (brix_http_header(&r, "DAV", val, sizeof(val))) {
                 int class2 = (strstr(val, "2") != NULL);
                 dx_record(e, "davs-class", DX_OK, r.status,
                           class2 ? "WebDAV class 2 advertised (LOCK supported)"
@@ -368,20 +368,20 @@ doctor_http(const diag_args *a, dx_proto proto, int tls, const char *host,
             } else {
                 dx_record(e, "davs-class", DX_WARN, r.status,
                           "OPTIONS returned no DAV header (WebDAV may be disabled)",
-                          "confirm xrootd_webdav is on for this location");
+                          "confirm brix_webdav is on for this location");
             }
-            if (xrdc_http_header(&r, "Allow", val, sizeof(val))
+            if (brix_http_header(&r, "Allow", val, sizeof(val))
                 && strstr(val, "COPY") != NULL) {
                 dx_record(e, "davs-tpc", DX_OK, 0,
                           "COPY method allowed (third-party-copy capable)", "");
             }
-            xrdc_http_resp_free(&r);
+            brix_http_resp_free(&r);
         } else {
             dx_record(e, "davs-class", DX_WARN, st.kxr,
                       "OPTIONS request failed", "");
         }
-        xrdc_status_clear(&st);
-        if (xrdc_http_req(host, port, tls, "PROPFIND", path, "Depth: 1\r\n",
+        brix_status_clear(&st);
+        if (brix_http_req(host, port, tls, "PROPFIND", path, "Depth: 1\r\n",
                           NULL, 0, tmo, verify, NULL, &r, &st) == 0) {
             if (r.status == 207) {
                 dx_record(e, "davs-listing", DX_OK, 207,
@@ -393,7 +393,7 @@ doctor_http(const diag_args *a, dx_proto proto, int tls, const char *host,
                 dx_record(e, "davs-listing", DX_WARN, r.status,
                           "PROPFIND did not return 207 multistatus", "");
             }
-            xrdc_http_resp_free(&r);
+            brix_http_resp_free(&r);
         }
     }
 }
@@ -410,8 +410,8 @@ void
 doctor_s3(const diag_args *a, int tls, const char *host, int port,
           const char *uri, doctor_ep *e)
 {
-    xrdc_http_resp r;
-    xrdc_status    st;
+    brix_http_resp r;
+    brix_status    st;
     int            verify = a->verify_tls;
     int            tmo = a->probe_timeout_ms > 0 ? a->probe_timeout_ms : 8000;
     const char    *ak = getenv("AWS_ACCESS_KEY_ID");
@@ -424,8 +424,8 @@ doctor_s3(const diag_args *a, int tls, const char *host, int port,
     e->port = port;
 
     /* Stage 1: reachability + TLS via an unauthenticated GET. */
-    xrdc_status_clear(&st);
-    if (xrdc_http_req(host, port, tls, "GET", uri, NULL, NULL, 0, tmo, verify,
+    brix_status_clear(&st);
+    if (brix_http_req(host, port, tls, "GET", uri, NULL, NULL, 0, tmo, verify,
                       NULL, &r, &st) != 0) {
         dx_http_fail(e, tls, &st);
         return;
@@ -451,7 +451,7 @@ doctor_s3(const diag_args *a, int tls, const char *host, int port,
     } else {
         dx_http_status(e, "s3-req", r.status);
     }
-    xrdc_http_resp_free(&r);
+    brix_http_resp_free(&r);
 
     /* Stage 2: authenticated SigV4 probe (only if AWS creds are present). */
     if (ak != NULL && sk != NULL && ak[0] != '\0' && sk[0] != '\0') {
@@ -465,8 +465,8 @@ doctor_s3(const diag_args *a, int tls, const char *host, int port,
         if (s3_sign("GET", hostport, uri, ak, sk, region, hdrs, sizeof(hdrs)) != 0) {
             dx_record(e, "s3-sigv4", DX_WARN, 0, "could not build a SigV4 signature (client)", "");
         } else {
-            xrdc_status_clear(&st);
-            if (xrdc_http_req(host, port, tls, "GET", uri, hdrs, NULL, 0, tmo,
+            brix_status_clear(&st);
+            if (brix_http_req(host, port, tls, "GET", uri, hdrs, NULL, 0, tmo,
                               verify, NULL, &r, &st) != 0) {
                 dx_record(e, "s3-sigv4", DX_WARN, st.kxr, "signed request failed to complete", "");
             } else {
@@ -491,7 +491,7 @@ doctor_s3(const diag_args *a, int tls, const char *host, int port,
                 } else {
                     dx_http_status(e, "s3-sigv4", r.status);
                 }
-                xrdc_http_resp_free(&r);
+                brix_http_resp_free(&r);
             }
         }
     } else {
@@ -507,15 +507,15 @@ doctor_s3(const diag_args *a, int tls, const char *host, int port,
  * answers kXR_locate with the data server(s) holding a path and issues kXR_redirect.
  * Connect to the manager, locate the path, and confirm the redirect resolution to a
  * reachable data server; flag no-holder / unreachable-DS (ghost) / redirect issues.
- * Reuses the libxrdc locate + reconnect machinery (the redirect loop-guard applies).
+ * Reuses the libbrix locate + reconnect machinery (the redirect loop-guard applies).
  */
 void
 doctor_cms(const diag_args *a, const char *host, int port, const char *path,
            doctor_ep *e)
 {
-    xrdc_url    u;
-    xrdc_conn   c;
-    xrdc_status st;
+    brix_url    u;
+    brix_conn   c;
+    brix_status st;
 
     memset(e, 0, sizeof(*e));
     e->proto = DXP_CMS;
@@ -529,8 +529,8 @@ doctor_cms(const diag_args *a, const char *host, int port, const char *path,
     u.port = port;
     snprintf(u.path, sizeof(u.path), "%s", path[0] ? path : "/");
 
-    xrdc_status_clear(&st);
-    if (xrdc_connect(&c, &u, &a->conn, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_connect(&c, &u, &a->conn, &st) != 0) {
         dx_record(e, "cms-connect", DX_FAIL, st.kxr,
                   "could not connect to the cluster manager",
                   "check the manager (cmsd/redirector) is up on this host:port");
@@ -543,9 +543,9 @@ doctor_cms(const diag_args *a, const char *host, int port, const char *path,
 
     {
         char        loc[2048];
-        xrdc_status lst;
-        xrdc_status_clear(&lst);
-        if (xrdc_locate(&c, u.path, loc, sizeof(loc), &lst) != 0) {
+        brix_status lst;
+        brix_status_clear(&lst);
+        if (brix_locate(&c, u.path, loc, sizeof(loc), &lst) != 0) {
             /* a manager returns NotFound when no server holds the path. */
             dx_record_status(e, "cms-locate", &lst);
         } else {
@@ -568,10 +568,10 @@ doctor_cms(const diag_args *a, const char *host, int port, const char *path,
     /* Resolution: a stat through the manager must follow the redirect to a live DS.
      * A redirect loop or dead DS surfaces here (the loop-guard returns an error). */
     {
-        xrdc_statinfo si;
-        xrdc_status   rst;
-        xrdc_status_clear(&rst);
-        if (xrdc_stat(&c, u.path, &si, &rst) == 0) {
+        brix_statinfo si;
+        brix_status   rst;
+        brix_status_clear(&rst);
+        if (brix_stat(&c, u.path, &si, &rst) == 0) {
             dx_record(e, "cms-redirect", DX_OK, 0,
                       "manager→data-server redirect resolved to a live server", "");
         } else if (rst.kxr == kXR_NotFound) {
@@ -584,7 +584,7 @@ doctor_cms(const diag_args *a, const char *host, int port, const char *path,
                       "check data-server health and the CMS registry for stale entries");
         }
     }
-    xrdc_close(&c);
+    brix_close(&c);
 }
 
 
@@ -592,9 +592,9 @@ doctor_cms(const diag_args *a, const char *host, int port, const char *path,
 void
 doctor_one(const diag_args *a, const char *url, doctor_ep *e)
 {
-    xrdc_url      u;
-    xrdc_conn     c;
-    xrdc_status   st;
+    brix_url      u;
+    brix_conn     c;
+    brix_status   st;
     const char   *ver = NULL, *cipher = NULL;
     char          target[XRDC_PATH_MAX];
     int           have_target = 0;
@@ -602,8 +602,8 @@ doctor_one(const diag_args *a, const char *url, doctor_ep *e)
     target[0] = '\0';
     memset(e, 0, sizeof(*e));
     e->status = DOC_GREEN;
-    xrdc_status_clear(&st);
-    if (xrdc_endpoint_parse(url, &u, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_endpoint_parse(url, &u, &st) != 0) {
         snprintf(e->host, sizeof(e->host), "%s", url);
         doc_issue(e, DOC_RED, "unparseable URL (bad scheme/host/port)");
         return;
@@ -611,7 +611,7 @@ doctor_one(const diag_args *a, const char *url, doctor_ep *e)
     snprintf(e->host, sizeof(e->host), "%s", u.host);
     e->port = u.port;
 
-    if (xrdc_connect(&c, &u, &a->conn, &st) != 0) {
+    if (brix_connect(&c, &u, &a->conn, &st) != 0) {
         /* Distinguish "server reachable but auth failed" from "couldn't reach it"
          * by the client's error CODE: XRDC_EAUTH / kXR_NotAuthorized / kXR_AuthFailed
          * mean auth was attempted and rejected; everything else is transport. */
@@ -651,10 +651,10 @@ doctor_one(const diag_args *a, const char *url, doctor_ep *e)
     c.io.timeout_ms = a->probe_timeout_ms > 0 ? a->probe_timeout_ms : 8000;
 
     /* network + transport facts */
-    xrdc_netdiag_facts(&c, &e->nf);
+    brix_netdiag_facts(&c, &e->nf);
     e->caps = (unsigned) c.server_flags;
     e->gototls = (c.server_flags & kXR_gotoTLS) != 0;
-    e->tls_active = xrdc_tls_info(&c, &ver, &cipher);
+    e->tls_active = brix_tls_info(&c, &ver, &cipher);
     if (e->tls_active) {
         snprintf(e->tls_ver, sizeof(e->tls_ver), "%s", ver ? ver : "?");
         snprintf(e->tls_cipher, sizeof(e->tls_cipher), "%s", cipher ? cipher : "?");
@@ -669,9 +669,9 @@ doctor_one(const diag_args *a, const char *url, doctor_ep *e)
 
     /* throughput probe over a resolved file (skip cleanly if the export is empty) */
     {
-        xrdc_statinfo sti;
-        xrdc_status   rst;
-        xrdc_status_clear(&rst);
+        brix_statinfo sti;
+        brix_status   rst;
+        brix_status_clear(&rst);
         if (resolve_target(&c, &u, target, sizeof(target), &sti, &rst) == 0) {
             have_target = 1;
             if (doctor_xfer(&c, target, &e->ttfb_ms, &e->mbps, &e->xfer_bytes)
@@ -684,7 +684,7 @@ doctor_one(const diag_args *a, const char *url, doctor_ep *e)
     /* active differential diagnosis — exercise subsystems + classify (incl. locate). */
     doctor_diagnose(a, &c, &u, target, have_target, e);
 
-    xrdc_close(&c);
+    brix_close(&c);
 
     /* server-side load signal (cleartext /metrics; best-effort, 0 = skip) */
     if (a->metrics_port > 0) {
@@ -824,7 +824,7 @@ doctor_print_diagnosis(const doctor_ep *e)
 
 
 /* Route one URL to its protocol battery by scheme. root:// (and any unrecognized
- * scheme, for back-compat) goes to the full libxrdc battery; the rest to their
+ * scheme, for back-compat) goes to the full libbrix battery; the rest to their
  * deep-dive batteries. */
 void
 doctor_dispatch(const diag_args *a, const char *url, doctor_ep *e)
@@ -882,7 +882,7 @@ do_remote_doctor(const diag_args *a)
             doctor_print_diagnosis(e);
             continue;
         }
-        /* root/cms use the libxrdc connection → full connect-phase + transport facts;
+        /* root/cms use the libbrix connection → full connect-phase + transport facts;
          * the HTTP-family batteries report TLS facts inline + the diagnosis block. */
         if (e->proto == DXP_ROOT) {
             printf("  connect: tcp %.1f / tls %.1f / login+auth %.1f ms  (%s)\n",
@@ -910,13 +910,13 @@ do_remote_doctor(const diag_args *a)
 
     /* client-side credential validity (the same creds reach every hop). */
     {
-        char       *tok = xrdc_token_discover();
+        char       *tok = brix_token_discover();
         const char *proxy = getenv("X509_USER_PROXY");
         if (tok != NULL || (proxy != NULL && proxy[0] != '\0')) {
             printf("\nCredentials (in environment):\n");
-            if (tok != NULL) { xrdc_token_explain(tok, stdout); free(tok); }
+            if (tok != NULL) { brix_token_explain(tok, stdout); free(tok); }
             if (proxy != NULL && proxy[0] != '\0') {
-                xrdc_gsi_cert_explain(proxy, stdout);
+                brix_gsi_cert_explain(proxy, stdout);
             }
         }
     }

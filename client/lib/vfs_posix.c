@@ -1,12 +1,12 @@
 /* client/lib/vfs_posix.c
  *
- * WHAT: POSIX storage backend for xrdc_vfs — the reference implementation.
+ * WHAT: POSIX storage backend for brix_vfs — the reference implementation.
  *       Handles local file I/O via pread/pwrite on plain fds, with optional
  *       io_uring overlap for read-ahead / write-behind, and atomic temp+rename
  *       commit for safe overwrites.
  * WHY:  copy.c currently hard-codes POSIX fds at the local endpoint.  This
- *       backend encapsulates that in the xrdc_vfs_backend vtable so any caller
- *       using xrdc_vfs_open() transparently gets atomic commits, io_uring,
+ *       backend encapsulates that in the brix_vfs_backend vtable so any caller
+ *       using brix_vfs_open() transparently gets atomic commits, io_uring,
  *       and the correct caps without touching copy.c.
  * HOW:  open() for READ opens the final path directly; open() for WRITE creates
  *       a sibling temp (make_posix_temp_path + open O_WRONLY|O_CREAT|O_TRUNC
@@ -16,13 +16,13 @@
  *       pread/pwrite route through the ring when present, else fall back to the
  *       plain POSIX calls.  commit() = fsync + rename(tmp, final).
  *       abort() = unlink(tmp).  close() frees the ring and fd.
- *       Self-registers via xrdc_vfs_posix_backend() on first use.
+ *       Self-registers via brix_vfs_posix_backend() on first use.
  *       ngx-free; no goto; functional/modular; one responsibility per function.
  */
 
 #include "vfs.h"
 #include "uring.h"
-#include "xrdc.h"
+#include "brix.h"
 #include "fs/backend/sd.h"   /* shared Storage Driver (ngx-free) */
 #include "fs/core/vfs_core.h" /* shared `vfs` I/O verbs — the EINTR/short-I/O loop
                                * policy is single-sourced with the nginx server's
@@ -44,16 +44,16 @@
 /*
  * vfs_posix_file — concrete file handle for the POSIX backend.
  *
- * WHAT: extends xrdc_vfs_file with the fd, optional ring, and temp/final
+ * WHAT: extends brix_vfs_file with the fd, optional ring, and temp/final
  *       paths needed for atomic temp+rename commit.
- * HOW:  base MUST be first (struct alias cast to xrdc_vfs_file *).
+ * HOW:  base MUST be first (struct alias cast to brix_vfs_file *).
  *       final_path is the real destination; tmp_path is the sibling temp
  *       (NULL for READ handles, where commit/abort are no-ops).
  */
 typedef struct {
-    xrdc_vfs_file  base;          /* MUST be first — aliased by façade */
+    brix_vfs_file  base;          /* MUST be first — aliased by façade */
     int            fd;
-    xrdc_disk_ring *ring;         /* NULL when io_uring is OFF or unavailable */
+    brix_disk_ring *ring;         /* NULL when io_uring is OFF or unavailable */
     char          *final_path;    /* heap-allocated final path (READ or WRITE) */
     char          *tmp_path;      /* heap-allocated temp path (WRITE only; NULL for READ) */
 } vfs_posix_file;
@@ -98,13 +98,13 @@ make_posix_temp_path(const char *dst)
  * WHAT: implements the AUTO/ON/OFF tri-state.  OFF → *ring=NULL, return 0.
  *       ON with unavailable io_uring → *ring=NULL, return -1, st set.
  *       AUTO with unavailable io_uring → *ring=NULL, return 0 (silent fallback).
- *       Otherwise attempts xrdc_disk_ring_create; ON failure with ON mode → error.
+ *       Otherwise attempts brix_disk_ring_create; ON failure with ON mode → error.
  * WHY:  mirrors copy.c:local_ring_select so the same semantics apply.
- * HOW:  mode from opts->io_uring; guards xrdc_uring_available(); delegates to
- *       xrdc_disk_ring_create with a modest window (4 ops, 64 KiB each).
+ * HOW:  mode from opts->io_uring; guards brix_uring_available(); delegates to
+ *       brix_disk_ring_create with a modest window (4 ops, 64 KiB each).
  */
 static int
-posix_ring_select(int fd, int mode, xrdc_disk_ring **ring, xrdc_status *st)
+posix_ring_select(int fd, int mode, brix_disk_ring **ring, brix_status *st)
 {
     *ring = NULL;
 
@@ -112,9 +112,9 @@ posix_ring_select(int fd, int mode, xrdc_disk_ring **ring, xrdc_status *st)
         return 0;
     }
 
-    if (!xrdc_uring_available()) {
+    if (!brix_uring_available()) {
         if (mode == XRDC_IO_URING_ON) {
-            xrdc_status_set(st, XRDC_EUNSUPPORTED, 0,
+            brix_status_set(st, XRDC_EUNSUPPORTED, 0,
                             "vfs posix: io_uring=on but io_uring is unavailable "
                             "on this host or this build lacks liburing");
             return -1;
@@ -123,9 +123,9 @@ posix_ring_select(int fd, int mode, xrdc_disk_ring **ring, xrdc_status *st)
     }
 
     {
-        xrdc_status tmp_st;
-        xrdc_status_clear(&tmp_st);
-        *ring = xrdc_disk_ring_create(fd, 4, 65536, 0, &tmp_st);
+        brix_status tmp_st;
+        brix_status_clear(&tmp_st);
+        *ring = brix_disk_ring_create(fd, 4, 65536, 0, &tmp_st);
         if (*ring == NULL && mode == XRDC_IO_URING_ON) {
             if (st != NULL) {
                 *st = tmp_st;
@@ -144,25 +144,25 @@ posix_ring_select(int fd, int mode, xrdc_disk_ring **ring, xrdc_status *st)
  * WHAT: delegates to the ring (read-ahead path) when present; falls back to
  *       plain pread(2) otherwise.  Returns bytes read (≥0) or -1 with st set.
  * WHY:  single dispatch point — callers never see the ring vs. plain difference.
- * HOW:  ring path: xrdc_disk_ring_pread; plain path: pread(2) with EINTR retry.
+ * HOW:  ring path: brix_disk_ring_pread; plain path: pread(2) with EINTR retry.
  */
 static ssize_t
-posix_pread(xrdc_vfs_file *f, int64_t off, void *buf, size_t n, xrdc_status *st)
+posix_pread(brix_vfs_file *f, int64_t off, void *buf, size_t n, brix_status *st)
 {
     vfs_posix_file *pf = (vfs_posix_file *) f;
 
     if (pf->ring != NULL) {
-        return xrdc_disk_ring_pread(pf->ring, off, (uint8_t *) buf, n, st);
+        return brix_disk_ring_pread(pf->ring, off, (uint8_t *) buf, n, st);
     }
 
     {
-        xrootd_sd_obj_t obj;
+        brix_sd_obj_t obj;
         ssize_t         r;
 
-        xrootd_sd_posix_wrap(&obj, pf->fd);
+        brix_sd_posix_wrap(&obj, pf->fd);
         r = xvfs_pread_once(&obj, buf, n, (off_t) off);
         if (r < 0) {
-            xrdc_status_set(st, XRDC_EIO, errno,
+            brix_status_set(st, XRDC_EIO, errno,
                             "vfs posix pread: %s", strerror(errno));
         }
         return r;
@@ -176,24 +176,24 @@ posix_pread(xrdc_vfs_file *f, int64_t off, void *buf, size_t n, xrdc_status *st)
  *       plain pwrite(2) otherwise.  Returns 0 on success, -1 with st set.
  * WHY:  single dispatch point; ring path avoids blocking disk writes.
  * HOW:  ring path: split into ring-buffer-sized pieces and call
- *       xrdc_disk_ring_pwrite for each (xrdc_disk_ring_pwrite requires n <=
+ *       brix_disk_ring_pwrite for each (brix_disk_ring_pwrite requires n <=
  *       bufsz; the caller may supply a chunk much larger than the ring's
  *       per-op buffer).  Plain path: pwrite(2) retry loop.
  */
 static int
-posix_pwrite(xrdc_vfs_file *f, int64_t off, const void *buf, size_t n,
-             xrdc_status *st)
+posix_pwrite(brix_vfs_file *f, int64_t off, const void *buf, size_t n,
+             brix_status *st)
 {
     vfs_posix_file *pf = (vfs_posix_file *) f;
 
     if (pf->ring != NULL) {
         const uint8_t *p   = (const uint8_t *) buf;
         size_t         rem = n;
-        size_t         rsz = xrdc_disk_ring_bufsz(pf->ring);
+        size_t         rsz = brix_disk_ring_bufsz(pf->ring);
 
         while (rem > 0) {
             size_t chunk = rem < rsz ? rem : rsz;
-            if (xrdc_disk_ring_pwrite(pf->ring, off, p, chunk, st) != 0) {
+            if (brix_disk_ring_pwrite(pf->ring, off, p, chunk, st) != 0) {
                 return -1;
             }
             p   += chunk;
@@ -204,11 +204,11 @@ posix_pwrite(xrdc_vfs_file *f, int64_t off, const void *buf, size_t n,
     }
 
     {
-        xrootd_sd_obj_t obj;
+        brix_sd_obj_t obj;
 
-        xrootd_sd_posix_wrap(&obj, pf->fd);
+        brix_sd_posix_wrap(&obj, pf->fd);
         if (xvfs_pwrite_full(&obj, buf, n, (off_t) off, NULL, NULL) != 0) {
-            xrdc_status_set(st, XRDC_EIO, errno,
+            brix_status_set(st, XRDC_EIO, errno,
                             "vfs posix pwrite: %s", strerror(errno));
             return -1;
         }
@@ -219,20 +219,20 @@ posix_pwrite(xrdc_vfs_file *f, int64_t off, const void *buf, size_t n,
 /*
  * posix_fstat — fill *out with size, mtime, is_dir, exists for the open handle.
  *
- * WHAT: calls fstat(2) on pf->fd; maps the struct stat fields to xrdc_vfs_stat.
+ * WHAT: calls fstat(2) on pf->fd; maps the struct stat fields to brix_vfs_stat.
  * WHY:  avoids a second path stat when the fd is already open (no TOCTOU).
  * HOW:  fstat; populate out; on failure set st and return -1.
  */
 static int
-posix_fstat(xrdc_vfs_file *f, xrdc_vfs_stat *out, xrdc_status *st)
+posix_fstat(brix_vfs_file *f, brix_vfs_stat *out, brix_status *st)
 {
     vfs_posix_file  *pf = (vfs_posix_file *) f;
-    xrootd_sd_obj_t  obj;
-    xrootd_sd_stat_t sd;
+    brix_sd_obj_t  obj;
+    brix_sd_stat_t sd;
 
-    xrootd_sd_posix_wrap(&obj, pf->fd);
+    brix_sd_posix_wrap(&obj, pf->fd);
     if (xvfs_fstat(&obj, &sd) != 0) {
-        xrdc_status_set(st, XRDC_EIO, errno,
+        brix_status_set(st, XRDC_EIO, errno,
                         "vfs posix fstat: %s", strerror(errno));
         return -1;
     }
@@ -252,14 +252,14 @@ posix_fstat(xrdc_vfs_file *f, xrdc_vfs_stat *out, xrdc_status *st)
  * HOW:  ftruncate; set st on failure.
  */
 static int
-posix_truncate(xrdc_vfs_file *f, int64_t size, xrdc_status *st)
+posix_truncate(brix_vfs_file *f, int64_t size, brix_status *st)
 {
     vfs_posix_file *pf = (vfs_posix_file *) f;
-    xrootd_sd_obj_t obj;
+    brix_sd_obj_t obj;
 
-    xrootd_sd_posix_wrap(&obj, pf->fd);
+    brix_sd_posix_wrap(&obj, pf->fd);
     if (xvfs_ftruncate(&obj, (off_t) size) != 0) {
-        xrdc_status_set(st, XRDC_EIO, errno,
+        brix_status_set(st, XRDC_EIO, errno,
                         "vfs posix ftruncate: %s", strerror(errno));
         return -1;
     }
@@ -271,24 +271,24 @@ posix_truncate(xrdc_vfs_file *f, int64_t size, xrdc_status *st)
  *
  * WHAT: drains any ring write-behind queue, then calls fsync(2) on pf->fd.
  * WHY:  ensures callers can rely on data being durable after sync() returns.
- * HOW:  xrdc_disk_ring_flush (no-op on NULL); fsync; set st on failure.
+ * HOW:  brix_disk_ring_flush (no-op on NULL); fsync; set st on failure.
  */
 static int
-posix_sync(xrdc_vfs_file *f, xrdc_status *st)
+posix_sync(brix_vfs_file *f, brix_status *st)
 {
     vfs_posix_file *pf = (vfs_posix_file *) f;
 
     if (pf->ring != NULL) {
-        if (xrdc_disk_ring_flush(pf->ring, st) != 0) {
+        if (brix_disk_ring_flush(pf->ring, st) != 0) {
             return -1;
         }
     }
 
     {
-        xrootd_sd_obj_t obj;
-        xrootd_sd_posix_wrap(&obj, pf->fd);
+        brix_sd_obj_t obj;
+        brix_sd_posix_wrap(&obj, pf->fd);
         if (xvfs_fsync(&obj) != 0) {
-            xrdc_status_set(st, XRDC_EIO, errno,
+            brix_status_set(st, XRDC_EIO, errno,
                             "vfs posix fsync: %s", strerror(errno));
             return -1;
         }
@@ -305,7 +305,7 @@ posix_sync(xrdc_vfs_file *f, xrdc_status *st)
  * HOW:  ring flush → fsync → rename; on rename failure unlink the temp and return -1.
  */
 static int
-posix_commit(xrdc_vfs_file *f, xrdc_status *st)
+posix_commit(brix_vfs_file *f, brix_status *st)
 {
     vfs_posix_file *pf = (vfs_posix_file *) f;
 
@@ -314,19 +314,19 @@ posix_commit(xrdc_vfs_file *f, xrdc_status *st)
     }
 
     if (pf->ring != NULL) {
-        if (xrdc_disk_ring_flush(pf->ring, st) != 0) {
+        if (brix_disk_ring_flush(pf->ring, st) != 0) {
             return -1;
         }
     }
 
     if (fsync(pf->fd) != 0) {
-        xrdc_status_set(st, XRDC_EIO, errno,
+        brix_status_set(st, XRDC_EIO, errno,
                         "vfs posix commit fsync: %s", strerror(errno));
         return -1;
     }
 
     if (rename(pf->tmp_path, pf->final_path) != 0) {
-        xrdc_status_set(st, XRDC_EIO, errno,
+        brix_status_set(st, XRDC_EIO, errno,
                         "vfs posix commit rename %s -> %s: %s",
                         pf->tmp_path, pf->final_path, strerror(errno));
         unlink(pf->tmp_path);
@@ -343,7 +343,7 @@ posix_commit(xrdc_vfs_file *f, xrdc_status *st)
  * HOW:  unlink(tmp_path) if present; ignore errors (best-effort cleanup).
  */
 static void
-posix_abort(xrdc_vfs_file *f)
+posix_abort(brix_vfs_file *f)
 {
     vfs_posix_file *pf = (vfs_posix_file *) f;
 
@@ -358,14 +358,14 @@ posix_abort(xrdc_vfs_file *f)
  * WHAT: frees the ring (if any), closes the fd, frees path strings, and frees
  *       the handle struct.  Must be called after commit() or abort().
  * WHY:  owns all resources allocated by posix_open(); one release point.
- * HOW:  xrdc_disk_ring_destroy (safe on NULL); close(fd); free strings; free pf.
+ * HOW:  brix_disk_ring_destroy (safe on NULL); close(fd); free strings; free pf.
  */
 static void
-posix_close(xrdc_vfs_file *f)
+posix_close(brix_vfs_file *f)
 {
     vfs_posix_file *pf = (vfs_posix_file *) f;
 
-    xrdc_disk_ring_destroy(pf->ring);
+    brix_disk_ring_destroy(pf->ring);
 
     if (pf->fd >= 0) {
         close(pf->fd);
@@ -377,7 +377,7 @@ posix_close(xrdc_vfs_file *f)
 }
 
 /* vtable singleton */
-static const xrdc_vfs_ops s_posix_ops = {
+static const brix_vfs_ops s_posix_ops = {
     .pread    = posix_pread,
     .pwrite   = posix_pwrite,
     .fstat    = posix_fstat,
@@ -400,9 +400,9 @@ static const xrdc_vfs_ops s_posix_ops = {
  *       Caller receives NULL *out on any failure; the handle is not half-initialised.
  */
 static int
-posix_be_open(const xrdc_vfs_backend *be, const char *path, int flags,
-              const xrdc_vfs_open_opts *opts, xrdc_vfs_file **out,
-              xrdc_status *st)
+posix_be_open(const brix_vfs_backend *be, const char *path, int flags,
+              const brix_vfs_open_opts *opts, brix_vfs_file **out,
+              brix_status *st)
 {
     vfs_posix_file *pf;
     int             fd = -1;
@@ -418,7 +418,7 @@ posix_be_open(const xrdc_vfs_backend *be, const char *path, int flags,
 
     final_copy = strdup(path);
     if (final_copy == NULL) {
-        xrdc_status_set(st, XRDC_EIO, ENOMEM,
+        brix_status_set(st, XRDC_EIO, ENOMEM,
                         "vfs posix open: out of memory");
         return -1;
     }
@@ -426,7 +426,7 @@ posix_be_open(const xrdc_vfs_backend *be, const char *path, int flags,
     if (flags & XRDC_VFS_WRITE) {
         /* FORCE guard: if final exists and FORCE is not set, reject. */
         if (!(flags & XRDC_VFS_FORCE) && access(path, F_OK) == 0) {
-            xrdc_status_set(st, XRDC_EUSAGE, EEXIST,
+            brix_status_set(st, XRDC_EUSAGE, EEXIST,
                             "vfs posix open: destination exists (use "
                             "XRDC_VFS_FORCE to overwrite): %s", path);
             free(final_copy);
@@ -435,7 +435,7 @@ posix_be_open(const xrdc_vfs_backend *be, const char *path, int flags,
 
         tmp_path = make_posix_temp_path(path);
         if (tmp_path == NULL) {
-            xrdc_status_set(st, XRDC_EUSAGE, 0,
+            brix_status_set(st, XRDC_EUSAGE, 0,
                             "vfs posix open: destination path too long: %s",
                             path);
             free(final_copy);
@@ -445,11 +445,11 @@ posix_be_open(const xrdc_vfs_backend *be, const char *path, int flags,
         /* Open through the shared POSIX driver (unconfined): O_EXCL refuses a
          * pre-existing name; O_NOFOLLOW refuses a symlink. Same driver the nginx
          * server opens through (its variant adds RESOLVE_BENEATH confinement). */
-        fd = xrootd_sd_posix_open_unconfined(tmp_path,
-                 XROOTD_SD_O_WRITE | XROOTD_SD_O_CREATE | XROOTD_SD_O_TRUNC
-                 | XROOTD_SD_O_EXCL | XROOTD_SD_O_NOFOLLOW, 0644);
+        fd = brix_sd_posix_open_unconfined(tmp_path,
+                 BRIX_SD_O_WRITE | BRIX_SD_O_CREATE | BRIX_SD_O_TRUNC
+                 | BRIX_SD_O_EXCL | BRIX_SD_O_NOFOLLOW, 0644);
         if (fd < 0) {
-            xrdc_status_set(st, XRDC_EIO, errno,
+            brix_status_set(st, XRDC_EIO, errno,
                             "vfs posix open write temp %s: %s",
                             tmp_path, strerror(errno));
             free(final_copy);
@@ -458,9 +458,9 @@ posix_be_open(const xrdc_vfs_backend *be, const char *path, int flags,
         }
     } else {
         /* READ — through the shared POSIX driver (unconfined). */
-        fd = xrootd_sd_posix_open_unconfined(path, XROOTD_SD_O_READ, 0);
+        fd = brix_sd_posix_open_unconfined(path, BRIX_SD_O_READ, 0);
         if (fd < 0) {
-            xrdc_status_set(st, XRDC_EIO, errno,
+            brix_status_set(st, XRDC_EIO, errno,
                             "vfs posix open read %s: %s",
                             path, strerror(errno));
             free(final_copy);
@@ -470,7 +470,7 @@ posix_be_open(const xrdc_vfs_backend *be, const char *path, int flags,
 
     pf = calloc(1, sizeof(*pf));
     if (pf == NULL) {
-        xrdc_status_set(st, XRDC_EIO, ENOMEM,
+        brix_status_set(st, XRDC_EIO, ENOMEM,
                         "vfs posix open: out of memory");
         close(fd);
         free(final_copy);
@@ -502,13 +502,13 @@ posix_be_open(const xrdc_vfs_backend *be, const char *path, int flags,
 /*
  * posix_be_stat — stat a path by name without opening a handle.
  *
- * WHAT: calls stat(2) on path; fills xrdc_vfs_stat; sets exists=0 on ENOENT.
+ * WHAT: calls stat(2) on path; fills brix_vfs_stat; sets exists=0 on ENOENT.
  * WHY:  allows pre-transfer existence/size checks without a full open.
  * HOW:  stat(2); populate out; ENOENT → exists=0, return 0; other errors → -1, st.
  */
 static int
-posix_be_stat(const xrdc_vfs_backend *be, const char *path,
-              xrdc_vfs_stat *out, xrdc_status *st)
+posix_be_stat(const brix_vfs_backend *be, const char *path,
+              brix_vfs_stat *out, brix_status *st)
 {
     struct stat sb;
 
@@ -522,7 +522,7 @@ posix_be_stat(const xrdc_vfs_backend *be, const char *path,
             out->is_dir = 0;
             return 0;
         }
-        xrdc_status_set(st, XRDC_EIO, errno,
+        brix_status_set(st, XRDC_EIO, errno,
                         "vfs posix stat %s: %s", path, strerror(errno));
         return -1;
     }
@@ -535,7 +535,7 @@ posix_be_stat(const xrdc_vfs_backend *be, const char *path,
 }
 
 /* Backend descriptor + self-registration */
-static const xrdc_vfs_backend s_posix_backend = {
+static const brix_vfs_backend s_posix_backend = {
     .scheme = "file",
     .caps   = (XRDC_VFS_CAP_RANDOM_WRITE | XRDC_VFS_CAP_TRUNCATE |
                XRDC_VFS_CAP_ATOMIC_TEMP   | XRDC_VFS_CAP_FADVISE),
@@ -544,17 +544,17 @@ static const xrdc_vfs_backend s_posix_backend = {
 };
 
 /*
- * xrdc_vfs_posix_backend — pure factory: return the POSIX backend descriptor.
+ * brix_vfs_posix_backend — pure factory: return the POSIX backend descriptor.
  *
  * WHAT: strong definition that overrides the weak stub in vfs.c; called once
  *       during vfs_init_backends() (pthread_once).  Returns the static
- *       descriptor; vfs.c's init owns the xrdc_vfs_register_backend() call.
+ *       descriptor; vfs.c's init owns the brix_vfs_register_backend() call.
  * WHY:  registration is the façade's responsibility — the accessor must not
  *       double-register (which would consume two of the 8 registry slots).
  * HOW:  return the static descriptor directly.
  */
-const xrdc_vfs_backend *
-xrdc_vfs_posix_backend(void)
+const brix_vfs_backend *
+brix_vfs_posix_backend(void)
 {
     return &s_posix_backend;
 }

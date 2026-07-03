@@ -5,13 +5,13 @@
  * The S3 storage logic (SigV4, HEAD/Range-GET, single-PUT, multipart upload)
  * now lives in the shared driver src/fs/backend/sd_s3.c (ngx-free, libxrdproto).
  * This shell only: parses the s3:// URL, loads credentials, picks the backend,
- * and adapts the xrdc_vfs vtable onto the shared driver via vfs_s3_transport.c.
+ * and adapts the brix_vfs vtable onto the shared driver via vfs_s3_transport.c.
  */
-#ifndef XROOTD_VFS_S3_INTERNAL_H
-#define XROOTD_VFS_S3_INTERNAL_H
+#ifndef BRIX_VFS_S3_INTERNAL_H
+#define BRIX_VFS_S3_INTERNAL_H
 
 #include "vfs.h"
-#include "xrdc.h"
+#include "brix.h"
 #include "core/compat/host_format.h"
 #include "fs/backend/s3/sd_s3.h"            /* the shared S3 driver */
 #include "fs/backend/s3/sd_s3_transport.h"
@@ -28,7 +28,7 @@
 /* Client-side S3 handle: the URL endpoint + credentials it parsed, plus the
  * shared driver handle that does all the actual S3 I/O. */
 typedef struct {
-    xrdc_vfs_file  base;          /* MUST be first — aliased by the façade */
+    brix_vfs_file  base;          /* MUST be first — aliased by the façade */
     char           host[256];
     int            port;
     int            tls;
@@ -41,23 +41,23 @@ typedef struct {
     sd_s3_file    *sd;            /* shared S3 driver handle (does the I/O) */
 } vfs_s3_file;
 
-extern const xrdc_vfs_ops s_s3_ops;
-extern const xrdc_vfs_backend s_s3_backend;
-extern const xrootd_s3_transport_t xrdc_s3_http_transport;
+extern const brix_vfs_ops s_s3_ops;
+extern const brix_vfs_backend s_s3_backend;
+extern const brix_s3_transport_t brix_s3_http_transport;
 
 /* vfs_s3_http.c — credential loading (the only HTTP helper still client-side). */
-void s3_creds_load(vfs_s3_file *sf, const xrdc_vfs_open_opts *opts);
+void s3_creds_load(vfs_s3_file *sf, const brix_vfs_open_opts *opts);
 
-/* vfs_s3_io.c — the xrdc_vfs vtable, delegating to the shared driver. */
-int     s3_load_size(vfs_s3_file *sf, xrdc_status *st);
-ssize_t s3_pread(xrdc_vfs_file *f, int64_t off, void *buf, size_t n, xrdc_status *st);
-int     s3_pwrite(xrdc_vfs_file *f, int64_t off, const void *buf, size_t n, xrdc_status *st);
-int     s3_fstat(xrdc_vfs_file *f, xrdc_vfs_stat *out, xrdc_status *st);
-int     s3_truncate(xrdc_vfs_file *f, int64_t size, xrdc_status *st);
-int     s3_sync(xrdc_vfs_file *f, xrdc_status *st);
-int     s3_commit(xrdc_vfs_file *f, xrdc_status *st);
-void    s3_abort(xrdc_vfs_file *f);
-void    s3_close(xrdc_vfs_file *f);
+/* vfs_s3_io.c — the brix_vfs vtable, delegating to the shared driver. */
+int     s3_load_size(vfs_s3_file *sf, brix_status *st);
+ssize_t s3_pread(brix_vfs_file *f, int64_t off, void *buf, size_t n, brix_status *st);
+int     s3_pwrite(brix_vfs_file *f, int64_t off, const void *buf, size_t n, brix_status *st);
+int     s3_fstat(brix_vfs_file *f, brix_vfs_stat *out, brix_status *st);
+int     s3_truncate(brix_vfs_file *f, int64_t size, brix_status *st);
+int     s3_sync(brix_vfs_file *f, brix_status *st);
+int     s3_commit(brix_vfs_file *f, brix_status *st);
+void    s3_abort(brix_vfs_file *f);
+void    s3_close(brix_vfs_file *f);
 
 /* vfs_s3.c — URL parse + backend open/stat. */
 int64_t      s3_part_size_from_env(void);
@@ -65,13 +65,13 @@ int64_t      s3_part_size_from_env(void);
  * client XRDC_* status code (EACCES→XRDC_EAUTH, EINVAL→XRDC_EUSAGE,
  * ENOENT→XRDC_ENOENT, else XRDC_EIO), so an auth or usage failure is not
  * flattened into a generic XRDC_EIO. */
-int          s3_xrdc_from_errno(int e);
+int          s3_brix_from_errno(int e);
 vfs_s3_file *s3_alloc_handle(void);
-int          s3_open_read(vfs_s3_file *sf, xrdc_status *st);
-int          s3_be_open(const xrdc_vfs_backend *be, const char *url, int flags,
-                        const xrdc_vfs_open_opts *opts, xrdc_vfs_file **out,
-                        xrdc_status *st);
-int          s3_be_stat(const xrdc_vfs_backend *be, const char *url,
-                        xrdc_vfs_stat *out, xrdc_status *st);
+int          s3_open_read(vfs_s3_file *sf, brix_status *st);
+int          s3_be_open(const brix_vfs_backend *be, const char *url, int flags,
+                        const brix_vfs_open_opts *opts, brix_vfs_file **out,
+                        brix_status *st);
+int          s3_be_stat(const brix_vfs_backend *be, const char *url,
+                        brix_vfs_stat *out, brix_status *st);
 
-#endif /* XROOTD_VFS_S3_INTERNAL_H */
+#endif /* BRIX_VFS_S3_INTERNAL_H */

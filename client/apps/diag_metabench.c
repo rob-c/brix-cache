@@ -21,11 +21,11 @@ do_metabench(const diag_args *a)
     int         workers = a->streams > 0 ? a->streams : 8;
     int         ops     = a->count   > 0 ? a->count   : 125;
     int         ceil_ms = 50;
-    xrdc_url    u;
-    xrdc_status st;
+    brix_url    u;
+    brix_status st;
 
-    xrdc_status_clear(&st);
-    if (a->url == NULL || xrdc_endpoint_parse(a->url, &u, &st) != 0) {
+    brix_status_clear(&st);
+    if (a->url == NULL || brix_endpoint_parse(a->url, &u, &st) != 0) {
         fprintf(stderr, "xrddiag metabench: bad or missing url\n");
         return 50;
     }

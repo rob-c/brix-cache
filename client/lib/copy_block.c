@@ -12,29 +12,29 @@
  * WHAT: connects to the remote XRootD source, opens the block:// destination
  *       directly through the VFS block backend (in-place write, no temp+rename),
  *       and streams all bytes via the existing download pump machinery.
- * WHY:  copy_download routes its destination through xrdc_url du->path (a stripped
+ * WHY:  copy_download routes its destination through brix_url du->path (a stripped
  *       bare POSIX path), which selects the POSIX backend.  A block:// URL must be
  *       passed as-is so vfs_url_to_scheme routes it to the block backend instead.
- * HOW:  parse src → resilient_setup → xrdc_vfs_open(dst_url, WRITE|FORCE) →
+ * HOW:  parse src → resilient_setup → brix_vfs_open(dst_url, WRITE|FORCE) →
  *       download_stream_body → commit (fsync) on success, abort (no-op) on failure.
  *       FORCE is always set: block/device targets pre-exist by design.
  */
 int
 copy_remote_to_block(const char *src_url, const char *dst_url,
-                     const xrdc_copy_opts *o, const xrdc_opts *co,
-                     xrdc_status *st)
+                     const brix_copy_opts *o, const brix_opts *co,
+                     brix_status *st)
 {
-    xrdc_url            su;
-    xrdc_conn           c;
-    xrdc_statinfo       si;
-    xrdc_streamset      ss;
-    xrdc_vfs_file      *vf = NULL;
-    xrdc_vfs_open_opts  vopts;
+    brix_url            su;
+    brix_conn           c;
+    brix_statinfo       si;
+    brix_streamset      ss;
+    brix_vfs_file      *vf = NULL;
+    brix_vfs_open_opts  vopts;
     pump_local_t        lc;
     int                 stall;
     int                 rc;
 
-    if (xrdc_url_parse(src_url, &su, st) != 0) {
+    if (brix_url_parse(src_url, &su, st) != 0) {
         return -1;
     }
 
@@ -44,9 +44,9 @@ copy_remote_to_block(const char *src_url, const char *dst_url,
         return -1;
     }
     if (si.flags & kXR_isDir) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0,
+        brix_status_set(st, XRDC_EUSAGE, 0,
                         "block copy: remote source is a directory (use -r)");
-        xrdc_close(&c);
+        brix_close(&c);
         return -1;
     }
 
@@ -54,9 +54,9 @@ copy_remote_to_block(const char *src_url, const char *dst_url,
     vopts.expected_size = si.size;
     vopts.cred          = NULL;
 
-    if (xrdc_vfs_open(dst_url, XRDC_VFS_WRITE | XRDC_VFS_FORCE,
+    if (brix_vfs_open(dst_url, XRDC_VFS_WRITE | XRDC_VFS_FORCE,
                       &vopts, &vf, st) != 0) {
-        xrdc_close(&c);
+        brix_close(&c);
         return -1;
     }
 
@@ -65,13 +65,13 @@ copy_remote_to_block(const char *src_url, const char *dst_url,
                               o, &ss, st);
 
     if (rc == 0) {
-        rc = xrdc_vfs_commit(vf, st);
+        rc = brix_vfs_commit(vf, st);
     } else {
-        xrdc_vfs_abort(vf);
+        brix_vfs_abort(vf);
     }
-    xrdc_vfs_close(vf);
-    xrdc_streams_close(&ss);
-    xrdc_close(&c);
+    brix_vfs_close(vf);
+    brix_streams_close(&ss);
+    brix_close(&c);
     return rc;
 }
 
@@ -82,9 +82,9 @@ copy_remote_to_block(const char *src_url, const char *dst_url,
  * WHAT: opens the block:// source through the VFS block backend (READ) and
  *       uploads all bytes into the remote (root://) destination.
  * WHY:  copy_upload reads su->path as a bare path (POSIX backend).  A block://
- *       source URL must be passed to xrdc_vfs_open so vfs_url_to_scheme routes
+ *       source URL must be passed to brix_vfs_open so vfs_url_to_scheme routes
  *       it to the block backend; the stripped path alone selects the POSIX backend.
- * HOW:  xrdc_vfs_open(src_url, READ) → fstat for size →
+ * HOW:  brix_vfs_open(src_url, READ) → fstat for size →
  *       parse dst URL → upload_stream_body(pump_src_local_vfs) → close.
  *       Checksum verification on block sources is best-effort: cksum_verify
  *       opens the file by POSIX path; for a pure block:// URL it returns
@@ -92,20 +92,20 @@ copy_remote_to_block(const char *src_url, const char *dst_url,
  */
 int
 copy_block_to_remote(const char *src_url, const char *dst_url,
-                     const xrdc_copy_opts *o, const xrdc_opts *co,
-                     xrdc_status *st)
+                     const brix_copy_opts *o, const brix_opts *co,
+                     brix_status *st)
 {
-    xrdc_url            du;
-    xrdc_url            fake_su;
-    xrdc_vfs_file      *vf = NULL;
-    xrdc_vfs_open_opts  vopts;
-    xrdc_vfs_stat       vst;
-    xrdc_status         tmp_st;
+    brix_url            du;
+    brix_url            fake_su;
+    brix_vfs_file      *vf = NULL;
+    brix_vfs_open_opts  vopts;
+    brix_vfs_stat       vst;
+    brix_status         tmp_st;
     pump_local_t        lc;
     int64_t             total = -1;
     int                 rc;
 
-    if (xrdc_url_parse(dst_url, &du, st) != 0) {
+    if (brix_url_parse(dst_url, &du, st) != 0) {
         return -1;
     }
 
@@ -113,12 +113,12 @@ copy_block_to_remote(const char *src_url, const char *dst_url,
     vopts.expected_size = -1;
     vopts.cred          = NULL;
 
-    if (xrdc_vfs_open(src_url, XRDC_VFS_READ, &vopts, &vf, st) != 0) {
+    if (brix_vfs_open(src_url, XRDC_VFS_READ, &vopts, &vf, st) != 0) {
         return -1;
     }
 
-    xrdc_status_clear(&tmp_st);
-    if (xrdc_vfs_fstat(vf, &vst, &tmp_st) == 0) {
+    brix_status_clear(&tmp_st);
+    if (brix_vfs_fstat(vf, &vst, &tmp_st) == 0) {
         total = vst.size;
     }
 
@@ -133,7 +133,7 @@ copy_block_to_remote(const char *src_url, const char *dst_url,
     lc.vf = vf;
     rc = upload_stream_body(&fake_su, &du, o, co, pump_src_local_vfs, &lc,
                             total, st);
-    xrdc_vfs_close(vf);
+    brix_vfs_close(vf);
     return rc;
 }
 
@@ -141,7 +141,7 @@ copy_block_to_remote(const char *src_url, const char *dst_url,
 /*
  * copy_vfs_to_vfs — VFS-source → VFS-destination transfer (local↔block).
  *
- * WHAT: opens both src and dst through xrdc_vfs_open (which routes block://
+ * WHAT: opens both src and dst through brix_vfs_open (which routes block://
  *       and /dev/ to the block backend; bare paths to the POSIX backend) and
  *       pumps bytes via transfer_pump.  Covers local→block://, block://→local,
  *       and block://→block:// directions.
@@ -155,13 +155,13 @@ copy_block_to_remote(const char *src_url, const char *dst_url,
  */
 int
 copy_vfs_to_vfs(const char *src_url, const char *dst_url,
-                const xrdc_copy_opts *o, xrdc_status *st)
+                const brix_copy_opts *o, brix_status *st)
 {
-    xrdc_vfs_file      *src_vf = NULL;
-    xrdc_vfs_file      *dst_vf = NULL;
-    xrdc_vfs_open_opts  vopts;
-    xrdc_vfs_stat       vst;
-    xrdc_status         tmp_st;
+    brix_vfs_file      *src_vf = NULL;
+    brix_vfs_file      *dst_vf = NULL;
+    brix_vfs_open_opts  vopts;
+    brix_vfs_stat       vst;
+    brix_status         tmp_st;
     pump_local_t        src_lc, dst_lc;
     int64_t             total = -1;
     int                 rc;
@@ -170,19 +170,19 @@ copy_vfs_to_vfs(const char *src_url, const char *dst_url,
     vopts.expected_size = -1;
     vopts.cred          = NULL;
 
-    if (xrdc_vfs_open(src_url, XRDC_VFS_READ, &vopts, &src_vf, st) != 0) {
+    if (brix_vfs_open(src_url, XRDC_VFS_READ, &vopts, &src_vf, st) != 0) {
         return -1;
     }
 
-    xrdc_status_clear(&tmp_st);
-    if (xrdc_vfs_fstat(src_vf, &vst, &tmp_st) == 0) {
+    brix_status_clear(&tmp_st);
+    if (brix_vfs_fstat(src_vf, &vst, &tmp_st) == 0) {
         total = vst.size;
     }
 
     vopts.expected_size = total;
-    if (xrdc_vfs_open(dst_url, XRDC_VFS_WRITE | XRDC_VFS_FORCE,
+    if (brix_vfs_open(dst_url, XRDC_VFS_WRITE | XRDC_VFS_FORCE,
                       &vopts, &dst_vf, st) != 0) {
-        xrdc_vfs_close(src_vf);
+        brix_vfs_close(src_vf);
         return -1;
     }
 
@@ -193,12 +193,12 @@ copy_vfs_to_vfs(const char *src_url, const char *dst_url,
                        total, o, total, st);
 
     if (rc == 0) {
-        rc = xrdc_vfs_commit(dst_vf, st);
+        rc = brix_vfs_commit(dst_vf, st);
     } else {
-        xrdc_vfs_abort(dst_vf);
+        brix_vfs_abort(dst_vf);
     }
-    xrdc_vfs_close(dst_vf);
-    xrdc_vfs_close(src_vf);
+    brix_vfs_close(dst_vf);
+    brix_vfs_close(src_vf);
     return rc;
 }
 
@@ -212,42 +212,42 @@ copy_vfs_to_vfs(const char *src_url, const char *dst_url,
  *   local→block://    → copy_vfs_to_vfs  (POSIX src + block dst)
  *   block://→local    → copy_vfs_to_vfs  (block src + POSIX dst)
  *   block://→block:// → copy_vfs_to_vfs  (block src + block dst)
- * WHY:  xrdc_copy() intercepts block:// before xrdc_url_parse (which does not
+ * WHY:  brix_copy() intercepts block:// before brix_url_parse (which does not
  *       know the block:// scheme) and delegates here.
- * HOW:  classify src/dst by xrdc_is_block_url and xrdc_is_web_url; for the
- *       root:// directions use xrdc_url_parse to distinguish remote/local;
+ * HOW:  classify src/dst by brix_is_block_url and brix_is_web_url; for the
+ *       root:// directions use brix_url_parse to distinguish remote/local;
  *       recursion and zip are explicitly rejected (not supported for block).
  */
 int
-copy_block(const char *src, const char *dst, const xrdc_copy_opts *o,
-           const xrdc_opts *co, xrdc_status *st)
+copy_block(const char *src, const char *dst, const brix_copy_opts *o,
+           const brix_opts *co, brix_status *st)
 {
-    int src_block  = xrdc_is_block_url(src);
-    int dst_block  = xrdc_is_block_url(dst);
+    int src_block  = brix_is_block_url(src);
+    int dst_block  = brix_is_block_url(dst);
     int src_remote = 0;
     int dst_remote = 0;
 
     if (o != NULL && o->recursive) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0,
+        brix_status_set(st, XRDC_EUSAGE, 0,
                         "recursive copy not supported for block:// endpoints");
         return -1;
     }
 
-    /* Classify non-block sides: parse with xrdc_url_parse to detect root://. */
+    /* Classify non-block sides: parse with brix_url_parse to detect root://. */
     if (!src_block) {
-        xrdc_url su;
-        xrdc_status tmp;
-        xrdc_status_clear(&tmp);
-        if (xrdc_url_parse(src, &su, &tmp) == 0) {
+        brix_url su;
+        brix_status tmp;
+        brix_status_clear(&tmp);
+        if (brix_url_parse(src, &su, &tmp) == 0) {
             src_remote = (su.scheme == XRDC_SCHEME_ROOT
                           || su.scheme == XRDC_SCHEME_ROOTS);
         }
     }
     if (!dst_block) {
-        xrdc_url du;
-        xrdc_status tmp;
-        xrdc_status_clear(&tmp);
-        if (xrdc_url_parse(dst, &du, &tmp) == 0) {
+        brix_url du;
+        brix_status tmp;
+        brix_status_clear(&tmp);
+        if (brix_url_parse(dst, &du, &tmp) == 0) {
             dst_remote = (du.scheme == XRDC_SCHEME_ROOT
                           || du.scheme == XRDC_SCHEME_ROOTS);
         }
@@ -264,7 +264,7 @@ copy_block(const char *src, const char *dst, const xrdc_copy_opts *o,
         return copy_vfs_to_vfs(src, dst, o, st);
     }
 
-    xrdc_status_set(st, XRDC_EUSAGE, 0,
+    brix_status_set(st, XRDC_EUSAGE, 0,
                     "unsupported block:// copy direction "
                     "(src=%s dst=%s)", src, dst);
     return -1;

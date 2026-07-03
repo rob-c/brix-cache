@@ -5,9 +5,9 @@
 #include "http_internal.h"
 
 int
-xrdc_http_get(const char *host, int port, const char *path, int timeout_ms,
+brix_http_get(const char *host, int port, const char *path, int timeout_ms,
               int *http_status, char *out, size_t outsz, size_t *outlen,
-              xrdc_status *st)
+              brix_status *st)
 {
     char     req[1024];
     char    *resp;
@@ -16,26 +16,26 @@ xrdc_http_get(const char *host, int port, const char *path, int timeout_ms,
     char    *body, *eoh;
 
     if (outsz == 0) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "http_get: zero out buffer");
+        brix_status_set(st, XRDC_EUSAGE, 0, "http_get: zero out buffer");
         return -1;
     }
     if (http_status != NULL) {
         *http_status = 0;
     }
 
-    fd = xrdc_tcp_connect(host, port, timeout_ms, st);
+    fd = brix_tcp_connect(host, port, timeout_ms, st);
     if (fd < 0) {
         return -1;
     }
 
     char hp[300];
-    xrootd_format_host_port(host, (uint16_t) port, hp, sizeof(hp));
+    brix_format_host_port(host, (uint16_t) port, hp, sizeof(hp));
     rlen = snprintf(req, sizeof(req),
                     "GET %s HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n\r\n",
                     path, hp);
     if (rlen < 0 || (size_t) rlen >= sizeof(req)) {
         close(fd);
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "http_get: request too long");
+        brix_status_set(st, XRDC_EUSAGE, 0, "http_get: request too long");
         return -1;
     }
     /* Blocking write of the (small) request. */
@@ -46,7 +46,7 @@ xrdc_http_get(const char *host, int port, const char *path, int timeout_ms,
             if (w < 0) {
                 if (errno == EINTR) { continue; }
                 close(fd);
-                xrdc_status_set(st, XRDC_ESOCK, errno, "http write: %s",
+                brix_status_set(st, XRDC_ESOCK, errno, "http write: %s",
                                 strerror(errno));
                 return -1;
             }
@@ -58,7 +58,7 @@ xrdc_http_get(const char *host, int port, const char *path, int timeout_ms,
     resp = (char *) malloc(cap);
     if (resp == NULL) {
         close(fd);
-        xrdc_status_set(st, XRDC_EPROTO, 0, "http_get: out of memory");
+        brix_status_set(st, XRDC_EPROTO, 0, "http_get: out of memory");
         return -1;
     }
 
@@ -79,7 +79,7 @@ xrdc_http_get(const char *host, int port, const char *path, int timeout_ms,
         if (pr <= 0) {
             free(resp);
             close(fd);
-            xrdc_status_set(st, XRDC_ESOCK, pr == 0 ? ETIMEDOUT : errno,
+            brix_status_set(st, XRDC_ESOCK, pr == 0 ? ETIMEDOUT : errno,
                             "http read %s", pr == 0 ? "timed out" : "poll failed");
             return -1;
         }
@@ -91,7 +91,7 @@ xrdc_http_get(const char *host, int port, const char *path, int timeout_ms,
             if (errno == EINTR || errno == EAGAIN) { continue; }
             free(resp);
             close(fd);
-            xrdc_status_set(st, XRDC_ESOCK, errno, "http read: %s", strerror(errno));
+            brix_status_set(st, XRDC_ESOCK, errno, "http read: %s", strerror(errno));
             return -1;
         }
         total += (size_t) r;
@@ -162,7 +162,7 @@ dechunk(char *b, size_t len)
 
 
 void
-xrdc_http_resp_free(xrdc_http_resp *resp)
+brix_http_resp_free(brix_http_resp *resp)
 {
     if (resp != NULL && resp->body != NULL) {
         free(resp->body);
@@ -175,7 +175,7 @@ xrdc_http_resp_free(xrdc_http_resp *resp)
  * the public lookup and the streaming-download path share that one body. */
 
 int
-xrdc_http_header(const xrdc_http_resp *resp, const char *name, char *out, size_t outsz)
+brix_http_header(const brix_http_resp *resp, const char *name, char *out, size_t outsz)
 {
     return raw_header(resp->headers, name, out, outsz);
 }
@@ -183,7 +183,7 @@ xrdc_http_header(const xrdc_http_resp *resp, const char *name, char *out, size_t
 
 /* Parse the read buffer into resp (status line + header block + body). Pure. */
 void
-httpx_parse(char *buf, size_t total, xrdc_http_resp *resp)
+httpx_parse(char *buf, size_t total, brix_http_resp *resp)
 {
     char *eoh;
     if (strncmp(buf, "HTTP/", 5) == 0) {
@@ -229,17 +229,17 @@ httpx_parse(char *buf, size_t total, xrdc_http_resp *resp)
  * io->fd is open and (for tls) io->ssl is set; *tls_ctx holds the context to free.
  * 0 / -1 (st set; socket closed on failure). */
 int
-httpx_connect(xrdc_io *io, const char *host, int port, int tls, int verify,
-              const char *ca_dir, int timeout_ms, void **tls_ctx, xrdc_status *st)
+httpx_connect(brix_io *io, const char *host, int port, int tls, int verify,
+              const char *ca_dir, int timeout_ms, void **tls_ctx, brix_status *st)
 {
     memset(io, 0, sizeof(*io));
     *tls_ctx = NULL;
-    io->fd = xrdc_tcp_connect(host, port, timeout_ms, st);
+    io->fd = brix_tcp_connect(host, port, timeout_ms, st);
     if (io->fd < 0) {
         return -1;
     }
     io->timeout_ms = timeout_ms;
-    if (tls && xrdc_tls_client(io, host, verify, verify, ca_dir, tls_ctx, st) != 0) {
+    if (tls && brix_tls_client(io, host, verify, verify, ca_dir, tls_ctx, st) != 0) {
         close(io->fd);
         io->fd = -1;
         return -1;
@@ -257,7 +257,7 @@ httpx_connect(xrdc_io *io, const char *host, int port, int tls, int verify,
  * the header buffer" with "more body on the wire" for the framing decoders. */
 
 ssize_t
-bsrc_read(body_src *s, void *buf, size_t n, xrdc_status *st)
+bsrc_read(body_src *s, void *buf, size_t n, brix_status *st)
 {
     if (s->lo_off < s->lo_len) {
         size_t avail = s->lo_len - s->lo_off;
@@ -273,7 +273,7 @@ bsrc_read(body_src *s, void *buf, size_t n, xrdc_status *st)
 /* Read one CRLF-terminated line (e.g. a chunk-size line) into out[outsz]; the
  * trailing CRLF is stripped. 0 / -1. */
 int
-bsrc_getline(body_src *s, char *out, size_t outsz, xrdc_status *st)
+bsrc_getline(body_src *s, char *out, size_t outsz, brix_status *st)
 {
     size_t n = 0;
     for (;;) {
@@ -291,14 +291,14 @@ bsrc_getline(body_src *s, char *out, size_t outsz, xrdc_status *st)
 
 
 int
-write_all_fd(int fd, const char *buf, size_t n, xrdc_status *st)
+write_all_fd(int fd, const char *buf, size_t n, brix_status *st)
 {
     size_t off = 0;
     while (off < n) {
         ssize_t w = write(fd, buf + off, n - off);
         if (w < 0) {
             if (errno == EINTR) { continue; }
-            xrdc_status_set(st, XRDC_ESOCK, errno, "local write: %s", strerror(errno));
+            brix_status_set(st, XRDC_ESOCK, errno, "local write: %s", strerror(errno));
             return -1;
         }
         off += (size_t) w;

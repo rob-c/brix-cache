@@ -1035,7 +1035,7 @@ def _kxr_query_bytes(infotype, args, streamid=b"\x00\x60"):
     """ClientQueryRequest (24-byte header) + arg body, matching XProtocol.hh:
     streamid[2] requestid[2](=kXR_query 3001) infotype[2] reserved1[2] fhandle[4]
     reserved2[8] dlen[4], then `args` as the dlen body.  The native client
-    (client/lib/ops_fs.c xrdc_query) frames it identically: Qcksum args are the
+    (client/lib/ops_fs.c brix_query) frames it identically: Qcksum args are the
     space-separated '<algo> <path>' string, Qxattr/Qopaquf args are the path,
     Qconfig args are the capability key(s); global subcodes (Qspace/QStats) take a
     bare/'/' arg.  dlen is computed from the supplied body so the frame is

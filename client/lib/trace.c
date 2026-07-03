@@ -14,7 +14,7 @@
  *
  * names: src/protocols/root/protocol/opcodes.h request opcodes (3000–3032) + response statuses.
  */
-#include "xrdc.h"
+#include "brix.h"
 
 #include "core/compat/kxr_names.h"   /* shared kXR opcode/status name tables (libxrdproto) */
 #include "protocols/root/protocol/frame_hdr.h" /* unaligned-safe BE field accessors (libxrdproto) */
@@ -26,19 +26,19 @@
 /* Both forward to the shared kXR name tables (libxrdproto's kxr_names.c) so the
  * module and client share one source of truth keyed on protocol/opcodes.h. */
 const char *
-xrdc_reqid_name(int reqid)
+brix_reqid_name(int reqid)
 {
-    return xrootd_kxr_request_name(reqid);
+    return brix_kxr_request_name(reqid);
 }
 
 const char *
-xrdc_status_name(int status)
+brix_status_name(int status)
 {
-    return xrootd_kxr_response_status_name(status);
+    return brix_kxr_response_status_name(status);
 }
 
 uint64_t
-xrdc_mono_ns(void)
+brix_mono_ns(void)
 {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -54,14 +54,14 @@ xrdc_mono_ns(void)
  * xrdcp.c reuse, with NO dependency on the aio/thread machinery.
  */
 unsigned
-xrdc_jitter_ms(unsigned span_ms)
+brix_jitter_ms(unsigned span_ms)
 {
     static uint64_t state;   /* lazily seeded; 0 until first use */
     if (span_ms == 0) {
         return 0;
     }
     if (state == 0) {
-        state = xrdc_mono_ns() | 1ull;
+        state = brix_mono_ns() | 1ull;
     }
     state ^= state << 13;
     state ^= state >> 7;
@@ -89,20 +89,20 @@ hexdump(const uint8_t *buf, uint32_t n)
 }
 
 void
-xrdc_trace_frame(xrdc_conn *c, int dir, uint16_t sid, int code,
+brix_trace_frame(brix_conn *c, int dir, uint16_t sid, int code,
                  int is_request, uint32_t dlen, const void *body, uint32_t blen)
 {
     const uint8_t *b = (const uint8_t *) body;
 
     if (is_request) {
         fprintf(stderr, "%c sid=%u %s dlen=%u\n",
-                dir, sid, xrdc_reqid_name(code), dlen);
+                dir, sid, brix_reqid_name(code), dlen);
     } else {
         /* Decode the few high-value fields per status, from our own structs. */
         if (code == kXR_error && b != NULL && blen >= 4) {
             int errnum = (int) xrd_get_u32_be(b);
             fprintf(stderr, "%c sid=%u error errnum=%d (%s) \"%.*s\"\n",
-                    dir, sid, errnum, xrdc_kxr_name(errnum),
+                    dir, sid, errnum, brix_kxr_name(errnum),
                     (int) (blen > 4 ? blen - 4 : 0),
                     blen > 4 ? (const char *) (b + 4) : "");
         } else if (code == kXR_redirect && b != NULL && blen >= 4) {
@@ -115,7 +115,7 @@ xrdc_trace_frame(xrdc_conn *c, int dir, uint16_t sid, int code,
                     dir, sid, xrd_get_u32_be(b));
         } else {
             fprintf(stderr, "%c sid=%u %s dlen=%u\n",
-                    dir, sid, xrdc_status_name(code), dlen);
+                    dir, sid, brix_status_name(code), dlen);
         }
     }
 
@@ -125,7 +125,7 @@ xrdc_trace_frame(xrdc_conn *c, int dir, uint16_t sid, int code,
 }
 
 void
-xrdc_timing_report(const xrdc_conn *c)
+brix_timing_report(const brix_conn *c)
 {
     int i, any = 0;
     for (i = 0; i < XRDC_NOP; i++) {
@@ -141,7 +141,7 @@ xrdc_timing_report(const xrdc_conn *c)
         tot = (double) c->diag.rtt[i].tot_ns / 1e6;
         avg = tot / (double) n;
         fprintf(stderr, "  %-12s n=%-4llu tot=%.3f min=%.3f avg=%.3f max=%.3f\n",
-                xrdc_reqid_name(i + kXR_1stRequest),
+                brix_reqid_name(i + kXR_1stRequest),
                 (unsigned long long) n, tot,
                 (double) c->diag.rtt[i].min_ns / 1e6, avg,
                 (double) c->diag.rtt[i].max_ns / 1e6);

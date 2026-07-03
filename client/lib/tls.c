@@ -12,7 +12,7 @@
  *       timeout discipline the cleartext path uses. sock.c branches to these when
  *       io->ssl != NULL, so no other file changes for TLS.
  */
-#include "xrdc.h"
+#include "brix.h"
 
 #include <openssl/ssl.h>
 #include <openssl/err.h>
@@ -26,7 +26,7 @@
 #include <unistd.h>
 
 static void
-tls_err(xrdc_status *st, int kxr, const char *what)
+tls_err(brix_status *st, int kxr, const char *what)
 {
     unsigned long e = ERR_get_error();
     char          buf[256];
@@ -36,7 +36,7 @@ tls_err(xrdc_status *st, int kxr, const char *what)
     } else {
         buf[0] = '\0';
     }
-    xrdc_status_set(st, kxr, 0, "%s: %s", what, buf[0] ? buf : "TLS error");
+    brix_status_set(st, kxr, 0, "%s: %s", what, buf[0] ? buf : "TLS error");
 }
 
 /* poll one fd for `events`; >0 ready, 0 timeout, <0 error (EINTR retried). */
@@ -50,12 +50,12 @@ wait_io(int fd, short events, int timeout_ms)
     pfd.events = events;
     do {
         pr = poll(&pfd, 1, timeout_ms);
-    } while (pr < 0 && errno == EINTR && !xrdc_copy_quit_requested());
+    } while (pr < 0 && errno == EINTR && !brix_copy_quit_requested());
     return pr;
 }
 
 int
-xrdc_tls_read(xrdc_io *io, void *buf, size_t n, xrdc_status *st)
+brix_tls_read(brix_io *io, void *buf, size_t n, brix_status *st)
 {
     SSL     *ssl = (SSL *) io->ssl;
     uint8_t *p   = (uint8_t *) buf;
@@ -65,8 +65,8 @@ xrdc_tls_read(xrdc_io *io, void *buf, size_t n, xrdc_status *st)
         size_t nread = 0;
         int    ok, err;
 
-        if (xrdc_copy_quit_requested()) {   /* Phase 40 (a): prompt cancel */
-            xrdc_status_set(st, XRDC_ESOCK, EINTR, "transfer cancelled (signal)");
+        if (brix_copy_quit_requested()) {   /* Phase 40 (a): prompt cancel */
+            brix_status_set(st, XRDC_ESOCK, EINTR, "transfer cancelled (signal)");
             return -1;
         }
         ERR_clear_error();   /* so SSL_get_error reflects THIS op, not a stale queue */
@@ -81,18 +81,18 @@ xrdc_tls_read(xrdc_io *io, void *buf, size_t n, xrdc_status *st)
             short ev = (err == SSL_ERROR_WANT_READ) ? POLLIN : POLLOUT;
             int   pr = wait_io(io->fd, ev, io->timeout_ms);
             if (pr == 0) {
-                xrdc_status_set(st, XRDC_ESOCK, ETIMEDOUT, "TLS read timed out");
+                brix_status_set(st, XRDC_ESOCK, ETIMEDOUT, "TLS read timed out");
                 return -1;
             }
             if (pr < 0) {
-                xrdc_status_set(st, XRDC_ESOCK, errno, "poll(tls read): %s",
+                brix_status_set(st, XRDC_ESOCK, errno, "poll(tls read): %s",
                                 strerror(errno));
                 return -1;
             }
             continue;
         }
         if (err == SSL_ERROR_ZERO_RETURN) {
-            xrdc_status_set(st, XRDC_ESOCK, 0,
+            brix_status_set(st, XRDC_ESOCK, 0,
                             "TLS connection closed by peer (read %zu/%zu)", got, n);
             return -1;
         }
@@ -100,7 +100,7 @@ xrdc_tls_read(xrdc_io *io, void *buf, size_t n, xrdc_status *st)
             if (errno == EINTR || errno == EAGAIN) {
                 continue;
             }
-            xrdc_status_set(st, XRDC_ESOCK, errno, "TLS read: %s",
+            brix_status_set(st, XRDC_ESOCK, errno, "TLS read: %s",
                             errno ? strerror(errno) : "unexpected EOF");
             return -1;
         }
@@ -111,7 +111,7 @@ xrdc_tls_read(xrdc_io *io, void *buf, size_t n, xrdc_status *st)
 }
 
 int
-xrdc_tls_write(xrdc_io *io, const void *buf, size_t n, xrdc_status *st)
+brix_tls_write(brix_io *io, const void *buf, size_t n, brix_status *st)
 {
     SSL           *ssl  = (SSL *) io->ssl;
     const uint8_t *p    = (const uint8_t *) buf;
@@ -121,8 +121,8 @@ xrdc_tls_write(xrdc_io *io, const void *buf, size_t n, xrdc_status *st)
         size_t nw = 0;
         int    ok, err;
 
-        if (xrdc_copy_quit_requested()) {   /* Phase 40 (a): prompt cancel */
-            xrdc_status_set(st, XRDC_ESOCK, EINTR, "transfer cancelled (signal)");
+        if (brix_copy_quit_requested()) {   /* Phase 40 (a): prompt cancel */
+            brix_status_set(st, XRDC_ESOCK, EINTR, "transfer cancelled (signal)");
             return -1;
         }
         ERR_clear_error();
@@ -137,11 +137,11 @@ xrdc_tls_write(xrdc_io *io, const void *buf, size_t n, xrdc_status *st)
             short ev = (err == SSL_ERROR_WANT_READ) ? POLLIN : POLLOUT;
             int   pr = wait_io(io->fd, ev, io->timeout_ms);
             if (pr == 0) {
-                xrdc_status_set(st, XRDC_ESOCK, ETIMEDOUT, "TLS write timed out");
+                brix_status_set(st, XRDC_ESOCK, ETIMEDOUT, "TLS write timed out");
                 return -1;
             }
             if (pr < 0) {
-                xrdc_status_set(st, XRDC_ESOCK, errno, "poll(tls write): %s",
+                brix_status_set(st, XRDC_ESOCK, errno, "poll(tls write): %s",
                                 strerror(errno));
                 return -1;
             }
@@ -151,7 +151,7 @@ xrdc_tls_write(xrdc_io *io, const void *buf, size_t n, xrdc_status *st)
             if (errno == EINTR || errno == EAGAIN) {
                 continue;
             }
-            xrdc_status_set(st, XRDC_ESOCK, errno, "TLS write: %s",
+            brix_status_set(st, XRDC_ESOCK, errno, "TLS write: %s",
                             errno ? strerror(errno) : "unexpected EOF");
             return -1;
         }
@@ -163,7 +163,7 @@ xrdc_tls_write(xrdc_io *io, const void *buf, size_t n, xrdc_status *st)
 
 /* Drive a non-blocking SSL_connect to completion (poll on WANT_*). 0 / -1. */
 static int
-tls_do_connect(SSL *ssl, xrdc_io *io, int verify_peer, xrdc_status *st)
+tls_do_connect(SSL *ssl, brix_io *io, int verify_peer, brix_status *st)
 {
     for (;;) {
         int ret, err;
@@ -177,7 +177,7 @@ tls_do_connect(SSL *ssl, xrdc_io *io, int verify_peer, xrdc_status *st)
         if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
             short ev = (err == SSL_ERROR_WANT_READ) ? POLLIN : POLLOUT;
             if (wait_io(io->fd, ev, io->timeout_ms) <= 0) {
-                xrdc_status_set(st, XRDC_ESOCK, 0, "TLS handshake timed out");
+                brix_status_set(st, XRDC_ESOCK, 0, "TLS handshake timed out");
                 return -1;
             }
             continue;
@@ -185,7 +185,7 @@ tls_do_connect(SSL *ssl, xrdc_io *io, int verify_peer, xrdc_status *st)
         {
             long vr = SSL_get_verify_result(ssl);
             if (vr != X509_V_OK) {
-                xrdc_status_set(st, XRDC_EAUTH, 0, "TLS verify failed: %s",
+                brix_status_set(st, XRDC_EAUTH, 0, "TLS verify failed: %s",
                                 X509_verify_cert_error_string(vr));
             } else {
                 tls_err(st, XRDC_ESOCK, "SSL_connect");
@@ -197,7 +197,7 @@ tls_do_connect(SSL *ssl, xrdc_io *io, int verify_peer, xrdc_status *st)
     if (verify_peer) {
         long vr = SSL_get_verify_result(ssl);
         if (vr != X509_V_OK) {
-            xrdc_status_set(st, XRDC_EAUTH, 0, "TLS verify failed: %s",
+            brix_status_set(st, XRDC_EAUTH, 0, "TLS verify failed: %s",
                             X509_verify_cert_error_string(vr));
             return -1;
         }
@@ -206,8 +206,8 @@ tls_do_connect(SSL *ssl, xrdc_io *io, int verify_peer, xrdc_status *st)
 }
 
 int
-xrdc_tls_upgrade(xrdc_conn *c, int verify_peer, int verify_host,
-                 const char *ca_dir, xrdc_status *st)
+brix_tls_upgrade(brix_conn *c, int verify_peer, int verify_host,
+                 const char *ca_dir, brix_status *st)
 {
     SSL_CTX *ctx;
     SSL     *ssl;
@@ -269,12 +269,12 @@ xrdc_tls_upgrade(xrdc_conn *c, int verify_peer, int verify_host,
 }
 
 /*
- * Read UP TO n bytes (one record) over TLS — unlike xrdc_tls_read (which fills
+ * Read UP TO n bytes (one record) over TLS — unlike brix_tls_read (which fills
  * exactly n for root:// framing), this is a stream read for the HTTP client: sets
  * *got to the bytes read (0 = clean EOF / peer close) and returns 0, or -1 on error.
  */
 int
-xrdc_tls_read_some(xrdc_io *io, void *buf, size_t n, size_t *got, xrdc_status *st)
+brix_tls_read_some(brix_io *io, void *buf, size_t n, size_t *got, brix_status *st)
 {
     SSL   *ssl = (SSL *) io->ssl;
     size_t nread = 0;
@@ -296,7 +296,7 @@ xrdc_tls_read_some(xrdc_io *io, void *buf, size_t n, size_t *got, xrdc_status *s
             short ev = (err == SSL_ERROR_WANT_READ) ? POLLIN : POLLOUT;
             int   pr = wait_io(io->fd, ev, io->timeout_ms);
             if (pr <= 0) {
-                xrdc_status_set(st, XRDC_ESOCK, pr == 0 ? ETIMEDOUT : errno,
+                brix_status_set(st, XRDC_ESOCK, pr == 0 ? ETIMEDOUT : errno,
                                 "TLS read %s", pr == 0 ? "timed out" : "poll failed");
                 return -1;
             }
@@ -316,13 +316,13 @@ xrdc_tls_read_some(xrdc_io *io, void *buf, size_t n, size_t *got, xrdc_status *s
 /*
  * Standalone TLS client handshake on an already-connected socket (io->fd), for the
  * general HTTP(S) client — independent of the root:// in-protocol upgrade. Mirrors
- * xrdc_tls_upgrade but takes a bare xrdc_io + an explicit SNI/verify host. On
+ * brix_tls_upgrade but takes a bare brix_io + an explicit SNI/verify host. On
  * success io->ssl holds the live SSL and *out_ctx the SSL_CTX (caller frees both via
- * xrdc_tls_client_free). 0 / -1.
+ * brix_tls_client_free). 0 / -1.
  */
 int
-xrdc_tls_client(xrdc_io *io, const char *host, int verify_peer, int verify_host,
-                const char *ca_dir, void **out_ctx, xrdc_status *st)
+brix_tls_client(brix_io *io, const char *host, int verify_peer, int verify_host,
+                const char *ca_dir, void **out_ctx, brix_status *st)
 {
     SSL_CTX *ctx;
     SSL     *ssl;
@@ -382,9 +382,9 @@ xrdc_tls_client(xrdc_io *io, const char *host, int verify_peer, int verify_host,
     return 0;
 }
 
-/* Tear down a session created by xrdc_tls_client. */
+/* Tear down a session created by brix_tls_client. */
 void
-xrdc_tls_client_free(xrdc_io *io, void *ctx)
+brix_tls_client_free(brix_io *io, void *ctx)
 {
     if (io != NULL && io->ssl != NULL) {
         SSL_shutdown((SSL *) io->ssl);
@@ -398,7 +398,7 @@ xrdc_tls_client_free(xrdc_io *io, void *ctx)
 
 /* Read the negotiated TLS version + cipher of a standalone client session (or NULL). */
 void
-xrdc_tls_client_info(const xrdc_io *io, const char **ver, const char **cipher)
+brix_tls_client_info(const brix_io *io, const char **ver, const char **cipher)
 {
     if (io != NULL && io->ssl != NULL) {
         if (ver != NULL)    { *ver = SSL_get_version((const SSL *) io->ssl); }
@@ -410,7 +410,7 @@ xrdc_tls_client_info(const xrdc_io *io, const char **ver, const char **cipher)
 }
 
 void
-xrdc_tls_free(xrdc_conn *c)
+brix_tls_free(brix_conn *c)
 {
     if (c->io.ssl != NULL) {
         SSL_shutdown((SSL *) c->io.ssl);
@@ -424,7 +424,7 @@ xrdc_tls_free(xrdc_conn *c)
 }
 
 int
-xrdc_tls_info(const xrdc_conn *c, const char **ver, const char **cipher)
+brix_tls_info(const brix_conn *c, const char **ver, const char **cipher)
 {
     if (c->io.ssl == NULL) {
         return 0;   /* cleartext */
@@ -473,7 +473,7 @@ peer_collect_sans(X509 *cert, char *out, size_t outsz)
 }
 
 int
-xrdc_tls_peer_cert_info(const xrdc_conn *c, xrdc_cert_info *out)
+brix_tls_peer_cert_info(const brix_conn *c, brix_cert_info *out)
 {
     SSL             *ssl = (SSL *) c->io.ssl;
     X509            *cert;

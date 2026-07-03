@@ -9,7 +9,7 @@
  *       then switched back to blocking; reads/writes poll first, then do the
  *       blocking syscall, looping on partial transfers and EINTR.
  */
-#include "xrdc.h"
+#include "brix.h"
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -46,7 +46,7 @@ set_blocking(int fd, int blocking)
  * for a dead peer.
  */
 void
-xrdc_sock_tune(int fd)
+brix_sock_tune(int fd)
 {
     int on = 1;
     setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &on, sizeof(on));
@@ -128,7 +128,7 @@ connect_one(const struct addrinfo *ai, int timeout_ms)
         close(fd);
         return -1;
     }
-    xrdc_sock_tune(fd);   /* TCP_NODELAY + keepalive (best-effort) */
+    brix_sock_tune(fd);   /* TCP_NODELAY + keepalive (best-effort) */
     return fd;
 }
 
@@ -156,7 +156,7 @@ fd_family(int fd)
  */
 static int
 connect_resolved(const char *host, int port, int timeout_ms, int family,
-                 xrdc_status *st)
+                 brix_status *st)
 {
     struct addrinfo  hints, *res = NULL, *ai;
     char             portstr[16];
@@ -183,7 +183,7 @@ connect_resolved(const char *host, int port, int timeout_ms, int family,
          * let the resilient loop fail fast instead of spinning the stall window
          * on a dead endpoint. */
         int code = (gai == EAI_AGAIN) ? XRDC_ESOCK : XRDC_ERESOLVE;
-        xrdc_status_set(st, code, 0, "resolve %s:%d: %s",
+        brix_status_set(st, code, 0, "resolve %s:%d: %s",
                         host, port, gai_strerror(gai));
         return -1;
     }
@@ -198,7 +198,7 @@ connect_resolved(const char *host, int port, int timeout_ms, int family,
 
         if (fd >= 0) {
             if (ai->ai_family == AF_INET && v6_failed) {
-                xrdc_netpref_demote_ipv6(host);
+                brix_netpref_demote_ipv6(host);
             }
             freeaddrinfo(res);
             return fd;
@@ -210,18 +210,18 @@ connect_resolved(const char *host, int port, int timeout_ms, int family,
     }
 
     freeaddrinfo(res);
-    xrdc_status_set(st, XRDC_ESOCK, last_errno, "connect %s:%d failed", host, port);
+    brix_status_set(st, XRDC_ESOCK, last_errno, "connect %s:%d failed", host, port);
     return -1;
 }
 
 int
-xrdc_tcp_connect(const char *host, int port, int timeout_ms, xrdc_status *st)
+brix_tcp_connect(const char *host, int port, int timeout_ms, brix_status *st)
 {
     /* AF_UNSPEC normally; AF_INET once this session has demoted to IPv4-only
      * (netpref.c) — either because an IPv6 connect failed where IPv4 worked, or
      * because an established IPv6 connection failed over the wire. Demotion makes
      * the resolver omit v6 records, so no further v6 connect timeout is paid. */
-    int family = xrdc_netpref_family();
+    int family = brix_netpref_family();
     int fd = connect_resolved(host, port, timeout_ms, family, st);
 
     /* Self-heal: we are demoted to IPv4-only but IPv4 will not connect here (no
@@ -229,14 +229,14 @@ xrdc_tcp_connect(const char *host, int port, int timeout_ms, xrdc_status *st)
      * error optimistically demoted what is really an IPv6-only host. Revert to
      * dual-stack and retry so the connection still comes up. */
     if (fd < 0 && family == AF_INET) {
-        xrdc_netpref_undo_demote("the IPv4-only path failed");
+        brix_netpref_undo_demote("the IPv4-only path failed");
         fd = connect_resolved(host, port, timeout_ms, AF_UNSPEC, st);
     }
     return fd;
 }
 
 static int
-plain_read_full(xrdc_io *io, void *buf, size_t n, xrdc_status *st)
+plain_read_full(brix_io *io, void *buf, size_t n, brix_status *st)
 {
     int      fd         = io->fd;
     int      timeout_ms = io->timeout_ms;
@@ -254,8 +254,8 @@ plain_read_full(xrdc_io *io, void *buf, size_t n, xrdc_status *st)
             /* Phase 40 (a): observe a cooperative cancel even when blocked on a
              * stalled peer — a SIGINT interrupts poll (EINTR), and the next pass
              * bails promptly instead of silently re-arming for the full timeout. */
-            if (xrdc_copy_quit_requested()) {
-                xrdc_status_set(st, XRDC_ESOCK, EINTR,
+            if (brix_copy_quit_requested()) {
+                brix_status_set(st, XRDC_ESOCK, EINTR,
                                 "transfer cancelled (signal)");
                 return -1;
             }
@@ -263,17 +263,17 @@ plain_read_full(xrdc_io *io, void *buf, size_t n, xrdc_status *st)
         } while (pr < 0 && errno == EINTR);
 
         if (pr == 0) {
-            xrdc_status_set(st, XRDC_ESOCK, ETIMEDOUT, "read timed out");
+            brix_status_set(st, XRDC_ESOCK, ETIMEDOUT, "read timed out");
             return -1;
         }
         if (pr < 0) {
-            xrdc_status_set(st, XRDC_ESOCK, errno, "poll(read): %s", strerror(errno));
+            brix_status_set(st, XRDC_ESOCK, errno, "poll(read): %s", strerror(errno));
             return -1;
         }
 
         r = read(fd, p + got, n - got);
         if (r == 0) {
-            xrdc_status_set(st, XRDC_ESOCK, 0,
+            brix_status_set(st, XRDC_ESOCK, 0,
                             "connection closed by peer (read %zu/%zu)", got, n);
             return -1;
         }
@@ -281,7 +281,7 @@ plain_read_full(xrdc_io *io, void *buf, size_t n, xrdc_status *st)
             if (errno == EINTR || errno == EAGAIN) {
                 continue;
             }
-            xrdc_status_set(st, XRDC_ESOCK, errno, "read: %s", strerror(errno));
+            brix_status_set(st, XRDC_ESOCK, errno, "read: %s", strerror(errno));
             return -1;
         }
         got += (size_t) r;
@@ -290,7 +290,7 @@ plain_read_full(xrdc_io *io, void *buf, size_t n, xrdc_status *st)
 }
 
 static int
-plain_write_full(xrdc_io *io, const void *buf, size_t n, xrdc_status *st)
+plain_write_full(brix_io *io, const void *buf, size_t n, brix_status *st)
 {
     int            fd         = io->fd;
     int            timeout_ms = io->timeout_ms;
@@ -305,9 +305,9 @@ plain_write_full(xrdc_io *io, const void *buf, size_t n, xrdc_status *st)
         pfd.fd = fd;
         pfd.events = POLLOUT;
         do {
-            /* Phase 40 (a): prompt cooperative cancel (see xrdc_read_full). */
-            if (xrdc_copy_quit_requested()) {
-                xrdc_status_set(st, XRDC_ESOCK, EINTR,
+            /* Phase 40 (a): prompt cooperative cancel (see brix_read_full). */
+            if (brix_copy_quit_requested()) {
+                brix_status_set(st, XRDC_ESOCK, EINTR,
                                 "transfer cancelled (signal)");
                 return -1;
             }
@@ -315,11 +315,11 @@ plain_write_full(xrdc_io *io, const void *buf, size_t n, xrdc_status *st)
         } while (pr < 0 && errno == EINTR);
 
         if (pr == 0) {
-            xrdc_status_set(st, XRDC_ESOCK, ETIMEDOUT, "write timed out");
+            brix_status_set(st, XRDC_ESOCK, ETIMEDOUT, "write timed out");
             return -1;
         }
         if (pr < 0) {
-            xrdc_status_set(st, XRDC_ESOCK, errno, "poll(write): %s", strerror(errno));
+            brix_status_set(st, XRDC_ESOCK, errno, "poll(write): %s", strerror(errno));
             return -1;
         }
 
@@ -332,7 +332,7 @@ plain_write_full(xrdc_io *io, const void *buf, size_t n, xrdc_status *st)
             if (errno == EINTR || errno == EAGAIN) {
                 continue;
             }
-            xrdc_status_set(st, XRDC_ESOCK, errno, "write: %s", strerror(errno));
+            brix_status_set(st, XRDC_ESOCK, errno, "write: %s", strerror(errno));
             return -1;
         }
         sent += (size_t) w;
@@ -348,26 +348,26 @@ plain_write_full(xrdc_io *io, const void *buf, size_t n, xrdc_status *st)
  * tool — root://, WebDAV, and S3 alike.
  */
 static void
-note_io_failure(xrdc_io *io, int rc, const xrdc_status *st)
+note_io_failure(brix_io *io, int rc, const brix_status *st)
 {
     if (rc < 0 && st->kxr == XRDC_ESOCK && st->sys_errno != EINTR) {
-        xrdc_netpref_note_wire_error(fd_family(io->fd));
+        brix_netpref_note_wire_error(fd_family(io->fd));
     }
 }
 
 int
-xrdc_read_full(xrdc_io *io, void *buf, size_t n, xrdc_status *st)
+brix_read_full(brix_io *io, void *buf, size_t n, brix_status *st)
 {
-    int rc = (io->ssl != NULL) ? xrdc_tls_read(io, buf, n, st)
+    int rc = (io->ssl != NULL) ? brix_tls_read(io, buf, n, st)
                                : plain_read_full(io, buf, n, st);
     note_io_failure(io, rc, st);
     return rc;
 }
 
 int
-xrdc_write_full(xrdc_io *io, const void *buf, size_t n, xrdc_status *st)
+brix_write_full(brix_io *io, const void *buf, size_t n, brix_status *st)
 {
-    int rc = (io->ssl != NULL) ? xrdc_tls_write(io, buf, n, st)
+    int rc = (io->ssl != NULL) ? brix_tls_write(io, buf, n, st)
                                : plain_write_full(io, buf, n, st);
     note_io_failure(io, rc, st);
     return rc;

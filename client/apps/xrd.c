@@ -108,13 +108,13 @@ char *
 map_fs_arg(const char *arg, const char *ehost, int eport, int *mismatch)
 {
     char        resolved[XRDC_PATH_MAX];
-    xrdc_url    u;
-    xrdc_status st;
+    brix_url    u;
+    brix_status st;
 
     *mismatch = 0;
-    xrdc_status_clear(&st);
-    xrdc_alias_resolve(arg, resolved, sizeof(resolved));
-    if (xrdc_url_parse(resolved, &u, &st) == 0
+    brix_status_clear(&st);
+    brix_alias_resolve(arg, resolved, sizeof(resolved));
+    if (brix_url_parse(resolved, &u, &st) == 0
         && (u.scheme == XRDC_SCHEME_ROOT || u.scheme == XRDC_SCHEME_ROOTS)) {
         if (strcmp(u.host, ehost) != 0 || u.port != eport) {
             *mismatch = 1;
@@ -206,7 +206,7 @@ main(int argc, char **argv)
     /* ping [-c N] <endpoint>: inline liveness + RTT probe. */
     if (strcmp(cmd, "ping") == 0) { return xrd_ping(argc, argv); }
 
-    /* endpoint diagnostics: inline composition over libxrdc. */
+    /* endpoint diagnostics: inline composition over libbrix. */
     if (strcmp(cmd, "certinfo") == 0)  { return xrd_certinfo(argc, argv); }
     if (strcmp(cmd, "clockskew") == 0) { return xrd_clockskew(argc, argv); }
     if (strcmp(cmd, "whoami") == 0)    { return xrd_whoami(argc, argv); }
@@ -242,8 +242,8 @@ main(int argc, char **argv)
     if (is_fs_verb(cmd)) {
         char        resolved[XRDC_PATH_MAX];
         char        endpoint[320];
-        xrdc_url    u;
-        xrdc_status st;
+        brix_url    u;
+        brix_status st;
         char      **nv;
         int         i, k = 0, split = 0, ep_idx = -1;
 
@@ -256,9 +256,9 @@ main(int argc, char **argv)
          * Scanning (rather than assuming argv[2]) lets flags precede the endpoint,
          * e.g. `xrd df -h root://h//` or `xrd ln -s root://h//tgt root://h//link`. */
         for (i = 2; i < argc; i++) {
-            xrdc_status_clear(&st);
-            xrdc_alias_resolve(argv[i], resolved, sizeof(resolved));
-            if (xrdc_url_parse(resolved, &u, &st) == 0
+            brix_status_clear(&st);
+            brix_alias_resolve(argv[i], resolved, sizeof(resolved));
+            if (brix_url_parse(resolved, &u, &st) == 0
                 && (u.scheme == XRDC_SCHEME_ROOT || u.scheme == XRDC_SCHEME_ROOTS)) {
                 const char *scheme = (u.scheme == XRDC_SCHEME_ROOTS) ? "roots" : "root";
                 int         v6 = (strchr(u.host, ':') != NULL);

@@ -2,10 +2,10 @@
  * diag_internal.h - private split contract for xrddiag.c and its Phase-38 siblings.
  * Not a public API: include only from client/apps/.  See docs/refactor/phase-38-file-size-unix-modularity.md.
  */
-#ifndef XROOTD_DIAG_INTERNAL_H
-#define XROOTD_DIAG_INTERNAL_H
+#ifndef BRIX_DIAG_INTERNAL_H
+#define BRIX_DIAG_INTERNAL_H
 
-#include "xrdc.h"
+#include "brix.h"
 #include "core/compat/crypto.h"   
 #include "core/compat/hex.h"      
 #include <arpa/inet.h>
@@ -23,7 +23,7 @@
 #include <time.h>
 #include <unistd.h>
 typedef struct {
-    xrdc_opts   conn;          
+    brix_opts   conn;          
     const char *url;           
     const char *ref_url;       
     int         streams;       
@@ -66,7 +66,7 @@ typedef struct {
 } dx_finding;
 
 typedef enum {
-    DXP_ROOT = 0,   /* root:// / roots:// (libxrdc) */
+    DXP_ROOT = 0,   /* root:// / roots:// (libbrix) */
     DXP_HTTP,       /* http://  (cleartext XrdHttp/WebDAV GET) */
     DXP_HTTPS,      /* https:// (TLS XrdHttp GET) */
     DXP_DAVS,       /* davs:// / dav:// (WebDAV class-2 over TLS) */
@@ -80,7 +80,7 @@ typedef struct {
     int           port;
     int           connected;
     int           status;            /* DOC_GREEN/YELLOW/RED */
-    xrdc_netfacts nf;                /* phases / family / TCP_INFO / flowlabel */
+    brix_netfacts nf;                /* phases / family / TCP_INFO / flowlabel */
     int           tls_active;
     char          tls_ver[24], tls_cipher[48];
     char          auth[24];          /* chosen auth proto, or "anon" */
@@ -132,17 +132,17 @@ void probe(const char *name, int ok, const char *fmt, ...);
 void note(const char *name, const char *fmt, ...);
 
 /* diag_doctor.c */
-int download_to_fd(xrdc_conn *c, const char *path, int fd, int64_t *out_bytes, xrdc_status *st);
+int download_to_fd(brix_conn *c, const char *path, int fd, int64_t *out_bytes, brix_status *st);
 
 /* diag_topology.c */
-int resolve_target(xrdc_conn *c, const xrdc_url *u, char *target, size_t tsz, xrdc_statinfo *sti, xrdc_status *st);
+int resolve_target(brix_conn *c, const brix_url *u, char *target, size_t tsz, brix_statinfo *sti, brix_status *st);
 
 /* diag_check.c */
 int do_check(const diag_args *a);
 
 /* diag_bench.c */
-double bench_one(xrdc_conn *c, const char *target, xrdc_status *st);
-void bench_sweep(xrdc_conn *c, const char *target);
+double bench_one(brix_conn *c, const char *target, brix_status *st);
+void bench_sweep(brix_conn *c, const char *target);
 int do_bench(const diag_args *a);
 
 /* diag_metabench.c */
@@ -155,7 +155,7 @@ int do_topology(const diag_args *a);
 int do_status(const diag_args *a);
 
 /* diag_compare.c */
-int remote_md5(xrdc_conn *c, const char *path, char *hex, size_t hexsz, xrdc_status *st);
+int remote_md5(brix_conn *c, const char *path, char *hex, size_t hexsz, brix_status *st);
 
 /* diag_topology.c */
 void parse_http_hostport(const char *s, char *host, size_t hsz, int *port);
@@ -165,9 +165,9 @@ int do_compare_davs(const diag_args *a);
 int do_compare(const diag_args *a);
 
 /* diag_topology.c */
-int resolve_once(const char *host, int port, char *ip, size_t ipsz, int *is_loop, xrdc_status *st);
-int probe_open(xrdc_conn *c, const char *urlbuf, const diag_args *a, int tmo, xrdc_status *st);
-int raw_send_expect_reject(xrdc_conn *c, const uint8_t hdr24[24], const uint8_t *body, uint32_t bodylen, int lie_dlen, uint32_t fake_dlen);
+int resolve_once(const char *host, int port, char *ip, size_t ipsz, int *is_loop, brix_status *st);
+int probe_open(brix_conn *c, const char *urlbuf, const diag_args *a, int tmo, brix_status *st);
+int raw_send_expect_reject(brix_conn *c, const uint8_t hdr24[24], const uint8_t *body, uint32_t bodylen, int lie_dlen, uint32_t fake_dlen);
 
 /* diag_misc.c */
 int do_probe_robustness(const diag_args *a);
@@ -175,42 +175,42 @@ int do_replay(const diag_args *a);
 
 /* diag_doctor.c */
 void doc_issue(doctor_ep *e, int sev, const char *fmt, ...);
-int doctor_xfer(xrdc_conn *c, const char *path, double *ttfb_ms, double *mbps, int64_t *bytes);
+int doctor_xfer(brix_conn *c, const char *path, double *ttfb_ms, double *mbps, int64_t *bytes);
 void doctor_metrics(const char *host, int port, doctor_ep *e);
 
 /* xrddiag.c */
 void dx_record(doctor_ep *e, const char *probe, int verdict, int kxr, const char *cause, const char *remedy);
-void dx_record_status(doctor_ep *e, const char *probe, const xrdc_status *st);
+void dx_record_status(doctor_ep *e, const char *probe, const brix_status *st);
 int dx_is_loopback(const char *host);
 
 /* diag_check.c */
-void dx_probe_auth(const xrdc_conn *c, doctor_ep *e);
-void dx_probe_namespace(xrdc_conn *c, doctor_ep *e);
-void dx_probe_read(xrdc_conn *c, const char *target, doctor_ep *e);
-void dx_probe_checksum(xrdc_conn *c, const char *target, doctor_ep *e);
-void dx_probe_write(xrdc_conn *c, doctor_ep *e);
-void dx_probe_stage(xrdc_conn *c, const char *target, doctor_ep *e);
+void dx_probe_auth(const brix_conn *c, doctor_ep *e);
+void dx_probe_namespace(brix_conn *c, doctor_ep *e);
+void dx_probe_read(brix_conn *c, const char *target, doctor_ep *e);
+void dx_probe_checksum(brix_conn *c, const char *target, doctor_ep *e);
+void dx_probe_write(brix_conn *c, doctor_ep *e);
+void dx_probe_stage(brix_conn *c, const char *target, doctor_ep *e);
 
 /* xrddiag.c */
 int dx_b64url_enc(const unsigned char *in, size_t n, char *out, size_t outsz);
 int dx_make_jwt(const char *header, const char *payload, const char *sig, char *out, size_t outsz);
-int dx_connect_as(const diag_args *a, const xrdc_url *u, int force_anon, const char *token_override, const char *auth_force, xrdc_conn *c, xrdc_status *st);
+int dx_connect_as(const diag_args *a, const brix_url *u, int force_anon, const char *token_override, const char *auth_force, brix_conn *c, brix_status *st);
 
 /* diag_check.c */
-int dx_authz_anon(const diag_args *a, const xrdc_url *u, const char *target, int have_target, char *sec_out, size_t sec_sz, doctor_ep *e);
-void dx_authz_forged(const diag_args *a, const xrdc_url *u, const char *probe, const char *bad_token, doctor_ep *e);
-void dx_authz_expired(const diag_args *a, const xrdc_url *u, const char *tok, doctor_ep *e);
-void dx_authz_scope(const diag_args *a, const xrdc_url *u, const char *tok, doctor_ep *e);
+int dx_authz_anon(const diag_args *a, const brix_url *u, const char *target, int have_target, char *sec_out, size_t sec_sz, doctor_ep *e);
+void dx_authz_forged(const diag_args *a, const brix_url *u, const char *probe, const char *bad_token, doctor_ep *e);
+void dx_authz_expired(const diag_args *a, const brix_url *u, const char *tok, doctor_ep *e);
+void dx_authz_scope(const diag_args *a, const brix_url *u, const char *tok, doctor_ep *e);
 
 /* diag_doctor.c */
-void doctor_auth_suite(const diag_args *a, const xrdc_url *u, const char *target, int have_target, doctor_ep *e);
-void doctor_diagnose(const diag_args *a, xrdc_conn *c, const xrdc_url *u, const char *target, int have_target, doctor_ep *e);
+void doctor_auth_suite(const diag_args *a, const brix_url *u, const char *target, int have_target, doctor_ep *e);
+void doctor_diagnose(const diag_args *a, brix_conn *c, const brix_url *u, const char *target, int have_target, doctor_ep *e);
 
 /* xrddiag.c */
 const char * dx_proto_name(dx_proto p);
 int dx_url_parse(const char *url, dx_proto *proto, int *tls, char *host, size_t hsz, int *port, char *path, size_t psz);
 void dx_http_status(doctor_ep *e, const char *probe, int status);
-void dx_http_fail(doctor_ep *e, int tls, const xrdc_status *st);
+void dx_http_fail(doctor_ep *e, int tls, const brix_status *st);
 
 /* diag_doctor.c */
 void doctor_http(const diag_args *a, dx_proto proto, int tls, const char *host, int port, const char *path, doctor_ep *e);
@@ -254,11 +254,11 @@ int watch_probe_once(const diag_args *a, const char *url, watch_sample *out);
 void watch_emit_human(const watch_sample *s, FILE *out);
 void watch_emit_json(const watch_sample *s, FILE *out);
 void watch_emit_prom(const watch_sample *samples, int n, FILE *out);
-int watch_write_prom_atomic(const char *path, const watch_sample *samples, int n, xrdc_status *st);
+int watch_write_prom_atomic(const char *path, const watch_sample *samples, int n, brix_status *st);
 void watch_sleep(int seconds);
 int do_watch(const diag_args *a);
 
 /* xrddiag.c */
 void usage(void);
 
-#endif /* XROOTD_DIAG_INTERNAL_H */
+#endif /* BRIX_DIAG_INTERNAL_H */

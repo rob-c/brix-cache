@@ -6,14 +6,14 @@
  *       the system xrdfs exposes — so the harness can drive every subcommand.
  * HOW:  Each builds its packed Client*Request (wire_write_extended_requests.h /
  *       wire_core_requests.h), big-endian fields, and exchanges one frame via
- *       xrdc_roundtrip so path-based ops transparently follow a cluster redirect.
+ *       brix_roundtrip so path-based ops transparently follow a cluster redirect.
  *       Mutating ops expect kXR_ok (no body); query/locate/statvfs return the
  *       server's text reply verbatim for the CLI to print.
  *
  * wire: kXR_mv payload is "src ' ' dst" with arg1len=len(src) (src/protocols/root/write/mv.c).
  * wire: kXR_locate reply is an "S<rw><host>:<port>" token (src/protocols/root/read/locate.c).
  */
-#include "xrdc.h"
+#include "brix.h"
 
 #include <arpa/inet.h>
 #include <endian.h>
@@ -26,14 +26,14 @@
  * require a kXR_ok with no meaningful body (mkdir/rm/rmdir/mv/chmod/truncate).
  * cls/benign_errno tune re-issue after a sever (every tool inherits this). */
 static int
-fs_simple(xrdc_conn *c, void *hdr24, const void *payload, uint32_t plen,
-          xrdc_op_class cls, int benign_errno, xrdc_status *st)
+fs_simple(brix_conn *c, void *hdr24, const void *payload, uint32_t plen,
+          brix_op_class cls, int benign_errno, brix_status *st)
 {
     uint16_t status;
     uint8_t *body = NULL;
     uint32_t blen = 0;
 
-    if (xrdc_roundtrip_resilient(c, hdr24, payload, plen, cls, benign_errno,
+    if (brix_roundtrip_resilient(c, hdr24, payload, plen, cls, benign_errno,
                                  &status, &body, &blen, st) != 0) {
         return -1;
     }
@@ -45,15 +45,15 @@ fs_simple(xrdc_conn *c, void *hdr24, const void *payload, uint32_t plen,
  * trailing CR/LF trimmed) into out[outsz]. Read-only/idempotent (query / locate /
  * statvfs / prepare): safe to retry freely on a sever. */
 static int
-fs_text(xrdc_conn *c, void *hdr24, const void *payload, uint32_t plen,
-        char *out, size_t outsz, xrdc_status *st)
+fs_text(brix_conn *c, void *hdr24, const void *payload, uint32_t plen,
+        char *out, size_t outsz, brix_status *st)
 {
     uint16_t status;
     uint8_t *body = NULL;
     uint32_t blen = 0;
     size_t   n;
 
-    if (xrdc_roundtrip_resilient(c, hdr24, payload, plen, XRDC_OP_READONLY, 0,
+    if (brix_roundtrip_resilient(c, hdr24, payload, plen, XRDC_OP_READONLY, 0,
                                  &status, &body, &blen, st) != 0) {
         return -1;
     }
@@ -68,7 +68,7 @@ fs_text(xrdc_conn *c, void *hdr24, const void *payload, uint32_t plen,
 }
 
 int
-xrdc_mkdir(xrdc_conn *c, const char *path, int mode, int parents, xrdc_status *st)
+brix_mkdir(brix_conn *c, const char *path, int mode, int parents, brix_status *st)
 {
     ClientMkdirRequest req;
     memset(&req, 0, sizeof(req));
@@ -84,7 +84,7 @@ xrdc_mkdir(xrdc_conn *c, const char *path, int mode, int parents, xrdc_status *s
 }
 
 int
-xrdc_rm(xrdc_conn *c, const char *path, xrdc_status *st)
+brix_rm(brix_conn *c, const char *path, brix_status *st)
 {
     ClientRmRequest req;
     memset(&req, 0, sizeof(req));
@@ -96,7 +96,7 @@ xrdc_rm(xrdc_conn *c, const char *path, xrdc_status *st)
 }
 
 int
-xrdc_rmdir(xrdc_conn *c, const char *path, xrdc_status *st)
+brix_rmdir(brix_conn *c, const char *path, brix_status *st)
 {
     ClientRmdirRequest req;
     memset(&req, 0, sizeof(req));
@@ -107,7 +107,7 @@ xrdc_rmdir(xrdc_conn *c, const char *path, xrdc_status *st)
 }
 
 int
-xrdc_mv(xrdc_conn *c, const char *src, const char *dst, xrdc_status *st)
+brix_mv(brix_conn *c, const char *src, const char *dst, brix_status *st)
 {
     ClientMvRequest req;
     char           *payload;
@@ -115,12 +115,12 @@ xrdc_mv(xrdc_conn *c, const char *src, const char *dst, xrdc_status *st)
     int             rc;
 
     if (sl == 0 || sl > 0x7fff) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "mv source path length out of range");
+        brix_status_set(st, XRDC_EUSAGE, 0, "mv source path length out of range");
         return -1;
     }
     payload = (char *) malloc(total);
     if (payload == NULL) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "out of memory");
+        brix_status_set(st, XRDC_EPROTO, 0, "out of memory");
         return -1;
     }
     /* wire: src + ' ' + dst; arg1len = len(src). */
@@ -144,7 +144,7 @@ xrdc_mv(xrdc_conn *c, const char *src, const char *dst, xrdc_status *st)
 }
 
 int
-xrdc_chmod(xrdc_conn *c, const char *path, int mode, xrdc_status *st)
+brix_chmod(brix_conn *c, const char *path, int mode, brix_status *st)
 {
     ClientChmodRequest req;
     memset(&req, 0, sizeof(req));
@@ -159,7 +159,7 @@ xrdc_chmod(xrdc_conn *c, const char *path, int mode, xrdc_status *st)
 }
 
 int
-xrdc_truncate(xrdc_conn *c, const char *path, int64_t size, xrdc_status *st)
+brix_truncate(brix_conn *c, const char *path, int64_t size, brix_status *st)
 {
     ClientTruncateRequest req;
     memset(&req, 0, sizeof(req));
@@ -174,8 +174,8 @@ xrdc_truncate(xrdc_conn *c, const char *path, int64_t size, xrdc_status *st)
 }
 
 int
-xrdc_query(xrdc_conn *c, int infotype, const char *args, char *out, size_t outsz,
-           xrdc_status *st)
+brix_query(brix_conn *c, int infotype, const char *args, char *out, size_t outsz,
+           brix_status *st)
 {
     ClientQueryRequest req;
     size_t             alen = (args != NULL) ? strlen(args) : 0;
@@ -189,8 +189,8 @@ xrdc_query(xrdc_conn *c, int infotype, const char *args, char *out, size_t outsz
 }
 
 int
-xrdc_statvfs(xrdc_conn *c, const char *path, char *out, size_t outsz,
-             xrdc_status *st)
+brix_statvfs(brix_conn *c, const char *path, char *out, size_t outsz,
+             brix_status *st)
 {
     ClientStatRequest req;
     memset(&req, 0, sizeof(req));
@@ -203,8 +203,8 @@ xrdc_statvfs(xrdc_conn *c, const char *path, char *out, size_t outsz,
 }
 
 int
-xrdc_locate(xrdc_conn *c, const char *path, char *out, size_t outsz,
-            xrdc_status *st)
+brix_locate(brix_conn *c, const char *path, char *out, size_t outsz,
+            brix_status *st)
 {
     ClientLocateRequest req;
     memset(&req, 0, sizeof(req));
@@ -217,8 +217,8 @@ xrdc_locate(xrdc_conn *c, const char *path, char *out, size_t outsz,
 }
 
 int
-xrdc_prepare(xrdc_conn *c, const char *const *paths, int npaths, int options,
-             int optionX, int prty, char *out, size_t outsz, xrdc_status *st)
+brix_prepare(brix_conn *c, const char *const *paths, int npaths, int options,
+             int optionX, int prty, char *out, size_t outsz, brix_status *st)
 {
     ClientPrepareRequest req;
     char                *payload;
@@ -230,12 +230,12 @@ xrdc_prepare(xrdc_conn *c, const char *const *paths, int npaths, int options,
         total += strlen(paths[i]) + 1;   /* path + '\n' (or final, see below) */
     }
     if (total == 0) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "prepare needs at least one path");
+        brix_status_set(st, XRDC_EUSAGE, 0, "prepare needs at least one path");
         return -1;
     }
     payload = (char *) malloc(total);
     if (payload == NULL) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "out of memory");
+        brix_status_set(st, XRDC_EPROTO, 0, "out of memory");
         return -1;
     }
     /* Newline-separated paths (no trailing newline). */

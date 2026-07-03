@@ -142,7 +142,7 @@ def _dx(blob):
 
 
 # --------------------------------------------------------------------------
-# root:// (regression — the libxrdc battery still runs through the router)
+# root:// (regression — the libbrix battery still runs through the router)
 # --------------------------------------------------------------------------
 
 def test_root_via_router(servers):
