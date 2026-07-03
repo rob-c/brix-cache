@@ -26,6 +26,7 @@
  */
 
 #include "clone.h"
+#include "fs/backend/csi_tagstore.h"
 #include "protocols/root/connection/fd_table.h"
 #include "core/compat/copy_range.h"
 
@@ -120,6 +121,34 @@ brix_handle_clone(brix_ctx_t *ctx, ngx_connection_t *c)
                               ctx->files[src_idx].path,
                               ctx->files[dst_idx].path,
                               kXR_IOError, "clone copy failed");
+        }
+
+        /* Integrity: clone writes bytes with copy_file_range/pread-pwrite,
+         * bypassing the write path's per-block CRC fold. A csi-tracked dst
+         * would otherwise keep its pre-clone block CRCs, and a later read of
+         * the (now different) data fails verification with EIO. Fold the copied
+         * region into the handle's csi engine so the record flushed at close
+         * carries the cloned data's CRCs (edge blocks are recomputed at flush). */
+        if (ctx->files[dst_idx].csi != NULL) {
+            enum { CLONE_FOLD_WIN = 1 << 20 };   /* one csi block */
+            u_char *fb = ngx_alloc(CLONE_FOLD_WIN, c->log);
+            if (fb != NULL) {
+                off_t  fo   = dst_off;
+                size_t left = copy_len;
+                while (left > 0) {
+                    size_t  chunk = left < CLONE_FOLD_WIN ? left : CLONE_FOLD_WIN;
+                    ssize_t n     = pread(dst_fd, fb, chunk, fo);
+                    if (n <= 0) {
+                        break;
+                    }
+                    (void) brix_csi_write_update(
+                        (brix_csi_t *) ctx->files[dst_idx].csi, fb, fo,
+                        (size_t) n);
+                    fo   += n;
+                    left -= (size_t) n;
+                }
+                ngx_free(fb);
+            }
         }
 
         total_bytes += copy_len;
