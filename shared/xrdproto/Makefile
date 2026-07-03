@@ -23,12 +23,12 @@ HARDEN := -D_GNU_SOURCE -D_FORTIFY_SOURCE=2 -fstack-protector-strong \
           -fstack-clash-protection -fcf-protection=full \
           -Wformat -Werror=format-security
 
-# Optimize profile — same knob/default as the module (XROOTD_OPTIMIZE, default v2).
-XROOTD_OPTIMIZE ?= v2
+# Optimize profile — same knob/default as the module (BRIX_OPTIMIZE, default v2).
+BRIX_OPTIMIZE ?= v2
 OPT_v2     := -O3 -march=x86-64-v2 -fno-plt
 OPT_v3     := -O3 -march=x86-64-v3 -fno-plt
 OPT_native := -O3 -march=native -fno-plt
-OPT := $(OPT_$(XROOTD_OPTIMIZE))
+OPT := $(OPT_$(BRIX_OPTIMIZE))
 ifeq ($(OPT),)
   OPT := $(OPT_v2)
 endif
@@ -36,28 +36,28 @@ endif
 # Compression codecs (phase-42): compile-gate each backend on its dev lib, like
 # the module's root `config`. Only -D + cflags belong here (a static archive
 # links nothing); the consumer (client/Makefile) adds the matching -l libs.
-CODEC_CFLAGS := -DXROOTD_HAVE_ZLIB=1
+CODEC_CFLAGS := -DBRIX_HAVE_ZLIB=1
 ifeq ($(shell pkg-config --exists libzstd 2>/dev/null && echo y),y)
-  CODEC_CFLAGS += -DXROOTD_HAVE_ZSTD=1
+  CODEC_CFLAGS += -DBRIX_HAVE_ZSTD=1
 endif
 ifeq ($(shell pkg-config --exists liblzma 2>/dev/null && echo y),y)
-  CODEC_CFLAGS += -DXROOTD_HAVE_LZMA=1
+  CODEC_CFLAGS += -DBRIX_HAVE_LZMA=1
 endif
 ifeq ($(shell pkg-config --exists libbrotlienc libbrotlidec 2>/dev/null && echo y),y)
-  CODEC_CFLAGS += -DXROOTD_HAVE_BROTLI=1
+  CODEC_CFLAGS += -DBRIX_HAVE_BROTLI=1
 endif
 ifeq ($(shell pkg-config --exists bzip2 2>/dev/null && echo y),y)
-  CODEC_CFLAGS += -DXROOTD_HAVE_BZIP2=1
+  CODEC_CFLAGS += -DBRIX_HAVE_BZIP2=1
 else ifeq ($(shell printf '\#include <bzlib.h>\n' | $(CC) -E - >/dev/null 2>&1 && echo y),y)
-  CODEC_CFLAGS += -DXROOTD_HAVE_BZIP2=1
+  CODEC_CFLAGS += -DBRIX_HAVE_BZIP2=1
 endif
-# lz4 (phase-42 extension): an env hint (XROOTD_LZ4_CFLAGS) carries the -I for a
+# lz4 (phase-42 extension): an env hint (BRIX_LZ4_CFLAGS) carries the -I for a
 # non-system (conda) liblz4 header; else pkg-config.  Link libs are added by the
 # consumer (client/Makefile).
-ifneq ($(strip $(XROOTD_LZ4_CFLAGS)$(XROOTD_LZ4_LIBS)),)
-  CODEC_CFLAGS += -DXROOTD_HAVE_LZ4=1 $(XROOTD_LZ4_CFLAGS)
+ifneq ($(strip $(BRIX_LZ4_CFLAGS)$(BRIX_LZ4_LIBS)),)
+  CODEC_CFLAGS += -DBRIX_HAVE_LZ4=1 $(BRIX_LZ4_CFLAGS)
 else ifeq ($(shell pkg-config --exists liblz4 2>/dev/null && echo y),y)
-  CODEC_CFLAGS += -DXROOTD_HAVE_LZ4=1 $(shell pkg-config --cflags liblz4 2>/dev/null)
+  CODEC_CFLAGS += -DBRIX_HAVE_LZ4=1 $(shell pkg-config --cflags liblz4 2>/dev/null)
 endif
 
 # NB: $(COMPAT) (src/core/compat) is added with -iquote, NOT -I. src/core/compat/time.h shares
@@ -103,7 +103,7 @@ TOKEN_OBJS := $(BUILD)/scopes.o $(BUILD)/b64url.o
 # -DXRDPROTO_NO_NGX only the worker-safe pread/pwrite/... slots + the driver
 # descriptor compile (the namespace/instance/registry ops are nginx-coupled and
 # #ifdef'd out), so checksum_core.c can route its fd reads through the same
-# xrootd_sd_posix_driver the module uses, with no nginx dependency.
+# brix_sd_posix_driver the module uses, with no nginx dependency.
 BACKEND := $(REPO)/src/fs/backend
 BACKEND_OBJS := $(BUILD)/sd_posix.o $(BUILD)/sd_block.o $(BUILD)/sd_s3.o \
                 $(BUILD)/meta_advisory.o
@@ -137,7 +137,7 @@ all: $(LIB)
 
 $(LIB): $(OBJS)
 	$(AR) rcs $@ $^
-	@echo " + built $@ ($(words $(OBJS)) objects, XROOTD_OPTIMIZE=$(XROOTD_OPTIMIZE))"
+	@echo " + built $@ ($(words $(OBJS)) objects, BRIX_OPTIMIZE=$(BRIX_OPTIMIZE))"
 
 $(BUILD)/%.o: $(COMPAT)/%.c | $(BUILD)
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
