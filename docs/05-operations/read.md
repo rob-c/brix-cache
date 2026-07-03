@@ -141,11 +141,11 @@ for entry in listing:
 
 `kXR_locate` asks the server for one or more replica locations for a given path. For a simple data server the module returns a single-entry location string in the format `"S<access><host:port>"` where `S` indicates the endpoint is a server and `<access>` is `r` (read-only) or `w` (read-write).
 
-Manager-mode mapping: when `xrootd_manager_map` contains a matching prefix the server returns an XRootD `kXR_redirect` response (status `4004`) instead of a normal location list. The redirect body is encoded as a 4-byte big-endian port followed by the host name bytes (ASCII). Clients should parse the first four bytes as the port and the remaining bytes as the host string.
+Manager-mode mapping: when `brix_manager_map` contains a matching prefix the server returns an XRootD `kXR_redirect` response (status `4004`) instead of a normal location list. The redirect body is encoded as a 4-byte big-endian port followed by the host name bytes (ASCII). Clients should parse the first four bytes as the port and the remaining bytes as the host string.
 
 Both `locate` and `open` consult the configured manager map and will return a redirect when a mapping matches; mappings use longest-prefix matching so more-specific prefixes take precedence.
 
-Configure static mappings using the `xrootd_manager_map /prefix host:port;` directive in the server block. See [Manager Mode](manager-mode.md) for details and examples.
+Configure static mappings using the `brix_manager_map /prefix host:port;` directive in the server block. See [Manager Mode](manager-mode.md) for details and examples.
 
 ### `kXR_statx` — bulk multi-path stat
 

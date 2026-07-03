@@ -69,9 +69,9 @@ Two transports carry this in BriX-Cache:
 
 - official xrootd (reference): key code is in the `XrdHttpTpc` plugin
   (example files under a reference tree used for earlier comparisons):
-  - `/tmp/xrootd-src/src/XrdHttpTpc/` (e.g. `XrdHttpTpcTPC.cc`,
+  - `/tmp/brix-src/src/XrdHttpTpc/` (e.g. `XrdHttpTpcTPC.cc`,
     `XrdHttpTpcUtils.cc`, `XrdHttpTpcMultistream.cc`) and monitoring in
-    `/tmp/xrootd-src/src/XrdXrootd/XrdXrootdTpcMon.cc`.
+    `/tmp/brix-src/src/XrdXrootd/XrdXrootdTpcMon.cc`.
 
 Note: reference xrootd files above are external to this workspace; the
 module source links above point into this repository.
@@ -239,15 +239,15 @@ priority (e.g., implement SSRF configurability early for safety).
 
 ## Suggested nginx config directives
 
-Add a small set of `xrootd_webdav_tpc_*` directives to make behavior tunable:
+Add a small set of `brix_webdav_tpc_*` directives to make behavior tunable:
 
-- `xrootd_webdav_tpc_enable on|off` — enable internal HTTP TPC.
-- `xrootd_webdav_tpc_block_size <bytes>` — block size for multi-stream pulls.
-- `xrootd_webdav_tpc_max_streams <N>` — cap streams per transfer.
-- `xrootd_webdav_tpc_marker_interval <sec>` — perf marker interval.
-- `xrootd_webdav_tpc_allow_local on|off` — control loopback/link-local.
-- `xrootd_webdav_tpc_allow_private on|off` — allow RFC1918 private ranges.
-- `xrootd_webdav_tpc_cacert <path>` / `xrootd_webdav_tpc_cert` / `tpc_key` — CA/cred options.
+- `brix_webdav_tpc_enable on|off` — enable internal HTTP TPC.
+- `brix_webdav_tpc_block_size <bytes>` — block size for multi-stream pulls.
+- `brix_webdav_tpc_max_streams <N>` — cap streams per transfer.
+- `brix_webdav_tpc_marker_interval <sec>` — perf marker interval.
+- `brix_webdav_tpc_allow_local on|off` — control loopback/link-local.
+- `brix_webdav_tpc_allow_private on|off` — allow RFC1918 private ranges.
+- `brix_webdav_tpc_cacert <path>` / `brix_webdav_tpc_cert` / `tpc_key` — CA/cred options.
 
 These map directly to the knobs used in the official `XrdHttpTpc` module.
 

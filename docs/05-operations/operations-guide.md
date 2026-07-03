@@ -3,7 +3,7 @@
 Every XRootD operation the module handles — command-line examples, Python client snippets, and the constraints you'll hit in production.
 
 If you want the higher-level "what does `xrdcp` usually do to the server?" view,
-see [xrdcp-interactions.md](../04-protocols/xrootd-client-interaction.md). If you want the design
+see [xrdcp-interactions.md](../04-protocols/brix-client-interaction.md). If you want the design
 trade-offs behind some of the odd-looking behavior, see [quirks.md](../10-reference/quirks.md).
 
 ---
@@ -64,7 +64,7 @@ These operations happen at the start of every connection, before any file access
 
 The XRootD client sends a 20-byte binary handshake when it first connects, then immediately sends a `kXR_protocol` request to negotiate capabilities. The module handles both automatically — clients and servers do this without any user-level configuration.
 
-When `xrootd_manager_map` mappings are configured the server sets the `kXR_isManager` capability bit in the `kXR_protocol` response so clients know the server may return redirects.
+When `brix_manager_map` mappings are configured the server sets the `kXR_isManager` capability bit in the `kXR_protocol` response so clients know the server may return redirects.
 
 ### `kXR_login`
 
@@ -88,7 +88,7 @@ Verification rules:
 Mismatched HMACs are rejected with `kXR_NotAuthorized`.
 
 Security-level enforcement is configured with
-`xrootd_security_level none|compatible|standard|intense|pedantic`. When a GSI
+`brix_security_level none|compatible|standard|intense|pedantic`. When a GSI
 session has an active signing key, `handshake/sigver.c` mirrors XRootD's
 request-protection table and rejects unsigned opcodes that require a preceding
 valid `kXR_sigver`. The `pedantic` level also advertises `kXR_secOData` and

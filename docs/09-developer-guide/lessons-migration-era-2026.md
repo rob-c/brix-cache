@@ -29,8 +29,8 @@ read this first, drill down as needed.
 
 | Phase | Migration | Scale | Outcome |
 |---|---|---|---|
-| 55/56 | Storage plane onto a capability-typed pluggable driver seam (`xrootd_sd_driver_t`); "zero data-POSIX outside `src/fs/backend/`" invariant | data plane of all 3 protocols | Landed; one reverted over-reach (A-1: `vfs_read`/`write`/`io_core` moved *off* the driver, put back) |
-| 62 | Namespace + metadata seam closure — every handler `open`/`stat`/`unlink`/`rename`/xattr on an export path through `xrootd_vfs_*` | backlog 56 → 0 raw call sites | Landed; guard `tools/ci/check_vfs_seam.sh` keeps it closed |
+| 55/56 | Storage plane onto a capability-typed pluggable driver seam (`brix_sd_driver_t`); "zero data-POSIX outside `src/fs/backend/`" invariant | data plane of all 3 protocols | Landed; one reverted over-reach (A-1: `vfs_read`/`write`/`io_core` moved *off* the driver, put back) |
+| 62 | Namespace + metadata seam closure — every handler `open`/`stat`/`unlink`/`rename`/xattr on an export path through `brix_vfs_*` | backlog 56 → 0 raw call sites | Landed; guard `tools/ci/check_vfs_seam.sh` keeps it closed |
 | 64 | Composable tier layer (`cache_store`/`stage`/... decorators) + **dissolution of the ~3,900-line standalone `src/frm/`** into `fs/xfer/` + `fs/backend/frm/` | one whole subsystem deleted | Landed; tape suite 4/4, 114 staging tests green, no `src/frm/` path survives |
 | 66 | `src/` conceptual realignment into seven buckets (`core/ protocols/ fs/ auth/ net/ observability/ tpc/`), src-rooted includes | ~850 files, 8 commits | Landed 2026-07-02; full fast suite green modulo pre-existing baseline failures |
 | June | Codebase hardening (link-time, `safe_size.h` adoption, libFuzzer, sanitizer lane, exec/deployment sandboxing) | 11 tasks | Merge-ready; 0 critical findings in final review |
@@ -184,7 +184,7 @@ broken tree:
   deleting rather than porting a third of the subsystem.
 - **Preserve external contracts across the dissolution and say so.** The reqid
   wire format survived verbatim (clients that echo a reqid keep working); the
-  `xrootd_frm_*` directives survived (relocated to `tape_stage_conf.c`); the
+  `brix_frm_*` directives survived (relocated to `tape_stage_conf.c`); the
   registry journal kept routing through the SD posix seam so the seam guard
   stayed green. Behavior-preserving moves get to lean on the *existing* test
   suite as their gate.
@@ -225,7 +225,7 @@ Two transferable points:
 1. **A backlog file turns an open-ended cleanup into a monotone counter.**
    Progress is visible, regressions are impossible, and "done" is `wc -l == 0`.
 2. **Enablers first, then the sites fall.** The backlog stalled several times
-   until a missing primitive was built (`xrootd_vfs_walk`, thread-safe
+   until a missing primitive was built (`brix_vfs_walk`, thread-safe
    `vfs_open_fd`/`vfs_rename_path`, raw-`O_*` confined-open wrappers) — after
    which whole clusters of call sites migrated trivially. When a migration
    stalls, look for the missing enabler rather than grinding call sites.
@@ -321,7 +321,7 @@ moving code forces re-reading it:
   loses wakeups under cross-worker contention: a worker blocks in `sem_wait`
   forever *with the lock free*, freezing its whole event loop (60–450 s
   connection stalls on the hot `kXR_open` path). Every module SHM mutex now
-  goes through `xrootd_shm_table_alloc()` (spin+yield). Full analysis:
+  goes through `brix_shm_table_alloc()` (spin+yield). Full analysis:
   [postmortem-shmtx-semaphore-stall.md](postmortem-shmtx-semaphore-stall.md).
 - **SHM state must survive worker death.** Dead-holder mutex stranding, cache
   fill locks owned by killed pids (permanent `kXR_FileLocked`), and rate-limit
@@ -373,7 +373,7 @@ every plane that touches frames:
 | Plane | Change |
 |---|---|
 | Client | `ops_file_rw.c` via new `xrdc_send_ext()` — wire `dlen` ≠ bytes sent; sigver signs the `dlen` span, matching stock |
-| Server framing | `recv.c` extension: validate descriptors (`xrootd_writev_body_extra()`), grow the payload buffer **preserving received bytes**, extend the expected length; caps enforced *before* any allocation |
+| Server framing | `recv.c` extension: validate descriptors (`brix_writev_body_extra()`), grow the payload buffer **preserving received bytes**, extend the expected length; caps enforced *before* any allocation |
 | Server handler | `writev.c`: `N = dlen/16`; stock-parity errors; framing violations send the error **then drop the link** (mandatory — once the descriptor block is in doubt, the trailing byte count is unknowable and no resync exists) |
 | Proxy | `forward_request.c` forwards descriptors + trailing data (incidentally fixing a latent bug where fh-translation walked into data bytes) |
 | Tap/observability | `tap_stream.c` sums `wlen` on the fly to skip the trailing data and stay frame-aligned |

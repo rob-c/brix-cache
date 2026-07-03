@@ -61,9 +61,9 @@ Understanding dual-stack support requires tracing IP addresses through three lay
 | `src/tpc/outbound/connect.c` | TPC outbound TCP connect | `getaddrinfo(AF_UNSPEC)`, iterates all addrinfo entries, IPv6 SSRF checks in `tpc_addr_is_prohibited()` |
 | `src/fs/cache/origin_connection.c` | Cache-fill origin connect | `getaddrinfo(AF_UNSPEC)`, iterates all addrinfo entries |
 | `src/net/cms/config.c` | CMS manager address parsing | Uses `ngx_parse_url()` which handles IPv6 literals via nginx's internal resolver |
-| `src/net/upstream/directives.c` | `xrootd_upstream host:port` parsing | Lines 24–54: checks for `[` prefix, extracts IPv6 address between brackets |
-| `src/core/config/manager_map.c` | `xrootd_manager_map prefix host:port` parsing | Lines 49–77: same bracket-aware IPv6 parsing |
-| `src/fs/cache/directives.c` | `xrootd_cache_origin host:port` parsing | Lines 62–90: same bracket-aware IPv6 parsing, handles `root://` and `roots://` prefixes |
+| `src/net/upstream/directives.c` | `brix_upstream host:port` parsing | Lines 24–54: checks for `[` prefix, extracts IPv6 address between brackets |
+| `src/core/config/manager_map.c` | `brix_manager_map prefix host:port` parsing | Lines 49–77: same bracket-aware IPv6 parsing |
+| `src/fs/cache/directives.c` | `brix_cache_origin host:port` parsing | Lines 62–90: same bracket-aware IPv6 parsing, handles `root://` and `roots://` prefixes |
 | `src/protocols/root/connection/handler.c` (lines 93–106) | Port extraction from `c->local_sockaddr` | Lines 93–106: checks `sa_family` and casts to correct type for `AF_INET` and `AF_INET6` |
 | `src/tpc/engine/launch.c` (lines 82–86) | Client address for TPC logging | `getnameinfo()` with `NI_NAMEREQD` — dual-stack safe |
 | `src/observability/accesslog/access_log.c` | Access log client IP | Uses `c->addr_text` — nginx's pre-formatted address string which includes brackets for IPv6 |
@@ -86,7 +86,7 @@ address is stored in a `struct sockaddr_storage`, so IPv6 backends connect
 correctly.
 
 **Status**: Outbound IPv6 connect from the upstream redirector
-(`kXR_locate` miss → redirect to `xrootd_upstream`) and manager-mode redirects
+(`kXR_locate` miss → redirect to `brix_upstream`) and manager-mode redirects
 to IPv6 backends are supported.
 
 #### `src/net/proxy/connect_upstream.c` — **[RESOLVED]**
@@ -96,7 +96,7 @@ IPv4-only anti-pattern. It is now `src/net/proxy/connect_upstream.c`, which reso
 via `getaddrinfo(AF_UNSPEC)`, iterates addrinfo entries, and stores the endpoint
 in a `struct sockaddr_storage`.
 
-**Status**: Transparent proxy mode (`xrootd_proxy on`) connects to IPv6 upstream
+**Status**: Transparent proxy mode (`brix_proxy on`) connects to IPv6 upstream
 XRootD daemons.
 
 ### 3.3 P1 failures — IPv4-only address formatting in responses
@@ -178,7 +178,7 @@ like `[2001:db8::1]:1094`, this finds the colon inside the brackets (the second 
 in `db8::1`), not the port separator after `]`. The resulting host string would be
 garbled and the port extraction would fail.
 
-**Impact**: `xrootd_proxy_upstream [::1]:1094;` config directive fails to parse.
+**Impact**: `brix_proxy_upstream [::1]:1094;` config directive fails to parse.
 
 **Note**: This is inconsistent with `upstream/directives.c`, `config/manager_map.c`,
 and `cache/directives.c` which all correctly handle bracketed IPv6.
@@ -201,7 +201,7 @@ This should be the template for any other code that classifies addresses.
 | **WebDAV** (`src/protocols/webdav/`) | No direct socket code. Uses nginx's HTTP request machinery. TCP listening/connecting is handled by nginx core. TPC URLs come from HTTP headers (`Source:`, `Destination:`) and are passed verbatim to curl, which understands bracketed IPv6. |
 | **S3** (`src/protocols/s3/`) | No direct socket code. Same as WebDAV — uses nginx HTTP layer. |
 | **Metrics** (`src/observability/metrics/`) | No IP address handling. Uses shared atomic counters with fixed labels. |
-| **Response module** (`src/protocols/root/response/`) | `xrootd_send_redirect()` takes a `host` string and `port` number. The host string is embedded verbatim into the wire response. IPv6 formatting responsibility is on the *callers* (see §3.3). |
+| **Response module** (`src/protocols/root/response/`) | `brix_send_redirect()` takes a `host` string and `port` number. The host string is embedded verbatim into the wire response. IPv6 formatting responsibility is on the *callers* (see §3.3). |
 | **CMS protocol** | The CMS heartbeat sends `listen_port` but not hostname; the CMS manager provides the hostname in `kYR_select` redirects. The CMS subsystem doesn't format IPv6 addresses itself — it delegates to the CMS manager. This is a protocol-level dependency. |
 
 ---
@@ -229,7 +229,7 @@ IPv6 (or `"localhost"`) will cause client parsing failures.
 
 ### 4.2 `kXR_redirect` response format
 
-Redirect responses (`xrootd_send_redirect()`) accept a `host` string and `port`
+Redirect responses (`brix_send_redirect()`) accept a `host` string and `port`
 number. The host string is embedded verbatim into the wire response. This means:
 
 - Config-time IPv6 literals (`[::1]:1094`) will be returned as-is (correct).
@@ -312,17 +312,17 @@ doesn't use `inet_ntop()`.
 | `test_upstream_ipv4_dns` | Upstream host resolves to A record | Connects via IPv4 |
 | `test_upstream_ipv6_dns` | Upstream host resolves to AAAA record | Connects via IPv6 |
 | `test_upstream_dual_dns` | Upstream host resolves to both A and AAAA | Tries both, uses first successful |
-| `test_upstream_ipv4_literal` | `xrootd_upstream 192.168.1.1:1094;` | Connects to IPv4 literal |
-| `test_upstream_ipv6_literal` | `xrootd_upstream [::1]:1094;` | Connects to IPv6 literal |
+| `test_upstream_ipv4_literal` | `brix_upstream 192.168.1.1:1094;` | Connects to IPv4 literal |
+| `test_upstream_ipv6_literal` | `brix_upstream [::1]:1094;` | Connects to IPv6 literal |
 | `test_upstream_no_ipv6_backend` | IPv6-only backend unreachable | Returns meaningful error, not crash |
 
 #### 5.1.2 Proxy mode (`src/net/proxy/connect_upstream.c`)
 
 | Test | Description | Expected |
 |------|-------------|----------|
-| `test_proxy_ipv4_upstream` | `xrootd_proxy_upstream 192.168.1.1:1094;` | Bootstrap succeeds |
-| `test_proxy_ipv6_upstream` | `xrootd_proxy_upstream [::1]:1094;` | Bootstrap succeeds |
-| `test_proxy_ipv6_config_parse` | `xrootd_proxy_upstream [2001:db8::1]:1094;` | Config parses correctly (currently fails) |
+| `test_proxy_ipv4_upstream` | `brix_proxy_upstream 192.168.1.1:1094;` | Bootstrap succeeds |
+| `test_proxy_ipv6_upstream` | `brix_proxy_upstream [::1]:1094;` | Bootstrap succeeds |
+| `test_proxy_ipv6_config_parse` | `brix_proxy_upstream [2001:db8::1]:1094;` | Config parses correctly (currently fails) |
 | `test_proxy_dual_upstream` | Upstream resolves to both A and AAAA | Tries both address families |
 
 #### 5.1.3 kXR_locate response (`src/protocols/root/read/locate.c`)
@@ -356,12 +356,12 @@ doesn't use `inet_ntop()`.
 
 | Test | Description |
 |------|-------------|
-| `test_xrootd_ipv6_anon` | Anonymous `root://[::1]:<port>` — open/read/close |
-| `test_xrootd_ipv6_gsi` | GSI-authenticated `roots://[::1]:<port>` — TLS from byte 0 |
-| `test_xrootd_ipv6_token` | Token-authenticated `root://[::1]:<port>` |
-| `test_xrootd_ipv6_write` | Write operations over IPv6 (pgwrite, sync, truncate) |
-| `test_xrootd_ipv6_dirlist` | Directory listing over IPv6 |
-| `test_xrootd_ipv6_query` | Query ops (checksum, space, config) over IPv6 |
+| `test_brix_ipv6_anon` | Anonymous `root://[::1]:<port>` — open/read/close |
+| `test_brix_ipv6_gsi` | GSI-authenticated `roots://[::1]:<port>` — TLS from byte 0 |
+| `test_brix_ipv6_token` | Token-authenticated `root://[::1]:<port>` |
+| `test_brix_ipv6_write` | Write operations over IPv6 (pgwrite, sync, truncate) |
+| `test_brix_ipv6_dirlist` | Directory listing over IPv6 |
+| `test_brix_ipv6_query` | Query ops (checksum, space, config) over IPv6 |
 | `test_webdav_ipv6` | `davs://[::1]:<port>` — GET/PUT/DELETE/MKCOL/PROPFIND |
 | `test_s3_ipv6` | `http://[::1]:<port>` — GET/PUT/ListObjectsV2 |
 
@@ -369,7 +369,7 @@ doesn't use `inet_ntop()`.
 
 | Test | Description |
 |------|-------------|
-| `test_manager_redirect_ipv6` | Static `xrootd_manager_map` points to `[::1]:<port>` — verify redirect contains brackets |
+| `test_manager_redirect_ipv6` | Static `brix_manager_map` points to `[::1]:<port>` — verify redirect contains brackets |
 | `test_manager_locate_ipv6` | `kXR_locate` on IPv6 client returns bracketed IPv6 address |
 | `test_manager_upstream_ipv6` | Dynamic upstream redirector connects to IPv6 backend |
 | `test_manager_cache_register_ipv6` | Cache registration on IPv6 listener reports correct port to manager |
@@ -391,7 +391,7 @@ doesn't use `inet_ntop()`.
 |------|-------------|
 | `test_cache_origin_ipv6` | Cache fill from IPv6 origin — verify data integrity |
 | `test_cache_origin_ipv6_tls` | TLS cache fill from IPv6 origin |
-| `test_cache_origin_ipv6_config` | `xrootd_cache_origin [::1]:1094;` — config parses correctly |
+| `test_cache_origin_ipv6_config` | `brix_cache_origin [::1]:1094;` — config parses correctly |
 
 #### 5.2.5 WebDAV HTTP-TPC with IPv6
 
@@ -408,12 +408,12 @@ doesn't use `inet_ntop()`.
 | `test_listen_ipv6_only` | `listen [::]:port;` — only IPv6 connections accepted |
 | `test_listen_unspecified_linux` | `listen port;` on Linux ≥ 4.10 — dual-stack behavior verified |
 | `test_listen_unspecified_freebsd` | `listen port;` on FreeBSD — verify IPv4-only (need explicit `0.0.0.0`) |
-| `test_upstream_directive_ipv6` | `xrootd_upstream [::1]:1094;` — parses correctly |
-| `test_manager_map_directive_ipv6` | `xrootd_manager_map /prefix [::1]:1094;` — parses correctly |
-| `test_cache_origin_directive_ipv6` | `xrootd_cache_origin [::1]:1094;` — parses correctly |
-| `test_cache_origin_directive_ipv6_tls` | `xrootd_cache_origin roots://[::1]:1094;` — enables TLS + parses IPv6 |
-| `test_proxy_upstream_directive_ipv6` | `xrootd_proxy_upstream [::1]:1094;` — parses correctly (currently fails) |
-| `test_cms_manager_ipv6` | `xrootd_cms_manager [::1]:port;` — CMS heartbeat connects |
+| `test_upstream_directive_ipv6` | `brix_upstream [::1]:1094;` — parses correctly |
+| `test_manager_map_directive_ipv6` | `brix_manager_map /prefix [::1]:1094;` — parses correctly |
+| `test_cache_origin_directive_ipv6` | `brix_cache_origin [::1]:1094;` — parses correctly |
+| `test_cache_origin_directive_ipv6_tls` | `brix_cache_origin roots://[::1]:1094;` — enables TLS + parses IPv6 |
+| `test_proxy_upstream_directive_ipv6` | `brix_proxy_upstream [::1]:1094;` — parses correctly (currently fails) |
+| `test_cms_manager_ipv6` | `brix_cms_manager [::1]:port;` — CMS heartbeat connects |
 
 ### 5.4 Negative tests
 
@@ -426,8 +426,8 @@ doesn't use `inet_ntop()`.
 | `test_proxy_ipv6_connect_timeout` | Proxy to IPv6-only backend — verify error path, not crash |
 | `test_stats_ipv6_zero_port` | Verify stats port is never zero for IPv6 listener |
 | `test_inet_ntoa_race` | Stress test with many concurrent IPv6 connections — no log corruption |
-| `test_proxy_config_invalid_ipv6` | `xrootd_proxy_upstream [::1];` (no port) — should fail config validation |
-| `test_proxy_config_malformed_ipv6` | `xrootd_proxy_upstream [::1:1094;` (missing `]`) — should fail config validation |
+| `test_proxy_config_invalid_ipv6` | `brix_proxy_upstream [::1];` (no port) — should fail config validation |
+| `test_proxy_config_malformed_ipv6` | `brix_proxy_upstream [::1:1094;` (missing `]`) — should fail config validation |
 
 ### 5.5 Cross-backend conformance
 
@@ -497,14 +497,14 @@ stream {
     server {
         listen [::]:{ANON_PORT};      # dual-stack on Linux
         xrootd on;
-        xrootd_root {DATA_DIR};
-        xrootd_auth none;
+        brix_root {DATA_DIR};
+        brix_auth none;
     }
     server {
         listen [::]:{GSI_PORT};
         xrootd on;
-        xrootd_root {DATA_DIR};
-        xrootd_auth gsi;
+        brix_root {DATA_DIR};
+        brix_auth gsi;
         # ... certs ...
     }
     # ... other servers ...
@@ -624,7 +624,7 @@ if (addr_copy[0] == '[') {
     char *rb = strchr(addr_copy, ']');
     if (rb == NULL || *(rb + 1) != ':') {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_proxy_upstream: invalid address \"%V\"", &value[1]);
+            "brix_proxy_upstream: invalid address \"%V\"", &value[1]);
         return NGX_CONF_ERROR;
     }
     size_t hostlen = (size_t)(rb - addr_copy - 1);

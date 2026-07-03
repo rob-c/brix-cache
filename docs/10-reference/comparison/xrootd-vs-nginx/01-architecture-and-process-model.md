@@ -10,7 +10,7 @@ source it is marked "not verified" rather than guessed.
 
 Source roots:
 
-- Official XRootD: `/tmp/xrootd-src/src` (directories `Xrd/`, `XrdXrootd/`,
+- Official XRootD: `/tmp/brix-src/src` (directories `Xrd/`, `XrdXrootd/`,
   `XrdOuc/`, `XrdSys/`, `XrdSfs/`, `XrdOss/`, `XrdCms/`, `XrdFrm/`).
 - This module: `/home/rcurrie/HEP-x/nginx-xrootd/src` (plus the top-level
   `config` build script).
@@ -18,7 +18,7 @@ Source roots:
 For the wire-protocol-level comparison, see
 [02-rootd-protocol.md](./02-rootd-protocol.md); for the multi-implementation
 survey see
-[../xrootd-implementations.md](../xrootd-implementations.md); for the
+[../brix-implementations.md](../brix-implementations.md); for the
 feature-by-feature parity matrix see
 [../../source-verified-xrootd-comparison.md](../../source-verified-xrootd-comparison.md).
 
@@ -180,7 +180,7 @@ object owns its own memory and is responsible for releasing it.
 
 ### Config model
 
-- **One config file** (`xrootd.cfg`, default `/etc/xrootd/xrootd.cfg`,
+- **One config file** (`xrootd.cfg`, default `/etc/brix/brix.cfg`,
   overridable via `XrdCONFIGFN`), parsed by `XrdConfig::Configure()` using the
   `XrdOucStream` tokenizer. The parser natively understands **host-conditional
   `if … fi` blocks** so one file can configure a whole cluster.
@@ -209,32 +209,32 @@ object owns its own memory and is responsible for releasing it.
 ### Architecture: a module, not a daemon
 
 BriX-Cache ships as an nginx **add-on module** (`ngx_addon_name =
-ngx_stream_xrootd_module`, top-level `config`). It plugs into nginx's existing
+ngx_stream_brix_module`, top-level `config`). It plugs into nginx's existing
 machinery:
 
 - The `root://` binary protocol is an **`NGX_STREAM_MODULE`** stream handler
   (`src/protocols/root/stream/module_definition.c`).
 - WebDAV/XrdHttp, S3, and the dashboard/admin are **HTTP** handlers
   (`src/protocols/webdav/`, `src/protocols/s3/`, `src/observability/dashboard/`), and `/metrics` is a second HTTP
-  module (`ngx_http_xrootd_metrics_module`, registered in `config`).
+  module (`ngx_http_brix_metrics_module`, registered in `config`).
 
 The module descriptor (`src/protocols/root/stream/module_definition.c`) wires nginx's lifecycle
 hooks:
 
 ```c
-static ngx_stream_module_t ngx_stream_xrootd_module_ctx = {
+static ngx_stream_module_t ngx_stream_brix_module_ctx = {
     NULL,                                 /* preconfiguration  */
-    ngx_stream_xrootd_postconfiguration,  /* postconfiguration */
+    ngx_stream_brix_postconfiguration,  /* postconfiguration */
     NULL, NULL,                           /* (no) main conf    */
-    ngx_stream_xrootd_create_srv_conf,    /* create srv conf   */
-    ngx_stream_xrootd_merge_srv_conf,     /* merge srv conf    */
+    ngx_stream_brix_create_srv_conf,    /* create srv conf   */
+    ngx_stream_brix_merge_srv_conf,     /* merge srv conf    */
 };
-ngx_module_t ngx_stream_xrootd_module = {
+ngx_module_t ngx_stream_brix_module = {
     ...
     NULL,                            /* init master  */
-    xrootd_imp_init_module,          /* init module  */
-    ngx_stream_xrootd_init_process,  /* init process */
-    NULL, NULL, xrootd_exit_process, NULL,
+    brix_imp_init_module,          /* init module  */
+    ngx_stream_brix_init_process,  /* init process */
+    NULL, NULL, brix_exit_process, NULL,
     ...
 };
 ```
@@ -267,15 +267,15 @@ and CLAUDE.md):
 - **Other potentially-blocking work is cached or pooled** so it never stalls the
   loop: a per-worker DH keypool (so `ffdhe2048` keygen never runs inline), an
   in-flight GSI-handshake gauge that sheds with `kXR_wait`
-  (`xrootd_gsi_max_inflight_handshakes`), and always-on per-worker token L1 +
+  (`brix_gsi_max_inflight_handshakes`), and always-on per-worker token L1 +
   optional SHM L2 validation caches (so RSA/ECDSA verify never re-runs on the
   loop).
 
 Cross-worker state lives in **shared memory (SHM)**, since workers are separate
 processes and share nothing by default:
 
-- SHM tables are allocated through `xrootd_shm_table_alloc()` /
-  `xrootd_shm_table_mutex_create()` (`src/core/compat/shm_slots.c`), which allocate the
+- SHM tables are allocated through `brix_shm_table_alloc()` /
+  `brix_shm_table_mutex_create()` (`src/core/compat/shm_slots.c`), which allocate the
   table *from the slab pool* so nginx's `ngx_unlock_mutexes()` (run on every child
   death) does not crash the master.
 - Those table mutexes are deliberately created in **spin+yield-only mode**
@@ -285,41 +285,41 @@ processes and share nothing by default:
   microsecond fixed-slot scans, so spinning is correct and cheaper. See INVARIANT
   #10 in CLAUDE.md and
   `docs/09-developer-guide/postmortem-shmtx-semaphore-stall.md`.
-- SHM-backed state includes per-server metrics (`ngx_xrootd_metrics_t`,
+- SHM-backed state includes per-server metrics (`ngx_brix_metrics_t`,
   `src/protocols/root/connection/handler.c`), the session/handle/manager registries
   (`src/net/manager/registry.c`), the redirect-collapse cache
   (`src/net/manager/redir_cache.c`), the native-TPC key registry
   (`src/tpc/engine/key_registry.c`), the FRM durable queue, and rate-limit/KV zones.
 
-### Per-connection state: `xrootd_ctx_t`
+### Per-connection state: `brix_ctx_t`
 
-Each accepted TCP connection gets one `xrootd_ctx_t` (`src/core/types/context.h`),
+Each accepted TCP connection gets one `brix_ctx_t` (`src/core/types/context.h`),
 allocated from the connection pool at connect time
-(`ngx_stream_xrootd_handler()`, `src/protocols/root/connection/handler.c`):
+(`ngx_stream_brix_handler()`, `src/protocols/root/connection/handler.c`):
 
 ```c
-ctx = ngx_pcalloc(c->pool, sizeof(xrootd_ctx_t));
+ctx = ngx_pcalloc(c->pool, sizeof(brix_ctx_t));
 ctx->session = s;
 ctx->state   = XRD_ST_HANDSHAKE;
-ctx->identity = xrootd_identity_alloc(c->pool);
+ctx->identity = brix_identity_alloc(c->pool);
 ...
-ngx_stream_set_ctx(s, ctx, ngx_stream_xrootd_module);
-c->read->handler  = ngx_stream_xrootd_recv;
-c->write->handler = ngx_stream_xrootd_send;
-ngx_stream_xrootd_recv(c->read);          /* fire the first read */
+ngx_stream_set_ctx(s, ctx, ngx_stream_brix_module);
+c->read->handler  = ngx_stream_brix_recv;
+c->write->handler = ngx_stream_brix_send;
+ngx_stream_brix_recv(c->read);          /* fire the first read */
 ```
 
-`xrootd_ctx_t` is the module's `this`: it carries the protocol state machine
-(`XRD_ST_*`), the file-handle slot table (`files[XROOTD_MAX_FILES]`, `fd = -1`
+`brix_ctx_t` is the module's `this`: it carries the protocol state machine
+(`XRD_ST_*`), the file-handle slot table (`files[BRIX_MAX_FILES]`, `fd = -1`
 sentinel), a 16-byte opaque session id (built from time/pid/pointer/random —
 explicitly *not* crypto-grade), the per-connection **pipeline rings** (`out_ring`
-+ `rd_pool`, sized by `xrootd_pipeline_depth`), the cached network-fault
++ `rd_pool`, sized by `brix_pipeline_depth`), the cached network-fault
 deadlines, and the metrics slot pointer. It is fetched at the top of every handler
-via `ngx_stream_get_module_ctx(s, ngx_stream_xrootd_module)`.
+via `ngx_stream_get_module_ctx(s, ngx_stream_brix_module)`.
 
 ### The recv state machine (the "Resume" equivalent)
 
-`src/protocols/root/connection/recv.c` (`ngx_stream_xrootd_recv`) is a byte-accumulating state
+`src/protocols/root/connection/recv.c` (`ngx_stream_brix_recv`) is a byte-accumulating state
 machine that replaces XRootD's `Resume` member-pointer with explicit
 `XRD_ST_*` states and the `NGX_AGAIN` yield convention:
 
@@ -330,26 +330,26 @@ HANDSHAKE(20B) → REQ_HEADER(24B) → REQ_PAYLOAD(dlen) → dispatch
 plus suspend states (`XRD_ST_SENDING`, `XRD_ST_AIO`, `XRD_ST_UPSTREAM`,
 `XRD_ST_WAITING_CMS`, `XRD_ST_TLS_HANDSHAKE`, …) that return to the loop
 immediately without reading. A critical **security invariant** is enforced here:
-`dlen` is validated against `xrootd_max_payload_for_request(reqid)` **before any
-allocation** — per-opcode caps (write/pgwrite → `XROOTD_MAX_WRITE_PAYLOAD`, auth →
+`dlen` is validated against `brix_max_payload_for_request(reqid)` **before any
+allocation** — per-opcode caps (write/pgwrite → `BRIX_MAX_WRITE_PAYLOAD`, auth →
 16 KiB, everything else → path + 64 B) — so an oversized frame is rejected, not
 allocated.
 
 ### Dispatch
 
-When a full request is framed, `xrootd_dispatch()` (`src/protocols/root/handshake/dispatch.c`)
+When a full request is framed, `brix_dispatch()` (`src/protocols/root/handshake/dispatch.c`)
 runs a **cascade of single-purpose dispatchers**, each returning
-`XROOTD_DISPATCH_CONTINUE` if the opcode is not its own:
+`BRIX_DISPATCH_CONTINUE` if the opcode is not its own:
 
-1. `xrootd_verify_pending_sigver` + `xrootd_signing_enforce_level` (signing gate,
+1. `brix_verify_pending_sigver` + `brix_signing_enforce_level` (signing gate,
    fail-closed before any handler).
-2. `xrootd_dispatch_session_opcode` (protocol/login/auth/bind/endsess/ping/set).
-3. proxy mode → `xrootd_proxy_dispatch` (gated on `ctx->auth_done`, not merely
+2. `brix_dispatch_session_opcode` (protocol/login/auth/bind/endsess/ping/set).
+3. proxy mode → `brix_proxy_dispatch` (gated on `ctx->auth_done`, not merely
    `logged_in` — a fail-open lesson).
-4. rate-limit gate (`xrootd_rl_stream_gate`).
-5. `xrootd_dispatch_read_opcode` / `xrootd_dispatch_write_opcode`, optionally
+4. rate-limit gate (`brix_rl_stream_gate`).
+5. `brix_dispatch_read_opcode` / `brix_dispatch_write_opcode`, optionally
    bracketed by impersonation begin/end.
-6. `xrootd_dispatch_signing_opcode` last.
+6. `brix_dispatch_signing_opcode` last.
 
 This is functionally the same role as XRootD's `Process2()` `switch` over `do_*`
 handlers, but realized as a table/cascade rather than a hand-split `switch`, with
@@ -368,7 +368,7 @@ pools** whose lifetimes nginx owns:
 - `ngx_alloc` / `ngx_free` is the sanctioned **raw heap** path for stream buffers
   with explicit lifetime that must survive across requests on a persistent
   connection. For example the recv payload buffer
-  (`xrootd_ensure_payload_buffer`, `recv.c`) and the AIO scratch slots
+  (`brix_ensure_payload_buffer`, `recv.c`) and the AIO scratch slots
   (`read_scratch`/`write_scratch`, `src/core/aio/`) are grow-only raw-heap buffers
   reused across requests and freed once at disconnect — pool allocation there
   caused a use-after-free in nginx's large-allocation list (documented in
@@ -415,15 +415,15 @@ nginx's own `src/core|event|http` are never edited.
 Runtime configuration is **nginx config**, not a separate `xrootd.cfg`. Directives
 live inside nginx `stream { server { … } }` (for `root://`) and `http { server {
 location { … } } }` (for WebDAV/S3/metrics) blocks. The directive table is
-`ngx_stream_xrootd_commands[]` (`src/protocols/root/stream/module.c`): `xrootd on;` enables the
-handler, `xrootd_root`, `xrootd_auth`, `xrootd_allow_write`, `xrootd_tls`,
-`xrootd_token_jwks`, `xrootd_manager_mode`, `xrootd_frm`, etc. Almost every
+`ngx_stream_brix_commands[]` (`src/protocols/root/stream/module.c`): `xrootd on;` enables the
+handler, `brix_root`, `brix_auth`, `brix_allow_write`, `brix_tls`,
+`brix_token_jwks`, `brix_manager_mode`, `brix_frm`, etc. Almost every
 directive is `NGX_STREAM_SRV_CONF` (per-server, stored at an `offsetof` into
-`ngx_stream_xrootd_srv_conf_t`); a few SHM-zone directives
-(`xrootd_rate_limit_zone`, `xrootd_kv_zone`) are `NGX_STREAM_MAIN_CONF`. Config
+`ngx_stream_brix_srv_conf_t`); a few SHM-zone directives
+(`brix_rate_limit_zone`, `brix_kv_zone`) are `NGX_STREAM_MAIN_CONF`. Config
 objects follow nginx's `create_srv_conf` → `merge_srv_conf` (main→srv→loc) merge
 discipline with `NGX_CONF_UNSET` sentinels, validated in
-`ngx_stream_xrootd_postconfiguration` (`src/core/config/postconfiguration.c`) where
+`ngx_stream_brix_postconfiguration` (`src/core/config/postconfiguration.c`) where
 `nginx -t` catches misconfigured paths before traffic.
 
 The deployment unit is therefore **one nginx instance**: start/stop/reload uses
@@ -443,12 +443,12 @@ thread.
 
 | Stage | Official XRootD | BriX-Cache |
 |---|---|---|
-| Accept | accept thread (`mainAccept`) hands the fd to a poller; an `XrdLink` is created | nginx core accepts; `ngx_stream_xrootd_handler()` runs, allocates `xrootd_ctx_t`, arms read/write handlers |
-| Readiness | one of 3 `XrdPoll` epoll threads marks the link readable, schedules it | the worker's single epoll loop calls `ngx_stream_xrootd_recv` |
+| Accept | accept thread (`mainAccept`) hands the fd to a poller; an `XrdLink` is created | nginx core accepts; `ngx_stream_brix_handler()` runs, allocates `brix_ctx_t`, arms read/write handlers |
+| Readiness | one of 3 `XrdPoll` epoll threads marks the link readable, schedules it | the worker's single epoll loop calls `ngx_stream_brix_recv` |
 | Run context | a **borrowed `XrdScheduler` pool thread** runs the protocol | the **worker's own event-loop thread** runs the handler — never blocks |
 | Framing | `XrdXrootdProtocol::Process2()` reads header/body; short read → stash `Resume`, return | `recv.c` accumulates 20B/24B/dlen; incomplete → `NGX_AGAIN`, return to loop |
-| Handshake/login/auth | `do_Login` / `do_Auth`, gated by `XRD_LOGGEDIN`/`XRD_NEED_AUTH` | `xrootd_dispatch_session_opcode`, gated by `ctx->auth_done` |
-| Dispatch | `switch` over opcode → `do_Open`/`do_Read`/… | cascade `xrootd_dispatch_{session,read,write,signing}_opcode` |
+| Handshake/login/auth | `do_Login` / `do_Auth`, gated by `XRD_LOGGEDIN`/`XRD_NEED_AUTH` | `brix_dispatch_session_opcode`, gated by `ctx->auth_done` |
+| Dispatch | `switch` over opcode → `do_Open`/`do_Read`/… | cascade `brix_dispatch_{session,read,write,signing}_opcode` |
 | Storage call | virtual `XrdSfsFile`/`XrdOss` plugin method | confined `openat2(RESOLVE_BENEATH)` helpers (`src/fs/path/`) |
 | Blocking I/O | runs on the pool thread (the thread *is* allowed to block) | **offloaded** to `ngx_thread_pool_run` / io_uring; conn → `XRD_ST_AIO` |
 | Response | `XrdXrootdResponse` from a pooled `XrdBuffer` | `ngx_chain_t` of `ngx_buf_t` (memory or sendfile), shared builders in `aio/buffers.c` |
@@ -495,7 +495,7 @@ operator's existing nginx practices. Lifecycle is the standard nginx one:
 - `nginx -s reload` graceful reload (new workers, old workers drain);
 - `nginx -s stop` / `quit`.
 
-State lives in the **worker processes** (per-connection `xrootd_ctx_t`, open
+State lives in the **worker processes** (per-connection `brix_ctx_t`, open
 handles) and in **SHM zones** (metrics, session/handle/manager registries,
 redirect cache, TPC key registry, FRM durable queue, rate-limit/KV zones).
 Clustering, tape staging, metrics, and the dashboard are features of the same
@@ -513,7 +513,7 @@ nginx access/error logs — UDP XrdMon is an explicit non-goal.
 | Process model | single process, multi-threaded | nginx master + N single-threaded worker processes | XRootD = threads share memory; nginx = processes share via SHM |
 | Concurrency unit | a request = an `XrdJob` on a `XrdScheduler` pool thread (min 8 / max 8192) | a request = a callback on the worker's epoll loop | XRootD scales by thread count; nginx by worker count + non-blocking discipline |
 | Readiness layer | `XrdPoll`, 3 epoll/poll threads, separate from workers | nginx core epoll, one loop per worker (no separate poller threads) | distinct designs; both epoll on Linux |
-| Connection object | `XrdLink : XrdJob` | `ngx_connection_t` + `xrootd_ctx_t` | ctx is the module's per-connection `this` |
+| Connection object | `XrdLink : XrdJob` | `ngx_connection_t` + `brix_ctx_t` | ctx is the module's per-connection `this` |
 | Partial-read survival | `Resume` member-fn-pointer continuation | `XRD_ST_*` suspend states + `NGX_AGAIN` | same idea, different mechanism |
 | Blocking I/O | done on the (blockable) pool thread | offloaded to `ngx_thread_pool` / io_uring; conn parked in `XRD_ST_AIO` | nginx *must* offload or it stalls the worker |
 | Crypto on the hot path | runs on a pool thread, fine to block | pooled/cached (DH keypool, GSI in-flight cap, token L1/L2) | a consequence of the shared event loop |
@@ -521,7 +521,7 @@ nginx access/error logs — UDP XrdMon is an explicit non-goal.
 | Storage abstraction | `XrdSfs`/`XrdOss` virtual plugins | confined `openat2(RESOLVE_BENEATH)` POSIX helpers (`src/fs/path/`) | nginx is POSIX-focused; no plugin ABI for Ceph/PSS/PFC |
 | Cross-process state | shared in-process memory (threads) | SHM slab tables via `shm_slots.c`, spin+yield mutexes | nginx needs SHM because workers are processes |
 | Memory model | C++ `new`/`delete` + `XrdBuffManager` bucketed buffer pool | nginx arenas (`ngx_palloc`) + raw grow-only scratch + `cleanup_add` | recycle vs arena; both avoid per-request malloc on the hot path |
-| Config | `xrootd.cfg`, scoped prefixes, `if/fi`, plugin-by-directive | nginx `stream{}`/`http{}` blocks, `xrootd_*` directives, `create/merge_srv_conf` | one nginx.conf spans root/WebDAV/S3/metrics |
+| Config | `xrootd.cfg`, scoped prefixes, `if/fi`, plugin-by-directive | nginx `stream{}`/`http{}` blocks, `brix_*` directives, `create/merge_srv_conf` | one nginx.conf spans root/WebDAV/S3/metrics |
 | Build | CMake C++ build of daemon + plugins | nginx `--add-module` add-on; src list in top-level `config` | new `.c` must be registered in `config`, then `./configure` |
 | Reload | typically daemon restart (graceful in-place reload not verified) | nginx `-s reload` graceful worker reload | nginx reload model is a clear operational win |
 | Observability | UDP XrdMon + logs | Prometheus `/metrics`, SRR, dashboard, access logs | BriX-Cache makes UDP XrdMon an explicit non-goal |
@@ -540,7 +540,7 @@ and *what the author must never do*.
 
 ## Source references
 
-### Official XRootD (`/tmp/xrootd-src/src`)
+### Official XRootD (`/tmp/brix-src/src`)
 
 | Concern | Files / symbols |
 |---|---|
@@ -561,13 +561,13 @@ and *what the author must never do*.
 
 | Concern | Files / symbols |
 |---|---|
-| Module descriptor / hooks | `src/protocols/root/stream/module_definition.c` (`ngx_stream_xrootd_module`, postconfiguration, create/merge srv conf, init/exit process) |
-| Connection entry | `src/protocols/root/connection/handler.c` (`ngx_stream_xrootd_handler`, `xrootd_ctx_t` init, metrics slot, `max_connections` gate) |
-| Recv state machine | `src/protocols/root/connection/recv.c` (`ngx_stream_xrootd_recv`, `XRD_ST_*`, `xrootd_max_payload_for_request`, `xrootd_ensure_payload_buffer`) |
-| Dispatch | `src/protocols/root/handshake/dispatch.c` (`xrootd_dispatch`), `dispatch_{session,read,write,signing}.c` |
-| Directive table / config | `src/protocols/root/stream/module.c` (`ngx_stream_xrootd_commands[]`), `src/core/types/config.h` (`ngx_stream_xrootd_srv_conf_t`), `src/core/config/postconfiguration.c`, `src/core/config/config.h`, `src/core/types/tunables.h` |
-| Per-connection state | `src/core/types/context.h` (`xrootd_ctx_t`, `files[]`, `out_ring`/`rd_pool`, `XRD_ST_*`) |
-| Thread-pool / io_uring offload | `src/core/aio/README.md`, `src/core/aio/resume.c` (`xrootd_aio_post_task`), `src/core/aio/buffers.c`, `src/core/aio/uring.c` |
-| SHM cross-worker state | `src/core/compat/shm_slots.c` (`xrootd_shm_table_alloc`, spin+yield mutex), `src/net/manager/registry.c`, `src/net/manager/redir_cache.c`, `src/tpc/engine/key_registry.c` |
+| Module descriptor / hooks | `src/protocols/root/stream/module_definition.c` (`ngx_stream_brix_module`, postconfiguration, create/merge srv conf, init/exit process) |
+| Connection entry | `src/protocols/root/connection/handler.c` (`ngx_stream_brix_handler`, `brix_ctx_t` init, metrics slot, `max_connections` gate) |
+| Recv state machine | `src/protocols/root/connection/recv.c` (`ngx_stream_brix_recv`, `XRD_ST_*`, `brix_max_payload_for_request`, `brix_ensure_payload_buffer`) |
+| Dispatch | `src/protocols/root/handshake/dispatch.c` (`brix_dispatch`), `dispatch_{session,read,write,signing}.c` |
+| Directive table / config | `src/protocols/root/stream/module.c` (`ngx_stream_brix_commands[]`), `src/core/types/config.h` (`ngx_stream_brix_srv_conf_t`), `src/core/config/postconfiguration.c`, `src/core/config/config.h`, `src/core/types/tunables.h` |
+| Per-connection state | `src/core/types/context.h` (`brix_ctx_t`, `files[]`, `out_ring`/`rd_pool`, `XRD_ST_*`) |
+| Thread-pool / io_uring offload | `src/core/aio/README.md`, `src/core/aio/resume.c` (`brix_aio_post_task`), `src/core/aio/buffers.c`, `src/core/aio/uring.c` |
+| SHM cross-worker state | `src/core/compat/shm_slots.c` (`brix_shm_table_alloc`, spin+yield mutex), `src/net/manager/registry.c`, `src/net/manager/redir_cache.c`, `src/tpc/engine/key_registry.c` |
 | Build governance | top-level `config` (`ngx_addon_name`, `ngx_module_srcs`, `ngx_module_libs`, CFLAGS), `src/core/config/config.h` |
 | Cluster / tape / observability (in-process) | `src/net/manager/`, `src/net/cms/`, `src/fs/xfer/`, `src/observability/metrics/`, `src/protocols/srr/`, `src/observability/dashboard/` |

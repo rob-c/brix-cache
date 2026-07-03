@@ -102,11 +102,11 @@ stream {{
     server {{
         listen 127.0.0.1:{PORT};
         xrootd on;
-        xrootd_root {DATA_DIR};
-        xrootd_auth gsi;
-        xrootd_certificate     {SERVER_CERT};
-        xrootd_certificate_key {SERVER_KEY};
-        xrootd_trusted_ca      {CA_CERT};
+        brix_root {DATA_DIR};
+        brix_auth gsi;
+        brix_certificate     {SERVER_CERT};
+        brix_certificate_key {SERVER_KEY};
+        brix_trusted_ca      {CA_CERT};
     }}
 }}
 """
@@ -146,7 +146,7 @@ All settings live in `tests/settings.py` and can be overridden:
 |---|---|---|
 | `TEST_ROOT` | `/tmp/xrd-test` | Base directory for all test state |
 | `TEST_NGINX_BIN` | `/tmp/nginx-1.28.3/objs/nginx` | nginx binary path |
-| `TEST_XROOTD_BIN` | `xrootd` | Reference xrootd binary |
+| `TEST_BRIX_BIN` | `xrootd` | Reference xrootd binary |
 | `TEST_XRDFS_BIN` | `xrdfs` | xrdfs client binary |
 | `TEST_XRDCP_BIN` | `xrdcp` | xrdcp client binary |
 | `TEST_SKIP_PKI_REGEN` | (unset) | Set to `1` to skip PKI regeneration |
@@ -202,7 +202,7 @@ openssl verify -CAfile /tmp/xrd-test/pki/ca/ca.pem /tmp/xrd-test/pki/server/host
 | `ModuleNotFoundError: No module named 'pki_helpers'` | `PYTHONPATH` is not set correctly. | Run `PYTHONPATH=tests pytest ...` or run from the project root. |
 | Tests skip with `nginx binary not found` | `TEST_NGINX_BIN` is wrong. | Set `export TEST_NGINX_BIN=/path/to/your/nginx/objs/nginx`. |
 | GSI tests fail with `proxy expired` | System clock drift or long-running session. | Delete `/tmp/xrd-test/pki` and rerun to regenerate. |
-| Reference xrootd tests skip | `xrootd` is not on your `PATH`. | Install XRootD or point `TEST_XROOTD_BIN` to the binary. |
+| Reference xrootd tests skip | `xrootd` is not on your `PATH`. | Install XRootD or point `TEST_BRIX_BIN` to the binary. |
 | `Internal Server Error` in WebDAV | Check nginx error log. | `tail -f /tmp/xrd-test/logs/error.log` |
 | Worker process crashes (SEGFAULT) | Memory error in C code. | Build with `--with-debug` and run under `gdb` or check dmesg. |
 
@@ -286,7 +286,7 @@ tests/manage_test_servers.sh force-stop
 | `tests/conftest.py` | Session setup/teardown: PKI regen, server start/stop, `test_env` fixture |
 | `tests/pki_helpers.py` | `blitz_test_pki()`: CA + server cert + user cert generation |
 | `tests/settings.py` | All ports, paths, and binary locations |
-| `tests/server_control.py` | `start_nginx_instance()` and `start_xrootd_instance()` |
+| `tests/server_control.py` | `start_nginx_instance()` and `start_brix_instance()` |
 | `tests/manage_test_servers.sh` | Bash lifecycle script: start/stop/restart/status |
 | `tests/configs/nginx_shared.conf` | Main nginx config template (all standard listeners) |
 | `tests/configs/` | Per-feature nginx config templates |

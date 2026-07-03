@@ -18,13 +18,13 @@ All three are now landed and verified; the capture succeeds:
 xrootd: GSI delegation: captured delegated proxy (5447 bytes) dn="/O=F6Test/CN=F6 User/CN=888442596"
 ```
 
-1. **Proxy request encoded as DER, not PEM (the decisive bug).** `xrootd_gsi_build_pxyreq`
+1. **Proxy request encoded as DER, not PEM (the decisive bug).** `brix_gsi_build_pxyreq`
    emits the `X509_REQ` as **DER**, and `src/auth/gsi/delegation.c` put that DER straight into the
    `kXRS_x509_req` bucket. The stock client parses that bucket with `PEM_read_bio_X509_REQ`
    (`XrdCryptosslX509Req`), so a DER request fails to parse and the client declines with
    **"could not resolve proxy request."** Fix: `delegation.c` now re-encodes the request to PEM
    at the wire edge (`gsi_req_der_to_pem`); the crypto core keeps its DER output (still consumed
-   as DER by `xrootd_gsi_sign_pxyreq` and its unit tests).
+   as DER by `brix_gsi_sign_pxyreq` and its unit tests).
 
 2. **Client cert chain rejected on an AKID/SKID mismatch.** Real `xrdgsiproxy`/`voms-proxy-init`
    proxies copy the EEC's `authorityKeyIdentifier` verbatim, so the proxy's AKID points at the
@@ -67,7 +67,7 @@ The historical analysis below (§1–§5) is retained as the investigation trail
 ## 1. Summary (TL;DR)
 
 When a GSI client delegates an X.509 proxy to our nginx XRootD server
-(`xrootd_tpc_delegate on`), our server runs the inbound delegation handshake
+(`brix_tpc_delegate on`), our server runs the inbound delegation handshake
 (`src/auth/gsi/delegation.c`): it sends `kXGS_pxyreq` and waits for the client's
 `kXGC_sigpxy` carrying the delegated proxy. **The stock XRootD client (`/usr/bin/xrdcp`,
 v5.9.5) declines** — it returns a `kXGC_sigpxy` whose `kXRS_x509` (signed proxy) bucket is
@@ -101,7 +101,7 @@ delegating client at two servers in turn:
 | Target | Result |
 |---|---|
 | **stock `xrootd` source** (`sec.protocol gsi … -dlgpxy:request`) | **delegates OK** — `xrdcp rc=0`, source logs `Subject DN='/O=F6Test/CN=F6 User'` |
-| **our nginx server** (`xrootd_auth gsi; xrootd_gsi_signed_dh require; xrootd_tpc_delegate on`) | **client refuses** — `Not allowed to sign proxy requests`, `kXRS_x509` missing |
+| **our nginx server** (`brix_auth gsi; brix_gsi_signed_dh require; brix_tpc_delegate on`) | **client refuses** — `Not allowed to sign proxy requests`, `kXRS_x509` missing |
 
 Client config for **both** (identical): `XrdSecGSIDELEGPROXY=2 XrdSecGSITRUSTDNS=0`,
 `X509_USER_PROXY=<xrdgsiproxy proxy>`, server cert `CN=<lowercased socket.getfqdn()>`, connect
@@ -141,12 +141,12 @@ These took several iterations to get right; document them so the next person doe
 | Proxy not delegatable (pathlen) | **FALSE** | `proxy_std`/`xrdgsiproxy` proxy has `Path Length Constraint: infinite` |
 | Our proof-of-possession (`signed_rtag`) wrong | **FALSE** | client logs `secgsi_CheckRtag: Random tag successfully checked` for our pxyreq |
 | `EEC not found in chain` (client cert-chain msg) | **benign** | appears in the **working** stock case too |
-| `gsi_key` (DH signing key) not loaded | **FALSE** | `src/auth/gsi/config.c:154` loads it from `xrootd_certificate_key`; non-NULL |
+| `gsi_key` (DH signing key) not loaded | **FALSE** | `src/auth/gsi/config.c:154` loads it from `brix_certificate_key`; non-NULL |
 | `gsi_use_signed_dh()` returns 0 under `require` | **FALSE** | `src/auth/gsi/cert_response.c:56` returns `1` for `REQUIRE` unconditionally |
 
 ---
 
-## 4. The protocol mechanism (authoritative, from `/tmp/xrootd-src`)
+## 4. The protocol mechanism (authoritative, from `/tmp/brix-src`)
 
 The stock client source `XrdSecgsi/XrdSecProtocolgsi.cc` shows the client's delegation
 decision in `ClientDoPxyReq` (≈ line 3435):
@@ -204,7 +204,7 @@ A stock server therefore sends a **CSR** (`kXRS_x509_req`) only when the client 
 `kOptsDlgPxy`, and uses the **forward** flow when the client asked for `kOptsFwdPxy`
 (`XrdSecGSIDELEGPROXY=2`, the common default).
 
-**Our server does neither.** `src/auth/gsi/delegation.c::xrootd_gsi_begin_delegation` **hardcodes**
+**Our server does neither.** `src/auth/gsi/delegation.c::brix_gsi_begin_delegation` **hardcodes**
 the CSR model — it always builds and sends `kXRS_x509_req` — and **our server never reads the
 client's `kXRS_clnt_opts` (3019)** (the constant exists in `src/protocols/root/protocol/gsi.h:48` and we only
 ever *send* it as a client in `src/auth/gsi/gsi_core.c:106`; there is no server-side read). So a
@@ -369,7 +369,7 @@ For our server, `kOptsSigReq` is demonstrably cleared (client says "Not allowed 
   **not** debug-gated) does **not** appear with `TRUSTDNS=0` + FQDN-CN cert. `usedDNS` is
   false.
 - **Condition (B) no-signed-DH:** our server advertises version **10600** (`secgsi_getCredentials:
-  version run by server: 10600`) ≥ `XrdSecgsiVersDHsigned` (10400), and `xrootd_gsi_signed_dh
+  version run by server: 10600`) ≥ `XrdSecgsiVersDHsigned` (10400), and `brix_gsi_signed_dh
   require` makes `gsi_use_signed_dh()` return 1 with `gsi_key` loaded — so we send `kXRS_cipher`
   (signed DH), and the client's later `CheckRtag` succeeds (so the session cipher *was*
   established). The signed branch should be taken, and on failure it would be a **hard error**
@@ -405,7 +405,7 @@ verifies).
 The terminating tap proxy's **forwarding** half is complete and compiles (see
 `docs/superpowers/plans/2026-06-30-gsi-delegation-tap-proxy-phase4b.md`):
 
-- `xrootd_tap_proxy_auth gsi` mode + auto-enable of delegation capture
+- `brix_tap_proxy_auth gsi` mode + auto-enable of delegation capture
   (`src/net/proxy/directives.c`, `src/core/config/runtime_server.c`).
 - `src/net/proxy/gsi_upstream.c` — secure-temp writer for the delegated proxy (unit-tested).
 - `src/net/proxy/gsi_upstream_login.c` — threaded blocking GSI login to the upstream **as the

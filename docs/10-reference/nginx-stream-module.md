@@ -59,13 +59,13 @@ The stream module is the right fit because it exposes:
 - Write-ready and read-ready events so the module can implement its own
   request/response state machine
 
-The module registers a single content handler (`ngx_stream_xrootd_handler`)
+The module registers a single content handler (`ngx_stream_brix_handler`)
 that manages the entire connection lifecycle, from initial handshake through
 request dispatch. It is installed for a server block when `xrootd on;` is set —
 see `src/core/config/server_conf.c`:
 
 ```c
-cscf->handler = ngx_stream_xrootd_handler;
+cscf->handler = ngx_stream_brix_handler;
 ```
 
 The content handler (`handler.c`) drives the state machine for the whole
@@ -95,19 +95,19 @@ families are available at compile time:
 
 ```c
 /* Stream module — src/protocols/root/stream/module.c */
-ngx_module_t ngx_stream_xrootd_module = {
+ngx_module_t ngx_stream_brix_module = {
     NGX_MODULE_V1,
-    &ngx_stream_xrootd_module_ctx,
-    ngx_stream_xrootd_commands,
+    &ngx_stream_brix_module_ctx,
+    ngx_stream_brix_commands,
     NGX_STREAM_MODULE,        /* ← must match the ctx type */
     NGX_MODULE_V1_PADDING
 };
 
 /* HTTP module — src/protocols/webdav/module.c */
-ngx_module_t ngx_http_xrootd_webdav_module = {
+ngx_module_t ngx_http_brix_webdav_module = {
     NGX_MODULE_V1,
-    &ngx_http_xrootd_webdav_module_ctx,
-    ngx_http_xrootd_webdav_commands,
+    &ngx_http_brix_webdav_module_ctx,
+    ngx_http_brix_webdav_commands,
     NGX_HTTP_MODULE,          /* ← must match the ctx type */
     NGX_MODULE_V1_PADDING
 };
@@ -137,7 +137,7 @@ its owner (connection or request) is destroyed. There is no per-object `free()`:
 
 ```c
 /* Allocate zeroed memory on the connection pool — persists until TCP close */
-xrootd_ctx_t *ctx = ngx_pcalloc(s->connection->pool, sizeof(xrootd_ctx_t));
+brix_ctx_t *ctx = ngx_pcalloc(s->connection->pool, sizeof(brix_ctx_t));
 
 /* Allocate on the request pool — freed when HTTP response is sent */
 ngx_str_t *tmp = ngx_palloc(r->pool, 256);
@@ -151,7 +151,7 @@ The three pools in this module and when to use each:
 | Pool | Pointer | Lives until | Use for |
 |---|---|---|---|
 | Config pool | `cf->pool` | Process exit | Parsed rules, cert stores, compiled directives |
-| Connection pool | `s->connection->pool` or `c->pool` | TCP close | `xrootd_ctx_t`, auth state, session buffers |
+| Connection pool | `s->connection->pool` or `c->pool` | TCP close | `brix_ctx_t`, auth state, session buffers |
 | Request pool | `r->pool` (HTTP only) | Response sent | Per-request strings, response chain links |
 | Manual (heap) | `ngx_alloc()` | Explicit `ngx_free()` | AIO read/write data buffers that outlive events |
 

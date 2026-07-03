@@ -1,6 +1,6 @@
 # XRootD Protocol Gap Analysis — BriX-Cache vs upstream xrootd
 
-> **Scope**: Comparison of BriX-Cache (`src/`) against reference xrootd server (`/tmp/xrootd-src/src/`, v5.2.0 protocol surface). Covers all protocol opcodes, security plugins, server modules, capability flags, and optional features.
+> **Scope**: Comparison of BriX-Cache (`src/`) against reference xrootd server (`/tmp/brix-src/src/`, v5.2.0 protocol surface). Covers all protocol opcodes, security plugins, server modules, capability flags, and optional features.
 >
 > **Legend**: ✅ implemented · ⚠️ partial · ❌ not implemented · N/A not applicable · 📋 out of scope
 
@@ -32,7 +32,7 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 | `kXR_set` (3018) | ✅ | appid, clttl |
 | `kXR_write` (3019) | ✅ | |
 | `kXR_fattr` (3020) | ✅ | get/set/del/list via xattrs |
-| `kXR_prepare` (3021) | ✅ | FRM-off legacy mode does path validation + optional `xrootd_prepare_command`; with `xrootd_frm on`, durable queue records and real request IDs are handled by the `src/fs/xfer/` stage engine. Full upstream XrdFrm/MSS parity remains partial. |
+| `kXR_prepare` (3021) | ✅ | FRM-off legacy mode does path validation + optional `brix_prepare_command`; with `brix_frm on`, durable queue records and real request IDs are handled by the `src/fs/xfer/` stage engine. Full upstream XrdFrm/MSS parity remains partial. |
 | `kXR_statx` (3022) | ✅ | |
 | `kXR_endsess` (3023) | ✅ | |
 | `kXR_bind` (3024) | ✅ | Parallel streams |
@@ -78,20 +78,20 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 |--------|----------|--------|----------------|
 | `XrdSecgsi` | `gsi` | ✅ | X.509 proxy + CRL + VOMS |
 | `XrdSecsss` | `sss` | ✅ | Keytab-based shared secret |
-| `XrdSecunix` | `unix` | ✅ | Upstream-compatible `unix\0user [group]` credentials; loopback-only by default, remote trust requires `xrootd_unix_trust_remote on` |
-| `XrdSecpwd` | `pwd` | ✅ | 2-round DH-bootstrapped username+password (`src/auth/pwd/`); opt-in `xrootd_auth pwd` + `xrootd_pwd_file`, recommended under TLS. Wire-equivalent, not the `xrdpwdadmin`/server-public-key admin ecosystem |
-| `XrdSecProtocolhost` | `host` | ✅ | Reverse-DNS allowlist auth (`src/auth/host/`); opt-in `xrootd_auth host` + `xrootd_host_allow`, identity from socket reverse-DNS only, fail-closed/trusted-network only |
-| `XrdSeckrb5` | `krb5` | ✅ | Kerberos AP-REQ verification via `krb5_rd_req`, configured with `xrootd_krb5_principal` and optional `xrootd_krb5_keytab` |
+| `XrdSecunix` | `unix` | ✅ | Upstream-compatible `unix\0user [group]` credentials; loopback-only by default, remote trust requires `brix_unix_trust_remote on` |
+| `XrdSecpwd` | `pwd` | ✅ | 2-round DH-bootstrapped username+password (`src/auth/pwd/`); opt-in `brix_auth pwd` + `brix_pwd_file`, recommended under TLS. Wire-equivalent, not the `xrdpwdadmin`/server-public-key admin ecosystem |
+| `XrdSecProtocolhost` | `host` | ✅ | Reverse-DNS allowlist auth (`src/auth/host/`); opt-in `brix_auth host` + `brix_host_allow`, identity from socket reverse-DNS only, fail-closed/trusted-network only |
+| `XrdSeckrb5` | `krb5` | ✅ | Kerberos AP-REQ verification via `krb5_rd_req`, configured with `brix_krb5_principal` and optional `brix_krb5_keytab` |
 | `XrdSecztn` | `ztn` | ✅ | WLCG/JWT bearer token |
 | `XrdMacaroons` | bearer | ✅ | HMAC-SHA256 validation + caveats + third-party discharge bundles; `POST /.oauth2/token` issues scoped delegation macaroons; `GET /.well-known/oauth-authorization-server` discovery |
 | `XrdSciTokens` | scitokens | ✅ | JWT/WLCG bearer + scope enforcement |
 | `XrdVoms` | gsi ext | ✅ | Runtime dlopen of libvomsapi |
 
-**Completed high-priority gap**: inbound `krb5` support is implemented for Kerberos sites. The nginx addon detects Kerberos 5 at configure time and compiles the plugin when `pkg-config krb5` is available; configuring `xrootd_auth krb5` without compiled Kerberos support fails at nginx config validation.
+**Completed high-priority gap**: inbound `krb5` support is implemented for Kerberos sites. The nginx addon detects Kerberos 5 at configure time and compiles the plugin when `pkg-config krb5` is available; configuring `brix_auth krb5` without compiled Kerberos support fails at nginx config validation.
 
 **Completed gap**: `XrdSecpwd` (`pwd`) and the built-in `host` protocol are now implemented (`src/auth/pwd/`, `src/auth/host/`), giving wire-equivalent coverage of every standard upstream stream auth scheme. `pwd` is implemented as the DH-bootstrapped password handshake rather than a plaintext/system-password substitute (which would be a security regression); it is the wire protocol, not the full `xrdpwdadmin` admin-file ecosystem. The only remaining auth gap is *custom* third-party sec plugins (no loadable sec-plugin ABI).
 
-**Completed medium-priority gap**: `XrdMacaroons` third-party delegation. `POST /.oauth2/token` issues scoped WLCG macaroons from `xrootd_webdav_macaroon_secret`; HMAC chain + first-party caveats (activity, path, before) match XrdMacaroons wire format. `GET /.well-known/oauth-authorization-server` provides RFC 8414 discovery. Issued tokens are validated by the existing `xrootd_macaroon_validate_bundle()` path.
+**Completed medium-priority gap**: `XrdMacaroons` third-party delegation. `POST /.oauth2/token` issues scoped WLCG macaroons from `brix_webdav_macaroon_secret`; HMAC chain + first-party caveats (activity, path, before) match XrdMacaroons wire format. `GET /.well-known/oauth-authorization-server` provides RFC 8414 discovery. Issued tokens are validated by the existing `brix_macaroon_validate_bundle()` path.
 
 **Completed medium-priority gap**: `XrdSciTokens` path-based authorization is enforced through the shared token scope parser and identity scope checks on stream and WebDAV write paths.
 
@@ -120,14 +120,14 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 | `kXR_isManager` | Redirector node | ✅ |
 | `kXR_attrProxy` | Proxy mode | ⚠️ |
 | `kXR_attrCache` | Cache-capable | ⚠️ |
-| `kXR_attrMeta` | Metadata-only (`xrootd_metadata_only on`) | ✅ |
-| `kXR_attrVirtRdr` | Virtual redirector (`xrootd_virtual_redirector on`) | ✅ |
-| `kXR_attrSuper` | Supervisor role (`xrootd_supervisor on`) | ✅ |
+| `kXR_attrMeta` | Metadata-only (`brix_metadata_only on`) | ✅ |
+| `kXR_attrVirtRdr` | Virtual redirector (`brix_virtual_redirector on`) | ✅ |
+| `kXR_attrSuper` | Supervisor role (`brix_supervisor on`) | ✅ |
 | `kXR_suppgrw` | pgread/pgwrite | ✅ |
 | `kXR_supposc` | POSC | ✅ |
 | `kXR_haveTLS` | TLS available | ✅ |
 | `kXR_recoverWrts` | Write recovery | ✅ | Uses per-handle write journal for idempotent replay |
-| `kXR_collapseRedir` | Collapse redirects (`xrootd_collapse_redir on`) | ✅ | SHM redirect-target cache in `src/net/manager/redir_cache.c` |
+| `kXR_collapseRedir` | Collapse redirects (`brix_collapse_redir on`) | ✅ | SHM redirect-target cache in `src/net/manager/redir_cache.c` |
 | `kXR_ecRedir` | Erasure-code redirect | ❌ |
 | `kXR_anongpf` | Anonymous GPF | ❌ |
 | `kXR_supgpf` | GPF | ❌ |
@@ -162,12 +162,12 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 | `kXR_redirect` | ✅ | 302-style |
 | Two-tier hierarchy | ✅ | Manager + data servers |
 | Multi-tier hierarchy | ✅ | Three-tier tested: meta-manager → sub-manager → leaf DS; `nginx_cluster_sub_manager.conf` |
-| Server blacklisting | ✅ | 30 s blacklist on CMS disconnect; `xrootd_srv_blacklist()` + `error_count` in SHM; cleared on reconnect |
-| Per-server performance metrics | ✅ | `xrootd_cluster_server_free_megabytes`, `_utilization_percent`, `_last_seen_seconds`, `_blacklisted`, `_disconnect_total` Prometheus gauges in `src/observability/metrics/cluster.c` |
+| Server blacklisting | ✅ | 30 s blacklist on CMS disconnect; `brix_srv_blacklist()` + `error_count` in SHM; cleared on reconnect |
+| Per-server performance metrics | ✅ | `brix_cluster_server_free_megabytes`, `_utilization_percent`, `_last_seen_seconds`, `_blacklisted`, `_disconnect_total` Prometheus gauges in `src/observability/metrics/cluster.c` |
 | Virtual node ID | ❌ | |
 | CMS admin interface | ❌ | No admin socket |
 | Colocation hint | ✅ | `kXR_prefname` parsed; `kXR_locate` returns all matching servers — client selects by network locality |
-| Lateral 307 redirect | ✅ | `kXR_locate` returns `kXR_ok` with full server list via `xrootd_srv_locate_all()`; no redirect chaining needed |
+| Lateral 307 redirect | ✅ | `kXR_locate` returns `kXR_ok` with full server list via `brix_srv_locate_all()`; no redirect chaining needed |
 
 ---
 
@@ -251,12 +251,12 @@ paths where required.
 | CORS | XrdHttpCors | ✅ | ✅ |
 | HTTP Range | ✅ | ✅ | ✅ |
 | HTTP TPC pull | XrdHttpTpc | ✅ | ✅ |
-| HTTP TPC multi-stream | XrdHttpTpc PMarkManager | ✅ | ✅ | `X-Number-Of-Streams` negotiated; N parallel Range-GETs via `curl_multi`; 202+Perf Markers via `xrootd_webdav_tpc_marker_interval` |
+| HTTP TPC multi-stream | XrdHttpTpc PMarkManager | ✅ | ✅ | `X-Number-Of-Streams` negotiated; N parallel Range-GETs via `curl_multi`; 202+Perf Markers via `brix_webdav_tpc_marker_interval` |
 | S3 REST | — | ✅ | ✅ |
 | S3 multipart | — | ✅ | ✅ |
 | S3 presigned URLs | — | ✅ | ✅ |
 | S3 STS session tokens | — | ✅ | ✅ |
-| XRootD-over-HTTP | XrdHttp | ✅ | `Want-Digest:` (RFC 3230) parsed on HEAD+GET; RFC 3230 algo names normalised (SHA-256→sha256, SHA→sha1); `Digest:` response header computed via xattr-cached xrootd_integrity_get_fd; `X-Xrootd-Proto`, `X-Xrootd-Requuid`, `X-Xrootd-Status`, multipart GET, ?xrd.stats, redirect dialect all implemented; POST returns 405 with `Allow:` |
+| XRootD-over-HTTP | XrdHttp | ✅ | `Want-Digest:` (RFC 3230) parsed on HEAD+GET; RFC 3230 algo names normalised (SHA-256→sha256, SHA→sha1); `Digest:` response header computed via xattr-cached brix_integrity_get_fd; `X-Xrootd-Proto`, `X-Xrootd-Requuid`, `X-Xrootd-Status`, multipart GET, ?xrd.stats, redirect dialect all implemented; POST returns 405 with `Allow:` |
 | HTTP checksum headers | XrdHttpChecksum | ✅ | ✅ |
 | X-Xrootd-* metadata | XrdHttp | ✅ | ✅ |
 
@@ -266,15 +266,15 @@ paths where required.
 
 | Feature | XRootD | BriX-Cache | Status |
 |---------|--------|--------------|--------|
-| Per-opcode counters | XROOTD_MON_ALL | ✅ Prometheus | ✅ |
-| Per-file I/O | XROOTD_MON_FILE | N/A | ❌ UDP-only |
-| Per-user activity | XROOTD_MON_USER | N/A | ❌ UDP-only |
-| Auth events | XROOTD_MON_AUTH | N/A | ❌ UDP-only |
-| Redirect events | XROOTD_MON_REDR | N/A | ❌ UDP-only |
-| Vector I/O events | XROOTD_MON_IOV | N/A | ❌ UDP-only |
-| TPC events | XROOTD_MON_TPC | N/A | ❌ UDP-only |
-| TCP events | XROOTD_MON_TCPMO | N/A | ❌ UDP-only |
-| Cache events | XROOTD_MON_PFC | N/A | ❌ UDP-only |
+| Per-opcode counters | BRIX_MON_ALL | ✅ Prometheus | ✅ |
+| Per-file I/O | BRIX_MON_FILE | N/A | ❌ UDP-only |
+| Per-user activity | BRIX_MON_USER | N/A | ❌ UDP-only |
+| Auth events | BRIX_MON_AUTH | N/A | ❌ UDP-only |
+| Redirect events | BRIX_MON_REDR | N/A | ❌ UDP-only |
+| Vector I/O events | BRIX_MON_IOV | N/A | ❌ UDP-only |
+| TPC events | BRIX_MON_TPC | N/A | ❌ UDP-only |
+| TCP events | BRIX_MON_TCPMO | N/A | ❌ UDP-only |
+| Cache events | BRIX_MON_PFC | N/A | ❌ UDP-only |
 | UDP stream `xrd.monitor` | xrd.monitor | ❌ | Never implemented |
 | Access logging | xrootd.trace | ✅ | ✅ |
 | Latency histograms | — | ✅ Prometheus | ✅ |
@@ -293,7 +293,7 @@ paths where required.
 | `kXR_oksofar` streaming reads | ✅ |
 | `kXR_status` extended response | ✅ |
 | `kXR_wait` / `kXR_waitresp` | ✅ |
-| `kXR_attn` attention codes | ✅ | Proxy mode relays upstream `kXR_attn` frames transparently; server generates native `kXR_attn` + `kXR_asyncms` (5002) frames; `xrootd_send_attn_asyncms()` / `xrootd_send_attn_asynresp()` in `src/protocols/root/response/async.c` — `kXR_notify` on `kXR_prepare` delivers immediate notification when files are on disk |
+| `kXR_attn` attention codes | ✅ | Proxy mode relays upstream `kXR_attn` frames transparently; server generates native `kXR_attn` + `kXR_asyncms` (5002) frames; `brix_send_attn_asyncms()` / `brix_send_attn_asynresp()` in `src/protocols/root/response/async.c` — `kXR_notify` on `kXR_prepare` delivers immediate notification when files are on disk |
 
 ---
 
@@ -311,24 +311,24 @@ paths where required.
 
 | Gap | Effort | Notes |
 |-----|--------|-------|
-| `kXR_coloc` in prepare | ✅ | Hint passed to `xrootd_prepare_command` via `XROOTD_PREPARE_COLOC=1` |
+| `kXR_coloc` in prepare | ✅ | Hint passed to `brix_prepare_command` via `BRIX_PREPARE_COLOC=1` |
 | `kXR_multipr` login flag | Low | Single-protocol sufficient |
 
 ### Recently completed (removed from gap list)
 
 | Feature | Notes |
 |---------|-------|
-| **Native `kXR_attn` generation** | `xrootd_send_attn_asyncms()` / `xrootd_send_attn_asynresp()` in `src/protocols/root/response/async.c`; `kXR_notify` on `kXR_prepare` delivers immediate `kXR_asyncms` when files are on disk; `kXR_asynresp` available for deferred-response callers |
+| **Native `kXR_attn` generation** | `brix_send_attn_asyncms()` / `brix_send_attn_asynresp()` in `src/protocols/root/response/async.c`; `kXR_notify` on `kXR_prepare` delivers immediate `kXR_asyncms` when files are on disk; `kXR_asynresp` available for deferred-response callers |
 | `kXR_prepare` FRM/Tape REST support | Durable FRM queue + Tape REST gateway exists; full upstream XrdFrm/MSS parity is still partial |
 | Multi-tier CMS hierarchy | Three-tier (meta → sub-manager → leaf DS) implemented and tested |
-| `kXR_attrMeta` / `kXR_attrSuper` / `kXR_attrVirtRdr` | All three role flags advertised via `xrootd_metadata_only`, `xrootd_supervisor`, `xrootd_virtual_redirector` |
-| `kXR_collapseRedir` | SHM redirect-target cache implemented; advertised via `xrootd_collapse_redir on` |
-| **Server blacklisting** | 30 s temporary blacklist on CMS disconnect; `xrootd_srv_blacklist()` + `error_count` in SHM registry; cleared on reconnect (`src/net/manager/registry.c`) |
-| **Per-server cluster metrics** | `xrootd_cluster_server_free_megabytes`, `_utilization_percent`, `_last_seen_seconds`, `_blacklisted`, `_disconnect_total` Prometheus gauges (`src/observability/metrics/cluster.c`) |
+| `kXR_attrMeta` / `kXR_attrSuper` / `kXR_attrVirtRdr` | All three role flags advertised via `brix_metadata_only`, `brix_supervisor`, `brix_virtual_redirector` |
+| `kXR_collapseRedir` | SHM redirect-target cache implemented; advertised via `brix_collapse_redir on` |
+| **Server blacklisting** | 30 s temporary blacklist on CMS disconnect; `brix_srv_blacklist()` + `error_count` in SHM registry; cleared on reconnect (`src/net/manager/registry.c`) |
+| **Per-server cluster metrics** | `brix_cluster_server_free_megabytes`, `_utilization_percent`, `_last_seen_seconds`, `_blacklisted`, `_disconnect_total` Prometheus gauges (`src/observability/metrics/cluster.c`) |
 | **Colocation hint** | `kXR_prefname` parsed; `kXR_locate` returns all matching servers — client selects by network locality |
-| **Lateral redirect** | `kXR_locate` returns `kXR_ok` with full server list via `xrootd_srv_locate_all()`; no redirect chaining needed |
+| **Lateral redirect** | `kXR_locate` returns `kXR_ok` with full server list via `brix_srv_locate_all()`; no redirect chaining needed |
 | **XrdHttp (XRootD-over-HTTP)** | `Want-Digest:` RFC 3230 header parsed in `xrdhttp_parse_request()`; algo names normalised (SHA-256→sha256, SHA→sha1); HEAD opens fd for checksum via `xrdhttp_add_checksum_header()`; POST returns 405 + `Allow:`; XrdClHttp plugin fully compatible |
-| **Macaroons third-party delegation** | `POST /.oauth2/token` issues scoped macaroons (HMAC chain, activity/path/before caveats) from `xrootd_webdav_macaroon_secret`; `GET /.well-known/oauth-authorization-server` RFC 8414 discovery; no `libmacaroons` dependency — pure OpenSSL HMAC; issued tokens validated by existing `xrootd_macaroon_validate_bundle()` |
+| **Macaroons third-party delegation** | `POST /.oauth2/token` issues scoped macaroons (HMAC chain, activity/path/before caveats) from `brix_webdav_macaroon_secret`; `GET /.well-known/oauth-authorization-server` RFC 8414 discovery; no `libmacaroons` dependency — pure OpenSSL HMAC; issued tokens validated by existing `brix_macaroon_validate_bundle()` |
 
 ### Out of scope
 
@@ -364,7 +364,7 @@ paths where required.
 | Gap | Effort | Implementation Notes |
 |-----|--------|---------------------|
 | **HTTP-TPC multi-stream** | ✅ | `X-Number-Of-Streams` negotiated; `curl_multi` Range-GETs; 202+Perf Markers (`src/protocols/webdav/tpc_marker.c`, `tpc_curl.c`) |
-| **Native `kXR_attn` generation** | ✅ | `xrootd_send_attn_asyncms()` / `xrootd_send_attn_asynresp()` in `src/protocols/root/response/async.c`; `kXR_notify` on `kXR_prepare` delivers immediate notification; `kXR_asynresp` ready for deferred-response callers |
+| **Native `kXR_attn` generation** | ✅ | `brix_send_attn_asyncms()` / `brix_send_attn_asynresp()` in `src/protocols/root/response/async.c`; `kXR_notify` on `kXR_prepare` delivers immediate notification; `kXR_asynresp` ready for deferred-response callers |
 | **Macaroons delegation** | ✅ | `POST /.oauth2/token` + `GET /.well-known/oauth-authorization-server`; HMAC-SHA256 issuance in `src/auth/token/macaroon_issue.c`; REST handler in `src/protocols/webdav/macaroon_endpoint.c` |
 | **XrdHttp protocol** | ✅ | `Want-Digest:` RFC 3230 on HEAD+GET; algo normalisation; `xrdhttp_add_checksum_header()` on HEAD; 405+Allow on unknown methods |
 | **Throttle** | Low | Per-connection rate limiter |
@@ -374,15 +374,15 @@ paths where required.
 
 | Feature | Notes |
 |---------|-------|
-| **`kXR_prepare` staging hook** | `xrootd_prepare_command` external script; covers tape (xrdcp, dmget, …) |
+| **`kXR_prepare` staging hook** | `brix_prepare_command` external script; covers tape (xrdcp, dmget, …) |
 | **Multi-tier CMS** | Three-tier (meta-manager → sub-manager → leaf DS); `TestThreeTierTopology` passes |
-| **`kXR_attrMeta`** | `xrootd_metadata_only on` — namespace ops only, file I/O returns kXR_Unsupported |
-| **`kXR_attrSuper`** | `xrootd_supervisor on` — top-tier manager role |
-| **`kXR_attrVirtRdr`** | `xrootd_virtual_redirector on` — path-map redirector without CMS |
-| **`kXR_collapseRedir`** | `xrootd_collapse_redir on` — SHM redirect-target cache (`src/net/manager/redir_cache.c`) |
+| **`kXR_attrMeta`** | `brix_metadata_only on` — namespace ops only, file I/O returns kXR_Unsupported |
+| **`kXR_attrSuper`** | `brix_supervisor on` — top-tier manager role |
+| **`kXR_attrVirtRdr`** | `brix_virtual_redirector on` — path-map redirector without CMS |
+| **`kXR_collapseRedir`** | `brix_collapse_redir on` — SHM redirect-target cache (`src/net/manager/redir_cache.c`) |
 | **`kXR_attn` relay (proxy)** | Proxy mode transparently relays upstream `kXR_attn` frames |
-| **`kXR_attn` native generation** | `xrootd_send_attn_asyncms()` + `xrootd_send_attn_asynresp()` in `src/protocols/root/response/async.c`; `kXR_notify` on `kXR_prepare` wired; `kXR_asyncms` / `kXR_asynresp` constants in `src/protocols/root/protocol/opcodes.h` |
-| **Server blacklisting** | 30 s blacklist on CMS disconnect; `xrootd_srv_blacklist()` + `error_count` in SHM; clears on reconnect |
-| **Per-server cluster metrics** | `xrootd_cluster_server_{free_megabytes,utilization_percent,last_seen_seconds,blacklisted,disconnect_total}` gauges in `src/observability/metrics/cluster.c` |
+| **`kXR_attn` native generation** | `brix_send_attn_asyncms()` + `brix_send_attn_asynresp()` in `src/protocols/root/response/async.c`; `kXR_notify` on `kXR_prepare` wired; `kXR_asyncms` / `kXR_asynresp` constants in `src/protocols/root/protocol/opcodes.h` |
+| **Server blacklisting** | 30 s blacklist on CMS disconnect; `brix_srv_blacklist()` + `error_count` in SHM; clears on reconnect |
+| **Per-server cluster metrics** | `brix_cluster_server_{free_megabytes,utilization_percent,last_seen_seconds,blacklisted,disconnect_total}` gauges in `src/observability/metrics/cluster.c` |
 | **Colocation hint** | `kXR_prefname` (0x0100) parsed; locate returns all matching servers for client-side locality selection |
-| **Lateral redirect** | `kXR_locate` returns `kXR_ok` with full server list via `xrootd_srv_locate_all()`; no redirect chaining |
+| **Lateral redirect** | `kXR_locate` returns `kXR_ok` with full server list via `brix_srv_locate_all()`; no redirect chaining |

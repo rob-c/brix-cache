@@ -4,7 +4,7 @@
 
 This document maps every XRootD wire protocol operation to its implementation in the BriX-Cache module, showing how the native `stream` module translates binary opcodes into file operations.
 
-**Reference:** `/tmp/xrootd-src/src/XProtocol/XProtocol.hh` — full wire spec  
+**Reference:** `/tmp/brix-src/src/XProtocol/XProtocol.hh` — full wire spec  
 **Entry point:** `src/protocols/root/connection/handler.c` → `src/protocols/root/handshake/dispatch.c` → opcode handlers in `src/protocols/root/read/`, `src/protocols/root/write/`, etc.
 
 ---
@@ -65,8 +65,8 @@ typedef struct {
 } ServerResponseHdr;
 ```
 
-**Helper:** `xrootd_build_resp_hdr(streamid, status, dlen, buf)` — builds header from components  
-**Helper:** `xrootd_queue_response(ctx, c, buf, total)` — queues response on connection
+**Helper:** `brix_build_resp_hdr(streamid, status, dlen, buf)` — builds header from components  
+**Helper:** `brix_queue_response(ctx, c, buf, total)` — queues response on connection
 
 ### Client Request Header
 
@@ -78,8 +78,8 @@ typedef struct {
 } ClientRequestHdr;
 ```
 
-**Helper:** `xrootd_parse_req_hdr(c, buf)` — parses and validates header  
-**Helper:** `xrootd_aio_restore_request(ctx, streamid)` — restores AIO state from stream ID
+**Helper:** `brix_parse_req_hdr(c, buf)` — parses and validates header  
+**Helper:** `brix_aio_restore_request(ctx, streamid)` — restores AIO state from stream ID
 
 ---
 
@@ -89,13 +89,13 @@ typedef struct {
 
 ```c
 // Post-login dispatch by opcode number
-static ngx_int_t xrootd_dispatch_opcode(xrootd_ctx_t *ctx, ...) {
+static ngx_int_t brix_dispatch_opcode(brix_ctx_t *ctx, ...) {
     switch (opcode) {
-        case kXR_open:      return xrootd_handle_open(ctx, c, conf, body);
-        case kXR_read:      return xrootd_handle_read(ctx, c, conf, body);
-        case kXR_pgread:    return xrootd_handle_pgread(ctx, c, conf, body);
-        case kXR_write:     return xrootd_handle_write(ctx, c, conf, body);
-        case kXR_pgwrite:   return xrootd_handle_pgwrite(ctx, c, conf, body);
+        case kXR_open:      return brix_handle_open(ctx, c, conf, body);
+        case kXR_read:      return brix_handle_read(ctx, c, conf, body);
+        case kXR_pgread:    return brix_handle_pgread(ctx, c, conf, body);
+        case kXR_write:     return brix_handle_write(ctx, c, conf, body);
+        case kXR_pgwrite:   return brix_handle_pgwrite(ctx, c, conf, body);
         // ... all other opcodes
     }
 }
@@ -266,7 +266,7 @@ Client                          Server
 Native TPC enables a client to copy files between two XRootD servers through BriX-Cache acting as the destination server. The protocol uses `kXR_open` with opaque parameters (`tpc.src=`, `tpc.key=`) and relies on shared-memory key registry for cross-process rendezvous.
 
 **Key file:** `src/tpc/engine/key_registry.c` — SHM-based key registry (256 slots, 60s TTL)  
-**Entry point:** `src/protocols/root/handshake/dispatch.c` → `xrootd_handle_open()` with TPC params
+**Entry point:** `src/protocols/root/handshake/dispatch.c` → `brix_handle_open()` with TPC params
 
 ### Wire Protocol Sequence
 
@@ -289,17 +289,17 @@ Client                 nginx-xrootd (dest)          Remote root:// origin
 
 The key registry is a shared-memory table with:
 - **256 slots** for concurrent TPC operations
-- **60-second TTL** (configurable via `xrootd_tpc_key_ttl`)
+- **60-second TTL** (configurable via `brix_tpc_key_ttl`)
 - Per-process counter + PID for uniqueness
 - Lazy expiration on lookup
 
 **API:**
 ```c
-void xrootd_tpc_generate_key(char *buf, size_t buf_sz);  // Generate unique key
-void xrootd_tpc_key_register(const char *key, ngx_msec_t ttl_ms);  // Register with TTL
-int  xrootd_tpc_key_validate(const char *key);  // Check if valid and unexpired
-int  xrootd_tpc_key_consume(const char *key);   // Consume (remove) key
-void xrootd_tpc_key_remove(const char *key);    // Remove key from registry
+void brix_tpc_generate_key(char *buf, size_t buf_sz);  // Generate unique key
+void brix_tpc_key_register(const char *key, ngx_msec_t ttl_ms);  // Register with TTL
+int  brix_tpc_key_validate(const char *key);  // Check if valid and unexpired
+int  brix_tpc_key_consume(const char *key);   // Consume (remove) key
+void brix_tpc_key_remove(const char *key);    // Remove key from registry
 ```
 
 ### Pull Path Implementation
@@ -310,15 +310,15 @@ void xrootd_tpc_key_remove(const char *key);    // Remove key from registry
 
 ```c
 // Validates TPC params, allocates fhandle, posts thread task
-xrootd_tpc_prepare_pull(ctx, c, conf, tpc, dst_path, options, mode_bits);
-xrootd_tpc_start_pull(ctx, c, conf, fhandle_idx);  // Start async pull
+brix_tpc_prepare_pull(ctx, c, conf, tpc, dst_path, options, mode_bits);
+brix_tpc_start_pull(ctx, c, conf, fhandle_idx);  // Start async pull
 ```
 
 **Key logic:**
 1. Check `conf->thread_pool` — required for TPC pull
 2. Validate source host/path from `tpc.src=` parameter
 3. Apply source policy (local/private network checks)
-4. Allocate file handle index via `xrootd_alloc_fhandle()`
+4. Allocate file handle index via `brix_alloc_fhandle()`
 5. Open destination file with appropriate flags (`O_CREAT | O_TRUNC`)
 6. Generate/register TPC key for rendezvous
 7. Post thread task to nginx thread pool
@@ -327,7 +327,7 @@ xrootd_tpc_start_pull(ctx, c, conf, fhandle_idx);  // Start async pull
 
 ```c
 // Orchestrates: connect → bootstrap → pull_from_source
-xrootd_tpc_pull_thread(data, log);
+brix_tpc_pull_thread(data, log);
 ```
 
 **Key logic:**
@@ -352,11 +352,11 @@ int tpc_recv_response(int fd, uint16_t *status, u_char **body, uint32_t *dlen);
 #### done.c — Event Thread Completion Callback
 
 ```c
-void xrootd_tpc_pull_done(ngx_event_t *ev);  // Sends kXR_open response or error
+void brix_tpc_pull_done(ngx_event_t *ev);  // Sends kXR_open response or error
 ```
 
 **Key logic:**
-1. Restore AIO state from stream ID (`xrootd_aio_restore_request`)
+1. Restore AIO state from stream ID (`brix_aio_restore_request`)
 2. If result != NGX_OK: close fd, unlink temp file, send error response
 3. If success: update file metadata (size, inode, device), send kXR_ok response with stat info
 
@@ -667,19 +667,19 @@ b->file = ...;  // file pointer from open()
 
 | Field | Purpose |
 |---|---|
-| `xrootd_file_t::fd` | Underlying file descriptor |
-| `xrootd_file_t::writable` | Can write to this handle |
-| `xrootd_file_t::readable` | Can read from this handle |
-| `xrootd_file_t::cached_size` | Cached file size (from fstat) |
-| `xrootd_file_t::bytes_read` | Total bytes served via kXR_read |
-| `xrootd_file_t::bytes_written` | Total bytes written via kXR_write |
-| `xrootd_file_t::tpc_destination` | Is this a TPC destination file |
-| `xrootd_file_t::tpc_armed` | Pending TPC pull flag |
+| `brix_file_t::fd` | Underlying file descriptor |
+| `brix_file_t::writable` | Can write to this handle |
+| `brix_file_t::readable` | Can read from this handle |
+| `brix_file_t::cached_size` | Cached file size (from fstat) |
+| `brix_file_t::bytes_read` | Total bytes served via kXR_read |
+| `brix_file_t::bytes_written` | Total bytes written via kXR_write |
+| `brix_file_t::tpc_destination` | Is this a TPC destination file |
+| `brix_file_t::tpc_armed` | Pending TPC pull flag |
 
 **Key functions:**
-- `xrootd_alloc_fhandle(ctx)` — allocate next available slot
-- `xrootd_free_fhandle(ctx, idx)` — free slot and close fd
-- `xrootd_set_fhandle_path(ctx, c, idx, path)` — associate path with handle
+- `brix_alloc_fhandle(ctx)` — allocate next available slot
+- `brix_free_fhandle(ctx, idx)` — free slot and close fd
+- `brix_set_fhandle_path(ctx, c, idx, path)` — associate path with handle
 
 ---
 
@@ -688,8 +688,8 @@ b->file = ...;  // file pointer from open()
 All operations log to structured access logs:
 
 ```c
-xrootd_log_access(ctx, c, "OPCODE", path, "detail", status, kxr_code, msg, bytes);
-XROOTD_OP_OK(ctx, opcode) / XROOTD_OP_ERR(ctx, opcode)  // increment metrics
+brix_log_access(ctx, c, "OPCODE", path, "detail", status, kxr_code, msg, bytes);
+BRIX_OP_OK(ctx, opcode) / BRIX_OP_ERR(ctx, opcode)  // increment metrics
 ```
 
 **Log format:** structured text with opcode, path, detail level, status code, kXR error code, message, byte count.
@@ -701,8 +701,8 @@ XROOTD_OP_OK(ctx, opcode) / XROOTD_OP_ERR(ctx, opcode)  // increment metrics
 All operations increment counters via helpers:
 
 ```c
-XROOTD_OP_OK(ctx, XROOTD_OP_OPEN_WR)  // Increment request counter for open/write
-XROOTD_OP_ERR(ctx, XROOTD_OP_SYNC)    // Increment error counter for sync
+BRIX_OP_OK(ctx, BRIX_OP_OPEN_WR)  // Increment request counter for open/write
+BRIX_OP_ERR(ctx, BRIX_OP_SYNC)    // Increment error counter for sync
 ```
 
 **Metric categories:** opcodes (open, read, write, stat, dirlist, etc.), status (ok, err), protocol (root, dav, s3).
@@ -747,7 +747,7 @@ XROOTD_OP_ERR(ctx, XROOTD_OP_SYNC)    // Increment error counter for sync
 
 ## References
 
-- **Wire spec:** `/tmp/xrootd-src/src/XProtocol/XProtocol.hh`
+- **Wire spec:** `/tmp/brix-src/src/XProtocol/XProtocol.hh`
 - **Client request structs:** `src/XProtocol/wire_core_requests.h`
 - **Helper functions:** HELPERS section in AGENTS.md
 - **Tests:** `tests/test_X.py`, cross-backend conformance suite

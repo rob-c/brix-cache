@@ -1,21 +1,21 @@
 # Core type reference
 
-The three types every handler touches. Read alongside `src/core/ngx_xrootd_module.h`, which has the authoritative definitions
+The three types every handler touches. Read alongside `src/core/ngx_brix_module.h`, which has the authoritative definitions
 and field-level comments.
 
 ---
 
-## `xrootd_ctx_t` — per-connection context
+## `brix_ctx_t` — per-connection context
 
-One `xrootd_ctx_t` is allocated per TCP connection in
-`connection/handler.c:ngx_stream_xrootd_handler()`.  It is freed when the
+One `brix_ctx_t` is allocated per TCP connection in
+`connection/handler.c:ngx_stream_brix_handler()`.  It is freed when the
 connection closes.  The state machine in `connection/recv.c` drives all
 transitions.
 
 ### State machine group
 
 ```c
-xrootd_state_t  state;
+brix_state_t  state;
 ```
 
 Controls which branch `recv.c` takes on each read event.  Valid values:
@@ -71,23 +71,23 @@ char        dn[512];       /* GSI subject DN */
 char        primary_vo[128];
 char        vo_list[512];
 int         token_auth;
-xrootd_token_scope_t  token_scopes[XROOTD_MAX_TOKEN_SCOPES];
+brix_token_scope_t  token_scopes[BRIX_MAX_TOKEN_SCOPES];
 int         token_scope_count;
 ```
 
 Handlers never write these fields; they are set by `session/login.c` and
-`session/auth.c`.  Use `xrootd_dispatch_require_auth()` in
+`session/auth.c`.  Use `brix_dispatch_require_auth()` in
 `handshake/policy.c` to gate access — do not check `logged_in` / `auth_done`
 directly.
 
 ### File table group
 
 ```c
-xrootd_file_t  files[XROOTD_MAX_FILES];
+brix_file_t  files[BRIX_MAX_FILES];
 ```
 
 The array index is the XRootD file handle.  Handlers call
-`xrootd_get_fhandle()` in `connection/fd_table.c` to validate a handle and
+`brix_get_fhandle()` in `connection/fd_table.c` to validate a handle and
 get a pointer to the slot.  They must not index `files[]` directly.
 
 ### Send buffers group
@@ -109,9 +109,9 @@ u_char   *read_hdr_scratch;
 size_t    read_hdr_scratch_size;
 ```
 
-Handlers use `xrootd_send_ok()` and `xrootd_send_error()` from
+Handlers use `brix_send_ok()` and `brix_send_error()` from
 `response/basic.c` for short responses, and
-`xrootd_queue_response_chain()` from `connection/write_helpers.c` for
+`brix_queue_response_chain()` from `connection/write_helpers.c` for
 large responses.  They must not write to `wbuf*` or `wchain*` directly.
 
 ### AIO group
@@ -120,15 +120,15 @@ large responses.  They must not write to `wbuf*` or `wchain*` directly.
 ngx_uint_t  destroyed;
 ```
 
-Set to 1 in `connection/disconnect.c:xrootd_on_disconnect()`.  Any AIO
+Set to 1 in `connection/disconnect.c:brix_on_disconnect()`.  Any AIO
 `_done` callback (which fires on the main event loop after a thread-pool
 task) must check this before touching `ctx` or `c`:
 
 ```c
 void
-xrootd_read_aio_done(ngx_event_t *wev)
+brix_read_aio_done(ngx_event_t *wev)
 {
-    xrootd_aio_ctx_t *aio = wev->data;
+    brix_aio_ctx_t *aio = wev->data;
     if (aio->ctx->destroyed) { ngx_free(aio); return; }
     /* safe to proceed */
 }
@@ -141,7 +141,7 @@ ngx_uint_t  tls_pending;
 ```
 
 Set to 1 when `kXR_protocol` replies with `kXR_haveTLS`.  `recv.c` calls
-`xrootd_start_tls()` on the next pass when this flag is set.
+`brix_start_tls()` on the next pass when this flag is set.
 
 ### Signing group
 
@@ -172,9 +172,9 @@ Set by `session/bind.c`; not modified by any other handler.
 
 ---
 
-## `xrootd_file_t` — per-open-file bookkeeping
+## `brix_file_t` — per-open-file bookkeeping
 
-One `xrootd_file_t` slot per entry in `ctx->files[]`.  A slot is free when
+One `brix_file_t` slot per entry in `ctx->files[]`.  A slot is free when
 `fd == -1`.
 
 ```c
@@ -189,15 +189,15 @@ typedef struct {
     int        from_cache;    /* 1 = fd points into cache_root */
     char      *ckp_path;      /* heap-allocated; non-NULL when checkpoint active */
     int64_t    ckp_size;      /* file size saved at kXR_ckpBegin */
-} xrootd_file_t;
+} brix_file_t;
 ```
 
 ### `fd` lifecycle
 
 `fd` is opened in `read/open.c` via `open(2)` and closed in `read/close.c`
-via `close(2)` or in `connection/fd_table.c:xrootd_close_all_files()` on
+via `close(2)` or in `connection/fd_table.c:brix_close_all_files()` on
 disconnect.  Handlers must not `close(f->fd)` themselves; use
-`xrootd_free_fhandle()`.
+`brix_free_fhandle()`.
 
 ### `path` ownership
 
@@ -224,10 +224,10 @@ f->ckp_path = NULL;
 
 ---
 
-## `ngx_stream_xrootd_srv_conf_t` — server configuration
+## `ngx_stream_brix_srv_conf_t` — server configuration
 
 One instance per `server {}` block.  Allocated by
-`config/server_conf.c:ngx_stream_xrootd_create_srv_conf()`, merged with
+`config/server_conf.c:ngx_stream_brix_create_srv_conf()`, merged with
 parent defaults by `merge_srv_conf()`.
 
 ### Read-only fields (set at config parse time)
@@ -240,14 +240,14 @@ Key fields:
 
 | Field | Directive | What it controls |
 |---|---|---|
-| `root` | `xrootd_root` | Filesystem root; all client paths are restricted to this tree |
-| `auth` | `xrootd_auth` | Authentication mode (`XROOTD_AUTH_NONE/GSI/TOKEN/BOTH/SSS`) |
-| `allow_write` | `xrootd_allow_write` | Gates all mutation opcodes |
-| `upstream_host` / `upstream_port` | `xrootd_upstream` | Redirector for kXR_locate |
-| `cache`, `cache_root`, `cache_origin*` | `xrootd_cache*` | Read-through cache |
-| `tls`, `tls_ctx` | `xrootd_tls` | In-protocol TLS upgrade |
-| `thread_pool` | `xrootd_thread_pool` | AIO thread pool handle |
-| `ckscan_max_depth`, `ckscan_max_files` | `xrootd_ckscan_depth`, `xrootd_ckscan_max_files` | Bounds for recursive checksum scans |
+| `root` | `brix_root` | Filesystem root; all client paths are restricted to this tree |
+| `auth` | `brix_auth` | Authentication mode (`BRIX_AUTH_NONE/GSI/TOKEN/BOTH/SSS`) |
+| `allow_write` | `brix_allow_write` | Gates all mutation opcodes |
+| `upstream_host` / `upstream_port` | `brix_upstream` | Redirector for kXR_locate |
+| `cache`, `cache_root`, `cache_origin*` | `brix_cache*` | Read-through cache |
+| `tls`, `tls_ctx` | `brix_tls` | In-protocol TLS upgrade |
+| `thread_pool` | `brix_thread_pool` | AIO thread pool handle |
+| `ckscan_max_depth`, `ckscan_max_files` | `brix_ckscan_depth`, `brix_ckscan_max_files` | Bounds for recursive checksum scans |
 
 OpenSSL objects (`gsi_cert`, `gsi_key`, `gsi_store`) and the cached
 `gsi_cert_pem` response material are populated after the config is fully
@@ -269,7 +269,7 @@ a single-threaded event loop per worker process.
 ngx_int_t  metrics_slot;
 ```
 
-Index into the shared-memory `ngx_xrootd_srv_metrics_t` array.  Assigned
+Index into the shared-memory `ngx_brix_srv_metrics_t` array.  Assigned
 during `postconfiguration`.  `-1` means the server has no metrics zone.
 Handlers do not use this field directly; they go through `ctx->metrics`.
 
@@ -290,7 +290,7 @@ Never call this from inside an AIO `_thread` function.
 Use when the lifetime does not match the connection pool:
 
 - **Longer than one request, freed explicitly** — `payload_buf` (reused
-  across requests; freed in `xrootd_on_disconnect`).
+  across requests; freed in `brix_on_disconnect`).
 - **May be freed before disconnect** — `ckp_path` (freed at checkpoint
   commit/rollback).
 - **Owned by a thread-pool task** — AIO context structs that must remain

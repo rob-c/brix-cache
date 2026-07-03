@@ -25,7 +25,7 @@ The module has already consolidated a significant shared layer — path resoluti
 ┌────────────────────▼───────────────────────────────────────────────┐
 │                    Shared infrastructure layer                      │
 │                                                                    │
-│  src/core/compat/path.c      xrootd_http_resolve_path()  [HTTP+S3]     │
+│  src/core/compat/path.c      brix_http_resolve_path()  [HTTP+S3]     │
 │  src/auth/token/             JWT validate + scope check  [all]         │
 │  src/auth/crypto/            OCSP + PKI load             [all]         │
 │  src/observability/metrics/metrics.h  shared-memory layout        [all]         │
@@ -55,7 +55,7 @@ See [cross-protocol-unification.md](cross-protocol-unification.md) for the full 
 |------|-------------------------------------|-------------------------------|------------------------|
 | Merge calls | ~60 `ngx_conf_merge_*` macros | ~30 macros + array inheritance + CA store + JWKS loading | 9 directives, no `merge_loc_conf` (single-location config) |
 | Shared fields | `root`, `allow_write`, `cadir/cafile/crl`, `token_jwks/token_issuer/token_audience`, `verify_depth` | Same fields but **different sentinel values**, different defaults, separate struct members | Minimal overlap — S3 has its own `bucket_name`, `sigv4` config |
-| Auth enum | `XROOTD_AUTH_ANON / GSI / TOKEN / SSS` (stream-specific) | `WEBDAV_AUTH_NONE / CERT / Bearer_TOKEN` (HTTP-specific) | No auth enum — relies on token or SigV4 directly |
+| Auth enum | `BRIX_AUTH_ANON / GSI / TOKEN / SSS` (stream-specific) | `WEBDAV_AUTH_NONE / CERT / Bearer_TOKEN` (HTTP-specific) | No auth enum — relies on token or SigV4 directly |
 
 **Opportunity:** Create a shared config preamble struct (`src/core/config/shared_conf.h`) with common fields and sentinel values, then each protocol struct embeds it. Reduces merge boilerplate from ~90 total calls to ~30 shared + per-protocol-specific.
 
@@ -68,7 +68,7 @@ See [cross-protocol-unification.md](cross-protocol-unification.md) for the full 
 
 Both read the same file types (CA certs + CRLs), use OpenSSL APIs (`X509_STORE_add_cert`, `X509_CRL_load_file`), and cache the result. But they have separate implementations with different sentinel checks and error paths.
 
-**Opportunity:** Move CA store building to `src/auth/crypto/pki_build.c` (new) or extend `pki_load.c`, exporting `xrootd_build_ca_store(cadir, cafile, crl)` that both protocols call. WebDAV already has a partially shared `webdav_verify_proxy_cert()` → `src/auth/crypto/gsi_verify.c`.
+**Opportunity:** Move CA store building to `src/auth/crypto/pki_build.c` (new) or extend `pki_load.c`, exporting `brix_build_ca_store(cadir, cafile, crl)` that both protocols call. WebDAV already has a partially shared `webdav_verify_proxy_cert()` → `src/auth/crypto/gsi_verify.c`.
 
 ### 3. HTTP header assembly helpers — duplicated patterns despite compat layer
 
@@ -98,24 +98,24 @@ Both HTTP protocols (WebDAV, S3) share the exact same response-building pattern:
 
 | Protocol | File(s) | Builder pattern |
 |----------|---------|-----------------|
-| S3 | `s3/xml.c` | Builds `<Error><Code>...</Code><Message>...</Message></Error>` using `xrootd_xml_write_text_element()` from compat |
-| WebDAV | `webdav/propfind.c`, `lock.c` | Multi-Status XML, Lock XML — uses `webdav_escape_xml_text()` inline + `xrootd_xml_*` helpers |
+| S3 | `s3/xml.c` | Builds `<Error><Code>...</Code><Message>...</Message></Error>` using `brix_xml_write_text_element()` from compat |
+| WebDAV | `webdav/propfind.c`, `lock.c` | Multi-Status XML, Lock XML — uses `webdav_escape_xml_text()` inline + `brix_xml_*` helpers |
 | Stream | Wire protocol framing (kXR_status responses) | No XML — binary wire format with length-prefix framing |
 
-S3 and WebDAV both build XML error/respone chains. S3's builder is more structured (single Error element). WebDAV has ad-hoc inline escaping (`webdav_escape_xml_text()`) mixed with compat helpers. Both use the same `xrootd_xml_write_text_element()` from `src/core/compat/xml.c` but wrap it differently.
+S3 and WebDAV both build XML error/respone chains. S3's builder is more structured (single Error element). WebDAV has ad-hoc inline escaping (`webdav_escape_xml_text()`) mixed with compat helpers. Both use the same `brix_xml_write_text_element()` from `src/core/compat/xml.c` but wrap it differently.
 
 **Opportunity:** Extend `src/core/http/http_xml.c` with a generic XML error builder function that both S3 and WebDAV can call for standard error responses (AccessDenied, NoSuchKey, Conflict, etc.). WebDAV keeps its Multi-Status builder separate since it has protocol-specific structure.
 
-### 6. Path validation constants — WEBDAV_PATH_* vs XROOTD_PATH_*
+### 6. Path validation constants — WEBDAV_PATH_* vs BRIX_PATH_*
 
 | Protocol | Constants file | Values |
 |----------|---------------|--------|
 | WebDAV | `src/protocols/webdav/` headers | `WEBDAV_PATH_MAX`, `WEBDAV_PATH_MIN` |
-| Stream | `src/protocols/root/connection/` / `handshake/` | `XROOTD_PATH_MAX`, `XROOTD_PATH_*` |
+| Stream | `src/protocols/root/connection/` / `handshake/` | `BRIX_PATH_MAX`, `BRIX_PATH_*` |
 
 Both validate path length and component count, but use different constants. The actual filesystem limits are the same (PATH_MAX = 4096 on Linux). Different names create confusion when comparing code.
 
-**Opportunity:** Define shared path constants in `src/core/compat/path.h`: `XROOTD_PATH_MAX`, `XROOTD_PATH_MIN`. Replace protocol-specific constants with these shared values. The validation logic itself stays separate (HTTP vs wire input differences) but the thresholds unify.
+**Opportunity:** Define shared path constants in `src/core/compat/path.h`: `BRIX_PATH_MAX`, `BRIX_PATH_MIN`. Replace protocol-specific constants with these shared values. The validation logic itself stays separate (HTTP vs wire input differences) but the thresholds unify.
 
 ### 7. CORS handling — only WebDAV has it
 
@@ -127,7 +127,7 @@ Both validate path length and component count, but use different constants. The 
 
 WebDAV CORS handling is the only protocol with origin/credentials/max-age config fields. It's built inline per-response rather than using a shared helper.
 
-**Opportunity:** Create `src/core/compat/cors.c` with `xrootd_build_cors_headers(r, conf)` that both WebDAV and S3 (if CORS support is added later) can call. Currently only WebDAV uses it but the helper is protocol-agnostic.
+**Opportunity:** Create `src/core/compat/cors.c` with `brix_build_cors_headers(r, conf)` that both WebDAV and S3 (if CORS support is added later) can call. Currently only WebDAV uses it but the helper is protocol-agnostic.
 
 ### 8. Request body parsing — HTTP protocols duplicate nginx body reading
 
@@ -138,7 +138,7 @@ WebDAV CORS handling is the only protocol with origin/credentials/max-age config
 
 Both HTTP protocols call `ngx_http_read_client_request_body()` but each has its own callback implementation, body-mode checks, and error handling. The nginx built-in function is the same; the wrapper boilerplate differs.
 
-**Opportunity:** Create a shared request-body handler in `src/core/http/http_body.c` (already partially exists with `xrootd_http_body_summary()`, `xrootd_http_body_write_to_fd()`). Both S3 and WebDAV PUT paths use it instead of inline callback setup.
+**Opportunity:** Create a shared request-body handler in `src/core/http/http_body.c` (already partially exists with `brix_http_body_summary()`, `brix_http_body_write_to_fd()`). Both S3 and WebDAV PUT paths use it instead of inline callback setup.
 
 ### 9. Checksum calculation — pgread/pgwrite CRC32c vs S3 multipart CRC
 
@@ -169,7 +169,7 @@ Stream uses CRC32c via `src/core/compat/crc32c.c`. S3 uses MD5 for multipart ETa
 
 **Nginx built-in:** `limit_req_zone` and `limit_req` directives provide request-rate limiting with shared-memory zones, configurable burst/delay parameters. Works at http/server/location level.
 
-**Opportunity:** Add `xrootd_limit_req_zone` / `xrootd_limit_req` directives to all three protocol configs. Rate-limit by client IP or token subject. Shared-memory zone visible to all workers — no custom implementation needed.
+**Opportunity:** Add `brix_limit_req_zone` / `brix_limit_req` directives to all three protocol configs. Rate-limit by client IP or token subject. Shared-memory zone visible to all workers — no custom implementation needed.
 
 ### 3. `ngx_http_geo_module` / `map` blocks — IP-based ACLs
 
@@ -197,7 +197,7 @@ Stream uses CRC32c via `src/core/compat/crc32c.c`. S3 uses MD5 for multipart ETa
 
 ### 6. `upstream` blocks with health checks — backend reliability (proxy mode)
 
-**Current:** Proxy mode upstream is a single address string (`xrootd_proxy_upstream`). No health checking, no failover.
+**Current:** Proxy mode upstream is a single address string (`brix_proxy_upstream`). No health checking, no failover.
 
 **Nginx built-in:** `upstream` block with multiple servers, `max_fails`, `fail_timeout`, `backup` servers. Built-in passive health checks (mark server down after N failures). Active health checks via third-party module or custom.
 
@@ -278,7 +278,7 @@ Stream uses CRC32c via `src/core/compat/crc32c.c`. S3 uses MD5 for multipart ETa
 | **P1** | HTTP header helpers audit → compat layer adoption | Reduces inline header assembly across S3/WebDAV | Low | `src/core/http/http_headers.c` already exists. Just replace callsites. |
 | **P1** | Request body handler (`src/core/http/http_body.c`) expansion | Unifies WebDAV PUT/S3 PUT body reading | Medium | Both use same nginx callback pattern with different wrappers. |
 | **P2** | Error response XML builder extension | S3 + WebDAV share standard error XML format | Low | `src/core/compat/xml.c` already has text element helpers. Add structured error builder. |
-| **P2** | Path validation constants unification | Eliminates WEBDAV_PATH_* vs XROOTD_PATH_* confusion | Trivial | Same filesystem limits, different names. Shared header. |
+| **P2** | Path validation constants unification | Eliminates WEBDAV_PATH_* vs BRIX_PATH_* confusion | Trivial | Same filesystem limits, different names. Shared header. |
 | **P3** | Chunked checksum iterator (`src/core/compat/checksum.c`) | Unifies pgread CRC32c + S3 multipart MD5 loop boilerplate | Medium | Different algorithms but same chunk-reading pattern. |
 | **P3** | CORS helper (`src/core/compat/cors.c`) | Protocol-agnostic CORS header builder | Low | Currently only WebDAV uses it; S3 may add CORS later. |
 

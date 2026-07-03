@@ -14,7 +14,7 @@ New to BriX-Cache? Start here.
 
 ## For More
 
-- **Need XRootD background?** → See [XRootD Basics](../02-concepts/xrootd-basics.md)
+- **Need XRootD background?** → See [XRootD Basics](../02-concepts/brix-basics.md)
 - **Want a full installation guide?** → See [Getting Started (Full)](getting-started-full.md)
 - **Looking for advanced topics?** → See the numbered sections below
 

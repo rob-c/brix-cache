@@ -9,8 +9,8 @@ The dynamic build ships **two** nginx modules, loaded by one config file:
 
 | File | Purpose |
 |---|---|
-| `…/modules/ngx_stream_xrootd_module.so` | The **combined** module — stream (root://) + metrics + SRR + WebDAV + S3 + dashboard + CMS in one `.so` |
-| `…/modules/ngx_http_xrootd_xrdhttp_filter_module.so` | The HTTP AUX output filter (kept separate) |
+| `…/modules/ngx_stream_brix_module.so` | The **combined** module — stream (root://) + metrics + SRR + WebDAV + S3 + dashboard + CMS in one `.so` |
+| `…/modules/ngx_http_brix_xrdhttp_filter_module.so` | The HTTP AUX output filter (kept separate) |
 | `/etc/nginx/conf.d/mod-xrootd.conf` | The two `load_module` lines, **combined first** |
 
 > **Why one combined `.so`?** The modules reference each other's symbols
@@ -43,7 +43,7 @@ tools + FUSE), `nginx-xrootd-tests` (the pytest suite). Operational extras
    pick up the new module; established connections drain on the old workers. No drop.
 6. **Verify**: `curl -s localhost:9100/healthz?verbose` returns 200 and `metrics_shm:
    mapped`; spot-check a root://, davs://, and s3:// request; watch
-   `rate(xrootd_*_responses_total{status_class="5xx"}[5m])` stays flat.
+   `rate(brix_*_responses_total{status_class="5xx"}[5m])` stays flat.
 
 ## Host prerequisite: the libbz2 SONAME
 

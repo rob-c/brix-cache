@@ -21,7 +21,7 @@ nginx and want fewer moving parts on the hot path.
 |---|---|---|
 | Project scope | General-purpose data access framework with plugins, cluster roles, proxying, cache, storage backends, monitoring, HTTP, and native XRootD | Focused nginx module for POSIX-backed HEP data serving with native XRootD, WebDAV, S3-compatible HTTP, and Prometheus |
 | Best fit | Large heterogeneous XRootD deployments, sites needing mature CMS/FRM/PSS/OSS ecosystems, custom storage plugins, legacy WLCG monitoring | nginx-operated storage gateways, local filesystems, simple data servers, HTTP/WebDAV-heavy sites, high-concurrency edge services |
-| Process model | Dedicated xrd/xrootd/cmsd daemons with their own scheduling, config, logging, plugins, and operational habits | One nginx master with event-driven workers; the module plugs into nginx stream and HTTP lifecycles |
+| Process model | Dedicated xrd/brix/cmsd daemons with their own scheduling, config, logging, plugins, and operational habits | One nginx master with event-driven workers; the module plugs into nginx stream and HTTP lifecycles |
 | Concurrency model | Thread-oriented XRootD server scheduler; highly tunable and mature | nginx event loop for sockets plus nginx thread pools only where blocking I/O is needed |
 | Operational surface | XRootD config language, multiple component namespaces, xrootd/cmsd/frm/oss/ofs/http/sec/etc. directives | nginx config, nginx TLS policy, nginx logging, nginx worker model, nginx reloads, nginx metrics endpoint |
 | Protocol coverage | Deep native XRootD ecosystem plus HTTP, TPC, SciTokens, Macaroons, plugins, proxy/cache/storage-service modes | Implements the practical data-server XRootD opcode set, WebDAV/HTTPS, S3-style HTTP subset, HTTP-TPC pull and push, cache/manager modes |

@@ -30,8 +30,8 @@ The server validates a token by:
 
 Current behavior is intentionally shaped by protocol. The native stream path
 validates tokens, stores scopes/groups, enforces storage scopes when resolving
-paths, and still applies `xrootd_allow_write` as a server-wide write gate. Path
-ACLs can also use `xrootd_require_vo` with token `wlcg.groups`. WebDAV enforces
+paths, and still applies `brix_allow_write` as a server-wide write gate. Path
+ACLs can also use `brix_require_vo` with token `wlcg.groups`. WebDAV enforces
 `storage.write`/`storage.create` scopes for mutating bearer-token requests such
 as `PUT`.
 
@@ -136,25 +136,25 @@ stream {
     server {
         listen 11099;
         xrootd on;
-        xrootd_root /tmp/xrd-test/data;
-        xrootd_auth token;
-        xrootd_allow_write on;
+        brix_root /tmp/xrd-test/data;
+        brix_auth token;
+        brix_allow_write on;
 
-        xrootd_token_jwks     /tmp/xrd-test/tokens/jwks.json;
-        xrootd_token_issuer   "https://test.example.com";
-        xrootd_token_audience "nginx-xrootd";
+        brix_token_jwks     /tmp/xrd-test/tokens/jwks.json;
+        brix_token_issuer   "https://test.example.com";
+        brix_token_audience "nginx-xrootd";
 
-        xrootd_access_log /tmp/xrd-test/logs/xrootd_access_token.log;
+        brix_access_log /tmp/xrd-test/logs/brix_access_token.log;
     }
 }
 ```
 
 | Directive | Purpose |
 |---|---|
-| `xrootd_auth token` | Require a JWT bearer token for every session |
-| `xrootd_token_jwks` | Path to the JWKS file containing trusted public keys |
-| `xrootd_token_issuer` | Expected `iss` claim — tokens from other issuers are rejected |
-| `xrootd_token_audience` | Expected `aud` claim — tokens for other services are rejected |
+| `brix_auth token` | Require a JWT bearer token for every session |
+| `brix_token_jwks` | Path to the JWKS file containing trusted public keys |
+| `brix_token_issuer` | Expected `iss` claim — tokens from other issuers are rejected |
+| `brix_token_audience` | Expected `aud` claim — tokens for other services are rejected |
 
 ### 3.2 WebDAV/HTTPS (Bearer header over HTTPS)
 
@@ -170,14 +170,14 @@ http {
         ssl_certificate_key /tmp/xrd-test/pki/server/hostkey.pem;
 
         location / {
-            xrootd_webdav         on;
-            xrootd_webdav_root    /tmp/xrd-test/data;
-            xrootd_webdav_auth    optional;  # use required to reject anonymous fallback
-            xrootd_webdav_allow_write on;
+            brix_webdav         on;
+            brix_webdav_root    /tmp/xrd-test/data;
+            brix_webdav_auth    optional;  # use required to reject anonymous fallback
+            brix_webdav_allow_write on;
 
-            xrootd_webdav_token_jwks     /tmp/xrd-test/tokens/jwks.json;
-            xrootd_webdav_token_issuer   "https://test.example.com";
-            xrootd_webdav_token_audience "nginx-xrootd";
+            brix_webdav_token_jwks     /tmp/xrd-test/tokens/jwks.json;
+            brix_webdav_token_issuer   "https://test.example.com";
+            brix_webdav_token_audience "nginx-xrootd";
         }
     }
 }
@@ -192,18 +192,18 @@ stream {
     server {
         listen 1094;
         xrootd on;
-        xrootd_auth both;    # accept GSI or token credentials
-        xrootd_root /data;
+        brix_auth both;    # accept GSI or token credentials
+        brix_root /data;
 
         # GSI settings
-        xrootd_certificate     /etc/grid-security/hostcert.pem;
-        xrootd_certificate_key /etc/grid-security/hostkey.pem;
-        xrootd_trusted_ca      /etc/grid-security/ca.pem;
+        brix_certificate     /etc/grid-security/hostcert.pem;
+        brix_certificate_key /etc/grid-security/hostkey.pem;
+        brix_trusted_ca      /etc/grid-security/ca.pem;
 
         # Token settings
-        xrootd_token_jwks     /etc/tokens/jwks.json;
-        xrootd_token_issuer   "https://idp.example.com";
-        xrootd_token_audience "my-storage";
+        brix_token_jwks     /etc/tokens/jwks.json;
+        brix_token_issuer   "https://idp.example.com";
+        brix_token_audience "my-storage";
     }
 }
 ```
@@ -369,9 +369,9 @@ python3 utils/make_token.py gen --scope "storage.read:/" /tmp/xrd-test/tokens \
 
 | Claim | Example | Meaning |
 |---|---|---|
-| `iss` | `https://test.example.com` | Who signed the token (must match `xrootd_token_issuer`) |
+| `iss` | `https://test.example.com` | Who signed the token (must match `brix_token_issuer`) |
 | `sub` | `testuser` | Who the token represents |
-| `aud` | `nginx-xrootd` | Which service the token is for (must match `xrootd_token_audience`) |
+| `aud` | `nginx-xrootd` | Which service the token is for (must match `brix_token_audience`) |
 | `exp` | `1713400000` | Unix timestamp when the token expires |
 | `iat` | `1713396400` | Unix timestamp when the token was issued |
 | `nbf` | `1713396400` | "Not before" — token is not valid before this time |
@@ -417,7 +417,7 @@ cat /tmp/downloaded.txt
 
 ```bash
 # Generate a token with write scope. The stream listener validates the token;
-# xrootd_allow_write is still an additional server-wide write gate.
+# brix_allow_write is still an additional server-wide write gate.
 export BEARER_TOKEN=$(python3 utils/make_token.py gen \
     --scope "storage.read:/ storage.write:/" /tmp/xrd-test/tokens)
 
@@ -434,8 +434,8 @@ xrdcp root://localhost:11099//upload_test.txt -
 
 Native stream token authentication enforces `storage.read`, `storage.write`,
 and `storage.create` on path-resolving operations. A valid write-scoped token
-can write only when the listener also has `xrootd_allow_write on`; no token can
-write when `xrootd_allow_write off`.
+can write only when the listener also has `brix_allow_write on`; no token can
+write when `brix_allow_write off`.
 
 Use separate listeners if you need a read-only token-authenticated stream endpoint:
 
@@ -444,12 +444,12 @@ stream {
     server {
         listen 11099;
         xrootd on;
-        xrootd_root /tmp/xrd-test/data;
-        xrootd_auth token;
-        # xrootd_allow_write is off by default
-        xrootd_token_jwks     /tmp/xrd-test/tokens/jwks.json;
-        xrootd_token_issuer   "https://test.example.com";
-        xrootd_token_audience "nginx-xrootd";
+        brix_root /tmp/xrd-test/data;
+        brix_auth token;
+        # brix_allow_write is off by default
+        brix_token_jwks     /tmp/xrd-test/tokens/jwks.json;
+        brix_token_issuer   "https://test.example.com";
+        brix_token_audience "nginx-xrootd";
     }
 }
 ```
@@ -498,11 +498,11 @@ curl -k -H "Authorization: Bearer $TOKEN" \
 
 ### 6.7 Check logs
 
-After a successful native stream token authentication, nginx info/debug logs include the token subject and scope count. The current `xrootd_access_log` formatter labels non-GSI listeners as `anon` and does not print the token subject in the identity field.
+After a successful native stream token authentication, nginx info/debug logs include the token subject and scope count. The current `brix_access_log` formatter labels non-GSI listeners as `anon` and does not print the token subject in the identity field.
 
 ```bash
 grep 'token auth ok' /tmp/xrd-test/logs/error.log
-tail /tmp/xrd-test/logs/xrootd_access_token.log
+tail /tmp/xrd-test/logs/brix_access_token.log
 ```
 
 ```
@@ -578,7 +578,7 @@ xrdfs root://localhost:11099 ls /
 
 ### 7.7 Via WebDAV (all the same negative cases)
 
-These examples assume `xrootd_webdav_auth required`. With the default `optional` mode, an invalid or absent bearer token can fall back to anonymous handling.
+These examples assume `brix_webdav_auth required`. With the default `optional` mode, an invalid or absent bearer token can fall back to anonymous handling.
 
 ```bash
 # Expired token over HTTPS
@@ -666,11 +666,11 @@ The server extracts the token from the `Authorization` header and validates it t
 
 ### Token rejected — "issuer mismatch"
 
-The token's `iss` claim does not match the `xrootd_token_issuer` directive. Check both values:
+The token's `iss` claim does not match the `brix_token_issuer` directive. Check both values:
 
 ```bash
 # What the server expects
-grep xrootd_token_issuer /path/to/nginx.conf
+grep brix_token_issuer /path/to/nginx.conf
 
 # What the token contains
 python3 utils/inspect_token.py "$BEARER_TOKEN" | grep iss
@@ -678,10 +678,10 @@ python3 utils/inspect_token.py "$BEARER_TOKEN" | grep iss
 
 ### Token rejected — "audience mismatch"
 
-Same idea — the `aud` claim must match `xrootd_token_audience`:
+Same idea — the `aud` claim must match `brix_token_audience`:
 
 ```bash
-grep xrootd_token_audience /path/to/nginx.conf
+grep brix_token_audience /path/to/nginx.conf
 python3 utils/inspect_token.py "$BEARER_TOKEN" | grep aud
 ```
 
@@ -731,7 +731,7 @@ xrdcp --version
 
 ### nginx does not start — "jwks.json not found"
 
-The path in `xrootd_token_jwks` must exist when nginx starts. Generate the signing authority first:
+The path in `brix_token_jwks` must exist when nginx starts. Generate the signing authority first:
 
 ```bash
 python3 utils/make_token.py init /tmp/xrd-test/tokens
@@ -746,12 +746,12 @@ python3 utils/inspect_token.py "$BEARER_TOKEN" | grep scope
 # Should include: "storage.write:/"
 ```
 
-Also verify that the server has `xrootd_webdav_allow_write on`.
+Also verify that the server has `brix_webdav_allow_write on`.
 
 For the native stream protocol, write/create scopes are enforced when the path
 is resolved for a write open or namespace mutation. If a native stream upload is
 denied, check both the token scope for the destination path and the server-wide
-`xrootd_allow_write on` gate.
+`brix_allow_write on` gate.
 
 ---
 
@@ -764,8 +764,8 @@ denied, check both the token scope for the destination path and the server-wide
 | **Auth round-trips** | 2 (`certreq` → `cert`) | 1 (single `kXR_auth` with token) |
 | **Crypto** | DH key exchange + x509 chain verify | RSA signature verify |
 | **Server state** | DH parameters, certificate chain parsing | Stateless — just verify and check claims |
-| **Authorisation** | DN-based identity plus optional VOMS VO ACLs | JWT scopes parsed; WebDAV `PUT` write-scope checks; stream path ACLs via `wlcg.groups` and `xrootd_require_vo` |
-| **Trust root** | CA certificate (`xrootd_trusted_ca`) | JWKS public key (`xrootd_token_jwks`) |
+| **Authorisation** | DN-based identity plus optional VOMS VO ACLs | JWT scopes parsed; WebDAV `PUT` write-scope checks; stream path ACLs via `wlcg.groups` and `brix_require_vo` |
+| **Trust root** | CA certificate (`brix_trusted_ca`) | JWKS public key (`brix_token_jwks`) |
 | **Lifetime** | Typically 12 hours | Configurable (default 1 hour) |
 | **Client env var** | `X509_USER_PROXY` | `BEARER_TOKEN` |
 | **Wire credential** | `gsi` credential type | `ztn` credential type |

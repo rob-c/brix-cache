@@ -5,10 +5,10 @@ Review date: 2026-06-14
 Scope:
 
 - This document compares this repository (`nginx-xrootd`) with the official
-  XRootD source tree checked out at `/tmp/xrootd-src`.
+  XRootD source tree checked out at `/tmp/brix-src`.
 - It is based on source inspection, not only on existing documentation claims.
 - The official protocol header reviewed is
-  `/tmp/xrootd-src/src/XProtocol/XProtocol.hh`, which advertises protocol
+  `/tmp/brix-src/src/XProtocol/XProtocol.hh`, which advertises protocol
   version `5.2.0`.
 - UDP/XrdMon stream monitoring is explicitly excluded from gap analysis. The
   intended replacement surface here is HTTP-native observability:
@@ -88,19 +88,19 @@ their current documentation status after the 2026-06-14 cleanup.
 | Claim location | Previous stale claim or implication | Source-verified status | Doc status |
 |---|---|---|---|
 | `docs/05-operations/operation-status.md` | `krb5` auth was not planned; `kXR_prepare/kXR_stage` had no tape dispatch. | `krb5` exists in `src/auth/krb5`; FRM queue and Tape REST gateway support exist, while full XrdFrm/MSS parity remains partial. | Corrected. |
-| `docs/10-reference/xrootd-feature-matrix.md` | UNIX/krb5/macaroons/XrdHttp/protocol flags were missing. | Source has `src/auth/unix`, `src/auth/krb5`, macaroon issue/verify paths, XrdHttp/WebDAV paths, and protocol-flag tests. | Replaced with a current source-verified matrix. |
+| `docs/10-reference/brix-feature-matrix.md` | UNIX/krb5/macaroons/XrdHttp/protocol flags were missing. | Source has `src/auth/unix`, `src/auth/krb5`, macaroon issue/verify paths, XrdHttp/WebDAV paths, and protocol-flag tests. | Replaced with a current source-verified matrix. |
 | `docs/10-reference/gaps-vs-xrootd.md` | Rate limiting, XrdHttp, HTTP-TPC, FRM/tape, and delegation work were still missing. | Those features exist; remaining gaps are non-POSIX storage backends (EC/Ceph/OssArc/OssCsi), full XrdFrm/MSS parity, the loadable plugin ABI itself, and selected proxy/admin edges. (`host`/`pwd` auth are now implemented.) | Replaced with a current remaining-gaps document. |
 | `docs/10-reference/comparison-nginx-xrootd-vs-canonical.md` | Upstream/canonical XRootD lacked WebDAV/HTTP-TPC and only had native TPC. | Upstream has `src/XrdHttpTpc/`; nginx adds different HTTP-TPC hardening and operational integration, not the first HTTP-TPC implementation. | Corrected and pointed at this source-verified comparison. |
 | `docs/09-developer-guide/capability-flags-implementation-plan.md` | Several protocol flags were missing/planned. | `src/protocols/root/session/protocol.c` sets the implemented flags and `tests/test_protocol_flags.py` verifies them. | Marked historical. |
 | `docs/05-operations/management.md` and `src/protocols/root/query/README.md` | `kXR_prepare` stage always returned request id `"0"` and kept per-session QPrep state only. | `"0"` is the FRM-off legacy path; FRM-on uses durable request records and real reqids in the `src/fs/xfer/` stage engine. | Corrected. |
 | `docs/04-protocols/http-tpc-reference.md` and `docs/10-reference/quirks.md` | WebDAV TPC delegation, markers, and multistream support were missing; native TPC outbound auth was anonymous-only. | WebDAV TPC has credential delegation, markers, TransferHeader handling, and curl_multi multistream paths; native TPC still has TLS-upgrade/multihop caveats. | Corrected. |
-| `docs/refactor/phase-24-traffic-mirroring.md` | Write mirroring was out of scope/not implemented. | Source has HTTP/WebDAV write mirroring and stream data-write replay gated by `xrootd_mirror_writes`. | Corrected in the as-built status section. |
+| `docs/refactor/phase-24-traffic-mirroring.md` | Write mirroring was out of scope/not implemented. | Source has HTTP/WebDAV write mirroring and stream data-write replay gated by `brix_mirror_writes`. | Corrected in the as-built status section. |
 | `docs/refactor/phase-35-frm-tape-staging.md` | `src/frm/` was greenfield and source-list guidance was ambiguous. | `src/frm/` exists and is registered in the top-level `config` script. | Marked historical and clarified current build registration. |
 | `docs/refactor/phase-8-openat2-confinement.md` | Runtime path confinement was genuinely incomplete; HTTP/S3 had no rootfd/beneath path. | `src/fs/path/README.md` documents runtime `openat2(RESOLVE_BENEATH)` confinement, stream rootfd, HTTP `common.rootfd`, and config-time-only `realpath`. | Marked as historical migration notes; stale HTTP/S3 row corrected. |
 | `docs/refactor/phase-34-packet-marking-scitags.md` | Packet marking/SciTags was a future plan. | `src/observability/pmark/` implements Firefly UDP and IPv6 flow-label marking, including the XRootD-stubbed flow-label path. | Marked implemented/as-built. |
 | `docs/refactor/phase-29-phase3-aio-pipelining-spec.md` and `docs/refactor/phase-30-hyper-optimization-throughput-latency.md` | AIO pipeline work was entirely unimplemented; build flags and CRC64/CRC32 premises were current. | Phase 32/33 landed response/read-buffer pipeline foundations and build defaults; CRC32C is hardware-accelerated; CRC64 is implemented separately. | Marked superseded/historical; visible stale table rows corrected. |
 | `docs/09-developer-guide/feature-roadmap.md` | OCSP, discharge macaroons, authdb host/query/fattr coverage, CMS escalation tests, FRM prepare, and write-through cache details were stale. | Source has OCSP responder/stapling, macaroon discharge bundles, authdb host/CIDR plus broader handler gates, CMS tests, FRM/Tape REST, and cache-origin anonymous-login limitations. | Corrected with current caveats. |
-| `docs/10-reference/comparison-nginx-xrootd-vs-canonical.md`, `docs/10-reference/gaps-vs-xrootd.md`, `docs/10-reference/xrootd-feature-matrix.md` | CRC64 was missing or grouped as a checksum gap. | `src/core/compat/crc64.c`, S3 CRC64NVME paths, and `docs/10-reference/crc64-checksums.md` show CRC64/CRC64NVME support. | Corrected; remaining checksum gap is plugin-framework breadth. |
+| `docs/10-reference/comparison-nginx-xrootd-vs-canonical.md`, `docs/10-reference/gaps-vs-xrootd.md`, `docs/10-reference/brix-feature-matrix.md` | CRC64 was missing or grouped as a checksum gap. | `src/core/compat/crc64.c`, S3 CRC64NVME paths, and `docs/10-reference/crc64-checksums.md` show CRC64/CRC64NVME support. | Corrected; remaining checksum gap is plugin-framework breadth. |
 | `docs/05-operations/proxy-mode-guide.md` | Proxy mode gaps around unsolicited `kXR_attn` and prepare path rewriting. | Source inspection found `kXR_waitresp` forwarding; complete upstream unsolicited-attention dispatch and per-entry prepare rewrite still need separate review. | Open reviewer attention item. |
 
 ## Native XRootD Protocol Surface
@@ -108,11 +108,11 @@ their current documentation status after the 2026-06-14 cleanup.
 Source anchors:
 
 - Upstream opcodes and protocol flags:
-  `/tmp/xrootd-src/src/XProtocol/XProtocol.hh`
+  `/tmp/brix-src/src/XProtocol/XProtocol.hh`
 - Upstream data-server dispatch:
-  `/tmp/xrootd-src/src/XrdXrootd/XrdXrootdProtocol.cc`
+  `/tmp/brix-src/src/XrdXrootd/XrdXrootdProtocol.cc`
 - Upstream `gpfile` behavior:
-  `/tmp/xrootd-src/src/XrdXrootd/XrdXrootdXeq.cc`
+  `/tmp/brix-src/src/XrdXrootd/XrdXrootdXeq.cc`
 - nginx opcode definitions:
   `src/protocols/root/protocol/opcodes.h`
 - nginx dispatch:
@@ -148,28 +148,28 @@ Source anchors:
 Source anchors:
 
 - Upstream plugin directories:
-  `/tmp/xrootd-src/src/XrdSec*`,
-  `/tmp/xrootd-src/src/XrdMacaroons`,
-  `/tmp/xrootd-src/src/XrdSciTokens`,
-  `/tmp/xrootd-src/src/XrdVoms`
+  `/tmp/brix-src/src/XrdSec*`,
+  `/tmp/brix-src/src/XrdMacaroons`,
+  `/tmp/brix-src/src/XrdSciTokens`,
+  `/tmp/brix-src/src/XrdVoms`
 - nginx auth source:
   `src/auth/gsi/`, `src/auth/token/`, `src/auth/sss/`, `src/auth/unix/`, `src/auth/krb5/`,
   `src/auth/authz/authdb.c`, `src/auth/authz/acl.c`, `src/core/config/policy.c`
 
 | Feature | Upstream XRootD source | BriX-Cache source | Status | Notes |
 |---|---|---|---|---|
-| Anonymous mode | Core XRootD config/auth flow. | `xrootd_auth none`; login/session code. | Parity | Used heavily in tests and proxy/cache modes. |
+| Anonymous mode | Core XRootD config/auth flow. | `brix_auth none`; login/session code. | Parity | Used heavily in tests and proxy/cache modes. |
 | GSI / x509 proxy cert auth | `XrdSecgsi`, `XrdVoms`. | `src/auth/gsi/`, `src/auth/voms/`, WebDAV cert auth in `src/protocols/webdav/auth_cert.c`. | Parity | Module supports proxy certs and optional VOMS/VO authorization. |
 | SSS | `XrdSecsss`. | `src/auth/sss/`; protocol advertises `sss`. | Parity | Standard encrypted keytab format support is documented and source-backed. |
-| Unix auth | `XrdSecunix`. | `src/auth/unix/auth.c`; protocol advertises `unix` when configured. | Parity | Module is loopback-only by default unless `xrootd_unix_trust_remote on`. |
+| Unix auth | `XrdSecunix`. | `src/auth/unix/auth.c`; protocol advertises `unix` when configured. | Parity | Module is loopback-only by default unless `brix_unix_trust_remote on`. |
 | Kerberos 5 | `XrdSeckrb5`. | `src/auth/krb5/auth.c`, `src/auth/krb5/config.c`; optional Kerberos detection in `config`. | Parity | Existing docs that call this absent are stale. |
 | Bearer token / `ztn` | `XrdSecztn`; `XrdSciTokens`. | `src/auth/token/validate.c`, `src/auth/token/jwks.c`, `src/auth/token/scopes.c`; WebDAV bearer auth. | Partial | WLCG/JWT validation and path scopes exist. Upstream SciTokens has a broader helper/config/monitor model. |
 | Macaroons | `XrdMacaroons` HTTP handlers and authz. | `src/auth/token/macaroon.c`, `src/auth/token/macaroon_issue.c`, `src/protocols/webdav/macaroon_endpoint.c`. | Partial | Validation, caveats, third-party discharge bundles, and token endpoint exist. Review wire-format compatibility if claiming exact `XrdMacaroons` parity. |
-| Password auth | `XrdSecpwd` and `xrdpwdadmin`. | `src/auth/pwd/auth.c` + `src/auth/pwd/pwdfile.c`; 2-round DH-bootstrapped handshake, opt-in `xrootd_auth pwd` + `xrootd_pwd_file`. | Partial / parity | Wire-equivalent of `XrdSecpwd`; not the full `xrdpwdadmin`/server-public-key admin ecosystem. Recommended under TLS. |
-| Host auth | Built-in `host` protocol in `XrdSec` (`XrdSecProtocolhost.cc`). | `src/auth/host/auth.c`; reverse-DNS allowlist, opt-in `xrootd_auth host` + `xrootd_host_allow`. | Parity | Identity from socket reverse-DNS only; fail-closed, trusted-network only by design. |
+| Password auth | `XrdSecpwd` and `xrdpwdadmin`. | `src/auth/pwd/auth.c` + `src/auth/pwd/pwdfile.c`; 2-round DH-bootstrapped handshake, opt-in `brix_auth pwd` + `brix_pwd_file`. | Partial / parity | Wire-equivalent of `XrdSecpwd`; not the full `xrdpwdadmin`/server-public-key admin ecosystem. Recommended under TLS. |
+| Host auth | Built-in `host` protocol in `XrdSec` (`XrdSecProtocolhost.cc`). | `src/auth/host/auth.c`; reverse-DNS allowlist, opt-in `brix_auth host` + `brix_host_allow`. | Parity | Identity from socket reverse-DNS only; fail-closed, trusted-network only by design. |
 | Full `XrdAcc` authdb semantics | `XrdAcc` supports rich auth-file syntax and identities. | `src/auth/authz/authdb.c` supports user/group/principal/host rules, longest-prefix matching, and rw/admin-like privilege bits. | Partial | Good practical authdb, not full `XrdAcc` semantics such as all upstream identity classes/templates/exclusive-list behavior. |
 | Token scope authorization | Upstream SciTokens maps token claims to XrdAcc privileges. | `src/auth/token/scopes.c`, `src/auth/authz/auth_gate.c`, WebDAV token checks. | Partial / nginx+ | Scope enforcement is explicit and path-boundary aware; upstream configurability is broader. |
-| Global write gate before token scope | Upstream policy depends on configured authz stack. | `xrootd_allow_write` and WebDAV/common write gates. | nginx+ | Useful operational safety: global write enablement remains a precondition. |
+| Global write gate before token scope | Upstream policy depends on configured authz stack. | `brix_allow_write` and WebDAV/common write gates. | nginx+ | Useful operational safety: global write enablement remains a precondition. |
 | Request signing/security levels | Upstream XrdSec protection. | `src/protocols/root/handshake/dispatch_signing.c`, `src/protocols/root/session/protocol.c`. | Parity | SecurityInfo trailer advertises configured signing level. |
 
 ## HTTP, WebDAV, XrdHttp, HTTP-TPC, and S3
@@ -177,9 +177,9 @@ Source anchors:
 Source anchors:
 
 - Upstream HTTP:
-  `/tmp/xrootd-src/src/XrdHttp`,
-  `/tmp/xrootd-src/src/XrdHttpTpc`,
-  `/tmp/xrootd-src/src/XrdHttpCors`
+  `/tmp/brix-src/src/XrdHttp`,
+  `/tmp/brix-src/src/XrdHttpTpc`,
+  `/tmp/brix-src/src/XrdHttpCors`
 - nginx HTTP:
   `src/protocols/webdav/`, `src/protocols/s3/`
 
@@ -198,7 +198,7 @@ Source anchors:
 | WebDAV `SEARCH` | No upstream server method enum found in reviewed XrdHttp source. | `src/protocols/webdav/search.c`. | nginx+ | Basic RFC 5323 discovery over confined namespace. |
 | WebDAV `ACL` method | No upstream server method enum found in reviewed XrdHttp source. | `src/protocols/webdav/acl.c`; protected mutation response. | nginx+ | Exposes discovery semantics while refusing client-side ACL mutation. |
 | WebDAV proxy mode | Upstream can proxy via XRootD/PSS style services, not nginx HTTP reverse proxy semantics. | `src/protocols/webdav/proxy.c`, `proxy_pool.c`, `proxy_config.c`. | nginx+ | HTTP backend pools, TLS, auth bridging, and Destination rewrite are nginx-native. |
-| S3 server endpoint | Upstream has `XrdClS3`, a client plugin; no server-side S3 REST endpoint found in `/tmp/xrootd-src/src`. | `src/protocols/s3/handler.c`, `auth_sigv4_*`, `get.c`, `put.c`, `list_objects_v2.c`, `multipart_*`, `copy.c`, `delete_objects.c`, browser POST. | nginx+ | This is one of the strongest module-only features. |
+| S3 server endpoint | Upstream has `XrdClS3`, a client plugin; no server-side S3 REST endpoint found in `/tmp/brix-src/src`. | `src/protocols/s3/handler.c`, `auth_sigv4_*`, `get.c`, `put.c`, `list_objects_v2.c`, `multipart_*`, `copy.c`, `delete_objects.c`, browser POST. | nginx+ | This is one of the strongest module-only features. |
 | S3 SigV4 | Upstream `XrdClS3` signs client requests. | `src/protocols/s3/auth_sigv4_parse.c`, `auth_sigv4_canonical.c`, `auth_sigv4_verify.c`. | nginx+ | Server-side verification includes header and presigned query forms. |
 | S3 multipart | Upstream client can speak S3; no upstream server endpoint. | `src/protocols/s3/multipart*.c`. | nginx+ | Create, upload part, complete, abort, list parts/uploads, upload-part-copy. |
 | S3 advanced REST compatibility | No upstream server endpoint found. | Batch delete, CopyObject, POST Object, OPTIONS/CORS, ListObjectsV2 subset. | nginx+ | Still path-style focused; virtual-hosted buckets and dynamic STS stores remain out of scope per docs. |
@@ -208,13 +208,13 @@ Source anchors:
 Source anchors:
 
 - Upstream optional subsystems:
-  `/tmp/xrootd-src/src/XrdCeph`,
-  `/tmp/xrootd-src/src/XrdPss`,
-  `/tmp/xrootd-src/src/XrdPfc`,
-  `/tmp/xrootd-src/src/XrdOssCsi`,
-  `/tmp/xrootd-src/src/XrdFrm`,
-  `/tmp/xrootd-src/src/XrdZip`,
-  `/tmp/xrootd-src/src/XrdRmc`
+  `/tmp/brix-src/src/XrdCeph`,
+  `/tmp/brix-src/src/XrdPss`,
+  `/tmp/brix-src/src/XrdPfc`,
+  `/tmp/brix-src/src/XrdOssCsi`,
+  `/tmp/brix-src/src/XrdFrm`,
+  `/tmp/brix-src/src/XrdZip`,
+  `/tmp/brix-src/src/XrdRmc`
 - nginx storage source:
   `src/fs/`, `src/fs/path/`, `src/fs/cache/`, `src/fs/xfer/`,
   `src/fs/backend/frm/`, `src/core/compat/namespace_ops.c`
@@ -222,7 +222,7 @@ Source anchors:
 | Feature | Upstream XRootD source | BriX-Cache source | Status | Notes |
 |---|---|---|---|---|
 | POSIX local filesystem serving | Core `XrdOss`/`XrdSfs` stack. | Local POSIX operations through confined path helpers, namespace ops, fd table, sendfile/mmap-style HTTP paths. | Parity | This module is intentionally strongest as a POSIX-backed data server/gateway. |
-| Path confinement and symlink escape defense | Upstream has its own namespace and auth mechanisms. | `src/fs/path/`, `src/core/compat/namespace_ops.c`, `ngx_http_xrootd_webdav_resolve_path()`, `xrootd_open_confined_canon()`. | nginx+ | All wire paths should resolve before syscall; this is a major auditability advantage. |
+| Path confinement and symlink escape defense | Upstream has its own namespace and auth mechanisms. | `src/fs/path/`, `src/core/compat/namespace_ops.c`, `ngx_http_brix_webdav_resolve_path()`, `brix_open_confined_canon()`. | nginx+ | All wire paths should resolve before syscall; this is a major auditability advantage. |
 | Read-through cache / XCache-style role | Upstream `XrdPfc`, `XrdRmc`, cache plugins. | `src/fs/cache/`, `src/open_cache.c`, protocol `kXR_attrCache`. | Partial | Practical cache mode exists. Upstream `XrdPfc` has much broader policy, purge, snapshot, and resource-monitoring machinery. |
 | Parallel Storage Service | `XrdPss` plugin. | No comparable PSS backend found. | Missing | Important for sites using remote federation/cache-fill as their storage layer. |
 | Ceph/RADOS backend | `XrdCeph` plugin. | No comparable Ceph OSS backend found. | Missing | Could be handled through POSIX/CephFS externally, but not through an XRootD-style Ceph plugin. |
@@ -242,8 +242,8 @@ Source anchors:
 |---|---|---|---|---|
 | Data server role | Core XrdXrootd. | `kXR_isServer` always set. | Parity | Module is a data server by default. |
 | Manager / redirector | `XrdCms`, XrdXrootd manager integration. | `src/net/manager/`, `src/net/cms/`, `src/protocols/root/read/locate.c`, `src/net/upstream/`. | Partial | Practical locate/redirect and manager mode exist. Upstream CMS has broader tooling and battle-tested semantics. |
-| Supervisor/meta manager role | Upstream flags/roles. | `xrootd_supervisor`, `kXR_attrSuper`, tests. | Parity / Partial | Flagging exists; ensure topology behavior matches target deployment before marketing full CMS parity. |
-| Virtual redirector | Upstream protocol clients understand `kXR_attrVirtRdr`. | `xrootd_virtual_redirector` and auto-detection for static manager maps. | nginx+ / Partial | Useful nginx-specific static map deployment mode. |
+| Supervisor/meta manager role | Upstream flags/roles. | `brix_supervisor`, `kXR_attrSuper`, tests. | Parity / Partial | Flagging exists; ensure topology behavior matches target deployment before marketing full CMS parity. |
+| Virtual redirector | Upstream protocol clients understand `kXR_attrVirtRdr`. | `brix_virtual_redirector` and auto-detection for static manager maps. | nginx+ / Partial | Useful nginx-specific static map deployment mode. |
 | Collapse redirects | Upstream has client/server redirect mechanics. | `src/net/manager/redir_cache.c`; `kXR_collapseRedir` when configured. | nginx+ / Partial | Implemented as SHM redirect-target cache. |
 | Native TPC / clone | Upstream native TPC and clone behavior. | `src/tpc/`, `src/protocols/root/read/clone.c`. | Parity / Partial | Module has SHM key registry and clone; verify multi-hop/TLS/delegation edge cases per site. |
 | HTTP-TPC | `XrdHttpTpc`. | `src/protocols/webdav/tpc*.c`. | Parity / nginx+ | See HTTP table. |
@@ -258,10 +258,10 @@ Source anchors:
 | UDP XrdMon stream monitoring | Upstream `XrdXrootdMon*` / XrdMon ecosystem. | Not implemented. | Not counted | Explicit product decision: do not implement. Use HTTP-native observability instead. |
 | Prometheus metrics | Upstream has some HTTP/monitoring counters but UDP monitoring is historical primary grid surface. | `src/observability/metrics/`, `/metrics`, low-cardinality counters across stream/WebDAV/S3/rate-limit/cache/FRM/mirror. | nginx+ | Primary replacement for UDP monitoring. |
 | WLCG Storage Resource Reporting | Not a core upstream replacement surface in reviewed source. | `src/protocols/srr/`. | nginx+ | Useful for site accounting/discovery. |
-| Live transfer dashboard | Upstream has admin tools and monitoring ecosystem. | `src/observability/dashboard/`, `/xrootd/api/v1/transfers`, events, history, cluster, cache, ratelimit, config. | nginx+ | Operator-friendly visibility built into the server. |
+| Live transfer dashboard | Upstream has admin tools and monitoring ecosystem. | `src/observability/dashboard/`, `/brix/api/v1/transfers`, events, history, cluster, cache, ratelimit, config. | nginx+ | Operator-friendly visibility built into the server. |
 | Admin API | Upstream admin commands/tools. | `src/observability/dashboard/api_admin.c`, auth/cookie/HMAC paths. | nginx+ / Partial | Different operational model; not drop-in for XRootD admin command tooling. |
 | Access logs | Upstream logs and monitor streams. | nginx access/error logs plus protocol-specific logs and sanitized wire strings. | nginx+ | Fits existing nginx observability/log shipping. |
-| Rate limiting / bandwidth / concurrency | Upstream `XrdThrottle` and `XrdBwm`. | `src/net/ratelimit/`, `xrootd_rate_limit_zone`, `xrootd_rate_limit_rule`, `xrootd_bandwidth_limit`, `xrootd_concurrency_limit`. | Parity / nginx+ | Upstream has throttle/BWM plugins; nginx implementation is cross-protocol and identity-aware. |
+| Rate limiting / bandwidth / concurrency | Upstream `XrdThrottle` and `XrdBwm`. | `src/net/ratelimit/`, `brix_rate_limit_zone`, `brix_rate_limit_rule`, `brix_bandwidth_limit`, `brix_concurrency_limit`. | Parity / nginx+ | Upstream has throttle/BWM plugins; nginx implementation is cross-protocol and identity-aware. |
 | IPv6 completion and low-cardinality metrics | Upstream supports IPv6 at core network layer. | Phase-36 docs/tests cover stream, CMS redirect, WebDAV/XrdHttp, S3, TPC, admin, rate-limit, metrics. | Parity / nginx+ | Reviewer should prefer source/tests over stale docs where IPv6 gaps are mentioned. |
 | Packet marking / SciTags / PMark | Upstream has `XrdNetPMark`, XrdHttp PMark, XrdHttpTpc PMark manager. | `src/observability/pmark/`, WebDAV/TPC integration, optional HTTP plain marking. | Partial / Parity | Both ecosystems have packet marking; implementation surfaces differ. |
 
@@ -291,18 +291,18 @@ UDP monitoring.
 
 | Gap | Upstream evidence | nginx evidence | Impact | Suggested position |
 |---|---|---|---|---|
-| `pwd` authentication | `/tmp/xrootd-src/src/XrdSecpwd` | **Implemented** — `src/auth/pwd/` (DH-bootstrapped handshake). | No longer a blocker; wire-equivalent, not the full `xrdpwdadmin` admin ecosystem. | Closed; advertise as available legacy scheme (TLS recommended). |
-| `host` authentication | `/tmp/xrootd-src/src/XrdSec/XrdSecProtocolhost.cc` | **Implemented** — `src/auth/host/` (reverse-DNS allowlist). | No longer a blocker for trusted-network deployments. | Closed; advertise as fail-closed, trusted-network only. |
-| Full `XrdAcc` compatibility | `/tmp/xrootd-src/src/XrdAcc` | `src/auth/authz/authdb.c` implements a narrower authdb. | Complex existing auth files may need translation. | Build a migration guide or converter rather than cloning all `XrdAcc`. |
-| Full SciTokens plugin semantics | `/tmp/xrootd-src/src/XrdSciTokens` | `src/auth/token/` validates WLCG/JWT and scopes. | Sites using advanced issuer/config/helper behavior need review. | Document supported claims/scopes precisely. |
-| Full `XrdFrm` daemon/admin ecosystem | `/tmp/xrootd-src/src/XrdFrm` | `src/fs/xfer/` + `src/fs/backend/frm/` plus Tape REST; no in-process migrate/purge. | Tape sites with upstream FRM operational workflows are not drop-in. | Present as functional tape gateway, not complete FRM clone. |
-| PSS backend | `/tmp/xrootd-src/src/XrdPss` | No comparable implementation found. | Sites using PSS for remote storage access need another architecture. | Use proxy/cache/gateway patterns where possible; do not claim parity. |
-| PFC/XCache full policy cache | `/tmp/xrootd-src/src/XrdPfc` | `src/fs/cache/` is narrower. | Sites relying on PFC purge/snapshot/policy internals need review. | Claim cache support, not full PFC parity. |
-| Ceph plugin | `/tmp/xrootd-src/src/XrdCeph` | No plugin-level Ceph backend. | Ceph/RADOS-backed XRootD sites need POSIX/CephFS or a new backend. | Out of scope unless a target site requires it. |
-| XrdOssCsi tagstore/checksum store | `/tmp/xrootd-src/src/XrdOssCsi` | No comparable tagstore. | Persistent checksum/page-integrity workflows may differ. | Treat as storage-plugin gap. |
-| Checksum plugin framework breadth | `/tmp/xrootd-src/src/XrdCks`, `XrdVersionPlugin.hh` | Fixed local checksum set with CRC64/CRC64NVME included. | Compatibility gap only for uncommon site-specific checksum plugins. | Add plugins only if needed by site validation. |
-| ZIP virtual filesystem | `/tmp/xrootd-src/src/XrdZip` | **Partially implemented** — `src/protocols/root/zip/` (central-dir reader + HTTP member serving). | ZIP-member access over HTTP exists; full cross-protocol parity does not. | Mostly closed; validate breadth if a site needs full ZIP-member semantics. |
-| CMS admin/tooling completeness | `/tmp/xrootd-src/src/XrdCms` | `src/net/cms/`, `src/net/manager/` implement practical manager behavior. | Complex multi-tier production clusters may need careful conformance testing. | Claim manager/redirector support with caveats. |
+| `pwd` authentication | `/tmp/brix-src/src/XrdSecpwd` | **Implemented** — `src/auth/pwd/` (DH-bootstrapped handshake). | No longer a blocker; wire-equivalent, not the full `xrdpwdadmin` admin ecosystem. | Closed; advertise as available legacy scheme (TLS recommended). |
+| `host` authentication | `/tmp/brix-src/src/XrdSec/XrdSecProtocolhost.cc` | **Implemented** — `src/auth/host/` (reverse-DNS allowlist). | No longer a blocker for trusted-network deployments. | Closed; advertise as fail-closed, trusted-network only. |
+| Full `XrdAcc` compatibility | `/tmp/brix-src/src/XrdAcc` | `src/auth/authz/authdb.c` implements a narrower authdb. | Complex existing auth files may need translation. | Build a migration guide or converter rather than cloning all `XrdAcc`. |
+| Full SciTokens plugin semantics | `/tmp/brix-src/src/XrdSciTokens` | `src/auth/token/` validates WLCG/JWT and scopes. | Sites using advanced issuer/config/helper behavior need review. | Document supported claims/scopes precisely. |
+| Full `XrdFrm` daemon/admin ecosystem | `/tmp/brix-src/src/XrdFrm` | `src/fs/xfer/` + `src/fs/backend/frm/` plus Tape REST; no in-process migrate/purge. | Tape sites with upstream FRM operational workflows are not drop-in. | Present as functional tape gateway, not complete FRM clone. |
+| PSS backend | `/tmp/brix-src/src/XrdPss` | No comparable implementation found. | Sites using PSS for remote storage access need another architecture. | Use proxy/cache/gateway patterns where possible; do not claim parity. |
+| PFC/XCache full policy cache | `/tmp/brix-src/src/XrdPfc` | `src/fs/cache/` is narrower. | Sites relying on PFC purge/snapshot/policy internals need review. | Claim cache support, not full PFC parity. |
+| Ceph plugin | `/tmp/brix-src/src/XrdCeph` | No plugin-level Ceph backend. | Ceph/RADOS-backed XRootD sites need POSIX/CephFS or a new backend. | Out of scope unless a target site requires it. |
+| XrdOssCsi tagstore/checksum store | `/tmp/brix-src/src/XrdOssCsi` | No comparable tagstore. | Persistent checksum/page-integrity workflows may differ. | Treat as storage-plugin gap. |
+| Checksum plugin framework breadth | `/tmp/brix-src/src/XrdCks`, `XrdVersionPlugin.hh` | Fixed local checksum set with CRC64/CRC64NVME included. | Compatibility gap only for uncommon site-specific checksum plugins. | Add plugins only if needed by site validation. |
+| ZIP virtual filesystem | `/tmp/brix-src/src/XrdZip` | **Partially implemented** — `src/protocols/root/zip/` (central-dir reader + HTTP member serving). | ZIP-member access over HTTP exists; full cross-protocol parity does not. | Mostly closed; validate breadth if a site needs full ZIP-member semantics. |
+| CMS admin/tooling completeness | `/tmp/brix-src/src/XrdCms` | `src/net/cms/`, `src/net/manager/` implement practical manager behavior. | Complex multi-tier production clusters may need careful conformance testing. | Claim manager/redirector support with caveats. |
 | Proxy async `kXR_waitresp`/`kXR_attn` relay | Upstream client/server supports async responses. | `src/net/upstream/response.c` forwards `kXR_waitresp`; no complete unsolicited upstream `kXR_attn` path was verified in this pass. | Could affect proxying to backends that park operations. | Keep as serious proxy-mode gap until source/test proves closure. |
 | Proxy `kXR_prepare` path-list rewrite | Upstream prepare supports path lists. | Existing proxy docs flag whole-payload rewrite behavior. | Path mapping proxy deployments may mishandle multi-path prepare. | Keep as serious gap unless tests/source show per-entry rewrite. |
 | Erasure-coded redirects (`kXR_ecRedir`) | Protocol flag and client handling exist upstream. | Defined, never set. | EC storage redirect semantics not present. | Out of scope without EC backend. |
@@ -362,15 +362,15 @@ High-signal source files inspected for this comparison:
 
 | Area | BriX-Cache | Official XRootD |
 |---|---|---|
-| Protocol opcodes/flags | `src/protocols/root/protocol/opcodes.h`, `src/protocols/root/protocol/flags.h`, `src/protocols/root/session/protocol.c` | `/tmp/xrootd-src/src/XProtocol/XProtocol.hh` |
-| Dispatch | `src/protocols/root/handshake/dispatch*.c` | `/tmp/xrootd-src/src/XrdXrootd/XrdXrootdProtocol.cc`, `/tmp/xrootd-src/src/XrdXrootd/XrdXrootdXeq.cc` |
-| Auth | `src/auth/gsi/`, `src/auth/token/`, `src/auth/sss/`, `src/auth/unix/`, `src/auth/krb5/`, `src/auth/authz/authdb.c` | `/tmp/xrootd-src/src/XrdSec*`, `/tmp/xrootd-src/src/XrdMacaroons`, `/tmp/xrootd-src/src/XrdSciTokens`, `/tmp/xrootd-src/src/XrdVoms`, `/tmp/xrootd-src/src/XrdAcc` |
-| HTTP/WebDAV/XrdHttp | `src/protocols/webdav/` | `/tmp/xrootd-src/src/XrdHttp`, `/tmp/xrootd-src/src/XrdHttpCors` |
-| HTTP-TPC | `src/protocols/webdav/tpc*.c` | `/tmp/xrootd-src/src/XrdHttpTpc` |
-| S3 | `src/protocols/s3/` | `/tmp/xrootd-src/src/XrdClS3` |
-| Cache/storage | `src/fs/cache/`, `src/fs/`, `src/fs/path/`, `src/core/compat/namespace_ops.c` | `/tmp/xrootd-src/src/XrdPfc`, `/tmp/xrootd-src/src/XrdPss`, `/tmp/xrootd-src/src/XrdCeph`, `/tmp/xrootd-src/src/XrdOssCsi`, `/tmp/xrootd-src/src/XrdZip`, `/tmp/xrootd-src/src/XrdRmc` |
-| FRM/tape | `src/fs/xfer/`, `src/fs/backend/frm/`, `src/protocols/root/query/prepare.c`, `src/protocols/webdav/tape_rest.c` | `/tmp/xrootd-src/src/XrdFrm` |
-| Rate limiting | `src/net/ratelimit/`, `src/observability/metrics/ratelimit.c` | `/tmp/xrootd-src/src/XrdThrottle`, `/tmp/xrootd-src/src/XrdBwm` |
-| CMS/manager/proxy | `src/net/cms/`, `src/net/manager/`, `src/net/upstream/`, `src/net/proxy/` | `/tmp/xrootd-src/src/XrdCms`, `/tmp/xrootd-src/src/XrdXrootd` |
-| Observability | `src/observability/metrics/`, `src/observability/dashboard/`, `src/protocols/srr/` | `/tmp/xrootd-src/src/XrdMon`, `/tmp/xrootd-src/src/XrdXrootd/XrdXrootdMon*` |
+| Protocol opcodes/flags | `src/protocols/root/protocol/opcodes.h`, `src/protocols/root/protocol/flags.h`, `src/protocols/root/session/protocol.c` | `/tmp/brix-src/src/XProtocol/XProtocol.hh` |
+| Dispatch | `src/protocols/root/handshake/dispatch*.c` | `/tmp/brix-src/src/XrdXrootd/XrdXrootdProtocol.cc`, `/tmp/brix-src/src/XrdXrootd/XrdXrootdXeq.cc` |
+| Auth | `src/auth/gsi/`, `src/auth/token/`, `src/auth/sss/`, `src/auth/unix/`, `src/auth/krb5/`, `src/auth/authz/authdb.c` | `/tmp/brix-src/src/XrdSec*`, `/tmp/brix-src/src/XrdMacaroons`, `/tmp/brix-src/src/XrdSciTokens`, `/tmp/brix-src/src/XrdVoms`, `/tmp/brix-src/src/XrdAcc` |
+| HTTP/WebDAV/XrdHttp | `src/protocols/webdav/` | `/tmp/brix-src/src/XrdHttp`, `/tmp/brix-src/src/XrdHttpCors` |
+| HTTP-TPC | `src/protocols/webdav/tpc*.c` | `/tmp/brix-src/src/XrdHttpTpc` |
+| S3 | `src/protocols/s3/` | `/tmp/brix-src/src/XrdClS3` |
+| Cache/storage | `src/fs/cache/`, `src/fs/`, `src/fs/path/`, `src/core/compat/namespace_ops.c` | `/tmp/brix-src/src/XrdPfc`, `/tmp/brix-src/src/XrdPss`, `/tmp/brix-src/src/XrdCeph`, `/tmp/brix-src/src/XrdOssCsi`, `/tmp/brix-src/src/XrdZip`, `/tmp/brix-src/src/XrdRmc` |
+| FRM/tape | `src/fs/xfer/`, `src/fs/backend/frm/`, `src/protocols/root/query/prepare.c`, `src/protocols/webdav/tape_rest.c` | `/tmp/brix-src/src/XrdFrm` |
+| Rate limiting | `src/net/ratelimit/`, `src/observability/metrics/ratelimit.c` | `/tmp/brix-src/src/XrdThrottle`, `/tmp/brix-src/src/XrdBwm` |
+| CMS/manager/proxy | `src/net/cms/`, `src/net/manager/`, `src/net/upstream/`, `src/net/proxy/` | `/tmp/brix-src/src/XrdCms`, `/tmp/brix-src/src/XrdXrootd` |
+| Observability | `src/observability/metrics/`, `src/observability/dashboard/`, `src/protocols/srr/` | `/tmp/brix-src/src/XrdMon`, `/tmp/brix-src/src/XrdXrootd/XrdXrootdMon*` |
 | Migration/mirroring | `src/net/mirror/` | No comparable upstream server subsystem found in reviewed source. |

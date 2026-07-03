@@ -2,7 +2,7 @@
 
 How the **Scalable Service Interface (SSI)** works on the wire, how it relates to
 the rest of XRootD, and what our native nginx implementation does. Everything
-here was traced from the XRootD source (`/tmp/xrootd-src/src/XrdSsi`,
+here was traced from the XRootD source (`/tmp/brix-src/src/XrdSsi`,
 `src/XrdCl`, `src/XProtocol`) and **validated against the real `libXrdSsi`
 client** driving our module.
 
@@ -253,7 +253,7 @@ We re-implement the **server** side natively (no C++ plugin ABI), in `src/protoc
 | File | Role |
 |---|---|
 | `ssi_rrinfo.{c,h}` | byte-exact `XrdSsiRRInfo` + `XrdSsiRRInfoAttn` codec (golden-validated vs the real class) |
-| `ssi_service.{c,h}` | native `xrootd_ssi_responder_t` (`set_metadata`/`set_response(last)`/`alert`/`error`) + service registry; built-ins `echo`/`meta`/`stream`/`err` |
+| `ssi_service.{c,h}` | native `brix_ssi_responder_t` (`set_metadata`/`set_response(last)`/`alert`/`error`) + service registry; built-ins `echo`/`meta`/`stream`/`err` |
 | `ssi_reply.{c,h}` | builds the `[RRInfoAttn][meta][data]` reply payload |
 | `ssi.{c,h}` | wire glue: `open` (resolves service, honours `kXR_retstat`), `write` (decode RRInfo, accumulate, dispatch), `query` (intercepts `kXR_Qopaqug` → response-wait / cancel), `read` (stream pull) |
 
@@ -269,7 +269,7 @@ streaming, error, and cancel. Verified by 33 standalone unit checks +
 `tests/test_ssi_wire.py` (raw-wire + real-client).
 
 **Still to do:** genuinely-async services (`kXR_waitresp` + deferred
-`kXR_attn(asynresp)` push — the `xrootd_send_attn_asynresp` helper exists) and
+`kXR_attn(asynresp)` push — the `brix_send_attn_asynresp` helper exists) and
 out-of-band alerts (`alrtResp` push). Both reuse the existing `kXR_attn` infra.
 
 ---

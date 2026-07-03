@@ -54,7 +54,7 @@ settings. This is exactly what "reload" means here.
 During the drain window **both** old and new workers are accepting on the shared
 listen socket, so a brand-new connection may briefly land on an *old* worker
 still holding the *old* per-worker config. Per-worker settings (auth mode, ACLs,
-paths, the `xrootd_metrics`/`xrootd_health` location flags, …) therefore become
+paths, the `brix_metrics`/`brix_health` location flags, …) therefore become
 fully live only once the old workers have exited — bound this with
 `worker_shutdown_timeout`. Shared-memory state is **not** subject to this: the
 `config_generation` counter (below) lives in SHM and flips for every worker the
@@ -79,7 +79,7 @@ Surfaces:
 | Surface | Field / metric |
 |---|---|
 | `GET /healthz` (and `?verbose`) | `"config_generation"`, `"config_version"` JSON fields |
-| `GET /metrics` | `xrootd_config_generation` gauge |
+| `GET /metrics` | `brix_config_generation` gauge |
 | `error.log` (NOTICE, per load) | `xrootd: config generation N live (pid P, version HEX)` |
 
 ```console
@@ -102,10 +102,10 @@ postconfiguration, so it rejects a bad config before you reload), then
 
 | Class | Behaviour on reload | Examples |
 |---|---|---|
-| **(a) Reloadable for new connections** (the default majority) | New workers pick up the new value; new connections honour it after the drain window. | scalars/flags/timeouts, `xrootd_root`, `xrootd_auth`, `xrootd_allow_write`, ACL/policy rules (`xrootd_authdb`, `xrootd_require_vo`, `xrootd_inherit_parent_group`), `xrootd_manager_map`, cache/proxy/TPC settings, the `xrootd_metrics`/`xrootd_health` location flags |
-| **(b) Hot-reloaded by a timer** (no reload needed at all) | A per-worker mtime-polling timer reloads the file in place and atomically swaps it; a reload also re-reads it. | CRL (`xrootd_crl` + `xrootd_crl_reload`), JWKS (`xrootd_token_jwks` + refresh interval), XrdAcc authdb (`xrootd_authdb_format xrdacc`) |
-| **(c) Re-read on reload** (rotation needs a reload, not a restart) | Loaded once per cycle in postconfiguration/init_process; a reload re-reads from disk for new workers. No in-place hot-reload timer. | GSI server cert/key (`xrootd_certificate`, `xrootd_certificate_key`), trust store, SSS keytab, Kerberos keytab, in-protocol and upstream TLS contexts |
-| **(d) State reset on resize** | nginx cannot grow a live SHM zone, so changing a slot-count allocates a **fresh** zone — the live table's contents are dropped for new connections (in-flight ones drain on the old workers). The module logs a **WARN** so this is not silent. | `xrootd_session_slots`, `xrootd_registry_slots` |
+| **(a) Reloadable for new connections** (the default majority) | New workers pick up the new value; new connections honour it after the drain window. | scalars/flags/timeouts, `brix_root`, `brix_auth`, `brix_allow_write`, ACL/policy rules (`brix_authdb`, `brix_require_vo`, `brix_inherit_parent_group`), `brix_manager_map`, cache/proxy/TPC settings, the `brix_metrics`/`brix_health` location flags |
+| **(b) Hot-reloaded by a timer** (no reload needed at all) | A per-worker mtime-polling timer reloads the file in place and atomically swaps it; a reload also re-reads it. | CRL (`brix_crl` + `brix_crl_reload`), JWKS (`brix_token_jwks` + refresh interval), XrdAcc authdb (`brix_authdb_format xrdacc`) |
+| **(c) Re-read on reload** (rotation needs a reload, not a restart) | Loaded once per cycle in postconfiguration/init_process; a reload re-reads from disk for new workers. No in-place hot-reload timer. | GSI server cert/key (`brix_certificate`, `brix_certificate_key`), trust store, SSS keytab, Kerberos keytab, in-protocol and upstream TLS contexts |
+| **(d) State reset on resize** | nginx cannot grow a live SHM zone, so changing a slot-count allocates a **fresh** zone — the live table's contents are dropped for new connections (in-flight ones drain on the old workers). The module logs a **WARN** so this is not silent. | `brix_session_slots`, `brix_registry_slots` |
 
 Notes:
 
@@ -116,7 +116,7 @@ Notes:
 - **Class (d) resize:** changing a slot count is safe but transiently empties the
   table. To avoid even the transient reset (e.g. for the cross-process session
   or server registry), do a full restart in a maintenance window instead of a
-  reload. Watch for: `xrootd_<directive> changed across reload (shared zone …)`.
+  reload. Watch for: `brix_<directive> changed across reload (shared zone …)`.
 - **Proxy upstream pools** are per-worker: after an upstream-address change, old
   pooled connections drain with the old workers and new workers build fresh
   pools — no stale sockets survive, consistent with the drain model.
@@ -125,7 +125,7 @@ Notes:
 
 ## Logs and SHM across reload
 
-- **Log files** (`xrootd_access_log`, `xrootd_proxy_audit_log`) are registered
+- **Log files** (`brix_access_log`, `brix_proxy_audit_log`) are registered
   with nginx (`cycle->open_files`), so the master owns their lifecycle: they are
   reopened on `nginx -s reopen`/USR1 (via `dup2` onto the same fd number) and
   closed cleanly across reload — no leaked fds, and log rotation works.
@@ -139,10 +139,10 @@ Notes:
 - Drain/teardown: self-rearming background timers are `!ngx_exiting`-guarded (or
   `cancelable`) so draining workers exit promptly — see `src/core/config/process.c`,
   `src/auth/token/refresh.c`, `src/auth/authz/acc/config.c`, `src/net/cms/connect.c`.
-- Config version/generation: published in `xrootd_config_version_publish()`
+- Config version/generation: published in `brix_config_version_publish()`
   (`src/observability/metrics/config.c`), called from the module's `init_module` hook
   (`src/auth/impersonate/lifecycle.c`); read by `/healthz` (`src/observability/metrics/health.c`).
-- SHM resize warning: `xrootd_shm_zone_warn_on_resize()` (`src/core/compat/shm_slots.c`),
+- SHM resize warning: `brix_shm_zone_warn_on_resize()` (`src/core/compat/shm_slots.c`),
   called from the registry declarations (`src/protocols/root/session/registry.c`,
   `src/net/manager/registry.c`).
 - Tests: `tests/test_reload.py` (self-contained; success + robustness +

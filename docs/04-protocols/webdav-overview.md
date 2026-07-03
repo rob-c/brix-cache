@@ -38,7 +38,7 @@ same nginx instance as the stream module or on its own.
                         │       │       GET, PUT, PROPFIND, …      │
                         │       │                                  │
                         │       └─► upstream HTTP(S) proxy         │
-                        │               (xrootd_webdav_proxy on)   │
+                        │               (brix_webdav_proxy on)   │
                         └─────────────────────────────────────────┘
 ```
 
@@ -73,9 +73,9 @@ server {
     ssl_certificate_key /etc/grid-security/hostkey.pem;
 
     location /dav/ {
-        xrootd_webdav      on;
-        xrootd_webdav_root /data/store;
-        xrootd_webdav_auth none;
+        brix_webdav      on;
+        brix_webdav_root /data/store;
+        brix_webdav_auth none;
     }
 }
 ```
@@ -93,23 +93,23 @@ server {
     ssl_verify_depth  10;
 
     location /dav/ {
-        xrootd_webdav       on;
-        xrootd_webdav_root  /data/store;
-        xrootd_webdav_auth  required;
-        xrootd_webdav_cadir /etc/grid-security/certificates;
-        xrootd_webdav_crl   /etc/grid-security/certificates;
+        brix_webdav       on;
+        brix_webdav_root  /data/store;
+        brix_webdav_auth  required;
+        brix_webdav_cadir /etc/grid-security/certificates;
+        brix_webdav_crl   /etc/grid-security/certificates;
 
         # Bearer token (WLCG/SciTokens)
-        xrootd_webdav_token_jwks     /etc/xrootd/issuer.jwks;
-        xrootd_webdav_token_issuer   https://token.example.org;
-        xrootd_webdav_token_audience https://se.example.org;
+        brix_webdav_token_jwks     /etc/brix/issuer.jwks;
+        brix_webdav_token_issuer   https://token.example.org;
+        brix_webdav_token_audience https://se.example.org;
 
-        xrootd_webdav_allow_write on;
+        brix_webdav_allow_write on;
     }
 }
 ```
 
-> **Tip:** `xrootd_webdav_auth required` blocks all unauthenticated requests
+> **Tip:** `brix_webdav_auth required` blocks all unauthenticated requests
 > with HTTP 403. Use `optional` to allow anonymous reads while still
 > recording the identity of authenticated clients.
 
@@ -125,13 +125,13 @@ server {
     ssl_verify_depth     10;
 
     location /dav/ {
-        xrootd_webdav        on;
-        xrootd_webdav_root   /data/store;
-        xrootd_webdav_auth   required;
-        xrootd_webdav_proxy_certs on;           # accept RFC 3820 proxy certs
-        xrootd_webdav_cadir  /etc/grid-security/certificates;
-        xrootd_webdav_crl    /etc/grid-security/certificates;
-        xrootd_webdav_allow_write on;
+        brix_webdav        on;
+        brix_webdav_root   /data/store;
+        brix_webdav_auth   required;
+        brix_webdav_proxy_certs on;           # accept RFC 3820 proxy certs
+        brix_webdav_cadir  /etc/grid-security/certificates;
+        brix_webdav_crl    /etc/grid-security/certificates;
+        brix_webdav_allow_write on;
     }
 }
 ```
@@ -144,7 +144,7 @@ server {
 
 ## Authentication
 
-Authentication is controlled by `xrootd_webdav_auth` and applies to every
+Authentication is controlled by `brix_webdav_auth` and applies to every
 request that reaches the location block.
 
 ```text
@@ -182,24 +182,24 @@ Default is `optional`.
 ### GSI / X.509 proxy certificates
 
 The module validates the full RFC 3820 proxy chain using an OpenSSL X509_STORE
-built from `xrootd_webdav_cadir` / `xrootd_webdav_cafile` and checked against
-CRLs from `xrootd_webdav_crl`. The CA store is built once at startup and
+built from `brix_webdav_cadir` / `brix_webdav_cafile` and checked against
+CRLs from `brix_webdav_crl`. The CA store is built once at startup and
 cached for the worker lifetime — no per-request disk I/O.
 
-Enable `xrootd_webdav_proxy_certs on` to accept VOMS proxy certificates.
+Enable `brix_webdav_proxy_certs on` to accept VOMS proxy certificates.
 Without it, only end-entity certificates are accepted.
 
 ### WLCG/SciTokens JWT bearer tokens
 
-Set `xrootd_webdav_token_jwks` to a local JWKS file (RS256). The module
+Set `brix_webdav_token_jwks` to a local JWKS file (RS256). The module
 validates signature, expiry, `iss`, and `aud` claims. Token scopes
 (`storage.read`, `storage.write`, `storage.create`) are enforced on write
 methods when the token path is present.
 
-All three of `xrootd_webdav_token_jwks`, `xrootd_webdav_token_issuer`, and
-`xrootd_webdav_token_audience` must be set together.
+All three of `brix_webdav_token_jwks`, `brix_webdav_token_issuer`, and
+`brix_webdav_token_audience` must be set together.
 
-> **Key rotation:** use `xrootd_webdav_macaroon_secret_old` to keep accepting
+> **Key rotation:** use `brix_webdav_macaroon_secret_old` to keep accepting
 > tokens signed by the previous key during a rotation window. Remove it once
 > all clients have migrated.
 
@@ -208,7 +208,7 @@ All three of `xrootd_webdav_token_jwks`, `xrootd_webdav_token_issuer`, and
 ## HTTP methods
 
 The module implements the full set of WebDAV methods. Write methods require
-`xrootd_webdav_allow_write on` and, when using bearer tokens, an appropriate
+`brix_webdav_allow_write on` and, when using bearer tokens, an appropriate
 write scope in the token.
 
 | Method | Description |
@@ -223,14 +223,14 @@ write scope in the token.
 | `PROPPATCH` | Set/remove dead properties |
 | `COPY` | Duplicate file or directory within the namespace; also initiates HTTP-TPC pull |
 | `MOVE` | Rename or move within the namespace |
-| `LOCK` | Acquire exclusive write lock; timeout from `xrootd_webdav_lock_timeout` |
+| `LOCK` | Acquire exclusive write lock; timeout from `brix_webdav_lock_timeout` |
 | `UNLOCK` | Release a write lock |
 
 > **GET with Range:** byte-range requests are fully supported, including
 > multi-range. The fd cache (16 slots per connection) avoids repeated
 > `open()`/`fstat()` for PROPFIND+GET pairs on the same resource.
 
-> **Thread pool for PUT:** if `xrootd_webdav_thread_pool` names a thread pool
+> **Thread pool for PUT:** if `brix_webdav_thread_pool` names a thread pool
 > configured with nginx's `thread_pool` directive, large PUT bodies are written
 > from a worker thread, keeping the event loop unblocked.
 
@@ -256,27 +256,27 @@ source.
   local filesystem
 ```
 
-Enable TPC with `xrootd_webdav_tpc on`. You also need `xrootd_webdav_allow_write on`.
+Enable TPC with `brix_webdav_tpc on`. You also need `brix_webdav_allow_write on`.
 
 ```nginx
 location /dav/ {
-    xrootd_webdav           on;
-    xrootd_webdav_root      /data/store;
-    xrootd_webdav_auth      required;
-    xrootd_webdav_cadir     /etc/grid-security/certificates;
-    xrootd_webdav_allow_write on;
-    xrootd_webdav_tpc       on;
+    brix_webdav           on;
+    brix_webdav_root      /data/store;
+    brix_webdav_auth      required;
+    brix_webdav_cadir     /etc/grid-security/certificates;
+    brix_webdav_allow_write on;
+    brix_webdav_tpc       on;
 
     # curl binary used to perform the pull
-    xrootd_webdav_tpc_curl  /usr/bin/curl;
+    brix_webdav_tpc_curl  /usr/bin/curl;
 
     # Service certificate for authenticating to the source server
-    xrootd_webdav_tpc_cert  /etc/grid-security/hostcert.pem;
-    xrootd_webdav_tpc_key   /etc/grid-security/hostkey.pem;
-    xrootd_webdav_tpc_cadir /etc/grid-security/certificates;
+    brix_webdav_tpc_cert  /etc/grid-security/hostcert.pem;
+    brix_webdav_tpc_key   /etc/grid-security/hostkey.pem;
+    brix_webdav_tpc_cadir /etc/grid-security/certificates;
 
     # Maximum time for a single curl pull (seconds)
-    xrootd_webdav_tpc_timeout 300;
+    brix_webdav_tpc_timeout 300;
 }
 ```
 
@@ -287,14 +287,14 @@ header, the server obtains a delegated access token for the source server via
 RFC 8693 token exchange. Configure the token endpoint:
 
 ```nginx
-xrootd_webdav_tpc_token_endpoint      https://iam.example.org/token;
-xrootd_webdav_tpc_token_client_id     my-service;
-xrootd_webdav_tpc_token_client_secret /etc/xrootd/client-secret;
-xrootd_webdav_tpc_token_scope         storage.read;
+brix_webdav_tpc_token_endpoint      https://iam.example.org/token;
+brix_webdav_tpc_token_client_id     my-service;
+brix_webdav_tpc_token_client_secret /etc/brix/client-secret;
+brix_webdav_tpc_token_scope         storage.read;
 ```
 
 > **Security:** TPC pull uses an external `curl` process spawned per transfer.
-> Ensure the `curl` binary at `xrootd_webdav_tpc_curl` is the system curl and
+> Ensure the `curl` binary at `brix_webdav_tpc_curl` is the system curl and
 > not writable by untrusted users.
 
 ---
@@ -337,25 +337,25 @@ server {
     ssl_verify_depth    10;
 
     location /dav/ {
-        xrootd_webdav       on;
-        xrootd_webdav_root  /data/store;   # still used for auth path checks
-        xrootd_webdav_auth  required;
-        xrootd_webdav_cadir /etc/grid-security/certificates;
-        xrootd_webdav_token_jwks     /etc/xrootd/issuer.jwks;
-        xrootd_webdav_token_issuer   https://token.example.org;
-        xrootd_webdav_token_audience https://se.example.org;
+        brix_webdav       on;
+        brix_webdav_root  /data/store;   # still used for auth path checks
+        brix_webdav_auth  required;
+        brix_webdav_cadir /etc/grid-security/certificates;
+        brix_webdav_token_jwks     /etc/brix/issuer.jwks;
+        brix_webdav_token_issuer   https://token.example.org;
+        brix_webdav_token_audience https://se.example.org;
 
         # Enable proxy mode
-        xrootd_webdav_proxy          on;
-        xrootd_webdav_proxy_upstream http://xrootd-backend.internal:1094;
-        xrootd_webdav_proxy_auth     anonymous;   # strip Authorization (default)
+        brix_webdav_proxy          on;
+        brix_webdav_proxy_upstream http://brix-backend.internal:1094;
+        brix_webdav_proxy_auth     anonymous;   # strip Authorization (default)
     }
 }
 ```
 
 ### Auth forwarding policies
 
-`xrootd_webdav_proxy_auth` controls what nginx puts in the `Authorization`
+`brix_webdav_proxy_auth` controls what nginx puts in the `Authorization`
 header of the forwarded request.
 
 | Policy | Forwarded Authorization |
@@ -367,7 +367,7 @@ header of the forwarded request.
 Example — inject a static service token:
 
 ```nginx
-xrootd_webdav_proxy_auth token eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...;
+brix_webdav_proxy_auth token eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...;
 ```
 
 > **Note:** the token value is placed in nginx.conf in plaintext. Protect the
@@ -381,7 +381,7 @@ intentional for internal-network backends where the trust is established by
 network topology rather than PKI.
 
 ```nginx
-xrootd_webdav_proxy_upstream https://xrootd-backend.internal:2094;
+brix_webdav_proxy_upstream https://brix-backend.internal:2094;
 ```
 
 ### Destination header rewriting
@@ -392,7 +392,7 @@ upstream base URL before forwarding:
 
 ```text
   Destination: https://public.example.org/dav/new-name
-          ──►  http://xrootd-backend.internal:1094/dav/new-name
+          ──►  http://brix-backend.internal:1094/dav/new-name
 ```
 
 This rewrite is automatic and requires no additional configuration.
@@ -400,13 +400,13 @@ This rewrite is automatic and requires no additional configuration.
 ### Timeout tuning
 
 ```nginx
-xrootd_webdav_proxy_connect_timeout 10s;
-xrootd_webdav_proxy_send_timeout    60s;
-xrootd_webdav_proxy_read_timeout    120s;
+brix_webdav_proxy_connect_timeout 10s;
+brix_webdav_proxy_send_timeout    60s;
+brix_webdav_proxy_read_timeout    120s;
 ```
 
 All three default to 60 seconds. For large file uploads, increase
-`xrootd_webdav_proxy_send_timeout` and `xrootd_webdav_proxy_read_timeout`.
+`brix_webdav_proxy_send_timeout` and `brix_webdav_proxy_read_timeout`.
 
 > **Note:** these are nginx msec-slot values; you can use suffix notation
 > (`10s`, `2m`, `500ms`) or plain milliseconds.
@@ -415,14 +415,14 @@ All three default to 60 seconds. For large file uploads, increase
 
 ## CORS
 
-Configure CORS for browser-based WebDAV clients. Multiple `xrootd_webdav_cors_origin`
+Configure CORS for browser-based WebDAV clients. Multiple `brix_webdav_cors_origin`
 lines are allowed.
 
 ```nginx
-xrootd_webdav_cors_origin      https://portal.example.org;
-xrootd_webdav_cors_origin      https://dashboard.example.org;
-xrootd_webdav_cors_credentials on;
-xrootd_webdav_cors_max_age     3600;
+brix_webdav_cors_origin      https://portal.example.org;
+brix_webdav_cors_origin      https://dashboard.example.org;
+brix_webdav_cors_credentials on;
+brix_webdav_cors_max_age     3600;
 ```
 
 CORS pre-flight `OPTIONS` requests (those carrying both `Origin` and
@@ -430,7 +430,7 @@ CORS pre-flight `OPTIONS` requests (those carrying both `Origin` and
 gate. All other requests get `Access-Control-Allow-Origin` and related headers
 appended to the response.
 
-> **Tip:** omit `xrootd_webdav_cors_origin` entirely if you do not need CORS.
+> **Tip:** omit `brix_webdav_cors_origin` entirely if you do not need CORS.
 > No CORS headers are added when no origins are configured.
 
 ---
@@ -446,8 +446,8 @@ xattr reads). The number of concurrent locks is bounded only by filesystem
 capacity.
 
 ```nginx
-xrootd_webdav_lock_timeout 600;          # maximum lock lifetime in seconds (default)
-xrootd_webdav_lock_startup_sweep off;    # on = clear persisted locks at startup
+brix_webdav_lock_timeout 600;          # maximum lock lifetime in seconds (default)
+brix_webdav_lock_startup_sweep off;    # on = clear persisted locks at startup
 ```
 
 Locks expire lazily — an expired lock is removed on the next access to its
@@ -457,7 +457,7 @@ path. No external lock server is required.
 > nginx restart**, which diverges from the ephemeral model of RFC 4918 §10.1.
 > Clients that explicitly `UNLOCK` (the correct pattern) are unaffected. To
 > restore the ephemeral, restart-clears-all behaviour, enable
-> `xrootd_webdav_lock_startup_sweep`.
+> `brix_webdav_lock_startup_sweep`.
 
 ---
 
@@ -465,10 +465,10 @@ path. No external lock server is required.
 
 ### Core directives
 
-#### `xrootd_webdav`
+#### `brix_webdav`
 
 ```nginx
-xrootd_webdav on | off;
+brix_webdav on | off;
 ```
 
 Enable or disable the WebDAV module for this location block. Default: `off`.
@@ -478,10 +478,10 @@ Context: `location`
 
 ---
 
-#### `xrootd_webdav_root`
+#### `brix_webdav_root`
 
 ```nginx
-xrootd_webdav_root /path/to/export;
+brix_webdav_root /path/to/export;
 ```
 
 Filesystem directory to expose. All WebDAV operations are confined to this
@@ -492,10 +492,10 @@ Context: `location`
 
 ---
 
-#### `xrootd_webdav_auth`
+#### `brix_webdav_auth`
 
 ```nginx
-xrootd_webdav_auth none | optional | required;
+brix_webdav_auth none | optional | required;
 ```
 
 Authentication policy. Default: `optional`.
@@ -510,10 +510,10 @@ Context: `location`
 
 ---
 
-#### `xrootd_webdav_allow_write`
+#### `brix_webdav_allow_write`
 
 ```nginx
-xrootd_webdav_allow_write on | off;
+brix_webdav_allow_write on | off;
 ```
 
 Enable write methods: PUT, DELETE, MKCOL, COPY, MOVE. Default: `off`.
@@ -525,52 +525,52 @@ Context: `location`
 
 ---
 
-#### `xrootd_webdav_proxy_certs`
+#### `brix_webdav_proxy_certs`
 
 ```nginx
-xrootd_webdav_proxy_certs on | off;
+brix_webdav_proxy_certs on | off;
 ```
 
 Accept RFC 3820 proxy certificates (VOMS proxies). Default: `off`.
 
-When `on`, the module walks the proxy chain up to `xrootd_webdav_verify_depth`
+When `on`, the module walks the proxy chain up to `brix_webdav_verify_depth`
 levels deep. When `off`, only end-entity certificates are accepted.
 
 Context: `server`, `location`
 
 ---
 
-#### `xrootd_webdav_cadir`
+#### `brix_webdav_cadir`
 
 ```nginx
-xrootd_webdav_cadir /etc/grid-security/certificates;
+brix_webdav_cadir /etc/grid-security/certificates;
 ```
 
 Directory of trusted CA PEM files (hashed, as produced by `update-ca-trust` or
-`c_rehash`). Required when `xrootd_webdav_auth` is `optional` or `required`
-unless `xrootd_webdav_cafile` is set instead.
+`c_rehash`). Required when `brix_webdav_auth` is `optional` or `required`
+unless `brix_webdav_cafile` is set instead.
 
 Context: `location`
 
 ---
 
-#### `xrootd_webdav_cafile`
+#### `brix_webdav_cafile`
 
 ```nginx
-xrootd_webdav_cafile /etc/pki/tls/certs/ca-bundle.crt;
+brix_webdav_cafile /etc/pki/tls/certs/ca-bundle.crt;
 ```
 
 Single PEM file containing one or more trusted CA certificates. Alternative to
-`xrootd_webdav_cadir`; both can be set.
+`brix_webdav_cadir`; both can be set.
 
 Context: `location`
 
 ---
 
-#### `xrootd_webdav_crl`
+#### `brix_webdav_crl`
 
 ```nginx
-xrootd_webdav_crl /etc/grid-security/certificates;
+brix_webdav_crl /etc/grid-security/certificates;
 ```
 
 Path to CRL file(s). Accepts a directory (hashed CRL PEMs) or a single PEM
@@ -580,15 +580,15 @@ Context: `location`
 
 ---
 
-#### `xrootd_webdav_token_jwks`
+#### `brix_webdav_token_jwks`
 
 ```nginx
-xrootd_webdav_token_jwks /etc/xrootd/issuer.jwks;
+brix_webdav_token_jwks /etc/brix/issuer.jwks;
 ```
 
 Path to a local JWKS file (JSON, RS256 keys) used for bearer token signature
-verification. Must be set together with `xrootd_webdav_token_issuer` and
-`xrootd_webdav_token_audience`.
+verification. Must be set together with `brix_webdav_token_issuer` and
+`brix_webdav_token_audience`.
 
 The JWKS is loaded once at startup. To rotate keys, reload nginx.
 
@@ -596,10 +596,10 @@ Context: `location`
 
 ---
 
-#### `xrootd_webdav_token_issuer`
+#### `brix_webdav_token_issuer`
 
 ```nginx
-xrootd_webdav_token_issuer https://token.example.org;
+brix_webdav_token_issuer https://token.example.org;
 ```
 
 Required `iss` claim value. Tokens with a different issuer are rejected.
@@ -608,10 +608,10 @@ Context: `location`
 
 ---
 
-#### `xrootd_webdav_token_audience`
+#### `brix_webdav_token_audience`
 
 ```nginx
-xrootd_webdav_token_audience https://se.example.org;
+brix_webdav_token_audience https://se.example.org;
 ```
 
 Required `aud` claim value. Tokens with a different audience are rejected.
@@ -620,10 +620,10 @@ Context: `location`
 
 ---
 
-#### `xrootd_webdav_cors_origin`
+#### `brix_webdav_cors_origin`
 
 ```nginx
-xrootd_webdav_cors_origin https://portal.example.org;
+brix_webdav_cors_origin https://portal.example.org;
 ```
 
 Permitted CORS origin. Repeat for multiple origins. No default; CORS headers
@@ -633,10 +633,10 @@ Context: `location`
 
 ---
 
-#### `xrootd_webdav_cors_credentials`
+#### `brix_webdav_cors_credentials`
 
 ```nginx
-xrootd_webdav_cors_credentials on | off;
+brix_webdav_cors_credentials on | off;
 ```
 
 Set `Access-Control-Allow-Credentials: true`. Default: `off`.
@@ -645,10 +645,10 @@ Context: `location`
 
 ---
 
-#### `xrootd_webdav_cors_max_age`
+#### `brix_webdav_cors_max_age`
 
 ```nginx
-xrootd_webdav_cors_max_age 86400;
+brix_webdav_cors_max_age 86400;
 ```
 
 Value for `Access-Control-Max-Age` (seconds). Default: `86400` (24 hours).
@@ -657,10 +657,10 @@ Context: `location`
 
 ---
 
-#### `xrootd_webdav_lock_timeout`
+#### `brix_webdav_lock_timeout`
 
 ```nginx
-xrootd_webdav_lock_timeout 600;
+brix_webdav_lock_timeout 600;
 ```
 
 Maximum lifetime of a WebDAV lock in seconds. Default: `600` (10 minutes).
@@ -671,10 +671,10 @@ Context: `main`, `server`, `location`
 
 ---
 
-#### `xrootd_webdav_thread_pool`
+#### `brix_webdav_thread_pool`
 
 ```nginx
-xrootd_webdav_thread_pool default;
+brix_webdav_thread_pool default;
 ```
 
 Name of an nginx `thread_pool` to use for asynchronous PUT body writes. When
@@ -686,7 +686,7 @@ stalls. Requires nginx to be compiled with `--with-threads`.
 thread_pool default threads=4 max_queue=65536;
 
 # In location {}:
-xrootd_webdav_thread_pool default;
+brix_webdav_thread_pool default;
 ```
 
 Context: `location`
@@ -695,23 +695,23 @@ Context: `location`
 
 ### TPC directives
 
-#### `xrootd_webdav_tpc`
+#### `brix_webdav_tpc`
 
 ```nginx
-xrootd_webdav_tpc on | off;
+brix_webdav_tpc on | off;
 ```
 
 Enable HTTP Third-Party Copy. Default: `off`. Also requires
-`xrootd_webdav_allow_write on`.
+`brix_webdav_allow_write on`.
 
 Context: `location`
 
 ---
 
-#### `xrootd_webdav_tpc_curl`
+#### `brix_webdav_tpc_curl`
 
 ```nginx
-xrootd_webdav_tpc_curl /usr/bin/curl;
+brix_webdav_tpc_curl /usr/bin/curl;
 ```
 
 Path to the `curl` binary used to perform TPC pull transfers. Must be
@@ -721,10 +721,10 @@ Context: `location`
 
 ---
 
-#### `xrootd_webdav_tpc_cert`
+#### `brix_webdav_tpc_cert`
 
 ```nginx
-xrootd_webdav_tpc_cert /etc/grid-security/hostcert.pem;
+brix_webdav_tpc_cert /etc/grid-security/hostcert.pem;
 ```
 
 Client certificate PEM presented when `curl` authenticates to the source server.
@@ -733,22 +733,22 @@ Context: `location`
 
 ---
 
-#### `xrootd_webdav_tpc_key`
+#### `brix_webdav_tpc_key`
 
 ```nginx
-xrootd_webdav_tpc_key /etc/grid-security/hostkey.pem;
+brix_webdav_tpc_key /etc/grid-security/hostkey.pem;
 ```
 
-Private key PEM for `xrootd_webdav_tpc_cert`.
+Private key PEM for `brix_webdav_tpc_cert`.
 
 Context: `location`
 
 ---
 
-#### `xrootd_webdav_tpc_cadir`
+#### `brix_webdav_tpc_cadir`
 
 ```nginx
-xrootd_webdav_tpc_cadir /etc/grid-security/certificates;
+brix_webdav_tpc_cadir /etc/grid-security/certificates;
 ```
 
 CA directory (hashed PEMs) used by `curl` to verify the source server's
@@ -758,10 +758,10 @@ Context: `location`
 
 ---
 
-#### `xrootd_webdav_tpc_timeout`
+#### `brix_webdav_tpc_timeout`
 
 ```nginx
-xrootd_webdav_tpc_timeout 300;
+brix_webdav_tpc_timeout 300;
 ```
 
 Maximum time in seconds for a single TPC `curl` transfer (`--max-time`).
@@ -772,10 +772,10 @@ Context: `location`
 
 ---
 
-#### `xrootd_webdav_tpc_token_endpoint`
+#### `brix_webdav_tpc_token_endpoint`
 
 ```nginx
-xrootd_webdav_tpc_token_endpoint https://iam.example.org/token;
+brix_webdav_tpc_token_endpoint https://iam.example.org/token;
 ```
 
 OAuth2 token endpoint for RFC 8693 token exchange used when the client sends
@@ -785,10 +785,10 @@ Context: `location`
 
 ---
 
-#### `xrootd_webdav_tpc_token_client_id`
+#### `brix_webdav_tpc_token_client_id`
 
 ```nginx
-xrootd_webdav_tpc_token_client_id my-service;
+brix_webdav_tpc_token_client_id my-service;
 ```
 
 OAuth2 client ID for confidential client token exchange.
@@ -797,10 +797,10 @@ Context: `location`
 
 ---
 
-#### `xrootd_webdav_tpc_token_client_secret`
+#### `brix_webdav_tpc_token_client_secret`
 
 ```nginx
-xrootd_webdav_tpc_token_client_secret s3cr3t;
+brix_webdav_tpc_token_client_secret s3cr3t;
 ```
 
 OAuth2 client secret for confidential client token exchange.
@@ -809,10 +809,10 @@ Context: `location`
 
 ---
 
-#### `xrootd_webdav_tpc_token_scope`
+#### `brix_webdav_tpc_token_scope`
 
 ```nginx
-xrootd_webdav_tpc_token_scope storage.read;
+brix_webdav_tpc_token_scope storage.read;
 ```
 
 Scope string to request during token exchange.
@@ -823,27 +823,27 @@ Context: `location`
 
 ### Proxy directives
 
-#### `xrootd_webdav_proxy`
+#### `brix_webdav_proxy`
 
 ```nginx
-xrootd_webdav_proxy on | off;
+brix_webdav_proxy on | off;
 ```
 
 Enable upstream proxy mode. When `on`, all requests are forwarded to
-`xrootd_webdav_proxy_upstream` after the auth gate. Default: `off`.
+`brix_webdav_proxy_upstream` after the auth gate. Default: `off`.
 
 Context: `location`
 
 ---
 
-#### `xrootd_webdav_proxy_upstream`
+#### `brix_webdav_proxy_upstream`
 
 ```nginx
-xrootd_webdav_proxy_upstream http://host:port;
-xrootd_webdav_proxy_upstream https://host:port;
+brix_webdav_proxy_upstream http://host:port;
+brix_webdav_proxy_upstream https://host:port;
 ```
 
-URL of the backend WebDAV server. Required when `xrootd_webdav_proxy on`.
+URL of the backend WebDAV server. Required when `brix_webdav_proxy on`.
 Supports both `http://` and `https://` schemes. The upstream address is
 resolved once at startup.
 
@@ -851,12 +851,12 @@ Context: `location`
 
 ---
 
-#### `xrootd_webdav_proxy_auth`
+#### `brix_webdav_proxy_auth`
 
 ```nginx
-xrootd_webdav_proxy_auth anonymous;
-xrootd_webdav_proxy_auth forward;
-xrootd_webdav_proxy_auth token <bearer-value>;
+brix_webdav_proxy_auth anonymous;
+brix_webdav_proxy_auth forward;
+brix_webdav_proxy_auth token <bearer-value>;
 ```
 
 Authorization header policy for forwarded requests. Default: `anonymous`.
@@ -871,10 +871,10 @@ Context: `location`
 
 ---
 
-#### `xrootd_webdav_proxy_connect_timeout`
+#### `brix_webdav_proxy_connect_timeout`
 
 ```nginx
-xrootd_webdav_proxy_connect_timeout 10s;
+brix_webdav_proxy_connect_timeout 10s;
 ```
 
 Timeout for establishing the TCP (or TLS) connection to the upstream.
@@ -884,10 +884,10 @@ Context: `location`
 
 ---
 
-#### `xrootd_webdav_proxy_send_timeout`
+#### `brix_webdav_proxy_send_timeout`
 
 ```nginx
-xrootd_webdav_proxy_send_timeout 60s;
+brix_webdav_proxy_send_timeout 60s;
 ```
 
 Timeout for sending the request (headers + body) to the upstream. Default: `60s`.
@@ -896,10 +896,10 @@ Context: `location`
 
 ---
 
-#### `xrootd_webdav_proxy_read_timeout`
+#### `brix_webdav_proxy_read_timeout`
 
 ```nginx
-xrootd_webdav_proxy_read_timeout 120s;
+brix_webdav_proxy_read_timeout 120s;
 ```
 
 Timeout for reading the response from the upstream. Default: `60s`. Increase
@@ -911,27 +911,27 @@ Context: `location`
 
 ## Troubleshooting
 
-### "auth optional/required needs xrootd_webdav_cadir or xrootd_webdav_cafile"
+### "auth optional/required needs brix_webdav_cadir or brix_webdav_cafile"
 
-`xrootd_webdav_auth optional` and `required` both need a trust anchor to
-verify certificates. Set `xrootd_webdav_cadir` or `xrootd_webdav_cafile`.
+`brix_webdav_auth optional` and `required` both need a trust anchor to
+verify certificates. Set `brix_webdav_cadir` or `brix_webdav_cafile`.
 If you only want bearer token auth and no certificate support, that is not
 supported directly — set a cadir that points at your issuer's CA.
 
 ### Token verification fails
 
-1. Check that `xrootd_webdav_token_issuer` matches the `iss` claim exactly
+1. Check that `brix_webdav_token_issuer` matches the `iss` claim exactly
    (trailing slashes matter).
-2. Check that `xrootd_webdav_token_audience` matches the `aud` claim.
+2. Check that `brix_webdav_token_audience` matches the `aud` claim.
 3. Verify the JWKS file is valid JSON and contains the correct public keys
    for your issuer. You can inspect it with `python3 -m json.tool`.
 4. Check the clock on the nginx host — JWT `exp` verification requires
    reasonably accurate system time.
 
-### "xrootd_webdav: root path ... is not accessible"
+### "brix_webdav: root path ... is not accessible"
 
 The nginx worker process must be able to read (and, for writes, write) the
-`xrootd_webdav_root` directory. Check filesystem permissions and that the
+`brix_webdav_root` directory. Check filesystem permissions and that the
 nginx worker user (typically `nginx` or `www-data`) has appropriate access.
 
 ### Proxy mode returns 502 Bad Gateway
@@ -940,17 +940,17 @@ nginx worker user (typically `nginx` or `www-data`) has appropriate access.
    port.
 2. Check firewall rules between nginx and the backend.
 3. Look for the upstream address in the nginx error log:
-   `xrootd_webdav_proxy: upstream ... -> ... (ssl=0)` is logged at `notice`
+   `brix_webdav_proxy: upstream ... -> ... (ssl=0)` is logged at `notice`
    level during startup.
-4. Increase `xrootd_webdav_proxy_read_timeout` if the backend is slow.
+4. Increase `brix_webdav_proxy_read_timeout` if the backend is slow.
 
 ### TPC transfer hangs or times out
 
-Set `xrootd_webdav_tpc_timeout` to a reasonable value (e.g. `300` for 5
+Set `brix_webdav_tpc_timeout` to a reasonable value (e.g. `300` for 5
 minutes). Without it, a hung curl process holds the worker thread until nginx
 is killed or reloaded.
 
-Check that the `curl` binary at `xrootd_webdav_tpc_curl` can reach the source
+Check that the `curl` binary at `brix_webdav_tpc_curl` can reach the source
 server. Test manually:
 
 ```sh
@@ -967,4 +967,4 @@ nginx restart**. A client that crashed while holding a lock leaves the xattr
 behind; the lock is cleared lazily on the next access to that path, or
 immediately on an explicit `UNLOCK`. There is no fixed lock-table capacity to
 exhaust. To clear all persisted locks at startup (restoring ephemeral
-semantics), enable `xrootd_webdav_lock_startup_sweep`.
+semantics), enable `brix_webdav_lock_startup_sweep`.

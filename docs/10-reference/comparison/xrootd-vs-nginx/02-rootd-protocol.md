@@ -9,7 +9,7 @@ framing, and the per-opcode coverage and framing-parity of every `kXR_*` request
 code.
 
 Every claim below is grounded in source. The official side cites
-`/tmp/xrootd-src/src/XProtocol/XProtocol.hh` (the opcode and struct definitions)
+`/tmp/brix-src/src/XProtocol/XProtocol.hh` (the opcode and struct definitions)
 and `XrdXrootd/XrdXrootdProtocol.cc` / `XrdXrootdXeq.cc` (the `do_*` handlers).
 The BriX-Cache side cites this repository's `src/` tree. Where a behaviour was
 already verified by the conformance / interop suites, this doc **reuses** the
@@ -17,7 +17,7 @@ facts from the companion documents rather than re-deriving them:
 
 - [`../conformance-findings.md`](../conformance-findings.md) — 22 fixed wire divergences vs. the spec + stock tools.
 - [`../gohep-interop-findings.md`](../gohep-interop-findings.md) — three bugs an independent Go client exposed.
-- [`../xrootd-implementations.md`](../xrootd-implementations.md) — the five-implementation code-level comparison.
+- [`../brix-implementations.md`](../brix-implementations.md) — the five-implementation code-level comparison.
 
 ---
 
@@ -29,7 +29,7 @@ request-opcode surface. The crypto internals of GSI/token/SSS handshakes, the
 HTTP/WebDAV/S3 planes, and CMS clustering are covered by their own comparison
 documents and are referenced here only where they affect wire behaviour.
 
-"Official XRootD" means the reference C++ implementation in `/tmp/xrootd-src`
+"Official XRootD" means the reference C++ implementation in `/tmp/brix-src`
 (protocol string `5.2.0`, `kXR_PROTOCOLVERSION 0x00000520`,
 `XProtocol.hh:70-76`). "BriX-Cache" / "this module" means the server in
 `src/` (the native client in `client/` is mentioned only where the two ends must
@@ -46,7 +46,7 @@ The protocol is **defined** by `XProtocol/XProtocol.hh` and **served** by
    `Process()` (`XrdXrootdProtocol.cc:368`) drives a **continuation** state
    machine — a partial socket read stashes state and reschedules via the `Resume`
    member-function pointer rather than blocking (`XrdXrootdProtocol.hh:589`,
-   confirmed in [`../xrootd-implementations.md`](../xrootd-implementations.md) §1).
+   confirmed in [`../brix-implementations.md`](../brix-implementations.md) §1).
 2. Before login, only `kXR_protocol`, `kXR_login`, and `kXR_bind` are accepted —
    a strict pre-login gate (`XrdXrootdProtocol.cc:472-474, 515`).
 3. After login, `Process2()` dispatches the full opcode set through a deliberately
@@ -73,7 +73,7 @@ protocol.
 
 The module registers as an `NGX_STREAM_MODULE` and runs the protocol **on nginx's
 event loop**, single-threaded per worker — the only event-loop reimplementation in
-the field ([`../xrootd-implementations.md`](../xrootd-implementations.md) §1). The
+the field ([`../brix-implementations.md`](../brix-implementations.md) §1). The
 recv path is a byte-accumulating state machine
 (`HANDSHAKE(20B) → REQ_HEADER(24B) → REQ_PAYLOAD(dlen) → dispatch`) with suspend
 states that return to the loop immediately; blocking work (file I/O, DH keygen) is
@@ -82,7 +82,7 @@ exiled to a thread pool / per-worker keypool.
 The opcode constants live in `src/protocols/root/protocol/opcodes.h`; the flag/error/status
 constants in `src/protocols/root/protocol/flags.h`; the wire structs in `src/protocols/root/protocol/`
 (`wire_core_requests.h` et al.). Dispatch is a four-stage cascade in
-`src/protocols/root/handshake/dispatch.c`, each stage returning `XROOTD_DISPATCH_CONTINUE` if the
+`src/protocols/root/handshake/dispatch.c`, each stage returning `BRIX_DISPATCH_CONTINUE` if the
 opcode is not its own:
 
 | Stage | File | Opcodes |
@@ -121,7 +121,7 @@ throughout):
   `XRD_RESPONSE_HDR_LEN 8` (`opcodes.h:31`).
 - **`streamid` is opaque** — echoed as raw bytes, never byte-swapped, on both
   sides (confirmed for all five implementations in
-  [`../xrootd-implementations.md`](../xrootd-implementations.md) §2).
+  [`../brix-implementations.md`](../brix-implementations.md) §2).
 - Response status codes agree: `kXR_ok=0`, `kXR_oksofar=4000`, `kXR_attn=4001`,
   `kXR_authmore=4002`, `kXR_error=4003`, `kXR_redirect=4004`, `kXR_wait=4005`,
   `kXR_waitresp=4006`, `kXR_status=4007` (official `XResponseType`,
@@ -140,7 +140,7 @@ The client sends `struct ClientInitHandShake` = five 32-bit words
 - **Official validation is loose**: the real gate is "first three words zero,
   fourth word == 4" with the magic word historical
   (`XrdXrootdProtocol.cc:311-325`, per
-  [`../xrootd-implementations.md`](../xrootd-implementations.md) §3).
+  [`../brix-implementations.md`](../brix-implementations.md) §3).
 - **BriX-Cache validates `fourth==4 && fifth==ROOTD_PQ(2012)`**
   (`src/protocols/root/handshake/client_hello.c:66`, `ROOTD_PQ` defined `opcodes.h`). Slightly
   stricter than the reference (it also requires the magic), but a conformant
@@ -197,7 +197,7 @@ The server reply (`ServerResponseBody_Protocol`, `XProtocol.hh:1233-1237`) is
   rejected. When offering, it sets `ctx->tls_pending=1` so the connection upgrades
   via `ngx_ssl_create_connection` after the reply. This matches the reference's
   `kXR_ableTLS/wantTLS ↔ haveTLS/gotoTLS/tlsLogin` model
-  ([`../xrootd-implementations.md`](../xrootd-implementations.md) §3 table).
+  ([`../brix-implementations.md`](../brix-implementations.md) §3 table).
 - **SecurityInfo trailer**: when the client sets `kXR_secreqs`, the server appends
   a trailer (`protocol.c:94-200`): a 4-byte SecurityInfo header, one 8-byte entry
   per enabled auth plugin (sss/ztn/gsi order), and a
@@ -219,10 +219,10 @@ version in the low 6 bits — `XLoginCapVer`/`XLoginVersion`, `XProtocol.hh:404-
 
 - Parses username/PID from the 8-byte field; **rejects non-printable usernames**
   (`login.c:82`), which is stricter than the reference but defensible
-  ([`../xrootd-implementations.md`](../xrootd-implementations.md) §4).
+  ([`../brix-implementations.md`](../brix-implementations.md) §4).
 - Generates a 16-byte `sessid` and sets `logged_in=1` (the session id is *not*
   crypto-grade, noted in source).
-- **Anonymous nuance**: when `conf->auth == XROOTD_AUTH_NONE`, login completes in
+- **Anonymous nuance**: when `conf->auth == BRIX_AUTH_NONE`, login completes in
   one round-trip and the reply body is **the sessid only** (no `sec[]` blob,
   `login.c:113-124`), and `auth_done=1` is set immediately. This empty-body anon
   reply is the nuance flagged in the conformance docs and verified there (16-byte
@@ -238,11 +238,11 @@ version in the low 6 bits — `XLoginCapVer`/`XLoginVersion`, `XProtocol.hh:404-
 Official `ClientAuthRequest` (`XProtocol.hh:168-174`) carries a 4-byte `credtype`
 and a credential blob; `do_Auth()` runs the chosen `XrdSecProtocol` and replies
 `kXR_authmore` for additional rounds or `kXR_ok` on success. BriX-Cache's
-handler is `xrootd_handle_auth` in `src/auth/gsi/auth.c`, which drives GSI / token /
+handler is `brix_handle_auth` in `src/auth/gsi/auth.c`, which drives GSI / token /
 SSS / krb5 to completion (multi-round via `kXR_authmore`), then sets
 `auth_done=1`. The crypto details (GSI buckets, DH, IV/`#ivlen`, digest
 negotiation) are out of scope here and covered in
-[`../xrootd-implementations.md`](../xrootd-implementations.md) §5; the *framing*
+[`../brix-implementations.md`](../brix-implementations.md) §5; the *framing*
 (`credtype`, `kXR_authmore` rounds) agrees.
 
 ---
@@ -368,7 +368,7 @@ relevant to wire framing/semantics (cross-referenced in the opcode table above):
 
 - **Reported version**: both advertise `0x520` (5.2.0). (For context, go-hep is
   frozen at 3.1 and dCache at 5.0 — see
-  [`../xrootd-implementations.md`](../xrootd-implementations.md) §3.)
+  [`../brix-implementations.md`](../brix-implementations.md) §3.)
 - **Handshake strictness**: the reference accepts any fifth word; we require the
   `2012` magic (`client_hello.c:66`). Interoperable for conformant clients.
 - **Username strictness**: we reject non-printable usernames at login; the
@@ -425,7 +425,7 @@ vendor extensions, which require this project's own client.
 - **Beyond the reference**: paged I/O (`pgread`/`pgwrite` + `kXR_status` +
   per-page CRC32c) and `readv` — features only this module and the C++ reference
   implement among the reimplementations
-  ([`../xrootd-implementations.md`](../xrootd-implementations.md) §6) — plus four
+  ([`../brix-implementations.md`](../brix-implementations.md) §6) — plus four
   opt-in vendor POSIX extension opcodes.
 
 **Bottom line:** on the `root://` binary wire protocol, BriX-Cache is a
@@ -437,7 +437,7 @@ explicitly opt-in vendor superset and one dead-opcode gap.
 
 ## Source references
 
-**Official XRootD** (`/tmp/xrootd-src/src/`):
+**Official XRootD** (`/tmp/brix-src/src/`):
 
 - `XProtocol/XProtocol.hh` — opcode enum `XRequestTypes:111-147`; request structs
   `:157-925`; handshake structs `:84-98`; protocol flags/TLS bits `:589-614,
@@ -474,4 +474,4 @@ explicitly opt-in vendor superset and one dead-opcode gap.
 **Companion comparison docs** (verified facts reused here):
 [`../conformance-findings.md`](../conformance-findings.md),
 [`../gohep-interop-findings.md`](../gohep-interop-findings.md),
-[`../xrootd-implementations.md`](../xrootd-implementations.md).
+[`../brix-implementations.md`](../brix-implementations.md).

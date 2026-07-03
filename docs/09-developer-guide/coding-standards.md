@@ -66,20 +66,20 @@ Each directory has a `README.md` explaining its purpose and key files. New subdi
 
 | Pattern | Where it applies | Example |
 |---|---|---|
-| `xrootd_handle_*` | Top-level opcode handlers called from dispatch | `xrootd_handle_open()`, `xrootd_handle_read()` |
-| `xrootd_send_*` | Response formatting functions | `xrootd_send_error()`, `xrootd_send_ok()` |
-| `xrootd_dispatch_*` | Dispatch plumbing (handshake/) | `xrootd_dispatch_login()` |
-| `xrootd_on_*` | nginx event callbacks (connection/) | `xrootd_on_recv()`, `xrootd_on_disconnect()` |
-| `xrootd_try_post_*` | Functions that may post to the AIO thread pool | `xrootd_try_post_read()` |
-| `XROOTD_OP_*` | Per-opcode metric slot constants (metrics/) | `XROOTD_OP_READ`, `XROOTD_OP_ERR` |
+| `brix_handle_*` | Top-level opcode handlers called from dispatch | `brix_handle_open()`, `brix_handle_read()` |
+| `brix_send_*` | Response formatting functions | `brix_send_error()`, `brix_send_ok()` |
+| `brix_dispatch_*` | Dispatch plumbing (handshake/) | `brix_dispatch_login()` |
+| `brix_on_*` | nginx event callbacks (connection/) | `brix_on_recv()`, `brix_on_disconnect()` |
+| `brix_try_post_*` | Functions that may post to the AIO thread pool | `brix_try_post_read()` |
+| `BRIX_OP_*` | Per-opcode metric slot constants (metrics/) | `BRIX_OP_READ`, `BRIX_OP_ERR` |
 | `kXR_*` | XRootD wire-protocol constants | `kXR_open`, `kXR_ok` |
-| `ngx_stream_xrootd_*` | nginx module public symbols | `ngx_stream_xrootd_module` |
+| `ngx_stream_brix_*` | nginx module public symbols | `ngx_stream_brix_module` |
 
 ### Type Naming
 
-- Structs: `xrootd_ctx_t`, `xrootd_file_t`, `xrootd_state_t` — descriptive name + `_t`.
-- Enums: `xrootd_state_t` (typedef'd enum) — same naming pattern.
-- Config structs: `ngx_stream_xrootd_srv_conf_t` — nginx module prefix + role suffix.
+- Structs: `brix_ctx_t`, `brix_file_t`, `brix_state_t` — descriptive name + `_t`.
+- Enums: `brix_state_t` (typedef'd enum) — same naming pattern.
+- Config structs: `ngx_stream_brix_srv_conf_t` — nginx module prefix + role suffix.
 
 ### Variable Naming
 
@@ -111,7 +111,7 @@ Every function — public and static — must have a section-level doc block bef
  * HOW: Step-by-step description of the algorithm (numbered list).
  */
 static ngx_int_t
-xrootd_handle_open(...)
+brix_handle_open(...)
 ```
 
 **Rules:**
@@ -141,22 +141,22 @@ xrootd_handle_open(...)
 
 ```c
 /* Good */
-rc = xrootd_resolve_path(ctx, c, conf, path, resolved, sizeof(resolved));
+rc = brix_resolve_path(ctx, c, conf, path, resolved, sizeof(resolved));
 if (rc != NGX_OK) {
     return rc;
 }
 
 /* Bad — swallowed */
-xrootd_resolve_path(ctx, c, conf, path, resolved, sizeof(resolved));
+brix_resolve_path(ctx, c, conf, path, resolved, sizeof(resolved));
 ```
 
 ### Error Access Log Triplet
 
 Every error path must call these three in order before returning:
 
-1. `xrootd_log_access()` — structured access log line with operation name and status
-2. `XROOTD_OP_ERR()` — increment the per-opcode error metric counter
-3. `xrootd_send_error()` — wire or HTTP response with appropriate kXR/HTTP code
+1. `brix_log_access()` — structured access log line with operation name and status
+2. `BRIX_OP_ERR()` — increment the per-opcode error metric counter
+3. `brix_send_error()` — wire or HTTP response with appropriate kXR/HTTP code
 
 The three always travel together. No exception.
 
@@ -283,7 +283,7 @@ In AIO completion callbacks (`_done`), always check `ctx->destroyed` before touc
 nginx initialises **every** `shared_memory` zone as an `ngx_slab_pool_t`, and its SIGCHLD handler runs `ngx_unlock_mutexes()` on **every child death** — that routine walks `ngx_cycle->shared_memory` *unconditionally* and dereferences `((ngx_slab_pool_t *) zone.shm.addr)->mutex` for each zone. A zone whose `init` callback lays its own struct directly over `shm.addr` clobbers that slab header, so the **master SIGSEGVs the instant any worker exits** (this was a real codebase-wide bug).
 
 - **Never** cast `shm_zone->shm.addr` to anything but `ngx_slab_pool_t`, and **never** `ngx_memzero(shm.addr, …)`. The slab header lives there and must survive.
-- Allocate the table **from** the slab pool via `xrootd_shm_table_alloc()` (`src/core/compat/shm_slots.h`), and size the zone with `xrootd_shm_zone_size()`. The helper handles fresh-alloc / reload / re-attach, builds the process-local mutex from the table's first member (an `ngx_shmtx_sh_t lock`; pass `NULL` for lock-less atomic-only tables), and publishes the table via `shm_zone->data`. Initialise non-lock fields only when `*fresh` is set.
+- Allocate the table **from** the slab pool via `brix_shm_table_alloc()` (`src/core/compat/shm_slots.h`), and size the zone with `brix_shm_zone_size()`. The helper handles fresh-alloc / reload / re-attach, builds the process-local mutex from the table's first member (an `ngx_shmtx_sh_t lock`; pass `NULL` for lock-less atomic-only tables), and publishes the table via `shm_zone->data`. Initialise non-lock fields only when `*fresh` is set.
 - The reference pattern is `src/net/ratelimit/ratelimit_zone.c` (view the slab pool, then `ngx_slab_alloc`).
 
 This contract is enforced two ways: `tests/test_shm_slab_safety_lint.py` (static — fails CI if any zone clobbers `shm.addr` or skips the slab-safe allocator) and `tests/test_shm_fork_safety.py` (runtime — SIGKILLs workers across every protocol's zones and asserts the master survives).
@@ -348,7 +348,7 @@ required (§1); they are the primary lens for code review.
 2. **Explicit data flow — pass state, don't reach for it.** Take what you need as
    parameters (`ctx`, `c`, `conf`, the buffer, the length) and return the result
    or an `ngx_int_t` status. Do not introduce new mutable file-scope/global state;
-   the per-connection `xrootd_ctx_t` is the one shared state object and it is
+   the per-connection `brix_ctx_t` is the one shared state object and it is
    passed explicitly. Never communicate between functions through hidden globals.
 3. **Prefer pure helpers; isolate side effects.** Computation (parse, encode,
    validate, map errno→kXR) should be in helpers that take inputs and return
@@ -371,8 +371,8 @@ required (§1); they are the primary lens for code review.
    (see the helper table below and the AGENTS.md HELPERS list). Calling the shared
    helper — not copying its logic — is what keeps the codebase uniform.
 8. **Idempotent, side-effect-honest naming.** A function's name says what it does
-   and whether it mutates: `xrootd_resolve_*`/`*_parse_*`/`*_map_*` compute;
-   `xrootd_send_*`/`*_on_*`/`*_handle_*` act. Don't hide a send or a free inside a
+   and whether it mutates: `brix_resolve_*`/`*_parse_*`/`*_map_*` compute;
+   `brix_send_*`/`*_on_*`/`*_handle_*` act. Don't hide a send or a free inside a
    function named like a pure query.
 
 ### Helper Functions (MUST USE — NEVER REIMPLEMENT)
@@ -381,15 +381,15 @@ The following helpers are shared across modules and must be used instead of reim
 
 | Function | Purpose |
 |---|---|
-| `ngx_http_xrootd_webdav_resolve_path(path)` | Canonical+confined path resolution |
-| `xrootd_open_confined_canon(fd, path)` | Confined fd open with canonical check |
+| `ngx_http_brix_webdav_resolve_path(path)` | Canonical+confined path resolution |
+| `brix_open_confined_canon(fd, path)` | Confined fd open with canonical check |
 | `webdav_verify_proxy_cert(cert_path)` | Valid GSI cert → NGX_OK |
 | `webdav_verify_bearer_token(token_str)` | Valid JWT → NGX_OK |
-| `xrootd_token_check_scope(scope, path)` | Scope grants access → NGX_OK |
+| `brix_token_check_scope(scope, path)` | Scope grants access → NGX_OK |
 | `webdav_tpc_find_header(headers, name)` | Find header in linked list |
 | `webdav_add_cors_headers(r)` | Add Access-Control-* headers |
 | `webdav_metrics_return(status_bytes, proto)` | Increment bytes_sent metric |
-| `XROOTD_PROXY_METRIC_INC(op, status)` | Increment request counter |
+| `BRIX_PROXY_METRIC_INC(op, status)` | Increment request counter |
 | `webdav_check_locks(path)` | NGX_OK or 423 |
 | `webdav_copy_fds(src_fd, dst_fd)` | copy_file_range for TPC |
 
@@ -495,8 +495,8 @@ These are non-negotiable correctness requirements:
 ## 13. Metrics
 
 - Labels are **low-cardinality only** — no paths, bucket-names, or UUIDs as labels.
-- Metric slot constants: `XROOTD_OP_*` enum in `metrics/metrics.h`.
-- Increment at callsite via generated macro: `XROOTD_<TYPE>_METRIC_INC(slot)`.
+- Metric slot constants: `BRIX_OP_*` enum in `metrics/metrics.h`.
+- Increment at callsite via generated macro: `BRIX_<TYPE>_METRIC_INC(slot)`.
 
 ---
 
@@ -517,7 +517,7 @@ These are non-negotiable correctness requirements:
 | Alloc Stream | `ngx_alloc(sz, log)` | AGENTS.md FAQ |
 | ngx_str_t | `.len` + `ngx_memcpy`, no strlen/strcpy | AGENTS.md FAQ |
 | Response | `ngx_chain_t` of `ngx_buf_t` | AGENTS.md FAQ |
-| Error triplet | `log_access()` → `XROOTD_OP_ERR()` → `send_error()` | §4 |
+| Error triplet | `log_access()` → `BRIX_OP_ERR()` → `send_error()` | §4 |
 | `goto` | **FORBIDDEN** — early-return + helper decomposition | §4 (3 recipes) |
 | Functional/modular | one job per function, explicit data flow, pure helpers | §8 |
 | Helpers | never reimplement path/auth/metrics/framing | AGENTS.md HELPERS section |

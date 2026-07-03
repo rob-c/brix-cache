@@ -82,7 +82,7 @@ capability model and nginx's I/O pattern.
 
 ### 3.1 Impersonate broker capability model (prerequisite reading)
 
-The impersonate feature (`xrootd_impersonation map;` in nginx.conf) lets the
+The impersonate feature (`brix_impersonation map;` in nginx.conf) lets the
 gateway perform file I/O as the requesting user's OS identity.  The broker is a
 privileged helper forked at startup and accessed by workers over a UNIX socket.
 
@@ -114,7 +114,7 @@ CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_NET_BIND_SERVICE
 lists it in `kill_caps[]` and drops it from the bounding set at startup.
 Including it here would be inconsistent with how the broker actually operates.
 
-**Tightening when impersonation is disabled:** if `xrootd_impersonation` is set
+**Tightening when impersonation is disabled:** if `brix_impersonation` is set
 to `off` or the module is built without the impersonate component, remove the
 first two capabilities:
 
@@ -160,7 +160,7 @@ service's mount namespace.  nginx reads (never writes) its configuration and
 TLS certificates from `/etc`; those paths only need read access.
 
 `ProtectHome=true` blocks access to `/home`, `/root`, and `/run/user`.  If the
-export root (`xrootd_root`, `xrootd_webdav_root`, `xrootd_s3_root`) or stage
+export root (`brix_root`, `brix_webdav_root`, `brix_s3_root`) or stage
 dir lives under `/home`, add it to `ReadWritePaths` and either change
 `ProtectHome` to `read-only` (read access to the rest of `/home`) or `false`
 (no restriction).
@@ -177,7 +177,7 @@ closes the class of "read-only access to block devices via /dev" attacks.
 
 | Path | What is written |
 |---|---|
-| `/var/log/nginx` | Access logs (`xrootd_access*.log`, WebDAV, S3) |
+| `/var/log/nginx` | Access logs (`brix_access*.log`, WebDAV, S3) |
 | `/var/lib/nginx-xrootd` | Export root + default upload stage dir |
 | `/run` | PID file (`/run/nginx-xrootd.pid`), nginx lock files, broker UNIX socket |
 
@@ -185,7 +185,7 @@ Additional paths to add when needed:
 
 ```ini
 ReadWritePaths=/var/log/nginx /var/lib/nginx-xrootd /run \
-               /mnt/fastcache/xrd-stage \   # if xrootd_stage_dir points here
+               /mnt/fastcache/xrd-stage \   # if brix_stage_dir points here
                /var/cache/nginx-xrootd       # if proxy_cache_path is configured
 ```
 
@@ -329,7 +329,7 @@ tool counts against the score).
 
 - [ ] Edit `/etc/nginx/nginx-xrootd.conf`; set `pid /run/nginx-xrootd.pid;` at
   the top level so the PID file matches `PIDFile=` in the unit.
-- [ ] Set `ReadWritePaths` to cover the actual export root (`xrootd_root`),
+- [ ] Set `ReadWritePaths` to cover the actual export root (`brix_root`),
   log directory, and stage directory for this deployment.
 - [ ] If the export root is under `/home`, adjust `ProtectHome=` accordingly.
 
@@ -361,7 +361,7 @@ directives in a drop-in:
 
 ```bash
 mkdir -p /etc/systemd/system/nginx.service.d
-cat > /etc/systemd/system/nginx.service.d/xrootd-hardening.conf <<'EOF'
+cat > /etc/systemd/system/nginx.service.d/brix-hardening.conf <<'EOF'
 [Service]
 NoNewPrivileges=true
 ProtectSystem=strict

@@ -118,9 +118,9 @@ stream {
     server {
         listen 1094;           # standard XRootD port
         xrootd on;
-        xrootd_root /data;     # serve files from /data
-        xrootd_allow_write on; # allow uploads
-        xrootd_access_log /var/log/nginx/xrootd_access.log;
+        brix_root /data;     # serve files from /data
+        brix_allow_write on; # allow uploads
+        brix_access_log /var/log/nginx/brix_access.log;
     }
 }
 ```
@@ -225,8 +225,8 @@ stream {
     server {
         listen 1094;
         xrootd on;
-        xrootd_root /data;
-        xrootd_allow_write on;
+        brix_root /data;
+        brix_allow_write on;
     }
 }
 
@@ -238,9 +238,9 @@ http {
         ssl_certificate_key /etc/nginx/server.key;
 
         location / {
-            xrootd_webdav             on;
-            xrootd_webdav_root        /data;    # same backing storage
-            xrootd_webdav_allow_write on;
+            brix_webdav             on;
+            brix_webdav_root        /data;    # same backing storage
+            brix_webdav_allow_write on;
         }
     }
 }
@@ -292,11 +292,11 @@ http {
         listen 9001;
 
         location / {
-            xrootd_s3          on;
-            xrootd_s3_root     /data;       # same backing storage
-            xrootd_s3_bucket   mybucket;    # bucket name clients will use
-            # xrootd_s3_access_key  mykey;  # optional SigV4 auth
-            # xrootd_s3_secret_key  mysecret;
+            brix_s3          on;
+            brix_s3_root     /data;       # same backing storage
+            brix_s3_bucket   mybucket;    # bucket name clients will use
+            # brix_s3_access_key  mykey;  # optional SigV4 auth
+            # brix_s3_secret_key  mysecret;
         }
     }
 }
@@ -355,7 +355,7 @@ http {
     server {
         listen 9100;
         location /metrics {
-            xrootd_metrics on;
+            brix_metrics on;
         }
     }
 }
@@ -366,9 +366,9 @@ http {
 curl http://localhost:9100/metrics
 
 # Example output:
-# xrootd_native_ops_total{port="1094",op="open",status="ok"} 42
-# xrootd_webdav_requests_total{port="8443",method="GET",status="200"} 17
-# xrootd_s3_requests_total{port="9001",method="GET",status="200"} 5
+# brix_native_ops_total{port="1094",op="open",status="ok"} 42
+# brix_webdav_requests_total{port="8443",method="GET",status="200"} 17
+# brix_s3_requests_total{port="9001",method="GET",status="200"} 5
 ```
 
 Add to your `prometheus.yml`:
@@ -414,7 +414,7 @@ Here are the most useful docs, organized by what you might want to do:
 - **Protocol quirks and design trade-offs** — [reference/quirks.md](../10-reference/quirks.md)
 
 ### For developers (deep dive)
-- **XRootD protocol concepts** — [reference/xrootd-concepts.md](../10-reference/xrootd-concepts-deep.md)
+- **XRootD protocol concepts** — [reference/brix-concepts.md](../10-reference/brix-concepts-deep.md)
 - **nginx internals** — [reference/nginx/internals.md](../10-reference/nginx-internals.md)
 - **Handler function reference** — [reference/handler-reference.md](../10-reference/handler-reference.md)
 
@@ -433,7 +433,7 @@ Check the nginx error log. The most common cause is a firewall blocking port 109
 The upload landed in the right place but the filesystem is full.
 
 **`xrdcp` prints "Permission denied":**
-Either the nginx worker process does not have read/write permission to `xrootd_root`, or `xrootd_allow_write` is not set to `on`.
+Either the nginx worker process does not have read/write permission to `brix_root`, or `brix_allow_write` is not set to `on`.
 
 **`xrdcp` exits with status 1 and no useful message:**
 Run with `--debug` for verbose output:
@@ -447,8 +447,8 @@ When repeating upload tests against the same destination path, prefer `xrdcp -f`
 Add `thread_pool default threads=4 max_queue=65536;` at the top level of `nginx.conf` (outside `stream {}`), or compile with `--with-threads`.
 
 **WebDAV `curl -k https://localhost:8443//file` returns 403:**
-Either `xrootd_webdav_auth` is set to `required` and no certificate/token was provided,
-or `xrootd_webdav_allow_write` is off and the client tried a write operation.
+Either `brix_webdav_auth` is set to `required` and no certificate/token was provided,
+or `brix_webdav_allow_write` is off and the client tried a write operation.
 Check the nginx error log: `tail -f /usr/local/nginx/logs/error.log`.
 
 **WebDAV `xrdcp davs://` fails with SSL handshake error:**
@@ -458,15 +458,15 @@ to configure trust. For testing, `curl -k` skips verification; xrdcp does not
 have an equivalent flag so use a real certificate for davs:// testing.
 
 **S3 `curl` returns 404 on a key that exists:**
-Check that the bucket name in the URL matches `xrootd_s3_bucket` in the config.
+Check that the bucket name in the URL matches `brix_s3_bucket` in the config.
 The S3 module uses path-style routing: `http://host/BUCKET/key`.
 
 **S3 `aws s3` returns `SignatureDoesNotMatch`:**
-The access key and secret key in the environment must match `xrootd_s3_access_key`
-and `xrootd_s3_secret_key` in the nginx config. If S3 auth is disabled (no key
+The access key and secret key in the environment must match `brix_s3_access_key`
+and `brix_s3_secret_key` in the nginx config. If S3 auth is disabled (no key
 configured), any credentials work.
 
-**nginx fails to start with "unknown directive xrootd_webdav":**
+**nginx fails to start with "unknown directive brix_webdav":**
 The module must be compiled with `--with-http_ssl_module` for WebDAV over HTTPS.
 Re-run `./configure --with-stream --with-http_ssl_module --with-threads --add-module=...`.
 
@@ -478,7 +478,7 @@ Now that you have a working server, choose your path:
 
 | Goal | Read This |
 |---|---|
-| Understand the concepts better | [XRootD Basics](../02-concepts/xrootd-basics.md) |
+| Understand the concepts better | [XRootD Basics](../02-concepts/brix-basics.md) |
 | Set up authentication for production | [Authentication Overview](../06-authentication/auth-overview.md) + [TLS Configuration](../03-configuration/tls-config.md) |
 | Run behind a proxy or in a cluster | [Proxy Mode Guide](../05-operations/proxy-mode-guide.md) |
 | Monitor and observe your server | [Monitoring Guide](../08-metrics-monitoring/monitoring-guide.md) |

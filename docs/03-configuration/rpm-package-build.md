@@ -87,8 +87,8 @@ distribution).
 Verify the modules are present:
 
 ```bash
-ls /usr/lib64/nginx/modules/ngx_stream_xrootd_module.so
-ls /usr/lib64/nginx/modules/ngx_http_xrootd_webdav_module.so
+ls /usr/lib64/nginx/modules/ngx_stream_brix_module.so
+ls /usr/lib64/nginx/modules/ngx_http_brix_webdav_module.so
 ```
 
 ---
@@ -214,64 +214,64 @@ openssl verify -CAfile $PKI/ca/ca.pem \
 ## 4. Create the data directory
 
 ```bash
-sudo mkdir -p /srv/xrootd/data
-sudo chown nginx:nginx /srv/xrootd/data
-sudo chmod 750 /srv/xrootd/data
+sudo mkdir -p /srv/brix/data
+sudo chown nginx:nginx /srv/brix/data
+sudo chmod 750 /srv/brix/data
 
 # Seed a test file
-echo "hello from nginx-xrootd" | sudo tee /srv/xrootd/data/hello.txt > /dev/null
+echo "hello from nginx-xrootd" | sudo tee /srv/brix/data/hello.txt > /dev/null
 ```
 
 ---
 
 ## 5. Write the nginx configuration
 
-Create `/etc/nginx/conf.d/xrootd.conf`:
+Create `/etc/nginx/conf.d/brix.conf`:
 
 ```nginx
 # nginx-xrootd: anonymous root:// + GSI-authenticated root://
-# Serves files from /srv/xrootd/data on both listeners.
+# Serves files from /srv/brix/data on both listeners.
 
 stream {
     # Thread pool for async file I/O.
     # Without this, a slow disk read blocks all connections on the worker.
-    thread_pool xrootd_pool threads=8 max_queue=4096;
+    thread_pool brix_pool threads=8 max_queue=4096;
 
     # ── Port 1094: anonymous access (no credentials required) ──────────────
     server {
         listen 1094;
         xrootd on;
-        xrootd_root /srv/xrootd/data;
-        xrootd_thread_pool xrootd_pool;
-        xrootd_access_log /var/log/nginx/xrootd_anon.log;
+        brix_root /srv/brix/data;
+        brix_thread_pool brix_pool;
+        brix_access_log /var/log/nginx/brix_anon.log;
     }
 
     # ── Port 1095: GSI / x509 proxy-certificate authentication ─────────────
     server {
         listen 1095;
         xrootd on;
-        xrootd_auth gsi;
-        xrootd_allow_write on;
-        xrootd_root /srv/xrootd/data;
-        xrootd_thread_pool xrootd_pool;
+        brix_auth gsi;
+        brix_allow_write on;
+        brix_root /srv/brix/data;
+        brix_thread_pool brix_pool;
 
         # Server identity presented to clients during the GSI DH exchange
-        xrootd_certificate     /etc/grid-security/test-pki/server/hostcert.pem;
-        xrootd_certificate_key /etc/grid-security/test-pki/server/hostkey.pem;
+        brix_certificate     /etc/grid-security/test-pki/server/hostcert.pem;
+        brix_certificate_key /etc/grid-security/test-pki/server/hostkey.pem;
 
         # CA(s) trusted to vouch for client proxy certificates.
         # Point at the directory that contains the hash symlinks (§3.2).
-        xrootd_trusted_ca      /etc/grid-security/test-pki/ca/ca.pem;
+        brix_trusted_ca      /etc/grid-security/test-pki/ca/ca.pem;
 
-        xrootd_access_log /var/log/nginx/xrootd_gsi.log;
+        brix_access_log /var/log/nginx/brix_gsi.log;
     }
 }
 ```
 
 > **Using real grid certificates?**
-> Replace the `xrootd_certificate*` and `xrootd_trusted_ca` paths with your
+> Replace the `brix_certificate*` and `brix_trusted_ca` paths with your
 > real host certificate, key, and the IGTF CA bundle (usually
-> `/etc/grid-security/certificates/`).  Point `xrootd_trusted_ca` at the
+> `/etc/grid-security/certificates/`).  Point `brix_trusted_ca` at the
 > directory if it contains hash-named symlinks, or at a bundle `.pem` file.
 
 ### 5.1 Check the configuration
@@ -346,7 +346,7 @@ echo "anonymous upload" > /tmp/anon_upload.txt
 xrdcp /tmp/anon_upload.txt root://localhost:1094//anon_upload.txt
 ```
 
-> Anonymous upload only succeeds if the listener has `xrootd_allow_write on`.
+> Anonymous upload only succeeds if the listener has `brix_allow_write on`.
 > The port-1094 server in the example config above does **not** — add it if
 > you want anonymous writes.
 
@@ -360,7 +360,7 @@ export X509_CERT_DIR=/etc/grid-security/test-pki/ca
 # List the root
 xrdfs root://localhost:1095 ls /
 
-# Upload a file (allowed because xrootd_allow_write on)
+# Upload a file (allowed because brix_allow_write on)
 echo "gsi upload" > /tmp/gsi_upload.txt
 xrdcp /tmp/gsi_upload.txt root://localhost:1095//gsi_upload.txt
 
@@ -370,7 +370,7 @@ diff /tmp/gsi_upload.txt /tmp/gsi_upload_back.txt
 # (no output = identical)
 
 # Confirm the authenticated DN in the access log
-sudo tail -5 /var/log/nginx/xrootd_gsi.log
+sudo tail -5 /var/log/nginx/brix_gsi.log
 ```
 
 The GSI access log line looks like:
@@ -396,10 +396,10 @@ xrdfs root://localhost:1095 ls /
 |---|---|
 | `unknown directive "xrootd"` | Module loader snippet not included in `nginx.conf` |
 | `nginx -t` passes but port not open | SELinux or firewall blocking; check `ausearch -m AVC` and `firewall-cmd --list-all` |
-| GSI: `kXR_NotAuthorized` | CA hash symlinks missing (§3.2), or `xrootd_trusted_ca` points at wrong path |
+| GSI: `kXR_NotAuthorized` | CA hash symlinks missing (§3.2), or `brix_trusted_ca` points at wrong path |
 | GSI: `server cert not trusted` | Client does not trust the server's CA; set `X509_CERT_DIR` to the CA directory |
 | GSI: `proxy certificate rejected` | Proxy not RFC 3820 — regenerate with `utils/make_proxy.py` |
-| `Permission denied` on data directory | `nginx` user cannot read/write `/srv/xrootd/data`; fix ownership (§4) |
+| `Permission denied` on data directory | `nginx` user cannot read/write `/srv/brix/data`; fix ownership (§4) |
 | `hostkey.pem: permission denied` | `nginx` group cannot read the key; fix with `chmod 440 / chgrp nginx` (§3.3) |
 | SELinux denying nginx reading the key | `sudo semanage fcontext -a -t cert_t '/etc/grid-security(/.*)?'` + `restorecon -Rv /etc/grid-security` |
 
@@ -420,11 +420,11 @@ The module logs GSI errors at `[error]` level and diagnostic notices at
 
 | Goal | Where to look |
 |---|---|
-| TLS-encrypted `root://` (protect file data in transit) | [docs/tls.md](tls-config.md) — `xrootd_tls on` or `roots://` |
+| TLS-encrypted `root://` (protect file data in transit) | [docs/tls.md](tls-config.md) — `brix_tls on` or `roots://` |
 | WebDAV (`davs://`) over HTTPS | [WebDAV overview](../04-protocols/webdav-overview.md) |
 | Token (JWT/WLCG bearer) authentication | [docs/authentication.md](../06-authentication/auth-overview.md) §Token |
-| VO / FQAN ACLs with VOMS | [docs/authentication.md](../06-authentication/auth-overview.md) §VOMS, `xrootd_require_vo` |
-| S3-compatible endpoint | [docs/configuration/directives.md](directives.md) `xrootd_s3` |
+| VO / FQAN ACLs with VOMS | [docs/authentication.md](../06-authentication/auth-overview.md) §VOMS, `brix_require_vo` |
+| S3-compatible endpoint | [docs/configuration/directives.md](directives.md) `brix_s3` |
 | Prometheus metrics | [docs/metrics-and-logging.md](../08-metrics-monitoring/monitoring-guide.md) |
-| CRL checking | [docs/configuration/directives.md](directives.md) `xrootd_crl` |
+| CRL checking | [docs/configuration/directives.md](directives.md) `brix_crl` |
 | Production PKI (real IGTF/grid CA) | [PKI setup](../06-authentication/test-pki-setup.md) |

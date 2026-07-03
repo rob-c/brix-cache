@@ -4,7 +4,7 @@
 >
 > **Skip if:** You just want to use or operate this module. The getting-started guides don't need this information.
 >
-> Prerequisites: [XRootD Basics](../02-concepts/xrootd-basics.md), reading C source code comfortably.
+> Prerequisites: [XRootD Basics](../02-concepts/brix-basics.md), reading C source code comfortably.
 
 Non-obvious wire protocol behaviour discovered by reverse-engineering the XRootD C++ source. None of these are in the specification — they were found by running the client against the server and reading the source when something didn't work.
 
@@ -191,9 +191,9 @@ The module strips the CRCs and writes only the file data to disk.
 
 ## 12. Write payload size needs a separate limit from path size
 
-The module uses a small buffer (`XROOTD_MAX_PATH + 64` ≈ 4 KB) for most requests, since most XRootD requests carry only paths, handles, and small metadata. If this same limit applies to write payloads, `xrdcp` connects, opens the file, and then the connection drops silently when the first 8 MB write payload arrives.
+The module uses a small buffer (`BRIX_MAX_PATH + 64` ≈ 4 KB) for most requests, since most XRootD requests carry only paths, handles, and small metadata. If this same limit applies to write payloads, `xrdcp` connects, opens the file, and then the connection drops silently when the first 8 MB write payload arrives.
 
-The fix is a separate constant `XROOTD_MAX_WRITE_PAYLOAD = 16 MB` that applies only to `kXR_pgwrite`, `kXR_write`, and `kXR_writev`.
+The fix is a separate constant `BRIX_MAX_WRITE_PAYLOAD = 16 MB` that applies only to `kXR_pgwrite`, `kXR_write`, and `kXR_writev`.
 
 ---
 
@@ -235,7 +235,7 @@ Omitting `O_EXCL` for `kXR_new` alone silently truncates existing files instead 
 
 The path resolver normally calls `realpath(3)` on the parent directory to canonicalize it and check for `..` escape attempts. For a recursive `mkdir -p a/b/c`, neither `a/` nor `a/b/` exists yet, so `realpath` fails with `ENOENT` and the mkdir is rejected before any directory is created.
 
-The fix: when `kXR_mkdirpath` is set (or `kXR_mkpath` on open), use a resolver that scans the path for `..` components rather than calling `realpath`. The `xrootd_root` directory is always trusted; any relative path with no `..` components is safe.
+The fix: when `kXR_mkdirpath` is set (or `kXR_mkpath` on open), use a resolver that scans the path for `..` components rather than calling `realpath`. The `brix_root` directory is always trusted; any relative path with no `..` components is safe.
 
 ---
 
@@ -280,11 +280,11 @@ There is a concurrency hazard between the nginx write event handler and the AIO 
 
 **The scenario:**
 1. A response cannot be sent immediately (OS send buffer full). The module stores the unsent bytes in `ctx->wbuf`, transitions to `XRD_ST_SENDING`, and arms the nginx write event.
-2. Before the write event fires, an AIO completion (`xrootd_read_aio_done` etc.) runs via `ngx_post_event`, advances the state machine to `XRD_ST_AIO` or `XRD_ST_REQ_HEADER`, and dispatches the next request.
+2. Before the write event fires, an AIO completion (`brix_read_aio_done` etc.) runs via `ngx_post_event`, advances the state machine to `XRD_ST_AIO` or `XRD_ST_REQ_HEADER`, and dispatches the next request.
 3. The write event fires. If it unconditionally resets state to `XRD_ST_REQ_HEADER` and calls the read handler, a second AIO is dispatched concurrently.
 4. Both AIOs complete and race to overwrite `ctx->wbuf`. The first response's remaining bytes are silently discarded. The client receives a truncated response and hangs waiting for bytes that were never sent.
 
-**Fix:** In `ngx_stream_xrootd_send`, after draining `ctx->wbuf`, check `ctx->state`. If it is no longer `XRD_ST_SENDING`, the pipeline has already advanced and the write handler returns without calling the read path.
+**Fix:** In `ngx_stream_brix_send`, after draining `ctx->wbuf`, check `ctx->state`. If it is no longer `XRD_ST_SENDING`, the pipeline has already advanced and the write handler returns without calling the read path.
 
 This bug only manifests under a specific timing: a large response that requires a second `send()` call, combined with a very fast subsequent read completing before the write event fires. It does not show up in benchmarks but was observed with concurrent clients under load.
 
@@ -369,7 +369,7 @@ Token-authenticated stream listeners advertise `ztn` in the `kXR_protocol` secur
 
 The client then sends a single `kXR_auth` request. The payload starts with the four-byte credential prefix `ztn\0`, followed immediately by the compact JWT bytes. There is no multi-round challenge/response sequence like GSI.
 
-When `xrootd_auth both` is configured, the server advertises token first and then GSI:
+When `brix_auth both` is configured, the server advertises token first and then GSI:
 
 ```
 &P=ztn,v:10000&P=gsi,v:10000,c:ssl,ca:<hash>

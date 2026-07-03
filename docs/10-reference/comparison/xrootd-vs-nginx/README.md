@@ -7,7 +7,7 @@ implemented) and the **end-user / administrator view** (config, commands,
 observable behaviour, parity).
 
 Every claim in this set is tied to source on **both** sides:
-- Official: `/tmp/xrootd-src/src` (the `Xrd*` subsystems).
+- Official: `/tmp/brix-src/src` (the `Xrd*` subsystems).
 - This module: `src/` (and `client/`, `shared/xrdproto`).
 
 > **Working assumption** (inherited from the conformance effort): where behaviour
@@ -131,7 +131,7 @@ overlapping documents. Those remain for history/cross-reference but this set is
 the intended authoritative comparison going forward:
 
 - [`source-verified-xrootd-comparison.md`](../../source-verified-xrootd-comparison.md) — the prior source-verified feature matrix (its facts are folded in here).
-- [`../xrootd-implementations.md`](../xrootd-implementations.md) — the five-implementation `root://` code-level study (architecture/handshake/security/data-plane); deeper on go-hep/dCache/EOS than this set.
+- [`../brix-implementations.md`](../brix-implementations.md) — the five-implementation `root://` code-level study (architecture/handshake/security/data-plane); deeper on go-hep/dCache/EOS than this set.
 - [`../conformance-findings.md`](../conformance-findings.md) — the live conformance ledger (the test batches that drove the divergence fixes catalogued in [11](./11-gaps-divergences-and-extras.md)).
 - [`../gohep-interop-findings.md`](../gohep-interop-findings.md), [`../by-the-numbers.md`](../by-the-numbers.md), and the `../../feature-gaps.md` / `../../gaps-vs-xrootd.md` / `../../source-verified-xrootd-comparison.md` notes.
 

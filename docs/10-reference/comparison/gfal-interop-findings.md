@@ -116,7 +116,7 @@ against the clients production runs, not just `xrdcp`/`curl`.
 
 ## 4. Verification & regression — `tests/test_gfal_interop.py`
 
-- **`test_gfal_xrootd_plugin_root`** — the full `root://` lifecycle matrix incl.
+- **`test_gfal_brix_plugin_root`** — the full `root://` lifecycle matrix incl.
   `gfal-stat` size and a `gfal-sum crc32c` oracle (compared to `xrdcrc32c`).
 - **`test_gfal_http_plugin_davs`** — the `davs://` lifecycle with the byte-identical
   round-trip and (post-fix) the `gfal-stat` size assertion re-enabled.

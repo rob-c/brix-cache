@@ -9,7 +9,7 @@ fail-closed authentication, input/framing robustness, credential handling
 limiting, build hardening, and the overall attack surface.
 
 Every claim below is grounded in source. The official side cites
-`/tmp/xrootd-src/src` — principally `XrdXrootd/XrdXrootdXeq.cc` and
+`/tmp/brix-src/src` — principally `XrdXrootd/XrdXrootdXeq.cc` and
 `XrdXrootdProtocol.cc` (request validation, `rpCheck`/`Squash` path checks),
 `XrdSecgsi/XrdSecProtocolgsi.cc` (GSI + CRL), `XrdTls/XrdTlsContext.cc` (TLS CRL
 refresh), and `XrdCrypto/` (X.509/CRL primitives). The BriX-Cache side cites
@@ -32,7 +32,7 @@ credential, escalating privilege, or starving other clients. The functional
 correctness of each protocol is covered by the other comparison documents and is
 referenced here only where it bears on security.
 
-"Official XRootD" means the reference C++ implementation in `/tmp/xrootd-src`.
+"Official XRootD" means the reference C++ implementation in `/tmp/brix-src`.
 "BriX-Cache" / "this module" means the server in `src/`. Two architectural
 facts frame everything below:
 
@@ -72,7 +72,7 @@ reference this module is measured against:
 - **Authorization plugin** (`XrdAcc`) with a path/operation grammar.
 
 Notably, official XRootD has **no OCSP** anywhere in the tree (`grep -rln OCSP
-/tmp/xrootd-src/src` returns nothing) — revocation is CRL-only. Its DoS posture
+/tmp/brix-src/src` returns nothing) — revocation is CRL-only. Its DoS posture
 relies on its own connection/threading limits and any external firewall; it is
 not fronted by a general-purpose hardened HTTP/stream server.
 
@@ -88,7 +88,7 @@ nginx front end and a modern kernel make cheap:
   with the lexical `..` check kept only for protocol-conformance parity with
   `rpCheck` (`src/fs/path/helpers.c`, `src/protocols/root/path/extract.c`).
 - **Fail-closed auth gating** on the *completed* auth verdict (`auth_done`), the
-  three-tier `xrootd_auth_gate` (authdb/XrdAcc → VO ACL → token scope), and a
+  three-tier `brix_auth_gate` (authdb/XrdAcc → VO ACL → token scope), and a
   ported `XrdAcc` engine that denies on a missing table.
 - **Framing robustness** validated as a differential invariant against the stock
   server: never crash, never hang on any malformed/boundary input
@@ -170,15 +170,15 @@ intermediate-symlink hole that a naive `mkdirat(rootfd, "a/b/c")` would leave.
 
 Two cheaper, defence-in-depth lexical guards sit in front:
 
-- **Embedded-NUL rejection at extract time.** `xrootd_extract_path()` rejects any
+- **Embedded-NUL rejection at extract time.** `brix_extract_path()` rejects any
   path payload with a NUL that is not the final byte
   (`src/protocols/root/path/extract.c:30-39`) — this blocks the `"a\x00evil"` truncation class
   (where downstream C string handling sees `"a"` but a later layer sees more) and
-  oversized payloads (`> XROOTD_MAX_PATH`). The login handler applies the same
+  oversized payloads (`> BRIX_MAX_PATH`). The login handler applies the same
   NUL/non-printable rejection to the 8-byte username (`src/protocols/root/session/login.c`,
   blocking truncation-impersonation).
-- **Lexical `..` rejection for parity.** `xrootd_path_has_dotdot()`
-  (`helpers.c:79`) and `xrootd_path_component_forbidden()` (`helpers.c:59`) reject
+- **Lexical `..` rejection for parity.** `brix_path_has_dotdot()`
+  (`helpers.c:79`) and `brix_path_component_forbidden()` (`helpers.c:59`) reject
   a literal `..` component **outright**, matching `rpCheck`'s reject-don't-
   normalize contract. The in-code comment is explicit that this is a
   *protocol-conformance* guard, not the security boundary: an in-tree `..` would
@@ -215,7 +215,7 @@ authenticated resources. The fix gates on `auth_done`:
 ```c
 // src/protocols/root/handshake/dispatch.c:71
 if (conf->proxy_enable && ctx->auth_done) {
-    return xrootd_proxy_dispatch(ctx, c, conf);
+    return brix_proxy_dispatch(ctx, c, conf);
 }
 ```
 
@@ -231,7 +231,7 @@ on an unknown sessid (`session/bind.c:123`).
 
 ### The authorization gate is fail-closed at every tier
 
-`xrootd_auth_gate_op()` (`src/auth/authz/auth_gate.c`) runs a three-tier check —
+`brix_auth_gate_op()` (`src/auth/authz/auth_gate.c`) runs a three-tier check —
 authdb/XrdAcc → VO ACL → token scope — and on the **first** failure sends
 `kXR_NotAuthorized` and returns `NGX_DONE`. The XrdAcc engine **denies on a
 missing table** (`acc_tables == NULL` → `NGX_ERROR`, `auth_gate.c:36-38`): a
@@ -241,7 +241,7 @@ operation, resolved + request paths, host, DN, VO, raw token scope, SHA-256'd);
 a cached grant therefore can never be replayed for a different token, path,
 operation, host, or access level (`auth_gate.c:131-190`). Brute-force /
 CPU-amplification on the GSI/token verify path is bounded by an
-`auth_fail_count` against `XROOTD_MAX_AUTH_ATTEMPTS` (`src/auth/gsi/auth.c:414`).
+`auth_fail_count` against `BRIX_MAX_AUTH_ATTEMPTS` (`src/auth/gsi/auth.c:414`).
 
 ### Official side
 
@@ -266,7 +266,7 @@ load-bearing invariant: **our server returns a definite outcome inside a sane
 per-socket timeout — no crash, no indefinite hang.** A hang is a test failure to
 investigate, never tolerated. Probes include: unknown opcodes, negative/oversized
 `dlen`, partial sends, pre-login ops, path-length boundaries
-(`XROOTD_PATH_MAX = 4096`), and embedded NULs.
+(`BRIX_PATH_MAX = 4096`), and embedded NULs.
 
 Where the reference is exact the test pins the numeric `kXR_*` code; where the
 exact code is build-version-specific it buckets to "rejected" (e.g. stock returns
@@ -318,7 +318,7 @@ Official XRootD covers this with CRLs only. This module supports **both** CRL an
 OCSP. The OCSP client is deliberately bounded: a black-holed or slow responder
 would otherwise block the single-threaded worker event loop for the kernel TCP
 timeout (~60-120 s), freezing *all* connections. So the connect phase uses a
-non-blocking connect + `poll()` under a hard `XROOTD_OCSP_TIMEOUT_SECS = 5`
+non-blocking connect + `poll()` under a hard `BRIX_OCSP_TIMEOUT_SECS = 5`
 deadline (`SO_SNDTIMEO does not bound connect()`), and the handshake +
 request/response phases are bounded with `SO_RCVTIMEO`/`SO_SNDTIMEO`
 (`ocsp.c:43-109`). On timeout the fetch returns NULL and the caller applies its
@@ -351,7 +351,7 @@ the mapping. The mapping is a first-class, long-standing feature.
 ### BriX-Cache: optional per-request broker, privilege-dropped, off by default
 
 This module's impersonation (`src/auth/impersonate/`, phase 40) is **off by default**
-and strictly opt-in (`xrootd_impersonation off|single|map`). `off` and `single`
+and strictly opt-in (`brix_impersonation off|single|map`). `off` and `single`
 add no privilege and need no root; only `map` is privileged. Its design is
 notably defensive:
 
@@ -361,11 +361,11 @@ notably defensive:
   via `SCM_RIGHTS` (`broker.c`, `impersonate/README.md`). The data plane then
   runs on the already-open fd as the worker — DAC was enforced at open time.
 - **The broker drops to only `{CAP_SETUID, CAP_SETGID}`** plus
-  `PR_SET_NO_NEW_PRIVS` and a cleared bounding set (`xrootd_imp_broker_drop_caps`,
+  `PR_SET_NO_NEW_PRIVS` and a cleared bounding set (`brix_imp_broker_drop_caps`,
   `broker.c:206-250`). Crucially it drops `CAP_DAC_OVERRIDE` /
   `CAP_DAC_READ_SEARCH` / `CAP_FOWNER` / `CAP_CHOWN` — whose presence would let a
   root broker bypass the impersonated user's DAC and make impersonation
-  meaningless. With `xrootd_impersonation_broker_user` it further drops its real
+  meaningless. With `brix_impersonation_broker_user` it further drops its real
   uid/gid to a non-root service account, keeping only those two caps
   (`imp_drop_to_service_user`, verified to "stick" via `getresuid`/`getresgid`,
   `broker.c:137-204`).
@@ -433,7 +433,7 @@ nginx core front end, plus this module's identity-aware limiter.
   the CMS path (phase 51) prevent a manager/peer flood from burying the loop, and
   GSI handshakes are capped in-flight per worker (above).
 - **Auth-path amplification cap.** `auth_fail_count` vs.
-  `XROOTD_MAX_AUTH_ATTEMPTS` bounds brute-force on the expensive GSI/VOMS verify
+  `BRIX_MAX_AUTH_ATTEMPTS` bounds brute-force on the expensive GSI/VOMS verify
   path (`gsi/auth.c`).
 
 Official XRootD has its own connection and threading limits but is not fronted by
@@ -474,7 +474,7 @@ not fixed by this comparison.
 | Revocation | `CRLCheck require[-not-expired]`, `CRLRefresh` | CRL loaders + OCSP (`ocsp.c`); OCSP `soft_fail` policy; revoked is never softened |
 | Token | ZTN plugin config | mandatory `exp`; `expected_issuer`/`expected_audience` pinning |
 | Impersonation | Sec mapping + sudo, on by config | `off` by default; `map` requires root broker; reserved-id floor + cap-drop are non-optional |
-| Rate / DoS | connection/thread limits | `xrootd_rate_limit_zone`/`_rule`/`xrootd_bandwidth_limit`/`xrootd_concurrency_limit`; `max_connections`; deadlines |
+| Rate / DoS | connection/thread limits | `brix_rate_limit_zone`/`_rule`/`brix_bandwidth_limit`/`brix_concurrency_limit`; `max_connections`; deadlines |
 | Privilege model | typically one service user | unprivileged workers; only the optional broker is privileged, and it self-minimises |
 
 The secure-by-default story differs in emphasis. Official XRootD is
@@ -522,7 +522,7 @@ inherent `CAP_SETUID` exposure of *any* impersonation broker if it is exploited.
 
 ## Source references
 
-**Official XRootD (`/tmp/xrootd-src/src`):**
+**Official XRootD (`/tmp/brix-src/src`):**
 
 - `XrdXrootd/XrdXrootdXeq.cc:4374` (`rpCheck`), `:4435` (`Squash`); call sites at
   `:1600` (open), `:2450`/`:2521` (stat), `:1313` (rename), `:2919` (rm), and others.
@@ -531,13 +531,13 @@ inherent `CAP_SETUID` exposure of *any* impersonation broker if it is exploited.
 - `XrdSecgsi/XrdSecProtocolgsi.cc:142,154,501-543` (`CRLdir`, `CRLCheck`,
   `CRLDownload`, `CRLRefresh`).
 - `XrdTls/XrdTlsContext.cc:85-111` (background CRL refresh thread).
-- `grep -rln OCSP /tmp/xrootd-src/src` → empty (no OCSP).
+- `grep -rln OCSP /tmp/brix-src/src` → empty (no OCSP).
 
 **BriX-Cache (this repository, `src/`):**
 
 - Confinement: `path/beneath.c` (`do_openat2`, `beneath_open_parent`),
   `path/beneath.h`, `path/extract.c` (embedded-NUL + length), `path/helpers.c`
-  (`xrootd_path_has_dotdot`, `xrootd_path_component_forbidden`),
+  (`brix_path_has_dotdot`, `brix_path_component_forbidden`),
   `path/normalize.c`.
 - Fail-closed auth: `handshake/dispatch.c:57-71` (`auth_done` proxy gate),
   `path/auth_gate.c` (three-tier gate, missing-table deny, verdict cache key),

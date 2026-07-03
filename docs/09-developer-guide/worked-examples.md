@@ -4,18 +4,18 @@
 
 Concrete before/after examples of adding dispatch entries, to make the pattern concrete before you write new code.
 
-`xrootd_dispatch()` in `src/protocols/root/handshake/dispatch.c` routes every request
+`brix_dispatch()` in `src/protocols/root/handshake/dispatch.c` routes every request
 through four dispatch functions in a fixed cascade:
 
 ```
-xrootd_dispatch()
-  ├── xrootd_dispatch_session_opcode   → src/protocols/root/handshake/dispatch_session.c
-  ├── xrootd_dispatch_read_opcode      → src/protocols/root/handshake/dispatch_read.c
-  ├── xrootd_dispatch_write_opcode     → src/protocols/root/handshake/dispatch_write.c
-  └── xrootd_dispatch_signing_opcode   → src/protocols/root/handshake/dispatch_signing.c
+brix_dispatch()
+  ├── brix_dispatch_session_opcode   → src/protocols/root/handshake/dispatch_session.c
+  ├── brix_dispatch_read_opcode      → src/protocols/root/handshake/dispatch_read.c
+  ├── brix_dispatch_write_opcode     → src/protocols/root/handshake/dispatch_write.c
+  └── brix_dispatch_signing_opcode   → src/protocols/root/handshake/dispatch_signing.c
 ```
 
-Each function returns `XROOTD_DISPATCH_CONTINUE` if the opcode is not its
+Each function returns `BRIX_DISPATCH_CONTINUE` if the opcode is not its
 responsibility, or an actual `ngx_int_t` result (success or error) if it
 handled the request. The cascade stops at the first non-CONTINUE return.
 
@@ -42,18 +42,18 @@ before the handler:
 
 ```c
 case kXR_stat:
-    rc = xrootd_dispatch_require_auth(ctx, c);
-    if (rc != XROOTD_DISPATCH_CONTINUE) { return rc; }
-    return xrootd_handle_stat(ctx, c, conf);
+    rc = brix_dispatch_require_auth(ctx, c);
+    if (rc != BRIX_DISPATCH_CONTINUE) { return rc; }
+    return brix_handle_stat(ctx, c, conf);
 
 case kXR_write:
-    rc = xrootd_dispatch_require_write(ctx, c);
-    if (rc != XROOTD_DISPATCH_CONTINUE) { return rc; }
-    return xrootd_handle_write(ctx, c, conf);
+    rc = brix_dispatch_require_write(ctx, c);
+    if (rc != BRIX_DISPATCH_CONTINUE) { return rc; }
+    return brix_handle_write(ctx, c, conf);
 ```
 
-`xrootd_dispatch_require_auth` rejects unauthenticated connections.
-`xrootd_dispatch_require_write` additionally enforces read-only mode.
+`brix_dispatch_require_auth` rejects unauthenticated connections.
+`brix_dispatch_require_write` additionally enforces read-only mode.
 Session-lifecycle opcodes handle their own auth checks internally.
 
 ---
@@ -81,28 +81,28 @@ bytes: 2-byte stream ID, 2-byte request ID, 16-byte body, 4-byte dlen) with
 
 `src/observability/metrics/metrics.h`:
 ```c
-#define XROOTD_OP_PING  16
+#define BRIX_OP_PING  16
 ```
-`src/observability/metrics/export.c` — `xrootd_op_names[]` has `"ping"` at index 16.
+`src/observability/metrics/export.c` — `brix_op_names[]` has `"ping"` at index 16.
 
 ### Step 4 — Handler
 
-`src/protocols/root/session/lifecycle.c` — `xrootd_handle_ping`:
+`src/protocols/root/session/lifecycle.c` — `brix_handle_ping`:
 ```c
 ngx_int_t
-xrootd_handle_ping(xrootd_ctx_t *ctx, ngx_connection_t *c)
+brix_handle_ping(brix_ctx_t *ctx, ngx_connection_t *c)
 {
-    XROOTD_RETURN_OK(ctx, c, XROOTD_OP_PING, "PING", "-", "-", 0);
+    BRIX_RETURN_OK(ctx, c, BRIX_OP_PING, "PING", "-", "-", 0);
 }
 ```
-Three lines. `XROOTD_RETURN_OK` handles log + metric + send in one call.
+Three lines. `BRIX_RETURN_OK` handles log + metric + send in one call.
 
 ### Step 5 — Dispatch case
 
 `src/protocols/root/handshake/dispatch_session.c`:
 ```c
 case kXR_ping:
-    return xrootd_handle_ping(ctx, c);
+    return brix_handle_ping(ctx, c);
 ```
 No auth guard needed — ping is valid before login (used by health checkers).
 
@@ -139,14 +139,14 @@ Create `src/protocols/webdav/mymethod.c`. The handler signature must match:
 ngx_int_t
 webdav_handle_mymethod(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *conf;
+    ngx_http_brix_webdav_loc_conf_t *conf;
     char  src_path[WEBDAV_MAX_PATH];
     ngx_int_t rc;
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
 
     /* 1. Resolve the request URI to an absolute confined path */
-    rc = ngx_http_xrootd_webdav_resolve_path(r, conf->root_canon,
+    rc = ngx_http_brix_webdav_resolve_path(r, conf->root_canon,
                                               src_path, sizeof(src_path));
     if (rc != NGX_OK) {
         return webdav_metrics_return(r, rc);
@@ -240,7 +240,7 @@ For write methods: also add a token scope negative test:
 
 ```c
 /* Resolve request URI → absolute confined path */
-ngx_int_t ngx_http_xrootd_webdav_resolve_path(
+ngx_int_t ngx_http_brix_webdav_resolve_path(
     ngx_http_request_t *r, const char *root_canon,
     char *out, size_t outsz);
 
@@ -362,5 +362,5 @@ if (*endp != '\0' || partnum < 1 || partnum > 10000) {
 ```
 
 All filesystem paths must go through the confined-open helpers:
-`xrootd_open_confined_canon`, `xrootd_rename_confined_canon`,
-`xrootd_unlink_confined_canon`.
+`brix_open_confined_canon`, `brix_rename_confined_canon`,
+`brix_unlink_confined_canon`.

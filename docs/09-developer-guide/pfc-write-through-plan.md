@@ -40,31 +40,31 @@ fit for very large random-write files (see Limitations).
 ## Configuration
 
 ```nginx
-thread_pool xrootd_cache_io threads=8 max_queue=65536;
+thread_pool brix_cache_io threads=8 max_queue=65536;
 
 stream {
     server {
         listen 1094;
         xrootd on;
-        xrootd_root /data;
-        xrootd_thread_pool xrootd_cache_io;
+        brix_root /data;
+        brix_thread_pool brix_cache_io;
 
-        xrootd_write_through on;
-        xrootd_wt_mode sync;                  # sync | async
-        xrootd_wt_origin origin.example.org:1094;
-        xrootd_wt_allow_prefix /data/ingest/;
-        xrootd_wt_deny_prefix /data/private/;
+        brix_write_through on;
+        brix_wt_mode sync;                  # sync | async
+        brix_wt_origin origin.example.org:1094;
+        brix_wt_allow_prefix /data/ingest/;
+        brix_wt_deny_prefix /data/private/;
     }
 }
 ```
 
 Directives:
-- `xrootd_write_through on|off` enables WT policy evaluation for write opens.
-- `xrootd_wt_mode sync|async` chooses close behavior. `kXR_sync` is always
+- `brix_write_through on|off` enables WT policy evaluation for write opens.
+- `brix_wt_mode sync|async` chooses close behavior. `kXR_sync` is always
   synchronous.
-- `xrootd_wt_origin host:port` sets the write-back data server. If omitted,
-  the read-through `xrootd_cache_origin` is used when configured.
-- `xrootd_wt_allow_prefix` and `xrootd_wt_deny_prefix` are repeatable prefix
+- `brix_wt_origin host:port` sets the write-back data server. If omitted,
+  the read-through `brix_cache_origin` is used when configured.
+- `brix_wt_allow_prefix` and `brix_wt_deny_prefix` are repeatable prefix
   filters. Deny entries win over allow entries.
 
 ## Implementation
@@ -72,11 +72,11 @@ Directives:
 Key files:
 - `src/fs/cache/writethrough_decision.c` — open-time allow/deny decision.
 - `src/protocols/root/read/open_resolved_file.c` — stores WT policy and mode bits on the
-  `xrootd_file_t` handle.
+  `brix_file_t` handle.
 - `src/protocols/root/write/write.c`, `src/protocols/root/write/pgwrite.c`, `src/protocols/root/write/writev.c`,
   `src/protocols/root/write/truncate.c`, `src/core/aio/write.c` — mark handles dirty after local
   write completion.
-- `src/fs/cache/origin_connection.c` — connects to `xrootd_wt_origin` or the
+- `src/fs/cache/origin_connection.c` — connects to `brix_wt_origin` or the
   configured cache origin.
 - `src/fs/cache/origin_protocol.c` — sends origin write-open, write, truncate,
   sync, and close operations.
@@ -84,14 +84,14 @@ Key files:
 - `src/protocols/root/write/sync.c` — flushes dirty WT handles synchronously and returns a
   client error if the origin flush fails.
 - `src/protocols/root/read/close.c` — runs sync close flush, or posts an async flush task when
-  `xrootd_wt_mode async` and a thread pool are configured.
+  `brix_wt_mode async` and a thread pool are configured.
 
 ## Semantics
 
 The open-time decision gates whether a handle ever participates:
 
 ```text
-  write-open /data/...      global xrootd_write_through on?
+  write-open /data/...      global brix_write_through on?
         │                          │ no ──▶ plain local write, no WT
         ▼ yes                      ▼ yes
   deny_prefix match? ──yes──▶ wt_enabled = 0   (writes locally, never mirrors)

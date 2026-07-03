@@ -5,12 +5,12 @@
 bits, and `tests/test_protocol_flags.py` verifies `kXR_supposc`,
 `kXR_suppgrw`, `kXR_attrMeta`, `kXR_attrSuper`, `kXR_attrVirtRdr`,
 `kXR_recoverWrts`, and `kXR_collapseRedir` behavior. See
-`docs/10-reference/xrootd-feature-matrix.md` for the current reviewer-facing
+`docs/10-reference/brix-feature-matrix.md` for the current reviewer-facing
 matrix.
 
 **Scope**: Original plan for `ServerProtocolBody.flags` capability bits that were
 not yet advertised when this document was written  
-**Wire spec**: `/tmp/xrootd-src/src/XProtocol/XProtocol.hh` lines 1198–1217  
+**Wire spec**: `/tmp/brix-src/src/XProtocol/XProtocol.hh` lines 1198–1217  
 **Primary files**: `src/protocols/root/protocol/flags.h`, `src/protocols/root/session/protocol.c`
 
 ---
@@ -181,7 +181,7 @@ body.flags = htonl(kXR_isServer
 | (conf->cache_root.len > 0 || conf->cache_origin_host.len > 0 ? kXR_attrCache : 0)
 ```
 
-**Test**: Start the cache-mode test server (must have `xrootd_cache_root` set) and assert the protocol flag is present. Assert it is absent from a plain data server config.
+**Test**: Start the cache-mode test server (must have `brix_cache_root` set) and assert the protocol flag is present. Assert it is absent from a plain data server config.
 
 ---
 
@@ -195,7 +195,7 @@ These flags represent topology roles that have no existing config directive. Eac
 
 **XRootD use**: The upstream CMS uses this flag to exclude the node from file-availability lookups while still routing namespace queries to it.
 
-**New directive**: `xrootd_metadata_only on|off` (default `off`)
+**New directive**: `brix_metadata_only on|off` (default `off`)
 
 **Config struct** (`src/core/config/server_conf.h`):
 ```c
@@ -236,7 +236,7 @@ ngx_conf_merge_value(conf->metadata_only, prev->metadata_only, 0);
 
 **Current state**: Two-tier manager→DS is fully implemented. Three-tier (meta→sub→DS) works but the meta node does not advertise `kXR_attrSuper`, which causes some topology-aware clients to misclassify it.
 
-**New directive**: `xrootd_supervisor on|off` (default `off`; implies `manager_mode on`)
+**New directive**: `brix_supervisor on|off` (default `off`; implies `manager_mode on`)
 
 **Config struct**:
 ```c
@@ -269,9 +269,9 @@ Note: `kXR_attrSuper` is only meaningful when `kXR_isManager` is also set. Enfor
 
 **XRootD use**: Clients that receive a redirect from a virtual redirector know not to cache the server's path mapping as authoritative for future requests.
 
-**Current state**: A partial form exists via the manager map (`xrootd_cms_paths` / `manager_map`). A pure virtual redirector that maps paths without CMS involvement is not formally declared.
+**Current state**: A partial form exists via the manager map (`brix_cms_paths` / `manager_map`). A pure virtual redirector that maps paths without CMS involvement is not formally declared.
 
-**New directive**: `xrootd_virtual_redirector on|off` (default `off`)
+**New directive**: `brix_virtual_redirector on|off` (default `off`)
 
 This flag is appropriate when:
 - `manager_map` is configured but `cms_addr` is absent (no live CMS — purely static routing)
@@ -292,7 +292,7 @@ ngx_flag_t  virtual_redirector;  /* advertise kXR_attrVirtRdr */
 **Test cases**:
 1. Static manager-map-only config advertises `kXR_attrVirtRdr`.
 2. CMS-backed manager does not set `kXR_attrVirtRdr`.
-3. Explicit `xrootd_virtual_redirector on` sets the flag regardless.
+3. Explicit `brix_virtual_redirector on` sets the flag regardless.
 
 `src/protocols/root/protocol/flags.h`:
 ```c
@@ -325,7 +325,7 @@ These flags require new server-side behaviour, not just self-declaration. They m
 3. On new session login: scan journal directory for matching `sessid`, if found send `kXR_attn` with resume offset
 4. Only after steps 1–3 pass integration tests: add `kXR_recoverWrts = 0x00001000u` to `flags.h` and set it when `conf->allow_write` is true
 
-**Config directive** (for explicit opt-in): `xrootd_recover_writes on|off` (default `off`; must not be auto-enabled)
+**Config directive** (for explicit opt-in): `brix_recover_writes on|off` (default `off`; must not be auto-enabled)
 
 `src/protocols/root/protocol/flags.h`:
 ```c
@@ -348,9 +348,9 @@ These flags require new server-side behaviour, not just self-declaration. They m
 
 **Implementation steps**:
 1. Add `src/net/manager/redir_cache.c` — shared-memory LRU map, 512 slots, configurable TTL
-2. In `xrootd_srv_select()` (`src/net/manager/registry.c`): check redir cache before normal registry scan; on miss, continue to CMS query; on hit, return cached entry
+2. In `brix_srv_select()` (`src/net/manager/registry.c`): check redir cache before normal registry scan; on miss, continue to CMS query; on hit, return cached entry
 3. On CMS response delivering a DS address, insert into redir cache
-4. New directive: `xrootd_collapse_redir on|off` (default `off`) and TTL: `xrootd_collapse_redir_ttl 30s`
+4. New directive: `brix_collapse_redir on|off` (default `off`) and TTL: `brix_collapse_redir_ttl 30s`
 5. Set flag only when `conf->collapse_redir` is true
 
 **Config struct**:
@@ -397,7 +397,7 @@ Setting `kXR_supgpf` without implementing GPF aggregation would cause clients to
 **Recommendation**: Defer. If a concrete use case requires GPF (e.g., ROOT <6.28 compat), implement as a separate phase:
 1. Re-activate `kXR_gpfile` dispatch in `src/protocols/root/handshake/dispatch_ops.c`
 2. Implement `src/protocols/root/query/gpfile.c`: accept batch request, open N file handles, issue parallel `kXR_read` dispatches via thread pool, stream responses
-3. Only then set `kXR_supgpf`; set `kXR_anongpf` additionally when `conf->auth == XROOTD_AUTH_NONE`
+3. Only then set `kXR_supgpf`; set `kXR_anongpf` additionally when `conf->auth == BRIX_AUTH_NONE`
 
 `src/protocols/root/protocol/flags.h`:
 ```c
@@ -505,25 +505,25 @@ ngx_conf_merge_msec_value(conf->collapse_redir_ttl, prev->collapse_redir_ttl, 30
 ### `src/core/config/directives.c` (new ngx_command_t entries)
 
 ```c
-{ ngx_string("xrootd_metadata_only"),
+{ ngx_string("brix_metadata_only"),
   NGX_STREAM_SRV_CONF|NGX_CONF_FLAG, ngx_conf_set_flag_slot,
   NGX_STREAM_SRV_CONF_OFFSET,
-  offsetof(ngx_stream_xrootd_srv_conf_t, metadata_only), NULL },
+  offsetof(ngx_stream_brix_srv_conf_t, metadata_only), NULL },
 
-{ ngx_string("xrootd_supervisor"),
+{ ngx_string("brix_supervisor"),
   NGX_STREAM_SRV_CONF|NGX_CONF_FLAG, ngx_conf_set_flag_slot,
   NGX_STREAM_SRV_CONF_OFFSET,
-  offsetof(ngx_stream_xrootd_srv_conf_t, supervisor), NULL },
+  offsetof(ngx_stream_brix_srv_conf_t, supervisor), NULL },
 
-{ ngx_string("xrootd_virtual_redirector"),
+{ ngx_string("brix_virtual_redirector"),
   NGX_STREAM_SRV_CONF|NGX_CONF_FLAG, ngx_conf_set_flag_slot,
   NGX_STREAM_SRV_CONF_OFFSET,
-  offsetof(ngx_stream_xrootd_srv_conf_t, virtual_redirector), NULL },
+  offsetof(ngx_stream_brix_srv_conf_t, virtual_redirector), NULL },
 
-{ ngx_string("xrootd_collapse_redir"),
+{ ngx_string("brix_collapse_redir"),
   NGX_STREAM_SRV_CONF|NGX_CONF_FLAG, ngx_conf_set_flag_slot,
   NGX_STREAM_SRV_CONF_OFFSET,
-  offsetof(ngx_stream_xrootd_srv_conf_t, collapse_redir), NULL },
+  offsetof(ngx_stream_brix_srv_conf_t, collapse_redir), NULL },
 ```
 
 ### `src/protocols/root/read/open_request.c` (Phase 2a enforcement)
@@ -532,7 +532,7 @@ After the existing manager-mode redirect block, add:
 
 ```c
 if (conf->metadata_only && !conf->manager_map) {
-    return xrootd_send_error(ctx, c, kXR_Unsupported,
+    return brix_send_error(ctx, c, kXR_Unsupported,
                              "open not available on metadata-only server");
 }
 ```

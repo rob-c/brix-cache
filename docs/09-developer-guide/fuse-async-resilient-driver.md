@@ -216,11 +216,11 @@ server never receives one and a stock client never triggers the handlers.
 
 * **Server** (`src/protocols/root/write/ext_ops.c`): handlers do confined `utimensat`/`fchownat`/
   `symlinkat`/`readlinkat`/`linkat` under the export jail (new
-  `xrootd_setattr/symlink/readlink_confined_canon` in `resolve_confined_ops.c`,
-  reusing the existing `xrootd_link_confined_canon`); registered in the write
+  `brix_setattr/symlink/readlink_confined_canon` in `resolve_confined_ops.c`,
+  reusing the existing `brix_link_confined_canon`); registered in the write
   dispatcher (setattr/symlink/link) and read dispatcher (readlink).
 * **lstat for getattr**: a vendor `kXR_statNoFollow` option on `kXR_stat` (honoured
-  by `xrootd_lstat_beneath`, `O_PATH|O_NOFOLLOW`) lets the FUSE `getattr` see a
+  by `brix_lstat_beneath`, `O_PATH|O_NOFOLLOW`) lets the FUSE `getattr` see a
   symlink as `S_IFLNK` (default stat still follows, so other clients are
   unaffected). `xrdc_lstat` is the client side.
 * **Client** (`client/lib/ops_ext.c`): `xrdc_setattr/symlink/readlink/link` +
@@ -238,7 +238,7 @@ server never receives one and a stock client never triggers the handlers.
 
 `ls -l <dir>` over the mount reports a symlink as a symlink, not its target: both
 dirlist stat paths (`src/protocols/root/dirlist/handler.c`, `src/core/aio/dirlist.c`) stat each entry
-with `fstatat(..., AT_SYMLINK_NOFOLLOW)`, so `xrootd_make_stat_body` flags it
+with `fstatat(..., AT_SYMLINK_NOFOLLOW)`, so `brix_make_stat_body` flags it
 `kXR_other`, the client carries that in `xrdc_dirent.st.flags`, and `xfs_readdir`
 maps it to `S_IFLNK` via `FUSE_FILL_DIR_PLUS` — matching local `ls -l` (lstat)
 semantics. (Covered by `tests/test_xrootdfs_ext.py::test_readdir_reports_symlink`.)
@@ -247,7 +247,7 @@ semantics. (Covered by `tests/test_xrootdfs_ext.py::test_readdir_reports_symlink
 
 * Per-op Prometheus counters for the vendor ops. They reuse existing op slots
   (CHMOD/MKDIR/STAT) and the access log records the precise verb. A dedicated-slot
-  version was prototyped (bump `XROOTD_NOPS`, add names) but **reverted**: it adds
+  version was prototyped (bump `BRIX_NOPS`, add names) but **reverted**: it adds
   an SHM-struct-ABI change for no observed benefit — and surfaced a *pre-existing*
   quirk where a single op on a round-robin pooled connection is not reliably
   reflected in the per-listener counters (high-frequency ops mask it). Investigate

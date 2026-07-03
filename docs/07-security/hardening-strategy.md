@@ -17,7 +17,7 @@ The XRootD protocol is a binary format with length-prefixed payloads. Malicious 
 Recursive and batch operations are primary vectors for Denial of Service (DoS) attacks.
 
 ### Recommendations:
-*   **Recursive Walk Guards**: `kXR_Qckscan` and `kXR_dirlist` (with `dstat`) must enforce strict depth and file-count limits. `kXR_Qckscan` is bounded by `xrootd_ckscan_depth` and `xrootd_ckscan_max_files`.
+*   **Recursive Walk Guards**: `kXR_Qckscan` and `kXR_dirlist` (with `dstat`) must enforce strict depth and file-count limits. `kXR_Qckscan` is bounded by `brix_ckscan_depth` and `brix_ckscan_max_files`.
 *   **Rate Limiting by Auth ID**: Integrate with Nginx's `limit_req` module to rate-limit `kXR_open` and `kXR_query` operations based on the authenticated `DN` or `JWT subject` rather than just the IP address.
 *   **Memory Pool Capping**: Large query responses (like directory listings) currently allocate from the request pool. Implement a hard cap on pool growth per connection to prevent a single malicious client from exhausting worker memory.
 
@@ -26,8 +26,8 @@ Recursive and batch operations are primary vectors for Denial of Service (DoS) a
 Path traversal and race conditions (TOCTOU) are critical risks in a filesystem proxy.
 
 ### Recommendations:
-*   **`openat(2)` Migration**: Replace `xrootd_open_confined` logic with `openat(2)` using a file descriptor to the root export. This eliminates the risk of path-traversal via symlink swaps during the name-resolution phase.
-*   **Symlink Policy**: Add a directive `xrootd_allow_symlinks` (off by default). When off, the server should use `O_NOFOLLOW` for all path-based operations and manually verify that no component of the path is a symlink.
+*   **`openat(2)` Migration**: Replace `brix_open_confined` logic with `openat(2)` using a file descriptor to the root export. This eliminates the risk of path-traversal via symlink swaps during the name-resolution phase.
+*   **Symlink Policy**: Add a directive `brix_allow_symlinks` (off by default). When off, the server should use `O_NOFOLLOW` for all path-based operations and manually verify that no component of the path is a symlink.
 *   **Confined Stat**: Ensure `kXR_stat` and `kXR_statx` resolve paths through the same confinement logic as `kXR_open`, preventing information leakage about files outside the export root.
 
 ## 4. Authentication & Authorization Resilience

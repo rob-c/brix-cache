@@ -75,7 +75,7 @@ specific read/write/auth paths exercised here.
 
 ### Upstream XRootD footprint for context
 
-The upstream `xrootd/xrootd` repository's `src/` directory spans several
+The upstream `xrootd/brix` repository's `src/` directory spans several
 hundred C++ source and header files organized across storage backends (OFS,
 OSS), cluster management (CMS), proxy services (PSS), caching (PFC), file
 residency management (FRM), HTTP (XrdHttp), security plugins (XrdSec,

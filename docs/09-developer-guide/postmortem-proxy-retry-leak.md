@@ -32,10 +32,10 @@ attempted a client send, and corrupted memory; RSS climbed ~34 MB/s.
 The authoritative evidence was a GDB backtrace of the live worker:
 
 ```
-#3  xrootd_proxy_up_mark_failed        at src/net/proxy/pool.c:80
-#4  xrootd_proxy_abort                 at src/net/proxy/connect_lifecycle.c:135
-#5  xrootd_proxy_handle_bootstrap      at src/net/proxy/events_bootstrap.c:225
-#6  xrootd_proxy_read_handler          at src/net/proxy/events_read.c:239   <-- for(;;)
+#3  brix_proxy_up_mark_failed        at src/net/proxy/pool.c:80
+#4  brix_proxy_abort                 at src/net/proxy/connect_lifecycle.c:135
+#5  brix_proxy_handle_bootstrap      at src/net/proxy/events_bootstrap.c:225
+#6  brix_proxy_read_handler          at src/net/proxy/events_read.c:239   <-- for(;;)
 #7  ngx_epoll_process_events
 ```
 
@@ -61,7 +61,7 @@ re-allocated and never returning to dispatch.
 
 ### The loop
 
-`xrootd_proxy_read_handler` drives upstream I/O in a `for(;;)` loop that
+`brix_proxy_read_handler` drives upstream I/O in a `for(;;)` loop that
 dispatches on the **upstream-side** state field `proxy->state`:
 
 ```c
@@ -70,7 +70,7 @@ for (;;) {
     /* ... recv upstream header into proxy->rhdr (skipped while rhdr_pos >= 8) ... */
 
     if (proxy->state == XRD_PX_BOOTSTRAP) {
-        xrootd_proxy_handle_bootstrap(proxy);          /* aborts on auth reject */
+        brix_proxy_handle_bootstrap(proxy);          /* aborts on auth reject */
         if (proxy->state != XRD_PX_BOOTSTRAP) {
             return;                                     /* bootstrap done (IDLE) */
         }
@@ -81,12 +81,12 @@ for (;;) {
 ```
 
 For the bad-credential case, `handle_bootstrap` reaches the `XRD_PX_BS_AUTH`
-phase, sees the upstream rejected the token, and calls `xrootd_proxy_abort`.
+phase, sees the upstream rejected the token, and calls `brix_proxy_abort`.
 
 ### The invariant violation
 
-`xrootd_proxy_abort` tears the proxy down — closes the upstream connection, runs
-`xrootd_proxy_cleanup`, sets **the client ctx** state (`ctx->state =
+`brix_proxy_abort` tears the proxy down — closes the upstream connection, runs
+`brix_proxy_cleanup`, sets **the client ctx** state (`ctx->state =
 XRD_ST_REQ_HEADER`), sets `ctx->proxy = NULL`, sends a client error, and resumes
 the client read loop. **It never changes `proxy->state`.**
 
@@ -99,9 +99,9 @@ So after `abort` returns into the loop:
 - `continue` re-enters `handle_bootstrap` on the **torn-down (freed-cleanup)**
   proxy → re-aborts → `continue` → … forever.
 
-~500K iterations/sec. Each one logs `marked DOWN`, attempts `xrootd_send_error`
+~500K iterations/sec. Each one logs `marked DOWN`, attempts `brix_send_error`
 (SIGPIPE once the client is gone), and reads/writes through the cleaned-up proxy
-— the `xrootd_queue_response(buffer_len=509001148)` seen in the backtrace is a
+— the `brix_queue_response(buffer_len=509001148)` seen in the backtrace is a
 **509 MB** length computed from use-after-free garbage. That corruption + the
 per-iteration churn is the ~34 MB/s growth.
 
@@ -179,8 +179,8 @@ the `proxy->state` field `abort` leaves stale.
 
 | File | Change |
 |---|---|
-| `src/core/types/context.h` | New `ngx_uint_t proxy_fail_count` on `xrootd_ctx_t`. |
-| `src/net/proxy/proxy_internal.h` | `#define XROOTD_PROXY_MAX_CONN_FAILS 8`. |
+| `src/core/types/context.h` | New `ngx_uint_t proxy_fail_count` on `brix_ctx_t`. |
+| `src/net/proxy/proxy_internal.h` | `#define BRIX_PROXY_MAX_CONN_FAILS 8`. |
 | `src/net/proxy/forward_relay_dispatch.c` | Stop spawning a new proxy once the per-connection budget is exhausted; count sync connect/selection failures. |
 | `src/net/proxy/connect_lifecycle.c` | Hard abort increments `proxy_fail_count`. |
 | `src/net/proxy/events_bootstrap.c` | A successful bootstrap resets `proxy_fail_count = 0`. |

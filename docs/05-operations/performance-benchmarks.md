@@ -142,7 +142,7 @@ bash tests/run_load_test.sh both \
 
 ### WebDAV davs:// + x509 — BriX-Cache vs xrootd XrdHttp
 
-xrootd native serves HTTPS/WebDAV via the `XrdHttp` plugin (`libXrdHttp-5.so`), configured in `tests/xrootd.perf.conf` on port 12443. Client x509 proxy certificates are authenticated by the `libXrdHttpVOMS-5.so` extractor, which maps the TLS client-cert DN through the same authdb that the `root://` protocol uses.
+xrootd native serves HTTPS/WebDAV via the `XrdHttp` plugin (`libXrdHttp-5.so`), configured in `tests/brix.perf.conf` on port 12443. Client x509 proxy certificates are authenticated by the `libXrdHttpVOMS-5.so` extractor, which maps the TLS client-cert DN through the same authdb that the `root://` protocol uses.
 
 ```bash
 source .venv/bin/activate
@@ -199,7 +199,7 @@ WebDAV syscall notes for large transfers:
 For the broader list of code-level fast paths behind these numbers, see
 [optimizations.md](../09-developer-guide/optimizations.md).
 
-### xrootd perf config (`tests/xrootd.perf.conf`)
+### xrootd perf config (`tests/brix.perf.conf`)
 
 One xrootd instance serves two protocols from the same `/tmp/xrd-test/data` tree:
 

@@ -142,7 +142,7 @@ Every module build with Ceph enabled goes through this script:
                --with-http_dav_module --with-threads --add-module=/work/repo
    make -j$(nproc)
    ```
-   and greps `objs/ngx_auto_config.h` for **`XROOTD_HAVE_CEPH`** — printing a
+   and greps `objs/ngx_auto_config.h` for **`BRIX_HAVE_CEPH`** — printing a
    loud warning if Ceph was *not* detected (the build still succeeds, just
    without the drivers; see §5).
 6. Result: `/opt/nginx-src/objs/nginx` inside `xrd-ceph-work`.
@@ -155,13 +155,13 @@ flag:
 
 1. Writes `#include <rados/librados.h> … rados_create(…)` to the autotest
    file and tries `$CC … -lrados`.
-2. On success: `CFLAGS += -DXROOTD_HAVE_CEPH=1`, `XROOTD_CEPH_LIBS=-lrados`,
+2. On success: `CFLAGS += -DBRIX_HAVE_CEPH=1`, `BRIX_CEPH_LIBS=-lrados`,
    and prints `+ xrootd storage backend: ceph/rados enabled`.
 3. **Nested probe** for `<radosstriper/libradosstriper.h>`: on success adds
-   `-DXROOTD_HAVE_RADOSSTRIPER=1` and switches the libs to
+   `-DBRIX_HAVE_RADOSSTRIPER=1` and switches the libs to
    `-lradosstriper -lrados` — this is what enables the stock-XrdCeph
    (RAL/Glasgow) on-RADOS layout compatibility in `sd_ceph_striper.c`.
-4. `XROOTD_WITHOUT_CEPH=1` in the environment force-disables even when the
+4. `BRIX_WITHOUT_CEPH=1` in the environment force-disables even when the
    headers are present.
 
 Key properties:
@@ -171,7 +171,7 @@ Key properties:
   `$ngx_addon_dir/src/fs/backend/rados/…`), but without the define they
   contribute only their pure libc-only helpers (LFN→object-key naming,
   stripe naming, N2N), and the driver rows in `sd_registry.c` are
-  `#if XROOTD_HAVE_CEPH`-compiled out.
+  `#if BRIX_HAVE_CEPH`-compiled out.
 - `cephfs_denc.c` / `cephfs_layout.c` (the CephFS on-disk decoders) are
   **pure C with no RADOS dependency** and always compile — which is what
   lets them unit-test host-side with a plain `cc` (§7.1).
@@ -185,9 +185,9 @@ All under `src/fs/backend/rados/`:
 
 | File | Role | Gate |
 |---|---|---|
-| `sd_ceph.c/.h` | the `ceph:` block-only backend (flat objects keyed by export-relative path; data + xattr + staged writes) + the shared `sd_ceph_conn_t`/`sd_ceph_oid_*` low-level layer | `XROOTD_HAVE_CEPH` |
-| `sd_ceph_striper.c/.h` | stock-XrdCeph (libradosstriper) data-plane layout | `XROOTD_HAVE_RADOSSTRIPER` |
-| `sd_cephfs_ro.c` | **cephfsro** — read-only CephFS served straight from RADOS (path walk via metadata-pool omaps, data via `<ino>.<objno>` objects; every mutating vtable slot returns `EROFS`) | `XROOTD_HAVE_CEPH` |
+| `sd_ceph.c/.h` | the `ceph:` block-only backend (flat objects keyed by export-relative path; data + xattr + staged writes) + the shared `sd_ceph_conn_t`/`sd_ceph_oid_*` low-level layer | `BRIX_HAVE_CEPH` |
+| `sd_ceph_striper.c/.h` | stock-XrdCeph (libradosstriper) data-plane layout | `BRIX_HAVE_RADOSSTRIPER` |
+| `sd_cephfs_ro.c` | **cephfsro** — read-only CephFS served straight from RADOS (path walk via metadata-pool omaps, data via `<ino>.<objno>` objects; every mutating vtable slot returns `EROFS`) | `BRIX_HAVE_CEPH` |
 | `cephfs_denc.c/.h` | Ceph encoding primitives (LE ints, strings, `ENCODE_START` framing) | none (pure C) |
 | `cephfs_layout.c/.h` | typed decoders: dentry / `inode_t` v2→19 / fragtree / `file_layout_t` / xattrs | none (pure C) |
 | `sd_ceph_compat.c/.h` | shared naming/N2N helpers | none |
@@ -196,9 +196,9 @@ nginx config forms (stream face; WebDAV shares the binding via the global
 registry):
 
 ```nginx
-xrootd_storage_backend ceph:xrdtest;                        # block-only, ceph:<pool>[@<conf>]
-xrootd_storage_backend cephfsro:META+DATA?assume_quiesced=1; # RO CephFS (frozen fs)
-xrootd_storage_backend cephfsro:META+DATA?live=1;            # RO CephFS (best-effort live)
+brix_storage_backend ceph:xrdtest;                        # block-only, ceph:<pool>[@<conf>]
+brix_storage_backend cephfsro:META+DATA?assume_quiesced=1; # RO CephFS (frozen fs)
+brix_storage_backend cephfsro:META+DATA?live=1;            # RO CephFS (best-effort live)
 ```
 
 ## 7. The cephfsro build/test ladder (fast → full)

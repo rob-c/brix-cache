@@ -24,7 +24,7 @@ We apply a **liberal security policy** to testing. Any modification that touches
 - Data-exposing logic (read/write handlers)
 
 is considered **security-sensitive**. These changes require mandatory negative tests, including:
-- **Traversal attempts**: Trying to escape `xrootd_root` via `..` or symlinks.
+- **Traversal attempts**: Trying to escape `brix_root` via `..` or symlinks.
 - **Missing/Invalid Auth**: Verifying that requests fail without credentials or with expired/revoked tokens.
 - **Wrong Scopes**: Verifying that tokens with `storage.read` cannot perform `storage.write`.
 - **Malformed Input**: Verifying that truncated or garbage protocol frames do not cause worker crashes or memory leaks.
@@ -66,7 +66,7 @@ Everything lives under `TEST_ROOT` (default `/tmp/xrd-test`, overridden by the `
 ├── logs/                    nginx and xrootd log files
 │   ├── nginx.pid            main nginx instance PID
 │   ├── error.log            main nginx error log
-│   └── xrootd_access*.log   per-listener access logs
+│   └── brix_access*.log   per-listener access logs
 ├── pki/                     test PKI (auto-generated each session)
 │   ├── ca/
 │   │   ├── ca.pem           CA certificate

@@ -4,7 +4,7 @@
 >
 > **Skip if:** You just want to use or operate this module. These are implementation details, not operational concerns.
 >
-> Prerequisites: [XRootD Basics](../02-concepts/xrootd-basics.md), reading C source code comfortably.
+> Prerequisites: [XRootD Basics](../02-concepts/brix-basics.md), reading C source code comfortably.
 
 Higher-level quirks and compromises in the native XRootD and WebDAV modules — the places where design trade-offs forced non-obvious choices.
 
@@ -25,7 +25,7 @@ and stream frameworks.
 
 | Area | Why there is tension | Current compromise |
 |---|---|---|
-| native auth vs transport security | GSI auth and TLS are separate concepts in XRootD | GSI can run with or without TLS; `xrootd_tls` and `roots://` are separate choices |
+| native auth vs transport security | GSI auth and TLS are separate concepts in XRootD | GSI can run with or without TLS; `brix_tls` and `roots://` are separate choices |
 | x509 proxies in WebDAV | nginx/OpenSSL does not naturally love RFC 3820 proxy chains | patch `SSL_CTX`, then verify proxy chains in module code |
 | zero-copy vs TLS | file-backed send paths are easiest on cleartext sockets | cleartext native reads use sendfile-style chains; TLS paths fall back to memory-backed reads when needed |
 | session model vs request model | native XRootD is session-oriented; WebDAV is HTTP request-oriented | stream keeps session state; WebDAV re-evaluates requests and uses caches to recover some session-like efficiency |
@@ -49,7 +49,7 @@ In the native `root://` path:
 So these are all distinct deployments:
 
 - `root://` + GSI auth, no transport TLS
-- `root://` + GSI auth + `xrootd_tls on`
+- `root://` + GSI auth + `brix_tls on`
 - `roots://` with nginx stream SSL
 
 That split exists because it is how the XRootD ecosystem evolved. The module
@@ -163,7 +163,7 @@ So the implementation intentionally does not try to collapse the two worlds into
 one internal abstraction. They share storage and auth concepts, but they are
 still different protocol surfaces.
 
-See [xrdcp-interactions.md](../04-protocols/xrootd-client-interaction.md).
+See [xrdcp-interactions.md](../04-protocols/brix-client-interaction.md).
 
 ---
 
@@ -498,7 +498,7 @@ The unified `xrd` front-end grows POSIX file utilities (`head`, `tail -n/-f`, `d
   modes (`chmod [-R] <path> <octal>`). `-R` recursion and octal work everywhere.
 - **`ln -s` targets are stored verbatim and not confined.** Only the *link path* is
   resolved under the export root; the symlink *target* is opaque link content (matching
-  real `ln -s` and `xrootd_handle_symlink`). The server still confines every path it
+  real `ln -s` and `brix_handle_symlink`). The server still confines every path it
   *resolves through* the link, so this is not a confinement gap.
 - **`touch` and the link/`readlink` verbs need `xrdfs.ext`.** `kXR_setattr`/`symlink`/
   `readlink`/`link` are capability-negotiated (advertised via
@@ -609,7 +609,7 @@ JSON. A few things to know:
   and cleans up after itself. It is **off by default** precisely because it writes; the
   read-only battery (stat/dirlist/statvfs/query/path-confinement) always runs.
 - **`rm`/delete operate on the final component itself (POSIX unlink semantics).** The
-  existence gate (`op_path_existence_gate`) and the delete probe (`xrootd_ns_delete`)
+  existence gate (`op_path_existence_gate`) and the delete probe (`brix_ns_delete`)
   both use **lstat**, not stat, so a symlink — including a dangling one — is removed as
   the link, never dereferenced (a regression of an earlier bug where `rm <symlink>`
   followed the link's stored absolute target, hit `RESOLVE_BENEATH`, and returned
@@ -639,7 +639,7 @@ JSON. A few things to know:
 ## Related docs
 
 - [protocol-notes.md](protocol-notes.md) - low-level wire quirks
-- [xrdcp-interactions.md](../04-protocols/xrootd-client-interaction.md) - end-to-end client flow
+- [xrdcp-interactions.md](../04-protocols/brix-client-interaction.md) - end-to-end client flow
 - [optimizations.md](../09-developer-guide/optimizations.md) - performance-driven implementation choices
 - [tls.md](../03-configuration/tls-config.md) - auth and transport layering
 - [development.md](../09-developer-guide/dev-workflow.md) - source layout and workflow

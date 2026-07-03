@@ -63,8 +63,8 @@ WebDAV paths:
 
 Relevant directives:
 
-- `xrootd_thread_pool`
-- `xrootd_webdav_thread_pool`
+- `brix_thread_pool`
+- `brix_webdav_thread_pool`
 
 ### Why It Helps
 
@@ -195,13 +195,13 @@ The overall contiguous read cap remains separate at 64 MiB.
 Current sizing:
 
 ```c
-#define XROOTD_READ_MAX          (4 * 1024 * 1024)
-#define XROOTD_READ_CHUNK_MAX    (16 * 1024 * 1024)
-#define XROOTD_READ_REQUEST_MAX  (64 * 1024 * 1024)
+#define BRIX_READ_MAX          (4 * 1024 * 1024)
+#define BRIX_READ_CHUNK_MAX    (16 * 1024 * 1024)
+#define BRIX_READ_REQUEST_MAX  (64 * 1024 * 1024)
 ```
 
-`XROOTD_READ_MAX` remains the per-vector element cap used for `readv`
-normalization. `XROOTD_READ_CHUNK_MAX` controls outgoing response chunking.
+`BRIX_READ_MAX` remains the per-vector element cap used for `readv`
+normalization. `BRIX_READ_CHUNK_MAX` controls outgoing response chunking.
 
 ### Before
 
@@ -277,8 +277,8 @@ connection pool just by repeatedly describing the same two-link response shape.
 
 ### After
 
-For `data_total <= XROOTD_READ_CHUNK_MAX`, `xrootd_build_chunked_chain()` and
-`xrootd_build_sendfile_chain()` use the reusable context-owned chain objects.
+For `data_total <= BRIX_READ_CHUNK_MAX`, `brix_build_chunked_chain()` and
+`brix_build_sendfile_chain()` use the reusable context-owned chain objects.
 Multi-chunk responses still allocate chain links because they need a variable
 number of headers and buffers.
 
@@ -574,7 +574,7 @@ write event through nginx's posted-event queue if more data remains.
 The bound is:
 
 ```c
-#define XROOTD_SEND_CHAIN_SPIN_MAX  16
+#define BRIX_SEND_CHAIN_SPIN_MAX  16
 ```
 
 ```text

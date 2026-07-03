@@ -4,7 +4,7 @@
 
 Namespace operations: mkdir, rm, rmdir, mv, chmod, stat — what BriX-Cache supports, what it rejects, and what the error codes mean.
 
-These operations require `xrootd_allow_write on`.
+These operations require `brix_allow_write on`.
 
 ### `kXR_mkdir` — create a directory
 
@@ -120,13 +120,13 @@ adler32 1a2b3c4d  /store/mc/sample.root
 ```
 
 The scan runs on the configured stream thread pool when available. Recursive
-walks are bounded by `xrootd_ckscan_depth` (default 32) and
-`xrootd_ckscan_max_files` (default 100000). The default algorithm is adler32;
+walks are bounded by `brix_ckscan_depth` (default 32) and
+`brix_ckscan_max_files` (default 100000). The default algorithm is adler32;
 `crc32c:<path>` requests return crc32c lines.
 
 #### Space (`QueryCode.SPACE`)
 
-Returns disk space statistics for the `xrootd_root` filesystem in `oss.*` format.
+Returns disk space statistics for the `brix_root` filesystem in `oss.*` format.
 
 ```bash
 xrdfs localhost:1094 spaceinfo /
@@ -223,10 +223,10 @@ status, result = fs.get_xattr("/store/mc/sample.root", ["checksum"])
 
 `kXR_prepare` is accepted as a local-storage staging hint. The module parses
 the official newline-separated path payload, validates each path under
-`xrootd_root`, applies authdb, VO ACL, and token-scope checks, and returns
+`brix_root`, applies authdb, VO ACL, and token-scope checks, and returns
 success when all requested files are already online.
 
-With `xrootd_frm on`, `kXR_prepare` creates a durable FRM stage request and
+With `brix_frm on`, `kXR_prepare` creates a durable FRM stage request and
 returns a real host-qualified request id instead of the legacy `"0"` id. The
 queue survives client disconnects and worker restarts, `kXR_QPrep` reports
 queued/staging/failed/available states for known requests, and `kXR_cancel`
@@ -270,12 +270,12 @@ The following opcodes return `kXR_Unsupported` and are not implemented:
 
 ## Authentication and authorisation notes
 
-All data and namespace operations require a completed session login. When `xrootd_auth` is `gsi`, `token`, or `both`, the client must also complete the advertised security exchange before file operations are accepted.
+All data and namespace operations require a completed session login. When `brix_auth` is `gsi`, `token`, or `both`, the client must also complete the advertised security exchange before file operations are accepted.
 
 Native stream write access is controlled by both token/VO authorization and the
-server-wide `xrootd_allow_write` gate. JWT/WLCG scopes are enforced on
+server-wide `brix_allow_write` gate. JWT/WLCG scopes are enforced on
 path-resolving native operations: read scopes for read opens and metadata, and
 write/create scopes for write opens and namespace mutations. Handle-based I/O
 inherits the authorization decision made at open time. Path-level restrictions
-use `xrootd_require_vo`; token `wlcg.groups` claims are mapped into the same VO
+use `brix_require_vo`; token `wlcg.groups` claims are mapped into the same VO
 list used by VOMS proxies.

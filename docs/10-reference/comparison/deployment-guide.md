@@ -24,7 +24,7 @@ of the edge server rather than as a parallel operational universe.
 |---|---|---|
 | native `root://` | reference implementation | supported, with conformance tests against reference xrootd |
 | `roots://` | supported by XRootD TLS modes | supported through nginx stream SSL |
-| native `root://` TLS upgrade | supported in modern XRootD | supported via `xrootd_tls on` |
+| native `root://` TLS upgrade | supported in modern XRootD | supported via `brix_tls on` |
 | WebDAV/HTTPS | supported through XrdHttp | supported through nginx HTTP module |
 | HTTP-TPC | mature upstream support | opt-in pull and push support for HTTPS sources/destinations |
 | S3 client ecosystem | upstream has XrdClS3 client work | module exposes S3-compatible path-style endpoint subset |
@@ -40,7 +40,7 @@ serve.
 |---|---|---|
 | GSI/x509 | mature native support | native GSI plus WebDAV proxy-cert verification |
 | WLCG/JWT tokens | SciTokens/macaroons ecosystem upstream | local JWKS validation, token scopes, `wlcg.groups`, WebDAV bearer support |
-| VO authorization | mature site patterns | VOMS extraction and `xrootd_require_vo` path ACLs |
+| VO authorization | mature site patterns | VOMS extraction and `brix_require_vo` path ACLs |
 | TLS | XRootD-native TLS and XrdHttp TLS | nginx HTTP/stream TLS plus native upgrade |
 | HTTP client certs | XrdHttp path | nginx SSL plus module proxy-cert verification and caching |
 | S3 auth | XrdClS3 client-side ecosystem upstream | optional SigV4 endpoint auth |
@@ -76,7 +76,7 @@ ordered from most to least likely to be site-specific blockers.
 
 If `kXR_prepare` with `kXR_stage` is used to stage files from tape (CASTOR,
 EOS tape, dCache tape, Enstore, etc.) before reading them, treat replacement as
-a site-validation project rather than an automatic yes/no. With `xrootd_frm on`,
+a site-validation project rather than an automatic yes/no. With `brix_frm on`,
 the module has a durable FRM queue, real request IDs, `kXR_cancel` handling, and
 WLCG Tape REST gateway integration. It still is not the complete upstream
 XrdFrm/MSS ecosystem with every migration, purge, space, and tape-driver
@@ -99,13 +99,13 @@ FTS3/FTS4 supports WebDAV HTTP-TPC in two modes:
 
 Both pull and push forward `Authorization:` / `TransferHeader*` headers from
 the original COPY request. The outbound TLS identity (cert/key/CA) is
-configured per-server block with `xrootd_webdav_tpc_cert`,
-`xrootd_webdav_tpc_key`, `xrootd_webdav_tpc_cafile` / `xrootd_webdav_tpc_cadir`.
+configured per-server block with `brix_webdav_tpc_cert`,
+`brix_webdav_tpc_key`, `brix_webdav_tpc_cafile` / `brix_webdav_tpc_cadir`.
 
 For native `root://` TPC: the module implements destination pull with
 `tpc.src=` / `tpc.key=`, source-side rendezvous (`tpc.dst` + `tpc.key` register,
 `tpc.org` + `tpc.key` consume), manager redirect with `?tpc.key=`, and a
-shared-memory key registry (`xrootd_tpc_key_ttl`). The embedded pull client can
+shared-memory key registry (`brix_tpc_key_ttl`). The embedded pull client can
 complete ztn or GSI after `kXR_authmore` when configured, but TLS-upgraded
 origins and multihop delegation still need deployment validation; see
 [`operation-status.md`](../../05-operations/operation-status.md).
@@ -317,13 +317,13 @@ for sites whose real requirements match its design center.
 External upstream references:
 
 - XRootD home page, including project description and release announcements:
-  <https://xrootd.org/>
+  <https://brix.org/>
 - XRootD documentation index, including 6.0 configuration/proxy/CMS/monitoring
-  references and protocol docs: <https://xrootd.org/docs>
+  references and protocol docs: <https://brix.org/docs>
 - XRootD GitHub releases, including v6.0.1 and v5.9.3 notes:
-  <https://github.com/xrootd/xrootd/releases>
+  <https://github.com/brix/brix/releases>
 - XRootD 6.0 configuration reference:
-  <https://xrootd.web.cern.ch/doc/dev6/xrd_config.html>
+  <https://brix.web.cern.ch/doc/dev6/xrd_config.html>
 
 Project-local references:
 

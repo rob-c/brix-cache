@@ -43,7 +43,7 @@ Everything go-hep *can* do now works.
 
 **Root cause:** `kXR_sigver` (3029) is a **prefix** to the request it signs — the
 server must produce exactly one response, belonging to the *signed* request.
-Our `xrootd_handle_sigver()` ended with `xrootd_send_ok(ctx, c, NULL, 0)`, emitting
+Our `brix_handle_sigver()` ended with `brix_send_ok(ctx, c, NULL, 0)`, emitting
 a separate empty `kXR_ok` on the signed request's streamid. A stock client reads
 that empty ack as its real reply (go-hep: stat → empty statinfo). The XRootD C++
 reference processes sigver via `XrdXrootdProtocol::ProcSig()` and sends **no
@@ -62,34 +62,34 @@ from the spec in a way that only an independent client revealed.
 **Impact beyond go-hep:** this also makes us correct for the **official XRootD
 client** at `security_level ≥ 2` (which would have hit the identical desync).
 
-### Bug #2 — `stat` / `dirlist` ignored the static `xrootd_manager_map`
+### Bug #2 — `stat` / `dirlist` ignored the static `brix_manager_map`
 
 **Symptom (go-hep through a static-map redirector):**
 `xrootd: error 3007: Bad file descriptor` on `ls`/`cp` (the redirector answered
-the stat locally — it has no `xrootd_root` — instead of redirecting).
+the stat locally — it has no `brix_root` — instead of redirecting).
 
 **Root cause:** only `open` (`src/protocols/root/read/open_request.c`) and `locate`
-(`src/protocols/root/read/locate.c`) consulted `xrootd_find_manager_map()`. `stat`
+(`src/protocols/root/read/locate.c`) consulted `brix_find_manager_map()`. `stat`
 (`src/protocols/root/read/stat.c`) and `dirlist` (`src/protocols/root/dirlist/handler.c`) redirected **only via
 the CMS registry**, so a static-map-only redirector never redirected them — and a
 stat-first client (go-hep, and stock `xrdfs`/`xrdcp`) failed before it ever
 opened anything.
 
 **Fix:** `src/protocols/root/read/stat.c` and `src/protocols/root/dirlist/handler.c` now consult
-`xrootd_find_manager_map()` and emit a `kXR_redirect`, mirroring `open`.
+`brix_find_manager_map()` and emit a `kXR_redirect`, mirroring `open`.
 
 ### Bug #3 — Root prefix `/` matched only `/`, not its children
 
 **Symptom:** with bug #2 fixed, `stat /` redirected but `stat /blob.bin` did not
 (it fell through to a local stat → `Bad file descriptor`).
 
-**Root cause:** `xrootd_path_prefix_match("/", 1, "/blob.bin")` —
+**Root cause:** `brix_path_prefix_match("/", 1, "/blob.bin")` —
 `strncmp` matched, but the component-boundary check `path[1]` saw `'b'` (not
 `'\0'`/`'/'`) and returned no-match. A prefix that **itself ends in `/`** (the
 root `/`, which cannot be stripped, or any explicit `/dir/`) is already at a
 separator and should match everything beneath it.
 
-**Fix:** `src/auth/authz/find_rule.c` — `xrootd_path_prefix_match()` returns a match
+**Fix:** `src/auth/authz/find_rule.c` — `brix_path_prefix_match()` returns a match
 when the prefix ends in `/`.
 
 **Impact beyond go-hep:** this matcher backs **`manager_map`, VO rules, authdb
@@ -127,7 +127,7 @@ Self-provisioning (no fleet, no network, no Go required for the core tiers):
    runs anon-direct + mesh with integrity checks; skips cleanly without Go.
 3. **Source tripwires (CI-safe)** — fail if any of the three fixes is reverted:
    server sigver path doesn't `send_ok`; client doesn't read a sigver ack;
-   `stat`/`dirlist` call `xrootd_find_manager_map`; the prefix matcher handles a
+   `stat`/`dirlist` call `brix_find_manager_map`; the prefix matcher handles a
    trailing-`/` prefix.
 
 ```bash

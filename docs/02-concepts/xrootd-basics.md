@@ -207,7 +207,7 @@ The rest is configuration detail you'll encounter when you need it.
 - [Deployment Modes](deployment-modes.md) — Three ways to run this software *(10 min, or skip if you know modes)*
 - [Authentication Overview](../06-authentication/auth-overview.md) — Setting up access control *(20 min)*
 - **[Security Hardening Guide](../07-security/hardening-guide.md)** — Verify your deployment is secure *(30 min)*
-- [XRootD Concepts (Deep)](../10-reference/xrootd-concepts-deep.md) — Protocol-level details for advanced understanding *(reference, read as needed)*
+- [XRootD Concepts (Deep)](../10-reference/brix-concepts-deep.md) — Protocol-level details for advanced understanding *(reference, read as needed)*
 
 ---
 

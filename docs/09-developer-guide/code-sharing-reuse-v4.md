@@ -35,13 +35,13 @@ All build-clean (`-Werror`), fleet-restarted to load the new binary, and test-ga
 
 | Helper | What it collapses | Files | Verification |
 |---|---|---|---|
-| `xrootd_vfs_ctx_init()` (`fs/vfs_open.c`, decl `fs/vfs.h`) | Duplicated `xrootd_vfs_ctx_t` HTTP-defaults setup | `webdav/get.c`, `s3/object.c` | 62 (webdav+s3 GET) |
-| `xrootd_build_pgread_chain()` (`aio/buffers.c`, decl `aio/aio.h`) | Byte-identical kXR_pgread `[status hdr][page data]` chain build across the **sync** and **AIO** transfer paths | `read/pgread.c`, `aio/reads.c` | 104 (readv/pgread security + integrity + conformance) |
-| `xrootd_connect_fd_deadline()` + `xrootd_apply_socket_io_timeouts()` (new `connection/netconnect.h`) | The "non-blocking connect + `poll()` deadline (SO_SNDTIMEO can't bound `connect(2)`) + SO_RCVTIMEO/SNDTIMEO" hardening, copied across 3 outbound connectors | `tpc/connect.c`, `cache/origin_connection.c`, `crypto/ocsp.c` (I/O-timeout only) | 47 (TPC + cache + ipv6-tpc) |
-| `xrootd_resolve_connect_socket()` (`connection/netconnect.h`) | The `getaddrinfo → iterate families → first non-blocking socket` preamble for the two **event-driven** connectors | `proxy/connect_upstream.c`, `upstream/start.c` | 91 (proxy mode + upstream redirect + topology) |
-| `xrootd_task_bind()` adoption (existing helper, `aio/aio.h`) | 8 hand-written `task->handler/event.handler/event.data` binding blocks | `s3/put.c` (×2), `webdav/put.c|copy.c|move.c`, `s3/multipart_complete_body.c`, `webdav/tpc_thread.c|tpc_marker.c` | 100 (S3 PUT/multipart + WebDAV PUT/COPY/MOVE + TPC) |
+| `brix_vfs_ctx_init()` (`fs/vfs_open.c`, decl `fs/vfs.h`) | Duplicated `brix_vfs_ctx_t` HTTP-defaults setup | `webdav/get.c`, `s3/object.c` | 62 (webdav+s3 GET) |
+| `brix_build_pgread_chain()` (`aio/buffers.c`, decl `aio/aio.h`) | Byte-identical kXR_pgread `[status hdr][page data]` chain build across the **sync** and **AIO** transfer paths | `read/pgread.c`, `aio/reads.c` | 104 (readv/pgread security + integrity + conformance) |
+| `brix_connect_fd_deadline()` + `brix_apply_socket_io_timeouts()` (new `connection/netconnect.h`) | The "non-blocking connect + `poll()` deadline (SO_SNDTIMEO can't bound `connect(2)`) + SO_RCVTIMEO/SNDTIMEO" hardening, copied across 3 outbound connectors | `tpc/connect.c`, `cache/origin_connection.c`, `crypto/ocsp.c` (I/O-timeout only) | 47 (TPC + cache + ipv6-tpc) |
+| `brix_resolve_connect_socket()` (`connection/netconnect.h`) | The `getaddrinfo → iterate families → first non-blocking socket` preamble for the two **event-driven** connectors | `proxy/connect_upstream.c`, `upstream/start.c` | 91 (proxy mode + upstream redirect + topology) |
+| `brix_task_bind()` adoption (existing helper, `aio/aio.h`) | 8 hand-written `task->handler/event.handler/event.data` binding blocks | `s3/put.c` (×2), `webdav/put.c|copy.c|move.c`, `s3/multipart_complete_body.c`, `webdav/tpc_thread.c|tpc_marker.c` | 100 (S3 PUT/multipart + WebDAV PUT/COPY/MOVE + TPC) |
 
-**Design principles applied:** preserve exact wire **and** log output (e.g. `xrootd_resolve_connect_socket` returns a status enum so each caller keeps its own distinct "cannot resolve" vs "no usable address" message); header-only helpers where there's no new `.c` (so the `config` source list / `./configure` is untouched — the `netopt.h` precedent); keep protocol-specific tails (commit/checksum/finalize) behind the shared core.
+**Design principles applied:** preserve exact wire **and** log output (e.g. `brix_resolve_connect_socket` returns a status enum so each caller keeps its own distinct "cannot resolve" vs "no usable address" message); header-only helpers where there's no new `.c` (so the `config` source list / `./configure` is untouched — the `netopt.h` precedent); keep protocol-specific tails (commit/checksum/finalize) behind the shared core.
 
 ---
 
@@ -52,49 +52,49 @@ All build-clean (`-Werror`), fleet-restarted to load the new binary, and test-ga
 | # | Question | Verdict | Evidence / notes |
 |---|---|---|---|
 | Q1 | Shared retry/backoff/reconnect primitive? | ➖ | Only CMS does exponential **time** backoff (`cms/connect.c`); manager (`registry.c`) and proxy use fail-**count** thresholds — different models, no dup. Client-side backoff+jitter lives in `client/` (out of `src/`). |
-| Q2 | Outbound resolve → SSRF → connect loop shareable? | ⚙️ | Blocking connectors (TPC, cache) share `netconnect.h`; event-driven (proxy, upstream) share `xrootd_resolve_connect_socket`. SSRF gate (`net_target`) correctly applies only to user-supplied TPC hosts. |
-| Q24 | Outbound handshake/login bootstrap builder? | ⚠️ | `xrootd_upstream_build_bootstrap` shared by upstream + mirror×2 + health_check; `proxy`/`tpc` keep own variants by design (username passthrough / GSI). |
+| Q2 | Outbound resolve → SSRF → connect loop shareable? | ⚙️ | Blocking connectors (TPC, cache) share `netconnect.h`; event-driven (proxy, upstream) share `brix_resolve_connect_socket`. SSRF gate (`net_target`) correctly applies only to user-supplied TPC hosts. |
+| Q24 | Outbound handshake/login bootstrap builder? | ⚠️ | `brix_upstream_build_bootstrap` shared by upstream + mirror×2 + health_check; `proxy`/`tpc` keep own variants by design (username passthrough / GSI). |
 | Q34 | SSRF / net-target policy shared? | ✅ | `compat/net_target.c` (`check_addr`/`check_dns`/`check_dns_pin`). |
 | Q47 | Liveness/readiness probes shared? | ➖ | HTTP healthz vs CMS ping vs TCP connect-probe — different probe types. |
-| (conn-hardening) | Dead-peer reaping (SO_KEEPALIVE + TCP_USER_TIMEOUT)? | ✅ | `connection/netopt.h` `xrootd_apply_tcp_deadpeer_opts` (root accept + CMS connect + CMS server accept). |
-| (conn-hardening) | PDU read/send deadlines? | ✅/➖ | `connection/deadline.h` is stream-plane-specific (operates on `xrootd_ctx_t` PDU state); HTTP uses nginx-native timers. |
+| (conn-hardening) | Dead-peer reaping (SO_KEEPALIVE + TCP_USER_TIMEOUT)? | ✅ | `connection/netopt.h` `brix_apply_tcp_deadpeer_opts` (root accept + CMS connect + CMS server accept). |
+| (conn-hardening) | PDU read/send deadlines? | ✅/➖ | `connection/deadline.h` is stream-plane-specific (operates on `brix_ctx_t` PDU state); HTTP uses nginx-native timers. |
 
 ### 2.2 Data plane: read / write / streaming
 
 | # | Question | Verdict | Evidence / notes |
 |---|---|---|---|
-| (streaming) | pgread response-chain build across sync + AIO? | ⚙️ | `xrootd_build_pgread_chain`. |
+| (streaming) | pgread response-chain build across sync + AIO? | ⚙️ | `brix_build_pgread_chain`. |
 | (streaming) | Chunked/sendfile/window chain builders (read/readv)? | ✅ | `aio/buffers.c` (`build_chunked_chain`/`window`/`sendfile`). |
-| (streaming) | AIO offload (alloc/bind/post/done)? | ✅ | `xrootd_task_bind` + `xrootd_aio_post_task` (`aio/resume.c`); io_uring→pool→sync tiering inside. |
-| Q11 | Thread-pool task **binding** on the HTTP/raw side? | ⚙️ | 8 sites → `xrootd_task_bind`. |
+| (streaming) | AIO offload (alloc/bind/post/done)? | ✅ | `brix_task_bind` + `brix_aio_post_task` (`aio/resume.c`); io_uring→pool→sync tiering inside. |
+| Q11 | Thread-pool task **binding** on the HTTP/raw side? | ⚙️ | 8 sites → `brix_task_bind`. |
 | Q9 | RFC 7233 byte-range parsing? | ✅ | `compat/range.c` + `range_vector.c` → `shared/file_serve.c` (webdav + s3). |
-| Q39 | Tiered fallback chains (io_uring→pool→sync, AIO→sync)? | ✅ | Structured inside `xrootd_aio_post_task`. |
+| Q39 | Tiered fallback chains (io_uring→pool→sync, AIO→sync)? | ✅ | Structured inside `brix_aio_post_task`. |
 | Q55 | Chunk/window size tunables centralized? | ➖ | ~10 named per-subsystem `#define`s (`READ_WINDOW`, `TPC_CHUNK_SIZE`, …); centralizing couples independently-tuned knobs. |
 
-> **Note — root:// ↔ VFS (the big non-win):** routing `root://` read/write through `xrootd_vfs_read`/`vfs_write` is **not viable** without a data-plane regression: the VFS is synchronous/HTTP-oriented, while the stream plane needs thread-pool AIO offload, windowed `kXR_oksofar` streaming, `kXR_wait` backpressure, and a warm-cache `preadv2(RWF_NOWAIT)` probe. The two also have opposite short-read contracts. Documented to prevent re-litigation.
+> **Note — root:// ↔ VFS (the big non-win):** routing `root://` read/write through `brix_vfs_read`/`vfs_write` is **not viable** without a data-plane regression: the VFS is synchronous/HTTP-oriented, while the stream plane needs thread-pool AIO offload, windowed `kXR_oksofar` streaming, `kXR_wait` backpressure, and a warm-cache `preadv2(RWF_NOWAIT)` probe. The two also have opposite short-read contracts. Documented to prevent re-litigation.
 
 ### 2.3 Identity, auth, security
 
 | # | Question | Verdict | Evidence / notes |
 |---|---|---|---|
-| Q4 | Identity (`xrootd_identity_t`) construction? | ✅ | `types/identity.c` typed setters used by 9 auth backends. |
+| Q4 | Identity (`brix_identity_t`) construction? | ✅ | `types/identity.c` typed setters used by 9 auth backends. |
 | Q16 | JWT/token validation? | ✅ | `token/validate.c` (gsi/token, tpc, webdav); S3 SigV4 separate by design (INVARIANT #6). |
-| Q17 | VOMS attribute extraction? | ✅ | single `xrootd_extract_voms_info()` (`gsi/auth.c`). |
-| Q18 | Token scope-check? | ✅ | `types/identity.c` `xrootd_identity_check_token_scope`. |
+| Q17 | VOMS attribute extraction? | ✅ | single `brix_extract_voms_info()` (`gsi/auth.c`). |
+| Q18 | Token scope-check? | ✅ | `types/identity.c` `brix_identity_check_token_scope`. |
 | Q19 | ACL / capability evaluation? | ✅ | the `acc/` engine (XrdAcc port) serves all 3 protocols. |
 | Q12 | TLS cert verification? | ✅ | inbound GSI proxy-cert via `crypto/gsi_verify.c`; outbound TPC-GSI / cache-origin use different (appropriate) models. |
-| Q48 | Secret / PII redaction? | ✅/➖ | `xrootd_sanitize_log_string` shared; config-download redaction localized to dashboard. |
+| Q48 | Secret / PII redaction? | ✅/➖ | `brix_sanitize_log_string` shared; config-download redaction localized to dashboard. |
 
 ### 2.4 Wire / protocol / dispatch
 
 | # | Question | Verdict | Evidence / notes |
 |---|---|---|---|
 | Q3 | Big-endian int pack/unpack? | ➖ | `frame_hdr.h` accessors for **unaligned** wire buffers; the 293 raw `ntohl`/`be64toh` are idiomatic conversions on **aligned** struct fields — wrapping them adds no value. |
-| Q20 | kXR path / fhandle extraction? | ✅ | `xrootd_extract_path` (27 sites); `fhandle[0]` is a 1-line idiom. |
-| Q21 | Redirect emission? | ✅/➖ | root `xrootd_send_redirect` shared; HTTP/S3 use nginx-native + protocol envelopes. |
+| Q20 | kXR path / fhandle extraction? | ✅ | `brix_extract_path` (27 sites); `fhandle[0]` is a 1-line idiom. |
+| Q21 | Redirect emission? | ✅/➖ | root `brix_send_redirect` shared; HTTP/S3 use nginx-native + protocol envelopes. |
 | Q22 | Error-response envelope? | ✅/➖ | errno→kXR→HTTP mapping single-sourced (`compat/error_mapping.c`); kXR_error/HTTP/S3-XML envelopes distinct by spec. |
 | Q23 | kXR_wait / Retry-After? | ➖ | stream `send_wait` shared; HTTP 503/Retry-After protocol-specific. |
-| Q46 | Flag/bitmask (open-mode/options) decode? | ✅ | funnels through the `XROOTD_VFS_O_*` flag layer (`fs/vfs_open.c`). |
+| Q46 | Flag/bitmask (open-mode/options) decode? | ✅ | funnels through the `BRIX_VFS_O_*` flag layer (`fs/vfs_open.c`). |
 | Q52 | Wire `dlen` validation before parse? | ➖ | 56 sites, each validates a distinct expected size against its own struct. |
 | Q37 | Hand-rolled state machines → generic FSM driver? | ❌ | proxy-lifecycle / upstream-bootstrap / aws-chunked / read-AIO are genuinely different states+transitions. |
 
@@ -104,7 +104,7 @@ All build-clean (`-Werror`), fleet-restarted to load the new binary, and test-ga
 |---|---|---|---|
 | Q6 | XML response building? | ✅/➖ | escaping shared (`compat/xml.c`, `compat/http_xml.c`); S3/WebDAV/dashboard document **schemas** genuinely distinct. |
 | Q7 | JSON response building? | ✅/➖ | all via jansson; schemas distinct. |
-| Q8 | HTTP header find/parse? | ✅ | `compat/http_headers.c` `xrootd_http_find_header`; webdav thin wrapper. |
+| Q8 | HTTP header find/parse? | ✅ | `compat/http_headers.c` `brix_http_find_header`; webdav thin wrapper. |
 | Q13 | Time/date formatting? | ✅ | `compat/time.c` (timegm/http_time/conditionals). |
 | Q14 | Sanitization / escaping? | ✅ | shared per domain (log-sanitize / xml-escape / jansson). |
 | Q50 | Content negotiation (Accept-Encoding / checksum-algo)? | ✅ | `compat/codec_core.c` + `compat/checksum.c`. |
@@ -125,7 +125,7 @@ All build-clean (`-Werror`), fleet-restarted to load the new binary, and test-ga
 
 | # | Question | Verdict | Evidence / notes |
 |---|---|---|---|
-| Q10 | SHM zone/slab allocation? | ✅ | `compat/shm_slots.c` `xrootd_shm_table_alloc`/`zone_size` (~17 zones; slab-safe per INVARIANT #10 spin-mutex postmortem). Per-zone `ngx_shared_memory_add` is irreducibly distinct. |
+| Q10 | SHM zone/slab allocation? | ✅ | `compat/shm_slots.c` `brix_shm_table_alloc`/`zone_size` (~17 zones; slab-safe per INVARIANT #10 spin-mutex postmortem). Per-zone `ngx_shared_memory_add` is irreducibly distinct. |
 | Q36 | SHM fixed-slot-table-with-TTL **shape** generic? | ⚠️ | primitives shared (`slot_expired`/`remember_free_slot` — trivial 1-liners); the per-table "scan N slots for key-or-free" loop differs by slot-struct/key-type/predicate → generic version needs callbacks costing ~what they save. |
 | Q31 | Rate-limit key derivation? | ✅ | `ratelimit/ratelimit_keys.c` + http/stream adapters. |
 | Q53 | Sliding-window / bucket accounting? | ✅ | RL via `ratelimit_zone.c`, histograms via `metrics/unified.c`. |
@@ -147,7 +147,7 @@ All build-clean (`-Werror`), fleet-restarted to load the new binary, and test-ga
 | Q33 | host:port format/parse? | ✅ | `compat/host_format.c` + `host_split.c` (IPv6-safe). |
 | Q35 | Compression codec dispatch? | ✅ | `compat/codec_core.c` + `codec_*.c` (one backend per algorithm). |
 | Q49 | Encode/decode symmetry (sigv4, pgio, b64, crc)? | ✅ | each pair co-located in `compat/`. |
-| Q15 | Config set/merge helpers? | ✅ | nginx's `ngx_conf_merge_*` macros + `path/merge.c` `xrootd_merge_arrays`; per-field cascades are distinct fields, not copies. |
+| Q15 | Config set/merge helpers? | ✅ | nginx's `ngx_conf_merge_*` macros + `path/merge.c` `brix_merge_arrays`; per-field cascades are distinct fields, not copies. |
 
 ### 2.9 Round 5 — fine-grained / previously-unprobed angles (Q56–Q100)
 
@@ -170,10 +170,10 @@ hot-path-sensitive to merge. Verdict distribution: ~28 ✅, ~14 ➖, ~3 ⚠️.
 | Q66 | S3 XML error-code envelope? | ✅ | shared within S3 (`s3/handler.c`) |
 | Q67 | aws-chunked signature chaining? | ➖ | S3-specific, single impl |
 | Q68 | SHM critical-section lock/scan/unlock wrapper? | ➖ | uses nginx `ngx_shmtx_lock/unlock`; critical sections differ per table |
-| Q69 | Atomic counter increment idiom? | ✅ | `XROOTD_ATOMIC_*` / `metrics_macros.h` |
+| Q69 | Atomic counter increment idiom? | ✅ | `BRIX_ATOMIC_*` / `metrics_macros.h` |
 | **Q70** | **Per-worker L1 + SHM-L2 two-tier cache?** | ⚠️ | **`token/worker_cache.c` and `path/auth_gate_l1.c` are parallel impls** of the same lockless direct-mapped msec-expiry L1 (`_l1_create(pool,slots)`, `<64→64` floor). Hot-path (auth on every request), built for speed — a generic `void*`-key version adds indirection → perf-regression risk. **Not worth merging.** |
 | Q71 | Generation-counter / reload-detect? | ➖ | config reload via `init_process`; SHM re-attach in `shm_slots` — distinct |
-| Q72 | Scratch-buffer growth/reuse? | ✅ | `xrootd_get_pool_scratch` / `XROOTD_GET_SCRATCH` |
+| Q72 | Scratch-buffer growth/reuse? | ✅ | `brix_get_pool_scratch` / `BRIX_GET_SCRATCH` |
 | Q73 | Null-terminate-`ngx_str_t` idiom? | ✅ | essentially absent (0 sites) — non-issue |
 | Q74 | `safe_size` overflow-checked alloc adoption? | ⚠️ | under-adopted (2 sites) but few wire-driven `n*sizeof` allocs actually need it |
 | Q75 | Streaming CRC during transfer? | ✅ | pgread inline; rest via `compat/integrity_info.c` |
@@ -200,7 +200,7 @@ hot-path-sensitive to merge. Verdict distribution: ~28 ✅, ~14 ➖, ~3 ⚠️.
 | Q96 | `kXR_retstat` / optional-response-suffix? | ➖ | handled per-opcode |
 | Q97 | Glob / wildcard matching? | ➖ | acc-ACL-pattern vs cms-host vs etag — distinct matchers |
 | Q98 | Capability-flag → permission map? | ✅ | `acc/capability.c` + `acc/privs.c` |
-| Q99 | Impersonation broker call wrappers? | ✅ | `xrootd_imp_*` API (client/request/broker/open/stat/rename/unlink/setxattr) |
+| Q99 | Impersonation broker call wrappers? | ✅ | `brix_imp_*` API (client/request/broker/open/stat/rename/unlink/setxattr) |
 | Q100 | Metric label-cardinality guard? | ✅ | convention (INVARIANT #8) + shared sanitize where needed |
 
 ### 2.10 Round 6 — 100 fine-grained angles (Q101–Q200), cluster-level survey
@@ -222,7 +222,7 @@ new clean wins**, consistent across all clusters.
 | FRM/tape — stage/migrate/purge/residency/queue/REST (Q155–Q160) | ✅ | self-contained `frm/`; tape-REST is an adapter over shared FRM state |
 | Metrics — counter/gauge/histogram/registration/labels (Q161–Q164) | ✅ | `metrics/unified.c` + `writer.c`; per-protocol files register slices |
 | Config directive parse — size/time/flag/enum/include/inherit (Q165–Q169) | ✅ | nginx's `ngx_conf_set_*_slot` built-ins + `path/merge.c` |
-| Memory/buffer — chain-link/buf-flags/scratch/large-alloc (Q170–Q173) | ✅ | `aio/buffers.c` chain builders + `xrootd_get_pool_scratch`; raw `ngx_alloc_chain_link` is nginx API |
+| Memory/buffer — chain-link/buf-flags/scratch/large-alloc (Q170–Q173) | ✅ | `aio/buffers.c` chain builders + `brix_get_pool_scratch`; raw `ngx_alloc_chain_link` is nginx API |
 | Concurrency — thread-pool select/uring-submit/event-rearm (Q174–Q177) | ✅ | `conf->common.thread_pool` field + `aio/resume.c` + uring layer |
 | Diagnostics — errno-capture/log-level/structured/propagation (Q178–Q181) | ➖ | `saved_errno` is a 1-line idiom (14 sites); `ngx_log_*` is nginx API; cache shares `errors.c`, tpc inlines `err_msg` |
 | Path/namespace — symlink/mount/quota/trash (Q182–Q185) | ✅ | `compat/namespace_ops.c` + `compat/path.c` + confinement layer |
@@ -241,17 +241,17 @@ When adding a feature, prefer these existing shared surfaces over growing a para
 
 | Need | Use |
 |---|---|
-| Confined open/read/write/stat/opendir | `fs/vfs.h` (`xrootd_vfs_*`); HTTP-ctx defaults via `xrootd_vfs_ctx_init` |
-| Range GET (parse + headers + send) | `shared/file_serve.c` `xrootd_http_serve_file_ranged` |
-| Outbound connect (blocking thread) | `connection/netconnect.h` `xrootd_connect_fd_deadline` + `xrootd_apply_socket_io_timeouts` |
-| Outbound connect (event-driven) | `connection/netconnect.h` `xrootd_resolve_connect_socket` |
-| Dead-peer socket hardening (inbound) | `connection/netopt.h` `xrootd_apply_tcp_deadpeer_opts` |
-| Thread-pool offload | `xrootd_task_bind` + `xrootd_aio_post_task` (`aio/aio.h`, `aio/resume.c`) |
-| Staged temp + atomic commit | `compat/staged_file.c` `xrootd_staged_open/commit/abort` |
+| Confined open/read/write/stat/opendir | `fs/vfs.h` (`brix_vfs_*`); HTTP-ctx defaults via `brix_vfs_ctx_init` |
+| Range GET (parse + headers + send) | `shared/file_serve.c` `brix_http_serve_file_ranged` |
+| Outbound connect (blocking thread) | `connection/netconnect.h` `brix_connect_fd_deadline` + `brix_apply_socket_io_timeouts` |
+| Outbound connect (event-driven) | `connection/netconnect.h` `brix_resolve_connect_socket` |
+| Dead-peer socket hardening (inbound) | `connection/netopt.h` `brix_apply_tcp_deadpeer_opts` |
+| Thread-pool offload | `brix_task_bind` + `brix_aio_post_task` (`aio/aio.h`, `aio/resume.c`) |
+| Staged temp + atomic commit | `compat/staged_file.c` `brix_staged_open/commit/abort` |
 | Body → fd / fd → fd copy | `compat/http_body.c`, `compat/copy_range.c` |
 | errno → kXR → HTTP | `compat/error_mapping.c` |
 | Identity construction | `types/identity.c` setters |
-| SHM fixed-slot table | `compat/shm_slots.c` (`xrootd_shm_table_alloc` — **never** raw `ngx_shmtx_create`; INVARIANT #10) |
+| SHM fixed-slot table | `compat/shm_slots.c` (`brix_shm_table_alloc` — **never** raw `ngx_shmtx_create`; INVARIANT #10) |
 | df / space | `compat/fs_usage.c` |
 | SSRF target check | `compat/net_target.c` |
 | host:port / hex / b64 / uri / time / codec / checksum | `compat/host_format.c`/`host_split.c`/`hex.c`/`b64url.c`/`uri.c`/`time.c`/`codec_core.c`/`checksum.c` |
@@ -281,7 +281,7 @@ assembly**, ranked by audit cost (not LoC):
 | **Session-bootstrap packing** (handshake + kXR_protocol + kXR_login) | `client/lib/conn.c` ↔ `src/net/upstream/bootstrap.c` (×2) ↔ `src/tpc/outbound/bootstrap.c` | ⚙️ **DONE** — §4.5 (new `protocol/bootstrap_pack.h`, 4 sites → 1) |
 | **kXR_error decode adoption** | already-shared `xrd_error_body_decode` ↔ hand-rolled in `src/tpc/outbound/source.c`, `src/fs/cache/origin_response.c` | ⚙️ **DONE** — §4.5 (adopted shared decoder; fixed a non-NUL `%s` over-read) |
 | **Stat-line grammar** `"<id> <size> <flags> <mtime>"` | `src/protocols/root/path/stat_body.c` (encoder) ↔ `client/lib/ops_meta.c` (decoder) | ⚙️ **DONE** — §4.6 (new `protocol/stat_line.h`, encode + decode co-located) |
-| **`root://` URL authority split** | `client/lib/url.c` (on shared `host_split`) ↔ `src/tpc/engine/parse.c` (bespoke) | ⚙️ **DONE** — §4.7 (server routed onto the shared `xrootd_split_host_port`) |
+| **`root://` URL authority split** | `client/lib/url.c` (on shared `host_split`) ↔ `src/tpc/engine/parse.c` (bespoke) | ⚙️ **DONE** — §4.7 (server routed onto the shared `brix_split_host_port`) |
 | **kXR_open flag semantics** (options ↔ POSIX `O_*`) | `src/protocols/root/read/open_resolved_file.c` (decoder) ↔ `client/lib/ops_file.c` + both FUSE drivers (encoders) | ⚙️ **DONE** — §4.8 (new `protocol/open_flags.h`, 1 decoder + 3 encoders → 1) |
 | **stat `flags` field semantics** (flags ↔ `st_mode`) | `src/protocols/root/path/stat_body.c` (encoder) ↔ `client/lib/posix_map.c` (decoder) | ⚙️ **DONE** — §4.9 (new `protocol/stat_flags.h`; completes the stat spec) |
 | **dirlist dstat sentinel** `".\n0 0 0 0\n"` | `src/protocols/root/dirlist/handler.c` (×2 emit) ↔ `client/lib/ops_meta.c` (match) | ⚙️ **DONE** — §4.10 (new `protocol/dirlist_fmt.h`, 3 literals → 1) |
@@ -291,16 +291,16 @@ assembly**, ranked by audit cost (not LoC):
 | **protocol vocabulary** (`kXR_ExpLogin`/`kXR_FinalResult`/`kXR_PartialResult`, fhandle/sessid lengths) | client `xrdc.h` shadow-defs ↔ comments-only in `src/protocols/root/protocol/` | ⚙️ **DONE** — §4.14 (promoted spec constants to real shared `#define`s; killed shadow-defs + magic numbers) |
 | **kXR_readv segment-header codec** `{fhandle[4],rlen[4],offset[8]}` | `client/lib/ops_file.c` (build+parse) ↔ `src/protocols/root/read/readv.c` (response build) | ⚙️ **DONE** — §4.15 (new `protocol/readv_seg.h`; the readv gap pgio left) |
 
-### 4.1 `xrootd_sss_build_credential()` (libxrdproto)
+### 4.1 `brix_sss_build_credential()` (libxrdproto)
 
 
 The SSS kXR_auth credential **byte assembly** (40-byte data header `[nonce | gen_time | opt]`
 + NAME TLV + IEEE-CRC32 + Blowfish-CFB encrypt + 16-byte outer header) was duplicated
 byte-for-byte in `client/lib/sec/sec_sss.c:sss_first()` and
-`src/auth/sss/auth_proxy_credential.c`. The cipher (`xrootd_sss_bf_crypt`), CRC (`xrootd_crc32_ieee`)
+`src/auth/sss/auth_proxy_credential.c`. The cipher (`brix_sss_bf_crypt`), CRC (`brix_crc32_ieee`)
 and constants (`protocol/sss.h`) were already shared — only the assembly glue was not.
 
-Factored into one nginx-free kernel `xrootd_sss_build_credential()` in the already-shared
+Factored into one nginx-free kernel `brix_sss_build_credential()` in the already-shared
 `compat/sss_bf.c` (no new build-system wiring; it already compiles into both the module and
 libxrdproto). Pure by construction: the caller supplies the random nonce + gen_time, so the
 RNG/clock stay at the edges. Both call sites became thin (~20 server / ~35 client lines of
@@ -312,15 +312,15 @@ auditor had to cross-check for bit-compatibility. **Verified:** `test_native_sss
 mint), `test_chaos_mixed_auth` 5/5 (server proxy credential), `check-ngx-free.sh` clean — and
 because SSS auth requires byte-exact credentials, those passes prove the builder reproduces
 both originals bit-for-bit. (A stale *static source-marker* test, broken earlier by the
-`xrootd_vfs_ctx_init` refactor moving a string into the helper, was also corrected.)
+`brix_vfs_ctx_init` refactor moving a string into the helper, was also corrected.)
 
-### 4.2 `xrootd_errno_from_kxr()` (libxrdproto)
+### 4.2 `brix_errno_from_kxr()` (libxrdproto)
 
 The project's canonical errno↔kXR mapping (a CLAUDE.md invariant) had its forward direction
-(`xrootd_kxr_from_errno`) in the shared `compat/error_mapping.c` but its **reverse** direction
+(`brix_kxr_from_errno`) in the shared `compat/error_mapping.c` but its **reverse** direction
 (kXR→errno, needed by the native client's FUSE/preload POSIX layers) only in
 `client/lib/status.c:xrdc_kxr_to_errno`. Not a *duplicate* (the reverse table was client-only),
-but the two directions could drift. Added the inverse `xrootd_errno_from_kxr()` beside its
+but the two directions could drift. Added the inverse `brix_errno_from_kxr()` beside its
 forward in `error_mapping.c` (ngx-free Section 1, already in libxrdproto); `xrdc_kxr_to_errno`
 now delegates the 25 kXR wire codes to it and keeps only the client-only `XRDC_E*` sentinels.
 The client Makefile gained `-DXRDPROTO_NO_NGX` (it is, correctly, an ngx-free libxrdproto
@@ -344,7 +344,7 @@ code.
 
 **Phase 1 — local verification harness: ⚙️ DONE.** `tests/test_tpc_gsi_outbound.py` stands up a
 stock-`xrootd` **GSI source** (`sec.protbind * only gsi`, exports `/gsidata`) and an nginx-dest
-with **native TPC + outbound GSI cert** (`xrootd_certificate`/`_key`/`trusted_ca` from a shared
+with **native TPC + outbound GSI cert** (`brix_certificate`/`_key`/`trusted_ca` from a shared
 test CA), then drives a native TPC PULL (`xrdcp --tpc`). Because the source offers *only* GSI, a
 successful pull proves `tpc_outbound_gsi()` ran the full outbound handshake. The **baseline
 (unmigrated) code PASSES** — so this is now a live regression gate, exactly the coverage that was
@@ -356,10 +356,10 @@ the migration's crypto kernel is externally proven.
 **Phase 2 — migrate `tpc_outbound_gsi_exchange()` onto `gsi_core`: ⚙️ DONE.** Done as the chosen
 gate-driven sequence — each step built and re-ran `test_tpc_gsi_outbound.py` (green after each):
 1. Outer DH-public encode (`PEM_write_bio_Parameters` + `BN_bn2hex` + `snprintf`) →
-   `xrootd_gsi_cipher_public()` (~55 lines). *Found-and-validated by the gate:* the shared encoder
+   `brix_gsi_cipher_public()` (~55 lines). *Found-and-validated by the gate:* the shared encoder
    emits a 3-dash `---EPUB---` vs the legacy 2-dash `---EPUB--`; stock XrdSecgsi accepts both.
 2. DH params-parse + keygen + peer-build + secret-derive + cipher-negotiation + encrypt →
-   `xrootd_gsi_cipher_parse_peer` / `keygen_from` / `session_key` / `encrypt` (~225 lines). This
+   `brix_gsi_cipher_parse_peer` / `keygen_from` / `session_key` / `encrypt` (~225 lines). This
    also moved the wire cipher from negotiated-`aes-256-cbc` to the client's `gsi_core` **AES-128 +
    zero-IV** scheme — the same one proven against real EOS + stock XrdSecgsi, so it stays
    compatible; the gate confirmed.
@@ -386,7 +386,7 @@ jansson-free* decoder — `credinfo.c` says it outright: "NO jansson — a diagn
 So a *full* validation kernel is not shareable, by design.
 
 **Already shared** (the nginx-free primitives both trees genuinely need): `b64url` decode,
-`xrootd_token_parse_scopes` (`scopes.c`), and the JWT structural splitter `xrdjwt_split()`
+`brix_token_parse_scopes` (`scopes.c`), and the JWT structural splitter `xrdjwt_split()`
 (`token/b64url.{c,h}`) — all in libxrdproto.
 
 ⚙️ **DONE this pass:** `xrdjwt_split()` already existed and the native client used it, but the
@@ -459,9 +459,9 @@ in two repos with nothing but human discipline keeping field order / octal-mode 
 step. If either side drifts, stat & dirlist interop breaks silently.
 
 ⚙️ **DONE:** added header-only **`src/protocols/root/protocol/stat_line.h`** with BOTH directions and a stated
-round-trip contract: `xrootd_statline_format(out, sz, id, size, flags, mtime)` and
-`xrootd_statline_parse(s, &id, &size, &flags, &mtime, &ext)` (the optional EOS tail in a neutral
-`xrootd_statline_ext`). The server's `xrootd_make_stat_body` keeps its `struct stat` → fields +
+round-trip contract: `brix_statline_format(out, sz, id, size, flags, mtime)` and
+`brix_statline_parse(s, &id, &size, &flags, &mtime, &ext)` (the optional EOS tail in a neutral
+`brix_statline_ext`). The server's `brix_make_stat_body` keeps its `struct stat` → fields +
 VFS/dir/readable **policy** (flag *values* stay caller-side) and emits through the shared
 formatter; the client's `parse_statinfo` decodes through the shared parser. The grammar is now a
 single audited artifact. LoC is ~net-neutral — **the value is the co-located spec**, not line
@@ -470,12 +470,12 @@ count. Verified: stat/dirlist conformance + native-client decode green (part of 
 ### 4.7 `root://` URL authority split — server routed onto the shared `host_split`
 
 The client's URL parser (`client/lib/url.c`) already delegates its authority split to the shared,
-ngx-free **`xrootd_split_host_port()`** (`src/core/compat/host_split.{c,h}`, libxrdproto). The server's
+ngx-free **`brix_split_host_port()`** (`src/core/compat/host_split.{c,h}`, libxrdproto). The server's
 native-TPC source parser (`src/tpc/engine/parse.c`, `tpc_parse_src_spec`) reimplemented the *same*
 bracketed-IPv6-aware `host[:port]` split by hand — its own `tpc_copy_component()` +
 `tpc_parse_port_range()` (~70 LoC).
 
-⚙️ **DONE:** routed the server onto the same shared `xrootd_split_host_port()` the client uses,
+⚙️ **DONE:** routed the server onto the same shared `brix_split_host_port()` the client uses,
 and deleted the two now-redundant helpers. The **path normalization stays server-specific by
 design** — `tpc_copy_src_path()` collapses *all* leading slashes and forces a single `/` for
 authz, which is stricter than the client's one-slash collapse; that is policy, not duplication, so
@@ -499,9 +499,9 @@ derivation, the result is a spurious `EEXIST` or a **silent overwrite** — a da
 test catches, because the halves never referenced a shared definition.
 
 ⚙️ **DONE:** new header-only **`src/protocols/root/protocol/open_flags.h`** owns the whole contract:
-`xrootd_open_options_build` (intent→options), `xrootd_open_options_to_posix` (options→`O_*`,
-the canonical inverse), `xrootd_open_options_is_write` (the write-bit set, also routed on the
-server), and `xrootd_open_force_for_open/create` (POSIX→`force`, which de-duplicated the two FUSE
+`brix_open_options_build` (intent→options), `brix_open_options_to_posix` (options→`O_*`,
+the canonical inverse), `brix_open_options_is_write` (the write-bit set, also routed on the
+server), and `brix_open_force_for_open/create` (POSIX→`force`, which de-duplicated the two FUSE
 drivers too). Server policy that is not flag semantics (POSC staging, directory checks, authz)
 stays at the call sites. Verified: `test_open_flags_lifecycle` + write/write-recovery + integrity
 + FUSE green (part of the 294-test run).
@@ -513,8 +513,8 @@ bits was still split — the server set `kXR_isDir`/`kXR_other`/`kXR_readable` f
 (`src/protocols/root/path/stat_body.c`) and the client turned those bits back into an `st_mode`
 (`client/lib/posix_map.c`), each spelling the bit meanings out independently.
 
-⚙️ **DONE:** new **`src/protocols/root/protocol/stat_flags.h`** with `xrootd_stat_flags_from_mode` (server encode)
-and `xrootd_stat_mode_from_flags` (client decode) co-located. FUSE-specific policy (`st_nlink`,
+⚙️ **DONE:** new **`src/protocols/root/protocol/stat_flags.h`** with `brix_stat_flags_from_mode` (server encode)
+and `brix_stat_mode_from_flags` (client decode) co-located. FUSE-specific policy (`st_nlink`,
 `st_size`, `st_ino`, `st_blksize`) stays in the client; only the file-type + permission bits the
 flag spec dictates moved. Not strict inverses (the server emits a subset), but they now share one
 bit *definition*. Verified: stat/dirlist conformance + FUSE green.
@@ -537,8 +537,8 @@ The server formatted the `oss.cgroup=…&oss.space=…&oss.free=…` capacity re
 (`client/lib/posix_map.c`) — with the token spellings *and* their byte offsets (`p + 10`, `p + 9`)
 hand-written on each side.
 
-⚙️ **DONE:** new **`src/protocols/root/protocol/qspace.h`** co-locates `xrootd_qspace_format` (server emit) and
-`xrootd_qspace_parse` (client decode) over shared token macros; the parser's key offsets are now
+⚙️ **DONE:** new **`src/protocols/root/protocol/qspace.h`** co-locates `brix_qspace_format` (server emit) and
+`brix_qspace_parse` (client decode) over shared token macros; the parser's key offsets are now
 `sizeof(token)-1`, never integer literals. Verified: query/interop-query green.
 
 ### 4.12 checksum algo-name registry — examined, NOT a clean win
@@ -546,8 +546,8 @@ hand-written on each side.
 The name→kind tables in `client/lib/checksum.c` and `src/core/compat/checksum.c` *look* duplicated (same
 strings: adler32/crc32c/md5/crc64[xz]/crc64nvme/zcrc32), but each maps to a **different,
 load-bearing enum**: the client's public `XRDC_CK_*` (6 values, in its API surface), the server's
-`XROOTD_CHECKSUM_*` (9 values, drives width/hex-vs-base64/is_u64), and `checksum_core`'s own
-`XROOTD_CK_*` kind. The actual *compute* is already shared (both trees call `checksum_core` via
+`BRIX_CHECKSUM_*` (9 values, drives width/hex-vs-base64/is_u64), and `checksum_core`'s own
+`BRIX_CK_*` kind. The actual *compute* is already shared (both trees call `checksum_core` via
 libxrdproto). A forced shared name→kind table would require unifying three enums — churning the
 client's public API and the server's encoding logic — for **zero behaviour benefit**. Declined on
 the merits, consistent with the rest of this audit: share what removes real audit cost, not what
@@ -565,7 +565,7 @@ parser anchors on `&P=` and checks the name boundary (`,`/`&`/end); the server's
 substring anywhere in the block (another protocol's args, a trailing host) and could select the
 wrong outbound credential.
 
-⚙️ **DONE:** new header-only **`src/protocols/root/protocol/sec_protocol.h`** with `xrootd_sec_proto_advertised`
+⚙️ **DONE:** new header-only **`src/protocols/root/protocol/sec_protocol.h`** with `brix_sec_proto_advertised`
 (the native client's anchored logic, made NULL-tolerant for presence-only queries). Both the
 client auth driver and the server's TPC-outbound selector now call it — **de-duplicating the
 auth-negotiation grammar and tightening the server's selection** (the loose `strstr` is gone).
@@ -583,7 +583,7 @@ re-invented them. The native client even **self-confessed** it in `xrdc.h`
 including in a kernel from §4.5 (`bootstrap_pack.h` wrote `expect = 0x03`) and the pgread/pgwrite
 status framing (`resptype = 0`). The client also shadow-defined `XRDC_FHANDLE_LEN` /
 `XRDC_SESSION_ID_LEN` that *duplicated the values* of the already-shared `XRD_FHANDLE_LEN` /
-`XROOTD_SESSION_ID_LEN`.
+`BRIX_SESSION_ID_LEN`.
 
 ⚙️ **DONE:** promoted `kXR_ExpLogin`, `kXR_FinalResult`, `kXR_PartialResult` to real `#define`s in
 the shared `protocol/flags.h`. The server kernels now use the names (`bootstrap_pack.h` →
@@ -602,10 +602,10 @@ offsets, was hand-spelled in **both directions across both trees**: the native c
 request segments and parses the response segments (`client/lib/ops_file.c`), and the module builds
 the response segments (`src/protocols/root/read/readv.c`).
 
-⚙️ **DONE:** new header-only **`src/protocols/root/protocol/readv_seg.h`** (`xrootd_readv_seg_pack` /
-`xrootd_readv_seg_rlen`) over the already-shared `frame_hdr.h` big-endian accessors. The client's
+⚙️ **DONE:** new header-only **`src/protocols/root/protocol/readv_seg.h`** (`brix_readv_seg_pack` /
+`brix_readv_seg_rlen`) over the already-shared `frame_hdr.h` big-endian accessors. The client's
 request-build, the client's response-parse, and the module's response-build now all go through it;
-the client's magic `16`/`+4`/`+8` are replaced by `XROOTD_READV_SEGSIZE` and the codec. The
+the client's magic `16`/`+4`/`+8` are replaced by `BRIX_READV_SEGSIZE` and the codec. The
 module's request *parse* already used the typed `readahead_list` struct (clean, not raw bytes) and
 was left as-is — the codec covers exactly the raw-byte sites. Behaviour preserved (the module reuses
 the host-order offset it already computes for its descriptor; `htobe64(be64toh(x)) == x`). Verified:

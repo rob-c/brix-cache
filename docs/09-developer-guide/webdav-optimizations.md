@@ -8,7 +8,7 @@ How WebDAV GET/PUT/COPY achieve near-syscall efficiency: `copy_file_range`, per-
 
 ### What Changed
 
-The WebDAV module resolves `xrootd_webdav_root` to a canonical absolute path at
+The WebDAV module resolves `brix_webdav_root` to a canonical absolute path at
 configuration time and stores it in `root_canon`.
 
 ### Before

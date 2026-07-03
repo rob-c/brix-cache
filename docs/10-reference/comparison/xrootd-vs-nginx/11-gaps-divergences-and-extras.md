@@ -26,7 +26,7 @@ contradict them. Source-of-truth references:
 - [`conformance-findings.md`](../conformance-findings.md)
 - [`gohep-interop-findings.md`](../gohep-interop-findings.md)
 
-Official source is the checkout at `/tmp/xrootd-src/src` (protocol version
+Official source is the checkout at `/tmp/brix-src/src` (protocol version
 `5.2.0`, advertised in `XProtocol/XProtocol.hh`). This module's source is
 `src/` in this repository.
 
@@ -157,7 +157,7 @@ exists here.
   logical-to-physical name translation layer (LFN↔PFN), used by many sites to
   decouple the exported namespace from on-disk layout.
 - **Here:** **not verified present.** The module uses confined-path resolution
-  (`src/fs/path/`, `ngx_http_xrootd_webdav_resolve_path()`) and per-export root
+  (`src/fs/path/`, `ngx_http_brix_webdav_resolve_path()`) and per-export root
   prefixing, but no general pluggable N2N translation layer was found.
 - **Why it matters / impact:** sites that rely on an N2N plugin to remap names
   (e.g. hash-spread directory layouts) need to reproduce that mapping by export
@@ -170,9 +170,9 @@ exists here.
 - **Official:** `XrdBwm/` (reservation-style bandwidth manager) and
   `XrdThrottle/` (request-rate plugin).
 - **Here:** `src/net/ratelimit/` implements cross-protocol, identity-aware
-  request-rate, bandwidth, and concurrency limits (`xrootd_rate_limit_zone`,
-  `xrootd_rate_limit_rule`, `xrootd_bandwidth_limit`,
-  `xrootd_concurrency_limit`). This is arguably **more** capable for the common
+  request-rate, bandwidth, and concurrency limits (`brix_rate_limit_zone`,
+  `brix_rate_limit_rule`, `brix_bandwidth_limit`,
+  `brix_concurrency_limit`). This is arguably **more** capable for the common
   case (see extras), but it is **not** the `XrdBwm`/`XrdThrottle` plugins and
   does not reproduce their exact reservation/admin semantics or config model.
 - **Why it matters / impact:** automation that drives `XrdBwm`/`XrdThrottle`
@@ -186,7 +186,7 @@ exists here.
 - **Official:** `XrdDig/` exposes a controlled diagnostics filesystem
   (`XrdDigFS`, `XrdDigAuth`, `XrdDigConfig`) for remote inspection of config/log
   files.
-- **Here:** **implemented** — `src/protocols/dig/dig.c` (`xrootd_webdav_dig` directive).
+- **Here:** **implemented** — `src/protocols/dig/dig.c` (`brix_webdav_dig` directive).
   Default-off, read-only (GET/HEAD only → 405 otherwise),
   `openat2(RESOLVE_BENEATH)`-confined to the export realpath, and gated by a
   principal→export allow-file (anonymous principal / unset or unreadable
@@ -219,11 +219,11 @@ exists here.
   tokens, SciTokens, and macaroons.
   - `pwd` — `src/auth/pwd/` (`auth.c` + `pwdfile.c`), the `XrdSecpwd` wire equivalent:
     a 2-round Diffie-Hellman-bootstrapped username+password handshake (credential
-    never sent in clear). Opt-in via `xrootd_auth pwd`, requires
-    `xrootd_pwd_file` (empty = deny all), recommended under TLS.
+    never sent in clear). Opt-in via `brix_auth pwd`, requires
+    `brix_pwd_file` (empty = deny all), recommended under TLS.
   - `host` — `src/auth/host/auth.c`, the `XrdSecProtocolhost` wire equivalent:
-    reverse-DNS of the peer against an allowlist. Opt-in via `xrootd_auth host`,
-    requires `xrootd_host_allow` (empty = deny all); identity always from the
+    reverse-DNS of the peer against an allowlist. Opt-in via `brix_auth host`,
+    requires `brix_host_allow` (empty = deny all); identity always from the
     socket's reverse-DNS, never client-asserted. Fail-closed, trusted-network
     only by design.
 - **Why it matters / impact:** `pwd`-auth and `host`-auth legacy sites are no
@@ -278,7 +278,7 @@ exists here.
   corresponding file found in this `XrdCl` checkout; it is a client-side tool
   regardless and out of replacement scope.
 - **`XrdSsi` (scalable service interface):** **minimal equivalent** in
-  `src/protocols/ssi/ssi.c` (`xrootd_ssi`) — a unary request/response service keyed per
+  `src/protocols/ssi/ssi.c` (`brix_ssi`) — a unary request/response service keyed per
   file handle; not the full upstream SSI framework (streaming/async/partitioned
   services). `XrdSfs` Spectrum-Scale specifics: no equivalent; specialized.
 
@@ -305,7 +305,7 @@ beyond "same protocol, different daemon." Each is source-grounded.
 | **WebDAV beyond upstream XrdHttp's method set** | `src/protocols/webdav/lock.c`, `dead_props.c`, `search.c`, `acl.c`, `methods_basic.c` | `LOCK`/`UNLOCK`, `PROPPATCH` + dead-property storage (xattrs), `SEARCH` (RFC 5323), `ACL` discovery — needed by desktop WebDAV clients that treat `501` as fatal. Not found as server methods in the reviewed XrdHttp source. |
 | **Hardened HTTP-TPC** | `src/protocols/webdav/tpc_curl.c`, `tpc_cred.c`, `tpc_marker.c`, `tpc_headers.c` | SSRF/DNS-pinning controls, OIDC/RFC-8693 credential delegation, marker streaming, `curl_multi` multistream, dashboard visibility, low-cardinality metrics. Upstream **also** has HTTP-TPC (`XrdHttpTpc`); nginx's edge is hardening + integration, **not** the existence of HTTP-TPC. |
 | **WLCG Tape REST gateway** | `src/protocols/webdav/tape_rest.c` + `src/fs/xfer/` | FTS/gfal2-friendly HTTP tape control sharing the same durable stage queue as native `prepare`/`open`. |
-| **Path-confinement discipline** | `src/fs/path/`, `src/core/compat/namespace_ops.c`, `xrootd_open_confined_canon()` | Every wire path resolves/canonicalizes/confines (`openat2(RESOLVE_BENEATH)`) before any syscall — an auditability advantage. |
+| **Path-confinement discipline** | `src/fs/path/`, `src/core/compat/namespace_ops.c`, `brix_open_confined_canon()` | Every wire path resolves/canonicalizes/confines (`openat2(RESOLVE_BENEATH)`) before any syscall — an auditability advantage. |
 
 Honesty notes for this section: rate limiting, HTTP-TPC, XrdHttp, krb5, unix
 auth, macaroon delegation, and IPv6 are **not** module-exclusive — upstream has
@@ -339,12 +339,12 @@ interop break for some ops/clients; **Low** = edge/cosmetic.
 | 7 | `kXR_open` reply | 4-byte fhandle unless retstat/compress | Always 12-byte body | FIXED | High | conformance |
 | 8 | `statvfs` reply | 6-field `nRW freeRW utilRW nStg freeStg utilStg` via `statvfs(2)` | 4-field line (stock client: "Invalid response") | FIXED | Med | stock `xrdfs` |
 | 9 | dirlist namespace | internal artifacts hidden | leaked `.nginx-xrootd*` internal files | FIXED | Low | stock `xrdfs` |
-| 10 | `kXR_stat` flags | Full `StatGen`: `kXR_writable`/`kXR_xset` from perms vs server euid/egid | Only `kXR_readable`(+`kXR_isDir`) | FIXED (`xrootd_stat_flags_from_stat`) | Med | stock `xrdfs stat` |
+| 10 | `kXR_stat` flags | Full `StatGen`: `kXR_writable`/`kXR_xset` from perms vs server euid/egid | Only `kXR_readable`(+`kXR_isDir`) | FIXED (`brix_stat_flags_from_stat`) | Med | stock `xrdfs stat` |
 | 11 | `mkdir` of existing path (no `-p`) | `kXR_ItExists` "file exists" (mkpath stays idempotent) | Silent success | FIXED | Med | stock `xrdfs mkdir` |
 | 12 | `query config pio_max` | Bare integer (`maxPio+1`) | Echoed the key | FIXED | Low | stock `xrdfs query` |
 | 13 | create-open to missing parent | Parent chain auto-created when `kXR_mkpath \| kXR_async` set (Xeq:1544) | First `NotFound`, then over-generalized to unconditional | FIXED (superseded by #21) | Med | stock `xrdcp` |
 | 14 | `kXR_mv` into missing parent | Dest parent chain auto-created; source-missing wording aligned | `kXR_NotFound` | FIXED | Med | stock `xrdfs mv` |
-| 15 | Interior `..` segment | Rejected for extract-based ops (stat/open/dirlist/locate) — reference does not normalize `..` | Silently normalized by RESOLVE_BENEATH | FIXED (`xrootd_reject_dotdot_path`) | Med | stock `xrdfs`/`xrdcp` |
+| 15 | Interior `..` segment | Rejected for extract-based ops (stat/open/dirlist/locate) — reference does not normalize `..` | Silently normalized by RESOLVE_BENEATH | FIXED (`brix_reject_dotdot_path`) | Med | stock `xrdfs`/`xrdcp` |
 | 16 | `query checksum ?cks.type=<algo>` as last CGI field | Trailing NUL/CR/LF trimmed before algo lookup | Wire NUL folded into algo name → "unknown algorithm" (broke non-adler32 + `xrdcp --cksum`) | FIXED | High | stock `xrdfs`/`xrdcp` |
 | 17 | `kXR_statx` of missing path | `kXR_error`/`kXR_NotFound` (offline is only for a successful stat with mode==-1) | `kXR_ok` + `kXR_offline` byte | FIXED | Med | stock raw-wire |
 | 18 | `kXR_rm` of a **directory** | unlink file / non-recursive rmdir (empty→ok, non-empty→ENOTEMPTY); `osFS->rem` never recurses | **Recursively deleted the whole subtree (DATA LOSS)** | FIXED | **High (critical)** | stock raw-wire + xrdfs |
@@ -379,7 +379,7 @@ diverges; "deferred" means a known divergence not yet closed.
 | `kXR_ping` before login | (Reference may reject pre-login) | Served | **By-design / deferred** (tolerant) | Low |
 | `kXR_pgwrite` info-offset / CSE retransmit | Full corrective-send-error retransmit handshake | Full CSE machine: `pgWrCSE` list, per-handle Fob, `kXR_pgRetry` correction, close gate — byte-exact vs stock | **Parity** | — |
 | `kXR_pgread` negative length | Reference-specific handling | Not exhaustively matched | **Deferred** | Low |
-| `kXR_prepare` stage request-id format | Specific reqid format | `"0"` in FRM-off legacy mode; durable reqids with `xrootd_frm on` | **By-design** (mode-dependent) | Low |
+| `kXR_prepare` stage request-id format | Specific reqid format | `"0"` in FRM-off legacy mode; durable reqids with `brix_frm on` | **By-design** (mode-dependent) | Low |
 | `kXR_fattr` List namespace prefix | Specific user-attr namespace prefixing | Maps via local xattrs; prefix nuance may differ | **Deferred** | Low |
 | `kXR_query` Qconfig empty-payload | Specific empty-payload form | May differ for empty/edge payloads | **Deferred** | Low |
 | `query config fattr` / `query config version` | Returns specific values | Not all config keys reproduced | **Deferred** | Low |
@@ -417,7 +417,7 @@ There is no single drop-in answer. The honest per-profile verdict:
 | **XCache / proxy cache** | **Partial — not a drop-in for PFC-dependent sites.** Read-through/slice cache + eviction + write-through + proxy bridge exist. | No full `XrdPfc` purge/snapshot/policy engine; no `XrdPss` remote-fill-as-storage; proxy unsolicited-`kXR_attn` and per-entry prepare rewrite are deferred. |
 | **WebDAV / HTTP(S) gateway** | **Strong, often ahead of upstream.** XrdHttp dialect, range/multipart, HTTP-TPC (hardened), plus `LOCK`/`PROPPATCH`/`SEARCH`/`ACL` beyond upstream's method set. | Native-TPC TLS-upgrade/multihop edges deferred; checksum-plugin breadth limited to the built-in set. |
 | **S3 gateway** | **Module-exclusive capability** (no upstream S3 *server*). SigV4, multipart, presigned, POST Object, conditional ops, CRC64NVME. | Path-style focused; virtual-hosted buckets and dynamic STS stores out of scope; S3 SigV4 must never share logic with WLCG tokens (invariant). |
-| **Tape / MSS front end** | **Functional gateway, not a drop-in FRM.** Durable stage queue + WLCG Tape REST + `prepare`/`QPrep` (durable reqids with `xrootd_frm on`). | No full `XrdFrm` daemon ecosystem, in-process migrate/purge (scaffold only), MSS driver plugins, or `XrdOssArc`. Validate `prepare`/`cancel`/`evict`/recall against the real storage manager. |
+| **Tape / MSS front end** | **Functional gateway, not a drop-in FRM.** Durable stage queue + WLCG Tape REST + `prepare`/`QPrep` (durable reqids with `brix_frm on`). | No full `XrdFrm` daemon ecosystem, in-process migrate/purge (scaffold only), MSS driver plugins, or `XrdOssArc`. Validate `prepare`/`cancel`/`evict`/recall against the real storage manager. |
 | **EC / Ceph / non-POSIX backend** | **Not a drop-in.** | No `XrdEc`, no `XrdCeph`, no OSS plugin ABI — hard blockers. |
 | **UDP-XrdMon-dependent site** | **Not a drop-in without migration.** | UDP f/g-stream monitoring is absent by design (HTTP observability replaces it). `pwd`/`host` auth, by contrast, are now implemented. |
 
@@ -429,7 +429,7 @@ it is a site-specific conformance matrix with three tests per critical feature
 
 ## Source references
 
-Official XRootD (`/tmp/xrootd-src/src`):
+Official XRootD (`/tmp/brix-src/src`):
 
 - Protocol: `XProtocol/XProtocol.hh` (v5.2.0), `XrdXrootd/XrdXrootdProtocol.cc`,
   `XrdXrootd/XrdXrootdXeq.cc`
@@ -463,12 +463,12 @@ BriX-Cache (`src/` and `client/`):
   `src/protocols/srr/`, `src/observability/pmark/`, `src/core/compat/codec_*.c`, `src/core/compat/http_compress.c`
 - Client suite: `client/apps/`, `client/lib/`, `client/lib/sigver.c`
 - Conformance fixes: `src/protocols/root/read/stat.c`, `src/protocols/root/dirlist/handler.c`,
-  `src/auth/authz/find_rule.c`, `xrootd_stat_flags_from_stat`,
-  `xrootd_reject_dotdot_path`
+  `src/auth/authz/find_rule.c`, `brix_stat_flags_from_stat`,
+  `brix_reject_dotdot_path`
 
 Consolidated docs: see the six authoritative inputs listed under
 [Scope](#scope). Conformance suites:
-`tests/test_xrootd_conformance.py`, `tests/test_official_interop.py`,
+`tests/test_brix_conformance.py`, `tests/test_official_interop.py`,
 `tests/test_gohep_interop.py`, `tests/test_conf_*.py`,
 `tests/test_conf_stattypes.py`, `tests/test_cache_write_through.py`,
 `tests/test_integrity_matrix.py`.

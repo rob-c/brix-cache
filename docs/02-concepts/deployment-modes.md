@@ -69,13 +69,13 @@ stream {
     server {
         listen 1094;          # XRootD default port
         xrootd on;            # Enable the module
-        xrootd_root /data;    # Root directory to serve
-        xrootd_allow_write on;# Allow writes (optional)
+        brix_root /data;    # Root directory to serve
+        brix_allow_write on;# Allow writes (optional)
         
         # Authentication options:
-        # xrootd_auth none;           # Anonymous access
-        # xrootd_auth gsi;            # GSI/x509 certificates
-        # xrootd_auth token;          # JWT bearer tokens
+        # brix_auth none;           # Anonymous access
+        # brix_auth gsi;            # GSI/x509 certificates
+        # brix_auth token;          # JWT bearer tokens
     }
 }
 ```
@@ -120,11 +120,11 @@ stream {
     server {
         listen 1094;
         xrootd on;
-        xrootd_proxy on;                    # Enable proxy mode
-        xrootd_proxy_upstream ceph-xrootd:1094;  # Backend address
+        brix_proxy on;                    # Enable proxy mode
+        brix_proxy_upstream ceph-xrootd:1094;  # Backend address
         
         # Auth options at the edge:
-        xrootd_auth token;                  # JWT tokens instead of GSI
+        brix_auth token;                  # JWT tokens instead of GSI
     }
 }
 ```
@@ -181,11 +181,11 @@ http {
         ssl_certificate_key /etc/ssl/hostkey.pem;
         
         location / {
-            xrootd_webdav_proxy on;                   # Enable proxy mode
-            xrootd_webdav_proxy_upstream http://internal-dav:8080;
+            brix_webdav_proxy on;                   # Enable proxy mode
+            brix_webdav_proxy_upstream http://internal-dav:8080;
             
             # Auth enforcement at the perimeter:
-            xrootd_webdav_auth required;                # Require valid token/cert
+            brix_webdav_auth required;                # Require valid token/cert
         }
     }
 }
@@ -212,15 +212,15 @@ stream {
     server {
         listen 1094;
         xrootd on;
-        xrootd_root /data/local-store;
+        brix_root /data/local-store;
     }
     
     # Proxy for backend storage
     server {
         listen 1095;
         xrootd on;
-        xrootd_proxy on;
-        xrootd_proxy_upstream ceph-xrootd:1094;
+        brix_proxy on;
+        brix_proxy_upstream ceph-xrootd:1094;
     }
 }
 
@@ -230,8 +230,8 @@ http {
     server {
         listen 8443 ssl;
         location / {
-            xrootd_webdav_proxy on;
-            xrootd_webdav_proxy_upstream http://internal-dav:8080;
+            brix_webdav_proxy on;
+            brix_webdav_proxy_upstream http://internal-dav:8080;
         }
     }
     
@@ -239,8 +239,8 @@ http {
     server {
         listen 9000;
         location / {
-            xrootd_s3 on;
-            xrootd_s3_root /data/s3-bucket;
+            brix_s3 on;
+            brix_s3_root /data/s3-bucket;
         }
     }
 }

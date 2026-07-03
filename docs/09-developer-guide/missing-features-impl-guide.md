@@ -13,8 +13,8 @@ edge cases.
 | Item | Status | Notes |
 |---|---|---|
 | 1. Outbound upstream auth | ✅ Partial complete | Transparent upstream bootstrap supports TLS upgrade and ztn token `kXR_authmore`; cache/write-through origin supports optional TLS but still uses anonymous login and fails on `kXR_authmore`. Transparent-upstream GSI and credentialed cache-origin auth remain. Native TPC outbound ztn/GSI is implemented separately in `src/tpc/gsi/gsi_outbound_*`. |
-| 2. Prepare/stage tape dispatch | ✅ Implemented / partial parity | FRM durable queue, real request IDs, cancel/QPrep state, and Tape REST gateway exist; full upstream XrdFrm/MSS parity remains site-specific. Legacy `xrootd_prepare_command` fallback remains for FRM-off mode. |
-| 3. JWKS hot refresh | ✅ Implemented | File mtime polling via `xrootd_token_jwks_refresh_interval`. |
+| 2. Prepare/stage tape dispatch | ✅ Implemented / partial parity | FRM durable queue, real request IDs, cancel/QPrep state, and Tape REST gateway exist; full upstream XrdFrm/MSS parity remains site-specific. Legacy `brix_prepare_command` fallback remains for FRM-off mode. |
+| 3. JWKS hot refresh | ✅ Implemented | File mtime polling via `brix_token_jwks_refresh_interval`. |
 | 4. PROPFIND `Depth: infinity` | ✅ Implemented | Recursive walk with a 10,000-entry cap. |
 | 5. CMS escalation tests | ✅ Implemented | `kYR_try` and true three-tier escalation coverage. |
 | 6. S3 presigned URLs | ✅ Implemented | Header/query SigV4 and expiry enforcement. |
@@ -52,13 +52,13 @@ connection if the remote server responded with:
 ```c
 /* src/net/upstream/bootstrap.c — historical abort stubs */
 if (ntohl(flags_be) & kXR_gotoTLS) {
-    xrootd_upstream_abort(up,
+    brix_upstream_abort(up,
         "upstream requires TLS (not supported on outbound)");
     return;
 }
 /* ... */
 if (up->resp_status == kXR_authmore) {
-    xrootd_upstream_abort(up,
+    brix_upstream_abort(up,
         "upstream requires authentication (not supported)");
     return;
 }
@@ -71,63 +71,63 @@ credential gaps from the transparent-upstream bootstrap code.
 ### Phase 1 — Outbound TLS upgrade (`kXR_gotoTLS`) ✅ IMPLEMENTED
 
 **Implemented in:**
-- `src/net/upstream/tls.c` — `xrootd_upstream_start_tls()` wraps connection in SSL
-  and `xrootd_upstream_tls_handshake_done()` resends `kXR_login` over TLS.
+- `src/net/upstream/tls.c` — `brix_upstream_start_tls()` wraps connection in SSL
+  and `brix_upstream_tls_handshake_done()` resends `kXR_login` over TLS.
 - `src/net/upstream/bootstrap.c` — `XRD_UP_BS_PROTOCOL` case detects `kXR_gotoTLS`
-  flag and calls `xrootd_upstream_start_tls()` instead of aborting.
+  flag and calls `brix_upstream_start_tls()` instead of aborting.
 - `src/net/upstream/upstream_internal.h` — added `XRD_UP_BS_TLS` phase and
-  `xrootd_upstream_build_login()` declaration.
+  `brix_upstream_build_login()` declaration.
 - `src/core/types/config.h` — `upstream_tls`, `upstream_tls_ca`, `upstream_tls_name`,
   `upstream_tls_ctx` fields.
 - `src/core/config/server_conf.c` — init + merge for new upstream TLS fields.
 - `src/core/config/runtime_server.c` — builds `upstream_tls_ctx` SSL_CTX at
-  postconfiguration when `xrootd_upstream_tls on`.
-- `src/protocols/root/stream/module.c` — `xrootd_upstream_tls`, `xrootd_upstream_tls_ca`,
-  `xrootd_upstream_tls_name` directives.
+  postconfiguration when `brix_upstream_tls on`.
+- `src/protocols/root/stream/module.c` — `brix_upstream_tls`, `brix_upstream_tls_ca`,
+  `brix_upstream_tls_name` directives.
 - `src/protocols/root/protocol/wire_core_requests.h` — added `ClientAuthRequest` typedef.
 - `config` (module build file) — added `tls.c` and `auth.c` to source list.
 
 **Configuration:**
 
 ```nginx
-xrootd_upstream 127.0.0.1:1094;
-xrootd_upstream_tls on;
-xrootd_upstream_tls_ca  /etc/grid-security/certificates/ca.pem;
-xrootd_upstream_tls_name storage.example.org;   # SNI override (optional)
+brix_upstream 127.0.0.1:1094;
+brix_upstream_tls on;
+brix_upstream_tls_ca  /etc/grid-security/certificates/ca.pem;
+brix_upstream_tls_name storage.example.org;   # SNI override (optional)
 ```
 
-When the protocol response has `kXR_gotoTLS` set and `xrootd_upstream_tls on`
+When the protocol response has `kXR_gotoTLS` set and `brix_upstream_tls on`
 is configured, the bootstrap:
 
-1. Calls `xrootd_upstream_start_tls()` which wraps the existing plaintext
+1. Calls `brix_upstream_start_tls()` which wraps the existing plaintext
    `ngx_connection_t` in SSL via `ngx_ssl_create_connection()`.
-2. Sets SNI from `xrootd_upstream_tls_name` (or the host from `xrootd_upstream`).
+2. Sets SNI from `brix_upstream_tls_name` (or the host from `brix_upstream`).
 3. On handshake completion, resends `kXR_login` over TLS using
-   `xrootd_upstream_build_login()` (the server discards the plaintext login).
+   `brix_upstream_build_login()` (the server discards the plaintext login).
 
-If `kXR_gotoTLS` is signalled but `xrootd_upstream_tls` is off (or not built
+If `kXR_gotoTLS` is signalled but `brix_upstream_tls` is off (or not built
 with SSL), the upstream connection is aborted and `kXR_error` is returned to
 the client.
 
 ### Phase 2 — Outbound bearer token auth (`kXR_authmore` with token) ✅ IMPLEMENTED
 
 **Implemented in:**
-- `src/net/upstream/auth.c` — `xrootd_upstream_send_token_auth()` reads the
+- `src/net/upstream/auth.c` — `brix_upstream_send_token_auth()` reads the
   configured token file and sends a `kXR_auth` frame with `ztn\0` credential.
 - `src/net/upstream/bootstrap.c` — `XRD_UP_BS_LOGIN` case detects `kXR_authmore`
-  and calls `xrootd_upstream_send_token_auth()`; new `XRD_UP_BS_AUTH` case
+  and calls `brix_upstream_send_token_auth()`; new `XRD_UP_BS_AUTH` case
   accepts or rejects the server's reply.
 - `src/net/upstream/upstream_internal.h` — added `XRD_UP_BS_AUTH` phase and
   `authmore_count` field (prevents infinite auth loops).
 - `src/core/types/config.h` — `upstream_token_file` field.
 - `src/core/config/server_conf.c` — init + merge for `upstream_token_file`.
-- `src/protocols/root/stream/module.c` — `xrootd_upstream_token_file` directive.
+- `src/protocols/root/stream/module.c` — `brix_upstream_token_file` directive.
 
 **Configuration:**
 
 ```nginx
-xrootd_upstream 127.0.0.1:1094;
-xrootd_upstream_token_file /run/secrets/xrootd-token;
+brix_upstream 127.0.0.1:1094;
+brix_upstream_token_file /run/secrets/brix-token;
 ```
 
 When the upstream returns `kXR_authmore`, nginx reads the token file
@@ -140,9 +140,9 @@ supported and triggers an abort.
 - `test_upstream_token_auth_success` — success path with mock issuing
   `kXR_authmore` and accepting the ztn credential.
 - `test_upstream_token_auth_no_file_aborts` — `kXR_authmore` but no
-  `xrootd_upstream_token_file` configured → `kXR_error` to client.
+  `brix_upstream_token_file` configured → `kXR_error` to client.
 - `test_upstream_gotorls_no_tls_configured_aborts` — `kXR_gotoTLS` but
-  `xrootd_upstream_tls` is off → `kXR_error` to client (security negative).
+  `brix_upstream_tls` is off → `kXR_error` to client (security negative).
 
 ### Phase 3 — Transparent-upstream / cache-origin credentialed auth
 
@@ -160,11 +160,11 @@ Phase 1 and 2 tests are in `tests/test_a_upstream_redirect.py::TestUpstreamAuth`
 - `test_upstream_token_auth_no_file_aborts` — `kXR_authmore` but no token
   file configured → `kXR_error` returned to client.
 - `test_upstream_gotorls_no_tls_configured_aborts` — `kXR_gotoTLS` set but
-  `xrootd_upstream_tls` is off → `kXR_error` (security negative).
+  `brix_upstream_tls` is off → `kXR_error` (security negative).
 
 Remaining tests to add (Phase 3 and cache integration):
 - `tests/test_cache.py` — `test_cache_fill_from_tls_upstream`: nginx cache node
-  with `xrootd_upstream_tls on` fetching from a TLS-only origin.
+  with `brix_upstream_tls on` fetching from a TLS-only origin.
 - Security negative: mock that issues `kXR_authmore` requesting GSI when no
   credential configured → nginx aborts without crashing.
 
@@ -181,7 +181,7 @@ semantics against their storage manager.
 
 Before the FRM work, `src/protocols/root/query/prepare.c` validated paths, checked auth and VO
 ACLs, then returned `kXR_ok` with a disk-only present/missing response. With
-`xrootd_frm on`, the `src/fs/xfer/` stage engine now owns durable queue records, host-qualified
+`brix_frm on`, the `src/fs/xfer/` stage engine now owns durable queue records, host-qualified
 request IDs, cancel handling, and queue-backed `kXR_QPrep` state. FRM-off mode
 keeps the legacy disk-only behavior.
 
@@ -191,18 +191,18 @@ A **script-hook interface** remains available as the FRM-off fallback. FRM-on
 deployments use the durable queue and Tape REST gateway described in
 [`../../src/fs/xfer/README.md`](../../src/fs/xfer/README.md).
 
-**New directive:** `xrootd_prepare_command /usr/local/bin/xrootd-stage.sh;`
+**New directive:** `brix_prepare_command /usr/local/bin/brix-stage.sh;`
 
 **Key files:**
-- `src/protocols/root/query/prepare_cmd.c` — `xrootd_prepare_invoke_command()`: `fork()+execv()` fire-and-forget launcher
-- `src/protocols/root/query/prepare.c` — `xrootd_handle_prepare()`: path collection + command dispatch
-- `src/protocols/root/query/query_internal.h` — `XROOTD_PREPARE_CMD_MAX_PATHS 512` constant
+- `src/protocols/root/query/prepare_cmd.c` — `brix_prepare_invoke_command()`: `fork()+execv()` fire-and-forget launcher
+- `src/protocols/root/query/prepare.c` — `brix_handle_prepare()`: path collection + command dispatch
+- `src/protocols/root/query/query_internal.h` — `BRIX_PREPARE_CMD_MAX_PATHS 512` constant
 - `src/core/types/config.h` — `prepare_command` field (`ngx_str_t`)
-- `src/protocols/root/stream/module.c` — `xrootd_prepare_command` directive registration
+- `src/protocols/root/stream/module.c` — `brix_prepare_command` directive registration
 
 **Wire behaviour:**
-- `kXR_stage` set + `xrootd_prepare_command` configured → resolved absolute paths collected for all validated files (including missing files when `kXR_noerrs` is set via `xrootd_resolve_path_noexist()`), then `fork()+execv()` with `argv=[cmd, path1, path2, ...]`. Parent does not `waitpid()`.
-- `kXR_stage` set but `xrootd_prepare_command` not configured → `kXR_ok` silently accepted (no-op).
+- `kXR_stage` set + `brix_prepare_command` configured → resolved absolute paths collected for all validated files (including missing files when `kXR_noerrs` is set via `brix_resolve_path_noexist()`), then `fork()+execv()` with `argv=[cmd, path1, path2, ...]`. Parent does not `waitpid()`.
+- `kXR_stage` set but `brix_prepare_command` not configured → `kXR_ok` silently accepted (no-op).
 - `kXR_cancel` or `kXR_evict` → no-op returns `kXR_ok` immediately; command is never invoked.
 - Command launch failure is logged at `NGX_LOG_ERR` but does NOT fail the client response.
 
@@ -213,11 +213,11 @@ ngx_str_t  prepare_command;   /* shell command for kXR_stage recall */
 
 **Directive** (in `src/protocols/root/stream/module.c`):
 ```c
-{ ngx_string("xrootd_prepare_command"),
+{ ngx_string("brix_prepare_command"),
   NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
   ngx_conf_set_str_slot,
   NGX_STREAM_SRV_CONF_OFFSET,
-  offsetof(ngx_stream_xrootd_srv_conf_t, prepare_command),
+  offsetof(ngx_stream_brix_srv_conf_t, prepare_command),
   NULL },
 ```
 
@@ -250,7 +250,7 @@ def test_stage_cancel_skips_command():
 
 ## 3. JWKS hot refresh / background key rotation
 
-**Status:** ✅ IMPLEMENTED — mtime-poll hot refresh via `xrootd_token_jwks_refresh_interval` directive  
+**Status:** ✅ IMPLEMENTED — mtime-poll hot refresh via `brix_token_jwks_refresh_interval` directive  
 **Impact:** High for unattended production — WLCG IAM key rotation (≤24 h) causes token auth failures without operator intervention  
 **Effort:** 3–5 days  
 **Implemented in:** `src/auth/token/refresh.c` (new), `src/core/types/config.h`, `src/core/config/server_conf.c`, `src/auth/token/config.c`, `src/core/config/config.h`, `src/protocols/root/stream/module_core_directives.c`, `src/core/config/process.c`, `config`  
@@ -258,8 +258,8 @@ def test_stage_cancel_skips_command():
 
 ### Problem
 
-`src/auth/token/config.c` calls `xrootd_jwks_load()` once during
-`ngx_stream_xrootd_merge_srv_conf()`. The resulting `xcf->jwks_keys[]` array
+`src/auth/token/config.c` calls `brix_jwks_load()` once during
+`ngx_stream_brix_merge_srv_conf()`. The resulting `xcf->jwks_keys[]` array
 is fixed for the lifetime of the worker process. Key rotations at the issuer
 are invisible until `nginx -s reload`.
 
@@ -268,28 +268,28 @@ are invisible until `nginx -s reload`.
 #### Option A — Inotify-triggered reload (simplest, Linux-specific)
 
 Add an `ngx_event_t` timer in the worker that periodically `stat()`s the
-configured JWKS file path. If `st_mtime` changed, call `xrootd_jwks_free()` +
-`xrootd_jwks_load()` under a write lock. This is the simplest path and works
+configured JWKS file path. If `st_mtime` changed, call `brix_jwks_free()` +
+`brix_jwks_load()` under a write lock. This is the simplest path and works
 with file-based JWKS (fetched by a cron job or cert-manager sidecar).
 
 **Files:**
-- `src/auth/token/refresh.c` (new) — `xrootd_token_jwks_schedule_refresh()`
-- `src/auth/token/token.h` — add `time_t jwks_mtime` to `xrootd_jwks_state_t`
+- `src/auth/token/refresh.c` (new) — `brix_token_jwks_schedule_refresh()`
+- `src/auth/token/token.h` — add `time_t jwks_mtime` to `brix_jwks_state_t`
 - `src/core/config/config.h` — add `ngx_msec_t token_jwks_refresh_interval`
   (default 60 000 ms)
-- `src/core/config/directives.c` — add `xrootd_token_jwks_refresh_interval`
+- `src/core/config/directives.c` — add `brix_token_jwks_refresh_interval`
   directive (milliseconds)
-- Worker init: call `xrootd_token_jwks_schedule_refresh()` after config merge
+- Worker init: call `brix_token_jwks_schedule_refresh()` after config merge
 
 **`src/auth/token/refresh.c`:**
 
 ```c
 static void
-xrootd_token_jwks_refresh_handler(ngx_event_t *ev)
+brix_token_jwks_refresh_handler(ngx_event_t *ev)
 {
-    ngx_stream_xrootd_srv_conf_t  *conf = ev->data;
+    ngx_stream_brix_srv_conf_t  *conf = ev->data;
     struct stat                    st;
-    xrootd_jwks_key_t              new_keys[XROOTD_MAX_JWKS_KEYS];
+    brix_jwks_key_t              new_keys[BRIX_MAX_JWKS_KEYS];
     int                            new_count;
 
     if (stat((const char *) conf->token_jwks.data, &st) != 0) {
@@ -300,9 +300,9 @@ xrootd_token_jwks_refresh_handler(ngx_event_t *ev)
         goto reschedule;    /* file unchanged */
     }
 
-    new_count = xrootd_jwks_load(ev->log,
+    new_count = brix_jwks_load(ev->log,
                                  (const char *) conf->token_jwks.data,
-                                 new_keys, XROOTD_MAX_JWKS_KEYS);
+                                 new_keys, BRIX_MAX_JWKS_KEYS);
     if (new_count <= 0) {
         ngx_log_error(NGX_LOG_WARN, ev->log, 0,
                       "xrootd: JWKS reload failed — keeping old keys");
@@ -310,9 +310,9 @@ xrootd_token_jwks_refresh_handler(ngx_event_t *ev)
     }
 
     /* Swap atomically under the cycle lock (single-worker: no lock needed) */
-    xrootd_jwks_free(conf->jwks_keys, conf->jwks_key_count);
+    brix_jwks_free(conf->jwks_keys, conf->jwks_key_count);
     ngx_memcpy(conf->jwks_keys, new_keys,
-               new_count * sizeof(xrootd_jwks_key_t));
+               new_count * sizeof(brix_jwks_key_t));
     conf->jwks_key_count = new_count;
     conf->jwks_mtime     = st.st_mtime;
 
@@ -324,8 +324,8 @@ reschedule:
 }
 
 void
-xrootd_token_jwks_schedule_refresh(ngx_cycle_t *cycle,
-    ngx_stream_xrootd_srv_conf_t *conf)
+brix_token_jwks_schedule_refresh(ngx_cycle_t *cycle,
+    ngx_stream_brix_srv_conf_t *conf)
 {
     ngx_event_t  *ev;
 
@@ -338,7 +338,7 @@ xrootd_token_jwks_schedule_refresh(ngx_cycle_t *cycle,
     ev = ngx_pcalloc(cycle->pool, sizeof(*ev));
     if (ev == NULL) { return; }
 
-    ev->handler = xrootd_token_jwks_refresh_handler;
+    ev->handler = brix_token_jwks_refresh_handler;
     ev->data    = conf;
     ev->log     = cycle->log;
 
@@ -346,12 +346,12 @@ xrootd_token_jwks_schedule_refresh(ngx_cycle_t *cycle,
 }
 ```
 
-Call `xrootd_token_jwks_schedule_refresh()` from the module's `init_worker`
+Call `brix_token_jwks_schedule_refresh()` from the module's `init_worker`
 callback (add one in `src/protocols/root/stream/module.c` if not present).
 
 #### Option B — HTTP JWKS URI polling (for future work)
 
-Extend the above to also accept `xrootd_token_jwks_uri https://iam.example.org/jwks` and use `ngx_http_upstream` or a subprocess `curl` to fetch the JWKS JSON. More complex; defer until Option A is in production.
+Extend the above to also accept `brix_token_jwks_uri https://iam.example.org/jwks` and use `ngx_http_upstream` or a subprocess `curl` to fetch the JWKS JSON. More complex; defer until Option A is in production.
 
 ### Tests
 
@@ -374,7 +374,7 @@ def test_jwks_hot_refresh_rejects_old_key_after_rotation():
 **Status:** ✅ IMPLEMENTED — Option B (full recursive walk) with 10 000-entry cap  
 **Impact:** Medium — blocks Cyberduck, GNOME GVFS, and some rucio WebDAV clients  
 **Effort:** 2–3 days  
-**Implemented in:** `src/protocols/webdav/propfind.c` (`propfind_parse_depth()`, `propfind_walk()`), `src/observability/metrics/metrics.h` (`XROOTD_WEBDAV_PROPFIND_DEPTH_INF`), `src/observability/metrics/webdav.c`  
+**Implemented in:** `src/protocols/webdav/propfind.c` (`propfind_parse_depth()`, `propfind_walk()`), `src/observability/metrics/metrics.h` (`BRIX_WEBDAV_PROPFIND_DEPTH_INF`), `src/observability/metrics/webdav.c`  
 **Tests:** `tests/test_propfind_infinity.py`
 
 ### Problem
@@ -441,7 +441,7 @@ if (depth == -1) {
 ### Option B — Implement recursive `Depth: infinity` (full feature)
 
 Implement a bounded recursive walk (cap at 10 000 entries or a configurable
-`xrootd_webdav_propfind_max_entries` directive to prevent runaway allocations).
+`brix_webdav_propfind_max_entries` directive to prevent runaway allocations).
 
 **Files:** `src/protocols/webdav/propfind.c`
 
@@ -622,18 +622,18 @@ The codebase now contains the write-through configuration surface, write
 bookkeeping, and origin flush path needed for cache gateway deployments:
 
 - `src/core/types/config.h`, `src/fs/cache/directives.c`, and `src/protocols/root/stream/module.c`
-  define `xrootd_write_through`, `xrootd_wt_mode`, `xrootd_wt_origin`,
-  `xrootd_wt_deny_prefix`, and `xrootd_wt_allow_prefix`.
+  define `brix_write_through`, `brix_wt_mode`, `brix_wt_origin`,
+  `brix_wt_deny_prefix`, and `brix_wt_allow_prefix`.
 - `src/fs/cache/writethrough_decision.c` evaluates prefix/size policy at
   `kXR_open`.
-- `src/protocols/root/read/open_resolved_file.c` caches the decision on `xrootd_file_t`.
+- `src/protocols/root/read/open_resolved_file.c` caches the decision on `brix_file_t`.
 - `src/protocols/root/write/write.c`, `src/protocols/root/write/pgwrite.c`, `src/protocols/root/write/writev.c`,
   `src/protocols/root/write/truncate.c`, and AIO write completions track dirty data.
 - `src/fs/cache/origin_connection.c` can connect to either the read-through
-  cache origin or a dedicated `xrootd_wt_origin`.
+  cache origin or a dedicated `brix_wt_origin`.
 - `src/fs/cache/origin_protocol.c` implements write-side origin operations:
-  `xrootd_cache_origin_open_write()`, `xrootd_cache_origin_write_chunk()`,
-  `xrootd_cache_origin_truncate()`, and `xrootd_cache_origin_sync()`.
+  `brix_cache_origin_open_write()`, `brix_cache_origin_write_chunk()`,
+  `brix_cache_origin_truncate()`, and `brix_cache_origin_sync()`.
 - `src/fs/cache/writethrough_flush.c` mirrors the final local file to the
   origin in chunks, then issues origin truncate, sync, and close.
 - `src/protocols/root/write/sync.c` performs a synchronous WT flush for dirty handles before
@@ -657,8 +657,8 @@ close remains fail-open while logging WT errors.
 | 4 | `src/core/aio/`, `src/protocols/root/write/*.c` | ✅ Dirty tracking for write, pgwrite, writev, truncate |
 | 5 | `src/fs/cache/writethrough_flush.c`, `src/protocols/root/read/close.c`, `src/protocols/root/write/sync.c` | ✅ Close/sync origin flush |
 
-**Remaining limitations:** the origin path must resolve under `xrootd_root` or
-`xrootd_cache_root`, the origin must be a direct data server (redirect-following
+**Remaining limitations:** the origin path must resolve under `brix_root` or
+`brix_cache_root`, the origin must be a direct data server (redirect-following
 is not implemented in the cache origin client), and cache/write-through origin
 authentication is narrower than the native TPC outbound path. Cache-origin TLS
 can be configured, but cache/write-through origin login is still anonymous and
@@ -676,7 +676,7 @@ does not complete ztn/GSI `kXR_authmore`.
 
 FTS optionally parses `Performance-Marker:` lines from a `202 Accepted`
 chunked body to display transfer rate. When
-`xrootd_webdav_tpc_marker_interval <seconds>` is set, nginx now returns
+`brix_webdav_tpc_marker_interval <seconds>` is set, nginx now returns
 `202 Accepted`, emits WLCG `Performance-Marker:` blocks while polling the curl
 child with an nginx timer, and finishes the body with `success` or `failure`.
 Without the directive, the legacy synchronous `201` / `204` completion path is
@@ -696,7 +696,7 @@ The implementation adds full discharge bundle support to the existing Macaroon
 validation pipeline:
 
 - **Bundle format:** space-separated base64url tokens — `"<root> [<discharge> ...]"`. The
-  new `xrootd_macaroon_validate_bundle()` function splits the bundle, validates
+  new `brix_macaroon_validate_bundle()` function splits the bundle, validates
   the root token, then processes each third-party caveat.
 - **`vid` decryption:** AES-256-CBC with the HMAC-derived sig-before-cid as the
   32-byte key and the first 16 bytes of vid as IV (PKCS#7 padding disabled).
@@ -705,7 +705,7 @@ validation pipeline:
   Macaroon whose identifier matches, decrypts its root key from the vid blob,
   validates the discharge signature, and intersects its path/activity/expiry
   caveats into the combined permission set.
-- `xrootd_macaroon_validate()` now delegates to `xrootd_macaroon_validate_bundle()`
+- `brix_macaroon_validate()` now delegates to `brix_macaroon_validate_bundle()`
   so existing single-token flows are unchanged.
 
 ### 8c. Authdb `HOST` (`p`) identity type
@@ -738,7 +738,7 @@ base and delta CRLs during chain verification.
 
 **Status:** ✅ IMPLEMENTED — AIA responder queries and TLS stapling callback  
 **Implemented in:** `src/auth/crypto/ocsp.c`, `src/auth/crypto/ocsp.h`, `src/auth/gsi/auth.c`, `src/protocols/root/session/tls_config.c`  
-**New directives:** `xrootd_ocsp_enable`, `xrootd_ocsp_soft_fail`, `xrootd_ocsp_stapling`  
+**New directives:** `brix_ocsp_enable`, `brix_ocsp_soft_fail`, `brix_ocsp_stapling`  
 **Tests:** `tests/test_ocsp.py` (18/18 passing)
 
 CRL-based revocation checking requires downloading and refreshing CRL files.
@@ -747,20 +747,20 @@ OCSP eliminates the file management by querying the CA's responder online.
 Two sub-features were implemented:
 
 1. **OCSP responder query** (client cert verification): after successfully
-   verifying the X.509 chain in `src/auth/gsi/auth.c`, `xrootd_ocsp_check_cert()`
+   verifying the X.509 chain in `src/auth/gsi/auth.c`, `brix_ocsp_check_cert()`
    extracts the OCSP responder URL from the leaf cert's `authorityInfoAccess`
    extension via `X509_get1_ocsp()`, builds a nonce-protected `OCSP_REQUEST`,
    POSTs it to the CA's responder via `BIO_new_connect()`, verifies the
    response signature, and rejects the cert if status is `REVOKED`. Controlled
-   by `xrootd_ocsp_enable on/off` (default `off`) and `xrootd_ocsp_soft_fail
+   by `brix_ocsp_enable on/off` (default `off`) and `brix_ocsp_soft_fail
    on/off` (default `on` — network errors do not block auth).
 
-2. **OCSP stapling** (server side): `xrootd_ocsp_staple_fetch()` fetches a DER
+2. **OCSP stapling** (server side): `brix_ocsp_staple_fetch()` fetches a DER
    OCSP response and caches it in the server config. A
    `SSL_CTX_set_tlsext_status_cb()` callback installed in
    `src/protocols/root/session/tls_config.c` copies the cached DER blob into each TLS
    handshake via `SSL_set_tlsext_status_ocsp_resp()`. Controlled by
-   `xrootd_ocsp_stapling on/off` (default `off`).
+   `brix_ocsp_stapling on/off` (default `off`).
 
 ### 8f. S3 STS session token (`X-Amz-Security-Token`)
 
@@ -780,12 +780,12 @@ rejected with `403`. For sites using static access keys but clients that always
 send a session-token field, enable:
 
 ```nginx
-xrootd_s3_allow_unsigned_session_token on;
+brix_s3_allow_unsigned_session_token on;
 ```
 
 With that directive, nginx accepts header and presigned query session-token
 forms, but still verifies the full SigV4 signature with the configured
-`xrootd_s3_secret_key`. Header-auth requests must include
+`brix_s3_secret_key`. Header-auth requests must include
 `x-amz-security-token` in `SignedHeaders`; presigned requests include
 `X-Amz-Security-Token` in the canonical query string automatically.
 
@@ -795,7 +795,7 @@ temporary secret keys remains out of scope for this static-key module.
 ### 8g. `kXR_fattrRecurse` flag support
 
 **Status:** ✅ IMPLEMENTED (local extension bit `0x20`)  
-**Files:** `src/protocols/root/fattr/list.c`, `src/protocols/root/protocol/flags.h`, `src/protocols/root/fattr/ngx_xrootd_fattr.h`  
+**Files:** `src/protocols/root/fattr/list.c`, `src/protocols/root/protocol/flags.h`, `src/protocols/root/fattr/ngx_brix_fattr.h`  
 **Tests:** `tests/test_fattr_query.py::TestFattrRecurse` (3 tests, all passing)
 
 **Background:** `XProtocol.hh` (protocol 5.2) only defines two `options` bits for
@@ -813,7 +813,7 @@ implemented as a documented local extension.
   path. `fattr_list_dir()` walks the tree with `opendir()`/`readdir()`, skips
   dot entries and non-regular files (via `lstat()` — symlinks are not followed),
   and appends one NUL-terminated entry per xattr found.
-- **`src/protocols/root/fattr/ngx_xrootd_fattr.h`** — updated `fattr_list` comment to document
+- **`src/protocols/root/fattr/ngx_brix_fattr.h`** — updated `fattr_list` comment to document
   the `kXR_fa_recurse` extension.
 
 **Response format:**
@@ -830,8 +830,8 @@ where `<relpath>` is the path relative to the requested directory root
 
 | Constant | Value | Purpose |
 |---|---|---|
-| `XROOTD_FATTR_RECURSE_MAX_DEPTH` | 8 | Guard against runaway recursion / symlink loops |
-| `XROOTD_FATTR_RECURSE_BUF_MAX` | 2 MiB | Cap pool allocation for the response buffer |
+| `BRIX_FATTR_RECURSE_MAX_DEPTH` | 8 | Guard against runaway recursion / symlink loops |
+| `BRIX_FATTR_RECURSE_BUF_MAX` | 2 MiB | Cap pool allocation for the response buffer |
 
 If the path is not a directory, the recurse flag is silently ignored and
 single-file list semantics apply.

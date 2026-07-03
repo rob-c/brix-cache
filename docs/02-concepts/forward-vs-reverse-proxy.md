@@ -114,26 +114,26 @@ storage. Squid-in-accelerator-mode, Varnish, and XCache are all this shape.
 
 | Feature | Directive(s) | Model | Auth terminated here? | Origin chosen by | Code |
 |---|---|---|---|---|---|
-| Terminating root:// proxy ("tap proxy") | `xrootd_tap_proxy`, `xrootd_tap_proxy_upstream`, `_auth`, `_login_user`, `_audit_log`, `_upstream_tls` | **Reverse** (terminating) | **Yes** (token/GSI/SSS/anon) | Operator config (upstream list, rr + health) | `src/net/proxy/` |
-| Transparent root:// relay + tap | `xrootd_transparent_proxy host:port` | **Transparent relay** (reverse topology, nothing terminated) | **No** — auth travels end-to-end | Operator config (single target) | `src/protocols/root/relay/`, `src/net/tap/` |
-| Single-port HTTP handoff | `xrootd_http_handoff host:port` | **Transparent relay** (local mux) | No (the WebDAV listener it splices to does its own auth) | Operator config (local WebDAV port) | `src/protocols/root/handoff/` |
-| WebDAV perimeter proxy | `webdav_proxy_handler` machinery (directives currently disabled; `xrootd_webdav_proxy_certs` that remains is GSI *auth*, not proxying) | **Reverse** (terminating, HTTP) | **Yes** (TLS + WLCG token / GSI) | Operator config (static/dynamic backend pool) | `src/protocols/webdav/proxy*.c` |
-| Read-through cache (all protocols) | `xrootd_storage_backend <origin-url>` + `xrootd_cache_store <dir>` (and the `xrootd_webdav_*`/`xrootd_s3_*`/`xrootd_cvmfs_*` per-protocol spellings) | **Caching reverse proxy** | **Yes** (normal protocol auth) | Operator config (origin URL; root://, http(s)://, pelican://, S3) | `src/fs/cache/`, `src/fs/cache/origin/`, `src/fs/backend/xroot/` |
-| CVMFS site cache — reverse mode | `xrootd_cvmfs on` + `xrootd_cvmfs_storage_backend http://stratum1/cvmfs/<repo>` + `xrootd_cvmfs_cache_store` | **Caching reverse proxy** | N/A (CVMFS data is content-addressed + signed; anonymous GET) | Operator config (Stratum-1 set, failover) | `src/protocols/cvmfs/` |
-| CVMFS site cache — proxy mode (T14) | absolute-URI listener + `xrootd_cvmfs_upstream_allow`, `xrootd_cvmfs_upstream_max` | **FORWARD proxy** (allowlisted) — the only one in the tree | N/A (same CVMFS trust model) | **Client** (`CVMFS_HTTP_PROXY` absolute-URI), constrained by the allowlist | `src/protocols/cvmfs/` (phase-68 T14; ctx plumbing landed, request/upstream registry in progress) |
-| Traffic mirroring / shadow replay | `xrootd_mirror_url`, `xrootd_stream_mirror_url`, `xrootd_mirror_*` | **Reverse-shaped fan-out**, out-of-band (fire-and-forget; client never sees the shadow) | Primary request's auth applies; credentials stripped/replaced toward the shadow | Operator config (≤4 shadow targets) | `src/net/mirror/` |
+| Terminating root:// proxy ("tap proxy") | `brix_tap_proxy`, `brix_tap_proxy_upstream`, `_auth`, `_login_user`, `_audit_log`, `_upstream_tls` | **Reverse** (terminating) | **Yes** (token/GSI/SSS/anon) | Operator config (upstream list, rr + health) | `src/net/proxy/` |
+| Transparent root:// relay + tap | `brix_transparent_proxy host:port` | **Transparent relay** (reverse topology, nothing terminated) | **No** — auth travels end-to-end | Operator config (single target) | `src/protocols/root/relay/`, `src/net/tap/` |
+| Single-port HTTP handoff | `brix_http_handoff host:port` | **Transparent relay** (local mux) | No (the WebDAV listener it splices to does its own auth) | Operator config (local WebDAV port) | `src/protocols/root/handoff/` |
+| WebDAV perimeter proxy | `webdav_proxy_handler` machinery (directives currently disabled; `brix_webdav_proxy_certs` that remains is GSI *auth*, not proxying) | **Reverse** (terminating, HTTP) | **Yes** (TLS + WLCG token / GSI) | Operator config (static/dynamic backend pool) | `src/protocols/webdav/proxy*.c` |
+| Read-through cache (all protocols) | `brix_storage_backend <origin-url>` + `brix_cache_store <dir>` (and the `brix_webdav_*`/`brix_s3_*`/`brix_cvmfs_*` per-protocol spellings) | **Caching reverse proxy** | **Yes** (normal protocol auth) | Operator config (origin URL; root://, http(s)://, pelican://, S3) | `src/fs/cache/`, `src/fs/cache/origin/`, `src/fs/backend/xroot/` |
+| CVMFS site cache — reverse mode | `brix_cvmfs on` + `brix_cvmfs_storage_backend http://stratum1/cvmfs/<repo>` + `brix_cvmfs_cache_store` | **Caching reverse proxy** | N/A (CVMFS data is content-addressed + signed; anonymous GET) | Operator config (Stratum-1 set, failover) | `src/protocols/cvmfs/` |
+| CVMFS site cache — proxy mode (T14) | absolute-URI listener + `brix_cvmfs_upstream_allow`, `brix_cvmfs_upstream_max` | **FORWARD proxy** (allowlisted) — the only one in the tree | N/A (same CVMFS trust model) | **Client** (`CVMFS_HTTP_PROXY` absolute-URI), constrained by the allowlist | `src/protocols/cvmfs/` (phase-68 T14; ctx plumbing landed, request/upstream registry in progress) |
+| Traffic mirroring / shadow replay | `brix_mirror_url`, `brix_stream_mirror_url`, `brix_mirror_*` | **Reverse-shaped fan-out**, out-of-band (fire-and-forget; client never sees the shadow) | Primary request's auth applies; credentials stripped/replaced toward the shadow | Operator config (≤4 shadow targets) | `src/net/mirror/` |
 | Third-party copy (TPC) | root:// native TPC, WebDAV `COPY` + `Source:`/`TransferHeader*` | **Forward-flavoured fetch** (server acts as a client toward a *client-named* source) | Yes (the TPC request itself) | **Client** (names the remote source/destination URL in the request) | `src/tpc/`, `src/protocols/webdav/tpc*.c` |
-| CMS redirection | `xrootd_cms_*` (manager/redirector role) | **Neither** — a redirect, not a proxy: data bypasses the manager entirely | Yes (login), but no data flows through | Manager picks a data server, tells the client to go there | `src/net/cms/`, `src/net/manager/` |
+| CMS redirection | `brix_cms_*` (manager/redirector role) | **Neither** — a redirect, not a proxy: data bypasses the manager entirely | Yes (login), but no data flows through | Manager picks a data server, tells the client to go there | `src/net/cms/`, `src/net/manager/` |
 | Protocol tap | (library — fed by the two root:// proxy modes) | Not a proxy — a passive observation layer | — | — | `src/net/tap/` |
 
 ---
 
 ## 3. Feature details and data-flow diagrams
 
-### 3.1 Terminating root:// reverse proxy — `xrootd_tap_proxy`
+### 3.1 Terminating root:// reverse proxy — `brix_tap_proxy`
 
-`src/net/proxy/` (README still titles it `xrootd_proxy`; the live directive
-surface is `xrootd_tap_proxy*` in `src/protocols/root/stream/module.c`).
+`src/net/proxy/` (README still titles it `brix_proxy`; the live directive
+surface is `brix_tap_proxy*` in `src/protocols/root/stream/module.c`).
 
 A full **terminating reverse proxy** for the binary XRootD wire protocol.
 nginx authenticates the client itself (token / GSI / SSS / anonymous),
@@ -156,7 +156,7 @@ lands in a JSON audit log.
 
   ┌────────┐ handshake+login+auth ┌──────────────────┐ handshake+login(+ztn/sss) ┌──────────┐
   │ xrdcp/ │ ◀──────────────────▶ │   nginx-xrootd   │ ◀───────────────────────▶ │ upstream │
-  │ XrdCl  │                      │  xrootd_tap_proxy│                           │  xrootd  │
+  │ XrdCl  │                      │  brix_tap_proxy│                           │  xrootd  │
   │ client │  kXR_open /f ──────▶ │                  │ ──▶ kXR_open /pfx/f       │  server  │
   │        │                      │  fh 0 ⇆ fh 7     │      (path rewritten)     │          │
   │        │ ◀── ok, fh=0         │  (handle map)    │ ◀── ok, fh=7              │          │
@@ -168,17 +168,17 @@ lands in a JSON audit log.
                                    JSON audit log (opcodes, paths, users,
                                    handles, path-mutation ops, close stats)
 
-  WHY reverse: the client never names the upstream; xrootd_tap_proxy_upstream
+  WHY reverse: the client never names the upstream; brix_tap_proxy_upstream
   entries + health + round-robin decide. kXR_redirect from the backend is
   FOLLOWED here, not relayed — the backend topology stays hidden.
 ```
 
-Upstream credentialing (`xrootd_tap_proxy_auth`): anonymous login, forward
+Upstream credentialing (`brix_tap_proxy_auth`): anonymous login, forward
 the client's WLCG bearer as a `ztn` credential, SSS keys (global or
 per-upstream), file-based token bridge, or GSI delegation
 (`gsi_upstream*.c`, threaded blocking login with a delegated proxy cert).
 
-### 3.2 Transparent root:// relay + tap — `xrootd_transparent_proxy`
+### 3.2 Transparent root:// relay + tap — `brix_transparent_proxy`
 
 `src/protocols/root/relay/` + `src/net/tap/tap_stream.c`.
 
@@ -187,7 +187,7 @@ the port is relayed **verbatim** to one configured upstream XRootD server
 before any XRootD frame is parsed. The client's auth handshake — anonymous,
 token, x509, full GSI — travels end-to-end; the relay holds **no**
 credential and cannot alter a byte. In parallel, a per-direction streaming
-decoder (`xrootd_tap_stream`) is fed each freshly-received chunk and emits
+decoder (`brix_tap_stream`) is fed each freshly-received chunk and emits
 whatever is cleartext (opcodes, paths, handles, status codes) to a JSON
 audit log. The client→upstream side skips the 20-byte handshake preamble
 before frame decode.
@@ -214,7 +214,7 @@ before frame decode.
   and blindness to anything the client encrypts.
 ```
 
-### 3.3 Single-port HTTP handoff — `xrootd_http_handoff`
+### 3.3 Single-port HTTP handoff — `brix_http_handoff`
 
 `src/protocols/root/handoff/`. A **local transparent relay** used as a
 protocol multiplexer, not an off-box proxy. Stock XRootD multiplexes HTTP
@@ -255,7 +255,7 @@ Reverse-proxy topology (the client didn't ask for the WebDAV port), but like
 `src/protocols/webdav/proxy*.c` (Mode 3, "WebDAV Perimeter Proxy").
 **Status:** the machinery (`webdav_proxy_handler`, backend pools, health) is
 in the tree, but the enabling directives were removed from the live command
-table in 2026-06 — the `xrootd_webdav_proxy_certs` directive that remains
+table in 2026-06 — the `brix_webdav_proxy_certs` directive that remains
 configures GSI client-cert *authentication*, not proxying.
 
 A classic HTTP **terminating reverse proxy** built on nginx's native
@@ -285,9 +285,9 @@ runtime add/remove/drain.
 `src/fs/cache/` (fill engine, cinfo state, eviction, write-through) +
 `src/fs/cache/origin/` (pluggable origin transports) +
 `src/fs/backend/xroot/` (root:// origin as a storage driver). Configured by
-composing `xrootd_storage_backend <origin-url>` (where the bytes come from)
-with `xrootd_cache_store <dir>` (where they land) — per-protocol spellings
-`xrootd_webdav_*`, `xrootd_s3_*`, `xrootd_cvmfs_*` exist over the same
+composing `brix_storage_backend <origin-url>` (where the bytes come from)
+with `brix_cache_store <dir>` (where they land) — per-protocol spellings
+`brix_webdav_*`, `brix_s3_*`, `brix_cvmfs_*` exist over the same
 shared tier struct.
 
 This is the shape XCache / Squid-accelerator / Varnish occupy: a **reverse
@@ -320,9 +320,9 @@ coalesce onto one fill.
         │  fill: origin ──▶ .part fd ──▶ checksum verify ──▶ atomic publish ──▶ serve       │
         └──────────────────────────────────────────────────────────────────────────────────┘
 
-  Reverse because: the client NEVER names the origin — xrootd_storage_backend
+  Reverse because: the client NEVER names the origin — brix_storage_backend
   does. The cache may even hide the origin's existence entirely (pure cache
-  node: xrootd_root optional, namespace served from the cache).
+  node: brix_root optional, namespace served from the cache).
 ```
 
 ### 3.6 CVMFS site cache — reverse mode (`cvmfs://` protocol plane)
@@ -335,7 +335,7 @@ client auth to be safe — but it must not become a generic open endpoint.
 
 In **reverse mode** (implemented) the node is a drop-in Squid/Varnish
 replacement for a Tier-2 site: the CVMFS clients' `CVMFS_SERVER_URL` points
-at this node, and `xrootd_cvmfs_storage_backend http://stratum1/cvmfs/<repo>`
+at this node, and `brix_cvmfs_storage_backend http://stratum1/cvmfs/<repo>`
 names the Stratum-1 set. A dedicated content handler (never the WebDAV
 dispatch) gates every request: GET/HEAD only, a pure-C URL classifier
 accepts exactly the CVMFS traffic shapes and 403s everything else (one
@@ -381,8 +381,8 @@ sets `CVMFS_HTTP_PROXY="http://cache:3128"` and the client then issues
 **absolute-URI** requests — `GET http://stratum1.cern.ch/cvmfs/repo/data/…`
 — naming whichever Stratum-1 *the client* selected from `CVMFS_SERVER_URL`.
 So in proxy mode the **client chooses the origin per request**; the cache
-follows, constrained by `xrootd_cvmfs_upstream_allow` (host allowlist — this
-is what keeps it from being an open proxy) and `xrootd_cvmfs_upstream_max`
+follows, constrained by `brix_cvmfs_upstream_allow` (host allowlist — this
+is what keeps it from being an open proxy) and `brix_cvmfs_upstream_max`
 (bounded lazy per-upstream backend registry). Client-side failover
 bookkeeping stays in charge: a proxy that breaks connections gets skipped by
 the client, which is why the fill path holds/retries rather than dropping
@@ -402,7 +402,7 @@ connections (never-drop semantics).
                           │  1. parse absolute-URI →  │
                           │     (upstream, path)      │
                           │  2. upstream ∈ allowlist? │──── no ──▶ 403 (open-proxy
-                          │     (xrootd_cvmfs_        │            refusal; plain
+                          │     (brix_cvmfs_        │            refusal; plain
                           │      upstream_allow)      │            https CONNECT is
                           │  3. cache key = path      │            refused too)
                           │     (CAS hash — same      │
@@ -421,7 +421,7 @@ connections (never-drop semantics).
 
 ### 3.8 Traffic mirroring / shadow replay — out-of-band reverse fan-out
 
-`src/net/mirror/` (`xrootd_mirror_url` for WebDAV, `xrootd_stream_mirror_url`
+`src/net/mirror/` (`brix_mirror_url` for WebDAV, `brix_stream_mirror_url`
 for root://, plus sampling/method/opcode masks). Not on the request path at
 all: **after** the primary response has been sent, a sampled copy of the
 request is replayed to up to 4 operator-configured shadow backends and the
@@ -548,7 +548,7 @@ Do you need nginx-xrootd to carry the data at all?
          │         ├─ generic (root/dav/s3 front, any origin) ▶ read-through cache (§3.5)
          │         └─ CVMFS traffic specifically ─────────────▶ cvmfs:// reverse mode (§3.6)
          └─ no ─── pure terminating reverse proxy
-                   ├─ root:// wire ───────────────────────────▶ xrootd_tap_proxy (§3.1)
+                   ├─ root:// wire ───────────────────────────▶ brix_tap_proxy (§3.1)
                    └─ WebDAV/HTTP ────────────────────────────▶ perimeter proxy (§3.4)
 Also, out of band: validating a NEW backend against live traffic ▶ mirroring (§3.8)
 ```
@@ -557,9 +557,9 @@ Also, out of band: validating a NEW backend against live traffic ▶ mirroring (
 
 | Model | The invariant that keeps it safe | Where enforced |
 |---|---|---|
-| Forward (cvmfs proxy mode) | **Upstream allowlist** — an unconstrained forward proxy is an open relay for arbitrary origins (and `CONNECT`-style https tunneling is refused outright) | `xrootd_cvmfs_upstream_allow` + gate rejects; classifier admits only CVMFS traffic shapes |
+| Forward (cvmfs proxy mode) | **Upstream allowlist** — an unconstrained forward proxy is an open relay for arbitrary origins (and `CONNECT`-style https tunneling is refused outright) | `brix_cvmfs_upstream_allow` + gate rejects; classifier admits only CVMFS traffic shapes |
 | Terminating reverse | **Client auth at the perimeter** before anything is forwarded; upstream credentials are the *proxy's*, scoped by policy (anon/forward/token/SSS/GSI-delegated); paths rewritten under a fixed prefix | proxy dispatch runs only when `ctx->logged_in`; auth policy per upstream; audit log of every mutation |
-| Transparent relay | **Touch nothing** — no frame is modified, no credential is held; the tap is read-only and sanitizes wire-derived strings before logging | relay pumps verbatim; `xrootd_sanitize_log_string()` on all logged paths |
+| Transparent relay | **Touch nothing** — no frame is modified, no credential is held; the tap is read-only and sanitizes wire-derived strings before logging | relay pumps verbatim; `brix_sanitize_log_string()` on all logged paths |
 | Caching reverse | **Verify on fill** (origin's advertised digest, or for CVMFS the hash embedded in the CAS URL) before publishing; admission/deny prefixes; never fabricate a checksum | `src/fs/cache/verify.c`, `cache_admit.c`; CVMFS CAS mode |
 | Mirroring | **Never on the client path**; credentials stripped toward shadows; loop guard (`X-Xrootd-Mirror`); bounded buffers/response caps | `strip_auth`, loop-guard header, 64 KiB shadow-response cap |
 

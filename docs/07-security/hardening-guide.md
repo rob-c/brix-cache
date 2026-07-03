@@ -48,8 +48,8 @@ No configuration needed for basic confinement — it's always enabled. However, 
 
 | Directive | Value | Notes |
 |---|---|---|
-| `xrootd_root` | Absolute path only | Must be an absolute path like `/data/storage`. Relative paths bypass confinement. |
-| `xrootd_webdav_root` | Absolute path only | Same constraint for WebDAV operations. |
+| `brix_root` | Absolute path only | Must be an absolute path like `/data/storage`. Relative paths bypass confinement. |
+| `brix_webdav_root` | Absolute path only | Same constraint for WebDAV operations. |
 
 ### What it protects
 
@@ -72,7 +72,7 @@ xrdcp root://localhost:1094///../../../etc/passwd /tmp/test.txt
 
 **What it protects against:** Authenticated users performing operations outside their intended scope.
 
-### Write Gate (`xrootd_allow_write`)
+### Write Gate (`brix_allow_write`)
 
 This is a **server-wide write gate** — independent of token scopes or authentication method. Even with a valid `storage.write` token, writes fail if the gate is off.
 
@@ -81,10 +81,10 @@ stream {
     server {
         listen 1094;
         xrootd on;
-        xrootd_root /data;
+        brix_root /data;
         
         # CRITICAL: Disable by default unless you need writes!
-        # xrootd_allow_write on;   ← Enable only when required
+        # brix_allow_write on;   ← Enable only when required
     }
 }
 ```
@@ -109,7 +109,7 @@ Optional access control based on Virtual Organization membership:
 
 ```nginx
 # Only allow ATLAS VO members to write
-xrootd_require_vo atlas
+brix_require_vo atlas
 ```
 
 ### Verification checklist
@@ -150,14 +150,14 @@ http {
         ssl_verify_client optional_no_ca;
         
         location / {
-            xrootd_webdav      on;
-            xrootd_webdav_root /data;
+            brix_webdav      on;
+            brix_webdav_root /data;
             
             # Path to CA certificates for verification
-            xrootd_webdav_cadir /etc/grid-security/certificates;
+            brix_webdav_cadir /etc/grid-security/certificates;
             
             # Require proxy certificate (stronger than host cert)
-            xrootd_webdav_proxy_certs on;
+            brix_webdav_proxy_certs on;
         }
     }
 }
@@ -175,7 +175,7 @@ Configure JWKS endpoints for key discovery:
 
 ```nginx
 # Load signing keys from local file (cached)
-xrootd_token_jwks /etc/nginx/jwks.json;
+brix_token_jwks /etc/nginx/jwks.json;
 ```
 
 ### Verification checklist
@@ -193,7 +193,7 @@ xrootd_token_jwks /etc/nginx/jwks.json;
 
 ```
 Option A: roots:// (TLS from byte 0)     ← Strongest, no downgrade possible
-Option B: root:// + xrootd_tls on        ← In-protocol upgrade (kXR_wantTLS/kXR_ableTLS)
+Option B: root:// + brix_tls on        ← In-protocol upgrade (kXR_wantTLS/kXR_ableTLS)
 Option C: root:// (raw TCP)              ← Plaintext — NEVER in production with sensitive data
 ```
 
@@ -206,7 +206,7 @@ stream {
     server {
         listen 1095 ssl;           # Different port from plaintext
         xrootd on;
-        xrootd_root /data;
+        brix_root /data;
         
         # TLS configuration for roots:// mode
         ssl_certificate     /etc/ssl/xrdcert.pem;
@@ -217,7 +217,7 @@ stream {
 
 **Advantage:** No possibility of "downgrade attack" — the client cannot request plaintext.
 
-### Option B: In-Protocol TLS Upgrade (`xrootd_tls on`)
+### Option B: In-Protocol TLS Upgrade (`brix_tls on`)
 
 The connection starts as raw TCP, then negotiates TLS through XRootD protocol opcodes. Useful when you want a single port for both modes or need to support legacy clients.
 
@@ -226,8 +226,8 @@ stream {
     server {
         listen 1094;               # Same port as plaintext
         xrootd on;
-        xrootd_root /data;
-        xrootd_tls on;             ← Enable in-protocol TLS upgrade
+        brix_root /data;
+        brix_tls on;             ← Enable in-protocol TLS upgrade
         
         ssl_certificate     /etc/ssl/xrdcert.pem;
         ssl_certificate_key /etc/ssl/xrdkey.pem;

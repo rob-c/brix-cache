@@ -50,14 +50,14 @@ work:
   `openat2(RESOLVE_BENEATH)` under *its own* export rootfd, so a buggy/compromised
   worker that supplies a crafted path still cannot escape the export root.
 - **The mapping policy is enforced broker-side.** An unmapped principal, uid 0, or
-  a uid below `xrootd_idmap_min_uid` is **denied** — the broker can never be made
+  a uid below `brix_idmap_min_uid` is **denied** — the broker can never be made
   to act as a system account.
 - **Authorization stays in the worker** (the existing 3-tier gate). The broker
   only maps the principal, impersonates, and confines.
 
 ## Operating modes
 
-One directive, `xrootd_impersonation off|single|map`, selects the posture:
+One directive, `brix_impersonation off|single|map`, selects the posture:
 
 | Mode | Broker? | Root? | On-disk owner | When to use |
 |---|---|---|---|---|
@@ -78,17 +78,17 @@ stream {
     server {
         listen 1094;
         xrootd on;
-        xrootd_root /export/data;
+        brix_root /export/data;
 
         # --- impersonation ---
-        xrootd_impersonation        map;
-        xrootd_impersonation_socket /run/xrootd/impersonate.sock;  # default shown
-        xrootd_impersonation_export /export/data;     # broker confinement root
-                                                      # (defaults to xrootd_root)
-        xrootd_gridmap              /etc/grid-security/grid-mapfile;  # DN -> user
-        xrootd_idmap_default_user   nobody;           # squash unmapped (else deny)
-        xrootd_idmap_min_uid        1000;             # refuse uid < this (and 0)
-        xrootd_idmap_cache_ttl      600;              # resolution cache seconds
+        brix_impersonation        map;
+        brix_impersonation_socket /run/brix/impersonate.sock;  # default shown
+        brix_impersonation_export /export/data;     # broker confinement root
+                                                      # (defaults to brix_root)
+        brix_gridmap              /etc/grid-security/grid-mapfile;  # DN -> user
+        brix_idmap_default_user   nobody;           # squash unmapped (else deny)
+        brix_idmap_min_uid        1000;             # refuse uid < this (and 0)
+        brix_idmap_cache_ttl      600;              # resolution cache seconds
     }
 }
 ```
@@ -100,17 +100,17 @@ sets the unprivileged worker account, e.g. `user xrootd;`.
 
 | Directive | Mode | Meaning |
 |---|---|---|
-| `xrootd_impersonation off\|single\|map` | all | the posture (default `off`) |
-| `xrootd_impersonation_user <name>` | `single` | the single account everything squashes to |
-| `xrootd_impersonation_socket <path>` | `map` | broker `AF_UNIX` socket (default `/var/run/xrootd/impersonate.sock`) |
-| `xrootd_impersonation_export <path>` | `map` | the broker's confinement root (defaults to the first data server's `xrootd_root`) |
-| `xrootd_gridmap <file>` | `map` | grid-mapfile: `"<DN>" localuser` lines (optional) |
-| `xrootd_idmap_default_user <name>` | `map` | squash account for unmapped principals; **omit to deny** |
-| `xrootd_idmap_min_uid <N>` | `map` | reserved-uid floor; resolved uids below `N` (and uid 0) are denied (default 1000, hard-clamped to ≥1000) |
-| `xrootd_idmap_cache_ttl <secs>` | `map` | TTL of the principal→creds cache (default 600) |
-| `xrootd_impersonation_broker_user <name>` | `map` | a dedicated **non-root** account the broker drops to (keeping only `CAP_SETUID`/`CAP_SETGID`) — see *Running the broker as non-root* below |
-| `xrootd_idmap_forbidden_users <csv>` | `map` | extra account **names** never allowed as a target (adds to the built-in list; the worker + broker accounts are always forbidden) |
-| `xrootd_idmap_forbidden_groups <csv>` | `map` | privileged group **names** (sudo/wheel/docker/…); a user who is a member of any — primary or supplementary — is denied even if the gid is ≥ the floor |
+| `brix_impersonation off\|single\|map` | all | the posture (default `off`) |
+| `brix_impersonation_user <name>` | `single` | the single account everything squashes to |
+| `brix_impersonation_socket <path>` | `map` | broker `AF_UNIX` socket (default `/var/run/brix/impersonate.sock`) |
+| `brix_impersonation_export <path>` | `map` | the broker's confinement root (defaults to the first data server's `brix_root`) |
+| `brix_gridmap <file>` | `map` | grid-mapfile: `"<DN>" localuser` lines (optional) |
+| `brix_idmap_default_user <name>` | `map` | squash account for unmapped principals; **omit to deny** |
+| `brix_idmap_min_uid <N>` | `map` | reserved-uid floor; resolved uids below `N` (and uid 0) are denied (default 1000, hard-clamped to ≥1000) |
+| `brix_idmap_cache_ttl <secs>` | `map` | TTL of the principal→creds cache (default 600) |
+| `brix_impersonation_broker_user <name>` | `map` | a dedicated **non-root** account the broker drops to (keeping only `CAP_SETUID`/`CAP_SETGID`) — see *Running the broker as non-root* below |
+| `brix_idmap_forbidden_users <csv>` | `map` | extra account **names** never allowed as a target (adds to the built-in list; the worker + broker accounts are always forbidden) |
+| `brix_idmap_forbidden_groups <csv>` | `map` | privileged group **names** (sudo/wheel/docker/…); a user who is a member of any — primary or supplementary — is denied even if the gid is ≥ the floor |
 
 ### Identity → local user resolution
 
@@ -119,7 +119,7 @@ subject** / SSS user / krb5 localname. It is resolved in order:
 
 1. **grid-mapfile** match (`"<DN>" user`) → `getpwnam(user)`;
 2. else a direct `getpwnam(<principal>)`;
-3. else **squash** to `xrootd_idmap_default_user`, or **deny** if none is set.
+3. else **squash** to `brix_idmap_default_user`, or **deny** if none is set.
 
 A resolved account yields `{uid, primary gid, supplementary gids}` via
 `getgrouplist`. Resolutions are cached per worker for `cache_ttl` seconds.
@@ -128,7 +128,7 @@ A resolved account yields `{uid, primary gid, supplementary gids}` via
 
 | Protocol | Open / create | Metadata (stat/mkdir/rm/mv/chmod/…) | Notes |
 |---|---|---|---|
-| `root://` (stream) | ✅ impersonated | ✅ impersonated | bracketed in `xrootd_dispatch` |
+| `root://` (stream) | ✅ impersonated | ✅ impersonated | bracketed in `brix_dispatch` |
 | WebDAV (`davs://`) | ✅ (GET/PUT) | ✅ | sync methods + async PUT body |
 | S3 | ✅ (PUT object) | partial | object create impersonated; sync GET/DELETE follow the same post-auth pattern (see *Limitations*) |
 
@@ -153,20 +153,20 @@ The data plane (reads/writes on open fds) is never brokered.
 ### Reserved-id floor (uid/gid < 1000 is impossible)
 
 It is **impossible, in the code path, for a file operation to execute while the
-broker's fsuid or fsgid is 0 or below `XROOTD_IMP_HARD_MIN_ID` (1000)** — or while
+broker's fsuid or fsgid is 0 or below `BRIX_IMP_HARD_MIN_ID` (1000)** — or while
 any supplementary group is reserved. This is enforced at **three independent
-layers**, each a single authoritative test (`xrootd_imp_creds_privileged()`):
+layers**, each a single authoritative test (`brix_imp_creds_privileged()`):
 
-1. **Mapping layer** (`idmap.c`). `xrootd_idmap_resolve()` **denies** any principal
+1. **Mapping layer** (`idmap.c`). `brix_idmap_resolve()` **denies** any principal
    whose resolved primary uid, primary gid, or any supplementary gid is 0 or below
-   the effective floor. `xrootd_idmap_min_uid` is **clamped up** to at least 1000 at
+   the effective floor. `brix_idmap_min_uid` is **clamped up** to at least 1000 at
    init, so a misconfigured lower value cannot widen the floor — it becomes a clean
    deny, logged. Result: a reserved principal gets a normal *deny* (403 /
    NotAuthorized), and the broker stays up.
 
 2. **Syscall edge** (`broker.c imp_become()`). Before **any**
    `setgroups`/`setfsgid`/`setfsuid`, the broker re-checks the credentials against
-   the hard floor `XROOTD_IMP_HARD_MIN_ID`, **independently of configuration**. If a
+   the hard floor `BRIX_IMP_HARD_MIN_ID`, **independently of configuration**. If a
    reserved id ever reaches here (a should-be-impossible breach of layer 1), the
    broker performs **no** credential syscall, returns an explicit error to the
    worker, logs `CRIT`, and **terminates** (`_exit`) so it can never be coerced into
@@ -193,13 +193,13 @@ credential-change site in the entire codebase is the broker's `imp_become()`.
 Two name-based deny-lists harden against privileged *targets* whose numeric ids
 are ≥ the floor (so the floor alone would not catch them):
 
-- **Forbidden target accounts** (`xrootd_idmap_forbidden_users`, plus a built-in
+- **Forbidden target accounts** (`brix_idmap_forbidden_users`, plus a built-in
   default of common service/system accounts). In addition, the **nginx worker
   account** and the **broker's own account** are *always* forbidden as targets
   (config-independent, enforced both in the mapper and in the broker), so a
   principal can never be impersonated as the gateway itself — closing a
   confused-deputy where mapping to the service account would act with its identity.
-- **Forbidden privileged groups** (`xrootd_idmap_forbidden_groups`, default
+- **Forbidden privileged groups** (`brix_idmap_forbidden_groups`, default
   `root,wheel,sudo,su,admin,sudoers,adm,…,docker,lxd,libvirt,kvm,…`). If the mapped
   user is a **member of any** of these — primary *or* any supplementary group —
   the whole mapping is **denied**, even when the gid is ≥ 1000 (e.g. a site
@@ -230,8 +230,8 @@ Run the nginx master as root (so it can open the export `rootfd` and spawn the
 broker), and set:
 
 ```nginx
-xrootd_impersonation            map;
-xrootd_impersonation_broker_user xrootd-broker;   # dedicated, non-root, non-worker
+brix_impersonation            map;
+brix_impersonation_broker_user xrootd-broker;   # dedicated, non-root, non-worker
 ```
 
 The broker then, after the master opens the export rootfd, drops its real/effective/
@@ -263,7 +263,7 @@ setcap 'cap_setuid,cap_setgid=ep' /usr/sbin/nginx
 ```
 
 Here the export `rootfd` must be openable by the `xrootd` account (so point
-`xrootd_impersonation_export` at a tree that account can traverse), and the broker
+`brix_impersonation_export` at a tree that account can traverse), and the broker
 runs as `xrootd` holding just the two caps. The workers still drop them at startup.
 
 > **Honest caveat (important):** a process holding `CAP_SETUID` is **root-equivalent
@@ -278,7 +278,7 @@ runs as `xrootd` holding just the two caps. The workers still drop them at start
 ## Requirements & limitations
 
 - **Kernel ≥ 5.6** (the broker relies on `openat2`/`RESOLVE_BENEATH`).
-- **Single export root.** The broker confines to one `xrootd_impersonation_export`
+- **Single export root.** The broker confines to one `brix_impersonation_export`
   root. Deployments with multiple distinct export roots per server block should
   set it explicitly; multi-root brokering is a follow-up.
 - **Directory listing confidentiality is enforced** across PROPFIND, WebDAV

@@ -203,7 +203,7 @@ The module extracts VO names from FQANs in `src/auth/voms/collect.c`:
 ```c
 /* FQAN "/cms/Role=..." → VO name "cms" (text before the second '/') */
 static ngx_flag_t
-xrootd_fqan_to_vo(const char *fqan, char *vo, size_t vo_sz)
+brix_fqan_to_vo(const char *fqan, char *vo, size_t vo_sz)
 {
     const char *start = fqan + 1;            /* skip leading '/' */
     const char *end   = strchr(start, '/');  /* find next '/' */
@@ -213,6 +213,6 @@ xrootd_fqan_to_vo(const char *fqan, char *vo, size_t vo_sz)
 ```
 
 The extracted VO list (e.g. `"cms,atlas"`) is stored in the session context
-and matched against `xrootd_require_vo` path rules.
+and matched against `brix_require_vo` path rules.
 
 ---

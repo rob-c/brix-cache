@@ -1,13 +1,13 @@
 # Postmortem: proxy splice under-drain stall (flaky mesh topologies)
 
-**Date:** 2026-06-27 · **Area:** `xrootd_proxy` data forwarding (`src/net/proxy/events_splice.c`)
+**Date:** 2026-06-27 · **Area:** `brix_proxy` data forwarding (`src/net/proxy/events_splice.c`)
 **Symptom:** `test_conformance_topologies` flaky — `proxy`/`mesh` intermittently FAIL,
 `cluster`/`mirror` PASS · **Status:** fixed (self-healing splice→buffered fallback)
 **Related:** [postmortem-proxy-retry-leak.md](postmortem-proxy-retry-leak.md),
 [postmortem-shmtx-semaphore-stall.md](postmortem-shmtx-semaphore-stall.md),
 [lifecycle-startup-shutdown-performance.md](lifecycle-startup-shutdown-performance.md)
 
-A large read forwarded through `xrootd_proxy` could hang for 60 s and time the client
+A large read forwarded through `brix_proxy` could hang for 60 s and time the client
 out. It was intermittent, so it surfaced as flaky topology tests rather than an
 obvious bug. This is the debugging story and what it teaches.
 
@@ -41,11 +41,11 @@ warnings flooded) revealed the actual failure underneath: a specific test,
 
 Reading the topology definitions was the decisive step:
 
-- `proxy` = one `xrootd_proxy` hop; `mesh` = **two stacked `xrootd_proxy` hops**.
+- `proxy` = one `brix_proxy` hop; `mesh` = **two stacked `brix_proxy` hops**.
 - `cluster` = CMS redirector + a direct read from the data server; `mirror` = direct.
 
 The failing topologies were exactly the ones that **forward data through
-`xrootd_proxy`**. The passing ones read directly. So the bug was in the proxy data
+`brix_proxy`**. The passing ones read directly. So the bug was in the proxy data
 path, not CMS, not the redirect logic — and a 5 MiB read was the trigger.
 
 ---
@@ -56,7 +56,7 @@ The topology suite is heavy (boots a fleet) and flaky. The investigation only mo
 once there was a **minimal, deterministic repro**:
 
 ```
-backend nginx (data server, 5 MiB file)  ←  proxy nginx (xrootd_proxy)  ←  client
+backend nginx (data server, 5 MiB file)  ←  proxy nginx (brix_proxy)  ←  client
 ```
 
 - `xrdcp` looped 40× through the proxy: **0/40 hangs**. Dead end — until noticing
@@ -110,7 +110,7 @@ and it kept waiting — still a 60 s stall, now with a fallback that fired too l
 outstanding** means either the remainder hasn't fully arrived or the kernel
 under-drains — and in both cases the reliable, edge-efficient choice is to relay the
 rest via the buffered `recv` path. The remainder is relayed **raw** (the 8-byte
-response header is already on the wire) using `xrootd_queue_response_base`'s
+response header is already on the wire) using `brix_queue_response_base`'s
 owned-buffer mode. The zero-copy path is still used in full when the whole body was
 already buffered (the pump completes via `splice_done` and never reaches the
 fallback).
@@ -119,7 +119,7 @@ fallback).
 splice(upstream → pipe) == EAGAIN
         │
         ├─ splice_downstream  < splice_total  → switch the REMAINDER to buffered recv
-        │      (xrootd_proxy_splice_to_buffered → …_fallback_finish, relay RAW)
+        │      (brix_proxy_splice_to_buffered → …_fallback_finish, relay RAW)
         │
         └─ splice_downstream == splice_total  → done (normal splice_done)
 ```
@@ -171,7 +171,7 @@ splice(upstream → pipe) == EAGAIN
 
 | File | Change |
 |---|---|
-| `src/net/proxy/events_splice.c` | `splice(upstream→pipe)` `EAGAIN`-with-remainder → fall back; `xrootd_proxy_splice_to_buffered()` + `xrootd_proxy_splice_fallback_finish()` |
+| `src/net/proxy/events_splice.c` | `splice(upstream→pipe)` `EAGAIN`-with-remainder → fall back; `brix_proxy_splice_to_buffered()` + `brix_proxy_splice_fallback_finish()` |
 | `src/net/proxy/events_read.c` | read handler dispatches to the fallback finish when `splice_fallback` is set |
 | `src/net/proxy/proxy_internal.h` | `splice_fallback` ctx field + fallback-finish declaration |
 | `src/net/proxy/README.md` | documents the self-healing fallback |

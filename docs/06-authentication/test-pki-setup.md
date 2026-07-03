@@ -339,7 +339,7 @@ diff /tmp/proxy_test.txt /tmp/proxy_test_downloaded.txt
 
 ## 6. VOMS infrastructure
 
-VOMS (Virtual Organization Membership Service) adds VO membership attributes to a proxy certificate via an Attribute Certificate (AC) embedded as an X.509 extension. The BriX-Cache module can enforce VO membership on specific paths with `xrootd_require_vo`.
+VOMS (Virtual Organization Membership Service) adds VO membership attributes to a proxy certificate via an Attribute Certificate (AC) embedded as an X.509 extension. The BriX-Cache module can enforce VO membership on specific paths with `brix_require_vo`.
 
 ### 6.1 Create the VOMS signing certificate
 
@@ -643,21 +643,21 @@ stream {
     server {
         listen 11096;
         xrootd on;
-        xrootd_root /tmp/xrd-test/data;
-        xrootd_auth gsi;
-        xrootd_allow_write on;
+        brix_root /tmp/xrd-test/data;
+        brix_auth gsi;
+        brix_allow_write on;
 
-        xrootd_certificate     /tmp/xrd-test/pki/server/hostcert.pem;
-        xrootd_certificate_key /tmp/xrd-test/pki/server/hostkey.pem;
-        xrootd_trusted_ca      /tmp/xrd-test/pki/ca/ca.pem;
+        brix_certificate     /tmp/xrd-test/pki/server/hostcert.pem;
+        brix_certificate_key /tmp/xrd-test/pki/server/hostkey.pem;
+        brix_trusted_ca      /tmp/xrd-test/pki/ca/ca.pem;
 
         # VOMS configuration
-        xrootd_vomsdir         /tmp/xrd-test/pki/vomsdir;
-        xrootd_voms_cert_dir   /tmp/xrd-test/pki/ca;
+        brix_vomsdir         /tmp/xrd-test/pki/vomsdir;
+        brix_voms_cert_dir   /tmp/xrd-test/pki/ca;
 
         # Path-based VO restrictions
-        xrootd_require_vo /cms   cms;
-        xrootd_require_vo /atlas atlas;
+        brix_require_vo /cms   cms;
+        brix_require_vo /atlas atlas;
         # /public/ is not listed — accessible to any authenticated user
     }
 }
@@ -665,9 +665,9 @@ stream {
 
 | Directive | Purpose |
 |---|---|
-| `xrootd_vomsdir` | Path to the vomsdir containing per-VO LSC files |
-| `xrootd_voms_cert_dir` | Path to the directory with trusted CA hashes (for verifying the VOMS signing cert chain) |
-| `xrootd_require_vo <path> <vo>` | Restrict `<path>` so that only proxies bearing a VOMS AC for `<vo>` are admitted |
+| `brix_vomsdir` | Path to the vomsdir containing per-VO LSC files |
+| `brix_voms_cert_dir` | Path to the directory with trusted CA hashes (for verifying the VOMS signing cert chain) |
+| `brix_require_vo <path> <vo>` | Restrict `<path>` so that only proxies bearing a VOMS AC for `<vo>` are admitted |
 
 ---
 
@@ -690,13 +690,13 @@ stream {
     server {
         listen 11100;
         xrootd on;
-        xrootd_root /tmp/xrd-test/data;
-        xrootd_auth gsi;
-        xrootd_certificate     /tmp/xrd-test/pki/server/hostcert.pem;
-        xrootd_certificate_key /tmp/xrd-test/pki/server/hostkey.pem;
-        xrootd_trusted_ca      /tmp/xrd-test/pki/ca/ca.pem;
-        xrootd_crl             /tmp/xrd-test/pki/ca/test-user.crl.pem;
-        xrootd_crl_reload      300;
+        brix_root /tmp/xrd-test/data;
+        brix_auth gsi;
+        brix_certificate     /tmp/xrd-test/pki/server/hostcert.pem;
+        brix_certificate_key /tmp/xrd-test/pki/server/hostkey.pem;
+        brix_trusted_ca      /tmp/xrd-test/pki/ca/ca.pem;
+        brix_crl             /tmp/xrd-test/pki/ca/test-user.crl.pem;
+        brix_crl_reload      300;
     }
 }
 
@@ -706,14 +706,14 @@ http {
         ssl_certificate     /tmp/xrd-test/pki/server/hostcert.pem;
         ssl_certificate_key /tmp/xrd-test/pki/server/hostkey.pem;
         ssl_verify_client   optional_no_ca;
-        xrootd_webdav_proxy_certs on;
+        brix_webdav_proxy_certs on;
 
         location / {
-            xrootd_webdav         on;
-            xrootd_webdav_root    /tmp/xrd-test/data;
-            xrootd_webdav_cafile  /tmp/xrd-test/pki/ca/ca.pem;
-            xrootd_webdav_crl     /tmp/xrd-test/pki/ca/test-user.crl.pem;
-            xrootd_webdav_auth    required;
+            brix_webdav         on;
+            brix_webdav_root    /tmp/xrd-test/data;
+            brix_webdav_cafile  /tmp/xrd-test/pki/ca/ca.pem;
+            brix_webdav_crl     /tmp/xrd-test/pki/ca/test-user.crl.pem;
+            brix_webdav_auth    required;
         }
     }
 }

@@ -14,10 +14,10 @@ refactor.
 
 ## 1. Data-plane offset conflation — HIGH (silent data corruption)
 
-**What broke.** `xrootd_cache_origin_read_chunk()` used a single `offset`
+**What broke.** `brix_cache_origin_read_chunk()` used a single `offset`
 parameter for *both* the origin **read** position and the local **write**
 position, and wrote each reply at the per-call counter `*got` (which resets to 0
-every `XROOTD_CACHE_FETCH_CHUNK` = 1 MiB).
+every `BRIX_CACHE_FETCH_CHUNK` = 1 MiB).
 
 - Whole-file fetch (`fetch.c`): every chunk after the first re-wrote at file
   offset 0, so **any cached file larger than 1 MiB was corrupted and truncated**.
@@ -84,7 +84,7 @@ separate `config` compilation units.
   `xrdc_net.h` / `xrdc_auth.h` / `xrdc_ops.h` — the `install` target was not
   updated when `protocol.h` / `xrdc.h` gained those `#include`s.
 - The slice standalone unit test failed to link `ngx_cached_time` (meta.o gained
-  an `ngx_time()` call) and `xrootd_cache_cinfo_path` (slice.o gained the call).
+  an `ngx_time()` call) and `brix_cache_cinfo_path` (slice.o gained the call).
 
 **Prevention.**
 - When a *public* header gains an `#include`, update the install target to ship

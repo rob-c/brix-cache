@@ -15,10 +15,10 @@ often bundled together in smaller systems:
 | Concern | Grid/WLCG/OSG term | What BriX-Cache uses |
 |---|---|---|
 | Who is this user? | X.509 identity, DN, proxy certificate | GSI proxy chain or token `sub` |
-| Which collaboration are they in? | VO, VOMS, FQAN, WLCG group | `ctx->primary_vo`, `ctx->vo_list`, `xrootd_require_vo` |
-| Is this server trusted? | Host certificate | `xrootd_certificate`, `ssl_certificate` |
-| Which CAs are trusted? | IGTF/grid CA bundle, trust anchors | `xrootd_trusted_ca`, `xrootd_webdav_cadir` |
-| Has a cert been revoked? | CRL | `xrootd_crl`, WebDAV CA store CRLs |
+| Which collaboration are they in? | VO, VOMS, FQAN, WLCG group | `ctx->primary_vo`, `ctx->vo_list`, `brix_require_vo` |
+| Is this server trusted? | Host certificate | `brix_certificate`, `ssl_certificate` |
+| Which CAs are trusted? | IGTF/grid CA bundle, trust anchors | `brix_trusted_ca`, `brix_webdav_cadir` |
+| Has a cert been revoked? | CRL | `brix_crl`, WebDAV CA store CRLs |
 | Can this request read/write this path? | Authorization, ACL, storage scope | VO ACLs, token scopes, filesystem permissions |
 | Is the transport encrypted? | TLS, HTTPS, `roots://` | nginx SSL or XRootD TLS upgrade |
 
@@ -36,7 +36,7 @@ layers:
 That separation explains a common surprise: `root://` + GSI can authenticate a
 user without encrypting all file data. Native XRootD GSI proves identity at the
 application protocol layer. If you also want encrypted file data, use
-`roots://`, `xrootd_tls on`, or `davs://`.
+`roots://`, `brix_tls on`, or `davs://`.
 
 ```text
 credential presented by client
@@ -64,7 +64,7 @@ credential presented by client
 identity facts + authorization facts
         |
         v
-path policy: token scopes, xrootd_require_vo, xrootd_allow_write, filesystem mode
+path policy: token scopes, brix_require_vo, brix_allow_write, filesystem mode
         |
         v
 allow or reject this request

@@ -51,9 +51,9 @@ These were verified during the Phase 28 audit and require no further work:
 - **Admin API** — `CRYPTO_memcmp` secret, CIDR ACL, 64 KB body cap, structured audit log.
 - **PROPFIND** — Depth:infinity entry cap + XXE disabled (`XML_PARSE_NONET|XML_PARSE_NO_XXE`).
 - **Rate limiting** — per-identity leaky buckets keyed on VO / issuer / DN / IP / volume.
-- **Log/error hygiene** — `xrootd_sanitize_log_string` / `xrootd_log_safe_path`; no secrets
+- **Log/error hygiene** — `brix_sanitize_log_string` / `brix_log_safe_path`; no secrets
   or absolute paths leaked to unauthenticated clients.
-- **AuthDB ADMIN ('k') privilege is path-scoped** — `xrootd_check_authdb_identity` matches
+- **AuthDB ADMIN ('k') privilege is path-scoped** — `brix_check_authdb_identity` matches
   each rule against the resolved path prefix *and* the needed privilege bits, so 'k' grants
   admin only within the rule's path subtree (audited; not global).
 
@@ -77,7 +77,7 @@ with stock XRootD cmsd:
          ▼                                    ▼
   client locate /atlas                   ③ host-char validation (W1c)
          │                                    reject control bytes at the single
-         ▼                                    xrootd_srv_register choke point
+         ▼                                    brix_srv_register choke point
   REDIRECT ──▶ evil:1094  ✗ poisoned          ▼
                                          only clean, authenticated peers enter
                                          the registry → no redirect poisoning ✓
@@ -86,22 +86,22 @@ with stock XRootD cmsd:
 - **W1a — sss cluster authentication.** Implements the real cmsd `kYR_xauth` handshake
   (`XrdCmsLogin::Admit` → `getToken`+`Authenticate`): after the data node's LOGIN frame the
   manager sends its security parms and defers registration until the node returns a valid
-  **sss credential**, verified against a shared keytab (`xrootd_cms_server_sss_keytab`). The
-  verifier is the shared `xrootd_sss_verify_blob` (same XrdSecProtocolsss credential format as
+  **sss credential**, verified against a shared keytab (`brix_cms_server_sss_keytab`). The
+  verifier is the shared `brix_sss_verify_blob` (same XrdSecProtocolsss credential format as
   the XRootD client protocol). Like vanilla cmsd, sss is required only when a keytab is
   configured — **fail-closed in sss mode, back-compat otherwise**. `src/net/cms/server_auth.c`.
-- **W1b — CIDR allowlist.** `xrootd_cms_server_allow <cidr>...` rejects unauthorised peer IPs
+- **W1b — CIDR allowlist.** `brix_cms_server_allow <cidr>...` rejects unauthorised peer IPs
   at accept time (`ngx_cidr_match`). Default back-compat (no list ⇒ accept + one-time warning).
-- **W1c — host validation.** `xrootd_net_host_chars_valid` rejects any registry host that is
+- **W1c — host validation.** `brix_net_host_chars_valid` rejects any registry host that is
   not a clean hostname/IP literal, enforced at the single store choke point
-  (`xrootd_srv_register`), which protects every redirect-emit path from control-byte injection.
+  (`brix_srv_register`), which protects every redirect-emit path from control-byte injection.
 
 ### W2 — WebDAV TPC DNS-rebind + TLS verification (HIGH)
 
 `src/protocols/webdav/tpc_curl.c` `tpc_curl_secure()` now (a) sets `CURLOPT_SSL_VERIFYPEER=1` /
 `VERIFYHOST=2` explicitly rather than relying on curl defaults, and (b) resolves the target
 once under SSRF policy and pins the validated address via `CURLOPT_RESOLVE`
-(`xrootd_net_target_check_dns_pin`), so curl cannot re-resolve to a rebind address. Applied to
+(`brix_net_target_check_dns_pin`), so curl cannot re-resolve to a rebind address. Applied to
 single, multi-stream, and HEAD paths.
 
 ### W3 — Helper-exec argv option-injection (MEDIUM)
@@ -112,7 +112,7 @@ terminator before the endpoint URL in `tpc_cred.c` and `src/tpc/outbound/tpc_tok
 
 ### W4 — STATX authorization parity (MEDIUM)
 
-`src/protocols/root/read/statx.c` now applies the authdb check (`XROOTD_AUTH_LOOKUP`) that single-path STAT
+`src/protocols/root/read/statx.c` now applies the authdb check (`BRIX_AUTH_LOOKUP`) that single-path STAT
 already enforced, so a batched statx cannot leak metadata for an authdb-denied path. Denials
 fall through to the per-entry "inaccessible" sentinel.
 
@@ -125,14 +125,14 @@ oracle for key enumeration.
 
 ### W6 — Admin blast radius & secret hygiene (MEDIUM/LOW)
 
-- `xrootd_admin_proxy_allow <host>...` restricts dynamic proxy backends to an allowlist; an
+- `brix_admin_proxy_allow <host>...` restricts dynamic proxy backends to an allowlist; an
   off-allowlist target is 403 + audited (`host_not_allowed`).
 - Admin secrets shorter than 16 bytes are rejected at config load.
 - The transient stack copy of the admin secret is `OPENSSL_cleanse`-d.
 
 ### W7 — Per-principal concurrency limit (MEDIUM)
 
-`xrootd_concurrency_limit zone=.. key=.. limit=N` caps in-flight requests per principal
+`brix_concurrency_limit zone=.. key=.. limit=N` caps in-flight requests per principal
 (VO/issuer/DN/IP/volume) via a SHM counter. The slot is acquired in the HTTP access phase and
 released in the **log phase**, which runs for every finalized request (including errors and
 aborts) — so the counter cannot leak and lock out a principal. `src/net/ratelimit/`.
@@ -162,7 +162,7 @@ These are documented rather than enforced in code, by deliberate choice:
 
 See `tests/test_security_redteam.py` for the config-level negative-path regression suite, and
 `tests/test_cms_mesh_interop.py::TestCmsSssAuth` for the live CMS sss fail-closed test — an
-`xrootd_cms_server_sss_keytab` manager refuses a real cmsd data node that does not present a
+`brix_cms_server_sss_keytab` manager refuses a real cmsd data node that does not present a
 valid sss credential (the node connects but is never admitted to the registry, so a locate
 returns no redirect). That topology is built and gated by the standard mesh lifecycle
 (`manage_test_servers.sh start-all` → `cms_mesh_servers.py`), so it runs with the rest of the

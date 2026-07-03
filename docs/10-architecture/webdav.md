@@ -19,7 +19,7 @@ HTTP client (xrdcp --allow-http, curl, FTS, Rucio)
 nginx HTTP SSL (if HTTPS)
     │  decrypts TLS, hands off to HTTP handler
     ▼
-ngx_http_xrootd_webdav_handler()        src/protocols/webdav/dispatch.c
+ngx_http_brix_webdav_handler()        src/protocols/webdav/dispatch.c
     │
     │  1. CORS preflight check
     │      if OPTIONS + Origin + Access-Control-Request-Method:
@@ -82,7 +82,7 @@ webdav_handle_get()                     src/protocols/webdav/get.c
     │       if found: skip open+stat
     │
     ├── if not cached:
-    │       ngx_http_xrootd_webdav_resolve_path()  src/protocols/webdav/path.c
+    │       ngx_http_brix_webdav_resolve_path()  src/protocols/webdav/path.c
     │       open(path, O_RDONLY)
     │       fstat() for size and mtime
     │       cache fd in fd_table
