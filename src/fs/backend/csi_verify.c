@@ -71,6 +71,15 @@ brix_csi_verify_read(brix_csi_t *c, const unsigned char *buf, off_t off,
         if (bend > off + (int64_t) len) {
             break;                      /* not fully covered by this read */
         }
+        /* A block written through THIS handle since open has a stale on-disk CRC
+         * (the record is only recomputed at flush/close). Skip it: the bytes we
+         * serve are the ones just written, so there is no disk-corruption risk to
+         * catch here, and verifying against the pre-write CRC would spuriously
+         * fail every read-after-write on an integrity-tracked file (e.g. kXR_write
+         * / kXR_clone / a ckpXeq write followed by a read on the same handle). */
+        if (c->dirty && bstart < c->dirty_hi && bend > c->dirty_lo) {
+            continue;
+        }
         if (xm.blockcrc[b] == BRIX_XMETA_CRC_UNSET) {
             continue;
         }
