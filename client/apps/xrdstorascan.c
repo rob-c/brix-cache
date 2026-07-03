@@ -59,7 +59,7 @@ usage(int rc)
         "\n"
         "  dump|verify|fill|compare <dashboard-url> [--path P] [--algo A]\n"
         "              [--password PW] [--insecure] [--json|--summary]\n"
-        "      Server-side scan over the /xrootd/api/v1/scan admin endpoint:\n"
+        "      Server-side scan over the /brix/api/v1/scan admin endpoint:\n"
         "      dump/backfill/verify checksums-at-rest across a subtree. URL is the\n"
         "      http(s):// dashboard base; auth via --password or $XRDSTORASCAN_PASSWORD.\n"
         "      verify/compare exit 1 when a mismatch (bit-rot) is found.\n"
@@ -625,7 +625,7 @@ scan_parse_url(const char *url, scan_ep *ep)
     return 0;
 }
 
-/* POST /xrootd/login (password) → capture the session cookie. 0 / -1. */
+/* POST /brix/login (password) → capture the session cookie. 0 / -1. */
 static int
 scan_login(const scan_ep *ep, const char *pw, int insecure,
            char *cookie, size_t cksz, brix_status *st)
@@ -636,7 +636,7 @@ scan_login(const scan_ep *ep, const char *pw, int insecure,
     int            n, ok;
 
     n = snprintf(body, sizeof(body), "password=%s", pw);
-    if (brix_http_req(ep->host, ep->port, ep->tls, "POST", "/xrootd/login",
+    if (brix_http_req(ep->host, ep->port, ep->tls, "POST", "/brix/login",
                       "Content-Type: application/x-www-form-urlencoded\r\n",
                       body, (size_t) n, 15000, insecure ? 0 : 1, NULL,
                       &resp, st) != 0)
@@ -876,7 +876,7 @@ cmd_scan(const char *mode, int argc, char **argv)
 
     {
         char fullpath[2304];
-        snprintf(fullpath, sizeof(fullpath), "/xrootd/api/v1/scan?%s", query);
+        snprintf(fullpath, sizeof(fullpath), "/brix/api/v1/scan?%s", query);
         if (brix_http_req(ep.host, ep.port, ep.tls, "GET", fullpath, hdr,
                           NULL, 0, 120000, insecure ? 0 : 1, NULL, &resp, &st) != 0)
         {

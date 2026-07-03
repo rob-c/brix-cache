@@ -110,7 +110,7 @@ do_topology(const diag_args *a)
         }
         free(body);
     } else {
-        note("cluster-json", "pass --cluster-url http://host:port/xrootd/api/v1/cluster");
+        note("cluster-json", "pass --cluster-url http://host:port/brix/api/v1/cluster");
     }
 
     brix_close(&c);
