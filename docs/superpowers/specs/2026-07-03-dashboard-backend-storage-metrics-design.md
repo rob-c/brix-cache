@@ -42,9 +42,9 @@ The design mirrors the proven cache-metrics seam one layer down onto the
 storage plane. Two data sources feed the panel, matching how the Cache panel
 already blends per-slot config with live `statvfs`:
 
-- **Per-listener SHM slot** (`ngx_xrootd_srv_metrics_t`) — carries the backend
-  identity and export root for live capacity `statvfs`, exactly as `cache_root`
-  does today.
+- **Per-export VFS backend registry** (`src/fs/vfs/vfs_backend_registry.c`,
+  existing) — carries backend identity + export root for live capacity
+  `statvfs`; already powers the `/vfs` browser and the phase-63 info gauge.
 - **Unified SHM block** — carries the per-backend byte counters, indexed by a
   bounded backend enum, exactly as `io_bytes_read[proto]` does today.
 
@@ -62,102 +62,134 @@ typedef enum {
 } xrootd_fs_id_t;
 ```
 
-Add `xrootd_fs_id_t xrootd_sd_backend_id(const xrootd_sd_instance_t *inst)`
-next to the existing `xrootd_sd_backend_name()` (`src/fs/backend/sd.h`), and a
-`const char *xrootd_fs_id_name(xrootd_fs_id_t)` for the exporter label. The enum
-is append-only and inherits the build gates from the X-macro lists, so a
-`./configure` without CEPH/SQLITE simply yields a smaller `XROOTD_FS_COUNT`.
-Bounded + low-cardinality — INVARIANT #8 clean.
+Add name-keyed lookups `int xrootd_fs_id_from_name(const char *name)` and
+`const char *xrootd_fs_id_name(xrootd_fs_id_t)` in a new **ngx-free**
+`src/fs/backend/sd_fs_id.c` (X-macro generated tables, no driver externs — so
+it unit-tests standalone). Attribution sites resolve the driver's `.name`
+string; a short strcmp scan over ≤13 short names per *completed op* is
+negligible against the syscall it accounts. The enum is append-only and
+inherits the build gates from the X-macro lists (the gate macros are global
+`-D` CFLAGS, so every server TU sees the same `XROOTD_FS_ID_COUNT` — the SHM
+layout is consistent within a build). Bounded + low-cardinality — INVARIANT #8
+clean.
 
-### Component 2 — per-listener storage slot fields (metrics.h)
+### Component 2 — per-export identity: the existing VFS backend registry
+*(revised at implementation-research time — supersedes the original "SHM slot
+fields" approach)*
 
-In `ngx_xrootd_srv_metrics_t`, next to `cache_root`:
+The codebase already has exactly the identity table this panel needs:
+`src/fs/vfs/vfs_backend_registry.{h,c}` — a per-worker, config-time census of
+exports (`xrootd_vfs_backend_export_count()` / `xrootd_vfs_backend_export_info()`
+→ `{root_canon, backend, host, port, tls, staging, has_token, has_proxy}`).
+It already feeds the phase-63 `xrootd_storage_backend_info` Prometheus gauge and
+the dashboard `/vfs` export browser, and it covers stream AND HTTP exports (both
+`runtime_server.c` and `webdav/config.c` register through
+`xrootd_vfs_backend_config_str`). No new SHM slot fields; no `handler.c` change.
 
-```c
-char       storage_backend[16];  /* SD driver name label ("posix"…) */
-char       storage_root[PATH_MAX]; /* export root_canon, for live statvfs; never emitted raw */
-ngx_uint_t storage_remote;       /* 1 = remote backend (no local FS to statvfs) */
-```
+**One gap to close:** an export that names no backend (default POSIX) is a
+registration no-op, so the registry — and therefore the existing info gauge and
+`/vfs` browser — misses the most common configuration. Phase-68 already made an
+*explicit* `posix` register; extend `xrootd_vfs_backend_config_str` so an empty
+`xrootd_storage_backend` registers as `posix` too (guarded: never register a
+`root_canon` of `"/"`, the pure-cache-node namespace anchor).
 
-Populated at listener bind in `src/protocols/root/connection/handler.c`, inside
-the existing `mconf->metrics_slot` guard block that already copies `cache_root`:
-copy `mconf->storage_backend` (default `"posix"` when empty), `mconf->root_canon`,
-and `xrootd_storage_backend_is_remote(mconf)`. No new call site.
+`statvfs` capacity is emitted only for local backends (`posix`/`pblock`);
+remote/origin backends (`xroot`/`http`/`s3`/`ceph`…) report identity + byte
+counters but no local filesystem numbers.
 
 ### Component 3 — per-backend byte counters (metrics.h unified block)
 
 Next to `io_bytes_read[XROOTD_PROTO_COUNT]`:
 
 ```c
-ngx_atomic_t io_bytes_read_backend[XROOTD_FS_COUNT];
-ngx_atomic_t io_bytes_written_backend[XROOTD_FS_COUNT];
+ngx_atomic_t io_bytes_read_backend[XROOTD_FS_ID_COUNT];
+ngx_atomic_t io_bytes_written_backend[XROOTD_FS_ID_COUNT];
 ```
 
-A sibling accounting helper (keeps `xrootd_metric_op_done`'s signature stable):
+A sibling accounting helper (keeps `xrootd_metric_op_done`'s signature stable);
+pure lock-free SHM atomics, safe from thread-pool workers:
 
 ```c
-void xrootd_metric_backend_bytes(xrootd_fs_id_t backend, xrootd_metric_op_t op, size_t bytes);
+void xrootd_metric_backend_bytes(const char *backend_name,
+    xrootd_metric_op_t op, size_t bytes);   /* NULL name ⇒ "posix" */
 ```
 
-### Component 4 — attribute bytes at two seams
+### Component 4 — attribute bytes at three seams
+*(revised at implementation-research time: READ/WRITE **bytes** do not flow
+through `observe_ctx_op` today — that chokepoint carries metadata ops plus the
+staged-upload commit; the data plane splits across `vfs_io_core.c` (root://)
+and the shared HTTP file-serve helper.)*
 
-**(a) VFS chokepoint — non-sendfile reads + all writes.**
-`xrootd_vfs_observe_ctx_op()` (`src/fs/vfs/vfs_internal.h:335`) fires for every
-VFS I/O op and holds `ctx`, from which the backend is reachable
-(`ctx->sd->driver`). Beside the existing `xrootd_metric_op_done` call, derive
-`backend_id = xrootd_sd_backend_id(ctx->sd)` and call
-`xrootd_metric_backend_bytes(backend_id, op, bytes)` for READ/WRITE ops.
+**(a) VFS observe chokepoint — staged-upload commits + VFS copies.**
+`xrootd_vfs_observe_ctx_op()` (`src/fs/vfs/vfs_internal.h`) already receives
+`bytes` for the staged-PUT commit WRITE (`vfs_staged.c`) and holds `ctx->sd`.
+Beside `xrootd_metric_op_done`, for READ/WRITE ops with `bytes > 0` call
+`xrootd_metric_backend_bytes(backend_name, op, bytes)` where `backend_name` is
+`xrootd_sd_backend_name(ctx->sd)` (NULL instance ⇒ `"posix"`).
 
-**(b) Sendfile read seam — WebDAV/S3 GET served via zero-copy.**
-`xrootd_vfs_file_sendfile_fd()` only hands the raw fd to the HTTP layer; nginx
-performs the transfer and the byte count is recorded at the WebDAV/S3
-read-completion metric site (`src/protocols/webdav/metrics.c`,
-`src/protocols/s3/metrics.c`), which is proto-keyed and does **not** know the
-backend. Fix: capture `backend_id` from the open `fh` (`fh->obj` → driver) when
-the GET opens the file, stash it on the request/handler ctx, and call
-`xrootd_metric_backend_bytes(backend_id, XROOTD_METRIC_OP_READ, bytes)` at that
-completion site in addition to the existing proto counter. This closes the gap
-so sendfile-served reads are attributed per-backend.
+**(b) root:// data plane — `xrootd_vfs_io_execute()`.**
+Every root:// read/write/readv/writev/pgread routes through this single
+executor (`src/fs/vfs/vfs_io_core.c`), and the job carries the handle's
+storage object (`job->obj.driver`, NULL ⇒ POSIX). After the op switch, on
+`job->nio > 0`, attribute read-direction ops (READ/PGREAD/READV) and
+write-direction ops (WRITE/WRITEV) to the job's backend. The helper is a pure
+lock-free SHM atomic add — safe from thread-pool workers, a deliberate,
+documented exception to the file's "no metrics" note. (READV segments can in
+principle span handles; the whole total attributes to the job's primary obj —
+bounded, documented approximation.)
 
-Attribution covers exactly the storage plane (INVARIANT #11): VFS-routed and
-sendfile-served backend I/O. Non-storage I/O (proxy relay, cache-fill WAN pulls)
-is intentionally not counted here — those have their own counters.
+**(c) HTTP GET serve seam — `xrootd_http_serve_file_ranged()`.**
+Both WebDAV GET and S3 GetObject (inline AND thread-pool-offloaded via
+`http_serve_offload.c`) delegate the body send to this one function
+(`src/protocols/shared/file_serve.c`), which owns the VFS handle and computes
+`result->bytes_sent` at exactly three exit sites (compressed / memory-backed /
+sendfile). Capture the backend name from the handle at entry (new accessor
+`xrootd_vfs_file_backend_name(fh)`) and attribute `bytes_sent` as READ at each
+site. This covers zero-copy sendfile GETs with no per-protocol changes.
+
+Semantics: the counters measure **bytes the backend instance moved**, not
+client-visible bytes — a staged upload legitimately counts once into the stage
+store and once into the final backend at promote. Non-storage I/O (proxy relay,
+cache-fill WAN pulls) is intentionally not counted here — those have their own
+counters. Cache-hit GETs attribute to the composed instance's driver (`cache`),
+which is itself a meaningful label.
 
 ### Component 5 — snapshot builder (api_snapshot.c)
 
 New `dashboard_fill_storage(json_t *target, ngx_uint_t redact)` mirroring
 `dashboard_fill_cache`:
 
-- Iterate `in_use` slots → a `backends[]` array. Per entry:
-  `{ backend, auth, remote, port(omitted when redact) }`, and for non-remote,
-  live `xrootd_fs_usage_stat(storage_root)` →
-  `{ bytes_total, bytes_used, bytes_available, occupancy_ratio }`. Never emits
-  the raw path (matches Cache).
-- Join per-backend `bytes_read_total` / `bytes_written_total` from
-  `unified.io_bytes_*_backend[id]` onto each backend.
+- Iterate the VFS backend registry → an `exports[]` array. Per entry:
+  `{ backend, remote, staging }` always; `root` and `origin` only when
+  authenticated (`!redact`); for local backends (`posix`/`pblock`, root ≠ "/"),
+  live `xrootd_fs_usage_stat(root_canon)` →
+  `{ bytes_total, bytes_used, bytes_available, occupancy_ratio }`.
+- An `io` object keyed by backend name with
+  `{ bytes_read_total, bytes_written_total }` from the per-backend SHM arrays
+  (zero-zero backends omitted).
 
 Attach as `storage` on the snapshot root next to `cache`
 (`dashboard_build_snapshot`).
 
-### Component 6 — Prometheus exporter (unified.c)
-
-Export the per-backend counters with a bounded `backend` label, mirroring the
-existing per-`proto` families:
-
-```
-xrootd_io_bytes_read{backend="posix"}     <n>
-xrootd_io_bytes_written{backend="posix"}  <n>
-```
-
-Storage capacity/occupancy gauges are exported per backend the same way the
-cache occupancy is exported today (`stream_cache.c` pattern, live `statvfs`):
+### Component 6 — Prometheus exporter (writer.c)
+*(revised: the per-proto family names `xrootd_io_bytes_read{proto=}` cannot be
+reused with a different label set — Prometheus forbids one metric name with
+conflicting label sets — so the per-backend families get their own names,
+co-located with the existing `xrootd_storage_backend_info` gauge in
+`xrootd_storage_backend_metrics_emit()`.)*
 
 ```
-xrootd_storage_bytes_total{backend="posix"}      <n>
-xrootd_storage_bytes_used{backend="posix"}       <n>
-xrootd_storage_bytes_available{backend="posix"}  <n>
-xrootd_storage_occupancy_ratio{backend="posix"}  <0..1>
+xrootd_storage_io_bytes_read{backend="posix"}     <n>   (counter)
+xrootd_storage_io_bytes_written{backend="posix"}  <n>   (counter)
+
+xrootd_storage_bytes_total{export="/data",backend="posix"}      <n>   (gauge, live statvfs)
+xrootd_storage_bytes_used{export="/data",backend="posix"}       <n>
+xrootd_storage_bytes_available{export="/data",backend="posix"}  <n>
+xrootd_storage_occupancy_ratio{export="/data",backend="posix"}  <0..1>
 ```
+
+The `export` label matches the existing `xrootd_storage_backend_info`
+convention (exports are config-fixed and few — low-cardinality).
 
 "All separable metrics on both surfaces" = every per-backend value above appears
 on both the dashboard snapshot and `/metrics`.
@@ -173,53 +205,63 @@ read/written byte totals.
 ## Data flow
 
 ```
-listener bind ──► SHM slot (backend, root, remote)
-VFS/sendfile I/O ──► unified.io_bytes_*_backend[id]   (via xrootd_metric_backend_bytes)
+config load ──► VFS backend registry (root_canon, backend, origin, staging)
+storage I/O ──► unified.io_bytes_*_backend[id]   (via xrootd_metric_backend_bytes)
                                    │
-HTTP dashboard worker ── reads SHM + live statvfs ──► JSON snapshot ──► browser poll
-Prometheus scrape ───── reads SHM + live statvfs ──► /metrics text
+HTTP dashboard worker ── registry + SHM + live statvfs ──► JSON snapshot ──► browser poll
+Prometheus scrape ────── registry + SHM + live statvfs ──► /metrics text
 ```
 
 Identical lifecycle to the existing cache panel + per-proto io counters.
 
 ## Redaction / security
 
-- Raw filesystem paths are never emitted (matches Cache: only `statvfs`-derived
-  numbers leave the process). `port` is omitted from anonymous snapshots.
+- Anonymous snapshots omit `root` and `origin` (no filesystem path or upstream
+  host leaves the process); authenticated snapshots carry them — parity with
+  the authed-only `/vfs` browser. `/metrics` keeps the `export` path label,
+  matching the existing `xrootd_storage_backend_info` gauge (the metrics
+  endpoint is operator-scoped, not anonymous-tier).
 - Backend names are a fixed, bounded set — safe as labels and in anonymous
   output.
 
 ## Testing (≥3 per change, per project rule)
 
-1. **Capacity success:** posix backend configured → `/snapshot`
-   `storage.backends[]` has `backend:"posix"`, `bytes_total`/`bytes_used > 0`;
-   `/metrics` has `xrootd_storage_bytes_total{backend="posix"}`.
+1. **Capacity success:** default-posix export → `/snapshot` `storage.exports[]`
+   has `backend:"posix"`, `bytes_total`/`bytes_used > 0`; `/metrics` has
+   `xrootd_storage_bytes_total{export=…,backend="posix"}` (also proves the
+   default-POSIX registration gap is closed).
 2. **Per-backend byte accounting:** PUT then GET *N* bytes on posix →
-   `bytes_written_total` and `bytes_read_total` each advance ~*N* on both
-   surfaces. A second backend (pblock) accounts independently
-   (`{backend="pblock"}` distinct from `{backend="posix"}`).
-3. **Sendfile read attribution:** WebDAV/S3 GET (zero-copy sendfile path) of *N*
-   bytes → `bytes_read_total{backend}` advances ~*N* (guards the Component-4b
-   seam specifically).
-4. **Remote-backend edge:** xroot/http origin backend → `remote:true`, no
-   `statvfs` numbers, no crash; capacity gauges absent for that backend.
-5. **Security-negative:** anonymous/redacted snapshot → `port` omitted, no
-   filesystem path anywhere in the payload; `/metrics` carries no path label.
+   `xrootd_storage_io_bytes_written{backend="posix"}` and
+   `…_read{backend="posix"}` each advance ≥ *N* on both surfaces.
+3. **Sendfile read attribution:** WebDAV GET (zero-copy sendfile path) of *N*
+   bytes → read counter advances ≥ *N* (guards the Component-4c seam
+   specifically).
+4. **Remote-backend edge:** xroot origin backend → `remote:true`, no `statvfs`
+   numbers, no crash; capacity gauges absent for that export.
+5. **Security-negative:** anonymous/redacted snapshot → no `root`/`origin`
+   keys, no filesystem path anywhere in the `storage` payload; authed snapshot
+   carries them (parity with `/vfs`).
+6. **fs-id unit test:** standalone C test — name→id→name roundtrip for every
+   row, unknown name → -1.
 
 ## Files touched
 
 | File | Change |
 |---|---|
-| `src/core/types/fs_list.h` | activate `ID` column → `xrootd_fs_id_t` enum surface |
-| `src/fs/backend/sd.h` / registry | `xrootd_sd_backend_id()`, `xrootd_fs_id_name()` |
-| `src/observability/metrics/metrics.h` | slot `storage_*` fields + unified `io_bytes_*_backend[]` |
-| `src/observability/metrics/unified.{c,h}` | `xrootd_metric_backend_bytes()` + Prometheus families |
-| `src/fs/vfs/vfs_internal.h` | per-backend accounting at the observe chokepoint |
-| `src/protocols/root/connection/handler.c` | populate slot `storage_*` at bind |
-| `src/protocols/webdav/metrics.c`, `src/protocols/s3/metrics.c` | sendfile-read per-backend attribution |
+| `src/core/types/fs_list.h` | activate `ID` column → `xrootd_fs_id_t` enum + name/lookup decls |
+| `src/fs/backend/sd_fs_id.c` (new, ngx-free) | `xrootd_fs_id_name()`, `xrootd_fs_id_from_name()` (X-macro generated) |
+| `./config` | add `sd_fs_id.c` to the module source list |
+| `src/observability/metrics/metrics.h` | unified `io_bytes_read_backend[]` / `io_bytes_written_backend[]` |
+| `src/observability/metrics/unified.{c,h}` | `xrootd_metric_backend_bytes()` |
+| `src/fs/vfs/vfs_internal.h` | attribution at the observe chokepoint (staged commits) |
+| `src/fs/vfs/vfs_io_core.c` | attribution in `xrootd_vfs_io_execute()` (root:// data plane) |
+| `src/fs/vfs/vfs.h` + `vfs_open.c` | `xrootd_vfs_file_backend_name()` accessor |
+| `src/protocols/shared/file_serve.c` | attribution at the three `bytes_sent` sites (HTTP GET incl. sendfile) |
+| `src/fs/vfs/vfs_backend_config.c` | register default-POSIX exports (census gap) |
+| `src/observability/metrics/writer.c` | per-backend io counters + per-export capacity gauges |
 | `src/observability/dashboard/api_snapshot.c` | `dashboard_fill_storage()` + attach `storage` |
 | `src/observability/dashboard/page.c` | Backend Storage panel + renderer |
-| `tests/` | 5 tests above |
+| `tests/` | 5 tests above + fs-id unit test |
 
 ## Build note
 
