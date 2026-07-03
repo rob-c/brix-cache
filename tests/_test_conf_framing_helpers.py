@@ -30,7 +30,7 @@ require BOTH to reject and bucket the code rather than demand an exact match.
 For positional/existence ops (open-of-dir, stat-missing, close-of-stale-handle)
 the reference IS exact and we pin the numeric code.
 
-Wire reference: /tmp/xrootd-src/src/XProtocol/XProtocol.hh
+Wire reference: /tmp/brix-src/src/XProtocol/XProtocol.hh
   ClientRequestHdr = streamid[2] requestid[2] <12 body bytes> dlen[4 BE].
   XRequestTypes 3000..3032 (kXR_REQFENCE=3033); error codes 3000..3035.
 

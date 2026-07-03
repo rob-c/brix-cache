@@ -5,7 +5,7 @@ Where the stock xrdfs client exposes the op (stat-by-path, statvfs) we diff
 OUR-vs-STOCK through `xrdfs`. The ops xrdfs cannot reach cleanly (kXR_statx
 multi-path flag bytes, stat-by-fhandle, raw kXR_vfs) are driven over RAW WIRE
 against BOTH servers, with the SEMANTICS taken from the C++ reference
-(/tmp/xrootd-src/src):
+(/tmp/brix-src/src):
 
   XProtocol.hh:1261  kXR_file=0  kXR_xset=1  kXR_isDir=2  kXR_other=4
                      kXR_offline=8  kXR_readable=16  kXR_writable=32

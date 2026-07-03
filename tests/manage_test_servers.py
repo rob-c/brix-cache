@@ -2,7 +2,7 @@
 
 All local test servers are now launched by tests/manage_test_servers.sh
 start-all before pytest begins.  Tests must use fixed ports from settings.py
-or test_env instead of creating per-test nginx/xrootd instances here.
+or test_env instead of creating per-test nginx/brix instances here.
 """
 
 DEDICATED_ONLY_ERROR = (

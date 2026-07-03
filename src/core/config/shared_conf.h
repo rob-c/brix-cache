@@ -220,7 +220,7 @@ brix_shared_apply_read_only(ngx_http_brix_shared_conf_t *common,
     }
     if (common->allow_write == 1 && log != NULL) {
         ngx_log_error(NGX_LOG_NOTICE, log, 0,
-            "xrootd: read_only on - the export is read-only; all write "
+            "brix: read_only on - the export is read-only; all write "
             "operations are rejected at the protocol edge (overrides allow_write)");
     }
     common->allow_write = 0;

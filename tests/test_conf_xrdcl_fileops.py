@@ -23,17 +23,17 @@ Coverage (>=85 cases, heavily parametrized):
   * lifecycle error parity: double-open and use-after-close.
 
 Why these are grounded in the XrdCl contract (consulted, NOT modified):
-  /tmp/xrootd-src/src/XrdCl/XrdClFile.hh           File::Open/Read/VectorRead/
+  /tmp/brix-src/src/XrdCl/XrdClFile.hh           File::Open/Read/VectorRead/
                                                     Write/Truncate/Sync/Stat
-  /tmp/xrootd-src/src/XrdCl/XrdClFileSystem.hh:74  OpenFlags (New=kXR_new,
+  /tmp/brix-src/src/XrdCl/XrdClFileSystem.hh:74  OpenFlags (New=kXR_new,
                                                     Delete=kXR_delete,
                                                     MakePath=kXR_mkpath,
                                                     Update=kXR_open_updt,
                                                     Write=kXR_open_wrto,
                                                     Read=kXR_open_read)
-  /tmp/xrootd-src/src/XrdXrootd/XrdXrootdXeq.cc    do_ReadAll / do_ReadV / StatGen
-  /tmp/xrootd-src/src/XrdXrootd/XrdXrootdXeqPgrw.cc do_PgRead framing
-  /tmp/xrootd-src/src/XrdCl/XrdClXRootDResponses.cc:140 StatInfo wire parse
+  /tmp/brix-src/src/XrdXrootd/XrdXrootdXeq.cc    do_ReadAll / do_ReadV / StatGen
+  /tmp/brix-src/src/XrdXrootd/XrdXrootdXeqPgrw.cc do_PgRead framing
+  /tmp/brix-src/src/XrdCl/XrdClXRootDResponses.cc:140 StatInfo wire parse
 
 Rules: stock is truth; a divergence is OUR bug. Known/seeded divergence
 (StatInfo.id formula) is pinned with xfail so the file stays green. The real
@@ -399,7 +399,7 @@ def test_stat_on_open_size_flags_parity(srv):
 
 # DIVERGENCE: StatInfo.id (chunks[0] of the stat wire response). Stock encodes a
 # composite (dev<<...|ino) per XrdXrootdProtocol::StatGen
-# (/tmp/xrootd-src/src/XrdXrootd/XrdXrootdXeq.cc); ours emits the bare inode.
+# (/tmp/brix-src/src/XrdXrootd/XrdXrootdXeq.cc); ours emits the bare inode.
 # XrdCl exposes StatInfo.id (XrdClXRootDResponses.cc:140) though gfal ignores it.
 @pytest.mark.xfail(reason="DIVERGENCE: StatInfo.id is bare inode vs stock "
                           "composite dev/ino (XrdXrootdXeq.cc StatGen); "

@@ -13,7 +13,7 @@
 #include "core/http/http_headers.h"
 #include <jansson.h>
 #include <openssl/crypto.h>   
-#define ADMIN_PREFIX      "/xrootd/api/v1/admin/"
+#define ADMIN_PREFIX      "/brix/api/v1/admin/"
 #define ADMIN_MAX_BODY    65536
 #define ADMIN_SECRET_MAX  4096
 #define ADMIN_SECRET_MIN  16     

@@ -263,7 +263,7 @@ cache_open_rootfd(const ngx_str_t *root, ngx_log_t *log)
     fd = open((const char *) root->data, O_PATH | O_DIRECTORY | O_CLOEXEC);
     if (fd < 0) {
         ngx_log_error(NGX_LOG_EMERG, log, errno,
-                      "xrootd: cannot open cache dir \"%V\" for VFS storage",
+                      "brix: cannot open cache dir \"%V\" for VFS storage",
                       root);
     }
     return fd;
@@ -387,7 +387,7 @@ brix_cache_storage_init(ngx_stream_brix_srv_conf_t *conf, ngx_cycle_t *cycle)
                                (const char *) conf->cache_root.data,
                                BRIX_CMETA_AUTO, l1, 0, log) != NGX_OK) {
             ngx_log_error(NGX_LOG_EMERG, log, ngx_errno,
-                "xrootd: cache policy cstore init failed for \"%V\"",
+                "brix: cache policy cstore init failed for \"%V\"",
                 &conf->cache_root);
             return NGX_ERROR;
         }

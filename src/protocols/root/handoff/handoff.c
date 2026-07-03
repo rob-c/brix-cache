@@ -77,7 +77,7 @@ brix_conf_set_http_handoff(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     xcf->http_handoff_addr = addr;
 
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-        "xrootd: HTTP handoff target configured: %V", &value[1]);
+        "brix: HTTP handoff target configured: %V", &value[1]);
     return NGX_CONF_OK;
 }
 

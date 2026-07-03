@@ -348,7 +348,7 @@ brix_rename_beneath_excl(int rootfd, const char *src, const char *dst)
         if (!warned) {
             warned = 1;
             ngx_log_error(NGX_LOG_WARN, ngx_cycle->log, errno,
-                          "xrootd: renameat2(RENAME_NOREPLACE) unsupported; "
+                          "brix: renameat2(RENAME_NOREPLACE) unsupported; "
                           "create-if-absent falls back to non-atomic rename");
         }
         rc = renameat(sfd, sbase, dfd, dbase);

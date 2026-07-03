@@ -198,7 +198,7 @@ brix_handle_krb5_auth(brix_ctx_t *ctx, ngx_connection_t *c,
     if (rc != 0) {
         kmsg = brix_krb5_error(conf, rc);
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                      "xrootd: krb5 auth context init failed: %s",
+                      "brix: krb5 auth context init failed: %s",
                       kmsg ? kmsg : "unknown");
         brix_krb5_free_error(conf, kmsg);
         BRIX_OP_ERR(ctx, BRIX_OP_AUTH);
@@ -221,7 +221,7 @@ brix_handle_krb5_auth(brix_ctx_t *ctx, ngx_connection_t *c,
         if (rc != 0) {
             kmsg = brix_krb5_error(conf, rc);
             ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                          "xrootd: krb5 peer address check setup failed: %s",
+                          "brix: krb5 peer address check setup failed: %s",
                           kmsg ? kmsg : "unknown");
             brix_krb5_free_error(conf, kmsg);
             krb5_auth_con_free(conf->krb5_context, auth_ctx);
@@ -258,7 +258,7 @@ brix_handle_krb5_auth(brix_ctx_t *ctx, ngx_connection_t *c,
     if (rc != 0) {
         kmsg = brix_krb5_error(conf, rc);
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                      "xrootd: krb5 credential verification failed: %s",
+                      "brix: krb5 credential verification failed: %s",
                       kmsg ? kmsg : "unknown");
         brix_krb5_free_error(conf, kmsg);
         krb5_auth_con_free(conf->krb5_context, auth_ctx);
@@ -303,7 +303,7 @@ brix_handle_krb5_auth(brix_ctx_t *ctx, ngx_connection_t *c,
 
     brix_sanitize_log_string(cname, safe_cname, sizeof(safe_cname));
     ngx_log_error(NGX_LOG_INFO, c->log, 0,
-                  "xrootd: krb5 auth OK principal=\"%s\"", safe_cname);
+                  "brix: krb5 auth OK principal=\"%s\"", safe_cname);
 
     brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_KRB5, 1);
     BRIX_RETURN_OK(ctx, c, BRIX_OP_AUTH, "AUTH", "-", "krb5", 0);

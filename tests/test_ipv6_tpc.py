@@ -81,7 +81,7 @@ pytestmark = pytest.mark.timeout(60)
 
 # ---------------------------------------------------------------------------
 # Wire constants (mirror tests/test_tpc_ssrf_policy.py + test_handshake_*).
-# Verified against /tmp/xrootd-src/src/XProtocol/XProtocol.hh and
+# Verified against /tmp/brix-src/src/XProtocol/XProtocol.hh and
 # src/protocols/root/protocol/opcodes.h (kXR_open=3010=0x0bc2, kXR_sync=3016).
 # ---------------------------------------------------------------------------
 

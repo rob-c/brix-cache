@@ -764,7 +764,7 @@ brix_open_resolved_file(brix_ctx_t *ctx, ngx_connection_t *c,
 
 		brix_sanitize_log_string(resolved, log_path, sizeof(log_path));
 		ngx_log_debug4(NGX_LOG_DEBUG_STREAM, c->log, 0,
-					   "xrootd: kXR_open handle=%d path=%s mode=%s retstat=%d",
+					   "brix: kXR_open handle=%d path=%s mode=%s retstat=%d",
 					   idx, log_path, is_write ? "wr" : "rd",
 					   (int) want_stat);
 	}
@@ -826,7 +826,7 @@ brix_open_resolved_file(brix_ctx_t *ctx, ngx_connection_t *c,
 			brix_sanitize_log_string(resolved, wt_log_path,
 			                           sizeof(wt_log_path));
 			ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
-			               "xrootd: wt decision=%s path=%s",
+			               "brix: wt decision=%s path=%s",
 			               decision == BRIX_WT_DECISION_DENY ? "DENY" :
 			               decision == BRIX_WT_DECISION_ALLOW_SYNC ? "ALLOW_SYNC" : "ALLOW_ASYNC",
 			               wt_log_path);

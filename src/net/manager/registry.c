@@ -159,7 +159,7 @@ brix_srv_register(const char *host, uint16_t port,
      */
     if (host == NULL || !brix_net_host_chars_valid(host, ngx_strlen(host))) {
         ngx_log_error(NGX_LOG_WARN, ngx_cycle->log, 0,
-                      "xrootd: rejected registration with invalid host string");
+                      "brix: rejected registration with invalid host string");
         return;
     }
 
@@ -205,7 +205,7 @@ brix_srv_register(const char *host, uint16_t port,
     } else if (!found) {
         /* Registry is full: log a warning and increment the Prometheus counter. */
         ngx_log_error(NGX_LOG_WARN, ngx_cycle->log, 0,
-                      "xrootd: server registry full (%ui slots); "
+                      "brix: server registry full (%ui slots); "
                       "dropping registration for %s:%ui "
                       "(increase brix_registry_slots)",
                       tbl->capacity, host, (ngx_uint_t) port);

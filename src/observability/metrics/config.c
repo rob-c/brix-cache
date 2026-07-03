@@ -120,7 +120,7 @@ fnv1a64_file(ngx_str_t *path, ngx_log_t *log)
     fd = ngx_open_file(path->data, NGX_FILE_RDONLY, NGX_FILE_OPEN, 0);
     if (fd == NGX_INVALID_FILE) {
         ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
-                      "xrootd: cannot read config \"%V\" for version hash",
+                      "brix: cannot read config \"%V\" for version hash",
                       path);
         return 0;
     }
@@ -170,7 +170,7 @@ brix_config_version_publish(ngx_cycle_t *cycle)
     tbl->config_hash = hash;
 
     ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
-                  "xrootd: config generation %ui live (pid %P, version %016xL)",
+                  "brix: config generation %ui live (pid %P, version %016xL)",
                   (ngx_uint_t) gen, ngx_pid, hash);
 }
 

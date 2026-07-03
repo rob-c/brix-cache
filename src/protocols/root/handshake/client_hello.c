@@ -31,7 +31,7 @@ brix_process_handshake(brix_ctx_t *ctx, ngx_connection_t *c)
      */
     if (ntohl(hs->fourth) != 4 || ntohl(hs->fifth) != ROOTD_PQ) {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                      "xrootd: invalid handshake magic "
+                      "brix: invalid handshake magic "
                       "(fourth=%u fifth=%u)",
                       ntohl(hs->fourth), ntohl(hs->fifth));
         return NGX_ERROR;
@@ -53,7 +53,7 @@ brix_process_handshake(brix_ctx_t *ctx, ngx_connection_t *c)
     *(kXR_unt32 *)(body + 4) = htonl(kXR_DataServer);
 
     ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                   "xrootd: handshake ok, sending standard-format response");
+                   "brix: handshake ok, sending standard-format response");
 
     return brix_queue_response(ctx, c, buf, total);
 }

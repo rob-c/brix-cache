@@ -78,7 +78,7 @@ brix_configure_krb5_auth(ngx_conf_t *cf,
 
     if (xcf->krb5_principal.len == 0) {
         BRIX_DIAG_CONF(NGX_LOG_EMERG, cf, 0,
-            "xrootd: krb5 auth is enabled but no service principal is set",
+            "brix: krb5 auth is enabled but no service principal is set",
             "brix_auth krb5 needs the service principal it presents to "
             "clients, but brix_krb5_principal is missing",
             "add e.g. brix_krb5_principal \"xrootd/host.example.org@REALM\"; "
@@ -89,7 +89,7 @@ brix_configure_krb5_auth(ngx_conf_t *cf,
     rc = krb5_init_context(&xcf->krb5_context);
     if (rc != 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "xrootd: krb5_init_context failed (%d)",
+                           "brix: krb5_init_context failed (%d)",
                            (int) rc);
         return NGX_ERROR;
     }
@@ -100,7 +100,7 @@ brix_configure_krb5_auth(ngx_conf_t *cf,
     if (rc != 0) {
         kmsg = brix_krb5_error(xcf, rc);
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "xrootd: cannot parse krb5 principal \"%V\": %s",
+                           "brix: cannot parse krb5 principal \"%V\": %s",
                            &xcf->krb5_principal, kmsg ? kmsg : "unknown");
         brix_krb5_free_error(xcf, kmsg);
         return NGX_ERROR;
@@ -116,7 +116,7 @@ brix_configure_krb5_auth(ngx_conf_t *cf,
     if (rc != 0) {
         kmsg = brix_krb5_error(xcf, rc);
         BRIX_DIAG_CONF(NGX_LOG_EMERG, cf, 0,
-            "xrootd: cannot open krb5 keytab \"%V\": %s",
+            "brix: cannot open krb5 keytab \"%V\": %s",
             "the keytab path is wrong, unreadable by the nginx user, or has "
             "no key for the configured principal",
             "point brix_krb5_keytab at the service keytab and grant the "
@@ -132,7 +132,7 @@ brix_configure_krb5_auth(ngx_conf_t *cf,
     if (rc != 0) {
         kmsg = brix_krb5_error(xcf, rc);
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "xrootd: cannot read krb5 keytab: %s",
+                           "brix: cannot read krb5 keytab: %s",
                            kmsg ? kmsg : "unknown");
         brix_krb5_free_error(xcf, kmsg);
         return NGX_ERROR;
@@ -154,7 +154,7 @@ brix_configure_krb5_auth(ngx_conf_t *cf,
     }
 
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-                       "xrootd: krb5 auth configured - principal=%s "
+                       "brix: krb5 auth configured - principal=%s "
                        "keytab=%s ip_check=%s",
                        principal != NULL ? principal
                                          : (const char *) xcf->krb5_principal.data,

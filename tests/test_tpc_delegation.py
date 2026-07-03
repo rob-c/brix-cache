@@ -151,7 +151,7 @@ def gate(tmp_path_factory):
         "sec.protbind * only gsi\n"
         "ofs.tpc ttl 300 300 pgm /usr/bin/xrdcp\n")
     # xrootd -n <name> inserts the instance name as a subdir of the -l directory,
-    # so `-l base/xrootd.log -n src` writes to base/src/xrootd.log.
+    # so `-l base/brix.log -n src` writes to base/src/brix.log.
     src_log = base / "src" / "xrootd.log"
     _run(["bash", "-c", f"fuser -k {SRC_PORT}/tcp 2>/dev/null"])
     src = subprocess.Popen(["xrootd", "-c", str(src_cfg),

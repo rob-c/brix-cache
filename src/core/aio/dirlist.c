@@ -132,7 +132,7 @@ brix_dirlist_aio_done(ngx_event_t *ev)
         snprintf(msg, sizeof(msg), "dirlist: %s",
                  t->err_msg[0] ? t->err_msg : strerror(t->io_errno));
         ngx_log_error(NGX_LOG_ERR, c->log, 0,
-                      "xrootd: dirlist AIO failed: %s", msg);
+                      "brix: dirlist AIO failed: %s", msg);
         brix_log_access(ctx, c, "DIRLIST", t->resolved, "-",
                           0, xrd_err, msg, 0);
         BRIX_OP_ERR(ctx, BRIX_OP_DIRLIST);

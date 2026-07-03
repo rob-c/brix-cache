@@ -22,7 +22,7 @@ brix_extract_path(ngx_log_t *log, const u_char *payload, size_t payload_len,
 
     if (payload_len > BRIX_MAX_PATH) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd: path payload too long (%uz bytes)",
+                      "brix: path payload too long (%uz bytes)",
                       payload_len);
         return 0;
     }
@@ -31,7 +31,7 @@ brix_extract_path(ngx_log_t *log, const u_char *payload, size_t payload_len,
     if (nul != NULL) {
         if (nul != payload + payload_len - 1) {
             ngx_log_error(NGX_LOG_WARN, log, 0,
-                          "xrootd: rejecting path payload with embedded NUL");
+                          "brix: rejecting path payload with embedded NUL");
             return 0;
         }
 
@@ -49,7 +49,7 @@ brix_extract_path(ngx_log_t *log, const u_char *payload, size_t payload_len,
 
     if (copy_len == 0 || copy_len >= outsz) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd: invalid path payload length (%uz bytes)",
+                      "brix: invalid path payload length (%uz bytes)",
                       copy_len);
         return 0;
     }

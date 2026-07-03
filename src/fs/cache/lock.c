@@ -172,7 +172,7 @@ brix_cache_wait_or_lock(brix_cache_fill_t *t, int *owned)
         {
             if (unlink(t->lock_path) == 0 && t->c != NULL) {
                 ngx_log_error(NGX_LOG_WARN, t->c->log, 0,
-                    "xrootd: reclaimed stale cache-fill lock \"%s\" "
+                    "brix: reclaimed stale cache-fill lock \"%s\" "
                     "(owner process gone)", t->lock_path);
             }
             continue;                   /* retry try_lock without sleeping */

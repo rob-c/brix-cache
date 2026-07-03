@@ -70,7 +70,7 @@ brix_conf_set_cms_manager(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     xcf->cms_addr = addr;
 
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-        "xrootd: CMS manager configured: %V", &xcf->cms_manager);
+        "brix: CMS manager configured: %V", &xcf->cms_manager);
 
     return NGX_CONF_OK;
 }

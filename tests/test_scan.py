@@ -65,7 +65,7 @@ def test_scan_core_suite(scan_core_bin):
 
 
 # --------------------------------------------------------------------------- #
-# HTTP integration — GET /xrootd/api/v1/scan (dump/verify/fill) over a         #
+# HTTP integration — GET /brix/api/v1/scan (dump/verify/fill) over a         #
 # self-contained nginx with brix_scan_root on a seeded tree (mirrors         #
 # test_dashboard_files.py's provisioning).                                     #
 # --------------------------------------------------------------------------- #
@@ -126,12 +126,12 @@ http {
     scgi_temp_path %(root)s/tmp;
     server {
         listen %(bind)s:%(hp)d;
-        location /xrootd { brix_dashboard on; brix_dashboard_password "%(pw)s";
+        location /brix { brix_dashboard on; brix_dashboard_password "%(pw)s";
                            brix_scan_root %(data)s; }
     }
     server {
         listen %(bind)s:%(hp_off)d;
-        location /xrootd { brix_dashboard on; brix_dashboard_password "%(pw)s"; }
+        location /brix { brix_dashboard on; brix_dashboard_password "%(pw)s"; }
     }
 }
 """ % {"root": root, "bind": BIND_HOST, "hp": hp, "hp_off": hp_off,
@@ -144,7 +144,7 @@ http {
     base = "http://%s:%d" % (HOST, hp)
     for _ in range(50):
         try:
-            urllib.request.urlopen(base + "/xrootd", timeout=2)
+            urllib.request.urlopen(base + "/brix", timeout=2)
             break
         except Exception:
             time.sleep(0.1)
@@ -160,7 +160,7 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 def _login(base):
     opener = urllib.request.build_opener(_NoRedirect)
-    req = urllib.request.Request(base + "/xrootd/login",
+    req = urllib.request.Request(base + "/brix/login",
                                  data=("password=%s" % SCAN_PW).encode(),
                                  method="POST")
     try:
@@ -197,28 +197,28 @@ def _summary(recs):
 
 
 def test_scan_unauth_is_401(scan_server):
-    code, _, _ = _get(scan_server["base"], "/xrootd/api/v1/scan?mode=dump")
+    code, _, _ = _get(scan_server["base"], "/brix/api/v1/scan?mode=dump")
     assert code == 401
 
 
 def test_scan_disabled_is_404(scan_server):
     cookie = _login(scan_server["base_off"])
     code, _, _ = _get(scan_server["base_off"],
-                      "/xrootd/api/v1/scan?mode=dump", cookie)
+                      "/brix/api/v1/scan?mode=dump", cookie)
     assert code == 404
 
 
 def test_scan_bad_mode_is_400(scan_server):
     cookie = _login(scan_server["base"])
     code, _, _ = _get(scan_server["base"],
-                      "/xrootd/api/v1/scan?mode=bogus", cookie)
+                      "/brix/api/v1/scan?mode=bogus", cookie)
     assert code == 400
 
 
 def test_scan_dump(scan_server):
     cookie = _login(scan_server["base"])
     code, body, hdrs = _get(scan_server["base"],
-                            "/xrootd/api/v1/scan?mode=dump", cookie)
+                            "/brix/api/v1/scan?mode=dump", cookie)
     assert code == 200, body
     assert "ndjson" in hdrs.get("Content-Type", "")
     recs = _ndjson(body)
@@ -234,7 +234,7 @@ def test_scan_verify_fresh_tree_reports_missing(scan_server):
     with the freshly computed digest present. (xattr-independent.)"""
     cookie = _login(scan_server["base"])
     code, body, _ = _get(scan_server["base"],
-                         "/xrootd/api/v1/scan?mode=verify&alg=adler32", cookie)
+                         "/brix/api/v1/scan?mode=verify&alg=adler32", cookie)
     assert code == 200, body
     files = _files(_ndjson(body))
     want_a = "%08x" % (zlib.adler32(A_BYTES) & 0xffffffff)
@@ -246,7 +246,7 @@ def test_scan_verify_fresh_tree_reports_missing(scan_server):
 def test_scan_traversal_is_confined(scan_server):
     cookie = _login(scan_server["base"])
     code, body, _ = _get(scan_server["base"],
-                         "/xrootd/api/v1/scan?mode=dump&path=../secret.txt",
+                         "/brix/api/v1/scan?mode=dump&path=../secret.txt",
                          cookie)
     # confined: the secret outside scan_root must never be reported
     assert code in (403, 404) or "secret" not in body, (code, body)
@@ -258,7 +258,7 @@ def test_scan_fill_then_verify_and_corruption(scan_server):
     base, cookie = scan_server["base"], _login(scan_server["base"])
 
     # fill: persist checksums where none exist
-    code, body, _ = _get(base, "/xrootd/api/v1/scan?mode=fill&alg=adler32", cookie)
+    code, body, _ = _get(base, "/brix/api/v1/scan?mode=fill&alg=adler32", cookie)
     assert code == 200, body
     files = _files(_ndjson(body))
     assert files["a.bin"]["status"] in ("filled", "already")
@@ -267,7 +267,7 @@ def test_scan_fill_then_verify_and_corruption(scan_server):
 
     # verify: now everything matches
     cookie = _login(base)
-    code, body, _ = _get(base, "/xrootd/api/v1/scan?mode=verify&alg=adler32", cookie)
+    code, body, _ = _get(base, "/brix/api/v1/scan?mode=verify&alg=adler32", cookie)
     assert code == 200, body
     files = _files(_ndjson(body))
     assert files["a.bin"]["status"] == "ok"
@@ -282,7 +282,7 @@ def test_scan_fill_then_verify_and_corruption(scan_server):
     # tv_sec AND tv_nsec; float os.utime would lose nsec and read as stale)
     os.utime(a, ns=(pre.st_atime_ns, pre.st_mtime_ns))
     cookie = _login(base)
-    code, body, _ = _get(base, "/xrootd/api/v1/scan?mode=verify&alg=adler32", cookie)
+    code, body, _ = _get(base, "/brix/api/v1/scan?mode=verify&alg=adler32", cookie)
     assert code == 200, body
     files = _files(_ndjson(body))
     assert files["a.bin"]["status"] == "mismatch", files["a.bin"]
@@ -355,7 +355,7 @@ def test_client_fill_verify_corruption(client, scan_server):
 def test_scan_inspect(scan_server):
     cookie = _login(scan_server["base"])
     code, body, _ = _get(scan_server["base"],
-                         "/xrootd/api/v1/scan?mode=inspect&path=/a.bin", cookie)
+                         "/brix/api/v1/scan?mode=inspect&path=/a.bin", cookie)
     assert code == 200, body
     recs = _ndjson(body)
     insp = [r for r in recs if r.get("t") == "inspect"]
@@ -370,7 +370,7 @@ def test_scan_inspect(scan_server):
 def test_scan_health(scan_server):
     cookie = _login(scan_server["base"])
     code, body, _ = _get(scan_server["base"],
-                         "/xrootd/api/v1/scan?mode=health", cookie)
+                         "/brix/api/v1/scan?mode=health", cookie)
     assert code == 200, body
     recs = _ndjson(body)
     h = [r for r in recs if r.get("t") == "health"]

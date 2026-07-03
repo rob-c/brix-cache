@@ -28,7 +28,7 @@ implies auth_done):
   * kXR_ping is allowed pre-login      -> ok; an unknown / legacy opcode is not
                                           -> kXR_Unsupported
 
-Verified against /tmp/xrootd-src/src/XProtocol/XProtocol.hh:
+Verified against /tmp/brix-src/src/XProtocol/XProtocol.hh:
   ClientSetRequest     = streamid[2] requestid[2] reserved[15] modifier[1] dlen[4]
   ClientEndsessRequest = streamid[2] requestid[2] sessid[16]            dlen[4]
   ClientBindRequest    = streamid[2] requestid[2] sessid[16]            dlen[4]
@@ -54,8 +54,8 @@ from settings import (
 # ---------------------------------------------------------------------------
 # Opcodes / status / error codes
 #   request opcodes : src/protocols/root/protocol/opcodes.h
-#                     /tmp/xrootd-src/src/XProtocol/XProtocol.hh (XRequestTypes)
-#   error codes     : /tmp/xrootd-src/src/XProtocol/XProtocol.hh (XErrorCode)
+#                     /tmp/brix-src/src/XProtocol/XProtocol.hh (XRequestTypes)
+#   error codes     : /tmp/brix-src/src/XProtocol/XProtocol.hh (XErrorCode)
 # ---------------------------------------------------------------------------
 
 kXR_auth     = 3000

@@ -3,7 +3,7 @@ tests/test_mirror_upstream.py — nginx+xrootd traffic mirror in front of a
 PROPERLY CONFIGURED official xrootd file server.
 
 This stands up its own dedicated, cleanly-configured official xrootd
-(/usr/bin/xrootd) — not the shared harness reference daemon, whose dirlist was
+(/usr/bin/brix) — not the shared harness reference daemon, whose dirlist was
 observed to intermittently return "Invalid response" after repeated restarts
 under host load — and an nginx mirror front in front of it.  It then proves:
 
@@ -44,7 +44,7 @@ from settings import SERVER_HOST, HOST, free_port
 pytestmark = [pytest.mark.serial]
 
 NGINX_BIN  = os.environ.get("TEST_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
-BRIX_BIN = os.environ.get("TEST_BRIX_BIN", "/usr/bin/xrootd")
+BRIX_BIN = os.environ.get("TEST_BRIX_BIN", "/usr/bin/brix")
 H = SERVER_HOST
 _DIR = os.path.join(os.environ["TMPDIR"], "xrd_mirror_upstream")
 

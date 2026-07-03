@@ -198,7 +198,7 @@ ngx_stream_brix_handler(ngx_stream_session_t *s)
             {
                 ngx_atomic_fetch_add(&srv->connections_rejected_total, 1);
                 ngx_log_error(NGX_LOG_INFO, c->log, 0,
-                              "xrootd: connection refused — listener at "
+                              "brix: connection refused — listener at "
                               "brix_max_connections (%ui)",
                               mconf->max_connections);
                 ngx_stream_finalize_session(s, NGX_STREAM_OK);

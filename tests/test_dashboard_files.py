@@ -1,6 +1,6 @@
 """
 Admin file browser/downloader on the monitoring dashboard
-(GET /xrootd/api/v1/files + /download).
+(GET /brix/api/v1/files + /download).
 
 Self-contained: spins up its own nginx with a dashboard that has
 brix_dashboard_browse_root pointed at a seeded tree, behind a password.
@@ -71,12 +71,12 @@ http {{
     scgi_temp_path {root}/tmp;
     server {{
         listen {BIND_HOST}:{hp};
-        location /xrootd {{ brix_dashboard on; brix_dashboard_password "{DASH_PW}";
+        location /brix {{ brix_dashboard on; brix_dashboard_password "{DASH_PW}";
                            brix_dashboard_browse_root {data}; }}
     }}
     server {{
         listen {BIND_HOST}:{hp_off};
-        location /xrootd {{ brix_dashboard on; brix_dashboard_password "{DASH_PW}"; }}
+        location /brix {{ brix_dashboard on; brix_dashboard_password "{DASH_PW}"; }}
     }}
 }}
 """)
@@ -87,7 +87,7 @@ http {{
     base = f"http://{HOST}:{hp}"
     for _ in range(50):
         try:
-            urllib.request.urlopen(base + "/xrootd", timeout=2)
+            urllib.request.urlopen(base + "/brix", timeout=2)
             break
         except Exception:
             time.sleep(0.1)
@@ -103,7 +103,7 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 def _login(base):
     opener = urllib.request.build_opener(_NoRedirect)
-    req = urllib.request.Request(base + "/xrootd/login",
+    req = urllib.request.Request(base + "/brix/login",
                                  data=f"password={DASH_PW}".encode(), method="POST")
     try:
         hdrs = opener.open(req, timeout=5).headers
@@ -125,7 +125,7 @@ def _get(base, path, cookie=None):
 
 
 def test_unauth_endpoints_are_401(server):
-    for p in ("/xrootd/api/v1/files", "/xrootd/api/v1/download?path=/alpha.bin"):
+    for p in ("/brix/api/v1/files", "/brix/api/v1/download?path=/alpha.bin"):
         code, _, _ = _get(server["base"], p)
         assert code == 401, p
 
@@ -133,7 +133,7 @@ def test_unauth_endpoints_are_401(server):
 def test_list_root(server):
     cookie = _login(server["base"])
     assert cookie
-    code, body, _ = _get(server["base"], "/xrootd/api/v1/files", cookie)
+    code, body, _ = _get(server["base"], "/brix/api/v1/files", cookie)
     assert code == 200
     d = json.loads(body)
     by = {e["name"]: e for e in d["entries"]}
@@ -148,7 +148,7 @@ def test_list_root(server):
 
 def test_list_subdir(server):
     cookie = _login(server["base"])
-    code, body, _ = _get(server["base"], "/xrootd/api/v1/files?path=/sub", cookie)
+    code, body, _ = _get(server["base"], "/brix/api/v1/files?path=/sub", cookie)
     assert code == 200
     names = [e["name"] for e in json.loads(body)["entries"]]
     assert names == ["note.txt"]
@@ -157,7 +157,7 @@ def test_list_subdir(server):
 def test_download_byte_exact(server):
     cookie = _login(server["base"])
     code, body, hdrs = _get(server["base"],
-                            "/xrootd/api/v1/download?path=/alpha.bin", cookie)
+                            "/brix/api/v1/download?path=/alpha.bin", cookie)
     assert code == 200
     assert hashlib.md5(body).hexdigest() == server["alpha_md5"]
     assert "attachment" in hdrs.get("Content-Disposition", "")
@@ -169,27 +169,27 @@ def test_download_byte_exact(server):
 def test_traversal_is_confined(server, path):
     cookie = _login(server["base"])
     code, body, _ = _get(server["base"],
-                         "/xrootd/api/v1/download?path=" + path, cookie)
+                         "/brix/api/v1/download?path=" + path, cookie)
     assert code == 403
     assert b"TOPSECRET" not in body
 
 
 def test_404s(server):
     cookie = _login(server["base"])
-    assert _get(server["base"], "/xrootd/api/v1/download?path=/nope", cookie)[0] == 404
+    assert _get(server["base"], "/brix/api/v1/download?path=/nope", cookie)[0] == 404
     # a directory is not a download
-    assert _get(server["base"], "/xrootd/api/v1/download?path=/sub", cookie)[0] == 404
+    assert _get(server["base"], "/brix/api/v1/download?path=/sub", cookie)[0] == 404
 
 
 def test_disabled_without_browse_root(server):
     cookie = _login(server["base_off"])
-    assert _get(server["base_off"], "/xrootd/api/v1/files", cookie)[0] == 404
+    assert _get(server["base_off"], "/brix/api/v1/files", cookie)[0] == 404
     assert _get(server["base_off"],
-                "/xrootd/api/v1/download?path=/x", cookie)[0] == 404
+                "/brix/api/v1/download?path=/x", cookie)[0] == 404
 
 
 def test_page_has_file_viewer(server):
     cookie = _login(server["base"])
-    code, body, _ = _get(server["base"], "/xrootd", cookie)
+    code, body, _ = _get(server["base"], "/brix", cookie)
     assert code == 200
     assert b"files-section" in body and b"filesBrowse" in body

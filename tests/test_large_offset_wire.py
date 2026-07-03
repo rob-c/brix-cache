@@ -37,7 +37,7 @@ from settings import (
 
 # ---------------------------------------------------------------------------
 # Opcodes / status / error codes (verified against
-# /tmp/xrootd-src/src/XProtocol/XProtocol.hh enum XRequestTypes / XResponseType
+# /tmp/brix-src/src/XProtocol/XProtocol.hh enum XRequestTypes / XResponseType
 # / XErrorCode — base 3000 for requests, 4000 for responses, 3000 for errors)
 # ---------------------------------------------------------------------------
 

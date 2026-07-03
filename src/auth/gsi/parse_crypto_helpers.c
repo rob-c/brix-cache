@@ -23,7 +23,7 @@ brix_gsi_parse_client_dh_public_key(ngx_connection_t *c, ngx_log_t *log,
     bn = brix_gsi_dh_pub_decode(public_key_blob, public_key_blob_len);
     if (bn == NULL) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd: GSI kXGC_cert: malformed/garbled client DH blob");
+                      "brix: GSI kXGC_cert: malformed/garbled client DH blob");
     }
     return bn;
 }
@@ -76,7 +76,7 @@ brix_gsi_build_peer_dh_key(ngx_log_t *log, EVP_PKEY *server_dh_key,
 
     if (peer == NULL) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd: GSI kXGC_cert: cannot build client DH peer key");
+                      "brix: GSI kXGC_cert: cannot build client DH peer key");
     }
     return peer;
 }

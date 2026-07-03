@@ -855,7 +855,7 @@ brix_sd_xroot_create_origin(const char *host, int port, int tls,
             X509_V_FLAG_ALLOW_PROXY_CERTS, &crl_count);
         if (synth->gsi_store == NULL) {
             ngx_log_error(NGX_LOG_ERR, log, 0,
-                "xrootd: gsi origin CA store build failed for \"%s\" — GSI to this "
+                "brix: gsi origin CA store build failed for \"%s\" — GSI to this "
                 "origin will be refused", ca_dir);
         }
     }

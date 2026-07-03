@@ -3,7 +3,7 @@ flag_inventory — the authoritative stock client surface, parsed from source.
 
 WHAT
     Extracts the set of stock ``xrdcp`` options and ``xrdfs`` sub-commands
-    directly from the upstream sources under ``/tmp/xrootd-src`` so coverage is
+    directly from the upstream sources under ``/tmp/brix-src`` so coverage is
     measured against the REAL stock surface, not a hand-kept guess.
 
 WHY
@@ -19,13 +19,13 @@ HOW
     ``executor->AddCommand("name", ...)`` registrations in
     ``XrdCl/XrdClFS.cc``.  Both degrade to a pinned fallback list (with a clear
     marker) when the source tree is absent, so the suite still runs on a host
-    without ``/tmp/xrootd-src``.
+    without ``/tmp/brix-src``.
 """
 
 import os
 import re
 
-BRIX_SRC = os.environ.get("BRIX_SRC_DIR", "/tmp/xrootd-src")
+BRIX_SRC = os.environ.get("BRIX_SRC_DIR", "/tmp/brix-src")
 _CPCONFIG = os.path.join(BRIX_SRC, "src", "XrdApps", "XrdCpConfig.cc")
 _FS = os.path.join(BRIX_SRC, "src", "XrdCl", "XrdClFS.cc")
 

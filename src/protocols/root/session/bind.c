@@ -97,7 +97,7 @@ brix_handle_bind(brix_ctx_t *ctx, ngx_connection_t *c,
     ctx->auth_done = 1;   /* identity inherited from registry lookup above */
 
     ngx_log_debug3(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                   "xrootd: kXR_bind: pathid=%d sessid=%02xd%02xd...",
+                   "brix: kXR_bind: pathid=%d sessid=%02xd%02xd...",
                    (int) pathid,
                    (unsigned) req.sessid[0],
                    (unsigned) req.sessid[1]);

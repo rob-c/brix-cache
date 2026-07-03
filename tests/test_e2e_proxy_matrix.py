@@ -2,7 +2,7 @@
 End-to-end proxy interoperability matrix — Section 3A of the comprehensive
 testing roadmap docs/comprehensive-testing-roadmap.md.
 
-Three proxy permutations are validated using real xrdcp and real nginx/xrootd
+Three proxy permutations are validated using real xrdcp and real nginx/brix
 binaries — no Python socket simulators.
 
 Scenario 1: "WLCG Gateway"

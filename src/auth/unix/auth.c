@@ -247,7 +247,7 @@ brix_handle_unix_auth(brix_ctx_t *ctx, ngx_connection_t *c,
     brix_sanitize_log_string(group[0] ? group : "-", safe_group,
                                sizeof(safe_group));
     ngx_log_error(NGX_LOG_INFO, c->log, 0,
-                  "xrootd: unix auth OK user=\"%s\" group=\"%s\"",
+                  "brix: unix auth OK user=\"%s\" group=\"%s\"",
                   safe_user, safe_group);
 
     brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_UNIX, 1);

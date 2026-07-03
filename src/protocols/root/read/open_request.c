@@ -463,7 +463,7 @@ brix_handle_open(brix_ctx_t *ctx, ngx_connection_t *c,
 				 * consume the second before serving bytes.
 				 */
 				ngx_log_debug3(NGX_LOG_DEBUG_STREAM, c->log, 0,
-				               "xrootd: TPC source open key=%s dst=%s org=%s",
+				               "brix: TPC source open key=%s dst=%s org=%s",
 				               tpc.has_key ? tpc.key : "-",
 				               tpc.has_dst ? tpc.dst : "-",
 				               tpc.has_org ? tpc.org : "-");
@@ -472,14 +472,14 @@ brix_handle_open(brix_ctx_t *ctx, ngx_connection_t *c,
 				    && !tpc.has_org) {
 					brix_tpc_key_register(tpc.key, conf->tpc_key_ttl_ms);
 					ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
-					               "xrootd: TPC source key=%s registered",
+					               "brix: TPC source key=%s registered",
 					               tpc.key);
 
 				} else if (tpc.has_key && tpc.key[0] != '\0'
 				           && tpc.has_org) {
 					if (brix_tpc_key_consume(tpc.key)) {
 						ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
-						               "xrootd: TPC source key=%s consumed",
+						               "brix: TPC source key=%s consumed",
 						               tpc.key);
 					} else {
 						BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN",

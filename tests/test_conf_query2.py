@@ -20,8 +20,8 @@ select an arbitrary infotype, so raw wire is the only way to pin Qckscan,
 Qvisa, Qopaque, an unknown reqcode and an empty payload exactly.
 
 Reference truth (consulted, not modified):
-  /tmp/xrootd-src/src/XProtocol/XProtocol.hh        XQueryType reqcode bits
-  /tmp/xrootd-src/src/XrdXrootd/XrdXrootdXeq.cc      do_Query / do_Qconf / do_Q*
+  /tmp/brix-src/src/XProtocol/XProtocol.hh        XQueryType reqcode bits
+  /tmp/brix-src/src/XrdXrootd/XrdXrootdXeq.cc      do_Query / do_Qconf / do_Q*
 
 Philosophy (per the maintainer): a divergence — "<key>=" instead of a bare
 value, a wrong/missing key value, wrong multi-key ordering, mishandled unknown

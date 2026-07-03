@@ -189,7 +189,7 @@ brix_recv_pre_loop(ngx_stream_session_t *s, ngx_connection_t *c,
             return 1;
         }
         ngx_log_error(NGX_LOG_INFO, c->log, NGX_ETIMEDOUT,
-                      "xrootd: client connection timed out");
+                      "brix: client connection timed out");
         /* Phase 39: our steady-state read deadline fired — it is the only c->read
          * timer armed outside the WAITING_CMS/FRM states handled above.  Attribute
          * it (pre-auth handshake vs in-flight PDU) and tear down via the single
@@ -440,7 +440,7 @@ ngx_stream_brix_recv(ngx_event_t *rev)
 
             if (n == NGX_AGAIN) {
                 ngx_log_debug(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                              "xrootd: recv AGAIN st=%d hdr_pos=%uz avail=%d"
+                              "brix: recv AGAIN st=%d hdr_pos=%uz avail=%d"
                               " ready=%d active=%d",
                               (int) ctx->state, ctx->hdr_pos,
                               rev->available, (int) rev->ready,
@@ -460,7 +460,7 @@ ngx_stream_brix_recv(ngx_event_t *rev)
 
             if (n == NGX_ERROR || n == 0) {
                 ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                               "xrootd: client disconnected");
+                               "brix: client disconnected");
                 if (brix_defer_teardown_if_writing(ctx, c, NGX_STREAM_OK)) {
                     return;
                 }
@@ -492,7 +492,7 @@ ngx_stream_brix_recv(ngx_event_t *rev)
                         return;   /* the relay owns the connection now */
                     }
                     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                                   "xrootd: non-XRootD client (first byte 0x%02xd)"
+                                   "brix: non-XRootD client (first byte 0x%02xd)"
                                    " closing immediately",
                                    (unsigned) ctx->hdr_buf[0]);
                     break;
@@ -552,7 +552,7 @@ ngx_stream_brix_recv(ngx_event_t *rev)
                                   ctx->cur_dlen);
 
             ngx_log_debug(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                          "xrootd: req sid=[%02xd%02xd] reqid=%04xd dlen=%uz"
+                          "brix: req sid=[%02xd%02xd] reqid=%04xd dlen=%uz"
                           " avail=%d ready=%d",
                           (int) ctx->cur_streamid[0],
                           (int) ctx->cur_streamid[1],
@@ -563,7 +563,7 @@ ngx_stream_brix_recv(ngx_event_t *rev)
             max_pl = brix_max_payload_for_request(ctx->cur_reqid);
             if (ctx->cur_dlen > max_pl) {
                 ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                              "xrootd: payload too large (%uz), closing",
+                              "brix: payload too large (%uz), closing",
                               (size_t) ctx->cur_dlen);
                 BRIX_SRV_METRIC_INC(ctx, oversized_payloads_total);
                 break;

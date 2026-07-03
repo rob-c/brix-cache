@@ -172,14 +172,14 @@ brix_checksum_parse(const char *name, size_t len, brix_checksum_alg_t *alg,
  * brix_checksum_log_read_error - format and log a pread/read failure for checksum path.
  *
  * WHAT: Sanitizes the file path (escapes control chars, quotes), then logs an error
- *       message of the form "xrootd: <algo> read("<path>") failed" with errno.
+ *       message of the form "brix: <algo> read("<path>") failed" with errno.
  *
  * WHY: All checksum fd functions share this logger to avoid repeated sanitization +
  *      formatting code. Ensures consistent error messages across Adler-32, CRC-32,
  *      CRC-32c, and digest paths.
  *
  * HOW: Calls brix_sanitize_log_string(path) → ngx_log_error(NGX_LOG_ERR, log, err,
- *      "xrootd: %s read("%s") failed", algo, safe).
+ *      "brix: %s read("%s") failed", algo, safe).
  */
 
 static void
@@ -190,7 +190,7 @@ brix_checksum_log_read_error(ngx_log_t *log, ngx_err_t err,
 
     brix_sanitize_log_string(path ? path : "-", safe, sizeof(safe));
     ngx_log_error(NGX_LOG_ERR, log, err,
-                  "xrootd: %s read(\"%s\") failed", algo, safe);
+                  "brix: %s read(\"%s\") failed", algo, safe);
 }
 
 /*

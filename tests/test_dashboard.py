@@ -1,8 +1,8 @@
 """
 HTTPS dashboard API tests.
 
-These cover the API-foundation milestone: the legacy `/xrootd/transfers`
-endpoint keeps its old shape, while `/xrootd/api/v1/*` returns schema-tagged
+These cover the API-foundation milestone: the legacy `/brix/transfers`
+endpoint keeps its old shape, while `/brix/api/v1/*` returns schema-tagged
 JSON and unknown v1 API paths do not fall through to the HTML dashboard.
 """
 
@@ -41,7 +41,7 @@ def _dashboard_cookie():
         "-i",
         "-X", "POST",
         "--data", "password=testpassword",
-        f"{BASE_URL}/xrootd/login",
+        f"{BASE_URL}/brix/login",
     )
     assert rc == 0, f"dashboard login curl failed: {err.decode()}"
 
@@ -56,7 +56,7 @@ def _dashboard_login_bad_password():
         "-i",
         "-X", "POST",
         "--data", "password=wrong-password",
-        f"{BASE_URL}/xrootd/login",
+        f"{BASE_URL}/brix/login",
     )
     assert rc == 0, f"dashboard failed-login curl failed: {err.decode()}"
 
@@ -85,7 +85,7 @@ class TestDashboardApiFoundation:
         worker_pid omitted; src/observability/dashboard/api.c redact path).  The config-download
         endpoint, by contrast, is always auth-gated (config_download.c) — that is
         the endpoint that must 401 anonymously, not the redacted read snapshot."""
-        status, body = _get("/xrootd/api/v1/snapshot")
+        status, body = _get("/brix/api/v1/snapshot")
         assert status == 200, "anonymous read API must be reachable (anonymous tier on)"
         data = json.loads(body.decode())
         assert data["schema"] == "xrootd-dashboard.v1"
@@ -98,7 +98,7 @@ class TestDashboardApiFoundation:
 
     def test_legacy_transfers_shape_is_unchanged(self):
         cookie = _dashboard_cookie()
-        status, body = _get("/xrootd/transfers", cookie)
+        status, body = _get("/brix/transfers", cookie)
 
         assert status == 200
         data = json.loads(body.decode())
@@ -109,7 +109,7 @@ class TestDashboardApiFoundation:
 
     def test_v1_transfers_has_schema_and_limits(self):
         cookie = _dashboard_cookie()
-        status, body = _get("/xrootd/api/v1/transfers", cookie)
+        status, body = _get("/brix/api/v1/transfers", cookie)
 
         assert status == 200
         data = json.loads(body.decode())
@@ -124,13 +124,13 @@ class TestDashboardApiFoundation:
     def test_v1_transfer_detail_validates_ids(self):
         cookie = _dashboard_cookie()
 
-        status, body = _get("/xrootd/api/v1/transfers/not-a-number", cookie)
+        status, body = _get("/brix/api/v1/transfers/not-a-number", cookie)
         assert status == 400
         data = json.loads(body.decode())
         assert data["schema"] == "xrootd-dashboard.v1"
         assert data["error"] == "bad_transfer_id"
 
-        status, body = _get("/xrootd/api/v1/transfers/999999", cookie)
+        status, body = _get("/brix/api/v1/transfers/999999", cookie)
         assert status == 404
         data = json.loads(body.decode())
         assert data["schema"] == "xrootd-dashboard.v1"
@@ -138,7 +138,7 @@ class TestDashboardApiFoundation:
 
     def test_v1_snapshot_has_foundation_sections(self):
         cookie = _dashboard_cookie()
-        status, body = _get("/xrootd/api/v1/snapshot", cookie)
+        status, body = _get("/brix/api/v1/snapshot", cookie)
 
         assert status == 200
         data = json.loads(body.decode())
@@ -165,9 +165,9 @@ class TestDashboardApiFoundation:
     def test_v1_empty_foundation_endpoints(self):
         cookie = _dashboard_cookie()
         expected = {
-            "/xrootd/api/v1/events": "events",
-            "/xrootd/api/v1/history": "buckets",
-            "/xrootd/api/v1/cluster": "servers",
+            "/brix/api/v1/events": "events",
+            "/brix/api/v1/history": "buckets",
+            "/brix/api/v1/cluster": "servers",
         }
 
         for path, field in expected.items():
@@ -178,7 +178,7 @@ class TestDashboardApiFoundation:
             assert isinstance(data[field], list)
             # We don't assert empty anymore because the login itself generates events
 
-        status, body = _get("/xrootd/api/v1/cache", cookie)
+        status, body = _get("/brix/api/v1/cache", cookie)
         assert status == 200
         data = json.loads(body.decode())
         assert data["schema"] == "xrootd-dashboard.v1"
@@ -187,7 +187,7 @@ class TestDashboardApiFoundation:
 
     def test_unknown_v1_path_returns_json_404(self):
         cookie = _dashboard_cookie()
-        status, body = _get("/xrootd/api/v1/not-a-real-endpoint", cookie)
+        status, body = _get("/brix/api/v1/not-a-real-endpoint", cookie)
 
         assert status == 404
         data = json.loads(body.decode())
@@ -196,7 +196,7 @@ class TestDashboardApiFoundation:
 
     def test_dashboard_page_contains_triage_controls(self):
         cookie = _dashboard_cookie()
-        status, body = _get("/xrootd/", cookie)
+        status, body = _get("/brix/", cookie)
 
         assert status == 200
         html = body.decode("utf-8")
@@ -216,7 +216,7 @@ class TestDashboardApiFoundation:
     def test_failed_dashboard_login_records_auth_event(self):
         _dashboard_login_bad_password()
         cookie = _dashboard_cookie()
-        status, body = _get("/xrootd/api/v1/events", cookie)
+        status, body = _get("/brix/api/v1/events", cookie)
 
         assert status == 200
         data = json.loads(body.decode())
@@ -235,7 +235,7 @@ _VALID_STATES = {"active", "idle", "throttled", "stalled", "closing", "error"}
 
 
 def _snapshot(cookie):
-    status, body = _get("/xrootd/api/v1/snapshot", cookie)
+    status, body = _get("/brix/api/v1/snapshot", cookie)
     assert status == 200, f"snapshot returned {status}"
     return json.loads(body.decode())
 
@@ -273,7 +273,7 @@ class TestDashboardThrottledState:
         """The HTML dashboard offers a 'throttled' filter option and a distinct
         colour class so paced transfers are visually separable from stalled."""
         cookie = _dashboard_cookie()
-        status, body = _get("/xrootd/", cookie)
+        status, body = _get("/brix/", cookie)
 
         assert status == 200
         html = body.decode("utf-8")
@@ -350,7 +350,7 @@ class TestDashboardCvmfs:
         """Success path: authenticated GET returns the schema envelope plus the
         aggregate counters, the request-mix object, and the slot-table arrays."""
         cookie = _dashboard_cookie()
-        status, body = _get("/xrootd/api/v1/cvmfs", cookie)
+        status, body = _get("/brix/api/v1/cvmfs", cookie)
 
         assert status == 200
         data = json.loads(body.decode())
@@ -368,7 +368,7 @@ class TestDashboardCvmfs:
         per-protocol totals now carry the cvmfs in/out byte counters (in = WAN
         origin pull, out = LAN bytes served)."""
         cookie = _dashboard_cookie()
-        status, body = _get("/xrootd/api/v1/snapshot", cookie)
+        status, body = _get("/brix/api/v1/snapshot", cookie)
 
         assert status == 200
         data = json.loads(body.decode())
@@ -392,7 +392,7 @@ class TestDashboardCvmfs:
             "-X", "POST",
             "-o", "/dev/null",
             "-w", "%{http_code}",
-            f"{BASE_URL}/xrootd/api/v1/cvmfs",
+            f"{BASE_URL}/brix/api/v1/cvmfs",
         )
         assert rc == 0, f"curl POST failed: {err.decode()}"
         assert out == b"405"
@@ -401,7 +401,7 @@ class TestDashboardCvmfs:
         """Security-negative: repo fqrns and upstream hosts arrive from the
         wire/config, so the anonymous (cookieless) view must redact every name
         while keeping the counters."""
-        status, body = _get("/xrootd/api/v1/cvmfs")
+        status, body = _get("/brix/api/v1/cvmfs")
 
         assert status == 200, "anonymous read tier must serve the endpoint"
         data = json.loads(body.decode())
@@ -412,7 +412,7 @@ class TestDashboardCvmfs:
     def test_dashboard_page_contains_cvmfs_ui(self):
         """The embedded page ships the cvmfs card/panel/filter markers."""
         cookie = _dashboard_cookie()
-        status, body = _get("/xrootd/", cookie)
+        status, body = _get("/brix/", cookie)
 
         assert status == 200
         html = body.decode("utf-8")

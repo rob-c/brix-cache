@@ -43,7 +43,7 @@ brix_rebuild_gsi_store(ngx_stream_brix_srv_conf_t *xcf, ngx_log_t *log)
 
     if (xcf->crl.len > 0) {
         ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                      "xrootd: loaded %d CRL(s) from \"%s\"",
+                      "brix: loaded %d CRL(s) from \"%s\"",
                       crl_count, xcf->crl.data);
     }
 
@@ -96,7 +96,7 @@ brix_configure_gsi(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
         FILE *fp = fopen((char *) xcf->certificate.data, "r");
         if (fp == NULL) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
-                "xrootd: cannot open certificate \"%s\"",
+                "brix: cannot open certificate \"%s\"",
                 xcf->certificate.data);
             return NGX_ERROR;
         }
@@ -105,7 +105,7 @@ brix_configure_gsi(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
         fclose(fp);
         if (xcf->gsi_cert == NULL) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd: cannot parse certificate \"%s\"",
+                "brix: cannot parse certificate \"%s\"",
                 xcf->certificate.data);
             return NGX_ERROR;
         }
@@ -124,7 +124,7 @@ brix_configure_gsi(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
         if (!PEM_write_bio_X509(bio, xcf->gsi_cert)) {
             BIO_free(bio);
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd: cannot serialize certificate \"%s\"",
+                "brix: cannot serialize certificate \"%s\"",
                 xcf->certificate.data);
             return NGX_ERROR;
         }
@@ -146,7 +146,7 @@ brix_configure_gsi(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
         FILE *fp = fopen((char *) xcf->certificate_key.data, "r");
         if (fp == NULL) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
-                "xrootd: cannot open private key \"%s\"",
+                "brix: cannot open private key \"%s\"",
                 xcf->certificate_key.data);
             return NGX_ERROR;
         }
@@ -155,7 +155,7 @@ brix_configure_gsi(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
         fclose(fp);
         if (xcf->gsi_key == NULL) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd: cannot parse private key \"%s\"",
+                "brix: cannot parse private key \"%s\"",
                 xcf->certificate_key.data);
             return NGX_ERROR;
         }
@@ -176,7 +176,7 @@ brix_configure_gsi(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
         (void) brix_check_pki_consistency_stream(cf->log, xcf);
 
         ngx_log_error(NGX_LOG_NOTICE, cf->log, 0,
-                      "xrootd: GSI trust store built from \"%V\" in %uLus",
+                      "brix: GSI trust store built from \"%V\" in %uLus",
                       &xcf->trusted_ca,
                       (brix_phase_now_ns() - t0) / 1000ull);
     }
@@ -203,7 +203,7 @@ brix_configure_gsi(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
     }
 
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-        "xrootd: GSI auth configured - cert=%s ca_hash=%08xd",
+        "brix: GSI auth configured - cert=%s ca_hash=%08xd",
         xcf->certificate.data, xcf->gsi_ca_hash);
 
     return NGX_OK;

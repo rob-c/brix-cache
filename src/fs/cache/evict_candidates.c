@@ -135,7 +135,7 @@ brix_cache_try_evict_lock(ngx_stream_brix_srv_conf_t *conf,
 
     if (errno != EEXIST) {
         ngx_log_error(NGX_LOG_WARN, log, errno,
-                      "xrootd: cache eviction lock create failed \"%s\"",
+                      "brix: cache eviction lock create failed \"%s\"",
                       lock_path);
         return NGX_ERROR;
     }
@@ -152,7 +152,7 @@ brix_cache_try_evict_lock(ngx_stream_brix_srv_conf_t *conf,
     }
 
     ngx_log_error(NGX_LOG_WARN, log, 0,
-                  "xrootd: removing stale cache eviction lock \"%s\"",
+                  "brix: removing stale cache eviction lock \"%s\"",
                   lock_path);
     if (unlink(lock_path) != 0 && errno != ENOENT) {
         return NGX_DECLINED;

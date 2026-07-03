@@ -22445,7 +22445,7 @@ def run_frm_prepare_stage(key, data, port, s3port):
     ta = mint(key, "alice")
     tb = mint(key, "bob")
     LOC_BODY = (b'<?xml version="1.0"?>'
-                b'<D:propfind xmlns:D="DAV:" xmlns:xrd="http://xrootd.org/2009/dav/">'
+                b'<D:propfind xmlns:D="DAV:" xmlns:xrd="http://brix.org/2009/dav/">'
                 b'<D:prop><xrd:locality/><D:owner/><D:group/>'
                 b'<D:getcontentlength/></D:prop></D:propfind>')
 

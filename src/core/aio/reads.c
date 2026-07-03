@@ -176,7 +176,7 @@ brix_read_window_pump(brix_ctx_t *ctx, ngx_connection_t *c,
                 brix_task_bind(task, brix_read_aio_thread,
                                  brix_read_aio_done);
                 (void) brix_aio_post_task(ctx, c, rconf->common.thread_pool,
-                    task, "xrootd: window task post failed, sync fallback",
+                    task, "brix: window task post failed, sync fallback",
                     &posted);
                 if (posted) {
                     return;   /* async: done callback resumes the pump */

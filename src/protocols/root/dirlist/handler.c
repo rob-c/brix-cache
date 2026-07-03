@@ -202,7 +202,7 @@ brix_handle_dirlist(brix_ctx_t *ctx, ngx_connection_t *c,
     {
         brix_vfs_closedir(dh, c->log);
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                      "xrootd: dirlist pool limit reached (%uz bytes), "
+                      "brix: dirlist pool limit reached (%uz bytes), "
                       "closing connection", ctx->pool_bytes_used);
         return brix_send_error(ctx, c, kXR_NoMemory,
                                  "connection pool limit exceeded");
@@ -254,7 +254,7 @@ brix_handle_dirlist(brix_ctx_t *ctx, ngx_connection_t *c,
             if (brix_dirlist_name_is_unsafe(name)) {
                 brix_sanitize_log_string(name, safe_name, sizeof(safe_name));
                 ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                              "xrootd: dirlist skipping entry with control bytes \"%s\"",
+                              "brix: dirlist skipping entry with control bytes \"%s\"",
                               safe_name);
                 continue;
             }
@@ -361,7 +361,7 @@ brix_handle_dirlist(brix_ctx_t *ctx, ngx_connection_t *c,
                                   (ServerResponseHdr *) chunk);
 
             ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                           "xrootd: kXR_dirlist final chunk %uz bytes", chunk_pos);
+                           "brix: kXR_dirlist final chunk %uz bytes", chunk_pos);
 
             brix_log_access(ctx, c, "DIRLIST", reqpath,
                               want_cksum ? "dcksm" : (want_stat ? "stat" : "-"),

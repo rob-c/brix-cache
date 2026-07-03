@@ -102,7 +102,7 @@ brix_sss_load_keytab(ngx_conf_t *cf, ngx_str_t *path, ngx_array_t **out_keys)
 
     if (path == NULL || path->len == 0) {
         BRIX_DIAG_CONF(NGX_LOG_EMERG, cf, 0,
-            "xrootd: SSS keytab path is empty",
+            "brix: SSS keytab path is empty",
             "brix_sss_keytab was given without a path argument",
             "supply the keytab file path: brix_sss_keytab /etc/xrootd/sss.keytab;");
         return NGX_ERROR;
@@ -123,7 +123,7 @@ brix_sss_load_keytab(ngx_conf_t *cf, ngx_str_t *path, ngx_array_t **out_keys)
                      O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
     if (keytab_fd < 0) {
         BRIX_DIAG_CONF(NGX_LOG_EMERG, cf, ngx_errno,
-            "xrootd: cannot open SSS keytab \"%V\"",
+            "brix: cannot open SSS keytab \"%V\"",
             "the path is wrong, the file is unreadable by the nginx user, or "
             "it is a symlink (rejected for safety)",
             "generate the keytab with xrdsssadmin and give the nginx user "
@@ -134,14 +134,14 @@ brix_sss_load_keytab(ngx_conf_t *cf, ngx_str_t *path, ngx_array_t **out_keys)
 
     if (fstat(keytab_fd, &st) != 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
-                           "xrootd: cannot stat SSS keytab \"%V\"", path);
+                           "brix: cannot stat SSS keytab \"%V\"", path);
         close(keytab_fd);
         return NGX_ERROR;
     }
 
     if (sss_keytab_mode_ok((const char *) path->data, st.st_mode, 1) != 0) {
         BRIX_DIAG_CONF(NGX_LOG_EMERG, cf, 0,
-            "xrootd: SSS keytab \"%V\" has unsafe permissions",
+            "brix: SSS keytab \"%V\" has unsafe permissions",
             "the keytab is a shared secret but is group/world readable or not "
             "owned correctly",
             "chmod 0400 (or 0600) the keytab and ensure it is owned by the "
@@ -154,7 +154,7 @@ brix_sss_load_keytab(ngx_conf_t *cf, ngx_str_t *path, ngx_array_t **out_keys)
     fp = fdopen(keytab_fd, "r");
     if (fp == NULL) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
-                           "xrootd: cannot fdopen SSS keytab \"%V\"", path);
+                           "brix: cannot fdopen SSS keytab \"%V\"", path);
         close(keytab_fd);
         return NGX_ERROR;
     }
@@ -177,7 +177,7 @@ brix_sss_load_keytab(ngx_conf_t *cf, ngx_str_t *path, ngx_array_t **out_keys)
 
     if (ferror(fp)) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
-                           "xrootd: cannot read SSS keytab \"%V\"", path);
+                           "brix: cannot read SSS keytab \"%V\"", path);
         fclose(fp);
         return NGX_ERROR;
     }
@@ -186,7 +186,7 @@ brix_sss_load_keytab(ngx_conf_t *cf, ngx_str_t *path, ngx_array_t **out_keys)
 
     if (keys->nelts == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "xrootd: SSS keytab \"%V\" has no usable keys", path);
+                           "brix: SSS keytab \"%V\" has no usable keys", path);
         return NGX_ERROR;
     }
 
@@ -246,7 +246,7 @@ brix_configure_sss_auth(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
     }
 
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-                       "xrootd: SSS keytab loaded - keytab=%V keys=%ui (%s)",
+                       "brix: SSS keytab loaded - keytab=%V keys=%ui (%s)",
                        &xcf->sss_keytab, xcf->sss_keys->nelts,
                        need_client ? (need_upstream ? "client+upstream"
                                                     : "client")

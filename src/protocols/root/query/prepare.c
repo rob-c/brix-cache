@@ -454,7 +454,7 @@ brix_handle_prepare(brix_ctx_t *ctx, ngx_connection_t *c,
                                                &v, rq, sizeof(rq), c->log);
                 if (arc == NGX_ERROR) {
                     ngx_log_error(NGX_LOG_ERR, c->log, 0,
-                                  "xrootd: stage request add failed for \"%s\"",
+                                  "brix: stage request add failed for \"%s\"",
                                   out_resolved);
                 } else if (group_reqid[0] == '\0') {
                     /* The first request id is the handle returned to the client. */
@@ -523,12 +523,12 @@ brix_handle_prepare(brix_ctx_t *ctx, ngx_connection_t *c,
                 != NGX_OK)
             {
                 ngx_log_error(NGX_LOG_ERR, c->log, ngx_errno,
-                              "xrootd: prepare_command launch failed");
+                              "brix: prepare_command launch failed");
                 /* Best-effort: continue and return ok to the client. */
             }
         } else if (collect_stage && stage_count == 0) {
             ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                          "xrootd: kXR_stage set but no resolvable paths"
+                          "brix: kXR_stage set but no resolvable paths"
                           " for prepare_command");
         }
 
@@ -569,13 +569,13 @@ brix_handle_prepare(brix_ctx_t *ctx, ngx_connection_t *c,
                                                 notify_msg, notify_len);
 
                 ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                    "xrootd: sending kXR_prepare ok + kXR_attn asyncms notify");
+                    "brix: sending kXR_prepare ok + kXR_attn asyncms notify");
 
                 return brix_queue_response(ctx, c, buf, total);
 
             } else {
                 ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                    "xrootd: kXR_notify requested but %ui path(s) still being "
+                    "brix: kXR_notify requested but %ui path(s) still being "
                     "staged; async completion notification not supported",
                     missing);
             }

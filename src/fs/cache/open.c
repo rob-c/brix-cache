@@ -271,7 +271,7 @@ brix_cache_record_access(const char *cache_path, size_t bytes,
         if (utimensat(AT_FDCWD, cache_path, ts, 0) != 0) {
             if (log != NULL) {
                 ngx_log_error(NGX_LOG_DEBUG, log, errno,
-                              "xrootd: cache access timestamp update failed \"%s\"",
+                              "brix: cache access timestamp update failed \"%s\"",
                               cache_path);
             }
             return NGX_ERROR;

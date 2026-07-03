@@ -9,7 +9,7 @@ TEST_ROOT = os.environ.get("TEST_ROOT", "/tmp/xrd-test")
 # ---------------------------------------------------------------------------
 # Free-port allocation for SELF-CONTAINED fixtures.
 #
-# A test that starts its OWN nginx/xrootd must NOT bind a fixed port: it would
+# A test that starts its OWN nginx/brix must NOT bind a fixed port: it would
 # collide with the managed fleet (whose ports below are already bound) or with
 # another self-contained test running in the same session. Such fixtures should
 # bind ports from free_port()/free_ports() instead of a literal. The fleet ports

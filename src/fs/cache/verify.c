@@ -85,7 +85,7 @@ brix_cache_verify_part(brix_cache_fill_t *t, const char *part_path,
         }
         if (log != NULL) {
             ngx_log_error(NGX_LOG_INFO, log, 0,
-                "xrootd: cache verify: origin checksum \"%s\" not supported "
+                "brix: cache verify: origin checksum \"%s\" not supported "
                 "locally; committing \"%s\" unverified",
                 origin->alg, part_path);
         }
@@ -106,7 +106,7 @@ brix_cache_verify_part(brix_cache_fill_t *t, const char *part_path,
         brix_cache_set_error(t, kXR_ChkSumErr, 0, msg);
         if (log != NULL) {
             ngx_log_error(NGX_LOG_ERR, log, 0,
-                "xrootd: cache verify FAILED for \"%s\": %s — discarding fill",
+                "brix: cache verify FAILED for \"%s\": %s — discarding fill",
                 part_path, msg);
         }
         return BRIX_CACHE_VERIFY_MISMATCH;
@@ -164,7 +164,7 @@ brix_cache_verify_cvmfs_cas(const char *part_path, const char *key,
     if (!brix_cache_hex_ieq(hex, info.cas_hex)) {
         if (log != NULL) {
             ngx_log_error(NGX_LOG_ERR, log, 0,
-                "xrootd: cvmfs-cas verify FAILED for \"%s\" "
+                "brix: cvmfs-cas verify FAILED for \"%s\" "
                 "(name=%.40s computed=%.40s)\n"
                 "  cause: origin transfer failed CAS verification — network "
                 "corruption between cache and Stratum-1\n"
@@ -209,6 +209,6 @@ brix_cache_quarantine_part(const char *part_path,
     }
     if (log != NULL) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-            "xrootd: cvmfs-cas: corrupt fill quarantined at \"%s\"", dst);
+            "brix: cvmfs-cas: corrupt fill quarantined at \"%s\"", dst);
     }
 }

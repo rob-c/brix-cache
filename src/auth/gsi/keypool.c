@@ -101,7 +101,7 @@ brix_kp_refill_done(ngx_event_t *ev)
     if (!brix_kp_warmed_logged && brix_kp_count >= brix_kp_target) {
         brix_kp_warmed_logged = 1;
         ngx_log_error(NGX_LOG_NOTICE, brix_kp_log, 0,
-                      "xrootd: GSI DH key pool warmed to %ui/%ui keys "
+                      "brix: GSI DH key pool warmed to %ui/%ui keys "
                       "(off-thread)", brix_kp_count, brix_kp_target);
     }
 }
@@ -171,7 +171,7 @@ brix_gsi_keypool_init(ngx_cycle_t *cycle, ngx_thread_pool_t *pool,
     }
 
     ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
-                  "xrootd: GSI DH key pool seeded %ui/%ui keys (%s)",
+                  "brix: GSI DH key pool seeded %ui/%ui keys (%s)",
                   brix_kp_count, brix_kp_target,
                   pool != NULL ? "rest filling off-thread"
                                : "synchronous, no thread pool");

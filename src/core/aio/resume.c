@@ -152,7 +152,7 @@ brix_aio_resume(ngx_connection_t *c)
     }
 
     ngx_log_debug5(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                   "xrootd: aio_resume state=%d ravail=%d rready=%d "
+                   "brix: aio_resume state=%d ravail=%d rready=%d "
                    "wready=%d wposted=%d",
                    (int) ctx->state, c->read->available,
                    (int) c->read->ready, (int) c->write->ready,

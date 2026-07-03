@@ -148,7 +148,7 @@ brix_handle_token_auth(brix_ctx_t *ctx, ngx_connection_t *c,
                                        &claims);
             if (rc == 0) {
                 ngx_log_error(NGX_LOG_INFO, c->log, 0,
-                              "xrootd: macaroon accepted via old secret "
+                              "brix: macaroon accepted via old secret "
                               "(grace-period key rotation)");
             }
         }
@@ -244,7 +244,7 @@ brix_handle_token_auth(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     ngx_log_error(NGX_LOG_INFO, c->log, 0,
-                  "xrootd: token auth ok sub=\"%s\" scopes=%d groups=\"%s\"",
+                  "brix: token auth ok sub=\"%s\" scopes=%d groups=\"%s\"",
                   claims.sub, claims.scope_count, claims.groups);
 
     BRIX_RETURN_OK(ctx, c, BRIX_OP_AUTH, "AUTH", "-", claims.sub, 0);

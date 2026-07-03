@@ -55,12 +55,12 @@ brix_configure_thread_pools(ngx_conf_t *cf,
             }
 
             ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-                "xrootd: thread pool \"%V\" not found - "
+                "brix: thread pool \"%V\" not found - "
                 "async file I/O disabled (add a thread_pool directive)",
                 pool_name);
         } else {
             ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-                "xrootd: using thread pool \"%V\" for async file I/O",
+                "brix: using thread pool \"%V\" for async file I/O",
                 pool_name);
         }
     }

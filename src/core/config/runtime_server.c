@@ -148,7 +148,7 @@ brix_tier_register_stores(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *common)
 
         if (is_nearline && common->cache_store.len == 0) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd: a \"tape://\"/\"frm://\" backend is nearline and requires "
+                "brix: a \"tape://\"/\"frm://\" backend is nearline and requires "
                 "brix_cache_store (the recall target); add a cache tier");
             return NGX_ERROR;
         }
@@ -500,7 +500,7 @@ brix_config_prepare_server(ngx_conf_t *cf,
         }
 
         ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-            "xrootd: cache enabled root=%V origin=%V tls=%s "
+            "brix: cache enabled root=%V origin=%V tls=%s "
             "lock_timeout=%ds eviction_threshold=0.%06ui",
             &xcf->cache_root, &xcf->cache_origin,
             xcf->cache_origin_tls ? "on" : "off",
@@ -551,13 +551,13 @@ brix_config_prepare_server(ngx_conf_t *cf,
         xcf->access_log_file = ngx_conf_open_file(cf->cycle, &xcf->access_log);
         if (xcf->access_log_file == NULL) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd: cannot register access log \"%V\"",
+                "brix: cannot register access log \"%V\"",
                 &xcf->access_log);
             return NGX_ERROR;
         }
 
         ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-            "xrootd: access log \"%V\" registered",
+            "brix: access log \"%V\" registered",
             &xcf->access_log);
     }
 
@@ -570,13 +570,13 @@ brix_config_prepare_server(ngx_conf_t *cf,
                                                        &xcf->proxy_audit_log);
         if (xcf->proxy_audit_log_file == NULL) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd: cannot register proxy audit log \"%V\"",
+                "brix: cannot register proxy audit log \"%V\"",
                 &xcf->proxy_audit_log);
             return NGX_ERROR;
         }
 
         ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-            "xrootd: proxy audit log \"%V\" registered",
+            "brix: proxy audit log \"%V\" registered",
             &xcf->proxy_audit_log);
     }
 
@@ -605,7 +605,7 @@ brix_config_prepare_server(ngx_conf_t *cf,
             }
             /* ngx_ssl_trusted_certificate sets SSL_VERIFY_PEER internally */
             ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-                "xrootd: proxy upstream TLS CA loaded from \"%V\"",
+                "brix: proxy upstream TLS CA loaded from \"%V\"",
                 &xcf->proxy_upstream_tls_ca);
         }
     }
@@ -633,12 +633,12 @@ brix_config_prepare_server(ngx_conf_t *cf,
                 return NGX_ERROR;
             }
             ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-                "xrootd: upstream redirector TLS CA loaded from \"%V\"",
+                "brix: upstream redirector TLS CA loaded from \"%V\"",
                 &xcf->upstream_tls_ca);
         }
 
         ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-            "xrootd: upstream redirector TLS enabled (kXR_gotoTLS support)");
+            "brix: upstream redirector TLS enabled (kXR_gotoTLS support)");
     }
 #endif
 

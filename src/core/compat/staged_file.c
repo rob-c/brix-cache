@@ -588,11 +588,11 @@ brix_stage_reap_dir(const char *stage_dir, ngx_log_t *log)
             (void) unlink(marker);
             done++;
             ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                "xrootd: completed pending stage-out \"%s\" -> \"%s\"",
+                "brix: completed pending stage-out \"%s\" -> \"%s\"",
                 partial, final);
         } else {
             ngx_log_error(NGX_LOG_WARN, log, errno,
-                "xrootd: pending stage-out \"%s\" -> \"%s\" failed; will retry",
+                "brix: pending stage-out \"%s\" -> \"%s\" failed; will retry",
                 partial, final);
         }
     }
@@ -674,7 +674,7 @@ staged_commit_internal(ngx_log_t *log, const char *root_canon,
         if (fsync(staged->fd) != 0) {
             int e = errno;
             ngx_log_error(NGX_LOG_ERR, log, e,
-                          "xrootd: staged commit fsync failed — not publishing "
+                          "brix: staged commit fsync failed — not publishing "
                           "\"%s\"", final_path);
             ngx_close_file(staged->fd);
             staged->fd = NGX_INVALID_FILE;

@@ -17,7 +17,7 @@ SAME op against OUR and the STOCK server and require:
   * where the reference is exact (raw wire), the same numeric kXR_* code.
 
 The canonical errno -> kXR mapping is mapError() in
-/tmp/xrootd-src/src/XProtocol/XProtocol.hh:
+/tmp/brix-src/src/XProtocol/XProtocol.hh:
     ENOENT   -> kXR_NotFound      (3011)
     EINVAL   -> kXR_ArgInvalid    (3000)
     EPERM/EACCES -> kXR_NotAuthorized (3010)

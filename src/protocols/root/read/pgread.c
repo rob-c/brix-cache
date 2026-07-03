@@ -330,7 +330,7 @@ brix_handle_pgread(brix_ctx_t *ctx, ngx_connection_t *c)
             brix_task_bind(task, brix_pgread_aio_thread, brix_pgread_aio_done);
 
             (void) brix_aio_post_task(ctx, c, rconf->common.thread_pool, task,
-                                        "xrootd: thread_task_post failed, sync pgread fallback",
+                                        "brix: thread_task_post failed, sync pgread fallback",
                                         &posted);
             if (posted) {
                 return NGX_OK;

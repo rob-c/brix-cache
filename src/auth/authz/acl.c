@@ -82,7 +82,7 @@ brix_check_vo_acl(ngx_log_t *log, const char *resolved_path,
                                sizeof(safe_vo));
 
     ngx_log_error(NGX_LOG_WARN, log, 0,
-                  "xrootd: VO ACL denied path=\"%s\" required_vo=\"%s\" "
+                  "brix: VO ACL denied path=\"%s\" required_vo=\"%s\" "
                   "client_vos=\"%s\"",
                   safe_path, safe_vo, (vo_list && vo_list[0]) ? vo_list : "-");
 

@@ -99,14 +99,14 @@ brix_conf_set_upstream(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
         if (xcf->upstream_addr == NULL) {
             ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
-                "xrootd: upstream redirector: could not pre-resolve \"%s\""
+                "brix: upstream redirector: could not pre-resolve \"%s\""
                 " — will resolve per-request (event-loop may block)",
                 (char *) xcf->upstream_host.data);
         }
     }
 
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-        "xrootd: upstream redirector: %s:%d",
+        "brix: upstream redirector: %s:%d",
         (char *) xcf->upstream_host.data, (int) xcf->upstream_port);
 
     return NGX_CONF_OK;

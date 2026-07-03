@@ -109,7 +109,7 @@ brix_handle_host_auth(brix_ctx_t *ctx, ngx_connection_t *c,
     if (!brix_host_allowed(conf, host)) {
         brix_sanitize_log_string(host, safe_host, sizeof(safe_host));
         ngx_log_error(NGX_LOG_NOTICE, c->log, 0,
-                      "xrootd: host auth denied for \"%s\" "
+                      "brix: host auth denied for \"%s\" "
                       "(not in brix_host_allow)", safe_host);
         brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_HOST, 0);
         BRIX_RETURN_ERR(ctx, c, BRIX_OP_AUTH, "AUTH", "-", "host",
@@ -134,7 +134,7 @@ brix_handle_host_auth(brix_ctx_t *ctx, ngx_connection_t *c,
 
     brix_sanitize_log_string(host, safe_host, sizeof(safe_host));
     ngx_log_error(NGX_LOG_INFO, c->log, 0,
-                  "xrootd: host auth OK host=\"%s\"", safe_host);
+                  "brix: host auth OK host=\"%s\"", safe_host);
 
     brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_HOST, 1);
     BRIX_RETURN_OK(ctx, c, BRIX_OP_AUTH, "AUTH", "-", "host", 0);

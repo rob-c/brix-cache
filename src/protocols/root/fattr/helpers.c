@@ -70,7 +70,7 @@ fattr_parse_nvec(ngx_log_t *log, u_char *nvec_copy, size_t buflen,
         if (xrdp_fattr_nvec_parse(nvec_copy, buflen, off, NULL,
                                   &name_p, &name_len, &next) != 0) {
             ngx_log_error(NGX_LOG_WARN, log, 0,
-                          "xrootd: fattr nvec truncated/unterminated at entry %d",
+                          "brix: fattr nvec truncated/unterminated at entry %d",
                           attr_index);
             return -1;
         }
@@ -78,7 +78,7 @@ fattr_parse_nvec(ngx_log_t *log, u_char *nvec_copy, size_t buflen,
         /* Name-length policy is server-side (the wire parser is policy-free). */
         if (name_len == 0 || name_len > kXR_faMaxNlen) {
             ngx_log_error(NGX_LOG_WARN, log, 0,
-                          "xrootd: fattr name length %uz invalid",
+                          "brix: fattr name length %uz invalid",
                           name_len);
             return -1;
         }

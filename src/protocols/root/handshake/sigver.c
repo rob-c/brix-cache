@@ -55,7 +55,7 @@ brix_verify_sigver_hmac(brix_ctx_t *ctx, ngx_connection_t *c)
                                 ctx->sigver_nodata, computed))
     {
         ngx_log_error(NGX_LOG_ERR, c->log, 0,
-                      "xrootd: sigver HMAC calculation failed for reqid=%d",
+                      "brix: sigver HMAC calculation failed for reqid=%d",
                       (int) ctx->cur_reqid);
         return brix_send_error(ctx, c, kXR_ServerError,
                                  "signature verification failed");
@@ -63,14 +63,14 @@ brix_verify_sigver_hmac(brix_ctx_t *ctx, ngx_connection_t *c)
 
     if (CRYPTO_memcmp(computed, ctx->sigver_hmac, 32) != 0) {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                      "xrootd: sigver HMAC mismatch for reqid=%d",
+                      "brix: sigver HMAC mismatch for reqid=%d",
                       (int) ctx->cur_reqid);
         return brix_send_error(ctx, c, kXR_NotAuthorized,
                                  "signature verification failed");
     }
 
     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                   "xrootd: sigver verified reqid=%d",
+                   "brix: sigver verified reqid=%d",
                    (int) ctx->cur_reqid);
 
     return BRIX_DISPATCH_CONTINUE;
@@ -96,7 +96,7 @@ brix_verify_pending_sigver(brix_ctx_t *ctx, ngx_connection_t *c)
         if (ctx->signing_active) {
             if (ctx->sigver_expectrid != ctx->cur_reqid) {
                 ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                              "xrootd: sigver expectrid=%d but got reqid=%d",
+                              "brix: sigver expectrid=%d but got reqid=%d",
                               (int) ctx->sigver_expectrid,
                               (int) ctx->cur_reqid);
                 /* kXR_InvalidRequest: the request is malformed or not allowed now */
@@ -152,7 +152,7 @@ brix_signing_enforce_level(brix_ctx_t *ctx, ngx_connection_t *c,
     if (brix_sigver_opcode_requires(ctx->cur_reqid, conf->security_level)) {
         if (!ctx->verified_signing) {
             ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                          "xrootd: unsigned request %d rejected by security_level=%d",
+                          "brix: unsigned request %d rejected by security_level=%d",
                           (int) ctx->cur_reqid, (int) conf->security_level);
             return brix_send_error(ctx, c, kXR_NotAuthorized,
                                      "request signing required for this opcode");
@@ -161,7 +161,7 @@ brix_signing_enforce_level(brix_ctx_t *ctx, ngx_connection_t *c,
         /* Pedantic mode: also enforce that the signature covered the payload. */
         if (conf->security_level >= 4 && ctx->sigver_nodata && ctx->cur_dlen > 0) {
             ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                          "xrootd: pedantic signing rejection: sigver nodata flag set but payload present");
+                          "brix: pedantic signing rejection: sigver nodata flag set but payload present");
             return brix_send_error(ctx, c, kXR_NotAuthorized,
                                      "payload signing required in pedantic mode");
         }

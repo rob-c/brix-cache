@@ -30,12 +30,12 @@ match exactly.
 Contract citations
 ------------------
 * DirListFlags / MkDirFlags / Access::Mode:
-  ``/tmp/xrootd-src/src/XrdCl/XrdClFileSystem.hh:127-174``.
+  ``/tmp/brix-src/src/XrdCl/XrdClFileSystem.hh:127-174``.
 * DirectoryList / StatInfo wire parse: ``XrdClXRootDResponses.cc``.
 * kXR error numbers (3005 FSError, 3011 NotFound, 3018 ItExists) and the
   errno->kXR mapping (ENOTEMPTY/EEXIST -> kXR_ItExists,
   ``XProtocol.hh:1407-1474``).
-* Stock server handlers: ``/tmp/xrootd-src/src/XrdXrootd/``.
+* Stock server handlers: ``/tmp/brix-src/src/XrdXrootd/``.
 """
 
 import os
@@ -337,7 +337,7 @@ def test_mkdir_existing_ok_status_parity(pair, name):
     DIVERGENCE: stock returns ok=True (idempotent — ENOTEMPTY/EEXIST treated as
     success by XrdXrootd's mkdir handler), but OURS returns kXR_ItExists(3018).
     Contract: XProtocol.hh:1425-1427 maps EEXIST->kXR_ItExists, but stock's
-    mkdir handler in /tmp/xrootd-src/src/XrdXrootd/XrdXrootdXeq.cc swallows the
+    mkdir handler in /tmp/brix-src/src/XrdXrootd/XrdXrootdXeq.cc swallows the
     existing-dir case and replies OK. Suspected src: src/protocols/root/write/mkdir.c.
     """
     sub = _mk_scratch(

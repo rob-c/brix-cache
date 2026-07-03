@@ -115,7 +115,7 @@ ngx_int_t brix_handle_close(brix_ctx_t *ctx, ngx_connection_t *c) {
     }
 
     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                   "xrootd: kXR_close handle=%d", idx);
+                   "brix: kXR_close handle=%d", idx);
 
     /* pgwrite CSE close gate     * Refuse to close while any page written via kXR_pgwrite failed CRC32c and
      * was never corrected by a kXR_pgRetry.  Otherwise the POSC rename / write-
@@ -197,7 +197,7 @@ ngx_int_t brix_handle_close(brix_ctx_t *ctx, ngx_connection_t *c) {
                                  c->log) != NGX_OK) {
             int err = errno;
             ngx_log_error(NGX_LOG_ERR, c->log, err,
-                          "xrootd: staged commit \"%s\" -> \"%s\" failed",
+                          "brix: staged commit \"%s\" -> \"%s\" failed",
                           temp_path, final_path);
             /* Keep the staged partial (resume) — only the publish failed; the
              * client can retry the close.  Surface an I/O error. */
@@ -215,7 +215,7 @@ ngx_int_t brix_handle_close(brix_ctx_t *ctx, ngx_connection_t *c) {
         }
 
         ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                       "xrootd: staged commit \"%s\" -> \"%s\" ok",
+                       "brix: staged commit \"%s\" -> \"%s\" ok",
                        temp_path, final_path);
 
         /* Unified ledger: the root:// upload publication — the same audit line

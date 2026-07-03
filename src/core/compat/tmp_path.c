@@ -220,7 +220,7 @@ brix_tmp_reap_all(ngx_log_t *log)
     }
     if (s_tmp_reaped > 0 && log != NULL) {
         ngx_log_error(NGX_LOG_NOTICE, log, 0,
-            "xrootd: reaped %ui orphaned upload temp(s) from interrupted "
+            "brix: reaped %ui orphaned upload temp(s) from interrupted "
             "non-staged write(s)", s_tmp_reaped);
     }
     return s_tmp_reaped;

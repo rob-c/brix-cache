@@ -382,7 +382,7 @@ ngx_int_t brix_handle_stat(brix_ctx_t *ctx, ngx_connection_t *c, ngx_stream_brix
     }
 
     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                   "xrootd: kXR_stat ok: %s", body);
+                   "brix: kXR_stat ok: %s", body);
 
     brix_log_access(ctx, c, "STAT",
                       (reqpath && reqpath[0]) ? reqpath : full_path,

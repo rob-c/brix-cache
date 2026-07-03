@@ -17,7 +17,7 @@
  *      These asserts make each of those load-bearing facts a red test if reverted.
  *
  * Clean-room: links only the public gsi_core API. See
- *      docs/10-reference/comparison/xrootd-implementations.md §5.
+ *      docs/10-reference/comparison/brix-implementations.md §5.
  */
 #include "auth/gsi/gsi_core.h"
 #include "protocols/root/protocol/gsi.h"

@@ -29,7 +29,7 @@ brix_handle_sync(brix_ctx_t *ctx, ngx_connection_t *c)
 	}
 
 	ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
-				   "xrootd: kXR_sync handle=%d", idx);
+				   "brix: kXR_sync handle=%d", idx);
 
 	if (ctx->files[idx].tpc_destination && !ctx->files[idx].tpc_done) {
 		if (!ctx->files[idx].tpc_armed) {

@@ -48,7 +48,7 @@ brix_upstream_abort(brix_upstream_t *up, const char *reason)
     sid[1] = up->req_streamid[1];
 
     ngx_log_error(NGX_LOG_ERR, c->log, 0,
-                  "xrootd: upstream abort: %s", reason);
+                  "brix: upstream abort: %s", reason);
 
     brix_upstream_cleanup(up);
 /*

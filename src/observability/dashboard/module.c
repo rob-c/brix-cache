@@ -104,7 +104,7 @@ ngx_http_brix_dashboard_merge_loc_conf(ngx_conf_t *cf,
     ngx_conf_merge_msec_value(conf->cluster_stale_after_ms,
                               prev->cluster_stale_after_ms, 90000);
     ngx_conf_merge_str_value(conf->password, prev->password, "");
-    ngx_conf_merge_str_value(conf->cookie_path, prev->cookie_path, "/xrootd");
+    ngx_conf_merge_str_value(conf->cookie_path, prev->cookie_path, "/brix");
     if (conf->users == NULL) {
         conf->users = prev->users;
     }
@@ -535,114 +535,114 @@ ngx_http_brix_dashboard_main_handler(ngx_http_request_t *r)
 
     uri = r->uri;
 
-    if (dashboard_uri_eq(uri, "/xrootd/transfers")) {
+    if (dashboard_uri_eq(uri, "/brix/transfers")) {
         return ngx_http_brix_dashboard_api_handler(r,
             BRIX_DASHBOARD_API_COMPAT_TRANSFERS);
     }
 
-    if (dashboard_uri_eq(uri, "/xrootd/api/v1/transfers")) {
+    if (dashboard_uri_eq(uri, "/brix/api/v1/transfers")) {
         return ngx_http_brix_dashboard_api_handler(r,
             BRIX_DASHBOARD_API_V1_TRANSFERS);
     }
 
-    if (dashboard_uri_prefix(uri, "/xrootd/api/v1/transfers/")) {
+    if (dashboard_uri_prefix(uri, "/brix/api/v1/transfers/")) {
         return ngx_http_brix_dashboard_api_handler(r,
             BRIX_DASHBOARD_API_V1_TRANSFER_DETAIL);
     }
 
-    if (dashboard_uri_eq(uri, "/xrootd/api/v1/snapshot")) {
+    if (dashboard_uri_eq(uri, "/brix/api/v1/snapshot")) {
         return ngx_http_brix_dashboard_api_handler(r,
             BRIX_DASHBOARD_API_V1_SNAPSHOT);
     }
 
-    if (dashboard_uri_eq(uri, "/xrootd/api/v1/events")) {
+    if (dashboard_uri_eq(uri, "/brix/api/v1/events")) {
         return ngx_http_brix_dashboard_api_handler(r,
             BRIX_DASHBOARD_API_V1_EVENTS);
     }
 
-    if (dashboard_uri_eq(uri, "/xrootd/api/v1/history")) {
+    if (dashboard_uri_eq(uri, "/brix/api/v1/history")) {
         return ngx_http_brix_dashboard_api_handler(r,
             BRIX_DASHBOARD_API_V1_HISTORY);
     }
 
-    if (dashboard_uri_eq(uri, "/xrootd/api/v1/cluster")) {
+    if (dashboard_uri_eq(uri, "/brix/api/v1/cluster")) {
         return ngx_http_brix_dashboard_api_handler(r,
             BRIX_DASHBOARD_API_V1_CLUSTER);
     }
 
-    if (dashboard_uri_eq(uri, "/xrootd/api/v1/cache")) {
+    if (dashboard_uri_eq(uri, "/brix/api/v1/cache")) {
         return ngx_http_brix_dashboard_api_handler(r,
             BRIX_DASHBOARD_API_V1_CACHE);
     }
 
-    if (dashboard_uri_eq(uri, "/xrootd/api/v1/ratelimit")) {   /* Phase 25 */
+    if (dashboard_uri_eq(uri, "/brix/api/v1/ratelimit")) {   /* Phase 25 */
         return ngx_http_brix_dashboard_api_handler(r,
             BRIX_DASHBOARD_API_V1_RATELIMIT);
     }
 
-    if (dashboard_uri_eq(uri, "/xrootd/api/v1/cvmfs")) {   /* phase-68 */
+    if (dashboard_uri_eq(uri, "/brix/api/v1/cvmfs")) {   /* phase-68 */
         return ngx_http_brix_dashboard_api_handler(r,
             BRIX_DASHBOARD_API_V1_CVMFS);
     }
 
     /* Config download — own handler (text/plain attachment); ALWAYS auth-only,
      * never anonymous.  Must precede the generic /api/v1/ catch-all below. */
-    if (dashboard_uri_eq(uri, "/xrootd/api/v1/config")) {
+    if (dashboard_uri_eq(uri, "/brix/api/v1/config")) {
         return ngx_http_brix_dashboard_config_download_handler(r);
     }
 
     /* Admin file browser (list + download); ALWAYS auth-only, confined to
      * brix_dashboard_browse_root.  404 when the feature is not configured. */
-    if (dashboard_uri_eq(uri, "/xrootd/api/v1/files")) {
+    if (dashboard_uri_eq(uri, "/brix/api/v1/files")) {
         return ngx_http_brix_dashboard_files_handler(r);
     }
-    if (dashboard_uri_eq(uri, "/xrootd/api/v1/download")) {
+    if (dashboard_uri_eq(uri, "/brix/api/v1/download")) {
         return ngx_http_brix_dashboard_download_handler(r);
     }
 
     /* VFS export browser (census + listing + download); ALWAYS auth-only,
      * every op routed through brix_vfs_* (logical namespace of ANY
      * backend, pblock/ceph included). 404 unless brix_dashboard_vfs_browse. */
-    if (dashboard_uri_eq(uri, "/xrootd/api/v1/vfs")) {
+    if (dashboard_uri_eq(uri, "/brix/api/v1/vfs")) {
         return ngx_http_brix_dashboard_vfs_exports_handler(r);
     }
-    if (dashboard_uri_eq(uri, "/xrootd/api/v1/vfs/files")) {
+    if (dashboard_uri_eq(uri, "/brix/api/v1/vfs/files")) {
         return ngx_http_brix_dashboard_vfs_files_handler(r);
     }
-    if (dashboard_uri_eq(uri, "/xrootd/api/v1/vfs/download")) {
+    if (dashboard_uri_eq(uri, "/brix/api/v1/vfs/download")) {
         return ngx_http_brix_dashboard_vfs_download_handler(r);
     }
 
     /* Storage scan/verify/fill engine; ALWAYS auth-only, confined to
      * brix_scan_root.  404 when the feature is not configured. */
-    if (dashboard_uri_eq(uri, "/xrootd/api/v1/scan")) {
+    if (dashboard_uri_eq(uri, "/brix/api/v1/scan")) {
         return ngx_http_brix_dashboard_scan_handler(r);
     }
 
     /* Phase 23: admin write API (auth + method routing inside dispatch). */
-    if (uri.len >= sizeof("/xrootd/api/v1/admin/") - 1
-        && ngx_memcmp(uri.data, "/xrootd/api/v1/admin/",
-                      sizeof("/xrootd/api/v1/admin/") - 1) == 0)
+    if (uri.len >= sizeof("/brix/api/v1/admin/") - 1
+        && ngx_memcmp(uri.data, "/brix/api/v1/admin/",
+                      sizeof("/brix/api/v1/admin/") - 1) == 0)
     {
         return brix_admin_dispatch(r);
     }
 
     /* Catch-all for unknown /api/v1/ paths: return the API's structured 404
      * (must come AFTER every concrete v1 route above). */
-    if (uri.len > sizeof("/xrootd/api/v1/") - 1
-        && ngx_memcmp(uri.data, "/xrootd/api/v1/",
-                      sizeof("/xrootd/api/v1/") - 1) == 0)
+    if (uri.len > sizeof("/brix/api/v1/") - 1
+        && ngx_memcmp(uri.data, "/brix/api/v1/",
+                      sizeof("/brix/api/v1/") - 1) == 0)
     {
         return ngx_http_brix_dashboard_api_handler(r,
             BRIX_DASHBOARD_API_V1_NOT_FOUND);
     }
 
-    if (dashboard_uri_eq(uri, "/xrootd/login"))
+    if (dashboard_uri_eq(uri, "/brix/login"))
     {
         return ngx_http_brix_dashboard_login_handler(r);
     }
 
-    if (dashboard_uri_eq(uri, "/xrootd") || dashboard_uri_eq(uri, "/xrootd/")) {
+    if (dashboard_uri_eq(uri, "/brix") || dashboard_uri_eq(uri, "/brix/")) {
         return ngx_http_brix_dashboard_page_handler(r);
     }
 

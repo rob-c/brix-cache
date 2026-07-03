@@ -47,7 +47,7 @@ http {
     server {   # T16: operator dashboard (live-transfer visibility check)
         listen 127.0.0.1:$DPORT;
         access_log off;
-        location /xrootd/ { brix_dashboard on; brix_dashboard_password "t16"; }
+        location /brix/ { brix_dashboard on; brix_dashboard_password "t16"; }
     }
 }
 EOF
@@ -132,7 +132,7 @@ DJ=""; slot=0
 for _ in $(seq 1 25); do
     DTS="$(date +%s)"; DH="$(printf '%s' "$DTS" | openssl dgst -sha256 -hmac "t16" -hex | sed 's/^.*= //')"
     DJ="$(curl -s -H "Cookie: xrd_dashboard=${DH}.${DTS}" \
-          "http://127.0.0.1:$DPORT/xrootd/api/v1/transfers")"
+          "http://127.0.0.1:$DPORT/brix/api/v1/transfers")"
     if printf '%s' "$DJ" | grep -q '"protocol":"cvmfs"' \
        && printf '%s' "$DJ" | grep -qF "\"path\":\"$OBJ6\""; then
         slot=1; break

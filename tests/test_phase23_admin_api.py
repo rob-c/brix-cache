@@ -146,7 +146,7 @@ def test_admin_directives_parse(tmp_path):
     conf = _http_block(f"""
         server {{
             listen {BIND_HOST}:{_P_PARSE};
-            location /xrootd/ {{
+            location /brix/ {{
                 brix_dashboard on;
                 brix_dashboard_password "pw";
                 brix_admin_allow 127.0.0.1/32 10.0.0.0/8;
@@ -186,7 +186,7 @@ def test_bad_admin_secret_path_rejected(tmp_path):
     conf = _http_block(f"""
         server {{
             listen {BIND_HOST}:{_P_BADSECRET};
-            location /xrootd/ {{
+            location /brix/ {{
                 brix_dashboard on;
                 brix_dashboard_password "pw";
                 brix_admin_secret {tmp_path}/does-not-exist.secret;
@@ -273,7 +273,7 @@ def admin_server(tmp_path):
                 brix_webdav_storage_backend posix:{data};
                 brix_webdav_auth none;
             }}
-            location /xrootd/ {{
+            location /brix/ {{
                 brix_dashboard on;
                 brix_dashboard_password "pw";
                 brix_admin_secret {secret};
@@ -302,7 +302,7 @@ def admin_server(tmp_path):
 
 
 def _base(port):
-    return f"http://{url_host(HOST)}:{port}/xrootd/api/v1/admin"
+    return f"http://{url_host(HOST)}:{port}/brix/api/v1/admin"
 
 
 # --------------------------------------------------------------------------- #

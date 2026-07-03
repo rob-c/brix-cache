@@ -654,7 +654,7 @@ brix_stream_mirror_set_url(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-        "xrootd: stream mirror target %V", &hostport);
+        "brix: stream mirror target %V", &hostport);
     return NGX_CONF_OK;
 }
 

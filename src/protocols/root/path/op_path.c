@@ -237,7 +237,7 @@ brix_reject_dotdot_path(brix_ctx_t *ctx, ngx_connection_t *c,
     if (!brix_path_has_dotdot(reqpath)) {
         return 0;
     }
-    brix_log_path_warning(c->log, "xrootd: path traversal attempt", reqpath);
+    brix_log_path_warning(c->log, "brix: path traversal attempt", reqpath);
     brix_log_access(ctx, c, op_name, reqpath, "-",
                       0, kXR_ArgInvalid, "invalid path", 0);
     BRIX_OP_ERR(ctx, op_id);
@@ -285,7 +285,7 @@ brix_resolve_op_path(brix_ctx_t *ctx, ngx_connection_t *c,
          * join-overflow rejections fall through to the access log only.
          */
         if (brix_op_path_forbidden_component(reqpath)) {
-            brix_log_path_warning(c->log, "xrootd: path traversal attempt",
+            brix_log_path_warning(c->log, "brix: path traversal attempt",
                                     reqpath);
         }
         brix_log_access(ctx, c, op_name, reqpath, "-",

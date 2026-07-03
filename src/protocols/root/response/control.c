@@ -35,7 +35,7 @@ brix_send_redirect(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
-        "xrootd: sending redirect to %s:%d", host ? host : "", (int) port);
+        "brix: sending redirect to %s:%d", host ? host : "", (int) port);
 
     return brix_queue_response(ctx, c, buf, total);
 }
@@ -84,7 +84,7 @@ brix_send_redirect_tpc(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_memcpy(p, opaque, opaquelen);
 
     ngx_log_debug3(NGX_LOG_DEBUG_STREAM, c->log, 0,
-        "xrootd: sending TPC redirect to %s:%d key=%s",
+        "brix: sending TPC redirect to %s:%d key=%s",
         host ? host : "", (int) port, tpc_key);
 
     return brix_queue_response(ctx, c, buf, total);
@@ -113,7 +113,7 @@ brix_send_wait(brix_ctx_t *ctx, ngx_connection_t *c, uint32_t seconds)
     ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, &sbe, sizeof(sbe));
 
     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
-        "xrootd: sending kXR_wait %u seconds", (unsigned) seconds);
+        "brix: sending kXR_wait %u seconds", (unsigned) seconds);
 
     return brix_queue_response(ctx, c, buf, total);
 }
@@ -131,7 +131,7 @@ brix_send_waitresp(brix_ctx_t *ctx, ngx_connection_t *c)
         (ServerResponseHdr *) buf);
 
     ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0,
-        "xrootd: sending kXR_waitresp");
+        "brix: sending kXR_waitresp");
 
     return brix_queue_response(ctx, c, buf, XRD_RESPONSE_HDR_LEN);
 }

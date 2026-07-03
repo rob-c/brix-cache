@@ -107,7 +107,7 @@ ngx_brix_cms_schedule_retry(ngx_brix_cms_ctx_t *ctx)
 
         if ((ngx_msec_int_t) (ctx->fast_deadline - now) > 0) {
             ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
-                           "xrootd: CMS fast-retry to %V (attempt %ui)",
+                           "brix: CMS fast-retry to %V (attempt %ui)",
                            &ctx->conf->cms_manager, ctx->connect_attempts);
             ngx_brix_cms_schedule(ctx, ctx->fast_retry);
             return;
@@ -193,7 +193,7 @@ ngx_brix_cms_write_handler(ngx_event_t *ev)
     ctx = c->data;
 
     ngx_log_debug3(NGX_LOG_DEBUG_EVENT, c->write->log, 0,
-                   "xrootd: CMS write handler called timedout=%d "
+                   "brix: CMS write handler called timedout=%d "
                    "logged_in=%d c=%p",
                    (int) ev->timedout,
                    ctx ? (int) ctx->logged_in : -1, c);
@@ -203,7 +203,7 @@ ngx_brix_cms_write_handler(ngx_event_t *ev)
          * retry policy: pre-first-login it may fast-retry (bounded window), else it
          * backs off — never the multi-second backoff for a same-host cold start. */
         ngx_log_debug0(NGX_LOG_DEBUG_EVENT, ev->log, 0,
-                       "xrootd: CMS connect/write timed out");
+                       "brix: CMS connect/write timed out");
         ngx_brix_cms_disconnect(ctx);
         ngx_brix_cms_schedule_retry(ctx);
         return;
@@ -229,7 +229,7 @@ ngx_brix_cms_write_handler(ngx_event_t *ev)
                                (ngx_msec_t) NGX_BRIX_CMS_BACKOFF_INITIAL);
 
         ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
-                      "xrootd: CMS login sent to %V",
+                      "brix: CMS login sent to %V",
                       &ctx->conf->cms_manager);
 
         /* First successful login of this boot: leave fast-retry mode (any future
@@ -238,7 +238,7 @@ ngx_brix_cms_write_handler(ngx_event_t *ev)
             ctx->ever_logged_in = 1;
             ctx->fast_deadline  = 0;
             ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
-                          "xrootd: CMS registered with %V after %uL ms "
+                          "brix: CMS registered with %V after %uL ms "
                           "(%ui connect attempt(s), %s)",
                           &ctx->conf->cms_manager,
                           (brix_phase_now_ns() - ctx->start_ns) / 1000000ull,
@@ -271,7 +271,7 @@ ngx_brix_cms_write_handler(ngx_event_t *ev)
 
     if (ngx_brix_cms_send_load(ctx) != NGX_OK) {
         ngx_log_error(NGX_LOG_WARN, ev->log, 0,
-                      "xrootd: CMS write handler: send_load failed");
+                      "brix: CMS write handler: send_load failed");
         ngx_brix_cms_disconnect(ctx);
         ngx_brix_cms_schedule_retry(ctx);
         return;
@@ -286,7 +286,7 @@ ngx_brix_cms_write_handler(ngx_event_t *ev)
     ngx_brix_cms_schedule(ctx, (ngx_msec_t) ctx->conf->cms_interval * 1000);
 
     ngx_log_debug0(NGX_LOG_DEBUG_EVENT, ev->log, 0,
-                   "xrootd: CMS write handler: heartbeat sent");
+                   "brix: CMS write handler: heartbeat sent");
 }
 
 /* ngx_brix_cms_connect — start a TCP connect to the CMS manager via
@@ -371,7 +371,7 @@ ngx_brix_cms_timer(ngx_event_t *ev)
     ctx = ev->data;
 
     ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ev->log, 0,
-                   "xrootd: CMS timer fired connection=%p logged_in=%d",
+                   "brix: CMS timer fired connection=%p logged_in=%d",
                    ctx->connection,
                    ctx->connection ? (int) ctx->logged_in : -1);
 
@@ -389,7 +389,7 @@ ngx_brix_cms_timer(ngx_event_t *ev)
 
     if (ngx_brix_cms_send_load(ctx) != NGX_OK) {
         ngx_log_error(NGX_LOG_WARN, ev->log, 0,
-                      "xrootd: CMS load heartbeat failed");
+                      "brix: CMS load heartbeat failed");
         ngx_brix_cms_disconnect(ctx);
         ngx_brix_cms_schedule_retry(ctx);
         return;
@@ -415,7 +415,7 @@ ngx_brix_cms_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf)
     ctx = ngx_pcalloc(cycle->pool, sizeof(ngx_brix_cms_ctx_t));
     if (ctx == NULL) {
         ngx_log_error(NGX_LOG_ERR, cycle->log, 0,
-                      "xrootd: CMS heartbeat allocation failed");
+                      "brix: CMS heartbeat allocation failed");
         return;
     }
 
@@ -470,6 +470,6 @@ ngx_brix_cms_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf)
     }
 
     ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
-                  "xrootd: CMS heartbeat starting for manager %V",
+                  "brix: CMS heartbeat starting for manager %V",
                   &conf->cms_manager);
 }

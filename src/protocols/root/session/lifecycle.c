@@ -25,7 +25,7 @@ brix_handle_endsess(brix_ctx_t *ctx, ngx_connection_t *c)
     ClientEndsessRequest *req = (ClientEndsessRequest *) ctx->hdr_buf;
 
     ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                   "xrootd: kXR_endsess received");
+                   "brix: kXR_endsess received");
 
     /*
      * kXR_endsess names the session to terminate (req.sessid) — which is NOT
@@ -46,7 +46,7 @@ brix_handle_endsess(brix_ctx_t *ctx, ngx_connection_t *c)
     if (ngx_memcmp(req->sessid, ctx->sessid, BRIX_SESSION_ID_LEN) != 0) {
         brix_session_unregister(req->sessid);
         ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                       "xrootd: kXR_endsess for a different session — "
+                       "brix: kXR_endsess for a different session — "
                        "released it, this connection stays authenticated");
         return brix_send_ok(ctx, c, NULL, 0);
     }

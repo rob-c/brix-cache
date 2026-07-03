@@ -131,13 +131,13 @@ cms_node_exec_forward(ngx_brix_cms_ctx_t *ctx, u_char code, uint32_t streamid,
             }
             if (rc != 0) {
                 ngx_log_error(NGX_LOG_NOTICE, ctx->cycle->log, 0,
-                    "xrootd: CMS node: forwarded op code=%ui path=%s failed: %s",
+                    "brix: CMS node: forwarded op code=%ui path=%s failed: %s",
                     (ngx_uint_t) code, plan.path, strerror(errno));
                 return ngx_brix_cms_send_error(ctx, streamid, CMS_ERR_EINVAL,
                                                  strerror(errno));
             }
             ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
-                "xrootd: CMS node: forwarded op code=%ui path=%s OK (driver)",
+                "brix: CMS node: forwarded op code=%ui path=%s OK (driver)",
                 (ngx_uint_t) code, plan.path);
             return NGX_OK;
         }
@@ -182,7 +182,7 @@ cms_node_exec_forward(ngx_brix_cms_ctx_t *ctx, u_char code, uint32_t streamid,
 
     if (rc != 0) {
         ngx_log_error(NGX_LOG_NOTICE, ctx->cycle->log, 0,
-                      "xrootd: CMS node: forwarded op code=%ui path=%s failed: %s",
+                      "brix: CMS node: forwarded op code=%ui path=%s failed: %s",
                       (ngx_uint_t) code, plan.path, strerror(errno));
         /* byte-exact: ecode is always kYR_EINVAL; text carries strerror. */
         return ngx_brix_cms_send_error(ctx, streamid, CMS_ERR_EINVAL,
@@ -192,7 +192,7 @@ cms_node_exec_forward(ngx_brix_cms_ctx_t *ctx, u_char code, uint32_t streamid,
     /* Success: stay silent — exactly as cmsd Execute() does on a NULL return
      * from a non-forwarding leaf node. */
     ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
-                   "xrootd: CMS node: forwarded op code=%ui path=%s ok",
+                   "brix: CMS node: forwarded op code=%ui path=%s ok",
                    (ngx_uint_t) code, plan.path);
     return NGX_OK;
 }
@@ -218,7 +218,7 @@ cms_wake_pending_session(ngx_brix_cms_ctx_t *cms_ctx, uint32_t streamid,
     pending = brix_pending_lookup(streamid, ngx_pid);
     if (pending == NULL) {
         ngx_log_debug1(NGX_LOG_DEBUG_EVENT, cms_ctx->cycle->log, 0,
-                       "xrootd: CMS wake: streamid=%uD not found in pending table",
+                       "brix: CMS wake: streamid=%uD not found in pending table",
                        streamid);
         return NGX_OK;  /* session timed out and was already removed */
     }
@@ -261,13 +261,13 @@ cms_wake_pending_session(ngx_brix_cms_ctx_t *cms_ctx, uint32_t streamid,
         char  safe[256];
         brix_sanitize_log_string(host, safe, sizeof(safe));
         ngx_log_error(NGX_LOG_WARN, cms_ctx->cycle->log, 0,
-                      "xrootd: CMS select: rejected redirect to invalid host "
+                      "brix: CMS select: rejected redirect to invalid host "
                       "\"%s\" for fd=%d", safe, conn_fd);
         return NGX_OK;
     }
 
     ngx_log_error(NGX_LOG_INFO, cms_ctx->cycle->log, 0,
-                  "xrootd: CMS select: redirecting client fd=%d to %s:%u",
+                  "brix: CMS select: redirecting client fd=%d to %s:%u",
                   conn_fd, host, (unsigned) port);
 
     ngx_del_timer(client_conn->read);
@@ -276,7 +276,7 @@ cms_wake_pending_session(ngx_brix_cms_ctx_t *cms_ctx, uint32_t streamid,
     xrd_ctx->cur_streamid[1] = client_streamid[1];
     if (brix_send_redirect(xrd_ctx, client_conn, host, port) == NGX_ERROR) {
         ngx_log_error(NGX_LOG_ERR, cms_ctx->cycle->log, 0,
-                      "xrootd: CMS select: failed to queue redirect for fd=%d",
+                      "brix: CMS select: failed to queue redirect for fd=%d",
                       conn_fd);
         return NGX_ERROR;
     }
@@ -327,7 +327,7 @@ ngx_brix_cms_process_frame(ngx_brix_cms_ctx_t *ctx)
     code = ctx->inbuf[4];
 
     ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
-                   "xrootd: CMS process frame code=%ui streamid=%uD",
+                   "brix: CMS process frame code=%ui streamid=%uD",
                    (ngx_uint_t) code, streamid);
 
     switch (code) {
@@ -342,14 +342,14 @@ ngx_brix_cms_process_frame(ngx_brix_cms_ctx_t *ctx)
         if (mod & CMS_ST_SUSPEND) {
             ctx->conf->cms_suspended = 1;
             ngx_log_error(NGX_LOG_NOTICE, ctx->cycle->log, 0,
-                          "xrootd: CMS suspend received — new logins paused");
+                          "brix: CMS suspend received — new logins paused");
         } else if (mod & CMS_ST_RESUME) {
             ctx->conf->cms_suspended = 0;
             ngx_log_error(NGX_LOG_NOTICE, ctx->cycle->log, 0,
-                          "xrootd: CMS resume received — accepting logins");
+                          "brix: CMS resume received — accepting logins");
         } else {
             ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
-                           "xrootd: CMS status modifier=0x%02xi (no action)",
+                           "brix: CMS status modifier=0x%02xi (no action)",
                            (ngx_uint_t) mod);
         }
         return NGX_OK;
@@ -457,7 +457,7 @@ ngx_brix_cms_process_frame(ngx_brix_cms_ctx_t *ctx)
             uint16_t  dport;
             if (brix_srv_select(pathz, 0, host, sizeof(host), &dport)) {
                 ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
-                               "xrootd: CMS state(mgr): registry serves "
+                               "brix: CMS state(mgr): registry serves "
                                "\"%*s\", replying kYR_have", pl, payload);
                 return ngx_brix_cms_send_have(ctx, streamid, pathz, pl);
             }
@@ -484,14 +484,14 @@ ngx_brix_cms_process_frame(ngx_brix_cms_ctx_t *ctx)
                 && brix_stat_beneath(ctx->conf->rootfd, pathz, &st) == 0)
             {
                 ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
-                               "xrootd: CMS state: have \"%*s\", "
+                               "brix: CMS state: have \"%*s\", "
                                "replying kYR_have", pl, payload);
                 return ngx_brix_cms_send_have(ctx, streamid, pathz, pl);
             }
         }
 
         ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
-                       "xrootd: CMS state: do not have \"%*s\"",
+                       "brix: CMS state: do not have \"%*s\"",
                        pl, payload);
         return NGX_OK;
     }
@@ -515,13 +515,13 @@ ngx_brix_cms_process_frame(ngx_brix_cms_ctx_t *ctx)
     case CMS_RR_UPDATE:
         /* Manager asks us to resend state (do_Update -> sendState). */
         ngx_log_debug0(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
-                       "xrootd: CMS node: update -> status");
+                       "brix: CMS node: update -> status");
         return ngx_brix_cms_send_status(ctx);
 
     case CMS_RR_DISC:
         /* Manager requested disconnect (do_Disc on a node simply closes). */
         ngx_log_error(NGX_LOG_NOTICE, ctx->cycle->log, 0,
-                      "xrootd: CMS node: manager requested disconnect");
+                      "brix: CMS node: manager requested disconnect");
         ngx_brix_cms_disconnect(ctx);
         ngx_brix_cms_schedule_retry(ctx);
         return NGX_OK;
@@ -531,10 +531,10 @@ ngx_brix_cms_process_frame(ngx_brix_cms_ctx_t *ctx)
             brix_cms_route_lookup(XRDCMS_ROLE_NODE, code);
         if (r != NULL) {
             ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
-                           "xrootd: CMS node: unhandled opcode '%s'", r->name);
+                           "brix: CMS node: unhandled opcode '%s'", r->name);
         } else {
             ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
-                           "xrootd: ignoring CMS rrCode=%ui", (ngx_uint_t) code);
+                           "brix: ignoring CMS rrCode=%ui", (ngx_uint_t) code);
         }
         return NGX_OK;
     }
@@ -563,7 +563,7 @@ ngx_brix_cms_read_handler(ngx_event_t *ev)
     }
 
     ngx_log_debug3(NGX_LOG_DEBUG_EVENT, ev->log, 0,
-                   "xrootd: CMS read handler timedout=%d in_pos=%uz in_need=%uz",
+                   "brix: CMS read handler timedout=%d in_pos=%uz in_need=%uz",
                    (int) ev->timedout, ctx->in_pos, ctx->in_need);
 
     if (ev->timedout) {
@@ -573,7 +573,7 @@ ngx_brix_cms_read_handler(ngx_event_t *ev)
          * instead of heartbeating into a dead socket forever.
          */
         ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
-                      "xrootd: CMS manager silent past read timeout — "
+                      "brix: CMS manager silent past read timeout — "
                       "reconnecting");
         BRIX_RESIL_METRIC_INC(cms_read_timeouts_total);
         ngx_brix_cms_disconnect(ctx);
@@ -591,7 +591,7 @@ ngx_brix_cms_read_handler(ngx_event_t *ev)
 
         if (n == NGX_ERROR || n == 0) {
             ngx_log_debug0(NGX_LOG_DEBUG_EVENT, ev->log, 0,
-                           "xrootd: CMS recv EOF/error, disconnecting");
+                           "brix: CMS recv EOF/error, disconnecting");
             ngx_brix_cms_disconnect(ctx);
             ngx_brix_cms_schedule_retry(ctx);
             return;
@@ -610,7 +610,7 @@ ngx_brix_cms_read_handler(ngx_event_t *ev)
                 > NGX_BRIX_CMS_MAX_FRAME)
             {
                 ngx_log_error(NGX_LOG_WARN, ev->log, 0,
-                              "xrootd: CMS frame too large: %ui",
+                              "brix: CMS frame too large: %ui",
                               (ngx_uint_t) dlen);
                 ngx_brix_cms_disconnect(ctx);
                 ngx_brix_cms_schedule_retry(ctx);
@@ -624,7 +624,7 @@ ngx_brix_cms_read_handler(ngx_event_t *ev)
         }
 
         ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ev->log, 0,
-                       "xrootd: CMS process_frame code=%ui",
+                       "brix: CMS process_frame code=%ui",
                        (ngx_uint_t) ctx->inbuf[4]);
 
         if (ngx_brix_cms_process_frame(ctx) != NGX_OK) {

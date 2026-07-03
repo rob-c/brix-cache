@@ -151,7 +151,7 @@ brix_handle_pgwrite(brix_ctx_t *ctx, ngx_connection_t *c)
 		if (!brix_pgw_fob_has(&ctx->files[idx], offset,
 		                        (uint32_t) page_dlen)) {
 			ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
-			    "xrootd: pgwrite retry %zu@%lld not in error — normal write",
+			    "brix: pgwrite retry %zu@%lld not in error — normal write",
 			    page_dlen, (long long) offset);
 			is_retry = 0;
 		}
@@ -200,7 +200,7 @@ brix_handle_pgwrite(brix_ctx_t *ctx, ngx_connection_t *c)
 		    brix_wrts_is_replay(&ctx->files[idx], offset, (uint32_t) flat_sz))
 		{
 			ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
-			    "xrootd: pgwrite recovery replay skip offset=%lld len=%zu",
+			    "brix: pgwrite recovery replay skip offset=%lld len=%zu",
 			    (long long) offset, flat_sz);
 			BRIX_OP_OK(ctx, BRIX_OP_WRITE);
 			/* info offset = request offset (stock parity), not offset+len. */
@@ -240,7 +240,7 @@ brix_handle_pgwrite(brix_ctx_t *ctx, ngx_connection_t *c)
 		rc = brix_try_post_write_aio(ctx, c, idx, (off_t) offset, flat,
 									   flat_sz, offset, 1, NULL,
 									   bad_count ? bad_pages : NULL, bad_count,
-									   "xrootd: thread_task_post failed, falling back to sync pgwrite",
+									   "brix: thread_task_post failed, falling back to sync pgwrite",
 									   &posted);
 		if (rc != NGX_OK) {
 			return rc;

@@ -155,14 +155,14 @@ brix_reopen_bound_read_handle(brix_ctx_t *ctx, ngx_connection_t *c,
 
     if (fd < 0) {
         ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, errno,
-                       "xrootd: bound handle reopen failed handle=%d path=%s",
+                       "brix: bound handle reopen failed handle=%d path=%s",
                        handle_index, shared->path);
         return NGX_DECLINED;
     }
 
     if (fstat(fd, &st) != 0) {
         ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, errno,
-                       "xrootd: fstat failed on bound handle=%d",
+                       "brix: fstat failed on bound handle=%d",
                        handle_index);
         close(fd);
         return NGX_DECLINED;
@@ -171,7 +171,7 @@ brix_reopen_bound_read_handle(brix_ctx_t *ctx, ngx_connection_t *c,
     if (st.st_dev != shared->device || st.st_ino != shared->inode) {
         close(fd);
         ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                       "xrootd: bound handle=%d path changed before reopen",
+                       "brix: bound handle=%d path changed before reopen",
                        handle_index);
         return NGX_DECLINED;
     }
@@ -199,7 +199,7 @@ brix_reopen_bound_read_handle(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                   "xrootd: bound handle=%d reopened shared path=%s",
+                   "brix: bound handle=%d reopened shared path=%s",
                    handle_index, shared->path);
     return NGX_OK;
 }

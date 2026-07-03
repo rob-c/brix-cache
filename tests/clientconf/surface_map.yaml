@@ -5,7 +5,7 @@
 # surface test enforces:
 #
 #   * EVERY stock flag/command (from flag_inventory's live parse of
-#     /tmp/xrootd-src) MUST appear as a key here — a new upstream flag with no
+#     /tmp/brix-src) MUST appear as a key here — a new upstream flag with no
 #     entry fails the surface test as "untested/unmapped".
 #   * EVERY project-only flag MUST be listed under `extras` with a reason — an
 #     added knob with no entry fails the surface test.

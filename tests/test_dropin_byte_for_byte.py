@@ -3,7 +3,7 @@ tests/test_dropin_byte_for_byte.py — drop-in byte-for-byte parity vs the
 OFFICIAL xrootd server.
 
 This suite proves the nginx-xrootd module is a *drop-in* replacement for the
-official /usr/bin/xrootd at the wire level: it provisions BOTH servers on the
+official /usr/bin/brix at the wire level: it provisions BOTH servers on the
 SAME data root (a dedicated official xrootd and a dedicated nginx, on isolated
 high ports) and then issues the identical raw `root://` request to each and
 compares the responses.  Because both daemons read the same files, the
@@ -16,7 +16,7 @@ contract.  All raw framing is built with `struct.pack` exactly as in
 tests/test_readv_security.py, and every hostile / edge request is followed by a
 sanity op proving the connection survived.
 
-The whole module skips cleanly if the nginx binary or /usr/bin/xrootd is
+The whole module skips cleanly if the nginx binary or /usr/bin/brix is
 absent, or if either server fails to come up.
 
 Run:
@@ -33,7 +33,7 @@ import pytest
 
 from settings import NGINX_BIN, SERVER_HOST, free_ports
 
-BRIX_BIN = os.environ.get("TEST_BRIX_BIN", "/usr/bin/xrootd")
+BRIX_BIN = os.environ.get("TEST_BRIX_BIN", "/usr/bin/brix")
 H = SERVER_HOST
 
 # Dedicated workspace for this file.

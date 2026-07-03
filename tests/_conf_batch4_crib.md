@@ -44,7 +44,7 @@ tests/test_gfal_interop.py `_clean_env`). Run against both `ctx['our']`/`ctx['of
 
 ## The behavior contract (XrdCl public API — cite these)
 
-- OpenFlags: `/tmp/xrootd-src/src/XrdCl/XrdClFileSystem.hh:74` (New=kXR_new, Delete=kXR_delete,
+- OpenFlags: `/tmp/brix-src/src/XrdCl/XrdClFileSystem.hh:74` (New=kXR_new, Delete=kXR_delete,
   MakePath=kXR_mkpath, Update=kXR_open_updt, Write=kXR_open_wrto, Read=kXR_open_read,
   POSC=kXR_posc, Refresh, Force, NoWait, Replica, SeqIO, PrefName...).
 - Access::Mode (chmod bits): UR/UW/UX/GR/GW/GX/OR/OW/OX.
@@ -65,13 +65,13 @@ tests/test_gfal_interop.py `_clean_env`). Run against both `ctx['our']`/`ctx['of
   `r`(Read)/`w`(ReadWrite), rest = `host:port`. A bad type/access char makes XrdCl
   reject the WHOLE locate response. Token length must be >=5.
 - StatInfoVFS parse (`:452`): chunks `nrw frw urw nstg fstg ustg` (6 fields).
-- Wire enums/error codes: `/tmp/xrootd-src/src/XProtocol/XProtocol.hh` (kXR_* opcodes,
+- Wire enums/error codes: `/tmp/brix-src/src/XProtocol/XProtocol.hh` (kXR_* opcodes,
   XErrorCode kXR_* error numbers, kXR_char flag bits).
 
 ## Known candidate divergence to investigate (seed)
 - StatInfo `id` (chunks[0]): ours emits a small number (inode only?), stock emits a
   large composite (e.g. `(dev<<...)|ino`). Check `XrdXrootdProtocol::StatGen` in
-  `/tmp/xrootd-src/src/XrdXrootd/XrdXrootdXeq.cc` for the exact id formula. gfal mostly
+  `/tmp/brix-src/src/XrdXrootd/XrdXrootdXeq.cc` for the exact id formula. gfal mostly
   ignores id, but XrdCl exposes it; align if cheap & evidence says so.
 
 ## Rules

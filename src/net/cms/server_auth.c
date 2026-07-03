@@ -42,7 +42,7 @@ brix_cms_srv_check_peer(ngx_connection_t *c,
         if (!warned && conf->sss_keytab.len == 0) {
             warned = 1;
             ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                          "xrootd: CMS server has no brix_cms_server_allow "
+                          "brix: CMS server has no brix_cms_server_allow "
                           "and no brix_cms_server_sss_keytab — any host may "
                           "register; set an allowlist or sss keytab to harden");
         }
@@ -74,7 +74,7 @@ brix_cms_srv_verify_xauth(brix_cms_srv_ctx_t *ctx,
                                 err, sizeof(err));
     if (rc != NGX_OK) {
         ngx_log_error(NGX_LOG_NOTICE, ctx->c->log, 0,
-                      "xrootd: CMS server: sss auth rejected for %s: %s",
+                      "brix: CMS server: sss auth rejected for %s: %s",
                       ctx->host, err);
         return NGX_ERROR;
     }
@@ -84,7 +84,7 @@ brix_cms_srv_verify_xauth(brix_cms_srv_ctx_t *ctx,
         brix_sanitize_log_string(id.name[0] ? id.name : "-",
                                    safe_user, sizeof(safe_user));
         ngx_log_error(NGX_LOG_INFO, ctx->c->log, 0,
-                      "xrootd: CMS server: sss auth OK for %s (id=\"%s\")",
+                      "brix: CMS server: sss auth OK for %s (id=\"%s\")",
                       ctx->host, safe_user);
     }
 

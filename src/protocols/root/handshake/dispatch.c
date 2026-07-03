@@ -37,7 +37,7 @@ brix_dispatch(brix_ctx_t *ctx, ngx_connection_t *c,
     ctx->req_start = ngx_current_msec;
 
     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                   "xrootd: dispatch reqid=%d", (int) ctx->cur_reqid);
+                   "brix: dispatch reqid=%d", (int) ctx->cur_reqid);
 
     rc = brix_verify_pending_sigver(ctx, c);
     if (rc != BRIX_DISPATCH_CONTINUE) {
@@ -124,7 +124,7 @@ brix_dispatch(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                   "xrootd: unsupported request %d",
+                   "brix: unsupported request %d",
                    (int) ctx->cur_reqid);
     /* An unrecognized opcode is kXR_InvalidRequest ("Invalid request code"),
      * matching the reference (XrdXrootdProtocol.cc:608); kXR_Unsupported is

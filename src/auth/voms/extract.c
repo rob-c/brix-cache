@@ -93,7 +93,7 @@ brix_extract_voms_info(ngx_log_t *log, X509 *leaf, STACK_OF(X509) *chain,
     {
         if (error != VOMS_VERR_NOEXT && error != VOMS_VERR_NODATA) {
             ngx_log_error(NGX_LOG_WARN, log, 0,
-                          "xrootd: VOMS extraction failed: %s",
+                          "brix: VOMS extraction failed: %s",
                           brix_voms_api.error_message(vd, error, errbuf,
                                                         (int) sizeof(errbuf)));
             rc = NGX_ERROR;

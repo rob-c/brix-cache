@@ -254,7 +254,7 @@ brix_acc_init_server(ngx_stream_brix_srv_conf_t *xcf, ngx_cycle_t *cycle)
         cycle->log);
     if (xcf->acc_tables == NULL) {
         BRIX_DIAG_EMERG(cycle->log, 0,
-            "xrootd: failed to load authorization database \"%V\"",
+            "brix: failed to load authorization database \"%V\"",
             "the authdb could not be opened or parsed",
             "see the specific \"xrootd authdb:\" error logged just above for "
             "the exact file/line and how to fix it",

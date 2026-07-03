@@ -89,7 +89,7 @@ brix_send_error(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN + sizeof(ecode), msg, msglen);
 
     ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
-        "xrootd: sending error %d: %s", (int) errcode, msg);
+        "brix: sending error %d: %s", (int) errcode, msg);
 
     return brix_queue_response(ctx, c, buf, total);
 }

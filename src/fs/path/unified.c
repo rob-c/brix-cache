@@ -112,7 +112,7 @@ brix_validate_components_cstr(ngx_log_t *log, const char *path)
     if (brix_count_path_depth(path) != NGX_OK) {
         if (log != NULL) {
             ngx_log_error(NGX_LOG_WARN, log, 0,
-                          "xrootd: path depth exceeds limit");
+                          "brix: path depth exceeds limit");
         }
         return BRIX_PATH_STATUS_INVALID;
     }
@@ -133,7 +133,7 @@ brix_validate_components_cstr(ngx_log_t *log, const char *path)
 
         seg_len = (size_t) (p - seg_start);
         if (brix_path_component_forbidden(seg_start, seg_len)) {
-            brix_path_warn(log, "xrootd: path traversal attempt", path);
+            brix_path_warn(log, "brix: path traversal attempt", path);
             return BRIX_PATH_STATUS_INVALID;
         }
     }
@@ -286,7 +286,7 @@ brix_finish_resolved(ngx_log_t *log, const char *root_canon,
     brix_path_status_t   rc;
 
     if (!brix_path_within_root(root_canon, resolved_path)) {
-        brix_path_warn(log, "xrootd: path traversal attempt", resolved_path);
+        brix_path_warn(log, "brix: path traversal attempt", resolved_path);
         return BRIX_PATH_STATUS_INVALID;
     }
 
@@ -370,7 +370,7 @@ brix_resolve_missing_tail(ngx_log_t *log, const char *root_canon,
     }
 
     if (!brix_path_within_root(root_canon, parent_canon)) {
-        brix_path_warn(log, "xrootd: path traversal attempt in write",
+        brix_path_warn(log, "brix: path traversal attempt in write",
                          parent_canon);
         return BRIX_PATH_STATUS_INVALID;
     }
@@ -440,7 +440,7 @@ brix_resolve_missing_parents(ngx_log_t *log, const char *root_canon,
     }
 
     if (!brix_path_within_root(root_canon, ancestor_canon)) {
-        brix_path_warn(log, "xrootd: path traversal attempt", ancestor_canon);
+        brix_path_warn(log, "brix: path traversal attempt", ancestor_canon);
         return BRIX_PATH_STATUS_INVALID;
     }
 

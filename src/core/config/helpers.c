@@ -21,7 +21,7 @@ brix_validate_path(ngx_conf_t *cf, const char *label, const ngx_str_t *path,
 
     if (stat((char *) path->data, &st) != 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
-                           "xrootd: %s path \"%s\" is not accessible",
+                           "brix: %s path \"%s\" is not accessible",
                            label, path->data);
         return NGX_ERROR;
     }
@@ -30,7 +30,7 @@ brix_validate_path(ngx_conf_t *cf, const char *label, const ngx_str_t *path,
     case BRIX_PATH_REGULAR_FILE:
         if (!S_ISREG(st.st_mode)) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                               "xrootd: %s path \"%s\" must be a regular file",
+                               "brix: %s path \"%s\" must be a regular file",
                                label, path->data);
             return NGX_ERROR;
         }
@@ -39,7 +39,7 @@ brix_validate_path(ngx_conf_t *cf, const char *label, const ngx_str_t *path,
     case BRIX_PATH_DIRECTORY:
         if (!S_ISDIR(st.st_mode)) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                               "xrootd: %s path \"%s\" must be a directory",
+                               "brix: %s path \"%s\" must be a directory",
                                label, path->data);
             return NGX_ERROR;
         }
@@ -48,7 +48,7 @@ brix_validate_path(ngx_conf_t *cf, const char *label, const ngx_str_t *path,
     case BRIX_PATH_FILE_OR_DIRECTORY:
         if (!S_ISREG(st.st_mode) && !S_ISDIR(st.st_mode)) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                               "xrootd: %s path \"%s\" must be a file or directory",
+                               "brix: %s path \"%s\" must be a file or directory",
                                label, path->data);
             return NGX_ERROR;
         }
@@ -57,7 +57,7 @@ brix_validate_path(ngx_conf_t *cf, const char *label, const ngx_str_t *path,
 
     if (access_mode != 0 && access((char *) path->data, access_mode) != 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
-                           "xrootd: %s path \"%s\" failed permission check",
+                           "brix: %s path \"%s\" failed permission check",
                            label, path->data);
         return NGX_ERROR;
     }

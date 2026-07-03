@@ -298,7 +298,7 @@ brix_cms_srv_ping_timer(ngx_event_t *ev)
 
     if (brix_cms_srv_send_ping(ctx) != NGX_OK) {
         ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
-                      "xrootd: CMS server: ping to %s failed, closing",
+                      "brix: CMS server: ping to %s failed, closing",
                       ctx->host);
         brix_cms_srv_close(ctx);
         return;
@@ -342,7 +342,7 @@ cms_srv_complete_login(brix_cms_srv_ctx_t *ctx)
     }
 
     ngx_log_error(NGX_LOG_NOTICE, ctx->c->log, 0,
-                  "xrootd: CMS server: registered %s:%d paths=[%s] "
+                  "brix: CMS server: registered %s:%d paths=[%s] "
                   "free_mb=%uD util_pct=%uD",
                   ctx->host, (int) ctx->port, ctx->paths,
                   ctx->free_mb, ctx->util_pct);
@@ -359,7 +359,7 @@ cms_srv_process_frame(brix_cms_srv_ctx_t *ctx, u_char code, uint32_t streamid,
     case CMS_RR_LOGIN:
         if (!cms_srv_parse_login(ctx, payload, payload_len)) {
             ngx_log_error(NGX_LOG_WARN, ctx->c->log, 0,
-                          "xrootd: CMS server: malformed LOGIN from %s",
+                          "brix: CMS server: malformed LOGIN from %s",
                           ctx->host);
             brix_cms_srv_close(ctx);
             return;
@@ -390,7 +390,7 @@ cms_srv_process_frame(brix_cms_srv_ctx_t *ctx, u_char code, uint32_t streamid,
         /* Only meaningful while we are waiting for a credential. */
         if (ctx->auth_state != CMS_AUTH_CHALLENGED) {
             ngx_log_error(NGX_LOG_NOTICE, ctx->c->log, 0,
-                          "xrootd: CMS server: unexpected kYR_xauth from %s",
+                          "brix: CMS server: unexpected kYR_xauth from %s",
                           ctx->host);
             brix_cms_srv_close(ctx);
             return;
@@ -421,7 +421,7 @@ cms_srv_process_frame(brix_cms_srv_ctx_t *ctx, u_char code, uint32_t streamid,
 
     case CMS_RR_PONG:
         ngx_log_debug1(NGX_LOG_DEBUG_STREAM, ctx->c->log, 0,
-                       "xrootd: CMS server: pong from %s", ctx->host);
+                       "brix: CMS server: pong from %s", ctx->host);
         break;
 
     case CMS_RR_PING:
@@ -430,7 +430,7 @@ cms_srv_process_frame(brix_cms_srv_ctx_t *ctx, u_char code, uint32_t streamid,
          * header-only kYR_pong.  No auth/state needed — pure liveness.
          */
         ngx_log_debug1(NGX_LOG_DEBUG_STREAM, ctx->c->log, 0,
-                       "xrootd: CMS server: ping from %s -> pong", ctx->host);
+                       "brix: CMS server: ping from %s -> pong", ctx->host);
         if (brix_cms_srv_send_pong(ctx) != NGX_OK) {
             brix_cms_srv_close(ctx);
             return;
@@ -443,7 +443,7 @@ cms_srv_process_frame(brix_cms_srv_ctx_t *ctx, u_char code, uint32_t streamid,
          * close — which unregisters the node from the registry.
          */
         ngx_log_error(NGX_LOG_NOTICE, ctx->c->log, 0,
-                      "xrootd: CMS server: %s requested disconnect", ctx->host);
+                      "brix: CMS server: %s requested disconnect", ctx->host);
         (void) brix_cms_srv_send_disc(ctx);
         brix_cms_srv_close(ctx);
         return;
@@ -454,7 +454,7 @@ cms_srv_process_frame(brix_cms_srv_ctx_t *ctx, u_char code, uint32_t streamid,
          * frame so the peer keeps us active and eligible.
          */
         ngx_log_debug1(NGX_LOG_DEBUG_STREAM, ctx->c->log, 0,
-                       "xrootd: CMS server: update from %s -> status", ctx->host);
+                       "brix: CMS server: update from %s -> status", ctx->host);
         if (brix_cms_srv_send_status(ctx, CMS_ST_RESUME | CMS_ST_NOSTAGE)
             != NGX_OK)
         {
@@ -507,7 +507,7 @@ cms_srv_process_frame(brix_cms_srv_ctx_t *ctx, u_char code, uint32_t streamid,
             path[copy] = '\0';
             brix_srv_unregister_path(ctx->host, ctx->port, path);
             ngx_log_debug3(NGX_LOG_DEBUG_STREAM, ctx->c->log, 0,
-                           "xrootd: CMS server: kYR_gone path=%s from %s:%d",
+                           "brix: CMS server: kYR_gone path=%s from %s:%d",
                            path, ctx->host, (int) ctx->port);
         }
         break;
@@ -530,7 +530,7 @@ cms_srv_process_frame(brix_cms_srv_ctx_t *ctx, u_char code, uint32_t streamid,
                                         path, sizeof(path)) != NGX_OK)
             {
                 ngx_log_error(NGX_LOG_WARN, ctx->c->log, 0,
-                              "xrootd: CMS server: malformed CNS event from %s",
+                              "brix: CMS server: malformed CNS event from %s",
                               ctx->host);
                 break;
             }
@@ -540,7 +540,7 @@ cms_srv_process_frame(brix_cms_srv_ctx_t *ctx, u_char code, uint32_t streamid,
             }
             (void) brix_cns_apply(op, path, size, mtime, server_id);
             ngx_log_debug3(NGX_LOG_DEBUG_STREAM, ctx->c->log, 0,
-                           "xrootd: CNS event op=%ud path=%s from %s",
+                           "brix: CNS event op=%ud path=%s from %s",
                            (unsigned) op, path, ctx->host);
         }
         break;
@@ -556,11 +556,11 @@ cms_srv_process_frame(brix_cms_srv_ctx_t *ctx, u_char code, uint32_t streamid,
             brix_cms_route_lookup(XRDCMS_ROLE_MANAGER, code);
         if (r != NULL) {
             ngx_log_debug2(NGX_LOG_DEBUG_STREAM, ctx->c->log, 0,
-                           "xrootd: CMS server: unhandled opcode '%s' from %s",
+                           "brix: CMS server: unhandled opcode '%s' from %s",
                            r->name, ctx->host);
         } else {
             ngx_log_debug2(NGX_LOG_DEBUG_STREAM, ctx->c->log, 0,
-                           "xrootd: CMS server: unknown rrCode=%ui from %s",
+                           "brix: CMS server: unknown rrCode=%ui from %s",
                            (ngx_uint_t) code, ctx->host);
         }
         break;
@@ -644,7 +644,7 @@ brix_cms_srv_read(ngx_event_t *ev)
                 > NGX_BRIX_CMS_MAX_FRAME)
             {
                 ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                              "xrootd: CMS server: frame too large (%ui) "
+                              "brix: CMS server: frame too large (%ui) "
                               "from %s", (ngx_uint_t) dlen, ctx->host);
                 brix_cms_srv_close(ctx);
                 return;
