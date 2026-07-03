@@ -135,6 +135,20 @@ brix_open_resolved_via_driver(brix_sd_instance_t *sd, const char *logical,
                  : (fh->sd_obj.snap.is_dir ? (S_IFDIR | 0755)
                                            : (S_IFREG | 0644));
 
+    /* The driver snapshot carries no device id, so st_dev would stay 0 and the
+     * published-handle table would record device 0. A bound secondary reopens
+     * the file for itself (a real fstat, real st_dev) and revalidates device+
+     * inode against the published entry — a 0 vs real-device mismatch would then
+     * wrongly revoke every bound read (kXR_error). For a driver with a real
+     * backing descriptor (the POSIX driver's fd is the file itself), capture the
+     * real device here so the published identity matches the secondary's reopen. */
+    if (fh->sd_obj.fd >= 0) {
+        struct stat rst;
+        if (fstat(fh->sd_obj.fd, &rst) == 0) {
+            st->st_dev = rst.st_dev;
+        }
+    }
+
     *out_fd = fh->sd_obj.fd;   /* block-0 fd, or NGX_INVALID_FILE (-1) */
     return NGX_OK;
 }
