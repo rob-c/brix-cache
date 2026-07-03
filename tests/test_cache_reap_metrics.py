@@ -38,6 +38,14 @@ except Exception:  # noqa: BLE001 — settings import optional outside the harne
 
 _OBJS = os.path.dirname(NGINX_BIN)
 _CINFO_O = os.path.join(_OBJS, "addon", "cache", "cinfo.o")
+# cinfo.c calls into the unified metadata (xmeta) engine, so the planter must
+# link those objects too or the standalone link fails on brix_xmeta_* refs.
+_CINFO_DEPS = [
+    os.path.join(_OBJS, "addon", "meta", "xmeta.o"),
+    os.path.join(_OBJS, "addon", "meta", "xmeta_path.o"),
+    os.path.join(_OBJS, "addon", "meta", "xmeta_carrier.o"),
+    os.path.join(_OBJS, "addon", "compat", "crc32c.o"),
+]
 _CC = os.environ.get("CC", "cc")
 
 pytestmark = pytest.mark.skipif(
@@ -144,7 +152,7 @@ def test_cache_reap_reason_metrics(tmp_path):
     src = tmp_path / "planter.c"
     src.write_text(_PLANTER_SRC)
     planter = tmp_path / "planter"
-    subprocess.run([_CC, "-O", "-o", str(planter), str(src), _CINFO_O],
+    subprocess.run([_CC, "-O", "-o", str(planter), str(src), _CINFO_O] + _CINFO_DEPS,
                    check=True)
 
     state = tmp_path / "state"

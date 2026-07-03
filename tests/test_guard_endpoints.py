@@ -285,7 +285,7 @@ class TestOpsServerGuard:
         baseline = fleet["audits"]["ops"].line_count()
         r = fleet["ops"].get("/metrics")
         assert r.status == 200, f"/metrics failed: {r.status}"
-        assert b"xrootd" in r.body
+        assert b"brix" in r.body
         time.sleep(0.3)
         assert fleet["audits"]["ops"].line_count() == baseline
 
