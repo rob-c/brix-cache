@@ -82,6 +82,7 @@ ngx_http_xrootd_dashboard_create_loc_conf(ngx_conf_t *cf)
     conf->stalled_threshold_ms = NGX_CONF_UNSET_MSEC;
     conf->cluster_stale_after_ms = NGX_CONF_UNSET_MSEC;
     conf->admin_require_both = NGX_CONF_UNSET;   /* admin_allow/secret: NULL via pcalloc */
+    conf->vfs_browse = NGX_CONF_UNSET;
     conf->scan_max_files = NGX_CONF_UNSET_UINT;
     return conf;
 }
@@ -140,6 +141,7 @@ ngx_http_xrootd_dashboard_merge_loc_conf(ngx_conf_t *cf,
     /* Storage-scan root: canonicalize once (realpath) into scan_root_canon, the
      * confinement anchor for the /scan endpoint.  Empty => feature off (404). */
     ngx_conf_merge_str_value(conf->scan_root, prev->scan_root, "");
+    ngx_conf_merge_value(conf->vfs_browse, prev->vfs_browse, 0);
     ngx_conf_merge_uint_value(conf->scan_max_files, prev->scan_max_files, 100000);
     if (conf->scan_root_canon[0] == '\0' && conf->scan_root.len > 0) {
         char tmp[PATH_MAX];
@@ -439,6 +441,16 @@ static ngx_command_t ngx_http_xrootd_dashboard_commands[] = {
       offsetof(ngx_http_xrootd_dashboard_loc_conf_t, scan_root),
       NULL },
 
+    /* VFS export browser endpoints (/api/v1/vfs*): admin-auth, read-only,
+     * OFF by default — turning it on exposes stored user data through the
+     * dashboard, so the operator must opt in. */
+    { ngx_string("xrootd_dashboard_vfs_browse"),
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_dashboard_loc_conf_t, vfs_browse),
+      NULL },
+
     /* Operator cap on files visited per scan request (default 100000). */
     { ngx_string("xrootd_scan_max_files"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
@@ -581,6 +593,19 @@ ngx_http_xrootd_dashboard_main_handler(ngx_http_request_t *r)
     }
     if (dashboard_uri_eq(uri, "/xrootd/api/v1/download")) {
         return ngx_http_xrootd_dashboard_download_handler(r);
+    }
+
+    /* VFS export browser (census + listing + download); ALWAYS auth-only,
+     * every op routed through xrootd_vfs_* (logical namespace of ANY
+     * backend, pblock/ceph included). 404 unless xrootd_dashboard_vfs_browse. */
+    if (dashboard_uri_eq(uri, "/xrootd/api/v1/vfs")) {
+        return ngx_http_xrootd_dashboard_vfs_exports_handler(r);
+    }
+    if (dashboard_uri_eq(uri, "/xrootd/api/v1/vfs/files")) {
+        return ngx_http_xrootd_dashboard_vfs_files_handler(r);
+    }
+    if (dashboard_uri_eq(uri, "/xrootd/api/v1/vfs/download")) {
+        return ngx_http_xrootd_dashboard_vfs_download_handler(r);
     }
 
     /* Storage scan/verify/fill engine; ALWAYS auth-only, confined to
