@@ -1,9 +1,9 @@
 {
-  "name": "gnuball-site",
+  "name": "brix-cache-site",
   "type": "module",
   "version": "1.0.0",
   "private": true,
-  "description": "Marketing site for gnuBall — the modular WLCG storage interface",
+  "description": "Marketing site for BriX-Cache — the modular WLCG storage interface",
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",

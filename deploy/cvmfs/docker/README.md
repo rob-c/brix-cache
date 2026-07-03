@@ -90,6 +90,14 @@ Then watch it work:
   request classes, fills, verify failures, origin failovers, the
   hit/fill byte split (`xrootd_cvmfs_bytes_served_total`) vs WAN-in
   (`xrootd_cvmfs_origin_bytes_total`).
+- **Per-upstream (which Stratum-1):** `... | grep cvmfs_upstream_` — fills,
+  WAN bytes, failovers and a fill-duration histogram labelled
+  `upstream="host:port"`, e.g. how much you pull from RAL vs CERN:
+  `xrootd_cvmfs_upstream_origin_bytes_total{upstream="cernvmfs.gridpp.rl.ac.uk:80"}`.
+- **Trace a request end-to-end:** add `xrootd_cvmfs_trace on;` to the cache
+  location (or `error_log … debug`) and watch `cvmfs-trace: client …` (the
+  file queried) paired with `cvmfs-trace: upstream …` (each Stratum-1 request
+  it caused) in `error.log`.
 - **Health:** `curl http://<docker-host>:3130/healthz` — includes
   per-origin fail scores.
 - **Bans:** `docker exec cvmfs-demo fail2ban-client status

@@ -1,4 +1,4 @@
-# gnuBall Code-Level Security Audit
+# BriX-Cache Code-Level Security Audit
 
 **Scope:** Full-codebase review targeting authentication bypass, SSRF, resource exhaustion,
 path escape, and timing-side-channel attacks.
@@ -156,7 +156,7 @@ The attacker can probe any HTTPS-enabled internal endpoint, including:
 - Internal storage APIs on RFC-1918 ranges
 - Cloud metadata service endpoints if they happen to have a valid cert
   (e.g., AWS IMDSv2 is HTTP-only, but other providers differ)
-- Other gnuBall instances on the same cluster's management network
+- Other BriX-Cache instances on the same cluster's management network
 
 There is no rejection of `127.x.x.x`, `::1`, `10.x.x.x`, `172.16-31.x.x`,
 `192.168.x.x`, or `169.254.x.x` (link-local / APIPA) addresses in the URL
@@ -583,7 +583,7 @@ through the path confinement tests (`test_security_hardening.py::test_mkdir_with
 
 ### Vulnerability
 
-gnuBall uses `ngx_palloc` (pool allocation) for per-request data and a separate
+BriX-Cache uses `ngx_palloc` (pool allocation) for per-request data and a separate
 heap-allocated `payload_buf` that grows to hold the largest seen payload. There is no
 cap on total bytes allocated from the nginx pool over a connection's lifetime.
 
@@ -731,4 +731,4 @@ used; all are now done.
 
 ---
 
-*Code review and implementation: gnuBall main branch, 2026-05-20.*
+*Code review and implementation: BriX-Cache main branch, 2026-05-20.*

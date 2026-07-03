@@ -1,6 +1,6 @@
 # Production Deployment Guide
 
-Step-by-step instructions for deploying gnuBall in production — covering systemd service setup, resource limits, log rotation, and the Kubernetes testing pipeline.
+Step-by-step instructions for deploying BriX-Cache in production — covering systemd service setup, resource limits, log rotation, and the Kubernetes testing pipeline.
 
 ## Prerequisites
 
@@ -102,7 +102,7 @@ for img in server client test-runner; do
 done
 ```
 
-## Step 5: Deploy gnuBall Servers
+## Step 5: Deploy BriX-Cache Servers
 
 **For GSI/x509 authentication testing:**
 ```bash

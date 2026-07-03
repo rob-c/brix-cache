@@ -1,9 +1,11 @@
 # The shared VFS: one storage core under `src/` and `client/`
 
-**Status:** Reference (reflects the tree as of 2026-06-28)
+**Status:** Reference (reflects the tree as of 2026-07-02, phase-67 layout)
 **Scope:** how file/object byte I/O is layered and *shared* between the nginx
 server (`src/`) and the native userland clients (`client/`), after the
-storage-driver unification (phases 54–59).
+storage-driver unification (phases 54–59). Since phase-67 the server facade
+files live under `src/fs/vfs/` (moved off the `src/fs/` root); the shared verb
+kernel is `src/fs/core/`, the drivers `src/fs/backend/`.
 **Companion docs:** [`src/fs/README.md`](../../src/fs/README.md) ·
 [`src/fs/backend/README.md`](../../src/fs/backend/README.md) ·
 [`src/fs/core/README.md`](../../src/fs/core/README.md) ·
@@ -594,6 +596,8 @@ shared core.
 | `src/fs/vfs/vfs_io_core.c` / `.h` | worker-safe job executor (read/write/readv/pgread/sync/truncate/opendir) over the shared verbs |
 | `src/fs/vfs/vfs_read.c` … `vfs_xattr.c` | per-op data-plane handlers, staged commit, dir/stat/rename/xattr |
 | `src/fs/vfs/vfs_walk.c` | thread-safe pool-free confined primitives (`xrootd_vfs_open_fd`/`_at`, `unlink_path`/`_at`, `mkdir_path`, `rename_path`, `walk`, `copyfile`/`copytree`) for off-loop/bulk consumers |
+| `src/fs/vfs/vfs_backend_config.c` | per-export storage-backend directive parsing → `xrootd_vfs_backend_entry_t` registry entries (phase-67 split) |
+| `src/fs/vfs/vfs_backend_registry.c` / `vfs_backend_internal.h` | per-export backend registry: entry table, source build + tier/decorator composition, `xrootd_vfs_backend_resolve()`, and `xrootd_vfs_backend_http_endpoint()` (HTTP origin of an `http`/`https` backend, for protocol-side uncached passthroughs — phase-68 cvmfs). Split from the old monolithic `vfs_backend_registry.c` in phase-67. |
 | `src/fs/backend/sd_ceph.c` (`+_unittest`) | module-only Ceph/RADOS driver (gated on `XROOTD_HAVE_CEPH`); **not** compiled into the client `libxrdproto` |
 | `src/fs/backend/sd_pblock.c`, `sd_pblock_catalog.c` (`+ unittests`) | module-only striped-block driver over a SQLite catalog (gated on `XROOTD_HAVE_SQLITE`); ngx-free + standalone-testable but not in the client build. **Deep-dive (block-striping, the catalog, the VFS↔backend wiring, with ASCII diagrams):** [`pblock-storage-backend.md`](pblock-storage-backend.md) |
 | `src/fs/backend/csi_tagstore.c`, `csi_verify.c` (`+_unittest`) | module-only `XrdOssCsi`-parity per-page CRC32C tagstore; tag-file I/O stays below the seam (in `backend/`) |

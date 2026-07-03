@@ -1,6 +1,6 @@
 # Adversarial Hardening Tests (evil-actor suite)
 
-> **Audience:** Maintainers and security reviewers of the gnuBall stream/HTTP data planes.
+> **Audience:** Maintainers and security reviewers of the BriX-Cache stream/HTTP data planes.
 > **Prerequisites:** Familiarity with the XRootD `root://` wire protocol (24-byte request header, `kXR_*` opcodes, `kXR_status` framing), the nginx stream event loop + thread pool model, and the project's confinement/AIO invariants in [`CLAUDE.md`](../../CLAUDE.md).
 > **Time:** ~20 min read; full ASAN run ~10-15 min wall.
 
@@ -48,7 +48,7 @@ The methodology is byte-accurate raw framing (no client library to sanitize inpu
 
 ## The race_shim mechanism (deterministic worker-gated syscall slowing)
 
-`tests/race_shim.c` is an `LD_PRELOAD` shim that interposes the blocking file-I/O syscalls the gnuBall thread pool runs on its **worker** threads — `pread`, `pwrite`, `preadv`, `pwritev`, `read`, `write` — and injects a tunable `nanosleep` (`XRD_RACE_DELAY_US`, default 15000us) around the real syscall (before by default; after if `XRD_RACE_AFTER=1`). The delay turns a microsecond-wide race into a per-iteration hit.
+`tests/race_shim.c` is an `LD_PRELOAD` shim that interposes the blocking file-I/O syscalls the BriX-Cache thread pool runs on its **worker** threads — `pread`, `pwrite`, `preadv`, `pwritev`, `read`, `write` — and injects a tunable `nanosleep` (`XRD_RACE_DELAY_US`, default 15000us) around the real syscall (before by default; after if `XRD_RACE_AFTER=1`). The delay turns a microsecond-wide race into a per-iteration hit.
 
 ### Why it only delays workers, never the event loop
 

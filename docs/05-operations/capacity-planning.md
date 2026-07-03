@@ -1,6 +1,6 @@
 # Capacity Planning
 
-How to size an gnuBall gateway: workers, connections, file descriptors,
+How to size an BriX-Cache gateway: workers, connections, file descriptors,
 the async thread pool, shared-memory zones, and the transfer memory budget.
 Numbers below are starting points — measure with the
 [Grafana dashboard](../08-metrics-monitoring/monitoring-guide.md)

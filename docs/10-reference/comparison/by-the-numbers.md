@@ -2,9 +2,9 @@
 
 ## By the numbers
 
-The hard data: source size, binary footprint, request throughput, and memory use — gnuBall vs reference xrootd.
+The hard data: source size, binary footprint, request throughput, and memory use — BriX-Cache vs reference xrootd.
 
-### gnuBall source
+### BriX-Cache source
 
 All figures are for the `src/` tree as of this document's date. The module is
 written in C and plugs into nginx's stream and HTTP lifecycles.
@@ -44,7 +44,7 @@ written in C and plugs into nginx's stream and HTTP lifecycles.
 The module has no external C dependencies beyond nginx and OpenSSL. No XRootD
 libraries are linked: the XRootD wire protocol is implemented directly.
 
-### gnuBall test suite
+### BriX-Cache test suite
 
 | Metric | Count |
 |---|---|
@@ -116,7 +116,7 @@ planning contributions.
 
 ---
 
-### gnuBall
+### BriX-Cache
 
 **Initial implementation (estimated 4,500–6,000 hours)**
 
@@ -197,7 +197,7 @@ integrations, and deployment support for the WLCG collaboration.
 
 ### What the numbers mean for contributors
 
-| Question | gnuBall | Official XRootD |
+| Question | BriX-Cache | Official XRootD |
 |---|---|---|
 | How many hours to understand the whole codebase? | 40–80 hours (38 kloc, clean separation) | 200–500 hours (380 kloc, broad plugin ecosystem) |
 | How many hours to add a new native opcode? | 8–20 hours (see `docs/contributing.md` §1) | 20–60 hours (need to understand OFS/OSS plugin chain) |

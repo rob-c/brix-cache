@@ -1,6 +1,6 @@
 # Implementation status
 
-How gnuBall stacks up against the official `xrootd` data-server surface,
+How BriX-Cache stacks up against the official `xrootd` data-server surface,
 operation by operation. Use this before reporting a missing feature, planning a
 migration, or deciding what to work on next.
 

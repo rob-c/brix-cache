@@ -25,7 +25,7 @@ export interface Protocol {
   blurb: string;
 }
 
-/** The three protocols one gnuBall server speaks, in fixed order + color. */
+/** The three protocols one BriX-Cache server speaks, in fixed order + color. */
 export const PROTOCOLS: Protocol[] = [
   {
     id: 'root',

@@ -1,6 +1,6 @@
 # How It Works
 
-Tracing a request from TCP connect to access-log entry is the fastest way to become confident with gnuBall. Read this once and debugging becomes much less mysterious.
+Tracing a request from TCP connect to access-log entry is the fastest way to become confident with BriX-Cache. Read this once and debugging becomes much less mysterious.
 
 ---
 
@@ -207,7 +207,7 @@ This means authentication succeeded but authorization failed. Check:
 
 1. Check that the path doesn't have typos (XRootD uses double slash `//` before the path)
 2. Verify the file exists in the configured `xrootd_root` directory
-3. Check for path traversal protections (gnuBall won't serve files outside the root)
+3. Check for path traversal protections (BriX-Cache won't serve files outside the root)
 
 ### "Slow transfers" — Performance issues
 

@@ -669,6 +669,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/backend/meta_advisory.c \
     $ngx_addon_dir/src/fs/backend/site_n2n.c \
     $ngx_addon_dir/src/fs/backend/sd_registry.c \
+    $ngx_addon_dir/src/fs/backend/sd_fs_id.c \
     $ngx_addon_dir/src/fs/backend/csi_tagstore.c \
     $ngx_addon_dir/src/fs/backend/csi_verify.c \
     $ngx_addon_dir/src/core/config/root_prepare.c \
@@ -1233,6 +1234,7 @@ ngx_module_srcs="$ngx_addon_dir/src/protocols/cvmfs/module.c \
                  $ngx_addon_dir/src/protocols/cvmfs/handler.c \
                  $ngx_addon_dir/src/protocols/cvmfs/gate.c \
                  $ngx_addon_dir/src/protocols/cvmfs/geo.c \
+                 $ngx_addon_dir/src/protocols/cvmfs/geo_answer.c \
                  $ngx_addon_dir/src/protocols/cvmfs/request.c \
                  $ngx_addon_dir/src/protocols/cvmfs/upstreams.c \
                  $ngx_addon_dir/src/protocols/cvmfs/origin_geo.c \
@@ -1256,6 +1258,7 @@ ngx_module_srcs="$ngx_addon_dir/src/observability/dashboard/module.c \
                  $ngx_addon_dir/src/observability/dashboard/api_transfers.c \
                  $ngx_addon_dir/src/observability/dashboard/api_snapshot.c \
                  $ngx_addon_dir/src/observability/dashboard/api_ratelimit.c \
+                 $ngx_addon_dir/src/observability/dashboard/api_cvmfs.c \
                  $ngx_addon_dir/src/observability/dashboard/api_admin.c \
                  $ngx_addon_dir/src/observability/dashboard/api_admin_cluster.c \
                  $ngx_addon_dir/src/observability/dashboard/api_admin_proxy.c \

@@ -3,6 +3,7 @@
  * Phase-38 split of api.c; behavior-identical.
  */
 #include "dashboard_api_internal.h"
+#include "fs/vfs/vfs_backend_registry.h"   /* export census for "storage" */
 
 
 /*
@@ -53,7 +54,11 @@ dashboard_collect_totals(xrootd_dashboard_totals_t *totals)
         (uint64_t) met->s3.bytes_rx_total;
     totals->proto_tx[XROOTD_XFER_PROTO_S3 - 1] =
         (uint64_t) met->s3.bytes_tx_total;
-    totals->proto_rx[XROOTD_XFER_PROTO_CVMFS - 1] = 0;   /* read-only */
+    /* cvmfs is a read-only site cache: clients never upload, so "in" is the
+     * WAN-side origin pull (Stratum-1 fills) and "out" is the LAN-side bytes
+     * served (cache hits + fresh fills). */
+    totals->proto_rx[XROOTD_XFER_PROTO_CVMFS - 1] =
+        (uint64_t) met->cvmfs.origin_bytes_total;
     totals->proto_tx[XROOTD_XFER_PROTO_CVMFS - 1] =
         (uint64_t) met->cvmfs.bytes_served_hit_total
         + (uint64_t) met->cvmfs.bytes_served_fill_total;
@@ -454,6 +459,101 @@ dashboard_fill_cache(json_t *target, ngx_uint_t redact)
 
 
 /*
+ * dashboard_fill_storage — adds "exports" (per-export backend identity plus
+ * live-statvfs capacity for local backends) and "io" (per-backend byte
+ * totals) to `target`. The identity source is the config-time VFS backend
+ * registry (the same census behind /vfs and the storage-backend info gauge),
+ * so it covers stream AND http exports. redact (anonymous tier) omits the
+ * export root and origin host — numbers only, matching the cache panel.
+ */
+static void
+dashboard_fill_storage(json_t *target, ngx_uint_t redact)
+{
+    ngx_uint_t  i, n;
+    json_t     *exports, *io;
+
+    exports = json_array();
+    if (exports != NULL) {
+        n = xrootd_vfs_backend_export_count();
+        for (i = 0; i < n; i++) {
+            xrootd_vfs_backend_info_t info;
+            xrootd_fs_usage_t         fsu;
+            json_t                   *e;
+            int                       local;
+
+            if (xrootd_vfs_backend_export_info(i, &info) != NGX_OK) {
+                continue;
+            }
+            e = json_object();
+            if (e == NULL) {
+                continue;
+            }
+            local = ngx_strcmp(info.backend, "posix") == 0
+                    || ngx_strcmp(info.backend, "pblock") == 0;
+
+            json_object_set_new(e, "backend", json_string(info.backend));
+            json_object_set_new(e, "remote",  local ? json_false() : json_true());
+            json_object_set_new(e, "staging",
+                info.staging ? json_true() : json_false());
+            if (!redact) {   /* export path + upstream host are infra detail */
+                json_object_set_new(e, "root", json_string(info.root_canon));
+                if (info.host != NULL && info.host[0] != '\0') {
+                    json_object_set_new(e, "origin_host", json_string(info.host));
+                    json_object_set_new(e, "origin_port",
+                        json_integer((json_int_t) info.port));
+                }
+            }
+            if (local
+                && xrootd_fs_usage_stat(info.root_canon, &fsu) == NGX_OK)
+            {
+                json_object_set_new(e, "bytes_total",
+                    json_integer((json_int_t) fsu.total_bytes));
+                json_object_set_new(e, "bytes_used",
+                    json_integer((json_int_t) fsu.occupancy_bytes));
+                json_object_set_new(e, "bytes_available",
+                    json_integer((json_int_t) fsu.available_bytes));
+                json_object_set_new(e, "occupancy_ratio",
+                    json_real((double) fsu.occupancy_ppm / 1000000.0));
+            }
+            json_array_append_new(exports, e);
+        }
+        json_object_set_new(target, "exports", exports);
+    }
+
+    io = json_object();
+    if (io != NULL) {
+        if (ngx_xrootd_shm_zone != NULL
+            && ngx_xrootd_shm_zone->data != NULL
+            && ngx_xrootd_shm_zone->data != (void *) 1)
+        {
+            ngx_xrootd_metrics_t *met = ngx_xrootd_shm_zone->data;
+            int                   id;
+
+            for (id = 0; id < XROOTD_FS_ID_COUNT; id++) {
+                uint64_t rd = (uint64_t) met->unified.io_bytes_read_backend[id];
+                uint64_t wr = (uint64_t) met->unified.io_bytes_written_backend[id];
+                json_t  *b;
+
+                if (rd == 0 && wr == 0) {
+                    continue;           /* idle backends stay out of the JSON */
+                }
+                b = json_object();
+                if (b == NULL) {
+                    continue;
+                }
+                json_object_set_new(b, "bytes_read_total",
+                    json_integer((json_int_t) rd));
+                json_object_set_new(b, "bytes_written_total",
+                    json_integer((json_int_t) wr));
+                json_object_set_new(io, xrootd_fs_id_name(id), b);
+            }
+        }
+        json_object_set_new(target, "io", io);
+    }
+}
+
+
+/*
  * dashboard_fill_cluster — adds "stale_after_ms" and "servers" directly to
  * `target`.  Called with target=root for v1/cluster and target=sub-object for
  * snapshot.
@@ -525,7 +625,7 @@ dashboard_build_v1_snapshot(ngx_http_request_t *r,
     int64_t now_ms, const ngx_http_xrootd_dashboard_loc_conf_t *conf,
     const xrootd_dashboard_totals_t *totals, ngx_uint_t redact)
 {
-    json_t *root, *history, *cache, *cluster;
+    json_t *root, *history, *cache, *storage, *cluster, *cvmfs;
 
     root = dashboard_new_v1_root(now_ms, conf);
     if (!root) { return NULL; }
@@ -543,10 +643,22 @@ dashboard_build_v1_snapshot(ngx_http_request_t *r,
         json_object_set_new(root, "cache", cache);
     }
 
+    storage = json_object();
+    if (storage) {
+        dashboard_fill_storage(storage, redact);
+        json_object_set_new(root, "storage", storage);
+    }
+
     cluster = json_object();
     if (cluster) {
         dashboard_fill_cluster(cluster, r->pool, now_ms, conf, redact);
         json_object_set_new(root, "cluster", cluster);
+    }
+
+    cvmfs = json_object();
+    if (cvmfs) {
+        dashboard_fill_cvmfs(cvmfs, redact);
+        json_object_set_new(root, "cvmfs", cvmfs);
     }
 
     json_object_set_new(root, "events", dashboard_build_events(r->pool, redact));

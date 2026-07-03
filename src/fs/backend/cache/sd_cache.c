@@ -14,11 +14,13 @@
 #include "observability/metrics/metrics.h"        /* phase-68 T16 counters */
 #include "observability/metrics/metrics_macros.h"
 #include "fs/cache/cstore.h"
+#include "fs/backend/http/sd_http.h"    /* per-upstream fill attribution     */
 
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 
 typedef struct {
@@ -123,6 +125,51 @@ sd_cache_note_origin_bytes(const sd_cache_inst_state *st, const char *key,
     }
 }
 
+/* phase-68 T16: per-upstream (Stratum-1) fill attribution, gated on the cvmfs
+ * personality. Resolves the http source instance beneath the cache source and
+ * records this fill attempt against the "host:port" it answered from — the
+ * RAL-vs-CERN view. `ok`/`bytes`/`dur_ms` describe the attempt; failover comes
+ * from the http instance's last-read record. */
+static void
+sd_cache_note_upstream(const sd_cache_inst_state *st, int ok, off_t bytes,
+    long dur_ms)
+{
+    xrootd_sd_instance_t *h = st->source;
+    char                  host[XROOTD_CVMFS_UPSTREAM_NAME_MAX];
+    int                   guard = 0;
+
+    if (!sd_cache_is_cvmfs(st)) {
+        return;
+    }
+    /* Descend the source chain to the http instance (usually src itself). */
+    while (h != NULL && (h->driver == NULL || h->driver->name == NULL
+                         || strcmp(h->driver->name, "http") != 0)
+           && guard++ < 8)
+    {
+        h = xrootd_sd_cache_source_instance(h);
+    }
+    if (h == NULL || sd_http_last_origin(h, host, sizeof(host)) != 0) {
+        return;
+    }
+    xrootd_cvmfs_upstream_record(host, ok, bytes, dur_ms,
+                                 sd_http_last_was_failover(h));
+}
+
+/* Milliseconds elapsed since a CLOCK_MONOTONIC start, clamped non-negative. */
+static long
+sd_cache_ms_since(const struct timespec *t0)
+{
+    struct timespec now;
+    long            ms;
+
+    if (clock_gettime(CLOCK_MONOTONIC, &now) != 0) {
+        return 0;
+    }
+    ms = (now.tv_sec - t0->tv_sec) * 1000L
+       + (now.tv_nsec - t0->tv_nsec) / 1000000L;
+    return ms < 0 ? 0 : ms;
+}
+
 /* phase-68: 1 iff `key` is CVMFS MANIFEST-class (mutable signed metadata). */
 static int
 sd_cache_is_manifest_key(const char *key)
@@ -191,6 +238,9 @@ sd_cache_fill(sd_cache_inst_state *st, const char *key)
     int                   verified;
     mode_t                fmode;
     xrootd_cache_cinfo_t  ci;
+    struct timespec       fill_t0;       /* T16: per-upstream fill duration    */
+
+    (void) clock_gettime(CLOCK_MONOTONIC, &fill_t0);
 
     if (src->driver->open == NULL) {
         errno = ENOSYS;
@@ -259,7 +309,9 @@ sd_cache_fill(sd_cache_inst_state *st, const char *key)
         ssize_t r = so->driver->pread(so, buf, SD_CACHE_CHUNK, off);
 
         if (r < 0) {
-            if (errno == EINTR) {
+            int read_err = errno;      /* capture BEFORE any cleanup call */
+
+            if (read_err == EINTR) {
                 continue;
             }
             free(buf);
@@ -268,6 +320,13 @@ sd_cache_fill(sd_cache_inst_state *st, const char *key)
             if (sd_cache_stale_serve_ok(st, key)) {
                 return NGX_OK;          /* bounded stale-if-error (phase-68) */
             }
+            /* Restore the READ's errno. sd_cache_stale_serve_ok() (and the
+             * cleanup calls) stat the absent cache entry and leave errno
+             * ENOENT — propagating that would make the fill layer classify a
+             * merely-broken origin connection (EIO/ETIMEDOUT) as the origin's
+             * definitive 404, turning a transient network fault into a
+             * cached, client-poisoning "not found" instead of a retry. */
+            errno = read_err;
             return NGX_ERROR;
         }
         if (r == 0) {
@@ -310,6 +369,9 @@ sd_cache_fill(sd_cache_inst_state *st, const char *key)
                 XROOTD_ATOMIC_INC(&rm->verify_failures_total);
             }
             sd_cache_note_origin_bytes(st, key, off); /* WAN cost is WAN cost */
+            /* a verify mismatch IS an upstream fill failure — the bytes came
+             * from the origin but did not publish. */
+            sd_cache_note_upstream(st, 0, off, sd_cache_ms_since(&fill_t0));
             xrootd_cache_quarantine_part(pp, st->policy.quarantine_dir,
                                          st->log);
             xrootd_cstore_fill_abort(staged);   /* part already renamed away */
@@ -328,6 +390,7 @@ sd_cache_fill(sd_cache_inst_state *st, const char *key)
     }
 
     sd_cache_note_origin_bytes(st, key, off);  /* WAN in, this attempt */
+    sd_cache_note_upstream(st, 1, off, sd_cache_ms_since(&fill_t0));
 
     if (xrootd_cstore_fill_commit(staged) != NGX_OK) {
         return NGX_ERROR;

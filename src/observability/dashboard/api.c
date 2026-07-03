@@ -167,6 +167,7 @@ dashboard_endpoint_is_anon_allowed(xrootd_dashboard_api_endpoint_e e)
     case XROOTD_DASHBOARD_API_V1_CLUSTER:
     case XROOTD_DASHBOARD_API_V1_CACHE:
     case XROOTD_DASHBOARD_API_V1_RATELIMIT:
+    case XROOTD_DASHBOARD_API_V1_CVMFS:
     case XROOTD_DASHBOARD_API_V1_NOT_FOUND:
         return 1;
     case XROOTD_DASHBOARD_API_V1_TRANSFER_DETAIL:
@@ -242,6 +243,9 @@ ngx_http_xrootd_dashboard_api_handler(ngx_http_request_t *r,
         break;
     case XROOTD_DASHBOARD_API_V1_RATELIMIT:
         root = dashboard_build_v1_ratelimit(now_ms, conf, redact);
+        break;
+    case XROOTD_DASHBOARD_API_V1_CVMFS:
+        root = dashboard_build_v1_cvmfs(now_ms, conf, redact);
         break;
     case XROOTD_DASHBOARD_API_V1_NOT_FOUND:
     default:

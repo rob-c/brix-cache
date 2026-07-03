@@ -1,6 +1,6 @@
-# gnuBall marketing site
+# BriX-Cache marketing site
 
-The public advertising site for **gnuBall** — a broad-appeal landing page plus
+The public advertising site for **BriX-Cache** — a broad-appeal landing page plus
 four audience pages (`/for/{sysadmins,physicists,engineers,stakeholders}`). Built
 with [Astro](https://astro.build), static output, no client-side framework.
 
@@ -35,16 +35,16 @@ from `gh-pages` / root.
 
 ### Base path / URL
 
-`astro.config.mjs` sets `base: '/gnuball'`, so the site expects to serve at
-`https://rob-c.github.io/gnuball/` — which requires the repository to be named
-`gnuball`. If the repo keeps another name, change `base` to match the repo name.
+`astro.config.mjs` sets `base: '/brix-cache'`, so the site expects to serve at
+`https://rob-c.github.io/brix-cache/` — which requires the repository to be named
+`brix-cache`. If the repo keeps another name, change `base` to match the repo name.
 
 ### Custom domain (optional)
 
-To serve at `https://gnuball.dev/`:
+To serve at `https://brix-cache.dev/`:
 
 1. Register the domain and point DNS at GitHub Pages (apex `A`/`AAAA` records, or
    CNAME-flatten to `rob-c.github.io`).
 2. Rename `public/CNAME.example` → `public/CNAME` (or set `cname:` in the
    workflow).
-3. Set `site: 'https://gnuball.dev'` and `base: '/'` in `astro.config.mjs`.
+3. Set `site: 'https://brix-cache.dev'` and `base: '/'` in `astro.config.mjs`.

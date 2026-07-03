@@ -1,7 +1,7 @@
 # XrdHttp Parity Roadmap
 
-Strategic parity work for gnuBall's XrdHttp/WebDAV surface: what has
-landed, what remains open, and where gnuBall intentionally differs from
+Strategic parity work for BriX-Cache's XrdHttp/WebDAV surface: what has
+landed, what remains open, and where BriX-Cache intentionally differs from
 the official `XrdHttp` implementation.
 
 ---

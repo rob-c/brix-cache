@@ -13,6 +13,7 @@
  *       request ctx (convention #2).
  */
 #include "cvmfs.h"
+#include "fs/path/path.h"                  /* xrootd_sanitize_log_string */
 #include "core/compat/error_mapping.h"
 #include "core/http/etag.h"
 #include "core/http/http_conditionals.h"
@@ -230,6 +231,39 @@ cvmfs_finalize_observe(void *data)
 
     if (lcf != NULL) {
         xrootd_cvmfs_notify_status(r, lcf, status);
+    }
+
+    /* Optional client-op trace: one line per classified request naming the
+     * traffic class, repository, path and final cache disposition + status.
+     * DEBUG normally (visible under error_log … debug), promoted to INFO by
+     * xrootd_cvmfs_trace. Correlates with the upstream-request line by path. */
+    if (ctx != NULL && lcf != NULL) {
+        static const char *cls_names[] = { "cas", "manifest", "geo", "reject" };
+        static const char *cache_names[] = { "-", "hit", "fill", "neg" };
+        ngx_uint_t level = lcf->cvmfs.trace ? NGX_LOG_INFO : NGX_LOG_DEBUG;
+
+        if (r->connection->log->log_level >= level) {
+            char   safe[1024];
+            char   raw[1024];
+            size_t n = ngx_min(r->uri.len, sizeof(raw) - 1);
+
+            /* r->uri.data is NOT NUL-terminated (points into the request
+             * buffer); copy the exact uri span before sanitizing. */
+            ngx_memcpy(raw, r->uri.data, n);
+            raw[n] = '\0';
+            xrootd_sanitize_log_string(raw, safe, sizeof(safe));
+            ngx_log_error(level, r->connection->log, 0,
+                "cvmfs-trace: client id=%uA class=%s repo=%*s path=%s "
+                "cache=%s status=%ui",
+                r->connection->number,
+                cls_names[ctx->url.cls <= CVMFS_URL_REJECT ? ctx->url.cls : 3],
+                ctx->url.repo != NULL ? ctx->url.repo_len : (size_t) 0,
+                ctx->url.repo != NULL ? ctx->url.repo : "",
+                safe,
+                cache_names[ctx->cache_status <= XROOTD_CVMFS_CACHE_NEG
+                            ? ctx->cache_status : 0],
+                status);
+        }
     }
 
     /* T16: fill/byte accounting off the FINAL disposition + status. The

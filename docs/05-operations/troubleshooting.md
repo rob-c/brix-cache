@@ -1,6 +1,6 @@
 # Troubleshooting
 
-A symptom-first decision tree for an operator running an gnuBall gateway.
+A symptom-first decision tree for an operator running an BriX-Cache gateway.
 Each row is **symptom → first thing to check → where**. For the metric families
 named below see the [Monitoring Guide](../08-metrics-monitoring/monitoring-guide.md)
 and `contrib/grafana-dashboard.json`.

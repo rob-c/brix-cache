@@ -8,14 +8,14 @@ import Cta from '../../components/Cta.astro';
 
 <Layout
   title="For stakeholders"
-  description="gnuBall speaks the WLCG-native protocols and auth the grid mandates, built on battle-tested nginx and validated for conformance against reference XRootD. Open source under AGPL-3.0-only."
+  description="BriX-Cache speaks the WLCG-native protocols and auth the grid mandates, built on battle-tested nginx and validated for conformance against reference XRootD. Open source under AGPL-3.0-only."
   accent="root"
 >
   <Band first={true}>
     <AudienceHero
       group="funders & stakeholders"
       title="Standard protocols. Proven foundation. No lock-in."
-      lede="gnuBall serves data over exactly the protocols the Worldwide LHC Computing Grid relies on — built as a module for nginx, one of the most deployed and scrutinised servers on the internet."
+      lede="BriX-Cache serves data over exactly the protocols the Worldwide LHC Computing Grid relies on — built as a module for nginx, one of the most deployed and scrutinised servers on the internet."
     >
       <ul class="stat-list">
         <li class="stat"><span class="stat-n mono">3</span><span class="stat-l">protocols, one binary</span></li>
@@ -40,13 +40,13 @@ import Cta from '../../components/Cta.astro';
       <Benefit marker="foundation" title="Built on nginx, not from scratch">
         <p>
           The hard, security-critical parts — the event loop, TLS, connection handling, process
-          model, and graceful reloads — are nginx's, hardened over two decades in production. gnuBall
+          model, and graceful reloads — are nginx's, hardened over two decades in production. BriX-Cache
           adds the protocol layer on top, so the foundation isn't a research prototype.
         </p>
       </Benefit>
       <Benefit marker="proven" title="Proven by conformance testing">
         <p>
-          A comprehensive Python suite runs the same tests against gnuBall <em>and</em> the reference
+          A comprehensive Python suite runs the same tests against BriX-Cache <em>and</em> the reference
           xrootd daemon — native <span class="mono">root://</span>, the XrdHttp WebDAV endpoint, auth,
           ACLs, proxy and manager modes. Divergence is treated as a defect.
         </p>

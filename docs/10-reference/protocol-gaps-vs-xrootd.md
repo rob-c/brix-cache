@@ -1,6 +1,6 @@
-# XRootD Protocol Gap Analysis — gnuBall vs upstream xrootd
+# XRootD Protocol Gap Analysis — BriX-Cache vs upstream xrootd
 
-> **Scope**: Comparison of gnuBall (`src/`) against reference xrootd server (`/tmp/xrootd-src/src/`, v5.2.0 protocol surface). Covers all protocol opcodes, security plugins, server modules, capability flags, and optional features.
+> **Scope**: Comparison of BriX-Cache (`src/`) against reference xrootd server (`/tmp/xrootd-src/src/`, v5.2.0 protocol surface). Covers all protocol opcodes, security plugins, server modules, capability flags, and optional features.
 >
 > **Legend**: ✅ implemented · ⚠️ partial · ❌ not implemented · N/A not applicable · 📋 out of scope
 
@@ -188,11 +188,11 @@ paths where required.
 
 ---
 
-## 9. Optional Server Modules (upstream vs gnuBall)
+## 9. Optional Server Modules (upstream vs BriX-Cache)
 
 ### Implemented (with upstream equivalent)
 
-| Module | Description | gnuBall equivalent |
+| Module | Description | BriX-Cache equivalent |
 |--------|-------------|------------------------|
 | `XrdXrootd` | Core protocol handler | Native `root://` stream module |
 | `XrdHttp` | HTTP file serving | WebDAV (`davs://`) + S3 REST |
@@ -239,7 +239,7 @@ paths where required.
 
 ## 10. HTTP Layer
 
-| Feature | XRootD (XrdHttp) | gnuBall | Status |
+| Feature | XRootD (XrdHttp) | BriX-Cache | Status |
 |---------|------------------|--------------|--------|
 | HTTP GET / HEAD | ✅ | ✅ WebDAV | ✅ |
 | HTTP PUT | ✅ | ✅ | ✅ |
@@ -264,7 +264,7 @@ paths where required.
 
 ## 11. Monitoring
 
-| Feature | XRootD | gnuBall | Status |
+| Feature | XRootD | BriX-Cache | Status |
 |---------|--------|--------------|--------|
 | Per-opcode counters | XROOTD_MON_ALL | ✅ Prometheus | ✅ |
 | Per-file I/O | XROOTD_MON_FILE | N/A | ❌ UDP-only |

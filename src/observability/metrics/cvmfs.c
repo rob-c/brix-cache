@@ -111,6 +111,195 @@ cvmfs_repo_slot_is_dup(const ngx_xrootd_cvmfs_repo_metrics_t *repos,
     return 0;
 }
 
+/* ---- per-upstream slot table (bounded "host:port" label — see metrics.h) --
+ * Same lock-free EMPTY->CLAIMED->READY lowest-index scheme as the repo table;
+ * the reserved last slot is the "_other" overflow bucket. */
+
+static int
+cvmfs_up_slot_is(const ngx_xrootd_cvmfs_upstream_metrics_t *u, const char *host)
+{
+    return u->state == XROOTD_CVMFS_REPO_READY && strcmp(u->name, host) == 0;
+}
+
+static ngx_xrootd_cvmfs_upstream_metrics_t *
+cvmfs_upstream_slot(const char *host)
+{
+    ngx_xrootd_metrics_t                *m = xrootd_metrics_shared();
+    ngx_xrootd_cvmfs_upstream_metrics_t *ups, *other;
+    size_t                               len;
+    ngx_uint_t                           i;
+
+    if (m == NULL || host == NULL || host[0] == '\0') {
+        return NULL;
+    }
+    len = strlen(host);
+    if (len >= XROOTD_CVMFS_UPSTREAM_NAME_MAX) {
+        return NULL;
+    }
+    ups   = m->cvmfs.upstreams;
+    other = &ups[XROOTD_CVMFS_UPSTREAM_SLOTS - 1];
+
+    for (i = 0; i < XROOTD_CVMFS_UPSTREAM_SLOTS - 1; i++) {
+        if (cvmfs_up_slot_is(&ups[i], host)) {
+            return &ups[i];
+        }
+    }
+    for (i = 0; i < XROOTD_CVMFS_UPSTREAM_SLOTS - 1; i++) {
+        if (ups[i].state == XROOTD_CVMFS_REPO_EMPTY
+            && ngx_atomic_cmp_set(&ups[i].state, XROOTD_CVMFS_REPO_EMPTY,
+                                  XROOTD_CVMFS_REPO_CLAIMED))
+        {
+            memcpy(ups[i].name, host, len + 1);
+            (void) ngx_atomic_cmp_set(&ups[i].state, XROOTD_CVMFS_REPO_CLAIMED,
+                                      XROOTD_CVMFS_REPO_READY);
+            {
+                ngx_uint_t j;
+
+                for (j = 0; j < XROOTD_CVMFS_UPSTREAM_SLOTS - 1; j++) {
+                    if (cvmfs_up_slot_is(&ups[j], host)) {
+                        return &ups[j];
+                    }
+                }
+            }
+            return &ups[i];
+        }
+    }
+    if (other->state != XROOTD_CVMFS_REPO_READY
+        && ngx_atomic_cmp_set(&other->state, XROOTD_CVMFS_REPO_EMPTY,
+                              XROOTD_CVMFS_REPO_CLAIMED))
+    {
+        memcpy(other->name, "_other", sizeof("_other"));
+        (void) ngx_atomic_cmp_set(&other->state, XROOTD_CVMFS_REPO_CLAIMED,
+                                  XROOTD_CVMFS_REPO_READY);
+    }
+    return (other->state == XROOTD_CVMFS_REPO_READY) ? other : NULL;
+}
+
+void
+xrootd_cvmfs_upstream_record(const char *host, int ok, off_t bytes,
+    long dur_ms, int failover)
+{
+    ngx_xrootd_cvmfs_upstream_metrics_t *u = cvmfs_upstream_slot(host);
+    ngx_uint_t                           b;
+
+    if (u == NULL) {
+        return;
+    }
+    XROOTD_ATOMIC_INC(&u->requests_total);
+    if (failover) {
+        XROOTD_ATOMIC_INC(&u->failovers_total);
+    }
+    if (!ok) {
+        XROOTD_ATOMIC_INC(&u->fill_failures_total);
+        return;
+    }
+    XROOTD_ATOMIC_INC(&u->fills_total);
+    if (bytes > 0) {
+        XROOTD_ATOMIC_ADD(&u->origin_bytes_total, (ngx_atomic_uint_t) bytes);
+    }
+    if (dur_ms < 0) {
+        dur_ms = 0;
+    }
+    for (b = 0; b < XROOTD_CVMFS_UP_HBUCKETS; b++) {
+        if (dur_ms <= xrootd_cvmfs_up_bucket_ms[b]) {
+            XROOTD_ATOMIC_INC(&u->dur_bucket[b]);
+            break;                       /* non-cumulative; exporter sums up */
+        }
+    }
+    XROOTD_ATOMIC_INC(&u->dur_count);    /* +Inf bucket == dur_count         */
+    XROOTD_ATOMIC_ADD(&u->dur_sum_ms, (ngx_atomic_uint_t) dur_ms);
+}
+
+/* 1 iff an EARLIER READY upstream slot carries the same name (claim-race dup). */
+static int
+cvmfs_up_slot_is_dup(const ngx_xrootd_cvmfs_upstream_metrics_t *ups,
+    ngx_uint_t i)
+{
+    ngx_uint_t j;
+
+    for (j = 0; j < i; j++) {
+        if (ups[j].state == XROOTD_CVMFS_REPO_READY
+            && strcmp(ups[j].name, ups[i].name) == 0)
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static void
+cvmfs_export_upstreams(metrics_writer_t *mw, ngx_xrootd_cvmfs_metrics_t *c)
+{
+    static const struct {
+        const char *name;
+        const char *help;
+        size_t      off;
+    } fam[] = {
+        { "xrootd_cvmfs_upstream_requests_total",
+          "origin fill attempts per upstream Stratum-1",
+          offsetof(ngx_xrootd_cvmfs_upstream_metrics_t, requests_total) },
+        { "xrootd_cvmfs_upstream_fills_total",
+          "origin fills that published per upstream Stratum-1",
+          offsetof(ngx_xrootd_cvmfs_upstream_metrics_t, fills_total) },
+        { "xrootd_cvmfs_upstream_fill_failures_total",
+          "origin fill attempts that failed per upstream Stratum-1",
+          offsetof(ngx_xrootd_cvmfs_upstream_metrics_t, fill_failures_total) },
+        { "xrootd_cvmfs_upstream_failovers_total",
+          "fills served by a non-primary endpoint per upstream Stratum-1",
+          offsetof(ngx_xrootd_cvmfs_upstream_metrics_t, failovers_total) },
+        { "xrootd_cvmfs_upstream_origin_bytes_total",
+          "bytes pulled per upstream Stratum-1 (WAN in)",
+          offsetof(ngx_xrootd_cvmfs_upstream_metrics_t, origin_bytes_total) },
+    };
+    ngx_uint_t f, i, b;
+
+    for (f = 0; f < sizeof(fam) / sizeof(fam[0]); f++) {
+        mw_printf(mw, "# HELP %s %s\n# TYPE %s counter\n",
+                  fam[f].name, fam[f].help, fam[f].name);
+        for (i = 0; i < XROOTD_CVMFS_UPSTREAM_SLOTS; i++) {
+            ngx_xrootd_cvmfs_upstream_metrics_t *u = &c->upstreams[i];
+
+            if (u->state != XROOTD_CVMFS_REPO_READY
+                || cvmfs_up_slot_is_dup(c->upstreams, i))
+            {
+                continue;
+            }
+            mw_printf(mw, "%s{upstream=\"%s\"} %lu\n", fam[f].name, u->name,
+                (unsigned long) *(ngx_atomic_t *) ((u_char *) u + fam[f].off));
+        }
+    }
+
+    /* fill-duration histogram (Prometheus seconds; le buckets are cumulative) */
+    mw_printf(mw,
+        "# HELP xrootd_cvmfs_upstream_fill_duration_seconds origin fill duration per upstream\n"
+        "# TYPE xrootd_cvmfs_upstream_fill_duration_seconds histogram\n");
+    for (i = 0; i < XROOTD_CVMFS_UPSTREAM_SLOTS; i++) {
+        ngx_xrootd_cvmfs_upstream_metrics_t *u = &c->upstreams[i];
+        unsigned long cum = 0;
+
+        if (u->state != XROOTD_CVMFS_REPO_READY
+            || cvmfs_up_slot_is_dup(c->upstreams, i))
+        {
+            continue;
+        }
+        for (b = 0; b < XROOTD_CVMFS_UP_HBUCKETS; b++) {
+            cum += (unsigned long) u->dur_bucket[b];
+            mw_printf(mw,
+                "xrootd_cvmfs_upstream_fill_duration_seconds_bucket"
+                "{upstream=\"%s\",le=\"%.3f\"} %lu\n",
+                u->name, (double) xrootd_cvmfs_up_bucket_ms[b] / 1000.0, cum);
+        }
+        mw_printf(mw,
+            "xrootd_cvmfs_upstream_fill_duration_seconds_bucket"
+            "{upstream=\"%s\",le=\"+Inf\"} %lu\n"
+            "xrootd_cvmfs_upstream_fill_duration_seconds_sum{upstream=\"%s\"} %.3f\n"
+            "xrootd_cvmfs_upstream_fill_duration_seconds_count{upstream=\"%s\"} %lu\n",
+            u->name, (unsigned long) u->dur_count,
+            u->name, (double) u->dur_sum_ms / 1000.0,
+            u->name, (unsigned long) u->dur_count);
+    }
+}
+
 void
 xrootd_export_cvmfs_metrics(metrics_writer_t *mw, ngx_xrootd_metrics_t *shm)
 {
@@ -239,4 +428,6 @@ xrootd_export_cvmfs_metrics(metrics_writer_t *mw, ngx_xrootd_metrics_t *shm)
                 rm->name, (unsigned long) rm->bytes_served_fill_total);
         }
     }
+
+    cvmfs_export_upstreams(mw, c);
 }

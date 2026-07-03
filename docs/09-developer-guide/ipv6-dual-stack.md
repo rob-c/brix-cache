@@ -10,7 +10,7 @@ in XRootD wire responses.
 
 **Why now**: HEP federations are gradually deploying IPv6. Clients on IPv6-only networks
 cannot reach servers that only listen on IPv4 or return IPv4-only redirect addresses.
-The reference `xrootd` daemon has supported dual-stack for years; gnuBall has
+The reference `xrootd` daemon has supported dual-stack for years; BriX-Cache has
 partial but inconsistent support.
 
 ---
@@ -433,7 +433,7 @@ doesn't use `inet_ntop()`.
 
 | Test | Description |
 |------|-------------|
-| `test_locate_ipv6_conformance` | Compare `kXR_locate` response between gnuBall and reference xrootd on IPv6 |
+| `test_locate_ipv6_conformance` | Compare `kXR_locate` response between BriX-Cache and reference xrootd on IPv6 |
 | `test_stats_ipv6_conformance` | Compare XML stats format on IPv6 listener |
 | `test_xrdcp_ipv6` | `xrdcp` transfers over IPv6 — compare data integrity with reference xrootd |
 | `test_xrdcp_ipv6_redirect` | xrdcp follows IPv6 redirect — compare with reference xrootd behavior |
@@ -662,7 +662,7 @@ Add `AF_INET6` branch alongside existing `AF_INET` check.
 
 ## 8. Comparison with Reference XRootD
 
-| Behavior | Reference xrootd | gnuBall current | Gap |
+| Behavior | Reference xrootd | BriX-Cache current | Gap |
 |----------|-----------------|---------------------|-----|
 | Listen on dual-stack | Yes (`IPV6_V6ONLY` configurable) | Depends on nginx default + OS | Documented, testable |
 | `kXR_locate` IPv6 response | Bracketed `[addr]:port` | `"localhost"` for IPv6 | **P1** |

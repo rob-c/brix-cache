@@ -60,6 +60,12 @@ typedef struct {
                                     read fails over to an alternate endpoint
                                     (driver is ngx-free; the owner injects
                                     its metric hook). NULL = no accounting. */
+    void                         (*health_note)(const char *host, int port,
+                                    int healthy);  /* endpoint health-state
+                                    TRANSITION (EWMA hysteresis: degraded at
+                                    score>=128 after a failure, recovered
+                                    below 128 after a success). The owner
+                                    injects its logger. NULL = silent. */
 } xrootd_sd_http_cfg_t;
 
 /* Build a read-only HTTP source instance. Returns a malloc-owned instance, or NULL
@@ -75,11 +81,19 @@ void xrootd_sd_http_destroy(xrootd_sd_instance_t *inst);
  * is protection — a preferred-but-sick origin is overridden only after ~16
  * consecutive failures. Ranks are relaxed atomics (event loop writes, fill
  * threads read; a momentarily stale rank costs one suboptimal fill). */
+/* Force-primary read policy (process-global; set pre-fork from the cvmfs merge
+ * when xrootd_cvmfs_fill_retry_policy is force-primary). When on, every read
+ * targets the rank-preferred endpoint and never fails over to an alternate on a
+ * transport failure — the fill loop retries the same origin on a fresh
+ * connection. Off (default) keeps T11 alternate-endpoint failover. */
+void sd_http_force_primary_set(int on);
+
 void sd_http_set_ranks(xrootd_sd_instance_t *inst, const int *ranks, int n);
 int  sd_http_endpoint_list(xrootd_sd_instance_t *inst, char hosts[][256],
                            int *ports, int max);
 int  sd_http_n_endpoints(xrootd_sd_instance_t *inst);
 int  sd_http_last_origin(xrootd_sd_instance_t *inst, char *buf, size_t cap);
+int  sd_http_last_was_failover(xrootd_sd_instance_t *inst);
 int  sd_http_health_snapshot(xrootd_sd_instance_t *inst, char hosts[][256],
                              int *ports, int *scores, int max);
 

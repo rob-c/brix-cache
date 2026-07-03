@@ -1,15 +1,15 @@
-# HTTP Family — XrdHttp / WebDAV / HTTP-TPC / S3: Official XRootD vs. gnuBall
+# HTTP Family — XrdHttp / WebDAV / HTTP-TPC / S3: Official XRootD vs. BriX-Cache
 
-> Part of the [XRootD vs gnuBall comparison set](./README.md).
+> Part of the [XRootD vs BriX-Cache comparison set](./README.md).
 
-This document compares the **official XRootD C++** server with the **gnuBall**
+This document compares the **official XRootD C++** server with the **BriX-Cache**
 module on the *HTTP family* of protocols: XrdHttp and WebDAV (RFC 4918 class 1 and
 class 2), HTTP third-party-copy (HTTP-TPC, the WebDAV `COPY` push/pull dialect used
 by FTS/gfal2), and the S3 REST gateway.
 
 Every claim below is grounded in source. The official side cites the upstream tree
 under `/tmp/xrootd-src/src/` (`XrdHttp/`, `XrdHttpTpc/`, `XrdHttpCors/`, and the
-*client-side* `XrdClS3/` plugin). The gnuBall side cites this repository's
+*client-side* `XrdClS3/` plugin). The BriX-Cache side cites this repository's
 `src/protocols/webdav/` and `src/protocols/s3/` trees. Where a fact was already established by the
 companion comparison documents, this doc reuses it rather than re-deriving it:
 
@@ -86,7 +86,7 @@ symbol in `XrdHttp`.
 
 ---
 
-## In gnuBall
+## In BriX-Cache
 
 The WebDAV/XrdHttp plane is an nginx HTTP module under `src/protocols/webdav/`. The master
 request router is `ngx_http_xrootd_webdav_handler()` in `src/protocols/webdav/dispatch.c`, which
@@ -126,7 +126,7 @@ project's path-confinement invariant.
 Per-method comparison. "RFC class" indicates whether the method is WebDAV class 1
 (RFC 4918 core, no locking) or class 2 (locking), or a related RFC. "Official" is the
 upstream XrdHttp behaviour from the `ReqType` enum and handlers; "Our handler" is the
-gnuBall file and entry function.
+BriX-Cache file and entry function.
 
 | Method | RFC class | Official XrdHttp | Our handler | Notes |
 |---|---|---|---|---|
@@ -191,7 +191,7 @@ remote), plus an optional `Credential:` header describing how to authenticate th
 remote leg. **Note:** this is distinct from *native* `root://` TPC (the SHM key-registry
 mechanism in `src/tpc/`), which is covered in the `root://` / clustering comparison.
 
-| Aspect | Official `XrdHttpTpc` | gnuBall `src/protocols/webdav/tpc*.c` |
+| Aspect | Official `XrdHttpTpc` | BriX-Cache `src/protocols/webdav/tpc*.c` |
 |---|---|---|
 | Dispatch | `rtCOPY` handler in `XrdHttpTpcTPC.cc`; `Source`/`Destination` headers select pull/push | `ngx_http_xrootd_webdav_tpc_handle_copy()` in `src/protocols/webdav/tpc.c`; detects `Source`/`Destination` (rejects both-or-neither with 400) |
 | Outbound client | libcurl (`#include <curl/curl.h>`, `curl_multi` for concurrency) | libcurl via `src/protocols/webdav/tpc_curl.c` (`curl_multi`); curl path configurable (`xrootd_webdav_tpc_curl`, default `/usr/bin/curl`) |
@@ -203,7 +203,7 @@ mechanism in `src/tpc/`), which is covered in the `root://` / clustering compari
 | Stall protection | curl timeouts | 30 s connect timeout, TCP keepalive, low-speed detector (`xrootd_webdav_tpc_low_speed_bytes`/`_secs`, default 1024 B/s for 60 s) |
 
 So the two are at parity on the core HTTP-TPC mechanics (pull/push, libcurl, multistream,
-performance markers), and gnuBall **adds** operational hardening: OAuth2 token
+performance markers), and BriX-Cache **adds** operational hardening: OAuth2 token
 exchange and `oidc-agent` delegation, SSRF/DNS-pinning, low-speed stall detection, and
 dashboard/metric visibility. Upstream's `Credential:` handling in the reviewed source
 accepts only `none` (with `TransferHeaderN`-style header forwarding for the actual auth),
@@ -232,7 +232,7 @@ detailed in the FRM/tape documentation.
 ## S3 gateway (nginx-forward)
 
 This is the clearest divergence in the HTTP family: upstream `XrdClS3` is a **client**
-plugin for talking *to* S3 stores, whereas gnuBall ships a **server-side S3 REST
+plugin for talking *to* S3 stores, whereas BriX-Cache ships a **server-side S3 REST
 endpoint** under `src/protocols/s3/`. There is no upstream feature to compare it against, so every
 row below is an nginx-forward capability. The endpoint is **path-style** (`/<bucket>/<key>`);
 virtual-hosted bucket addressing and a dynamic STS credential store are explicitly out
@@ -314,9 +314,9 @@ project invariant (S3 SigV4 ≠ WLCG token — never shared).
 ## TLS, certs, and tokens on HTTP
 
 Both stacks support GSI/VOMS X.509 over HTTPS and bearer tokens, but the plumbing differs
-because gnuBall reuses nginx's TLS engine and certificate model rather than XrdTls.
+because BriX-Cache reuses nginx's TLS engine and certificate model rather than XrdTls.
 
-| Concern | Official XrdHttp | gnuBall |
+| Concern | Official XrdHttp | BriX-Cache |
 |---|---|---|
 | TLS termination | XrdTls; `http.cert`/`http.key`/`http.cadir`/`http.httpsmode {off\|manual\|auto}` (`XrdHttpProtocol.cc`) | nginx `listen … ssl;` + `ssl_certificate`/`ssl_certificate_key`, plus module client-cert directives |
 | X.509 / GSI client cert | chain extraction in `XrdHttpSecurity.cc` (`EECname()`/`EEChash()` → `SecEntity`) | `src/protocols/webdav/auth_cert.c`, `pki.c`; `xrootd_webdav_cadir`/`cafile`/`crl`/`verify_depth` |
@@ -418,7 +418,7 @@ aws --endpoint-url https://host.example.org:9001 --no-verify-ssl \
 
 ## Parity, divergences, and extensions
 
-| Area | Official XrdHttp | gnuBall | Verdict |
+| Area | Official XrdHttp | BriX-Cache | Verdict |
 |---|---|---|---|
 | Core WebDAV class 1 (`GET`/`HEAD`/`PUT`/`DELETE`/`MKCOL`/`OPTIONS`/`PROPFIND`/`MOVE`/`COPY`) | yes | yes | Parity |
 | Range GET (single + multipart byteranges) | yes | yes | Parity |
@@ -442,7 +442,7 @@ aws --endpoint-url https://host.example.org:9001 --no-verify-ssl \
 | Native `root://` TPC | yes | yes | covered in `02-rootd-protocol.md` / clustering |
 
 Net: on **WebDAV class 1 + XrdHttp WLCG extensions + HTTP-TPC**, the two are at parity,
-with gnuBall adding full **WebDAV class 2** (locking, dead props, SEARCH, ACL) and
+with BriX-Cache adding full **WebDAV class 2** (locking, dead props, SEARCH, ACL) and
 hardened TPC credential/SSRF handling. The **S3 gateway is nginx-only** — upstream has no
 server-side S3 in the reviewed tree. The single small thing upstream parses that we do
 not handle is `PATCH`.
@@ -468,7 +468,7 @@ not handle is `PATCH`.
 - `XrdClS3/XrdClS3Factory.hh`, `XrdClS3Filesystem.cc`, `XrdClS3File.cc` — **client** S3
   plugin (`GenerateV4Signature()`); confirms no server-side S3 (`XrdS3/` empty).
 
-**gnuBall** (`src/`):
+**BriX-Cache** (`src/`):
 
 - WebDAV dispatch / methods: `webdav/dispatch.c`, `operation_table.c`, `postconfig.c`,
   `get.c`, `put.c`, `namespace.c` (DELETE/MKCOL), `move.c`, `copy.c`, `propfind.c`,

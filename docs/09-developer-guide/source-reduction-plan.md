@@ -1,6 +1,6 @@
 # Source Reduction Plan: External Libraries and Nginx Built-ins
 
-This guide evaluates where gnuBall can reduce local C source by using
+This guide evaluates where BriX-Cache can reduce local C source by using
 external libraries and existing nginx modules more aggressively, without
 weakening the project-specific guarantees around XRootD wire compatibility,
 path confinement, auth policy, metrics, and WLCG interoperability.
@@ -47,7 +47,7 @@ that would be added.
 | Extreme: replace broad S3 surface with an external S3 gateway/library | Not recommended | N/A | Low | Likely increases dependency and ops complexity more than it removes code. |
 
 The best near-term target is the conservative plan. XrdCl is intentionally no
-longer part of this roadmap because gnuBall is moving toward replacing the
+longer part of this roadmap because BriX-Cache is moving toward replacing the
 XRootD server role outright rather than embedding the upstream client as a
 large outbound dependency.
 
@@ -166,12 +166,12 @@ This is the least invasive design.
 
 1. Enable `--with-http_dav_module` in supported builds.
 2. Configure locations with nginx's native `dav_methods`.
-3. Move gnuBall WebDAV auth and write-policy gates out of the content
+3. Move BriX-Cache WebDAV auth and write-policy gates out of the content
    handler and into `NGX_HTTP_ACCESS_PHASE` or `NGX_HTTP_PREACCESS_PHASE`.
 4. For methods delegated to nginx DAV, return `NGX_DECLINED` from the
-   gnuBall content handler after auth, scope, CORS, destination, and lock
+   BriX-Cache content handler after auth, scope, CORS, destination, and lock
    checks have already run.
-5. Keep gnuBall content handlers for `OPTIONS`, `PROPFIND`, `PROPPATCH`,
+5. Keep BriX-Cache content handlers for `OPTIONS`, `PROPFIND`, `PROPPATCH`,
    `LOCK`, `UNLOCK`, HTTP-TPC, XrdHttp stats, and S3.
 6. Add a header filter for CORS, XrdHttp headers, checksum headers, and metrics
    that need to observe nginx DAV/static responses.
@@ -213,9 +213,9 @@ typedef ngx_int_t (*ngx_http_dav_destination_pt)(ngx_http_request_t *r,
     ngx_str_t *destination_uri);
 ```
 
-The gnuBall module would register hooks during postconfiguration. Native
+The BriX-Cache module would register hooks during postconfiguration. Native
 DAV would then call those hooks before file mutation. That lets nginx DAV own
-the method machinery while gnuBall owns auth, locks, destination scope,
+the method machinery while BriX-Cache owns auth, locks, destination scope,
 and metrics.
 
 Benefits:
@@ -286,7 +286,7 @@ nginx already has mature static-file handling:
 Potential design:
 
 1. Move WebDAV auth/scope checks to access/preaccess phase.
-2. Let gnuBall content handler return `NGX_DECLINED` for plain GET/HEAD.
+2. Let BriX-Cache content handler return `NGX_DECLINED` for plain GET/HEAD.
 3. Keep a header/body filter for:
    - `Digest:` checksum headers
    - XrdHttp `X-Xrootd-*` headers
@@ -318,7 +318,7 @@ internal HTTP/HTTPS server.
 
 Potential design:
 
-1. Keep gnuBall as an auth/access module for the location.
+1. Keep BriX-Cache as an auth/access module for the location.
 2. Use standard nginx `proxy_pass` for the backend.
 3. Use nginx directives for buffering, timeouts, TLS to backend, and header
    forwarding.
@@ -419,7 +419,7 @@ third-party caveats, discharge verification, and serialization.
 
 Keep local:
 
-- binding macaroon caveats to gnuBall path/scope semantics
+- binding macaroon caveats to BriX-Cache path/scope semantics
 - configured secret rotation
 - HTTP/native token extraction
 
@@ -1088,7 +1088,7 @@ The reduction is successful only if:
 **Next source-reduction step (Phase 2):** Start unmodified nginx DAV delegation
 for `MKCOL` and simple `DELETE`.  That pair has a good payoff-to-risk ratio and
 will quickly expose whether nginx phase restructuring can safely protect
-built-in content handlers with gnuBall auth, scope, locks, CORS, and
+built-in content handlers with BriX-Cache auth, scope, locks, CORS, and
 metrics.
 
 **Medium-term internal consolidation:** AIO dispatch consolidation (Candidate 13)

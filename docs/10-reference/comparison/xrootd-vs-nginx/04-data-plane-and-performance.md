@@ -1,6 +1,6 @@
-Part of the [XRootD vs gnuBall comparison set](./README.md).
+Part of the [XRootD vs BriX-Cache comparison set](./README.md).
 
-# Data plane and performance: official XRootD vs gnuBall
+# Data plane and performance: official XRootD vs BriX-Cache
 
 ## Scope
 
@@ -29,7 +29,7 @@ The two projects make a fundamentally different structural bet:
   readiness layer (`Xrd/XrdPoll*`) hands ready connections to a worker-thread
   pool (`XrdScheduler`), and disk asynchrony is POSIX `aio_*` completed by
   realtime signals on a dedicated wait thread.
-- **gnuBall** rides nginx's single-thread-per-worker event loop and never
+- **BriX-Cache** rides nginx's single-thread-per-worker event loop and never
   blocks it: blocking syscalls are pushed to an nginx thread pool, with an
   optional `io_uring` backend in front of it, and completions resume the
   connection on the event loop.
@@ -60,7 +60,7 @@ Asynchronous I/O is `XrdXrootdNormAio` (normal read/write) and
 `SIGRTMIN`-based handlers consumed by a dedicated `XrdOssAioWait` thread.
 Checksums are the `XrdCks/` framework (`XrdCksManager`, `XrdCksCalc`).
 
-## In gnuBall
+## In BriX-Cache
 
 The module mirrors those opcodes but maps each onto an nginx-native, never-block
 implementation:
@@ -101,7 +101,7 @@ Official `do_Read` chooses one of four modes at request time
    (`as_maxperlnk = 8`, `as_maxpersrv = 4096`), AIO quantum
    `as_segsize = 65536` (`XrdXrootdProtocol.cc:120-136`).
 
-gnuBall's `xrootd_handle_read` runs a comparable dispatch ladder
+BriX-Cache's `xrootd_handle_read` runs a comparable dispatch ladder
 (`read.c:132-441`):
 
 1. slice-cache mode (if enabled);
@@ -124,7 +124,7 @@ pool entirely (`read.c:363-383`); otherwise it posts
 only when no pool is available (`read.c:385-441`).
 
 The key structural difference: official picks sync-vs-async by request *size*
-and may block a worker thread on basic reads; gnuBall never blocks the
+and may block a worker thread on basic reads; BriX-Cache never blocks the
 event loop — it either zero-copies, serves from a `RWF_NOWAIT` cache hit, or
 hands off to a thread pool / io_uring.
 
@@ -134,7 +134,7 @@ Official `do_ReadV` reads a vector request into `rdVec[XrdProto::maxRvecsz+1]`
 and rejects vectors with more than `maxRvecsz` segments
 (`XrdXrootdXeq.cc:2746`, constant in `XProtocol/XProtocol.hh`).
 
-gnuBall's `xrootd_handle_readv` (`readv.c:201`) enforces several explicit
+BriX-Cache's `xrootd_handle_readv` (`readv.c:201`) enforces several explicit
 caps:
 
 | Cap | Constant | Value | Where |
@@ -161,14 +161,14 @@ Both sides implement the paged-read protocol with the same on-wire shape:
 `kXR_status` response that reports the next-expected offset and uses a
 partial/"oksofar" frame for intermediate chunks.
 
-| Property | Official | gnuBall |
+| Property | Official | BriX-Cache |
 |---|---|---|
 | Page size | `kXR_pgPageSZ = 4096`, unit `kXR_pgUnitSZ = 4100` (`XProtocol.hh:528-530`) | same constants (`flags.h:255-257`), CRC word `XROOTD_PG_CKSZ = 4` (`pgread.c:56`) |
 | Per-page CRC | CRC-32C via `XrdOucCRC::Calc32C` (`XrdOucPgrwUtils.cc`), SSE4.2 with software fallback | `xrootd_crc32c_value`, SSE4.2 `_mm_crc32_u64` + software fallback, poly `0x82F63B78` (`crc32c.c:25`) |
 | File-offset alignment | first/last page may be short (`csNum`/`csVer`) | short first page from `in_off = cur & (kXR_pgPageSZ-1)` (`pgread.c:115-116`) |
 | Partial framing | `kXR_PartialResult` (0x01) intermediate, `kXR_FinalResult` last; iovec bounded `maxPGRD ≈ 2 093 056 B` (`XrdXrootdXeqPgrw.cc:219-242`) | `ServerStatusResponse_pgRead` next-offset header, oksofar chunking in `xrootd_build_pgread_chain`; batch ≤ `XROOTD_PGREAD_MAXIOV = 64` pages (`pgread.c:58,341`) |
 
-The notable engineering difference is on the gnuBall side:
+The notable engineering difference is on the BriX-Cache side:
 `xrootd_pgread_read_encode_inplace()` (`pgread.c:88-165`) performs a
 **zero-copy gapped `preadv` plus an in-place 3-way CRC**. It lays out a batch of
 pages with the data positioned *after* each 4-byte CRC gap, `preadv`s the
@@ -193,7 +193,7 @@ async is disabled (`as_aioOK = false`). This is a thread-per-active-request
 model with an epoll readiness front end — strong on many-core servers because
 each in-flight request can occupy its own worker.
 
-**gnuBall.** Asynchrony is a three-tier cascade behind one interposition
+**BriX-Cache.** Asynchrony is a three-tier cascade behind one interposition
 point, `xrootd_aio_post_task()` (`resume.c:68-122`):
 
 1. **io_uring** (Phase 44, `src/core/aio/uring*.c`) when compiled in and enabled.
@@ -228,7 +228,7 @@ synchronously or, for large writes within the per-link/per-server caps, allocate
 `XrdXrootdNormAio` and issues `aioP->Write(offset, len)` — the same async
 machinery as reads.
 
-gnuBall's `xrootd_handle_write` (`write.c:67`) validates a writable handle,
+BriX-Cache's `xrootd_handle_write` (`write.c:67`) validates a writable handle,
 optionally decompresses, skips replayed writes during `kXR_recoverWrts`, then
 either posts to AIO or does an inline `pwrite`; a short write surfaces as a hard
 `kXR_IOError` ("short write (disk full?)", `write.c:159-163`).
@@ -265,7 +265,7 @@ optionally fsyncs each touched fd on `kXR_wv_doSync`. pgwrite is deliberately
 
 ### `kXR_pgwrite` and the CSE retransmit machine
 
-gnuBall implements the full per-page checksum-error (CSE) retransmit
+BriX-Cache implements the full per-page checksum-error (CSE) retransmit
 protocol, matching official byte-for-byte.
 
 Official `do_PgWrite` (`XrdXrootdXeqPgrw.cc:361`) re-verifies every page's CRC32c
@@ -278,7 +278,7 @@ the `kXR_pgRetry` flag (`kXR_pgRetry = 0x01`). The retry path
 was registered as in-error. At close, `do_PgClose` (`XrdXrootdXeq.cc:665`)
 returns `kXR_ChkSumErr` while any page remains uncorrected.
 
-gnuBall's `xrootd_handle_pgwrite` (`pgwrite.c`) verifies **every** page via
+BriX-Cache's `xrootd_handle_pgwrite` (`pgwrite.c`) verifies **every** page via
 the shared `xrdp_pg_decode_collect` (`compat/pgio.c`), writes all pages — good
 and bad — to disk (accept-then-correct), and on any CRC failure replies with a
 **success** `kXR_status` frame carrying the `pgWrCSE` trailer + the bad-page
@@ -300,7 +300,7 @@ the offset list, `dlFirst`/`dlLast`, the retry correction, and the close gate.
 ### `kXR_sync`
 
 Official `do_Sync` (`XrdXrootdXeq.cc:3210`) calls `XrdSfsp->sync()` and supports
-async completion via a callback. gnuBall's `xrootd_handle_sync`
+async completion via a callback. BriX-Cache's `xrootd_handle_sync`
 (`sync.c:42-106`) validates the handle, fsyncs the fd, and additionally flushes
 the write-resilience journal (`xrootd_wrts_flush`) and any write-through dirty
 data. It also dual-purposes sync on a TPC-destination handle: the first sync
@@ -317,7 +317,7 @@ TLS links ("avoid using sendfile on TLS", `Xrd/XrdLinkXeq.cc:1402`). TLS reads
 fall back to buffered userspace copies. On Linux the cleartext path uses
 `sendfile()`; Solaris uses `sendfilev()`.
 
-**gnuBall.** The TLS buffer invariant (CLAUDE.md INVARIANT 2) is enforced
+**BriX-Cache.** The TLS buffer invariant (CLAUDE.md INVARIANT 2) is enforced
 in the buffer layout: for TLS responses buffers are memory-backed (`b->memory =
 1`), and for cleartext they are file-backed so nginx's `sendfile` engine can
 zero-copy. The read handler picks the sendfile branch only when the connection
@@ -344,7 +344,7 @@ external plugin, and there is no CRC-64/XZ vs CRC-64/NVME distinction.
 `kXR_Qcksum` (`do_CKsum`, `XrdXrootdXeq.cc:436,513`) returns the result on the
 wire as `"<algname> <hexvalue>\0"`.
 
-gnuBall parses and computes a broader set in a single small C kernel per
+BriX-Cache parses and computes a broader set in a single small C kernel per
 family (`xrootd_checksum_parse`, `src/core/compat/checksum.c:42-169`): **adler32,
 crc32, crc32c, crc64 (alias crc64xz), crc64nvme, zcrc32, md5, sha1, sha256**.
 The crc32c kernel is `src/core/compat/crc32c.c` (SSE4.2 + software, poly
@@ -366,14 +366,14 @@ official wire format; the S3 path emits base64 of the 8 big-endian bytes for
 (`query/config.c:119-130`). A `xrootd_crc64_combine` (GF(2) folding) supports
 S3 multipart FULL_OBJECT composition.
 
-Net: gnuBall ships crc64 (both XZ and NVME flavours) as first-class,
+Net: BriX-Cache ships crc64 (both XZ and NVME flavours) as first-class,
 in-tree, where official XRootD treats crc64 as an external plugin slot and
 crc64nvme not at all. For the algorithms both support, the root:// wire format
 is identical.
 
 ## Compression (nginx-forward)
 
-Transparent on-the-fly read/write compression is an **gnuBall extension
+Transparent on-the-fly read/write compression is an **BriX-Cache extension
 that has no equivalent in the official root:// data path**. Grepping the entire
 official `XrdXrootd/`, `XrdOfs/`, and `XrdOss/` trees for any streaming codec
 returns nothing; zlib is linked only for the optional crc32 checksum plugin. The
@@ -383,7 +383,7 @@ written in the old `oocx_CXFile` format and the `kXR_compress` open flag merely
 sets `SFS_O_RAWIO` so the client reads the raw compressed bytes — the server
 neither compresses nor decompresses, and such files cannot be opened for update.
 
-gnuBall implements real, negotiated codecs in `src/core/compat/codec_*.c`. The
+BriX-Cache implements real, negotiated codecs in `src/core/compat/codec_*.c`. The
 codec table (`codec_core.c:81-90`) is IDENTITY, GZIP, DEFLATE, ZSTD, BROTLI, XZ
 (lzma), BZIP2, LZ4; each backend compiles to an `available = 0` stub if its
 library is absent. Decompression enforces an output cap and a maximum expansion
@@ -417,7 +417,7 @@ a slow/blocking storage backend ties up a worker rather than stalling everyone.
 It uses sendfile and mmap for cleartext zero-copy, but **falls back to userspace
 buffering for all TLS reads**.
 
-**gnuBall** is event-loop + sendfile + thread-pool (+ optional io_uring).
+**BriX-Cache** is event-loop + sendfile + thread-pool (+ optional io_uring).
 A worker never blocks: the event loop multiplexes thousands of connections, disk
 work is offloaded, and the read fast paths (cleartext sendfile, kTLS
 `SSL_sendfile`, the `RWF_NOWAIT` warm-cache inline read, the gapped-preadv
@@ -446,7 +446,7 @@ benchmarked** unless a specific verified figure is attributed.
 
 What an operator turns, and what an end user observes:
 
-| Concern | Directive (gnuBall) | Default | Official analogue |
+| Concern | Directive (BriX-Cache) | Default | Official analogue |
 |---|---|---|---|
 | Thread pool (stream) | `xrootd_thread_pool` (resolves an nginx `thread_pool`) | `"default"` | `xrd.sched mint/maxt/avlt/idle` |
 | Thread pool (WebDAV/S3) | `xrootd_webdav_thread_pool` / `xrootd_s3_thread_pool` | — | (same scheduler) |
@@ -462,7 +462,7 @@ What an operator turns, and what an end user observes:
 | Memory budget | `memory_budget` | 768 MiB | n/a (per-worker buffers) |
 | Async I/O (official) | — | — | `xrootd.async maxperlnk/maxsegs/minsz/...` |
 
-There is no separate "enable AIO" directive in gnuBall: AIO is active
+There is no separate "enable AIO" directive in BriX-Cache: AIO is active
 whenever a thread pool is resolvable, and io_uring is the only data-plane backend
 toggle. The nginx core `thread_pool` directive sizes the pool the module
 resolves by name.
@@ -470,7 +470,7 @@ resolves by name.
 From the **end user's** perspective the data plane is transparent: they see
 throughput and correct bytes. Reads and writes of files using the algorithms
 both servers share are byte-identical and checksum-compatible on the wire. A user
-gets faster TLS reads from gnuBall when the kernel offers kTLS, faster
+gets faster TLS reads from BriX-Cache when the kernel offers kTLS, faster
 streamed writes from pipelining, and — only if they explicitly opt in with
 `?xrootd.compress=` and the operator enabled it — transparent compression that a
 stock XRootD server would not offer. Integrity is never traded for speed: every
@@ -503,7 +503,7 @@ CRC paths never compress.
 - `XrdOss/XrdOssApi.cc:1287`, `XrdOfs/XrdOfs.cc:809-810` — legacy
   compressed-file passthrough (no streaming codec).
 
-**gnuBall** (`src/`):
+**BriX-Cache** (`src/`):
 
 - `read/read.c:66-499` — read dispatch, sendfile/kTLS gate, warm-cache probe,
   windowed streaming.

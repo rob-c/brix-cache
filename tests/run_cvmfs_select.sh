@@ -100,9 +100,11 @@ sleep 1.5                       # let the first probe run and rank
 NB0="$(curl -s "http://127.0.0.1:$MB/ctl/log" | grep -oF "$OBJ" | wc -l)"
 curl -s "http://127.0.0.1:$CPORT$OBJ" -o /dev/null
 NB1="$(curl -s "http://127.0.0.1:$MB/ctl/log" | grep -oF "$OBJ" | wc -l)"
-grep -q 'cvmfs rtt ranks:' "$PFX/logs/e.log" \
+# The prober logs "initial ranking" on its first tick, then "ranks"/"ranking
+# CHANGED" thereafter — match any rtt ranking line.
+grep -Eq 'cvmfs rtt (ranks|initial ranking|ranking CHANGED)' "$PFX/logs/e.log" \
     && [ "$((NB1 - NB0))" = 1 ] && ok "rtt: probe pre-ranked live origin first" \
-    || bad "rtt selection (log=$(grep -c 'cvmfs rtt ranks:' "$PFX/logs/e.log" || true) fills=$((NB1-NB0)))"
+    || bad "rtt selection (log=$(grep -cE 'cvmfs rtt (ranks|initial ranking|ranking CHANGED)' "$PFX/logs/e.log" || true) fills=$((NB1-NB0)))"
 
 # --- 4: config-error negatives ----------------------------------------------
 mkconf "        xrootd_cvmfs_origin_select geo;" \

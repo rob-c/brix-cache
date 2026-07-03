@@ -624,6 +624,19 @@ xrootd_vfs_file_can_sendfile(const xrootd_vfs_file_t *fh)
     return xrootd_vfs_file_sendfile_fd(fh) != NGX_INVALID_FILE ? 1 : 0;
 }
 
+/* The census name of the backend serving this handle: the bound instance's
+ * driver name, or "posix" for the default instance / a NULL handle. Used for
+ * per-backend byte attribution at serve time (the serve paths release the
+ * handle before the bytes are counted, so callers capture this up front). */
+const char *
+xrootd_vfs_file_backend_name(const xrootd_vfs_file_t *fh)
+{
+    if (fh == NULL || fh->ctx == NULL || fh->ctx->sd == NULL) {
+        return "posix";
+    }
+    return xrootd_sd_backend_name(fh->ctx->sd);
+}
+
 const char *
 xrootd_vfs_file_path(const xrootd_vfs_file_t *fh)
 {

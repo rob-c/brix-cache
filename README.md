@@ -1,13 +1,13 @@
 ```
- ██████╗ ███╗   ██╗██╗   ██╗██████╗  █████╗ ██╗     ██╗
-██╔════╝ ████╗  ██║██║   ██║██╔══██╗██╔══██╗██║     ██║
-██║  ███╗██╔██╗ ██║██║   ██║██████╔╝███████║██║     ██║
-██║   ██║██║╚██╗██║██║   ██║██╔══██╗██╔══██║██║     ██║
-╚██████╔╝██║ ╚████║╚██████╔╝██████╔╝██║  ██║███████╗███████╗
- ╚═════╝ ╚═╝  ╚═══╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝╚══════╝
+██████╗ ██████╗ ██╗██╗  ██╗        ██████╗ █████╗  ██████╗██╗  ██╗███████╗
+██╔══██╗██╔══██╗██║╚██╗██╔╝       ██╔════╝██╔══██╗██╔════╝██║  ██║██╔════╝
+██████╔╝██████╔╝██║ ╚███╔╝  █████╗██║     ███████║██║     ███████║█████╗
+██╔══██╗██╔══██╗██║ ██╔██╗  ╚════╝██║     ██╔══██║██║     ██╔══██║██╔══╝
+██████╔╝██║  ██║██║██╔╝ ██╗       ╚██████╗██║  ██║╚██████╗██║  ██║███████╗
+╚═════╝ ╚═╝  ╚═╝╚═╝╚═╝  ╚═╝        ╚═════╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚══════╝
 ```
 
-# gnuBall
+# BriX-Cache
 
 > **The whole HEP data stack in one nginx binary — `root://`, WebDAV, and S3 — built from snap-together parts you assemble to fit your site, instead of a monolith you bend to fit.**
 
@@ -19,7 +19,7 @@ Physicists at CERN, SLAC, and Fermilab move petabytes of collision data using tw
                          +-----------------+
   xrdcp root://host/...  |                 |  /data/atlas/...  (POSIX)
   ─────────────────────> |                 | ─────────────────>
-                         |     gnuBall     |
+                         |     BriX-Cache     |
   xrdcp davs://host/...  |    (nginx +     | ─────────────────>  (proxy mode)
                          |     module)     |
   aws s3 cp s3://host/.. |                 |  http://dav-backend/  (WebDAV proxy)
@@ -121,7 +121,7 @@ Auth happens once; then `open` → `read`-loop → `close`. Path confinement and
 checksums are non-negotiable on every byte:
 
 ```text
-  client                         gnuBall                          disk / backend
+  client                         BriX-Cache                          disk / backend
     │                               │                                    │
     │── handshake (4×0, "root") ───►│                                    │
     │◄──── protocol + TLS hint ─────│  kXR_wantTLS / kXR_ableTLS         │
@@ -164,13 +164,13 @@ in flight, then picks up the completion as just another event:
 ```text
   MODE 1 — Standalone server
   ──────────────────────────
-  xrdcp client ──>  gnuBall     ──> local POSIX filesystem
+  xrdcp client ──>  BriX-Cache     ──> local POSIX filesystem
                        |
                   auth/TLS/metrics handled here
 
   MODE 2 — XRootD transparent proxy
   ──────────────────────────────────
-  xrdcp client ──>  gnuBall     ──> root://backend (xrdceph, HDFS, tape, ...)
+  xrdcp client ──>  BriX-Cache     ──> root://backend (xrdceph, HDFS, tape, ...)
                        |                  ^
                   terminates auth    file-handle translation,
                   & TLS, emits       lazy connect, opaque relay
@@ -178,7 +178,7 @@ in flight, then picks up the completion as just another event:
 
   MODE 3 — WebDAV perimeter proxy
   ────────────────────────────────
-  HTTP client  ──>  gnuBall     ──> http://internal-dav-server/
+  HTTP client  ──>  BriX-Cache     ──> http://internal-dav-server/
   (xrdcp,            |
    browser,     terminates HTTPS,
    rucio)       WLCG token auth,
@@ -289,7 +289,7 @@ xrdcp --allow-http /local/file.root davs://localhost:8443//data/test.root
 
 ### Transparent XRootD proxy
 
-Slide gnuBall in front of any existing XRootD server and immediately gain TLS termination, auth enforcement, and Prometheus metrics — without changing a single line of client or backend config:
+Slide BriX-Cache in front of any existing XRootD server and immediately gain TLS termination, auth enforcement, and Prometheus metrics — without changing a single line of client or backend config:
 
 ```nginx
 stream {
@@ -437,7 +437,7 @@ All 32 active opcodes are implemented — `open`, `read`, `pgread`, `readv`, `wr
 
 ## Performance & resilience
 
-`gnuBall` aims for **parity with reference XRootD on a healthy network** and to
+`BriX-Cache` aims for **parity with reference XRootD on a healthy network** and to
 **degrade gracefully when the network is not**. The figures below come from the
 in-repo fault-injection harness (`tests/resilience/` — an in-process TCP fault proxy
 plus an ASAN+TLS read harness). They are **same-machine (loopback) numbers —
@@ -446,10 +446,10 @@ memory-bandwidth-bound; treat the ratios, not the GB/s).
 
 ### Clean network — parity with the reference `xrootd` daemon
 
-Serving a 64 MiB file, `gnuBall` matches the reference XRootD server within
+Serving a 64 MiB file, `BriX-Cache` matches the reference XRootD server within
 run-to-run noise on every transport:
 
-| transport (64 MiB read) | gnuBall | reference XRootD |
+| transport (64 MiB read) | BriX-Cache | reference XRootD |
 |---|---|---|
 | `root://` | ~1.0–1.2 GB/s | ~1.0–1.2 GB/s |
 | HTTP GET (WebDAV vs XrdHttp) | ~1.9–2.2 GB/s | ~1.9–2.2 GB/s |
@@ -462,13 +462,13 @@ laptop abroad", a flaky transatlantic path, a saturated edge. Two cases:
 **Packet reordering** is, on TCP, a pure *latency* tax (the kernel reassembles in
 order before any byte reaches the application). Every client × server combination
 converges to the same curve (~118 MB/s at 1% reorder) and stays **byte-exact** —
-`gnuBall` and reference XRootD are indistinguishable here.
+`BriX-Cache` and reference XRootD are indistinguishable here.
 
 **Packet loss** (modeled as connection severs — harsher than `netem` drop, which TCP
 would merely retransmit) is where *client* resilience decides the outcome, and the
 native client + module stack stays correct where the stock stack does not:
 
-| 64 MiB download, 1% loss | gnuBall + native `xrdcp` | reference XRootD + `xrdcp` |
+| 64 MiB download, 1% loss | BriX-Cache + native `xrdcp` | reference XRootD + `xrdcp` |
 |---|---|---|
 | `root://` | ✅ **8/8 byte-exact**, bounded (~107 MB/s; ~660 tuned) | ⚠️ completes but 15–45 s stalls (~2.2 MB/s) |
 | HTTP | ✅ **8/8 byte-exact** (HTTP `Range`-resume) | ❌ `xrdcp` cannot copy `http://` at all |
@@ -537,14 +537,14 @@ Every request — XRootD, WebDAV, or S3 — writes a structured access log line 
 
 ## Testing
 
-The Python test suite is comprehensive by design — `xrdcp` and XRootD Python client behavior, WebDAV, HTTP-TPC interop, auth, ACLs, proxy mode, manager mode, security hardening, cross-backend conformance against reference xrootd, **and XrdHttp/davs:// protocol conformance** between gnuBall and the official xrootd daemon.
+The Python test suite is comprehensive by design — `xrdcp` and XRootD Python client behavior, WebDAV, HTTP-TPC interop, auth, ACLs, proxy mode, manager mode, security hardening, cross-backend conformance against reference xrootd, **and XrdHttp/davs:// protocol conformance** between BriX-Cache and the official xrootd daemon.
 
 ```bash
 # Run the full suite
 # Session-level setup handles all required nginx and xrootd instances automatically
 pytest -v
 
-# Run cross-compatible tests against both gnuBall and reference xrootd
+# Run cross-compatible tests against both BriX-Cache and reference xrootd
 tests/run_cross_compatible_tests.sh
 
 # Target an already-running server (if desired)
@@ -555,7 +555,7 @@ pytest -v
 
 ### Cross-Backend Conformance Tests (Native XRootD)
 
-These modules run unchanged against both gnuBall and the reference xrootd daemon — any divergence is a conformance failure:
+These modules run unchanged against both BriX-Cache and the reference xrootd daemon — any divergence is a conformance failure:
 - `tests/test_file_api.py`
 - `tests/test_query.py`
 - `tests/test_protocol_edge_cases.py`
@@ -565,7 +565,7 @@ Set `TEST_CROSS_BACKEND=nginx` or `TEST_CROSS_BACKEND=xrootd` to target one back
 
 ### XrdHttp/davs:// Conformance Tests (May 2026+)
 
-Three new test modules verify that gnuBall's **WebDAV HTTPS endpoint** operates identically to the official xrootd server running its **XrdHttp module**:
+Three new test modules verify that BriX-Cache's **WebDAV HTTPS endpoint** operates identically to the official xrootd server running its **XrdHttp module**:
 
 | Test File | What It Validates |
 |-----------|-------------------|
@@ -577,7 +577,7 @@ Three new test modules verify that gnuBall's **WebDAV HTTPS endpoint** operates 
 # Run XrdHttp conformance tests
 pytest tests/test_xrdhttp_*.py -v
 
-# Cross-compatibility: run against BOTH backends (gnuBall + reference XrdHttp)
+# Cross-compatibility: run against BOTH backends (BriX-Cache + reference XrdHttp)
 TEST_CROSS_BACKEND=nginx pytest tests/test_xrdhttp_webdav.py -v
 TEST_CROSS_BACKEND=xrootd pytest tests/test_xrdhttp_webdav.py -v
 ```

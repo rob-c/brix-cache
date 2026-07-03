@@ -27,6 +27,25 @@ xrootd_vfs_http_failover_note(void)
     XROOTD_CVMFS_METRIC_INC(origin_failovers_total);
 }
 
+/* Endpoint health TRANSITIONS (sd_http EWMA hysteresis) as single-line
+ * operator events: which Stratum-1/origin flapped, and when it came back.
+ * Fires from fill worker threads — the cycle log is the stable target. */
+static void
+xrootd_vfs_http_health_note(const char *host, int port, int healthy)
+{
+    if (healthy) {
+        ngx_log_error(NGX_LOG_NOTICE, ngx_cycle->log, 0,
+            "xrootd-origin: event=recovered host=%s port=%d — endpoint "
+            "answering again; rank-preferred routing resumes", host, port);
+    } else {
+        ngx_log_error(NGX_LOG_WARN, ngx_cycle->log, 0,
+            "xrootd-origin: event=degraded host=%s port=%d — transport "
+            "failures pushed this endpoint's fail score over threshold; "
+            "reads prefer alternates until a half-open probe succeeds",
+            host, port);
+    }
+}
+
 static xrootd_vfs_backend_entry_t  xrootd_vfs_backends[XROOTD_VFS_BACKEND_MAX];
 static ngx_uint_t                  xrootd_vfs_backend_count;
 
@@ -226,6 +245,7 @@ xrootd_vfs_backend_build_source(xrootd_vfs_backend_entry_t *e, ngx_log_t *log)
         cfg.timeout_ms = 60000;
         cfg.bearer_token = (e->origin_token[0] != '\0') ? e->origin_token : NULL;
         cfg.failover_note = xrootd_vfs_http_failover_note;   /* T16 */
+        cfg.health_note   = xrootd_vfs_http_health_note;
         /* phase-68 T11: the remaining pipe-separated failover origins */
         for (i = 0; i < e->n_http_extra && i < 7; i++) {
             extra[i].host      = e->http_extra[i].host;
@@ -332,6 +352,14 @@ xrootd_vfs_backend_entry_build(xrootd_vfs_backend_entry_t *e, ngx_log_t *log)
 
     if (e->inst != NULL) {
         return e->inst;                /* already built in this worker */
+    }
+    /* The built stack is memoized for the worker's whole life, and drivers
+     * keep the log they are built with for later diagnostics (sd_http logs
+     * selection/failover from fill threads). A request-time resolver hands
+     * us its connection log, which dies with the connection — build with
+     * the cycle log instead so stored pointers never go stale. */
+    if (ngx_cycle != NULL && ngx_cycle->log != NULL) {
+        log = ngx_cycle->log;
     }
     top = xrootd_vfs_backend_build_source(e, log);
     if (top == NULL) {

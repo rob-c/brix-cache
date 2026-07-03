@@ -2,7 +2,7 @@
 
 ## GSI authentication over root://
 
-The XRootD GSI handshake: how the Diffie-Hellman exchange works, what each side proves, and how gnuBall implements it.
+The XRootD GSI handshake: how the Diffie-Hellman exchange works, what each side proves, and how BriX-Cache implements it.
 symmetric session key, then encrypts the proxy certificate chain with that key.
 It takes three request/response round-trips after the initial login.
 

@@ -125,6 +125,16 @@ ngx_uint_t xrootd_metric_auth_slot(ngx_uint_t auth_method);
 void xrootd_metric_op_done(xrootd_proto_t proto, xrootd_metric_op_t op,
     size_t bytes, ngx_msec_t latency_usec, xrootd_err_class_t err);
 /*
+ * xrootd_metric_backend_bytes — add a completed data op's byte count to the
+ * per-backend storage totals (io_bytes_{read,written}_backend). backend_name
+ * is the storage driver's census name (fs_list.h); NULL ⇒ "posix" (the
+ * default-instance convention everywhere in the VFS). Pure lock-free SHM
+ * atomics — safe from thread-pool workers (no pools, logs, or request state).
+ * No-ops on unknown names, non-READ/WRITE ops, zero bytes, or missing SHM.
+ */
+void xrootd_metric_backend_bytes(const char *backend_name,
+    xrootd_metric_op_t op, size_t bytes);
+/*
  * Record a cache lookup outcome: bumps cache_hits or cache_misses[proto] by hit
  * (treated as boolean) and adds bytes_evicted to cache_bytes_evicted[proto].
  * Lock-free; no-ops on out-of-range proto or detached SHM.

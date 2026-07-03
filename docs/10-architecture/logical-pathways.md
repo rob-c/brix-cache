@@ -1,4 +1,4 @@
-# gnuBall Logical Pathways: Tier 1 & Tier 2
+# BriX-Cache Logical Pathways: Tier 1 & Tier 2
 
 This document maps the architectural pathways within the `nginx-xrootd` module, categorizing them into **Tier 1** (Core Data & Security) and **Tier 2** (Clustering & Advanced Features).
 

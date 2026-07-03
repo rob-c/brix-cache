@@ -1,6 +1,6 @@
 # Upgrade & Rollback Procedure
 
-How to upgrade the gnuBall module package safely, what the module-load layout
+How to upgrade the BriX-Cache module package safely, what the module-load layout
 must look like, and how to roll back.
 
 ## Package layout (what the RPM installs)

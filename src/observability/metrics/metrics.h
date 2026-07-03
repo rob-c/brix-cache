@@ -14,6 +14,7 @@
 #include <stdint.h>
 #include <ngx_core.h>
 
+#include "core/types/fs_list.h"   /* xrootd_fs_id_t — per-backend counter index */
 #include "unified.h"
 
 /* Hard cap on exported stream listeners sharing the metrics zone. */
@@ -315,6 +316,40 @@ typedef struct {
     ngx_atomic_t  origin_bytes_total;      /* WAN in, pulled from Stratum-1s  */
 } ngx_xrootd_cvmfs_repo_metrics_t;
 
+/* ---- per-upstream (Stratum-1) counters -----------------------------------
+ * "Which of my origins am I pulling from, and how much?" — the RAL-vs-CERN
+ * question. The upstream "host:port" arrives FROM THE WIRE / config, so the
+ * label set is BOUNDED exactly like the repo table (INVARIANT #8): a fixed
+ * slot table holds the first XROOTD_CVMFS_UPSTREAM_SLOTS-1 distinct hosts;
+ * the reserved last slot is exported upstream="_other". Registration and
+ * convergence use the same lock-free EMPTY->CLAIMED->READY lowest-index
+ * scheme as the repo table. */
+#define XROOTD_CVMFS_UPSTREAM_SLOTS     16   /* >= a site's Stratum-1 allowlist */
+#define XROOTD_CVMFS_UPSTREAM_NAME_MAX  300  /* matches sd_http last_origin buf */
+
+/* Fill-duration histogram: cumulative-le upper bounds in MILLISECONDS. The
+ * exporter renders them as Prometheus seconds buckets (/1000) plus an
+ * implicit +Inf. They bracket a LAN-adjacent fill (ms) through a cold-WAN
+ * fill (seconds). */
+#define XROOTD_CVMFS_UP_HBUCKETS  6
+static const long xrootd_cvmfs_up_bucket_ms[XROOTD_CVMFS_UP_HBUCKETS] = {
+    5, 25, 100, 500, 2000, 10000
+};
+
+typedef struct {
+    ngx_atomic_t  state;                 /* EMPTY / CLAIMED / READY (repo enum) */
+    char          name[XROOTD_CVMFS_UPSTREAM_NAME_MAX]; /* "host:port", NUL     */
+
+    ngx_atomic_t  requests_total;        /* fill attempts against this origin  */
+    ngx_atomic_t  fills_total;           /* attempts that published            */
+    ngx_atomic_t  fill_failures_total;   /* attempts that failed               */
+    ngx_atomic_t  failovers_total;       /* attempts served by a non-primary   */
+    ngx_atomic_t  origin_bytes_total;    /* WAN in from this origin            */
+    ngx_atomic_t  dur_bucket[XROOTD_CVMFS_UP_HBUCKETS]; /* non-cumulative       */
+    ngx_atomic_t  dur_count;             /* histogram observations             */
+    ngx_atomic_t  dur_sum_ms;            /* histogram sum (ms; /1000 on export) */
+} ngx_xrootd_cvmfs_upstream_metrics_t;
+
 typedef struct {
     ngx_atomic_t  requests_total[XROOTD_CVMFS_CLASS_COUNT]; /* by traffic class */
     ngx_atomic_t  negative_hits_total;   /* 404s absorbed by the worker memo   */
@@ -328,6 +363,7 @@ typedef struct {
     ngx_atomic_t  origin_bytes_total;      /* WAN in, pulled from Stratum-1s   */
 
     ngx_xrootd_cvmfs_repo_metrics_t repos[XROOTD_CVMFS_REPO_SLOTS];
+    ngx_xrootd_cvmfs_upstream_metrics_t upstreams[XROOTD_CVMFS_UPSTREAM_SLOTS];
 } ngx_xrootd_cvmfs_metrics_t;
 
 /*
@@ -338,6 +374,16 @@ typedef struct {
  */
 ngx_xrootd_cvmfs_repo_metrics_t *xrootd_cvmfs_repo_slot(const char *name,
     size_t len);
+
+/*
+ * Record one origin fill attempt against upstream "host:port" (NUL-terminated):
+ * requests++ always; on ok, fills++ + origin_bytes += bytes + the duration
+ * observation; else fill_failures++; failovers++ when a non-primary endpoint
+ * served it. No-op when the metrics SHM is unmapped or host is NULL/empty.
+ * Lock-free; safe from fill worker threads. (metrics/cvmfs.c)
+ */
+void xrootd_cvmfs_upstream_record(const char *host, int ok, off_t bytes,
+    long dur_ms, int failover);
 
 /*
  * Per-process FRM tape-stage metrics (phase-35).  All ngx_atomic_t, lock-free.
@@ -617,6 +663,16 @@ typedef struct {
 typedef struct {
     ngx_atomic_t  io_bytes_read[XROOTD_PROTO_COUNT];
     ngx_atomic_t  io_bytes_written[XROOTD_PROTO_COUNT];
+
+    /* Per-BACKEND byte totals (storage plane): bytes the storage-driver
+     * instance moved, attributed at the VFS observe chokepoint (staged-commit
+     * writes), xrootd_vfs_io_execute (root:// data plane), and the shared HTTP
+     * serve helper (sendfile/memory/compressed GET). Indexed by the census
+     * enum xrootd_fs_id_t (core/types/fs_list.h) — bounded, INVARIANT #8. A
+     * staged upload counts into BOTH the stage store and the final backend at
+     * promote: the semantic is bytes each backend performed, not client bytes. */
+    ngx_atomic_t  io_bytes_read_backend[XROOTD_FS_ID_COUNT];
+    ngx_atomic_t  io_bytes_written_backend[XROOTD_FS_ID_COUNT];
     ngx_atomic_t  io_ops_total[XROOTD_PROTO_COUNT]
                                   [XROOTD_METRIC_OP_COUNT]
                                   [XROOTD_ERR_COUNT];

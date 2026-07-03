@@ -1,6 +1,6 @@
 # Metrics Overview
 
-All Prometheus metrics exported by gnuBall, organized by protocol layer — native XRootD stream, WebDAV, and S3.
+All Prometheus metrics exported by BriX-Cache, organized by protocol layer — native XRootD stream, WebDAV, and S3.
 
 ---
 

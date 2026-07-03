@@ -1,14 +1,14 @@
 # Cross-Protocol Sharing & Expansion Analysis
 
 **Date:** 2026-05-26  
-**Scope:** gnuBall module — XRootD (stream), WebDAV/HTTP (http), S3 REST (http)  
+**Scope:** BriX-Cache module — XRootD (stream), WebDAV/HTTP (http), S3 REST (http)  
 **Purpose:** Identify areas where functionality can be shared or expanded across protocol implementations to reduce duplication, improve consistency, and enable new cross-protocol capabilities.
 
 ---
 
 ## Executive Summary
 
-The gnuBall module implements three distinct protocols — XRootD (`root://`/`roots://`) via the stream layer, WebDAV (`davs://`/`http://`) via the HTTP layer, and S3-compatible REST via a separate HTTP location handler. Despite their protocol differences, there is significant overlap in **auth validation**, **path resolution**, **namespace operations**, **HTTP response building**, **error mapping**, **metrics infrastructure**, and **I/O helpers**.
+The BriX-Cache module implements three distinct protocols — XRootD (`root://`/`roots://`) via the stream layer, WebDAV (`davs://`/`http://`) via the HTTP layer, and S3-compatible REST via a separate HTTP location handler. Despite their protocol differences, there is significant overlap in **auth validation**, **path resolution**, **namespace operations**, **HTTP response building**, **error mapping**, **metrics infrastructure**, and **I/O helpers**.
 
 ```text
    ┌──────────────┐   ┌──────────────┐   ┌──────────────┐   PROTOCOL FRONT-ENDS

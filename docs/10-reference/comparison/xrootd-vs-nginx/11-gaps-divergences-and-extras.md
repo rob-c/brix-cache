@@ -1,11 +1,11 @@
 # Gaps, Divergences, and Extras — the candid ledger
 
-> Part of the [XRootD vs gnuBall comparison set](./README.md).
+> Part of the [XRootD vs BriX-Cache comparison set](./README.md).
 
 This is the honest accounting document of the comparison set. It states three
 things plainly, each grounded in source on both sides:
 
-1. What **official XRootD** has that this gnuBall module does **not**.
+1. What **official XRootD** has that this BriX-Cache module does **not**.
 2. What this module has that **official XRootD does not** (or does not ship as a
    server feature).
 3. The catalogue of **known protocol/behavior divergences** surfaced by
@@ -59,7 +59,7 @@ section — there is no single yes/no answer.
 
 ---
 
-## Official-only features (gaps in gnuBall)
+## Official-only features (gaps in BriX-Cache)
 
 Each item below was confirmed present in the official source tree and **not**
 found as a comparable implementation in `src/`. For each: what it is, why it
@@ -447,7 +447,7 @@ Official XRootD (`/tmp/xrootd-src/src`):
 - Checksums: `XrdCks/`, `XrdVersionPlugin.hh`
 - Client: `XrdCl/`, `XrdClS3/` (client S3 plugin), `XrdPosix/`
 
-gnuBall (`src/` and `client/`):
+BriX-Cache (`src/` and `client/`):
 
 - Protocol/dispatch: `src/protocols/root/protocol/opcodes.h`, `src/protocols/root/protocol/flags.h`,
   `src/protocols/root/handshake/dispatch*.c`, `src/protocols/root/session/protocol.c`, `src/protocols/root/session/signing.c`

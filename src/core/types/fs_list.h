@@ -111,4 +111,25 @@
     S("tape",   "tape",   0, 1)                                               \
     S("frm",    "frm",    0, 1)
 
+/* ---- backend identity enum (activates the reserved ID column) ------------
+ * One id per census row, generated from the same gated lists — a build
+ * without CEPH/SQLITE simply has a smaller XROOTD_FS_ID_COUNT. Consumers:
+ * the per-backend SHM byte counters (observability/metrics/metrics.h) index
+ * by these ids; the exporters label by xrootd_fs_id_name(). The gate macros
+ * are global -D CFLAGS (repo ./config), so every server TU agrees on
+ * XROOTD_FS_ID_COUNT and the SHM layout stays consistent within a build. */
+typedef enum {
+#define XROOTD_FS_ROW_ENUM_ID(ID, sym, name, kind) XROOTD_FS_ID_##ID,
+    XROOTD_FS_DRIVER_LIST(XROOTD_FS_ROW_ENUM_ID)
+#undef XROOTD_FS_ROW_ENUM_ID
+    XROOTD_FS_ID_COUNT
+} xrootd_fs_id_t;
+
+/* Name <-> id lookups over the census (fs/backend/sd_fs_id.c — ngx-free,
+ * no driver externs, unit-testable standalone).
+ * xrootd_fs_id_name: bounded label for exporters; "?" for out-of-range.
+ * xrootd_fs_id_from_name: exact-match scan; -1 for NULL/unknown. */
+const char *xrootd_fs_id_name(int id);
+int xrootd_fs_id_from_name(const char *name);
+
 #endif /* XROOTD_FS_LIST_H */

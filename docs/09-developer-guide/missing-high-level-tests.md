@@ -152,12 +152,12 @@ These tests validate that metric labels remain low-cardinality under scale (no p
 
 ### Category 11: Cross-Backend Metrics Conformance
 
-These tests validate that gnuBall Prometheus metrics match reference xrootd daemon metrics for equivalent operations.
+These tests validate that BriX-Cache Prometheus metrics match reference xrootd daemon metrics for equivalent operations.
 
 | # | Test Name | What It Tests | Why Missing? |
 |---|-----------|---------------|--------------|
-| 31 | `test_cross_backend_metrics_conformance` | Run same operations against both gnuBall and reference xrootd → scrape `/metrics` from both → verify counter names, label structure, increment patterns match (nginx may have additional labels but base counters should align) | Cross-backend conformance exists for opcodes (`TEST_CROSS_BACKEND`) but no test compares Prometheus metrics between backends |
-| 32 | `test_cross_backend_webdav_metrics_conformance` | Run WebDAV operations against both gnuBall and reference XrdHttp → scrape `/metrics` from both → verify webdav-specific counters match in structure and increment behavior | No cross-backend conformance test for WebDAV metrics (XrdHttp conformance tests exist but only for HTTP methods, not metrics) |
+| 31 | `test_cross_backend_metrics_conformance` | Run same operations against both BriX-Cache and reference xrootd → scrape `/metrics` from both → verify counter names, label structure, increment patterns match (nginx may have additional labels but base counters should align) | Cross-backend conformance exists for opcodes (`TEST_CROSS_BACKEND`) but no test compares Prometheus metrics between backends |
+| 32 | `test_cross_backend_webdav_metrics_conformance` | Run WebDAV operations against both BriX-Cache and reference XrdHttp → scrape `/metrics` from both → verify webdav-specific counters match in structure and increment behavior | No cross-backend conformance test for WebDAV metrics (XrdHttp conformance tests exist but only for HTTP methods, not metrics) |
 
 ### Category 12: S3 Multipart + Lifecycle Metrics
 

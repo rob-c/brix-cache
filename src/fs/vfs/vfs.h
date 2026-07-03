@@ -165,6 +165,9 @@ ngx_fd_t xrootd_vfs_file_sendfile_fd(const xrootd_vfs_file_t *fh);
 /* 1 iff this handle's backend supports zero-copy sendfile (CAP_FD|CAP_SENDFILE),
  * else 0. The predicate form of xrootd_vfs_file_sendfile_fd(). */
 ngx_uint_t xrootd_vfs_file_can_sendfile(const xrootd_vfs_file_t *fh);
+/* The census name of the backend serving this handle ("posix" for the default
+ * instance or a NULL handle) — for per-backend byte attribution at serve time. */
+const char *xrootd_vfs_file_backend_name(const xrootd_vfs_file_t *fh);
 
 /* Read up to `len` bytes at offset `off` through the handle's storage driver, for
  * a memory-backed serve of a backend with no single sendfile fd. Bytes read

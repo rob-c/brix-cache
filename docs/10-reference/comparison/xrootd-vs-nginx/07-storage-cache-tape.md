@@ -1,8 +1,8 @@
-# Storage backends, caching, and tape/FRM staging: XRootD vs gnuBall
+# Storage backends, caching, and tape/FRM staging: XRootD vs BriX-Cache
 
-> Part of the [XRootD vs gnuBall comparison set](./README.md).
+> Part of the [XRootD vs BriX-Cache comparison set](./README.md).
 
-This document compares how **official XRootD** and the **gnuBall module** handle
+This document compares how **official XRootD** and the **BriX-Cache module** handle
 the three layers below the wire protocol:
 
 1. **Storage backend & namespace** — how a logical client path is turned into a
@@ -85,7 +85,7 @@ cache, and tape are independent, separately deployable, separately configured.
 
 ---
 
-## In gnuBall
+## In BriX-Cache
 
 This module collapses the same responsibilities into a single nginx worker
 process with a **unified VFS** and **no plugin ABI**:
@@ -151,7 +151,7 @@ call:
 - The **whole backend is swappable** via `ofs.osslib` — local POSIX, Ceph, PSS,
   CSI-tagstore, etc.
 
-### gnuBall: single confined local export, kernel-enforced
+### BriX-Cache: single confined local export, kernel-enforced
 
 This module exposes exactly **one local POSIX export** per server block:
 
@@ -216,7 +216,7 @@ ofs.persist [auto | manual | off] [hold <sec>] [logdir <dirp>] [sync <snum>]
 So official POSC survives both a client disconnect (held for `hold`) and a server
 restart (recovered from the poscq file).
 
-### gnuBall: stage-temp + atomic rename, immediate disconnect cleanup
+### BriX-Cache: stage-temp + atomic rename, immediate disconnect cleanup
 
 This module implements POSC inline in the open/close path, gated on the wire flag
 `kXR_posc` on a write open (advertised as `kXR_supposc`):
@@ -284,7 +284,7 @@ origin)**:
 - The remote origin is an `XrdPss` instance: `pss.origin root://host:port`
   (`XrdPssConfig.cc`), with remote checksum support (`XrdPssCks.cc`).
 
-### gnuBall: read-through + write-through, native-client origin fill
+### BriX-Cache: read-through + write-through, native-client origin fill
 
 This module's `src/fs/cache/` is a practical caching gateway with **two halves**
 (`src/fs/cache/README.md`):
@@ -377,7 +377,7 @@ priority — `XrdFrcRequest.hh`), with four queue types (stg/mig/get/put) and
 mutex + file locking. Cluster IDs are tracked (`XrdFrcCID.cc`), and
 stage/migrate/purge events stream over **UDP monitoring** (`XrdFrmMonitor.cc`).
 
-### gnuBall: one durable queue + Tape REST, in-process
+### BriX-Cache: one durable queue + Tape REST, in-process
 
 This module's tape staging is a **single-process, durable, crash-safe stage-in
 queue**. Since phase-64 it is owned by the composable transfer engine — the
@@ -463,7 +463,7 @@ such here.
 
 ### Configuring the export root / storage backend
 
-| Concern | Official XRootD | gnuBall |
+| Concern | Official XRootD | BriX-Cache |
 |---|---|---|
 | Export base path | `oss.localroot <path>` (string prefix) | `xrootd_root <dir>` (kernel-confined export root) |
 | Confinement | none from `localroot`; symlinks followed | `openat2(RESOLVE_BENEATH)` per syscall (`src/fs/path/beneath.c`) |
@@ -473,7 +473,7 @@ such here.
 
 ### Configuring the cache (XCache role)
 
-| Concern | Official XRootD | gnuBall |
+| Concern | Official XRootD | BriX-Cache |
 |---|---|---|
 | Cache plugin / enable | `pfc.osslib`, cache plugin load | `xrootd_cache on` |
 | Cache disk tree | OSS data space | `xrootd_cache_root <dir>` |
@@ -487,7 +487,7 @@ such here.
 
 ### Configuring tape / FRM
 
-| Concern | Official XRootD | gnuBall |
+| Concern | Official XRootD | BriX-Cache |
 |---|---|---|
 | Enable | run `frm_xfrd`/`frm_purged` daemons | `xrootd_frm on` |
 | Durable queue file | poscq/req file (internal paths) | `xrootd_frm_queue_path <abs>` (durable, required) |
@@ -506,7 +506,7 @@ such here.
   watermarks, hit/miss/bypass from `cinfo` access history, purge runs
   (`XrdPfcResourceMonitor`); FRM stage/migrate/purge events over **UDP
   monitoring**; `frm_admin` for queue introspection and audit.
-- **gnuBall:** Prometheus counters at `/metrics` — cache hit/miss, eviction,
+- **BriX-Cache:** Prometheus counters at `/metrics` — cache hit/miss, eviction,
   write-through pending/success/error and bytes; `xrootd_frm_*` (requests, stage
   success/fail, evict, migrate, async waiters/waitresp/asynresp,
   reject-inflight, dedup hits, cmsd-have); plus the live transfer dashboard
@@ -518,7 +518,7 @@ such here.
 
 ## Parity, gaps, and divergences
 
-| Capability | Official XRootD | gnuBall | Status | Notes |
+| Capability | Official XRootD | BriX-Cache | Status | Notes |
 |---|---|---|---|---|
 | POSIX local serving | `XrdOss`/`XrdOfs` POSIX backend | `src/fs/` VFS + confined `src/fs/path/` | **Parity** | Intentionally strongest as a POSIX data server/gateway. |
 | Namespace confinement | `oss.localroot` string prefix (symlinks followed) | `openat2(RESOLVE_BENEATH)` kernel-enforced | **nginx+ (stronger)** | Kernel refuses escape (`EXDEV`); not a chroot vs prefix tradeoff. |
@@ -584,7 +584,7 @@ monitor-only scaffolds delegated to operator commands). Do not claim full
   `XrdFrc/XrdFrcRequest.hh` (durable record), `XrdFrc/XrdFrcReqAgent.cc`,
   `XrdFrc/XrdFrcCID.cc`.
 
-**gnuBall (`src/`):**
+**BriX-Cache (`src/`):**
 
 - VFS / storage: `src/fs/README.md`, `src/fs/vfs/vfs.h`, `src/fs/vfs/vfs_open.c`,
   `src/fs/vfs/vfs_read.c`, `src/fs/vfs/vfs_write.c`.

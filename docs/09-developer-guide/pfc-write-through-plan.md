@@ -4,7 +4,7 @@ Status: implemented as a close/sync whole-file origin mirror.
 
 ## Goal
 
-Allow gnuBall to accept write-mode XRootD handles while write-through is
+Allow BriX-Cache to accept write-mode XRootD handles while write-through is
 enabled, keep the local filesystem copy authoritative during the request, and
 mirror dirty data to an origin XRootD data server when the client issues
 `kXR_sync` or `kXR_close`.

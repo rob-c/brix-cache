@@ -2,7 +2,7 @@
 
 ## Filesystem management
 
-Namespace operations: mkdir, rm, rmdir, mv, chmod, stat — what gnuBall supports, what it rejects, and what the error codes mean.
+Namespace operations: mkdir, rm, rmdir, mv, chmod, stat — what BriX-Cache supports, what it rejects, and what the error codes mean.
 
 These operations require `xrootd_allow_write on`.
 

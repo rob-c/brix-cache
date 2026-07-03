@@ -86,7 +86,7 @@ graph TB
 
 ## 📦 Choose Your Deployment Mode
 
-Three patterns. Pick the one that matches where gnuBall lives in your stack:
+Three patterns. Pick the one that matches where BriX-Cache lives in your stack:
 
 ```mermaid
 graph TD
@@ -136,6 +136,7 @@ All three modes run inside a single nginx instance. Details: [Deployment Modes](
 | [XRootD Basics](02-concepts/xrootd-basics.md) | What XRootD is, how clients talk to servers, authentication methods |
 | [Deployment Modes](02-concepts/deployment-modes.md) | Three ways to run this software — which one fits your situation? |
 | [How It Works](02-concepts/how-it-works.md) | Request lifecycle from connection to response (with debugging tips) |
+| [Forward vs Reverse Proxy](02-concepts/forward-vs-reverse-proxy.md) | The proxy models (forward, reverse, transparent relay, caching) and which feature — tap proxy, relay, cvmfs, mirror, TPC — uses each, with data-flow diagrams |
 
 ### Building & Configuration
 *Every directive, every build flag, every deployment pattern — all here.*
@@ -146,7 +147,7 @@ All three modes run inside a single nginx instance. Details: [Deployment Modes](
 | [Configuration Reference](03-configuration/config-reference.md) | All directives with defaults (complete reference) |
 | [TLS Configuration](03-configuration/tls-config.md) | `root://` upgrade, `roots://`, HTTPS setup |
 | [Production Deployment](03-configuration/production-deployment.md) | Production deployment patterns and best practices |
-| [Deployment Configuration Reference](10-reference/comparison/deployment-reference.md) | Side-by-side gnuBall and vanilla XRootD snippets for root, HTTP, token, GSI, packet marking, user mapping, cache, TPC, monitoring, mirroring, staging, and traffic-control deployments |
+| [Deployment Configuration Reference](10-reference/comparison/deployment-reference.md) | Side-by-side BriX-Cache and vanilla XRootD snippets for root, HTTP, token, GSI, packet marking, user mapping, cache, TPC, monitoring, mirroring, staging, and traffic-control deployments |
 
 ### Protocols & Clients
 *What actually happens on the wire — how each protocol and client type behaves.*
@@ -281,12 +282,12 @@ Contributing code? Start here. Everything you need to navigate the source tree, 
 | [Quirks & Compromises](10-reference/quirks.md) | Design mismatches and trade-offs with official xrootd |
 | [Handler Reference](10-reference/handler-reference.md) | Function signatures and call patterns |
 | [Core Types](10-reference/types.md) | Struct definitions used throughout the codebase |
-| [Design Rationale](10-reference/design-rationale.md) | Why gnuBall exists, comparison with official xrootd |
+| [Design Rationale](10-reference/design-rationale.md) | Why BriX-Cache exists, comparison with official xrootd |
 | [Gaps vs Official XRootD](10-reference/gaps-vs-xrootd.md) | Features in official xrootd not yet implemented |
 | [Protocol Gap Analysis](10-reference/protocol-gaps-vs-xrootd.md) | Per-opcode/plugin gap comparison against reference xrootd v5.2 |
 | [XRootD Feature Matrix](10-reference/xrootd-feature-matrix.md) | Cross-reference of every XRootD feature, plugin, and interop surface |
 | [Feature Gaps](10-reference/feature-gaps.md) | Incomplete features and corner cases across the three protocols |
-| [gnuBall vs Canonical xrootd](10-reference/comparison-nginx-xrootd-vs-canonical.md) | Detailed behavioural comparison with the reference daemon |
+| [BriX-Cache vs Canonical xrootd](10-reference/comparison-nginx-xrootd-vs-canonical.md) | Detailed behavioural comparison with the reference daemon |
 
 ---
 

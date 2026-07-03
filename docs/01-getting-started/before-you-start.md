@@ -49,7 +49,7 @@ A protocol is the rulebook for a conversation between two programs — what byte
 
 ## What Does "Building from Source" Mean?
 
-Most people install software with a package manager (`apt`, `dnf`, `brew`). But gnuBall adds custom functionality to nginx, so we need to:
+Most people install software with a package manager (`apt`, `dnf`, `brew`). But BriX-Cache adds custom functionality to nginx, so we need to:
 
 1. Download the **source code** (the human-readable C programs that make up nginx)
 2. **Compile** it — translate those programs into machine-executable binary form

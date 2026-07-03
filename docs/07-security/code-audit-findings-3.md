@@ -1,4 +1,4 @@
-# gnuBall Code-Level Security Audit — Round 3
+# BriX-Cache Code-Level Security Audit — Round 3
 
 **Scope:** Temp-file handling audit covering TOCTOU races and missing `O_NOFOLLOW`
 defenses across all subsystems that create files atomically (cache fill, checkpoint

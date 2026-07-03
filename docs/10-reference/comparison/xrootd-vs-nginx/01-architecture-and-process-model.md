@@ -1,8 +1,8 @@
-> Part of the [XRootD vs gnuBall comparison set](./README.md).
+> Part of the [XRootD vs BriX-Cache comparison set](./README.md).
 
-# Architecture & Process Model — Official XRootD vs. gnuBall
+# Architecture & Process Model — Official XRootD vs. BriX-Cache
 
-This document compares the **official XRootD C++** server with the **gnuBall**
+This document compares the **official XRootD C++** server with the **BriX-Cache**
 module on five axes: overall architecture, the process/concurrency model, the
 per-request lifecycle, the memory model, and the build/config model. Every claim
 is grounded in source read on both sides. Where a fact could not be verified from
@@ -36,7 +36,7 @@ starting points:
   storage behavior as **`.so` plugins** selected by `xrootd.cfg` directives.
   Clustering and tape staging are **separate companion daemons** (`cmsd`, `frmd`).
 
-- **gnuBall** is **not a daemon at all** — it is an **nginx module**. nginx
+- **BriX-Cache** is **not a daemon at all** — it is an **nginx module**. nginx
   owns `main()`, the listening sockets, the worker-process model, and the
   per-worker **event loop**; the module contributes a **stream handler** (for
   `root://`) and an **HTTP handler** (for WebDAV/S3/metrics) plus a thread pool
@@ -127,7 +127,7 @@ The wire behavior lives in dynamically loaded `.so` protocol plugins, not in the
   `int (XrdXrootdProtocol::*Resume)()` (`XrdXrootdProtocol.hh:589`). A handler that
   cannot finish (short read, offloaded I/O) stashes a continuation in `Resume` and
   returns; `DoIt()` re-invokes `(*this.*Resume)()` when rescheduled. This is
-  XRootD's hand-rolled coroutine — conceptually the same trick gnuBall uses
+  XRootD's hand-rolled coroutine — conceptually the same trick BriX-Cache uses
   with `NGX_AGAIN` + `XRD_ST_*` suspend states (see below).
 - **`XrdHttp/`** — the HTTP/WebDAV protocol plugin (`XrdHttpProtocol`), another
   `XrdProtocol` implementation, loaded on its own port.
@@ -204,11 +204,11 @@ object owns its own memory and is responsible for releasing it.
 
 ---
 
-## In gnuBall
+## In BriX-Cache
 
 ### Architecture: a module, not a daemon
 
-gnuBall ships as an nginx **add-on module** (`ngx_addon_name =
+BriX-Cache ships as an nginx **add-on module** (`ngx_addon_name =
 ngx_stream_xrootd_module`, top-level `config`). It plugs into nginx's existing
 machinery:
 
@@ -382,7 +382,7 @@ pools** whose lifetimes nginx owns:
   `src/core/aio/buffers.c` so sync and async paths produce byte-identical wire output.
 
 So where XRootD recycles fixed-size buffers from a global `XrdBuffManager`,
-gnuBall uses **per-request/per-connection arenas plus a few long-lived
+BriX-Cache uses **per-request/per-connection arenas plus a few long-lived
 grow-only scratch buffers** owned by the ctx.
 
 ### Build / config model
@@ -441,7 +441,7 @@ substrates. The "Resume continuation" (official) and the `XRD_ST_*` + `NGX_AGAIN
 suspend states (nginx) are the same idea: survive a partial read without holding a
 thread.
 
-| Stage | Official XRootD | gnuBall |
+| Stage | Official XRootD | BriX-Cache |
 |---|---|---|
 | Accept | accept thread (`mainAccept`) hands the fd to a poller; an `XrdLink` is created | nginx core accepts; `ngx_stream_xrootd_handler()` runs, allocates `xrootd_ctx_t`, arms read/write handlers |
 | Readiness | one of 3 `XrdPoll` epoll threads marks the link readable, schedules it | the worker's single epoll loop calls `ngx_stream_xrootd_recv` |
@@ -456,7 +456,7 @@ thread.
 
 **Threading vs event-loop implications.** Because XRootD runs each request on a
 pool thread, a slow disk read blocks only that one thread, and concurrency scales
-by spawning more threads (up to 8192). Because gnuBall runs on a shared event
+by spawning more threads (up to 8192). Because BriX-Cache runs on a shared event
 loop, a slow disk read *must* be offloaded or it blocks every connection on the
 worker — which is exactly why the module's hard rules are "no `goto` / no blocking
 / pool the crypto / cache the validation." The two models trade
@@ -483,7 +483,7 @@ manage it via the daemons' own start/stop (systemd units `xrootd@`, `cmsd@`,
 `frmd@`) and signals; config changes generally mean a daemon restart.
 Observability is historically **UDP XrdMon** streams plus per-daemon logs.
 
-### gnuBall deployment
+### BriX-Cache deployment
 
 The deployment is **one nginx instance with the module loaded**. A single
 `nginx.conf` configures `root://` (stream block), WebDAV/S3 (http blocks),
@@ -507,7 +507,7 @@ nginx access/error logs — UDP XrdMon is an explicit non-goal.
 
 ## Parity, divergences, and trade-offs
 
-| Aspect | Official XRootD | gnuBall | Notes |
+| Aspect | Official XRootD | BriX-Cache | Notes |
 |---|---|---|---|
 | Deployment unit | standalone `xrootd` daemon + plugins (+ `cmsd`, `frmd`) | one nginx instance with a stream + HTTP module | nginx folds cluster/tape/metrics into the workers; no companion daemons |
 | Process model | single process, multi-threaded | nginx master + N single-threaded worker processes | XRootD = threads share memory; nginx = processes share via SHM |
@@ -524,12 +524,12 @@ nginx access/error logs — UDP XrdMon is an explicit non-goal.
 | Config | `xrootd.cfg`, scoped prefixes, `if/fi`, plugin-by-directive | nginx `stream{}`/`http{}` blocks, `xrootd_*` directives, `create/merge_srv_conf` | one nginx.conf spans root/WebDAV/S3/metrics |
 | Build | CMake C++ build of daemon + plugins | nginx `--add-module` add-on; src list in top-level `config` | new `.c` must be registered in `config`, then `./configure` |
 | Reload | typically daemon restart (graceful in-place reload not verified) | nginx `-s reload` graceful worker reload | nginx reload model is a clear operational win |
-| Observability | UDP XrdMon + logs | Prometheus `/metrics`, SRR, dashboard, access logs | gnuBall makes UDP XrdMon an explicit non-goal |
+| Observability | UDP XrdMon + logs | Prometheus `/metrics`, SRR, dashboard, access logs | BriX-Cache makes UDP XrdMon an explicit non-goal |
 | Hard coding rules | C++ conventions | no `goto`, no blocking, helpers-first, functional/modular (CLAUDE.md) | enforced because everything shares the loop |
 
 **Net trade-off.** XRootD's thread-per-job model is conceptually simpler for the
 handler author (a handler may block) and scales with thread count, at the cost of
-thread-scheduling overhead and lock contention. gnuBall's event-loop model
+thread-scheduling overhead and lock contention. BriX-Cache's event-loop model
 removes per-request thread overhead and inherits nginx's mature
 process/reload/TLS/HTTP machinery, but forces a strict no-blocking discipline:
 every disk syscall is offloaded and every blocking crypto primitive is pooled or
@@ -557,7 +557,7 @@ and *what the author must never do*.
 | Storage abstraction | `XrdSfs/XrdSfsInterface.hh` (`SFS_OK/ERROR/REDIRECT`), `XrdOss/XrdOss.hh` (`XrdOssDF`) |
 | Companion daemons | `XrdCms/` (cmsd), `XrdFrm/` (frmd + frm_* tools) |
 
-### gnuBall (`/home/rcurrie/HEP-x/nginx-xrootd`)
+### BriX-Cache (`/home/rcurrie/HEP-x/nginx-xrootd`)
 
 | Concern | Files / symbols |
 |---|---|

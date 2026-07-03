@@ -5,6 +5,9 @@
  *       blocking read/write/readv/writev/pgread/sync/truncate work. It mutates
  *       only the job's OUT fields and caller-owned buffers; it never touches
  *       nginx pools, connection state, metrics, access logs, or cache metadata.
+ *       Deliberate exception to "no metrics": xrootd_vfs_io_execute feeds the
+ *       per-backend SHM byte totals via xrootd_metric_backend_bytes — pure
+ *       lock-free atomics, POD-safe from thread-pool workers.
  *
  * WHY: Stream AIO workers historically duplicated raw syscalls outside the VFS,
  *      which let confinement, CRC, durability, truncation, short-I/O, and error
@@ -682,10 +685,44 @@ xrootd_vfs_io_reset_outputs(xrootd_vfs_job_t *job)
     }
 }
 
+/* xrootd_vfs_io_account — post-op per-backend byte attribution: map the job's
+ * op to a read/write direction and add job->nio bytes to the backend totals.
+ * The job's obj names the bound driver; NULL ⇒ default POSIX. READV totals
+ * attribute to the job's primary obj (segments could in principle span
+ * handles — a bounded, deliberate approximation). Non-data ops no-op. */
+static void
+xrootd_vfs_io_account(const xrootd_vfs_job_t *job)
+{
+    xrootd_metric_op_t dir;
+
+    if (job->nio <= 0) {
+        return;
+    }
+
+    switch (job->op) {
+    case XROOTD_VFS_IO_READ:
+    case XROOTD_VFS_IO_PGREAD:
+    case XROOTD_VFS_IO_READV:
+        dir = XROOTD_METRIC_OP_READ;
+        break;
+    case XROOTD_VFS_IO_WRITE:
+    case XROOTD_VFS_IO_WRITEV:
+        dir = XROOTD_METRIC_OP_WRITE;
+        break;
+    default:
+        return;
+    }
+
+    xrootd_metric_backend_bytes(
+        job->obj.driver != NULL ? job->obj.driver->name : "posix",
+        dir, (size_t) job->nio);
+}
+
 /* xrootd_vfs_io_execute — the single VFS-owned raw-I/O chokepoint: clear the OUT
- * fields and dispatch *job to one static executor per op (EINVAL on a NULL or
- * unknown job). Callable from stream AIO workers and inline fallbacks without
- * touching event-loop-only state. */
+ * fields, dispatch *job to one static executor per op (EINVAL on a NULL or
+ * unknown job), then attribute the moved bytes to the job's backend. Callable
+ * from stream AIO workers and inline fallbacks without touching
+ * event-loop-only state. */
 void
 xrootd_vfs_io_execute(xrootd_vfs_job_t *job)
 {
@@ -698,30 +735,33 @@ xrootd_vfs_io_execute(xrootd_vfs_job_t *job)
     switch (job->op) {
     case XROOTD_VFS_IO_READ:
         xrootd_vfs_io_execute_read(job);
-        return;
+        break;
     case XROOTD_VFS_IO_WRITE:
         xrootd_vfs_io_execute_write(job);
-        return;
+        break;
     case XROOTD_VFS_IO_PGREAD:
         xrootd_vfs_io_execute_pgread(job);
-        return;
+        break;
     case XROOTD_VFS_IO_READV:
         xrootd_vfs_io_execute_readv(job);
-        return;
+        break;
     case XROOTD_VFS_IO_WRITEV:
         xrootd_vfs_io_execute_writev(job);
-        return;
+        break;
     case XROOTD_VFS_IO_SYNC:
         xrootd_vfs_io_execute_sync(job);
-        return;
+        break;
     case XROOTD_VFS_IO_TRUNCATE:
         xrootd_vfs_io_execute_truncate(job);
-        return;
+        break;
     case XROOTD_VFS_IO_OPENDIR:
         xrootd_vfs_io_execute_opendir(job);
+        break;
+    default:
+        job->nio = -1;
+        job->io_errno = EINVAL;
         return;
     }
 
-    job->nio = -1;
-    job->io_errno = EINVAL;
+    xrootd_vfs_io_account(job);
 }

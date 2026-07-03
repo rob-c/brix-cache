@@ -1,6 +1,6 @@
 # Background: XRootD and why this module exists
 
-The LHC produces roughly 15 petabytes of raw collision data per year. Moving that data from detector buffers to storage nodes to analysis farms is a solved problem in High Energy Physics — the solution is XRootD. This page explains what XRootD is, why gnuBall builds on it, and the one naming trap that trips everyone up.
+The LHC produces roughly 15 petabytes of raw collision data per year. Moving that data from detector buffers to storage nodes to analysis farms is a solved problem in High Energy Physics — the solution is XRootD. This page explains what XRootD is, why BriX-Cache builds on it, and the one naming trap that trips everyone up.
 
 ## What is XRootD?
 
@@ -54,7 +54,7 @@ That separation matters when debugging:
 
 ### Several Transfer Views To The Same Storage
 
-gnuBall exposes the same backing filesystem through native XRootD and
+BriX-Cache exposes the same backing filesystem through native XRootD and
 WebDAV, with an optional S3-compatible HTTP view for clients that speak the
 XrdClS3-style subset:
 
@@ -120,7 +120,7 @@ XRootD client (xrdcp, ROOT, Python)
 
 ## Three ways to deploy
 
-gnuBall supports three deployment modes, and you can combine them in a single nginx instance:
+BriX-Cache supports three deployment modes, and you can combine them in a single nginx instance:
 
 ```text
   MODE 1 — Standalone server
@@ -161,7 +161,7 @@ If you already operate nginx, you get several things for free by using this modu
 - **IP-based access control** — use `allow`/`deny` in nginx config
 - **Connection/request limiting** — nginx HTTP `limit_req` plus HTTP/stream
   connection limiting when the relevant nginx modules are built
-- **Load balancing** — put multiple gnuBall backends behind an nginx upstream
+- **Load balancing** — put multiple BriX-Cache backends behind an nginx upstream
 - **Unified access logging** — same log format and log rotation as your other services
 - **Prometheus metrics** — built-in `/metrics` endpoint, no extra exporters needed
 - **Single binary** — one nginx process, one config file, one set of ops runbooks

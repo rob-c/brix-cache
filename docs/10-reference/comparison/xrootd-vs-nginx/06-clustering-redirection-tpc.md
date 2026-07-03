@@ -1,6 +1,6 @@
 # Clustering, redirection, TPC, proxy, and traffic mirroring
 
-> Part of the [XRootD vs gnuBall comparison set](./README.md).
+> Part of the [XRootD vs BriX-Cache comparison set](./README.md).
 
 This document compares official XRootD against the `nginx-xrootd` module on the
 five subsystems that turn a single data server into a federated storage service:
@@ -12,7 +12,7 @@ five subsystems that turn a single data server into a federated storage service:
    coordinated with a rendezvous key.
 4. **Proxy mode** — forwarding `root://` to a backend storage cluster.
 5. **Traffic mirroring** — replaying live requests to a shadow backend (an
-   gnuBall extension with no official equivalent).
+   BriX-Cache extension with no official equivalent).
 
 Every claim below is grounded in source. Official paths are under
 `/tmp/xrootd-src/src/`; module paths are repo-relative under `src/`. Where wire
@@ -83,7 +83,7 @@ Key official source areas:
 There is **no traffic-mirroring/shadow-replay** subsystem in the reviewed
 official source.
 
-## In gnuBall
+## In BriX-Cache
 
 The module folds all of this into the single nginx process model. Five
 subsystems map to the five topics:
@@ -116,7 +116,7 @@ blocking native-TPC pull (a detached thread-pool task) and one `statvfs` in
 
 ### Roles and topologies
 
-| Concept | Official XRootD | gnuBall |
+| Concept | Official XRootD | BriX-Cache |
 |---|---|---|
 | Daemon model | Separate `cmsd` per node, sharing config with `xrootd` | In-process; both halves are nginx stream modules |
 | Role set | 9 roles (`XrdCmsRole.hh`): meta-manager, manager, supervisor, server, proxy-manager/super/server, peer-manager, peer | Effective roles: **data server** (default), **manager/redirector** (`xrootd_manager_mode on`), **sub-manager** (manager_mode + CMS client up to a meta), **supervisor flag** (`xrootd_supervisor`, sets `kXR_attrSuper`) |
@@ -221,7 +221,7 @@ After login the client sends `kYR_status` (`Resume|noStage`) to become selectabl
 
 ### Heartbeat, keepalive, load/space
 
-| Frame | Official (`XrdCmsNode.cc`) | gnuBall |
+| Frame | Official (`XrdCmsNode.cc`) | BriX-Cache |
 |---|---|---|
 | `kYR_ping (17)` / `kYR_pong (18)` | `do_Ping`/`do_Pong`, header-only | client: `recv.c` ping→`_send_pong`; manager: `server_recv.c` ping timer, `_send_ping` |
 | `kYR_load (16)` | `do_Load`: 6-byte load array (cpu/net/xeq/mem/pag/dsk) + disk free, via `XrdCmsMeter` | `send.c::_send_load` periodic heartbeat (`theLoad` as `[2B 6][6 bytes]` blob + disk free) |
@@ -427,7 +427,7 @@ flagged as needing per-site verification.
 
 ### TPC controls
 
-| Concern | Official `ofs.tpc` | gnuBall |
+| Concern | Official `ofs.tpc` | BriX-Cache |
 |---|---|---|
 | Enable / key TTL | `ofs.tpc ttl <d>[ <m>]` | `xrootd_tpc_keys on`, `xrootd_tpc_key_ttl` |
 | Concurrency | `ofs.tpc xfr`, `streams` | `xrootd_tpc_transfers`, `xrootd_tpc_max_transfer_secs`, `xrootd_tpc_transfer_max_age` |
@@ -522,7 +522,7 @@ is the narrow redirector-confirmation client, **not** a transparent proxy.
 
 ## Traffic mirroring (nginx-forward)
 
-This is an **gnuBall extension with no official equivalent** — there is no
+This is an **BriX-Cache extension with no official equivalent** — there is no
 shadow-replay subsystem in the reviewed XRootD source. It exists for migration
 validation: stand up a new backend behind a production gateway and prove it
 answers identically against real traffic before cutover.
@@ -594,7 +594,7 @@ Clients then `xrdcp root://<mgr-host>:<dataport>//path /local` and get redirecte
 to a data server. PSS proxying is a separate `ofs.osslib libXrdPss` +
 `pss.origin` deployment.
 
-### Redirector + data servers, gnuBall
+### Redirector + data servers, BriX-Cache
 
 ```nginx
 # Redirector / manager (serves no files):
@@ -663,7 +663,7 @@ server {
 
 ## Parity, divergences, and extensions
 
-| Capability | Official XRootD | gnuBall | Status |
+| Capability | Official XRootD | BriX-Cache | Status |
 |---|---|---|---|
 | Cluster daemon model | Separate `cmsd` per node (`XrdCms/`) | In-process stream modules (`src/net/cms/`) | Different architecture, comparable function |
 | Role taxonomy | 9 roles (`XrdCmsRole.hh`) | server / manager / sub-manager / supervisor-flag | Partial — practical subset |
@@ -710,7 +710,7 @@ Official XRootD (`/tmp/xrootd-src/src/`):
   `XrdOfsTPCConfig.hh`, `XrdOfsTPCJob.cc`, `XrdOfsTPCProg.cc`,
   `XrdOuc/XrdOucTPC.cc`, `XrdOfs/XrdOfsConfig.cc` (`xtpc`).
 
-gnuBall (repo-relative `src/`):
+BriX-Cache (repo-relative `src/`):
 
 - CMS: `src/net/cms/` — `connect.c`, `recv.c`, `send.c`, `wire.c`, `space.c`,
   `frame_io.c`, `cms_internal.h`; manager half `server_handler.c`,

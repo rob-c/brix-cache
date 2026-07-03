@@ -738,6 +738,8 @@ def test_metrics_ipv6_label_cardinality_bounded():
     allowed_label_keys = {
         "action",        # write-through stage throttle action: wait/reject
         "auth",          # auth method: anon/gsi/token/sss/krb
+        "backend",       # storage backend driver name (fs_list.h census: posix/pblock/...)
+        "class",         # cvmfs request class: cas/manifest/geo
         "depth",         # request-pipeline depth bucket (phase-29)
         "direction",     # in/out (read vs write data direction)
         "event",         # lifecycle event class
@@ -751,6 +753,7 @@ def test_metrics_ipv6_label_cardinality_bounded():
         "reason",        # bounded reason code
         "result",        # ok/error/...
         "server",        # cluster-membership identity (host:port) — see above
+        "source",        # cvmfs bytes-served source: hit/fill
         "status",        # protocol/HTTP status code
         "status_class",  # 2xx/4xx/5xx aggregate
         "surface",       # request surface (api/data/admin/...)

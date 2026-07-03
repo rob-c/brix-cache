@@ -339,7 +339,7 @@ diff /tmp/proxy_test.txt /tmp/proxy_test_downloaded.txt
 
 ## 6. VOMS infrastructure
 
-VOMS (Virtual Organization Membership Service) adds VO membership attributes to a proxy certificate via an Attribute Certificate (AC) embedded as an X.509 extension. The gnuBall module can enforce VO membership on specific paths with `xrootd_require_vo`.
+VOMS (Virtual Organization Membership Service) adds VO membership attributes to a proxy certificate via an Attribute Certificate (AC) embedded as an X.509 extension. The BriX-Cache module can enforce VO membership on specific paths with `xrootd_require_vo`.
 
 ### 6.1 Create the VOMS signing certificate
 
