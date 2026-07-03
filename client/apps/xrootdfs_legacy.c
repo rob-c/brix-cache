@@ -11,14 +11,14 @@
  * HOW:  Concurrency model — XRootD connections are one-request-in-flight and not
  *       thread-safe, so:
  *         * metadata / path ops (getattr, readdir, mkdir, …) borrow a connection
- *           from a thread-safe POOL (xrdc_pool) for the duration of the call;
- *         * each OPEN FILE pins its own dedicated xrdc_conn for its lifetime
+ *           from a thread-safe POOL (brix_pool) for the duration of the call;
+ *         * each OPEN FILE pins its own dedicated brix_conn for its lifetime
  *           (the server's fhandle is only valid on the connection that opened
  *           it), serialised by a per-handle mutex so concurrent reads/writes on
  *           the same fd are safe while different files run in parallel.
  *       The mount runs multi-threaded (libfuse's thread pool). Each callback is a
- *       thin map onto a libxrdc call, errors translated to -errno via
- *       xrdc_kxr_to_errno. Open handles live in a malloc'd xfs_handle in fi->fh.
+ *       thin map onto a libbrix call, errors translated to -errno via
+ *       brix_kxr_to_errno. Open handles live in a malloc'd xfs_handle in fi->fh.
  *
  * Scope: full metadata + read + write incl. random/in-place updates (O_RDWR
  *        without truncate), create/truncate/mkdir/unlink/rmdir/rename/chmod,
@@ -30,15 +30,15 @@
  *        Opt-in --xattr adds extended attributes (kXR_fattr) plus a read-only
  *        user.XrdCks.<algo> checksum view.
  *
- * Clean-room: composes the public libxrdc API + libfuse3 only.
+ * Clean-room: composes the public libbrix API + libfuse3 only.
  */
 #define FUSE_USE_VERSION 31
 
-#include "xrdc.h"
+#include "brix.h"
 #include "posix_map.h"       /* shared statinfo→stat / Qspace / listxattr xlate */
 #include "iobuf.h"           /* shared read-ahead / write-back engine */
 #include "fuse_ops.h"        /* shared pooled meta-op runner + op thunks */
-#include "core/compat/crypto.h"   /* xrootd_crypto_init (libxrdproto SHA/HMAC kernels) */
+#include "core/compat/crypto.h"   /* brix_crypto_init (libxrdproto SHA/HMAC kernels) */
 #include "protocols/root/protocol/open_flags.h" /* shared POSIX-flags -> open `force` tri-state */
 
 #include <fuse3/fuse.h>
@@ -55,9 +55,9 @@
 
 /* Pool of connections for short metadata/path ops; the parsed endpoint + opts so
  * each open file can spin up its own dedicated connection. */
-static xrdc_pool      *g_pool;
-static xrdc_url        g_url;
-static xrdc_opts       g_opts;
+static brix_pool      *g_pool;
+static brix_url        g_url;
+static brix_opts       g_opts;
 static int             g_max_conns = 8;   /* metadata pool size; --max-conns */
 
 /* Kernel-side caching policy (set on the FUSE connection in xfs_init). The kernel
@@ -82,58 +82,58 @@ static size_t          g_writeback = 1024 * 1024;   /* --writeback */
 /* Per-open-file state stored in fi->fh: a private connection + handle, serialised
  * by a per-handle mutex (the conn is one-request-in-flight). */
 typedef struct {
-    xrdc_conn       conn;
-    xrdc_rfile      f;    /* resilient: reopens its dedicated conn + resumes on a sever */
+    brix_conn       conn;
+    brix_rfile      f;    /* resilient: reopens its dedicated conn + resumes on a sever */
     pthread_mutex_t lock;
     int             writable;
-    xrdc_iobuf      io;   /* shared read-ahead / write-back engine (iobuf.c) */
+    brix_iobuf      io;   /* shared read-ahead / write-back engine (iobuf.c) */
 } xfs_handle;
 
-/* Backend I/O for the shared iobuf engine: this driver pins one xrdc_conn +
+/* Backend I/O for the shared iobuf engine: this driver pins one brix_conn +
  * (resilient) handle per open file, so reads/writes go straight to it. */
 static ssize_t
-xfs_io_pread(void *be, int64_t off, void *buf, size_t n, xrdc_status *st)
+xfs_io_pread(void *be, int64_t off, void *buf, size_t n, brix_status *st)
 {
     xfs_handle *h = be;
-    return xrdc_rfile_pread(&h->f, off, buf, n, st);
+    return brix_rfile_pread(&h->f, off, buf, n, st);
 }
 static int
-xfs_io_pwrite(void *be, int64_t off, const void *buf, size_t n, xrdc_status *st)
+xfs_io_pwrite(void *be, int64_t off, const void *buf, size_t n, brix_status *st)
 {
     xfs_handle *h = be;
-    return xrdc_rfile_pwrite(&h->f, off, buf, n, st);
+    return brix_rfile_pwrite(&h->f, off, buf, n, st);
 }
 
 /* Flush any buffered writes to the server. Caller MUST hold h->lock. 0 / -1 (st). */
 static int
-xfs_flush_wbuf(xfs_handle *h, xrdc_status *st)
+xfs_flush_wbuf(xfs_handle *h, brix_status *st)
 {
-    return xrdc_iobuf_flush(&h->io, st);
+    return brix_iobuf_flush(&h->io, st);
 }
 
 /* The error mapping, the conn-health test, and the pooled metadata-op runner are
  * shared with the async driver in lib/fuse_ops.c.  xfs_err/xfs_conn_healthy stay
  * as thin local wrappers (used throughout the read/write/open paths); the
- * metadata ops below call xrdc_fuse_run(g_pool, 0, 0, 0,…) — max_retries 0 is exactly
+ * metadata ops below call brix_fuse_run(g_pool, 0, 0, 0,…) — max_retries 0 is exactly
  * this simple driver's single checkout → op → checkin → map behaviour. */
 static int
-xfs_conn_healthy(const xrdc_status *st)
+xfs_conn_healthy(const brix_status *st)
 {
-    return xrdc_fuse_conn_healthy(st);
+    return brix_fuse_conn_healthy(st);
 }
 
 static int
-xfs_err(const xrdc_status *st)
+xfs_err(const brix_status *st)
 {
-    return xrdc_fuse_errno(st);
+    return brix_fuse_errno(st);
 }
 
-/* Fill a struct stat from an xrdc_statinfo (dir vs regular + size + mtime). The
+/* Fill a struct stat from an brix_statinfo (dir vs regular + size + mtime). The
  * legacy driver does not present symlinks, so allow_symlink=0. */
 static void
-xfs_fill_stat(const xrdc_statinfo *si, struct stat *stbuf)
+xfs_fill_stat(const brix_statinfo *si, struct stat *stbuf)
 {
-    xrdc_statinfo_to_stat(si, 0, stbuf);
+    brix_statinfo_to_stat(si, 0, stbuf);
 }
 
 /* fuse_operations                                                     */
@@ -141,8 +141,8 @@ xfs_fill_stat(const xrdc_statinfo *si, struct stat *stbuf)
 static int
 xfs_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi)
 {
-    xrdc_statinfo si;
-    xrdc_status   st;
+    brix_statinfo si;
+    brix_status   st;
     int           rc;
 
     (void) fi;
@@ -152,9 +152,9 @@ xfs_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi)
         stbuf->st_nlink = 2;
         return 0;
     }
-    xrdc_status_clear(&st);
-    struct xrdc_fuse_ctx_stat a = { path, &si };
-    rc = xrdc_fuse_run(g_pool, 0, 0, 0,xrdc_fuse_op_stat, &a, &st);
+    brix_status_clear(&st);
+    struct brix_fuse_ctx_stat a = { path, &si };
+    rc = brix_fuse_run(g_pool, 0, 0, 0,brix_fuse_op_stat, &a, &st);
     if (rc != 0) {
         return rc;
     }
@@ -166,17 +166,17 @@ static int
 xfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset,
             struct fuse_file_info *fi, enum fuse_readdir_flags flags)
 {
-    xrdc_dirent *ents = NULL;
+    brix_dirent *ents = NULL;
     size_t       n = 0, i;
-    xrdc_status  st;
+    brix_status  st;
     int          rc;
 
     (void) offset; (void) fi; (void) flags;
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     /* want_stat=1 (in the op thunk) → the server returns per-entry stat in the
      * SAME round-trip, so `ls -l` doesn't trigger a getattr storm (readdir-plus). */
-    struct xrdc_fuse_ctx_dir a = { path, &ents, &n };
-    rc = xrdc_fuse_run(g_pool, 0, 0, 0,xrdc_fuse_op_dirlist, &a, &st);
+    struct brix_fuse_ctx_dir a = { path, &ents, &n };
+    rc = brix_fuse_run(g_pool, 0, 0, 0,brix_fuse_op_dirlist, &a, &st);
     if (rc != 0) {
         return rc;
     }
@@ -205,15 +205,15 @@ static xfs_handle *
 xfs_handle_new(int *err)
 {
     xfs_handle *h = calloc(1, sizeof(*h));
-    xrdc_status st;
+    brix_status st;
 
     if (h == NULL) {
         *err = -ENOMEM;
         return NULL;
     }
     pthread_mutex_init(&h->lock, NULL);
-    xrdc_status_clear(&st);
-    if (xrdc_connect(&h->conn, &g_url, &g_opts, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_connect(&h->conn, &g_url, &g_opts, &st) != 0) {
         pthread_mutex_destroy(&h->lock);
         free(h);
         *err = xfs_err(&st);
@@ -225,9 +225,9 @@ xfs_handle_new(int *err)
 static void
 xfs_handle_free(xfs_handle *h)
 {
-    xrdc_close(&h->conn);
+    brix_close(&h->conn);
     pthread_mutex_destroy(&h->lock);
-    xrdc_iobuf_dispose(&h->io);
+    brix_iobuf_dispose(&h->io);
     free(h);
 }
 
@@ -235,7 +235,7 @@ static int
 xfs_open(const char *path, struct fuse_file_info *fi)
 {
     xfs_handle *h;
-    xrdc_status st;
+    brix_status st;
     int         acc = fi->flags & O_ACCMODE;
     int         rc, err = 0;
 
@@ -243,15 +243,15 @@ xfs_open(const char *path, struct fuse_file_info *fi)
     if (h == NULL) {
         return err;
     }
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     if (acc == O_RDONLY) {
-        rc = xrdc_rfile_open_read(&h->conn, path, NULL, 0, -1, &h->f, &st);
+        rc = brix_rfile_open_read(&h->conn, path, NULL, 0, -1, &h->f, &st);
     } else {
         /* Writable open: O_TRUNC → overwrite from empty (force 1); otherwise
          * in-place update (force 2), so partial edits (sed -i, random writes)
          * preserve unwritten content. */
-        rc = xrdc_rfile_open_write(&h->conn, path,
-                                   xrootd_open_force_for_open(fi->flags),
+        rc = brix_rfile_open_write(&h->conn, path,
+                                   brix_open_force_for_open(fi->flags),
                                    0, 0, -1, &h->f, &st);
         h->writable = 1;
     }
@@ -259,7 +259,7 @@ xfs_open(const char *path, struct fuse_file_info *fi)
         xfs_handle_free(h);
         return xfs_err(&st);
     }
-    xrdc_iobuf_init(&h->io, h, xfs_io_pread, xfs_io_pwrite, h->writable,
+    brix_iobuf_init(&h->io, h, xfs_io_pread, xfs_io_pwrite, h->writable,
                     g_readahead, g_writeback);
     fi->fh = (uint64_t) (uintptr_t) h;
     return 0;
@@ -269,7 +269,7 @@ static int
 xfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 {
     xfs_handle *h;
-    xrdc_status st;
+    brix_status st;
     int         rc, err = 0;
 
     (void) mode;
@@ -277,17 +277,17 @@ xfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
     if (h == NULL) {
         return err;
     }
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     /* O_EXCL → create-new (force=0, fail if exists); otherwise truncate-create. */
-    rc = xrdc_rfile_open_write(&h->conn, path,
-                               xrootd_open_force_for_create(fi->flags), 0,
+    rc = brix_rfile_open_write(&h->conn, path,
+                               brix_open_force_for_create(fi->flags), 0,
                                0, -1, &h->f, &st);
     if (rc != 0) {
         xfs_handle_free(h);
         return xfs_err(&st);
     }
     h->writable = 1;
-    xrdc_iobuf_init(&h->io, h, xfs_io_pread, xfs_io_pwrite, h->writable,
+    brix_iobuf_init(&h->io, h, xfs_io_pread, xfs_io_pwrite, h->writable,
                     g_readahead, g_writeback);
     fi->fh = (uint64_t) (uintptr_t) h;
     return 0;
@@ -298,17 +298,17 @@ xfs_read(const char *path, char *buf, size_t size, off_t offset,
          struct fuse_file_info *fi)
 {
     xfs_handle *h = (xfs_handle *) (uintptr_t) fi->fh;
-    xrdc_status st;
+    brix_status st;
     ssize_t     r;
 
     (void) path;
     if (h == NULL) {
         return -EBADF;
     }
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     pthread_mutex_lock(&h->lock);
 
-    r = xrdc_iobuf_read(&h->io, offset, buf, size, &st);
+    r = brix_iobuf_read(&h->io, offset, buf, size, &st);
     pthread_mutex_unlock(&h->lock);
     return r < 0 ? xfs_err(&st) : (int) r;
 }
@@ -318,16 +318,16 @@ xfs_write(const char *path, const char *buf, size_t size, off_t offset,
           struct fuse_file_info *fi)
 {
     xfs_handle *h = (xfs_handle *) (uintptr_t) fi->fh;
-    xrdc_status st;
+    brix_status st;
     int         rc;
 
     (void) path;
     if (h == NULL || !h->writable) {
         return -EBADF;
     }
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     pthread_mutex_lock(&h->lock);
-    rc = xrdc_iobuf_write(&h->io, offset, buf, size, &st);
+    rc = brix_iobuf_write(&h->io, offset, buf, size, &st);
     pthread_mutex_unlock(&h->lock);
     return rc != 0 ? xfs_err(&st) : (int) size;
 }
@@ -336,16 +336,16 @@ static int
 xfs_release(const char *path, struct fuse_file_info *fi)
 {
     xfs_handle *h = (xfs_handle *) (uintptr_t) fi->fh;
-    xrdc_status st;
+    brix_status st;
 
     (void) path;
     if (h == NULL) {
         return 0;
     }
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     pthread_mutex_lock(&h->lock);
     (void) xfs_flush_wbuf(h, &st);   /* persist buffered writes before close */
-    (void) xrdc_rfile_close(&h->f, &st);
+    (void) brix_rfile_close(&h->f, &st);
     pthread_mutex_unlock(&h->lock);
     xfs_handle_free(h);   /* closes the dedicated conn + destroys the lock */
     fi->fh = 0;
@@ -358,14 +358,14 @@ static int
 xfs_flush(const char *path, struct fuse_file_info *fi)
 {
     xfs_handle *h = (xfs_handle *) (uintptr_t) fi->fh;
-    xrdc_status st;
+    brix_status st;
     int         rc;
 
     (void) path;
     if (h == NULL) {
         return 0;
     }
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     pthread_mutex_lock(&h->lock);
     rc = xfs_flush_wbuf(h, &st);
     pthread_mutex_unlock(&h->lock);
@@ -376,18 +376,18 @@ static int
 xfs_fsync(const char *path, int datasync, struct fuse_file_info *fi)
 {
     xfs_handle *h = (xfs_handle *) (uintptr_t) fi->fh;
-    xrdc_status st;
+    brix_status st;
     int         rc;
 
     (void) path; (void) datasync;
     if (h == NULL) {
         return 0;
     }
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     pthread_mutex_lock(&h->lock);
     rc = xfs_flush_wbuf(h, &st);                       /* flush buffered writes */
     if (rc == 0) {
-        rc = xrdc_file_sync(&h->conn, &h->f.f, &st);   /* then durably sync */
+        rc = brix_file_sync(&h->conn, &h->f.f, &st);   /* then durably sync */
     }
     pthread_mutex_unlock(&h->lock);
     return rc != 0 ? xfs_err(&st) : 0;
@@ -396,58 +396,58 @@ xfs_fsync(const char *path, int datasync, struct fuse_file_info *fi)
 static int
 xfs_mkdir(const char *path, mode_t mode)
 {
-    xrdc_status st;
-    xrdc_status_clear(&st);
-    struct xrdc_fuse_ctx_mkdir a = { path, (int) (mode & 0777) };
-    return xrdc_fuse_run(g_pool, 0, 0, 0,xrdc_fuse_op_mkdir, &a, &st);
+    brix_status st;
+    brix_status_clear(&st);
+    struct brix_fuse_ctx_mkdir a = { path, (int) (mode & 0777) };
+    return brix_fuse_run(g_pool, 0, 0, 0,brix_fuse_op_mkdir, &a, &st);
 }
 
 static int
 xfs_unlink(const char *path)
 {
-    xrdc_status st;
-    xrdc_status_clear(&st);
-    return xrdc_fuse_run(g_pool, 0, 0, 0,xrdc_fuse_op_rm, (void *) path, &st);
+    brix_status st;
+    brix_status_clear(&st);
+    return brix_fuse_run(g_pool, 0, 0, 0,brix_fuse_op_rm, (void *) path, &st);
 }
 
 static int
 xfs_rmdir(const char *path)
 {
-    xrdc_status st;
-    xrdc_status_clear(&st);
-    return xrdc_fuse_run(g_pool, 0, 0, 0,xrdc_fuse_op_rmdir, (void *) path, &st);
+    brix_status st;
+    brix_status_clear(&st);
+    return brix_fuse_run(g_pool, 0, 0, 0,brix_fuse_op_rmdir, (void *) path, &st);
 }
 
 static int
 xfs_rename(const char *from, const char *to, unsigned int flags)
 {
-    xrdc_status st;
+    brix_status st;
     if (flags != 0) {
         return -EINVAL;   /* RENAME_EXCHANGE / RENAME_NOREPLACE unsupported */
     }
-    xrdc_status_clear(&st);
-    struct xrdc_fuse_ctx_mv a = { from, to };
-    return xrdc_fuse_run(g_pool, 0, 0, 0,xrdc_fuse_op_mv, &a, &st);
+    brix_status_clear(&st);
+    struct brix_fuse_ctx_mv a = { from, to };
+    return brix_fuse_run(g_pool, 0, 0, 0,brix_fuse_op_mv, &a, &st);
 }
 
 static int
 xfs_chmod(const char *path, mode_t mode, struct fuse_file_info *fi)
 {
-    xrdc_status st;
+    brix_status st;
     (void) fi;
-    xrdc_status_clear(&st);
-    struct xrdc_fuse_ctx_chmod a = { path, (int) (mode & 0777) };
-    return xrdc_fuse_run(g_pool, 0, 0, 0,xrdc_fuse_op_chmod, &a, &st);
+    brix_status_clear(&st);
+    struct brix_fuse_ctx_chmod a = { path, (int) (mode & 0777) };
+    return brix_fuse_run(g_pool, 0, 0, 0,brix_fuse_op_chmod, &a, &st);
 }
 
 static int
 xfs_truncate(const char *path, off_t size, struct fuse_file_info *fi)
 {
-    xrdc_status st;
+    brix_status st;
     (void) fi;
-    xrdc_status_clear(&st);
-    struct xrdc_fuse_ctx_trunc a = { path, (int64_t) size };
-    return xrdc_fuse_run(g_pool, 0, 0, 0,xrdc_fuse_op_trunc, &a, &st);
+    brix_status_clear(&st);
+    struct brix_fuse_ctx_trunc a = { path, (int64_t) size };
+    return brix_fuse_run(g_pool, 0, 0, 0,brix_fuse_op_trunc, &a, &st);
 }
 
 /* chown/utimens succeed as no-ops so tools like `cp -p` don't abort the copy. */
@@ -472,28 +472,28 @@ static int
 xfs_statfs(const char *path, struct statvfs *stbuf)
 {
     char               text[1024];
-    xrdc_status        st;
-    xrdc_conn         *c;
+    brix_status        st;
+    brix_conn         *c;
     int                rc;
     unsigned long long total = 0, freeb = 0;
 
     memset(stbuf, 0, sizeof(*stbuf));
-    xrdc_status_clear(&st);
-    c = xrdc_pool_checkout(g_pool, &st);
+    brix_status_clear(&st);
+    c = brix_pool_checkout(g_pool, &st);
     if (c == NULL) {
         return xfs_err(&st);
     }
     /* kXR_Qspace returns "oss.cgroup=…&oss.space=<bytes>&oss.free=<bytes>&…";
-     * kXR_stat|kXR_vfs (xrdc_statvfs) uses a different compact format, so query
+     * kXR_stat|kXR_vfs (brix_statvfs) uses a different compact format, so query
      * Qspace directly for the parseable byte totals. */
-    rc = xrdc_query(c, kXR_Qspace, (path != NULL && path[0]) ? path : "/",
+    rc = brix_query(c, kXR_Qspace, (path != NULL && path[0]) ? path : "/",
                     text, sizeof(text), &st);
-    xrdc_pool_checkin(g_pool, c, rc == 0 ? 1 : xfs_conn_healthy(&st));
+    brix_pool_checkin(g_pool, c, rc == 0 ? 1 : xfs_conn_healthy(&st));
     if (rc != 0) {
         return xfs_err(&st);
     }
 
-    xrdc_parse_qspace(text, &total, &freeb);
+    brix_parse_qspace(text, &total, &freeb);
 
     stbuf->f_bsize   = 1024 * 1024;
     stbuf->f_frsize  = stbuf->f_bsize;
@@ -509,22 +509,22 @@ xfs_statfs(const char *path, struct statvfs *stbuf)
 static int
 xfs_access(const char *path, int mask)
 {
-    xrdc_statinfo si;
-    xrdc_status   st;
-    xrdc_conn    *c;
+    brix_statinfo si;
+    brix_status   st;
+    brix_conn    *c;
     int           rc;
 
     (void) mask;
     if (strcmp(path, "/") == 0) {
         return 0;
     }
-    xrdc_status_clear(&st);
-    c = xrdc_pool_checkout(g_pool, &st);
+    brix_status_clear(&st);
+    c = brix_pool_checkout(g_pool, &st);
     if (c == NULL) {
         return xfs_err(&st);
     }
-    rc = xrdc_stat(c, path, &si, &st);
-    xrdc_pool_checkin(g_pool, c, rc == 0 ? 1 : xfs_conn_healthy(&st));
+    rc = brix_stat(c, path, &si, &st);
+    brix_pool_checkin(g_pool, c, rc == 0 ? 1 : xfs_conn_healthy(&st));
     return rc != 0 ? xfs_err(&st) : 0;
 }
 
@@ -543,8 +543,8 @@ xfs_xattr_to_fattr(const char *name)
 static int
 xfs_getxattr(const char *path, const char *name, char *value, size_t size)
 {
-    xrdc_status st;
-    xrdc_conn  *c;
+    brix_status st;
+    brix_conn  *c;
     int         rc;
     size_t      vlen = 0;
     const char *fname;
@@ -552,7 +552,7 @@ xfs_getxattr(const char *path, const char *name, char *value, size_t size)
     if (!g_xattr) {
         return -ENOTSUP;
     }
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
 
     /* Virtual read-only checksum xattr: user.XrdCks.<algo> → kXR_Qcksum hex. */
     if (strncmp(name, XFS_CKS_XATTR_PFX, sizeof(XFS_CKS_XATTR_PFX) - 1) == 0) {
@@ -562,12 +562,12 @@ xfs_getxattr(const char *path, const char *name, char *value, size_t size)
         if (algo[0] == '\0') {
             return -ENODATA;
         }
-        c = xrdc_pool_checkout(g_pool, &st);
+        c = brix_pool_checkout(g_pool, &st);
         if (c == NULL) {
             return xfs_err(&st);
         }
-        rc = xrdc_query_cksum(c, path, algo, hex, sizeof(hex), &st);
-        xrdc_pool_checkin(g_pool, c, rc == 0 ? 1 : xfs_conn_healthy(&st));
+        rc = brix_query_cksum(c, path, algo, hex, sizeof(hex), &st);
+        brix_pool_checkin(g_pool, c, rc == 0 ? 1 : xfs_conn_healthy(&st));
         if (rc != 0) {
             return xfs_err(&st);
         }
@@ -586,12 +586,12 @@ xfs_getxattr(const char *path, const char *name, char *value, size_t size)
     if (fname == NULL) {
         return -ENODATA;
     }
-    c = xrdc_pool_checkout(g_pool, &st);
+    c = brix_pool_checkout(g_pool, &st);
     if (c == NULL) {
         return xfs_err(&st);
     }
-    rc = xrdc_fattr_get(c, path, fname, value, size, &vlen, &st);
-    xrdc_pool_checkin(g_pool, c, rc == 0 ? 1 : xfs_conn_healthy(&st));
+    rc = brix_fattr_get(c, path, fname, value, size, &vlen, &st);
+    brix_pool_checkin(g_pool, c, rc == 0 ? 1 : xfs_conn_healthy(&st));
     if (rc != 0) {
         return xfs_err(&st);
     }
@@ -608,8 +608,8 @@ static int
 xfs_setxattr(const char *path, const char *name, const char *value,
              size_t size, int flags)
 {
-    xrdc_status st;
-    xrdc_conn  *c;
+    brix_status st;
+    brix_conn  *c;
     int         rc;
     const char *fname;
 
@@ -623,22 +623,22 @@ xfs_setxattr(const char *path, const char *name, const char *value,
     if (fname == NULL) {
         return -ENOTSUP;
     }
-    xrdc_status_clear(&st);
-    c = xrdc_pool_checkout(g_pool, &st);
+    brix_status_clear(&st);
+    c = brix_pool_checkout(g_pool, &st);
     if (c == NULL) {
         return xfs_err(&st);
     }
-    rc = xrdc_fattr_set(c, path, fname, value, size,
+    rc = brix_fattr_set(c, path, fname, value, size,
                         (flags & XATTR_CREATE) ? 1 : 0, &st);
-    xrdc_pool_checkin(g_pool, c, rc == 0 ? 1 : xfs_conn_healthy(&st));
+    brix_pool_checkin(g_pool, c, rc == 0 ? 1 : xfs_conn_healthy(&st));
     return rc != 0 ? xfs_err(&st) : 0;
 }
 
 static int
 xfs_removexattr(const char *path, const char *name)
 {
-    xrdc_status st;
-    xrdc_conn  *c;
+    brix_status st;
+    brix_conn  *c;
     int         rc;
     const char *fname;
 
@@ -652,21 +652,21 @@ xfs_removexattr(const char *path, const char *name)
     if (fname == NULL) {
         return -ENODATA;
     }
-    xrdc_status_clear(&st);
-    c = xrdc_pool_checkout(g_pool, &st);
+    brix_status_clear(&st);
+    c = brix_pool_checkout(g_pool, &st);
     if (c == NULL) {
         return xfs_err(&st);
     }
-    rc = xrdc_fattr_del(c, path, fname, &st);
-    xrdc_pool_checkin(g_pool, c, rc == 0 ? 1 : xfs_conn_healthy(&st));
+    rc = brix_fattr_del(c, path, fname, &st);
+    brix_pool_checkin(g_pool, c, rc == 0 ? 1 : xfs_conn_healthy(&st));
     return rc != 0 ? xfs_err(&st) : 0;
 }
 
 static int
 xfs_listxattr(const char *path, char *list, size_t size)
 {
-    xrdc_status st;
-    xrdc_conn  *c;
+    brix_status st;
+    brix_conn  *c;
     int         rc;
     char        raw[16384];     /* server list: "U.<x>\0U.<y>\0..." */
     size_t      rawlen = 0;
@@ -674,13 +674,13 @@ xfs_listxattr(const char *path, char *list, size_t size)
     if (!g_xattr) {
         return -ENOTSUP;
     }
-    xrdc_status_clear(&st);
-    c = xrdc_pool_checkout(g_pool, &st);
+    brix_status_clear(&st);
+    c = brix_pool_checkout(g_pool, &st);
     if (c == NULL) {
         return xfs_err(&st);
     }
-    rc = xrdc_fattr_list(c, path, raw, sizeof(raw), &rawlen, &st);
-    xrdc_pool_checkin(g_pool, c, rc == 0 ? 1 : xfs_conn_healthy(&st));
+    rc = brix_fattr_list(c, path, raw, sizeof(raw), &rawlen, &st);
+    brix_pool_checkin(g_pool, c, rc == 0 ? 1 : xfs_conn_healthy(&st));
     if (rc != 0) {
         return xfs_err(&st);
     }
@@ -688,7 +688,7 @@ xfs_listxattr(const char *path, char *list, size_t size)
         rawlen = sizeof(raw);    /* truncated listing — clamp defensively */
     }
     /* Convert each server name "U.<x>" → the FUSE name "user.<x>". */
-    return xrdc_fattr_listxattr_xlate(raw, rawlen, list, size);
+    return brix_fattr_listxattr_xlate(raw, rawlen, list, size);
 }
 
 /* init — enable kernel-side caching once the connection is up. attr/entry
@@ -766,7 +766,7 @@ usage(void)
 int
 xrootdfs_legacy_main(int argc, char **argv)
 {
-    xrdc_status st;
+    brix_status st;
     const char *endpoint = NULL;
     char       *fuse_argv[64];
     int         fuse_argc = 0;
@@ -778,7 +778,7 @@ xrootdfs_legacy_main(int argc, char **argv)
     }
     memset(&g_opts, 0, sizeof(g_opts));
     g_opts.verify_host = 1;
-    xrootd_crypto_init();
+    brix_crypto_init();
 
     fuse_argv[fuse_argc++] = argv[0];
     /* This entry point only runs in --legacy mode (the binary is `xrootdfs`), so
@@ -817,10 +817,10 @@ xrootdfs_legacy_main(int argc, char **argv)
             }
             else if (strcmp(a, "--xattr") == 0) { g_xattr = 1; }
             else if (strcmp(a, "--connect-timeout") == 0 && i + 1 < argc) {
-                xrdc_tmo_set_connect_ms(atoi(argv[++i]));
+                brix_tmo_set_connect_ms(atoi(argv[++i]));
             }
             else if (strcmp(a, "--io-timeout") == 0 && i + 1 < argc) {
-                xrdc_tmo_set_io_ms(atoi(argv[++i]));
+                brix_tmo_set_io_ms(atoi(argv[++i]));
             }
             else if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) { usage(); return 0; }
             else if (fuse_argc < 61) { fuse_argv[fuse_argc++] = argv[i]; }  /* fuse opt */
@@ -837,23 +837,23 @@ xrootdfs_legacy_main(int argc, char **argv)
     }
     fuse_argv[fuse_argc] = NULL;
 
-    xrdc_status_clear(&st);
-    if (xrdc_endpoint_parse(endpoint, &g_url, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_endpoint_parse(endpoint, &g_url, &st) != 0) {
         fprintf(stderr, "xrootdfs: %s\n", st.msg);
         return 2;
     }
     /* The pool connects one conn eagerly, so a bad endpoint/auth fails here. */
-    g_pool = xrdc_pool_create(&g_url, &g_opts, g_max_conns, &st);
+    g_pool = brix_pool_create(&g_url, &g_opts, g_max_conns, &st);
     if (g_pool == NULL) {
         fprintf(stderr, "xrootdfs: connect %s:%d: %s\n",
                 g_url.host, g_url.port, st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
     fprintf(stderr, "xrootdfs: mounted %s:%d (pool=%d, multi-threaded)\n",
             g_url.host, g_url.port, g_max_conns);
 
     rc = fuse_main(fuse_argc, fuse_argv, &xfs_ops, NULL);
 
-    xrdc_pool_destroy(g_pool);
+    brix_pool_destroy(g_pool);
     return rc;
 }

@@ -1,8 +1,8 @@
 /* client/lib/cred_krb5.c
  *
  * WHAT: Kerberos 5 credential handler for the unified credential store (cred.c).
- *       Implements xrdc_cred_krb5() returning the XRDC_CRED_KRB5 handler with
- *       available / acquire operations. Compile-gated on XROOTD_HAVE_KRB5.
+ *       Implements brix_cred_krb5() returning the XRDC_CRED_KRB5 handler with
+ *       available / acquire operations. Compile-gated on BRIX_HAVE_KRB5.
  * WHY:  ccache discovery was only available through sec_krb5.c; the credential
  *       store needs a standalone handler so auth pre-flight diagnostics and the
  *       auth handshake both share one ccache resolution path.
@@ -15,7 +15,7 @@
  *       best-effort reads the TGT endtime via krb5_cc_next_cred (krbtgt/... entry).
  *       refresh=NULL: TGT renewal (kinit) is the user's responsibility; this
  *       handler does NOT invoke kinit or perform any ticket refresh.
- *       When XROOTD_HAVE_KRB5 is not defined at compile time, xrdc_cred_krb5()
+ *       When BRIX_HAVE_KRB5 is not defined at compile time, brix_cred_krb5()
  *       returns NULL so the store simply skips the KRB5 slot.
  *
  *       Lifetime contract (cred.h): acquire() writes out->path as a pointer to
@@ -23,7 +23,7 @@
  *       The store's slot_store_view strdup's out->path immediately afterwards —
  *       before any other acquire can overwrite the buffer.
  *
- * Mirrors xrdc_sec_krb5() in lib/sec/sec_krb5.c for all krb5 API calls.
+ * Mirrors brix_sec_krb5() in lib/sec/sec_krb5.c for all krb5 API calls.
  * ngx-free.  No goto.  Functional/modular: one responsibility per function.
  */
 
@@ -32,9 +32,9 @@
 #endif
 
 #include "cred.h"
-#include "xrdc.h"
+#include "brix.h"
 
-#ifdef XROOTD_HAVE_KRB5
+#ifdef BRIX_HAVE_KRB5
 
 #include <krb5.h>
 #include <string.h>
@@ -51,7 +51,7 @@
  * HOW:  three early-return branches; caller owns *cc on success (must close).
  */
 static int
-open_ccache(krb5_context ctx, const xrdc_cred_config *cfg, krb5_ccache *cc)
+open_ccache(krb5_context ctx, const brix_cred_config *cfg, krb5_ccache *cc)
 {
     const char *env;
 
@@ -134,12 +134,12 @@ extract_tgt_endtime(krb5_context ctx, krb5_ccache cc)
 /*
  * krb5_available — 1 if the resolved ccache has a usable client principal.
  *
- * WHAT: fast probe for auth pre-flight diagnostics and xrdc_cred_available().
+ * WHAT: fast probe for auth pre-flight diagnostics and brix_cred_available().
  * WHY:  mirrors sec_krb5.c:krb5_have() semantics (open ccache + get_principal).
  * HOW:  init context; open_ccache; krb5_cc_get_principal; free all on every path.
  */
 static int
-krb5_available(const xrdc_cred_config *cfg)
+krb5_available(const brix_cred_config *cfg)
 {
     krb5_context   ctx;
     krb5_ccache    cc;
@@ -181,8 +181,8 @@ krb5_available(const xrdc_cred_config *cfg)
  * intentional — this handler never invokes kinit or requests a new TGT.
  */
 static int
-krb5_acquire(const xrdc_cred_config *cfg, xrdc_cred_view *out,
-             int64_t *not_after, xrdc_status *st)
+krb5_acquire(const brix_cred_config *cfg, brix_cred_view *out,
+             int64_t *not_after, brix_status *st)
 {
     /* static: must outlive this return so slot_store_view can strdup it */
     static char s_path[XRDC_PATH_MAX];
@@ -193,13 +193,13 @@ krb5_acquire(const xrdc_cred_config *cfg, xrdc_cred_view *out,
     int64_t        endtime;
 
     if (krb5_init_context(&ctx) != 0) {
-        xrdc_status_set(st, XRDC_EAUTH, 0, "krb5: cannot initialise context");
+        brix_status_set(st, XRDC_EAUTH, 0, "krb5: cannot initialise context");
         return -1;
     }
 
     if (open_ccache(ctx, cfg, &cc) != 0) {
         krb5_free_context(ctx);
-        xrdc_status_set(st, XRDC_EAUTH, 0,
+        brix_status_set(st, XRDC_EAUTH, 0,
                         "krb5: no credential cache (run kinit)");
         return -1;
     }
@@ -207,7 +207,7 @@ krb5_acquire(const xrdc_cred_config *cfg, xrdc_cred_view *out,
     if (krb5_cc_get_principal(ctx, cc, &me) != 0) {
         krb5_cc_close(ctx, cc);
         krb5_free_context(ctx);
-        xrdc_status_set(st, XRDC_EAUTH, 0,
+        brix_status_set(st, XRDC_EAUTH, 0,
                         "krb5: ccache has no principal (run kinit)");
         return -1;
     }
@@ -230,7 +230,7 @@ krb5_acquire(const xrdc_cred_config *cfg, xrdc_cred_view *out,
 }
 
 /* handler accessor */
-static const xrdc_cred_handler s_krb5_handler = {
+static const brix_cred_handler s_krb5_handler = {
     .kind      = XRDC_CRED_KRB5,
     .available = krb5_available,
     .acquire   = krb5_acquire,
@@ -238,32 +238,32 @@ static const xrdc_cred_handler s_krb5_handler = {
 };
 
 /*
- * xrdc_cred_krb5 — return the static Kerberos credential handler.
+ * brix_cred_krb5 — return the static Kerberos credential handler.
  *
  * WHAT: strong definition that overrides the weak accessor in cred.c.
  * WHY:  weak/strong pattern; this file provides the real krb5 implementation.
  * HOW:  returns a pointer to the file-scoped static handler struct.
  */
-const xrdc_cred_handler *
-xrdc_cred_krb5(void)
+const brix_cred_handler *
+brix_cred_krb5(void)
 {
     return &s_krb5_handler;
 }
 
-#else  /* !XROOTD_HAVE_KRB5 */
+#else  /* !BRIX_HAVE_KRB5 */
 
 /*
- * xrdc_cred_krb5 — compiled-out NULL accessor.
+ * brix_cred_krb5 — compiled-out NULL accessor.
  *
  * WHAT: returns NULL when krb5 dev libs were absent at build time.
  * WHY:  the store NULL-guards all handler slots; returning NULL makes the store
  *       silently skip XRDC_CRED_KRB5 exactly as if no handler were linked.
- * HOW:  mirrors xrdc_sec_krb5() in lib/sec/sec_krb5.c.
+ * HOW:  mirrors brix_sec_krb5() in lib/sec/sec_krb5.c.
  */
-const xrdc_cred_handler *
-xrdc_cred_krb5(void)
+const brix_cred_handler *
+brix_cred_krb5(void)
 {
     return NULL;
 }
 
-#endif  /* XROOTD_HAVE_KRB5 */
+#endif  /* BRIX_HAVE_KRB5 */

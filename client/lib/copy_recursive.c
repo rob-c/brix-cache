@@ -11,7 +11,7 @@
  * (recursive_dest_root → e.g. <dst>/<basename>), so the very first directory
  * created can be two levels below an existing parent (<dst> itself may not yet
  * exist).  A single mkdir() would fail with ENOENT on that missing parent; the
- * remote upload side already creates parents (xrdc_mkdir parents=1), so the
+ * remote upload side already creates parents (brix_mkdir parents=1), so the
  * local side must match.  Idempotent: an existing component is not an error
  * (deeper failures such as a non-directory in the path still surface ENOTDIR).
  * Returns 0 on success, -1 with errno set on the first uncreatable component. */
@@ -46,17 +46,17 @@ local_mkdirs(const char *lpath, mode_t mode)
 
 /* Recurse a remote tree (rpath) under conn c into local lpath. */
 int
-copy_tree_download(xrdc_conn *c, const char *rpath, const char *lpath,
-                   const xrdc_copy_opts *o, xrdc_status *st)
+copy_tree_download(brix_conn *c, const char *rpath, const char *lpath,
+                   const brix_copy_opts *o, brix_status *st)
 {
-    xrdc_dirent *ents = NULL;
+    brix_dirent *ents = NULL;
     size_t       n = 0, i;
 
     if (local_mkdirs(lpath, 0755) != 0) {
-        xrdc_status_set(st, XRDC_ESOCK, errno, "mkdir %s: %s", lpath, strerror(errno));
+        brix_status_set(st, XRDC_ESOCK, errno, "mkdir %s: %s", lpath, strerror(errno));
         return -1;
     }
-    if (xrdc_dirlist(c, rpath, 1, &ents, &n, st) != 0) {
+    if (brix_dirlist(c, rpath, 1, &ents, &n, st) != 0) {
         return -1;
     }
     for (i = 0; i < n; i++) {
@@ -70,7 +70,7 @@ copy_tree_download(xrdc_conn *c, const char *rpath, const char *lpath,
                 >= sizeof(rc)
             || (size_t) snprintf(lc, sizeof(lc), "%s/%s", lpath, ents[i].name)
                 >= sizeof(lc)) {
-            xrdc_status_set(st, XRDC_EUSAGE, 0,
+            brix_status_set(st, XRDC_EUSAGE, 0,
                             "recursive copy: path too long under %s", rpath);
             free(ents);
             return -1;
@@ -100,18 +100,18 @@ copy_tree_download(xrdc_conn *c, const char *rpath, const char *lpath,
 
 /* Recurse a local tree (lpath) into a remote tree (rpath) under conn c. */
 int
-copy_tree_upload(xrdc_conn *c, const char *lpath, const char *rpath,
-                 const xrdc_copy_opts *o, xrdc_status *st)
+copy_tree_upload(brix_conn *c, const char *lpath, const char *rpath,
+                 const brix_copy_opts *o, brix_status *st)
 {
     DIR           *d;
     struct dirent *de;
-    xrdc_status    mst;
+    brix_status    mst;
 
-    xrdc_status_clear(&mst);
-    (void) xrdc_mkdir(c, rpath, 0755, 1 /*parents*/, &mst);  /* may already exist */
+    brix_status_clear(&mst);
+    (void) brix_mkdir(c, rpath, 0755, 1 /*parents*/, &mst);  /* may already exist */
     d = opendir(lpath);
     if (d == NULL) {
-        xrdc_status_set(st, XRDC_ESOCK, errno, "opendir %s: %s", lpath, strerror(errno));
+        brix_status_set(st, XRDC_ESOCK, errno, "opendir %s: %s", lpath, strerror(errno));
         return -1;
     }
     while ((de = readdir(d)) != NULL) {
@@ -126,7 +126,7 @@ copy_tree_upload(xrdc_conn *c, const char *lpath, const char *rpath,
                 >= sizeof(lc)
             || (size_t) snprintf(rc, sizeof(rc), "%s/%s", rpath, de->d_name)
                 >= sizeof(rc)) {
-            xrdc_status_set(st, XRDC_EUSAGE, 0,
+            brix_status_set(st, XRDC_EUSAGE, 0,
                             "recursive copy: path too long under %s", lpath);
             closedir(d);
             return -1;
@@ -196,28 +196,28 @@ recursive_dest_root(const char *dstdir, const char *srcpath,
 
 /* Recursive copy entry: connect once, walk the source tree. Direction-aware. */
 int
-copy_recursive(const xrdc_url *su, const xrdc_url *du, int download,
-               const xrdc_copy_opts *o, const xrdc_opts *co, xrdc_status *st)
+copy_recursive(const brix_url *su, const brix_url *du, int download,
+               const brix_copy_opts *o, const brix_opts *co, brix_status *st)
 {
-    xrdc_conn c;
+    brix_conn c;
     int       rc;
     char      destroot[XRDC_PATH_MAX];
 
     /* Nest under the source basename (stock parity); see recursive_dest_root. */
     if (recursive_dest_root(du->path, su->path, destroot, sizeof(destroot)) != 0) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0,
+        brix_status_set(st, XRDC_EUSAGE, 0,
                         "recursive copy: destination path too long");
         return -1;
     }
 
     if (download) {
-        if (xrdc_connect(&c, su, co, st) != 0) { return -1; }
+        if (brix_connect(&c, su, co, st) != 0) { return -1; }
         rc = copy_tree_download(&c, su->path, destroot, o, st);
     } else {
-        if (xrdc_connect(&c, du, co, st) != 0) { return -1; }
+        if (brix_connect(&c, du, co, st) != 0) { return -1; }
         rc = copy_tree_upload(&c, su->path, destroot, o, st);
     }
-    xrdc_close(&c);
+    brix_close(&c);
     return rc;
 }
 
@@ -234,25 +234,25 @@ copy_recursive(const xrdc_url *su, const xrdc_url *du, int download,
  * for both the bearer token and S3 keys, falling back to opts/env on failure so
  * env-sourced credentials behave identically to today. */
 int
-web_auth_headers(const xrdc_weburl *u, const char *method,
-                 const xrdc_copy_opts *o, const xrdc_opts *co,
-                 char *hdrs, size_t hdrsz, xrdc_status *st)
+web_auth_headers(const brix_weburl *u, const char *method,
+                 const brix_copy_opts *o, const brix_opts *co,
+                 char *hdrs, size_t hdrsz, brix_status *st)
 {
     hdrs[0] = '\0';
     if (u->is_s3) {
         const char *ak = (o && o->s3_access) ? o->s3_access : NULL;
         const char *sk = (o && o->s3_secret) ? o->s3_secret : NULL;
         const char *rg = (o && o->s3_region) ? o->s3_region : getenv("AWS_DEFAULT_REGION");
-        xrdc_cred_view sv;
+        brix_cred_view sv;
         char host[300], payhash[65];
 
         /* Prefer the cred store for S3 keys when no explicit opts override. */
         if ((ak == NULL || sk == NULL) && co != NULL && co->cred != NULL) {
-            if (xrdc_cred_acquire(co->cred, XRDC_CRED_S3KEYS, 0, &sv, st) == 0) {
+            if (brix_cred_acquire(co->cred, XRDC_CRED_S3KEYS, 0, &sv, st) == 0) {
                 if (ak == NULL) { ak = sv.s3_access; }
                 if (sk == NULL) { sk = sv.s3_secret; }
             } else {
-                xrdc_status_clear(st);
+                brix_status_clear(st);
             }
         }
         /* Fall through to env when store not set or acquire failed. */
@@ -266,34 +266,34 @@ web_auth_headers(const xrdc_weburl *u, const char *method,
         /* A '?' would split path vs query in the server's canonical request but
          * we sign the whole path as CanonicalURI — reject rather than mis-sign. */
         if (strchr(u->path, '?') != NULL) {
-            xrdc_status_set(st, XRDC_EUSAGE, 0,
+            brix_status_set(st, XRDC_EUSAGE, 0,
                             "s3: query strings in the URL are not supported");
             return -1;
         }
         /* The SigV4 signed host MUST match the wire Host header byte-for-byte; that
          * header brackets IPv6 literals ([::1]:9000), so sign the same form. */
-        xrootd_format_host_port(u->host, (uint16_t) u->port, host, sizeof(host));
+        brix_format_host_port(u->host, (uint16_t) u->port, host, sizeof(host));
         /* UNSIGNED-PAYLOAD for every method: the body isn't folded into the
          * signature (it streams), which both nginx-xrootd's S3 and real AWS accept. */
         snprintf(payhash, sizeof(payhash), "UNSIGNED-PAYLOAD");
-        if (xrdc_s3_sign_v4(method, host, u->path, ak, sk, rg, payhash,
+        if (brix_s3_sign_v4(method, host, u->path, ak, sk, rg, payhash,
                             hdrs, hdrsz) != 0) {
-            xrdc_status_set(st, XRDC_EAUTH, 0, "s3: failed to build SigV4 signature");
+            brix_status_set(st, XRDC_EAUTH, 0, "s3: failed to build SigV4 signature");
             return -1;
         }
         return 0;
     }
     {
         const char *tok = (o && o->bearer) ? o->bearer : NULL;
-        xrdc_cred_view bv;
+        brix_cred_view bv;
 
         /* Prefer the cred store for the bearer token when no explicit opt override. */
         if (tok == NULL && co != NULL && co->cred != NULL) {
-            if (xrdc_cred_acquire(co->cred, XRDC_CRED_BEARER, 0, &bv, st) == 0
+            if (brix_cred_acquire(co->cred, XRDC_CRED_BEARER, 0, &bv, st) == 0
                 && bv.token != NULL) {
                 tok = bv.token;
             } else {
-                xrdc_status_clear(st);
+                brix_status_clear(st);
             }
         }
         /* Fall through to env when store not set or acquire failed. */
@@ -302,7 +302,7 @@ web_auth_headers(const xrdc_weburl *u, const char *method,
         if (tok != NULL && tok[0] != '\0') {
             int n = snprintf(hdrs, hdrsz, "Authorization: Bearer %s\r\n", tok);
             if (n < 0 || (size_t) n >= hdrsz) {
-                xrdc_status_set(st, XRDC_EUSAGE, 0, "bearer token too long");
+                brix_status_set(st, XRDC_EUSAGE, 0, "bearer token too long");
                 return -1;
             }
         }
@@ -312,8 +312,8 @@ web_auth_headers(const xrdc_weburl *u, const char *method,
 
 
 int
-copy_web_download(const xrdc_weburl *su, const xrdc_url *du, int to_stdout,
-                  const xrdc_copy_opts *o, const xrdc_opts *co, xrdc_status *st)
+copy_web_download(const brix_weburl *su, const brix_url *du, int to_stdout,
+                  const brix_copy_opts *o, const brix_opts *co, brix_status *st)
 {
     char      hdrs[8192];
     char      tmp[XRDC_PATH_MAX];
@@ -324,7 +324,7 @@ copy_web_download(const xrdc_weburl *su, const xrdc_url *du, int to_stdout,
         return -1;
     }
     if (to_stdout) {
-        rc = xrdc_http_download(su->host, su->port, su->tls, su->path,
+        rc = brix_http_download(su->host, su->port, su->tls, su->path,
                                 hdrs[0] ? hdrs : NULL, co ? co->verify_host : 1,
                                 co ? co->ca_dir : NULL, STDOUT_FILENO,
                                 XRDC_WEB_TIMEOUT_MS, &status, &blen, st);
@@ -332,7 +332,7 @@ copy_web_download(const xrdc_weburl *su, const xrdc_url *du, int to_stdout,
     }
     /* Refuse to overwrite an existing destination unless -f. */
     if (!(o && o->force) && access(du->path, F_OK) == 0) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0,
+        brix_status_set(st, XRDC_EUSAGE, 0,
                         "destination exists (use -f to overwrite): %s", du->path);
         return -1;
     }
@@ -342,7 +342,7 @@ copy_web_download(const xrdc_weburl *su, const xrdc_url *du, int to_stdout,
     if (outfd < 0) {
         return -1;
     }
-    rc = xrdc_http_download(su->host, su->port, su->tls, su->path,
+    rc = brix_http_download(su->host, su->port, su->tls, su->path,
                             hdrs[0] ? hdrs : NULL, co ? co->verify_host : 1,
                             co ? co->ca_dir : NULL, outfd, XRDC_WEB_TIMEOUT_MS,
                             &status, &blen, st);

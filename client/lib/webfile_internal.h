@@ -2,10 +2,10 @@
  * webfile_internal.h - private split contract for webfile.c and its Phase-38 siblings.
  * Not a public API: include only from client/lib/.  See docs/refactor/phase-38-file-size-unix-modularity.md.
  */
-#ifndef XROOTD_WEBFILE_INTERNAL_H
-#define XROOTD_WEBFILE_INTERNAL_H
+#ifndef BRIX_WEBFILE_INTERNAL_H
+#define BRIX_WEBFILE_INTERNAL_H
 
-#include "xrdc.h"
+#include "brix.h"
 #include "core/compat/uri.h"
 #include "core/compat/host_format.h"
 #include <stdlib.h>
@@ -19,7 +19,7 @@
 #define WEB_TIMEOUT_MS   30000
 #define WEB_HDR_MAX      16384         
 
-struct xrdc_webfile {
+struct brix_webfile {
     char     host[256];
     int      port;
     int      tls;
@@ -31,7 +31,7 @@ struct xrdc_webfile {
     int      timeout_ms;
     int64_t  size;
     /* persistent transport */
-    xrdc_io  io;
+    brix_io  io;
     void    *tls_ctx;
     int      connected;
 };
@@ -40,7 +40,7 @@ struct xrdc_webfile {
 /* webfile.c */
 const char * tag_val(const char *p, const char *end, const char *name, size_t *vlen);
 long parse_http_date(const char *v, size_t n);
-int parse_response(const char *p, const char *end, xrdc_statinfo *si, char *href, size_t hrefsz);
+int parse_response(const char *p, const char *end, brix_statinfo *si, char *href, size_t hrefsz);
 void web_auth(const char *bearer, char *out, size_t outsz);
 int xml_name_char(char c);
 const char * next_response_open(const char *p, const char *end);
@@ -49,11 +49,11 @@ int has_collection_element(const char *p, const char *end);
 void path_basename(const char *path, char *out, size_t outsz);
 
 /* webfile_io.c */
-void web_disconnect(xrdc_webfile *wf);
-int web_connect(xrdc_webfile *wf, xrdc_status *st);
-ssize_t web_read_some(xrdc_webfile *wf, void *buf, size_t n, xrdc_status *st);
+void web_disconnect(brix_webfile *wf);
+int web_connect(brix_webfile *wf, brix_status *st);
+ssize_t web_read_some(brix_webfile *wf, void *buf, size_t n, brix_status *st);
 long long hdr_clen(const char *hdrs);
-ssize_t web_get_range(xrdc_webfile *wf, int64_t off, void *buf, size_t len, xrdc_status *st);
+ssize_t web_get_range(brix_webfile *wf, int64_t off, void *buf, size_t len, brix_status *st);
 int webfile_window_ms(void);
 
-#endif /* XROOTD_WEBFILE_INTERNAL_H */
+#endif /* BRIX_WEBFILE_INTERNAL_H */

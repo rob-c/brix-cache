@@ -1,7 +1,7 @@
 /*
  * status.c — error carrier + kXR name lookup + shell exit-code mapping.
  *
- * WHAT: Format a human message into xrdc_status, name a kXR_* code, and derive a
+ * WHAT: Format a human message into brix_status, name a kXR_* code, and derive a
  *       process exit code the way scripts expect.
  * WHY:  xrdcp/xrdfs print a useful diagnostic and exit non-zero in a stable way;
  *       callers branch on $? so the codes must be predictable.
@@ -9,7 +9,7 @@
  *       (mirrors XrdCl's GetShellCode bucketing closely enough for scripting; the
  *       exhaustive per-code table is deferred to the M9/M10 conformance work).
  */
-#include "xrdc.h"
+#include "brix.h"
 #include "core/compat/kxr_names.h"      /* shared kXR error-name table (libxrdproto) */
 #include "core/compat/error_mapping.h"  /* shared kXR↔errno canonical table (libxrdproto) */
 
@@ -19,7 +19,7 @@
 #include <string.h>
 
 void
-xrdc_status_clear(xrdc_status *st)
+brix_status_clear(brix_status *st)
 {
     if (st != NULL) {
         st->kxr = 0;
@@ -29,7 +29,7 @@ xrdc_status_clear(xrdc_status *st)
 }
 
 void
-xrdc_status_set(xrdc_status *st, int kxr, int sys_errno, const char *fmt, ...)
+brix_status_set(brix_status *st, int kxr, int sys_errno, const char *fmt, ...)
 {
     va_list ap;
 
@@ -47,9 +47,9 @@ xrdc_status_set(xrdc_status *st, int kxr, int sys_errno, const char *fmt, ...)
 /* kXR error code -> short name. Forwards to the shared table (libxrdproto's
  * kxr_names.c) so the module and client never drift. */
 const char *
-xrdc_kxr_name(int kxr)
+brix_kxr_name(int kxr)
 {
-    return xrootd_kxr_error_name(kxr);
+    return brix_kxr_error_name(kxr);
 }
 
 /*
@@ -66,7 +66,7 @@ xrdc_kxr_name(int kxr)
  * "no", and retrying just amplifies load.
  */
 int
-xrdc_status_retryable(const xrdc_status *st)
+brix_status_retryable(const brix_status *st)
 {
     if (st == NULL || st->kxr == 0) {
         return 0;
@@ -85,7 +85,7 @@ xrdc_status_retryable(const xrdc_status *st)
 }
 
 int
-xrdc_shellcode(const xrdc_status *st)
+brix_shellcode(const brix_status *st)
 {
     if (st == NULL || st->kxr == 0) {
         return 0;
@@ -111,7 +111,7 @@ xrdc_shellcode(const xrdc_status *st)
  * (kxr == 0) maps to 0 (success).
  */
 int
-xrdc_kxr_to_errno(const xrdc_status *st)
+brix_kxr_to_errno(const brix_status *st)
 {
     int e;
 
@@ -123,7 +123,7 @@ xrdc_kxr_to_errno(const xrdc_status *st)
      * (libxrdproto), so the two directions stay in sync with the module's
      * errno→kXR. A 0 return means "not a kXR wire error" — fall through to the
      * client-only XRDC_E* sentinel handling below. */
-    e = xrootd_errno_from_kxr((uint16_t) st->kxr);
+    e = brix_errno_from_kxr((uint16_t) st->kxr);
     if (e != 0) {
         return -e;
     }

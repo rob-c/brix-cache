@@ -4,25 +4,25 @@
  * WHAT: gives the one-shot CLI tools the same recovery the xrootdfs FUSE driver
  *       has — reconnect + full re-auth + handle reopen + offset resume + bounded
  *       backoff — through two seams:
- *         - xrdc_with_resilience(): wrap any stateless op (stat/ls/query/mkdir/…)
+ *         - brix_with_resilience(): wrap any stateless op (stat/ls/query/mkdir/…)
  *           so a transport sever triggers reconnect + re-issue, gated by an
  *           idempotency class.
- *         - xrdc_rfile: a synchronous file handle that reopens and resumes a read
+ *         - brix_rfile: a synchronous file handle that reopens and resumes a read
  *           or write at the same offset after a sever, with an adaptive read size.
  *
- * WHY:  a single xrdc_connect() + one-shot xrdc_send/xrdc_recv fails the whole
+ * WHY:  a single brix_connect() + one-shot brix_send/brix_recv fails the whole
  *       operation on the first dropped connection (rc=51). These helpers ride the
  *       loss out, matching the FUSE driver, while staying off (single attempt)
  *       when the window is 0 so --no-retry preserves the legacy fail-fast path.
  *
  * HOW:  the read/write loops are lifted from the proven xrdcp pump (copy.c:
  *       pump_src_remote / pump_remote_reopen) and the async mfile_pwrite
- *       (aio_mgr.c); reconnect/re-auth is xrdc_reconnect (conn.c) to the home
- *       endpoint; retryability and backoff reuse xrdc_status_retryable /
- *       xrdc_backoff_sleep_fast. Raw ops and copy.c are left untouched, so there
+ *       (aio_mgr.c); reconnect/re-auth is brix_reconnect (conn.c) to the home
+ *       endpoint; retryability and backoff reuse brix_status_retryable /
+ *       brix_backoff_sleep_fast. Raw ops and copy.c are left untouched, so there
  *       is no nested-retry surprise.
  */
-#include "xrdc.h"
+#include "brix.h"
 
 #include <errno.h>
 #include <stdint.h>
@@ -41,7 +41,7 @@
  * fallback keeps the knob uniform for tools that don't route options through
  * cli_opts (e.g. the hand-rolled xrdfs parser). */
 static int
-opts_window_ms(const xrdc_opts *o)
+opts_window_ms(const brix_opts *o)
 {
     if (o != NULL) {
         if (o->no_retry) {
@@ -60,24 +60,24 @@ opts_window_ms(const xrdc_opts *o)
 }
 
 int
-xrdc_resilient_window_ms(const xrdc_conn *c)
+brix_resilient_window_ms(const brix_conn *c)
 {
     return opts_window_ms(&c->opts);
 }
 
 int
-xrdc_connect_resilient(xrdc_conn *c, const xrdc_url *u, const xrdc_opts *o,
-                       xrdc_status *st)
+brix_connect_resilient(brix_conn *c, const brix_url *u, const brix_opts *o,
+                       brix_status *st)
 {
     int      window = opts_window_ms(o);
-    int      rc = xrdc_connect(c, u, o, st);
+    int      rc = brix_connect(c, u, o, st);
     uint64_t deadline;
     unsigned attempt = 0;
 
     if (rc == 0 || window <= 0) {
         return rc;
     }
-    deadline = xrdc_mono_ns() + (uint64_t) window * 1000000ULL;
+    deadline = brix_mono_ns() + (uint64_t) window * 1000000ULL;
     for (;;) {
         /* A connection that is actively REFUSED (nothing listening) is definitive,
          * not a transient stall — fail fast rather than burn the whole window
@@ -86,11 +86,11 @@ xrdc_connect_resilient(xrdc_conn *c, const xrdc_url *u, const xrdc_opts *o,
         if (st->kxr == XRDC_ESOCK && st->sys_errno == ECONNREFUSED) {
             return rc;
         }
-        if (!xrdc_status_retryable(st) || xrdc_mono_ns() >= deadline) {
+        if (!brix_status_retryable(st) || brix_mono_ns() >= deadline) {
             return rc;
         }
-        xrdc_backoff_sleep_fast(attempt++);
-        rc = xrdc_connect(c, u, o, st);
+        brix_backoff_sleep_fast(attempt++);
+        rc = brix_connect(c, u, o, st);
         if (rc == 0) {
             return 0;
         }
@@ -98,36 +98,36 @@ xrdc_connect_resilient(xrdc_conn *c, const xrdc_url *u, const xrdc_opts *o,
 }
 
 int
-xrdc_reconnect_home(xrdc_conn *c, xrdc_status *st)
+brix_reconnect_home(brix_conn *c, brix_status *st)
 {
     const char *host = (c->home_host[0] != '\0') ? c->home_host : c->host;
     int         port = (c->home_port != 0) ? c->home_port : c->port;
-    return xrdc_reconnect(c, host, port, st);
+    return brix_reconnect(c, host, port, st);
 }
 
 /* stateless op wrapper */
 int
-xrdc_with_resilience(xrdc_conn *c, int max_stall_ms, xrdc_op_class cls,
-                     int benign_errno, xrdc_op_fn op, void *arg, xrdc_status *st)
+brix_with_resilience(brix_conn *c, int max_stall_ms, brix_op_class cls,
+                     int benign_errno, brix_op_fn op, void *arg, brix_status *st)
 {
     int rc = op(c, arg, st);
     if (rc == 0) {
         return 0;
     }
     /* Disabled, unsafe, or a definitive (non-transport) failure: surface as-is. */
-    if (max_stall_ms <= 0 || cls == XRDC_OP_UNSAFE || !xrdc_status_retryable(st)) {
+    if (max_stall_ms <= 0 || cls == XRDC_OP_UNSAFE || !brix_status_retryable(st)) {
         return rc;
     }
 
-    uint64_t deadline = xrdc_mono_ns() + (uint64_t) max_stall_ms * 1000000ULL;
+    uint64_t deadline = brix_mono_ns() + (uint64_t) max_stall_ms * 1000000ULL;
     unsigned attempt = 0;
     for (;;) {
-        if (xrdc_mono_ns() >= deadline) {
+        if (brix_mono_ns() >= deadline) {
             return rc;   /* rc and st hold the last failure */
         }
-        xrdc_backoff_sleep_fast(attempt++);
-        if (xrdc_reconnect_home(c, st) != 0) {
-            if (!xrdc_status_retryable(st) || xrdc_mono_ns() >= deadline) {
+        brix_backoff_sleep_fast(attempt++);
+        if (brix_reconnect_home(c, st) != 0) {
+            if (!brix_status_retryable(st) || brix_mono_ns() >= deadline) {
                 return -1;
             }
             continue;    /* link still flaky — keep trying to reconnect */
@@ -142,13 +142,13 @@ xrdc_with_resilience(xrdc_conn *c, int max_stall_ms, xrdc_op_class cls,
              * already been applied server-side (its reply was lost to the sever),
              * the re-issue reports the benign "already in desired state" code —
              * normalize that to success rather than a spurious EEXIST/ENOENT. */
-            if (benign_errno != 0 && xrdc_kxr_to_errno(st) == benign_errno) {
-                xrdc_status_clear(st);
+            if (benign_errno != 0 && brix_kxr_to_errno(st) == benign_errno) {
+                brix_status_clear(st);
                 return 0;
             }
             return rc;
         }
-        if (!xrdc_status_retryable(st)) {
+        if (!brix_status_retryable(st)) {
             return rc;   /* READONLY/IDEMPOTENT hit a hard error */
         }
         /* READONLY/IDEMPOTENT: loop until success or the deadline. */
@@ -157,37 +157,37 @@ xrdc_with_resilience(xrdc_conn *c, int max_stall_ms, xrdc_op_class cls,
 
 /* Resilient single-frame roundtrip. The high-level metadata/fs ops (ops_fs.c
  * fs_simple/fs_text, ops_meta.c stat) route through this, so every tool that
- * calls xrdc_stat/mkdir/rm/query/... inherits reconnect+retry transparently.
- * Re-sending the same hdr24/payload is safe: xrdc_send stamps a fresh streamid. */
+ * calls brix_stat/mkdir/rm/query/... inherits reconnect+retry transparently.
+ * Re-sending the same hdr24/payload is safe: brix_send stamps a fresh streamid. */
 int
-xrdc_roundtrip_resilient(xrdc_conn *c, void *hdr24, const void *payload,
-                         uint32_t plen, xrdc_op_class cls, int benign_errno,
+brix_roundtrip_resilient(brix_conn *c, void *hdr24, const void *payload,
+                         uint32_t plen, brix_op_class cls, int benign_errno,
                          uint16_t *status, uint8_t **body, uint32_t *blen,
-                         xrdc_status *st)
+                         brix_status *st)
 {
-    int window = xrdc_resilient_window_ms(c);
-    int rc = xrdc_roundtrip(c, hdr24, payload, plen, status, body, blen, st);
+    int window = brix_resilient_window_ms(c);
+    int rc = brix_roundtrip(c, hdr24, payload, plen, status, body, blen, st);
     if (rc == 0) {
         return 0;
     }
-    if (window <= 0 || cls == XRDC_OP_UNSAFE || !xrdc_status_retryable(st)) {
+    if (window <= 0 || cls == XRDC_OP_UNSAFE || !brix_status_retryable(st)) {
         return rc;
     }
 
-    uint64_t deadline = xrdc_mono_ns() + (uint64_t) window * 1000000ULL;
+    uint64_t deadline = brix_mono_ns() + (uint64_t) window * 1000000ULL;
     unsigned attempt = 0;
     for (;;) {
-        if (xrdc_mono_ns() >= deadline) {
+        if (brix_mono_ns() >= deadline) {
             return rc;
         }
-        xrdc_backoff_sleep_fast(attempt++);
-        if (xrdc_reconnect_home(c, st) != 0) {
-            if (!xrdc_status_retryable(st) || xrdc_mono_ns() >= deadline) {
+        brix_backoff_sleep_fast(attempt++);
+        if (brix_reconnect_home(c, st) != 0) {
+            if (!brix_status_retryable(st) || brix_mono_ns() >= deadline) {
                 return -1;
             }
             continue;
         }
-        rc = xrdc_roundtrip(c, hdr24, payload, plen, status, body, blen, st);
+        rc = brix_roundtrip(c, hdr24, payload, plen, status, body, blen, st);
         if (rc == 0) {
             return 0;
         }
@@ -195,13 +195,13 @@ xrdc_roundtrip_resilient(xrdc_conn *c, void *hdr24, const void *payload,
             /* Re-issued ONCE after reconnect: if the original had already been
              * applied (its reply lost to the sever), the benign "already in the
              * desired state" code means success, not a spurious EEXIST/ENOENT. */
-            if (benign_errno != 0 && xrdc_kxr_to_errno(st) == benign_errno) {
-                xrdc_status_clear(st);
+            if (benign_errno != 0 && brix_kxr_to_errno(st) == benign_errno) {
+                brix_status_clear(st);
                 return 0;
             }
             return rc;
         }
-        if (!xrdc_status_retryable(st)) {
+        if (!brix_status_retryable(st)) {
             return rc;
         }
         /* READONLY/IDEMPOTENT: keep retrying until success or the deadline. */
@@ -213,36 +213,36 @@ xrdc_roundtrip_resilient(xrdc_conn *c, void *hdr24, const void *payload,
  * kXR_open_updt (no truncate) so already-written bytes survive a mid-write
  * sever; reads use the opaque variant when an opaque suffix is present. */
 static int
-rfile_do_open(xrdc_rfile *rf, xrdc_status *st)
+rfile_do_open(brix_rfile *rf, brix_status *st)
 {
     if (rf->writable) {
-        return xrdc_file_open_update(rf->c, rf->path, rf->posc, &rf->f, st);
+        return brix_file_open_update(rf->c, rf->path, rf->posc, &rf->f, st);
     }
     if (rf->opaque[0] != '\0') {
-        return xrdc_file_open_opaque(rf->c, rf->path, rf->opaque, 0, 0, 0,
+        return brix_file_open_opaque(rf->c, rf->path, rf->opaque, 0, 0, 0,
                                      &rf->f, st);
     }
-    return xrdc_file_open_read(rf->c, rf->path, &rf->f, st);
+    return brix_file_open_read(rf->c, rf->path, &rf->f, st);
 }
 
 /* Reconnect to home + reopen the handle, replacing the dead one. 0 / -1. */
 static int
-rfile_reopen(xrdc_rfile *rf, xrdc_status *st)
+rfile_reopen(brix_rfile *rf, brix_status *st)
 {
-    if (xrdc_reconnect_home(rf->c, st) != 0) {
+    if (brix_reconnect_home(rf->c, st) != 0) {
         return -1;
     }
     return rfile_do_open(rf, st);
 }
 
 static int
-rfile_canceled(const xrdc_rfile *rf)
+rfile_canceled(const brix_rfile *rf)
 {
     return rf->cancel != NULL && rf->cancel();
 }
 
 static void
-rfile_init(xrdc_rfile *rf, xrdc_conn *c, const char *path, int pgrw,
+rfile_init(brix_rfile *rf, brix_conn *c, const char *path, int pgrw,
            int max_stall_ms)
 {
     memset(rf, 0, sizeof(*rf));
@@ -251,12 +251,12 @@ rfile_init(xrdc_rfile *rf, xrdc_conn *c, const char *path, int pgrw,
     rf->pgrw = pgrw;
     rf->cur_chunk = XRDC_RFILE_CHUNK0;
     rf->max_stall_ms = (max_stall_ms > 0) ? max_stall_ms
-                                          : xrdc_resilient_window_ms(c);
+                                          : brix_resilient_window_ms(c);
 }
 
 int
-xrdc_rfile_open_read(xrdc_conn *c, const char *path, const char *opaque,
-                     int pgrw, int max_stall_ms, xrdc_rfile *rf, xrdc_status *st)
+brix_rfile_open_read(brix_conn *c, const char *path, const char *opaque,
+                     int pgrw, int max_stall_ms, brix_rfile *rf, brix_status *st)
 {
     rfile_init(rf, c, path, pgrw, max_stall_ms);
     rf->writable = 0;
@@ -264,24 +264,24 @@ xrdc_rfile_open_read(xrdc_conn *c, const char *path, const char *opaque,
         snprintf(rf->opaque, sizeof(rf->opaque), "%s", opaque);
     }
 
-    uint64_t deadline = xrdc_mono_ns() + (uint64_t) rf->max_stall_ms * 1000000ULL;
+    uint64_t deadline = brix_mono_ns() + (uint64_t) rf->max_stall_ms * 1000000ULL;
     unsigned attempt = 0;
     for (;;) {
         if (rfile_do_open(rf, st) == 0) {
             return 0;
         }
-        if (!xrdc_status_retryable(st) || rfile_canceled(rf)
-            || rf->max_stall_ms <= 0 || xrdc_mono_ns() >= deadline) {
+        if (!brix_status_retryable(st) || rfile_canceled(rf)
+            || rf->max_stall_ms <= 0 || brix_mono_ns() >= deadline) {
             return -1;
         }
-        xrdc_backoff_sleep_fast(attempt++);
-        (void) xrdc_reconnect_home(rf->c, st);   /* best-effort; loop re-opens */
+        brix_backoff_sleep_fast(attempt++);
+        (void) brix_reconnect_home(rf->c, st);   /* best-effort; loop re-opens */
     }
 }
 
 int
-xrdc_rfile_open_write(xrdc_conn *c, const char *path, int force, int posc,
-                      int pgrw, int max_stall_ms, xrdc_rfile *rf, xrdc_status *st)
+brix_rfile_open_write(brix_conn *c, const char *path, int force, int posc,
+                      int pgrw, int max_stall_ms, brix_rfile *rf, brix_status *st)
 {
     rfile_init(rf, c, path, pgrw, max_stall_ms);
     rf->writable = 1;
@@ -290,40 +290,40 @@ xrdc_rfile_open_write(xrdc_conn *c, const char *path, int force, int posc,
     /* First open creates/truncates per `force`; nothing is written yet, so
      * retrying a create after a sever is safe. Subsequent reopens (rfile_reopen)
      * switch to in-place update so resumed writes never re-truncate. */
-    uint64_t deadline = xrdc_mono_ns() + (uint64_t) rf->max_stall_ms * 1000000ULL;
+    uint64_t deadline = brix_mono_ns() + (uint64_t) rf->max_stall_ms * 1000000ULL;
     unsigned attempt = 0;
     for (;;) {
-        if (xrdc_file_open_write(rf->c, rf->path, force, posc, &rf->f, st) == 0) {
+        if (brix_file_open_write(rf->c, rf->path, force, posc, &rf->f, st) == 0) {
             return 0;
         }
-        if (!xrdc_status_retryable(st) || rfile_canceled(rf)
-            || rf->max_stall_ms <= 0 || xrdc_mono_ns() >= deadline) {
+        if (!brix_status_retryable(st) || rfile_canceled(rf)
+            || rf->max_stall_ms <= 0 || brix_mono_ns() >= deadline) {
             return -1;
         }
-        xrdc_backoff_sleep_fast(attempt++);
-        (void) xrdc_reconnect_home(rf->c, st);
+        brix_backoff_sleep_fast(attempt++);
+        (void) brix_reconnect_home(rf->c, st);
     }
 }
 
 ssize_t
-xrdc_rfile_pread(xrdc_rfile *rf, int64_t off, void *buf, size_t len,
-                 xrdc_status *st)
+brix_rfile_pread(brix_rfile *rf, int64_t off, void *buf, size_t len,
+                 brix_status *st)
 {
-    uint64_t deadline = xrdc_mono_ns() + (uint64_t) rf->max_stall_ms * 1000000ULL;
+    uint64_t deadline = brix_mono_ns() + (uint64_t) rf->max_stall_ms * 1000000ULL;
     unsigned attempt = 0;
     for (;;) {
         if (rfile_canceled(rf)) {
-            xrdc_status_set(st, XRDC_EUSAGE, ECANCELED, "transfer canceled");
+            brix_status_set(st, XRDC_EUSAGE, ECANCELED, "transfer canceled");
             return -1;
         }
         size_t  want = (len < rf->cur_chunk) ? len : rf->cur_chunk;
-        ssize_t n = rf->pgrw ? xrdc_file_pgread(rf->c, &rf->f, off, buf, want, st)
-                             : xrdc_file_read(rf->c, &rf->f, off, buf, want, st);
+        ssize_t n = rf->pgrw ? brix_file_pgread(rf->c, &rf->f, off, buf, want, st)
+                             : brix_file_read(rf->c, &rf->f, off, buf, want, st);
         if (n >= 0) {
             return n;
         }
-        if (!xrdc_status_retryable(st) || rf->max_stall_ms <= 0
-            || rfile_canceled(rf) || xrdc_mono_ns() >= deadline) {
+        if (!brix_status_retryable(st) || rf->max_stall_ms <= 0
+            || rfile_canceled(rf) || brix_mono_ns() >= deadline) {
             return -1;
         }
         /* Transport fault: shrink the request, reconnect+reopen, retry at the
@@ -331,40 +331,40 @@ xrdc_rfile_pread(xrdc_rfile *rf, int64_t off, void *buf, size_t len,
         if (rf->cur_chunk > XRDC_RFILE_FLOOR) {
             rf->cur_chunk /= 2;
         }
-        xrdc_backoff_sleep_fast(attempt++);
+        brix_backoff_sleep_fast(attempt++);
         (void) rfile_reopen(rf, st);
     }
 }
 
 int
-xrdc_rfile_pwrite(xrdc_rfile *rf, int64_t off, const void *buf, size_t len,
-                  xrdc_status *st)
+brix_rfile_pwrite(brix_rfile *rf, int64_t off, const void *buf, size_t len,
+                  brix_status *st)
 {
-    uint64_t deadline = xrdc_mono_ns() + (uint64_t) rf->max_stall_ms * 1000000ULL;
+    uint64_t deadline = brix_mono_ns() + (uint64_t) rf->max_stall_ms * 1000000ULL;
     unsigned attempt = 0;
     for (;;) {
         if (rfile_canceled(rf)) {
-            xrdc_status_set(st, XRDC_EUSAGE, ECANCELED, "transfer canceled");
+            brix_status_set(st, XRDC_EUSAGE, ECANCELED, "transfer canceled");
             return -1;
         }
-        int rc = rf->pgrw ? xrdc_file_pgwrite(rf->c, &rf->f, off, buf, len, st)
-                          : xrdc_file_write(rf->c, &rf->f, off, buf, len, st);
+        int rc = rf->pgrw ? brix_file_pgwrite(rf->c, &rf->f, off, buf, len, st)
+                          : brix_file_write(rf->c, &rf->f, off, buf, len, st);
         if (rc == 0) {
             return 0;
         }
-        if (!xrdc_status_retryable(st) || rf->max_stall_ms <= 0
-            || rfile_canceled(rf) || xrdc_mono_ns() >= deadline) {
+        if (!brix_status_retryable(st) || rf->max_stall_ms <= 0
+            || rfile_canceled(rf) || brix_mono_ns() >= deadline) {
             return -1;
         }
         /* Re-issuing the same bytes at the same offset onto an in-place reopened
          * handle is idempotent (overwrites identical content). */
-        xrdc_backoff_sleep_fast(attempt++);
+        brix_backoff_sleep_fast(attempt++);
         (void) rfile_reopen(rf, st);
     }
 }
 
 int
-xrdc_rfile_close(xrdc_rfile *rf, xrdc_status *st)
+brix_rfile_close(brix_rfile *rf, brix_status *st)
 {
-    return xrdc_file_close(rf->c, &rf->f, st);
+    return brix_file_close(rf->c, &rf->f, st);
 }

@@ -3,7 +3,7 @@
  *
  * WHAT: A tiny, lock-free state machine that records whether the current process
  *       (e.g. one FUSE mount session) should still attempt IPv6 or has fallen
- *       back to IPv4-only. xrdc_tcp_connect consults it for the getaddrinfo
+ *       back to IPv4-only. brix_tcp_connect consults it for the getaddrinfo
  *       family hint and trips it when it sees IPv6 fail where IPv4 then works.
  * WHY:  On a dual-stack host with a broken IPv6 path, every fresh socket
  *       (pool slot, per-file conn, async stream, each reconnect) would otherwise
@@ -27,7 +27,7 @@
  *
  * Clean-room: depends on the C library and <stdatomic.h> only.
  */
-#include "xrdc.h"
+#include "brix.h"
 
 #include <stdatomic.h>
 #include <stdio.h>
@@ -64,20 +64,20 @@ fallback_enabled(void)
 }
 
 int
-xrdc_netpref_family(void)
+brix_netpref_family(void)
 {
     return atomic_load_explicit(&g_demoted, memory_order_relaxed)
            ? AF_INET : AF_UNSPEC;
 }
 
 int
-xrdc_netpref_demoted(void)
+brix_netpref_demoted(void)
 {
     return atomic_load_explicit(&g_demoted, memory_order_relaxed);
 }
 
 void
-xrdc_netpref_disable(void)
+brix_netpref_disable(void)
 {
     atomic_store_explicit(&g_enabled, 0, memory_order_relaxed);
 }
@@ -102,7 +102,7 @@ do_demote(const char *cause)
 }
 
 void
-xrdc_netpref_demote_ipv6(const char *host)
+brix_netpref_demote_ipv6(const char *host)
 {
     if (!fallback_enabled()) {
         return;   /* opt-out: keep attempting IPv6 on every connection */
@@ -114,7 +114,7 @@ xrdc_netpref_demote_ipv6(const char *host)
 }
 
 void
-xrdc_netpref_note_wire_error(int family)
+brix_netpref_note_wire_error(int family)
 {
     if (family != AF_INET6 || !fallback_enabled()) {
         return;   /* only an over-the-wire IPv6 failure is evidence of bad v6 */
@@ -124,14 +124,14 @@ xrdc_netpref_note_wire_error(int family)
     }
     /* An established IPv6 connection failed mid-flight (reset / timeout / EOF):
      * pin the rest of the session to IPv4 so the reconnect skips v6 entirely and
-     * pays no v6 connect timeout. Self-healing — see xrdc_netpref_undo_demote:
+     * pays no v6 connect timeout. Self-healing — see brix_netpref_undo_demote:
      * if IPv4 then turns out to be unavailable (an IPv6-only host), the connect
      * path reverts so the mount still comes back up. */
     do_demote("an IPv6 connection to the server failed over the wire");
 }
 
 void
-xrdc_netpref_undo_demote(const char *why)
+brix_netpref_undo_demote(const char *why)
 {
     if (!atomic_load_explicit(&g_demoted, memory_order_relaxed)) {
         return;

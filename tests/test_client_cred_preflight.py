@@ -6,7 +6,7 @@ WHAT: Verifies the native `xrdcp` warns the user about a locally-detectable
       write) the instant it starts — BEFORE contacting the server — instead of
       leaving them to dig out the cause from a generic "permission denied".
 WHY:  The whole point of (c) is "see the problem instantly". These cases need no
-      server: `xrdc_cred_diagnose()` runs as pure local inspection at xrdcp
+      server: `brix_cred_diagnose()` runs as pure local inspection at xrdcp
       start-up, so we drive the real binary against a refused address and assert
       on stderr. The connect failure afterwards is expected and ignored.
 HOW:  Craft unsigned JWTs (alg=none; the diagnostic never verifies signatures —

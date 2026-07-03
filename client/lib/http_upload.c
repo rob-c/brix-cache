@@ -12,8 +12,8 @@
  * mid-stream is a protocol error (the Content-Length already promised the full
  * size). 0 / -1 (st set on error). */
 int
-httpx_upload_body(xrdc_io *io, xrdc_http_body_src_fn src, void *src_ctx,
-                  long long base_off, long long clen, xrdc_status *st)
+httpx_upload_body(brix_io *io, brix_http_body_src_fn src, void *src_ctx,
+                  long long base_off, long long clen, brix_status *st)
 {
     uint8_t   buf[XRDC_XFER_BUF];
     long long remaining = clen;
@@ -24,16 +24,16 @@ httpx_upload_body(xrdc_io *io, xrdc_http_body_src_fn src, void *src_ctx,
         ssize_t r = src(src_ctx, buf, base_off + (clen - remaining), want, st);
         if (r < 0) {
             if (st->kxr == 0 && st->sys_errno == 0) {
-                xrdc_status_set(st, XRDC_ESOCK, 0, "upload: source read failed");
+                brix_status_set(st, XRDC_ESOCK, 0, "upload: source read failed");
             }
             return -1;
         }
         if (r == 0) {
-            xrdc_status_set(st, XRDC_EPROTO, 0,
+            brix_status_set(st, XRDC_EPROTO, 0,
                             "upload: source shrank (%lld bytes short)", remaining);
             return -1;
         }
-        if (xrdc_write_full(io, buf, (size_t) r, st) != 0) { return -1; }
+        if (brix_write_full(io, buf, (size_t) r, st) != 0) { return -1; }
         remaining -= r;
     }
     return 0;
@@ -44,8 +44,8 @@ httpx_upload_body(xrdc_io *io, xrdc_http_body_src_fn src, void *src_ctx,
  * header buffer (allocated, used, freed on every path) so the orchestrator's
  * transport teardown stays linear. 0 / -1 (st set on error). */
 int
-httpx_upload_response(xrdc_io *io, int timeout_ms, int *http_status,
-                      xrdc_status *st)
+httpx_upload_response(brix_io *io, int timeout_ms, int *http_status,
+                      brix_status *st)
 {
     char  *hdr;
     size_t total = 0, body_off = 0;
@@ -53,7 +53,7 @@ httpx_upload_response(xrdc_io *io, int timeout_ms, int *http_status,
 
     hdr = (char *) malloc(XRDC_HDR_CAP);
     if (hdr == NULL) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "http: out of memory");
+        brix_status_set(st, XRDC_EPROTO, 0, "http: out of memory");
         return -1;
     }
     if (read_resp_headers(io, hdr, XRDC_HDR_CAP, timeout_ms, &status,
@@ -66,7 +66,7 @@ httpx_upload_response(xrdc_io *io, int timeout_ms, int *http_status,
     if (status >= 200 && status < 300) {
         rc = 0;
     } else {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "upload: server returned status %d", status);
+        brix_status_set(st, XRDC_EPROTO, 0, "upload: server returned status %d", status);
         rc = -1;
     }
     return rc;
@@ -77,26 +77,26 @@ httpx_upload_response(xrdc_io *io, int timeout_ms, int *http_status,
  * over an already-connected io. Flat early-return so the orchestrator's transport
  * teardown needs no shared cleanup label. 0 / -1 (st set on error). */
 int
-httpx_upload_exchange(xrdc_io *io, const char *host, int port, const char *path,
-                      const char *extra_headers, xrdc_http_body_src_fn src,
+httpx_upload_exchange(brix_io *io, const char *host, int port, const char *path,
+                      const char *extra_headers, brix_http_body_src_fn src,
                       void *src_ctx, long long clen, int timeout_ms,
-                      int *http_status, xrdc_status *st)
+                      int *http_status, brix_status *st)
 {
     char req[2048];
     int  rlen;
 
     char hp[300];
-    xrootd_format_host_port(host, (uint16_t) port, hp, sizeof(hp));
+    brix_format_host_port(host, (uint16_t) port, hp, sizeof(hp));
     rlen = snprintf(req, sizeof(req),
                     "PUT %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: xrdcp\r\n"
                     "Connection: close\r\nContent-Length: %lld\r\n%s\r\n",
                     path[0] ? path : "/", hp, clen,
                     extra_headers ? extra_headers : "");
     if (rlen < 0 || (size_t) rlen >= sizeof(req)) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "http: request too long");
+        brix_status_set(st, XRDC_EUSAGE, 0, "http: request too long");
         return -1;
     }
-    if (xrdc_write_full(io, req, (size_t) rlen, st) != 0) { return -1; }
+    if (brix_write_full(io, req, (size_t) rlen, st) != 0) { return -1; }
     if (httpx_upload_body(io, src, src_ctx, 0, clen, st) != 0) { return -1; }
     return httpx_upload_response(io, timeout_ms, http_status, st);
 }
@@ -137,11 +137,11 @@ httpx_parse_upload_offset(const char *hdr, size_t len)
 /* Send one Content-Range PUT chunk [off, off+chunk_len) of a `total`-byte upload
  * over an already-connected io; report the HTTP status and any X-Upload-Offset. */
 int
-httpx_upload_chunk(xrdc_io *io, const char *host, int port, const char *path,
-                   const char *extra_headers, xrdc_http_body_src_fn src,
+httpx_upload_chunk(brix_io *io, const char *host, int port, const char *path,
+                   const char *extra_headers, brix_http_body_src_fn src,
                    void *src_ctx, long long off, long long chunk_len,
                    long long total, int timeout_ms, int *status_out,
-                   long long *srv_off_out, xrdc_status *st)
+                   long long *srv_off_out, brix_status *st)
 {
     char  req[2048];
     char  hp[300];
@@ -151,7 +151,7 @@ httpx_upload_chunk(xrdc_io *io, const char *host, int port, const char *path,
     int   status = 0;
 
     *srv_off_out = -1;
-    xrootd_format_host_port(host, (uint16_t) port, hp, sizeof(hp));
+    brix_format_host_port(host, (uint16_t) port, hp, sizeof(hp));
     rlen = snprintf(req, sizeof(req),
                     "PUT %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: xrdcp\r\n"
                     "Connection: close\r\nContent-Length: %lld\r\n"
@@ -160,15 +160,15 @@ httpx_upload_chunk(xrdc_io *io, const char *host, int port, const char *path,
                     off, off + chunk_len - 1, total,
                     extra_headers ? extra_headers : "");
     if (rlen < 0 || (size_t) rlen >= sizeof(req)) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "http: request too long");
+        brix_status_set(st, XRDC_EUSAGE, 0, "http: request too long");
         return -1;
     }
-    if (xrdc_write_full(io, req, (size_t) rlen, st) != 0) { return -1; }
+    if (brix_write_full(io, req, (size_t) rlen, st) != 0) { return -1; }
     if (httpx_upload_body(io, src, src_ctx, off, chunk_len, st) != 0) { return -1; }
 
     hdr = (char *) malloc(XRDC_HDR_CAP);
     if (hdr == NULL) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "http: out of memory");
+        brix_status_set(st, XRDC_EPROTO, 0, "http: out of memory");
         return -1;
     }
     if (read_resp_headers(io, hdr, XRDC_HDR_CAP, timeout_ms, &status,
@@ -188,26 +188,26 @@ httpx_upload_chunk(xrdc_io *io, const char *host, int port, const char *path,
  * each on a fresh connection, so an nginx restart mid-upload is survived — on a
  * transport sever or a 409 (offset-correction) the loop reconnects and continues
  * from the server's durable offset, within a bounded stall window.  Requires the
- * server's xrootd_webdav_upload_resume; against a server without it the first
+ * server's brix_webdav_upload_resume; against a server without it the first
  * Content-Range PUT is treated as a whole-body write (commit) and this still
  * works for a single-shot upload.  0 / -1 (st set).
  */
 int
-xrdc_http_upload_resumable(const char *host, int port, int tls, const char *path,
-                           const char *extra_headers, xrdc_http_body_src_fn src,
+brix_http_upload_resumable(const char *host, int port, int tls, const char *path,
+                           const char *extra_headers, brix_http_body_src_fn src,
                            void *src_ctx, long long clen, int verify,
                            const char *ca_dir, int timeout_ms, int max_stall_ms,
-                           int *http_status, xrdc_status *st)
+                           int *http_status, brix_status *st)
 {
     long long off = 0;
     unsigned  attempt = 0;
-    uint64_t  deadline = xrdc_mono_ns() + (uint64_t) max_stall_ms * 1000000ULL;
+    uint64_t  deadline = brix_mono_ns() + (uint64_t) max_stall_ms * 1000000ULL;
     const long long CHUNK = 8LL * 1024 * 1024;
 
     if (http_status != NULL) { *http_status = 0; }
 
     while (off < clen) {
-        xrdc_io   io;
+        brix_io   io;
         void     *tls_ctx = NULL;
         long long chunk = (clen - off < CHUNK) ? (clen - off) : CHUNK;
         int       status = 0;
@@ -216,32 +216,32 @@ xrdc_http_upload_resumable(const char *host, int port, int tls, const char *path
 
         if (httpx_connect(&io, host, port, tls, verify, ca_dir, timeout_ms,
                           &tls_ctx, st) != 0) {
-            if (max_stall_ms <= 0 || !xrdc_status_retryable(st)
-                || xrdc_mono_ns() >= deadline) {
+            if (max_stall_ms <= 0 || !brix_status_retryable(st)
+                || brix_mono_ns() >= deadline) {
                 return -1;
             }
-            xrdc_backoff_sleep_fast(attempt++);
+            brix_backoff_sleep_fast(attempt++);
             continue;
         }
 
         rc = httpx_upload_chunk(&io, host, port, path, extra_headers, src,
                                 src_ctx, off, chunk, clen, timeout_ms,
                                 &status, &srv_off, st);
-        if (tls) { xrdc_tls_client_free(&io, tls_ctx); }
+        if (tls) { brix_tls_client_free(&io, tls_ctx); }
         if (io.fd >= 0) { close(io.fd); }
 
         if (rc != 0) {
             /* transport sever: reconnect and resume from the same offset */
-            if (max_stall_ms <= 0 || !xrdc_status_retryable(st)
-                || xrdc_mono_ns() >= deadline) {
+            if (max_stall_ms <= 0 || !brix_status_retryable(st)
+                || brix_mono_ns() >= deadline) {
                 return -1;
             }
-            xrdc_backoff_sleep_fast(attempt++);
+            brix_backoff_sleep_fast(attempt++);
             continue;
         }
 
         if (http_status != NULL) { *http_status = status; }
-        deadline = xrdc_mono_ns() + (uint64_t) max_stall_ms * 1000000ULL;
+        deadline = brix_mono_ns() + (uint64_t) max_stall_ms * 1000000ULL;
         attempt = 0;
 
         if (status == 409 && srv_off >= 0) {
@@ -255,7 +255,7 @@ xrdc_http_upload_resumable(const char *host, int port, int tls, const char *path
             off += chunk;                  /* intermediate chunk accepted */
             continue;
         }
-        xrdc_status_set(st, XRDC_EPROTO, 0,
+        brix_status_set(st, XRDC_EPROTO, 0,
                         "upload: server returned status %d", status);
         return -1;
     }
@@ -264,12 +264,12 @@ xrdc_http_upload_resumable(const char *host, int port, int tls, const char *path
 
 
 int
-xrdc_http_upload(const char *host, int port, int tls, const char *path,
-                 const char *extra_headers, xrdc_http_body_src_fn src,
+brix_http_upload(const char *host, int port, int tls, const char *path,
+                 const char *extra_headers, brix_http_body_src_fn src,
                  void *src_ctx, long long clen, int verify, const char *ca_dir,
-                 int timeout_ms, int *http_status, xrdc_status *st)
+                 int timeout_ms, int *http_status, brix_status *st)
 {
-    xrdc_io  io;
+    brix_io  io;
     void    *tls_ctx = NULL;
     int      rc;
 
@@ -282,7 +282,7 @@ xrdc_http_upload(const char *host, int port, int tls, const char *path,
     rc = httpx_upload_exchange(&io, host, port, path, extra_headers, src, src_ctx,
                                clen, timeout_ms, http_status, st);
 
-    if (tls) { xrdc_tls_client_free(&io, tls_ctx); }
+    if (tls) { brix_tls_client_free(&io, tls_ctx); }
     if (io.fd >= 0) { close(io.fd); }
     return rc;
 }

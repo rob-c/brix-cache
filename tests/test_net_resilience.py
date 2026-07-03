@@ -2,7 +2,7 @@
 tests/test_net_resilience.py — client hardening against a misbehaving firewall.
 
 WHAT: Covers the connect/handshake timeout decoupling, the retry backoff, and the
-      fire-and-forget session teardown that keep a FUSE mount (and every libxrdc
+      fire-and-forget session teardown that keep a FUSE mount (and every libbrix
       tool) responsive on a network that hangs / intercepts / intermittently
       drops connections (a misbehaving inline firewall).
 

@@ -37,7 +37,7 @@ uring_pollmask(int want)
 
 /* Claim a free poll slot for ac (loop-thread only; no lock). Returns 0 / -1. */
 int
-uring_slot_alloc(xrdc_loop *l, xrdc_aconn *ac)
+uring_slot_alloc(brix_loop *l, brix_aconn *ac)
 {
     unsigned i;
     for (i = 0; i < AIO_URING_SLOTS; i++) {
@@ -54,7 +54,7 @@ uring_slot_alloc(xrdc_loop *l, xrdc_aconn *ac)
 
 /* Submit a multishot poll for ac with the current slot generation as user_data. */
 int
-uring_poll_submit(xrdc_loop *l, xrdc_aconn *ac, int want)
+uring_poll_submit(brix_loop *l, brix_aconn *ac, int want)
 {
     struct io_uring_sqe *sqe = io_uring_get_sqe(&l->uring);
     uint32_t             slot = (uint32_t) ac->uring_slot;
@@ -72,7 +72,7 @@ uring_poll_submit(xrdc_loop *l, xrdc_aconn *ac, int want)
  * any late CQE for it is dropped.  Keeps the slot allocated (caller re-arms) or
  * frees it when freeing == 1. */
 void
-uring_poll_cancel(xrdc_loop *l, xrdc_aconn *ac, int freeing)
+uring_poll_cancel(brix_loop *l, brix_aconn *ac, int freeing)
 {
     uint32_t             slot = (uint32_t) ac->uring_slot;
     struct io_uring_sqe *sqe;
@@ -100,31 +100,31 @@ uring_poll_cancel(xrdc_loop *l, xrdc_aconn *ac, int freeing)
 /* Create the readiness set + the wake eventfd.  evfd is used by both engines;
  * epoll registers it in the set, io_uring arms a multishot poll on it. */
 int
-io_engine_setup(xrdc_loop *l, xrdc_status *st)
+io_engine_setup(brix_loop *l, brix_status *st)
 {
     l->evfd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
     if (l->evfd < 0) {
-        xrdc_status_set(st, XRDC_ESOCK, errno, "eventfd: %s", strerror(errno));
+        brix_status_set(st, XRDC_ESOCK, errno, "eventfd: %s", strerror(errno));
         return -1;
     }
 
-#if (XROOTD_HAVE_LIBURING)
+#if (BRIX_HAVE_LIBURING)
     if (l->use_uring) {
         struct io_uring_sqe *sqe;
         if (io_uring_queue_init(256, &l->uring, 0) < 0) {
-            xrdc_status_set(st, XRDC_ESOCK, errno, "io_uring_queue_init");
+            brix_status_set(st, XRDC_ESOCK, errno, "io_uring_queue_init");
             return -1;
         }
         l->uring_ok = 1;
         sqe = io_uring_get_sqe(&l->uring);     /* multishot poll on the evfd */
         if (sqe == NULL) {
-            xrdc_status_set(st, XRDC_ESOCK, 0, "io_uring evfd arm");
+            brix_status_set(st, XRDC_ESOCK, 0, "io_uring evfd arm");
             return -1;
         }
         io_uring_prep_poll_multishot(sqe, l->evfd, POLLIN);
         io_uring_sqe_set_data64(sqe, AIO_URING_EVFD_UD);
         if (io_uring_submit(&l->uring) < 0) {
-            xrdc_status_set(st, XRDC_ESOCK, errno, "io_uring evfd submit");
+            brix_status_set(st, XRDC_ESOCK, errno, "io_uring evfd submit");
             return -1;
         }
         return 0;
@@ -133,7 +133,7 @@ io_engine_setup(xrdc_loop *l, xrdc_status *st)
 
     l->epfd = epoll_create1(EPOLL_CLOEXEC);
     if (l->epfd < 0) {
-        xrdc_status_set(st, XRDC_ESOCK, errno, "epoll_create1: %s",
+        brix_status_set(st, XRDC_ESOCK, errno, "epoll_create1: %s",
                         strerror(errno));
         return -1;
     }
@@ -143,7 +143,7 @@ io_engine_setup(xrdc_loop *l, xrdc_status *st)
         ev.events   = EPOLLIN;
         ev.data.ptr = l;                       /* loop pointer tags the eventfd */
         if (epoll_ctl(l->epfd, EPOLL_CTL_ADD, l->evfd, &ev) != 0) {
-            xrdc_status_set(st, XRDC_ESOCK, errno, "epoll_ctl(evfd): %s",
+            brix_status_set(st, XRDC_ESOCK, errno, "epoll_ctl(evfd): %s",
                             strerror(errno));
             return -1;
         }
@@ -153,9 +153,9 @@ io_engine_setup(xrdc_loop *l, xrdc_status *st)
 
 
 void
-io_engine_teardown(xrdc_loop *l)
+io_engine_teardown(brix_loop *l)
 {
-#if (XROOTD_HAVE_LIBURING)
+#if (BRIX_HAVE_LIBURING)
     if (l->use_uring) {
         if (l->uring_ok) {
             io_uring_queue_exit(&l->uring);
@@ -173,9 +173,9 @@ io_engine_teardown(xrdc_loop *l)
 /* Arm/modify interest for ac to `want`; sets ac->epoll_events on success.
  * Returns 0 / -1 (caller keeps its own failure handling). */
 int
-io_engine_arm(xrdc_loop *l, xrdc_aconn *ac, int want)
+io_engine_arm(brix_loop *l, brix_aconn *ac, int want)
 {
-#if (XROOTD_HAVE_LIBURING)
+#if (BRIX_HAVE_LIBURING)
     if (l->use_uring) {
         if (ac->uring_slot < 0) {
             if (uring_slot_alloc(l, ac) != 0) { return -1; }
@@ -204,9 +204,9 @@ io_engine_arm(xrdc_loop *l, xrdc_aconn *ac, int want)
 
 
 void
-io_engine_del(xrdc_loop *l, xrdc_aconn *ac)
+io_engine_del(brix_loop *l, brix_aconn *ac)
 {
-#if (XROOTD_HAVE_LIBURING)
+#if (BRIX_HAVE_LIBURING)
     if (l->use_uring) {
         uring_poll_cancel(l, ac, 1);       /* cancel + free the slot */
         ac->epoll_events = 0;
@@ -224,9 +224,9 @@ io_engine_del(xrdc_loop *l, xrdc_aconn *ac)
  * return the count, or -1 on a hard wait error.  For io_uring, translate poll
  * CQEs (generation-guarded) and re-arm any multishot that auto-disarmed. */
 int
-io_engine_wait(xrdc_loop *l, struct epoll_event *evs, int max, int timeout_ms)
+io_engine_wait(brix_loop *l, struct epoll_event *evs, int max, int timeout_ms)
 {
-#if (XROOTD_HAVE_LIBURING)
+#if (BRIX_HAVE_LIBURING)
     if (l->use_uring) {
         struct io_uring_cqe *cqe;
         struct __kernel_timespec ts;
@@ -262,7 +262,7 @@ io_engine_wait(xrdc_loop *l, struct epoll_event *evs, int max, int timeout_ms)
                     && l->uslots[slot].gen == gen
                     && l->uslots[slot].ac != NULL && cqe->res >= 0)
                 {
-                    xrdc_aconn *ac = l->uslots[slot].ac;
+                    brix_aconn *ac = l->uslots[slot].ac;
                     uint32_t    ev = 0;
                     if (cqe->res & (POLLIN | POLLHUP | POLLERR)) { ev |= EPOLLIN; }
                     if (cqe->res & POLLOUT)                      { ev |= EPOLLOUT; }

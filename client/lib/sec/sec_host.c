@@ -19,15 +19,15 @@
 #include <unistd.h>
 
 static int
-host_have(xrdc_conn *c)
+host_have(brix_conn *c)
 {
     (void) c;
     return 1;   /* always selectable; the server gates by reverse-DNS allowlist */
 }
 
 static int
-host_first(xrdc_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
-           xrdc_status *st)
+host_first(brix_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
+           brix_status *st)
 {
     char     hn[256];
     size_t   hl;
@@ -44,7 +44,7 @@ host_first(xrdc_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
 
     p = (uint8_t *) malloc(5 + hl);
     if (p == NULL) {
-        xrdc_status_set(st, XRDC_EAUTH, 0, "out of memory");
+        brix_status_set(st, XRDC_EAUTH, 0, "out of memory");
         return -1;
     }
     memcpy(p, "host\0", 5);
@@ -55,10 +55,10 @@ host_first(xrdc_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
     return 0;
 }
 
-const xrdc_sec_module *
-xrdc_sec_host(void)
+const brix_sec_module *
+brix_sec_host(void)
 {
-    static const xrdc_sec_module m = {
+    static const brix_sec_module m = {
         "host",
         { 'h', 'o', 's', 't' },
         host_have,

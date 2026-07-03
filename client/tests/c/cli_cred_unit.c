@@ -30,7 +30,7 @@
 #include "cred.h"     /* xrdc_cred_store, xrdc_cred_available, xrdc_cred_acquire,
                          xrdc_cred_store_free — and pulls in xrdc.h which has
                          xrdc_cli_cred_store_build + xrdc_cred_store_free decls */
-#include "xrdc.h"
+#include "brix.h"
 
 #include <assert.h>
 #include <stdio.h>

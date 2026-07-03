@@ -33,14 +33,14 @@ web_build_path(const char *base, const char *cwd, const char *arg,
 /* WebDAV equivalent of ls_print_dir() — same output format, PROPFIND source. */
 int
 web_ls_print_dir(const web_ctx *w, const char *path, int want_long,
-                 int recursive, int human, xrdc_status *st)
+                 int recursive, int human, brix_status *st)
 {
-    xrdc_dirent *ents = NULL;
+    brix_dirent *ents = NULL;
     size_t       n = 0, k, plen;
     char         prefix[XRDC_PATH_MAX + 2];
     const char  *sep;
 
-    if (xrdc_web_readdir(w->u, path, w->bearer, w->verify, w->ca_dir,
+    if (brix_web_readdir(w->u, path, w->bearer, w->verify, w->ca_dir,
                          &ents, &n, st) != 0) {
         return -1;
     }
@@ -86,7 +86,7 @@ web_ls_print_dir(const web_ctx *w, const char *path, int want_long,
 int
 web_ls(const web_ctx *w, const char *cwd, int argc, char **argv)
 {
-    xrdc_status st;
+    brix_status st;
     char        path[XRDC_PATH_MAX];
     const char *arg = NULL;
     int         want_long = 0, recursive = 0, human = 0, i;
@@ -100,11 +100,11 @@ web_ls(const web_ctx *w, const char *cwd, int argc, char **argv)
         } else { arg = argv[i]; }
     }
     web_build_path(w->base, cwd, arg, path, sizeof(path));
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     if (web_ls_print_dir(w, path, want_long, recursive, human, &st) != 0) {
         fprintf(stderr, "xrdfs: ls %s: %s\n", path, st.msg);
-        xrdc_cred_hint_for_status(&st, 0, stderr);
-        return xrdc_shellcode(&st);
+        brix_cred_hint_for_status(&st, 0, stderr);
+        return brix_shellcode(&st);
     }
     return 0;
 }
@@ -113,17 +113,17 @@ web_ls(const web_ctx *w, const char *cwd, int argc, char **argv)
 int
 web_stat(const web_ctx *w, const char *cwd, int argc, char **argv)
 {
-    xrdc_status   st;
-    xrdc_statinfo si;
+    brix_status   st;
+    brix_statinfo si;
     char          path[XRDC_PATH_MAX];
 
     if (argc < 2) { fprintf(stderr, "usage: stat <path>\n"); return 50; }
     web_build_path(w->base, cwd, argv[1], path, sizeof(path));
-    xrdc_status_clear(&st);
-    if (xrdc_web_stat(w->u, path, w->bearer, w->verify, w->ca_dir, &si, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_web_stat(w->u, path, w->bearer, w->verify, w->ca_dir, &si, &st) != 0) {
         fprintf(stderr, "xrdfs: stat %s: %s\n", path, st.msg);
-        xrdc_cred_hint_for_status(&st, 0, stderr);
-        return xrdc_shellcode(&st);
+        brix_cred_hint_for_status(&st, 0, stderr);
+        return brix_shellcode(&st);
     }
     print_statinfo(path, &si);
     return 0;

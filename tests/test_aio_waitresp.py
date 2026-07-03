@@ -8,7 +8,7 @@ suite pins the aio engine's handling.
 nginx-xrootd answers every request synchronously, so this path can only be
 exercised against a *deferring* server. Each test stands up a minimal mock
 XRootD server (handshake + login, then a scripted deferral scenario) and
-drives the aio_waitresp C driver (one kXR_ping via xrdc_aio_call) at it.
+drives the aio_waitresp C driver (one kXR_ping via brix_aio_call) at it.
 
 Covered:
   * waitresp → asynresp(kXR_ok)         — op succeeds via the deferred reply

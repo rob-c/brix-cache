@@ -9,27 +9,27 @@
  * path (not "/") use it; otherwise list "/" and pick the largest regular file.
  * Fills target[tsz] with the absolute path and *sti with its stat. 0 / -1. */
 int
-resolve_target(xrdc_conn *c, const xrdc_url *u, char *target, size_t tsz,
-               xrdc_statinfo *sti, xrdc_status *st)
+resolve_target(brix_conn *c, const brix_url *u, char *target, size_t tsz,
+               brix_statinfo *sti, brix_status *st)
 {
-    xrdc_dirent *ents = NULL;
+    brix_dirent *ents = NULL;
     size_t       n = 0, i;
     int64_t      best = -1;
     int          found = 0;
 
     if (u->path[0] != '\0' && strcmp(u->path, "/") != 0) {
-        if (xrdc_stat(c, u->path, sti, st) != 0) {
+        if (brix_stat(c, u->path, sti, st) != 0) {
             return -1;
         }
         if (sti->flags & kXR_isDir) {
-            xrdc_status_set(st, XRDC_EUSAGE, 0, "%s is a directory", u->path);
+            brix_status_set(st, XRDC_EUSAGE, 0, "%s is a directory", u->path);
             return -1;
         }
         snprintf(target, tsz, "%s", u->path);
         return 0;
     }
 
-    if (xrdc_dirlist(c, "/", 1, &ents, &n, st) != 0) {
+    if (brix_dirlist(c, "/", 1, &ents, &n, st) != 0) {
         return -1;
     }
     for (i = 0; i < n; i++) {
@@ -45,7 +45,7 @@ resolve_target(xrdc_conn *c, const xrdc_url *u, char *target, size_t tsz,
     }
     free(ents);
     if (!found) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0,
+        brix_status_set(st, XRDC_EUSAGE, 0,
                         "no regular file under / to test (pass a file URL)");
         return -1;
     }
@@ -58,26 +58,26 @@ resolve_target(xrdc_conn *c, const xrdc_url *u, char *target, size_t tsz,
 int
 do_topology(const diag_args *a)
 {
-    xrdc_url    u;
-    xrdc_conn   c;
-    xrdc_status st;
+    brix_url    u;
+    brix_conn   c;
+    brix_status st;
     char        loc[4096];
     const char *qpath;
 
-    xrdc_status_clear(&st);
-    if (xrdc_endpoint_parse(a->url, &u, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_endpoint_parse(a->url, &u, &st) != 0) {
         fprintf(stderr, "xrddiag: %s\n", st.msg);
         return 50;
     }
-    if (xrdc_connect(&c, &u, &a->conn, &st) != 0) {
+    if (brix_connect(&c, &u, &a->conn, &st) != 0) {
         fprintf(stderr, "xrddiag: connect %s:%d: %s\n", u.host, u.port, st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
 
     qpath = (u.path[0] != '\0') ? u.path : "/";
     printf("Topology of %s:%d\n", u.host, u.port);
 
-    if (xrdc_locate(&c, qpath, loc, sizeof(loc), &st) == 0) {
+    if (brix_locate(&c, qpath, loc, sizeof(loc), &st) == 0) {
         probe("locate", loc[0] != '\0', "%s -> %s", qpath, loc[0] ? loc : "(empty)");
     } else {
         probe("locate", 0, "%s", st.msg);
@@ -86,23 +86,23 @@ do_topology(const diag_args *a)
     /* redirect-loop convergence: a nonexistent path must resolve to NotFound,
      * not exhaust the redirect budget (the cluster loop-guard regression test). */
     {
-        xrdc_statinfo s;
-        xrdc_status   nst;
+        brix_statinfo s;
+        brix_status   nst;
         int           rc;
-        xrdc_status_clear(&nst);
-        rc = xrdc_stat(&c, "/nonexistent-xrddiag-probe-path", &s, &nst);
+        brix_status_clear(&nst);
+        rc = brix_stat(&c, "/nonexistent-xrddiag-probe-path", &s, &nst);
         probe("redirect-convergence", rc != 0 && nst.kxr == kXR_NotFound,
-              "nonexistent path -> %s", rc != 0 ? xrdc_kxr_name(nst.kxr) : "SERVED?!");
+              "nonexistent path -> %s", rc != 0 ? brix_kxr_name(nst.kxr) : "SERVED?!");
     }
 
     if (a->cluster_url != NULL) {
-        xrdc_url    cu;
-        xrdc_status cst;
+        brix_url    cu;
+        brix_status cst;
         char       *body = malloc(1u << 20);
         int         http = 0;
-        xrdc_status_clear(&cst);
-        if (body != NULL && xrdc_endpoint_parse(a->cluster_url, &cu, &cst) == 0 &&
-            xrdc_http_get(cu.host, cu.port, cu.path[0] ? cu.path : "/", 5000,
+        brix_status_clear(&cst);
+        if (body != NULL && brix_endpoint_parse(a->cluster_url, &cu, &cst) == 0 &&
+            brix_http_get(cu.host, cu.port, cu.path[0] ? cu.path : "/", 5000,
                           &http, body, 1u << 20, NULL, &cst) == 0) {
             printf("  /cluster (HTTP %d):\n%s\n", http, body);
         } else {
@@ -113,7 +113,7 @@ do_topology(const diag_args *a)
         note("cluster-json", "pass --cluster-url http://host:port/xrootd/api/v1/cluster");
     }
 
-    xrdc_close(&c);
+    brix_close(&c);
     return g_fails ? 1 : 0;
 }
 
@@ -153,7 +153,7 @@ parse_http_hostport(const char *s, char *host, size_t hsz, int *port)
  */
 int
 resolve_once(const char *host, int port, char *ip, size_t ipsz, int *is_loop,
-             xrdc_status *st)
+             brix_status *st)
 {
     struct addrinfo  hints, *res = NULL;
     char             portstr[16];
@@ -163,13 +163,13 @@ resolve_once(const char *host, int port, char *ip, size_t ipsz, int *is_loop,
     /* Honor a session-wide IPv6→IPv4 demotion (netpref.c) for consistency with
      * every other connect path: AF_UNSPEC normally, AF_INET once this process
      * has fallen back to IPv4-only. */
-    hints.ai_family   = xrdc_netpref_family();
+    hints.ai_family   = brix_netpref_family();
     hints.ai_socktype = SOCK_STREAM;
     snprintf(portstr, sizeof(portstr), "%d", port);
 
     gai = getaddrinfo(host, portstr, &hints, &res);
     if (gai != 0 || res == NULL) {
-        xrdc_status_set(st, XRDC_ESOCK, 0, "resolve %s: %s", host,
+        brix_status_set(st, XRDC_ESOCK, 0, "resolve %s: %s", host,
                         gai_strerror(gai));
         return -1;
     }
@@ -191,14 +191,14 @@ resolve_once(const char *host, int port, char *ip, size_t ipsz, int *is_loop,
 /* Connect a fresh session to the (numeric) probe target, with a bounded per-probe
  * deadline so a wedged/abusive exchange can never hang the auditor. 0 / -1. */
 int
-probe_open(xrdc_conn *c, const char *urlbuf, const diag_args *a, int tmo,
-           xrdc_status *st)
+probe_open(brix_conn *c, const char *urlbuf, const diag_args *a, int tmo,
+           brix_status *st)
 {
-    xrdc_url cu;
-    if (xrdc_endpoint_parse(urlbuf, &cu, st) != 0) {
+    brix_url cu;
+    if (brix_endpoint_parse(urlbuf, &cu, st) != 0) {
         return -1;
     }
-    if (xrdc_connect(c, &cu, &a->conn, st) != 0) {
+    if (brix_connect(c, &cu, &a->conn, st) != 0) {
         return -1;
     }
     c->io.timeout_ms = tmo;
@@ -208,18 +208,18 @@ probe_open(xrdc_conn *c, const char *urlbuf, const diag_args *a, int tmo,
 
 /*
  * Write a (possibly malformed) 24-byte header + body bytes straight onto the wire
- * — bypassing xrdc_send so we can lie about dlen / use a bad opcode — then read
+ * — bypassing brix_send so we can lie about dlen / use a bad opcode — then read
  * one response. Returns 1 if the server REJECTED the abuse (kXR_error, an
  * unexpected status, or a closed/timed-out connection), 0 if it SERVED it
  * (kXR_ok/oksofar — a bug), -1 on our own write failure.
  */
 int
-raw_send_expect_reject(xrdc_conn *c, const uint8_t hdr24[24],
+raw_send_expect_reject(brix_conn *c, const uint8_t hdr24[24],
                        const uint8_t *body, uint32_t bodylen,
                        int lie_dlen, uint32_t fake_dlen)
 {
     uint8_t     hdr[24];
-    xrdc_status st;
+    brix_status st;
     uint16_t    status = 0;
     uint8_t    *rb = NULL;
     uint32_t    rl = 0, wire_dlen;
@@ -233,16 +233,16 @@ raw_send_expect_reject(xrdc_conn *c, const uint8_t hdr24[24],
     hdr[22] = (uint8_t) (wire_dlen >> 8);
     hdr[23] = (uint8_t) wire_dlen;
 
-    xrdc_status_clear(&st);
-    if (xrdc_write_full(&c->io, hdr, 24, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_write_full(&c->io, hdr, 24, &st) != 0) {
         return -1;
     }
     if (bodylen > 0 && body != NULL) {
-        if (xrdc_write_full(&c->io, body, bodylen, &st) != 0) {
+        if (brix_write_full(&c->io, body, bodylen, &st) != 0) {
             return -1;
         }
     }
-    rc = xrdc_recv(c, 0xffff, &status, &rb, &rl, &st);
+    rc = brix_recv(c, 0xffff, &status, &rb, &rl, &st);
     free(rb);
     if (rc != 0) {
         return 1;   /* kXR_error / closed / timeout → rejected cleanly */

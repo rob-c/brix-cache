@@ -7,7 +7,7 @@ WHAT: Mounts xrootdfs with `--compress zstd` THROUGH the in-repo TCP fault
       asserts that compressed reads are byte-exact (a) on a clean link, (b) across
       a mid-read connection RESET, and (c) across a short outage window.
 WHY:  This is the one path the rest of the suite does not cover: the ASYNC client
-      decompression added this phase (client/lib/aio_mgr.c xrdc_mfile_pread decodes
+      decompression added this phase (client/lib/aio_mgr.c brix_mfile_pread decodes
       each frame) AND the reopen-re-learns-codec contract (mfile_do_open re-reads
       cptype on every (re)open, so a fault mid-transfer transparently re-negotiates
       compression and the read still completes byte-exact with no EIO).  A bug in
@@ -199,7 +199,7 @@ def _log_has_compressed_read(name):
 
 def test_compressed_fuse_read_byte_exact(mount, cmp_file):
     """Happy path: a compressed read through the async FUSE driver is byte-exact,
-    and the server actually compressed (z= marker) — proving xrdc_mfile_pread
+    and the server actually compressed (z= marker) — proving brix_mfile_pread
     decoded the frames rather than the codec being silently skipped."""
     name, md5 = cmp_file
     total, got = _read_all(mount, name)

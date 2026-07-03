@@ -143,7 +143,7 @@ def test_xrdprep_evict(tools, seeded):
 # ---- clean-room linkage ----
 
 @pytest.mark.parametrize("tool", TOOLS)
-def test_tool_no_libxrdcl(tools, tool):
+def test_tool_no_libbrixl(tools, tool):
     out = subprocess.run(["ldd", tools[tool]], capture_output=True, text=True).stdout
     bad = [ln for ln in out.splitlines() if re.search(r"XrdCl|XrdSec|libXrd", ln)]
     assert not bad, f"{tool} links upstream xrootd libs:\n{out}"
@@ -183,6 +183,6 @@ def test_mpxstats_aggregates_stdin(mpxstats_bin):
     assert "2 metric name(s), 3 series" in out, out
 
 
-def test_mpxstats_no_libxrdcl(mpxstats_bin):
+def test_mpxstats_no_libbrixl(mpxstats_bin):
     out = subprocess.run(["ldd", mpxstats_bin], capture_output=True, text=True).stdout
     assert not re.search(r"XrdCl|XrdSec|libXrd", out), out

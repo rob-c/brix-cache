@@ -17,7 +17,7 @@
 #include "sec.h"
 #include "../cred.h"
 #include "../sss_keytab.h"
-#include "core/compat/sss_bf.h"   /* xrootd_sss_build_credential — shared with the server */
+#include "core/compat/sss_bf.h"   /* brix_sss_build_credential — shared with the server */
 
 #include <arpa/inet.h>
 #include <pwd.h>
@@ -40,18 +40,18 @@ local_user(void)
 }
 
 static int
-sss_load_first_key(xrdc_sss_key *out, xrdc_status *st)
+sss_load_first_key(brix_sss_key *out, brix_status *st)
 {
     char         path[XRDC_PATH_MAX];
-    xrdc_sss_key keys[XRDC_SSS_KEYS_MAX];
+    brix_sss_key keys[XRDC_SSS_KEYS_MAX];
     int          n = 0;
 
-    xrdc_sss_keytab_default(path, sizeof(path));
-    if (xrdc_sss_keytab_read(path, keys, XRDC_SSS_KEYS_MAX, &n, st) != 0) {
+    brix_sss_keytab_default(path, sizeof(path));
+    if (brix_sss_keytab_read(path, keys, XRDC_SSS_KEYS_MAX, &n, st) != 0) {
         return -1;
     }
     if (n == 0) {
-        xrdc_status_set(st, XRDC_EAUTH, 0, "keytab %s has no usable keys", path);
+        brix_status_set(st, XRDC_EAUTH, 0, "keytab %s has no usable keys", path);
         return -1;
     }
     *out = keys[0];
@@ -59,25 +59,25 @@ sss_load_first_key(xrdc_sss_key *out, xrdc_status *st)
 }
 
 static int
-sss_have(xrdc_conn *c)
+sss_have(brix_conn *c)
 {
-    xrdc_sss_key key;
-    xrdc_status  st;
+    brix_sss_key key;
+    brix_status  st;
     /* Store is a fast "yes"; a store miss falls through to keytab discovery so a
      * tool whose store lacks the sss handler still finds a local key. */
     if (c != NULL && c->opts.cred != NULL
-        && xrdc_cred_available(c->opts.cred, XRDC_CRED_SSS)) {
+        && brix_cred_available(c->opts.cred, XRDC_CRED_SSS)) {
         return 1;
     }
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     return sss_load_first_key(&key, &st) == 0;
 }
 
 static int
-sss_first(xrdc_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
-          xrdc_status *st)
+sss_first(brix_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
+          brix_status *st)
 {
-    xrdc_sss_key key;
+    brix_sss_key key;
     uint8_t      nonce[32];
     uint8_t     *blob;
     const char  *user;
@@ -89,23 +89,23 @@ sss_first(xrdc_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
     /* Acquire the keytab from the credential store when present; fall back to
      * env/default discovery on failure so env-sourced keytabs work as today. */
     if (c != NULL && c->opts.cred != NULL) {
-        xrdc_cred_view v;
-        if (xrdc_cred_acquire(c->opts.cred, XRDC_CRED_SSS, 0, &v, st) == 0
+        brix_cred_view v;
+        if (brix_cred_acquire(c->opts.cred, XRDC_CRED_SSS, 0, &v, st) == 0
             && v.path != NULL) {
-            xrdc_sss_key keys[XRDC_SSS_KEYS_MAX];
+            brix_sss_key keys[XRDC_SSS_KEYS_MAX];
             int          n = 0;
-            if (xrdc_sss_keytab_read(v.path, keys, XRDC_SSS_KEYS_MAX, &n, st) != 0) {
+            if (brix_sss_keytab_read(v.path, keys, XRDC_SSS_KEYS_MAX, &n, st) != 0) {
                 return -1;
             }
             if (n == 0) {
-                xrdc_status_set(st, XRDC_EAUTH, 0,
+                brix_status_set(st, XRDC_EAUTH, 0,
                                 "keytab %s has no usable keys", v.path);
                 return -1;
             }
             key = keys[0];
         } else {
             /* acquire failed or path missing — fall back to env discovery */
-            xrdc_status_clear(st);
+            brix_status_clear(st);
             if (sss_load_first_key(&key, st) != 0) {
                 return -1;
             }
@@ -117,10 +117,10 @@ sss_first(xrdc_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
     }
 
     /* RNG + clock at the edge; the credential byte assembly lives in the shared
-     * kernel (xrootd_sss_build_credential, libxrdproto) so the client and the
+     * kernel (brix_sss_build_credential, libxrdproto) so the client and the
      * server mint the identical SSS wire format from one audited implementation. */
     if (RAND_bytes(nonce, sizeof(nonce)) != 1) {
-        xrdc_status_set(st, XRDC_EAUTH, 0, "sss: RAND_bytes failed");
+        brix_status_set(st, XRDC_EAUTH, 0, "sss: RAND_bytes failed");
         return -1;
     }
     gen_time = (uint32_t) (time(NULL) - XRDC_SSS_BASE_TIME);
@@ -129,14 +129,14 @@ sss_first(xrdc_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
     /* 256 bytes always covers HDR + 40-byte data hdr + TLV(<=67) + CRC. */
     blob = (uint8_t *) malloc(256);
     if (blob == NULL) {
-        xrdc_status_set(st, XRDC_EAUTH, 0, "sss: out of memory");
+        brix_status_set(st, XRDC_EAUTH, 0, "sss: out of memory");
         return -1;
     }
-    if (xrootd_sss_build_credential(key.key, key.key_len, (uint64_t) key.id,
+    if (brix_sss_build_credential(key.key, key.key_len, (uint64_t) key.id,
                                     user, nonce, gen_time, blob, 256,
                                     &blob_len) != 0) {
         free(blob);
-        xrdc_status_set(st, XRDC_EAUTH, 0,
+        brix_status_set(st, XRDC_EAUTH, 0,
                         "sss: credential build failed (legacy provider?)");
         return -1;
     }
@@ -146,10 +146,10 @@ sss_first(xrdc_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
     return 0;
 }
 
-const xrdc_sec_module *
-xrdc_sec_sss(void)
+const brix_sec_module *
+brix_sec_sss(void)
 {
-    static const xrdc_sec_module m = {
+    static const brix_sec_module m = {
         "sss",
         { 's', 's', 's', 0 },
         sss_have,

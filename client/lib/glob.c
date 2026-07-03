@@ -1,7 +1,7 @@
 /*
  * glob.c — client-side wildcard expansion for root:// URLs.
  *
- * WHAT: xrdc_glob() expands a root:// URL whose final path component contains glob
+ * WHAT: brix_glob() expands a root:// URL whose final path component contains glob
  *       metacharacters (* ? [) into the list of matching full URLs.
  * WHY:  The XRootD wire protocol has no server-side globbing for transfer/metadata
  *       ops, so a "swiss-army-knife" client must expand patterns itself and hide
@@ -13,7 +13,7 @@
  * Scope: single-level (the wildcard must be in the LAST path component); multi-level
  * patterns (a wildcard in a non-final component) are not expanded. Clean-room.
  */
-#include "xrdc.h"
+#include "brix.h"
 
 #include <fnmatch.h>
 #include <stdlib.h>
@@ -21,18 +21,18 @@
 
 /* 1 if `s` contains a glob metacharacter. */
 int
-xrdc_has_glob(const char *s)
+brix_has_glob(const char *s)
 {
     return s != NULL && strpbrk(s, "*?[") != NULL;
 }
 
 int
-xrdc_glob(const char *url, const xrdc_opts *co, char ***out, size_t *n_out,
-          xrdc_status *st)
+brix_glob(const char *url, const brix_opts *co, char ***out, size_t *n_out,
+          brix_status *st)
 {
-    xrdc_url     u;
-    xrdc_conn    c;
-    xrdc_dirent *ents = NULL;
+    brix_url     u;
+    brix_conn    c;
+    brix_dirent *ents = NULL;
     char       **arr = NULL;
     char         dir[XRDC_PATH_MAX];
     char         pattern[XRDC_NAME_MAX];
@@ -41,25 +41,25 @@ xrdc_glob(const char *url, const xrdc_opts *co, char ***out, size_t *n_out,
 
     *out = NULL;
     *n_out = 0;
-    if (xrdc_url_parse(url, &u, st) != 0) {
+    if (brix_url_parse(url, &u, st) != 0) {
         return -1;
     }
     if (u.scheme != XRDC_SCHEME_ROOT && u.scheme != XRDC_SCHEME_ROOTS) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "glob: only root:// URLs are expanded");
+        brix_status_set(st, XRDC_EUSAGE, 0, "glob: only root:// URLs are expanded");
         return -1;
     }
     slash = strrchr(u.path, '/');
     if (slash == NULL) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "glob: malformed path");
+        brix_status_set(st, XRDC_EUSAGE, 0, "glob: malformed path");
         return -1;
     }
     if (strlen(slash + 1) >= sizeof(pattern)) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "glob: pattern too long");
+        brix_status_set(st, XRDC_EUSAGE, 0, "glob: pattern too long");
         return -1;   /* reject — never truncate (a clipped wildcard mis-matches) */
     }
     memcpy(pattern, slash + 1, strlen(slash + 1) + 1);
-    if (!xrdc_has_glob(pattern)) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "glob: no wildcard in last path component");
+    if (!brix_has_glob(pattern)) {
+        brix_status_set(st, XRDC_EUSAGE, 0, "glob: no wildcard in last path component");
         return -1;
     }
     dlen = (size_t) (slash - u.path);
@@ -68,18 +68,18 @@ xrdc_glob(const char *url, const xrdc_opts *co, char ***out, size_t *n_out,
         dir[1] = '\0';
     } else {
         if (dlen >= sizeof(dir)) {
-            xrdc_status_set(st, XRDC_EUSAGE, 0, "glob: directory path too long");
+            brix_status_set(st, XRDC_EUSAGE, 0, "glob: directory path too long");
             return -1;
         }
         memcpy(dir, u.path, dlen);
         dir[dlen] = '\0';
     }
 
-    if (xrdc_connect(&c, &u, co, st) != 0) {
+    if (brix_connect(&c, &u, co, st) != 0) {
         return -1;
     }
-    if (xrdc_dirlist(&c, dir, 0 /*no stat*/, &ents, &ne, st) != 0) {
-        xrdc_close(&c);
+    if (brix_dirlist(&c, dir, 0 /*no stat*/, &ents, &ne, st) != 0) {
+        brix_close(&c);
         return -1;
     }
     scheme = (u.scheme == XRDC_SCHEME_ROOTS) ? "roots" : "root";
@@ -119,10 +119,10 @@ xrdc_glob(const char *url, const xrdc_opts *co, char ***out, size_t *n_out,
             n++;
         }
         free(ents);
-        xrdc_close(&c);
+        brix_close(&c);
         if (err) {
-            xrdc_glob_free(arr, n);
-            xrdc_status_set(st, XRDC_EPROTO, 0, "glob: out of memory");
+            brix_glob_free(arr, n);
+            brix_status_set(st, XRDC_EPROTO, 0, "glob: out of memory");
             return -1;
         }
     }
@@ -132,7 +132,7 @@ xrdc_glob(const char *url, const xrdc_opts *co, char ***out, size_t *n_out,
 }
 
 void
-xrdc_glob_free(char **arr, size_t n)
+brix_glob_free(char **arr, size_t n)
 {
     size_t i;
     if (arr == NULL) {

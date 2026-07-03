@@ -11,11 +11,11 @@
 
 /* Read up to n bytes; branches on TLS. Returns bytes (>0), 0 on EOF, -1 on error. */
 ssize_t
-httpx_read_some(xrdc_io *io, void *buf, size_t n, int timeout_ms, xrdc_status *st)
+httpx_read_some(brix_io *io, void *buf, size_t n, int timeout_ms, brix_status *st)
 {
     if (io->ssl != NULL) {
         size_t got = 0;
-        if (xrdc_tls_read_some(io, buf, n, &got, st) != 0) {
+        if (brix_tls_read_some(io, buf, n, &got, st) != 0) {
             return -1;
         }
         return (ssize_t) got;     /* 0 = EOF */
@@ -27,13 +27,13 @@ httpx_read_some(xrdc_io *io, void *buf, size_t n, int timeout_ms, xrdc_status *s
         pfd.fd = io->fd; pfd.events = POLLIN; pfd.revents = 0;
         do { pr = poll(&pfd, 1, timeout_ms); } while (pr < 0 && errno == EINTR);
         if (pr <= 0) {
-            xrdc_status_set(st, XRDC_ESOCK, pr == 0 ? ETIMEDOUT : errno,
+            brix_status_set(st, XRDC_ESOCK, pr == 0 ? ETIMEDOUT : errno,
                             "http read %s", pr == 0 ? "timed out" : "poll failed");
             return -1;
         }
         do { r = read(io->fd, buf, n); } while (r < 0 && errno == EINTR);
         if (r < 0) {
-            xrdc_status_set(st, XRDC_ESOCK, errno, "http read: %s", strerror(errno));
+            brix_status_set(st, XRDC_ESOCK, errno, "http read: %s", strerror(errno));
             return -1;
         }
         return r;
@@ -73,9 +73,9 @@ httpx_body_complete(const char *buf, size_t total, size_t body_off,
  * parse it. Owns its own scratch buffer
  * so the caller's teardown stays linear (no shared cleanup label). 0 / -1. */
 int
-httpx_exchange(xrdc_io *io, const char *host, int port, const char *method,
+httpx_exchange(brix_io *io, const char *host, int port, const char *method,
                const char *path, const char *extra_headers, const void *body,
-               size_t blen, int timeout_ms, xrdc_http_resp *resp, xrdc_status *st)
+               size_t blen, int timeout_ms, brix_http_resp *resp, brix_status *st)
 {
     char   req[2048];
     char  *buf;
@@ -83,7 +83,7 @@ httpx_exchange(xrdc_io *io, const char *host, int port, const char *method,
     int    rlen;
 
     char hp[300];
-    xrootd_format_host_port(host, (uint16_t) port, hp, sizeof(hp));
+    brix_format_host_port(host, (uint16_t) port, hp, sizeof(hp));
     rlen = snprintf(req, sizeof(req),
                     "%s %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: xrddiag\r\n"
                     "Accept: */*\r\nConnection: close\r\n%s%s",
@@ -91,29 +91,29 @@ httpx_exchange(xrdc_io *io, const char *host, int port, const char *method,
                     extra_headers ? extra_headers : "",
                     (body != NULL && blen > 0) ? "" : "\r\n");
     if (rlen < 0 || (size_t) rlen >= sizeof(req)) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "http_req: request too long");
+        brix_status_set(st, XRDC_EUSAGE, 0, "http_req: request too long");
         return -1;
     }
     if (body != NULL && blen > 0) {
         char cl[64];
         int  cn = snprintf(cl, sizeof(cl), "Content-Length: %zu\r\n\r\n", blen);
         if (cn < 0 || (size_t) (rlen + cn) >= sizeof(req)) {
-            xrdc_status_set(st, XRDC_EUSAGE, 0, "http_req: request too long");
+            brix_status_set(st, XRDC_EUSAGE, 0, "http_req: request too long");
             return -1;
         }
         memcpy(req + rlen, cl, (size_t) cn);
         rlen += cn;
     }
-    if (xrdc_write_full(io, req, (size_t) rlen, st) != 0) {
+    if (brix_write_full(io, req, (size_t) rlen, st) != 0) {
         return -1;
     }
-    if (body != NULL && blen > 0 && xrdc_write_full(io, body, blen, st) != 0) {
+    if (body != NULL && blen > 0 && brix_write_full(io, body, blen, st) != 0) {
         return -1;
     }
 
     buf = (char *) malloc(cap);
     if (buf == NULL) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "http_req: out of memory");
+        brix_status_set(st, XRDC_EPROTO, 0, "http_req: out of memory");
         return -1;
     }
     {
@@ -136,7 +136,7 @@ httpx_exchange(xrdc_io *io, const char *host, int port, const char *method,
                 if (extra < 0) { free(buf); return -1; }
                 if (extra > 0) {
                     free(buf);
-                    xrdc_status_set(st, XRDC_EPROTO, 0,
+                    brix_status_set(st, XRDC_EPROTO, 0,
                                     "http_req: response body exceeds the 8 MiB diagnostic limit");
                     return -1;
                 }
@@ -174,12 +174,12 @@ httpx_exchange(xrdc_io *io, const char *host, int port, const char *method,
 
 
 int
-xrdc_http_req(const char *host, int port, int tls, const char *method,
+brix_http_req(const char *host, int port, int tls, const char *method,
               const char *path, const char *extra_headers,
               const void *body, size_t blen, int timeout_ms, int verify,
-              const char *ca_dir, xrdc_http_resp *resp, xrdc_status *st)
+              const char *ca_dir, brix_http_resp *resp, brix_status *st)
 {
-    xrdc_io  io;
+    brix_io  io;
     void    *tls_ctx = NULL;
     int      rc;
 
@@ -191,7 +191,7 @@ xrdc_http_req(const char *host, int port, int tls, const char *method,
     resp->tls = tls;
     if (tls) {
         const char *v = NULL, *c = NULL;
-        xrdc_tls_client_info(&io, &v, &c);
+        brix_tls_client_info(&io, &v, &c);
         snprintf(resp->tls_ver, sizeof(resp->tls_ver), "%s", v ? v : "?");
         snprintf(resp->tls_cipher, sizeof(resp->tls_cipher), "%s", c ? c : "?");
     }
@@ -200,11 +200,11 @@ xrdc_http_req(const char *host, int port, int tls, const char *method,
                         timeout_ms, resp, st);
 
     if (tls) {
-        xrdc_tls_client_free(&io, tls_ctx);
+        brix_tls_client_free(&io, tls_ctx);
     }
     close(io.fd);
     if (rc != 0) {
-        xrdc_http_resp_free(resp);
+        brix_http_resp_free(resp);
     }
     return rc;
 }

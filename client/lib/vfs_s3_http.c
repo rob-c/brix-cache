@@ -5,7 +5,7 @@
 #include "vfs_s3_internal.h"
 
 void
-s3_creds_load(vfs_s3_file *sf, const xrdc_vfs_open_opts *opts)
+s3_creds_load(vfs_s3_file *sf, const brix_vfs_open_opts *opts)
 {
     const char *ak = getenv("AWS_ACCESS_KEY_ID");
     const char *sk = getenv("AWS_SECRET_ACCESS_KEY");
@@ -22,7 +22,7 @@ s3_creds_load(vfs_s3_file *sf, const xrdc_vfs_open_opts *opts)
 
 /* SigV4 signing helpers */
 
-/* HTTP status → xrdc error mapping */
+/* HTTP status → brix error mapping */
 
 /* XML tag extraction */
 

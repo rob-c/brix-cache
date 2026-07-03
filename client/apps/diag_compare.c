@@ -25,7 +25,7 @@ probe(const char *name, int ok, const char *fmt, ...)
 
 /* md5 of a remote file fetched over conn c, into hex[hexsz]. 0 / -1. */
 int
-remote_md5(xrdc_conn *c, const char *path, char *hex, size_t hexsz, xrdc_status *st)
+remote_md5(brix_conn *c, const char *path, char *hex, size_t hexsz, brix_status *st)
 {
     char    tmpl[] = "/tmp/xrddiag-cmp.XXXXXX";
     int     fd = mkstemp(tmpl);
@@ -33,12 +33,12 @@ remote_md5(xrdc_conn *c, const char *path, char *hex, size_t hexsz, xrdc_status 
     int     rc;
 
     if (fd < 0) {
-        xrdc_status_set(st, XRDC_ESOCK, 0, "mkstemp failed");
+        brix_status_set(st, XRDC_ESOCK, 0, "mkstemp failed");
         return -1;
     }
     rc = download_to_fd(c, path, fd, &got, st);
     if (rc == 0) {
-        rc = xrdc_cksum_fd(fd, XRDC_CK_MD5, hex, hexsz, st);
+        rc = brix_cksum_fd(fd, XRDC_CK_MD5, hex, hexsz, st);
     }
     close(fd);
     unlink(tmpl);
@@ -56,9 +56,9 @@ remote_md5(xrdc_conn *c, const char *path, char *hex, size_t hexsz, xrdc_status 
 int
 do_compare_davs(const diag_args *a)
 {
-    xrdc_url      ua;
-    xrdc_conn     ca;
-    xrdc_status   st;
+    brix_url      ua;
+    brix_conn     ca;
+    brix_status   st;
     char          dhost[256];
     int           dport;
     char          root_md5[64], davs_md5[64];
@@ -67,8 +67,8 @@ do_compare_davs(const diag_args *a)
     int           http = 0, fd;
     char          tmpl[] = "/tmp/xrddiag-davs.XXXXXX";
 
-    xrdc_status_clear(&st);
-    if (xrdc_endpoint_parse(a->url, &ua, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_endpoint_parse(a->url, &ua, &st) != 0) {
         fprintf(stderr, "xrddiag: %s\n", st.msg);
         return 50;
     }
@@ -80,16 +80,16 @@ do_compare_davs(const diag_args *a)
     printf("Cross-protocol compare %s\n  root:// %s:%d   davs(http) %s:%d   path %s\n",
            a->url, ua.host, ua.port, dhost, dport, ua.path);
 
-    if (xrdc_connect(&ca, &ua, &a->conn, &st) != 0) {
+    if (brix_connect(&ca, &ua, &a->conn, &st) != 0) {
         fprintf(stderr, "xrddiag: connect %s:%d: %s\n", ua.host, ua.port, st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
     if (remote_md5(&ca, ua.path, root_md5, sizeof(root_md5), &st) != 0) {
         probe("root-read", 0, "%s", st.msg);
-        xrdc_close(&ca);
+        brix_close(&ca);
         return 1;
     }
-    xrdc_close(&ca);
+    brix_close(&ca);
 
     /* WebDAV plane: cleartext HTTP GET of the same logical path (binary-safe). */
     body = (char *) malloc(1u << 20);
@@ -97,8 +97,8 @@ do_compare_davs(const diag_args *a)
         fprintf(stderr, "xrddiag: out of memory\n");
         return 51;
     }
-    xrdc_status_clear(&st);
-    if (xrdc_http_get(dhost, dport, ua.path, 5000, &http, body, 1u << 20, &blen,
+    brix_status_clear(&st);
+    if (brix_http_get(dhost, dport, ua.path, 5000, &http, body, 1u << 20, &blen,
                       &st) != 0) {
         probe("davs-http", 0, "GET %s:%d%s: %s", dhost, dport, ua.path, st.msg);
         free(body);
@@ -112,7 +112,7 @@ do_compare_davs(const diag_args *a)
     }
     fd = mkstemp(tmpl);
     if (fd < 0 || (size_t) write(fd, body, blen) != blen
-        || xrdc_cksum_fd(fd, XRDC_CK_MD5, davs_md5, sizeof(davs_md5), &st) != 0) {
+        || brix_cksum_fd(fd, XRDC_CK_MD5, davs_md5, sizeof(davs_md5), &st) != 0) {
         probe("davs-md5", 0, "local md5 failed");
         if (fd >= 0) { close(fd); unlink(tmpl); }
         free(body);
@@ -136,18 +136,18 @@ do_compare(const diag_args *a)
     if (a->davs != NULL) {
         return do_compare_davs(a);
     }
-    xrdc_url      ua, ub;
-    xrdc_conn     ca, cb;
-    xrdc_status   st;
-    xrdc_statinfo sa, sb;
+    brix_url      ua, ub;
+    brix_conn     ca, cb;
+    brix_status   st;
+    brix_statinfo sa, sb;
 
     if (a->ref_url == NULL) {
         fprintf(stderr, "xrddiag: compare needs --vs-reference <url>\n");
         return 50;
     }
-    xrdc_status_clear(&st);
-    if (xrdc_endpoint_parse(a->url, &ua, &st) != 0 ||
-        xrdc_endpoint_parse(a->ref_url, &ub, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_endpoint_parse(a->url, &ua, &st) != 0 ||
+        brix_endpoint_parse(a->ref_url, &ub, &st) != 0) {
         fprintf(stderr, "xrddiag: %s\n", st.msg);
         return 50;
     }
@@ -155,42 +155,42 @@ do_compare(const diag_args *a)
         fprintf(stderr, "xrddiag: compare needs a file/dir path in the URL\n");
         return 50;
     }
-    if (xrdc_connect(&ca, &ua, &a->conn, &st) != 0) {
+    if (brix_connect(&ca, &ua, &a->conn, &st) != 0) {
         fprintf(stderr, "xrddiag: connect A %s:%d: %s\n", ua.host, ua.port, st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
-    if (xrdc_connect(&cb, &ub, &a->conn, &st) != 0) {
+    if (brix_connect(&cb, &ub, &a->conn, &st) != 0) {
         fprintf(stderr, "xrddiag: connect B %s:%d: %s\n", ub.host, ub.port, st.msg);
-        xrdc_close(&ca);
-        return xrdc_shellcode(&st);
+        brix_close(&ca);
+        return brix_shellcode(&st);
     }
 
     printf("Compare %s  vs  %s\n", a->url, a->ref_url);
 
     {
-        xrdc_status sta, stb;
+        brix_status sta, stb;
         const char *pa = ua.path;
         const char *pb = (ub.path[0] && strcmp(ub.path, "/")) ? ub.path : ua.path;
         int oka, okb;
-        xrdc_status_clear(&sta);
-        xrdc_status_clear(&stb);
-        oka = xrdc_stat(&ca, pa, &sa, &sta) == 0;
-        okb = xrdc_stat(&cb, pb, &sb, &stb) == 0;
+        brix_status_clear(&sta);
+        brix_status_clear(&stb);
+        oka = brix_stat(&ca, pa, &sa, &sta) == 0;
+        okb = brix_stat(&cb, pb, &sb, &stb) == 0;
         if (!oka || !okb) {
             probe("stat", 0, "A:%s B:%s", oka ? "ok" : sta.msg, okb ? "ok" : stb.msg);
-            xrdc_close(&ca);
-            xrdc_close(&cb);
+            brix_close(&ca);
+            brix_close(&cb);
             return 1;
         }
         probe("size", sa.size == sb.size, "A=%lld B=%lld",
               (long long) sa.size, (long long) sb.size);
 
         if (sa.flags & kXR_isDir) {
-            xrdc_dirent *ea = NULL, *eb = NULL;
+            brix_dirent *ea = NULL, *eb = NULL;
             size_t       na = 0, nb = 0;
             int          eq = 1;
-            if (xrdc_dirlist(&ca, pa, 0, &ea, &na, &sta) == 0 &&
-                xrdc_dirlist(&cb, pb, 0, &eb, &nb, &stb) == 0) {
+            if (brix_dirlist(&ca, pa, 0, &ea, &na, &sta) == 0 &&
+                brix_dirlist(&cb, pb, 0, &eb, &nb, &stb) == 0) {
                 if (na != nb) {
                     eq = 0;
                 } else {
@@ -210,9 +210,9 @@ do_compare(const diag_args *a)
             free(eb);
         } else {
             char ha[64], hb[64];
-            xrdc_status ma, mb;
-            xrdc_status_clear(&ma);
-            xrdc_status_clear(&mb);
+            brix_status ma, mb;
+            brix_status_clear(&ma);
+            brix_status_clear(&mb);
             if (remote_md5(&ca, pa, ha, sizeof(ha), &ma) == 0 &&
                 remote_md5(&cb, pb, hb, sizeof(hb), &mb) == 0) {
                 probe("md5", strcmp(ha, hb) == 0, "A=%s B=%s", ha, hb);
@@ -223,8 +223,8 @@ do_compare(const diag_args *a)
         }
     }
 
-    xrdc_close(&ca);
-    xrdc_close(&cb);
+    brix_close(&ca);
+    brix_close(&cb);
     printf("Result: %d difference(s)\n", g_fails);
     return g_fails ? 1 : 0;
 }

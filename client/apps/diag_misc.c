@@ -8,14 +8,14 @@
 int
 do_probe_robustness(const diag_args *a)
 {
-    xrdc_url      u;
-    xrdc_status   st;
+    brix_url      u;
+    brix_status   st;
     char          ip[128];
     char          urlbuf[300];
     int           is_loop = 0, tmo;
 
-    xrdc_status_clear(&st);
-    if (xrdc_endpoint_parse(a->url, &u, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_endpoint_parse(a->url, &u, &st) != 0) {
         fprintf(stderr, "xrddiag: %s\n", st.msg);
         return 50;
     }
@@ -42,25 +42,25 @@ do_probe_robustness(const diag_args *a)
 
     /* P1 — path-escape (well-formed; must be refused AND the conn survive). */
     {
-        xrdc_conn     c;
-        xrdc_status   cs;
-        xrdc_statinfo si;
-        xrdc_status_clear(&cs);
+        brix_conn     c;
+        brix_status   cs;
+        brix_statinfo si;
+        brix_status_clear(&cs);
         if (probe_open(&c, urlbuf, a, tmo, &cs) == 0) {
-            xrdc_status   est;
-            xrdc_statinfo s2;
-            xrdc_status   s2t;
+            brix_status   est;
+            brix_statinfo s2;
+            brix_status   s2t;
             int           served, alive;
-            xrdc_status_clear(&est);
-            xrdc_status_clear(&s2t);
-            served = (xrdc_stat(&c, "/../../../../../../etc/passwd", &si, &est) == 0);
+            brix_status_clear(&est);
+            brix_status_clear(&s2t);
+            served = (brix_stat(&c, "/../../../../../../etc/passwd", &si, &est) == 0);
             /* survive: a normal stat still completes (transport intact). */
-            alive = (xrdc_stat(&c, "/", &s2, &s2t) == 0) || (s2t.kxr > 0);
+            alive = (brix_stat(&c, "/", &s2, &s2t) == 0) || (s2t.kxr > 0);
             probe("path-escape", !served && alive,
                   served ? "ESCAPE SERVED — confinement broken!"
                          : "refused (%s), connection alive",
-                  served ? "" : xrdc_kxr_name(est.kxr));
-            xrdc_close(&c);
+                  served ? "" : brix_kxr_name(est.kxr));
+            brix_close(&c);
         } else {
             probe("path-escape", 0, "connect: %s", cs.msg);
         }
@@ -68,9 +68,9 @@ do_probe_robustness(const diag_args *a)
 
     /* P2 — unknown opcode (must be refused). */
     {
-        xrdc_conn   c;
-        xrdc_status cs;
-        xrdc_status_clear(&cs);
+        brix_conn   c;
+        brix_status cs;
+        brix_status_clear(&cs);
         if (probe_open(&c, urlbuf, a, tmo, &cs) == 0) {
             uint8_t hdr[24];
             int     v;
@@ -79,7 +79,7 @@ do_probe_robustness(const diag_args *a)
             v = raw_send_expect_reject(&c, hdr, NULL, 0, 0, 0);
             probe("bad-opcode", v == 1,
                   v == 0 ? "SERVED an unknown opcode!" : "rejected");
-            xrdc_close(&c);
+            brix_close(&c);
         } else {
             probe("bad-opcode", 0, "connect: %s", cs.msg);
         }
@@ -88,9 +88,9 @@ do_probe_robustness(const diag_args *a)
     /* P3 — oversized dlen (header claims ~1 GiB, no body): must reject/close,
      *      never buffer it (the server caps payload). */
     {
-        xrdc_conn   c;
-        xrdc_status cs;
-        xrdc_status_clear(&cs);
+        brix_conn   c;
+        brix_status cs;
+        brix_status_clear(&cs);
         if (probe_open(&c, urlbuf, a, tmo, &cs) == 0) {
             uint8_t hdr[24];
             int     v;
@@ -100,7 +100,7 @@ do_probe_robustness(const diag_args *a)
             v = raw_send_expect_reject(&c, hdr, NULL, 0, 1, 0x40000000u);
             probe("oversized-dlen", v == 1,
                   v == 0 ? "accepted a 1 GiB dlen!" : "rejected/closed");
-            xrdc_close(&c);
+            brix_close(&c);
         } else {
             probe("oversized-dlen", 0, "connect: %s", cs.msg);
         }
@@ -108,9 +108,9 @@ do_probe_robustness(const diag_args *a)
 
     /* P4 — read on a bogus file handle with a huge length (OOB): must reject. */
     {
-        xrdc_conn   c;
-        xrdc_status cs;
-        xrdc_status_clear(&cs);
+        brix_conn   c;
+        brix_status cs;
+        brix_status_clear(&cs);
         if (probe_open(&c, urlbuf, a, tmo, &cs) == 0) {
             uint8_t hdr[24];
             int     v;
@@ -123,7 +123,7 @@ do_probe_robustness(const diag_args *a)
             v = raw_send_expect_reject(&c, hdr, NULL, 0, 0, 0);
             probe("oob-read", v == 1,
                   v == 0 ? "served a read on a bogus handle!" : "rejected");
-            xrdc_close(&c);
+            brix_close(&c);
         } else {
             probe("oob-read", 0, "connect: %s", cs.msg);
         }
@@ -131,16 +131,16 @@ do_probe_robustness(const diag_args *a)
 
     /* P5 — truncated/slowloris partial header (must not crash the server). */
     {
-        xrdc_conn   c;
-        xrdc_status cs;
-        xrdc_status_clear(&cs);
+        brix_conn   c;
+        brix_status cs;
+        brix_status_clear(&cs);
         if (probe_open(&c, urlbuf, a, tmo, &cs) == 0) {
             uint8_t half[12] = { 0 };
             half[2] = (uint8_t) (kXR_stat >> 8);
             half[3] = (uint8_t) (kXR_stat & 0xff);
-            (void) xrdc_write_full(&c.io, half, sizeof(half), &cs);
+            (void) brix_write_full(&c.io, half, sizeof(half), &cs);
             probe("partial-frame", 1, "sent 12/24 header bytes then closed");
-            xrdc_close(&c);   /* abandon mid-frame */
+            brix_close(&c);   /* abandon mid-frame */
         } else {
             probe("partial-frame", 0, "connect: %s", cs.msg);
         }
@@ -149,19 +149,19 @@ do_probe_robustness(const diag_args *a)
     /* Server-survives gate: a fresh session + stat must still work after the
      * battery — proves nothing above crashed or wedged the server. */
     {
-        xrdc_conn     c;
-        xrdc_status   cs;
-        xrdc_statinfo si;
-        xrdc_status_clear(&cs);
+        brix_conn     c;
+        brix_status   cs;
+        brix_statinfo si;
+        brix_status_clear(&cs);
         if (probe_open(&c, urlbuf, a, tmo, &cs) == 0) {
-            xrdc_status s2;
+            brix_status s2;
             int         alive;
-            xrdc_status_clear(&s2);
-            alive = (xrdc_stat(&c, "/", &si, &s2) == 0) || (s2.kxr > 0);
+            brix_status_clear(&s2);
+            alive = (brix_stat(&c, "/", &si, &s2) == 0) || (s2.kxr > 0);
             probe("server-survives", alive,
                   alive ? "fresh session OK after battery"
                         : "server unreachable after battery!");
-            xrdc_close(&c);
+            brix_close(&c);
         } else {
             probe("server-survives", 0, "reconnect: %s", cs.msg);
         }
@@ -177,18 +177,18 @@ do_probe_robustness(const diag_args *a)
 int
 do_replay(const diag_args *a)
 {
-    xrdc_status st;
+    brix_status st;
     int         rc;
 
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     if (a->playback_url != NULL) {
-        rc = xrdc_capture_playback(a->url, a->playback_url, &a->conn, stdout, &st);
+        rc = brix_capture_playback(a->url, a->playback_url, &a->conn, stdout, &st);
     } else {
-        rc = xrdc_capture_replay(a->url, a->conn.wire_trace, stdout, &st);
+        rc = brix_capture_replay(a->url, a->conn.wire_trace, stdout, &st);
     }
     if (rc != 0) {
         fprintf(stderr, "xrddiag: replay: %s\n", st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
     return 0;
 }
@@ -202,8 +202,8 @@ do_srr(const diag_args *a)
     dx_proto       proto;
     int            tls, port;
     char           host[256], path[XRDC_PATH_MAX], name[128];
-    xrdc_http_resp r;
-    xrdc_status    st;
+    brix_http_resp r;
+    brix_status    st;
     int            tmo = a->probe_timeout_ms > 0 ? a->probe_timeout_ms : 8000;
 
     if (dx_url_parse(a->url, &proto, &tls, host, sizeof(host), &port, path,
@@ -214,15 +214,15 @@ do_srr(const diag_args *a)
     if (path[0] == '\0' || strcmp(path, "/") == 0) {
         snprintf(path, sizeof(path), "/.well-known/wlcg-storage-resource-reporting");
     }
-    xrdc_status_clear(&st);
-    if (xrdc_http_req(host, port, tls, "GET", path, NULL, NULL, 0, tmo,
+    brix_status_clear(&st);
+    if (brix_http_req(host, port, tls, "GET", path, NULL, NULL, 0, tmo,
                       a->verify_tls, NULL, &r, &st) != 0) {
         fprintf(stderr, "xrddiag: srr GET %s:%d%s: %s\n", host, port, path, st.msg);
         return 51;
     }
     if (r.status != 200) {
         fprintf(stderr, "xrddiag: srr returned HTTP %d\n", r.status);
-        xrdc_http_resp_free(&r);
+        brix_http_resp_free(&r);
         return 51;
     }
     if (a->json) {
@@ -242,7 +242,7 @@ do_srr(const diag_args *a)
         printf("  capacity: %lld bytes total, %lld used (%.1f%% full)\n",
                total, used, total > 0 ? 100.0 * (double) used / (double) total : 0.0);
     }
-    xrdc_http_resp_free(&r);
+    brix_http_resp_free(&r);
     return 0;
 }
 
@@ -256,8 +256,8 @@ do_tape(const diag_args *a)
     dx_proto       proto;
     int            tls, port;
     char           host[256], path[XRDC_PATH_MAX], body[1024], reqid[128], state[32];
-    xrdc_http_resp r;
-    xrdc_status    st;
+    brix_http_resp r;
+    brix_status    st;
     int            tmo = a->probe_timeout_ms > 0 ? a->probe_timeout_ms : 8000;
 
     if (dx_url_parse(a->url, &proto, &tls, host, sizeof(host), &port, path,
@@ -273,8 +273,8 @@ do_tape(const diag_args *a)
         return 50;
     }
     snprintf(body, sizeof(body), "{\"files\":[{\"path\":\"%s\"}]}", path);
-    xrdc_status_clear(&st);
-    if (xrdc_http_req(host, port, tls, "POST", "/api/v1/stage",
+    brix_status_clear(&st);
+    if (brix_http_req(host, port, tls, "POST", "/api/v1/stage",
                       "Content-Type: application/json\r\n", body, strlen(body),
                       tmo, a->verify_tls, NULL, &r, &st) != 0) {
         fprintf(stderr, "xrddiag: tape stage POST: %s\n", st.msg);
@@ -282,26 +282,26 @@ do_tape(const diag_args *a)
     }
     if (r.status != 200 && r.status != 201) {
         fprintf(stderr, "xrddiag: tape stage returned HTTP %d\n", r.status);
-        xrdc_http_resp_free(&r);
+        brix_http_resp_free(&r);
         return 51;
     }
     if (!js_str(r.body, "id", reqid, sizeof(reqid))
         && !js_str(r.body, "requestId", reqid, sizeof(reqid))) {
         fprintf(stderr, "xrddiag: tape stage: no request id in response\n");
-        xrdc_http_resp_free(&r);
+        brix_http_resp_free(&r);
         return 51;
     }
     state[0] = '\0';
     (void) js_str(r.body, "state", state, sizeof(state));
     printf("stage accepted: request-id=%s state=%s\n", reqid, state[0] ? state : "?");
-    xrdc_http_resp_free(&r);
+    brix_http_resp_free(&r);
 
     /* poll GET /api/v1/stage/{id} once. */
     {
         char poll[256];
         snprintf(poll, sizeof(poll), "/api/v1/stage/%s", reqid);
-        xrdc_status_clear(&st);
-        if (xrdc_http_req(host, port, tls, "GET", poll, NULL, NULL, 0, tmo,
+        brix_status_clear(&st);
+        if (brix_http_req(host, port, tls, "GET", poll, NULL, NULL, 0, tmo,
                           a->verify_tls, NULL, &r, &st) == 0) {
             if (r.status == 200) {
                 char ondisk[16];
@@ -312,7 +312,7 @@ do_tape(const diag_args *a)
                 printf("poll: state=%s onDisk=%s\n", state[0] ? state : "?",
                        ondisk[0] ? ondisk : "?");
             }
-            xrdc_http_resp_free(&r);   /* free on every successful request */
+            brix_http_resp_free(&r);   /* free on every successful request */
         }
     }
     return 0;

@@ -1,7 +1,7 @@
 /*
  * xrdrc.c — ~/.xrdrc endpoint aliases (the start of the "just works" UX engine).
  *
- * WHAT: xrdc_alias_resolve() turns "name:suffix" into the full URL configured for
+ * WHAT: brix_alias_resolve() turns "name:suffix" into the full URL configured for
  *       that alias, so users can write `xrdcp lab:/data/f.root .` instead of the
  *       long root://host:port//data/... form.
  * WHY:  A swiss-army-knife toolkit should let staff/students name their endpoints
@@ -16,7 +16,7 @@
  *
  * Clean-room; no external config library.
  */
-#include "xrdc.h"
+#include "brix.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -129,7 +129,7 @@ xrdrc_load(void)
 }
 
 int
-xrdc_alias_resolve(const char *arg, char *out, size_t outsz)
+brix_alias_resolve(const char *arg, char *out, size_t outsz)
 {
     const char *colon;
     size_t      nlen;
@@ -200,7 +200,7 @@ read_first_line(const char *path, char *out, size_t outsz)
 }
 
 int
-xrdc_alias_lookup(const char *name, xrdc_alias_info *info)
+brix_alias_lookup(const char *name, brix_alias_info *info)
 {
     int i;
     if (info == NULL) {

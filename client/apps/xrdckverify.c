@@ -8,12 +8,12 @@
  *       "<file>.cinfo" / "<file>.meta" record.
  * WHY:  A single offline command to detect at-rest corruption of a cached or
  *       stored file, using the same checksum engine the server runs.
- * HOW:  Thin front-end over xrdc_cks_verify_file() (lib/cks_verify.c).
+ * HOW:  Thin front-end over brix_cks_verify_file() (lib/cks_verify.c).
  *
  * exit: 0 ok · 1 mismatch (corruption) · 2 no recorded checksum / unsupported
  *       algorithm · 3 I/O or access error.
  */
-#include "xrdc.h"
+#include "brix.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -38,14 +38,14 @@ usage(const char *prog, int rc)
 int
 main(int argc, char **argv)
 {
-    xrdc_ckv_mode   mode = XRDC_CKV_AUTO;
+    brix_ckv_mode   mode = XRDC_CKV_AUTO;
     const char     *algo = NULL;
     const char     *file = NULL;
     int             quiet = 0;
     int             i;
-    xrdc_ckv_report rep;
-    xrdc_ckv_result r;
-    xrdc_status     st;
+    brix_ckv_report rep;
+    brix_ckv_result r;
+    brix_status     st;
 
     for (i = 1; i < argc; i++) {
         const char *a = argv[i];
@@ -79,8 +79,8 @@ main(int argc, char **argv)
         return usage(argv[0], 2);
     }
 
-    xrdc_status_clear(&st);
-    r = xrdc_cks_verify_file(file, algo, mode, &rep, &st);
+    brix_status_clear(&st);
+    r = brix_cks_verify_file(file, algo, mode, &rep, &st);
 
     switch (r) {
     case XRDC_CKV_OK:

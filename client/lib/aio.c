@@ -5,26 +5,26 @@
 #include "aio_internal.h"
 
 
-/* Reconnect worker (its own thread). Retries xrdc_reconnect with exponential
+/* Reconnect worker (its own thread). Retries brix_reconnect with exponential
  * backoff + jitter until success or the reconnect deadline, then signals the loop
- * via rc_finished + the eventfd. Touches only conn (via xrdc_reconnect) and the
+ * via rc_finished + the eventfd. Touches only conn (via brix_reconnect) and the
  * rc_* handoff fields — never the loop-owned per-conn state. */
 void *
 rc_worker_main(void *arg)
 {
-    xrdc_aconn *ac = arg;
-    uint64_t    seed = (uint64_t) (uintptr_t) ac ^ xrdc_mono_ns();
+    brix_aconn *ac = arg;
+    uint64_t    seed = (uint64_t) (uintptr_t) ac ^ brix_mono_ns();
     int         attempt = 0;
-    xrdc_status st;
+    brix_status st;
     char        host[256];
     int         port;
 
-    xrdc_status_set(&st, XRDC_ESOCK, 0, "reconnect not attempted");
+    brix_status_set(&st, XRDC_ESOCK, 0, "reconnect not attempted");
     snprintf(host, sizeof(host), "%s", ac->conn->host);
     port = ac->conn->port;
 
-    while (xrdc_mono_ns() < ac->reconnect_deadline_ns) {
-        if (xrdc_reconnect(ac->conn, host, port, &st) == 0) {
+    while (brix_mono_ns() < ac->reconnect_deadline_ns) {
+        if (brix_reconnect(ac->conn, host, port, &st) == 0) {
             ac->rc_result = 0;
             __atomic_store_n(&ac->rc_finished, 1, __ATOMIC_RELEASE);
             uint64_t one = 1;
@@ -44,7 +44,7 @@ rc_worker_main(void *arg)
         }
         seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17;    /* xorshift */
         uint64_t sleep_ms = base_ms + (seed % 100);                   /* + jitter */
-        uint64_t now = xrdc_mono_ns();
+        uint64_t now = brix_mono_ns();
         if (now >= ac->reconnect_deadline_ns) {
             break;
         }
@@ -70,7 +70,7 @@ rc_worker_main(void *arg)
 
 /* commands */
 void
-loop_push_cmd(xrdc_loop *l, cmd *c)
+loop_push_cmd(brix_loop *l, cmd *c)
 {
     pthread_mutex_lock(&l->cq_lock);
     c->next = NULL;
@@ -90,7 +90,7 @@ loop_push_cmd(xrdc_loop *l, cmd *c)
 
 /* Run a synchronous control command (ADD/CLOSE/STOP) and wait for the loop. */
 void
-loop_run_control(xrdc_loop *l, cmd_type type, xrdc_aconn *ac)
+loop_run_control(brix_loop *l, cmd_type type, brix_aconn *ac)
 {
     pthread_mutex_t mx = PTHREAD_MUTEX_INITIALIZER;
     pthread_cond_t  cv = PTHREAD_COND_INITIALIZER;
@@ -117,7 +117,7 @@ loop_run_control(xrdc_loop *l, cmd_type type, xrdc_aconn *ac)
 
 
 void
-loop_drain_commands(xrdc_loop *l)
+loop_drain_commands(brix_loop *l)
 {
     pthread_mutex_lock(&l->cq_lock);
     cmd *head = l->cq_head;
@@ -130,7 +130,7 @@ loop_drain_commands(xrdc_loop *l)
 
         switch (c->type) {
         case CMD_ADD_ACONN: {
-            xrdc_aconn *ac = c->ac;
+            brix_aconn *ac = c->ac;
             if (io_engine_arm(l, ac, EPOLLIN) == 0) {
                 ac->next = l->aconns;
                 l->aconns = ac;
@@ -166,21 +166,21 @@ loop_drain_commands(xrdc_loop *l)
  * promoted to a transport error (the link is presumed dead → reconnect). Returns
  * ms until the next deadline (capped at AIO_TICK_MS) for the next epoll_wait. */
 int
-loop_process_timeouts(xrdc_loop *l)
+loop_process_timeouts(brix_loop *l)
 {
-    uint64_t now  = xrdc_mono_ns();
+    uint64_t now  = brix_mono_ns();
     uint64_t next = 0;   /* nearest future deadline (ns), 0 = none */
 
-    for (xrdc_aconn *ac = l->aconns; ac != NULL; ac = ac->next) {
+    for (brix_aconn *ac = l->aconns; ac != NULL; ac = ac->next) {
         if (ac->state == ACONN_RECONNECTING) {
             /* expire parked requests that ran out the reconnect budget */
-            xrdc_areq **pp = &ac->pending;
+            brix_areq **pp = &ac->pending;
             while (*pp != NULL) {
-                xrdc_areq *r = *pp;
+                brix_areq *r = *pp;
                 if (r->deadline_ns != 0 && now >= r->deadline_ns) {
                     *pp = r->pend_next;
-                    xrdc_status st;
-                    xrdc_status_set(&st, XRDC_ESOCK, ETIMEDOUT,
+                    brix_status st;
+                    brix_status_set(&st, XRDC_ESOCK, ETIMEDOUT,
                                     "request deadline exceeded (reconnecting)");
                     areq_complete(r, -1, XRDC_ESOCK, &st);
                 } else {
@@ -198,7 +198,7 @@ loop_process_timeouts(xrdc_loop *l)
 
         int ping_timed_out = 0;
         for (uint32_t i = 0; i < ac->inflight.cap; i++) {
-            xrdc_areq *r = ac->inflight.slots[i];
+            brix_areq *r = ac->inflight.slots[i];
             if (r == NULL || r == REQMAP_TOMB || r->deadline_ns == 0) {
                 continue;
             }
@@ -209,8 +209,8 @@ loop_process_timeouts(xrdc_loop *l)
                 if (r->is_ping) {
                     ping_timed_out = 1;
                 }
-                xrdc_status st;
-                xrdc_status_set(&st, XRDC_ESOCK, ETIMEDOUT,
+                brix_status st;
+                brix_status_set(&st, XRDC_ESOCK, ETIMEDOUT,
                                 "request deadline exceeded");
                 areq_complete(r, -1, XRDC_ESOCK, &st);
             } else if (next == 0 || r->deadline_ns < next) {
@@ -218,8 +218,8 @@ loop_process_timeouts(xrdc_loop *l)
             }
         }
         if (ping_timed_out) {   /* inflight scan for this ac is done — safe to recurse */
-            xrdc_status st;
-            xrdc_status_set(&st, XRDC_ESOCK, 0, "keepalive heartbeat timed out");
+            brix_status st;
+            brix_status_set(&st, XRDC_ESOCK, 0, "keepalive heartbeat timed out");
             aconn_on_transport_error(ac, &st);
         }
     }
@@ -243,7 +243,7 @@ loop_process_timeouts(xrdc_loop *l)
 void *
 loop_thread(void *arg)
 {
-    xrdc_loop *l = (xrdc_loop *) arg;
+    brix_loop *l = (brix_loop *) arg;
     struct epoll_event events[AIO_MAXEV];
 
     int timeout = AIO_TICK_MS;
@@ -263,11 +263,11 @@ loop_thread(void *arg)
                 (void) rd;
                 continue;
             }
-            aconn_handle_io((xrdc_aconn *) ptr, events[i].events);
+            aconn_handle_io((brix_aconn *) ptr, events[i].events);
         }
 
         /* adopt finished reconnects + send heartbeats on idle links */
-        for (xrdc_aconn *ac = l->aconns; ac != NULL; ac = ac->next) {
+        for (brix_aconn *ac = l->aconns; ac != NULL; ac = ac->next) {
             aconn_poll_reconnect(ac);
             aconn_maybe_ping(ac);
         }
@@ -285,15 +285,15 @@ loop_thread(void *arg)
 
 /* public */
 /* WHAT: Tear down a partially-initialized loop and return NULL for the caller.
- * WHY:  xrdc_loop_create acquires epfd, evfd, and an always-initialized cq_lock
+ * WHY:  brix_loop_create acquires epfd, evfd, and an always-initialized cq_lock
  *       in sequence; any step can fail. Centralizing the unwind keeps each error
  *       path a flat `return` (no goto) while freeing exactly what was acquired.
  * HOW:  Both fds start at -1 and are only set once successfully opened, so the
  *       >=0 guards close only real descriptors; cq_lock is initialized before any
  *       failure can reach here, so it is always safe to destroy. Mirrors the
  *       original single-exit `fail:` ladder byte-for-byte. */
-xrdc_loop *
-xrdc_loop_create_fail(xrdc_loop *l)
+brix_loop *
+brix_loop_create_fail(brix_loop *l)
 {
     io_engine_teardown(l);
     pthread_mutex_destroy(&l->cq_lock);
@@ -307,39 +307,39 @@ xrdc_loop_create_fail(xrdc_loop *l)
  * loop engine is the experimental, highest-risk tier.  Best-effort: an
  * unavailable ring silently falls back to epoll (not a hard error). */
 int
-xrdc_loop_want_uring(void)
+brix_loop_want_uring(void)
 {
-#if (XROOTD_HAVE_LIBURING)
+#if (BRIX_HAVE_LIBURING)
     const char *e = getenv("XRDC_IO_URING_LOOP");
     if (e == NULL || (strcmp(e, "on") != 0 && strcmp(e, "1") != 0)) {
         return 0;
     }
-    return xrdc_uring_available();
+    return brix_uring_available();
 #else
     return 0;
 #endif
 }
 
 
-xrdc_loop *
-xrdc_loop_create(xrdc_status *st)
+brix_loop *
+brix_loop_create(brix_status *st)
 {
-    xrdc_loop *l = (xrdc_loop *) calloc(1, sizeof(*l));
+    brix_loop *l = (brix_loop *) calloc(1, sizeof(*l));
     if (l == NULL) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "out of memory (loop)");
+        brix_status_set(st, XRDC_EPROTO, 0, "out of memory (loop)");
         return NULL;
     }
     pthread_mutex_init(&l->cq_lock, NULL);
     l->epfd = -1;
     l->evfd = -1;
-    l->use_uring = xrdc_loop_want_uring();   /* phase-44 loop engine (default off) */
+    l->use_uring = brix_loop_want_uring();   /* phase-44 loop engine (default off) */
 
     if (io_engine_setup(l, st) != 0) {
-        return xrdc_loop_create_fail(l);
+        return brix_loop_create_fail(l);
     }
     if (pthread_create(&l->thread, NULL, loop_thread, l) != 0) {
-        xrdc_status_set(st, XRDC_ESOCK, errno, "pthread_create: %s", strerror(errno));
-        return xrdc_loop_create_fail(l);
+        brix_status_set(st, XRDC_ESOCK, errno, "pthread_create: %s", strerror(errno));
+        return brix_loop_create_fail(l);
     }
     l->thread_ok = 1;
     return l;
@@ -347,7 +347,7 @@ xrdc_loop_create(xrdc_status *st)
 
 
 void
-xrdc_loop_destroy(xrdc_loop *l)
+brix_loop_destroy(brix_loop *l)
 {
     if (l == NULL) {
         return;
@@ -371,15 +371,15 @@ xrdc_loop_destroy(xrdc_loop *l)
 }
 
 
-xrdc_aconn *
-xrdc_aconn_attach(xrdc_loop *l, xrdc_conn *conn, xrdc_status *st)
+brix_aconn *
+brix_aconn_attach(brix_loop *l, brix_conn *conn, brix_status *st)
 {
     if (l == NULL || conn == NULL) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "attach: null argument");
+        brix_status_set(st, XRDC_EUSAGE, 0, "attach: null argument");
         return NULL;
     }
     if (conn->signing_active) {
-        xrdc_status_set(st, XRDC_EAUTH, 0,
+        brix_status_set(st, XRDC_EAUTH, 0,
                         "request signing active — async pipelining not supported; "
                         "use the synchronous path");
         return NULL;
@@ -387,13 +387,13 @@ xrdc_aconn_attach(xrdc_loop *l, xrdc_conn *conn, xrdc_status *st)
 
     int flags = fcntl(conn->io.fd, F_GETFL, 0);
     if (flags < 0 || fcntl(conn->io.fd, F_SETFL, flags | O_NONBLOCK) < 0) {
-        xrdc_status_set(st, XRDC_ESOCK, errno, "set non-blocking: %s", strerror(errno));
+        brix_status_set(st, XRDC_ESOCK, errno, "set non-blocking: %s", strerror(errno));
         return NULL;
     }
 
-    xrdc_aconn *ac = (xrdc_aconn *) calloc(1, sizeof(*ac));
+    brix_aconn *ac = (brix_aconn *) calloc(1, sizeof(*ac));
     if (ac == NULL) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "out of memory (aconn)");
+        brix_status_set(st, XRDC_EPROTO, 0, "out of memory (aconn)");
         return NULL;
     }
     ac->loop     = l;
@@ -403,9 +403,9 @@ xrdc_aconn_attach(xrdc_loop *l, xrdc_conn *conn, xrdc_status *st)
     ac->next_sid = 1;
     ac->uring_slot = -1;   /* phase-44: no io_uring poll slot yet (0 is valid!) */
     ac->state    = ACONN_ALIVE;
-    ac->last_activity_ns = xrdc_mono_ns();
+    ac->last_activity_ns = brix_mono_ns();
 
-    /* resilience defaults (override with xrdc_aconn_set_resilience) */
+    /* resilience defaults (override with brix_aconn_set_resilience) */
     ac->max_stall_ms = 60000;   /* 60 s of reconnect patience */
     ac->keepalive_ms = 15000;   /* heartbeat after 15 s idle */
     ac->def_retries  = 5;
@@ -413,7 +413,7 @@ xrdc_aconn_attach(xrdc_loop *l, xrdc_conn *conn, xrdc_status *st)
     loop_run_control(l, CMD_ADD_ACONN, ac);
 
     if (ac->dead) {
-        xrdc_status_set(st, XRDC_ESOCK, 0, "epoll registration failed");
+        brix_status_set(st, XRDC_ESOCK, 0, "epoll registration failed");
         free(ac->inflight.slots);
         free(ac);
         return NULL;
@@ -423,7 +423,7 @@ xrdc_aconn_attach(xrdc_loop *l, xrdc_conn *conn, xrdc_status *st)
 
 
 void
-xrdc_aconn_close(xrdc_aconn *ac)
+brix_aconn_close(brix_aconn *ac)
 {
     if (ac == NULL) {
         return;
@@ -434,7 +434,7 @@ xrdc_aconn_close(xrdc_aconn *ac)
 
 
 void
-xrdc_aconn_set_resilience(xrdc_aconn *ac, int max_stall_ms,
+brix_aconn_set_resilience(brix_aconn *ac, int max_stall_ms,
                           int keepalive_ms, int max_retries)
 {
     if (ac == NULL) {
@@ -450,19 +450,19 @@ xrdc_aconn_set_resilience(xrdc_aconn *ac, int max_stall_ms,
 
 
 int
-xrdc_aio_submit_ex(xrdc_aconn *ac, const void *hdr24,
+brix_aio_submit_ex(brix_aconn *ac, const void *hdr24,
                    const void *payload, uint32_t plen,
-                   const xrdc_aio_opts *opts,
-                   xrdc_aio_cb cb, void *ctx, xrdc_status *st)
+                   const brix_aio_opts *opts,
+                   brix_aio_cb cb, void *ctx, brix_status *st)
 {
     if (ac == NULL || hdr24 == NULL || cb == NULL) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "submit: null argument");
+        brix_status_set(st, XRDC_EUSAGE, 0, "submit: null argument");
         return -1;
     }
 
     cmd *c = (cmd *) calloc(1, sizeof(*c));
     if (c == NULL) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "out of memory (submit)");
+        brix_status_set(st, XRDC_EPROTO, 0, "out of memory (submit)");
         return -1;
     }
     c->type = CMD_SUBMIT;
@@ -472,7 +472,7 @@ xrdc_aio_submit_ex(xrdc_aconn *ac, const void *hdr24,
         c->payload = (uint8_t *) malloc(plen);
         if (c->payload == NULL) {
             free(c);
-            xrdc_status_set(st, XRDC_EPROTO, 0, "out of memory (payload)");
+            brix_status_set(st, XRDC_EPROTO, 0, "out of memory (payload)");
             return -1;
         }
         memcpy(c->payload, payload, plen);
@@ -490,12 +490,12 @@ xrdc_aio_submit_ex(xrdc_aconn *ac, const void *hdr24,
 
 
 int
-xrdc_aio_submit(xrdc_aconn *ac, const void *hdr24,
+brix_aio_submit(brix_aconn *ac, const void *hdr24,
                 const void *payload, uint32_t plen,
-                xrdc_aio_cb cb, void *ctx, int deadline_ms, xrdc_status *st)
+                brix_aio_cb cb, void *ctx, int deadline_ms, brix_status *st)
 {
-    xrdc_aio_opts o = { deadline_ms, -1, 0 };   /* default: not auto-retried */
-    return xrdc_aio_submit_ex(ac, hdr24, payload, plen, &o, cb, ctx, st);
+    brix_aio_opts o = { deadline_ms, -1, 0 };   /* default: not auto-retried */
+    return brix_aio_submit_ex(ac, hdr24, payload, plen, &o, cb, ctx, st);
 }
 
 
@@ -503,7 +503,7 @@ xrdc_aio_submit(xrdc_aconn *ac, const void *hdr24,
 
 void
 call_cb(void *ctx, int rc, uint16_t kxr, uint8_t *body, uint32_t blen,
-        const xrdc_status *st)
+        const brix_status *st)
 {
     call_wait *w = (call_wait *) ctx;
     pthread_mutex_lock(&w->mx);
@@ -521,18 +521,18 @@ call_cb(void *ctx, int rc, uint16_t kxr, uint8_t *body, uint32_t blen,
 
 
 int
-xrdc_aio_call_ex(xrdc_aconn *ac, const void *hdr24,
+brix_aio_call_ex(brix_aconn *ac, const void *hdr24,
                  const void *payload, uint32_t plen,
-                 const xrdc_aio_opts *opts,
+                 const brix_aio_opts *opts,
                  uint16_t *kxr, uint8_t **body, uint32_t *blen,
-                 xrdc_status *st)
+                 brix_status *st)
 {
     call_wait w;
     memset(&w, 0, sizeof(w));
     pthread_mutex_init(&w.mx, NULL);
     pthread_cond_init(&w.cv, NULL);
 
-    if (xrdc_aio_submit_ex(ac, hdr24, payload, plen, opts, call_cb, &w, st) != 0) {
+    if (brix_aio_submit_ex(ac, hdr24, payload, plen, opts, call_cb, &w, st) != 0) {
         pthread_mutex_destroy(&w.mx);
         pthread_cond_destroy(&w.cv);
         return -1;
@@ -569,11 +569,11 @@ xrdc_aio_call_ex(xrdc_aconn *ac, const void *hdr24,
 
 
 int
-xrdc_aio_call(xrdc_aconn *ac, const void *hdr24,
+brix_aio_call(brix_aconn *ac, const void *hdr24,
               const void *payload, uint32_t plen,
               uint16_t *kxr, uint8_t **body, uint32_t *blen,
-              int deadline_ms, xrdc_status *st)
+              int deadline_ms, brix_status *st)
 {
-    xrdc_aio_opts o = { deadline_ms, -1, 0 };
-    return xrdc_aio_call_ex(ac, hdr24, payload, plen, &o, kxr, body, blen, st);
+    brix_aio_opts o = { deadline_ms, -1, 0 };
+    return brix_aio_call_ex(ac, hdr24, payload, plen, &o, kxr, body, blen, st);
 }

@@ -1,6 +1,6 @@
 /* client/lib/vfs_block.c
  *
- * WHAT: Block-device storage backend for xrdc_vfs.
+ * WHAT: Block-device storage backend for brix_vfs.
  *       Handles writes directly to block devices (or plain files used as such)
  *       — no temp file, no rename.  commit() = fsync only; abort() = no-op.
  *       Advertises RANDOM_WRITE and FADVISE but NOT TRUNCATE or ATOMIC_TEMP.
@@ -18,7 +18,7 @@
 
 #include "vfs.h"
 #include "uring.h"
-#include "xrdc.h"
+#include "brix.h"
 #include "fs/backend/sd.h"   /* shared Storage Driver (ngx-free) */
 #include "fs/core/vfs_core.h" /* shared `vfs` I/O verbs (single-sourced with the
                                * server data plane). block_fstat keeps its
@@ -41,15 +41,15 @@
 /*
  * vfs_block_file — concrete file handle for the block-device backend.
  *
- * WHAT: extends xrdc_vfs_file with the fd and optional ring.
+ * WHAT: extends brix_vfs_file with the fd and optional ring.
  *       No temp/final path fields are needed (in-place write, no rename).
- * HOW:  base MUST be first (struct alias cast to xrdc_vfs_file *).
+ * HOW:  base MUST be first (struct alias cast to brix_vfs_file *).
  *       path is stored for error messages and fstat fallback.
  */
 typedef struct {
-    xrdc_vfs_file  base;      /* MUST be first — aliased by façade */
+    brix_vfs_file  base;      /* MUST be first — aliased by façade */
     int            fd;
-    xrdc_disk_ring *ring;     /* NULL when io_uring is OFF or unavailable */
+    brix_disk_ring *ring;     /* NULL when io_uring is OFF or unavailable */
     char          *path;      /* heap-allocated path (for diagnostics) */
 } vfs_block_file;
 
@@ -62,11 +62,11 @@ typedef struct {
  *       ON with unavailable io_uring → *ring=NULL, return -1, st set.
  *       AUTO with unavailable io_uring → *ring=NULL, return 0 (silent fallback).
  * WHY:  mirrors posix_ring_select so the same semantics apply across backends.
- * HOW:  mode from opts->io_uring; guards xrdc_uring_available(); delegates to
- *       xrdc_disk_ring_create with a modest window (4 ops, 64 KiB each).
+ * HOW:  mode from opts->io_uring; guards brix_uring_available(); delegates to
+ *       brix_disk_ring_create with a modest window (4 ops, 64 KiB each).
  */
 static int
-block_ring_select(int fd, int mode, xrdc_disk_ring **ring, xrdc_status *st)
+block_ring_select(int fd, int mode, brix_disk_ring **ring, brix_status *st)
 {
     *ring = NULL;
 
@@ -74,9 +74,9 @@ block_ring_select(int fd, int mode, xrdc_disk_ring **ring, xrdc_status *st)
         return 0;
     }
 
-    if (!xrdc_uring_available()) {
+    if (!brix_uring_available()) {
         if (mode == XRDC_IO_URING_ON) {
-            xrdc_status_set(st, XRDC_EUNSUPPORTED, 0,
+            brix_status_set(st, XRDC_EUNSUPPORTED, 0,
                             "vfs block: io_uring=on but io_uring is unavailable "
                             "on this host or this build lacks liburing");
             return -1;
@@ -85,9 +85,9 @@ block_ring_select(int fd, int mode, xrdc_disk_ring **ring, xrdc_status *st)
     }
 
     {
-        xrdc_status tmp_st;
-        xrdc_status_clear(&tmp_st);
-        *ring = xrdc_disk_ring_create(fd, 4, 65536, 0, &tmp_st);
+        brix_status tmp_st;
+        brix_status_clear(&tmp_st);
+        *ring = brix_disk_ring_create(fd, 4, 65536, 0, &tmp_st);
         if (*ring == NULL && mode == XRDC_IO_URING_ON) {
             if (st != NULL) {
                 *st = tmp_st;
@@ -105,25 +105,25 @@ block_ring_select(int fd, int mode, xrdc_disk_ring **ring, xrdc_status *st)
  *
  * WHAT: delegates to the ring when present; falls back to plain pread(2).
  * WHY:  single dispatch point — callers never see the ring vs. plain difference.
- * HOW:  ring path: xrdc_disk_ring_pread; plain path: pread(2) with EINTR retry.
+ * HOW:  ring path: brix_disk_ring_pread; plain path: pread(2) with EINTR retry.
  */
 static ssize_t
-block_pread(xrdc_vfs_file *f, int64_t off, void *buf, size_t n, xrdc_status *st)
+block_pread(brix_vfs_file *f, int64_t off, void *buf, size_t n, brix_status *st)
 {
     vfs_block_file *bf = (vfs_block_file *) f;
 
     if (bf->ring != NULL) {
-        return xrdc_disk_ring_pread(bf->ring, off, (uint8_t *) buf, n, st);
+        return brix_disk_ring_pread(bf->ring, off, (uint8_t *) buf, n, st);
     }
 
     {
-        xrootd_sd_obj_t obj;
+        brix_sd_obj_t obj;
         ssize_t         r;
 
-        xrootd_sd_posix_wrap(&obj, bf->fd);
+        brix_sd_posix_wrap(&obj, bf->fd);
         r = xvfs_pread_once(&obj, buf, n, (off_t) off);
         if (r < 0) {
-            xrdc_status_set(st, XRDC_EIO, errno,
+            brix_status_set(st, XRDC_EIO, errno,
                             "vfs block pread: %s", strerror(errno));
         }
         return r;
@@ -135,25 +135,25 @@ block_pread(xrdc_vfs_file *f, int64_t off, void *buf, size_t n, xrdc_status *st)
  *
  * WHAT: delegates to the ring when present; falls back to plain pwrite(2).
  * WHY:  single dispatch point; ring path avoids blocking device writes.
- * HOW:  ring path: split into ring-buffer-sized pieces (xrdc_disk_ring_pwrite
+ * HOW:  ring path: split into ring-buffer-sized pieces (brix_disk_ring_pwrite
  *       requires n <= the ring's per-op buffer size; the caller — transfer_pump
  *       — may supply XRDC_COPY_CHUNK = 8 MiB which far exceeds the 64 KiB
  *       ring buffer).  Plain path: pwrite(2) retry loop.
  */
 static int
-block_pwrite(xrdc_vfs_file *f, int64_t off, const void *buf, size_t n,
-             xrdc_status *st)
+block_pwrite(brix_vfs_file *f, int64_t off, const void *buf, size_t n,
+             brix_status *st)
 {
     vfs_block_file *bf = (vfs_block_file *) f;
 
     if (bf->ring != NULL) {
         const uint8_t *p   = (const uint8_t *) buf;
         size_t         rem = n;
-        size_t         rsz = xrdc_disk_ring_bufsz(bf->ring);
+        size_t         rsz = brix_disk_ring_bufsz(bf->ring);
 
         while (rem > 0) {
             size_t chunk = rem < rsz ? rem : rsz;
-            if (xrdc_disk_ring_pwrite(bf->ring, off, p, chunk, st) != 0) {
+            if (brix_disk_ring_pwrite(bf->ring, off, p, chunk, st) != 0) {
                 return -1;
             }
             p   += chunk;
@@ -164,11 +164,11 @@ block_pwrite(xrdc_vfs_file *f, int64_t off, const void *buf, size_t n,
     }
 
     {
-        xrootd_sd_obj_t obj;
+        brix_sd_obj_t obj;
 
-        xrootd_sd_posix_wrap(&obj, bf->fd);
+        brix_sd_posix_wrap(&obj, bf->fd);
         if (xvfs_pwrite_full(&obj, buf, n, (off_t) off, NULL, NULL) != 0) {
-            xrdc_status_set(st, XRDC_EIO, errno,
+            brix_status_set(st, XRDC_EIO, errno,
                             "vfs block pwrite: %s", strerror(errno));
             return -1;
         }
@@ -187,17 +187,17 @@ block_pwrite(xrdc_vfs_file *f, int64_t off, const void *buf, size_t n,
  * HOW:  fstat; if S_ISBLK → BLKGETSIZE64 (with fallback to st_size); populate out.
  */
 static int
-block_fstat(xrdc_vfs_file *f, xrdc_vfs_stat *out, xrdc_status *st)
+block_fstat(brix_vfs_file *f, brix_vfs_stat *out, brix_status *st)
 {
     vfs_block_file  *bf = (vfs_block_file *) f;
-    xrootd_sd_obj_t  obj;
-    xrootd_sd_stat_t sd;
+    brix_sd_obj_t  obj;
+    brix_sd_stat_t sd;
 
     /* The shared block driver's fstat applies BLKGETSIZE64 for a device's true
      * size (fd-keyed; the obj wrap's driver is irrelevant for fstat). */
-    xrootd_sd_posix_wrap(&obj, bf->fd);
-    if (xrootd_sd_block_driver.fstat(&obj, &sd) != NGX_OK) {
-        xrdc_status_set(st, XRDC_EIO, errno,
+    brix_sd_posix_wrap(&obj, bf->fd);
+    if (brix_sd_block_driver.fstat(&obj, &sd) != NGX_OK) {
+        brix_status_set(st, XRDC_EIO, errno,
                         "vfs block fstat: %s", strerror(errno));
         return -1;
     }
@@ -217,14 +217,14 @@ block_fstat(xrdc_vfs_file *f, xrdc_vfs_stat *out, xrdc_status *st)
  * WHY:  ftruncate(2) on a block device is undefined behaviour; callers must
  *       check caps before calling truncate.  Returning a clean error here
  *       protects against callers that skip the caps check.
- * HOW:  unconditional xrdc_status_set + return -1.
+ * HOW:  unconditional brix_status_set + return -1.
  */
 static int
-block_truncate(xrdc_vfs_file *f, int64_t size, xrdc_status *st)
+block_truncate(brix_vfs_file *f, int64_t size, brix_status *st)
 {
     (void) f;
     (void) size;
-    xrdc_status_set(st, XRDC_EUSAGE, 0,
+    brix_status_set(st, XRDC_EUSAGE, 0,
                     "vfs block: block backend does not support truncate");
     return -1;
 }
@@ -234,24 +234,24 @@ block_truncate(xrdc_vfs_file *f, int64_t size, xrdc_status *st)
  *
  * WHAT: drains any ring write-behind queue, then calls fsync(2) on bf->fd.
  * WHY:  ensures callers can rely on data being durable after sync() returns.
- * HOW:  xrdc_disk_ring_flush (no-op on NULL ring); fsync; set st on failure.
+ * HOW:  brix_disk_ring_flush (no-op on NULL ring); fsync; set st on failure.
  */
 static int
-block_sync(xrdc_vfs_file *f, xrdc_status *st)
+block_sync(brix_vfs_file *f, brix_status *st)
 {
     vfs_block_file *bf = (vfs_block_file *) f;
 
     if (bf->ring != NULL) {
-        if (xrdc_disk_ring_flush(bf->ring, st) != 0) {
+        if (brix_disk_ring_flush(bf->ring, st) != 0) {
             return -1;
         }
     }
 
     {
-        xrootd_sd_obj_t obj;
-        xrootd_sd_posix_wrap(&obj, bf->fd);
+        brix_sd_obj_t obj;
+        brix_sd_posix_wrap(&obj, bf->fd);
         if (xvfs_fsync(&obj) != 0) {
-            xrdc_status_set(st, XRDC_EIO, errno,
+            brix_status_set(st, XRDC_EIO, errno,
                             "vfs block fsync: %s", strerror(errno));
             return -1;
         }
@@ -269,21 +269,21 @@ block_sync(xrdc_vfs_file *f, xrdc_status *st)
  * HOW:  ring flush → fsync; return -1 with st on failure.
  */
 static int
-block_commit(xrdc_vfs_file *f, xrdc_status *st)
+block_commit(brix_vfs_file *f, brix_status *st)
 {
     vfs_block_file *bf = (vfs_block_file *) f;
 
     if (bf->ring != NULL) {
-        if (xrdc_disk_ring_flush(bf->ring, st) != 0) {
+        if (brix_disk_ring_flush(bf->ring, st) != 0) {
             return -1;
         }
     }
 
     {
-        xrootd_sd_obj_t obj;
-        xrootd_sd_posix_wrap(&obj, bf->fd);
+        brix_sd_obj_t obj;
+        brix_sd_posix_wrap(&obj, bf->fd);
         if (xvfs_fsync(&obj) != 0) {
-            xrdc_status_set(st, XRDC_EIO, errno,
+            brix_status_set(st, XRDC_EIO, errno,
                             "vfs block commit fsync: %s", strerror(errno));
             return -1;
         }
@@ -301,7 +301,7 @@ block_commit(xrdc_vfs_file *f, xrdc_status *st)
  * HOW:  unconditional no-op.
  */
 static void
-block_abort(xrdc_vfs_file *f)
+block_abort(brix_vfs_file *f)
 {
     (void) f;
 }
@@ -312,14 +312,14 @@ block_abort(xrdc_vfs_file *f)
  * WHAT: frees the ring (if any), closes the fd, frees the path string, and
  *       frees the handle struct.  Must be called after commit() or abort().
  * WHY:  owns all resources allocated by block_be_open(); one release point.
- * HOW:  xrdc_disk_ring_destroy (safe on NULL); close(fd); free path; free bf.
+ * HOW:  brix_disk_ring_destroy (safe on NULL); close(fd); free path; free bf.
  */
 static void
-block_close(xrdc_vfs_file *f)
+block_close(brix_vfs_file *f)
 {
     vfs_block_file *bf = (vfs_block_file *) f;
 
-    xrdc_disk_ring_destroy(bf->ring);
+    brix_disk_ring_destroy(bf->ring);
 
     if (bf->fd >= 0) {
         close(bf->fd);
@@ -330,7 +330,7 @@ block_close(xrdc_vfs_file *f)
 }
 
 /* vtable singleton */
-static const xrdc_vfs_ops s_block_ops = {
+static const brix_vfs_ops s_block_ops = {
     .pread    = block_pread,
     .pwrite   = block_pwrite,
     .fstat    = block_fstat,
@@ -356,9 +356,9 @@ static const xrdc_vfs_ops s_block_ops = {
  *       Caller receives NULL *out on any failure.
  */
 static int
-block_be_open(const xrdc_vfs_backend *be, const char *path, int flags,
-              const xrdc_vfs_open_opts *opts, xrdc_vfs_file **out,
-              xrdc_status *st)
+block_be_open(const brix_vfs_backend *be, const char *path, int flags,
+              const brix_vfs_open_opts *opts, brix_vfs_file **out,
+              brix_status *st)
 {
     vfs_block_file *bf;
     int             fd = -1;
@@ -373,7 +373,7 @@ block_be_open(const xrdc_vfs_backend *be, const char *path, int flags,
 
     path_copy = strdup(path);
     if (path_copy == NULL) {
-        xrdc_status_set(st, XRDC_EIO, ENOMEM,
+        brix_status_set(st, XRDC_EIO, ENOMEM,
                         "vfs block open: out of memory");
         return -1;
     }
@@ -382,10 +382,10 @@ block_be_open(const xrdc_vfs_backend *be, const char *path, int flags,
         /* Open the target in place through the shared block driver. No create/
          * truncate (a device node must pre-exist and must not be zeroed);
          * O_NOFOLLOW guards against a symlink being swapped in. */
-        fd = xrootd_sd_block_open_unconfined(path,
-                 XROOTD_SD_O_WRITE | XROOTD_SD_O_NOFOLLOW, 0);
+        fd = brix_sd_block_open_unconfined(path,
+                 BRIX_SD_O_WRITE | BRIX_SD_O_NOFOLLOW, 0);
         if (fd < 0) {
-            xrdc_status_set(st, XRDC_EIO, errno,
+            brix_status_set(st, XRDC_EIO, errno,
                             "vfs block open write %s: %s",
                             path, strerror(errno));
             free(path_copy);
@@ -393,9 +393,9 @@ block_be_open(const xrdc_vfs_backend *be, const char *path, int flags,
         }
     } else {
         /* READ — in place through the shared block driver. */
-        fd = xrootd_sd_block_open_unconfined(path, XROOTD_SD_O_READ, 0);
+        fd = brix_sd_block_open_unconfined(path, BRIX_SD_O_READ, 0);
         if (fd < 0) {
-            xrdc_status_set(st, XRDC_EIO, errno,
+            brix_status_set(st, XRDC_EIO, errno,
                             "vfs block open read %s: %s",
                             path, strerror(errno));
             free(path_copy);
@@ -405,7 +405,7 @@ block_be_open(const xrdc_vfs_backend *be, const char *path, int flags,
 
     bf = calloc(1, sizeof(*bf));
     if (bf == NULL) {
-        xrdc_status_set(st, XRDC_EIO, ENOMEM,
+        brix_status_set(st, XRDC_EIO, ENOMEM,
                         "vfs block open: out of memory");
         close(fd);
         free(path_copy);
@@ -434,15 +434,15 @@ block_be_open(const xrdc_vfs_backend *be, const char *path, int flags,
 /*
  * block_be_stat — stat a path by name without opening a handle.
  *
- * WHAT: calls stat(2) on path; fills xrdc_vfs_stat.  For block devices reports
+ * WHAT: calls stat(2) on path; fills brix_vfs_stat.  For block devices reports
  *       BLKGETSIZE64 size by opening the path briefly for the ioctl.
  * WHY:  allows pre-transfer existence/size checks without a full open.
  * HOW:  stat(2); ENOENT → exists=0, return 0; S_ISBLK → open+BLKGETSIZE64;
  *       other errors → -1, st.
  */
 static int
-block_be_stat(const xrdc_vfs_backend *be, const char *path,
-              xrdc_vfs_stat *out, xrdc_status *st)
+block_be_stat(const brix_vfs_backend *be, const char *path,
+              brix_vfs_stat *out, brix_status *st)
 {
     struct stat sb;
 
@@ -456,19 +456,19 @@ block_be_stat(const xrdc_vfs_backend *be, const char *path,
             out->is_dir = 0;
             return 0;
         }
-        xrdc_status_set(st, XRDC_EIO, errno,
+        brix_status_set(st, XRDC_EIO, errno,
                         "vfs block stat %s: %s", path, strerror(errno));
         return -1;
     }
 
     if (S_ISBLK(sb.st_mode)) {
-        int tmp_fd = xrootd_sd_block_open_unconfined(path,
-                         XROOTD_SD_O_READ | XROOTD_SD_O_NOFOLLOW, 0);
+        int tmp_fd = brix_sd_block_open_unconfined(path,
+                         BRIX_SD_O_READ | BRIX_SD_O_NOFOLLOW, 0);
         if (tmp_fd >= 0) {
-            xrootd_sd_obj_t  obj;
-            xrootd_sd_stat_t sd;
-            xrootd_sd_posix_wrap(&obj, tmp_fd);
-            if (xrootd_sd_block_driver.fstat(&obj, &sd) == NGX_OK
+            brix_sd_obj_t  obj;
+            brix_sd_stat_t sd;
+            brix_sd_posix_wrap(&obj, tmp_fd);
+            if (brix_sd_block_driver.fstat(&obj, &sd) == NGX_OK
                 && sd.size > 0) {
                 out->size = (int64_t) sd.size;
             } else {
@@ -489,7 +489,7 @@ block_be_stat(const xrdc_vfs_backend *be, const char *path,
 }
 
 /* Backend descriptor + accessor */
-static const xrdc_vfs_backend s_block_backend = {
+static const brix_vfs_backend s_block_backend = {
     .scheme = "block",
     .caps   = (XRDC_VFS_CAP_RANDOM_WRITE | XRDC_VFS_CAP_FADVISE),
     .open   = block_be_open,
@@ -497,17 +497,17 @@ static const xrdc_vfs_backend s_block_backend = {
 };
 
 /*
- * xrdc_vfs_block_backend — pure factory: return the block backend descriptor.
+ * brix_vfs_block_backend — pure factory: return the block backend descriptor.
  *
  * WHAT: strong definition that overrides the weak stub in vfs.c; called once
  *       during vfs_init_backends() (pthread_once).  Returns the static
- *       descriptor; vfs.c's init owns the xrdc_vfs_register_backend() call.
+ *       descriptor; vfs.c's init owns the brix_vfs_register_backend() call.
  * WHY:  registration is the façade's responsibility — the accessor must not
  *       double-register (which would consume two of the 8 registry slots).
  * HOW:  return the static descriptor directly.
  */
-const xrdc_vfs_backend *
-xrdc_vfs_block_backend(void)
+const brix_vfs_backend *
+brix_vfs_block_backend(void)
 {
     return &s_block_backend;
 }

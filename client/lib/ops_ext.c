@@ -4,16 +4,16 @@
  *
  * WHAT: Path-based ops that close POSIX gaps the base XRootD protocol lacks, so a
  *       FUSE mount can honour `cp -p` / `touch -d` (setattr times), chown (setattr
- *       owner), and `ln`/`ln -s` (link/symlink). Plus xrdc_ext_probe(), which
+ *       owner), and `ln`/`ln -s` (link/symlink). Plus brix_ext_probe(), which
  *       queries kXR_Qconfig "xrdfs.ext" so a caller only emits these opcodes
  *       against a server that advertises support.
  * HOW:  Each builds its 24-byte ClientXxxRequest (wire_vendor_ext.h) + payload and
- *       exchanges it via xrdc_roundtrip (redirect-aware). setattr's variable
+ *       exchanges it via brix_roundtrip (redirect-aware). setattr's variable
  *       attribute block is encoded big-endian into the payload prefix.
  *
  * Clean-room: the shared wire structs + frame.c only. No XrdCl.
  */
-#include "xrdc.h"
+#include "brix.h"
 #include "core/compat/vendor_ext.h"   /* shared kXR_setattr prefix codec (libxrdproto) */
 
 #include <endian.h>
@@ -24,14 +24,14 @@
 
 /* roundtrip wrapper that discards the (empty) reply body. 0 / -1 (st set). */
 static int
-ext_simple(xrdc_conn *c, void *hdr24, const void *payload, uint32_t plen,
-           xrdc_status *st)
+ext_simple(brix_conn *c, void *hdr24, const void *payload, uint32_t plen,
+           brix_status *st)
 {
     uint16_t status;
     uint8_t *body = NULL;
     uint32_t blen = 0;
 
-    if (xrdc_roundtrip(c, hdr24, payload, plen, &status, &body, &blen, st) != 0) {
+    if (brix_roundtrip(c, hdr24, payload, plen, &status, &body, &blen, st) != 0) {
         return -1;
     }
     free(body);
@@ -39,14 +39,14 @@ ext_simple(xrdc_conn *c, void *hdr24, const void *payload, uint32_t plen,
 }
 
 int
-xrdc_setattr(xrdc_conn *c, const char *path, int set_times,
+brix_setattr(brix_conn *c, const char *path, int set_times,
              const struct timespec times[2], int set_owner,
-             uint32_t uid, uint32_t gid, xrdc_status *st)
+             uint32_t uid, uint32_t gid, brix_status *st)
 {
     ClientSetattrRequest req;
     uint8_t             *payload;
     size_t               plen = strlen(path);
-    size_t               total = XROOTD_SETATTR_PREFIX_LEN + plen + 1;
+    size_t               total = BRIX_SETATTR_PREFIX_LEN + plen + 1;
     uint8_t             *p;
     uint32_t             flags = 0;
     int                  rc;
@@ -56,7 +56,7 @@ xrdc_setattr(xrdc_conn *c, const char *path, int set_times,
 
     payload = (uint8_t *) calloc(1, total);
     if (payload == NULL) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "out of memory");
+        brix_status_set(st, XRDC_EPROTO, 0, "out of memory");
         return -1;
     }
     p = payload;
@@ -73,7 +73,7 @@ xrdc_setattr(xrdc_conn *c, const char *path, int set_times,
         a.gid        = set_owner ? (int32_t) gid : -1;
         xrdp_setattr_prefix_pack(&a, p);
     }
-    memcpy(p + XROOTD_SETATTR_PREFIX_LEN, path, plen + 1);
+    memcpy(p + BRIX_SETATTR_PREFIX_LEN, path, plen + 1);
 
     memset(&req, 0, sizeof(req));
     req.requestid = htons(kXR_setattr);
@@ -85,8 +85,8 @@ xrdc_setattr(xrdc_conn *c, const char *path, int set_times,
 }
 
 int
-xrdc_symlink(xrdc_conn *c, const char *target, const char *linkpath,
-             xrdc_status *st)
+brix_symlink(brix_conn *c, const char *target, const char *linkpath,
+             brix_status *st)
 {
     ClientSymlinkRequest req;
     char                *payload;
@@ -95,12 +95,12 @@ xrdc_symlink(xrdc_conn *c, const char *target, const char *linkpath,
     int                  rc;
 
     if (tl == 0 || tl > 0x7fff) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "symlink target length out of range");
+        brix_status_set(st, XRDC_EUSAGE, 0, "symlink target length out of range");
         return -1;
     }
     payload = (char *) malloc(total);
     if (payload == NULL) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "out of memory");
+        brix_status_set(st, XRDC_EPROTO, 0, "out of memory");
         return -1;
     }
     memcpy(payload, target, tl);
@@ -120,8 +120,8 @@ xrdc_symlink(xrdc_conn *c, const char *target, const char *linkpath,
 }
 
 int
-xrdc_link(xrdc_conn *c, const char *oldpath, const char *newpath,
-          xrdc_status *st)
+brix_link(brix_conn *c, const char *oldpath, const char *newpath,
+          brix_status *st)
 {
     ClientLinkRequest req;
     char             *payload;
@@ -130,12 +130,12 @@ xrdc_link(xrdc_conn *c, const char *oldpath, const char *newpath,
     int               rc;
 
     if (ol == 0 || ol > 0x7fff) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "link source length out of range");
+        brix_status_set(st, XRDC_EUSAGE, 0, "link source length out of range");
         return -1;
     }
     payload = (char *) malloc(total);
     if (payload == NULL) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "out of memory");
+        brix_status_set(st, XRDC_EPROTO, 0, "out of memory");
         return -1;
     }
     memcpy(payload, oldpath, ol);
@@ -155,8 +155,8 @@ xrdc_link(xrdc_conn *c, const char *oldpath, const char *newpath,
 }
 
 ssize_t
-xrdc_readlink(xrdc_conn *c, const char *path, char *out, size_t outsz,
-              xrdc_status *st)
+brix_readlink(brix_conn *c, const char *path, char *out, size_t outsz,
+              brix_status *st)
 {
     ClientReadlinkRequest req;
     uint16_t              status;
@@ -168,7 +168,7 @@ xrdc_readlink(xrdc_conn *c, const char *path, char *out, size_t outsz,
     req.requestid = htons(kXR_readlink);
     xrdw_empty_req_pack(((ClientRequestHdr *) &req)->body);
 
-    if (xrdc_roundtrip(c, &req, path, (uint32_t) strlen(path),
+    if (brix_roundtrip(c, &req, path, (uint32_t) strlen(path),
                        &status, &body, &blen, st) != 0) {
         return -1;
     }
@@ -180,8 +180,8 @@ xrdc_readlink(xrdc_conn *c, const char *path, char *out, size_t outsz,
 }
 
 int
-xrdc_ext_probe(xrdc_conn *c, int *has_setattr, int *has_symlink,
-               int *has_readlink, int *has_link, xrdc_status *st)
+brix_ext_probe(brix_conn *c, int *has_setattr, int *has_symlink,
+               int *has_readlink, int *has_link, brix_status *st)
 {
     char reply[256];
 
@@ -190,7 +190,7 @@ xrdc_ext_probe(xrdc_conn *c, int *has_setattr, int *has_symlink,
     if (has_readlink) { *has_readlink = 0; }
     if (has_link)     { *has_link     = 0; }
 
-    if (xrdc_query(c, kXR_Qconfig, "xrdfs.ext", reply, sizeof(reply), st) != 0) {
+    if (brix_query(c, kXR_Qconfig, "xrdfs.ext", reply, sizeof(reply), st) != 0) {
         return -1;
     }
     /* reply is "xrdfs.ext=setattr,symlink,readlink,link" or "xrdfs.ext=0". */

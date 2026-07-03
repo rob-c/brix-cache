@@ -5,7 +5,7 @@
  *       `bench` (B1) and `verify --wire` (A1) modes — latency percentiles,
  *       throughput/IOPS, and the checksum-comparison verdict.
  * WHY:  isolating the math from the network I/O makes both modes unit-testable
- *       standalone (no server, no libxrdc), mirroring the repo's
+ *       standalone (no server, no libbrix), mirroring the repo's
  *       *_unittest.c pattern.
  * HOW:  pure functions over caller-owned buffers; no allocation that outlives a
  *       call, no globals.

@@ -21,8 +21,8 @@
 #define XRDC_AUTH_MAX_ROUNDS 8
 
 static int
-send_auth(xrdc_conn *c, const char credtype[4], const uint8_t *payload,
-          uint32_t plen, uint16_t *sid, xrdc_status *st)
+send_auth(brix_conn *c, const char credtype[4], const uint8_t *payload,
+          uint32_t plen, uint16_t *sid, brix_status *st)
 {
     ClientAuthRequest req;
 
@@ -33,13 +33,13 @@ send_auth(xrdc_conn *c, const char credtype[4], const uint8_t *payload,
         memcpy(b.credtype, credtype, 4);
         xrdw_auth_req_pack(&b, ((ClientRequestHdr *) &req)->body);
     }
-    return xrdc_send(c, &req, payload, plen, sid, st);
+    return brix_send(c, &req, payload, plen, sid, st);
 }
 
 /* Run one protocol's kXR_auth/authmore exchange to completion. 0 / -1. */
 static int
-run_module(xrdc_conn *c, const xrdc_sec_module *m, const char *parms,
-           xrdc_status *st)
+run_module(brix_conn *c, const brix_sec_module *m, const char *parms,
+           brix_status *st)
 {
     uint8_t *payload = NULL;
     uint32_t plen = 0;
@@ -62,7 +62,7 @@ run_module(xrdc_conn *c, const xrdc_sec_module *m, const char *parms,
         if (rc != 0) {
             return -1;
         }
-        if (xrdc_recv(c, sid, &status, &body, &blen, st) != 0) {
+        if (brix_recv(c, sid, &status, &body, &blen, st) != 0) {
             return -1;   /* kXR_error → st already set */
         }
         if (status == kXR_ok) {
@@ -75,7 +75,7 @@ run_module(xrdc_conn *c, const xrdc_sec_module *m, const char *parms,
         if (status == kXR_authmore) {
             if (m->more == NULL) {
                 free(body);
-                xrdc_status_set(st, XRDC_EAUTH, 0,
+                brix_status_set(st, XRDC_EAUTH, 0,
                                 "%s: server asked for more rounds (unsupported)",
                                 m->name);
                 return -1;
@@ -86,28 +86,28 @@ run_module(xrdc_conn *c, const xrdc_sec_module *m, const char *parms,
                 return -1;
             }
             if (payload == NULL) {
-                xrdc_status_set(st, XRDC_EAUTH, 0,
+                brix_status_set(st, XRDC_EAUTH, 0,
                                 "%s: auth ended without server ok", m->name);
                 return -1;
             }
             continue;
         }
         free(body);
-        xrdc_status_set(st, XRDC_EAUTH, 0, "%s: unexpected auth status %u",
+        brix_status_set(st, XRDC_EAUTH, 0, "%s: unexpected auth status %u",
                         m->name, status);
         return -1;
     }
 
     free(payload);
-    xrdc_status_set(st, XRDC_EAUTH, 0, "%s: too many auth rounds", m->name);
+    brix_status_set(st, XRDC_EAUTH, 0, "%s: too many auth rounds", m->name);
     return -1;
 }
 
 int
-xrdc_authenticate(xrdc_conn *c, const char *seclist, const xrdc_opts *o,
-                  xrdc_status *st)
+brix_authenticate(brix_conn *c, const char *seclist, const brix_opts *o,
+                  brix_status *st)
 {
-    const xrdc_sec_module *mods[7];
+    const brix_sec_module *mods[7];
     int                    nmods = 0;
     int                    i;
     int                    tried = 0;
@@ -121,18 +121,18 @@ xrdc_authenticate(xrdc_conn *c, const char *seclist, const xrdc_opts *o,
 
     /* Preference order: gsi > ztn > krb5 > sss > unix > host > pwd.
      * (NULL skipped; each is tried only if the server advertised it.) */
-    if (xrdc_sec_gsi() != NULL) {
-        mods[nmods++] = xrdc_sec_gsi();
+    if (brix_sec_gsi() != NULL) {
+        mods[nmods++] = brix_sec_gsi();
     }
-    mods[nmods++] = xrdc_sec_token();
-    mods[nmods++] = xrdc_sec_krb5();
-    mods[nmods++] = xrdc_sec_sss();
-    mods[nmods++] = xrdc_sec_unix();
-    mods[nmods++] = xrdc_sec_host();
-    mods[nmods++] = xrdc_sec_pwd();
+    mods[nmods++] = brix_sec_token();
+    mods[nmods++] = brix_sec_krb5();
+    mods[nmods++] = brix_sec_sss();
+    mods[nmods++] = brix_sec_unix();
+    mods[nmods++] = brix_sec_host();
+    mods[nmods++] = brix_sec_pwd();
 
     for (i = 0; i < nmods; i++) {
-        const xrdc_sec_module *m = mods[i];
+        const brix_sec_module *m = mods[i];
         char                   parms[256];
 
         if (m == NULL) {
@@ -142,7 +142,7 @@ xrdc_authenticate(xrdc_conn *c, const char *seclist, const xrdc_opts *o,
             && strcmp(o->auth_force, m->name) != 0) {
             continue;
         }
-        if (!xrootd_sec_proto_advertised(seclist, m->name, parms, sizeof(parms))) {
+        if (!brix_sec_proto_advertised(seclist, m->name, parms, sizeof(parms))) {
             continue;
         }
         if (m->have_creds != NULL && !m->have_creds(c)) {
@@ -163,13 +163,13 @@ xrdc_authenticate(xrdc_conn *c, const char *seclist, const xrdc_opts *o,
          * output (stdout) clean.
          */
         fprintf(stderr,
-                "xrdc: warning: '%s' authentication failed (%s); "
+                "brix: warning: '%s' authentication failed (%s); "
                 "falling back to the next offered protocol\n",
                 m->name, st->msg[0] ? st->msg : "no detail");
     }
 
     if (!tried) {
-        xrdc_status_set(st, XRDC_EAUTH, 0,
+        brix_status_set(st, XRDC_EAUTH, 0,
                         "no usable auth protocol for server list \"%s\"%s",
                         seclist,
                         (o != NULL && o->auth_force) ? " (with --auth filter)" : "");
@@ -178,21 +178,21 @@ xrdc_authenticate(xrdc_conn *c, const char *seclist, const xrdc_opts *o,
 }
 
 void
-xrdc_auth_explain(xrdc_conn *c, const xrdc_opts *o, FILE *out)
+brix_auth_explain(brix_conn *c, const brix_opts *o, FILE *out)
 {
-    const xrdc_sec_module *mods[7];
+    const brix_sec_module *mods[7];
     int                    nmods = 0, i, picked = 0;
     char                   parms[256];
 
-    if (xrdc_sec_gsi() != NULL) {
-        mods[nmods++] = xrdc_sec_gsi();
+    if (brix_sec_gsi() != NULL) {
+        mods[nmods++] = brix_sec_gsi();
     }
-    mods[nmods++] = xrdc_sec_token();
-    mods[nmods++] = xrdc_sec_krb5();
-    mods[nmods++] = xrdc_sec_sss();
-    mods[nmods++] = xrdc_sec_unix();
-    mods[nmods++] = xrdc_sec_host();
-    mods[nmods++] = xrdc_sec_pwd();
+    mods[nmods++] = brix_sec_token();
+    mods[nmods++] = brix_sec_krb5();
+    mods[nmods++] = brix_sec_sss();
+    mods[nmods++] = brix_sec_unix();
+    mods[nmods++] = brix_sec_host();
+    mods[nmods++] = brix_sec_pwd();
 
     fprintf(out, "  sec list: %s\n",
             c->sec_list[0] ? c->sec_list : "(none — anonymous)");
@@ -202,7 +202,7 @@ xrdc_auth_explain(xrdc_conn *c, const xrdc_opts *o, FILE *out)
     /* Re-derive the would-be choice read-only, so "why skipped" matches the real
      * driver's preference order (gsi > ztn > unix). */
     for (i = 0; i < nmods; i++) {
-        const xrdc_sec_module *m = mods[i];
+        const brix_sec_module *m = mods[i];
         const char            *why;
         if (m == NULL) {
             continue;
@@ -210,7 +210,7 @@ xrdc_auth_explain(xrdc_conn *c, const xrdc_opts *o, FILE *out)
         if (o != NULL && o->auth_force != NULL
             && strcmp(o->auth_force, m->name) != 0) {
             why = "skipped (--auth filter)";
-        } else if (!xrootd_sec_proto_advertised(c->sec_list, m->name, parms, sizeof(parms))) {
+        } else if (!brix_sec_proto_advertised(c->sec_list, m->name, parms, sizeof(parms))) {
             why = "not offered by server";
         } else if (m->have_creds != NULL && !m->have_creds(c)) {
             why = "offered, but no local credentials";

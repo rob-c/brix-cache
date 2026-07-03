@@ -17,7 +17,7 @@
  * Every function is fail-soft: malformed input prints a one-line note and
  * returns; it must never crash `explain`. Clean-room: standard JWT/RFC + OpenSSL.
  */
-#include "xrdc.h"
+#include "brix.h"
 #include "auth/token/b64url.h"   /* shared base64url decode + JWS splitter (libxrdproto) */
 #include "auth/token/scopes.h"   /* shared WLCG scope parser (libxrdproto) */
 #include "core/compat/json_min.h" /* shared dependency-free JSON value extractor */
@@ -65,11 +65,11 @@ decode_payload_json(const char *jwt, char *out, size_t outsz)
 static int
 json_str(const char *json, const char *key, char *out, size_t outsz)
 {
-    return xrootd_json_get_str(json, strlen(json), key, out, outsz);
+    return brix_json_get_str(json, strlen(json), key, out, outsz);
 }
 
 void
-xrdc_token_explain(const char *jwt, FILE *out)
+brix_token_explain(const char *jwt, FILE *out)
 {
     char json[8192];
     char buf[512];
@@ -102,12 +102,12 @@ xrdc_token_explain(const char *jwt, FILE *out)
  *       or deny an operation — turning a guess into an oracle-backed assertion.
  * HOW:  base64url-decode the payload (shared decoder), scalar-scan exp (vs local
  *       clock), and classify the WLCG `scope` claim with the SHARED scope parser
- *       (xrootd_token_parse_scopes — the exact mapping the server enforces) so the
+ *       (brix_token_parse_scopes — the exact mapping the server enforces) so the
  *       oracle predicts the server's decision rather than approximating it. No
  *       signature verify — the server is the gate; this only predicts its answer.
  */
 void
-xrdc_token_meta_get(const char *jwt, xrdc_token_meta *m)
+brix_token_meta_get(const char *jwt, brix_token_meta *m)
 {
     char json[8192];
     char scope[1024];
@@ -131,8 +131,8 @@ xrdc_token_meta_get(const char *jwt, xrdc_token_meta *m)
         }
     }
     if (json_str(json, "scope", scope, sizeof(scope))) {
-        xrootd_token_scope_t sc[16];
-        int nsc = xrootd_token_parse_scopes(scope, sc, 16);
+        brix_token_scope_t sc[16];
+        int nsc = brix_token_parse_scopes(scope, sc, 16);
         m->has_scope = 1;
         if (nsc > 0) {
             /* Path-agnostic "any read/write-capable scope?" derived from the
@@ -189,7 +189,7 @@ voms_scan(const unsigned char *der, int len, FILE *out)
 }
 
 void
-xrdc_gsi_cert_explain(const char *proxy_path, FILE *out)
+brix_gsi_cert_explain(const char *proxy_path, FILE *out)
 {
     BIO  *bio;
     X509 *cert;
@@ -198,7 +198,7 @@ xrdc_gsi_cert_explain(const char *proxy_path, FILE *out)
     if (proxy_path == NULL || proxy_path[0] == '\0') {
         return;
     }
-    bio = xrdc_credfile_bio(proxy_path, 1);
+    bio = brix_credfile_bio(proxy_path, 1);
     if (bio == NULL) {
         return;
     }
@@ -272,7 +272,7 @@ xrdc_gsi_cert_explain(const char *proxy_path, FILE *out)
  *       gate — the server remains authoritative).
  */
 int
-xrdc_cred_diagnose(int want_write, const char *prefix, FILE *out)
+brix_cred_diagnose(int want_write, const char *prefix, FILE *out)
 {
     int   problem = 0;
     char *tok;
@@ -287,11 +287,11 @@ xrdc_cred_diagnose(int want_write, const char *prefix, FILE *out)
     }
 
     /* Bearer token, if one is discoverable (env / file / XDG / /tmp). */
-    tok = xrdc_token_discover();
+    tok = brix_token_discover();
     if (tok != NULL) {
-        xrdc_token_meta m;
+        brix_token_meta m;
         memset(&m, 0, sizeof(m));
-        xrdc_token_meta_get(tok, &m);
+        brix_token_meta_get(tok, &m);
         if (m.valid) {
             if (m.expired) {
                 fprintf(out, "%sbearer token has EXPIRED (exp %ld, %ld s ago) — "
@@ -315,8 +315,8 @@ xrdc_cred_diagnose(int want_write, const char *prefix, FILE *out)
     }
 
     /* GSI proxy, if one is present at the default path. */
-    xrdc_proxy_default_path(pxp, sizeof(pxp));
-    if (access(pxp, R_OK) == 0 && xrdc_proxy_remaining(pxp, &left) == 0) {
+    brix_proxy_default_path(pxp, sizeof(pxp));
+    if (access(pxp, R_OK) == 0 && brix_proxy_remaining(pxp, &left) == 0) {
         if (left <= 0) {
             fprintf(out, "%sGSI proxy has EXPIRED (%s) — run 'xrdgsiproxy init'\n",
                     prefix, pxp);
@@ -336,7 +336,7 @@ xrdc_cred_diagnose(int want_write, const char *prefix, FILE *out)
  * does not trigger credential noise.  Indented under the primary error line.
  */
 void
-xrdc_cred_hint_for_status(const xrdc_status *st, int want_write, FILE *out)
+brix_cred_hint_for_status(const brix_status *st, int want_write, FILE *out)
 {
     if (st == NULL || out == NULL) {
         return;
@@ -344,5 +344,5 @@ xrdc_cred_hint_for_status(const xrdc_status *st, int want_write, FILE *out)
     if (st->kxr != kXR_NotAuthorized && st->kxr != kXR_AuthFailed) {
         return;
     }
-    (void) xrdc_cred_diagnose(want_write, "  hint: ", out);
+    (void) brix_cred_diagnose(want_write, "  hint: ", out);
 }

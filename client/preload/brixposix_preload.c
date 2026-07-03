@@ -1,17 +1,17 @@
 /*
- * xrdposix_preload.c — an LD_PRELOAD shim that routes POSIX reads of a configured
- * path prefix to an XRootD root:// export via libxrdc.
+ * brixposix_preload.c — an LD_PRELOAD shim that routes POSIX reads of a configured
+ * path prefix to an XRootD root:// export via libbrix.
  *
  * WHAT: Interpose open/read/pread/lseek/close, the stat family (incl. statx and
  *       the LFS *64 variants) and access on libc. Any
- *       path under the prefix named by $XROOTD_VMP is served from a remote XRootD
+ *       path under the prefix named by $BRIX_VMP is served from a remote XRootD
  *       server; every other path passes straight through to the real libc call.
  * WHY:  Legacy tools that only know POSIX paths (cat, md5sum, ls, analysis jobs)
  *       can read remote XRootD data with no recompile and NO libXrdCl/XrdPosix --
- *       just LD_PRELOAD=libxrdposix_preload.so XROOTD_VMP=/xrd=root://host:port/.
- * HOW:  $XROOTD_VMP = "<localprefix>=root://host[:port][/base]". A path that
+ *       just LD_PRELOAD=libbrixposix_preload.so BRIX_VMP=/xrd=root://host:port/.
+ * HOW:  $BRIX_VMP = "<localprefix>=root://host[:port][/base]". A path that
  *       starts with <localprefix> is rewritten to the remote logical path and
- *       opened through a single lazily-connected libxrdc session (one request in
+ *       opened through a single lazily-connected libbrix session (one request in
  *       flight, mutex-guarded). Remote descriptors live in a shadow fd table at
  *       fds >= XFS_FD_BASE so read/lseek/close/fstat can tell them apart from
  *       real fds. Real libc symbols are resolved with dlsym(RTLD_NEXT) via the
@@ -22,12 +22,12 @@
  * __xstat() routing (modern glibc exports stat/lstat/fstat as real symbols, which
  * we interpose directly).
  *
- * Clean-room: composes the public libxrdc API + dlsym only; no XrdPosix code.
+ * Clean-room: composes the public libbrix API + dlsym only; no XrdPosix code.
  */
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE   /* RTLD_NEXT, *64 variants (the build also passes -D_GNU_SOURCE) */
 #endif
-#include "xrdc.h"
+#include "brix.h"
 
 #include <dlfcn.h>
 #include <errno.h>
@@ -41,27 +41,27 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-/* configuration (XROOTD_VMP) + the lazily-connected session           */
+/* configuration (BRIX_VMP) + the lazily-connected session           */
 
 static pthread_once_t  g_once = PTHREAD_ONCE_INIT;
 static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
 
-static int       g_enabled;            /* XROOTD_VMP parsed and usable */
+static int       g_enabled;            /* BRIX_VMP parsed and usable */
 static char      g_prefix[256];        /* local path prefix, e.g. "/xrd" */
 static size_t    g_prefix_len;
-static xrdc_url  g_url;                 /* remote endpoint + base path */
+static brix_url  g_url;                 /* remote endpoint + base path */
 static char      g_base[XRDC_PATH_MAX]; /* remote base ("" when "/") */
 
-static xrdc_conn g_conn;
+static brix_conn g_conn;
 static int       g_connected;
 
 static void
 parse_vmp(void)
 {
-    const char *vmp = getenv("XROOTD_VMP");
+    const char *vmp = getenv("BRIX_VMP");
     const char *eq;
     char        url[512];
-    xrdc_status st;
+    brix_status st;
 
     if (vmp == NULL || vmp[0] == '\0') {
         return;
@@ -79,8 +79,8 @@ parse_vmp(void)
     }
 
     snprintf(url, sizeof(url), "%s", eq + 1);
-    xrdc_status_clear(&st);
-    if (xrdc_endpoint_parse(url, &g_url, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_endpoint_parse(url, &g_url, &st) != 0) {
         return;
     }
     if (g_url.path[0] != '\0' && strcmp(g_url.path, "/") != 0) {
@@ -132,12 +132,12 @@ map_path(const char *path, char *out, size_t outsz)
 static int
 ensure_conn(void)
 {
-    xrdc_status st;
+    brix_status st;
     if (g_connected) {
         return 0;
     }
-    xrdc_status_clear(&st);
-    if (xrdc_connect(&g_conn, &g_url, NULL, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_connect(&g_conn, &g_url, NULL, &st) != 0) {
         return -1;
     }
     g_connected = 1;
@@ -151,7 +151,7 @@ ensure_conn(void)
 
 typedef struct {
     int        used;
-    xrdc_rfile f;     /* resilient: reopens + resumes after a sever */
+    brix_rfile f;     /* resilient: reopens + resumes after a sever */
     int64_t    pos;
     int64_t    size;
 } xfs_slot;
@@ -187,7 +187,7 @@ slot_of(int fd)
 }
 
 static void
-fill_stat(const xrdc_statinfo *si, struct stat *stbuf)
+fill_stat(const brix_statinfo *si, struct stat *stbuf)
 {
     memset(stbuf, 0, sizeof(*stbuf));
     if (si->flags & kXR_isDir) {
@@ -231,16 +231,16 @@ remote_open(const char *remote)
     }
     s = &g_slots[slot];
     {
-        xrdc_status   st;
-        xrdc_statinfo si;
-        xrdc_status_clear(&st);
-        if (xrdc_rfile_open_read(&g_conn, remote, NULL, 0, -1, &s->f, &st) != 0) {
+        brix_status   st;
+        brix_statinfo si;
+        brix_status_clear(&st);
+        if (brix_rfile_open_read(&g_conn, remote, NULL, 0, -1, &s->f, &st) != 0) {
             s->used = 0;
             pthread_mutex_unlock(&g_lock);
-            errno = -xrdc_kxr_to_errno(&st);
+            errno = -brix_kxr_to_errno(&st);
             return -1;
         }
-        if (xrdc_stat(&g_conn, remote, &si, &st) == 0) {
+        if (brix_stat(&g_conn, remote, &si, &st) == 0) {
             s->size = si.size;
         }
     }
@@ -306,17 +306,17 @@ read(int fd, void *buf, size_t count)
         return real_read(fd, buf, count);
     }
     {
-        xrdc_status st;
+        brix_status st;
         ssize_t     r;
         pthread_mutex_lock(&g_lock);
-        xrdc_status_clear(&st);
-        r = xrdc_rfile_pread(&s->f, s->pos, buf, count, &st);
+        brix_status_clear(&st);
+        r = brix_rfile_pread(&s->f, s->pos, buf, count, &st);
         if (r > 0) {
             s->pos += r;
         }
         pthread_mutex_unlock(&g_lock);
         if (r < 0) {
-            errno = -xrdc_kxr_to_errno(&st);
+            errno = -brix_kxr_to_errno(&st);
         }
         return r;
     }
@@ -333,14 +333,14 @@ pread(int fd, void *buf, size_t count, off_t offset)
         return real_pread(fd, buf, count, offset);
     }
     {
-        xrdc_status st;
+        brix_status st;
         ssize_t     r;
         pthread_mutex_lock(&g_lock);
-        xrdc_status_clear(&st);
-        r = xrdc_rfile_pread(&s->f, (int64_t) offset, buf, count, &st);
+        brix_status_clear(&st);
+        r = brix_rfile_pread(&s->f, (int64_t) offset, buf, count, &st);
         pthread_mutex_unlock(&g_lock);
         if (r < 0) {
-            errno = -xrdc_kxr_to_errno(&st);
+            errno = -brix_kxr_to_errno(&st);
         }
         return r;
     }
@@ -381,10 +381,10 @@ close(int fd)
         return real_close(fd);
     }
     {
-        xrdc_status st;
+        brix_status st;
         pthread_mutex_lock(&g_lock);
-        xrdc_status_clear(&st);
-        (void) xrdc_rfile_close(&s->f, &st);
+        brix_status_clear(&st);
+        (void) brix_rfile_close(&s->f, &st);
         s->used = 0;
         pthread_mutex_unlock(&g_lock);
     }
@@ -396,8 +396,8 @@ close(int fd)
 static int
 remote_stat(const char *remote, struct stat *stbuf)
 {
-    xrdc_status   st;
-    xrdc_statinfo si;
+    brix_status   st;
+    brix_statinfo si;
     int           rc;
 
     pthread_mutex_lock(&g_lock);
@@ -406,11 +406,11 @@ remote_stat(const char *remote, struct stat *stbuf)
         errno = EIO;
         return -1;
     }
-    xrdc_status_clear(&st);
-    rc = xrdc_stat(&g_conn, remote, &si, &st);
+    brix_status_clear(&st);
+    rc = brix_stat(&g_conn, remote, &si, &st);
     pthread_mutex_unlock(&g_lock);
     if (rc != 0) {
-        errno = -xrdc_kxr_to_errno(&st);
+        errno = -brix_kxr_to_errno(&st);
         return -1;
     }
     fill_stat(&si, stbuf);
@@ -548,8 +548,8 @@ statx(int dirfd, const char *path, int flags, unsigned int mask,
       struct statx *stxbuf)
 {
     char          remote[XRDC_PATH_MAX];
-    xrdc_status   st;
-    xrdc_statinfo si;
+    brix_status   st;
+    brix_statinfo si;
     int           rc;
     REAL(statx);
 
@@ -563,11 +563,11 @@ statx(int dirfd, const char *path, int flags, unsigned int mask,
         errno = EIO;
         return -1;
     }
-    xrdc_status_clear(&st);
-    rc = xrdc_stat(&g_conn, remote, &si, &st);
+    brix_status_clear(&st);
+    rc = brix_stat(&g_conn, remote, &si, &st);
     pthread_mutex_unlock(&g_lock);
     if (rc != 0) {
-        errno = -xrdc_kxr_to_errno(&st);
+        errno = -brix_kxr_to_errno(&st);
         return -1;
     }
     memset(stxbuf, 0, sizeof(*stxbuf));

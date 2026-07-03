@@ -5,9 +5,9 @@
  *       `xrdgsiproxy info [-file F]`, `xrdgsiproxy destroy [-file F]`.
  * WHY:  Users need a proxy before any GSI xrdcp/xrdfs; pure local OpenSSL via the
  *       client library (lib/proxy.c). libXrdCl/XrdCrypto-free.
- * HOW:  Thin arg parse → xrdc_proxy_create/info/destroy.
+ * HOW:  Thin arg parse → brix_proxy_create/info/destroy.
  */
-#include "xrdc.h"
+#include "brix.h"
 #include "core/compat/crypto.h"
 
 #include <stdio.h>
@@ -41,17 +41,17 @@ usage(void)
 int
 main(int argc, char **argv)
 {
-    xrdc_status     st;
+    brix_status     st;
     const char     *cmd;
     int             i, rc;
 
     if (argc < 2) { usage(); return 50; }
     cmd = argv[1];
-    xrootd_crypto_init();
-    xrdc_status_clear(&st);
+    brix_crypto_init();
+    brix_status_clear(&st);
 
     if (strcmp(cmd, "init") == 0) {
-        xrdc_proxy_opts o;
+        brix_proxy_opts o;
         memset(&o, 0, sizeof(o));
         for (i = 2; i < argc; i++) {
             if (strcmp(argv[i], "-valid") == 0 && i + 1 < argc) { o.valid_hours = parse_valid(argv[++i]); }
@@ -61,12 +61,12 @@ main(int argc, char **argv)
             else if (strcmp(argv[i], "-bits") == 0 && i + 1 < argc) { o.bits = atoi(argv[++i]); }
             else { usage(); return 50; }
         }
-        rc = xrdc_proxy_create(&o, &st);
+        rc = brix_proxy_create(&o, &st);
         if (rc != 0) {
             fprintf(stderr, "xrdgsiproxy: init: %s\n", st.msg);
-            return xrdc_shellcode(&st);
+            return brix_shellcode(&st);
         }
-        return xrdc_proxy_info(o.out_path, stdout, &st);  /* echo what we made */
+        return brix_proxy_info(o.out_path, stdout, &st);  /* echo what we made */
     }
 
     if (strcmp(cmd, "info") == 0 || strcmp(cmd, "destroy") == 0) {
@@ -76,8 +76,8 @@ main(int argc, char **argv)
             if (strcmp(argv[i], "-file") == 0 && i + 1 < argc) { file = argv[++i]; }
             else { usage(); return 50; }
         }
-        rc = is_info ? xrdc_proxy_info(file, stdout, &st)
-                     : xrdc_proxy_destroy(file, &st);
+        rc = is_info ? brix_proxy_info(file, stdout, &st)
+                     : brix_proxy_destroy(file, &st);
         if (rc == 0) {
             return 0;
         }
@@ -90,7 +90,7 @@ main(int argc, char **argv)
             return 1;
         }
         fprintf(stderr, "xrdgsiproxy: %s: %s\n", cmd, st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
 
     usage();

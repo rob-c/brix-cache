@@ -1,7 +1,7 @@
 /*
  * s3.c — AWS Signature Version 4 (path-style) for the native client.
  *
- * WHAT: xrdc_s3_sign_v4() builds the x-amz-date / x-amz-content-sha256 /
+ * WHAT: brix_s3_sign_v4() builds the x-amz-date / x-amz-content-sha256 /
  *       Authorization header block for any method+path+body-hash; the sha256
  *       helpers compute the payload hashes those headers carry.
  * WHY:  Both xrdcp's s3:// transfers and xrddiag's s3 probe need the identical
@@ -14,26 +14,26 @@
  *
  * Clean-room: implements the published SigV4 algorithm (AWS docs), not any SDK.
  */
-#include "xrdc.h"
-#include "core/compat/crypto.h"   /* xrootd_sha256 / xrootd_hmac_sha256 */
-#include "core/compat/hex.h"      /* xrootd_hex_encode */
-#include "core/compat/uri.h"      /* xrootd_http_urlencode (shared SigV4 canonical URI) */
-#include "core/compat/sigv4.h"    /* xrootd_sigv4_signing_key (shared 4-round HMAC chain) */
+#include "brix.h"
+#include "core/compat/crypto.h"   /* brix_sha256 / brix_hmac_sha256 */
+#include "core/compat/hex.h"      /* brix_hex_encode */
+#include "core/compat/uri.h"      /* brix_http_urlencode (shared SigV4 canonical URI) */
+#include "core/compat/sigv4.h"    /* brix_sigv4_signing_key (shared 4-round HMAC chain) */
 
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
 
 void
-xrdc_s3_sha256_hex(const void *data, size_t len, char *out)
+brix_s3_sha256_hex(const void *data, size_t len, char *out)
 {
     uint8_t d[32];
-    xrootd_sha256((const uint8_t *) data, len, d);
-    xrootd_hex_encode(d, 32, out);   /* lowercase 64 hex + NUL */
+    brix_sha256((const uint8_t *) data, len, d);
+    brix_hex_encode(d, 32, out);   /* lowercase 64 hex + NUL */
 }
 
 int
-xrdc_s3_sign_v4_q(const char *method, const char *host, const char *uri,
+brix_s3_sign_v4_q(const char *method, const char *host, const char *uri,
                   const char *canon_qs, const char *ak, const char *sk,
                   const char *region, const char *payload_hex,
                   char *hdrs, size_t hdrsz)
@@ -59,7 +59,7 @@ xrdc_s3_sign_v4_q(const char *method, const char *host, const char *uri,
 
     /* Shared SigV4 CanonicalURI encoder (RFC-3986 unreserved + '/'), byte-identical
      * to the server's verify path so client-signs == server-verifies. */
-    if (xrootd_http_urlencode((const unsigned char *) uri, strlen(uri),
+    if (brix_http_urlencode((const unsigned char *) uri, strlen(uri),
                               enc_uri, sizeof(enc_uri), "/") < 0) {
         return -1;
     }
@@ -75,7 +75,7 @@ xrdc_s3_sign_v4_q(const char *method, const char *host, const char *uri,
     if (cn < 0 || (size_t) cn >= sizeof(canon)) {
         return -1;
     }
-    xrdc_s3_sha256_hex(canon, strlen(canon), canon_hex);
+    brix_s3_sha256_hex(canon, strlen(canon), canon_hex);
 
     /* region is user/env-controlled (--s3-region / $AWS_DEFAULT_REGION); a
      * truncated scope/sts/hdrs would sign a different string than it advertises →
@@ -92,12 +92,12 @@ xrdc_s3_sign_v4_q(const char *method, const char *host, const char *uri,
     }
 
     /* Shared 4-round signing-key derive (libxrdproto), then sign the STS. */
-    if (!xrootd_sigv4_signing_key((const uint8_t *) sk, strlen(sk),
+    if (!brix_sigv4_signing_key((const uint8_t *) sk, strlen(sk),
                                   datestamp, region, "s3", k4)
-        || !xrootd_hmac_sha256(k4, 32, (const uint8_t *) sts, strlen(sts), sig)) {
+        || !brix_hmac_sha256(k4, 32, (const uint8_t *) sts, strlen(sts), sig)) {
         return -1;
     }
-    xrootd_hex_encode(sig, 32, sighex);
+    brix_hex_encode(sig, 32, sighex);
 
     cn = snprintf(hdrs, hdrsz,
              "x-amz-date: %s\r\nx-amz-content-sha256: %s\r\n"
@@ -111,11 +111,11 @@ xrdc_s3_sign_v4_q(const char *method, const char *host, const char *uri,
 }
 
 int
-xrdc_s3_sign_v4(const char *method, const char *host, const char *uri,
+brix_s3_sign_v4(const char *method, const char *host, const char *uri,
                 const char *ak, const char *sk, const char *region,
                 const char *payload_hex, char *hdrs, size_t hdrsz)
 {
     /* no query string (GET/HEAD/PUT on a plain object key) */
-    return xrdc_s3_sign_v4_q(method, host, uri, "", ak, sk, region,
+    return brix_s3_sign_v4_q(method, host, uri, "", ak, sk, region,
                              payload_hex, hdrs, hdrsz);
 }

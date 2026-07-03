@@ -6,7 +6,7 @@
  *       program over its own /w<id> subtree, timing every op.
  * WHY:  isolate the pblock backend under concurrency — the cost measured is the
  *       backend's, not repeated handshakes or process startup.
- * HOW:  one xrdc_conn per thread (xrdc_conn is one-request-in-flight and not
+ * HOW:  one brix_conn per thread (brix_conn is one-request-in-flight and not
  *       thread-safe; one-per-thread is the documented MT pattern). Latencies are
  *       merged and reduced to p50/p95/p99 by the pure metabench helpers.
  */
@@ -17,8 +17,8 @@
 
 /* one worker's slice: connect (GSI) once, run its subtree, record latencies. */
 typedef struct {
-    const xrdc_url  *url;
-    const xrdc_opts *opts;
+    const brix_url  *url;
+    const brix_opts *opts;
     const metabench_plan *plan;
     metabench_phase  phase;
     int     id;
@@ -31,7 +31,7 @@ typedef struct {
 /* record one op's latency (drop silently once the per-worker buffer is full). */
 static void mb_record(mb_worker *w, uint64_t t0)
 {
-    double ms = (double) (xrdc_mono_ns() - t0) / 1e6;
+    double ms = (double) (brix_mono_ns() - t0) / 1e6;
     if (w->lat_n < w->lat_cap) {
         w->lat_ms[w->lat_n++] = ms;
     }
@@ -39,30 +39,30 @@ static void mb_record(mb_worker *w, uint64_t t0)
 
 /* CREATE: mkdir+chmod the tree, then create+chmod+stat each file. The stat
  * asserts the chmod persisted (mode read-back), so a silent mode loss fails. */
-static void mb_create(mb_worker *w, xrdc_conn *c)
+static void mb_create(mb_worker *w, brix_conn *c)
 {
     const metabench_plan *p = w->plan;
     char path[512];
-    xrdc_status st;
+    brix_status st;
     uint64_t t0;
 
     snprintf(path, sizeof(path), "/w%d", w->id);
-    t0 = xrdc_mono_ns();
-    if (xrdc_mkdir(c, path, 0755, 0, &st) != 0) { w->failures++; }
+    t0 = brix_mono_ns();
+    if (brix_mkdir(c, path, 0755, 0, &st) != 0) { w->failures++; }
     w->ops++; mb_record(w, t0);
 
-    t0 = xrdc_mono_ns();
-    if (xrdc_chmod(c, path, 0755, &st) != 0) { w->failures++; }
+    t0 = brix_mono_ns();
+    if (brix_chmod(c, path, 0755, &st) != 0) { w->failures++; }
     w->ops++; mb_record(w, t0);
 
     for (int d = 0; d < p->dirs_per_worker; d++) {
         snprintf(path, sizeof(path), "/w%d/d%d", w->id, d);
-        t0 = xrdc_mono_ns();
-        if (xrdc_mkdir(c, path, 0700, 0, &st) != 0) { w->failures++; }
+        t0 = brix_mono_ns();
+        if (brix_mkdir(c, path, 0700, 0, &st) != 0) { w->failures++; }
         w->ops++; mb_record(w, t0);
 
-        t0 = xrdc_mono_ns();
-        if (xrdc_chmod(c, path, 0700, &st) != 0) { w->failures++; }
+        t0 = brix_mono_ns();
+        if (brix_chmod(c, path, 0700, &st) != 0) { w->failures++; }
         w->ops++; mb_record(w, t0);
 
         for (int f = 0; f < p->files_per_dir; f++) {
@@ -71,22 +71,22 @@ static void mb_create(mb_worker *w, xrdc_conn *c)
             /* create an empty file: open kXR_new (force=0) then close — the same
              * metadata-only path `xrdfs touch` uses (truncate(2) needs an
              * existing target, so it is NOT a create). */
-            xrdc_file fh;
-            t0 = xrdc_mono_ns();
-            if (xrdc_file_open_write(c, path, 0 /* new */, 0 /* posc */, &fh, &st) != 0) {
+            brix_file fh;
+            t0 = brix_mono_ns();
+            if (brix_file_open_write(c, path, 0 /* new */, 0 /* posc */, &fh, &st) != 0) {
                 w->failures++;
-            } else if (xrdc_file_close(c, &fh, &st) != 0) {
+            } else if (brix_file_close(c, &fh, &st) != 0) {
                 w->failures++;
             }
             w->ops++; mb_record(w, t0);
 
-            t0 = xrdc_mono_ns();
-            if (xrdc_chmod(c, path, 0640, &st) != 0) { w->failures++; }
+            t0 = brix_mono_ns();
+            if (brix_chmod(c, path, 0640, &st) != 0) { w->failures++; }
             w->ops++; mb_record(w, t0);
 
-            xrdc_statinfo si;
-            t0 = xrdc_mono_ns();
-            if (xrdc_stat(c, path, &si, &st) != 0) {
+            brix_statinfo si;
+            t0 = brix_mono_ns();
+            if (brix_stat(c, path, &si, &st) != 0) {
                 w->failures++;
             } else if (si.have_ext && (si.mode & 0777) != 0640) {
                 w->failures++;   /* chmod did not persist */
@@ -97,29 +97,29 @@ static void mb_create(mb_worker *w, xrdc_conn *c)
 }
 
 /* REMOVE: rm files, rmdir dirs bottom-up; leaves the store as it started. */
-static void mb_remove(mb_worker *w, xrdc_conn *c)
+static void mb_remove(mb_worker *w, brix_conn *c)
 {
     const metabench_plan *p = w->plan;
     char path[512];
-    xrdc_status st;
+    brix_status st;
     uint64_t t0;
 
     for (int d = 0; d < p->dirs_per_worker; d++) {
         for (int f = 0; f < p->files_per_dir; f++) {
             snprintf(path, sizeof(path), "/w%d/d%d/f%d", w->id, d, f);
-            t0 = xrdc_mono_ns();
-            if (xrdc_rm(c, path, &st) != 0) { w->failures++; }
+            t0 = brix_mono_ns();
+            if (brix_rm(c, path, &st) != 0) { w->failures++; }
             w->ops++; mb_record(w, t0);
         }
         snprintf(path, sizeof(path), "/w%d/d%d", w->id, d);
-        t0 = xrdc_mono_ns();
-        if (xrdc_rmdir(c, path, &st) != 0) { w->failures++; }
+        t0 = brix_mono_ns();
+        if (brix_rmdir(c, path, &st) != 0) { w->failures++; }
         w->ops++; mb_record(w, t0);
     }
 
     snprintf(path, sizeof(path), "/w%d", w->id);
-    t0 = xrdc_mono_ns();
-    if (xrdc_rmdir(c, path, &st) != 0) { w->failures++; }
+    t0 = brix_mono_ns();
+    if (brix_rmdir(c, path, &st) != 0) { w->failures++; }
     w->ops++; mb_record(w, t0);
 }
 
@@ -128,11 +128,11 @@ static void mb_remove(mb_worker *w, xrdc_conn *c)
 static void *mb_thread(void *arg)
 {
     mb_worker *w = arg;
-    xrdc_conn  c;
-    xrdc_status st;
+    brix_conn  c;
+    brix_status st;
 
-    xrdc_status_clear(&st);
-    if (xrdc_connect(&c, w->url, w->opts, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_connect(&c, w->url, w->opts, &st) != 0) {
         w->failures = w->lat_cap;
         w->ops = w->lat_cap;
         return NULL;
@@ -144,13 +144,13 @@ static void *mb_thread(void *arg)
         mb_remove(w, &c);
     }
 
-    xrdc_close(&c);
+    brix_close(&c);
     return NULL;
 }
 
-int metabench_run(const xrdc_url *url, const xrdc_opts *opts,
+int metabench_run(const brix_url *url, const brix_opts *opts,
                   const metabench_plan *plan, metabench_phase phase,
-                  metabench_result *out, xrdc_status *st)
+                  metabench_result *out, brix_status *st)
 {
     (void) st;
 
@@ -178,14 +178,14 @@ int metabench_run(const xrdc_url *url, const xrdc_opts *opts,
         wk[i].lat_ms = calloc((size_t) per_cap, sizeof(double));
     }
 
-    uint64_t t0 = xrdc_mono_ns();
+    uint64_t t0 = brix_mono_ns();
     for (int i = 0; i < W; i++) {
         pthread_create(&th[i], NULL, mb_thread, &wk[i]);
     }
     for (int i = 0; i < W; i++) {
         pthread_join(th[i], NULL);
     }
-    double wall = (double) (xrdc_mono_ns() - t0) / 1e9;
+    double wall = (double) (brix_mono_ns() - t0) / 1e9;
 
     memset(out, 0, sizeof(*out));
     out->phase = phase;

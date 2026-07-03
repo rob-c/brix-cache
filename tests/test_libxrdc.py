@@ -1,14 +1,14 @@
 """
-Public libxrdc library (phase-37 §14.1): install + pkg-config + sample consumer.
+Public libbrix library (phase-37 §14.1): install + pkg-config + sample consumer.
 
 Proves the clean-room client layer is a usable, standalone C library: install it
-to a staged prefix, compile examples/xrdc_stat_demo.c against the INSTALLED
+to a staged prefix, compile examples/brix_stat_demo.c against the INSTALLED
 headers/lib via pkg-config, run it over an anonymous root:// connection, and
-confirm it links libxrdc — not libXrdCl/libXrdSec*.
+confirm it links libbrix — not libXrdCl/libXrdSec*.
 
 Run (serial, manual fleet):
     TEST_SKIP_SERVER_SETUP=1 PYTHONPATH=tests \
-    pytest tests/test_libxrdc.py -v -p no:xdist
+    pytest tests/test_libbrix.py -v -p no:xdist
 """
 
 import os
@@ -23,7 +23,7 @@ pytestmark = pytest.mark.timeout(180)
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT = os.path.join(REPO, "client")
-DEMO_SRC = os.path.join(CLIENT, "examples", "xrdc_stat_demo.c")
+DEMO_SRC = os.path.join(CLIENT, "examples", "brix_stat_demo.c")
 CC = shutil.which("cc") or shutil.which("gcc")
 
 # Standard lib search dirs for probing optional codec runtimes.
@@ -54,9 +54,9 @@ def _codec_link_libs():
 
 
 def _krb5_link_libs():
-    """Link flags for Kerberos, when libxrdc was compiled with krb5 support.
+    """Link flags for Kerberos, when libbrix was compiled with krb5 support.
 
-    The client's krb5 security module (sec_krb5.o) is compiled into libxrdc.a
+    The client's krb5 security module (sec_krb5.o) is compiled into libbrix.a
     only when the krb5 dev headers are present at build time; that object then
     references krb5_init_context / krb5_cc_default / … which live in libkrb5.
     A static consumer must link it or the build fails with undefined references.
@@ -70,9 +70,9 @@ def _krb5_link_libs():
 
 
 def _uring_link_libs():
-    """Link flag for liburing, when libxrdc was compiled with io_uring support.
+    """Link flag for liburing, when libbrix was compiled with io_uring support.
 
-    The client's disk/io_uring fast path (uring.o) is compiled into libxrdc.a
+    The client's disk/io_uring fast path (uring.o) is compiled into libbrix.a
     only when liburing dev headers are present at build time; it then references
     io_uring_queue_init / io_uring_submit / … from liburing.  A static consumer
     must link it.  Probe by file presence so the flag tracks the build exactly.
@@ -90,31 +90,31 @@ def installed(tmp_path_factory):
         pytest.skip("no C compiler")
     if shutil.which("pkg-config") is None:
         pytest.skip("pkg-config not available")
-    prefix = str(tmp_path_factory.mktemp("xrdc-prefix"))
+    prefix = str(tmp_path_factory.mktemp("brix-prefix"))
     proc = subprocess.run(["make", "-C", CLIENT, "install", f"PREFIX={prefix}"],
                           capture_output=True, text=True, timeout=240)
     if proc.returncode != 0:
-        pytest.skip(f"libxrdc install failed:\n{proc.stdout}\n{proc.stderr}")
+        pytest.skip(f"libbrix install failed:\n{proc.stdout}\n{proc.stderr}")
     return prefix
 
 
 def _pkgconfig(prefix, *args):
     env = dict(os.environ)
     env["PKG_CONFIG_PATH"] = os.path.join(prefix, "lib", "pkgconfig")
-    return subprocess.run(["pkg-config", *args, "libxrdc"],
+    return subprocess.run(["pkg-config", *args, "libbrix"],
                           capture_output=True, text=True, env=env).stdout.split()
 
 
 def test_pkgconfig_present(installed):
-    pc = os.path.join(installed, "lib", "pkgconfig", "libxrdc.pc")
-    assert os.path.exists(pc), "libxrdc.pc not installed"
+    pc = os.path.join(installed, "lib", "pkgconfig", "libbrix.pc")
+    assert os.path.exists(pc), "libbrix.pc not installed"
     flags = _pkgconfig(installed, "--cflags", "--libs")
-    assert "-lxrdc" in flags, flags
+    assert "-lbrix" in flags, flags
 
 
 def test_headers_installed(installed):
-    assert os.path.exists(os.path.join(installed, "include", "xrdc", "xrdc.h"))
-    assert os.path.exists(os.path.join(installed, "include", "xrdc", "xrdproto",
+    assert os.path.exists(os.path.join(installed, "include", "brix", "brix.h"))
+    assert os.path.exists(os.path.join(installed, "include", "brix", "xrdproto",
                                        "protocol", "protocol.h"))
 
 
@@ -130,9 +130,9 @@ def _build_demo(installed, tmp_path, static):
         # append codecs whose runtime lib is actually present (matches however
         # libxrdproto was built; harmless to over-link, fatal to under-link).
         cmd = ([CC, "-std=c11", DEMO_SRC,
-                "-I" + os.path.join(installed, "include", "xrdc"),
-                "-I" + os.path.join(installed, "include", "xrdc", "xrdproto"),
-                os.path.join(installed, "lib", "libxrdc.a"),
+                "-I" + os.path.join(installed, "include", "brix"),
+                "-I" + os.path.join(installed, "include", "brix", "xrdproto"),
+                os.path.join(installed, "lib", "libbrix.a"),
                 os.path.join(installed, "lib", "libxrdproto.a"),
                 "-lssl", "-lcrypto", "-lz"]
                + _codec_link_libs() + _krb5_link_libs() + _uring_link_libs())

@@ -14,13 +14,13 @@
  *       phases (see docs/superpowers/specs/2026-06-29-client-backend-sysadmin-tooling-design.md).
  * WHY:  give sysadmins a one-command trust check for a single object and a
  *       realistic, object-store-shaped throughput/latency probe of their gateway.
- * HOW:  thin orchestration over libxrdc (connect/open/read/query) + the pure
+ * HOW:  thin orchestration over libbrix (connect/open/read/query) + the pure
  *       statistics/verdict core in storascan_core.c. No libXrdCl, no goto.
  */
 #include "storascan_core.h"
-#include "xrdc.h"
-#include "xrdc_net.h"
-#include "xrdc_ops.h"
+#include "brix.h"
+#include "brix_net.h"
+#include "brix_ops.h"
 
 #include <pthread.h>
 #include <stdio.h>
@@ -73,10 +73,10 @@ usage(int rc)
 /* Parse + connect to the endpoint in `url`. 0 on success (c/u filled), else a
  * shell exit code already reported to stderr. */
 static int
-storascan_connect(const char *url, xrdc_url *u, xrdc_conn *c, xrdc_status *st)
+storascan_connect(const char *url, brix_url *u, brix_conn *c, brix_status *st)
 {
-    xrdc_status_clear(st);
-    if (xrdc_endpoint_parse(url, u, st) != 0) {
+    brix_status_clear(st);
+    if (brix_endpoint_parse(url, u, st) != 0) {
         fprintf(stderr, "xrdstorascan: %s\n", st->msg);
         return SX_USAGE;
     }
@@ -84,10 +84,10 @@ storascan_connect(const char *url, xrdc_url *u, xrdc_conn *c, xrdc_status *st)
         fprintf(stderr, "xrdstorascan: a file path is required in the URL\n");
         return SX_USAGE;
     }
-    if (xrdc_connect(c, u, NULL, st) != 0) {
+    if (brix_connect(c, u, NULL, st) != 0) {
         fprintf(stderr, "xrdstorascan: connect %s:%d: %s\n",
                 u->host, u->port, st->msg);
-        return xrdc_shellcode(st);
+        return brix_shellcode(st);
     }
     return SX_OK;
 }
@@ -97,37 +97,37 @@ storascan_connect(const char *url, xrdc_url *u, xrdc_conn *c, xrdc_status *st)
 /* Stream the whole remote file into a private anonymous temp fd. Returns the fd
  * (already unlinked, caller closes) or -1 with *st set. */
 static int
-verify_download_tmp(xrdc_conn *c, const char *path, xrdc_status *st)
+verify_download_tmp(brix_conn *c, const char *path, brix_status *st)
 {
     char     tmpl[] = "/tmp/xrdstorascan.XXXXXX";
     int      fd;
-    xrdc_file f;
+    brix_file f;
     int64_t  off = 0;
     char    *buf;
 
     fd = mkstemp(tmpl);
     if (fd < 0) {
-        xrdc_status_set(st, XRDC_ESOCK, 0, "mkstemp failed");
+        brix_status_set(st, XRDC_ESOCK, 0, "mkstemp failed");
         return -1;
     }
     (void) unlink(tmpl);    /* anonymous fd — no symlink/planted-file race */
 
-    if (xrdc_file_open_read(c, path, &f, st) != 0) {
+    if (brix_file_open_read(c, path, &f, st) != 0) {
         close(fd);
         return -1;
     }
     buf = (char *) malloc(1u << 20);
     if (buf == NULL) {
-        xrdc_file_close(c, &f, st);
+        brix_file_close(c, &f, st);
         close(fd);
-        xrdc_status_set(st, XRDC_ESOCK, 0, "out of memory");
+        brix_status_set(st, XRDC_ESOCK, 0, "out of memory");
         return -1;
     }
     for (;;) {
-        ssize_t n = xrdc_file_read(c, &f, off, buf, 1u << 20, st);
+        ssize_t n = brix_file_read(c, &f, off, buf, 1u << 20, st);
         if (n < 0) {
             free(buf);
-            xrdc_file_close(c, &f, st);
+            brix_file_close(c, &f, st);
             close(fd);
             return -1;
         }
@@ -136,15 +136,15 @@ verify_download_tmp(xrdc_conn *c, const char *path, xrdc_status *st)
         }
         if (write(fd, buf, (size_t) n) != n) {
             free(buf);
-            xrdc_file_close(c, &f, st);
+            brix_file_close(c, &f, st);
             close(fd);
-            xrdc_status_set(st, XRDC_ESOCK, 0, "temp write failed");
+            brix_status_set(st, XRDC_ESOCK, 0, "temp write failed");
             return -1;
         }
         off += n;
     }
     free(buf);
-    (void) xrdc_file_close(c, &f, st);
+    (void) brix_file_close(c, &f, st);
     return fd;
 }
 
@@ -155,10 +155,10 @@ cmd_verify(int argc, char **argv)
     const char     *algo = "adler32";
     int             quiet = 0;
     int             i;
-    xrdc_url        u;
-    xrdc_conn       c;
-    xrdc_status     st;
-    xrdc_cksum_algo algo_enum;
+    brix_url        u;
+    brix_conn       c;
+    brix_status     st;
+    brix_cksum_algo algo_enum;
     char            server_hex[STORASCAN_HEX_MAX];
     char            computed_hex[STORASCAN_HEX_MAX];
     int             tmpfd;
@@ -182,7 +182,7 @@ cmd_verify(int argc, char **argv)
     if (url == NULL) {
         return usage(SX_USAGE);
     }
-    if (xrdc_cksum_algo_parse(algo, &algo_enum) != 0) {
+    if (brix_cksum_algo_parse(algo, &algo_enum) != 0) {
         fprintf(stderr, "xrdstorascan: unsupported algorithm '%s'\n", algo);
         return SX_USAGE;
     }
@@ -193,28 +193,28 @@ cmd_verify(int argc, char **argv)
     }
 
     /* Reference value: the server's recorded checksum. */
-    if (xrdc_query_cksum(&c, u.path, algo, server_hex, sizeof(server_hex), &st) != 0) {
+    if (brix_query_cksum(&c, u.path, algo, server_hex, sizeof(server_hex), &st) != 0) {
         fprintf(stderr, "xrdstorascan: %s %s: %s\n", "query checksum", u.path, st.msg);
-        xrdc_close(&c);
-        return xrdc_shellcode(&st);
+        brix_close(&c);
+        return brix_shellcode(&st);
     }
 
     /* Recompute from the bytes pulled over the wire. */
     tmpfd = verify_download_tmp(&c, u.path, &st);
     if (tmpfd < 0) {
         fprintf(stderr, "xrdstorascan: download %s: %s\n", u.path, st.msg);
-        xrdc_close(&c);
-        return xrdc_shellcode(&st);
+        brix_close(&c);
+        return brix_shellcode(&st);
     }
     if (lseek(tmpfd, 0, SEEK_SET) < 0 ||
-        xrdc_cksum_fd(tmpfd, algo_enum, computed_hex, sizeof(computed_hex), &st) != 0) {
+        brix_cksum_fd(tmpfd, algo_enum, computed_hex, sizeof(computed_hex), &st) != 0) {
         fprintf(stderr, "xrdstorascan: checksum %s: %s\n", u.path, st.msg);
         close(tmpfd);
-        xrdc_close(&c);
+        brix_close(&c);
         return SX_ERROR;
     }
     close(tmpfd);
-    xrdc_close(&c);
+    brix_close(&c);
 
     verdict = storascan_cks_compare(computed_hex, server_hex);
     switch (verdict) {
@@ -239,7 +239,7 @@ cmd_verify(int argc, char **argv)
 
 typedef struct {
     const char *url;
-    xrdc_url    u;
+    brix_url    u;
     size_t      block;
     int         random;     /* 0 = sequential (wrap at EOF), 1 = random offset   */
     uint64_t    deadline_ns;/* 0 ⇒ use op_budget instead of time                 */
@@ -277,30 +277,30 @@ static void *
 bench_run(void *arg)
 {
     bench_worker *w = (bench_worker *) arg;
-    xrdc_conn     c;
-    xrdc_status   st;
-    xrdc_file     f;
+    brix_conn     c;
+    brix_status   st;
+    brix_file     f;
     char         *buf;
     uint64_t      k = 0;
 
-    xrdc_status_clear(&st);
-    if (xrdc_connect(&c, &w->u, NULL, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_connect(&c, &w->u, NULL, &st) != 0) {
         w->err = 1;
         snprintf(w->errmsg, sizeof(w->errmsg), "connect: %s", st.msg);
         return NULL;
     }
-    if (xrdc_file_open_read(&c, w->u.path, &f, &st) != 0) {
+    if (brix_file_open_read(&c, w->u.path, &f, &st) != 0) {
         w->err = 1;
         snprintf(w->errmsg, sizeof(w->errmsg), "open: %s", st.msg);
-        xrdc_close(&c);
+        brix_close(&c);
         return NULL;
     }
     buf = (char *) malloc(w->block);
     if (buf == NULL) {
         w->err = 1;
         snprintf(w->errmsg, sizeof(w->errmsg), "out of memory");
-        xrdc_file_close(&c, &f, &st);
-        xrdc_close(&c);
+        brix_file_close(&c, &f, &st);
+        brix_close(&c);
         return NULL;
     }
 
@@ -310,7 +310,7 @@ bench_run(void *arg)
         ssize_t  n;
 
         if (w->deadline_ns != 0) {
-            if (xrdc_mono_ns() >= w->deadline_ns) {
+            if (brix_mono_ns() >= w->deadline_ns) {
                 break;
             }
         } else if (k >= w->op_budget) {
@@ -318,9 +318,9 @@ bench_run(void *arg)
         }
 
         off = bench_offset(w, k);
-        t0 = xrdc_mono_ns();
-        n = xrdc_file_read(&c, &f, off, buf, w->block, &st);
-        t1 = xrdc_mono_ns();
+        t0 = brix_mono_ns();
+        n = brix_file_read(&c, &f, off, buf, w->block, &st);
+        t1 = brix_mono_ns();
         if (n < 0) {
             w->err = 1;
             snprintf(w->errmsg, sizeof(w->errmsg), "read: %s", st.msg);
@@ -337,14 +337,14 @@ bench_run(void *arg)
     }
 
     free(buf);
-    (void) xrdc_file_close(&c, &f, &st);
-    xrdc_close(&c);
+    (void) brix_file_close(&c, &f, &st);
+    brix_close(&c);
     return NULL;
 }
 
 /* Run one (block, parallel) cell; fill *out. Returns 0 / -1 (worker error). */
 static int
-bench_cell(const char *url, const xrdc_url *u, int64_t fsize,
+bench_cell(const char *url, const brix_url *u, int64_t fsize,
            size_t block, int parallel, int random,
            uint64_t duration_ns, uint64_t total_ops,
            storascan_bench_result *out, char *errmsg, size_t errsz)
@@ -373,7 +373,7 @@ bench_cell(const char *url, const xrdc_url *u, int64_t fsize,
         w[i].block = block;
         w[i].random = random;
         w[i].fsize = fsize;
-        w[i].seed = (unsigned) (xrdc_mono_ns() + (uint64_t) i * 2654435761u);
+        w[i].seed = (unsigned) (brix_mono_ns() + (uint64_t) i * 2654435761u);
         w[i].deadline_ns = duration_ns;   /* set below for time mode */
         w[i].op_budget = total_ops / (uint64_t) parallel;
         w[i].lat_ms = (double *) malloc(STORASCAN_LAT_CAP * sizeof(double));
@@ -391,7 +391,7 @@ bench_cell(const char *url, const xrdc_url *u, int64_t fsize,
         return -1;
     }
 
-    t0 = xrdc_mono_ns();
+    t0 = brix_mono_ns();
     if (duration_ns != 0) {
         uint64_t deadline = t0 + duration_ns;
         for (i = 0; i < parallel; i++) {
@@ -410,7 +410,7 @@ bench_cell(const char *url, const xrdc_url *u, int64_t fsize,
             pthread_join(th[i], NULL);
         }
     }
-    t1 = xrdc_mono_ns();
+    t1 = brix_mono_ns();
 
     for (i = 0; i < parallel; i++) {
         if (w[i].err) {
@@ -458,7 +458,7 @@ parse_list(const char *s, int as_bytes, long *out, int max)
     }
     for (tok = strtok_r(copy, ",", &save); tok != NULL && n < max;
          tok = strtok_r(NULL, ",", &save)) {
-        long v = as_bytes ? (long) xrdc_parse_bytes(tok) : atol(tok);
+        long v = as_bytes ? (long) brix_parse_bytes(tok) : atol(tok);
         if (v <= 0) {
             free(copy);
             return -1;
@@ -483,10 +483,10 @@ cmd_bench(int argc, char **argv)
     long        blocks[STORASCAN_MAX_SWEEP];
     long        pars[STORASCAN_MAX_SWEEP];
     int         nblocks, npars;
-    xrdc_url    u;
-    xrdc_conn   c;
-    xrdc_status st;
-    xrdc_statinfo sti;
+    brix_url    u;
+    brix_conn   c;
+    brix_status st;
+    brix_statinfo sti;
 
     for (i = 0; i < argc; i++) {
         const char *a = argv[i];
@@ -535,12 +535,12 @@ cmd_bench(int argc, char **argv)
     if (rc != SX_OK) {
         return rc;
     }
-    if (xrdc_stat(&c, u.path, &sti, &st) != 0) {
+    if (brix_stat(&c, u.path, &sti, &st) != 0) {
         fprintf(stderr, "xrdstorascan: stat %s: %s\n", u.path, st.msg);
-        xrdc_close(&c);
-        return xrdc_shellcode(&st);
+        brix_close(&c);
+        return brix_shellcode(&st);
     }
-    xrdc_close(&c);   /* workers open their own connections */
+    brix_close(&c);   /* workers open their own connections */
 
     if (!json) {
         printf("# bench %s  size=%lld bytes  pattern=%s  %s\n",
@@ -628,15 +628,15 @@ scan_parse_url(const char *url, scan_ep *ep)
 /* POST /xrootd/login (password) → capture the session cookie. 0 / -1. */
 static int
 scan_login(const scan_ep *ep, const char *pw, int insecure,
-           char *cookie, size_t cksz, xrdc_status *st)
+           char *cookie, size_t cksz, brix_status *st)
 {
-    xrdc_http_resp resp;
+    brix_http_resp resp;
     char           body[256];
     char           sc[512];
     int            n, ok;
 
     n = snprintf(body, sizeof(body), "password=%s", pw);
-    if (xrdc_http_req(ep->host, ep->port, ep->tls, "POST", "/xrootd/login",
+    if (brix_http_req(ep->host, ep->port, ep->tls, "POST", "/xrootd/login",
                       "Content-Type: application/x-www-form-urlencoded\r\n",
                       body, (size_t) n, 15000, insecure ? 0 : 1, NULL,
                       &resp, st) != 0)
@@ -644,7 +644,7 @@ scan_login(const scan_ep *ep, const char *pw, int insecure,
         return -1;
     }
     cookie[0] = '\0';
-    if (xrdc_http_header(&resp, "Set-Cookie", sc, sizeof(sc))) {
+    if (brix_http_header(&resp, "Set-Cookie", sc, sizeof(sc))) {
         char *semi = strchr(sc, ';');
         if (semi != NULL) {
             *semi = '\0';
@@ -652,9 +652,9 @@ scan_login(const scan_ep *ep, const char *pw, int insecure,
         snprintf(cookie, cksz, "%s", sc);
     }
     ok = (resp.status == 200 || resp.status == 302) && cookie[0] != '\0';
-    xrdc_http_resp_free(&resp);
+    brix_http_resp_free(&resp);
     if (!ok) {
-        xrdc_status_set(st, XRDC_EAUTH, 0, "dashboard login failed (bad password?)");
+        brix_status_set(st, XRDC_EAUTH, 0, "dashboard login failed (bad password?)");
         return -1;
     }
     return 0;
@@ -824,8 +824,8 @@ cmd_scan(const char *mode, int argc, char **argv)
     scan_ep        ep;
     char           cookie[512] = "";
     char           epath[2048], ealg[64], query[2240], hdr[640];
-    xrdc_http_resp resp;
-    xrdc_status    st;
+    brix_http_resp resp;
+    brix_status    st;
     long           mismatch;
 
     for (i = 0; i < argc; i++) {
@@ -863,10 +863,10 @@ cmd_scan(const char *mode, int argc, char **argv)
         return SX_USAGE;
     }
 
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     if (scan_login(&ep, password, insecure, cookie, sizeof(cookie), &st) != 0) {
         fprintf(stderr, "xrdstorascan: %s\n", st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
 
     scan_qencode(path, epath, sizeof(epath));
@@ -877,24 +877,24 @@ cmd_scan(const char *mode, int argc, char **argv)
     {
         char fullpath[2304];
         snprintf(fullpath, sizeof(fullpath), "/xrootd/api/v1/scan?%s", query);
-        if (xrdc_http_req(ep.host, ep.port, ep.tls, "GET", fullpath, hdr,
+        if (brix_http_req(ep.host, ep.port, ep.tls, "GET", fullpath, hdr,
                           NULL, 0, 120000, insecure ? 0 : 1, NULL, &resp, &st) != 0)
         {
             fprintf(stderr, "xrdstorascan: %s: %s\n", mode, st.msg);
-            return xrdc_shellcode(&st);
+            return brix_shellcode(&st);
         }
     }
     if (resp.status != 200) {
         fprintf(stderr, "xrdstorascan: %s: server returned HTTP %d%s\n",
                 mode, resp.status,
-                resp.status == 404 ? " (scan disabled? — set xrootd_scan_root)"
+                resp.status == 404 ? " (scan disabled? — set brix_scan_root)"
                 : resp.status == 401 ? " (auth — check password)" : "");
-        xrdc_http_resp_free(&resp);
+        brix_http_resp_free(&resp);
         return SX_ERROR;
     }
 
     mismatch = scan_render(resp.body ? resp.body : "", as_json, summary_only);
-    xrdc_http_resp_free(&resp);
+    brix_http_resp_free(&resp);
 
     /* verify/compare: corruption found ⇒ non-zero for scripting */
     if ((strcmp(mode, "verify") == 0 || strcmp(mode, "compare") == 0)

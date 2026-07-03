@@ -10,35 +10,35 @@
 
 /* One pread against whichever backend this handle uses. */
 ssize_t
-afh_pread(afh *h, int64_t off, void *buf, size_t len, xrdc_status *st)
+afh_pread(afh *h, int64_t off, void *buf, size_t len, brix_status *st)
 {
     if (h->wf != NULL) {
-        return xrdc_webfile_pread(h->wf, off, buf, len, st);
+        return brix_webfile_pread(h->wf, off, buf, len, st);
     }
-    return xrdc_mfile_pread(h->mf, off, buf, len, st);
+    return brix_mfile_pread(h->mf, off, buf, len, st);
 }
 
 
 /* Backend I/O for the shared iobuf engine: read dispatches web vs root via
  * afh_pread; write goes to the root:// mfile (web handles are read-only). */
 ssize_t
-afh_io_pread(void *be, int64_t off, void *buf, size_t n, xrdc_status *st)
+afh_io_pread(void *be, int64_t off, void *buf, size_t n, brix_status *st)
 {
     return afh_pread((afh *) be, off, buf, n, st);
 }
 
 int
-afh_io_pwrite(void *be, int64_t off, const void *buf, size_t n, xrdc_status *st)
+afh_io_pwrite(void *be, int64_t off, const void *buf, size_t n, brix_status *st)
 {
-    return xrdc_mfile_pwrite(((afh *) be)->mf, off, buf, n, st);
+    return brix_mfile_pwrite(((afh *) be)->mf, off, buf, n, st);
 }
 
 
 /* Flush buffered writes. Caller MUST hold h->lock. 0 / -1 (st). */
 int
-afh_flush_wbuf(afh *h, xrdc_status *st)
+afh_flush_wbuf(afh *h, brix_status *st)
 {
-    return xrdc_iobuf_flush(&h->io, st);
+    return brix_iobuf_flush(&h->io, st);
 }
 
 
@@ -46,7 +46,7 @@ void
 afh_free(afh *h)
 {
     pthread_mutex_destroy(&h->lock);
-    xrdc_iobuf_dispose(&h->io);
+    brix_iobuf_dispose(&h->io);
     free(h);
 }
 
@@ -55,16 +55,16 @@ afh_free(afh *h)
 int
 afh_open(const char *path, int writable, int force, struct fuse_file_info *fi)
 {
-    xrdc_status st;
+    brix_status st;
     afh        *h = calloc(1, sizeof(*h));
     if (h == NULL) {
         return -ENOMEM;
     }
     pthread_mutex_init(&h->lock, NULL);
     h->writable = writable;
-    xrdc_iobuf_init(&h->io, h, afh_io_pread, afh_io_pwrite, writable,
+    brix_iobuf_init(&h->io, h, afh_io_pread, afh_io_pwrite, writable,
                     g_readahead, g_writeback);
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
 
     /* HTTP(S)/WebDAV mounts are READ-ONLY (Range GET); reject write opens. */
     if (g_web) {
@@ -73,7 +73,7 @@ afh_open(const char *path, int writable, int force, struct fuse_file_info *fi)
             return -EROFS;
         }
         char pbuf[XRDC_PATH_MAX];
-        h->wf = xrdc_webfile_open(&g_weburl, srv_path(path, pbuf, sizeof(pbuf)),
+        h->wf = brix_webfile_open(&g_weburl, srv_path(path, pbuf, sizeof(pbuf)),
                                   g_bearer, g_web_verify, g_web_ca, g_max_stall,
                                   NULL, &st);
         if (h->wf == NULL) {
@@ -95,7 +95,7 @@ afh_open(const char *path, int writable, int force, struct fuse_file_info *fi)
         opaque = opq;
     }
     char pbuf[XRDC_PATH_MAX];
-    h->mf = xrdc_mfile_open(xrdc_mgr_pick(g_mgr), srv_path(path, pbuf, sizeof(pbuf)),
+    h->mf = brix_mfile_open(brix_mgr_pick(g_mgr), srv_path(path, pbuf, sizeof(pbuf)),
                             writable, force, 0, opaque,
                             g_max_stall, g_max_retries, &st);
     if (h->mf == NULL) {
@@ -115,7 +115,7 @@ xfs_open(const char *path, struct fuse_file_info *fi)
         return afh_open(path, 0, 0, fi);
     }
     /* O_TRUNC -> overwrite (force 1), else update in place (force 2). */
-    return afh_open(path, 1, xrootd_open_force_for_open(fi->flags), fi);
+    return afh_open(path, 1, brix_open_force_for_open(fi->flags), fi);
 }
 
 
@@ -124,7 +124,7 @@ xfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 {
     (void) mode;
     /* O_EXCL → create-new (force=0, fail if exists); else truncate-create. */
-    return afh_open(path, 1, xrootd_open_force_for_create(fi->flags), fi);
+    return afh_open(path, 1, brix_open_force_for_create(fi->flags), fi);
 }
 
 
@@ -133,16 +133,16 @@ xfs_read(const char *path, char *buf, size_t size, off_t offset,
          struct fuse_file_info *fi)
 {
     afh        *h = (afh *) (uintptr_t) fi->fh;
-    xrdc_status st;
+    brix_status st;
     ssize_t     r;
 
     (void) path;
     if (h == NULL) {
         return -EBADF;
     }
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     pthread_mutex_lock(&h->lock);
-    r = xrdc_iobuf_read(&h->io, offset, buf, size, &st);
+    r = brix_iobuf_read(&h->io, offset, buf, size, &st);
     pthread_mutex_unlock(&h->lock);
     return r < 0 ? xfs_err(&st) : (int) r;
 }
@@ -154,16 +154,16 @@ xfs_write(const char *path, const char *buf, size_t size, off_t offset,
 {
     if (g_web) return -EROFS;
     afh        *h = (afh *) (uintptr_t) fi->fh;
-    xrdc_status st;
+    brix_status st;
     int         rc;
 
     (void) path;
     if (h == NULL || !h->writable) {
         return -EBADF;
     }
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     pthread_mutex_lock(&h->lock);
-    rc = xrdc_iobuf_write(&h->io, offset, buf, size, &st);
+    rc = brix_iobuf_write(&h->io, offset, buf, size, &st);
     if (rc == 0 && (int64_t) offset + (int64_t) size > h->wsize) {
         h->wsize = (int64_t) offset + (int64_t) size;   /* track logical EOF */
     }
@@ -177,13 +177,13 @@ xfs_flush(const char *path, struct fuse_file_info *fi)
 {
     if (g_web) return 0;
     afh        *h = (afh *) (uintptr_t) fi->fh;
-    xrdc_status st;
+    brix_status st;
     int         rc;
     (void) path;
     if (h == NULL) {
         return 0;
     }
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     pthread_mutex_lock(&h->lock);
     rc = afh_flush_wbuf(h, &st);
     pthread_mutex_unlock(&h->lock);
@@ -196,17 +196,17 @@ xfs_fsync(const char *path, int datasync, struct fuse_file_info *fi)
 {
     if (g_web) return 0;
     afh        *h = (afh *) (uintptr_t) fi->fh;
-    xrdc_status st;
+    brix_status st;
     int         rc;
     (void) path; (void) datasync;
     if (h == NULL) {
         return 0;
     }
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     pthread_mutex_lock(&h->lock);
     rc = afh_flush_wbuf(h, &st);
     if (rc == 0) {
-        rc = xrdc_mfile_sync(h->mf, &st);
+        rc = brix_mfile_sync(h->mf, &st);
     }
     pthread_mutex_unlock(&h->lock);
     return rc != 0 ? xfs_err(&st) : 0;
@@ -217,19 +217,19 @@ int
 xfs_release(const char *path, struct fuse_file_info *fi)
 {
     afh        *h = (afh *) (uintptr_t) fi->fh;
-    xrdc_status st;
+    brix_status st;
     (void) path;
     if (h == NULL) {
         return 0;
     }
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     pthread_mutex_lock(&h->lock);
     if (h->wf != NULL) {
-        xrdc_webfile_close(h->wf, &st);
+        brix_webfile_close(h->wf, &st);
         h->wf = NULL;
     } else {
         (void) afh_flush_wbuf(h, &st);
-        (void) xrdc_mfile_close(h->mf, &st);
+        (void) brix_mfile_close(h->mf, &st);
     }
     pthread_mutex_unlock(&h->lock);
     afh_free(h);

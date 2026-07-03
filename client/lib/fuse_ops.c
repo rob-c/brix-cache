@@ -11,14 +11,14 @@
 #include <errno.h>
 
 int
-xrdc_fuse_errno(const xrdc_status *st)
+brix_fuse_errno(const brix_status *st)
 {
-    int e = xrdc_kxr_to_errno(st);
+    int e = brix_kxr_to_errno(st);
     return e != 0 ? e : -EIO;
 }
 
 int
-xrdc_fuse_conn_healthy(const xrdc_status *st)
+brix_fuse_conn_healthy(const brix_status *st)
 {
     return st->kxr != XRDC_ESOCK && st->kxr != XRDC_EPROTO;
 }
@@ -30,17 +30,17 @@ static int
 fuse_run_done(uint64_t deadline, unsigned attempt, unsigned max)
 {
     if (deadline != 0) {
-        return xrdc_mono_ns() >= deadline;
+        return brix_mono_ns() >= deadline;
     }
     return attempt >= max;
 }
 
 int
-xrdc_fuse_run(xrdc_pool *pool, int max_retries, int max_stall_ms,
-              int benign_errno, xrdc_fuse_op_fn op, void *ctx, xrdc_status *st)
+brix_fuse_run(brix_pool *pool, int max_retries, int max_stall_ms,
+              int benign_errno, brix_fuse_op_fn op, void *ctx, brix_status *st)
 {
     uint64_t deadline = (max_stall_ms > 0)
-                        ? xrdc_mono_ns() + (uint64_t) max_stall_ms * 1000000ULL
+                        ? brix_mono_ns() + (uint64_t) max_stall_ms * 1000000ULL
                         : 0;
     unsigned max = max_retries > 0 ? (unsigned) max_retries : 0;
     unsigned attempt;
@@ -50,20 +50,20 @@ xrdc_fuse_run(xrdc_pool *pool, int max_retries, int max_stall_ms,
          * transient fault on a flaky link is ridden out without a reconnect
          * storm and concurrent FUSE threads do not re-hammer in lockstep. */
         if (attempt > 0) {
-            xrdc_backoff_sleep_fast(attempt - 1);
+            brix_backoff_sleep_fast(attempt - 1);
         }
 
-        xrdc_conn *c = xrdc_pool_checkout(pool, st);
+        brix_conn *c = brix_pool_checkout(pool, st);
         if (c == NULL) {
-            if (xrdc_status_retryable(st)
+            if (brix_status_retryable(st)
                 && !fuse_run_done(deadline, attempt, max)) {
                 continue;
             }
-            return xrdc_fuse_errno(st);
+            return brix_fuse_errno(st);
         }
 
         int rc = op(c, ctx, st);
-        xrdc_pool_checkin(pool, c, rc == 0 ? 1 : xrdc_fuse_conn_healthy(st));
+        brix_pool_checkin(pool, c, rc == 0 ? 1 : brix_fuse_conn_healthy(st));
         if (rc == 0) {
             return 0;
         }
@@ -73,13 +73,13 @@ xrdc_fuse_run(xrdc_pool *pool, int max_retries, int max_stall_ms,
          * desired state" code (EEXIST for mkdir/symlink/link, ENOENT for
          * rm/rmdir/mv) then means success, not a spurious error. */
         if (attempt > 0 && benign_errno != 0
-            && xrdc_kxr_to_errno(st) == benign_errno) {
-            xrdc_status_clear(st);
+            && brix_kxr_to_errno(st) == benign_errno) {
+            brix_status_clear(st);
             return 0;
         }
-        if (!xrdc_status_retryable(st)
+        if (!brix_status_retryable(st)
             || fuse_run_done(deadline, attempt, max)) {
-            return xrdc_fuse_errno(st);
+            return brix_fuse_errno(st);
         }
         /* transient → backoff, then retry on a freshly (re)connected slot */
     }
@@ -87,84 +87,84 @@ xrdc_fuse_run(xrdc_pool *pool, int max_retries, int max_stall_ms,
 
 /* op thunks */
 int
-xrdc_fuse_op_stat(xrdc_conn *c, void *ctx, xrdc_status *st)
+brix_fuse_op_stat(brix_conn *c, void *ctx, brix_status *st)
 {
-    struct xrdc_fuse_ctx_stat *a = ctx;
-    return xrdc_stat(c, a->path, a->si, st);
+    struct brix_fuse_ctx_stat *a = ctx;
+    return brix_stat(c, a->path, a->si, st);
 }
 
 int
-xrdc_fuse_op_lstat(xrdc_conn *c, void *ctx, xrdc_status *st)
+brix_fuse_op_lstat(brix_conn *c, void *ctx, brix_status *st)
 {
-    struct xrdc_fuse_ctx_stat *a = ctx;
-    return xrdc_lstat(c, a->path, a->si, st);
+    struct brix_fuse_ctx_stat *a = ctx;
+    return brix_lstat(c, a->path, a->si, st);
 }
 
 int
-xrdc_fuse_op_dirlist(xrdc_conn *c, void *ctx, xrdc_status *st)
+brix_fuse_op_dirlist(brix_conn *c, void *ctx, brix_status *st)
 {
-    struct xrdc_fuse_ctx_dir *a = ctx;
-    return xrdc_dirlist(c, a->path, 1, a->ents, a->n, st);
+    struct brix_fuse_ctx_dir *a = ctx;
+    return brix_dirlist(c, a->path, 1, a->ents, a->n, st);
 }
 
 int
-xrdc_fuse_op_mkdir(xrdc_conn *c, void *ctx, xrdc_status *st)
+brix_fuse_op_mkdir(brix_conn *c, void *ctx, brix_status *st)
 {
-    struct xrdc_fuse_ctx_mkdir *a = ctx;
-    return xrdc_mkdir(c, a->path, a->mode, 0, st);
+    struct brix_fuse_ctx_mkdir *a = ctx;
+    return brix_mkdir(c, a->path, a->mode, 0, st);
 }
 
 int
-xrdc_fuse_op_rm(xrdc_conn *c, void *ctx, xrdc_status *st)
+brix_fuse_op_rm(brix_conn *c, void *ctx, brix_status *st)
 {
-    return xrdc_rm(c, (const char *) ctx, st);
+    return brix_rm(c, (const char *) ctx, st);
 }
 
 int
-xrdc_fuse_op_rmdir(xrdc_conn *c, void *ctx, xrdc_status *st)
+brix_fuse_op_rmdir(brix_conn *c, void *ctx, brix_status *st)
 {
-    return xrdc_rmdir(c, (const char *) ctx, st);
+    return brix_rmdir(c, (const char *) ctx, st);
 }
 
 int
-xrdc_fuse_op_mv(xrdc_conn *c, void *ctx, xrdc_status *st)
+brix_fuse_op_mv(brix_conn *c, void *ctx, brix_status *st)
 {
-    struct xrdc_fuse_ctx_mv *a = ctx;
-    return xrdc_mv(c, a->from, a->to, st);
+    struct brix_fuse_ctx_mv *a = ctx;
+    return brix_mv(c, a->from, a->to, st);
 }
 
 int
-xrdc_fuse_op_chmod(xrdc_conn *c, void *ctx, xrdc_status *st)
+brix_fuse_op_chmod(brix_conn *c, void *ctx, brix_status *st)
 {
-    struct xrdc_fuse_ctx_chmod *a = ctx;
-    return xrdc_chmod(c, a->path, a->mode, st);
+    struct brix_fuse_ctx_chmod *a = ctx;
+    return brix_chmod(c, a->path, a->mode, st);
 }
 
 int
-xrdc_fuse_op_trunc(xrdc_conn *c, void *ctx, xrdc_status *st)
+brix_fuse_op_trunc(brix_conn *c, void *ctx, brix_status *st)
 {
-    struct xrdc_fuse_ctx_trunc *a = ctx;
-    return xrdc_truncate(c, a->path, a->size, st);
+    struct brix_fuse_ctx_trunc *a = ctx;
+    return brix_truncate(c, a->path, a->size, st);
 }
 
 int
-xrdc_fuse_op_setattr(xrdc_conn *c, void *ctx, xrdc_status *st)
+brix_fuse_op_setattr(brix_conn *c, void *ctx, brix_status *st)
 {
-    struct xrdc_fuse_ctx_setattr *a = ctx;
-    return xrdc_setattr(c, a->path, a->set_times, a->times,
+    struct brix_fuse_ctx_setattr *a = ctx;
+    return brix_setattr(c, a->path, a->set_times, a->times,
                         a->set_owner, a->uid, a->gid, st);
 }
 
 int
-xrdc_fuse_op_symlink(xrdc_conn *c, void *ctx, xrdc_status *st)
+brix_fuse_op_symlink(brix_conn *c, void *ctx, brix_status *st)
 {
-    struct xrdc_fuse_ctx_link2 *a = ctx;
-    return xrdc_symlink(c, a->a, a->b, st);
+    struct brix_fuse_ctx_link2 *a = ctx;
+    return brix_symlink(c, a->a, a->b, st);
 }
 
 int
-xrdc_fuse_op_link(xrdc_conn *c, void *ctx, xrdc_status *st)
+brix_fuse_op_link(brix_conn *c, void *ctx, brix_status *st)
 {
-    struct xrdc_fuse_ctx_link2 *a = ctx;
-    return xrdc_link(c, a->a, a->b, st);
+    struct brix_fuse_ctx_link2 *a = ctx;
+    return brix_link(c, a->a, a->b, st);
 }

@@ -108,7 +108,7 @@ All cells **8/8 byte-exact** except as noted below.
 
 The repo client's degradation was traced to its **transport-fault backoff**: after
 each sever it sleeps `25 ms << attempt` (capped 250 ms) before reconnecting
-(`xrdc_backoff_delay_fast_ms` in `client/lib/nettmo.c`). On a lossy-but-*connected*
+(`brix_backoff_delay_fast_ms` in `client/lib/nettmo.c`). On a lossy-but-*connected*
 link the reconnect itself is sub-millisecond, so that sleep — not the reconnect — is
 the dominant per-sever cost (~10 severs × ~25–40 ms ≈ the ~0.5 s seen at 1%).
 

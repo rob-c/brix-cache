@@ -1,5 +1,5 @@
 /*
- * netfb_test.c — IPv6→IPv4 auto-downgrade (netpref.c + xrdc_tcp_connect).
+ * netfb_test.c — IPv6→IPv4 auto-downgrade (netpref.c + brix_tcp_connect).
  *
  * WHAT: Deterministic checks for the dual-stack-with-broken-IPv6 fallback that
  *       keeps a FUSE mount working (and quiet) on a host whose IPv6 path is dead.
@@ -15,7 +15,7 @@
  *                    must still succeed but the session must NOT demote.
  *       Exit 0 = pass; any failed expectation prints to stderr and exits 1.
  */
-#include "xrdc.h"
+#include "brix.h"
 
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -103,15 +103,15 @@ static int
 mode_state(void)
 {
     fprintf(stderr, "[state] netpref state machine\n");
-    check(xrdc_netpref_family() == AF_UNSPEC, "initial family == AF_UNSPEC");
-    check(xrdc_netpref_demoted() == 0,        "initially not demoted");
+    check(brix_netpref_family() == AF_UNSPEC, "initial family == AF_UNSPEC");
+    check(brix_netpref_demoted() == 0,        "initially not demoted");
 
-    xrdc_netpref_demote_ipv6("server.example");
-    check(xrdc_netpref_demoted() == 1,        "demoted after demote_ipv6");
-    check(xrdc_netpref_family() == AF_INET,   "family == AF_INET after demote");
+    brix_netpref_demote_ipv6("server.example");
+    check(brix_netpref_demoted() == 1,        "demoted after demote_ipv6");
+    check(brix_netpref_family() == AF_INET,   "family == AF_INET after demote");
 
-    xrdc_netpref_demote_ipv6("server.example");   /* idempotent */
-    check(xrdc_netpref_demoted() == 1,        "still demoted (idempotent)");
+    brix_netpref_demote_ipv6("server.example");   /* idempotent */
+    check(brix_netpref_demoted() == 1,        "still demoted (idempotent)");
     return failures ? 1 : 0;
 }
 
@@ -130,9 +130,9 @@ mode_connect(int expect_demote)
 
     /* Sentinel resolves (via gai_shim) to [::1:port, 127.0.0.1:port]; ::1 has no
      * listener so the v6 candidate is refused and the connect falls to v4. */
-    xrdc_status st;
+    brix_status st;
     memset(&st, 0, sizeof(st));
-    int fd = xrdc_tcp_connect(SENTINEL, port, 5000, &st);
+    int fd = brix_tcp_connect(SENTINEL, port, 5000, &st);
     check(fd >= 0, "connect fell back to working IPv4");
     if (fd < 0) {
         fprintf(stderr, "    (status: %s)\n", st.msg);
@@ -141,17 +141,17 @@ mode_connect(int expect_demote)
     }
 
     if (expect_demote) {
-        check(xrdc_netpref_demoted() == 1, "session demoted to IPv4-only");
+        check(brix_netpref_demoted() == 1, "session demoted to IPv4-only");
         /* After demotion the resolver is asked for AF_INET only; a second
          * connect must still succeed straight away. */
-        int fd2 = xrdc_tcp_connect(SENTINEL, port, 5000, &st);
+        int fd2 = brix_tcp_connect(SENTINEL, port, 5000, &st);
         check(fd2 >= 0, "post-demote connect (IPv4-only resolve) works");
         if (fd2 >= 0) {
             close(fd2);
         }
     } else {
-        check(xrdc_netpref_demoted() == 0, "opt-out: NOT demoted");
-        check(xrdc_netpref_family() == AF_UNSPEC, "opt-out: family stays AF_UNSPEC");
+        check(brix_netpref_demoted() == 0, "opt-out: NOT demoted");
+        check(brix_netpref_family() == AF_UNSPEC, "opt-out: family stays AF_UNSPEC");
     }
 
     close(lfd);
@@ -163,18 +163,18 @@ static int
 mode_wirestate(void)
 {
     fprintf(stderr, "[wirestate] note_wire_error / undo_demote\n");
-    check(xrdc_netpref_demoted() == 0, "initially not demoted");
+    check(brix_netpref_demoted() == 0, "initially not demoted");
 
-    xrdc_netpref_note_wire_error(AF_INET);    /* v4 error: not evidence of bad v6 */
-    check(xrdc_netpref_demoted() == 0, "AF_INET wire error does NOT demote");
+    brix_netpref_note_wire_error(AF_INET);    /* v4 error: not evidence of bad v6 */
+    check(brix_netpref_demoted() == 0, "AF_INET wire error does NOT demote");
 
-    xrdc_netpref_note_wire_error(AF_INET6);   /* v6 error: the trigger */
-    check(xrdc_netpref_demoted() == 1, "AF_INET6 wire error demotes");
-    check(xrdc_netpref_family() == AF_INET, "family AF_INET after wire demote");
+    brix_netpref_note_wire_error(AF_INET6);   /* v6 error: the trigger */
+    check(brix_netpref_demoted() == 1, "AF_INET6 wire error demotes");
+    check(brix_netpref_family() == AF_INET, "family AF_INET after wire demote");
 
-    xrdc_netpref_undo_demote("test revert");  /* self-heal */
-    check(xrdc_netpref_demoted() == 0, "undo_demote reverts");
-    check(xrdc_netpref_family() == AF_UNSPEC, "family AF_UNSPEC after revert");
+    brix_netpref_undo_demote("test revert");  /* self-heal */
+    check(brix_netpref_demoted() == 0, "undo_demote reverts");
+    check(brix_netpref_family() == AF_UNSPEC, "family AF_UNSPEC after revert");
     return failures ? 1 : 0;
 }
 
@@ -207,13 +207,13 @@ mode_wireerror(void)
         close(afd);   /* peer drops the connection */
     }
 
-    xrdc_io     io = { .fd = cfd, .ssl = NULL, .timeout_ms = 1000 };
-    xrdc_status st;
+    brix_io     io = { .fd = cfd, .ssl = NULL, .timeout_ms = 1000 };
+    brix_status st;
     char        buf[16];
     memset(&st, 0, sizeof(st));
-    int rc = xrdc_read_full(&io, buf, sizeof(buf), &st);
+    int rc = brix_read_full(&io, buf, sizeof(buf), &st);
     check(rc < 0, "read failed (peer dropped)");
-    check(xrdc_netpref_demoted() == 1, "IPv6 wire error demoted the session");
+    check(brix_netpref_demoted() == 1, "IPv6 wire error demoted the session");
 
     if (cfd >= 0) {
         close(cfd);
@@ -229,8 +229,8 @@ mode_selfheal(void)
 {
     fprintf(stderr, "[selfheal] demoted session meets an IPv6-only host\n");
 
-    xrdc_netpref_demote_ipv6("simulated prior failure");
-    check(xrdc_netpref_demoted() == 1, "pre-demoted to IPv4-only");
+    brix_netpref_demote_ipv6("simulated prior failure");
+    check(brix_netpref_demoted() == 1, "pre-demoted to IPv4-only");
 
     int port = 0;
     int lfd = listen_v6(&port);
@@ -242,16 +242,16 @@ mode_selfheal(void)
     /* V6ONLY resolves to ::1 for AF_UNSPEC but EAI_NONAME for AF_INET, so the
      * demoted (AF_INET) attempt fails, self-heal reverts, and the AF_UNSPEC
      * retry reaches the IPv6 listener. */
-    xrdc_status st;
+    brix_status st;
     memset(&st, 0, sizeof(st));
-    int fd = xrdc_tcp_connect(V6ONLY, port, 3000, &st);
+    int fd = brix_tcp_connect(V6ONLY, port, 3000, &st);
     check(fd >= 0, "self-heal reverted and connected over IPv6");
     if (fd < 0) {
         fprintf(stderr, "    (status: %s)\n", st.msg);
     } else {
         close(fd);
     }
-    check(xrdc_netpref_demoted() == 0, "demotion reverted (back to dual-stack)");
+    check(brix_netpref_demoted() == 0, "demotion reverted (back to dual-stack)");
 
     close(lfd);
     return failures ? 1 : 0;

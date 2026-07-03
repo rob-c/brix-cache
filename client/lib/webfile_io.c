@@ -9,13 +9,13 @@
 
 
 void
-web_disconnect(xrdc_webfile *wf)
+web_disconnect(brix_webfile *wf)
 {
     if (!wf->connected) {
         return;
     }
     if (wf->tls) {
-        xrdc_tls_client_free(&wf->io, wf->tls_ctx);
+        brix_tls_client_free(&wf->io, wf->tls_ctx);
         wf->tls_ctx = NULL;
     }
     if (wf->io.fd >= 0) {
@@ -27,15 +27,15 @@ web_disconnect(xrdc_webfile *wf)
 
 
 int
-web_connect(xrdc_webfile *wf, xrdc_status *st)
+web_connect(brix_webfile *wf, brix_status *st)
 {
     memset(&wf->io, 0, sizeof(wf->io));
-    wf->io.fd = xrdc_tcp_connect(wf->host, wf->port, wf->timeout_ms, st);
+    wf->io.fd = brix_tcp_connect(wf->host, wf->port, wf->timeout_ms, st);
     if (wf->io.fd < 0) {
         return -1;
     }
     wf->io.timeout_ms = wf->timeout_ms;
-    if (wf->tls && xrdc_tls_client(&wf->io, wf->host, wf->verify, wf->verify,
+    if (wf->tls && brix_tls_client(&wf->io, wf->host, wf->verify, wf->verify,
                                    wf->ca_dir[0] ? wf->ca_dir : NULL,
                                    &wf->tls_ctx, st) != 0) {
         close(wf->io.fd);
@@ -49,11 +49,11 @@ web_connect(xrdc_webfile *wf, xrdc_status *st)
 
 /* Read up to n bytes (branches on TLS). >0 bytes, 0 EOF, -1 error. */
 ssize_t
-web_read_some(xrdc_webfile *wf, void *buf, size_t n, xrdc_status *st)
+web_read_some(brix_webfile *wf, void *buf, size_t n, brix_status *st)
 {
     if (wf->io.ssl != NULL) {
         size_t got = 0;
-        if (xrdc_tls_read_some(&wf->io, buf, n, &got, st) != 0) {
+        if (brix_tls_read_some(&wf->io, buf, n, &got, st) != 0) {
             return -1;
         }
         return (ssize_t) got;
@@ -64,12 +64,12 @@ web_read_some(xrdc_webfile *wf, void *buf, size_t n, xrdc_status *st)
     pfd.fd = wf->io.fd; pfd.events = POLLIN; pfd.revents = 0;
     do { pr = poll(&pfd, 1, wf->io.timeout_ms); } while (pr < 0 && errno == EINTR);
     if (pr <= 0) {
-        xrdc_status_set(st, XRDC_ESOCK, pr == 0 ? ETIMEDOUT : errno, "web read");
+        brix_status_set(st, XRDC_ESOCK, pr == 0 ? ETIMEDOUT : errno, "web read");
         return -1;
     }
     do { r = read(wf->io.fd, buf, n); } while (r < 0 && errno == EINTR);
     if (r < 0) {
-        xrdc_status_set(st, XRDC_ESOCK, errno, "web read: %s", strerror(errno));
+        brix_status_set(st, XRDC_ESOCK, errno, "web read: %s", strerror(errno));
         return -1;
     }
     return r;
@@ -98,8 +98,8 @@ hdr_clen(const char *hdrs)
  * bytes at off into buf; returns bytes read (0 = EOF/416), or -1 (st set). On any
  * transport/protocol fault returns -1 AND disconnects so the caller can retry. */
 ssize_t
-web_get_range(xrdc_webfile *wf, int64_t off, void *buf, size_t len,
-              xrdc_status *st)
+web_get_range(brix_webfile *wf, int64_t off, void *buf, size_t len,
+              brix_status *st)
 {
     char    req[3200];
     char    hbuf[WEB_HDR_MAX + 1];
@@ -115,10 +115,10 @@ web_get_range(xrdc_webfile *wf, int64_t off, void *buf, size_t len,
                           (long long) off, (long long) (off + (int64_t) len - 1),
                           wf->auth);
     if (rn < 0 || (size_t) rn >= sizeof(req)) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "web GET: request too long");
+        brix_status_set(st, XRDC_EUSAGE, 0, "web GET: request too long");
         return -1;
     }
-    if (xrdc_write_full(&wf->io, req, (size_t) rn, st) != 0) {
+    if (brix_write_full(&wf->io, req, (size_t) rn, st) != 0) {
         web_disconnect(wf);
         return -1;
     }
@@ -128,14 +128,14 @@ web_get_range(xrdc_webfile *wf, int64_t off, void *buf, size_t len,
         ssize_t r;
         if (hlen >= WEB_HDR_MAX) {
             web_disconnect(wf);
-            xrdc_status_set(st, XRDC_EPROTO, 0, "web GET: header too large");
+            brix_status_set(st, XRDC_EPROTO, 0, "web GET: header too large");
             return -1;
         }
         r = web_read_some(wf, hbuf + hlen, WEB_HDR_MAX - hlen, st);
         if (r <= 0) {
             web_disconnect(wf);
             if (r == 0) {
-                xrdc_status_set(st, XRDC_ESOCK, 0, "web GET: peer closed");
+                brix_status_set(st, XRDC_ESOCK, 0, "web GET: peer closed");
             }
             return -1;
         }
@@ -156,11 +156,11 @@ web_get_range(xrdc_webfile *wf, int64_t off, void *buf, size_t len,
     if (status != 206 && status != 200) {
         web_disconnect(wf);
         if (status == 404) {
-            xrdc_status_set(st, kXR_NotFound, 0, "not found");
+            brix_status_set(st, kXR_NotFound, 0, "not found");
         } else if (status == 401 || status == 403) {
-            xrdc_status_set(st, kXR_NotAuthorized, 0, "HTTP %d", status);
+            brix_status_set(st, kXR_NotAuthorized, 0, "HTTP %d", status);
         } else {
-            xrdc_status_set(st, XRDC_EPROTO, 0, "web GET: HTTP %d", status);
+            brix_status_set(st, XRDC_EPROTO, 0, "web GET: HTTP %d", status);
         }
         return -1;
     }
@@ -171,7 +171,7 @@ web_get_range(xrdc_webfile *wf, int64_t off, void *buf, size_t len,
         /* No Content-Length (e.g. chunked): we cannot keep the socket aligned;
          * bail and let the caller fall back (rare for a ranged GET). */
         web_disconnect(wf);
-        xrdc_status_set(st, XRDC_EPROTO, 0, "web GET: no Content-Length");
+        brix_status_set(st, XRDC_EPROTO, 0, "web GET: no Content-Length");
         return -1;
     }
 
@@ -203,7 +203,7 @@ web_get_range(xrdc_webfile *wf, int64_t off, void *buf, size_t len,
                     return (ssize_t) copied;        /* partial; caller resumes */
                 }
                 if (br == 0) {
-                    xrdc_status_set(st, XRDC_ESOCK, 0,
+                    brix_status_set(st, XRDC_ESOCK, 0,
                                     "web GET: peer closed mid-body");
                 }
                 return -1;
@@ -219,7 +219,7 @@ web_get_range(xrdc_webfile *wf, int64_t off, void *buf, size_t len,
             if (chunk > sizeof(sink)) {
                 chunk = sizeof(sink);
             }
-            if (xrdc_read_full(&wf->io, sink, chunk, st) != 0) {
+            if (brix_read_full(&wf->io, sink, chunk, st) != 0) {
                 web_disconnect(wf);
                 return (ssize_t) want;   /* have the wanted bytes; lost keep-alive */
             }
@@ -235,25 +235,25 @@ web_get_range(xrdc_webfile *wf, int64_t off, void *buf, size_t len,
 }
 
 
-xrdc_webfile *
-xrdc_webfile_open(const xrdc_weburl *u, const char *path, const char *bearer,
+brix_webfile *
+brix_webfile_open(const brix_weburl *u, const char *path, const char *bearer,
                   int verify, const char *ca_dir, int timeout_ms,
-                  xrdc_statinfo *si_out, xrdc_status *st)
+                  brix_statinfo *si_out, brix_status *st)
 {
-    xrdc_webfile *wf;
-    xrdc_statinfo si;
+    brix_webfile *wf;
+    brix_statinfo si;
 
     /* stat first: confirms existence + gives the size (and feeds getattr). */
-    if (xrdc_web_stat(u, path, bearer, verify, ca_dir, &si, st) != 0) {
+    if (brix_web_stat(u, path, bearer, verify, ca_dir, &si, st) != 0) {
         return NULL;
     }
     if (si.flags & kXR_isDir) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "is a directory");
+        brix_status_set(st, XRDC_EUSAGE, 0, "is a directory");
         return NULL;
     }
     wf = calloc(1, sizeof(*wf));
     if (wf == NULL) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "out of memory");
+        brix_status_set(st, XRDC_EPROTO, 0, "out of memory");
         return NULL;
     }
     snprintf(wf->host, sizeof(wf->host), "%s", u->host);
@@ -265,7 +265,7 @@ xrdc_webfile_open(const xrdc_weburl *u, const char *path, const char *bearer,
     }
     snprintf(wf->path, sizeof(wf->path), "%s", path);
     web_auth(bearer, wf->auth, sizeof(wf->auth));
-    xrootd_format_host_port(u->host, (uint16_t) u->port, wf->hostport,
+    brix_format_host_port(u->host, (uint16_t) u->port, wf->hostport,
                             sizeof(wf->hostport));
     wf->timeout_ms = timeout_ms > 0 ? timeout_ms : WEB_TIMEOUT_MS;
     wf->size = si.size;
@@ -278,7 +278,7 @@ xrdc_webfile_open(const xrdc_weburl *u, const char *path, const char *bearer,
 
 
 int64_t
-xrdc_webfile_size(const xrdc_webfile *wf)
+brix_webfile_size(const brix_webfile *wf)
 {
     return wf->size;
 }
@@ -301,8 +301,8 @@ webfile_window_ms(void)
 
 
 ssize_t
-xrdc_webfile_pread(xrdc_webfile *wf, int64_t off, void *buf, size_t len,
-                   xrdc_status *st)
+brix_webfile_pread(brix_webfile *wf, int64_t off, void *buf, size_t len,
+                   brix_status *st)
 {
     uint64_t deadline;
     unsigned attempt = 0;
@@ -331,7 +331,7 @@ xrdc_webfile_pread(xrdc_webfile *wf, int64_t off, void *buf, size_t len,
      * returns immediately.
      */
     window_ms = webfile_window_ms();
-    deadline = xrdc_mono_ns() + (uint64_t) window_ms * 1000000ULL;
+    deadline = brix_mono_ns() + (uint64_t) window_ms * 1000000ULL;
 
     for (;;) {
         if (wf->connected || web_connect(wf, st) == 0) {
@@ -344,7 +344,7 @@ xrdc_webfile_pread(xrdc_webfile *wf, int64_t off, void *buf, size_t len,
                 }
                 attempt = 0;                       /* progress: reset backoff */
                 if (window_ms > 0) {
-                    deadline = xrdc_mono_ns()
+                    deadline = brix_mono_ns()
                              + (uint64_t) window_ms * 1000000ULL;
                 }
                 continue;                          /* resume at off+got */
@@ -354,17 +354,17 @@ xrdc_webfile_pread(xrdc_webfile *wf, int64_t off, void *buf, size_t len,
             }
             /* r < 0: transport/protocol fault — fall through to the retry gate. */
         }
-        if (window_ms <= 0 || !xrdc_status_retryable(st)
-            || xrdc_mono_ns() >= deadline) {
+        if (window_ms <= 0 || !brix_status_retryable(st)
+            || brix_mono_ns() >= deadline) {
             return (got > 0) ? (ssize_t) got : -1;
         }
-        xrdc_backoff_sleep_fast(attempt++);
+        brix_backoff_sleep_fast(attempt++);
     }
 }
 
 
 void
-xrdc_webfile_close(xrdc_webfile *wf, xrdc_status *st)
+brix_webfile_close(brix_webfile *wf, brix_status *st)
 {
     (void) st;
     if (wf == NULL) {

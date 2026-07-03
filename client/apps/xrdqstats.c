@@ -4,9 +4,9 @@
  * WHAT: `xrdqstats [-c KEY | -s PATH] host[:port]` — default kXR_QStats; -c →
  *       kXR_Qconfig <KEY>; -s → kXR_Qspace <PATH>. Prints the server's text reply.
  * WHY:  A scriptable front-end over the client library's kXR_query. libXrdCl-free.
- * HOW:  xrdc_endpoint_parse → xrdc_connect → xrdc_query(infotype, args).
+ * HOW:  brix_endpoint_parse → brix_connect → brix_query(infotype, args).
  */
-#include "xrdc.h"
+#include "brix.h"
 #include "core/compat/crypto.h"
 
 #include <stdio.h>
@@ -15,8 +15,8 @@
 int
 main(int argc, char **argv)
 {
-    xrdc_conn   c;
-    xrdc_status st;
+    brix_conn   c;
+    brix_status st;
     char        reply[4096];
     const char *endpoint = NULL, *args = "";
     int         infotype = kXR_QStats, i;
@@ -36,17 +36,17 @@ main(int argc, char **argv)
     }
 
     {
-        int rc = xrdc_cli_connect(endpoint, NULL, &c, argv[0], &st);
+        int rc = brix_cli_connect(endpoint, NULL, &c, argv[0], &st);
         if (rc != 0) {
             return rc;
         }
     }
-    if (xrdc_query(&c, infotype, args, reply, sizeof(reply), &st) != 0) {
+    if (brix_query(&c, infotype, args, reply, sizeof(reply), &st) != 0) {
         fprintf(stderr, "%s: %s\n", argv[0], st.msg);
-        xrdc_close(&c);
-        return xrdc_shellcode(&st);
+        brix_close(&c);
+        return brix_shellcode(&st);
     }
-    xrdc_close(&c);
+    brix_close(&c);
     printf("%s\n", reply);
     return 0;
 }

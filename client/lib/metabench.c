@@ -1,6 +1,6 @@
 /*
  * metabench.c — PURE metadata workload planning + percentiles + result printers.
- * No wire I/O, no libxrdc dependency: builds + unit-tests standalone with libc.
+ * No wire I/O, no libbrix dependency: builds + unit-tests standalone with libc.
  * The threaded GSI runner lives in metabench_run.c.
  */
 #include "metabench.h"

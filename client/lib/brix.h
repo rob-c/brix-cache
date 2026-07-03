@@ -1,5 +1,5 @@
 /*
- * xrdc.h — internal API for the native XRootD root:// client library.
+ * brix.h — internal API for the native XRootD root:// client library.
  *
  * WHAT: Connection/session + metadata/file ops over the XRootD binary protocol,
  *       built directly on the project's wire vocabulary (the src/protocols/root/protocol headers,
@@ -19,20 +19,20 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>               /* FILE* for the explain/trace sinks */
-#include <time.h>                /* struct timespec for xrdc_setattr */
+#include <time.h>                /* struct timespec for brix_setattr */
 #include <sys/types.h>
 
 #include "protocols/root/protocol/protocol.h"   /* wire structs + kXR_* constants (-I src) */
 #include "protocols/root/protocol/codec/wire_codec.h" /* shared per-opcode wire-body codec */
 
-/* Public-API fixed sizes. Kept under their stable libxrdc-public XRDC_* names, but
+/* Public-API fixed sizes. Kept under their stable libbrix-public XRDC_* names, but
  * the VALUE is now single-sourced from the shared wire header (protocol/opcodes.h
  * via protocol/protocol.h above) rather than re-spelled as 4 / 16 here. */
 #ifndef XRDC_FHANDLE_LEN
 #define XRDC_FHANDLE_LEN XRD_FHANDLE_LEN
 #endif
 #ifndef XRDC_SESSION_ID_LEN
-#define XRDC_SESSION_ID_LEN XROOTD_SESSION_ID_LEN
+#define XRDC_SESSION_ID_LEN BRIX_SESSION_ID_LEN
 #endif
 
 /* kXR_ExpLogin (ClientProtocolRequest.expect) and kXR_FinalResult/kXR_PartialResult
@@ -49,7 +49,7 @@ typedef struct {
     int  kxr;        /* kXR_* server error code; 0 = none; <0 = local/socket */
     int  sys_errno;  /* local errno when the failure was a syscall */
     char msg[XRDC_MSG_MAX];
-} xrdc_status;
+} brix_status;
 
 /* Local error sentinels (negative so they never collide with kXR_* codes). */
 #define XRDC_ESOCK   (-1)   /* connect/socket/timeout failure */
@@ -80,15 +80,15 @@ typedef enum {
     XRDC_SCHEME_ROOTS,      /* roots:// / xroots:// (TLS) — declined this pass */
     XRDC_SCHEME_LOCAL,      /* file:// or a bare local path */
     XRDC_SCHEME_STDIO       /* "-" */
-} xrdc_scheme;
+} brix_scheme;
 
 typedef struct {
-    xrdc_scheme scheme;
+    brix_scheme scheme;
     char        host[256];
     int         port;
     char        user[64];
     char        path[XRDC_PATH_MAX];   /* absolute for root://, local path otherwise */
-} xrdc_url;
+} brix_url;
 
 /* Web endpoints carried over HTTP (WebDAV + S3) — the non-root transfer surface.
  * davs/s3 are HTTP under the hood; xrdcp uses these for production GET/PUT. */
@@ -99,27 +99,27 @@ typedef enum {
     XRDC_WEB_DAVS,       /* davs://  (TLS WebDAV) */
     XRDC_WEB_S3,         /* s3://    (cleartext S3 REST) */
     XRDC_WEB_S3S         /* s3s://   (TLS S3 REST) */
-} xrdc_web_proto;
+} brix_web_proto;
 typedef struct {
-    xrdc_web_proto proto;
+    brix_web_proto proto;
     int            tls;                /* 1 if the scheme implies TLS */
     int            is_s3;             /* 1 for s3/s3s (SigV4); 0 for http/dav family */
     char           host[256];
     int            port;
     char           path[XRDC_PATH_MAX];
-} xrdc_weburl;
+} brix_weburl;
 /* Return 1 if `s` begins with a web scheme (http/https/dav/davs/s3/s3s). */
-int xrdc_is_web_url(const char *s);
+int brix_is_web_url(const char *s);
 /* Return 1 if `s` names a block-device endpoint (block:// prefix or /dev/). */
-int xrdc_is_block_url(const char *s);
+int brix_is_block_url(const char *s);
 /* Parse a web URL into *out. 0 on success, -1 if not a recognized web URL. */
-int xrdc_weburl_parse(const char *s, xrdc_weburl *out);
+int brix_weburl_parse(const char *s, brix_weburl *out);
 
 
 /* Phase-38: decl groups live in concern sub-headers, included here so every
- * `#include "xrdc.h"` still sees the whole API (umbrella). */
-#include "xrdc_net.h"
-#include "xrdc_auth.h"
-#include "xrdc_ops.h"
+ * `#include "brix.h"` still sees the whole API (umbrella). */
+#include "brix_net.h"
+#include "brix_auth.h"
+#include "brix_ops.h"
 
 #endif /* XRDC_H */

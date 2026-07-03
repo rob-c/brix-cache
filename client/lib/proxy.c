@@ -15,7 +15,7 @@
  * Clean-room: the proxy/extension format is RFC 3820 (a published interface);
  * OpenSSL X509 is a public API. No upstream implementation was consulted.
  */
-#include "xrdc.h"
+#include "brix.h"
 
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
@@ -42,14 +42,14 @@ static const unsigned char PROXY_CERT_INFO_DER[] = {
 };
 #define PROXY_CERT_INFO_OID "1.3.6.1.5.5.7.1.14"
 
-/* Open a credential file as a BIO with xrdc_open_credfile's safety checks (no
+/* Open a credential file as a BIO with brix_open_credfile's safety checks (no
  * symlink, owned by euid, secret=1 → 0600), so the predictable /tmp/x509up_u<uid>
  * proxy can't be hijacked via a planted symlink/file. BIO_CLOSE makes BIO_free
  * close the underlying fd. Quiet on failure (returns NULL) — callers report. */
 struct bio_st *
-xrdc_credfile_bio(const char *path, int secret)
+brix_credfile_bio(const char *path, int secret)
 {
-    int   fd = xrdc_open_credfile(path, secret, NULL);
+    int   fd = brix_open_credfile(path, secret, NULL);
     FILE *fp;
     BIO  *bio;
 
@@ -69,7 +69,7 @@ xrdc_credfile_bio(const char *path, int secret)
 }
 
 void
-xrdc_proxy_default_path(char *out, size_t outsz)
+brix_proxy_default_path(char *out, size_t outsz)
 {
     const char *p = getenv("X509_USER_PROXY");
     if (p != NULL && p[0] != '\0') {
@@ -95,16 +95,16 @@ default_cred(const char *envname, const char *globus_leaf, char *out, size_t out
 }
 
 static int
-ssl_fail(xrdc_status *st, const char *what)
+ssl_fail(brix_status *st, const char *what)
 {
     unsigned long e = ERR_get_error();
     char          buf[160];
     ERR_error_string_n(e, buf, sizeof(buf));
-    xrdc_status_set(st, XRDC_EAUTH, 0, "%s: %s", what, buf[0] ? buf : "(no detail)");
+    brix_status_set(st, XRDC_EAUTH, 0, "%s: %s", what, buf[0] ? buf : "(no detail)");
     return -1;
 }
 
-/* All OpenSSL/OS resources owned by xrdc_proxy_create. Every member starts NULL
+/* All OpenSSL/OS resources owned by brix_proxy_create. Every member starts NULL
  * (fd = -1) so the cleanup helper can free exactly what was acquired so far, in
  * the original single-exit ladder order, regardless of which step failed. */
 typedef struct {
@@ -126,7 +126,7 @@ typedef struct {
  * WHAT: NULL-safe teardown of the proxy_build_ctx in the exact order the former
  *       single `done:` ladder used (fd, bio, ext, octet, pci_obj, subj, proxy,
  *       pkey, ukey, user).
- * WHY:  Lets xrdc_proxy_create become a flat early-return sequence with no goto,
+ * WHY:  Lets brix_proxy_create become a flat early-return sequence with no goto,
  *       while preserving byte-identical free ordering and partial-init safety.
  * HOW:  Free each non-NULL member once, then return the caller's status code so
  *       callsites can `return proxy_build_cleanup(&c, rc)` on every exit.
@@ -148,7 +148,7 @@ proxy_build_cleanup(proxy_build_ctx *c, int rc)
 }
 
 int
-xrdc_proxy_create(const xrdc_proxy_opts *o, xrdc_status *st)
+brix_proxy_create(const brix_proxy_opts *o, brix_status *st)
 {
     char       cert_path[1024], key_path[1024], out_path[1024], tmp_path[1100];
     proxy_build_ctx c = { .fd = -1 };
@@ -162,12 +162,12 @@ xrdc_proxy_create(const xrdc_proxy_opts *o, xrdc_status *st)
     if (o && o->user_key) { snprintf(key_path, sizeof(key_path), "%s", o->user_key); }
     else { default_cred("X509_USER_KEY", "userkey.pem", key_path, sizeof(key_path)); }
     if (o && o->out_path) { snprintf(out_path, sizeof(out_path), "%s", o->out_path); }
-    else { xrdc_proxy_default_path(out_path, sizeof(out_path)); }
+    else { brix_proxy_default_path(out_path, sizeof(out_path)); }
 
     /* Load the user end-entity cert + key (the proxy issuer). */
     c.bio = BIO_new_file(cert_path, "r");
     if (c.bio == NULL) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "cannot open user cert %s", cert_path);
+        brix_status_set(st, XRDC_EUSAGE, 0, "cannot open user cert %s", cert_path);
         return proxy_build_cleanup(&c, -1);
     }
     c.user = PEM_read_bio_X509(c.bio, NULL, NULL, NULL);
@@ -176,7 +176,7 @@ xrdc_proxy_create(const xrdc_proxy_opts *o, xrdc_status *st)
 
     c.bio = BIO_new_file(key_path, "r");
     if (c.bio == NULL) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "cannot open user key %s", key_path);
+        brix_status_set(st, XRDC_EUSAGE, 0, "cannot open user key %s", key_path);
         return proxy_build_cleanup(&c, -1);
     }
     c.ukey = PEM_read_bio_PrivateKey(c.bio, NULL, NULL, NULL);
@@ -235,7 +235,7 @@ xrdc_proxy_create(const xrdc_proxy_opts *o, xrdc_status *st)
     snprintf(tmp_path, sizeof(tmp_path), "%s.tmp.%u", out_path, (unsigned) getpid());
     c.fd = open(tmp_path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
     if (c.fd < 0) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "cannot create %s", tmp_path);
+        brix_status_set(st, XRDC_EUSAGE, 0, "cannot create %s", tmp_path);
         return proxy_build_cleanup(&c, -1);
     }
     c.bio = BIO_new_fp(fdopen(c.fd, "w"), BIO_CLOSE);
@@ -251,7 +251,7 @@ xrdc_proxy_create(const xrdc_proxy_opts *o, xrdc_status *st)
     }
     BIO_free(c.bio); c.bio = NULL;
     if (chmod(tmp_path, 0400) != 0 || rename(tmp_path, out_path) != 0) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "cannot finalize %s", out_path);
+        brix_status_set(st, XRDC_EUSAGE, 0, "cannot finalize %s", out_path);
         unlink(tmp_path);
         return proxy_build_cleanup(&c, -1);
     }
@@ -260,7 +260,7 @@ xrdc_proxy_create(const xrdc_proxy_opts *o, xrdc_status *st)
 }
 
 int
-xrdc_proxy_info(const char *path, FILE *out, xrdc_status *st)
+brix_proxy_info(const char *path, FILE *out, brix_status *st)
 {
     char  defp[1024];
     BIO  *bio;
@@ -268,16 +268,16 @@ xrdc_proxy_info(const char *path, FILE *out, xrdc_status *st)
     char  subj[512], issuer[512];
 
     if (path == NULL) {
-        xrdc_proxy_default_path(defp, sizeof(defp));
+        brix_proxy_default_path(defp, sizeof(defp));
         path = defp;
     }
-    bio = xrdc_credfile_bio(path, 1);
+    bio = brix_credfile_bio(path, 1);
     if (bio == NULL) {
         /* A missing/unreadable proxy is a not-found condition, NOT a CLI
          * usage error: the arguments were well-formed, the file just isn't
          * there. Callers (xrdgsiproxy info) lean on XRDC_ENOENT to stay
          * tolerant of an absent proxy the way stock xrdgsiproxy does. */
-        xrdc_status_set(st, XRDC_ENOENT, 0, "proxy file: %s not found", path);
+        brix_status_set(st, XRDC_ENOENT, 0, "proxy file: %s not found", path);
         return -1;
     }
     cert = PEM_read_bio_X509(bio, NULL, NULL, NULL);
@@ -315,7 +315,7 @@ xrdc_proxy_info(const char *path, FILE *out, xrdc_status *st)
  * / auth-failure diagnostics so the user instantly sees an expired proxy.
  */
 int
-xrdc_proxy_remaining(const char *path, long *secs_left)
+brix_proxy_remaining(const char *path, long *secs_left)
 {
     char  defp[1024];
     BIO  *bio;
@@ -326,10 +326,10 @@ xrdc_proxy_remaining(const char *path, long *secs_left)
         return -1;
     }
     if (path == NULL) {
-        xrdc_proxy_default_path(defp, sizeof(defp));
+        brix_proxy_default_path(defp, sizeof(defp));
         path = defp;
     }
-    bio = xrdc_credfile_bio(path, 1);
+    bio = brix_credfile_bio(path, 1);
     if (bio == NULL) {
         return -1;
     }
@@ -348,18 +348,18 @@ xrdc_proxy_remaining(const char *path, long *secs_left)
 }
 
 int
-xrdc_proxy_destroy(const char *path, xrdc_status *st)
+brix_proxy_destroy(const char *path, brix_status *st)
 {
     char        defp[1024];
     struct stat sb;
     int         fd;
 
     if (path == NULL) {
-        xrdc_proxy_default_path(defp, sizeof(defp));
+        brix_proxy_default_path(defp, sizeof(defp));
         path = defp;
     }
     if (stat(path, &sb) != 0) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "no proxy at %s", path);
+        brix_status_set(st, XRDC_EUSAGE, 0, "no proxy at %s", path);
         return -1;
     }
     /* Best-effort shred: overwrite the bytes before unlinking. */
@@ -378,7 +378,7 @@ xrdc_proxy_destroy(const char *path, xrdc_status *st)
         close(fd);
     }
     if (unlink(path) != 0) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "cannot remove %s", path);
+        brix_status_set(st, XRDC_EUSAGE, 0, "cannot remove %s", path);
         return -1;
     }
     return 0;

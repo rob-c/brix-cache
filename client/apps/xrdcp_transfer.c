@@ -10,8 +10,8 @@
 
 /* Copy one src->dst, retrying up to `retries` times with capped exponential backoff. */
 int
-copy_one_with_retry(const char *src, const char *dst, const xrdc_copy_opts *o,
-                    const xrdc_opts *co, int retries, xrdc_status *st)
+copy_one_with_retry(const char *src, const char *dst, const brix_copy_opts *o,
+                    const brix_opts *co, int retries, brix_status *st)
 {
     int attempt = 0;
     /* web->web has no direct wire path — stage through a local temp. Each relay
@@ -21,8 +21,8 @@ copy_one_with_retry(const char *src, const char *dst, const xrdc_copy_opts *o,
         return relay_web_to_web(src, dst, o, co, retries, st);
     }
     for (;;) {
-        xrdc_status_clear(st);
-        if (xrdc_copy(src, dst, o, co, st) == 0) {
+        brix_status_clear(st);
+        if (brix_copy(src, dst, o, co, st) == 0) {
             return 0;
         }
         if (attempt >= retries) {
@@ -37,7 +37,7 @@ copy_one_with_retry(const char *src, const char *dst, const xrdc_copy_opts *o,
              * slice of the other half, so many clients/jobs retrying in lockstep
              * spread their attempts instead of stampeding the server together. */
             half_ms = (unsigned) backoff * 500u;          /* backoff/2 in ms */
-            wait_ms = half_ms + xrdc_jitter_ms(half_ms + 1u);
+            wait_ms = half_ms + brix_jitter_ms(half_ms + 1u);
             if (!o->silent) {
                 fprintf(stderr, "xrdcp: %s failed (%s); retry %d/%d in %.1fs\n",
                         src, st->msg, attempt + 1, retries, wait_ms / 1000.0);
@@ -54,15 +54,15 @@ copy_one_with_retry(const char *src, const char *dst, const xrdc_copy_opts *o,
 /* Size of a regular file at `url` (root:// or local). 0 and *size set if it exists
  * as a regular file; -1 otherwise (missing, a directory, web, or error). */
 int
-entry_size(const char *url, const xrdc_opts *co, long long *size)
+entry_size(const char *url, const brix_opts *co, long long *size)
 {
-    xrdc_url    u;
-    xrdc_status st;
-    if (xrdc_is_web_url(url)) {
+    brix_url    u;
+    brix_status st;
+    if (brix_is_web_url(url)) {
         return -1;   /* no cheap stat for web; --sync always copies web targets */
     }
-    xrdc_status_clear(&st);
-    if (xrdc_url_parse(url, &u, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_url_parse(url, &u, &st) != 0) {
         return -1;
     }
     if (u.scheme == XRDC_SCHEME_LOCAL) {
@@ -72,13 +72,13 @@ entry_size(const char *url, const xrdc_opts *co, long long *size)
         return 0;
     }
     if (u.scheme == XRDC_SCHEME_ROOT || u.scheme == XRDC_SCHEME_ROOTS) {
-        xrdc_conn     c;
-        xrdc_statinfo si;
+        brix_conn     c;
+        brix_statinfo si;
         int           ok;
-        if (xrdc_connect(&c, &u, co, &st) != 0) { return -1; }
-        ok = (xrdc_stat(&c, u.path, &si, &st) == 0 && !(si.flags & kXR_isDir));
+        if (brix_connect(&c, &u, co, &st) != 0) { return -1; }
+        ok = (brix_stat(&c, u.path, &si, &st) == 0 && !(si.flags & kXR_isDir));
         if (ok) { *size = (long long) si.size; }
-        xrdc_close(&c);
+        brix_close(&c);
         return ok ? 0 : -1;
     }
     return -1;
@@ -88,8 +88,8 @@ entry_size(const char *url, const xrdc_opts *co, long long *size)
 /* Transfer src -> dst. In --sync mode, skip when both ends exist with the same size.
  * Returns 0 (copied), 1 (skipped, up-to-date), or -1 (failed, st set). */
 int
-transfer_one(const char *src, const char *dst, const xrdc_copy_opts *o,
-             const xrdc_opts *co, int retries, int sync_mode, xrdc_status *st)
+transfer_one(const char *src, const char *dst, const brix_copy_opts *o,
+             const brix_opts *co, int retries, int sync_mode, brix_status *st)
 {
     if (sync_mode) {
         long long ssz = 0, dsz = 0;
@@ -104,7 +104,7 @@ transfer_one(const char *src, const char *dst, const xrdc_copy_opts *o,
 
 /* Relay a web->web copy (e.g. davs://a/f -> s3://b/k) by staging through a private
  * local temp file: download src into it, then upload it to dst. The wire has no
- * direct web->web op and xrdc_http_upload needs a seekable/sized body, so a temp
+ * direct web->web op and brix_http_upload needs a seekable/sized body, so a temp
  * is the only correct path. The temp is created 0600 via mkstemp in $TMPDIR and
  * unlinked on every return. Note the download leg rewrites the temp via its own
  * temp+rename (which lands 0644), so we re-tighten it to 0600 before the upload
@@ -112,23 +112,23 @@ transfer_one(const char *src, const char *dst, const xrdc_copy_opts *o,
  * leg is web<->local, so cancellation is only as prompt as a single web transfer
  * (a timeout/EINTR boundary), not instantaneous. */
 int
-relay_web_to_web(const char *src, const char *dst, const xrdc_copy_opts *o,
-                 const xrdc_opts *co, int retries, xrdc_status *st)
+relay_web_to_web(const char *src, const char *dst, const brix_copy_opts *o,
+                 const brix_opts *co, int retries, brix_status *st)
 {
     const char    *tmpdir = getenv("TMPDIR");
     char           tmpl[XRDC_PATH_MAX];
-    xrdc_copy_opts leg;
+    brix_copy_opts leg;
     int            fd, rc;
 
     if (tmpdir == NULL || tmpdir[0] == '\0') { tmpdir = "/tmp"; }
     if ((size_t) snprintf(tmpl, sizeof(tmpl), "%s/xrdcp-w2w-XXXXXX", tmpdir)
             >= sizeof(tmpl)) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "web->web: temp path too long");
+        brix_status_set(st, XRDC_EUSAGE, 0, "web->web: temp path too long");
         return -1;
     }
     fd = mkstemp(tmpl);
     if (fd < 0) {
-        xrdc_status_set(st, XRDC_ESOCK, errno,
+        brix_status_set(st, XRDC_ESOCK, errno,
                         "web->web: mkstemp in %s: %s", tmpdir, strerror(errno));
         return -1;
     }
@@ -161,25 +161,25 @@ relay_web_to_web(const char *src, const char *dst, const xrdc_copy_opts *o,
 /* Copy one batch item into dstdir as dstdir/<basename>. Returns 0 (copied),
  * 1 (skipped), or -1 (failed, st set); the destination is written to dpath. */
 int
-batch_copy_one(const char *item, const char *dstdir, const xrdc_copy_opts *o,
-               const xrdc_opts *co, int retries, int sync_mode, char *dpath,
-               size_t dpsz, xrdc_status *st)
+batch_copy_one(const char *item, const char *dstdir, const brix_copy_opts *o,
+               const brix_opts *co, int retries, int sync_mode, char *dpath,
+               size_t dpsz, brix_status *st)
 {
     char base[XRDC_NAME_MAX];
     path_basename(item, base, sizeof(base));
     if (base[0] == '\0') {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "cannot derive a filename from %s", item);
+        brix_status_set(st, XRDC_EUSAGE, 0, "cannot derive a filename from %s", item);
         return -1;
     }
     if (join_dest(dstdir, base, dpath, dpsz) != 0) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "destination path too long for %s", item);
+        brix_status_set(st, XRDC_EUSAGE, 0, "destination path too long for %s", item);
         return -1;
     }
     return transfer_one(item, dpath, o, co, retries, sync_mode, st);
 }
 
 
-/* Shared state for the parallel batch worker pool. Each xrdc_copy() is fully
+/* Shared state for the parallel batch worker pool. Each brix_copy() is fully
  * independent (its own connection + fds), so workers only contend on this counter
  * block + stderr, guarded by one mutex. */
 
@@ -190,7 +190,7 @@ batch_worker(void *arg)
     for (;;) {
         size_t      idx;
         char        dpath[XRDC_PATH_MAX];
-        xrdc_status st;
+        brix_status st;
         int         rc;
 
         pthread_mutex_lock(&b->lock);
@@ -199,7 +199,7 @@ batch_worker(void *arg)
         if (idx >= b->n) {
             break;
         }
-        xrdc_status_clear(&st);
+        brix_status_clear(&st);
         rc = batch_copy_one(b->items[idx], b->dst, b->o, b->co, b->retries,
                             b->sync_mode, dpath, sizeof(dpath), &st);
         pthread_mutex_lock(&b->lock);
@@ -227,8 +227,8 @@ batch_worker(void *arg)
 
 /* Run the batch with `jobs` concurrent workers (jobs>=2). Fills ok/skip/fail counts. */
 void
-batch_parallel(char **items, size_t n, const char *dst, const xrdc_copy_opts *o,
-               const xrdc_opts *co, int retries, int sync_mode, int jobs,
+batch_parallel(char **items, size_t n, const char *dst, const brix_copy_opts *o,
+               const brix_opts *co, int retries, int sync_mode, int jobs,
                size_t *ok, size_t *skip, size_t *fail)
 {
     batch_ctx  b;

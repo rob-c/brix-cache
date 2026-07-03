@@ -6,7 +6,7 @@
  *       a lowercase hex digest so xrdcp --cksum can compare local vs source.
  * WHY:  --cksum[:source] needs (a) a digest of the bytes we transferred and (b)
  *       the server's digest of the same file, then asserts they agree.
- * HOW:  The fd compute is delegated to the SHARED kernel xrootd_cksum_*_fd
+ * HOW:  The fd compute is delegated to the SHARED kernel brix_cksum_*_fd
  *       (src/core/compat/checksum_core.c, linked via libxrdproto) — the exact same
  *       adler32/crc32c/md5 code the nginx module runs, so client and server agree
  *       by construction (single source). This file only maps the client's algo
@@ -15,7 +15,7 @@
  *
  * wire: XProtocol.hh kXR_query infotype kXR_Qcksum — body "<algo> <path>" → "<algo> <hex>".
  */
-#include "xrdc.h"
+#include "brix.h"
 #include "core/compat/checksum_core.h"   /* shared fd→checksum kernels (libxrdproto) */
 #include "core/compat/hex.h"             /* shared lowercase hex encoder (libxrdproto) */
 
@@ -26,7 +26,7 @@
 #include <string.h>
 
 int
-xrdc_cksum_algo_parse(const char *name, xrdc_cksum_algo *out)
+brix_cksum_algo_parse(const char *name, brix_cksum_algo *out)
 {
     if (name == NULL) {
         return -1;
@@ -42,8 +42,8 @@ xrdc_cksum_algo_parse(const char *name, xrdc_cksum_algo *out)
 }
 
 int
-xrdc_cksum_fd(int fd, xrdc_cksum_algo algo, char *hex, size_t hexsz,
-              xrdc_status *st)
+brix_cksum_fd(int fd, brix_cksum_algo algo, char *hex, size_t hexsz,
+              brix_status *st)
 {
     /* Delegate the compute to the shared (ngx-free) kernel — the same code the
      * nginx module uses (src/core/compat/checksum_core.c via libxrdproto). The kernel
@@ -51,29 +51,29 @@ xrdc_cksum_fd(int fd, xrdc_cksum_algo algo, char *hex, size_t hexsz,
     if (algo == XRDC_CK_MD5) {
         unsigned char dg[64];   /* EVP_MAX_MD_SIZE */
         unsigned int  dn = 0;
-        if (xrootd_cksum_digest_fd(XROOTD_CK_MD5, fd, dg, &dn) != 0) {
-            xrdc_status_set(st, XRDC_ESOCK, errno, "md5: %s", strerror(errno));
+        if (brix_cksum_digest_fd(BRIX_CK_MD5, fd, dg, &dn) != 0) {
+            brix_status_set(st, XRDC_ESOCK, errno, "md5: %s", strerror(errno));
             return -1;
         }
         if (hexsz < (size_t) dn * 2 + 1) {
-            xrdc_status_set(st, XRDC_EUSAGE, 0, "hex buffer too small");
+            brix_status_set(st, XRDC_EUSAGE, 0, "hex buffer too small");
             return -1;
         }
-        xrootd_hex_encode(dg, dn, hex);
+        brix_hex_encode(dg, dn, hex);
         return 0;
     }
 
     if (algo == XRDC_CK_CRC64 || algo == XRDC_CK_CRC64NVME) {
-        int      kind = (algo == XRDC_CK_CRC64) ? XROOTD_CK_CRC64
-                                                : XROOTD_CK_CRC64NVME;
+        int      kind = (algo == XRDC_CK_CRC64) ? BRIX_CK_CRC64
+                                                : BRIX_CK_CRC64NVME;
         uint64_t value;
-        if (xrootd_cksum_u64_fd(kind, fd, &value) != 0) {
-            xrdc_status_set(st, XRDC_ESOCK, errno, "checksum read: %s",
+        if (brix_cksum_u64_fd(kind, fd, &value) != 0) {
+            brix_status_set(st, XRDC_ESOCK, errno, "checksum read: %s",
                             strerror(errno));
             return -1;
         }
         if (hexsz < 17) {                          /* 16 hex digits + NUL */
-            xrdc_status_set(st, XRDC_EUSAGE, 0, "hex buffer too small");
+            brix_status_set(st, XRDC_EUSAGE, 0, "hex buffer too small");
             return -1;
         }
         snprintf(hex, hexsz, "%016llx", (unsigned long long) value);
@@ -81,17 +81,17 @@ xrdc_cksum_fd(int fd, xrdc_cksum_algo algo, char *hex, size_t hexsz,
     }
 
     {
-        int      kind = (algo == XRDC_CK_ADLER32) ? XROOTD_CK_ADLER32
-                      : (algo == XRDC_CK_ZCRC32)  ? XROOTD_CK_ZCRC32
-                                                  : XROOTD_CK_CRC32C;
+        int      kind = (algo == XRDC_CK_ADLER32) ? BRIX_CK_ADLER32
+                      : (algo == XRDC_CK_ZCRC32)  ? BRIX_CK_ZCRC32
+                                                  : BRIX_CK_CRC32C;
         uint32_t value;
-        if (xrootd_cksum_u32_fd(kind, fd, &value) != 0) {
-            xrdc_status_set(st, XRDC_ESOCK, errno, "checksum read: %s",
+        if (brix_cksum_u32_fd(kind, fd, &value) != 0) {
+            brix_status_set(st, XRDC_ESOCK, errno, "checksum read: %s",
                             strerror(errno));
             return -1;
         }
         if (hexsz < 9) {
-            xrdc_status_set(st, XRDC_EUSAGE, 0, "hex buffer too small");
+            brix_status_set(st, XRDC_EUSAGE, 0, "hex buffer too small");
             return -1;
         }
         snprintf(hex, hexsz, "%08x", value);   /* 8 zero-padded hex digits */
@@ -100,8 +100,8 @@ xrdc_cksum_fd(int fd, xrdc_cksum_algo algo, char *hex, size_t hexsz,
 }
 
 int
-xrdc_query_cksum(xrdc_conn *c, const char *path, const char *algo_name,
-                 char *hex, size_t hexsz, xrdc_status *st)
+brix_query_cksum(brix_conn *c, const char *path, const char *algo_name,
+                 char *hex, size_t hexsz, brix_status *st)
 {
     ClientQueryRequest req;
     uint16_t           status;
@@ -123,7 +123,7 @@ xrdc_query_cksum(xrdc_conn *c, const char *path, const char *algo_name,
         plen = snprintf(payload, sizeof(payload), "%s", path);
     }
     if (plen < 0 || (size_t) plen >= sizeof(payload)) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "checksum query path too long");
+        brix_status_set(st, XRDC_EUSAGE, 0, "checksum query path too long");
         return -1;
     }
 
@@ -136,7 +136,7 @@ xrdc_query_cksum(xrdc_conn *c, const char *path, const char *algo_name,
     /* fhandle stays zero: this is a path-based (not open-handle) query. */
 
     /* Read-only/idempotent: a re-query after a sever yields the same digest. */
-    if (xrdc_roundtrip_resilient(c, &req, payload, (uint32_t) plen,
+    if (brix_roundtrip_resilient(c, &req, payload, (uint32_t) plen,
                                  XRDC_OP_READONLY, 0,
                                  &status, &body, &blen, st) != 0) {
         return -1;
@@ -160,7 +160,7 @@ xrdc_query_cksum(xrdc_conn *c, const char *path, const char *algo_name,
                 ((char *) sp)[--L] = '\0';
             }
             if (L == 0 || L + 1 > hexsz) {
-                xrdc_status_set(st, XRDC_EPROTO, 0,
+                brix_status_set(st, XRDC_EPROTO, 0,
                                 "unparseable checksum reply: \"%s\"", tmp);
                 return -1;
             }

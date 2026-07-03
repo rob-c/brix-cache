@@ -6,7 +6,7 @@
  * WHY:  `xrdcp --streams N` opens extra bound channels — the parallel-transfer
  *       affordance of the protocol.
  * HOW:  Each secondary re-runs handshake + kXR_protocol [+ TLS] then sends
- *       kXR_bind{primary sessid} (xrdc_bind in conn.c). NOTE: this nginx data
+ *       kXR_bind{primary sessid} (brix_bind in conn.c). NOTE: this nginx data
  *       server accepts the bind and logs it, but kXR_read carries no pathid
  *       (wire_core_requests.h ClientReadRequest), so the server does not actually
  *       fan reads across substreams — the binds are established and the transfer
@@ -15,14 +15,14 @@
  *       byte-exact round-trip. Best-effort: a secondary that won't bind is
  *       skipped, never failing the copy.
  */
-#include "xrdc.h"
+#include "brix.h"
 
 #include <string.h>
 #include <unistd.h>
 
 int
-xrdc_streams_open(xrdc_streamset *ss, xrdc_conn *primary, int streams,
-                  xrdc_status *st)
+brix_streams_open(brix_streamset *ss, brix_conn *primary, int streams,
+                  brix_status *st)
 {
     int want, i;
 
@@ -36,9 +36,9 @@ xrdc_streams_open(xrdc_streamset *ss, xrdc_conn *primary, int streams,
     }
 
     for (i = 0; i < want; i++) {
-        xrdc_status bst;
-        xrdc_status_clear(&bst);
-        if (xrdc_bind(&ss->sec[ss->n], primary, &bst) != 0) {
+        brix_status bst;
+        brix_status_clear(&bst);
+        if (brix_bind(&ss->sec[ss->n], primary, &bst) != 0) {
             /* Best-effort: stop at the first failure, keep what bound. */
             break;
         }
@@ -49,13 +49,13 @@ xrdc_streams_open(xrdc_streamset *ss, xrdc_conn *primary, int streams,
 }
 
 void
-xrdc_streams_close(xrdc_streamset *ss)
+brix_streams_close(brix_streamset *ss)
 {
     int i;
     for (i = 0; i < ss->n; i++) {
         /* A bound stream owns no session of its own — close it quietly, no
          * kXR_endsess (that belongs to the primary). */
-        xrdc_tls_free(&ss->sec[i]);
+        brix_tls_free(&ss->sec[i]);
         if (ss->sec[i].io.fd >= 0) {
             close(ss->sec[i].io.fd);
             ss->sec[i].io.fd = -1;

@@ -17,9 +17,9 @@
  *       implementation follows the server verifier byte-for-byte. See the
  *       clean-room log for the validation gap.
  */
-#include "xrdc.h"
-#include "core/compat/crypto.h"   /* xrootd_hmac_sha256 (libxrdproto) */
-#include "auth/gsi/gsi_core.h"    /* xrootd_gsi_sigver_required (shared policy) */
+#include "brix.h"
+#include "core/compat/crypto.h"   /* brix_hmac_sha256 (libxrdproto) */
+#include "auth/gsi/gsi_core.h"    /* brix_gsi_sigver_required (shared policy) */
 #include "protocols/root/protocol/frame_hdr.h" /* unaligned-safe BE field accessors (libxrdproto) */
 
 #include <arpa/inet.h>
@@ -28,8 +28,8 @@
 #include <string.h>
 
 int
-xrdc_sigver_maybe(xrdc_conn *c, const uint8_t *hdr24, const void *payload,
-                  uint32_t plen, xrdc_status *st)
+brix_sigver_maybe(brix_conn *c, const uint8_t *hdr24, const void *payload,
+                  uint32_t plen, brix_status *st)
 {
     uint16_t            reqid;
     uint64_t            seq;
@@ -40,7 +40,7 @@ xrdc_sigver_maybe(xrdc_conn *c, const uint8_t *hdr24, const void *payload,
     reqid = xrd_get_u16_be(hdr24 + 2);   /* unaligned-safe */
 
     if (!c->signing_active || c->sec_level < 2
-        || !xrootd_gsi_sigver_required(reqid, c->sec_level)) {
+        || !brix_gsi_sigver_required(reqid, c->sec_level)) {
         return 0;   /* signing not required for this op */
     }
 
@@ -49,9 +49,9 @@ xrdc_sigver_maybe(xrdc_conn *c, const uint8_t *hdr24, const void *payload,
     /* Shared HMAC (libxrdproto gsi_core) over seqno_be || request header ||
      * payload — byte-identical to what the server verifies. The client always
      * covers the payload (nodata = 0). */
-    if (!xrootd_gsi_sigver_hmac(c->signing_key, seq, hdr24, payload, plen, 0,
+    if (!brix_gsi_sigver_hmac(c->signing_key, seq, hdr24, payload, plen, 0,
                                 mac)) {
-        xrdc_status_set(st, XRDC_EAUTH, 0, "sigver: HMAC failed");
+        brix_status_set(st, XRDC_EAUTH, 0, "sigver: HMAC failed");
         return -1;
     }
 
@@ -69,8 +69,8 @@ xrdc_sigver_maybe(xrdc_conn *c, const uint8_t *hdr24, const void *payload,
     }
     sv.dlen = (kXR_int32) htonl(32);
 
-    if (xrdc_write_full(&c->io, &sv, sizeof(sv), st) != 0
-        || xrdc_write_full(&c->io, mac, 32, st) != 0) {
+    if (brix_write_full(&c->io, &sv, sizeof(sv), st) != 0
+        || brix_write_full(&c->io, mac, 32, st) != 0) {
         return -1;
     }
     /*

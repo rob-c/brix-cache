@@ -1,8 +1,8 @@
 /*
  * fattr.c — client wrappers for kXR_fattr (file extended attributes).
  *
- * WHAT: xrdc_fattr_get/set/del/list over kXR_fattr (3020), path-based and
- *       redirect-aware (via xrdc_roundtrip), for a single attribute at a time
+ * WHAT: brix_fattr_get/set/del/list over kXR_fattr (3020), path-based and
+ *       redirect-aware (via brix_roundtrip), for a single attribute at a time
  *       (what a FUSE getxattr/setxattr/removexattr call needs) plus a full list.
  * WHY:  The native client (and the xrootdfs FUSE driver) needs POSIX extended-
  *       attribute access; kXR_fattr is the wire op the module implements.
@@ -16,7 +16,7 @@
  * Clean-room: wire facts from src/protocols/root/protocol headers only (cross-checked vs the
  * module's src/protocols/root/fattr handler). No goto.
  */
-#include "xrdc.h"
+#include "brix.h"
 #include "core/compat/fattr_codec.h"   /* shared kXR_fattr nvec parser (libxrdproto) */
 
 #include <arpa/inet.h>
@@ -62,19 +62,19 @@ fattr_build_payload(const char *path, const char *name,
  * holds the per-attribute kXR status. Returns 0 / -1 (+ st on a framing error). */
 static int
 fattr_parse_status(uint8_t *body, uint32_t blen, uint16_t *rc,
-                   uint8_t **after, xrdc_status *st)
+                   uint8_t **after, brix_status *st)
 {
     size_t next;
 
     if (blen < 2 || body[1] < 1) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "fattr reply too short");
+        brix_status_set(st, XRDC_EPROTO, 0, "fattr reply too short");
         return -1;
     }
     /* Reply = [u8 errcount][u8 numattr] then one nvec entry [int16 rc][name\0].
      * Shared read-only parser (libxrdproto) — same scan the server's request
      * parse uses. */
     if (xrdp_fattr_nvec_parse(body, blen, 2, rc, NULL, NULL, &next) != 0) {
-        xrdc_status_set(st, XRDC_EPROTO, 0,
+        brix_status_set(st, XRDC_EPROTO, 0,
                         "fattr nvec truncated or name not terminated");
         return -1;
     }
@@ -83,8 +83,8 @@ fattr_parse_status(uint8_t *body, uint32_t blen, uint16_t *rc,
 }
 
 int
-xrdc_fattr_get(xrdc_conn *c, const char *path, const char *name,
-               void *value, size_t bufsz, size_t *out_vlen, xrdc_status *st)
+brix_fattr_get(brix_conn *c, const char *path, const char *name,
+               void *value, size_t bufsz, size_t *out_vlen, brix_status *st)
 {
     ClientFattrRequest req;
     uint8_t           *payload, *body = NULL, *p;
@@ -93,7 +93,7 @@ xrdc_fattr_get(xrdc_conn *c, const char *path, const char *name,
 
     payload = fattr_build_payload(path, name, NULL, 0, 0, &plen);
     if (payload == NULL) {
-        xrdc_status_set(st, XRDC_ESOCK, 0, "out of memory");
+        brix_status_set(st, XRDC_ESOCK, 0, "out of memory");
         return -1;
     }
     memset(&req, 0, sizeof(req));
@@ -103,7 +103,7 @@ xrdc_fattr_get(xrdc_conn *c, const char *path, const char *name,
         xrdw_fattr_req_pack(&b, ((ClientRequestHdr *) &req)->body);
     }
 
-    if (xrdc_roundtrip(c, &req, payload, plen, &status, &body, &blen, st) != 0) {
+    if (brix_roundtrip(c, &req, payload, plen, &status, &body, &blen, st) != 0) {
         free(payload);
         return -1;
     }
@@ -115,12 +115,12 @@ xrdc_fattr_get(xrdc_conn *c, const char *path, const char *name,
     }
     if (rc != 0) {
         free(body);
-        xrdc_status_set(st, (int) rc, 0, "fattr get: attribute error");
+        brix_status_set(st, (int) rc, 0, "fattr get: attribute error");
         return -1;
     }
     if (p + 4 > body + blen) {
         free(body);
-        xrdc_status_set(st, XRDC_EPROTO, 0, "fattr value vector truncated");
+        brix_status_set(st, XRDC_EPROTO, 0, "fattr value vector truncated");
         return -1;
     }
     memcpy(&vlen, p, 4); vlen = ntohl(vlen); p += 4;
@@ -139,9 +139,9 @@ xrdc_fattr_get(xrdc_conn *c, const char *path, const char *name,
 
 /* Shared Set/Del path: build (with or without value), send, parse the rc. */
 static int
-fattr_set_or_del(xrdc_conn *c, const char *path, const char *name,
+fattr_set_or_del(brix_conn *c, const char *path, const char *name,
                  const void *value, size_t vlen, int with_value,
-                 int subcode, int options, xrdc_status *st)
+                 int subcode, int options, brix_status *st)
 {
     ClientFattrRequest req;
     uint8_t           *payload, *body = NULL, *after;
@@ -150,7 +150,7 @@ fattr_set_or_del(xrdc_conn *c, const char *path, const char *name,
 
     payload = fattr_build_payload(path, name, value, vlen, with_value, &plen);
     if (payload == NULL) {
-        xrdc_status_set(st, XRDC_ESOCK, 0, "out of memory");
+        brix_status_set(st, XRDC_ESOCK, 0, "out of memory");
         return -1;
     }
     memset(&req, 0, sizeof(req));
@@ -161,7 +161,7 @@ fattr_set_or_del(xrdc_conn *c, const char *path, const char *name,
         xrdw_fattr_req_pack(&b, ((ClientRequestHdr *) &req)->body);
     }
 
-    if (xrdc_roundtrip(c, &req, payload, plen, &status, &body, &blen, st) != 0) {
+    if (brix_roundtrip(c, &req, payload, plen, &status, &body, &blen, st) != 0) {
         free(payload);
         return -1;
     }
@@ -173,7 +173,7 @@ fattr_set_or_del(xrdc_conn *c, const char *path, const char *name,
     }
     free(body);
     if (rc != 0) {
-        xrdc_status_set(st, (int) rc, 0, "fattr %s: attribute error",
+        brix_status_set(st, (int) rc, 0, "fattr %s: attribute error",
                         subcode == kXR_fattrSet ? "set" : "del");
         return -1;
     }
@@ -181,22 +181,22 @@ fattr_set_or_del(xrdc_conn *c, const char *path, const char *name,
 }
 
 int
-xrdc_fattr_set(xrdc_conn *c, const char *path, const char *name,
-               const void *value, size_t vlen, int create_only, xrdc_status *st)
+brix_fattr_set(brix_conn *c, const char *path, const char *name,
+               const void *value, size_t vlen, int create_only, brix_status *st)
 {
     return fattr_set_or_del(c, path, name, value, vlen, 1, kXR_fattrSet,
                             create_only ? kXR_fa_isNew : 0, st);
 }
 
 int
-xrdc_fattr_del(xrdc_conn *c, const char *path, const char *name, xrdc_status *st)
+brix_fattr_del(brix_conn *c, const char *path, const char *name, brix_status *st)
 {
     return fattr_set_or_del(c, path, name, NULL, 0, 0, kXR_fattrDel, 0, st);
 }
 
 int
-xrdc_fattr_list(xrdc_conn *c, const char *path, char *out, size_t bufsz,
-                size_t *out_len, xrdc_status *st)
+brix_fattr_list(brix_conn *c, const char *path, char *out, size_t bufsz,
+                size_t *out_len, brix_status *st)
 {
     ClientFattrRequest req;
     uint8_t           *payload, *body = NULL;
@@ -207,7 +207,7 @@ xrdc_fattr_list(xrdc_conn *c, const char *path, char *out, size_t bufsz,
     /* Path-based list: payload is just "<path>\0" (numattr 0, no nvec). */
     payload = (uint8_t *) malloc(pathn + 1);
     if (payload == NULL) {
-        xrdc_status_set(st, XRDC_ESOCK, 0, "out of memory");
+        brix_status_set(st, XRDC_ESOCK, 0, "out of memory");
         return -1;
     }
     memcpy(payload, path, pathn);
@@ -221,7 +221,7 @@ xrdc_fattr_list(xrdc_conn *c, const char *path, char *out, size_t bufsz,
         xrdw_fattr_req_pack(&b, ((ClientRequestHdr *) &req)->body);
     }
 
-    if (xrdc_roundtrip(c, &req, payload, plen, &status, &body, &blen, st) != 0) {
+    if (brix_roundtrip(c, &req, payload, plen, &status, &body, &blen, st) != 0) {
         free(payload);
         return -1;
     }

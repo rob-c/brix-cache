@@ -6,7 +6,7 @@
 
 
 int
-write_all(int fd, const uint8_t *buf, size_t n, xrdc_status *st)
+write_all(int fd, const uint8_t *buf, size_t n, brix_status *st)
 {
     size_t off = 0;
     while (off < n) {
@@ -15,7 +15,7 @@ write_all(int fd, const uint8_t *buf, size_t n, xrdc_status *st)
             if (errno == EINTR) {
                 continue;
             }
-            xrdc_status_set(st, XRDC_ESOCK, errno, "local write: %s", strerror(errno));
+            brix_status_set(st, XRDC_ESOCK, errno, "local write: %s", strerror(errno));
             return -1;
         }
         off += (size_t) w;
@@ -38,17 +38,17 @@ write_all(int fd, const uint8_t *buf, size_t n, xrdc_status *st)
 /* Reconnect the session (to the original endpoint, re-selecting a data server)
  * and reopen the source file — replacing the dead handle. 0 / -1 (st set). */
 int
-pump_remote_reopen(pump_remote_t *r, xrdc_status *st)
+pump_remote_reopen(pump_remote_t *r, brix_status *st)
 {
     const char *host = (r->c->home_host[0] != '\0') ? r->c->home_host : r->c->host;
     int         port = (r->c->home_port != 0) ? r->c->home_port : r->c->port;
-    if (xrdc_reconnect(r->c, host, port, st) != 0) {
+    if (brix_reconnect(r->c, host, port, st) != 0) {
         return -1;
     }
-    xrdc_file nf;
+    brix_file nf;
     int rc = (r->opaque != NULL && r->opaque[0] != '\0')
-             ? xrdc_file_open_opaque(r->c, r->path, r->opaque, 0, 0, 0, &nf, st)
-             : xrdc_file_open_read(r->c, r->path, &nf, st);
+             ? brix_file_open_opaque(r->c, r->path, r->opaque, 0, 0, 0, &nf, st)
+             : brix_file_open_read(r->c, r->path, &nf, st);
     if (rc != 0) {
         return -1;
     }
@@ -58,26 +58,26 @@ pump_remote_reopen(pump_remote_t *r, xrdc_status *st)
 
 
 ssize_t
-pump_src_remote(void *ctx, uint8_t *buf, int64_t off, size_t cap, xrdc_status *st)
+pump_src_remote(void *ctx, uint8_t *buf, int64_t off, size_t cap, brix_status *st)
 {
     pump_remote_t *r = (pump_remote_t *) ctx;
 
     if (!r->resilient) {
-        return r->pgrw ? xrdc_file_pgread(r->c, r->f, off, buf, cap, st)
-                       : xrdc_file_read(r->c, r->f, off, buf, cap, st);
+        return r->pgrw ? brix_file_pgread(r->c, r->f, off, buf, cap, st)
+                       : brix_file_read(r->c, r->f, off, buf, cap, st);
     }
 
-    uint64_t deadline = xrdc_mono_ns() + (uint64_t) r->max_stall_ms * 1000000ULL;
+    uint64_t deadline = brix_mono_ns() + (uint64_t) r->max_stall_ms * 1000000ULL;
     unsigned attempt = 0;
     for (;;) {
         size_t  want = (cap < r->cur_chunk) ? cap : r->cur_chunk;
-        ssize_t n = r->pgrw ? xrdc_file_pgread(r->c, r->f, off, buf, want, st)
-                            : xrdc_file_read(r->c, r->f, off, buf, want, st);
+        ssize_t n = r->pgrw ? brix_file_pgread(r->c, r->f, off, buf, want, st)
+                            : brix_file_read(r->c, r->f, off, buf, want, st);
         if (n >= 0) {
             return n;
         }
-        if (!xrdc_status_retryable(st) || xrdc_copy_quit_requested()
-            || xrdc_mono_ns() >= deadline) {
+        if (!brix_status_retryable(st) || brix_copy_quit_requested()
+            || brix_mono_ns() >= deadline) {
             return -1;
         }
         /* Transport fault: shrink the request so it is likelier to get through,
@@ -85,7 +85,7 @@ pump_src_remote(void *ctx, uint8_t *buf, int64_t off, size_t cap, xrdc_status *s
         if (r->cur_chunk > XRDC_RESILIENT_FLOOR) {
             r->cur_chunk /= 2;
         }
-        xrdc_backoff_sleep_fast(attempt++);
+        brix_backoff_sleep_fast(attempt++);
         (void) pump_remote_reopen(r, st);   /* best-effort; loop re-tries */
     }
 }
@@ -94,15 +94,15 @@ pump_src_remote(void *ctx, uint8_t *buf, int64_t off, size_t cap, xrdc_status *s
 /* Reconnect + reopen the destination IN PLACE (kXR_open_updt, no truncate) so a
  * resilient upload resumes onto the same (server-preserved) partial. 0 / -1. */
 int
-pump_sink_reopen(pump_remote_t *r, xrdc_status *st)
+pump_sink_reopen(pump_remote_t *r, brix_status *st)
 {
     const char *host = (r->c->home_host[0] != '\0') ? r->c->home_host : r->c->host;
     int         port = (r->c->home_port != 0) ? r->c->home_port : r->c->port;
-    if (xrdc_reconnect(r->c, host, port, st) != 0) {
+    if (brix_reconnect(r->c, host, port, st) != 0) {
         return -1;
     }
-    xrdc_file nf;
-    if (xrdc_file_open_update(r->c, r->path, r->posc, &nf, st) != 0) {
+    brix_file nf;
+    if (brix_file_open_update(r->c, r->path, r->posc, &nf, st) != 0) {
         return -1;
     }
     *r->f = nf;
@@ -112,33 +112,33 @@ pump_sink_reopen(pump_remote_t *r, xrdc_status *st)
 
 int
 pump_sink_remote(void *ctx, const uint8_t *buf, int64_t off, size_t n,
-                 xrdc_status *st)
+                 brix_status *st)
 {
     pump_remote_t *r = (pump_remote_t *) ctx;
 
     if (!r->resilient) {
-        return r->pgrw ? xrdc_file_pgwrite(r->c, r->f, off, buf, n, st)
-                       : xrdc_file_write(r->c, r->f, off, buf, n, st);
+        return r->pgrw ? brix_file_pgwrite(r->c, r->f, off, buf, n, st)
+                       : brix_file_write(r->c, r->f, off, buf, n, st);
     }
 
-    /* Resilient upload (server has xrootd_upload_resume on): on a transport
+    /* Resilient upload (server has brix_upload_resume on): on a transport
      * fault, reconnect + reopen-in-place and re-issue THIS buffer at the same
      * absolute offset.  The bytes below `off` were already acked, so the server
      * has them on the preserved partial — re-writing the current span is either
      * filling the gap or an idempotent overwrite, so there is never a hole. */
-    uint64_t deadline = xrdc_mono_ns() + (uint64_t) r->max_stall_ms * 1000000ULL;
+    uint64_t deadline = brix_mono_ns() + (uint64_t) r->max_stall_ms * 1000000ULL;
     unsigned attempt = 0;
     for (;;) {
-        int rc = r->pgrw ? xrdc_file_pgwrite(r->c, r->f, off, buf, n, st)
-                         : xrdc_file_write(r->c, r->f, off, buf, n, st);
+        int rc = r->pgrw ? brix_file_pgwrite(r->c, r->f, off, buf, n, st)
+                         : brix_file_write(r->c, r->f, off, buf, n, st);
         if (rc == 0) {
             return 0;
         }
-        if (!xrdc_status_retryable(st) || xrdc_copy_quit_requested()
-            || xrdc_mono_ns() >= deadline) {
+        if (!brix_status_retryable(st) || brix_copy_quit_requested()
+            || brix_mono_ns() >= deadline) {
             return -1;
         }
-        xrdc_backoff_sleep_fast(attempt++);
+        brix_backoff_sleep_fast(attempt++);
         (void) pump_sink_reopen(r, st);   /* best-effort; loop re-tries */
     }
 }
@@ -147,7 +147,7 @@ pump_sink_remote(void *ctx, const uint8_t *buf, int64_t off, size_t n,
 /* Local source/sink over a plain fd (ctx is &fd). The read EINTR-retries; the
  * write is write_all(). off is ignored — a local fd is positioned by the kernel. */
 ssize_t
-pump_src_local(void *ctx, uint8_t *buf, int64_t off, size_t cap, xrdc_status *st)
+pump_src_local(void *ctx, uint8_t *buf, int64_t off, size_t cap, brix_status *st)
 {
     int fd = *(int *) ctx;
     (void) off;
@@ -157,7 +157,7 @@ pump_src_local(void *ctx, uint8_t *buf, int64_t off, size_t cap, xrdc_status *st
             continue;
         }
         if (r < 0) {
-            xrdc_status_set(st, XRDC_ESOCK, errno, "local read: %s",
+            brix_status_set(st, XRDC_ESOCK, errno, "local read: %s",
                             strerror(errno));
         }
         return r;
@@ -167,7 +167,7 @@ pump_src_local(void *ctx, uint8_t *buf, int64_t off, size_t cap, xrdc_status *st
 
 int
 pump_sink_local(void *ctx, const uint8_t *buf, int64_t off, size_t n,
-                xrdc_status *st)
+                brix_status *st)
 {
     (void) off;
     return write_all(*(int *) ctx, buf, n, st);
@@ -177,26 +177,26 @@ pump_sink_local(void *ctx, const uint8_t *buf, int64_t off, size_t n,
 /* VFS-backed local pump context and adapters *
  * pump_local_t holds the VFS handle for a local file endpoint.  The VFS layer
  * (vfs_posix.c) owns the fd, optional io_uring ring, and temp+rename commit
- * internally — copy.c just calls xrdc_vfs_pread / xrdc_vfs_pwrite through it.
+ * internally — copy.c just calls brix_vfs_pread / brix_vfs_pwrite through it.
  * Ring selection (AUTO/ON/OFF from opts.io_uring) happens inside vfs_posix.c's
  * open, eliminating the old local_ring_select helper from this file. */
 
 
 ssize_t
 pump_src_local_vfs(void *ctx, uint8_t *buf, int64_t off, size_t cap,
-                   xrdc_status *st)
+                   brix_status *st)
 {
     pump_local_t *lc = ctx;
-    return xrdc_vfs_pread(lc->vf, off, buf, cap, st);
+    return brix_vfs_pread(lc->vf, off, buf, cap, st);
 }
 
 
 int
 pump_sink_local_vfs(void *ctx, const uint8_t *buf, int64_t off, size_t n,
-                    xrdc_status *st)
+                    brix_status *st)
 {
     pump_local_t *lc = ctx;
-    return xrdc_vfs_pwrite(lc->vf, off, buf, n, st);
+    return brix_vfs_pwrite(lc->vf, off, buf, n, st);
 }
 
 
@@ -206,12 +206,12 @@ pump_sink_local_vfs(void *ctx, const uint8_t *buf, int64_t off, size_t n,
  * When o->progress is set it fires after each drained chunk with (off,
  * progress_total), plus one final (off, off) at EOF to mirror the historical
  * "100%" upload tick; pass o == NULL to suppress progress entirely. Cancel
- * (g_xrdc_copy_quit) aborts with EINTR. Owns its CHUNK buffer. Returns 0 / -1.
+ * (g_brix_copy_quit) aborts with EINTR. Owns its CHUNK buffer. Returns 0 / -1.
  */
 int
 transfer_pump(pump_src_fn src, void *sctx, pump_sink_fn sink, void *kctx,
-              int64_t expected, const xrdc_copy_opts *o, int64_t progress_total,
-              xrdc_status *st)
+              int64_t expected, const brix_copy_opts *o, int64_t progress_total,
+              brix_status *st)
 {
     uint8_t *buf;
     int64_t  off = 0;
@@ -219,7 +219,7 @@ transfer_pump(pump_src_fn src, void *sctx, pump_sink_fn sink, void *kctx,
 
     buf = (uint8_t *) malloc(XRDC_COPY_CHUNK);
     if (buf == NULL) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "out of memory");
+        brix_status_set(st, XRDC_EPROTO, 0, "out of memory");
         return -1;
     }
 
@@ -228,7 +228,7 @@ transfer_pump(pump_src_fn src, void *sctx, pump_sink_fn sink, void *kctx,
         ssize_t n;
 
         /* Completion is tested BEFORE the cancel flag: a byte-complete known-size
-         * transfer must report success even if the sticky g_xrdc_copy_quit was
+         * transfer must report success even if the sticky g_brix_copy_quit was
          * set on the final chunk. This mirrors the original head-controlled
          * `while (off < si->size)` loops (download/r2r), where completion was the
          * loop condition and the cancel check lived inside the body — so a SIGINT
@@ -239,8 +239,8 @@ transfer_pump(pump_src_fn src, void *sctx, pump_sink_fn sink, void *kctx,
             rc = 0;
             break;
         }
-        if (g_xrdc_copy_quit) {
-            xrdc_status_set(st, XRDC_ESOCK, EINTR, "transfer cancelled (signal)");
+        if (g_brix_copy_quit) {
+            brix_status_set(st, XRDC_ESOCK, EINTR, "transfer cancelled (signal)");
             break;   /* rc stays -1 → caller drops the partial/temp */
         }
         if (expected >= 0 && (int64_t) cap > expected - off) {
@@ -253,7 +253,7 @@ transfer_pump(pump_src_fn src, void *sctx, pump_sink_fn sink, void *kctx,
         }
         if (n == 0) {
             if (expected >= 0) {
-                xrdc_status_set(st, XRDC_EPROTO, 0,
+                brix_status_set(st, XRDC_EPROTO, 0,
                                 "short read: got %lld of %lld bytes",
                                 (long long) off, (long long) expected);
                 break;

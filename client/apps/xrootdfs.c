@@ -4,19 +4,19 @@
  */
 #include "xrootdfs_internal.h"
 
-xrdc_pool *g_pool;
+brix_pool *g_pool;
 
-xrdc_url   g_url;
+brix_url   g_url;
 
-xrdc_opts  g_opts;
+brix_opts  g_opts;
 
 int        g_max_conns = 8;       
 
 int          g_web = 0;
 
-xrdc_weburl  g_weburl;
+brix_weburl  g_weburl;
 
-xrdc_mgr  *g_mgr;
+brix_mgr  *g_mgr;
 
 int        g_streams     = 4;     /* async data connections; --streams */
 int        g_lazy_streams = 0;    /* --lazy-streams: open 1 at mount, rest on demand */
@@ -109,7 +109,7 @@ srv_path(const char *p, char *buf, size_t sz)
 
 /* File-I/O subsystem: the async manager (loop + connection pool for mfiles). */
 /* phase-42 W4: -o compress=<codec> / --compress <codec> — request inline read
- * compression on every read open (transparently inflated by xrdc_mfile).  Empty
+ * compression on every read open (transparently inflated by brix_mfile).  Empty
  * = plaintext (default). */
 
 /* Vendor POSIX-extension capabilities, probed once at mount via kXR_Qconfig
@@ -127,25 +127,25 @@ srv_path(const char *p, char *buf, size_t sz)
  * open paths, and xfs_meta binds the runner to this driver's pool + retry budget
  * (g_max_retries > 0 → the resilient retry+backoff behaviour). */
 int
-xfs_err(const xrdc_status *st)
+xfs_err(const brix_status *st)
 {
-    return xrdc_fuse_errno(st);
+    return brix_fuse_errno(st);
 }
 
 
 int
-xfs_conn_healthy(const xrdc_status *st)
+xfs_conn_healthy(const brix_status *st)
 {
-    return xrdc_fuse_conn_healthy(st);
+    return brix_fuse_conn_healthy(st);
 }
 
 
 int
-xfs_meta(xrdc_fuse_op_fn fn, void *ctx, xrdc_status *st)
+xfs_meta(brix_fuse_op_fn fn, void *ctx, brix_status *st)
 {
     /* Deadline-bounded (g_max_stall) like the data plane — ride a lossy link out
      * for the patience window rather than giving up after a fixed count. */
-    return xrdc_fuse_run(g_pool, g_max_retries, g_max_stall, 0, fn, ctx, st);
+    return brix_fuse_run(g_pool, g_max_retries, g_max_stall, 0, fn, ctx, st);
 }
 
 
@@ -153,18 +153,18 @@ xfs_meta(xrdc_fuse_op_fn fn, void *ctx, xrdc_status *st)
  * "already in the desired state" code (the first attempt applied it, its reply
  * lost): benign_errno (EEXIST/ENOENT) is normalized to success on a retry. */
 int
-xfs_meta_idem(xrdc_fuse_op_fn fn, void *ctx, int benign_errno, xrdc_status *st)
+xfs_meta_idem(brix_fuse_op_fn fn, void *ctx, int benign_errno, brix_status *st)
 {
-    return xrdc_fuse_run(g_pool, g_max_retries, g_max_stall, benign_errno,
+    return brix_fuse_run(g_pool, g_max_retries, g_max_stall, benign_errno,
                          fn, ctx, st);
 }
 
 
 void
-xfs_fill_stat(const xrdc_statinfo *si, struct stat *stbuf)
+xfs_fill_stat(const brix_statinfo *si, struct stat *stbuf)
 {
     /* allow_symlink=1: the async getattr uses lstat, so kXR_other → S_IFLNK. */
-    xrdc_statinfo_to_stat(si, 1, stbuf);
+    brix_statinfo_to_stat(si, 1, stbuf);
 }
 
 
@@ -175,11 +175,11 @@ xfs_link(const char *from, const char *to)
     if (!g_ext_link) {
         return -ENOTSUP;
     }
-    xrdc_status st; xrdc_status_clear(&st);
+    brix_status st; brix_status_clear(&st);
     char fbuf[XRDC_PATH_MAX], tbuf[XRDC_PATH_MAX];
-    struct xrdc_fuse_ctx_link2 a = { srv_path(from, fbuf, sizeof(fbuf)),
+    struct brix_fuse_ctx_link2 a = { srv_path(from, fbuf, sizeof(fbuf)),
                            srv_path(to, tbuf, sizeof(tbuf)) };
-    return xfs_meta_idem(xrdc_fuse_op_link, &a, EEXIST, &st);
+    return xfs_meta_idem(brix_fuse_op_link, &a, EEXIST, &st);
 }
 
 
@@ -241,7 +241,7 @@ usage(void)
 int
 xrootdfs_aio_main(int argc, char **argv)
 {
-    xrdc_status st;
+    brix_status st;
     const char *endpoint = NULL;
     char       *fuse_argv[64];
     int         fuse_argc = 0;
@@ -254,7 +254,7 @@ xrootdfs_aio_main(int argc, char **argv)
     signal(SIGPIPE, SIG_IGN);   /* a dropped peer must never kill the mount */
     memset(&g_opts, 0, sizeof(g_opts));
     g_opts.verify_host = 1;
-    xrootd_crypto_init();
+    brix_crypto_init();
 
     fuse_argv[fuse_argc++] = argv[0];
 
@@ -292,10 +292,10 @@ xrootdfs_aio_main(int argc, char **argv)
                 if (g_max_retries < 0) { g_max_retries = 0; }
             }
             else if (strcmp(a, "--connect-timeout") == 0 && i + 1 < argc) {
-                xrdc_tmo_set_connect_ms(atoi(argv[++i]));
+                brix_tmo_set_connect_ms(atoi(argv[++i]));
             }
             else if (strcmp(a, "--io-timeout") == 0 && i + 1 < argc) {
-                xrdc_tmo_set_io_ms(atoi(argv[++i]));
+                brix_tmo_set_io_ms(atoi(argv[++i]));
             }
             else if (strcmp(a, "--attr-timeout") == 0 && i + 1 < argc) {
                 g_attr_timeout = atof(argv[++i]);
@@ -332,13 +332,13 @@ xrootdfs_aio_main(int argc, char **argv)
     }
     fuse_argv[fuse_argc] = NULL;
 
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
 
     /* HTTP(S)/WebDAV read-only mount when the endpoint is a web URL. */
-    if (xrdc_is_web_url(endpoint)) {
-        xrdc_statinfo si;
+    if (brix_is_web_url(endpoint)) {
+        brix_statinfo si;
         size_t        bl;
-        if (xrdc_weburl_parse(endpoint, &g_weburl) != 0) {
+        if (brix_weburl_parse(endpoint, &g_weburl) != 0) {
             fprintf(stderr, "xrootdfs: bad web URL: %s\n", endpoint);
             return 2;
         }
@@ -352,7 +352,7 @@ xrootdfs_aio_main(int argc, char **argv)
             g_bearer = getenv("BEARER_TOKEN");
         }
         g_web_verify = g_opts.verify_host;
-        g_web_ca = xrdc_resolve_ca_dir(g_opts.ca_dir);
+        g_web_ca = brix_resolve_ca_dir(g_opts.ca_dir);
         /* export base = the URL path, trailing '/' trimmed; "/" → "" (verbatim). */
         snprintf(g_base, sizeof(g_base), "%s", g_weburl.path);
         bl = strlen(g_base);
@@ -360,12 +360,12 @@ xrootdfs_aio_main(int argc, char **argv)
             g_base[--bl] = '\0';
         }
         /* fail the mount up front if the export root is unreachable/denied. */
-        if (xrdc_web_stat(&g_weburl, g_base[0] ? g_base : "/", g_bearer,
+        if (brix_web_stat(&g_weburl, g_base[0] ? g_base : "/", g_bearer,
                           g_web_verify, g_web_ca, &si, &st) != 0) {
             fprintf(stderr, "xrootdfs: %s://%s:%d%s: %s\n",
                     g_weburl.tls ? "https" : "http", g_weburl.host, g_weburl.port,
                     g_weburl.path, st.msg);
-            return xrdc_shellcode(&st);
+            return brix_shellcode(&st);
         }
         fprintf(stderr,
                 "xrootdfs: mounted %s:%d via %s%s (read-only WebDAV; "
@@ -376,7 +376,7 @@ xrootdfs_aio_main(int argc, char **argv)
         return rc;
     }
 
-    if (xrdc_endpoint_parse(endpoint, &g_url, &st) != 0) {
+    if (brix_endpoint_parse(endpoint, &g_url, &st) != 0) {
         fprintf(stderr, "xrootdfs: %s\n", st.msg);
         return 2;
     }
@@ -394,32 +394,32 @@ xrootdfs_aio_main(int argc, char **argv)
         }
     }
 
-    g_pool = xrdc_pool_create(&g_url, &g_opts, g_max_conns, &st);
+    g_pool = brix_pool_create(&g_url, &g_opts, g_max_conns, &st);
     if (g_pool == NULL) {
         fprintf(stderr, "xrootdfs: connect %s:%d: %s\n",
                 g_url.host, g_url.port, st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
     /* Default: connect all data streams up front (in parallel — ~1×RTT mount).
      * --lazy-streams trades first-read warm-up for the lowest possible mount
      * latency by bringing up just one stream now and the rest on demand. */
-    g_mgr = xrdc_mgr_create(&g_url, &g_opts, g_streams,
+    g_mgr = brix_mgr_create(&g_url, &g_opts, g_streams,
                             g_lazy_streams ? 1 : g_streams,
                             g_max_stall, g_keepalive, g_max_retries, &st);
     if (g_mgr == NULL) {
         fprintf(stderr, "xrootdfs: async manager: %s\n", st.msg);
-        xrdc_pool_destroy(g_pool);
-        return xrdc_shellcode(&st);
+        brix_pool_destroy(g_pool);
+        return brix_shellcode(&st);
     }
 
     /* Probe the server's vendor POSIX extensions (kXR_Qconfig "xrdfs.ext") once;
      * utimens/chown/symlink/readlink/link adapt to what is advertised. */
     {
-        xrdc_conn  *pc = xrdc_pool_checkout(g_pool, &st);
+        brix_conn  *pc = brix_pool_checkout(g_pool, &st);
         if (pc != NULL) {
-            int ok = (xrdc_ext_probe(pc, &g_ext_setattr, &g_ext_symlink,
+            int ok = (brix_ext_probe(pc, &g_ext_setattr, &g_ext_symlink,
                                      &g_ext_readlink, &g_ext_link, &st) == 0);
-            xrdc_pool_checkin(g_pool, pc, ok ? 1 : xfs_conn_healthy(&st));
+            brix_pool_checkin(g_pool, pc, ok ? 1 : xfs_conn_healthy(&st));
         }
     }
 
@@ -432,7 +432,7 @@ xrootdfs_aio_main(int argc, char **argv)
 
     rc = fuse_main(fuse_argc, fuse_argv, &xfs_ops, NULL);
 
-    xrdc_mgr_destroy(g_mgr);
-    xrdc_pool_destroy(g_pool);
+    brix_mgr_destroy(g_mgr);
+    brix_pool_destroy(g_pool);
     return rc;
 }

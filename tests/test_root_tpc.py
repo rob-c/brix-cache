@@ -365,7 +365,7 @@ def _native_xrdcp_tpc(src: str, dst: str):
 
 
 class TestNativeClientRootTPC:
-    """libxrdc TPC dialect coverage (client/lib/copy_remote.c copy_tpc).
+    """libbrix TPC dialect coverage (client/lib/copy_remote.c copy_tpc).
 
     The native client must emit the stock XrdOucTPC CGI dialect —
     ``tpc.src=host:port`` + ``tpc.lfn=/path`` + ``tpc.stage=copy`` (+
@@ -374,7 +374,7 @@ class TestNativeClientRootTPC:
     open → sync → source open → sync) — because BOTH the reference xrootd
     and nginx-xrootd destinations accept that dialect, while only nginx
     accepts the legacy full-URL ``tpc.src=root://...`` form. This class is
-    the regression guard that libxrdc TPC works against a STOCK destination
+    the regression guard that libbrix TPC works against a STOCK destination
     and source, not just nginx↔nginx.
     """
 

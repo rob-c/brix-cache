@@ -12,17 +12,17 @@
 void
 xrd_doctor_probe(const char *endpoint, xrd_probe *p)
 {
-    xrdc_url    u;
-    xrdc_opts   o;
-    xrdc_conn   c;
-    xrdc_status st;
+    brix_url    u;
+    brix_opts   o;
+    brix_conn   c;
+    brix_status st;
     char        errbuf[XRDC_MSG_MAX + 64];   /* room for a prefixed status msg */
 
     memset(p, 0, sizeof(*p));
     memset(&o, 0, sizeof(o));
     o.verify_host = 1;
-    xrdc_status_clear(&st);
-    if (xrdc_endpoint_parse(endpoint, &u, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_endpoint_parse(endpoint, &u, &st) != 0) {
         snprintf(p->err, sizeof(p->err), "%s", st.msg);
         return;
     }
@@ -30,7 +30,7 @@ xrd_doctor_probe(const char *endpoint, xrd_probe *p)
     p->port = u.port;
 
     /* (1) authenticated connect: liveness, role, negotiated TLS + auth, caps. */
-    if (xrdc_connect(&c, &u, &o, &st) != 0) {
+    if (brix_connect(&c, &u, &o, &st) != 0) {
         snprintf(p->err, sizeof(p->err), "%s", st.msg);
     } else {
         const char *ver = NULL, *cipher = NULL;
@@ -39,25 +39,25 @@ xrd_doctor_probe(const char *endpoint, xrd_probe *p)
         snprintf(p->auth, sizeof(p->auth), "%s",
                  c.diag.chosen_auth ? c.diag.chosen_auth : "anonymous");
         snprintf(p->sec_list, sizeof(p->sec_list), "%s", c.sec_list);
-        if (xrdc_tls_info(&c, &ver, &cipher)) {
+        if (brix_tls_info(&c, &ver, &cipher)) {
             p->tls_active = 1;
             p->tls_ver = ver; p->tls_cipher = cipher;
         }
         xrd_probe_caps(&c, p);
-        xrdc_close(&c);
+        brix_close(&c);
     }
 
     /* (2) no-login insecure probe for the server certificate (roots:// / gotoTLS). */
     {
-        xrdc_conn   cc;
-        xrdc_opts   co;
-        xrdc_status cs;
+        brix_conn   cc;
+        brix_opts   co;
+        brix_status cs;
         memset(&co, 0, sizeof(co));
         co.insecure_tls = 1; co.verify_host = 0;
-        xrdc_status_clear(&cs);
-        if (xrdc_connect_no_login(&cc, &u, &co, &cs) == 0) {
-            xrdc_tls_peer_cert_info(&cc, &p->cert);
-            xrdc_close(&cc);
+        brix_status_clear(&cs);
+        if (brix_connect_no_login(&cc, &u, &co, &cs) == 0) {
+            brix_tls_peer_cert_info(&cc, &p->cert);
+            brix_close(&cc);
         }
     }
 
@@ -221,11 +221,11 @@ xrd_doctor(int argc, char **argv)
         }
         else if (endpoint == NULL && argv[i][0] != '-') { endpoint = argv[i]; }
     }
-    xrootd_crypto_init();   /* arm SHA-256/HMAC for token/proxy inspection */
+    brix_crypto_init();   /* arm SHA-256/HMAC for token/proxy inspection */
 
-    tok           = xrdc_token_discover();
+    tok           = brix_token_discover();
     token_present = (tok != NULL);
-    xrdc_proxy_default_path(pxp, sizeof(pxp));
+    brix_proxy_default_path(pxp, sizeof(pxp));
     proxy_present = (access(pxp, R_OK) == 0);
 
     /* Run the functional battery on the primary endpoint + each --also face. */
@@ -254,11 +254,11 @@ xrd_doctor(int argc, char **argv)
 
     /* human report */
     printf("== credentials ==\n");
-    if (tok != NULL) { xrdc_token_explain(tok, stdout); free(tok); }
+    if (tok != NULL) { brix_token_explain(tok, stdout); free(tok); }
     else { printf("  bearer token: none discovered (BEARER_TOKEN / *_FILE / XDG / /tmp)\n"); }
-    if (proxy_present) { xrdc_gsi_cert_explain(pxp, stdout); }
+    if (proxy_present) { brix_gsi_cert_explain(pxp, stdout); }
     else               { printf("  GSI proxy: none at %s\n", pxp); }
-    if (xrdc_cred_diagnose(0, "  hint: ", stdout)) { fatal = 1; }
+    if (brix_cred_diagnose(0, "  hint: ", stdout)) { fatal = 1; }
 
     if (endpoint == NULL && nbats == 0) {
         printf("(pass an endpoint to also test connect + TLS + cert + clock + caps;\n"
@@ -347,16 +347,16 @@ xrd_doctor(int argc, char **argv)
 
 /* Probe the kXR_Qconfig capability keys on a live connection into p->caps. */
 void
-xrd_probe_caps(xrdc_conn *c, xrd_probe *p)
+xrd_probe_caps(brix_conn *c, xrd_probe *p)
 {
     int i;
     p->ncaps = 0;
     for (i = 0; XRD_CAP_KEYS[i] != NULL && p->ncaps < XRD_CAPS_MAX; i++) {
         char        reply[256], *nl, *eq;
         const char *val;
-        xrdc_status st;
-        xrdc_status_clear(&st);
-        if (xrdc_query(c, kXR_Qconfig, XRD_CAP_KEYS[i], reply, sizeof(reply), &st) != 0) {
+        brix_status st;
+        brix_status_clear(&st);
+        if (brix_query(c, kXR_Qconfig, XRD_CAP_KEYS[i], reply, sizeof(reply), &st) != 0) {
             continue;
         }
         if ((nl = strchr(reply, '\n')) != NULL) { *nl = '\0'; }
@@ -377,11 +377,11 @@ int
 xrd_certinfo(int argc, char **argv)
 {
     const char    *endpoint = (argc >= 3 && argv[2][0] != '-') ? argv[2] : NULL;
-    xrdc_url       u;
-    xrdc_opts      o;
-    xrdc_conn      c;
-    xrdc_status    st;
-    xrdc_cert_info ci;
+    brix_url       u;
+    brix_opts      o;
+    brix_conn      c;
+    brix_status    st;
+    brix_cert_info ci;
     char           nb[32], na[32];
 
     if (endpoint == NULL) { fprintf(stderr, "usage: xrd certinfo <endpoint>\n"); return 50; }
@@ -390,18 +390,18 @@ xrd_certinfo(int argc, char **argv)
      * self-signed cert is still reportable. TLS happens per the scheme (roots://,
      * or a server that requires it); a cleartext root:// endpoint reports "no cert". */
     o.insecure_tls = 1; o.verify_host = 0;
-    xrootd_crypto_init();
-    xrdc_status_clear(&st);
-    if (xrdc_endpoint_parse(endpoint, &u, &st) != 0) {
+    brix_crypto_init();
+    brix_status_clear(&st);
+    if (brix_endpoint_parse(endpoint, &u, &st) != 0) {
         fprintf(stderr, "xrd certinfo: %s\n", st.msg); return 50;
     }
-    if (xrdc_connect_no_login(&c, &u, &o, &st) != 0) {
+    if (brix_connect_no_login(&c, &u, &o, &st) != 0) {
         fprintf(stderr, "xrd certinfo: connect %s:%d: %s\n", u.host, u.port, st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
-    if (xrdc_tls_peer_cert_info(&c, &ci) != 0 || !ci.have) {
+    if (brix_tls_peer_cert_info(&c, &ci) != 0 || !ci.have) {
         printf("%s:%d — no server certificate (session is cleartext)\n", u.host, u.port);
-        xrdc_close(&c);
+        brix_close(&c);
         return 0;
     }
     xrd_fmt_epoch(ci.not_before, nb, sizeof(nb));
@@ -420,6 +420,6 @@ xrd_certinfo(int argc, char **argv)
     }
     printf("  host match: %s%s\n", ci.host_match ? "yes" : "no",
            ci.self_signed ? "   (self-signed)" : "");
-    xrdc_close(&c);
+    brix_close(&c);
     return (ci.expired || ci.not_yet_valid) ? 1 : 0;
 }

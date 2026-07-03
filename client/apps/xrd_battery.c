@@ -64,15 +64,15 @@ tmpfile_with(const uint8_t *buf, size_t n)
 }
 
 
-/* fd-backed pull source for xrdc_http_upload: the battery's body is an anonymous
+/* fd-backed pull source for brix_http_upload: the battery's body is an anonymous
  * tmpfile (generated diagnostic payload, not export storage), so a plain pread by
  * offset is the source — storage callers pass a VFS-backed source instead. */
 static ssize_t
-bat_upload_src_fd(void *ctx, uint8_t *buf, int64_t off, size_t cap, xrdc_status *st)
+bat_upload_src_fd(void *ctx, uint8_t *buf, int64_t off, size_t cap, brix_status *st)
 {
     ssize_t r = pread(*(int *) ctx, buf, cap, (off_t) off);  /* vfs-seam-allow: anonymous tmpfile diagnostic payload, not export storage */
     if (r < 0) {
-        xrdc_status_set(st, XRDC_ESOCK, errno, "pread: %s", strerror(errno));
+        brix_status_set(st, XRDC_ESOCK, errno, "pread: %s", strerror(errno));
     }
     return r;
 }
@@ -81,57 +81,57 @@ bat_upload_src_fd(void *ctx, uint8_t *buf, int64_t off, size_t cap, xrdc_status 
 /* The native root:// functional battery: always-safe reads, then (do_write) a full
  * write/read/verify/checksum/metadata cycle under a temp dir that is cleaned up. */
 void
-battery_root(const xrdc_url *u, const xrdc_opts *o, int do_write, xrd_battery *b)
+battery_root(const brix_url *u, const brix_opts *o, int do_write, xrd_battery *b)
 {
-    xrdc_conn     c;
-    xrdc_status   st;
-    xrdc_statinfo si;
-    xrdc_dirent  *ents = NULL;
+    brix_conn     c;
+    brix_status   st;
+    brix_statinfo si;
+    brix_dirent  *ents = NULL;
     size_t        nents = 0;
     char          reply[1024];
     int           ext_sa = 0, ext_sl = 0, ext_rl = 0, ext_ln = 0;
 
     snprintf(b->protocol, sizeof(b->protocol), "root");
-    xrdc_status_clear(&st);
-    if (xrdc_connect(&c, u, o, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_connect(&c, u, o, &st) != 0) {
         snprintf(b->err, sizeof(b->err), "%s", st.msg);
         return;
     }
     b->reachable = 1;
 
-    /* read-only methods */    xrdc_status_clear(&st);
-    if (xrdc_stat(&c, "/", &si, &st) == 0) { bat_add(b, "stat", 1, "/ flags=0x%x", si.flags); }
+    /* read-only methods */    brix_status_clear(&st);
+    if (brix_stat(&c, "/", &si, &st) == 0) { bat_add(b, "stat", 1, "/ flags=0x%x", si.flags); }
     else { bat_add(b, "stat", 0, "%s", st.msg); }
 
-    xrdc_status_clear(&st);
-    if (xrdc_dirlist(&c, "/", 0, &ents, &nents, &st) == 0) {
+    brix_status_clear(&st);
+    if (brix_dirlist(&c, "/", 0, &ents, &nents, &st) == 0) {
         bat_add(b, "dirlist", 1, "%zu entries", nents);
         free(ents); ents = NULL;
     } else { bat_add(b, "dirlist", 0, "%s", st.msg); }
 
-    xrdc_status_clear(&st);
-    if (xrdc_statvfs(&c, "/", reply, sizeof(reply), &st) == 0) { bat_add(b, "statvfs", 1, "ok"); }
+    brix_status_clear(&st);
+    if (brix_statvfs(&c, "/", reply, sizeof(reply), &st) == 0) { bat_add(b, "statvfs", 1, "ok"); }
     else { bat_add(b, "statvfs", 0, "%s", st.msg); }
 
-    xrdc_status_clear(&st);
-    if (xrdc_query(&c, kXR_Qconfig, "chksum", reply, sizeof(reply), &st) == 0) {
+    brix_status_clear(&st);
+    if (brix_query(&c, kXR_Qconfig, "chksum", reply, sizeof(reply), &st) == 0) {
         char *nl = strchr(reply, '\n'); if (nl) { *nl = '\0'; }
         bat_add(b, "query-config", 1, "%s", reply);
     } else { bat_add(b, "query-config", 0, "%s", st.msg); }
 
     /* negative: a traversal path must not resolve outside the export */
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     {
-        int rc = xrdc_stat(&c, "/../../../../etc/passwd", &si, &st);
+        int rc = brix_stat(&c, "/../../../../etc/passwd", &si, &st);
         bat_add(b, "path-confinement", rc != 0 ? 1 : 0,
                 rc != 0 ? "escape rejected" : "LEAKED /etc/passwd");
     }
 
-    (void) xrdc_ext_probe(&c, &ext_sa, &ext_sl, &ext_rl, &ext_ln, &st);
+    (void) brix_ext_probe(&c, &ext_sa, &ext_sl, &ext_rl, &ext_ln, &st);
 
     if (!do_write) {
         bat_add(b, "write-suite", -1, "skipped (pass --rw to run write tests)");
-        xrdc_close(&c);
+        brix_close(&c);
         return;
     }
 
@@ -147,31 +147,31 @@ battery_root(const xrdc_url *u, const xrdc_opts *o, int do_write, xrd_battery *b
         snprintf(file2, sizeof(file2), "%s/probe.moved.bin", dir);
         fill_pattern(payload, sizeof(payload));
 
-        xrdc_status_clear(&st);
-        rc = xrdc_mkdir(&c, dir, 0755, 1, &st);
+        brix_status_clear(&st);
+        rc = brix_mkdir(&c, dir, 0755, 1, &st);
         bat_add(b, "mkdir", rc == 0 ? 1 : 0, "%s", rc == 0 ? dir : st.msg);
 
         /* write */
         {
-            xrdc_file f;
+            brix_file f;
             ok = 0;
-            xrdc_status_clear(&st);
-            if (xrdc_file_open_write(&c, file, 1, 0, &f, &st) == 0) {
-                ok = (xrdc_file_write(&c, &f, 0, payload, sizeof(payload), &st) == 0);
-                xrdc_file_close(&c, &f, &st);
+            brix_status_clear(&st);
+            if (brix_file_open_write(&c, file, 1, 0, &f, &st) == 0) {
+                ok = (brix_file_write(&c, &f, 0, payload, sizeof(payload), &st) == 0);
+                brix_file_close(&c, &f, &st);
             }
             bat_add(b, "write", ok ? 1 : 0, ok ? "%zu bytes" : "%s",
                     ok ? sizeof(payload) : (size_t) 0, ok ? "" : st.msg);
         }
         /* read-back + byte-exact verify */
         {
-            xrdc_file f;
+            brix_file f;
             ssize_t   got = -1;
             int       match = 0;
-            xrdc_status_clear(&st);
-            if (xrdc_file_open_read(&c, file, &f, &st) == 0) {
-                got = xrdc_file_read(&c, &f, 0, rbuf, sizeof(rbuf), &st);
-                xrdc_file_close(&c, &f, &st);
+            brix_status_clear(&st);
+            if (brix_file_open_read(&c, file, &f, &st) == 0) {
+                got = brix_file_read(&c, &f, 0, rbuf, sizeof(rbuf), &st);
+                brix_file_close(&c, &f, &st);
                 match = (got == (ssize_t) sizeof(payload)
                          && memcmp(rbuf, payload, sizeof(payload)) == 0);
             }
@@ -181,19 +181,19 @@ battery_root(const xrdc_url *u, const xrdc_opts *o, int do_write, xrd_battery *b
         }
         /* readv (two segments) */
         {
-            xrdc_file      f;
-            xrdc_readv_seg segs[2];
+            brix_file      f;
+            brix_readv_seg segs[2];
             int            match = 0;
             uint8_t        s0[64], s1[128];
             segs[0].offset = 0;    segs[0].len = sizeof(s0); segs[0].buf = s0; segs[0].got = 0;
             segs[1].offset = 1000; segs[1].len = sizeof(s1); segs[1].buf = s1; segs[1].got = 0;
-            xrdc_status_clear(&st);
-            if (xrdc_file_open_read(&c, file, &f, &st) == 0) {
-                if (xrdc_file_readv(&c, &f, segs, 2, &st) >= 0) {
+            brix_status_clear(&st);
+            if (brix_file_open_read(&c, file, &f, &st) == 0) {
+                if (brix_file_readv(&c, &f, segs, 2, &st) >= 0) {
                     match = (memcmp(s0, payload, sizeof(s0)) == 0
                              && memcmp(s1, payload + 1000, sizeof(s1)) == 0);
                 }
-                xrdc_file_close(&c, &f, &st);
+                brix_file_close(&c, &f, &st);
             }
             bat_add(b, "readv", match ? 1 : 0, match ? "2 segs verified" : "%s", st.msg);
         }
@@ -201,10 +201,10 @@ battery_root(const xrdc_url *u, const xrdc_opts *o, int do_write, xrd_battery *b
         {
             int fd = tmpfile_with(payload, sizeof(payload));
             int verified = 0;
-            xrdc_status_clear(&st);
+            brix_status_clear(&st);
             if (fd >= 0
-                && xrdc_cksum_fd(fd, XRDC_CK_ADLER32, locck, sizeof(locck), &st) == 0
-                && xrdc_query_cksum(&c, file, "adler32", srvck, sizeof(srvck), &st) == 0) {
+                && brix_cksum_fd(fd, XRDC_CK_ADLER32, locck, sizeof(locck), &st) == 0
+                && brix_query_cksum(&c, file, "adler32", srvck, sizeof(srvck), &st) == 0) {
                 verified = (strcmp(locck, srvck) == 0);
             }
             if (fd >= 0) { close(fd); }
@@ -217,19 +217,19 @@ battery_root(const xrdc_url *u, const xrdc_opts *o, int do_write, xrd_battery *b
             struct timespec ts[2];
             ts[0].tv_sec = ts[1].tv_sec = 0;
             ts[0].tv_nsec = ts[1].tv_nsec = UTIME_NOW;
-            xrdc_status_clear(&st);
-            rc = xrdc_setattr(&c, file, 1, ts, 0, (uint32_t) -1, (uint32_t) -1, &st);
+            brix_status_clear(&st);
+            rc = brix_setattr(&c, file, 1, ts, 0, (uint32_t) -1, (uint32_t) -1, &st);
             bat_add(b, "setattr-times", rc == 0 ? 1 : 0, "%s", rc == 0 ? "mtime set" : st.msg);
         } else { bat_add(b, "setattr-times", -1, "server lacks xrdfs.ext"); }
         /* xattr set/get/del (xrdfs.ext fattr is always present, but gate on a probe) */
         {
             char   val[64]; size_t vlen = 0;
             int    okset, okget, okdel;
-            xrdc_status_clear(&st);
-            okset = (xrdc_fattr_set(&c, file, "doctor", "ok", 2, 0, &st) == 0);
-            okget = okset && (xrdc_fattr_get(&c, file, "doctor", val, sizeof(val), &vlen, &st) == 0
+            brix_status_clear(&st);
+            okset = (brix_fattr_set(&c, file, "doctor", "ok", 2, 0, &st) == 0);
+            okget = okset && (brix_fattr_get(&c, file, "doctor", val, sizeof(val), &vlen, &st) == 0
                               && vlen == 2 && memcmp(val, "ok", 2) == 0);
-            okdel = okget && (xrdc_fattr_del(&c, file, "doctor", &st) == 0);
+            okdel = okget && (brix_fattr_del(&c, file, "doctor", &st) == 0);
             bat_add(b, "xattr", okdel ? 1 : (okset ? 0 : -1),
                     okdel ? "set/get/del roundtrip" : (okset ? "%s" : "not supported"),
                     okdel ? "" : st.msg);
@@ -242,13 +242,13 @@ battery_root(const xrdc_url *u, const xrdc_opts *o, int do_write, xrd_battery *b
             ssize_t rl;
             int     made;
             snprintf(lp, sizeof(lp), "%s/probe.link", dir);
-            xrdc_status_clear(&st);
-            made = (xrdc_symlink(&c, file, lp, &st) == 0);
-            if (made && (rl = xrdc_readlink(&c, lp, tgt, sizeof(tgt), &st)) > 0
+            brix_status_clear(&st);
+            made = (brix_symlink(&c, file, lp, &st) == 0);
+            if (made && (rl = brix_readlink(&c, lp, tgt, sizeof(tgt), &st)) > 0
                 && strcmp(tgt, file) == 0) {
-                xrdc_status rs;
-                xrdc_status_clear(&rs);
-                if (xrdc_rm(&c, lp, &rs) != 0) {
+                brix_status rs;
+                brix_status_clear(&rs);
+                if (brix_rm(&c, lp, &rs) != 0) {
                     sym_left = 1;
                     bat_add(b, "symlink+readlink", 1,
                             "create+readlink ok; unlink unsupported (rm follows the link)");
@@ -257,32 +257,32 @@ battery_root(const xrdc_url *u, const xrdc_opts *o, int do_write, xrd_battery *b
                 }
             } else {
                 bat_add(b, "symlink+readlink", made ? 0 : 0, "%s", st.msg);
-                if (made) { xrdc_status rs; xrdc_status_clear(&rs);
-                            if (xrdc_rm(&c, lp, &rs) != 0) { sym_left = 1; } }
+                if (made) { brix_status rs; brix_status_clear(&rs);
+                            if (brix_rm(&c, lp, &rs) != 0) { sym_left = 1; } }
             }
         } else { bat_add(b, "symlink+readlink", -1, "server lacks xrdfs.ext"); }
         /* rename */
-        xrdc_status_clear(&st);
-        rc = xrdc_mv(&c, file, file2, &st);
+        brix_status_clear(&st);
+        rc = brix_mv(&c, file, file2, &st);
         bat_add(b, "rename", rc == 0 ? 1 : 0, "%s", rc == 0 ? "moved" : st.msg);
         /* truncate */
-        xrdc_status_clear(&st);
-        rc = xrdc_truncate(&c, file2, 10, &st);
+        brix_status_clear(&st);
+        rc = brix_truncate(&c, file2, 10, &st);
         bat_add(b, "truncate", rc == 0 ? 1 : 0, "%s", rc == 0 ? "to 10 bytes" : st.msg);
         /* rm the file, then rmdir the now-empty temp dir (cleanup) */
-        xrdc_status_clear(&st);
-        rc = xrdc_rm(&c, file2, &st);
+        brix_status_clear(&st);
+        rc = brix_rm(&c, file2, &st);
         bat_add(b, "rm", rc == 0 ? 1 : 0, "%s", rc == 0 ? "removed" : st.msg);
         if (sym_left) {
             bat_add(b, "rmdir", -1,
                     "skipped: temp dir retains a symlink the server cannot unlink");
         } else {
-            xrdc_status_clear(&st);
-            rc = xrdc_rmdir(&c, dir, &st);
+            brix_status_clear(&st);
+            rc = brix_rmdir(&c, dir, &st);
             bat_add(b, "rmdir", rc == 0 ? 1 : 0, "%s", rc == 0 ? "removed" : st.msg);
         }
     }
-    xrdc_close(&c);
+    brix_close(&c);
 }
 
 
@@ -290,12 +290,12 @@ battery_root(const xrdc_url *u, const xrdc_opts *o, int do_write, xrd_battery *b
  * MKCOL/PUT/GET-verify/PROPFIND/MOVE/DELETE cycle under a temp collection. bearer NULL
  * = anonymous. */
 void
-battery_web(const xrdc_weburl *u, int do_write, const char *bearer, int verify,
+battery_web(const brix_weburl *u, int do_write, const char *bearer, int verify,
             xrd_battery *b)
 {
-    xrdc_http_resp resp;
-    xrdc_status    st;
-    const char    *ca = xrdc_resolve_ca_dir(NULL);
+    brix_http_resp resp;
+    brix_status    st;
+    const char    *ca = brix_resolve_ca_dir(NULL);
     char           authhdr[1200];
     const char    *xtra = NULL;
 
@@ -305,8 +305,8 @@ battery_web(const xrdc_weburl *u, int do_write, const char *bearer, int verify,
         xtra = authhdr;
     }
 
-    xrdc_status_clear(&st);
-    if (xrdc_http_req(u->host, u->port, u->tls, "OPTIONS", "/", xtra, NULL, 0,
+    brix_status_clear(&st);
+    if (brix_http_req(u->host, u->port, u->tls, "OPTIONS", "/", xtra, NULL, 0,
                       5000, verify, ca, &resp, &st) != 0) {
         snprintf(b->err, sizeof(b->err), "%s", st.msg);
         bat_add(b, "OPTIONS", 0, "%s", st.msg);
@@ -315,22 +315,22 @@ battery_web(const xrdc_weburl *u, int do_write, const char *bearer, int verify,
     b->reachable = 1;
     {
         char dav[160] = "";
-        xrdc_http_header(&resp, "DAV", dav, sizeof(dav));
+        brix_http_header(&resp, "DAV", dav, sizeof(dav));
         bat_add(b, "OPTIONS", (resp.status >= 200 && resp.status < 500) ? 1 : 0,
                 "HTTP %d%s%s", resp.status, dav[0] ? " DAV=" : "", dav);
     }
-    xrdc_http_resp_free(&resp);
+    brix_http_resp_free(&resp);
 
     {
         const char *body = "<?xml version=\"1.0\"?><propfind xmlns=\"DAV:\"><allprop/></propfind>";
         char        hdr[1400];
         snprintf(hdr, sizeof(hdr), "Depth: 0\r\nContent-Type: application/xml\r\n%s",
                  xtra ? xtra : "");
-        xrdc_status_clear(&st);
-        if (xrdc_http_req(u->host, u->port, u->tls, "PROPFIND", "/", hdr, body,
+        brix_status_clear(&st);
+        if (brix_http_req(u->host, u->port, u->tls, "PROPFIND", "/", hdr, body,
                           strlen(body), 5000, verify, ca, &resp, &st) == 0) {
             bat_add(b, "PROPFIND", resp.status == 207 ? 1 : 0, "HTTP %d", resp.status);
-            xrdc_http_resp_free(&resp);
+            brix_http_resp_free(&resp);
         } else { bat_add(b, "PROPFIND", 0, "%s", st.msg); }
     }
 
@@ -349,18 +349,18 @@ battery_web(const xrdc_weburl *u, int do_write, const char *bearer, int verify,
         fill_pattern(payload, sizeof(payload));
 
         /* MKCOL */
-        xrdc_status_clear(&st);
-        if (xrdc_http_req(u->host, u->port, u->tls, "MKCOL", dir, xtra, NULL, 0,
+        brix_status_clear(&st);
+        if (brix_http_req(u->host, u->port, u->tls, "MKCOL", dir, xtra, NULL, 0,
                           5000, verify, ca, &resp, &st) == 0) {
             bat_add(b, "MKCOL", (resp.status == 201 || resp.status == 405) ? 1 : 0,
                     "HTTP %d", resp.status);
-            xrdc_http_resp_free(&resp);
+            brix_http_resp_free(&resp);
         } else { bat_add(b, "MKCOL", 0, "%s", st.msg); }
 
         /* PUT */
         fd = tmpfile_with(payload, sizeof(payload));
-        xrdc_status_clear(&st);
-        if (fd >= 0 && xrdc_http_upload(u->host, u->port, u->tls, fpath, xtra,
+        brix_status_clear(&st);
+        if (fd >= 0 && brix_http_upload(u->host, u->port, u->tls, fpath, xtra,
                                         bat_upload_src_fd, &fd,
                                         (long long) sizeof(payload), verify, ca, 10000,
                                         &st_code, &st) == 0) {
@@ -370,8 +370,8 @@ battery_web(const xrdc_weburl *u, int do_write, const char *bearer, int verify,
 
         /* GET + byte-exact verify */
         fd = tmpfile_with(NULL, 0);
-        xrdc_status_clear(&st);
-        if (fd >= 0 && xrdc_http_download(u->host, u->port, u->tls, fpath, xtra, verify,
+        brix_status_clear(&st);
+        if (fd >= 0 && brix_http_download(u->host, u->port, u->tls, fpath, xtra, verify,
                                           ca, fd, 10000, &st_code, &blen, &st) == 0
             && blen == (long long) sizeof(payload)) {
             lseek(fd, 0, SEEK_SET);
@@ -384,25 +384,25 @@ battery_web(const xrdc_weburl *u, int do_write, const char *bearer, int verify,
         /* MOVE */
         snprintf(dst, sizeof(dst), "Destination: %s://%s:%d%s\r\n%s",
                  u->tls ? "https" : "http", u->host, u->port, mpath, xtra ? xtra : "");
-        xrdc_status_clear(&st);
-        if (xrdc_http_req(u->host, u->port, u->tls, "MOVE", fpath, dst, NULL, 0,
+        brix_status_clear(&st);
+        if (brix_http_req(u->host, u->port, u->tls, "MOVE", fpath, dst, NULL, 0,
                           5000, verify, ca, &resp, &st) == 0) {
             bat_add(b, "MOVE", (resp.status >= 200 && resp.status < 300) ? 1 : 0,
                     "HTTP %d", resp.status);
-            xrdc_http_resp_free(&resp);
+            brix_http_resp_free(&resp);
         } else { bat_add(b, "MOVE", 0, "%s", st.msg); }
 
         /* DELETE the (moved) file and the collection */
-        xrdc_status_clear(&st);
-        if (xrdc_http_req(u->host, u->port, u->tls, "DELETE", mpath, xtra, NULL, 0,
+        brix_status_clear(&st);
+        if (brix_http_req(u->host, u->port, u->tls, "DELETE", mpath, xtra, NULL, 0,
                           5000, verify, ca, &resp, &st) == 0) {
             bat_add(b, "DELETE", (resp.status >= 200 && resp.status < 300) ? 1 : 0,
                     "HTTP %d", resp.status);
-            xrdc_http_resp_free(&resp);
+            brix_http_resp_free(&resp);
         } else { bat_add(b, "DELETE", 0, "%s", st.msg); }
-        { xrdc_status rs; xrdc_status_clear(&rs);
-          if (xrdc_http_req(u->host, u->port, u->tls, "DELETE", dir, xtra, NULL, 0,
-                            5000, verify, ca, &resp, &rs) == 0) { xrdc_http_resp_free(&resp); } }
+        { brix_status rs; brix_status_clear(&rs);
+          if (brix_http_req(u->host, u->port, u->tls, "DELETE", dir, xtra, NULL, 0,
+                            5000, verify, ca, &resp, &rs) == 0) { brix_http_resp_free(&resp); } }
     }
 }
 
@@ -410,24 +410,24 @@ battery_web(const xrdc_weburl *u, int do_write, const char *bearer, int verify,
 /* The S3 functional battery: ListObjectsV2 (read), then (do_write) a SigV4-signed
  * PUT/GET-verify/DELETE of a temp object. ak/sk NULL = anonymous (writes skipped). */
 void
-battery_s3(const xrdc_weburl *u, int do_write, const char *ak, const char *sk,
+battery_s3(const brix_weburl *u, int do_write, const char *ak, const char *sk,
            const char *region, int verify, xrd_battery *b)
 {
-    xrdc_status st;
-    const char *ca = xrdc_resolve_ca_dir(NULL);
+    brix_status st;
+    const char *ca = brix_resolve_ca_dir(NULL);
     char      **keys = NULL;
     size_t      nk = 0;
 
     snprintf(b->protocol, sizeof(b->protocol), "s3");
-    xrdc_status_clear(&st);
-    if (xrdc_s3_list(u, ak, sk, region, verify, ca, &keys, &nk, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_s3_list(u, ak, sk, region, verify, ca, &keys, &nk, &st) != 0) {
         snprintf(b->err, sizeof(b->err), "%s", st.msg);
         bat_add(b, "list-objects", 0, "%s", st.msg);
         return;
     }
     b->reachable = 1;
     bat_add(b, "list-objects", 1, "%zu keys", nk);
-    xrdc_strv_free(keys, nk);
+    brix_strv_free(keys, nk);
 
     if (!do_write) { bat_add(b, "write-suite", -1, "skipped (pass --rw)"); return; }
     if (ak == NULL || sk == NULL) {
@@ -451,11 +451,11 @@ battery_s3(const xrdc_weburl *u, int do_write, const char *ak, const char *sk,
         }
 
         /* PUT (body hash signed) */
-        xrdc_s3_sha256_hex(payload, sizeof(payload), phash);
-        xrdc_status_clear(&st);
-        if (xrdc_s3_sign_v4("PUT", u->host, uri, ak, sk, region, phash, hdrs, sizeof(hdrs)) == 0) {
+        brix_s3_sha256_hex(payload, sizeof(payload), phash);
+        brix_status_clear(&st);
+        if (brix_s3_sign_v4("PUT", u->host, uri, ak, sk, region, phash, hdrs, sizeof(hdrs)) == 0) {
             fd = tmpfile_with(payload, sizeof(payload));
-            if (fd >= 0 && xrdc_http_upload(u->host, u->port, u->tls, uri, hdrs,
+            if (fd >= 0 && brix_http_upload(u->host, u->port, u->tls, uri, hdrs,
                                             bat_upload_src_fd, &fd,
                                             (long long) sizeof(payload), verify, ca, 10000,
                                             &st_code, &st) == 0) {
@@ -465,11 +465,11 @@ battery_s3(const xrdc_weburl *u, int do_write, const char *ak, const char *sk,
         } else { bat_add(b, "PUT", 0, "sign failed"); }
 
         /* GET + verify (empty-body hash) */
-        xrdc_s3_sha256_hex("", 0, phash);
-        xrdc_status_clear(&st);
-        if (xrdc_s3_sign_v4("GET", u->host, uri, ak, sk, region, phash, hdrs, sizeof(hdrs)) == 0) {
+        brix_s3_sha256_hex("", 0, phash);
+        brix_status_clear(&st);
+        if (brix_s3_sign_v4("GET", u->host, uri, ak, sk, region, phash, hdrs, sizeof(hdrs)) == 0) {
             fd = tmpfile_with(NULL, 0);
-            if (fd >= 0 && xrdc_http_download(u->host, u->port, u->tls, uri, hdrs, verify,
+            if (fd >= 0 && brix_http_download(u->host, u->port, u->tls, uri, hdrs, verify,
                                               ca, fd, 10000, &st_code, &blen, &st) == 0
                 && blen == (long long) sizeof(payload)) {
                 lseek(fd, 0, SEEK_SET);
@@ -481,16 +481,16 @@ battery_s3(const xrdc_weburl *u, int do_write, const char *ak, const char *sk,
         } else { bat_add(b, "GET-verify", 0, "sign failed"); }
 
         /* DELETE */
-        xrdc_s3_sha256_hex("", 0, phash);
-        xrdc_status_clear(&st);
-        if (xrdc_s3_sign_v4("DELETE", u->host, uri, ak, sk, region, phash, hdrs, sizeof(hdrs)) == 0) {
-            xrdc_http_resp resp;
+        brix_s3_sha256_hex("", 0, phash);
+        brix_status_clear(&st);
+        if (brix_s3_sign_v4("DELETE", u->host, uri, ak, sk, region, phash, hdrs, sizeof(hdrs)) == 0) {
+            brix_http_resp resp;
             (void) reqhdr;
-            if (xrdc_http_req(u->host, u->port, u->tls, "DELETE", uri, hdrs, NULL, 0,
+            if (brix_http_req(u->host, u->port, u->tls, "DELETE", uri, hdrs, NULL, 0,
                               5000, verify, ca, &resp, &st) == 0) {
                 bat_add(b, "DELETE", (resp.status >= 200 && resp.status < 300) ? 1 : 0,
                         "HTTP %d", resp.status);
-                xrdc_http_resp_free(&resp);
+                brix_http_resp_free(&resp);
             } else { bat_add(b, "DELETE", 0, "%s", st.msg); }
         } else { bat_add(b, "DELETE", 0, "sign failed"); }
     }
@@ -504,9 +504,9 @@ xrd_run_battery(const char *endpoint, int do_write, int verify, xrd_battery *b)
     memset(b, 0, sizeof(*b));
     snprintf(b->endpoint, sizeof(b->endpoint), "%s", endpoint);
 
-    if (xrdc_is_web_url(endpoint)) {
-        xrdc_weburl w;
-        if (xrdc_weburl_parse(endpoint, &w) != 0) {
+    if (brix_is_web_url(endpoint)) {
+        brix_weburl w;
+        if (brix_weburl_parse(endpoint, &w) != 0) {
             snprintf(b->protocol, sizeof(b->protocol), "web");
             snprintf(b->err, sizeof(b->err), "unparseable web URL");
             return;
@@ -517,21 +517,21 @@ xrd_run_battery(const char *endpoint, int do_write, int verify, xrd_battery *b)
                        getenv("AWS_SECRET_ACCESS_KEY"),
                        region ? region : "us-east-1", verify, b);
         } else {
-            char *tok = xrdc_token_discover();
+            char *tok = brix_token_discover();
             battery_web(&w, do_write, tok, verify, b);
             if (tok != NULL) { free(tok); }
         }
         return;
     }
     {
-        xrdc_url    u;
-        xrdc_opts   o;
-        xrdc_status st;
+        brix_url    u;
+        brix_opts   o;
+        brix_status st;
         memset(&o, 0, sizeof(o));
         o.verify_host = verify;
-        xrdc_status_clear(&st);
+        brix_status_clear(&st);
         snprintf(b->protocol, sizeof(b->protocol), "root");
-        if (xrdc_endpoint_parse(endpoint, &u, &st) != 0) {
+        if (brix_endpoint_parse(endpoint, &u, &st) != 0) {
             snprintf(b->err, sizeof(b->err), "%s", st.msg);
             return;
         }

@@ -8,7 +8,7 @@
 /* Stream a Content-Length-bounded body (`remaining` bytes) from src to out_fd. */
 int
 stream_clen(body_src *src, long long remaining, int out_fd, long long *written,
-            xrdc_status *st)
+            brix_status *st)
 {
     char buf[XRDC_XFER_BUF];
     while (remaining > 0) {
@@ -17,7 +17,7 @@ stream_clen(body_src *src, long long remaining, int out_fd, long long *written,
         ssize_t r = bsrc_read(src, buf, want, st);
         if (r < 0) { return -1; }
         if (r == 0) {
-            xrdc_status_set(st, XRDC_EPROTO, 0,
+            brix_status_set(st, XRDC_EPROTO, 0,
                             "http: body truncated (%lld bytes short)", remaining);
             return -1;
         }
@@ -31,7 +31,7 @@ stream_clen(body_src *src, long long remaining, int out_fd, long long *written,
 
 /* Stream a connection-close-delimited body (read to EOF) from src to out_fd. */
 int
-stream_eof(body_src *src, int out_fd, long long *written, xrdc_status *st)
+stream_eof(body_src *src, int out_fd, long long *written, brix_status *st)
 {
     char buf[XRDC_XFER_BUF];
     for (;;) {
@@ -47,7 +47,7 @@ stream_eof(body_src *src, int out_fd, long long *written, xrdc_status *st)
 
 /* Stream a Transfer-Encoding: chunked body from src to out_fd. */
 int
-stream_chunked(body_src *src, int out_fd, long long *written, xrdc_status *st)
+stream_chunked(body_src *src, int out_fd, long long *written, brix_status *st)
 {
     char buf[XRDC_XFER_BUF];
     for (;;) {
@@ -57,7 +57,7 @@ stream_chunked(body_src *src, int out_fd, long long *written, xrdc_status *st)
         if (bsrc_getline(src, line, sizeof(line), st) != 0) { return -1; }
         csz = strtol(line, &endp, 16);
         if (endp == line || csz < 0) {
-            xrdc_status_set(st, XRDC_EPROTO, 0, "http: bad chunk size");
+            brix_status_set(st, XRDC_EPROTO, 0, "http: bad chunk size");
             return -1;
         }
         if (csz == 0) { break; }                 /* last chunk */
@@ -65,7 +65,7 @@ stream_chunked(body_src *src, int out_fd, long long *written, xrdc_status *st)
             size_t  want = (csz < (long) sizeof(buf)) ? (size_t) csz : sizeof(buf);
             ssize_t r = bsrc_read(src, buf, want, st);
             if (r <= 0) {
-                xrdc_status_set(st, XRDC_EPROTO, 0, "http: chunk truncated");
+                brix_status_set(st, XRDC_EPROTO, 0, "http: chunk truncated");
                 return -1;
             }
             if (write_all_fd(out_fd, buf, (size_t) r, st) != 0) { return -1; }
@@ -84,8 +84,8 @@ stream_chunked(body_src *src, int out_fd, long long *written, xrdc_status *st)
 /* Read the response header block into hdr[]; parse status. Sets *total (bytes in
  * hdr buffer), *body_off (offset of first body byte in hdr). 0 / -1. */
 int
-read_resp_headers(xrdc_io *io, char *hdr, size_t hdrcap, int timeout_ms,
-                  int *status, size_t *total, size_t *body_off, xrdc_status *st)
+read_resp_headers(brix_io *io, char *hdr, size_t hdrcap, int timeout_ms,
+                  int *status, size_t *total, size_t *body_off, brix_status *st)
 {
     size_t n = 0;
     char  *eoh = NULL;
@@ -98,7 +98,7 @@ read_resp_headers(xrdc_io *io, char *hdr, size_t hdrcap, int timeout_ms,
         if (eoh != NULL) { break; }
     }
     if (eoh == NULL) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "http: response headers too large/truncated");
+        brix_status_set(st, XRDC_EPROTO, 0, "http: response headers too large/truncated");
         return -1;
     }
     hdr[n] = '\0';
@@ -151,9 +151,9 @@ raw_header(const char *hdr, const char *name, char *out, size_t outsz)
  * HOW:  Wrap the leftover header bytes + socket in a body_src, then dispatch on
  *       Transfer-Encoding / Content-Length / neither. 0 / -1 (st set on error). */
 int
-httpx_download_body(xrdc_io *io, char *hdr, size_t total, size_t body_off,
+httpx_download_body(brix_io *io, char *hdr, size_t total, size_t body_off,
                     int out_fd, int timeout_ms, long long *body_len,
-                    xrdc_status *st)
+                    brix_status *st)
 {
     body_src  src;
     char      clbuf[32], tebuf[32];
@@ -174,7 +174,7 @@ httpx_download_body(xrdc_io *io, char *hdr, size_t total, size_t body_off,
         cl = strtoll(clbuf, &cend, 10);
         if (cend == clbuf || cl < 0 || errno == ERANGE
             || (*cend != '\0' && *cend != '\r' && *cend != ' ')) {
-            xrdc_status_set(st, XRDC_EPROTO, 0,
+            brix_status_set(st, XRDC_EPROTO, 0,
                             "http: invalid Content-Length \"%s\"", clbuf);
             rc = -1;
         } else {
@@ -194,11 +194,11 @@ httpx_download_body(xrdc_io *io, char *hdr, size_t total, size_t body_off,
  * already-connected io. Owns its scratch header buffer (allocated, used, freed on
  * every path) so the orchestrator's transport teardown stays linear. 0 / -1. */
 int
-httpx_download_exchange(xrdc_io *io, const char *host, int port,
+httpx_download_exchange(brix_io *io, const char *host, int port,
                         const char *path, const char *extra_headers,
                         long long start_off, int out_fd,
                         int timeout_ms, int *http_status, long long *body_len,
-                        xrdc_status *st)
+                        brix_status *st)
 {
     char    *hdr;
     char     req[2048];
@@ -207,7 +207,7 @@ httpx_download_exchange(xrdc_io *io, const char *host, int port,
     int      status = 0, rlen, rc;
 
     char hp[300];
-    xrootd_format_host_port(host, (uint16_t) port, hp, sizeof(hp));
+    brix_format_host_port(host, (uint16_t) port, hp, sizeof(hp));
     /* Resume from start_off via an open-ended byte range (the server replies 206
      * with the remaining bytes); empty for a fresh download. */
     rangeh[0] = '\0';
@@ -220,14 +220,14 @@ httpx_download_exchange(xrdc_io *io, const char *host, int port,
                     path[0] ? path : "/", hp, rangeh,
                     extra_headers ? extra_headers : "");
     if (rlen < 0 || (size_t) rlen >= sizeof(req)) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "http: request too long");
+        brix_status_set(st, XRDC_EUSAGE, 0, "http: request too long");
         return -1;
     }
-    if (xrdc_write_full(io, req, (size_t) rlen, st) != 0) { return -1; }
+    if (brix_write_full(io, req, (size_t) rlen, st) != 0) { return -1; }
 
     hdr = (char *) malloc(XRDC_HDR_CAP);
     if (hdr == NULL) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "http: out of memory");
+        brix_status_set(st, XRDC_EPROTO, 0, "http: out of memory");
         return -1;
     }
     if (read_resp_headers(io, hdr, XRDC_HDR_CAP, timeout_ms, &status,
@@ -244,7 +244,7 @@ httpx_download_exchange(xrdc_io *io, const char *host, int port,
             /* We asked to resume from start_off but the server ignored Range and
              * is streaming the whole object from 0 — appending it at the resume
              * offset would corrupt the file, so refuse rather than overwrite. */
-            xrdc_status_set(st, XRDC_EPROTO, 0,
+            brix_status_set(st, XRDC_EPROTO, 0,
                             "http: resume Range ignored (status %d)", status);
             rc = -1;
         } else {
@@ -252,7 +252,7 @@ httpx_download_exchange(xrdc_io *io, const char *host, int port,
                                      body_len, st);
         }
     } else {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "http: server returned status %d", status);
+        brix_status_set(st, XRDC_EPROTO, 0, "http: server returned status %d", status);
         rc = -1;
     }
     free(hdr);
@@ -261,10 +261,10 @@ httpx_download_exchange(xrdc_io *io, const char *host, int port,
 
 
 int
-xrdc_http_download(const char *host, int port, int tls, const char *path,
+brix_http_download(const char *host, int port, int tls, const char *path,
                    const char *extra_headers, int verify, const char *ca_dir,
                    int out_fd, int timeout_ms, int *http_status,
-                   long long *body_len, xrdc_status *st)
+                   long long *body_len, brix_status *st)
 {
     long long    total_got = 0;
     int          window_ms = httpx_window_ms();
@@ -279,7 +279,7 @@ xrdc_http_download(const char *host, int port, int tls, const char *path,
     /* Resume requires a seekable destination (a regular file); a pipe/stdout
      * cannot be rewound, so there we fall back to a single attempt. */
     seekable = (fstat(out_fd, &stt) == 0 && S_ISREG(stt.st_mode));
-    deadline = xrdc_mono_ns() + (uint64_t) window_ms * 1000000ULL;
+    deadline = brix_mono_ns() + (uint64_t) window_ms * 1000000ULL;
 
     /*
      * Deadline-bounded resume (mirrors the root:// resilience window).  On a
@@ -291,7 +291,7 @@ xrdc_http_download(const char *host, int port, int tls, const char *path,
      * window<=0 ($XRDC_MAX_STALL_MS=0) or a non-seekable dst ⇒ a single attempt.
      */
     for (;;) {
-        xrdc_io    io;
+        brix_io    io;
         void      *tls_ctx = NULL;
         long long  body_this = 0;
         int        rc = -1;
@@ -306,7 +306,7 @@ xrdc_http_download(const char *host, int port, int tls, const char *path,
                                          /* report the ORIGINAL status only */
                                          total_got == 0 ? http_status : NULL,
                                          &body_this, st);
-            if (tls) { xrdc_tls_client_free(&io, tls_ctx); }
+            if (tls) { brix_tls_client_free(&io, tls_ctx); }
             if (io.fd >= 0) { close(io.fd); }
             total_got += body_this;
             if (rc == 0) {
@@ -317,13 +317,13 @@ xrdc_http_download(const char *host, int port, int tls, const char *path,
 
         /* Connect or transfer fault.  Retry only if we can resume (seekable),
          * the fault is transient, and the patience window has not elapsed. */
-        if (!seekable || window_ms <= 0 || !xrdc_status_retryable(st)
-            || xrdc_mono_ns() >= deadline) {
+        if (!seekable || window_ms <= 0 || !brix_status_retryable(st)
+            || brix_mono_ns() >= deadline) {
             return -1;
         }
         if (body_this > 0) {
-            deadline = xrdc_mono_ns() + (uint64_t) window_ms * 1000000ULL;
+            deadline = brix_mono_ns() + (uint64_t) window_ms * 1000000ULL;
         }
-        xrdc_backoff_sleep_fast(attempt++);
+        brix_backoff_sleep_fast(attempt++);
     }
 }

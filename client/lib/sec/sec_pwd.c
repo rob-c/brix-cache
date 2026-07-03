@@ -41,7 +41,7 @@ static uint8_t   g_pwd_pass[256];       /* the plaintext password (round 2)     
 static size_t    g_pwd_pass_len;
 
 static int
-pwd_have(xrdc_conn *c)
+pwd_have(brix_conn *c)
 {
     (void) c;
     return getenv("XRDC_PWD") != NULL || getenv("XrdSecCREDS") != NULL;
@@ -127,10 +127,10 @@ pwd_status_word(uint8_t ctype, uint16_t options)
 }
 
 static int
-pwd_first(xrdc_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
-          xrdc_status *st)
+pwd_first(brix_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
+          brix_status *st)
 {
-    xrootd_gbuf  g;
+    brix_gbuf  g;
     char        *pub;
     size_t       pub_len = 0;
     const char  *user;
@@ -140,7 +140,7 @@ pwd_first(xrdc_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
     (void) parms;
 
     if (pwd_load_password() != 0) {
-        xrdc_status_set(st, XRDC_EAUTH, 0,
+        brix_status_set(st, XRDC_EAUTH, 0,
                         "pwd: no password (set XRDC_PWD or XrdSecCREDS)");
         return -1;
     }
@@ -149,7 +149,7 @@ pwd_first(xrdc_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
         user = getenv("USER");
     }
     if (user == NULL || user[0] == '\0') {
-        xrdc_status_set(st, XRDC_EAUTH, 0, "pwd: no username (set XRDC_PWD_USER)");
+        brix_status_set(st, XRDC_EAUTH, 0, "pwd: no username (set XRDC_PWD_USER)");
         return -1;
     }
 
@@ -157,34 +157,34 @@ pwd_first(xrdc_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
         EVP_PKEY_free(g_pwd_key);
         g_pwd_key = NULL;
     }
-    g_pwd_key = xrootd_gsi_cipher_keygen();
+    g_pwd_key = brix_gsi_cipher_keygen();
     if (g_pwd_key == NULL) {
-        xrdc_status_set(st, XRDC_EAUTH, 0, "pwd: DH keygen failed");
+        brix_status_set(st, XRDC_EAUTH, 0, "pwd: DH keygen failed");
         return -1;
     }
-    pub = xrootd_gsi_cipher_public(g_pwd_key, &pub_len);
+    pub = brix_gsi_cipher_public(g_pwd_key, &pub_len);
     if (pub == NULL) {
-        xrdc_status_set(st, XRDC_EAUTH, 0, "pwd: cannot encode key");
+        brix_status_set(st, XRDC_EAUTH, 0, "pwd: cannot encode key");
         return -1;
     }
 
     version = htonl(PWD_VERSION);
     status  = pwd_status_word(0 /*kpCT_normal*/, kOptsClntTty);
 
-    xrootd_gbuf_init(&g);
-    xrootd_gbuf_raw(&g, "pwd", 4);                      /* protocol name + NUL */
-    xrootd_gbuf_u32(&g, kXPC_normal);                  /* step */
-    xrootd_gbuf_bucket(&g, 3000 /*kXRS_cryptomod*/, "ssl", 3);
-    xrootd_gbuf_bucket(&g, 3004 /*kXRS_puk*/, pub, pub_len);
-    xrootd_gbuf_bucket(&g, 3014 /*kXRS_version*/, &version, sizeof(version));
-    xrootd_gbuf_bucket(&g, 3008 /*kXRS_user*/, user, strlen(user));
-    xrootd_gbuf_bucket(&g, 3015 /*kXRS_status*/, &status, sizeof(status));
-    xrootd_gbuf_end(&g);
+    brix_gbuf_init(&g);
+    brix_gbuf_raw(&g, "pwd", 4);                      /* protocol name + NUL */
+    brix_gbuf_u32(&g, kXPC_normal);                  /* step */
+    brix_gbuf_bucket(&g, 3000 /*kXRS_cryptomod*/, "ssl", 3);
+    brix_gbuf_bucket(&g, 3004 /*kXRS_puk*/, pub, pub_len);
+    brix_gbuf_bucket(&g, 3014 /*kXRS_version*/, &version, sizeof(version));
+    brix_gbuf_bucket(&g, 3008 /*kXRS_user*/, user, strlen(user));
+    brix_gbuf_bucket(&g, 3015 /*kXRS_status*/, &status, sizeof(status));
+    brix_gbuf_end(&g);
     free(pub);
 
     if (g.err) {
-        xrootd_gbuf_free(&g);
-        xrdc_status_set(st, XRDC_EAUTH, 0, "pwd: out of memory");
+        brix_gbuf_free(&g);
+        brix_status_set(st, XRDC_EAUTH, 0, "pwd: out of memory");
         return -1;
     }
     *payload = g.p;                  /* ownership → caller (g.p is malloc'd) */
@@ -193,77 +193,77 @@ pwd_first(xrdc_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
 }
 
 static int
-pwd_more(xrdc_conn *c, const uint8_t *sbody, uint32_t slen, uint8_t **payload,
-         uint32_t *plen, xrdc_status *st)
+pwd_more(brix_conn *c, const uint8_t *sbody, uint32_t slen, uint8_t **payload,
+         uint32_t *plen, brix_status *st)
 {
     const uint8_t       *spuk;
     size_t               spuk_len = 0, enc_len = 0;
     EVP_PKEY            *peer;
     uint8_t              key[PWD_KEYLEN];
-    xrootd_gsi_cipher_t  cipher;
-    xrootd_gbuf          inner, outer;
+    brix_gsi_cipher_t  cipher;
+    brix_gbuf          inner, outer;
     uint8_t             *enc;
     int                  ok;
 
     (void) c;
 
     if (g_pwd_key == NULL
-        || xrootd_gsi_find_bucket(sbody, slen, 3004 /*kXRS_puk*/,
+        || brix_gsi_find_bucket(sbody, slen, 3004 /*kXRS_puk*/,
                                   &spuk, &spuk_len) != 0)
     {
-        xrdc_status_set(st, XRDC_EAUTH, 0, "pwd: server key missing");
+        brix_status_set(st, XRDC_EAUTH, 0, "pwd: server key missing");
         return -1;
     }
-    peer = xrootd_gsi_cipher_parse_peer(spuk, spuk_len);
+    peer = brix_gsi_cipher_parse_peer(spuk, spuk_len);
     if (peer == NULL) {
-        xrdc_status_set(st, XRDC_EAUTH, 0, "pwd: bad server key");
+        brix_status_set(st, XRDC_EAUTH, 0, "pwd: bad server key");
         return -1;
     }
-    ok = xrootd_gsi_cipher_session_key(g_pwd_key, peer, 0, key, PWD_KEYLEN)
-         && xrootd_gsi_cipher_lookup("aes-128-cbc", &cipher);
+    ok = brix_gsi_cipher_session_key(g_pwd_key, peer, 0, key, PWD_KEYLEN)
+         && brix_gsi_cipher_lookup("aes-128-cbc", &cipher);
     EVP_PKEY_free(peer);
     EVP_PKEY_free(g_pwd_key);
     g_pwd_key = NULL;
     if (!ok) {
         OPENSSL_cleanse(key, sizeof(key));
-        xrdc_status_set(st, XRDC_EAUTH, 0, "pwd: key agreement failed");
+        brix_status_set(st, XRDC_EAUTH, 0, "pwd: key agreement failed");
         return -1;
     }
 
     /* inner main buffer: "pwd\0" + step + kXRS_creds(password) + kXRS_none */
-    xrootd_gbuf_init(&inner);
-    xrootd_gbuf_raw(&inner, "pwd", 4);
-    xrootd_gbuf_u32(&inner, kXPC_creds);
-    xrootd_gbuf_bucket(&inner, 3010 /*kXRS_creds*/, g_pwd_pass, g_pwd_pass_len);
-    xrootd_gbuf_end(&inner);
+    brix_gbuf_init(&inner);
+    brix_gbuf_raw(&inner, "pwd", 4);
+    brix_gbuf_u32(&inner, kXPC_creds);
+    brix_gbuf_bucket(&inner, 3010 /*kXRS_creds*/, g_pwd_pass, g_pwd_pass_len);
+    brix_gbuf_end(&inner);
     OPENSSL_cleanse(g_pwd_pass, sizeof(g_pwd_pass));
     g_pwd_pass_len = 0;
     if (inner.err) {
-        xrootd_gbuf_free(&inner);
+        brix_gbuf_free(&inner);
         OPENSSL_cleanse(key, sizeof(key));
-        xrdc_status_set(st, XRDC_EAUTH, 0, "pwd: out of memory");
+        brix_status_set(st, XRDC_EAUTH, 0, "pwd: out of memory");
         return -1;
     }
 
-    enc = xrootd_gsi_cipher_encrypt(&cipher, key, inner.p, inner.len, 0, &enc_len);
+    enc = brix_gsi_cipher_encrypt(&cipher, key, inner.p, inner.len, 0, &enc_len);
     OPENSSL_cleanse(key, sizeof(key));
     OPENSSL_cleanse(inner.p, inner.len);
-    xrootd_gbuf_free(&inner);
+    brix_gbuf_free(&inner);
     if (enc == NULL) {
-        xrdc_status_set(st, XRDC_EAUTH, 0, "pwd: credential encrypt failed");
+        brix_status_set(st, XRDC_EAUTH, 0, "pwd: credential encrypt failed");
         return -1;
     }
 
     /* outer: "pwd\0" + step + kXRS_main(enc) + kXRS_none */
-    xrootd_gbuf_init(&outer);
-    xrootd_gbuf_raw(&outer, "pwd", 4);
-    xrootd_gbuf_u32(&outer, kXPC_creds);
-    xrootd_gbuf_bucket(&outer, 3001 /*kXRS_main*/, enc, enc_len);
-    xrootd_gbuf_end(&outer);
+    brix_gbuf_init(&outer);
+    brix_gbuf_raw(&outer, "pwd", 4);
+    brix_gbuf_u32(&outer, kXPC_creds);
+    brix_gbuf_bucket(&outer, 3001 /*kXRS_main*/, enc, enc_len);
+    brix_gbuf_end(&outer);
     free(enc);
     if (outer.err) {
-        xrootd_gbuf_free(&outer);
-        xrdc_status_set(st, XRDC_EAUTH, 0, "pwd: out of memory");
+        brix_gbuf_free(&outer);
+        brix_status_set(st, XRDC_EAUTH, 0, "pwd: out of memory");
         return -1;
     }
 
@@ -272,10 +272,10 @@ pwd_more(xrdc_conn *c, const uint8_t *sbody, uint32_t slen, uint8_t **payload,
     return 0;
 }
 
-const xrdc_sec_module *
-xrdc_sec_pwd(void)
+const brix_sec_module *
+brix_sec_pwd(void)
 {
-    static const xrdc_sec_module m = {
+    static const brix_sec_module m = {
         "pwd",
         { 'p', 'w', 'd', 0 },
         pwd_have,

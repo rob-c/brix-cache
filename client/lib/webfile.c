@@ -52,7 +52,7 @@ parse_http_date(const char *v, size_t n)
 /* Fill *si from one <response> block [p,end). Returns the decoded href into
  * href/hrefsz (path component only). 0 on success. */
 int
-parse_response(const char *p, const char *end, xrdc_statinfo *si,
+parse_response(const char *p, const char *end, brix_statinfo *si,
                char *href, size_t hrefsz)
 {
     size_t      vlen = 0;
@@ -66,8 +66,8 @@ parse_response(const char *p, const char *end, xrdc_statinfo *si,
     if (v == NULL) {
         return -1;
     }
-    if (xrootd_http_urldecode((const unsigned char *) v, vlen, href, hrefsz, 0)
-        != XROOTD_URLDECODE_OK) {
+    if (brix_http_urldecode((const unsigned char *) v, vlen, href, hrefsz, 0)
+        != BRIX_URLDECODE_OK) {
         return -1;
     }
     /* reduce an absolute-URL href (http://h/p) to its path component */
@@ -118,29 +118,29 @@ web_auth(const char *bearer, char *out, size_t outsz)
 
 
 int
-xrdc_web_stat(const xrdc_weburl *u, const char *path, const char *bearer,
-              int verify, const char *ca_dir, xrdc_statinfo *si, xrdc_status *st)
+brix_web_stat(const brix_weburl *u, const char *path, const char *bearer,
+              int verify, const char *ca_dir, brix_statinfo *si, brix_status *st)
 {
     char           hdrs[2400];
     char           auth[2200];
-    xrdc_http_resp r;
+    brix_http_resp r;
     const char    *rp, *re;
     char           href[XRDC_PATH_MAX];
 
     web_auth(bearer, auth, sizeof(auth));
     snprintf(hdrs, sizeof(hdrs), "Depth: 0\r\n%s", auth);
-    if (xrdc_http_req(u->host, u->port, u->tls, "PROPFIND", path, hdrs, NULL, 0,
+    if (brix_http_req(u->host, u->port, u->tls, "PROPFIND", path, hdrs, NULL, 0,
                       WEB_TIMEOUT_MS, verify, ca_dir, &r, st) != 0) {
         return -1;
     }
     if (r.status == 404) {
-        xrdc_http_resp_free(&r);
-        xrdc_status_set(st, kXR_NotFound, 0, "not found");
+        brix_http_resp_free(&r);
+        brix_status_set(st, kXR_NotFound, 0, "not found");
         return -1;
     }
     if (r.status != 207 && r.status != 200) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "PROPFIND HTTP %d", r.status);
-        xrdc_http_resp_free(&r);
+        brix_status_set(st, XRDC_EPROTO, 0, "PROPFIND HTTP %d", r.status);
+        brix_http_resp_free(&r);
         return -1;
     }
     /* Bound the first <[ns:]response[ attrs]>...</[ns:]response> block. The open
@@ -151,8 +151,8 @@ xrdc_web_stat(const xrdc_weburl *u, const char *path, const char *bearer,
         const char *bend = body + (r.body ? r.body_len : 0);
         rp = next_response_open(body, bend);
         if (rp == NULL) {
-            xrdc_http_resp_free(&r);
-            xrdc_status_set(st, XRDC_EPROTO, 0, "PROPFIND: empty multistatus");
+            brix_http_resp_free(&r);
+            brix_status_set(st, XRDC_EPROTO, 0, "PROPFIND: empty multistatus");
             return -1;
         }
         re = next_response_close(rp, bend);
@@ -161,11 +161,11 @@ xrdc_web_stat(const xrdc_weburl *u, const char *path, const char *bearer,
         }
     }
     if (parse_response(rp, re, si, href, sizeof(href)) != 0) {
-        xrdc_http_resp_free(&r);
-        xrdc_status_set(st, XRDC_EPROTO, 0, "PROPFIND: unparseable response");
+        brix_http_resp_free(&r);
+        brix_status_set(st, XRDC_EPROTO, 0, "PROPFIND: unparseable response");
         return -1;
     }
-    xrdc_http_resp_free(&r);
+    brix_http_resp_free(&r);
     return 0;
 }
 
@@ -305,15 +305,15 @@ path_basename(const char *path, char *out, size_t outsz)
 
 
 int
-xrdc_web_readdir(const xrdc_weburl *u, const char *path, const char *bearer,
-                 int verify, const char *ca_dir, xrdc_dirent **ents_out,
-                 size_t *n_out, xrdc_status *st)
+brix_web_readdir(const brix_weburl *u, const char *path, const char *bearer,
+                 int verify, const char *ca_dir, brix_dirent **ents_out,
+                 size_t *n_out, brix_status *st)
 {
     char           hdrs[2400];
     char           auth[2200];
-    xrdc_http_resp r;
+    brix_http_resp r;
     const char    *p;
-    xrdc_dirent   *ents = NULL;
+    brix_dirent   *ents = NULL;
     size_t         n = 0, cap = 0;
     char           self[XRDC_PATH_MAX];
 
@@ -321,13 +321,13 @@ xrdc_web_readdir(const xrdc_weburl *u, const char *path, const char *bearer,
     *n_out = 0;
     web_auth(bearer, auth, sizeof(auth));
     snprintf(hdrs, sizeof(hdrs), "Depth: 1\r\n%s", auth);
-    if (xrdc_http_req(u->host, u->port, u->tls, "PROPFIND", path, hdrs, NULL, 0,
+    if (brix_http_req(u->host, u->port, u->tls, "PROPFIND", path, hdrs, NULL, 0,
                       WEB_TIMEOUT_MS, verify, ca_dir, &r, st) != 0) {
         return -1;
     }
     if (r.status != 207 && r.status != 200) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "PROPFIND HTTP %d", r.status);
-        xrdc_http_resp_free(&r);
+        brix_status_set(st, XRDC_EPROTO, 0, "PROPFIND HTTP %d", r.status);
+        brix_http_resp_free(&r);
         return -1;
     }
     /* the self-entry basename to skip (the directory itself) */
@@ -339,7 +339,7 @@ xrdc_web_readdir(const xrdc_weburl *u, const char *path, const char *bearer,
     while ((p = next_response_open(p, bend)) != NULL) {
         const char   *open = p;                      /* content after the open tag */
         const char   *end = next_response_close(open, bend);   /* the close tag */
-        xrdc_statinfo si;
+        brix_statinfo si;
         char          href[XRDC_PATH_MAX], name[XRDC_NAME_MAX];
         if (end == NULL) {
             break;
@@ -349,11 +349,11 @@ xrdc_web_readdir(const xrdc_weburl *u, const char *path, const char *bearer,
             if (name[0] != '\0' && strcmp(name, self) != 0) {
                 if (n == cap) {
                     size_t nc = cap ? cap * 2 : 32;
-                    xrdc_dirent *ne = realloc(ents, nc * sizeof(*ne));
+                    brix_dirent *ne = realloc(ents, nc * sizeof(*ne));
                     if (ne == NULL) {
                         free(ents);
-                        xrdc_http_resp_free(&r);
-                        xrdc_status_set(st, XRDC_EPROTO, 0, "readdir: out of memory");
+                        brix_http_resp_free(&r);
+                        brix_status_set(st, XRDC_EPROTO, 0, "readdir: out of memory");
                         return -1;
                     }
                     ents = ne;
@@ -369,7 +369,7 @@ xrdc_web_readdir(const xrdc_weburl *u, const char *path, const char *bearer,
         p = end + 2;                                 /* past the "</" of the close */
     }
     }
-    xrdc_http_resp_free(&r);
+    brix_http_resp_free(&r);
     *ents_out = ents;
     *n_out = n;
     return 0;

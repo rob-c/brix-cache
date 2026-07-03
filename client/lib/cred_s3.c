@@ -1,7 +1,7 @@
 /* client/lib/cred_s3.c
  *
  * WHAT: S3-keys credential handler for the unified credential store (cred.c).
- *       Implements xrdc_cred_s3keys() returning the XRDC_CRED_S3KEYS handler
+ *       Implements brix_cred_s3keys() returning the XRDC_CRED_S3KEYS handler
  *       with available / acquire operations.
  * WHY:  S3 key discovery was inline in s3.c with no shared path for auth
  *       pre-flight diagnostics.  A unified handler lets the store serve both the
@@ -37,7 +37,7 @@
 #endif
 
 #include "cred.h"
-#include "xrdc.h"
+#include "brix.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -223,7 +223,7 @@ try_credentials_file(char *access_out, size_t access_sz,
  *       so a misconfigured override does not shadow a good env / file pair.
  */
 static int
-discover_s3_keys(const xrdc_cred_config *cfg,
+discover_s3_keys(const brix_cred_config *cfg,
                  char *access_out, size_t access_sz,
                  char *secret_out,  size_t secret_sz)
 {
@@ -257,12 +257,12 @@ discover_s3_keys(const xrdc_cred_config *cfg,
 /*
  * s3keys_available — 1 iff a complete S3 key pair is obtainable.
  *
- * WHAT: fast probe for auth pre-flight diagnostics and xrdc_cred_available().
+ * WHAT: fast probe for auth pre-flight diagnostics and brix_cred_available().
  * WHY:  must mirror acquire() — if available() returns 1, acquire() must succeed.
  * HOW:  discover_s3_keys into scratch buffers; result is the return value.
  */
 static int
-s3keys_available(const xrdc_cred_config *cfg)
+s3keys_available(const brix_cred_config *cfg)
 {
     char access[S3KEY_BUFSZ];
     char secret[S3KEY_BUFSZ];
@@ -286,8 +286,8 @@ s3keys_available(const xrdc_cred_config *cfg)
  * Secret values are NEVER written into st->msg or any log path.
  */
 static int
-s3keys_acquire(const xrdc_cred_config *cfg, xrdc_cred_view *out,
-               int64_t *not_after, xrdc_status *st)
+s3keys_acquire(const brix_cred_config *cfg, brix_cred_view *out,
+               int64_t *not_after, brix_status *st)
 {
     /* static: must outlive this return so slot_store_view can strdup them */
     static char s_access[S3KEY_BUFSZ];
@@ -295,7 +295,7 @@ s3keys_acquire(const xrdc_cred_config *cfg, xrdc_cred_view *out,
 
     if (!discover_s3_keys(cfg, s_access, sizeof(s_access),
                               s_secret, sizeof(s_secret))) {
-        xrdc_status_set(st, XRDC_EAUTH, 0,
+        brix_status_set(st, XRDC_EAUTH, 0,
                         "s3keys: no S3 credentials found "
                         "(set AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY "
                         "or add [default] to ~/.aws/credentials)");
@@ -313,7 +313,7 @@ s3keys_acquire(const xrdc_cred_config *cfg, xrdc_cred_view *out,
 }
 
 /* handler accessor */
-static const xrdc_cred_handler s_s3keys_handler = {
+static const brix_cred_handler s_s3keys_handler = {
     .kind      = XRDC_CRED_S3KEYS,
     .available = s3keys_available,
     .acquire   = s3keys_acquire,
@@ -321,15 +321,15 @@ static const xrdc_cred_handler s_s3keys_handler = {
 };
 
 /*
- * xrdc_cred_s3keys — return the static S3-keys handler.
+ * brix_cred_s3keys — return the static S3-keys handler.
  *
  * WHAT: strong definition that overrides the weak accessor in cred.c.
  * WHY:  weak/strong pattern lets lib and test binaries link without every handler
  *       compiled in; this file provides the real S3-keys implementation.
  * HOW:  returns a pointer to the file-scoped static handler struct.
  */
-const xrdc_cred_handler *
-xrdc_cred_s3keys(void)
+const brix_cred_handler *
+brix_cred_s3keys(void)
 {
     return &s_s3keys_handler;
 }

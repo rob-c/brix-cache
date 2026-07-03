@@ -1,6 +1,6 @@
 /*
  * metabench_unittest.c — standalone checks for the PURE manifest/percentile
- * helpers. Build (no libxrdc needed):
+ * helpers. Build (no libbrix needed):
  *   cc -Wall -Wextra -Ilib lib/metabench_unittest.c lib/metabench.c -o /tmp/mbu
  */
 #include <assert.h>

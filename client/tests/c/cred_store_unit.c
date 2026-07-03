@@ -24,7 +24,7 @@
  */
 
 #include "cred.h"
-#include "xrdc.h"
+#include "brix.h"
 
 #include <assert.h>
 #include <stdio.h>

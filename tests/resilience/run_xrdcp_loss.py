@@ -6,7 +6,7 @@ WHAT: for each (client, server) pair × loss level × N reps, download a seeded 
       with `xrdcp` through the in-repo fault proxy (`lossy <pct>`) and record
       wall-clock time, effective throughput, and byte-exactness (md5).
 
-      Clients:  repo     = ./client/bin/xrdcp   (native libxrdc, resilient)
+      Clients:  repo     = ./client/bin/xrdcp   (native libbrix, resilient)
                 official = /usr/bin/xrdcp        (XRootD XrdCl)
       Servers:  nginx    = this repo's nginx module (root://, anonymous)
                 xrootd   = official xrootd daemon  (root://, anonymous)

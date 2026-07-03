@@ -2,7 +2,7 @@
 #
 # run_pblock_meta_gsi.sh — concurrent GSI metadata-storm reliability + perf proof
 # for the pblock storage backend, in three layers against one shared fixture:
-#   (a) libxrdc direct harness   (tests/tools/pblock_meta_bench.c)
+#   (a) libbrix direct harness   (tests/tools/pblock_meta_bench.c)
 #   (b) full xrdfs CLI chain
 #   (c) xrddiag client validation (check + metabench)
 #
@@ -27,7 +27,7 @@ NGINX="${1:-/tmp/nginx-1.28.3/objs/nginx}"
 XRDFS="$HERE/client/bin/xrdfs"
 XRDCP="$HERE/client/bin/xrdcp"
 XRDDIAG="$HERE/client/bin/xrddiag"
-LIBXRDC="$HERE/client/libxrdc.a"
+LIBXRDC="$HERE/client/libbrix.a"
 PROTOLIB="$HERE/shared/xrdproto/libxrdproto.a"
 
 WORKERS="${WORKERS:-8}"
@@ -124,7 +124,7 @@ EOF
 sleep 1
 
 # --------------------------------------------------------------------------- #
-# Build the Layer (a) harness against libxrdc                                 #
+# Build the Layer (a) harness against libbrix                                 #
 # --------------------------------------------------------------------------- #
 MB="$PFX/pblock_meta_bench"
 cc -O2 -Wall -I"$HERE/client/lib" -I"$HERE/src" -DXRDPROTO_NO_NGX \
@@ -136,9 +136,9 @@ cc -O2 -Wall -I"$HERE/client/lib" -I"$HERE/src" -DXRDPROTO_NO_NGX \
 PLAN_ARGS="--workers $WORKERS --ops-per-worker $OPS_PER_WORKER --p99-ceil-ms $P99_CEIL_MS"
 
 # --------------------------------------------------------------------------- #
-# Layer (a): libxrdc direct code                                              #
+# Layer (a): libbrix direct code                                              #
 # --------------------------------------------------------------------------- #
-echo "== Layer (a): libxrdc direct code =="
+echo "== Layer (a): libbrix direct code =="
 "$MB" $PLAN_ARGS --phase create --json "$H" > "$PFX/logs/a_create.json" 2>"$PFX/logs/a.err"
 a_rc=$?
 cat "$PFX/logs/a_create.json"

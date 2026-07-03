@@ -6,20 +6,20 @@
 
 
 int
-do_stat(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_stat(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    xrdc_status   st;
-    xrdc_statinfo si;
+    brix_status   st;
+    brix_statinfo si;
     char          path[XRDC_PATH_MAX];
 
     if (argc < 2) { fprintf(stderr, "usage: stat <path>\n"); return 50; }
     build_path(cwd, argv[1], path, sizeof(path));
 
-    xrdc_status_clear(&st);
-    if (xrdc_stat(c, path, &si, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_stat(c, path, &si, &st) != 0) {
         fprintf(stderr, "xrdfs: stat %s: %s\n", path, st.msg);
-        xrdc_cred_hint_for_status(&st, 0, stderr);   /* Phase 40 (c) */
-        return xrdc_shellcode(&st);
+        brix_cred_hint_for_status(&st, 0, stderr);   /* Phase 40 (c) */
+        return brix_shellcode(&st);
     }
     print_statinfo(path, &si);
     return 0;
@@ -30,16 +30,16 @@ do_stat(xrdc_conn *c, const char *cwd, int argc, char **argv)
  * "fullpath:" section header (classic ls -R). 0 / -1. */
 
 int
-ls_print_dir(xrdc_conn *c, const char *path, int want_long, int recursive,
-             int human, xrdc_status *st)
+ls_print_dir(brix_conn *c, const char *path, int want_long, int recursive,
+             int human, brix_status *st)
 {
-    xrdc_dirent *ents = NULL;
+    brix_dirent *ents = NULL;
     size_t       n = 0, k;
     char         prefix[XRDC_PATH_MAX + 2];
     size_t       plen;
     const char  *sep;
 
-    if (xrdc_dirlist(c, path, (want_long || recursive), &ents, &n, st) != 0) {
+    if (brix_dirlist(c, path, (want_long || recursive), &ents, &n, st) != 0) {
         return -1;
     }
     plen = strlen(path);
@@ -82,9 +82,9 @@ ls_print_dir(xrdc_conn *c, const char *path, int want_long, int recursive,
 
 
 int
-do_ls(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_ls(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    xrdc_status st;
+    brix_status st;
     char        path[XRDC_PATH_MAX];
     const char *arg = NULL;
     int         want_long = 0, recursive = 0, human = 0, i;
@@ -99,20 +99,20 @@ do_ls(xrdc_conn *c, const char *cwd, int argc, char **argv)
     }
     build_path(cwd, arg != NULL ? arg : ".", path, sizeof(path));
 
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     if (ls_print_dir(c, path, want_long, recursive, human, &st) != 0) {
         fprintf(stderr, "xrdfs: ls %s: %s\n", path, st.msg);
-        xrdc_cred_hint_for_status(&st, 0, stderr);   /* Phase 40 (c) */
-        return xrdc_shellcode(&st);
+        brix_cred_hint_for_status(&st, 0, stderr);   /* Phase 40 (c) */
+        return brix_shellcode(&st);
     }
     return 0;
 }
 
 
 int
-do_mkdir(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_mkdir(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    xrdc_status st;
+    brix_status st;
     char        path[XRDC_PATH_MAX];
     int         parents = 0, mode = 0755, i;
     const char *arg = NULL;
@@ -126,66 +126,66 @@ do_mkdir(xrdc_conn *c, const char *cwd, int argc, char **argv)
     if (arg == NULL) { fprintf(stderr, "usage: mkdir [-p] [-m mode] <path>\n"); return 50; }
     build_path(cwd, arg, path, sizeof(path));
 
-    xrdc_status_clear(&st);
-    if (xrdc_mkdir(c, path, mode, parents, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_mkdir(c, path, mode, parents, &st) != 0) {
         fprintf(stderr, "xrdfs: mkdir %s: %s\n", path, st.msg);
-        xrdc_cred_hint_for_status(&st, 1, stderr);   /* Phase 40 (c) */
-        return xrdc_shellcode(&st);
+        brix_cred_hint_for_status(&st, 1, stderr);   /* Phase 40 (c) */
+        return brix_shellcode(&st);
     }
     return 0;
 }
 
 
 int
-do_rm(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_rm(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    xrdc_status st;
+    brix_status st;
     char        path[XRDC_PATH_MAX];
 
     if (argc < 2) { fprintf(stderr, "usage: rm <path>\n"); return 50; }
     build_path(cwd, argv[1], path, sizeof(path));
-    xrdc_status_clear(&st);
-    if (xrdc_rm(c, path, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_rm(c, path, &st) != 0) {
         fprintf(stderr, "xrdfs: rm %s: %s\n", path, st.msg);
-        xrdc_cred_hint_for_status(&st, 1, stderr);   /* Phase 40 (c) */
-        return xrdc_shellcode(&st);
+        brix_cred_hint_for_status(&st, 1, stderr);   /* Phase 40 (c) */
+        return brix_shellcode(&st);
     }
     return 0;
 }
 
 
 int
-do_rmdir(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_rmdir(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    xrdc_status st;
+    brix_status st;
     char        path[XRDC_PATH_MAX];
 
     if (argc < 2) { fprintf(stderr, "usage: rmdir <path>\n"); return 50; }
     build_path(cwd, argv[1], path, sizeof(path));
-    xrdc_status_clear(&st);
-    if (xrdc_rmdir(c, path, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_rmdir(c, path, &st) != 0) {
         fprintf(stderr, "xrdfs: rmdir %s: %s\n", path, st.msg);
-        xrdc_cred_hint_for_status(&st, 1, stderr);   /* Phase 40 (c) */
-        return xrdc_shellcode(&st);
+        brix_cred_hint_for_status(&st, 1, stderr);   /* Phase 40 (c) */
+        return brix_shellcode(&st);
     }
     return 0;
 }
 
 
 int
-do_mv(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_mv(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    xrdc_status st;
+    brix_status st;
     char        src[XRDC_PATH_MAX], dst[XRDC_PATH_MAX];
 
     if (argc < 3) { fprintf(stderr, "usage: mv <src> <dst>\n"); return 50; }
     build_path(cwd, argv[1], src, sizeof(src));
     build_path(cwd, argv[2], dst, sizeof(dst));
-    xrdc_status_clear(&st);
-    if (xrdc_mv(c, src, dst, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_mv(c, src, dst, &st) != 0) {
         fprintf(stderr, "xrdfs: mv: %s\n", st.msg);
-        xrdc_cred_hint_for_status(&st, 1, stderr);   /* Phase 40 (c) */
-        return xrdc_shellcode(&st);
+        brix_cred_hint_for_status(&st, 1, stderr);   /* Phase 40 (c) */
+        return brix_shellcode(&st);
     }
     return 0;
 }
@@ -196,9 +196,9 @@ do_mv(xrdc_conn *c, const char *cwd, int argc, char **argv)
  * mode ("755"). -R recurses into directories, applying the same mode to every
  * entry. */
 int
-do_chmod(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_chmod(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    xrdc_status st;
+    brix_status st;
     char        path[XRDC_PATH_MAX];
     const char *patharg = NULL, *modearg = NULL;
     int         recursive = 0, mode, i;
@@ -220,19 +220,19 @@ do_chmod(xrdc_conn *c, const char *cwd, int argc, char **argv)
         return 50;
     }
 
-    xrdc_status_clear(&st);
-    if (xrdc_chmod(c, path, mode, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_chmod(c, path, mode, &st) != 0) {
         fprintf(stderr, "xrdfs: chmod %s: %s\n", path, st.msg);
-        xrdc_cred_hint_for_status(&st, 1, stderr);   /* Phase 40 (c) */
-        return xrdc_shellcode(&st);
+        brix_cred_hint_for_status(&st, 1, stderr);   /* Phase 40 (c) */
+        return brix_shellcode(&st);
     }
     if (recursive) {
         int         failures = 0;
-        xrdc_status wst;
-        xrdc_status_clear(&wst);
+        brix_status wst;
+        brix_status_clear(&wst);
         if (chmod_recursive(c, path, mode, &failures, &wst) != 0) {
             fprintf(stderr, "xrdfs: chmod -R %s: %s\n", path, wst.msg);
-            return xrdc_shellcode(&wst);
+            return brix_shellcode(&wst);
         }
         if (failures > 0) { return 1; }   /* per-entry errors already reported */
     }
@@ -241,37 +241,37 @@ do_chmod(xrdc_conn *c, const char *cwd, int argc, char **argv)
 
 
 int
-do_truncate(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_truncate(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    xrdc_status st;
+    brix_status st;
     char        path[XRDC_PATH_MAX];
     long long   size;
 
     if (argc < 3) { fprintf(stderr, "usage: truncate <path> <size>\n"); return 50; }
     build_path(cwd, argv[1], path, sizeof(path));
     size = strtoll(argv[2], NULL, 10);
-    xrdc_status_clear(&st);
-    if (xrdc_truncate(c, path, (int64_t) size, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_truncate(c, path, (int64_t) size, &st) != 0) {
         fprintf(stderr, "xrdfs: truncate %s: %s\n", path, st.msg);
-        xrdc_cred_hint_for_status(&st, 1, stderr);   /* Phase 40 (c) */
-        return xrdc_shellcode(&st);
+        brix_cred_hint_for_status(&st, 1, stderr);   /* Phase 40 (c) */
+        return brix_shellcode(&st);
     }
     return 0;
 }
 
 
 int
-do_locate(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_locate(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    xrdc_status st;
+    brix_status st;
     char        path[XRDC_PATH_MAX], reply[1024];
 
     if (argc < 2) { fprintf(stderr, "usage: locate <path>\n"); return 50; }
     build_path(cwd, argv[1], path, sizeof(path));
-    xrdc_status_clear(&st);
-    if (xrdc_locate(c, path, reply, sizeof(reply), &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_locate(c, path, reply, sizeof(reply), &st) != 0) {
         fprintf(stderr, "xrdfs: locate %s: %s\n", path, st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
     printf("%s\n", reply);
     return 0;
@@ -279,16 +279,16 @@ do_locate(xrdc_conn *c, const char *cwd, int argc, char **argv)
 
 
 int
-do_statvfs(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_statvfs(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    xrdc_status st;
+    brix_status st;
     char        path[XRDC_PATH_MAX], reply[1024];
 
     build_path(cwd, argc >= 2 ? argv[1] : "/", path, sizeof(path));
-    xrdc_status_clear(&st);
-    if (xrdc_statvfs(c, path, reply, sizeof(reply), &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_statvfs(c, path, reply, sizeof(reply), &st) != 0) {
         fprintf(stderr, "xrdfs: statvfs %s: %s\n", path, st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
     printf("%s\n", reply);
     return 0;
@@ -300,9 +300,9 @@ do_statvfs(xrdc_conn *c, const char *cwd, int argc, char **argv)
  * printing the raw reply verbatim when the shape is unrecognized (never crashes).
  * Cluster-wide aggregation (per-holder rows) is out of scope here — use `xrdmapc`. */
 int
-do_df(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_df(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    xrdc_status st;
+    brix_status st;
     char        path[XRDC_PATH_MAX], reply[4096];
     int64_t     total, avail, used, largest;
     int         human = 0, i;
@@ -314,10 +314,10 @@ do_df(xrdc_conn *c, const char *cwd, int argc, char **argv)
     }
     build_path(cwd, arg != NULL ? arg : "/", path, sizeof(path));
 
-    xrdc_status_clear(&st);
-    if (xrdc_query(c, kXR_Qspace, path, reply, sizeof(reply), &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_query(c, kXR_Qspace, path, reply, sizeof(reply), &st) != 0) {
         fprintf(stderr, "xrdfs: df %s: %s\n", path, st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
     if (df_parse_space(reply, &total, &avail, &used, &largest) != 0) {
         printf("%s\n", reply);   /* unknown shape: honest raw passthrough */
@@ -345,11 +345,11 @@ do_df(xrdc_conn *c, const char *cwd, int argc, char **argv)
 /* touch [-c] [-a] [-m] [-t STAMP] <path> — create the file if absent (unless -c) and
  * set its access/modification times (default: both to now). -a/-m restrict to
  * atime/mtime; -t sets an explicit [[CC]YY]MMDDhhmm[.ss] time. NEVER changes
- * ownership: xrdc_setattr is always called with set_owner = 0. */
+ * ownership: brix_setattr is always called with set_owner = 0. */
 int
-do_touch(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_touch(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    xrdc_status     st;
+    brix_status     st;
     char            path[XRDC_PATH_MAX];
     struct timespec times[2], tspec;
     const char     *arg = NULL;
@@ -386,27 +386,27 @@ do_touch(xrdc_conn *c, const char *cwd, int argc, char **argv)
 
     if (no_create) {
         /* -c: an absent file is a silent no-op (POSIX). */
-        xrdc_statinfo si;
-        xrdc_status   pst;
-        xrdc_status_clear(&pst);
-        if (xrdc_stat(c, path, &si, &pst) != 0) { return 0; }
+        brix_statinfo si;
+        brix_status   pst;
+        brix_status_clear(&pst);
+        if (brix_stat(c, path, &si, &pst) != 0) { return 0; }
     } else {
         /* Create-if-absent: force=0 ⇒ kXR_new (fails if it already exists, which we
          * ignore — the file is there and the setattr below still runs). */
-        xrdc_file   f;
-        xrdc_status cs;
-        xrdc_status_clear(&cs);
-        if (xrdc_file_open_write(c, path, 0 /*force=new*/, 0 /*posc*/, &f, &cs) == 0) {
-            xrdc_file_close(c, &f, &cs);
+        brix_file   f;
+        brix_status cs;
+        brix_status_clear(&cs);
+        if (brix_file_open_write(c, path, 0 /*force=new*/, 0 /*posc*/, &f, &cs) == 0) {
+            brix_file_close(c, &f, &cs);
         }
     }
 
-    xrdc_status_clear(&st);
-    if (xrdc_setattr(c, path, 1 /*set_times*/, times, 0 /*set_owner*/,
+    brix_status_clear(&st);
+    if (brix_setattr(c, path, 1 /*set_times*/, times, 0 /*set_owner*/,
                      (uint32_t) -1, (uint32_t) -1, &st) != 0) {
         fprintf(stderr, "xrdfs: touch %s: %s\n", path, st.msg);
-        xrdc_cred_hint_for_status(&st, 1, stderr);
-        return xrdc_shellcode(&st);
+        brix_cred_hint_for_status(&st, 1, stderr);
+        return brix_shellcode(&st);
     }
     return 0;
 }
@@ -417,9 +417,9 @@ do_touch(xrdc_conn *c, const char *cwd, int argc, char **argv)
  * (best-effort, non-atomic). For -s the target is stored verbatim (link content, not
  * path-resolved); only linkpath is confined. Hard links confine both paths. */
 int
-do_ln(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_ln(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    xrdc_status st;
+    brix_status st;
     char        linkpath[XRDC_PATH_MAX], oldpath[XRDC_PATH_MAX];
     const char *target = NULL, *link = NULL;
     int         symbolic = 0, force = 0, i;
@@ -436,46 +436,46 @@ do_ln(xrdc_conn *c, const char *cwd, int argc, char **argv)
     }
     build_path(cwd, link, linkpath, sizeof(linkpath));
 
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     if (force) {
-        xrdc_status rmst;
-        xrdc_status_clear(&rmst);
-        (void) xrdc_rm(c, linkpath, &rmst);   /* best-effort; ignore "not found" */
+        brix_status rmst;
+        brix_status_clear(&rmst);
+        (void) brix_rm(c, linkpath, &rmst);   /* best-effort; ignore "not found" */
     }
     if (symbolic) {
-        if (xrdc_symlink(c, target, linkpath, &st) != 0) {   /* target verbatim */
+        if (brix_symlink(c, target, linkpath, &st) != 0) {   /* target verbatim */
             fprintf(stderr, "xrdfs: ln -s %s %s: %s\n", target, linkpath, st.msg);
-            xrdc_cred_hint_for_status(&st, 1, stderr);
-            return xrdc_shellcode(&st);
+            brix_cred_hint_for_status(&st, 1, stderr);
+            return brix_shellcode(&st);
         }
         return 0;
     }
     build_path(cwd, target, oldpath, sizeof(oldpath));   /* hard link: both confined */
-    if (xrdc_link(c, oldpath, linkpath, &st) != 0) {
+    if (brix_link(c, oldpath, linkpath, &st) != 0) {
         fprintf(stderr, "xrdfs: ln %s %s: %s\n", oldpath, linkpath, st.msg);
-        xrdc_cred_hint_for_status(&st, 1, stderr);
-        return xrdc_shellcode(&st);
+        brix_cred_hint_for_status(&st, 1, stderr);
+        return brix_shellcode(&st);
     }
     return 0;
 }
 
 
-/* readlink <path> — print a symlink's target. xrdc_readlink returns the TRUE target
+/* readlink <path> — print a symlink's target. brix_readlink returns the TRUE target
  * length (which may exceed the buffer); guard against printing a truncated value. */
 int
-do_readlink(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_readlink(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    xrdc_status st;
+    brix_status st;
     char        path[XRDC_PATH_MAX], target[XRDC_PATH_MAX];
     ssize_t     n;
 
     if (argc < 2) { fprintf(stderr, "usage: readlink <path>\n"); return 50; }
     build_path(cwd, argv[1], path, sizeof(path));
-    xrdc_status_clear(&st);
-    n = xrdc_readlink(c, path, target, sizeof(target), &st);
+    brix_status_clear(&st);
+    n = brix_readlink(c, path, target, sizeof(target), &st);
     if (n < 0) {
         fprintf(stderr, "xrdfs: readlink %s: %s\n", path, st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
     if ((size_t) n >= sizeof(target)) {
         fprintf(stderr, "xrdfs: readlink %s: target too long (%lld bytes)\n",
@@ -490,9 +490,9 @@ do_readlink(xrdc_conn *c, const char *cwd, int argc, char **argv)
 /* cksum [-a algo] <path> — print the server-side checksum (kXR_query/Qcksum). algo
  * defaults to adler32; also crc32c/crc64/crc64nvme/md5. Output: "<algo> <hex> <path>". */
 int
-do_cksum(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_cksum(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    xrdc_status st;
+    brix_status st;
     char        path[XRDC_PATH_MAX], hex[160];
     const char *algo = "adler32", *arg = NULL;
     int         i;
@@ -503,10 +503,10 @@ do_cksum(xrdc_conn *c, const char *cwd, int argc, char **argv)
     }
     if (arg == NULL) { fprintf(stderr, "usage: cksum [-a algo] <path>\n"); return 50; }
     build_path(cwd, arg, path, sizeof(path));
-    xrdc_status_clear(&st);
-    if (xrdc_query_cksum(c, path, algo, hex, sizeof(hex), &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_query_cksum(c, path, algo, hex, sizeof(hex), &st) != 0) {
         fprintf(stderr, "xrdfs: cksum %s: %s\n", path, st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
     printf("%s %s %s\n", algo, hex, path);
     return 0;
@@ -520,16 +520,16 @@ do_cksum(xrdc_conn *c, const char *cwd, int argc, char **argv)
  *   xattr rm  <path> <name>           delete an attribute
  * `xattr <path>` with no subcommand is treated as `ls`. */
 int
-xattr_ls(xrdc_conn *c, const char *path)
+xattr_ls(brix_conn *c, const char *path)
 {
-    xrdc_status st;
+    brix_status st;
     char        names[8192];
     size_t      total = 0, off;
 
-    xrdc_status_clear(&st);
-    if (xrdc_fattr_list(c, path, names, sizeof(names), &total, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_fattr_list(c, path, names, sizeof(names), &total, &st) != 0) {
         fprintf(stderr, "xrdfs: xattr ls %s: %s\n", path, st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
     /* The server returns a NUL-separated list of managed names tagged with a
      * one-letter namespace prefix ("U.<name>" for the user namespace). Strip the
@@ -545,9 +545,9 @@ xattr_ls(xrdc_conn *c, const char *path)
 
 
 int
-do_xattr(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_xattr(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    xrdc_status st;
+    brix_status st;
     char        path[XRDC_PATH_MAX];
 
     if (argc < 2) {
@@ -565,7 +565,7 @@ do_xattr(xrdc_conn *c, const char *cwd, int argc, char **argv)
         return 50;
     }
     build_path(cwd, argv[2], path, sizeof(path));
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
 
     if (strcmp(argv[1], "ls") == 0) {
         return xattr_ls(c, path);
@@ -574,9 +574,9 @@ do_xattr(xrdc_conn *c, const char *cwd, int argc, char **argv)
         char   val[8192];
         size_t vlen = 0;
         if (argc < 4) { fprintf(stderr, "usage: xattr get <path> <name>\n"); return 50; }
-        if (xrdc_fattr_get(c, path, argv[3], val, sizeof(val), &vlen, &st) != 0) {
+        if (brix_fattr_get(c, path, argv[3], val, sizeof(val), &vlen, &st) != 0) {
             fprintf(stderr, "xrdfs: xattr get %s [%s]: %s\n", path, argv[3], st.msg);
-            return xrdc_shellcode(&st);
+            return brix_shellcode(&st);
         }
         fwrite(val, 1, vlen < sizeof(val) ? vlen : sizeof(val), stdout);
         printf("\n");
@@ -584,26 +584,26 @@ do_xattr(xrdc_conn *c, const char *cwd, int argc, char **argv)
     }
     if (strcmp(argv[1], "set") == 0) {
         if (argc < 5) { fprintf(stderr, "usage: xattr set <path> <name> <value>\n"); return 50; }
-        if (xrdc_fattr_set(c, path, argv[3], argv[4], strlen(argv[4]), 0, &st) != 0) {
+        if (brix_fattr_set(c, path, argv[3], argv[4], strlen(argv[4]), 0, &st) != 0) {
             fprintf(stderr, "xrdfs: xattr set %s [%s]: %s\n", path, argv[3], st.msg);
-            return xrdc_shellcode(&st);
+            return brix_shellcode(&st);
         }
         return 0;
     }
     /* rm */
     if (argc < 4) { fprintf(stderr, "usage: xattr rm <path> <name>\n"); return 50; }
-    if (xrdc_fattr_del(c, path, argv[3], &st) != 0) {
+    if (brix_fattr_del(c, path, argv[3], &st) != 0) {
         fprintf(stderr, "xrdfs: xattr rm %s [%s]: %s\n", path, argv[3], st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
     return 0;
 }
 
 
 int
-do_query(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_query(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    xrdc_status st;
+    brix_status st;
     char        reply[4096], pathbuf[XRDC_PATH_MAX];
     int         infotype;
     const char *args;
@@ -630,10 +630,10 @@ do_query(xrdc_conn *c, const char *cwd, int argc, char **argv)
         args = (argc >= 3) ? argv[2] : "";
     }
 
-    xrdc_status_clear(&st);
-    if (xrdc_query(c, infotype, args, reply, sizeof(reply), &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_query(c, infotype, args, reply, sizeof(reply), &st) != 0) {
         fprintf(stderr, "xrdfs: query %s: %s\n", argv[1], st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
     printf("%s\n", reply);
     return 0;
@@ -641,9 +641,9 @@ do_query(xrdc_conn *c, const char *cwd, int argc, char **argv)
 
 
 int
-do_prepare(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_prepare(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    xrdc_status st;
+    brix_status st;
     char        reply[1024];
     char        resolved[16][XRDC_PATH_MAX];
     const char *paths[16];
@@ -663,10 +663,10 @@ do_prepare(xrdc_conn *c, const char *cwd, int argc, char **argv)
     }
     if (np == 0) { fprintf(stderr, "usage: prepare [-s|-w|-c|-f|-e] <path>...\n"); return 50; }
 
-    xrdc_status_clear(&st);
-    if (xrdc_prepare(c, paths, np, options, optionX, 0, reply, sizeof(reply), &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_prepare(c, paths, np, options, optionX, 0, reply, sizeof(reply), &st) != 0) {
         fprintf(stderr, "xrdfs: prepare: %s\n", st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
     if (reply[0] != '\0') {
         printf("%s\n", reply);   /* request id, when the server returns one */
@@ -678,9 +678,9 @@ do_prepare(xrdc_conn *c, const char *cwd, int argc, char **argv)
 /* stage [--wait[=SECS]] <path>... — request tape/disk staging (kXR_prepare + kXR_stage);
  * with --wait, poll each path's residency until online or the timeout (default 300 s). */
 int
-do_stage(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_stage(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    xrdc_status st;
+    brix_status st;
     char        reply[1024];
     char        resolved[16][XRDC_PATH_MAX];
     const char *paths[16];
@@ -697,10 +697,10 @@ do_stage(xrdc_conn *c, const char *cwd, int argc, char **argv)
     }
     if (np == 0) { fprintf(stderr, "usage: stage [--wait[=SECS]] <path>...\n"); return 50; }
 
-    xrdc_status_clear(&st);
-    if (xrdc_prepare(c, paths, np, kXR_stage, 0, 0, reply, sizeof(reply), &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_prepare(c, paths, np, kXR_stage, 0, 0, reply, sizeof(reply), &st) != 0) {
         fprintf(stderr, "xrdfs: stage: %s\n", st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
     if (reply[0] != '\0') { printf("%s\n", reply); }
     if (wait) {
@@ -708,7 +708,7 @@ do_stage(xrdc_conn *c, const char *cwd, int argc, char **argv)
             int w = wait_online(c, paths[i], timeout, &st);
             if (w < 0) {
                 fprintf(stderr, "xrdfs: stage --wait %s: %s\n", paths[i], st.msg);
-                rc = xrdc_shellcode(&st);
+                rc = brix_shellcode(&st);
             } else if (w == 1) {
                 fprintf(stderr, "xrdfs: stage --wait %s: still offline after %ds\n",
                         paths[i], timeout);
@@ -724,9 +724,9 @@ do_stage(xrdc_conn *c, const char *cwd, int argc, char **argv)
 
 /* evict <path>... — request eviction from disk cache (kXR_prepare + kXR_evict). */
 int
-do_evict(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_evict(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    xrdc_status st;
+    brix_status st;
     char        reply[1024];
     char        resolved[16][XRDC_PATH_MAX];
     const char *paths[16];
@@ -739,10 +739,10 @@ do_evict(xrdc_conn *c, const char *cwd, int argc, char **argv)
     }
     if (np == 0) { fprintf(stderr, "usage: evict <path>...\n"); return 50; }
 
-    xrdc_status_clear(&st);
-    if (xrdc_prepare(c, paths, np, 0, kXR_evict, 0, reply, sizeof(reply), &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_prepare(c, paths, np, 0, kXR_evict, 0, reply, sizeof(reply), &st) != 0) {
         fprintf(stderr, "xrdfs: evict: %s\n", st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
     if (reply[0] != '\0') { printf("%s\n", reply); }
     return 0;

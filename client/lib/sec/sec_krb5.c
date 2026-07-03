@@ -3,7 +3,7 @@
  *
  * WHAT: Build the kXR_auth payload for the "krb5" protocol: a Kerberos AP-REQ the
  *       server validates with krb5_rd_req against its service keytab.
- * WHY:  krb5 is one of the stream protocol's auth mechanisms (xrootd_auth krb5);
+ * WHY:  krb5 is one of the stream protocol's auth mechanisms (brix_auth krb5);
  *       this gives the native client a libXrdSec*-free Kerberos credential path.
  * HOW:  Use the caller's default credential cache (a TGT from kinit) to obtain a
  *       service ticket for the server principal, then krb5_mk_req_extended to
@@ -13,15 +13,15 @@
  *       exact framing src/auth/krb5/auth.c expects (prefix check + krb5_rd_req on the
  *       bytes past offset 4). Single round.
  *
- * Compile-gated on XROOTD_HAVE_KRB5 (pkg-config krb5). When absent the accessor
+ * Compile-gated on BRIX_HAVE_KRB5 (pkg-config krb5). When absent the accessor
  * returns NULL so the auth driver simply skips krb5 and the build still succeeds.
  *
  * wire: XProtocol.hh kXR_auth credtype "krb5"; payload "krb5" + AP-REQ
- *       (src/auth/krb5/auth.c xrootd_handle_krb5_auth).
+ *       (src/auth/krb5/auth.c brix_handle_krb5_auth).
  */
 #include "sec.h"
 
-#ifdef XROOTD_HAVE_KRB5
+#ifdef BRIX_HAVE_KRB5
 
 #include <krb5.h>
 #include <stdlib.h>
@@ -32,7 +32,7 @@
  * wired through first() (ccache env-pass is krb5-specific), so the probe
  * always falls through to the default ccache check. */
 static int
-krb5_have(xrdc_conn *c)
+krb5_have(brix_conn *c)
 {
     krb5_context   ctx;
     krb5_ccache    cc;
@@ -57,7 +57,7 @@ krb5_have(xrdc_conn *c)
 /* Resolve the server (service) principal: prefer the advertised "&P=krb5,<p>"
  * parameter; else derive xrootd/<host> from the connection. 0 / -1. */
 static int
-build_server_princ(krb5_context ctx, xrdc_conn *c, const char *parms,
+build_server_princ(krb5_context ctx, brix_conn *c, const char *parms,
                    krb5_principal *out)
 {
     if (parms != NULL && parms[0] != '\0') {
@@ -82,37 +82,37 @@ build_server_princ(krb5_context ctx, xrdc_conn *c, const char *parms,
  *       Never frees here — ownership of every resource stays with the caller.
  */
 static int
-krb5_acquire(krb5_context ctx, xrdc_conn *c, const char *parms,
+krb5_acquire(krb5_context ctx, brix_conn *c, const char *parms,
              krb5_ccache *cc, krb5_principal *client, krb5_principal *server,
              krb5_creds *in_creds, krb5_creds **out_creds,
              krb5_auth_context *auth, krb5_data *apreq,
-             uint8_t **payload, uint32_t *plen, xrdc_status *st)
+             uint8_t **payload, uint32_t *plen, brix_status *st)
 {
     if (krb5_cc_default(ctx, cc) != 0
         || krb5_cc_get_principal(ctx, *cc, client) != 0) {
-        xrdc_status_set(st, XRDC_EAUTH, 0,
+        brix_status_set(st, XRDC_EAUTH, 0,
                         "krb5: no credential cache (run kinit)");
         return -1;
     }
     if (build_server_princ(ctx, c, parms, server) != 0) {
-        xrdc_status_set(st, XRDC_EAUTH, 0, "krb5: bad service principal");
+        brix_status_set(st, XRDC_EAUTH, 0, "krb5: bad service principal");
         return -1;
     }
     in_creds->client = *client;
     in_creds->server = *server;
     if (krb5_get_credentials(ctx, 0, *cc, in_creds, out_creds) != 0) {
-        xrdc_status_set(st, XRDC_EAUTH, 0,
+        brix_status_set(st, XRDC_EAUTH, 0,
                         "krb5: cannot get a service ticket (TGT expired?)");
         return -1;
     }
     if (krb5_mk_req_extended(ctx, auth, 0, NULL, *out_creds, apreq) != 0) {
-        xrdc_status_set(st, XRDC_EAUTH, 0, "krb5: mk_req failed");
+        brix_status_set(st, XRDC_EAUTH, 0, "krb5: mk_req failed");
         return -1;
     }
 
     uint8_t *p = (uint8_t *) malloc(4 + apreq->length);
     if (p == NULL) {
-        xrdc_status_set(st, XRDC_EAUTH, 0, "krb5: out of memory");
+        brix_status_set(st, XRDC_EAUTH, 0, "krb5: out of memory");
         return -1;
     }
     memcpy(p, "krb5", 4);                       /* the prefix src/auth/krb5 checks */
@@ -123,8 +123,8 @@ krb5_acquire(krb5_context ctx, xrdc_conn *c, const char *parms,
 }
 
 static int
-krb5_first(xrdc_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
-           xrdc_status *st)
+krb5_first(brix_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
+           brix_status *st)
 {
     krb5_context      ctx = NULL;
     krb5_ccache       cc = NULL;
@@ -137,7 +137,7 @@ krb5_first(xrdc_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
     memset(&apreq, 0, sizeof(apreq));
 
     if (krb5_init_context(&ctx) != 0) {
-        xrdc_status_set(st, XRDC_EAUTH, 0, "krb5: cannot init context");
+        brix_status_set(st, XRDC_EAUTH, 0, "krb5: cannot init context");
         return -1;
     }
 
@@ -154,10 +154,10 @@ krb5_first(xrdc_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
     return rc;
 }
 
-const xrdc_sec_module *
-xrdc_sec_krb5(void)
+const brix_sec_module *
+brix_sec_krb5(void)
 {
-    static const xrdc_sec_module m = {
+    static const brix_sec_module m = {
         "krb5",
         { 'k', 'r', 'b', '5' },
         krb5_have,
@@ -168,10 +168,10 @@ xrdc_sec_krb5(void)
     return &m;
 }
 
-#else  /* !XROOTD_HAVE_KRB5 */
+#else  /* !BRIX_HAVE_KRB5 */
 
-const xrdc_sec_module *
-xrdc_sec_krb5(void)
+const brix_sec_module *
+brix_sec_krb5(void)
 {
     return NULL;   /* krb5 dev libs absent at build time → driver skips krb5 */
 }

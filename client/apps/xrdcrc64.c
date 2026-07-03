@@ -6,15 +6,15 @@
  *       CRC-64/NVME variant request "crc64nvme" over the wire instead.
  * WHY:  A thin front-end over the shared checksum-tool template — libXrdCl-free,
  *       mirroring xrdcrc32c / xrdadler32.
- * HOW:  Delegates to xrdc_cli_cksum_main(); see lib/cli_cksum.c.
+ * HOW:  Delegates to brix_cli_cksum_main(); see lib/cli_cksum.c.
  */
-#include "xrdc.h"
+#include "brix.h"
 
 int
 main(int argc, char **argv)
 {
     /* err_exit=1: no stock xrdcrc64 exists; being remote-capable it follows the
      * xrdadler32 convention (exit 1 on any access/checksum failure). */
-    return xrdc_cli_cksum_main(argv[0], "crc64", XRDC_CK_CRC64,
+    return brix_cli_cksum_main(argv[0], "crc64", XRDC_CK_CRC64,
                                argc == 2 ? argv[1] : NULL, 1);
 }

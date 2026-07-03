@@ -1,39 +1,39 @@
 /*
- * pool.c — a small thread-safe pool of xrdc_conn for concurrent callers.
+ * pool.c — a small thread-safe pool of brix_conn for concurrent callers.
  *
- * WHAT: xrdc_pool_create/checkout/checkin/destroy. A fixed array of N xrdc_conn,
+ * WHAT: brix_pool_create/checkout/checkin/destroy. A fixed array of N brix_conn,
  *       each lazily connected to the same endpoint; checkout hands a free,
  *       connected conn to one thread (blocking until one is free), checkin
  *       returns it (and, when the caller reports the op hit a connection-level
  *       error, drops the conn so the next checkout transparently reconnects).
- * WHY:  An xrdc_conn is one-request-in-flight and NOT thread-safe, so a
+ * WHY:  An brix_conn is one-request-in-flight and NOT thread-safe, so a
  *       multi-threaded consumer (the FUSE driver) needs several independent
  *       connections rather than one mutex-serialised global. The pool is the
  *       concurrency primitive that lets xrootdfs drop its forced single-thread.
  * HOW:  One mutex guards slot bookkeeping only (held briefly — never during the
  *       slow connect/op), a condvar wakes a waiter on checkin. Each slot owns its
- *       xrdc_conn; reconnect reuses xrdc_connect with the stored url+opts so a
+ *       brix_conn; reconnect reuses brix_connect with the stored url+opts so a
  *       redirected/dropped conn returns to a clean session. No goto.
  *
- * Clean-room: composes the public libxrdc connection API only.
+ * Clean-room: composes the public libbrix connection API only.
  */
-#include "xrdc.h"
+#include "brix.h"
 
 #include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
 
 typedef struct {
-    xrdc_conn conn;
+    brix_conn conn;
     int       connected;   /* 1 once a successful connect/reconnect has run */
     int       in_use;      /* checked out by a thread */
-} xrdc_pool_slot;
+} brix_pool_slot;
 
-struct xrdc_pool {
-    xrdc_url        url;
-    xrdc_opts       opts;
+struct brix_pool {
+    brix_url        url;
+    brix_opts       opts;
     int             n;
-    xrdc_pool_slot *slots;
+    brix_pool_slot *slots;
     pthread_mutex_t lock;
     pthread_cond_t  avail;
 };
@@ -41,25 +41,25 @@ struct xrdc_pool {
 /* Bring a reserved (in_use) slot to a connected state; lock NOT held (connect is
  * slow and the slot is already reserved, so no other thread can touch it). */
 static int
-pool_slot_connect(xrdc_pool *p, xrdc_pool_slot *s, xrdc_status *st)
+pool_slot_connect(brix_pool *p, brix_pool_slot *s, brix_status *st)
 {
     if (s->connected) {
         return 0;
     }
-    if (xrdc_connect(&s->conn, &p->url, &p->opts, st) != 0) {
+    if (brix_connect(&s->conn, &p->url, &p->opts, st) != 0) {
         return -1;
     }
     s->connected = 1;
     return 0;
 }
 
-xrdc_pool *
-xrdc_pool_create(const xrdc_url *u, const xrdc_opts *o, int n, xrdc_status *st)
+brix_pool *
+brix_pool_create(const brix_url *u, const brix_opts *o, int n, brix_status *st)
 {
-    xrdc_pool *p;
+    brix_pool *p;
 
     if (u == NULL || n < 1) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "pool: bad arguments");
+        brix_status_set(st, XRDC_EUSAGE, 0, "pool: bad arguments");
         return NULL;
     }
     if (n > 256) {
@@ -68,13 +68,13 @@ xrdc_pool_create(const xrdc_url *u, const xrdc_opts *o, int n, xrdc_status *st)
 
     p = calloc(1, sizeof(*p));
     if (p == NULL) {
-        xrdc_status_set(st, XRDC_ESOCK, 0, "pool: out of memory");
+        brix_status_set(st, XRDC_ESOCK, 0, "pool: out of memory");
         return NULL;
     }
     p->slots = calloc((size_t) n, sizeof(*p->slots));
     if (p->slots == NULL) {
         free(p);
-        xrdc_status_set(st, XRDC_ESOCK, 0, "pool: out of memory");
+        brix_status_set(st, XRDC_ESOCK, 0, "pool: out of memory");
         return NULL;
     }
     p->url = *u;
@@ -90,21 +90,21 @@ xrdc_pool_create(const xrdc_url *u, const xrdc_opts *o, int n, xrdc_status *st)
     p->slots[0].in_use = 1;
     if (pool_slot_connect(p, &p->slots[0], st) != 0) {
         p->slots[0].in_use = 0;
-        xrdc_pool_destroy(p);
+        brix_pool_destroy(p);
         return NULL;
     }
     p->slots[0].in_use = 0;
     return p;
 }
 
-xrdc_conn *
-xrdc_pool_checkout(xrdc_pool *p, xrdc_status *st)
+brix_conn *
+brix_pool_checkout(brix_pool *p, brix_status *st)
 {
-    xrdc_pool_slot *s = NULL;
+    brix_pool_slot *s = NULL;
     int             i;
 
     if (p == NULL) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "pool: null");
+        brix_status_set(st, XRDC_EUSAGE, 0, "pool: null");
         return NULL;
     }
 
@@ -136,7 +136,7 @@ xrdc_pool_checkout(xrdc_pool *p, xrdc_status *st)
 }
 
 void
-xrdc_pool_checkin(xrdc_pool *p, xrdc_conn *c, int healthy)
+brix_pool_checkin(brix_pool *p, brix_conn *c, int healthy)
 {
     int i;
 
@@ -151,7 +151,7 @@ xrdc_pool_checkin(xrdc_pool *p, xrdc_conn *c, int healthy)
         for (i = 0; i < p->n; i++) {
             if (&p->slots[i].conn == c) {
                 if (p->slots[i].connected) {
-                    xrdc_close(&p->slots[i].conn);
+                    brix_close(&p->slots[i].conn);
                     p->slots[i].connected = 0;
                 }
                 break;
@@ -171,7 +171,7 @@ xrdc_pool_checkin(xrdc_pool *p, xrdc_conn *c, int healthy)
 }
 
 void
-xrdc_pool_destroy(xrdc_pool *p)
+brix_pool_destroy(brix_pool *p)
 {
     int i;
 
@@ -180,7 +180,7 @@ xrdc_pool_destroy(xrdc_pool *p)
     }
     for (i = 0; i < p->n; i++) {
         if (p->slots[i].connected) {
-            xrdc_close(&p->slots[i].conn);
+            brix_close(&p->slots[i].conn);
         }
     }
     pthread_mutex_destroy(&p->lock);

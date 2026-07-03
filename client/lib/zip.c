@@ -35,7 +35,7 @@ uint64_t le64(const uint8_t *p) { return zip_rd64le(p); }
 
 /* pread exactly len bytes; returns 0 on success, XRDC_ZIP_EIO/EBADF otherwise. */
 int
-read_exact(xrdc_zip_pread_fn pread, void *ctx, uint64_t off, uint64_t archive_size,
+read_exact(brix_zip_pread_fn pread, void *ctx, uint64_t off, uint64_t archive_size,
            void *buf, size_t len)
 {
     return zip_map_kernel_rc(
@@ -46,7 +46,7 @@ read_exact(xrdc_zip_pread_fn pread, void *ctx, uint64_t off, uint64_t archive_si
 /* Locate the EOCD record and return its offset + total-entries / CD size / CD
  * offset, applying ZIP64 overrides when the classic fields are saturated. */
 int
-find_eocd(xrdc_zip_pread_fn pread, void *ctx, uint64_t asize,
+find_eocd(brix_zip_pread_fn pread, void *ctx, uint64_t asize,
           uint64_t *cd_off, uint64_t *cd_size, uint64_t *n_entries)
 {
     return zip_map_kernel_rc(
@@ -58,7 +58,7 @@ find_eocd(xrdc_zip_pread_fn pread, void *ctx, uint64_t asize,
 
 /* Apply a CDFH ZIP64 extra field, overriding saturated 32-bit fields in order. */
 void
-apply_zip64_extra(xrdc_zip_entry *ent, const uint8_t *extra, size_t extra_len)
+apply_zip64_extra(brix_zip_entry *ent, const uint8_t *extra, size_t extra_len)
 {
     zip_apply_zip64_extra(extra, extra_len,
                           &ent->uncomp_size, &ent->comp_size, &ent->lfh_off);
@@ -66,8 +66,8 @@ apply_zip64_extra(xrdc_zip_entry *ent, const uint8_t *extra, size_t extra_len)
 
 
 int
-xrdc_zip_open(xrdc_zip_pread_fn pread, void *ctx, uint64_t archive_size,
-              xrdc_zip_dir *out)
+brix_zip_open(brix_zip_pread_fn pread, void *ctx, uint64_t archive_size,
+              brix_zip_dir *out)
 {
     uint64_t  cd_off, cd_size, n_entries;
     uint8_t  *cd;
@@ -96,7 +96,7 @@ xrdc_zip_open(xrdc_zip_pread_fn pread, void *ctx, uint64_t archive_size,
     }
 
     out->entries = calloc(n_entries ? (size_t) n_entries : 1,
-                          sizeof(xrdc_zip_entry));
+                          sizeof(brix_zip_entry));
     if (out->entries == NULL) {
         free(cd);
         return XRDC_ZIP_ENOMEM;
@@ -105,7 +105,7 @@ xrdc_zip_open(xrdc_zip_pread_fn pread, void *ctx, uint64_t archive_size,
     while (idx < n_entries && pos + 46 <= cd_size) {
         const uint8_t *h = cd + pos;
         uint16_t       namelen, extralen, commentlen;
-        xrdc_zip_entry *ent;
+        brix_zip_entry *ent;
 
         if (le32(h) != SIG_CDFH) {
             break;
@@ -116,7 +116,7 @@ xrdc_zip_open(xrdc_zip_pread_fn pread, void *ctx, uint64_t archive_size,
         if ((uint64_t) 46 + namelen + extralen + commentlen > cd_size - pos
             || namelen > XRDC_ZIP_MAX_NAME) {
             free(cd);
-            xrdc_zip_dir_free(out);
+            brix_zip_dir_free(out);
             return XRDC_ZIP_EBADF;
         }
 
@@ -131,7 +131,7 @@ xrdc_zip_open(xrdc_zip_pread_fn pread, void *ctx, uint64_t archive_size,
         ent->name = malloc((size_t) namelen + 1);
         if (ent->name == NULL) {
             free(cd);
-            xrdc_zip_dir_free(out);
+            brix_zip_dir_free(out);
             return XRDC_ZIP_ENOMEM;
         }
         memcpy(ent->name, h + 46, namelen);
@@ -143,12 +143,12 @@ xrdc_zip_open(xrdc_zip_pread_fn pread, void *ctx, uint64_t archive_size,
         if (ent->lfh_off >= archive_size
             || ent->comp_size > archive_size - ent->lfh_off) {
             /* ent->name is allocated but this entry is not yet counted in out->n
-             * (bumped below), so xrdc_zip_dir_free would not reach it — free it
+             * (bumped below), so brix_zip_dir_free would not reach it — free it
              * here to avoid leaking the name on this reject path. */
             free(ent->name);
             ent->name = NULL;
             free(cd);
-            xrdc_zip_dir_free(out);
+            brix_zip_dir_free(out);
             return XRDC_ZIP_EBADF;
         }
 
@@ -161,8 +161,8 @@ xrdc_zip_open(xrdc_zip_pread_fn pread, void *ctx, uint64_t archive_size,
 }
 
 
-const xrdc_zip_entry *
-xrdc_zip_find(const xrdc_zip_dir *d, const char *name)
+const brix_zip_entry *
+brix_zip_find(const brix_zip_dir *d, const char *name)
 {
     size_t i;
 
@@ -179,7 +179,7 @@ xrdc_zip_find(const xrdc_zip_dir *d, const char *name)
 
 
 void
-xrdc_zip_dir_free(xrdc_zip_dir *d)
+brix_zip_dir_free(brix_zip_dir *d)
 {
     size_t i;
 
@@ -197,8 +197,8 @@ xrdc_zip_dir_free(xrdc_zip_dir *d)
 
 /* Compute a member's data offset by reading its local file header. */
 int
-member_data_offset(xrdc_zip_pread_fn pread, void *ctx, uint64_t asize,
-                   const xrdc_zip_entry *e, uint64_t *data_off)
+member_data_offset(brix_zip_pread_fn pread, void *ctx, uint64_t asize,
+                   const brix_zip_entry *e, uint64_t *data_off)
 {
     return zip_map_kernel_rc(
         zip_resolve_data_off(pread, ctx, asize, e->lfh_off, e->comp_size,
@@ -208,7 +208,7 @@ member_data_offset(xrdc_zip_pread_fn pread, void *ctx, uint64_t asize,
 
 /* Feed produced plaintext to the sink while accumulating CRC + the size cap. */
 int
-sink_output(xrdc_zip_sink_fn sink, void *sink_ctx, const uint8_t *data, size_t len,
+sink_output(brix_zip_sink_fn sink, void *sink_ctx, const uint8_t *data, size_t len,
             uLong *crc, uint64_t *produced, uint64_t uncomp_size)
 {
     if (len == 0) {
@@ -227,9 +227,9 @@ sink_output(xrdc_zip_sink_fn sink, void *sink_ctx, const uint8_t *data, size_t l
 
 
 int
-xrdc_zip_member_extract(xrdc_zip_pread_fn pread, void *ctx,
-                        const xrdc_zip_entry *e,
-                        xrdc_zip_sink_fn sink, void *sink_ctx)
+brix_zip_member_extract(brix_zip_pread_fn pread, void *ctx,
+                        const brix_zip_entry *e,
+                        brix_zip_sink_fn sink, void *sink_ctx)
 {
     enum { CHUNK = 64 * 1024 };
     uint64_t  data_off, remaining, produced = 0;
@@ -351,7 +351,7 @@ void put64(uint8_t *p, uint64_t v)
 
 
 int
-xrdc_zip_read_eocd(xrdc_zip_pread_fn pread_cb, void *ctx, uint64_t archive_size,
+brix_zip_read_eocd(brix_zip_pread_fn pread_cb, void *ctx, uint64_t archive_size,
                    uint64_t *cd_off, uint64_t *cd_size, uint64_t *n_entries,
                    int *is_zip64)
 {

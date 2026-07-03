@@ -7,7 +7,7 @@
 
 /* epoll */
 void
-aconn_update_epoll(xrdc_aconn *ac)
+aconn_update_epoll(brix_aconn *ac)
 {
     int want = EPOLLIN;
     if (ac->wbuf.start < ac->wbuf.len || ac->tls_want_write_on_read) {
@@ -23,10 +23,10 @@ aconn_update_epoll(xrdc_aconn *ac)
 /* conn */
 /* Fail every in-flight request with `st`, leaving the map empty. */
 void
-aconn_drain_inflight(xrdc_aconn *ac, const xrdc_status *st)
+aconn_drain_inflight(brix_aconn *ac, const brix_status *st)
 {
     for (uint32_t i = 0; i < ac->inflight.cap; i++) {
-        xrdc_areq *r = ac->inflight.slots[i];
+        brix_areq *r = ac->inflight.slots[i];
         if (r == NULL || r == REQMAP_TOMB) {
             continue;
         }
@@ -49,12 +49,12 @@ aconn_drain_inflight(xrdc_aconn *ac, const xrdc_status *st)
 
 /* Fail every parked request with `st`, emptying the pending list. */
 void
-aconn_pending_fail_all(xrdc_aconn *ac, const xrdc_status *st)
+aconn_pending_fail_all(brix_aconn *ac, const brix_status *st)
 {
-    xrdc_areq *p = ac->pending;
+    brix_areq *p = ac->pending;
     ac->pending = NULL;
     while (p != NULL) {
-        xrdc_areq *nx = p->pend_next;
+        brix_areq *nx = p->pend_next;
         p->pend_next = NULL;
         areq_complete(p, -1, (uint16_t) (st->kxr & 0xffff), st);
         p = nx;
@@ -65,7 +65,7 @@ aconn_pending_fail_all(xrdc_aconn *ac, const xrdc_status *st)
 /* Enter RECONNECTING: pull the dead fd from epoll, partition in-flight requests
  * (retry-safe → parked, others → failed), and spawn the reconnect worker. */
 void
-aconn_on_transport_error(xrdc_aconn *ac, const xrdc_status *st)
+aconn_on_transport_error(brix_aconn *ac, const brix_status *st)
 {
     if (ac->state != ACONN_ALIVE) {
         return;   /* already reconnecting or dead */
@@ -80,14 +80,14 @@ aconn_on_transport_error(xrdc_aconn *ac, const xrdc_status *st)
         return;
     }
 
-    uint64_t now = xrdc_mono_ns();
+    uint64_t now = brix_mono_ns();
     ac->state = ACONN_RECONNECTING;
     ac->reconnect_deadline_ns = now + (uint64_t) ac->max_stall_ms * 1000000ULL;
     ac->ping_inflight = 0;
     ac->tls_want_read_on_write = ac->tls_want_write_on_read = 0;
 
     for (uint32_t i = 0; i < ac->inflight.cap; i++) {
-        xrdc_areq *r = ac->inflight.slots[i];
+        brix_areq *r = ac->inflight.slots[i];
         if (r == NULL || r == REQMAP_TOMB) {
             continue;
         }
@@ -118,7 +118,7 @@ aconn_on_transport_error(xrdc_aconn *ac, const xrdc_status *st)
 /* Loop-thread side of a successful reconnect: adopt the new socket and re-issue
  * every parked request. */
 void
-aconn_reconnect_succeeded(xrdc_aconn *ac)
+aconn_reconnect_succeeded(brix_aconn *ac)
 {
     ac->fd  = ac->conn->io.fd;
     ac->ssl = ac->conn->io.ssl;
@@ -129,21 +129,21 @@ aconn_reconnect_succeeded(xrdc_aconn *ac)
     }
 
     if (io_engine_arm(ac->loop, ac, EPOLLIN) != 0) {
-        xrdc_status st;
-        xrdc_status_set(&st, XRDC_ESOCK, errno, "poll re-register failed");
+        brix_status st;
+        brix_status_set(&st, XRDC_ESOCK, errno, "poll re-register failed");
         ac->state = ACONN_DEAD;
         aconn_pending_fail_all(ac, &st);
         return;
     }
     ac->dead = 0;
     ac->state = ACONN_ALIVE;
-    ac->last_activity_ns = xrdc_mono_ns();
+    ac->last_activity_ns = brix_mono_ns();
     ac->reconnect_deadline_ns = 0;
 
-    xrdc_areq *p = ac->pending;
+    brix_areq *p = ac->pending;
     ac->pending = NULL;
     while (p != NULL) {
-        xrdc_areq *nx = p->pend_next;
+        brix_areq *nx = p->pend_next;
         p->pend_next = NULL;
         aconn_issue_areq(ac, p);
         if (ac->state != ACONN_ALIVE) {
@@ -159,7 +159,7 @@ aconn_reconnect_succeeded(xrdc_aconn *ac)
 
 /* Detect a finished reconnect worker (called each tick) and apply its result. */
 void
-aconn_poll_reconnect(xrdc_aconn *ac)
+aconn_poll_reconnect(brix_aconn *ac)
 {
     if (ac->state != ACONN_RECONNECTING) {
         return;
@@ -186,10 +186,10 @@ aconn_poll_reconnect(xrdc_aconn *ac)
  * ping is turned into a transport error by the timeout scan, not here). */
 void
 aconn_ping_cb(void *ctx, int rc, uint16_t kxr, uint8_t *body, uint32_t blen,
-              const xrdc_status *st)
+              const brix_status *st)
 {
     (void) rc; (void) kxr; (void) blen; (void) st;
-    xrdc_aconn *ac = (xrdc_aconn *) ctx;
+    brix_aconn *ac = (brix_aconn *) ctx;
     ac->ping_inflight = 0;
     free(body);
 }
@@ -197,16 +197,16 @@ aconn_ping_cb(void *ctx, int rc, uint16_t kxr, uint8_t *body, uint32_t blen,
 
 /* Send a kXR_ping if the link has been idle past the keepalive threshold. */
 void
-aconn_maybe_ping(xrdc_aconn *ac)
+aconn_maybe_ping(brix_aconn *ac)
 {
     if (ac->state != ACONN_ALIVE || ac->keepalive_ms <= 0 || ac->ping_inflight) {
         return;
     }
-    uint64_t now = xrdc_mono_ns();
+    uint64_t now = brix_mono_ns();
     if (now - ac->last_activity_ns < (uint64_t) ac->keepalive_ms * 1000000ULL) {
         return;
     }
-    xrdc_areq *r = (xrdc_areq *) calloc(1, sizeof(*r));
+    brix_areq *r = (brix_areq *) calloc(1, sizeof(*r));
     if (r == NULL) {
         return;
     }
@@ -229,11 +229,11 @@ aconn_maybe_ping(xrdc_aconn *ac)
 /* Unlink from the loop list, free buffers + struct (loop thread only). Joins a
  * running reconnect worker first so conn is no longer touched by another thread. */
 void
-aconn_destroy(xrdc_aconn *ac)
+aconn_destroy(brix_aconn *ac)
 {
-    xrdc_loop  *l = ac->loop;
-    xrdc_status st;
-    xrdc_status_set(&st, XRDC_ESOCK, 0, "connection closed");
+    brix_loop  *l = ac->loop;
+    brix_status st;
+    brix_status_set(&st, XRDC_ESOCK, 0, "connection closed");
 
     if (ac->rc_thread_live) {
         pthread_join(ac->rc_thread, NULL);   /* bounded by the connect timeout */
@@ -244,7 +244,7 @@ aconn_destroy(xrdc_aconn *ac)
         aconn_drain_inflight(ac, &st);
     }
     aconn_pending_fail_all(ac, &st);   /* fail any parked requests */
-    xrdc_aconn **pp = &l->aconns;
+    brix_aconn **pp = &l->aconns;
     while (*pp != NULL) {
         if (*pp == ac) {
             *pp = ac->next;
@@ -261,7 +261,7 @@ aconn_destroy(xrdc_aconn *ac)
 
 /* Assign a fresh, currently-unused streamid (skips 0 and 0xffff). */
 uint16_t
-aconn_alloc_sid(xrdc_aconn *ac)
+aconn_alloc_sid(brix_aconn *ac)
 {
     for (int tries = 0; tries < 65536; tries++) {
         uint16_t s = ac->next_sid++;
@@ -284,7 +284,7 @@ aconn_alloc_sid(xrdc_aconn *ac)
  * request after a reconnect (the header's requestid + body are preserved; only
  * streamid/dlen are re-stamped). */
 void
-aconn_issue_areq(xrdc_aconn *ac, xrdc_areq *r)
+aconn_issue_areq(brix_aconn *ac, brix_areq *r)
 {
     uint16_t sid = aconn_alloc_sid(ac);
     r->sid = sid;
@@ -292,13 +292,13 @@ aconn_issue_areq(xrdc_aconn *ac, xrdc_areq *r)
     r->hdr[1] = (uint8_t) (sid & 0xff);
     uint32_t be = htonl(r->plen);
     memcpy(r->hdr + 20, &be, 4);
-    r->submit_ns = xrdc_mono_ns();
+    r->submit_ns = brix_mono_ns();
 
     if (xbuf_append(&ac->wbuf, r->hdr, XRD_REQUEST_HDR_LEN) != 0 ||
         (r->plen > 0 && xbuf_append(&ac->wbuf, r->payload, r->plen) != 0) ||
         reqmap_put(&ac->inflight, r) != 0) {
-        xrdc_status st;
-        xrdc_status_set(&st, XRDC_EPROTO, 0, "out of memory (queue)");
+        brix_status st;
+        brix_status_set(&st, XRDC_EPROTO, 0, "out of memory (queue)");
         areq_complete(r, -1, XRDC_EPROTO, &st);
         return;
     }
@@ -313,9 +313,9 @@ aconn_issue_areq(xrdc_aconn *ac, xrdc_areq *r)
 /* Compute a request's hard deadline: the caller's explicit ms, else an adaptive
  * value derived from the RTO and bounded by the reconnect patience budget. */
 uint64_t
-aconn_deadline_ns(xrdc_aconn *ac, int deadline_ms)
+aconn_deadline_ns(brix_aconn *ac, int deadline_ms)
 {
-    uint64_t now = xrdc_mono_ns();
+    uint64_t now = brix_mono_ns();
     uint64_t ms;
     if (deadline_ms > 0) {
         ms = (uint64_t) deadline_ms;
@@ -337,20 +337,20 @@ aconn_deadline_ns(xrdc_aconn *ac, int deadline_ms)
  * is parked (it has not been sent, so it is safe to issue fresh once the socket is
  * back); otherwise it goes out immediately. Consumes cmd->payload ownership. */
 void
-aconn_submit_cmd(xrdc_aconn *ac, cmd *c)
+aconn_submit_cmd(brix_aconn *ac, cmd *c)
 {
     if (ac->state == ACONN_DEAD) {
-        xrdc_status st;
-        xrdc_status_set(&st, XRDC_ESOCK, 0, "connection is down");
+        brix_status st;
+        brix_status_set(&st, XRDC_ESOCK, 0, "connection is down");
         c->cb(c->ctx, -1, XRDC_ESOCK, NULL, 0, &st);
         free(c->payload);
         return;
     }
 
-    xrdc_areq *r = (xrdc_areq *) calloc(1, sizeof(*r));
+    brix_areq *r = (brix_areq *) calloc(1, sizeof(*r));
     if (r == NULL) {
-        xrdc_status st;
-        xrdc_status_set(&st, XRDC_EPROTO, 0, "out of memory (request)");
+        brix_status st;
+        brix_status_set(&st, XRDC_EPROTO, 0, "out of memory (request)");
         c->cb(c->ctx, -1, XRDC_EPROTO, NULL, 0, &st);
         free(c->payload);
         return;
@@ -368,7 +368,7 @@ aconn_submit_cmd(xrdc_aconn *ac, cmd *c)
     if (ac->state == ACONN_RECONNECTING) {
         /* Give a parked request the full reconnect budget so it survives the drop. */
         uint64_t stall = (ac->max_stall_ms > 0) ? (uint64_t) ac->max_stall_ms : 60000;
-        r->deadline_ns = xrdc_mono_ns() + stall * 1000000ULL;
+        r->deadline_ns = brix_mono_ns() + stall * 1000000ULL;
         r->pend_next = ac->pending;
         ac->pending = r;
         return;

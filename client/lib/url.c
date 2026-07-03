@@ -13,13 +13,13 @@
  * Clean-room: behaviour mirrors the documented xrdcp URL syntax (xrdcp.1), not
  * XrdCl::URL source.
  */
-#include "xrdc.h"
+#include "brix.h"
 #include "core/compat/host_split.h"   /* shared host:port parse (libxrdproto) */
 
 #include <string.h>
 #include <stdlib.h>
 
-#define XROOTD_DEFAULT_PORT_LOCAL 1094
+#define BRIX_DEFAULT_PORT_LOCAL 1094
 
 static int
 starts_with(const char *s, const char *prefix)
@@ -29,7 +29,7 @@ starts_with(const char *s, const char *prefix)
 
 /* Split "[user@]host[:port]" into out->user/host/port (port default 1094). */
 static int
-parse_authority(const char *auth, xrdc_url *out, xrdc_status *st)
+parse_authority(const char *auth, brix_url *out, brix_status *st)
 {
     const char *at    = strchr(auth, '@');
     const char *hostp = auth;
@@ -46,17 +46,17 @@ parse_authority(const char *auth, xrdc_url *out, xrdc_status *st)
     }
 
     /* Shared bracketed-IPv6-aware host:port split (libxrdproto). */
-    if (xrootd_split_host_port(hostp, out->host, sizeof(out->host), &out->port,
-                               XROOTD_DEFAULT_PORT_LOCAL) != 0) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "invalid host:port in URL");
+    if (brix_split_host_port(hostp, out->host, sizeof(out->host), &out->port,
+                               BRIX_DEFAULT_PORT_LOCAL) != 0) {
+        brix_status_set(st, XRDC_EUSAGE, 0, "invalid host:port in URL");
         return -1;
     }
     return 0;
 }
 
 static int
-parse_remote(const char *s, const char *after_scheme, xrdc_scheme scheme,
-             xrdc_url *out, xrdc_status *st)
+parse_remote(const char *s, const char *after_scheme, brix_scheme scheme,
+             brix_url *out, brix_status *st)
 {
     const char *slash = strchr(after_scheme, '/');
     char        auth[320];
@@ -77,7 +77,7 @@ parse_remote(const char *s, const char *after_scheme, xrdc_scheme scheme,
 
     alen = (size_t) (slash - after_scheme);
     if (alen >= sizeof(auth)) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "authority too long");
+        brix_status_set(st, XRDC_EUSAGE, 0, "authority too long");
         return -1;
     }
     memcpy(auth, after_scheme, alen);
@@ -95,7 +95,7 @@ parse_remote(const char *s, const char *after_scheme, xrdc_scheme scheme,
     {
         size_t pl = strlen(path);
         if (pl >= sizeof(out->path)) {
-            xrdc_status_set(st, XRDC_EUSAGE, 0, "path too long");
+            brix_status_set(st, XRDC_EUSAGE, 0, "path too long");
             return -1;
         }
         memcpy(out->path, path, pl + 1);
@@ -104,12 +104,12 @@ parse_remote(const char *s, const char *after_scheme, xrdc_scheme scheme,
 }
 
 int
-xrdc_url_parse(const char *s, xrdc_url *out, xrdc_status *st)
+brix_url_parse(const char *s, brix_url *out, brix_status *st)
 {
     memset(out, 0, sizeof(*out));
 
     if (s == NULL || s[0] == '\0') {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "empty URL");
+        brix_status_set(st, XRDC_EUSAGE, 0, "empty URL");
         return -1;
     }
 
@@ -141,7 +141,7 @@ xrdc_url_parse(const char *s, xrdc_url *out, xrdc_status *st)
         {
             size_t pl = strlen(p);
             if (pl >= sizeof(out->path)) {
-                xrdc_status_set(st, XRDC_EUSAGE, 0, "path too long");
+                brix_status_set(st, XRDC_EUSAGE, 0, "path too long");
                 return -1;
             }
             memcpy(out->path, p, pl + 1);
@@ -150,7 +150,7 @@ xrdc_url_parse(const char *s, xrdc_url *out, xrdc_status *st)
     }
 
     if (strstr(s, "://") != NULL) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0,
+        brix_status_set(st, XRDC_EUSAGE, 0,
                         "scheme not supported by native client: %s", s);
         return -1;
     }
@@ -160,7 +160,7 @@ xrdc_url_parse(const char *s, xrdc_url *out, xrdc_status *st)
     {
         size_t pl = strlen(s);
         if (pl >= sizeof(out->path)) {
-            xrdc_status_set(st, XRDC_EUSAGE, 0, "path too long");
+            brix_status_set(st, XRDC_EUSAGE, 0, "path too long");
             return -1;
         }
         memcpy(out->path, s, pl + 1);
@@ -169,17 +169,17 @@ xrdc_url_parse(const char *s, xrdc_url *out, xrdc_status *st)
 }
 
 int
-xrdc_endpoint_parse(const char *ep, xrdc_url *out, xrdc_status *st)
+brix_endpoint_parse(const char *ep, brix_url *out, brix_status *st)
 {
     const char *colon;
 
     /* A full root[s]:// URL → reuse the URL parser, but require a remote scheme. */
     if (strstr(ep, "://") != NULL) {
-        if (xrdc_url_parse(ep, out, st) != 0) {
+        if (brix_url_parse(ep, out, st) != 0) {
             return -1;
         }
         if (out->scheme != XRDC_SCHEME_ROOT && out->scheme != XRDC_SCHEME_ROOTS) {
-            xrdc_status_set(st, XRDC_EUSAGE, 0,
+            brix_status_set(st, XRDC_EUSAGE, 0,
                             "endpoint must be a root:// or roots:// URL");
             return -1;
         }
@@ -193,26 +193,26 @@ xrdc_endpoint_parse(const char *ep, xrdc_url *out, xrdc_status *st)
     if (colon != NULL) {
         size_t hlen = (size_t) (colon - ep);
         if (hlen == 0 || hlen >= sizeof(out->host)) {
-            xrdc_status_set(st, XRDC_EUSAGE, 0, "invalid host");
+            brix_status_set(st, XRDC_EUSAGE, 0, "invalid host");
             return -1;
         }
         memcpy(out->host, ep, hlen);
         out->host[hlen] = '\0';
         out->port = atoi(colon + 1);
         if (out->port <= 0 || out->port > 65535) {
-            xrdc_status_set(st, XRDC_EUSAGE, 0, "invalid port");
+            brix_status_set(st, XRDC_EUSAGE, 0, "invalid port");
             return -1;
         }
     } else {
         {
             size_t hl = strlen(ep);
             if (ep[0] == '\0' || hl >= sizeof(out->host)) {
-                xrdc_status_set(st, XRDC_EUSAGE, 0, "invalid host");
+                brix_status_set(st, XRDC_EUSAGE, 0, "invalid host");
                 return -1;
             }
             memcpy(out->host, ep, hl + 1);
         }
-        out->port = XROOTD_DEFAULT_PORT_LOCAL;
+        out->port = BRIX_DEFAULT_PORT_LOCAL;
     }
     return 0;
 }
@@ -222,7 +222,7 @@ xrdc_endpoint_parse(const char *ep, xrdc_url *out, xrdc_status *st)
 /* One scheme-table row: prefix → proto, TLS, S3-ness, default port. */
 typedef struct {
     const char    *prefix;
-    xrdc_web_proto proto;
+    brix_web_proto proto;
     int            tls;
     int            is_s3;
     int            defport;
@@ -238,7 +238,7 @@ static const web_scheme WEB_SCHEMES[] = {
 };
 
 int
-xrdc_is_web_url(const char *s)
+brix_is_web_url(const char *s)
 {
     size_t i;
     if (s == NULL) {
@@ -253,17 +253,17 @@ xrdc_is_web_url(const char *s)
 }
 
 /*
- * xrdc_is_block_url — return 1 if `s` names a block-device URL.
+ * brix_is_block_url — return 1 if `s` names a block-device URL.
  *
  * WHAT: returns 1 for URLs beginning with "block://" or "/dev/"; 0 otherwise.
- * WHY:  copy.c must intercept block:// before xrdc_url_parse, which does not
+ * WHY:  copy.c must intercept block:// before brix_url_parse, which does not
  *       know the block:// scheme and would reject it.  /dev/ paths already
- *       route to the block backend via xrdc_vfs_open, but the same early
+ *       route to the block backend via brix_vfs_open, but the same early
  *       check lets callers treat them uniformly.
  * HOW:  two prefix tests; NULL-safe.
  */
 int
-xrdc_is_block_url(const char *s)
+brix_is_block_url(const char *s)
 {
     if (s == NULL) {
         return 0;
@@ -272,7 +272,7 @@ xrdc_is_block_url(const char *s)
 }
 
 int
-xrdc_weburl_parse(const char *s, xrdc_weburl *out)
+brix_weburl_parse(const char *s, brix_weburl *out)
 {
     const web_scheme *sc = NULL;
     const char       *p, *hoststart, *slash;

@@ -51,14 +51,14 @@ const xrdfs_cmd COMMANDS[] = {
 /* Poll a path's residency until it is online (kXR_offline clears) or `timeout_s`
  * elapses. Returns 0 online, 1 still offline at timeout, -1 on a stat error. */
 int
-wait_online(xrdc_conn *c, const char *path, int timeout_s, xrdc_status *st)
+wait_online(brix_conn *c, const char *path, int timeout_s, brix_status *st)
 {
     int waited = 0;
     for (;;) {
-        xrdc_statinfo si;
+        brix_statinfo si;
         struct timespec ts;
-        xrdc_status_clear(st);
-        if (xrdc_stat(c, path, &si, st) != 0) { return -1; }
+        brix_status_clear(st);
+        if (brix_stat(c, path, &si, st) != 0) { return -1; }
         if (!(si.flags & kXR_offline)) { return 0; }
         if (waited >= timeout_s) { return 1; }
         ts.tv_sec = 1; ts.tv_nsec = 0;
@@ -72,10 +72,10 @@ wait_online(xrdc_conn *c, const char *path, int timeout_s, xrdc_status *st)
  * session is already established (main connected before dispatch); this is a
  * read-only report over the conn fields conn.c/auth.c populated. */
 int
-do_explain(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_explain(brix_conn *c, const char *cwd, int argc, char **argv)
 {
     (void) cwd; (void) argc; (void) argv;
-    xrdc_explain_conn(c, &c->opts, stdout);
+    brix_explain_conn(c, &c->opts, stdout);
     return 0;
 }
 
@@ -83,7 +83,7 @@ do_explain(xrdc_conn *c, const char *cwd, int argc, char **argv)
 /* Run one tokenized command. cwd/cwdsz hold the mutable working directory (for
  * the REPL's cd/pwd). Returns a shell code; sets *quit when asked to leave. */
 int
-dispatch(xrdc_conn *c, char *cwd, size_t cwdsz, int ntok, char **tok, int *quit)
+dispatch(brix_conn *c, char *cwd, size_t cwdsz, int ntok, char **tok, int *quit)
 {
     const xrdfs_cmd *cmd;
 
@@ -141,7 +141,7 @@ tokenize(char *line, char **tok, int maxtok)
 
 
 int
-repl(xrdc_conn *c, const char *host, int port)
+repl(brix_conn *c, const char *host, int port)
 {
     char    cwd[XRDC_PATH_MAX] = "/";
     char   *line = NULL;
@@ -196,10 +196,10 @@ usage(void)
 int
 main(int argc, char **argv)
 {
-    xrdc_url    u;
-    xrdc_conn   c;
-    xrdc_status st;
-    xrdc_opts   opts;
+    brix_url    u;
+    brix_conn   c;
+    brix_status st;
+    brix_opts   opts;
     const char *endpoint;
     const char *web_token = NULL;   /* --token / $BEARER_TOKEN for http(s)/WebDAV */
     char        cwd[XRDC_PATH_MAX] = "/";
@@ -207,7 +207,7 @@ main(int argc, char **argv)
 
     memset(&opts, 0, sizeof(opts));
     opts.verify_host = 1;
-    xrootd_crypto_init();   /* arm libxrdproto SHA-256/HMAC for GSI + sigver */
+    brix_crypto_init();   /* arm libxrdproto SHA-256/HMAC for GSI + sigver */
 
     while (argi < argc && argv[argi][0] == '-' && strcmp(argv[argi], "-") != 0) {
         if (strcmp(argv[argi], "--no-cwd") == 0)        { argi++; continue; }
@@ -238,12 +238,12 @@ main(int argc, char **argv)
 
     /* http(s)/WebDAV endpoint: no root:// session — serve read-only metadata
      * (ls, stat) over WebDAV PROPFIND, mirroring the official xrdfs. */
-    if (xrdc_is_web_url(endpoint)) {
-        xrdc_weburl wu;
+    if (brix_is_web_url(endpoint)) {
+        brix_weburl wu;
         char        base[XRDC_PATH_MAX];
         size_t      bl;
         web_ctx     w;
-        if (xrdc_weburl_parse(endpoint, &wu) != 0) {
+        if (brix_weburl_parse(endpoint, &wu) != 0) {
             fprintf(stderr, "xrdfs: bad web URL: %s\n", endpoint);
             return 50;
         }
@@ -261,7 +261,7 @@ main(int argc, char **argv)
         w.base   = base;
         w.bearer = web_token != NULL ? web_token : getenv("BEARER_TOKEN");
         w.verify = opts.verify_host;
-        w.ca_dir = xrdc_resolve_ca_dir(NULL);
+        w.ca_dir = brix_resolve_ca_dir(NULL);
         if (argi >= argc) {
             fprintf(stderr, "xrdfs: an http(s)/WebDAV endpoint needs a command "
                             "(e.g. ls); the interactive shell is root:// only\n");
@@ -270,14 +270,14 @@ main(int argc, char **argv)
         return web_dispatch(&w, argc - argi, &argv[argi]);
     }
 
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     if (endpoint_to_url(endpoint, &u, &st) != 0) {
         fprintf(stderr, "xrdfs: %s\n", st.msg);
         return 50;
     }
-    if (xrdc_connect_resilient(&c, &u, &opts, &st) != 0) {
+    if (brix_connect_resilient(&c, &u, &opts, &st) != 0) {
         fprintf(stderr, "xrdfs: connect %s:%d: %s\n", u.host, u.port, st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
 
     if (argi >= argc) {
@@ -286,6 +286,6 @@ main(int argc, char **argv)
         rc = dispatch(&c, cwd, sizeof(cwd), argc - argi, &argv[argi], NULL);
     }
 
-    xrdc_close(&c);
+    brix_close(&c);
     return rc;
 }

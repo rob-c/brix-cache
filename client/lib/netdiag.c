@@ -15,7 +15,7 @@
  * PII-free by construction: prints families, microseconds, counts and a flow
  * label only — never an IP address, path, or credential.
  */
-#include "xrdc.h"
+#include "brix.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -31,7 +31,7 @@ ms_between(uint64_t a, uint64_t b)
 }
 
 void
-xrdc_netdiag_facts(const xrdc_conn *c, xrdc_netfacts *f)
+brix_netdiag_facts(const brix_conn *c, brix_netfacts *f)
 {
     if (f == NULL) {
         return;
@@ -79,14 +79,14 @@ xrdc_netdiag_facts(const xrdc_conn *c, xrdc_netfacts *f)
 }
 
 void
-xrdc_netdiag_report(const xrdc_conn *c, FILE *out)
+brix_netdiag_report(const brix_conn *c, FILE *out)
 {
-    xrdc_netfacts f;
+    brix_netfacts f;
 
     if (c == NULL || c->io.fd < 0) {
         return;
     }
-    xrdc_netdiag_facts(c, &f);
+    brix_netdiag_facts(c, &f);
 
     fprintf(out, "Connect phases (ms):\n");
     fprintf(out, "  tcp        %.3f\n", f.tcp_ms);

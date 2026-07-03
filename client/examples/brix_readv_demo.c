@@ -1,18 +1,18 @@
 /*
- * xrdc_readv_demo.c — exercise libxrdc's scatter-gather read (kXR_readv) with
+ * brix_readv_demo.c — exercise libbrix's scatter-gather read (kXR_readv) with
  *                     caller-chosen, variably-sized segments.
  *
- * Issues ONE xrdc_file_readv() for every "<off>:<len>" segment given on the
+ * Issues ONE brix_file_readv() for every "<off>:<len>" segment given on the
  * command line, writes each segment's actually-delivered bytes (in request
  * order, concatenated) to <outfile>, and prints one line per segment:
  *     seg <i> <off> <req_len> <got>
  * plus a trailing "total <bytes>".  `got` may be < req_len when the server caps
- * the element (xrootd_readv_segment_size) or the read runs short of EOF — which
+ * the element (brix_readv_segment_size) or the read runs short of EOF — which
  * is exactly the variable-block behaviour a test wants to verify.
  *
- *   cc xrdc_readv_demo.c $(pkg-config --cflags --libs libxrdc) -o demo
+ *   cc brix_readv_demo.c $(pkg-config --cflags --libs libbrix) -o demo
  */
-#include "xrdc.h"
+#include "brix.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,11 +21,11 @@
 int
 main(int argc, char **argv)
 {
-    xrdc_url        u;
-    xrdc_conn       c;
-    xrdc_status     st;
-    xrdc_file       f;
-    xrdc_readv_seg *segs;
+    brix_url        u;
+    brix_conn       c;
+    brix_status     st;
+    brix_file       f;
+    brix_readv_seg *segs;
     size_t          nseg, i;
     FILE           *out;
     ssize_t         total;
@@ -58,21 +58,21 @@ main(int argc, char **argv)
         if (segs[i].buf == NULL) { fprintf(stderr, "oom\n"); return 1; }
     }
 
-    xrdc_status_clear(&st);
-    if (xrdc_url_parse(argv[1], &u, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_url_parse(argv[1], &u, &st) != 0) {
         fprintf(stderr, "url: %s\n", st.msg); return 1;
     }
-    if (xrdc_connect(&c, &u, NULL, &st) != 0) {
+    if (brix_connect(&c, &u, NULL, &st) != 0) {
         fprintf(stderr, "connect: %s\n", st.msg); return 1;
     }
-    if (xrdc_file_open_read(&c, argv[2], &f, &st) != 0) {
-        fprintf(stderr, "open: %s\n", st.msg); xrdc_close(&c); return 1;
+    if (brix_file_open_read(&c, argv[2], &f, &st) != 0) {
+        fprintf(stderr, "open: %s\n", st.msg); brix_close(&c); return 1;
     }
 
-    total = xrdc_file_readv(&c, &f, segs, nseg, &st);
+    total = brix_file_readv(&c, &f, segs, nseg, &st);
     if (total < 0) {
         fprintf(stderr, "readv: %s\n", st.msg);
-        xrdc_file_close(&c, &f, &st); xrdc_close(&c); return 1;
+        brix_file_close(&c, &f, &st); brix_close(&c); return 1;
     }
 
     out = fopen(argv[3], "wb");
@@ -89,7 +89,7 @@ main(int argc, char **argv)
     printf("total %zd\n", total);
     free(segs);
 
-    xrdc_file_close(&c, &f, &st);
-    xrdc_close(&c);
+    brix_file_close(&c, &f, &st);
+    brix_close(&c);
     return 0;
 }

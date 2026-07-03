@@ -1,8 +1,8 @@
 """
 tests/test_ipv6_fallback.py — client IPv6→IPv4 auto-downgrade on dual-stack hosts.
 
-WHAT: Exercises the native-client connect chokepoint (xrdc_tcp_connect / netpref.c)
-      that keeps a FUSE mount (and every other libxrdc client) working — silently
+WHAT: Exercises the native-client connect chokepoint (brix_tcp_connect / netpref.c)
+      that keeps a FUSE mount (and every other libbrix client) working — silently
       and correctly — on a dual-stack host whose IPv6 path is broken but whose
       IPv4 backend is fine. After the first IPv6 failure where IPv4 then works the
       whole session demotes to IPv4-only, logging the downgrade exactly once.
@@ -169,8 +169,8 @@ def test_self_heal_on_ipv6_only_host():
 
 def test_real_tool_binary_downgrades():
     """End-to-end through a real shipped tool (wait41): the shared connect path
-    means ANY libxrdc client — xrdcp/xrdfs/xrddiag/FUSE — downgrades, not just
-    the test harness. wait41 does a bare xrdc_tcp_connect to the sentinel host;
+    means ANY libbrix client — xrdcp/xrdfs/xrddiag/FUSE — downgrades, not just
+    the test harness. wait41 does a bare brix_tcp_connect to the sentinel host;
     with an IPv4-only listener it must report ready AND log the downgrade once."""
     if not _ipv6_loopback_ok():
         pytest.skip("no usable ::1 loopback on this host")

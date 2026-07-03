@@ -13,16 +13,16 @@
  *       result in sf->obj_size (or -1 if Content-Length is absent).
  * WHY:  fstat() on a read handle needs the object size; the HEAD is deferred
  *       to the first fstat call (lazy) to avoid a round-trip on write handles.
- * HOW:  s3_sign + xrdc_http_req; parse Content-Length with xrdc_http_header.
+ * HOW:  s3_sign + brix_http_req; parse Content-Length with brix_http_header.
  */
 int
-s3_load_size(vfs_s3_file *sf, xrdc_status *st)
+s3_load_size(vfs_s3_file *sf, brix_status *st)
 {
     char errbuf[256] = "";
 
     /* Delegate to the shared S3 driver (HEAD-size lives in src/fs/backend/sd_s3.c). */
     if (sd_s3_size(sf->sd, &sf->obj_size, errbuf, sizeof(errbuf)) != 0) {
-        xrdc_status_set(st, XRDC_EIO, 0, "%s", errbuf);
+        brix_status_set(st, XRDC_EIO, 0, "%s", errbuf);
         return -1;
     }
     return 0;
@@ -36,12 +36,12 @@ s3_load_size(vfs_s3_file *sf, xrdc_status *st)
  * WHAT: issues a SigV4-signed GET with a "Range: bytes=off-end\r\n" header;
  *       copies the 206 (or 200) response body into buf.
  * WHY:  VFS callers need seekable reads; S3 supports this via HTTP Range.
- * HOW:  cap n at S3_PREAD_MAX to stay within xrdc_http_req's 8 MiB body limit;
+ * HOW:  cap n at S3_PREAD_MAX to stay within brix_http_req's 8 MiB body limit;
  *       build combined auth+range extra_headers string; issue GET; check status;
  *       memcpy body to buf; return bytes copied.
  */
 ssize_t
-s3_pread(xrdc_vfs_file *f, int64_t off, void *buf, size_t n, xrdc_status *st)
+s3_pread(brix_vfs_file *f, int64_t off, void *buf, size_t n, brix_status *st)
 {
     vfs_s3_file *sf = (vfs_s3_file *) f;
     char         errbuf[256] = "";
@@ -50,7 +50,7 @@ s3_pread(xrdc_vfs_file *f, int64_t off, void *buf, size_t n, xrdc_status *st)
     /* Delegate to the shared S3 driver (Range-GET lives in src/fs/backend/sd_s3.c). */
     r = sd_s3_pread(sf->sd, buf, n, (off_t) off, errbuf, sizeof(errbuf));
     if (r < 0) {
-        xrdc_status_set(st, XRDC_EIO, 0, "%s", errbuf);
+        brix_status_set(st, XRDC_EIO, 0, "%s", errbuf);
     }
     return r;
 }
@@ -69,8 +69,8 @@ s3_pread(xrdc_vfs_file *f, int64_t off, void *buf, size_t n, xrdc_status *st)
  * HOW:  cast f to vfs_s3_file; check is_write; delegate.
  */
 int
-s3_pwrite(xrdc_vfs_file *f, int64_t off, const void *buf, size_t n,
-          xrdc_status *st)
+s3_pwrite(brix_vfs_file *f, int64_t off, const void *buf, size_t n,
+          brix_status *st)
 {
     vfs_s3_file *sf = (vfs_s3_file *) f;
     char         errbuf[256] = "";
@@ -82,7 +82,7 @@ s3_pwrite(xrdc_vfs_file *f, int64_t off, const void *buf, size_t n,
     errno = 0;
     if (sd_s3_pwrite(sf->sd, buf, n, (off_t) off, errbuf, sizeof(errbuf)) != 0) {
         int e = errno;
-        xrdc_status_set(st, s3_xrdc_from_errno(e), e, "%s", errbuf);
+        brix_status_set(st, s3_brix_from_errno(e), e, "%s", errbuf);
         return -1;
     }
     return 0;
@@ -100,7 +100,7 @@ s3_pwrite(xrdc_vfs_file *f, int64_t off, const void *buf, size_t n,
  *       mpu_write_off (total bytes written so far).
  */
 int
-s3_fstat(xrdc_vfs_file *f, xrdc_vfs_stat *out, xrdc_status *st)
+s3_fstat(brix_vfs_file *f, brix_vfs_stat *out, brix_status *st)
 {
     vfs_s3_file *sf = (vfs_s3_file *) f;
 
@@ -134,11 +134,11 @@ s3_fstat(xrdc_vfs_file *f, xrdc_vfs_stat *out, xrdc_status *st)
  * HOW:  unconditional error return.
  */
 int
-s3_truncate(xrdc_vfs_file *f, int64_t size, xrdc_status *st)
+s3_truncate(brix_vfs_file *f, int64_t size, brix_status *st)
 {
     vfs_s3_file *sf = (vfs_s3_file *) f;
     (void) size;
-    xrdc_status_set(st, XRDC_EUSAGE, 0,
+    brix_status_set(st, XRDC_EUSAGE, 0,
                     "s3 backend does not support truncate on %s",
                     sf->key_path);
     return -1;
@@ -156,7 +156,7 @@ s3_truncate(xrdc_vfs_file *f, int64_t size, xrdc_status *st)
  * HOW:  unconditional 0 return.
  */
 int
-s3_sync(xrdc_vfs_file *f, xrdc_status *st)
+s3_sync(brix_vfs_file *f, brix_status *st)
 {
     (void) f;
     (void) st;
@@ -176,13 +176,13 @@ s3_sync(xrdc_vfs_file *f, xrdc_status *st)
  * HOW:  dispatch on is_mpu; delegate.
  */
 int
-s3_commit(xrdc_vfs_file *f, xrdc_status *st)
+s3_commit(brix_vfs_file *f, brix_status *st)
 {
     vfs_s3_file *sf = (vfs_s3_file *) f;
     char         errbuf[256] = "";
 
     if (sd_s3_commit(sf->sd, errbuf, sizeof(errbuf)) != 0) {
-        xrdc_status_set(st, XRDC_EIO, 0, "%s", errbuf);
+        brix_status_set(st, XRDC_EIO, 0, "%s", errbuf);
         return -1;
     }
     return 0;
@@ -201,7 +201,7 @@ s3_commit(xrdc_vfs_file *f, xrdc_status *st)
  *       single-PUT: put_len reset to 0 (buffer freed in close).
  */
 void
-s3_abort(xrdc_vfs_file *f)
+s3_abort(brix_vfs_file *f)
 {
     vfs_s3_file *sf = (vfs_s3_file *) f;
 
@@ -219,7 +219,7 @@ s3_abort(xrdc_vfs_file *f)
  * HOW:  free each field; free(sf).
  */
 void
-s3_close(xrdc_vfs_file *f)
+s3_close(brix_vfs_file *f)
 {
     vfs_s3_file *sf = (vfs_s3_file *) f;
 

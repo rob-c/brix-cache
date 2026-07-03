@@ -17,15 +17,15 @@
 #include <pwd.h>
 
 static int
-unix_have(xrdc_conn *c)
+unix_have(brix_conn *c)
 {
     (void) c;
     return 1;   /* we always have a uid; the server gates by peer address */
 }
 
 static int
-unix_first(xrdc_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
-           xrdc_status *st)
+unix_first(brix_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
+           brix_status *st)
 {
     struct passwd *pw = getpwuid(geteuid());
     const char    *user = (pw != NULL && pw->pw_name != NULL) ? pw->pw_name
@@ -38,7 +38,7 @@ unix_first(xrdc_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
 
     p = (uint8_t *) malloc(5 + ul);
     if (p == NULL) {
-        xrdc_status_set(st, XRDC_EAUTH, 0, "out of memory");
+        brix_status_set(st, XRDC_EAUTH, 0, "out of memory");
         return -1;
     }
     memcpy(p, "unix\0", 5);
@@ -49,10 +49,10 @@ unix_first(xrdc_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
     return 0;
 }
 
-const xrdc_sec_module *
-xrdc_sec_unix(void)
+const brix_sec_module *
+brix_sec_unix(void)
 {
-    static const xrdc_sec_module m = {
+    static const brix_sec_module m = {
         "unix",
         { 'u', 'n', 'i', 'x' },
         unix_have,

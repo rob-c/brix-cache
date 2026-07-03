@@ -2,8 +2,8 @@
  * aio_internal.h - private split contract for aio.c and its Phase-38 siblings.
  * Not a public API: include only from client/lib/.  See docs/refactor/phase-38-file-size-unix-modularity.md.
  */
-#ifndef XROOTD_AIO_INTERNAL_H
-#define XROOTD_AIO_INTERNAL_H
+#ifndef BRIX_AIO_INTERNAL_H
+#define BRIX_AIO_INTERNAL_H
 
 #include "aio.h"
 #include "uring.h"                 
@@ -22,7 +22,7 @@
 #include <poll.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
-#if (XROOTD_HAVE_LIBURING)
+#if (BRIX_HAVE_LIBURING)
 #include <liburing.h>
 #endif
 #define AIO_MAXEV      64        
@@ -36,7 +36,7 @@ typedef struct {
     size_t   len;
 } xbuf;
 
-typedef struct xrdc_areq {
+typedef struct brix_areq {
     uint16_t    sid;
     uint8_t     hdr[XRD_REQUEST_HDR_LEN];
     uint8_t    *payload;     /* owned copy, or NULL */
@@ -46,7 +46,7 @@ typedef struct xrdc_areq {
     uint32_t    acc_len;
     uint32_t    acc_cap;
 
-    xrdc_aio_cb cb;
+    brix_aio_cb cb;
     void       *ctx;
     uint64_t    deadline_ns; /* 0 = none */
 
@@ -58,12 +58,12 @@ typedef struct xrdc_areq {
                               * unsolicited kXR_attn(asynresp) — completion is
                               * NOT an RTT sample (it measures the deferral) */
     uint64_t    submit_ns;   /* when the current attempt was written (RTT sample) */
-    struct xrdc_areq *pend_next;  /* link in the aconn pending (re-issue) list */
-} xrdc_areq;
+    struct brix_areq *pend_next;  /* link in the aconn pending (re-issue) list */
+} brix_areq;
 
-#define REQMAP_TOMB ((xrdc_areq *) -1)
+#define REQMAP_TOMB ((brix_areq *) -1)
 typedef struct {
-    xrdc_areq **slots;
+    brix_areq **slots;
     uint32_t    cap;        /* power of two */
     uint32_t    count;      /* live entries */
     uint32_t    tomb;       /* tombstones */
@@ -75,9 +75,9 @@ typedef enum {
     ACONN_DEAD          /* reconnect budget exhausted; no recovery */
 } aconn_state;
 
-struct xrdc_aconn {
-    xrdc_loop     *loop;
-    xrdc_conn     *conn;     /* borrowed brought-up session */
+struct brix_aconn {
+    brix_loop     *loop;
+    brix_conn     *conn;     /* borrowed brought-up session */
     int            fd;
     struct ssl_st *ssl;      /* mirrors conn->io.ssl (NULL = cleartext) */
     uint16_t       next_sid;
@@ -103,16 +103,16 @@ struct xrdc_aconn {
     int            have_rtt;              /* srtt seeded */
     int            ping_inflight;         /* heartbeat ping outstanding */
     uint64_t       reconnect_deadline_ns; /* give up reconnecting past this */
-    xrdc_areq     *pending;               /* parked requests awaiting re-issue */
+    brix_areq     *pending;               /* parked requests awaiting re-issue */
 
     /* reconnect worker handoff (worker writes rc_*, loop polls rc_finished) */
     pthread_t      rc_thread;
     int            rc_thread_live;
     volatile int   rc_finished;           /* set by worker just before it returns */
     int            rc_result;             /* 0 = reconnected, -1 = gave up */
-    xrdc_status    rc_st;                 /* failure detail when rc_result < 0 */
+    brix_status    rc_st;                 /* failure detail when rc_result < 0 */
 
-    struct xrdc_aconn *next; /* loop->aconns singly-linked list */
+    struct brix_aconn *next; /* loop->aconns singly-linked list */
 };
 
 typedef enum {
@@ -124,13 +124,13 @@ typedef enum {
 
 typedef struct cmd {
     cmd_type     type;
-    xrdc_aconn  *ac;
+    brix_aconn  *ac;
 
     /* SUBMIT payload (header copied inline; payload owned, moved into the areq) */
     uint8_t      hdr[XRD_REQUEST_HDR_LEN];
     uint8_t     *payload;
     uint32_t     plen;
-    xrdc_aio_cb  cb;
+    brix_aio_cb  cb;
     void        *ctx;
     int          deadline_ms;
     int          max_retries;   /* < 0 ⇒ aconn default */
@@ -144,13 +144,13 @@ typedef struct cmd {
     struct cmd  *next;
 } cmd;
 
-struct xrdc_poll_slot {
-    xrdc_aconn *ac;
+struct brix_poll_slot {
+    brix_aconn *ac;
     uint32_t    gen;
     int         in_use;
 };
 
-struct xrdc_loop {
+struct brix_loop {
     int             epfd;
     int             evfd;
     pthread_t       thread;
@@ -160,21 +160,21 @@ struct xrdc_loop {
     cmd            *cq_head;
     cmd            *cq_tail;
 
-    xrdc_aconn     *aconns;   /* loop-thread-owned list */
+    brix_aconn     *aconns;   /* loop-thread-owned list */
     int             stop;
 
     int             use_uring; /* phase-44: loop engine is io_uring (default 0) */
-#if (XROOTD_HAVE_LIBURING)
+#if (BRIX_HAVE_LIBURING)
     struct io_uring uring;
     int             uring_ok;  /* ring initialized (teardown guard)             */
-    struct xrdc_poll_slot uslots[AIO_URING_SLOTS];
+    struct brix_poll_slot uslots[AIO_URING_SLOTS];
 #endif
 };
 
-#if (XROOTD_HAVE_LIBURING)
+#if (BRIX_HAVE_LIBURING)
 #define AIO_URING_EVFD_UD    0xffffffffffffffffULL  /* evfd readiness poll       */
 #define AIO_URING_IGNORE_UD  0xfffffffffffffffeULL  /* cancel-ack CQE (drop)     */
-#endif /* XROOTD_HAVE_LIBURING */
+#endif /* BRIX_HAVE_LIBURING */
 typedef struct {
     pthread_mutex_t mx;
     pthread_cond_t  cv;
@@ -183,7 +183,7 @@ typedef struct {
     uint16_t        kxr;
     uint8_t        *body;
     uint32_t        blen;
-    xrdc_status     st;
+    brix_status     st;
 } call_wait;
 
 
@@ -192,62 +192,62 @@ int xbuf_reserve(xbuf *b, size_t need);
 int xbuf_append(xbuf *b, const void *data, size_t n);
 void xbuf_compact(xbuf *b);
 void xbuf_free(xbuf *b);
-void areq_free(xrdc_areq *r);
-int areq_accumulate(xrdc_areq *r, const uint8_t *body, uint32_t n);
-void areq_complete(xrdc_areq *r, int rc, uint16_t kxr, const xrdc_status *st);
+void areq_free(brix_areq *r);
+int areq_accumulate(brix_areq *r, const uint8_t *body, uint32_t n);
+void areq_complete(brix_areq *r, int rc, uint16_t kxr, const brix_status *st);
 int reqmap_rehash(reqmap *m, uint32_t newcap);
-int reqmap_put(reqmap *m, xrdc_areq *r);
-xrdc_areq * reqmap_get(reqmap *m, uint16_t sid);
+int reqmap_put(reqmap *m, brix_areq *r);
+brix_areq * reqmap_get(reqmap *m, uint16_t sid);
 void reqmap_del(reqmap *m, uint16_t sid);
 
 /* aio_io.c */
-void aconn_do_write(xrdc_aconn *ac);
-void aconn_note_rtt(xrdc_aconn *ac, const xrdc_areq *r);
-uint64_t aconn_rto_ns(const xrdc_aconn *ac);
-void aconn_dispatch_frame(xrdc_aconn *ac, uint16_t sid, uint16_t stat, const uint8_t *body, uint32_t dlen);
-void aconn_parse(xrdc_aconn *ac);
-void aconn_do_read(xrdc_aconn *ac);
-void aconn_handle_io(xrdc_aconn *ac, uint32_t events);
+void aconn_do_write(brix_aconn *ac);
+void aconn_note_rtt(brix_aconn *ac, const brix_areq *r);
+uint64_t aconn_rto_ns(const brix_aconn *ac);
+void aconn_dispatch_frame(brix_aconn *ac, uint16_t sid, uint16_t stat, const uint8_t *body, uint32_t dlen);
+void aconn_parse(brix_aconn *ac);
+void aconn_do_read(brix_aconn *ac);
+void aconn_handle_io(brix_aconn *ac, uint32_t events);
 
 /* aio_engine.c */
 unsigned uring_pollmask(int want);
-int uring_slot_alloc(xrdc_loop *l, xrdc_aconn *ac);
-int uring_poll_submit(xrdc_loop *l, xrdc_aconn *ac, int want);
-void uring_poll_cancel(xrdc_loop *l, xrdc_aconn *ac, int freeing);
-int io_engine_setup(xrdc_loop *l, xrdc_status *st);
-void io_engine_teardown(xrdc_loop *l);
-int io_engine_arm(xrdc_loop *l, xrdc_aconn *ac, int want);
-void io_engine_del(xrdc_loop *l, xrdc_aconn *ac);
-int io_engine_wait(xrdc_loop *l, struct epoll_event *evs, int max, int timeout_ms);
+int uring_slot_alloc(brix_loop *l, brix_aconn *ac);
+int uring_poll_submit(brix_loop *l, brix_aconn *ac, int want);
+void uring_poll_cancel(brix_loop *l, brix_aconn *ac, int freeing);
+int io_engine_setup(brix_loop *l, brix_status *st);
+void io_engine_teardown(brix_loop *l);
+int io_engine_arm(brix_loop *l, brix_aconn *ac, int want);
+void io_engine_del(brix_loop *l, brix_aconn *ac);
+int io_engine_wait(brix_loop *l, struct epoll_event *evs, int max, int timeout_ms);
 
 /* aio_conn.c */
-void aconn_update_epoll(xrdc_aconn *ac);
-void aconn_drain_inflight(xrdc_aconn *ac, const xrdc_status *st);
-void aconn_pending_fail_all(xrdc_aconn *ac, const xrdc_status *st);
+void aconn_update_epoll(brix_aconn *ac);
+void aconn_drain_inflight(brix_aconn *ac, const brix_status *st);
+void aconn_pending_fail_all(brix_aconn *ac, const brix_status *st);
 
 /* aio.c */
 void * rc_worker_main(void *arg);
 
 /* aio_conn.c */
-void aconn_on_transport_error(xrdc_aconn *ac, const xrdc_status *st);
-void aconn_reconnect_succeeded(xrdc_aconn *ac);
-void aconn_poll_reconnect(xrdc_aconn *ac);
-void aconn_ping_cb(void *ctx, int rc, uint16_t kxr, uint8_t *body, uint32_t blen, const xrdc_status *st);
-void aconn_maybe_ping(xrdc_aconn *ac);
-void aconn_destroy(xrdc_aconn *ac);
-uint16_t aconn_alloc_sid(xrdc_aconn *ac);
-void aconn_issue_areq(xrdc_aconn *ac, xrdc_areq *r);
-uint64_t aconn_deadline_ns(xrdc_aconn *ac, int deadline_ms);
-void aconn_submit_cmd(xrdc_aconn *ac, cmd *c);
+void aconn_on_transport_error(brix_aconn *ac, const brix_status *st);
+void aconn_reconnect_succeeded(brix_aconn *ac);
+void aconn_poll_reconnect(brix_aconn *ac);
+void aconn_ping_cb(void *ctx, int rc, uint16_t kxr, uint8_t *body, uint32_t blen, const brix_status *st);
+void aconn_maybe_ping(brix_aconn *ac);
+void aconn_destroy(brix_aconn *ac);
+uint16_t aconn_alloc_sid(brix_aconn *ac);
+void aconn_issue_areq(brix_aconn *ac, brix_areq *r);
+uint64_t aconn_deadline_ns(brix_aconn *ac, int deadline_ms);
+void aconn_submit_cmd(brix_aconn *ac, cmd *c);
 
 /* aio.c */
-void loop_push_cmd(xrdc_loop *l, cmd *c);
-void loop_run_control(xrdc_loop *l, cmd_type type, xrdc_aconn *ac);
-void loop_drain_commands(xrdc_loop *l);
-int loop_process_timeouts(xrdc_loop *l);
+void loop_push_cmd(brix_loop *l, cmd *c);
+void loop_run_control(brix_loop *l, cmd_type type, brix_aconn *ac);
+void loop_drain_commands(brix_loop *l);
+int loop_process_timeouts(brix_loop *l);
 void * loop_thread(void *arg);
-xrdc_loop * xrdc_loop_create_fail(xrdc_loop *l);
-int xrdc_loop_want_uring(void);
-void call_cb(void *ctx, int rc, uint16_t kxr, uint8_t *body, uint32_t blen, const xrdc_status *st);
+brix_loop * brix_loop_create_fail(brix_loop *l);
+int brix_loop_want_uring(void);
+void call_cb(void *ctx, int rc, uint16_t kxr, uint8_t *body, uint32_t blen, const brix_status *st);
 
-#endif /* XROOTD_AIO_INTERNAL_H */
+#endif /* BRIX_AIO_INTERNAL_H */

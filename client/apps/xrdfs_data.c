@@ -10,10 +10,10 @@
  * window via stat size. `limit` caps the number of bytes streamed from `start`
  * (< 0 = stream to EOF); head passes a positive cap, cat/tail pass -1. */
 int
-stream_file(xrdc_conn *c, const char *path, int64_t start, int64_t limit,
-            xrdc_status *st)
+stream_file(brix_conn *c, const char *path, int64_t start, int64_t limit,
+            brix_status *st)
 {
-    xrdc_rfile rf;
+    brix_rfile rf;
     uint8_t  *buf;
     int64_t   off = start;
     int64_t   remaining = limit;   /* meaningful only when limit >= 0 */
@@ -21,13 +21,13 @@ stream_file(xrdc_conn *c, const char *path, int64_t start, int64_t limit,
 
     /* Resilient read: rides out a mid-stream sever (reconnect + reopen + resume
      * at offset) within the connection's stall window — xrootdfs parity. */
-    if (xrdc_rfile_open_read(c, path, NULL, 0, -1, &rf, st) != 0) {
+    if (brix_rfile_open_read(c, path, NULL, 0, -1, &rf, st) != 0) {
         return -1;
     }
     buf = (uint8_t *) malloc(1 << 20);
     if (buf == NULL) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "out of memory");
-        xrdc_rfile_close(&rf, st);
+        brix_status_set(st, XRDC_EPROTO, 0, "out of memory");
+        brix_rfile_close(&rf, st);
         return -1;
     }
     for (;;) {
@@ -37,11 +37,11 @@ stream_file(xrdc_conn *c, const char *path, int64_t start, int64_t limit,
             if (remaining <= 0) { break; }
             if ((int64_t) want > remaining) { want = (size_t) remaining; }
         }
-        n = xrdc_rfile_pread(&rf, off, buf, want, st);
+        n = brix_rfile_pread(&rf, off, buf, want, st);
         if (n < 0) { rc = -1; break; }
         if (n == 0) { break; }
         if (fwrite(buf, 1, (size_t) n, stdout) != (size_t) n) {
-            xrdc_status_set(st, XRDC_ESOCK, 0, "stdout write failed");
+            brix_status_set(st, XRDC_ESOCK, 0, "stdout write failed");
             rc = -1;
             break;
         }
@@ -50,26 +50,26 @@ stream_file(xrdc_conn *c, const char *path, int64_t start, int64_t limit,
     }
     free(buf);
     {
-        xrdc_status tw;
-        xrdc_status_clear(&tw);
-        xrdc_rfile_close(&rf, rc == 0 ? st : &tw);
+        brix_status tw;
+        brix_status_clear(&tw);
+        brix_rfile_close(&rf, rc == 0 ? st : &tw);
     }
     return rc;
 }
 
 
 int
-do_cat(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_cat(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    xrdc_status st;
+    brix_status st;
     char        path[XRDC_PATH_MAX];
 
     if (argc < 2) { fprintf(stderr, "usage: cat <path>\n"); return 50; }
     build_path(cwd, argv[1], path, sizeof(path));
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
     if (stream_file(c, path, 0, -1, &st) != 0) {
         fprintf(stderr, "xrdfs: cat %s: %s\n", path, st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
     return 0;
 }
@@ -79,25 +79,25 @@ do_cat(xrdc_conn *c, const char *cwd, int argc, char **argv)
  * forward in 1 MiB chunks and stopping at the Nth newline (emitting any trailing
  * partial line if EOF arrives first). 0 / -1. */
 int
-head_lines(xrdc_conn *c, const char *path, long nlines, xrdc_status *st)
+head_lines(brix_conn *c, const char *path, long nlines, brix_status *st)
 {
-    xrdc_rfile f;
+    brix_rfile f;
     uint8_t  *buf;
     int64_t   off = 0;
     long      seen = 0;
     int       rc = 0;
 
-    if (xrdc_rfile_open_read(c, path, NULL, 0, -1, &f, st) != 0) {
+    if (brix_rfile_open_read(c, path, NULL, 0, -1, &f, st) != 0) {
         return -1;
     }
     buf = (uint8_t *) malloc(1 << 20);
     if (buf == NULL) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "out of memory");
-        xrdc_rfile_close(&f, st);
+        brix_status_set(st, XRDC_EPROTO, 0, "out of memory");
+        brix_rfile_close(&f, st);
         return -1;
     }
     while (seen < nlines) {
-        ssize_t n = xrdc_rfile_pread(&f, off, buf, 1 << 20, st);
+        ssize_t n = brix_rfile_pread(&f, off, buf, 1 << 20, st);
         size_t  emit;
         ssize_t i;
         if (n < 0) { rc = -1; break; }
@@ -110,7 +110,7 @@ head_lines(xrdc_conn *c, const char *path, long nlines, xrdc_status *st)
             }
         }
         if (fwrite(buf, 1, emit, stdout) != emit) {
-            xrdc_status_set(st, XRDC_ESOCK, 0, "stdout write failed");
+            brix_status_set(st, XRDC_ESOCK, 0, "stdout write failed");
             rc = -1;
             break;
         }
@@ -118,9 +118,9 @@ head_lines(xrdc_conn *c, const char *path, long nlines, xrdc_status *st)
     }
     free(buf);
     {
-        xrdc_status tw;
-        xrdc_status_clear(&tw);
-        xrdc_rfile_close(&f, rc == 0 ? st : &tw);
+        brix_status tw;
+        brix_status_clear(&tw);
+        brix_rfile_close(&f, rc == 0 ? st : &tw);
     }
     return rc;
 }
@@ -129,9 +129,9 @@ head_lines(xrdc_conn *c, const char *path, long nlines, xrdc_status *st)
 /* head [-c BYTES] [-n LINES] <path> — print the start of a file. -c (byte count) wins
  * over -n (line count, default 10); both modes stream forward only. */
 int
-do_head(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_head(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    xrdc_status st;
+    brix_status st;
     char        path[XRDC_PATH_MAX];
     long long   nbytes = -1;   /* -c; < 0 = not set */
     long        nlines = 10;   /* -n default */
@@ -150,19 +150,19 @@ do_head(xrdc_conn *c, const char *cwd, int argc, char **argv)
         return 50;
     }
     build_path(cwd, arg, path, sizeof(path));
-    xrdc_status_clear(&st);
+    brix_status_clear(&st);
 
     if (nbytes >= 0) {
         if (stream_file(c, path, 0, (int64_t) nbytes, &st) != 0) {
             fprintf(stderr, "xrdfs: head %s: %s\n", path, st.msg);
-            return xrdc_shellcode(&st);
+            return brix_shellcode(&st);
         }
         return 0;
     }
     if (nlines <= 0) { return 0; }   /* head -n 0 → nothing */
     if (head_lines(c, path, nlines, &st) != 0) {
         fprintf(stderr, "xrdfs: head %s: %s\n", path, st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
     return 0;
 }
@@ -183,10 +183,10 @@ tail_sigint(int sig)
  * not counted (it terminates the last line; it does not start an extra one). Sets
  * *start (0 if the whole file is within the window). 0 / -1. */
 int
-tail_start_for_lines(xrdc_conn *c, const char *path, int64_t size, long nlines,
-                     int64_t *start, xrdc_status *st)
+tail_start_for_lines(brix_conn *c, const char *path, int64_t size, long nlines,
+                     int64_t *start, brix_status *st)
 {
-    xrdc_rfile    f;
+    brix_rfile    f;
     uint8_t      *buf;
     const int64_t WIN = 1 << 16;
     int64_t       pos = size;
@@ -195,17 +195,17 @@ tail_start_for_lines(xrdc_conn *c, const char *path, int64_t size, long nlines,
 
     *start = 0;
     if (size <= 0 || nlines <= 0) { return 0; }
-    if (xrdc_rfile_open_read(c, path, NULL, 0, -1, &f, st) != 0) { return -1; }
+    if (brix_rfile_open_read(c, path, NULL, 0, -1, &f, st) != 0) { return -1; }
     buf = (uint8_t *) malloc((size_t) WIN);
     if (buf == NULL) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "out of memory");
-        xrdc_rfile_close(&f, st);
+        brix_status_set(st, XRDC_EPROTO, 0, "out of memory");
+        brix_rfile_close(&f, st);
         return -1;
     }
     while (pos > 0 && !found) {
         int64_t chunk = (pos > WIN) ? WIN : pos;
         int64_t base  = pos - chunk;
-        ssize_t n = xrdc_rfile_pread(&f, base, buf, (size_t) chunk, st);
+        ssize_t n = brix_rfile_pread(&f, base, buf, (size_t) chunk, st);
         ssize_t i;
         if (n < 0) { rc = -1; break; }
         if (n == 0) { break; }
@@ -223,9 +223,9 @@ tail_start_for_lines(xrdc_conn *c, const char *path, int64_t size, long nlines,
     }
     free(buf);
     {
-        xrdc_status tw;
-        xrdc_status_clear(&tw);
-        xrdc_rfile_close(&f, rc == 0 ? st : &tw);
+        brix_status tw;
+        brix_status_clear(&tw);
+        brix_rfile_close(&f, rc == 0 ? st : &tw);
     }
     return rc;
 }
@@ -235,8 +235,8 @@ tail_start_for_lines(xrdc_conn *c, const char *path, int64_t size, long nlines,
  * seconds and stream any growth, until SIGINT. On truncation, resync to the new EOF.
  * 0 (clean / interrupted) / -1 (stat or read error, st set). */
 int
-tail_follow(xrdc_conn *c, const char *path, int64_t from, double interval,
-            xrdc_status *st)
+tail_follow(brix_conn *c, const char *path, int64_t from, double interval,
+            brix_status *st)
 {
     int64_t          off = from;
     struct sigaction sa, old;
@@ -246,10 +246,10 @@ tail_follow(xrdc_conn *c, const char *path, int64_t from, double interval,
     sigaction(SIGINT, &sa, &old);
 
     while (!tail_stop) {
-        xrdc_statinfo   si;
+        brix_statinfo   si;
         struct timespec ts;
-        xrdc_status_clear(st);
-        if (xrdc_stat(c, path, &si, st) != 0) {
+        brix_status_clear(st);
+        if (brix_stat(c, path, &si, st) != 0) {
             sigaction(SIGINT, &old, NULL);
             return -1;
         }
@@ -274,10 +274,10 @@ tail_follow(xrdc_conn *c, const char *path, int64_t from, double interval,
 
 
 int
-do_tail(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_tail(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    xrdc_status   st;
-    xrdc_statinfo si;
+    brix_status   st;
+    brix_statinfo si;
     char          path[XRDC_PATH_MAX];
     long long     nbytes = -1;     /* -c; < 0 = not set */
     long          nlines = 10;     /* -n default */
@@ -304,26 +304,26 @@ do_tail(xrdc_conn *c, const char *cwd, int argc, char **argv)
     }
     build_path(cwd, arg, path, sizeof(path));
 
-    xrdc_status_clear(&st);
-    if (xrdc_stat(c, path, &si, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_stat(c, path, &si, &st) != 0) {
         fprintf(stderr, "xrdfs: tail %s: %s\n", path, st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
     if (nbytes >= 0) {
         start = (si.size > nbytes) ? si.size - nbytes : 0;
     } else if (tail_start_for_lines(c, path, si.size, nlines, &start, &st) != 0) {
         fprintf(stderr, "xrdfs: tail %s: %s\n", path, st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
     if (stream_file(c, path, start, -1, &st) != 0) {
         fprintf(stderr, "xrdfs: tail %s: %s\n", path, st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
     if (follow) {
         fflush(stdout);
         if (tail_follow(c, path, si.size, interval, &st) != 0) {
             fprintf(stderr, "xrdfs: tail -f %s: %s\n", path, st.msg);
-            return xrdc_shellcode(&st);
+            return brix_shellcode(&st);
         }
     }
     return 0;
@@ -334,10 +334,10 @@ do_tail(xrdc_conn *c, const char *cwd, int argc, char **argv)
  * (lines words bytes), like wc(1). -c alone is answered from stat (no read); -l/-w
  * stream the file once. Output columns match the selected counters, then the path. */
 int
-do_wc(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_wc(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    xrdc_status   st;
-    xrdc_statinfo si;
+    brix_status   st;
+    brix_statinfo si;
     char          path[XRDC_PATH_MAX];
     const char   *arg = NULL;
     int           want_c = 0, want_l = 0, want_w = 0, i;
@@ -353,31 +353,31 @@ do_wc(xrdc_conn *c, const char *cwd, int argc, char **argv)
     if (!want_c && !want_l && !want_w) { want_l = want_w = want_c = 1; }
     build_path(cwd, arg, path, sizeof(path));
 
-    xrdc_status_clear(&st);
-    if (xrdc_stat(c, path, &si, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_stat(c, path, &si, &st) != 0) {
         fprintf(stderr, "xrdfs: wc %s: %s\n", path, st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
     bytes = (long long) si.size;
 
     if (want_l || want_w) {   /* a single streaming pass counts lines + words */
-        xrdc_rfile f;
+        brix_rfile f;
         uint8_t  *buf;
         int64_t   off = 0;
         int       in_word = 0, rc = 0;
 
-        if (xrdc_rfile_open_read(c, path, NULL, 0, -1, &f, &st) != 0) {
+        if (brix_rfile_open_read(c, path, NULL, 0, -1, &f, &st) != 0) {
             fprintf(stderr, "xrdfs: wc %s: %s\n", path, st.msg);
-            return xrdc_shellcode(&st);
+            return brix_shellcode(&st);
         }
         buf = (uint8_t *) malloc(1 << 20);
         if (buf == NULL) {
-            xrdc_rfile_close(&f, &st);
+            brix_rfile_close(&f, &st);
             fprintf(stderr, "xrdfs: wc: out of memory\n");
             return 51;
         }
         for (;;) {
-            ssize_t got = xrdc_rfile_pread(&f, off, buf, 1 << 20, &st);
+            ssize_t got = brix_rfile_pread(&f, off, buf, 1 << 20, &st);
             ssize_t k;
             if (got < 0) { rc = -1; break; }
             if (got == 0) { break; }
@@ -389,10 +389,10 @@ do_wc(xrdc_conn *c, const char *cwd, int argc, char **argv)
             off += got;
         }
         free(buf);
-        xrdc_rfile_close(&f, &st);
+        brix_rfile_close(&f, &st);
         if (rc != 0) {
             fprintf(stderr, "xrdfs: wc %s: %s\n", path, st.msg);
-            return xrdc_shellcode(&st);
+            return brix_shellcode(&st);
         }
     }
 
@@ -406,28 +406,28 @@ do_wc(xrdc_conn *c, const char *cwd, int argc, char **argv)
 
 /* Read a whole remote file into a malloc'd buffer (*out, *len). Caller frees. 0/-1. */
 int
-slurp_file(xrdc_conn *c, const char *path, uint8_t **out, int64_t *len, xrdc_status *st)
+slurp_file(brix_conn *c, const char *path, uint8_t **out, int64_t *len, brix_status *st)
 {
-    xrdc_rfile    f;
-    xrdc_statinfo si;
+    brix_rfile    f;
+    brix_statinfo si;
     uint8_t      *buf;
     int64_t       off = 0;
 
-    if (xrdc_stat(c, path, &si, st) != 0) { return -1; }
-    if (xrdc_rfile_open_read(c, path, NULL, 0, -1, &f, st) != 0) { return -1; }
+    if (brix_stat(c, path, &si, st) != 0) { return -1; }
+    if (brix_rfile_open_read(c, path, NULL, 0, -1, &f, st) != 0) { return -1; }
     buf = (uint8_t *) malloc(si.size > 0 ? (size_t) si.size : 1);
     if (buf == NULL) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "out of memory");
-        xrdc_rfile_close(&f, st);
+        brix_status_set(st, XRDC_EPROTO, 0, "out of memory");
+        brix_rfile_close(&f, st);
         return -1;
     }
     while (off < si.size) {
-        ssize_t got = xrdc_rfile_pread(&f, off, buf + off, (size_t) (si.size - off), st);
-        if (got < 0) { free(buf); xrdc_rfile_close(&f, st); return -1; }
+        ssize_t got = brix_rfile_pread(&f, off, buf + off, (size_t) (si.size - off), st);
+        if (got < 0) { free(buf); brix_rfile_close(&f, st); return -1; }
         if (got == 0) { break; }
         off += got;
     }
-    xrdc_rfile_close(&f, st);
+    brix_rfile_close(&f, st);
     *out = buf;
     *len = off;
     return 0;
@@ -439,9 +439,9 @@ slurp_file(xrdc_conn *c, const char *path, uint8_t **out, int64_t *len, xrdc_sta
  * differ exit 1. Falls back to a byte-exact compare when checksums are unavailable.
  * Quiet on a match (cmp(1) convention); reports the first differing offset otherwise. */
 int
-do_cmp(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_cmp(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    xrdc_status st;
+    brix_status st;
     char        p1[XRDC_PATH_MAX], p2[XRDC_PATH_MAX];
     char        h1[160], h2[160];
 
@@ -450,11 +450,11 @@ do_cmp(xrdc_conn *c, const char *cwd, int argc, char **argv)
     build_path(cwd, argv[2], p2, sizeof(p2));
 
     /* Fast path: compare server checksums (cheap, no bulk transfer). */
-    xrdc_status_clear(&st);
-    if (xrdc_query_cksum(c, p1, "adler32", h1, sizeof(h1), &st) == 0) {
-        xrdc_status s2;
-        xrdc_status_clear(&s2);
-        if (xrdc_query_cksum(c, p2, "adler32", h2, sizeof(h2), &s2) == 0) {
+    brix_status_clear(&st);
+    if (brix_query_cksum(c, p1, "adler32", h1, sizeof(h1), &st) == 0) {
+        brix_status s2;
+        brix_status_clear(&s2);
+        if (brix_query_cksum(c, p2, "adler32", h2, sizeof(h2), &s2) == 0) {
             if (strcmp(h1, h2) == 0) { return 0; }
             printf("%s %s differ: checksum adler32 (%s vs %s)\n", p1, p2, h1, h2);
             return 1;
@@ -465,15 +465,15 @@ do_cmp(xrdc_conn *c, const char *cwd, int argc, char **argv)
     {
         uint8_t *b1 = NULL, *b2 = NULL;
         int64_t  l1 = 0, l2 = 0, i, rc;
-        xrdc_status_clear(&st);
+        brix_status_clear(&st);
         if (slurp_file(c, p1, &b1, &l1, &st) != 0) {
             fprintf(stderr, "xrdfs: cmp %s: %s\n", p1, st.msg);
-            return xrdc_shellcode(&st);
+            return brix_shellcode(&st);
         }
         if (slurp_file(c, p2, &b2, &l2, &st) != 0) {
             fprintf(stderr, "xrdfs: cmp %s: %s\n", p2, st.msg);
             free(b1);
-            return xrdc_shellcode(&st);
+            return brix_shellcode(&st);
         }
         rc = 0;
         for (i = 0; i < l1 && i < l2; i++) {
@@ -499,14 +499,14 @@ do_cmp(xrdc_conn *c, const char *cwd, int argc, char **argv)
  * are reassembled across read chunks. -i case-insensitive, -n prefix line numbers.
  * Exit 0 if any line matched, 1 if none, >1 on error (grep(1) convention). */
 int
-do_grep(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_grep(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    xrdc_status st;
+    brix_status st;
     char        path[XRDC_PATH_MAX];
     const char *pattern = NULL, *arg = NULL;
     int         icase = 0, numbered = 0, i, cflags = REG_NEWLINE;
     regex_t     re;
-    xrdc_rfile  f;
+    brix_rfile  f;
     uint8_t    *buf;
     char       *line = NULL;
     size_t      lcap = 0, llen = 0;
@@ -531,17 +531,17 @@ do_grep(xrdc_conn *c, const char *cwd, int argc, char **argv)
     }
     build_path(cwd, arg, path, sizeof(path));
 
-    xrdc_status_clear(&st);
-    if (xrdc_rfile_open_read(c, path, NULL, 0, -1, &f, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_rfile_open_read(c, path, NULL, 0, -1, &f, &st) != 0) {
         fprintf(stderr, "xrdfs: grep %s: %s\n", path, st.msg);
         regfree(&re);
-        return xrdc_shellcode(&st) > 1 ? xrdc_shellcode(&st) : 2;
+        return brix_shellcode(&st) > 1 ? brix_shellcode(&st) : 2;
     }
     buf = (uint8_t *) malloc(1 << 20);
-    if (buf == NULL) { xrdc_rfile_close(&f, &st); regfree(&re); return 2; }
+    if (buf == NULL) { brix_rfile_close(&f, &st); regfree(&re); return 2; }
 
     for (;;) {
-        ssize_t got = xrdc_rfile_pread(&f, off, buf, 1 << 20, &st);
+        ssize_t got = brix_rfile_pread(&f, off, buf, 1 << 20, &st);
         ssize_t k;
         if (got < 0) { rc = 2; break; }
         if (got == 0) { break; }
@@ -575,7 +575,7 @@ do_grep(xrdc_conn *c, const char *cwd, int argc, char **argv)
     }
     free(buf);
     free(line);
-    xrdc_rfile_close(&f, &st);
+    brix_rfile_close(&f, &st);
     regfree(&re);
     if (rc != 0) {
         fprintf(stderr, "xrdfs: grep %s: %s\n", path, st.msg);
@@ -588,14 +588,14 @@ do_grep(xrdc_conn *c, const char *cwd, int argc, char **argv)
 /* hexdump [-n BYTES] <path> — xxd-style dump: 8-hex-digit offset, 16 hex bytes, then
  * the printable-ASCII gutter. -n caps the number of bytes shown. */
 int
-do_hexdump(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_hexdump(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    xrdc_status st;
+    brix_status st;
     char        path[XRDC_PATH_MAX];
     const char *arg = NULL;
     long long   limit = -1;        /* -n; < 0 = whole file */
     int         i;
-    xrdc_rfile  f;
+    brix_rfile  f;
     uint8_t    *buf;
     int64_t     off = 0;
     int         rc = 0;
@@ -607,13 +607,13 @@ do_hexdump(xrdc_conn *c, const char *cwd, int argc, char **argv)
     if (arg == NULL) { fprintf(stderr, "usage: hexdump [-n BYTES] <path>\n"); return 50; }
     build_path(cwd, arg, path, sizeof(path));
 
-    xrdc_status_clear(&st);
-    if (xrdc_rfile_open_read(c, path, NULL, 0, -1, &f, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_rfile_open_read(c, path, NULL, 0, -1, &f, &st) != 0) {
         fprintf(stderr, "xrdfs: hexdump %s: %s\n", path, st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
     buf = (uint8_t *) malloc(1 << 16);
-    if (buf == NULL) { xrdc_rfile_close(&f, &st); return 51; }
+    if (buf == NULL) { brix_rfile_close(&f, &st); return 51; }
 
     for (;;) {
         size_t  want = 1 << 16;
@@ -623,7 +623,7 @@ do_hexdump(xrdc_conn *c, const char *cwd, int argc, char **argv)
             if (rem <= 0) { break; }
             if ((int64_t) want > rem) { want = (size_t) rem; }
         }
-        got = xrdc_rfile_pread(&f, off, buf, want, &st);
+        got = brix_rfile_pread(&f, off, buf, want, &st);
         if (got < 0) { rc = -1; break; }
         if (got == 0) { break; }
         for (base = 0; base < got; base += 16) {
@@ -643,10 +643,10 @@ do_hexdump(xrdc_conn *c, const char *cwd, int argc, char **argv)
         off += got;
     }
     free(buf);
-    xrdc_rfile_close(&f, &st);
+    brix_rfile_close(&f, &st);
     if (rc != 0) {
         fprintf(stderr, "xrdfs: hexdump %s: %s\n", path, st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
     return 0;
 }
@@ -657,15 +657,15 @@ do_hexdump(xrdc_conn *c, const char *cwd, int argc, char **argv)
  * 1 MiB; the window starts at skip*bs and is count*bs bytes (count omitted = to EOF).
  * rate accepts a K/M/G suffix; 0 = unlimited. A one-line byte summary goes to stderr. */
 int
-do_dd(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_dd(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    xrdc_status     st;
+    brix_status     st;
     char            path[XRDC_PATH_MAX];
     const char     *arg = NULL;
     int64_t         bs = 1 << 20, skip = 0, count = -1, want_total, off, produced = 0;
     double          rate = 0.0;
     int             i, rc = 0;
-    xrdc_rfile      f;
+    brix_rfile      f;
     uint8_t        *buf;
     struct timespec start;
 
@@ -699,14 +699,14 @@ do_dd(xrdc_conn *c, const char *cwd, int argc, char **argv)
     off        = skip * bs;
     want_total = (count >= 0) ? count * bs : -1;
 
-    xrdc_status_clear(&st);
-    if (xrdc_rfile_open_read(c, path, NULL, 0, -1, &f, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_rfile_open_read(c, path, NULL, 0, -1, &f, &st) != 0) {
         fprintf(stderr, "xrdfs: dd %s: %s\n", path, st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
     buf = (uint8_t *) malloc((size_t) bs);
     if (buf == NULL) {
-        xrdc_rfile_close(&f, &st);
+        brix_rfile_close(&f, &st);
         fprintf(stderr, "xrdfs: dd: out of memory\n");
         return 51;
     }
@@ -719,21 +719,21 @@ do_dd(xrdc_conn *c, const char *cwd, int argc, char **argv)
             if (rem <= 0) { break; }
             if ((int64_t) want > rem) { want = (size_t) rem; }
         }
-        n = xrdc_rfile_pread(&f, off, buf, want, &st);
+        n = brix_rfile_pread(&f, off, buf, want, &st);
         if (n < 0) { rc = -1; break; }
         if (n == 0) { break; }
         if (fwrite(buf, 1, (size_t) n, stdout) != (size_t) n) {
-            xrdc_status_set(&st, XRDC_ESOCK, 0, "stdout write failed");
+            brix_status_set(&st, XRDC_ESOCK, 0, "stdout write failed");
             rc = -1; break;
         }
         off += n; produced += n;
         rate_pace(&start, produced, rate);
     }
     free(buf);
-    xrdc_rfile_close(&f, &st);
+    brix_rfile_close(&f, &st);
     if (rc != 0) {
         fprintf(stderr, "xrdfs: dd %s: %s\n", path, st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
     fprintf(stderr, "%lld bytes copied\n", (long long) produced);
     return 0;
@@ -744,17 +744,17 @@ do_dd(xrdc_conn *c, const char *cwd, int argc, char **argv)
  * file (or stdin "-") to a remote path, optionally rate-limited. Without -f the remote
  * must not already exist (kXR_new); -f truncates/overwrites. bs defaults to 1 MiB. */
 int
-do_upload(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_upload(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    xrdc_status     st;
+    brix_status     st;
     char            rpath[XRDC_PATH_MAX];
     const char     *local = NULL, *remote = NULL;
     int64_t         bs = 1 << 20, off = 0;
     double          rate = 0.0;
     int             force = 0, i, rc = 0, is_stdin;
     int             fd = -1;          /* stdin (raw fd 0) endpoint only */
-    xrdc_vfs_file  *svf = NULL;       /* local-file source through the VFS */
-    xrdc_rfile      f;
+    brix_vfs_file  *svf = NULL;       /* local-file source through the VFS */
+    brix_rfile      f;
     uint8_t        *buf;
     struct timespec start;
 
@@ -784,33 +784,33 @@ do_upload(xrdc_conn *c, const char *cwd, int argc, char **argv)
     if (is_stdin) {
         fd = 0;
     } else {
-        xrdc_vfs_open_opts vopts;
+        brix_vfs_open_opts vopts;
         vopts.io_uring = 0; vopts.expected_size = -1; vopts.cred = NULL;
-        xrdc_status_clear(&st);
-        if (xrdc_vfs_open(local, XRDC_VFS_READ, &vopts, &svf, &st) != 0) {
+        brix_status_clear(&st);
+        if (brix_vfs_open(local, XRDC_VFS_READ, &vopts, &svf, &st) != 0) {
             fprintf(stderr, "xrdfs: upload: %s: %s\n", local, st.msg);
             return 50;
         }
     }
     build_path(cwd, remote, rpath, sizeof(rpath));
-    xrdc_status_clear(&st);
-    if (xrdc_rfile_open_write(c, rpath, force ? 1 : 0, 0, 0, -1, &f, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_rfile_open_write(c, rpath, force ? 1 : 0, 0, 0, -1, &f, &st) != 0) {
         fprintf(stderr, "xrdfs: upload %s: %s\n", rpath, st.msg);
-        xrdc_cred_hint_for_status(&st, 1, stderr);
-        if (svf != NULL) { xrdc_vfs_close(svf); }
-        return xrdc_shellcode(&st);
+        brix_cred_hint_for_status(&st, 1, stderr);
+        if (svf != NULL) { brix_vfs_close(svf); }
+        return brix_shellcode(&st);
     }
     buf = (uint8_t *) malloc((size_t) bs);
     if (buf == NULL) {
-        xrdc_rfile_close(&f, &st);
-        if (svf != NULL) { xrdc_vfs_close(svf); }
+        brix_rfile_close(&f, &st);
+        if (svf != NULL) { brix_vfs_close(svf); }
         fprintf(stderr, "xrdfs: upload: out of memory\n");
         return 51;
     }
     clock_gettime(CLOCK_MONOTONIC, &start);
     for (;;) {
         ssize_t r = is_stdin ? read(fd, buf, (size_t) bs)
-                             : xrdc_vfs_pread(svf, off, buf, (size_t) bs, &st);
+                             : brix_vfs_pread(svf, off, buf, (size_t) bs, &st);
         if (r < 0) {
             if (is_stdin && errno == EINTR) { continue; }
             fprintf(stderr, "xrdfs: upload: read %s: %s\n", local,
@@ -818,16 +818,16 @@ do_upload(xrdc_conn *c, const char *cwd, int argc, char **argv)
             rc = -1; break;
         }
         if (r == 0) { break; }
-        if (xrdc_rfile_pwrite(&f, off, buf, (size_t) r, &st) != 0) {
+        if (brix_rfile_pwrite(&f, off, buf, (size_t) r, &st) != 0) {
             fprintf(stderr, "xrdfs: upload %s: %s\n", rpath, st.msg);
-            rc = xrdc_shellcode(&st); break;
+            rc = brix_shellcode(&st); break;
         }
         off += r;
         rate_pace(&start, off, rate);
     }
     free(buf);
-    xrdc_rfile_close(&f, &st);   /* commit */
-    if (svf != NULL) { xrdc_vfs_close(svf); }
+    brix_rfile_close(&f, &st);   /* commit */
+    if (svf != NULL) { brix_vfs_close(svf); }
     if (rc != 0) { return rc < 0 ? 1 : rc; }
     fprintf(stderr, "%lld bytes uploaded to %s\n", (long long) off, rpath);
     return 0;
@@ -840,17 +840,17 @@ do_upload(xrdc_conn *c, const char *cwd, int argc, char **argv)
  * existing local file is not overwritten (O_EXCL). The rate-limit counterpart to
  * `upload`; for windowed/stdout reads use `dd`. */
 int
-do_download(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_download(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    xrdc_status     st;
+    brix_status     st;
     char            rpath[XRDC_PATH_MAX], namebuf[XRDC_PATH_MAX];
     const char     *remote = NULL, *local = NULL;
     int64_t         bs = 1 << 20, off = 0;
     double          rate = 0.0;
     int             force = 0, i, rc = 0, is_stdout;
     int             fd = -1;          /* stdout (raw fd 1) endpoint only */
-    xrdc_vfs_file  *dvf = NULL;       /* local-file destination through the VFS */
-    xrdc_rfile      f;
+    brix_vfs_file  *dvf = NULL;       /* local-file destination through the VFS */
+    brix_rfile      f;
     uint8_t        *buf;
     struct timespec start;
 
@@ -892,34 +892,34 @@ do_download(xrdc_conn *c, const char *cwd, int argc, char **argv)
     if (is_stdout) {
         fd = 1;
     } else {
-        xrdc_vfs_open_opts vopts;
+        brix_vfs_open_opts vopts;
         vopts.io_uring = 0; vopts.expected_size = -1; vopts.cred = NULL;
-        xrdc_status_clear(&st);
-        if (xrdc_vfs_open(local, XRDC_VFS_WRITE | (force ? XRDC_VFS_FORCE : 0),
+        brix_status_clear(&st);
+        if (brix_vfs_open(local, XRDC_VFS_WRITE | (force ? XRDC_VFS_FORCE : 0),
                           &vopts, &dvf, &st) != 0) {
             fprintf(stderr, "xrdfs: download: %s: %s\n", local, st.msg);
             return 50;
         }
     }
-    xrdc_status_clear(&st);
-    if (xrdc_rfile_open_read(c, rpath, NULL, 0, -1, &f, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_rfile_open_read(c, rpath, NULL, 0, -1, &f, &st) != 0) {
         fprintf(stderr, "xrdfs: download %s: %s\n", rpath, st.msg);
-        if (dvf != NULL) { xrdc_vfs_abort(dvf); xrdc_vfs_close(dvf); }
-        return xrdc_shellcode(&st);
+        if (dvf != NULL) { brix_vfs_abort(dvf); brix_vfs_close(dvf); }
+        return brix_shellcode(&st);
     }
     buf = (uint8_t *) malloc((size_t) bs);
     if (buf == NULL) {
-        xrdc_rfile_close(&f, &st);
-        if (dvf != NULL) { xrdc_vfs_abort(dvf); xrdc_vfs_close(dvf); }
+        brix_rfile_close(&f, &st);
+        if (dvf != NULL) { brix_vfs_abort(dvf); brix_vfs_close(dvf); }
         fprintf(stderr, "xrdfs: download: out of memory\n");
         return 51;
     }
     clock_gettime(CLOCK_MONOTONIC, &start);
     for (;;) {
-        ssize_t n = xrdc_rfile_pread(&f, off, buf, (size_t) bs, &st);
+        ssize_t n = brix_rfile_pread(&f, off, buf, (size_t) bs, &st);
         if (n < 0) {
             fprintf(stderr, "xrdfs: download %s: %s\n", rpath, st.msg);
-            rc = xrdc_shellcode(&st); break;
+            rc = brix_shellcode(&st); break;
         }
         if (n == 0) { break; }
         if (is_stdout) {
@@ -934,7 +934,7 @@ do_download(xrdc_conn *c, const char *cwd, int argc, char **argv)
                 if (k == 0) { rc = 1; break; }
                 w += k;
             }
-        } else if (xrdc_vfs_pwrite(dvf, off, buf, (size_t) n, &st) != 0) {
+        } else if (brix_vfs_pwrite(dvf, off, buf, (size_t) n, &st) != 0) {
             fprintf(stderr, "xrdfs: download: write %s: %s\n", local, st.msg);
             rc = 1;
         }
@@ -943,15 +943,15 @@ do_download(xrdc_conn *c, const char *cwd, int argc, char **argv)
         rate_pace(&start, off, rate);
     }
     free(buf);
-    xrdc_rfile_close(&f, &st);
+    brix_rfile_close(&f, &st);
     if (dvf != NULL) {
-        if (rc == 0 && xrdc_vfs_commit(dvf, &st) != 0) {
+        if (rc == 0 && brix_vfs_commit(dvf, &st) != 0) {
             fprintf(stderr, "xrdfs: download: commit %s: %s\n", local, st.msg);
             rc = 1;
         } else if (rc != 0) {
-            xrdc_vfs_abort(dvf);
+            brix_vfs_abort(dvf);
         }
-        xrdc_vfs_close(dvf);
+        brix_vfs_close(dvf);
     }
     if (rc != 0) { return rc; }
     if (!is_stdout) {   /* don't pollute a piped stdout with the summary */
@@ -965,12 +965,12 @@ do_download(xrdc_conn *c, const char *cwd, int argc, char **argv)
  * the requested segments are read in one round-trip and written, concatenated, to
  * stdout (so the bytes can be verified against the file). */
 int
-do_readv(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_readv(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    xrdc_status    st;
+    brix_status    st;
     char           path[XRDC_PATH_MAX];
-    xrdc_file      f;
-    xrdc_readv_seg segs[XRDC_VEC_MAXSEGS];
+    brix_file      f;
+    brix_readv_seg segs[XRDC_VEC_MAXSEGS];
     size_t         nseg = 0, i;
     int            a;
     ssize_t        got;
@@ -1001,22 +1001,22 @@ do_readv(xrdc_conn *c, const char *cwd, int argc, char **argv)
         }
         nseg++;
     }
-    xrdc_status_clear(&st);
-    if (xrdc_file_open_read(c, path, &f, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_file_open_read(c, path, &f, &st) != 0) {
         for (i = 0; i < nseg; i++) { free(segs[i].buf); }
         fprintf(stderr, "xrdfs: readv open %s: %s\n", path, st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
-    got = xrdc_file_readv(c, &f, segs, nseg, &st);
+    got = brix_file_readv(c, &f, segs, nseg, &st);
     if (got < 0) {
         fprintf(stderr, "xrdfs: readv %s: %s\n", path, st.msg);
-        rc = xrdc_shellcode(&st);
+        rc = brix_shellcode(&st);
     } else {
         for (i = 0; i < nseg; i++) {
             fwrite(segs[i].buf, 1, segs[i].got, stdout);   /* actual bytes read */
         }
     }
-    xrdc_file_close(c, &f, &st);
+    brix_file_close(c, &f, &st);
     for (i = 0; i < nseg; i++) { free(segs[i].buf); }
     return rc;
 }
@@ -1026,12 +1026,12 @@ do_readv(xrdc_conn *c, const char *cwd, int argc, char **argv)
  * (kXR_writev): each segment's hex-encoded bytes are written at its offset in one
  * round-trip (the file is created/truncated first). */
 int
-do_writev(xrdc_conn *c, const char *cwd, int argc, char **argv)
+do_writev(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    xrdc_status     st;
+    brix_status     st;
     char            path[XRDC_PATH_MAX];
-    xrdc_file       f;
-    xrdc_writev_seg segs[XRDC_VEC_MAXSEGS];
+    brix_file       f;
+    brix_writev_seg segs[XRDC_VEC_MAXSEGS];
     size_t          nseg = 0, i;
     int             a, rc = 0;
 
@@ -1079,17 +1079,17 @@ do_writev(xrdc_conn *c, const char *cwd, int argc, char **argv)
         segs[nseg].data   = d;
         nseg++;
     }
-    xrdc_status_clear(&st);
-    if (xrdc_file_open_write(c, path, 1 /*force*/, 0 /*posc*/, &f, &st) != 0) {
+    brix_status_clear(&st);
+    if (brix_file_open_write(c, path, 1 /*force*/, 0 /*posc*/, &f, &st) != 0) {
         for (i = 0; i < nseg; i++) { free((void *) segs[i].data); }
         fprintf(stderr, "xrdfs: writev open %s: %s\n", path, st.msg);
-        return xrdc_shellcode(&st);
+        return brix_shellcode(&st);
     }
-    if (xrdc_file_writev(c, &f, segs, nseg, 1 /*sync*/, &st) != 0) {
+    if (brix_file_writev(c, &f, segs, nseg, 1 /*sync*/, &st) != 0) {
         fprintf(stderr, "xrdfs: writev %s: %s\n", path, st.msg);
-        rc = xrdc_shellcode(&st);
+        rc = brix_shellcode(&st);
     }
-    xrdc_file_close(c, &f, &st);
+    brix_file_close(c, &f, &st);
     for (i = 0; i < nseg; i++) { free((void *) segs[i].data); }
     return rc;
 }

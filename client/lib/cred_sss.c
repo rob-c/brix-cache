@@ -1,16 +1,16 @@
 /* client/lib/cred_sss.c
  *
  * WHAT: SSS (Simple Shared Secret) credential handler for the unified
- *       credential store (cred.c). Implements xrdc_cred_sss() returning the
+ *       credential store (cred.c). Implements brix_cred_sss() returning the
  *       XRDC_CRED_SSS handler with available / acquire operations.
  * WHY:  SSS keytab discovery was only available through sec_sss.c; the unified
  *       store needs a standalone handler so auth pre-flight diagnostics and the
  *       auth handshake both share a single keytab resolution path.
  * HOW:  Discovery precedence:
  *         cfg->keytab_path  (CLI override, highest precedence)
- *         > xrdc_sss_keytab_default()  ($XrdSecSSSKT > $XrdSecsssKT >
+ *         > brix_sss_keytab_default()  ($XrdSecSSSKT > $XrdSecsssKT >
  *                                        ~/.xrd/sss.keytab)
- *       available() resolves the path and probes with xrdc_sss_keytab_read
+ *       available() resolves the path and probes with brix_sss_keytab_read
  *       (must read successfully and n>0).
  *       acquire() fills out->path with a static buffer copy of the resolved path
  *       and sets *not_after=0 (a keytab has no per-use expiry).
@@ -30,7 +30,7 @@
 #endif
 
 #include "cred.h"
-#include "xrdc.h"
+#include "brix.h"
 #include "sss_keytab.h"
 
 #include <string.h>
@@ -40,43 +40,43 @@
  * resolve_keytab_path — fill out[outsz] with the resolved SSS keytab path.
  *
  * WHAT: implements the two-level precedence: cfg->keytab_path (CLI override) >
- *       xrdc_sss_keytab_default() (env/default discovery).
+ *       brix_sss_keytab_default() (env/default discovery).
  * WHY:  mirrors the precedence documented in cred.h's keytab_path comment and
  *       matches the behaviour callers expect from sec_sss.c's discovery.
  * HOW:  two early-return branches; snprintf is always NUL-terminated within outsz.
  */
 static void
-resolve_keytab_path(const xrdc_cred_config *cfg, char *out, size_t outsz)
+resolve_keytab_path(const brix_cred_config *cfg, char *out, size_t outsz)
 {
     if (cfg != NULL && cfg->keytab_path != NULL && cfg->keytab_path[0] != '\0') {
         snprintf(out, outsz, "%s", cfg->keytab_path);
         return;
     }
-    xrdc_sss_keytab_default(out, outsz);
+    brix_sss_keytab_default(out, outsz);
 }
 
 /* keytab probe */
 /*
  * keytab_probe — resolve the keytab path and check that it has at least one key.
  *
- * WHAT: resolves the path into path_out[outsz] and calls xrdc_sss_keytab_read;
+ * WHAT: resolves the path into path_out[outsz] and calls brix_sss_keytab_read;
  *       returns 1 iff the read succeeds and n>0.
  * WHY:  shared by sss_available() and sss_acquire() so the probe logic lives in
  *       one place (available and acquire must agree on what "usable" means).
- * HOW:  stack-allocated key array (no heap); xrdc_sss_keytab_read fills *n.
+ * HOW:  stack-allocated key array (no heap); brix_sss_keytab_read fills *n.
  *       path_out is filled by resolve_keytab_path so the caller learns the path
  *       (acquire uses it to populate out->path and the error message).
  */
 static int
-keytab_probe(const xrdc_cred_config *cfg, char *path_out, size_t outsz)
+keytab_probe(const brix_cred_config *cfg, char *path_out, size_t outsz)
 {
-    xrdc_sss_key keys[XRDC_SSS_KEYS_MAX];
-    xrdc_status  st;
+    brix_sss_key keys[XRDC_SSS_KEYS_MAX];
+    brix_status  st;
     int          n = 0;
 
     resolve_keytab_path(cfg, path_out, outsz);
-    xrdc_status_clear(&st);
-    return (xrdc_sss_keytab_read(path_out, keys, XRDC_SSS_KEYS_MAX, &n, &st) == 0
+    brix_status_clear(&st);
+    return (brix_sss_keytab_read(path_out, keys, XRDC_SSS_KEYS_MAX, &n, &st) == 0
             && n > 0) ? 1 : 0;
 }
 
@@ -84,12 +84,12 @@ keytab_probe(const xrdc_cred_config *cfg, char *path_out, size_t outsz)
 /*
  * sss_available — 1 if the resolved keytab exists and contains at least one key.
  *
- * WHAT: fast probe for auth pre-flight diagnostics and xrdc_cred_available().
+ * WHAT: fast probe for auth pre-flight diagnostics and brix_cred_available().
  * WHY:  mirrors sec_sss.c:sss_have() semantics (keytab readable + n>0).
  * HOW:  keytab_probe with a scratch path buffer (not exposed to the caller).
  */
 static int
-sss_available(const xrdc_cred_config *cfg)
+sss_available(const brix_cred_config *cfg)
 {
     char path[XRDC_PATH_MAX];
     return keytab_probe(cfg, path, sizeof(path));
@@ -109,14 +109,14 @@ sss_available(const xrdc_cred_config *cfg)
  * can overwrite the buffer.
  */
 static int
-sss_acquire(const xrdc_cred_config *cfg, xrdc_cred_view *out,
-            int64_t *not_after, xrdc_status *st)
+sss_acquire(const brix_cred_config *cfg, brix_cred_view *out,
+            int64_t *not_after, brix_status *st)
 {
     /* static: must outlive this return so slot_store_view can strdup it */
     static char s_path[XRDC_PATH_MAX];
 
     if (!keytab_probe(cfg, s_path, sizeof(s_path))) {
-        xrdc_status_set(st, XRDC_EAUTH, 0,
+        brix_status_set(st, XRDC_EAUTH, 0,
                         "sss: no usable keytab at %s "
                         "(set XrdSecSSSKT or cfg->keytab_path)", s_path);
         return -1;
@@ -133,7 +133,7 @@ sss_acquire(const xrdc_cred_config *cfg, xrdc_cred_view *out,
 }
 
 /* handler accessor */
-static const xrdc_cred_handler s_sss_handler = {
+static const brix_cred_handler s_sss_handler = {
     .kind      = XRDC_CRED_SSS,
     .available = sss_available,
     .acquire   = sss_acquire,
@@ -141,15 +141,15 @@ static const xrdc_cred_handler s_sss_handler = {
 };
 
 /*
- * xrdc_cred_sss — return the static SSS keytab handler.
+ * brix_cred_sss — return the static SSS keytab handler.
  *
  * WHAT: strong definition that overrides the weak accessor in cred.c.
  * WHY:  weak/strong pattern lets lib and test binaries link without every handler
  *       compiled in; this file provides the real SSS implementation.
  * HOW:  returns a pointer to the file-scoped static handler struct.
  */
-const xrdc_cred_handler *
-xrdc_cred_sss(void)
+const brix_cred_handler *
+brix_cred_sss(void)
 {
     return &s_sss_handler;
 }

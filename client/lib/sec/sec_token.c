@@ -41,7 +41,7 @@ slurp(const char *path)
      * the caller falls through to the next location. O_NOFOLLOW + owner check
      * stop an attacker pre-planting /tmp/bt_u<uid> as a symlink (secret leak) or
      * a regular file they own (confused-deputy auth). */
-    fd = xrdc_open_credfile(path, 0, NULL);
+    fd = brix_open_credfile(path, 0, NULL);
     if (fd < 0) {
         return NULL;
     }
@@ -78,7 +78,7 @@ slurp(const char *path)
 /* Return a malloc'd token string, or NULL if none found. Shared with credinfo.c
  * (the explain/diagnostics path) so token discovery lives in one place. */
 char *
-xrdc_token_discover(void)
+brix_token_discover(void)
 {
     const char *env;
     char        path[256];
@@ -113,15 +113,15 @@ xrdc_token_discover(void)
 }
 
 static int
-token_have(xrdc_conn *c)
+token_have(brix_conn *c)
 {
     /* Store is a fast "yes"; a store miss falls through to env discovery so a
      * tool whose store lacks the bearer handler still finds a $BEARER_TOKEN. */
     if (c != NULL && c->opts.cred != NULL
-        && xrdc_cred_available(c->opts.cred, XRDC_CRED_BEARER)) {
+        && brix_cred_available(c->opts.cred, XRDC_CRED_BEARER)) {
         return 1;
     }
-    char *t = xrdc_token_discover();
+    char *t = brix_token_discover();
     if (t == NULL) {
         return 0;
     }
@@ -130,8 +130,8 @@ token_have(xrdc_conn *c)
 }
 
 static int
-token_first(xrdc_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
-            xrdc_status *st)
+token_first(brix_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
+            brix_status *st)
 {
     char    *tok = NULL;
     size_t   tl;
@@ -142,19 +142,19 @@ token_first(xrdc_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
     /* Try the credential store when present; fall back to env discovery on
      * failure so env-sourced tokens behave identically to today. */
     if (c != NULL && c->opts.cred != NULL) {
-        xrdc_cred_view v;
-        if (xrdc_cred_acquire(c->opts.cred, XRDC_CRED_BEARER, 0, &v, st) == 0
+        brix_cred_view v;
+        if (brix_cred_acquire(c->opts.cred, XRDC_CRED_BEARER, 0, &v, st) == 0
             && v.token != NULL) {
             tok = strdup(v.token);
         } else {
-            xrdc_status_clear(st);
+            brix_status_clear(st);
         }
     }
     if (tok == NULL) {
-        tok = xrdc_token_discover();
+        tok = brix_token_discover();
     }
     if (tok == NULL) {
-        xrdc_status_set(st, XRDC_EAUTH, 0,
+        brix_status_set(st, XRDC_EAUTH, 0,
                         "no bearer token (set BEARER_TOKEN or BEARER_TOKEN_FILE)");
         return -1;
     }
@@ -162,7 +162,7 @@ token_first(xrdc_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
     p = (uint8_t *) malloc(4 + tl);
     if (p == NULL) {
         free(tok);
-        xrdc_status_set(st, XRDC_EAUTH, 0, "out of memory");
+        brix_status_set(st, XRDC_EAUTH, 0, "out of memory");
         return -1;
     }
     memcpy(p, "ztn\0", 4);
@@ -174,10 +174,10 @@ token_first(xrdc_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
     return 0;
 }
 
-const xrdc_sec_module *
-xrdc_sec_token(void)
+const brix_sec_module *
+brix_sec_token(void)
 {
-    static const xrdc_sec_module m = {
+    static const brix_sec_module m = {
         "ztn",
         { 'z', 't', 'n', 0 },
         token_have,

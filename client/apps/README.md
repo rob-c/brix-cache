@@ -1,6 +1,6 @@
 # `client/apps/` — native client CLI tools
 
-The command-line front-ends built on `libxrdc` (`../lib/`). All are pure-C,
+The command-line front-ends built on `libbrix` (`../lib/`). All are pure-C,
 libXrdCl-free, and speak `root://`/`roots://` plus (where noted) HTTP/WebDAV/S3.
 Binaries are listed in `BINS` in `client/Makefile` and land in `client/bin/`.
 
@@ -56,9 +56,9 @@ record the groupings; the table lists each tool by its binary, not its files.
 | Binary | Purpose |
 |---|---|
 | `xrootdfs` | FUSE mount. One binary containing both drivers — the async/resilient default and a simple synchronous `--legacy` fallback (front-end `xrootdfs_main.c`, multi-call like `xrd`). |
-| `libxrdposix_preload.so` | LD_PRELOAD POSIX→XRootD read-path shim (see [`../preload/`](../preload/)). |
+| `libbrixposix_preload.so` | LD_PRELOAD POSIX→XRootD read-path shim (see [`../preload/`](../preload/)). |
 
 ## See also
 
-- [`../lib/README.md`](../lib/README.md) — the `libxrdc` library these tools link against.
+- [`../lib/README.md`](../lib/README.md) — the `libbrix` library these tools link against.
 - [`../lib/sec/README.md`](../lib/sec/README.md) — the authentication modules.
