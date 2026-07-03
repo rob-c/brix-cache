@@ -1263,6 +1263,7 @@ ngx_module_srcs="$ngx_addon_dir/src/observability/dashboard/module.c \
                  $ngx_addon_dir/src/observability/dashboard/http_tracking.c \
                  $ngx_addon_dir/src/observability/dashboard/config_download.c \
                  $ngx_addon_dir/src/observability/dashboard/files.c \
+                 $ngx_addon_dir/src/observability/dashboard/vfs_browse.c \
                  $ngx_addon_dir/src/observability/dashboard/page.c \
                  $ngx_addon_dir/src/fs/scan/scan_record.c \
                  $ngx_addon_dir/src/fs/scan/scan_throttle.c \

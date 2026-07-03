@@ -225,3 +225,25 @@ via `../compat/http_headers.h`. Auth uses OpenSSL HMAC/`CRYPTO_memcmp` directly
 - `../ratelimit/README.md` — zones surfaced by `/api/v1/ratelimit`.
 - `../config/README.md` — postconfiguration that registers the SHM zones.
 - `../README.md` — master subsystem index.
+
+## VFS export browser (`xrootd_dashboard_vfs_browse on`)
+
+Admin-auth-only, read-only, **off by default** (it exposes stored user
+data through the dashboard). Three endpoints, every operation routed
+through `xrootd_vfs_*` — so the listing is the export's LOGICAL
+namespace for ANY backend the registry composed (a pblock export shows
+its files, not `catalog.db` + packed blobs; posix/ceph/xroot the same):
+
+    GET /xrootd/api/v1/vfs                       export census (root, backend, origin)
+    GET /xrootd/api/v1/vfs/files?export=&path=   JSON directory listing (name/type/size/mtime)
+    GET /xrootd/api/v1/vfs/download?export=&path= stream one file (shared VFS serve pipeline:
+                                                  ranges, pblock sendfile gate, TLS buffer rule)
+
+The Files tab in the UI grows a Source selector: the host tree
+(`xrootd_dashboard_browse_root`, raw-POSIX — logs/spool) plus one entry
+per registered export. NOTE: an export registers by NAMING its backend
+(`xrootd_*_storage_backend posix|pblock|…`); a location that relies on
+the implicit posix default is served as before but does not appear in
+the census. The vctx binds with allow_write=0 — the browser cannot
+write; ?path= must be absolute and ".."-free, and the VFS re-confines
+every open at the kernel (openat2 RESOLVE_IN_ROOT).

@@ -21,9 +21,15 @@ xrootd_vfs_backend_config(const char *root_canon, const ngx_str_t *name,
     {
         return;
     }
-    /* Only "pblock" is a registered non-POSIX backend today. */
-    if (name->len != sizeof("pblock") - 1
-        || ngx_strncmp(name->data, "pblock", sizeof("pblock") - 1) != 0)
+    /* Bare local driver names register here: "pblock", and — phase-68 —
+     * an EXPLICIT "posix". Naming posix (the default) was a silent no-op
+     * before; registering it makes the export visible to census surfaces
+     * (the dashboard VFS browser, /metrics backend info) while leaving
+     * every config that doesn't name a backend exactly as it was. */
+    if (!((name->len == sizeof("pblock") - 1
+           && ngx_strncmp(name->data, "pblock", sizeof("pblock") - 1) == 0)
+          || (name->len == sizeof("posix") - 1
+              && ngx_strncmp(name->data, "posix", sizeof("posix") - 1) == 0)))
     {
         return;
     }
@@ -40,7 +46,11 @@ xrootd_vfs_backend_config(const char *root_canon, const ngx_str_t *name,
     if (e == NULL) {
         return;
     }
-    ngx_memcpy(e->backend, "pblock", sizeof("pblock"));
+    if (name->data[0] == 'p' && name->data[1] == 'o') {
+        ngx_memcpy(e->backend, "posix", sizeof("posix"));
+    } else {
+        ngx_memcpy(e->backend, "pblock", sizeof("pblock"));
+    }
     e->block_size = (int64_t) block_size;
 }
 
