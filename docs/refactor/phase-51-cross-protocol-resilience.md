@@ -193,7 +193,7 @@ conformant slow-but-progressing transfer is never clipped.
   `xrootd_concurrency_limit` (→503) and TPC-registry-full→503; add a 503-shed
   metric counter and document recommended `client_header_timeout`/
   `client_body_timeout`/`send_timeout`/`keepalive_timeout` in
-  `contrib/xrootd.conf.example`. No new global HTTP cap unless review finds a gap.
+  `contrib/brix-cache.conf.example`. No new global HTTP cap unless review finds a gap.
 
 ### C — Durability under poor conditions
 
@@ -299,7 +299,7 @@ GSI DH keypool (`src/auth/gsi/keypool.c`) is the model for moving cost off the l
 - Defaults: `src/core/config/server_conf.c` (B1, B2).
 - TPC/durability: `src/protocols/webdav/tpc_curl.c` (confirm B2), WebDAV/S3 staged-commit
   site (C1 fsync).
-- Docs/config: `contrib/xrootd.conf.example` (B3), `docs/04-protocols/cms-protocol.md`
+- Docs/config: `contrib/brix-cache.conf.example` (B3), `docs/04-protocols/cms-protocol.md`
   (metrics table).
 - Tests: `tests/test_http_resilience.py` (new), extend `tests/test_cms_resilience.py`.
 - Auth (Part E): `src/auth/crypto/ocsp.c` (E1 timeout + cache + breaker),

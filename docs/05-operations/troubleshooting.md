@@ -18,7 +18,7 @@ and `contrib/grafana-dashboard.json`.
 | `nginx -t` fails to **load** the module (dlopen / undefined symbol) | Module load order in `mod-xrootd.conf` | The combined `ngx_stream_xrootd_module.so` **must** be the first `load_module` line; the xrdhttp filter second. See [upgrade-procedure](upgrade-procedure.md) |
 | Worker won't start: `libbz2.so.1.0: cannot open shared object file` | bzip2 SONAME on the host | The binary needs `libbz2.so.1.0`; some distros only ship `libbz2.so.1`. Install `bzip2-libs`, or symlink `libbz2.so.1.0 → libbz2.so.1`. See [upgrade-procedure](upgrade-procedure.md) |
 | `nginx -t`: *path "..." must be a regular file* / *directory* | A cert/CA directive points at the wrong kind of node | `xrootd_*_cafile` wants a **file** (CA bundle); `xrootd_*_cadir` wants a **directory** |
-| `stream` block rejected | `stream{}` placed inside `http{}` (e.g. dropped into `conf.d/`) | `stream{}` is **top-level** in `nginx.conf`; only HTTP server blocks belong in `conf.d/`. See `contrib/xrootd.conf.example` |
+| `stream` block rejected | `stream{}` placed inside `http{}` (e.g. dropped into `conf.d/`) | `stream{}` is **top-level** in `nginx.conf`; only HTTP server blocks belong in `conf.d/`. See `contrib/brix-cache.conf.example` |
 
 ## Auth failures
 
@@ -118,7 +118,7 @@ e.g. `… (28: No space left on device)`.
 
 - nginx `error.log` — the first place for any 5xx / startup / module-load issue.
 - Per-protocol access logs — `xrootd_access_log` (root://), and the `access_log` of
-  each WebDAV/S3 server block (see `contrib/xrootd.conf.example`).
+  each WebDAV/S3 server block (see `contrib/brix-cache.conf.example`).
 - Wire-level root:// trace — run a client with `XRD_LOGLEVEL=Debug`.
 - Turn on nginx debug logging in a server block with `error_log .../debug.log debug;`.
 

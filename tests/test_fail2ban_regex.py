@@ -22,7 +22,7 @@ import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 FILTER_DIR = ROOT / "deploy" / "fail2ban" / "filter.d"
-SAMPLE = ROOT / "deploy" / "fail2ban" / "samples" / "xrootd-guard-audit.sample.log"
+SAMPLE = ROOT / "deploy" / "fail2ban" / "samples" / "brix-guard-audit.sample.log"
 CVMFS_SAMPLE = (ROOT / "deploy" / "fail2ban" / "samples"
                 / "nginx-xrootd-cvmfs.sample.log")
 
