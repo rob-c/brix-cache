@@ -18,6 +18,11 @@ docker exec cvmfs-demo find /var/cache/cvmfs -type f | head
 docker run … -v "$PWD/cvmfs-cache:/var/cache/cvmfs" nginx-xrootd-cvmfs
 ```
 
+The same directory is browsable in the dashboard's **Files** tab (sign in on
+3129 first — it is admin-only): `xrootd_dashboard_browse_root` points it at
+`/var/cache/cvmfs`, so you can watch the content-addressed store fill without a
+shell. Entries are hash-sharded (`/ab/cdef…`), not `/cvmfs` logical paths.
+
 **fail2ban runs inside the container**, consuming two independent bad-actor
 signals: the guard audit log (`xrootd-guard-*` jails, phase-65) and the
 `cvmfs-reject:` classifier lines in the nginx error log

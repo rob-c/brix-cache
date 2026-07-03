@@ -135,7 +135,7 @@ xrootd_cvmfs_gate(ngx_http_request_t *r, ngx_http_xrootd_cvmfs_loc_conf_t *lcf)
             return cvmfs_reject(r, NGX_HTTP_BAD_REQUEST,
                                 "malformed proxy target");
         }
-        if (rc == NGX_OK) {
+        if (rc == NGX_OK && !lcf->cvmfs.unified_origin) {
             ngx_uint_t status = NGX_HTTP_INTERNAL_SERVER_ERROR;
 
             ctx->sd_override = xrootd_cvmfs_upstream_get(r, lcf, &up_host,
@@ -146,7 +146,15 @@ xrootd_cvmfs_gate(ngx_http_request_t *r, ngx_http_xrootd_cvmfs_loc_conf_t *lcf)
                 return (ngx_int_t) status;
             }
         }
-        /* rc == NGX_DECLINED: origin-form on this listener — fall through */
+        /* rc == NGX_OK && unified_origin: the authority is allowlisted (checked
+         * above) but we do NOT bind a per-host backend — leaving sd_override /
+         * up_root NULL routes the request to the location's ONE configured
+         * multi-endpoint origin backend (xrootd_cvmfs_storage_backend, ranked
+         * failover + shared cache). Every Stratum-1 the client names is served
+         * from that same set, so a dead origin is hidden by internal failover:
+         * the client keeps getting 200 from the host it chose and never marks
+         * this proxy bad or wanders to another mirror.
+         * rc == NGX_DECLINED: origin-form on this listener — fall through. */
     }
 
     /* per-repository accounting (bounded slot table — metrics.h) */

@@ -68,15 +68,31 @@ xrootd_cvmfs_upstream_get(ngx_http_request_t *r,
     s->host[host->len] = '\0';
     s->port = port;
 
-    /* synthetic registry key + per-upstream store subtree */
+    /* Synthetic registry key: ALWAYS per-upstream — each Stratum-1 is a
+     * distinct fetch origin (a distinct backend instance). */
     n = snprintf(s->up_root, sizeof(s->up_root), "/#cvmfs-up/%s:%u",
                  s->host, (unsigned) port);
     if (n < 0 || (size_t) n >= sizeof(s->up_root)) {
         *status = NGX_HTTP_INTERNAL_SERVER_ERROR;
         return NULL;
     }
-    (void) snprintf(suffix, sizeof(suffix), "/%s_%u", s->host,
-                    (unsigned) port);
+
+    /* Cache store subtree. Default (per-upstream): each origin caches under its
+     * own "/host_port" subtree — safe isolation for an arbitrary proxy target.
+     * shared_cache: ALL upstreams cache under the SAME subtree (empty suffix),
+     * so an object filled via one Stratum-1 is a HIT for a request naming any
+     * other. This is correct for CVMFS because the request key is the logical
+     * "/cvmfs/<repo>/..." path (upstream-independent) and CAS objects are
+     * content-addressed (byte-identical across replicas); manifests are the same
+     * signed metadata. It collapses the client's cross-server failover storm
+     * into one fill. verify-on-fill (xrootd_cache_verify cvmfs-cas) keeps a
+     * mis-serving origin from poisoning the shared entry. */
+    if (lcf->cvmfs.shared_cache) {
+        suffix[0] = '\0';
+    } else {
+        (void) snprintf(suffix, sizeof(suffix), "/%s_%u", s->host,
+                        (unsigned) port);
+    }
 
     if (xrootd_vfs_backend_register_http_upstream(s->up_root,
             lcf->common.root_canon, s->host, (int) port, /* tls */ 0,
@@ -98,7 +114,7 @@ xrootd_cvmfs_upstream_get(ngx_http_request_t *r,
      * decisions that follow (which host served, any failover) can be tied
      * back to a concrete upstream. */
     ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
-        "cvmfs: proxy-mode upstream registered %s:%u (slot %ui/%ui, store %s)",
-        s->host, (unsigned) port, cvmfs_ups_n, cap, s->up_root);
+        "cvmfs: proxy-mode upstream registered %s:%ui (slot %ui/%ui, store %s)",
+        s->host, (ngx_uint_t) port, cvmfs_ups_n, cap, s->up_root);
     return inst;
 }

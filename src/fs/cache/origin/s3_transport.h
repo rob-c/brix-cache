@@ -38,8 +38,19 @@ void xrootd_origin_trace_set(int info_on);
  *   stall_secs         — CURLOPT_LOW_SPEED_TIME: seconds below the floor before
  *                        abort (the "connected but no bytes" stall).
  *   stall_bytes_per_s  — CURLOPT_LOW_SPEED_LIMIT: the throughput floor.
+ *   attempt_ms         — CURLOPT_TIMEOUT_MS cap: abandon a whole connect+transfer
+ *                        after this long so the fill loop retries on a fresh
+ *                        connection within the client's timeout window. Wins
+ *                        over the caller's per-request timeout.
  * stall_secs and stall_bytes_per_s take effect only together. */
 void xrootd_s3_origin_timeouts_set(long connect_ms, long stall_secs,
-    long stall_bytes_per_s);
+    long stall_bytes_per_s, long attempt_ms);
+
+/* Origin connection reuse toggle (process-global; set pre-fork from the cvmfs
+ * merge). ON (default) keeps one warm keep-alive connection per fill thread and
+ * reuses it — amortizes the handshake + TCP slow-start on a high-latency link.
+ * OFF forces a fresh connection per request; use it when a connection-reaping
+ * middlebox makes reuse time out on a stale connection. */
+void xrootd_s3_origin_reuse_set(int reuse_on);
 
 #endif /* XROOTD_CACHE_ORIGIN_S3_TRANSPORT_H */

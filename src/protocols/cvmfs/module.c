@@ -90,7 +90,11 @@ ngx_http_xrootd_cvmfs_create_loc_conf(ngx_conf_t *cf)
     c->cvmfs.origin_connect_timeout = NGX_CONF_UNSET;
     c->cvmfs.origin_stall_timeout   = NGX_CONF_UNSET;
     c->cvmfs.origin_stall_bytes     = NGX_CONF_UNSET_UINT;
+    c->cvmfs.origin_attempt_timeout = NGX_CONF_UNSET;
+    c->cvmfs.origin_reuse_conn      = NGX_CONF_UNSET;
     c->cvmfs.fill_retry_policy      = NGX_CONF_UNSET_UINT;
+    c->cvmfs.shared_cache           = NGX_CONF_UNSET;
+    c->cvmfs.unified_origin         = NGX_CONF_UNSET;
     c->cvmfs.geo_answer             = NGX_CONF_UNSET_UINT;
     c->cvmfs.geo_cache_ttl          = NGX_CONF_UNSET;
     c->cvmfs.geo_max_servers        = NGX_CONF_UNSET_UINT;
@@ -407,14 +411,39 @@ ngx_http_xrootd_cvmfs_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
                              prev->cvmfs.origin_stall_timeout, 4);
     ngx_conf_merge_uint_value(conf->cvmfs.origin_stall_bytes,
                               prev->cvmfs.origin_stall_bytes, 1);
+    ngx_conf_merge_sec_value(conf->cvmfs.origin_attempt_timeout,
+                             prev->cvmfs.origin_attempt_timeout, 0);
+    ngx_conf_merge_value(conf->cvmfs.origin_reuse_conn,
+                         prev->cvmfs.origin_reuse_conn, 1);
     ngx_conf_merge_uint_value(conf->cvmfs.fill_retry_policy,
                               prev->cvmfs.fill_retry_policy,
                               XROOTD_CVMFS_RETRY_FAILOVER);
+    ngx_conf_merge_value(conf->cvmfs.shared_cache, prev->cvmfs.shared_cache, 0);
+    ngx_conf_merge_value(conf->cvmfs.unified_origin, prev->cvmfs.unified_origin,
+                         0);
+    /* unified_origin serves every proxy request from the location's configured
+     * origin backend, so that backend MUST be an http(s) origin set (ideally a
+     * "|"-separated multi-endpoint one for the failover that hides a dead
+     * origin). Fail loudly at config time rather than 500 per request. */
+    if (conf->cvmfs.enable && conf->cvmfs.unified_origin
+        && (conf->common.storage_backend.len < 4
+            || ngx_strncasecmp(conf->common.storage_backend.data,
+                               (u_char *) "http", 4) != 0))
+    {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "xrootd_cvmfs_unified_origin on requires xrootd_cvmfs_storage_backend "
+            "to name an http(s) origin set, e.g. "
+            "\"http://s1a:8000|http://s1b:8000|http://s1c:8000\" (the '|'-list "
+            "is the ranked failover set that hides a dead Stratum-1)");
+        return NGX_CONF_ERROR;
+    }
     if (conf->cvmfs.enable) {
         xrootd_s3_origin_timeouts_set(
             (long) conf->cvmfs.origin_connect_timeout * 1000,
             (long) conf->cvmfs.origin_stall_timeout,
-            (long) conf->cvmfs.origin_stall_bytes);
+            (long) conf->cvmfs.origin_stall_bytes,
+            (long) conf->cvmfs.origin_attempt_timeout * 1000);
+        xrootd_s3_origin_reuse_set(conf->cvmfs.origin_reuse_conn ? 1 : 0);
         if (conf->cvmfs.fill_retry_policy == XROOTD_CVMFS_RETRY_FORCE_PRIMARY) {
             sd_http_force_primary_set(1);
         }
@@ -834,6 +863,34 @@ static ngx_command_t ngx_http_xrootd_cvmfs_commands[] = {
       ngx_conf_set_num_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_xrootd_cvmfs_loc_conf_t, cvmfs.origin_stall_bytes),
+      NULL },
+
+    { ngx_string("xrootd_cvmfs_origin_attempt_timeout"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_sec_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_cvmfs_loc_conf_t, cvmfs.origin_attempt_timeout),
+      NULL },
+
+    { ngx_string("xrootd_cvmfs_shared_cache"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_cvmfs_loc_conf_t, cvmfs.shared_cache),
+      NULL },
+
+    { ngx_string("xrootd_cvmfs_unified_origin"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_cvmfs_loc_conf_t, cvmfs.unified_origin),
+      NULL },
+
+    { ngx_string("xrootd_cvmfs_origin_reuse_conn"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_cvmfs_loc_conf_t, cvmfs.origin_reuse_conn),
       NULL },
 
     { ngx_string("xrootd_cvmfs_fill_retry_policy"),
