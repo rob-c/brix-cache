@@ -227,6 +227,56 @@ Do not confuse either mode with the cache's own origin selection (§5) — the g
 API orders the *client's* view; `xrootd_cvmfs_origin_select` orders the
 *cache's* fills.
 
+### 3.4 Shared cross-upstream cache (`xrootd_cvmfs_shared_cache`)
+
+In forward-proxy mode each upstream Stratum-1 is a distinct fetch origin, so by
+default its cache lives in a per-upstream subtree (`<store>/host_port/…`). That
+isolates arbitrary proxy targets but is wasteful for CVMFS: when a worker node's
+`CVMFS_TIMEOUT` (~5 s) expires on a slow object it **fails the object over to the
+next server in its list**, and a per-upstream cache re-fetches it cold from every
+server the client tries — a cross-server storm for one object.
+
+`xrootd_cvmfs_shared_cache on` collapses that: all upstreams cache under ONE
+subtree, so once *any* Stratum-1 fills an object, a request naming *any other*
+Stratum-1 is a hit. This is correct for CVMFS because the cache key is the
+logical `/cvmfs/<repo>/…` path (upstream-independent) and CAS objects are
+content-addressed — byte-identical across replicas — while manifests are the
+same signed metadata. `xrootd_cache_verify cvmfs-cas` keeps a mis-serving origin
+from poisoning the shared entry (a wrong-hash fill fails verification). The
+fetch origin stays per-upstream; only the *store* is shared. Leave it `off` for a
+generic proxy whose targets may serve different content at the same path.
+
+### 3.5 Unified origin (`xrootd_cvmfs_unified_origin`) — pin the client, hide flakiness
+
+`shared_cache` (§3.4) collapses the cache, but each client-named Stratum-1 is
+still a distinct single-endpoint fetch backend — so a client naming a *slow*
+origin still stalls on that origin (its own cross-server failover, and a
+separate detached fill per server it tries). `xrootd_cvmfs_unified_origin on`
+goes further: it serves **every** client-named authority from the location's ONE
+`xrootd_cvmfs_storage_backend` — which must be a `|`-separated multi-endpoint
+http origin set (the ranked, near-first Stratum-1s this cache actually fetches
+from). The client's named host is still allowlist-checked
+(`xrootd_cvmfs_upstream_allow`) for abuse control, but is **not** the fetch
+target.
+
+The effect is what a flaky-WAN site wants:
+
+- A dead/slow origin is hidden by **internal failover** inside a single fill —
+  the client always gets `200` from the host it named, so CVMFS never marks this
+  proxy bad and never moves the node to another mirror or DIRECT.
+- Exactly **one** fill per object across all named servers (one backend), so the
+  cross-origin detached-fill storm (one hammering fill per server the client
+  tried) is gone.
+- Combined with `xrootd_cvmfs_geo_answer rtt`, the client's *preferred* server is
+  already the near one, and unified origin keeps every request to it succeeding.
+
+Size the origin set with the near ones first (e.g. `"http://cvmfs-egi.gridpp.rl.ac.uk:8000|http://cvmfs-stratum-one.cern.ch:8000|…"`,
+max 8 endpoints). Use `xrootd_cvmfs_origin_select rtt` to auto-rank them by
+measured latency. Note `force-primary` (§5.6a) is the *opposite* policy — it
+pins one origin and suppresses the failover unified origin relies on, so do not
+combine them; unified origin wants the default `failover`. Config is rejected at
+startup if `unified_origin` is on without an http `storage_backend`.
+
 ---
 
 ## 4. Cache semantics per class
@@ -427,6 +477,18 @@ policy, set pre-fork; `0` leaves libcurl's default):
   the floor for the window is aborted with a transport error the retry loop
   retries — on a fresh curl handle, i.e. a **fresh connection** that dodges a
   single poisoned/half-open socket.
+- `xrootd_cvmfs_origin_attempt_timeout` (default 0 = off) → `CURLOPT_TIMEOUT_MS`
+  cap on the WHOLE attempt (connect + transfer). **HAZARD — it is a wall-clock
+  cap, not a progress check: a value like 2 s aborts a large CVMFS *catalog*
+  (`…C`, multi-MB) mid-download over a WAN, so the catalog can NEVER be fetched
+  and every abort poisons the endpoint health score.** Use it ONLY when you know
+  every object is small. For the general "fast-fail a stuck origin inside a short
+  client window" goal, use `origin_stall_timeout` (above) instead — it bounds
+  *no-progress* time, so a stuck connection fails in ~2 s while a catalog that is
+  actively downloading is left to finish. Pair the stall bound with `client_hold`
+  set just BELOW the client's `CVMFS_TIMEOUT` so the never-drop `504+Retry-After`
+  (which the client's retry coalesces onto the still-running fill) fires before
+  the client abandons the connection.
 
 `xrootd_cvmfs_fill_retry_policy` (default `failover`) picks what a retry targets:
 
@@ -811,7 +873,10 @@ many clients: that is `CVMFS_TIMEOUT` set shorter than the fill latency.
 | `xrootd_cvmfs_origin_connect_timeout <sec>` | 2 | origin connect ceiling (§5.6a; 0 = libcurl default) |
 | `xrootd_cvmfs_origin_stall_timeout <sec>` | 4 | abort a transfer below the byte floor this long (§5.6a; 0 = off) |
 | `xrootd_cvmfs_origin_stall_bytes <B/s>` | 1 | throughput floor for the stall timeout (§5.6a) |
+| `xrootd_cvmfs_origin_attempt_timeout <sec>` | 0 (off) | per-attempt total cap: abandon a slow connect+transfer after this long and retry on a fresh connection — size it so a few tries fit inside the client's `CVMFS_TIMEOUT` (§5.6a) |
 | `xrootd_cvmfs_fill_retry_policy failover\|force-primary` | failover | retry target on origin trouble (§5.6a) |
+| `xrootd_cvmfs_shared_cache on\|off` | off | proxy mode: share ONE cache across all upstreams so a client's cross-Stratum-1 failover is a hit, not a cold fill (§3.4) |
+| `xrootd_cvmfs_unified_origin on\|off` | off | proxy mode: serve EVERY client-named Stratum-1 from the one multi-endpoint `xrootd_cvmfs_storage_backend` (ranked failover + shared cache), hiding a dead origin so the client never marks the proxy bad or wanders (§3.5) |
 | `xrootd_cvmfs_client_hold <sec>` | 25 | never-drop hold; MUST stay below the WN's `CVMFS_TIMEOUT` |
 | `xrootd_cvmfs_fill_max_life <sec>` | 300 | detached-fill retry budget |
 | `xrootd_cvmfs_geo_answer off\|rtt` | off | answer the geo API locally, RTT-ranked, vs. relay upstream (§3.3) |

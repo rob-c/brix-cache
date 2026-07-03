@@ -8,7 +8,8 @@ import argparse, hashlib, json, os, random, socket, threading, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 STATE = {"log": [], "heads": [], "fault": {"mode": "none", "count": 0},
-         "objects": {}, "repo": "", "revision": 1, "lock": threading.Lock()}
+         "objects": {}, "repo": "", "revision": 1, "connections": 0,
+         "lock": threading.Lock()}
 
 def make_repo(repo, n_objects, seed):
     rng = random.Random(seed)
@@ -29,6 +30,11 @@ def manifest(repo, revision):
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):        # silence default stderr chatter
         pass
+
+    def setup(self):                  # once per accepted TCP connection
+        with STATE["lock"]:
+            STATE["connections"] += 1
+        super().setup()
 
     def _send(self, code, body, ctype="application/octet-stream"):
         self.send_response(code)
@@ -89,6 +95,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, body, "application/json")
         if self.path == "/ctl/objects":
             return self._send(200, json.dumps(sorted(STATE["objects"])).encode(),
+                              "application/json")
+        if self.path == "/ctl/connections":     # distinct TCP connections seen
+            with STATE["lock"]:
+                n = STATE["connections"]
+            return self._send(200, json.dumps({"connections": n}).encode(),
                               "application/json")
         if self.path == "/ctl/manifest/bump":
             with STATE["lock"]:
@@ -160,9 +171,13 @@ def main():
     ap.add_argument("--objects", type=int, default=16)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--bind", default="127.0.0.1")
+    ap.add_argument("--keepalive", action="store_true",
+                    help="serve HTTP/1.1 persistent connections (default 1.0)")
     args = ap.parse_args()
     STATE["repo"] = args.repo
     STATE["objects"] = make_repo(args.repo, args.objects, args.seed)
+    if args.keepalive:
+        Handler.protocol_version = "HTTP/1.1"
     ThreadingHTTPServer((args.bind, args.port), Handler).serve_forever()
 
 if __name__ == "__main__":

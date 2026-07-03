@@ -72,7 +72,22 @@ typedef struct {
     time_t       origin_connect_timeout; /* connect ceiling s (default 2)     */
     time_t       origin_stall_timeout;   /* no-first-byte/low-speed s (def 4)  */
     ngx_uint_t   origin_stall_bytes;     /* throughput floor B/s (default 1)   */
+    time_t       origin_attempt_timeout; /* per-attempt total cap s (0=off)    */
+    ngx_flag_t   origin_reuse_conn;      /* reuse keep-alive conn (default on);
+                                            off = fresh conn per request for a
+                                            connection-reaping middlebox        */
     ngx_uint_t   fill_retry_policy;      /* failover|force-primary (def fail)  */
+    ngx_flag_t   shared_cache;           /* proxy-mode: share ONE cache across
+                                            all upstreams (content-addressed
+                                            CVMFS is identical per Stratum-1)  */
+    ngx_flag_t   unified_origin;         /* proxy-mode: serve EVERY client-named
+                                            Stratum-1 from the ONE configured
+                                            multi-endpoint xrootd_cvmfs_storage_
+                                            backend (ranked failover + shared
+                                            cache) instead of a per-host backend
+                                            — a dead origin is hidden by internal
+                                            failover so the client keeps getting
+                                            200 and never abandons this proxy    */
 
     /* server-side geo answering (2026-07-03) */
     ngx_uint_t   geo_answer;       /* off|rtt (default off = passthrough)      */

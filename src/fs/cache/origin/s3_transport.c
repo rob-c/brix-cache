@@ -11,6 +11,7 @@
 
 #include <curl/curl.h>
 #include <ctype.h>
+#include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
@@ -48,14 +49,31 @@ xrootd_origin_trace_set(int info_on)
 static long  g_origin_connect_ms;      /* CURLOPT_CONNECTTIMEOUT_MS (ms)   */
 static long  g_origin_stall_secs;      /* CURLOPT_LOW_SPEED_TIME (seconds) */
 static long  g_origin_stall_bytes;     /* CURLOPT_LOW_SPEED_LIMIT (bytes/s) */
+static long  g_origin_attempt_ms;      /* CURLOPT_TIMEOUT_MS cap (ms)      */
 
 void
 xrootd_s3_origin_timeouts_set(long connect_ms, long stall_secs,
-    long stall_bytes_per_s)
+    long stall_bytes_per_s, long attempt_ms)
 {
     g_origin_connect_ms  = connect_ms  > 0 ? connect_ms  : 0;
     g_origin_stall_secs  = stall_secs  > 0 ? stall_secs  : 0;
     g_origin_stall_bytes = stall_bytes_per_s > 0 ? stall_bytes_per_s : 0;
+    g_origin_attempt_ms  = attempt_ms  > 0 ? attempt_ms  : 0;
+}
+
+/* Connection reuse toggle (default ON = reuse). Reusing one keep-alive
+ * connection per fill thread amortizes the handshake + TCP slow-start on a
+ * high-latency link — but on a path with a middlebox that silently reaps idle
+ * connections, a reused-but-dead connection makes the next request time out
+ * (no RST to trigger curl's fresh-connection retry). Set OFF to force a fresh
+ * connection per request (the pre-2026-07-03 behaviour) when reuse hurts more
+ * than it helps on a hostile network. Set pre-fork from the cvmfs merge. */
+static int  g_origin_no_reuse;      /* 0 = reuse (default), 1 = fresh per req */
+
+void
+xrootd_s3_origin_reuse_set(int reuse_on)
+{
+    g_origin_no_reuse = reuse_on ? 0 : 1;
 }
 
 static long
@@ -191,6 +209,56 @@ s3o_trace(const char *method, const char *host, int port,
     }
 }
 
+/* ---- connection reuse (one long-lived connection per fill thread) ----------
+ * A fresh curl handle per request opened AND tore down a new TCP connection for
+ * EVERY origin request — ruinous on a high-latency link, where each object then
+ * paid the full TCP+HTTP handshake and a TCP slow-start ramp from a cold
+ * congestion window (so small objects finished before reaching full speed).
+ * Instead we keep ONE handle per fill thread and curl_easy_reset() it between
+ * requests: reset clears the per-request options but PRESERVES the live
+ * connection pool and DNS cache, so the 2nd..Nth request to the same Stratum-1
+ * reuses the already-open, already-warmed keep-alive connection — no handshake,
+ * no re-resolve, no slow-start restart. Per-thread because a curl easy handle
+ * cannot be shared across threads concurrently; a handful of warm connections
+ * replace thousands of cold ones. The pthread_key destructor cleans the handle
+ * up when the fill thread exits. */
+static pthread_key_t   g_curl_key;
+static pthread_once_t  g_curl_key_once = PTHREAD_ONCE_INIT;
+
+static void
+s3o_curl_thread_free(void *handle)
+{
+    if (handle != NULL) {
+        curl_easy_cleanup((CURL *) handle);
+    }
+}
+
+static void
+s3o_curl_key_init(void)
+{
+    (void) pthread_key_create(&g_curl_key, s3o_curl_thread_free);
+}
+
+/* This thread's persistent handle, reset and ready for a new request with its
+ * connection pool intact. Creates it on first use; NULL only on alloc failure. */
+static CURL *
+s3o_curl_acquire(void)
+{
+    CURL *handle;
+
+    (void) pthread_once(&g_curl_key_once, s3o_curl_key_init);
+    handle = (CURL *) pthread_getspecific(g_curl_key);
+    if (handle != NULL) {
+        curl_easy_reset(handle);       /* keeps live connections + DNS cache */
+        return handle;
+    }
+    handle = curl_easy_init();
+    if (handle != NULL) {
+        (void) pthread_setspecific(g_curl_key, handle);
+    }
+    return handle;
+}
+
 static int
 s3o_request(void *tctx, const char *host, int port, int tls,
             const char *method, const char *path_and_query,
@@ -209,17 +277,16 @@ s3o_request(void *tctx, const char *host, int port, int tls,
     (void) tctx;
     (void) clock_gettime(CLOCK_MONOTONIC, &t0);
 
-    curl = curl_easy_init();
+    curl = s3o_curl_acquire();       /* this thread's persistent, warm handle */
     if (curl == NULL) {
-        if (errbuf && errcap) { snprintf(errbuf, errcap, "curl_easy_init failed"); }
+        if (errbuf && errcap) { snprintf(errbuf, errcap, "curl handle unavailable"); }
         return -1;
     }
 
     r = calloc(1, sizeof(*r));
     if (r == NULL) {
-        curl_easy_cleanup(curl);
         if (errbuf && errcap) { snprintf(errbuf, errcap, "out of memory"); }
-        return -1;
+        return -1;                   /* handle stays in TLS, reused next call */
     }
 
     snprintf(url, sizeof(url), "%s://%s:%d%s",
@@ -243,8 +310,39 @@ s3o_request(void *tctx, const char *host, int port, int tls,
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, r);
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, s3o_header_cb);
     curl_easy_setopt(curl, CURLOPT_HEADERDATA, r);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, (long) (timeout_ms > 0 ? timeout_ms : 60000));
+    /* Per-attempt total ceiling: the process-global attempt cap (operator
+     * policy) wins over the caller's timeout so a whole connect+transfer is
+     * abandoned at g_origin_attempt_ms — this is the "give up after Ns and let
+     * the fill loop retry on a fresh connection inside the client's window"
+     * knob. 0 = fall back to the caller's timeout (or libcurl's 60s default). */
+    {
+        long total_ms = (g_origin_attempt_ms > 0) ? g_origin_attempt_ms
+                      : (timeout_ms > 0 ? timeout_ms : 60000);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, total_ms);
+    }
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+
+    if (g_origin_no_reuse) {
+        /* A/B / hostile-network escape hatch: behave like the old transport,
+         * one fresh connection per request (no stale-reuse risk, but pays the
+         * handshake + slow-start every time). */
+        curl_easy_setopt(curl, CURLOPT_FORBID_REUSE, 1L);
+        curl_easy_setopt(curl, CURLOPT_FRESH_CONNECT, 1L);
+    } else {
+        /* Reuse one warm connection per origin (the connection cache spans all
+         * endpoints so failover stays warm). Guard against a middlebox that
+         * reaps idle connections: probe with TCP keepalive every 15s so a dead
+         * connection is detected, and never reuse one idle longer than 20s —
+         * during a mount burst requests are back-to-back so reuse still lands,
+         * but a connection left idle past the danger window is reopened fresh. */
+        curl_easy_setopt(curl, CURLOPT_MAXCONNECTS, 16L);
+        curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
+        curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, 15L);
+        curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 15L);
+#ifdef CURLOPT_MAXAGE_CONN
+        curl_easy_setopt(curl, CURLOPT_MAXAGE_CONN, 20L);
+#endif
+    }
 
     /* Fast-fail bounds (operator policy; 0 = leave libcurl's default). A stuck
      * connect fails at g_origin_connect_ms; a connection that opens but then
@@ -290,13 +388,12 @@ s3o_request(void *tctx, const char *host, int port, int tls,
         free(r->body);
         free(r->hdrs);
         free(r);
-        curl_easy_cleanup(curl);
-        return -1;
+        return -1;                   /* handle persists (curl drops a dead
+                                        connection from the pool by itself) */
     }
 
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
     curl_slist_free_all(slist);
-    curl_easy_cleanup(curl);
 
     resp->status = (int) status;
     resp->opaque = r;

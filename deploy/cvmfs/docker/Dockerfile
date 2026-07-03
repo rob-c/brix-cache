@@ -50,10 +50,14 @@ RUN curl -fsSL "$NGINX_TARBALL_URL" -o /tmp/nginx.tar.gz \
 FROM quay.io/centos/centos:stream9
 
 # fail2ban lives in EPEL; nftables backs the ban action; python3 runs the
-# optional offline mock Stratum-1 (MOCK_STRATUM1=1).
+# optional offline mock Stratum-1 (MOCK_STRATUM1=1). The interactive
+# diagnostic tools (vim/htop/iotop/iftop/btop) are baked in so an operator
+# can `docker exec -it` and inspect a live demo without installing anything;
+# iftop/htop/btop come from EPEL, vim-enhanced/iotop from AppStream.
 RUN dnf -y install epel-release \
     && dnf -y install fail2ban-server nftables python3 procps-ng iproute \
         libxml2 jansson \
+        vim-enhanced htop iotop iftop btop \
     && dnf clean all
     # (libcurl-minimal in the base image provides libcurl.so.4 for the module)
 

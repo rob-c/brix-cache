@@ -17,6 +17,14 @@ set -eu
 # the :8000 variants are covered by the hostnames.
 : "${UPSTREAM_ALLOW:=cvmfs-stratum-one.cern.ch cernvmfs.gridpp.rl.ac.uk cvmfs-egi.gridpp.rl.ac.uk cvmfs-s1bnl.opensciencegrid.org cvmfs-s1fnal.opensciencegrid.org cvmfs-s1goc.opensciencegrid.org cvmfs-s1.hpc.swin.edu.au cvmfs-stratum-one.ihep.ac.cn sampacs01.if.usp.br}"
 
+# The RANKED origin set we actually fetch from (near-first), independent of the
+# broad allowlist above. unified_origin serves every client-named Stratum-1
+# from this one multi-endpoint backend, so a slow origin fails over invisibly.
+# Default: a small UK-first set on the Stratum-1 apache port (:8000). Override
+# with $ORIGINS (a "|"-separated http(s) URL list, max 8) or $ORIGIN_PORT.
+: "${ORIGIN_PORT:=8000}"
+: "${ORIGINS:=http://cvmfs-egi.gridpp.rl.ac.uk:${ORIGIN_PORT}|http://cernvmfs.gridpp.rl.ac.uk:${ORIGIN_PORT}|http://cvmfs-stratum-one.cern.ch:${ORIGIN_PORT}|http://cvmfs-s1bnl.opensciencegrid.org:${ORIGIN_PORT}}"
+
 NGX=/opt/nginx-xrootd
 LOGDIR=/var/log/nginx-xrootd
 CACHE=/var/cache/cvmfs
@@ -29,12 +37,18 @@ if [ "${MOCK_STRATUM1:-0}" = 1 ]; then
     python3 /opt/demo/mock_stratum1.py --port 8000 --repo test.cern.ch \
         --objects 16 --seed 68 &
     UPSTREAM_ALLOW="$UPSTREAM_ALLOW 127.0.0.1"
+    # offline: fetch from the mock only, so the demo works with no WAN.
+    ORIGINS="http://127.0.0.1:8000"
 fi
 
 # The allowlist is one space-separated directive — every listed host is
-# allowed (xrootd_cvmfs_upstream_allow accepts all its arguments).
+# allowed (xrootd_cvmfs_upstream_allow accepts all its arguments). @ORIGINS@ is
+# the ranked "|"-separated fetch set (unified_origin).
+# NOTE: @ORIGINS@ uses a '#' delimiter — its value is a '|'-separated URL list,
+# so '|' cannot be the sed delimiter there (URLs never contain '#').
 sed -e "s|@DASH_PASSWORD@|$DASH_PASSWORD|" \
     -e "s|@UPSTREAM_ALLOW@|$UPSTREAM_ALLOW|" \
+    -e "s#@ORIGINS@#$ORIGINS#" \
     "$NGX/conf/nginx.conf.in" > "$NGX/conf/nginx.conf"
 
 # fail2ban needs its logpaths to exist before it starts
