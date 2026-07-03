@@ -182,6 +182,14 @@ nscache_inval(pblock_catalog *cat, const char *path)
     pthread_mutex_unlock(&cat->cache_mtx);
 }
 
+/* POSIX parent gate for a NEW namespace row: the immediate parent must exist
+ * and be a directory. "/" exists implicitly (flat exports never pay a lookup),
+ * and the root row itself (parent "") always passes. Without this gate a
+ * create with missing parents inserted an ORPHAN: the key resolved (GET
+ * worked) but no parent= listing could ever reach it — readdir of an
+ * ancestor showed nothing and stat of the missing parent said ENOENT. */
+static int cat_parent_gate(pblock_catalog *cat, const char *path);
+
 /* Invalidate everything (used by rename, which reparents whole subtrees). */
 static void
 nscache_clear(pblock_catalog *cat)
@@ -258,6 +266,30 @@ parent_of(const char *path, char *out, size_t cap)
     }
     memcpy(out, path, len);
     out[len] = '\0';
+}
+
+/* See the declaration above for the WHY (orphan rows). Costs one indexed
+ * lookup per NEW row — creates only, never the byte path — and the nscache
+ * usually answers it. */
+static int
+cat_parent_gate(pblock_catalog *cat, const char *path)
+{
+    char         parent[1024];
+    pblock_meta  pm;
+
+    parent_of(path, parent, sizeof(parent));
+    if (parent[0] == '\0'                                /* the root row    */
+        || (parent[0] == '/' && parent[1] == '\0'))      /* child of "/"    */
+    {
+        return 0;
+    }
+    if (pblock_catalog_lookup(cat, parent, &pm) != 0) {
+        return cat_fail(ENOENT);
+    }
+    if (!pm.is_dir) {
+        return cat_fail(ENOTDIR);
+    }
+    return 0;
 }
 
 /* basename_of — the final path component (pointer into `path`). */
@@ -444,6 +476,12 @@ pblock_catalog_lookup(pblock_catalog *cat, const char *path, pblock_meta *out)
 }
 
 int
+pblock_catalog_parent_ok(pblock_catalog *cat, const char *path)
+{
+    return cat_parent_gate(cat, path);
+}
+
+int
 pblock_catalog_put(pblock_catalog *cat, const char *path,
     const pblock_meta *meta)
 {
@@ -453,6 +491,9 @@ pblock_catalog_put(pblock_catalog *cat, const char *path,
 
     if (path == NULL || meta == NULL) {
         return cat_fail(EINVAL);
+    }
+    if (cat_parent_gate(cat, path) != 0) {
+        return -1;                       /* errno = ENOENT / ENOTDIR */
     }
     parent_of(path, parent, sizeof(parent));
 
@@ -494,6 +535,9 @@ pblock_catalog_create(pblock_catalog *cat, const char *path,
 
     if (path == NULL || meta == NULL) {
         return cat_fail(EINVAL);
+    }
+    if (cat_parent_gate(cat, path) != 0) {
+        return -1;                       /* errno = ENOENT / ENOTDIR */
     }
     parent_of(path, parent, sizeof(parent));
 
@@ -778,6 +822,9 @@ pblock_catalog_rename(pblock_catalog *cat, const char *src, const char *dst)
 
     if (src == NULL || dst == NULL) {
         return cat_fail(EINVAL);
+    }
+    if (cat_parent_gate(cat, dst) != 0) {
+        return -1;                       /* errno = ENOENT / ENOTDIR */
     }
 
     if (cat_exec(cat, "BEGIN IMMEDIATE;") != 0) {

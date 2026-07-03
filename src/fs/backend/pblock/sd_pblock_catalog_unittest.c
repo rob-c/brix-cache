@@ -81,6 +81,48 @@ test_put_lookup(pblock_catalog *cat)
 
 /* touch updates only size+mtime and only for existing rows. */
 static void
+test_parent_gate(pblock_catalog *cat)
+{
+    /* phase-68 orphan fix: every create requires its immediate parent to
+     * exist and be a directory — an orphan row (reachable by key, invisible
+     * to every listing) must be impossible. */
+    pblock_meta in, out;
+
+    memset(&in, 0, sizeof(in));
+    in.mode = S_IFREG | 0644;
+
+    errno = 0;
+    CHECK(pblock_catalog_put(cat, "/ghostdir/file", &in) != 0
+          && errno == ENOENT, "orphan put allowed (errno %d)", errno);
+    CHECK(pblock_catalog_create(cat, "/ghostdir/sub/leaf", &in) != 0
+          && errno == ENOENT, "orphan create allowed (errno %d)", errno);
+    CHECK(pblock_catalog_lookup(cat, "/ghostdir/file", &out) == 1,
+          "orphan row landed anyway");
+
+    /* parent present but NOT a directory -> ENOTDIR */
+    CHECK(pblock_catalog_put(cat, "/plainfile", &in) == 0, "seed file");
+    errno = 0;
+    CHECK(pblock_catalog_put(cat, "/plainfile/child", &in) != 0
+          && errno == ENOTDIR, "file-as-parent allowed (errno %d)", errno);
+
+    /* the chain in order works, and rename into a missing parent fails */
+    memset(&in, 0, sizeof(in));
+    in.is_dir = 1;
+    in.mode = S_IFDIR | 0755;
+    CHECK(pblock_catalog_put(cat, "/ghostdir", &in) == 0, "mkdir parent");
+    memset(&in, 0, sizeof(in));
+    in.mode = S_IFREG | 0644;
+    CHECK(pblock_catalog_put(cat, "/ghostdir/file", &in) == 0,
+          "put after mkdir");
+    errno = 0;
+    CHECK(pblock_catalog_rename(cat, "/ghostdir/file", "/nowhere/f") != 0
+          && errno == ENOENT, "rename into missing parent allowed");
+    CHECK(pblock_catalog_remove(cat, "/ghostdir/file") == 0, "cleanup file");
+    CHECK(pblock_catalog_remove(cat, "/ghostdir") == 0, "cleanup dir");
+    CHECK(pblock_catalog_remove(cat, "/plainfile") == 0, "cleanup plain");
+}
+
+static void
 test_touch(pblock_catalog *cat)
 {
     pblock_meta in = file_meta("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", 0);
@@ -149,7 +191,13 @@ test_opendir(pblock_catalog *cat)
     CHECK(pblock_catalog_put(cat, "/list", &d) == 0, "mkdir list");
     CHECK(pblock_catalog_put(cat, "/list/a", &f) == 0, "a");
     CHECK(pblock_catalog_put(cat, "/list/b", &f) == 0, "b");
-    CHECK(pblock_catalog_put(cat, "/list/b/nested", &f) == 0, "nested");
+    /* "/list/b" is a FILE: since the phase-68 parent gate this insert must
+     * fail ENOTDIR outright (it used to land as an orphan row that readdir
+     * could never reach — the listing-shape CHECKs below still hold). */
+    errno = 0;
+    CHECK(pblock_catalog_put(cat, "/list/b/nested", &f) != 0
+          && errno == ENOTDIR, "nested under a file allowed (errno %d)",
+          errno);
 
     it = pblock_catalog_opendir(cat, "/list");
     CHECK(it != NULL, "opendir failed");
@@ -207,6 +255,7 @@ main(void)
     }
 
     test_put_lookup(cat);
+    test_parent_gate(cat);
     test_touch(cat);
     test_children_and_remove(cat);
     test_rename_subtree(cat);

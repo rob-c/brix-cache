@@ -79,6 +79,17 @@ chk "DELETE /d/x.bin (file)"  "$(code -X DELETE $U/d/x.bin)" 204
 chk "DELETE /d (now empty)"   "$(code -X DELETE $U/d)" 204
 chk "HEAD deleted dir"        "$(curl -s -I -o /dev/null -w '%{http_code}' $U/d)" 404
 
+echo "== orphan-parent regression (phase-68 fix) =="
+# A PUT whose parent collection does not exist must 409 (RFC 4918 9.7.1,
+# posix parity) — it used to insert an ORPHAN catalog row invisible to
+# readdir (stat of the parent said ENOENT, listings never showed the file).
+chk "PUT into missing collection" "$(code -T /tmp/pbw_small.bin $U/nodir/orphan.bin)" 409
+chk "MKCOL /nodir"                "$(code -X MKCOL $U/nodir)" 201
+chk "PUT after MKCOL"             "$(code -T /tmp/pbw_small.bin $U/nodir/orphan.bin)" 201
+curl -s -X PROPFIND -H "Depth: 1" "$U/nodir/" | grep -q orphan.bin \
+    && ok "parent collection lists the new file" \
+    || bad "orphan.bin missing from PROPFIND /nodir/"
+
 echo "== on-disk =="
 [ -f "$PFX/root/catalog.db" ] && ok "catalog.db present" || bad "no catalog.db"
 [ -d "$PFX/root/data" ]       && ok "data/ block dir present" || bad "no data/"

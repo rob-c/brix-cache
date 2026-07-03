@@ -1304,6 +1304,14 @@ sd_pblock_staged_open(xrootd_sd_instance_t *inst, const char *final_path,
     xrootd_sd_staged_t *handle;
     pblock_staged_t    *ps;
 
+    /* POSIX parity with the posix driver's staged temp (O_EXCL in the final
+     * directory): a missing parent collection fails HERE — before any blob
+     * is allocated or a single body byte is accepted — not at commit. */
+    if (pblock_catalog_parent_ok(st->cat, final_path) != 0) {
+        if (err_out != NULL) { *err_out = errno; }
+        return NULL;
+    }
+
     handle = calloc(1, sizeof(*handle));
     ps     = calloc(1, sizeof(*ps));
     if (handle == NULL || ps == NULL) {
