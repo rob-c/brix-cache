@@ -4,7 +4,7 @@
 
 Write, truncate, sync, mkdir, rm, mv, chmod — every write-side operation with behavior notes and permission requirements.
 
-Write operations require `xrootd_allow_write on` in the server block. A server without this setting returns `kXR_fsReadOnly` for any write request.
+Write operations require `brix_allow_write on` in the server block. A server without this setting returns `kXR_fsReadOnly` for any write request.
 
 The write family mirrors the read family, but current clients usually prefer
 the paged-write path because it carries CRC32c integrity fields. A fresh upload
@@ -44,7 +44,7 @@ the auth/path policy, and the filesystem syscall.
 ```text
 write request
     |
-    +-- xrootd_allow_write off? -> kXR_fsReadOnly
+    +-- brix_allow_write off? -> kXR_fsReadOnly
     |
     +-- token/VO/path policy denies? -> kXR_NotAuthorized
     |
@@ -58,7 +58,7 @@ write accepted
 
 Fresh uploads are **never written directly to the destination path.** The server
 opens a **staging file** — a temporary/partial file alongside the destination (or
-under `xrootd_stage_dir` when configured) — writes every `kXR_write` /
+under `brix_stage_dir` when configured) — writes every `kXR_write` /
 `kXR_pgwrite` / `kXR_writev` payload there, and only **renames it onto the final
 path on a clean `kXR_close`**. `rename(2)` on the same filesystem is atomic, so:
 
@@ -75,18 +75,18 @@ path on a clean `kXR_close`**. `rename(2)` on the same filesystem is atomic, so:
 ```
 
 - **Applies to:** `root://` create/overwrite opens (`OpenFlags.NEW`/`DELETE`)
-  while `xrootd_upload_resume` is on (the default) or POSC (`kXR_posc`) is set;
+  while `brix_upload_resume` is on (the default) or POSC (`kXR_posc`) is set;
   **every** WebDAV `PUT` and S3 `PUT`, via the shared
-  `xrootd_staged_open()` → `xrootd_staged_commit()` lifecycle
+  `brix_staged_open()` → `brix_staged_commit()` lifecycle
   ([`src/core/compat/staged_file.c`](../../src/core/compat/staged_file.c)).
 - **Does not apply to in-place updates:** an `OpenFlags.UPDATE` open that modifies
   an existing file at an offset writes **directly** to the file — staging it
   through an empty temp would lose the bytes it does not rewrite.
-- **Resume:** with `xrootd_upload_resume` on, the staging partial is
+- **Resume:** with `brix_upload_resume` on, the staging partial is
   deterministic and identity-keyed, so a reconnecting client resumes in place
   rather than restarting; the partial is preserved (not unlinked) on a non-clean
   close. See [reload/resume semantics](../09-developer-guide/reload-semantics.md).
-- **Cross-device stage dir:** when `xrootd_stage_dir` is on a different filesystem
+- **Cross-device stage dir:** when `brix_stage_dir` is on a different filesystem
   than the storage, the commit falls back to copy-then-rename (still atomic at the
   destination).
 

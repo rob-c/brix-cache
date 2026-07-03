@@ -573,7 +573,7 @@ and the connection proceeds normally.
 ngx_resolve_ctx_t *rctx = ngx_resolve_start(conf->resolver, NULL);
 rctx->name   = conf->upstream_host;
 rctx->port   = conf->upstream_port;
-rctx->handler = xrootd_upstream_dns_handler;
+rctx->handler = brix_upstream_dns_handler;
 rctx->data   = up;
 ngx_resolve_name(rctx);
 ```
@@ -722,7 +722,7 @@ typedef enum { TPC_DIR_PULL, TPC_DIR_PUSH } webdav_tpc_dir_e;
 
 static ngx_int_t
 webdav_tpc_run_curl(ngx_log_t *log,
-                    ngx_http_xrootd_webdav_loc_conf_t *conf,
+                    ngx_http_brix_webdav_loc_conf_t *conf,
                     webdav_tpc_dir_e dir,
                     const char *url, const char *path,
                     ngx_array_t *transfer_headers);
@@ -797,7 +797,7 @@ both implement fixed-size shared-memory lookup tables:
 
 **Potential design:**
 
-A macro-generated table (`XROOTD_SHM_TABLE_DEFINE(name, entry_type, size)`)
+A macro-generated table (`BRIX_SHM_TABLE_DEFINE(name, entry_type, size)`)
 that expands to the standard functions for a given entry type and table size.
 This pattern is common in the Linux kernel and nginx's own code.
 
@@ -900,7 +900,7 @@ Build matrix guardrails:
 
 - Minimal dependency builds keep fallback XML and checksum paths compiled.
 - External XML builds are detected with `pkg-config --exists libxml-2.0` and
-  compile `src/core/compat/xml.c` with `XROOTD_HAVE_LIBXML2=1`.
+  compile `src/core/compat/xml.c` with `BRIX_HAVE_LIBXML2=1`.
 - Shared checksum code is compiled through `src/core/compat/crc32c.c`.
 - Unit coverage for the build hooks lives in `tests/unit/run_tests.sh`,
   `tests/unit/test_xml_compat.c`, and `tests/unit/test_crc32c.c`.
@@ -1104,7 +1104,7 @@ should wait until integration tests are comprehensive for those paths.
 - libxml2 API documentation:
   <https://gnome.pages.gitlab.gnome.org/libxml2/html/>
 - XRootD documentation index, including client API references:
-  <https://xrootd.org/docs>
+  <https://brix.org/docs>
 - libmacaroons upstream package/source reference:
   <https://github.com/rescrv/libmacaroons>
 - libcurl multi-socket API (CURLM — event-driven TPC replacement target):

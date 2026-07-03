@@ -57,7 +57,7 @@ Driving our GSI client *and* server against stock XrdSecgsi v5.9.5 cost the most
 time. None of these are documented anywhere obvious; all were found by packet/log
 archaeology.
 
-1. **`gsi_ca_hash` only computes when `xrootd_trusted_ca` is a CA *file*, not a
+1. **`gsi_ca_hash` only computes when `brix_trusted_ca` is a CA *file*, not a
    directory.** `src/auth/gsi/config.c` does `fopen(trusted_ca)` + `PEM_read_X509`; a
    directory leaves the advertised `ca:00000000`, and a stock client then fails
    `unknown CA: cannot verify server certificate`. **Our own native client tolerates
@@ -68,7 +68,7 @@ archaeology.
 2. **X.509 proxy delegation requires signed-DH.** A stock client *clears* the
    delegation option bits when the server's DH parameters aren't RSA-signed
    ("no signed DH parameters … will not delegate"). You must run
-   `xrootd_gsi_signed_dh require` (or auto with a ≥10400 peer) or delegation silently
+   `brix_gsi_signed_dh require` (or auto with a ≥10400 peer) or delegation silently
    no-ops.
 
 3. **The plan said `-dlgpxy:1`; the stock option is `-dlgpxy:request`.** XrdSecgsi
@@ -112,7 +112,7 @@ for where you failed to turn it on.
   and cheaply.
 
 - **One implementation, both directions.** F4 collapsed the duplicated GSI round-2
-  into a single shared kernel (`xrootd_gsi_build_cert_response`) used by both the
+  into a single shared kernel (`brix_gsi_build_cert_response`) used by both the
   native client and the TPC destination. Two parallel implementations of the same
   wire handshake *will* drift; a shared kernel plus tripwire tests
   (`test_gsi_interop_guards.py` asserts both callers delegate to it) keeps them honest.
@@ -130,14 +130,14 @@ for where you failed to turn it on.
 ```text
   ┌───────────────────────────────────────────────────────────┐
   │  PROTOCOL HANDLERS   root://   WebDAV   S3   native-TPC     │
-  │  populate xrootd_vfs_ctx_t, never touch a raw fd            │
+  │  populate brix_vfs_ctx_t, never touch a raw fd            │
   └───────────────────────────────┬───────────────────────────┘
-                                  │  xrootd_vfs_io_execute()  ← live entry
-                                  │  (xrootd_vfs_read/write = DEAD, no callers)
+                                  │  brix_vfs_io_execute()  ← live entry
+                                  │  (brix_vfs_read/write = DEAD, no callers)
   ┌───────────────────────────────▼───────────────────────────┐
   │  VFS  (src/fs/)   confinement · metrics · cache · page-CRC  │
   └───────────────────────────────┬───────────────────────────┘
-                                  │  xrootd_sd_driver_t  (sd.h)
+                                  │  brix_sd_driver_t  (sd.h)
                                   │  capability-typed seam ↓ swappable
   ┌───────────────────────────────▼───────────────────────────┐
   │  STORAGE DRIVER (src/fs/backend/)   POSIX default           │
@@ -150,7 +150,7 @@ for where you failed to turn it on.
 
 - **"Data POSIX lives only in the backend" is the load-bearing invariant.** All file
   byte I/O flows `proto → VFS (src/fs/) → storage driver (src/fs/backend/, POSIX
-  default)` via the capability-typed `xrootd_sd_driver_t` seam (`src/fs/backend/sd.h`).
+  default)` via the capability-typed `brix_sd_driver_t` seam (`src/fs/backend/sd.h`).
   The point is that an object/S3 backend can become primary *without touching anything
   above it*. Every raw `pread`/`pwrite`/`copy_file_range`/`fstat` on file data that
   leaks above the backend erodes that guarantee — they get audited and migrated
@@ -161,8 +161,8 @@ for where you failed to turn it on.
   dst->driver->pwrite`) rather than a local-filesystem `rename`. Resisting the
   "just copy_file_range it" shortcut is what keeps the object-store future open.
 
-- **Know which VFS entry points are live.** `xrootd_vfs_read` / `xrootd_vfs_write`
-  currently have **no callers** — the live data path is `xrootd_vfs_io_execute()`.
+- **Know which VFS entry points are live.** `brix_vfs_read` / `brix_vfs_write`
+  currently have **no callers** — the live data path is `brix_vfs_io_execute()`.
   Wiring new code to a plausible-looking but dead entry point is an easy way to ship
   something that never runs. Grep for callers before depending on an API.
 
@@ -215,7 +215,7 @@ honest:
   end-to-end DN assertion is `xfail`, with the exact environmental preconditions
   documented so it flips green on a real grid host.
 - **Never report unverified crypto as "done."** The plan's own discipline — "do not
-  add unverifiable code on top" — is why F6 stayed behind `xrootd_tpc_delegate`
+  add unverifiable code on top" — is why F6 stayed behind `brix_tpc_delegate`
   (default off) until each layer had the strongest gate the environment allowed.
 - **Record the dead ends.** The five GSI findings above each looked like the end of
   the road. Writing them down (here + in the plan's §F6) is the difference between the

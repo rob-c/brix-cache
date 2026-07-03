@@ -3,7 +3,7 @@
 Three distinct encrypted transport patterns — each serves a different client type and security requirement. Pick the one that matches your clients:
 
 1. HTTP TLS - WebDAV `davs://` and S3-compatible HTTPS in nginx's `http {}` layer
-2. `root://` with an in-protocol TLS upgrade driven by `xrootd_tls on`
+2. `root://` with an in-protocol TLS upgrade driven by `brix_tls on`
 3. `roots://` using nginx stream SSL (`listen ... ssl`) from the first byte
 
 They solve slightly different problems, and they are implemented in different
@@ -20,8 +20,8 @@ attribute certificates, CRL conventions, and GSI DH exchange details — see
 | Client URL / mode | Where TLS starts | Main nginx config | Main code path | Notes |
 |---|---|---|---|---|
 | `davs://host:8443/...` | Before HTTP request parsing | `listen ... ssl` in `http {}` | `src/protocols/webdav/*.c` | Standard HTTPS/WebDAV |
-| S3-compatible `https://host/bucket/key` | Before HTTP request parsing | `listen ... ssl` in `http {}` + `xrootd_s3 on` | `src/protocols/s3/*.c` | HTTPS transport with optional SigV4 auth |
-| `root://host:1094/...` + `xrootd_tls on` | After `kXR_protocol` advertises `kXR_haveTLS` | `xrootd_tls on` in `stream {}` | `src/protocols/root/session/protocol.c`, `src/protocols/root/connection/*.c` | Same TCP port, XRootD-native upgrade |
+| S3-compatible `https://host/bucket/key` | Before HTTP request parsing | `listen ... ssl` in `http {}` + `brix_s3 on` | `src/protocols/s3/*.c` | HTTPS transport with optional SigV4 auth |
+| `root://host:1094/...` + `brix_tls on` | After `kXR_protocol` advertises `kXR_haveTLS` | `brix_tls on` in `stream {}` | `src/protocols/root/session/protocol.c`, `src/protocols/root/connection/*.c` | Same TCP port, XRootD-native upgrade |
 | `roots://host:1094/...` | Immediately after TCP connect | `listen ... ssl` in `stream {}` | nginx stream SSL + normal XRootD stream module | Transport TLS from byte 0 |
 
 The crux is **when** on the connection timeline the bytes become encrypted —
@@ -36,18 +36,18 @@ plaintext shown as `····`, encrypted as `████`:
   (listen ssl)     │TLS handshake│ XRootD handshake·login·auth·I/O (all enc) │
 
   root:// +        ········│██████████████████████████████████████████████  upgrade mid-stream
-  xrootd_tls on    │hs·kXR_protocol│ ← server: kXR_gotoTLS, THEN TLS handshake│
+  brix_tls on    │hs·kXR_protocol│ ← server: kXR_gotoTLS, THEN TLS handshake│
                    plaintext until the protocol reply is flushed, then enc
 
   root:// (GSI,    ····███····································································  creds only
-  no xrootd_tls)   │hs│GSI auth│ login·file I/O all CLEARTEXT (auth protected)│
+  no brix_tls)   │hs│GSI auth│ login·file I/O all CLEARTEXT (auth protected)│
 
   davs:// / S3     ████████████████████████████████████████████████████████  HTTPS (nginx http)
   (listen ssl)     │TLS handshake│ HTTP/WebDAV/S3 request inside TLS          │
 ```
 
 One listener should use one transport-TLS model. If a stream listener already
-uses `listen ... ssl` for `roots://`, leave `xrootd_tls` off on that listener.
+uses `listen ... ssl` for `roots://`, leave `brix_tls` off on that listener.
 
 ```text
 davs://
@@ -63,7 +63,7 @@ S3 over HTTPS
         -> S3 SigV4 check if configured
         -> S3 method handler
 
-root:// + xrootd_tls on
+root:// + brix_tls on
     TCP connect
         -> cleartext XRootD handshake + kXR_protocol
         -> server advertises kXR_gotoTLS
@@ -94,7 +94,7 @@ stream and HTTP stacks:
 ```
 
 If you only need WebDAV over HTTPS, `--with-http_ssl_module` is sufficient.
-If you want `roots://` or `xrootd_tls`, `--with-stream_ssl_module` is required.
+If you want `roots://` or `brix_tls`, `--with-stream_ssl_module` is required.
 
 ---
 
@@ -108,10 +108,10 @@ in-protocol TLS upgrade, or behind nginx stream SSL.
 With:
 
 ```nginx
-xrootd_auth gsi;
-xrootd_certificate ...;
-xrootd_certificate_key ...;
-xrootd_trusted_ca ...;
+brix_auth gsi;
+brix_certificate ...;
+brix_certificate_key ...;
+brix_trusted_ca ...;
 ```
 
 the module performs XRootD/GSI authentication. That protects the credential
@@ -128,14 +128,14 @@ stream {
     server {
         listen 1095;
         xrootd on;
-        xrootd_root /data;
+        brix_root /data;
 
-        xrootd_auth gsi;
-        xrootd_certificate     /etc/grid-security/hostcert.pem;
-        xrootd_certificate_key /etc/grid-security/hostkey.pem;
-        xrootd_trusted_ca      /etc/grid-security/certificates/ca.pem;
+        brix_auth gsi;
+        brix_certificate     /etc/grid-security/hostcert.pem;
+        brix_certificate_key /etc/grid-security/hostkey.pem;
+        brix_trusted_ca      /etc/grid-security/certificates/ca.pem;
 
-        xrootd_tls on;
+        brix_tls on;
     }
 }
 ```
@@ -155,15 +155,15 @@ the module enables XRootD's in-band TLS negotiation:
 That flow is implemented in two places:
 
 - `src/protocols/root/session/protocol.c`
-  - `xrootd_handle_protocol()` decides whether to advertise TLS
+  - `brix_handle_protocol()` decides whether to advertise TLS
 - `src/protocols/root/connection/*.c`
-  - `xrootd_start_tls()` creates the nginx SSL connection
-  - `xrootd_tls_handshake_done()` restores the normal read/write handlers
+  - `brix_start_tls()` creates the nginx SSL connection
+  - `brix_tls_handshake_done()` restores the normal read/write handlers
 
 Important details:
 
-- `xrootd_tls on` requires `xrootd_certificate` and
-  `xrootd_certificate_key`
+- `brix_tls on` requires `brix_certificate` and
+  `brix_certificate_key`
 - the TLS context is created at config time and currently enables TLS 1.2/1.3
 - the upgrade only happens when the client explicitly offers `kXR_ableTLS`
 - the module starts the TLS handshake only after the `kXR_protocol` response is
@@ -184,12 +184,12 @@ stream {
     server {
         listen 1097 ssl;
         xrootd on;
-        xrootd_root /data;
+        brix_root /data;
 
-        xrootd_auth gsi;
-        xrootd_certificate     /etc/grid-security/hostcert.pem;
-        xrootd_certificate_key /etc/grid-security/hostkey.pem;
-        xrootd_trusted_ca      /etc/grid-security/certificates/ca.pem;
+        brix_auth gsi;
+        brix_certificate     /etc/grid-security/hostcert.pem;
+        brix_certificate_key /etc/grid-security/hostkey.pem;
+        brix_trusted_ca      /etc/grid-security/certificates/ca.pem;
 
         ssl_certificate     /etc/grid-security/hostcert.pem;
         ssl_certificate_key /etc/grid-security/hostkey.pem;
@@ -206,7 +206,7 @@ This is useful when you want:
 - standard nginx stream SSL features such as session caches and TLS policy
 - anonymous or token-authenticated XRootD over TLS, not only GSI
 
-Do not also enable `xrootd_tls on` on the same listener. `roots://` is already
+Do not also enable `brix_tls on` on the same listener. `roots://` is already
 encrypted before the XRootD handshake begins.
 
 ---
@@ -218,21 +218,21 @@ The protocol negotiation currently looks like this:
 - `kXR_protocol`
   - advertises auth protocols (`gsi`, `ztn`, or both) when the client asked for
     security negotiation
-  - advertises `kXR_haveTLS` only when `xrootd_tls on` is configured and the
+  - advertises `kXR_haveTLS` only when `brix_tls on` is configured and the
     client offered `kXR_ableTLS`
 - `kXR_login`
   - returns the normal session id
   - appends `&P=...` parameters describing the enabled auth protocols
   - for GSI includes the CA hash used later in the GSI bootstrap
 - `kXR_auth`
-  - runs after the TLS upgrade if the connection took the `xrootd_tls` path
+  - runs after the TLS upgrade if the connection took the `brix_tls` path
 
 So the layering can be:
 
 | Listener type | Auth mode | Encryption of file traffic |
 |---|---|---|
-| plain `root://`, no `xrootd_tls` | `gsi` | no |
-| plain `root://` + `xrootd_tls on` | `none`, `gsi`, `token`, or `both` | yes, after `kXR_protocol` |
+| plain `root://`, no `brix_tls` | `gsi` | no |
+| plain `root://` + `brix_tls on` | `none`, `gsi`, `token`, or `both` | yes, after `kXR_protocol` |
 | `roots://` (`listen ... ssl`) | `none`, `gsi`, `token`, or `both` | yes, from connect onward |
 
 ---
@@ -254,13 +254,13 @@ http {
         ssl_verify_client   optional_no_ca;
         ssl_verify_depth    10;
 
-        xrootd_webdav_proxy_certs on;
+        brix_webdav_proxy_certs on;
 
         location / {
-            xrootd_webdav         on;
-            xrootd_webdav_root    /data;
-            xrootd_webdav_cadir   /etc/grid-security/certificates;
-            xrootd_webdav_auth    required;
+            brix_webdav         on;
+            brix_webdav_root    /data;
+            brix_webdav_cadir   /etc/grid-security/certificates;
+            brix_webdav_auth    required;
         }
     }
 }
@@ -275,16 +275,16 @@ chains in the way Grid deployments expect.
 The WebDAV module therefore adds several pieces on top of nginx's normal HTTPS
 stack:
 
-1. `xrootd_webdav_proxy_certs on`
+1. `brix_webdav_proxy_certs on`
    - patches the server `SSL_CTX` in postconfiguration
    - sets `X509_V_FLAG_ALLOW_PROXY_CERTS`
    - allows nginx's TLS layer to accept RFC 3820 proxy certs
 
 2. Manual x509 verification in the request handler
-   - uses a cached `X509_STORE` built from `xrootd_webdav_cadir`,
-     `xrootd_webdav_cafile`, and `xrootd_webdav_crl`
+   - uses a cached `X509_STORE` built from `brix_webdav_cadir`,
+     `brix_webdav_cafile`, and `brix_webdav_crl`
    - applies `X509_V_FLAG_ALLOW_PROXY_CERTS`
-   - respects `xrootd_webdav_verify_depth`
+   - respects `brix_webdav_verify_depth`
 
 3. Fast path when nginx already verified the client cert
    - if nginx's own SSL trust inputs match the module's trust inputs, the
@@ -352,7 +352,7 @@ Choose the transport based on what you need:
 - HTTP TLS (`davs://`, WebDAV HTTPS, or S3-compatible HTTPS)
   - best when you need HTTP/WebDAV compatibility, proxies, bearer tokens,
     HTTP-TPC, or the S3-compatible HTTP endpoint
-- `root://` + `xrootd_tls on`
+- `root://` + `brix_tls on`
   - best when clients already speak native XRootD and you want XRootD's
     negotiated in-band TLS model
 - `roots://`
@@ -371,11 +371,11 @@ The detailed code-level mitigations are documented in
 ## Tests and examples
 
 - `tests/test_gsi_tls.py`
-  - exercises the native `xrootd_tls` in-protocol upgrade path
+  - exercises the native `brix_tls` in-protocol upgrade path
 - `tests/test_webdav_auth_cache.py`
   - exercises the WebDAV TLS auth caches and nginx-verified fast path
 - `tests/nginx.perf.conf`
   - shows all three TLS patterns in one config:
-    - `xrootd_tls on`
+    - `brix_tls on`
     - `roots://` via `listen ... ssl`
     - `davs://` / S3-compatible HTTPS via `http {}` + `listen ... ssl`

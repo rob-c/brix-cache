@@ -1,7 +1,7 @@
 # XRootD Concepts (deep dive)
 
 > ⚠️ **Reference tier — advanced.** Assumes familiarity with:
-> - [XRootD Basics](../02-concepts/xrootd-basics.md) *(read first, 10 min)*
+> - [XRootD Basics](../02-concepts/brix-basics.md) *(read first, 10 min)*
 > - Basic understanding of TCP sessions and file I/O
 >
 > If you just want to set up a server, stop reading after [Configuration Reference](../03-configuration/config-reference.md).
@@ -259,7 +259,7 @@ This is the most important distinction in XRootD's security model:
 
 - **GSI proves identity.** It authenticates the client and establishes a shared
   session state for signing. It does not automatically encrypt data bytes.
-- **TLS encrypts the wire.** Transport TLS (`roots://`, `xrootd_tls on`, or
+- **TLS encrypts the wire.** Transport TLS (`roots://`, `brix_tls on`, or
   `davs://`) protects bytes in transit. It does not by itself grant access to
   files.
 
@@ -277,8 +277,8 @@ Authentication establishes identity facts:
 
 Authorization then checks those facts against:
 - Token `storage.read`, `storage.write`, `storage.create` scopes
-- Configured VO requirements (`xrootd_require_vo`)
-- Server-wide write gate (`xrootd_allow_write`)
+- Configured VO requirements (`brix_require_vo`)
+- Server-wide write gate (`brix_allow_write`)
 - Filesystem permissions from the OS
 
 These are separate steps. A credential can be valid without having access to a

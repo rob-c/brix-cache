@@ -38,7 +38,7 @@ Key packages and why they are needed:
 | `curl` | Runtime helper for optional HTTP-TPC WebDAV COPY pulls |
 | Python `cryptography` | Test PKI, proxy, CRL, and JWT token generation |
 
-VOMS support is loaded at runtime via `dlopen("libvomsapi.so.1")` — no compile-time VOMS headers or link flags are needed. If the library is present at startup, VO ACL enforcement is available; if absent, the module starts normally but `xrootd_require_vo` directives will fail with an error telling you to install `voms-libs` (EL9) or `libvomsapi1` (Debian/Ubuntu). See [pki.md](../06-authentication/pki-config.md) for the VOMS attribute certificate model and vomsdir/LSC file setup.
+VOMS support is loaded at runtime via `dlopen("libvomsapi.so.1")` — no compile-time VOMS headers or link flags are needed. If the library is present at startup, VO ACL enforcement is available; if absent, the module starts normally but `brix_require_vo` directives will fail with an error telling you to install `voms-libs` (EL9) or `libvomsapi1` (Debian/Ubuntu). See [pki.md](../06-authentication/pki-config.md) for the VOMS attribute certificate model and vomsdir/LSC file setup.
 
 Verify `libvomsapi` is installed:
 
@@ -72,7 +72,7 @@ git clone https://github.com/HEP-x/nginx-xrootd.git /opt/nginx-xrootd
 Or, if you already have it checked out:
 
 ```bash
-export XROOTD_MODULE=/home/you/nginx-xrootd
+export BRIX_MODULE=/home/you/nginx-xrootd
 ```
 
 ---
@@ -117,8 +117,8 @@ What each flag does:
 ```
 
 The module's `config` script (at the root of this repository) runs automatically during `./configure`. It:
-- Registers the **stream** modules: `ngx_stream_xrootd_module` for native XRootD and `ngx_stream_xrootd_cms_srv_module` for the CMS management listener
-- Registers the **HTTP** modules: `ngx_http_xrootd_metrics_module` (Prometheus), `ngx_http_xrootd_webdav_module` (WebDAV), and `ngx_http_xrootd_s3_module` (S3-compatible HTTP)
+- Registers the **stream** modules: `ngx_stream_brix_module` for native XRootD and `ngx_stream_brix_cms_srv_module` for the CMS management listener
+- Registers the **HTTP** modules: `ngx_http_brix_metrics_module` (Prometheus), `ngx_http_brix_webdav_module` (WebDAV), and `ngx_http_brix_s3_module` (S3-compatible HTTP)
 - Links `-lssl -lcrypto` for OpenSSL/GSI support
 - VOMS support requires no compile-time flags — `libvomsapi.so.1` is loaded at runtime via `dlopen`
 
@@ -126,17 +126,17 @@ The module's `config` script (at the root of this repository) runs automatically
 
 By default the module builds with nginx's standard optimisation flags plus the
 hardening flags listed above. For throughput-sensitive deployments you can opt
-into a higher optimisation profile by exporting `XROOTD_OPTIMIZE` **before**
+into a higher optimisation profile by exporting `BRIX_OPTIMIZE` **before**
 `./configure`:
 
 ```bash
-XROOTD_OPTIMIZE=v2 ./configure --with-stream --with-stream_ssl_module \
+BRIX_OPTIMIZE=v2 ./configure --with-stream --with-stream_ssl_module \
     --with-http_ssl_module --with-http_dav_module --with-threads \
     --add-module=/opt/nginx-xrootd
 make -j"$(nproc)"
 ```
 
-| `XROOTD_OPTIMIZE` | Flags added | When to use |
+| `BRIX_OPTIMIZE` | Flags added | When to use |
 |---|---|---|
 | _(unset)_ | none (default) | Portable default; no assumptions about the CPU |
 | `v2` | `-O3 -march=x86-64-v2 -fno-plt` | **Recommended.** Safe on every RHEL 9 host (SSE4.2/POPCNT are part of the x86-64-v2 baseline). Lets the compiler emit SSE4.2 everywhere, not only in the CRC-32c hot path. |
@@ -299,36 +299,36 @@ stream {
     server {
         listen 11094;
         xrootd on;
-        xrootd_root /tmp/xrd-test/data;
-        xrootd_auth none;
-        xrootd_allow_write on;
-        xrootd_access_log /tmp/xrd-test/logs/xrootd_access_anon.log;
+        brix_root /tmp/xrd-test/data;
+        brix_auth none;
+        brix_allow_write on;
+        brix_access_log /tmp/xrd-test/logs/brix_access_anon.log;
     }
 
     # GSI/x509 server (port 11095)
     server {
         listen 11095;
         xrootd on;
-        xrootd_root /tmp/xrd-test/data;
-        xrootd_auth gsi;
-        xrootd_allow_write on;
-        xrootd_certificate     /tmp/xrd-test/pki/server/hostcert.pem;
-        xrootd_certificate_key /tmp/xrd-test/pki/server/hostkey.pem;
-        xrootd_trusted_ca      /tmp/xrd-test/pki/ca/ca.pem;
-        xrootd_access_log /tmp/xrd-test/logs/xrootd_access_gsi.log;
+        brix_root /tmp/xrd-test/data;
+        brix_auth gsi;
+        brix_allow_write on;
+        brix_certificate     /tmp/xrd-test/pki/server/hostcert.pem;
+        brix_certificate_key /tmp/xrd-test/pki/server/hostkey.pem;
+        brix_trusted_ca      /tmp/xrd-test/pki/ca/ca.pem;
+        brix_access_log /tmp/xrd-test/logs/brix_access_gsi.log;
     }
 
     # JWT/WLCG bearer-token server (port 11099)
     server {
         listen 11099;
         xrootd on;
-        xrootd_root /tmp/xrd-test/data;
-        xrootd_auth token;
-        xrootd_allow_write on;
-        xrootd_token_jwks     /tmp/xrd-test/tokens/jwks.json;
-        xrootd_token_issuer   "https://test.example.com";
-        xrootd_token_audience "nginx-xrootd";
-        xrootd_access_log /tmp/xrd-test/logs/xrootd_access_token.log;
+        brix_root /tmp/xrd-test/data;
+        brix_auth token;
+        brix_allow_write on;
+        brix_token_jwks     /tmp/xrd-test/tokens/jwks.json;
+        brix_token_issuer   "https://test.example.com";
+        brix_token_audience "nginx-xrootd";
+        brix_access_log /tmp/xrd-test/logs/brix_access_token.log;
     }
 }
 
@@ -343,7 +343,7 @@ http {
     # Prometheus metrics
     server {
         listen 9100;
-        location /metrics { xrootd_metrics on; }
+        location /metrics { brix_metrics on; }
     }
 
     # WebDAV over HTTPS (port 8443)
@@ -352,19 +352,19 @@ http {
         server_name localhost;
         ssl_certificate     /tmp/xrd-test/pki/server/hostcert.pem;
         ssl_certificate_key /tmp/xrd-test/pki/server/hostkey.pem;
-        xrootd_webdav_proxy_certs on;
+        brix_webdav_proxy_certs on;
         ssl_verify_client   optional_no_ca;
         ssl_verify_depth    10;
         client_max_body_size 1g;
         location / {
-            xrootd_webdav         on;
-            xrootd_webdav_root    /tmp/xrd-test/data;
-            xrootd_webdav_cadir   /tmp/xrd-test/pki/ca;
-            xrootd_webdav_auth    optional;
-            xrootd_webdav_allow_write on;
-            xrootd_webdav_token_jwks     /tmp/xrd-test/tokens/jwks.json;
-            xrootd_webdav_token_issuer   "https://test.example.com";
-            xrootd_webdav_token_audience "nginx-xrootd";
+            brix_webdav         on;
+            brix_webdav_root    /tmp/xrd-test/data;
+            brix_webdav_cadir   /tmp/xrd-test/pki/ca;
+            brix_webdav_auth    optional;
+            brix_webdav_allow_write on;
+            brix_webdav_token_jwks     /tmp/xrd-test/tokens/jwks.json;
+            brix_webdav_token_issuer   "https://test.example.com";
+            brix_webdav_token_audience "nginx-xrootd";
         }
     }
 }
@@ -456,7 +456,7 @@ pytest tests/test_root_tpc.py -v
 pytest -v
 ```
 
-The VO ACL tests (`test_vo_acl.py`) start their own nginx instance on port 11103 with `xrootd_require_vo` directives. They auto-generate VOMS proxies if expired or missing using the Python `voms_proxy_fake.py` utility in `utils/`. Token tests use the configured port 11099. CRL tests start a dedicated nginx instance on port 11100 plus WebDAV on 8444 so they do not disturb the main listener. The HTTP-TPC tests (`test_webdav_tpc.py`) start isolated nginx WebDAV endpoints on dynamic ports and, when the local XrdHttp plugins are installed, a reference xrootd HTTPS/TPC endpoint. The native root TPC tests (`test_root_tpc.py`) start an isolated nginx root:// endpoint and a TPC-capable reference xrootd server on dynamic ports.
+The VO ACL tests (`test_vo_acl.py`) start their own nginx instance on port 11103 with `brix_require_vo` directives. They auto-generate VOMS proxies if expired or missing using the Python `voms_proxy_fake.py` utility in `utils/`. Token tests use the configured port 11099. CRL tests start a dedicated nginx instance on port 11100 plus WebDAV on 8444 so they do not disturb the main listener. The HTTP-TPC tests (`test_webdav_tpc.py`) start isolated nginx WebDAV endpoints on dynamic ports and, when the local XrdHttp plugins are installed, a reference xrootd HTTPS/TPC endpoint. The native root TPC tests (`test_root_tpc.py`) start an isolated nginx root:// endpoint and a TPC-capable reference xrootd server on dynamic ports.
 
 ---
 
@@ -486,7 +486,7 @@ pytest -v
 VOMS support is always compiled in but loaded at runtime. The module calls `dlopen("libvomsapi.so.1")` during nginx startup and resolves the four API symbols it needs (`VOMS_Init`, `VOMS_Retrieve`, `VOMS_Destroy`, `VOMS_ErrorMessage`). No compile-time VOMS headers or link flags are required.
 
 - **If `libvomsapi.so.1` is present** (e.g. from `voms-libs` on EL9): VO ACL enforcement is available. The startup log shows `xrootd: libvomsapi.so.1 loaded — VOMS VO ACL enforcement available`.
-- **If `libvomsapi.so.1` is absent**: The module starts normally. `xrootd_vomsdir`, `xrootd_voms_cert_dir`, and `xrootd_require_vo` directives are still accepted by the config parser, but validation will fail at startup with a clear error message asking you to install the runtime library.
+- **If `libvomsapi.so.1` is absent**: The module starts normally. `brix_vomsdir`, `brix_voms_cert_dir`, and `brix_require_vo` directives are still accepted by the config parser, but validation will fail at startup with a clear error message asking you to install the runtime library.
 
 ### Debug build
 
@@ -605,11 +605,11 @@ rpm -qpl ~/rpmbuild/RPMS/x86_64/nginx-mod-brix-cache-*.rpm
 Expected output:
 
 ```
-/usr/lib64/nginx/modules/ngx_stream_xrootd_module.so
-/usr/lib64/nginx/modules/ngx_stream_xrootd_cms_srv_module.so
-/usr/lib64/nginx/modules/ngx_http_xrootd_metrics_module.so
-/usr/lib64/nginx/modules/ngx_http_xrootd_webdav_module.so
-/usr/lib64/nginx/modules/ngx_http_xrootd_s3_module.so
+/usr/lib64/nginx/modules/ngx_stream_brix_module.so
+/usr/lib64/nginx/modules/ngx_stream_brix_cms_srv_module.so
+/usr/lib64/nginx/modules/ngx_http_brix_metrics_module.so
+/usr/lib64/nginx/modules/ngx_http_brix_webdav_module.so
+/usr/lib64/nginx/modules/ngx_http_brix_s3_module.so
 /usr/share/nginx/modules/mod-xrootd.conf
 /usr/share/doc/nginx-mod-brix-cache/README.md
 /usr/share/doc/nginx-mod-brix-cache/docs/   (all docs files)
@@ -640,11 +640,11 @@ sudo rpm -ivh ~/rpmbuild/RPMS/x86_64/nginx-mod-brix-cache-*.rpm
 The RPM writes `/usr/share/nginx/modules/mod-xrootd.conf`:
 
 ```nginx
-load_module "/usr/lib64/nginx/modules/ngx_stream_xrootd_module.so";
-load_module "/usr/lib64/nginx/modules/ngx_stream_xrootd_cms_srv_module.so";
-load_module "/usr/lib64/nginx/modules/ngx_http_xrootd_metrics_module.so";
-load_module "/usr/lib64/nginx/modules/ngx_http_xrootd_webdav_module.so";
-load_module "/usr/lib64/nginx/modules/ngx_http_xrootd_s3_module.so";
+load_module "/usr/lib64/nginx/modules/ngx_stream_brix_module.so";
+load_module "/usr/lib64/nginx/modules/ngx_stream_brix_cms_srv_module.so";
+load_module "/usr/lib64/nginx/modules/ngx_http_brix_metrics_module.so";
+load_module "/usr/lib64/nginx/modules/ngx_http_brix_webdav_module.so";
+load_module "/usr/lib64/nginx/modules/ngx_http_brix_s3_module.so";
 ```
 
 On AlmaLinux 9, `/etc/nginx/nginx.conf` includes `*.conf` from
@@ -742,7 +742,7 @@ make -j$(nproc)                                  # the ASAN binary at objs/nginx
 SANITIZE=1 SKIP_XRDFS_CHECK=1 tests/manage_test_servers.sh start-all
 PYTHONPATH=tests pytest tests/ -q                # exercise the paths
 SANITIZE=1 tests/manage_test_servers.sh stop     # each process leak-checks at exit
-grep -rE 'in (xrootd_|ngx_.*xrootd)|/src/' "$TEST_ROOT"/sanitize/asan.* | grep -v src/core/
+grep -rE 'in (brix_|ngx_.*xrootd)|/src/' "$TEST_ROOT"/sanitize/asan.* | grep -v src/core/
 ```
 
 **ASAN at runtime works** — buffer-overflow / use-after-free / UBSan are caught

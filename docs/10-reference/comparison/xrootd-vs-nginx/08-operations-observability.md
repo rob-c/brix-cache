@@ -43,7 +43,7 @@ the doc says "not found in core" / "not implemented" rather than guessing.
 ## In official XRootD
 
 XRootD is a multi-daemon system (`xrootd`, `cmsd`, `frm_*`) configured from a
-single text config file (conventionally `/etc/xrootd/xrootd-<instance>.cfg`),
+single text config file (conventionally `/etc/brix/brix-<instance>.cfg`),
 parsed by `XrdOuc`, and observed through two independent UDP feeds and the
 process log:
 
@@ -73,7 +73,7 @@ process log:
   `*.trace` directives.
 - **Packaging:** the in-tree RPM spec `xrootd.spec` (many sub-packages),
   templated systemd units in `systemd/` (`xrootd@.service`, `cmsd@.service`,
-  `frm_*@.service`, plus `.socket` units), and `config/xrootd.logrotate`.
+  `frm_*@.service`, plus `.socket` units), and `config/brix.logrotate`.
 
 Not present in the reviewed core tree: a Prometheus/HTTP metrics endpoint, an
 HTTP health/readiness probe, and a built-in WLCG SRR endpoint (SRR is provided
@@ -83,21 +83,21 @@ config reload.
 ## In BriX-Cache
 
 BriX-Cache is a single nginx process tree (master + workers) configured from
-`nginx.conf` using `xrootd_*` directives inside `stream{}` (for `root://`) and
+`nginx.conf` using `brix_*` directives inside `stream{}` (for `root://`) and
 `http{}` (for WebDAV / S3 / metrics / dashboard / SRR / health). Observability
 is consolidated into one shared-memory metrics spine plus several HTTP
 endpoints:
 
-- **Metrics:** `src/observability/metrics/` — one SHM object (`ngx_xrootd_metrics_t`) written
+- **Metrics:** `src/observability/metrics/` — one SHM object (`ngx_brix_metrics_t`) written
   lock-free by every protocol via increment macros (`metrics_macros.h`) and read
-  back as Prometheus text by `ngx_http_xrootd_metrics_handler()`
+  back as Prometheus text by `ngx_http_brix_metrics_handler()`
   (`handler.c`), with per-protocol exporters in `stream.c`, `webdav.c`,
   `s3.c`, `cluster.c`, `unified.c`, `ratelimit.c`, `stream_proxy.c`,
-  `stream_cache.c`, `stream_tracking.c`, `writer.c`. The `xrootd_metrics`
+  `stream_cache.c`, `stream_tracking.c`, `writer.c`. The `brix_metrics`
   location directive is declared in `module.c`; the conventional listener is
   `:9100` (`src/observability/metrics/README.md`).
 - **Dashboard / admin:** `src/observability/dashboard/` — a REST read API
-  (`/xrootd/api/v1/transfers|events|history|cluster|cache|ratelimit|config`),
+  (`/brix/api/v1/transfers|events|history|cluster|cache|ratelimit|config`),
   an anonymous PII-free tier, a fail-closed config-download endpoint
   (`config_download.c`), and a CIDR+secret-gated admin write API
   (`api_admin.c`).
@@ -109,7 +109,7 @@ endpoints:
   (`builder.c` + `handler.c`), conventionally served at
   `/.well-known/wlcg-storage-resource-reporting`.
 - **Logging:** `src/observability/metrics/access_log.c` emits a per-op JSON access log; nginx's
-  own error log carries diagnostics; `xrootd_sanitize_log_string()`
+  own error log carries diagnostics; `brix_sanitize_log_string()`
   (declared `src/fs/path/path.h`) escapes wire-derived strings to defeat log
   injection.
 - **Health & packaging:** `src/observability/metrics/health.c` serves `/healthz`;
@@ -152,7 +152,7 @@ own timers (e.g. GSI CRL/GMAP, the VOMS mapfile in `XrdVomsMapfile.cc`) — not
 the config file. Changing a server directive means a daemon restart
 (operationally, a systemd `restart` of `xrootd@<instance>`).
 
-### BriX-Cache: nginx blocks with `xrootd_*` directives
+### BriX-Cache: nginx blocks with `brix_*` directives
 
 Directives are nginx `ngx_command_t` entries declared in the module command
 tables (`src/protocols/root/stream/module.c`, `src/protocols/root/stream/module_core_directives.c`,
@@ -173,20 +173,20 @@ reload.
 
 | Operator knob | Official XRootD directive | BriX-Cache directive | Notes |
 |---|---|---|---|
-| Listen port | `xrd.port <n>` (or `-p`) | `listen` in `server{}` + `xrootd_listen_port` | nginx port is the `listen` line; module advertises via `xrootd_listen_port` |
-| Export / namespace root | `all.export <path>` / `oss.localroot` | `xrootd_root <path>` | Confinement root |
-| Read-only / write gate | `xrootd.export … r/w` flags | `xrootd_allow_write on\|off` | Global write gate (checked before token scope) |
-| TLS cert / key | `xrd.tls <cert> <key>` | `xrootd_certificate` / `xrootd_certificate_key` (+ nginx `ssl_*`) | |
-| Trusted CAs / CRL | `sec.xtrace` + GSI CA dirs | `xrootd_trusted_ca`, `xrootd_crl`, `xrootd_crl_reload` | |
-| Token issuer / audience | `sciTokens.cfg` (XrdSciTokens) | `xrootd_token_issuer`, `xrootd_token_audience`, `xrootd_token_jwks` | |
+| Listen port | `xrd.port <n>` (or `-p`) | `listen` in `server{}` + `brix_listen_port` | nginx port is the `listen` line; module advertises via `brix_listen_port` |
+| Export / namespace root | `all.export <path>` / `oss.localroot` | `brix_root <path>` | Confinement root |
+| Read-only / write gate | `xrootd.export … r/w` flags | `brix_allow_write on\|off` | Global write gate (checked before token scope) |
+| TLS cert / key | `xrd.tls <cert> <key>` | `brix_certificate` / `brix_certificate_key` (+ nginx `ssl_*`) | |
+| Trusted CAs / CRL | `sec.xtrace` + GSI CA dirs | `brix_trusted_ca`, `brix_crl`, `brix_crl_reload` | |
+| Token issuer / audience | `sciTokens.cfg` (XrdSciTokens) | `brix_token_issuer`, `brix_token_audience`, `brix_token_jwks` | |
 | UDP transfer monitoring | `xrootd.monitor … dest <h:p>` | *(none — by design)* | Replaced by Prometheus pull |
 | Summary stats feed | `xrd.report <h:p> every <t>` | *(none — by design)* | Replaced by Prometheus pull |
-| Metrics endpoint | *(not in core)* | `xrootd_metrics on;` (location, `:9100`) | Prometheus scrape |
-| Health endpoint | *(not in core)* | `xrootd_health on;` (`/healthz`) | k8s liveness probe |
-| SciTags / packet marking | `pmark …` (`XrdNetPMark`) | `xrootd_pmark`, `_firefly`, `_flowlabel`, `_defsfile`, `_map_experiment`, `_map_activity` | Firefly + IPv6 flow-label |
-| SRR space reporting | *(external tool)* | `xrootd_srr`, `_share`, `_endpoint`, `_quality` | Built-in JSON endpoint |
-| Rate / bandwidth shaping | `throttle.*` (XrdThrottle), XrdBwm | `xrootd_rate_limit_zone`, `xrootd_rate_limit_rule`, `xrootd_bandwidth_limit`, `xrootd_concurrency_limit` | Identity-aware, cross-protocol |
-| Log file | `-l <file>` | `error_log` / `xrootd_access_log` | |
+| Metrics endpoint | *(not in core)* | `brix_metrics on;` (location, `:9100`) | Prometheus scrape |
+| Health endpoint | *(not in core)* | `brix_health on;` (`/healthz`) | k8s liveness probe |
+| SciTags / packet marking | `pmark …` (`XrdNetPMark`) | `brix_pmark`, `_firefly`, `_flowlabel`, `_defsfile`, `_map_experiment`, `_map_activity` | Firefly + IPv6 flow-label |
+| SRR space reporting | *(external tool)* | `brix_srr`, `_share`, `_endpoint`, `_quality` | Built-in JSON endpoint |
+| Rate / bandwidth shaping | `throttle.*` (XrdThrottle), XrdBwm | `brix_rate_limit_zone`, `brix_rate_limit_rule`, `brix_bandwidth_limit`, `brix_concurrency_limit` | Identity-aware, cross-protocol |
+| Log file | `-l <file>` | `error_log` / `brix_access_log` | |
 | Trace verbosity | `xrd.trace <events>`, `*.trace` | `error_log <file> debug;` (nginx) | |
 | **Apply changes** | **daemon restart** | **`nginx -s reload`** (graceful) | Core difference |
 
@@ -210,12 +210,12 @@ byte selects the stream:
 - **Detail / trace streams** (`=` map-ident, `d` path-map, `i` appinfo, `u`
   user-map, `T` token-map, `x` xfer-map, `r` redirect): dictionary records that
   map a small `dictid` to a full identity/path string, plus per-event traces
-  (`XROOTD_MON_OPEN 0x80`, `CLOSE 0xc0`, `DISC 0xd0`, `READV 0x90`, window
+  (`BRIX_MON_OPEN 0x80`, `CLOSE 0xc0`, `DISC 0xd0`, `READV 0x90`, window
   marks, etc.). This is the high-detail per-transfer feed.
-- **f-stream (fstat)** (`f` = `XROOTD_MON_MAPFSTA`, builder
+- **f-stream (fstat)** (`f` = `BRIX_MON_MAPFSTA`, builder
   `XrdXrootdMonFile.cc`): per-file open/close/xfr/disc records, optionally with
   LFN, I/O op counts, and sum-of-squares (`fstat <sec> [lfn] [ops] [ssq] [xfr <n>]`).
-- **g-stream (generic)** (`g` = `XROOTD_MON_MAPGSTA`, object
+- **g-stream (generic)** (`g` = `BRIX_MON_MAPGSTA`, object
   `XrdXrootdGSReal.cc`): a pluggable provider channel — each provider stamps a
   sub-code (`C` pfc, `P` tpc, `R` throttle, `O` oss, `H` http, `T` tcpmon, …)
   and registers an `XrdXrootdGStream` via env handoff.
@@ -255,51 +255,51 @@ and secure a collector, and the per-transfer detail stream is high-volume.
 **Model:** lock-free SHM atomic counters (write side, every worker) read back as
 Prometheus text-exposition (`text/plain; version=0.0.4`) by a dedicated HTTP
 location. No UDP, no collector daemon — any Prometheus scrapes the endpoint on
-its own schedule (conventionally `:9100`, `xrootd_metrics on;` in a
+its own schedule (conventionally `:9100`, `brix_metrics on;` in a
 `location /metrics`). The write path is a single `ngx_atomic_fetch_add` per
-slot; `xrootd_metrics_shared()` (`metrics_macros.h`) no-ops safely when the SHM
+slot; `brix_metrics_shared()` (`metrics_macros.h`) no-ops safely when the SHM
 zone is unmapped.
 
 The increment macros define the metric families:
 
-- `XROOTD_SRV_METRIC_INC/_ADD` (per-server, `root://`)
-- `XROOTD_WEBDAV_METRIC_INC/_ADD`, `XROOTD_S3_METRIC_INC/_ADD`
-- `XROOTD_PROXY_METRIC_INC/_ADD` (+ bound-checked per-upstream `XROOTD_PROXY_UP_INC`)
-- `XROOTD_PMARK_METRIC_INC`, `XROOTD_RESIL_METRIC_INC`, `XROOTD_FRM_METRIC_INC/_DEC/_ADD`
+- `BRIX_SRV_METRIC_INC/_ADD` (per-server, `root://`)
+- `BRIX_WEBDAV_METRIC_INC/_ADD`, `BRIX_S3_METRIC_INC/_ADD`
+- `BRIX_PROXY_METRIC_INC/_ADD` (+ bound-checked per-upstream `BRIX_PROXY_UP_INC`)
+- `BRIX_PMARK_METRIC_INC`, `BRIX_RESIL_METRIC_INC`, `BRIX_FRM_METRIC_INC/_DEC/_ADD`
 
 Representative exposed metric names (grepped from `src/observability/metrics/*.c`):
 
 | Group | Example metric names |
 |---|---|
-| Wire / stream | `xrootd_requests_total`, `xrootd_wire_bytes_rx_total`, `xrootd_wire_bytes_tx_total`, `xrootd_stream_connections_rejected_total`, `xrootd_stream_handshake_timeouts_total` |
-| Unified (proto-labeled) | `xrootd_io_ops_total`, `xrootd_io_latency_usec_bucket` (histogram), `xrootd_auth_total`, `xrootd_tpc_transfers_total` |
-| WebDAV | `xrootd_webdav_requests_total`, `xrootd_webdav_responses_total`, `xrootd_webdav_bytes_rx_ipv4_total`/`_ipv6_total`, `xrootd_webdav_tpc_total`, `xrootd_webdav_cors_total` |
-| S3 | `xrootd_s3_requests_total`, `xrootd_s3_auth_total`, `xrootd_s3_put_bodies_total`, `xrootd_s3_list_truncated_total` |
-| Proxy | `xrootd_proxy_opens_total`, `xrootd_proxy_reconnects_total`, `xrootd_proxy_upstream_auth_errors_total`, `xrootd_proxy_abandoned_handles_total` |
-| PMark | `xrootd_pmark_firefly_sent_total`, `xrootd_pmark_flowlabel_set_total`, `xrootd_pmark_flows_started_total` |
-| Resilience | `xrootd_auth_l1_hits_total`/`_misses_total`, `xrootd_ocsp_timeouts_total`, `xrootd_cms_read_timeouts_total`, `xrootd_acc_nss_breaker_open_total` |
-| FRM (tape) | `xrootd_frm_stage_success_total`, `xrootd_frm_stage_fail_total`, `xrootd_frm_reject_inflight_total` |
+| Wire / stream | `brix_requests_total`, `brix_wire_bytes_rx_total`, `brix_wire_bytes_tx_total`, `brix_stream_connections_rejected_total`, `brix_stream_handshake_timeouts_total` |
+| Unified (proto-labeled) | `brix_io_ops_total`, `brix_io_latency_usec_bucket` (histogram), `brix_auth_total`, `brix_tpc_transfers_total` |
+| WebDAV | `brix_webdav_requests_total`, `brix_webdav_responses_total`, `brix_webdav_bytes_rx_ipv4_total`/`_ipv6_total`, `brix_webdav_tpc_total`, `brix_webdav_cors_total` |
+| S3 | `brix_s3_requests_total`, `brix_s3_auth_total`, `brix_s3_put_bodies_total`, `brix_s3_list_truncated_total` |
+| Proxy | `brix_proxy_opens_total`, `brix_proxy_reconnects_total`, `brix_proxy_upstream_auth_errors_total`, `brix_proxy_abandoned_handles_total` |
+| PMark | `brix_pmark_firefly_sent_total`, `brix_pmark_flowlabel_set_total`, `brix_pmark_flows_started_total` |
+| Resilience | `brix_auth_l1_hits_total`/`_misses_total`, `brix_ocsp_timeouts_total`, `brix_cms_read_timeouts_total`, `brix_acc_nss_breaker_open_total` |
+| FRM (tape) | `brix_frm_stage_success_total`, `brix_frm_stage_fail_total`, `brix_frm_reject_inflight_total` |
 
 **Low-cardinality label rule (security boundary, enforced).**
 `src/observability/metrics/README.md` and CLAUDE.md invariant #8 mandate that label values are
 low-cardinality enums only: paths, bucket names, object keys, DNs, token
 subjects, and S3 access keys must never appear as labels. Per-VO / per-user views
 are made safe with bounded LRU tables and FNV-1a hashing
-(`xrootd_track_vo_activity()` / `xrootd_track_unique_user()` in
+(`brix_track_vo_activity()` / `brix_track_unique_user()` in
 `tracking.c`). Free-form identity goes to the JSON access log instead (see
 Logging).
 
 **Dashboard / admin REST API** (`src/observability/dashboard/`) complements the scrape with a
 live operator view:
 
-- Read API: `/xrootd/api/v1/transfers`, `/events`, `/history`, `/cluster`,
+- Read API: `/brix/api/v1/transfers`, `/events`, `/history`, `/cluster`,
   `/cache`, `/ratelimit`, `/snapshot`, `/config`, plus a UI page (`page.c`).
-- Anonymous PII-free tier (`xrootd_dashboard_anonymous`) for read-only embeds.
-- Config download `GET /xrootd/api/v1/config` (`config_download.c`) is
+- Anonymous PII-free tier (`brix_dashboard_anonymous`) for read-only embeds.
+- Config download `GET /brix/api/v1/config` (`config_download.c`) is
   **fail-closed**: every directive value is `[redacted]` unless whitelisted, URL
   credentials and `token=/secret=/sig=` query values are scrubbed, and the route
   always requires auth.
-- Admin write API `/xrootd/api/v1/admin/` (`api_admin.c`, Phase 23): CIDR
+- Admin write API `/brix/api/v1/admin/` (`api_admin.c`, Phase 23): CIDR
   allowlist + bearer secret (`CRYPTO_memcmp`, min 16 bytes, fail-closed),
   every action `admin_audit()`-logged — cluster register/drain/undrain/delete,
   WebDAV-proxy backend management, io_uring runtime kill switch.
@@ -344,7 +344,7 @@ implementations encode the same `(experiment, activity)` and are fail-open
   where official core has a TODO. Encodes the WLCG
   `draft-cc-v6ops-wlcg-flow-label-marking` layout (activity at bits 2–7,
   community/experiment at bits 9–17 in reversed bit order, 5 entropy bits),
-  pinned in `xrootd_pmark_flowlabel_encode()`; no-op on IPv4/v4-mapped.
+  pinned in `brix_pmark_flowlabel_encode()`; no-op on IPv4/v4-mapped.
 - Supporting files: `scitag.c` (range-checked `scitag.flow=N` parser; client
   bytes never reach Firefly JSON), `defsfile.c` (jansson defs registry),
   `mapping.c` (scitag → path-glob → VO → default priority), `sockstats.c`
@@ -352,8 +352,8 @@ implementations encode the same `(experiment, activity)` and are fail-open
 - Integration: `root://` flow begun in `src/protocols/root/read/open_request.c`, ended in
   `src/protocols/root/connection/disconnect.c`; WebDAV/S3 begun in `dispatch.c` / `handler.c`,
   ended via pool cleanup. **TPC is always marked; plain GET/PUT only with
-  `xrootd_pmark_http_plain`.**
-- Directives: `xrootd_pmark`, `_firefly`, `_firefly_dest`, `_flowlabel`,
+  `brix_pmark_http_plain`.**
+- Directives: `brix_pmark`, `_firefly`, `_firefly_dest`, `_flowlabel`,
   `_defsfile`, `_map_experiment`, `_map_activity`, `_http_plain`, `_scitag_cgi`,
   `_domain`, `_echo`, `_appname`.
 
@@ -377,18 +377,18 @@ JSON document harvested by CRIC.
   (`builder.c` + `handler.c` + `module.c`). It serves the WLCG `storageservice`
   schema (GET/HEAD, `application/json`), conventionally at
   `location = /.well-known/wlcg-storage-resource-reporting`, unauthenticated by
-  default so CRIC can harvest. `ngx_http_xrootd_srr_build_json()` emits
+  default so CRIC can harvest. `ngx_http_brix_srr_build_json()` emits
   `storageservice` → `implementation` (`"nginx-xrootd"`),
   `implementationversion`, `storageendpoints[]`, `storageshares[]`, and
   `storagecapacity.online.{totalsize,usedsize}` summed across shares, with live
   per-share usage from `statvfs(2)` per request. Directives:
-  `xrootd_srr`, `xrootd_srr_name`, `xrootd_srr_id`, `xrootd_srr_quality`
-  (default `production`), `xrootd_srr_version`, `xrootd_srr_share <name> <path>
-  [vos]`, `xrootd_srr_endpoint <name> <iftype> <url>`.
+  `brix_srr`, `brix_srr_name`, `brix_srr_id`, `brix_srr_quality`
+  (default `production`), `brix_srr_version`, `brix_srr_share <name> <path>
+  [vos]`, `brix_srr_endpoint <name> <iftype> <url>`.
 
 **Operator view:** an XRootD site operator scripts/installs a separate SRR
 generator and serves the file out of band; an BriX-Cache operator turns on
-`xrootd_srr` and registers the URL in CRIC.
+`brix_srr` and registers the URL in CRIC.
 
 ---
 
@@ -402,7 +402,7 @@ generator and serves the file out of band; an BriX-Cache operator turns on
   `<prefix><suffix>: error <n> (sys text); <detail>`; `Say()` is plain text.
 - **Rotation is built into the logger** (`XrdSysLogger.hh`): daily midnight
   rotation, no rotation, or FIFO-triggered manual rotation; `ParseKeep()`
-  parses keep-count / max-size / `fifo`. `config/xrootd.logrotate` cooperates by
+  parses keep-count / max-size / `fifo`. `config/brix.logrotate` cooperates by
   pinging the FIFO in `postrotate`.
 - **Per-transfer structured events do NOT go to the log** — they go to the
   XrdMon UDP stream. The text log carries diagnostics/warnings/errors, plus
@@ -413,18 +413,18 @@ generator and serves the file out of band; an BriX-Cache operator turns on
 ### BriX-Cache
 
 - **JSON access log** (`src/observability/metrics/access_log.c`, `access_log.h`):
-  `xrootd_access_log_emit()` writes one JSON record per VFS op — timestamp,
+  `brix_access_log_emit()` writes one JSON record per VFS op — timestamp,
   protocol, op, path, bytes, offset, latency, error, cache-hit, auth method,
-  subject/DN — via `ngx_log_error(NGX_LOG_INFO)` prefixed `xrootd_access_json:`.
-  Free-text fields are escaped by `xrootd_access_json_escape()` (escapes `"`/`\`,
+  subject/DN — via `ngx_log_error(NGX_LOG_INFO)` prefixed `brix_access_json:`.
+  Free-text fields are escaped by `brix_access_json_escape()` (escapes `"`/`\`,
   renders bytes `<0x20` / `≥0x7f` as `\u00NN`). This is the deliberate home for
   the high-cardinality fields banned from metric labels.
 - **Per-protocol log files** (from `contrib/brix-cache.conf.example`):
-  `xrootd_webdav_access.log`, `xrootd_s3_access.log`; the `root://` access log is
-  configured with `xrootd_access_log` (opened in `src/core/config/runtime_server.c`,
+  `brix_webdav_access.log`, `brix_s3_access.log`; the `root://` access log is
+  configured with `brix_access_log` (opened in `src/core/config/runtime_server.c`,
   set `off` to disable). A separate path-layer access log lives in
   `src/observability/accesslog/access_log.c`. nginx's own `error_log` carries diagnostics/debug.
-- **`xrootd_sanitize_log_string()`** (declared `src/fs/path/path.h`, used across
+- **`brix_sanitize_log_string()`** (declared `src/fs/path/path.h`, used across
   `src/auth/authz/acl.c`, `authdb.c`, `resolve_confined_helpers.c`, token validation,
   dirlist, host auth): escapes control bytes, quotes, backslashes, and non-ASCII
   to `\xNN`, so wire-derived strings cannot inject or forge log lines. Mandated
@@ -442,13 +442,13 @@ aggregate counts in Prometheus.
 
 | Concern | Official XRootD | BriX-Cache |
 |---|---|---|
-| Health / readiness probe | **Not in core** — liveness inferred from systemd / UDP feeds; no HTTP probe | `/healthz` (`src/observability/metrics/health.c`, `xrootd_health on;`): `{"status":"ok","service":"nginx-xrootd"}`, `?verbose` adds `metrics_shm`/`worker_pid`/`nginx_version`; wires directly to k8s `livenessProbe` |
+| Health / readiness probe | **Not in core** — liveness inferred from systemd / UDP feeds; no HTTP probe | `/healthz` (`src/observability/metrics/health.c`, `brix_health on;`): `{"status":"ok","service":"nginx-xrootd"}`, `?verbose` adds `metrics_shm`/`worker_pid`/`nginx_version`; wires directly to k8s `livenessProbe` |
 | RPM packaging | `xrootd.spec` — many sub-packages (`xrootd-server`, `-libs`, `-client`, `-scitokens`, `-fuse`, `python3-xrootd`, …) | `packaging/rpm/nginx-mod-brix-cache.spec` — **3 packages**: `nginx-mod-brix-cache` (dynamic modules), `brix-cache-client` (native xrdcp/xrdfs/xrootdfs), `brix-cache-tests` (conformance suite) |
-| Service management | systemd templated units `xrootd@.service`, `cmsd@.service`, `frm_*@.service` + `.socket` units, `EnvironmentFile=/etc/sysconfig/xrootd` | standard nginx service (master/worker); `nginx -s reload` for graceful change |
-| Logrotate | `config/xrootd.logrotate` (cooperates with logger FIFO) | `contrib/logrotate.d/nginx-xrootd` |
+| Service management | systemd templated units `xrootd@.service`, `cmsd@.service`, `frm_*@.service` + `.socket` units, `EnvironmentFile=/etc/sysconfig/brix` | standard nginx service (master/worker); `nginx -s reload` for graceful change |
+| Logrotate | `config/brix.logrotate` (cooperates with logger FIFO) | `contrib/logrotate.d/nginx-xrootd` |
 | Dashboards | external (MonaLisa, shoveler→Prometheus pipelines) | `contrib/grafana-dashboard.json` |
 | Alerts | external | `contrib/prometheus-alerts.yml` |
-| Example config | `config/xrootd-*.cfg` | `contrib/brix-cache.conf.example` |
+| Example config | `config/brix-*.cfg` | `contrib/brix-cache.conf.example` |
 | Runbooks | XRootD project docs | `docs/09-developer-guide/testing-runbook.md` |
 
 **Operator view:** an XRootD operator manages multiple systemd-templated daemons
@@ -476,7 +476,7 @@ These are plugins configured via their own directives; they are not identity
 ### BriX-Cache — `src/net/ratelimit/`
 
 A **leaky-bucket** core (`ratelimit.c`, modeled on
-`ngx_http_limit_req_module`): per-principal `xrootd_rl_node_t` slab-allocated in
+`ngx_http_limit_req_module`): per-principal `brix_rl_node_t` slab-allocated in
 an rbtree + LRU (O(1) eviction), held in SHM so buckets survive `nginx -s
 reload`. Request units are stored ×1000; `req_excess` is the bucket.
 
@@ -484,17 +484,17 @@ reload`. Request units are stored ×1000; `req_excess` is the bucket.
   (client addr), `DN` (GSI subject DN, hashed), `VOLUME` (longest-prefix match
   on request path). Keys are low-cardinality / hashed per the same metric-label
   rule.
-- **Directives:** `xrootd_rate_limit_zone` (SHM zone), `xrootd_rate_limit_rule`
-  (`zone=/key=/rate=/burst=/nodelay=`), `xrootd_bandwidth_limit`,
-  `xrootd_concurrency_limit` (`zone=/key=/limit=`), plus a legacy
-  `xrootd_rate_limit`.
+- **Directives:** `brix_rate_limit_zone` (SHM zone), `brix_rate_limit_rule`
+  (`zone=/key=/rate=/burst=/nodelay=`), `brix_bandwidth_limit`,
+  `brix_concurrency_limit` (`zone=/key=/limit=`), plus a legacy
+  `brix_rate_limit`.
 - **Over-limit responses:**
   - HTTP → **`429 Too Many Requests`** with `Retry-After` (unless `nodelay`);
     bandwidth overflow also `429` (`ratelimit_http.c`).
   - `root://` stream → **`kXR_wait(seconds)`** keeping the connection open for
     client retry (`ratelimit_stream.c`: rate, bandwidth, and concurrency-cap
     paths).
-- Snapshots are exposed to the dashboard (`xrootd_rl_snapshot`) and counters to
+- Snapshots are exposed to the dashboard (`brix_rl_snapshot`) and counters to
   Prometheus (`src/observability/metrics/ratelimit.c`).
 
 **Net difference:** XRootD shapes per-server (throttle/BWM plugins);
@@ -507,7 +507,7 @@ BriX-Cache shapes by *identity* (VO/issuer/DN/IP/volume) uniformly across
 
 | Capability | Official XRootD | BriX-Cache | Assessment |
 |---|---|---|---|
-| Config grammar | `XrdOuc` (if/set/continue, prefix-scoped) | nginx blocks + `xrootd_*` | Different but comparable |
+| Config grammar | `XrdOuc` (if/set/continue, prefix-scoped) | nginx blocks + `brix_*` | Different but comparable |
 | **Config reload** | **Restart-only** (no SIGHUP) | **`nginx -s reload`** graceful | BriX-Cache advantage |
 | Per-transfer monitoring | XrdMon detail/f stream (UDP push) | JSON access log + dashboard transfers (HTTP pull) | Paradigm difference (deliberate) |
 | Aggregate metrics | `xrd.report` XML/JSON (UDP push) | Prometheus `/metrics` (HTTP pull) | Paradigm difference (deliberate) |
@@ -519,7 +519,7 @@ BriX-Cache shapes by *identity* (VO/issuer/DN/IP/volume) uniformly across
 | SciTags IPv6 flow-label | **TODO (not implemented)** | **Implemented** (`flowlabel.c`) | BriX-Cache advantage |
 | WLCG SRR endpoint | Not in core (external tool) | Built-in `src/protocols/srr/` JSON | BriX-Cache advantage |
 | Access log | Text + UDP monitor | JSON access log (sanitized) | Different; nginx-native |
-| Log sanitization | logger escaping | `xrootd_sanitize_log_string()` | Parity-ish |
+| Log sanitization | logger escaping | `brix_sanitize_log_string()` | Parity-ish |
 | Log rotation | logger-managed (daily/FIFO) | logrotate (`contrib/`) | Different mechanism |
 | HTTP health probe | **Not in core** | `/healthz` | BriX-Cache advantage |
 | Packaging | many sub-RPMs + systemd templates | 3 RPMs + nginx service | Different shape |
@@ -544,7 +544,7 @@ BriX-Cache shapes by *identity* (VO/issuer/DN/IP/volume) uniformly across
 
 ## Source references
 
-### Official XRootD (`/tmp/xrootd-src`)
+### Official XRootD (`/tmp/brix-src`)
 
 | Area | Files |
 |---|---|
@@ -556,7 +556,7 @@ BriX-Cache shapes by *identity* (VO/issuer/DN/IP/volume) uniformly across
 | SRR | not found in core (external tool); SciTokens authz at `src/XrdSciTokens/` |
 | Logging | `src/XrdSys/XrdSysLogger.{cc,hh}`, `XrdSysError.{cc,hh}`, `XrdSysTrace.{cc,hh}`; `src/Xrd/XrdConfig.cc` (`xtrace`) |
 | Throttle / BWM | `src/XrdThrottle`, `src/XrdBwm` |
-| Packaging | `xrootd.spec`, `systemd/*.service`/`*.socket`, `config/xrootd.logrotate`, `config/xrootd-*.cfg` |
+| Packaging | `xrootd.spec`, `systemd/*.service`/`*.socket`, `config/brix.logrotate`, `config/brix-*.cfg` |
 
 ### BriX-Cache (`/home/rcurrie/HEP-x/nginx-xrootd`)
 
@@ -567,7 +567,7 @@ BriX-Cache shapes by *identity* (VO/issuer/DN/IP/volume) uniformly across
 | Config model | `src/core/config/{process,server_conf,postconfiguration,runtime_server}.c`, `merge_macros.h`; directives in `src/protocols/root/stream/module.c`, `module_core_directives.c`, `module_cache_proxy_directives.c`, `src/protocols/webdav/module.c`, `src/protocols/s3/module.c` |
 | SciTags / PMark | `src/observability/pmark/{firefly,flowlabel,scitag,mapping,config,defsfile,sockstats}.c`, `pmark.h`, `README.md` |
 | SRR | `src/protocols/srr/{builder,handler,module}.c`, `srr.h`, `README.md` |
-| Logging / sanitize | `src/observability/metrics/access_log.{c,h}`, `src/observability/accesslog/access_log.c`, `src/fs/path/path.h` (`xrootd_sanitize_log_string` decl) + `src/auth/authz/{acl,authdb}.c`, `src/fs/path/{helpers,resolve_confined_helpers}.c` (uses) |
+| Logging / sanitize | `src/observability/metrics/access_log.{c,h}`, `src/observability/accesslog/access_log.c`, `src/fs/path/path.h` (`brix_sanitize_log_string` decl) + `src/auth/authz/{acl,authdb}.c`, `src/fs/path/{helpers,resolve_confined_helpers}.c` (uses) |
 | Health | `src/observability/metrics/health.c` |
 | Rate limiting | `src/net/ratelimit/{ratelimit,ratelimit_keys,ratelimit_zone,ratelimit_http,ratelimit_stream}.c`, `ratelimit.h`, `README.md`; `src/observability/metrics/ratelimit.c` |
 | Packaging / ops | `packaging/rpm/nginx-mod-brix-cache.spec`; `contrib/{grafana-dashboard.json,prometheus-alerts.yml,logrotate.d/nginx-xrootd,brix-cache.conf.example}`; `docs/09-developer-guide/testing-runbook.md` |

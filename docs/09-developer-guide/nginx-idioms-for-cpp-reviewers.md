@@ -25,7 +25,7 @@ timer). Think of it as writing handlers for a single-threaded async framework
 - **Per-connection state lives in a context struct**, fetched at the top of each
   handler — this is the module's `this`:
   ```c
-  xrootd_ctx_t *ctx = ngx_stream_get_module_ctx(s, ngx_stream_xrootd_module);
+  brix_ctx_t *ctx = ngx_stream_get_module_ctx(s, ngx_stream_brix_module);
   ```
 - **Memory is arena-allocated per request/connection** (see §4). There is no
   RAII; lifetimes are tied to nginx pools, which are freed wholesale.
@@ -75,10 +75,10 @@ Entry points to start reading (full map in [AGENTS.md / CLAUDE.md OP→FILE tabl
 | `ngx_log_t *` | logger handle threaded through almost every call | `spdlog::logger&` |
 | `ngx_buf_t` | one buffer span (memory- or file-backed) | `span<byte>` + a file-region variant |
 | `ngx_chain_t` | singly-linked list of `ngx_buf_t` — the output unit | `std::list<span>` / iovec chain |
-| `xrootd_ctx_t *` | **our** per-connection protocol state | the request handler's `this` |
+| `brix_ctx_t *` | **our** per-connection protocol state | the request handler's `this` |
 | `ngx_command_t` | one config directive descriptor (name → setter) | a config-binding table row |
 
-`ngx_` = nginx core. `xrootd_` / `XROOTD_` = this module.
+`ngx_` = nginx core. `brix_` / `BRIX_` = this module.
 
 ---
 
@@ -156,11 +156,11 @@ have canonical helpers — never re-implement them. The authoritative list is in
 
 | Helper / family | Role (C++ intuition) |
 |---|---|
-| `xrootd_*_beneath(rootfd, rel, …)` | confined filesystem ops via `openat2(RESOLVE_BENEATH)` — **all** path I/O goes through these so nothing escapes the export root (think: a chroot-checked `std::filesystem` wrapper) |
-| `xrootd_resolve_op_path(...)` / `xrootd_path_resolve_beneath(...)` | extract + validate + confine a wire path before use |
-| `xrootd_extract_path(...)` | pull a path out of a wire payload (strips CGI, rejects embedded NUL) |
-| `xrootd_make_stat_body(...)` / `src/protocols/root/protocol/stat_flags.h` | encode the `kXR_stat` line + flags (single source of truth, shared with the client decoder) |
-| `xrootd_auth_gate(...)` | the access-control choke point |
+| `brix_*_beneath(rootfd, rel, …)` | confined filesystem ops via `openat2(RESOLVE_BENEATH)` — **all** path I/O goes through these so nothing escapes the export root (think: a chroot-checked `std::filesystem` wrapper) |
+| `brix_resolve_op_path(...)` / `brix_path_resolve_beneath(...)` | extract + validate + confine a wire path before use |
+| `brix_extract_path(...)` | pull a path out of a wire payload (strips CGI, rejects embedded NUL) |
+| `brix_make_stat_body(...)` / `src/protocols/root/protocol/stat_flags.h` | encode the `kXR_stat` line + flags (single source of truth, shared with the client decoder) |
+| `brix_auth_gate(...)` | the access-control choke point |
 
 **Control flow:** **no `goto`** anywhere in `src/`/`client/` (hard rule). Errors
 use **early-return**; deep cleanup is decomposed into helpers. Status is returned,
@@ -171,17 +171,17 @@ expansions in `src/protocols/root/protocol/` and the op headers):
 
 | Macro | Conceptually does |
 |---|---|
-| `XROOTD_RETURN_ERR(ctx, c, op, "OP", path, detail, kXR_code, msg)` | log + bump the op's error metric + send a `kXR_error` reply + `return` |
-| `XROOTD_RETURN_OK(...)` / `XROOTD_OP_OK(ctx, op)` | success-path logging + metric, send OK |
-| `XROOTD_OP_ERR(ctx, op)` | bump the error metric without sending (caller sends) |
-| `XROOTD_<TYPE>_METRIC_INC(slot)` | increment a low-cardinality counter |
+| `BRIX_RETURN_ERR(ctx, c, op, "OP", path, detail, kXR_code, msg)` | log + bump the op's error metric + send a `kXR_error` reply + `return` |
+| `BRIX_RETURN_OK(...)` / `BRIX_OP_OK(ctx, op)` | success-path logging + metric, send OK |
+| `BRIX_OP_ERR(ctx, op)` | bump the error metric without sending (caller sends) |
+| `BRIX_<TYPE>_METRIC_INC(slot)` | increment a low-cardinality counter |
 
 They exist to make every handler's success/error/metric/log path uniform and
 one-line. When reviewing a handler, read them as `return Error(...)` /
 `return Ok(...)`.
 
 **Naming:** `snake_case` throughout (as in the C++ standard library). `ngx_`
-prefix = nginx core; `xrootd_` = module functions; `XROOTD_` = macros/constants;
+prefix = nginx core; `brix_` = module functions; `BRIX_` = macros/constants;
 `kXR_*` = on-the-wire protocol constants (from the XRootD spec, kept verbatim).
 
 ---
@@ -215,6 +215,6 @@ xdg-open docs/doxygen/html/index.html
 ```
 
 The landing page is this primer; from there use **Files** (per-directory source
-tree), **Data Structures** (the `*_t` structs — start with `xrootd_ctx_t`), and
+tree), **Data Structures** (the `*_t` structs — start with `brix_ctx_t`), and
 the include-dependency graphs to navigate. `EXTRACT_ALL` is on, so every function
 appears even before it has a Doxygen comment.

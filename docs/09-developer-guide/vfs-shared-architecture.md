@@ -16,7 +16,7 @@ design spec [`docs/superpowers/specs/2026-06-27-unified-vfs-layering-design.md`]
 ## 0. TL;DR
 
 There used to be **two** parallel VFS stacks — one nginx-coupled
-(`src/fs/xrootd_vfs_*`) and one in the clients (`client/lib/xrdc_vfs_*`) — each
+(`src/fs/brix_vfs_*`) and one in the clients (`client/lib/xrdc_vfs_*`) — each
 with its own copy of the read/write loop and its own POSIX / block / S3 backend.
 They have been collapsed onto **one set of storage drivers and one set of I/O
 verbs that physically compile into both binaries**:
@@ -70,8 +70,8 @@ So the seam is drawn exactly there:
    ┌──────────────────────────────────────────────────────────────────┐
    │  OPEN  (policy — NOT shared)                                       │
    │                                                                    │
-   │   server:  xrootd_open_beneath(rootfd, path, …)   RESOLVE_BENEATH  │
-   │   client:  xrootd_sd_posix_open_unconfined(path, …)   plain open() │
+   │   server:  brix_open_beneath(rootfd, path, …)   RESOLVE_BENEATH  │
+   │   client:  brix_sd_posix_open_unconfined(path, …)   plain open() │
    └──────────────────────────────────────────────────────────────────┘
                                    │ produces a bound object (fd or driver state)
                                    ▼
@@ -102,7 +102,7 @@ So the seam is drawn exactly there:
 **File:** `src/fs/backend/sd.h` (interface) · `sd_posix.c`, `sd_block.c`,
 `sd_s3.c` (drivers) · `sd_registry.c` (name → instance).
 
-A driver is a `static const xrootd_sd_driver_t` — a capability bitmap plus a flat
+A driver is a `static const brix_sd_driver_t` — a capability bitmap plus a flat
 table of function pointers. The flatness matters: the **raw byte ops are
 worker-safe** (no nginx pool, no log, no metrics, no locks), so they can run on an
 AIO thread pool.
@@ -110,7 +110,7 @@ AIO thread pool.
 ### 2.1 The object model
 
 ```
-   xrootd_sd_driver_t          xrootd_sd_instance_t        xrootd_sd_obj_t
+   brix_sd_driver_t          brix_sd_instance_t        brix_sd_obj_t
    ┌─────────────────┐         ┌──────────────────┐        ┌────────────────┐
    │ name  "posix"   │◀────────│ driver           │◀───────│ driver         │
    │ caps  0x…       │         │ log / pool       │        │ inst           │
@@ -128,7 +128,7 @@ AIO thread pool.
   kernel fd; for S3 it is `-1` and `obj->state` carries the object key + upload
   state.
 
-### 2.2 Capability bitmap (`xrootd_sd_cap_t`)
+### 2.2 Capability bitmap (`brix_sd_cap_t`)
 
 The VFS shapes its behaviour from caps rather than from the driver name. Absences
 are honest — the VFS degrades or rejects, it never emulates a missing primitive.
@@ -175,19 +175,19 @@ The dividing line is exactly the `#ifndef XRDPROTO_NO_NGX` blocks in
 `sd_posix.c`: the raw byte ops are compiled in *both* builds; the
 namespace/instance ops are compiled *only* in the module.
 
-### 2.4 `xrootd_sd_posix_wrap` — the client/server bridge for raw fds
+### 2.4 `brix_sd_posix_wrap` — the client/server bridge for raw fds
 
 Both sides need to push bytes through the driver without allocating an instance.
 The hot path uses a **stack** object:
 
 ```c
-xrootd_sd_obj_t obj;
-xrootd_sd_posix_wrap(&obj, fd);          /* zero-init; obj.driver=posix; obj.fd=fd */
+brix_sd_obj_t obj;
+brix_sd_posix_wrap(&obj, fd);          /* zero-init; obj.driver=posix; obj.fd=fd */
 xvfs_pwrite_full(&obj, buf, len, off, &written, &short_io);
 ```
 
 This is how the *server* routes its AIO write/sync/truncate through the seam
-(`src/fs/vfs/vfs_io_core.c: xrootd_vfs_io_write_counted`, `_execute_sync`,
+(`src/fs/vfs/vfs_io_core.c: brix_vfs_io_write_counted`, `_execute_sync`,
 `_execute_truncate`) **and** how the *client's* plain (non-io_uring) POSIX/block
 paths run (`client/lib/vfs_posix.c: posix_pread/pwrite/fstat/…`). One wrap helper,
 one driver, two callers.
@@ -198,12 +198,12 @@ The client can't use `sd_posix_open` (it needs a rootfd). Instead the driver
 exposes single-sourced **unconfined** opens that share the SD-flag → `O_*`
 mapping (`sd_posix_flags`) with the confined path:
 
-- `xrootd_sd_posix_open_unconfined(path, sd_flags, mode)` → `open(2)`.
-- `xrootd_sd_block_open_unconfined(path, sd_flags, mode)` → same, minus
+- `brix_sd_posix_open_unconfined(path, sd_flags, mode)` → `open(2)`.
+- `brix_sd_block_open_unconfined(path, sd_flags, mode)` → same, minus
   `O_CREATE`/`O_TRUNC` (a block device is opened *in place*, never recreated or
   zeroed).
 
-So the flag vocabulary (`XROOTD_SD_O_READ|WRITE|CREATE|EXCL|TRUNC|APPEND|DIR|
+So the flag vocabulary (`BRIX_SD_O_READ|WRITE|CREATE|EXCL|TRUNC|APPEND|DIR|
 NOFOLLOW`) and its `O_*` translation exist exactly once, used by both the
 server's `openat2` and the client's `open`.
 
@@ -221,7 +221,7 @@ module. This is the only "middle" code that is byte-for-byte shared.
 | `xvfs_pwrite_full(obj,buf,len,off,*written,*short_io)` | 0 / −1 | loop until all written; reports partial + short-I/O fact |
 | `xvfs_fsync(obj)` | 0 / −1 | one backend `fsync` |
 | `xvfs_ftruncate(obj,len)` | 0 / −1 | one backend `ftruncate` |
-| `xvfs_fstat(obj,*out)` | 0 / −1 | one backend `fstat` → `xrootd_sd_stat_t` |
+| `xvfs_fstat(obj,*out)` | 0 / −1 | one backend `fstat` → `brix_sd_stat_t` |
 
 Convention: `0/-1` with `errno` set — value-compatible with the server's
 `NGX_OK`/`NGX_ERROR`. **The verbs own the loop policy; the backend owns the
@@ -230,9 +230,9 @@ works unchanged.
 
 **Who calls it:**
 
-- **Server:** `src/fs/vfs/vfs_read.c` (the `xrootd_vfs_pread_full` wrapper) and
+- **Server:** `src/fs/vfs/vfs_read.c` (the `brix_vfs_pread_full` wrapper) and
   `src/fs/vfs/vfs_io_core.c` (write-counted / sync / truncate executors) — see the
-  `xrootd_sd_posix_wrap` calls in §2.4.
+  `brix_sd_posix_wrap` calls in §2.4.
 - **Client:** `client/lib/vfs_posix.c` and `vfs_block.c`, plain paths.
 
 > io_uring stays a **client-only fast-path override**: when a ring is attached
@@ -291,7 +291,7 @@ engine reads to choose its strategy:
 
 ### 4.3 POSIX backend (`vfs_posix.c`)
 
-- **open READ:** `xrootd_sd_posix_open_unconfined(path, O_READ)`.
+- **open READ:** `brix_sd_posix_open_unconfined(path, O_READ)`.
 - **open WRITE:** FORCE-check the final path, then open a sibling temp
   `"<dst>.xrdvfs-tmp.<pid>.<seq>"` with `O_WRITE|O_CREATE|O_TRUNC|O_EXCL|
   O_NOFOLLOW` (the atomic-rename + symlink-safety guard).
@@ -300,8 +300,8 @@ engine reads to choose its strategy:
 
 ### 4.4 Block backend (`vfs_block.c`)
 
-- **open:** `xrootd_sd_block_open_unconfined` (no create/truncate).
-- **fstat:** dispatches through `xrootd_sd_block_driver.fstat` → `BLKGETSIZE64`
+- **open:** `brix_sd_block_open_unconfined` (no create/truncate).
+- **fstat:** dispatches through `brix_sd_block_driver.fstat` → `BLKGETSIZE64`
   for the true device capacity (a block device's `st_size` is 0).
 - caps: `RANDOM_WRITE | FADVISE` only — **no** `TRUNCATE`, **no** `ATOMIC_TEMP`
   (you can't rename onto a raw device).
@@ -322,7 +322,7 @@ on `client/lib`, nor does the server own an HTTP client.
    vfs_s3*.c  ── SigV4, HEAD,           sd_s3.c (src/fs/backend/)  ── SigV4, HEAD,
               ── Range GET, PUT,            Range GET, single-PUT, MPU, XML
               ── MPU, XML  ──┐                       │ calls
-              ── xrdc_http ◀─┘             xrootd_s3_transport_t  (vtable, sd_s3_transport.h)
+              ── xrdc_http ◀─┘             brix_s3_transport_t  (vtable, sd_s3_transport.h)
                                                      ▲ implemented by
                                           ┌──────────┴───────────┐
                                           │ client:              │ (future) server:
@@ -337,13 +337,13 @@ kernels, range math, multipart sequencing, XML extraction) now lives once in
 4-function vtable:
 
 ```c
-typedef struct xrootd_s3_transport_s {
+typedef struct brix_s3_transport_s {
     int (*request)(tctx, host,port,tls, method, path_and_query,
                    headers, body,body_len, timeout_ms, resp, errbuf,errcap);
     int (*resp_header)(resp, name, out, outcap);          /* 0 found / -1 absent */
     const void *(*resp_body)(resp, *len);
     void (*resp_free)(resp);
-} xrootd_s3_transport_t;
+} brix_s3_transport_t;
 ```
 
 A non-2xx HTTP status is **not** a transport failure — it's reported via
@@ -352,7 +352,7 @@ A non-2xx HTTP status is **not** a transport failure — it's reported via
 
 ### 5.2 The client's transport (`vfs_s3_transport.c`)
 
-`const xrootd_s3_transport_t xrdc_s3_http_transport` wires the vtable onto the
+`const brix_s3_transport_t xrdc_s3_http_transport` wires the vtable onto the
 client's `xrdc_http_req` / `xrdc_http_header` / `xrdc_http_resp_free`, mapping the
 client's `1/0` returns to the vtable's `0/-1` and copying error text into the
 caller's `errbuf`. This is the *only* S3 code still in the client.
@@ -402,11 +402,11 @@ to force small parts for testing. `expected_size` comes from the copy engine's
 
 ```
   kXR_read handler (src/protocols/root/read/)
-     │ xrootd_vfs_open → vfs_open.c → sd_posix_open(inst, path)   [RESOLVE_BENEATH]
+     │ brix_vfs_open → vfs_open.c → sd_posix_open(inst, path)   [RESOLVE_BENEATH]
      │ submit job{op=READ, fd, off, len} to AIO thread pool
      ▼  (worker thread)
-  xrootd_vfs_io_execute (vfs_io_core.c)
-     │ → xrootd_vfs_io_execute_read → xrootd_vfs_pread_full
+  brix_vfs_io_execute (vfs_io_core.c)
+     │ → brix_vfs_io_execute_read → brix_vfs_pread_full
      │      → xvfs_pread_full(obj=wrap(fd))        [SHARED vfs core]
      │           → obj->driver->pread = sd_posix_pread → pread(2)   [SHARED backend]
      │ (optional) per-page CRC32c + CSI verify
@@ -417,11 +417,11 @@ to force small parts for testing. `expected_size` comes from the copy engine's
 ### 6.2 Server write / sync / truncate (AIO worker)
 
 ```
-  xrootd_vfs_io_execute_write
-     → xrootd_vfs_io_write_counted(fd)
+  brix_vfs_io_execute_write
+     → brix_vfs_io_write_counted(fd)
         → xvfs_pwrite_full(wrap(fd))               [SHARED vfs core: EINTR+short-io]
            → sd_posix_pwrite → pwrite(2)           [SHARED backend]
-     → (phase-59) xrootd_csi_update_aligned  (per-page CRC retag, fail-open)
+     → (phase-59) brix_csi_update_aligned  (per-page CRC retag, fail-open)
 
   _execute_sync     → xvfs_fsync(wrap(fd))     → sd_posix_fsync → fsync(2)
   _execute_truncate → xvfs_ftruncate(wrap(fd)) → sd_posix_ftruncate → ftruncate(2)
@@ -473,7 +473,7 @@ to force small parts for testing. `expected_size` comes from the copy engine's
 ## 7. The dual-build mechanism (how one file compiles into two worlds)
 
 ```
-   src/fs/backend/sd_posix.c ─┬─▶  ./config  ── nginx ./configure ──▶  ngx_xrootd_module.so
+   src/fs/backend/sd_posix.c ─┬─▶  ./config  ── nginx ./configure ──▶  ngx_brix_module.so
    src/fs/backend/sd_block.c ─┤        (real ngx_core.h)               (full driver: raw + ns ops)
    src/fs/backend/sd_s3.c  ───┤
    src/fs/core/vfs_core.c  ───┘
@@ -520,7 +520,7 @@ simply `NULL` in the client build via `#ifndef XRDPROTO_NO_NGX`.
 
 ## 8. Why two handle types remain (and that's correct)
 
-The server (`xrootd_vfs_*` / `xrootd_sd_obj_t`) and client (`xrdc_vfs_file`)
+The server (`brix_vfs_*` / `brix_sd_obj_t`) and client (`xrdc_vfs_file`)
 handle types were **not** merged. This is deliberate, not unfinished work:
 
 | Concern | Server handle | Client handle |
@@ -553,9 +553,9 @@ shared core.
 3a. **Namespace & metadata, not just bytes (phase-62).** The seam invariant now
    covers the *whole* filesystem surface: a protocol handler reaches
    `open`/`stat`/`opendir`/`unlink`/`rename`/`mkdir`/`truncate`/`chmod`/**xattr**
-   on an export path through `xrootd_vfs_*` (incl. `xrootd_vfs_probe`, the
-   `xrootd_vfs_open_fd`/`_at` raw-fd primitives, the path *and* fd xattr variants,
-   and `xrootd_vfs_unlink_path`/`mkdir_path`/`rename_path`/`walk`), never a raw
+   on an export path through `brix_vfs_*` (incl. `brix_vfs_probe`, the
+   `brix_vfs_open_fd`/`_at` raw-fd primitives, the path *and* fd xattr variants,
+   and `brix_vfs_unlink_path`/`mkdir_path`/`rename_path`/`walk`), never a raw
    libc call. The only raw FS allowed in handler code is a **separate svc-owned
    storage domain** (cache / upload-stage / FRM-control / S3-multipart-staging /
    checkpoint journal) or a **non-export resource** (config/cert/token, `/tmp`,
@@ -595,11 +595,11 @@ shared core.
 | `src/fs/vfs/vfs_open.c` | confined open cascade (produces the fd) |
 | `src/fs/vfs/vfs_io_core.c` / `.h` | worker-safe job executor (read/write/readv/pgread/sync/truncate/opendir) over the shared verbs |
 | `src/fs/vfs/vfs_read.c` … `vfs_xattr.c` | per-op data-plane handlers, staged commit, dir/stat/rename/xattr |
-| `src/fs/vfs/vfs_walk.c` | thread-safe pool-free confined primitives (`xrootd_vfs_open_fd`/`_at`, `unlink_path`/`_at`, `mkdir_path`, `rename_path`, `walk`, `copyfile`/`copytree`) for off-loop/bulk consumers |
-| `src/fs/vfs/vfs_backend_config.c` | per-export storage-backend directive parsing → `xrootd_vfs_backend_entry_t` registry entries (phase-67 split) |
-| `src/fs/vfs/vfs_backend_registry.c` / `vfs_backend_internal.h` | per-export backend registry: entry table, source build + tier/decorator composition, `xrootd_vfs_backend_resolve()`, and `xrootd_vfs_backend_http_endpoint()` (HTTP origin of an `http`/`https` backend, for protocol-side uncached passthroughs — phase-68 cvmfs). Split from the old monolithic `vfs_backend_registry.c` in phase-67. |
-| `src/fs/backend/sd_ceph.c` (`+_unittest`) | module-only Ceph/RADOS driver (gated on `XROOTD_HAVE_CEPH`); **not** compiled into the client `libxrdproto` |
-| `src/fs/backend/sd_pblock.c`, `sd_pblock_catalog.c` (`+ unittests`) | module-only striped-block driver over a SQLite catalog (gated on `XROOTD_HAVE_SQLITE`); ngx-free + standalone-testable but not in the client build. **Deep-dive (block-striping, the catalog, the VFS↔backend wiring, with ASCII diagrams):** [`pblock-storage-backend.md`](pblock-storage-backend.md) |
+| `src/fs/vfs/vfs_walk.c` | thread-safe pool-free confined primitives (`brix_vfs_open_fd`/`_at`, `unlink_path`/`_at`, `mkdir_path`, `rename_path`, `walk`, `copyfile`/`copytree`) for off-loop/bulk consumers |
+| `src/fs/vfs/vfs_backend_config.c` | per-export storage-backend directive parsing → `brix_vfs_backend_entry_t` registry entries (phase-67 split) |
+| `src/fs/vfs/vfs_backend_registry.c` / `vfs_backend_internal.h` | per-export backend registry: entry table, source build + tier/decorator composition, `brix_vfs_backend_resolve()`, and `brix_vfs_backend_http_endpoint()` (HTTP origin of an `http`/`https` backend, for protocol-side uncached passthroughs — phase-68 cvmfs). Split from the old monolithic `vfs_backend_registry.c` in phase-67. |
+| `src/fs/backend/sd_ceph.c` (`+_unittest`) | module-only Ceph/RADOS driver (gated on `BRIX_HAVE_CEPH`); **not** compiled into the client `libxrdproto` |
+| `src/fs/backend/sd_pblock.c`, `sd_pblock_catalog.c` (`+ unittests`) | module-only striped-block driver over a SQLite catalog (gated on `BRIX_HAVE_SQLITE`); ngx-free + standalone-testable but not in the client build. **Deep-dive (block-striping, the catalog, the VFS↔backend wiring, with ASCII diagrams):** [`pblock-storage-backend.md`](pblock-storage-backend.md) |
 | `src/fs/backend/csi_tagstore.c`, `csi_verify.c` (`+_unittest`) | module-only `XrdOssCsi`-parity per-page CRC32C tagstore; tag-file I/O stays below the seam (in `backend/`) |
 
 ### Client-only shell (ngx-free)
@@ -607,7 +607,7 @@ shared core.
 |---|---|
 | `client/lib/vfs.h` / `vfs.c` | `xrdc_vfs` contract + façade/registry + URL routing |
 | `client/lib/vfs_posix.c` | POSIX backend: unconfined open, io_uring/shared-verb I/O, temp+rename commit |
-| `client/lib/vfs_block.c` | block backend over `xrootd_sd_block_driver` |
+| `client/lib/vfs_block.c` | block backend over `brix_sd_block_driver` |
 | `client/lib/vfs_s3.c`, `vfs_s3_io.c`, `vfs_s3_http.c`, `vfs_s3_internal.h` | S3 shell: URL parse, creds, vtable→`sd_s3` adapter |
 | `client/lib/vfs_s3_transport.c` | `xrdc_s3_http_transport` — the client's S3 transport impl |
 

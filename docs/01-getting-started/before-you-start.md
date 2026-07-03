@@ -135,5 +135,5 @@ If any of these fail, check the [First Server Verification](first-server.md) gui
 | You want to... | Read this next |
 |---|---|
 | Build and run your first server | [Getting Started (Full)](getting-started-full.md) |
-| Understand what XRootD actually is | [XRootD Basics](../02-concepts/xrootd-basics.md) |
+| Understand what XRootD actually is | [XRootD Basics](../02-concepts/brix-basics.md) |
 | Know which deployment mode fits you | [Deployment Modes](../02-concepts/deployment-modes.md) |

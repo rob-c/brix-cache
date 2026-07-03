@@ -80,7 +80,7 @@ Client                     Protocol handler → VFS        POSIX driver (kernel)
   │                                  │─ openat2 RESOLVE_BENEATH + fstat ─→│
   │←── handle + metadata ──────────│←──────────── fd + stat ─────│
   │                                  │                            │
-  │─── kXR_read (handle, offset) ─→│ xrootd_vfs_io_execute()     │
+  │─── kXR_read (handle, offset) ─→│ brix_vfs_io_execute()     │
   │                                  │─ driver->pread / preadv ───→│
   │←── data chunk ─────────────────│←──────────── read bytes ────│
   │                                  │                            │
@@ -89,7 +89,7 @@ Client                     Protocol handler → VFS        POSIX driver (kernel)
 ```
 
 **Every byte takes the same path, whatever the protocol.** The opcode handler never
-touches the disk itself: it calls the **VFS** (`xrootd_vfs_*`, `src/fs/`), which
+touches the disk itself: it calls the **VFS** (`brix_vfs_*`, `src/fs/`), which
 re-checks confinement, records the metric and access-log line, and consults the
 cache — then the VFS calls the **storage driver** (`src/fs/backend/`, POSIX by
 default; block / S3 / Ceph / pblock drivers register the same way) for the raw
@@ -104,7 +104,7 @@ the path is `proto → VFS → backend` for all of them.
 
 A fresh upload is **never written directly to its final path**. The server opens
 a **staging file** (a temp/partial file in the same directory, or under
-`xrootd_stage_dir`), streams the writes there, and only **moves it into place
+`brix_stage_dir`), streams the writes there, and only **moves it into place
 with an atomic `rename(2)` on a successful `kXR_close`**. If the client
 disconnects mid-transfer, the final path never appears as a half-written file —
 readers see either the old file or the new one, never a torn one.
@@ -116,7 +116,7 @@ Client                  Protocol handler → VFS         POSIX driver (kernel)
   │                               │  (.part / temp, O_EXCL) ──→│ fd on temp, not
   │←─ handle + metadata ─────────│←─────────── fd + stat ──────│ the final path
   │                               │                            │
-  │─ kXR_write (handle, data) ──→│ xrootd_vfs_io_execute()     │
+  │─ kXR_write (handle, data) ──→│ brix_vfs_io_execute()     │
   │                               │─ driver->pwrite (→ temp) ──→│
   │←─ status OK ─────────────────│←─────────── bytes written ──│
   │                               │                            │
@@ -128,8 +128,8 @@ Client                  Protocol handler → VFS         POSIX driver (kernel)
 ```
 
 **Staging applies to fresh uploads** (`root://` new/overwrite opens with
-`xrootd_upload_resume` on — the default — or POSC; **all** WebDAV `PUT` and S3
-`PUT`, via `xrootd_staged_open()`/`xrootd_staged_commit()`). A *pure in-place
+`brix_upload_resume` on — the default — or POSC; **all** WebDAV `PUT` and S3
+`PUT`, via `brix_staged_open()`/`brix_staged_commit()`). A *pure in-place
 update* (`kXR_open_updt` with no create, modifying an existing file at an offset)
 writes directly to the file, because staging through an empty temp would lose the
 unwritten bytes. On a non-clean close the staged partial is preserved (resume),
@@ -140,7 +140,7 @@ and `src/protocols/root/read/open_resolved_file.c`.
 
 After every operation, the server:
 1. Sends an XRootD response frame back to the client
-2. Increments a Prometheus counter (e.g., `xrootd_requests_total{op="read",status="ok"}`)
+2. Increments a Prometheus counter (e.g., `brix_requests_total{op="read",status="ok"}`)
 3. Writes an access log line
 
 ```bash
@@ -148,7 +148,7 @@ After every operation, the server:
 2025/12/01 14:32:15 [info] client=192.168.1.100 proto=root op=read status=ok bytes_read=1048576 duration_ms=12 auth_method=gsi user=/O=Grid/C=US/O=CERN/OU=Ganglia/CN=test
 
 # Example Prometheus metric
-xrootd_requests_total{proto="root",op="read",status="ok"} 14302
+brix_requests_total{proto="root",op="read",status="ok"} 14302
 ```
 
 ---
@@ -163,10 +163,10 @@ Client                     WebDAV handler → VFS          POSIX driver (kernel)
   │─── GET /path/to/file ─────────→│                            │
   │     Host: server.example.com     │ Authenticate (cert/token)  │
   │     Range: bytes=0-1023          │                            │
-  │                                  │ xrootd_vfs_open()          │
+  │                                  │ brix_vfs_open()          │
   │                                  │─ driver->open + fstat ─────→│
   │←── HTTP/1.1 200 OK ─────────────│←──────────── fd + stat ─────│
-  │     Content-Type: application/   │ xrootd_vfs_file_sendfile_fd│
+  │     Content-Type: application/   │ brix_vfs_file_sendfile_fd│
   │     Content-Length: 1024         │─ driver->read_sendfile_fd ─→│
   │     [response body follows...]    │←──────────── data (sendfile) ─│
 ```
@@ -206,7 +206,7 @@ This means authentication succeeded but authorization failed. Check:
 ### "File not found" — Valid auth but missing file
 
 1. Check that the path doesn't have typos (XRootD uses double slash `//` before the path)
-2. Verify the file exists in the configured `xrootd_root` directory
+2. Verify the file exists in the configured `brix_root` directory
 3. Check for path traversal protections (BriX-Cache won't serve files outside the root)
 
 ### "Slow transfers" — Performance issues
@@ -221,13 +221,13 @@ This means authentication succeeded but authorization failed. Check:
 
 ```bash
 # All XRootD request counters
-curl http://localhost:9100/metrics | grep xrootd_requests_total
+curl http://localhost:9100/metrics | grep brix_requests_total
 
 # Only read operations
-curl http://localhost:9100/metrics | grep "xrootd_requests_total.*op=\"read\""
+curl http://localhost:9100/metrics | grep "brix_requests_total.*op=\"read\""
 
 # Authentication events (helps detect failed auth attempts)
-curl http://localhost:9100/metrics | grep xrootd_auth_total
+curl http://localhost:9100/metrics | grep brix_auth_total
 ```
 
 ---

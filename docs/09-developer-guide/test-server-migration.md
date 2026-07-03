@@ -3,7 +3,7 @@
 **Goal.** As many test files as possible should use servers that are **started once**
 by `tests/manage_test_servers.sh start-all` (before the suite), managed separately, and
 **torn down only when the whole suite finishes** — rather than each test spinning up and
-tearing down its own nginx/xrootd. We favour *many dedicated pre-started instances* over
+tearing down its own nginx/brix. We favour *many dedicated pre-started instances* over
 per-test setup/teardown. (Each migrated test still gets its **own** dedicated instance, so
 isolation is preserved.)
 

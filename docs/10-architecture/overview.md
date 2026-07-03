@@ -59,7 +59,7 @@ graph TB
     end
     
     subgraph DataPlane["Unified data plane — every local byte (src/fs)"]
-        vfs["VFS · xrootd_vfs_*<br/>confinement · metrics · cache · page-CRC · buffers"]
+        vfs["VFS · brix_vfs_*<br/>confinement · metrics · cache · page-CRC · buffers"]
         sd["POSIX storage driver<br/>src/fs/backend · raw syscalls<br/>pread/pwrite/sendfile/fstat"]
     end
 
@@ -90,7 +90,7 @@ graph TB
     proxy -.->|relay, no local I/O| backendsrv
 ```
 
-**Key insight:** The same POSIX files are served through three independent protocol *front ends* — the `stream {}` block for XRootD, the `http {}` block for WebDAV and S3 — but they are **not** three independent data paths. Every byte they read or write funnels through **one** unified data plane: the front end calls the VFS (`src/fs/`, `xrootd_vfs_*`), which applies confinement, metrics, caching and page-CRC once, then calls the **POSIX storage driver** (`src/fs/backend/`) for the raw syscall. (Proxy mode is the exception — it relays to a backend XRootD server and touches no local files.)
+**Key insight:** The same POSIX files are served through three independent protocol *front ends* — the `stream {}` block for XRootD, the `http {}` block for WebDAV and S3 — but they are **not** three independent data paths. Every byte they read or write funnels through **one** unified data plane: the front end calls the VFS (`src/fs/`, `brix_vfs_*`), which applies confinement, metrics, caching and page-CRC once, then calls the **POSIX storage driver** (`src/fs/backend/`) for the raw syscall. (Proxy mode is the exception — it relays to a backend XRootD server and touches no local files.)
 
 ---
 
@@ -104,7 +104,7 @@ implemented exactly once and inherited by every front end:
 ```text
   Front ends:  root:// (stream) · WebDAV (HTTP) · S3 (HTTP) · CMS data-server
                        │
-                       │  each populates an xrootd_vfs_ctx_t and calls xrootd_vfs_*()
+                       │  each populates an brix_vfs_ctx_t and calls brix_vfs_*()
                        ▼
   ── VFS — the "vfs" layer (src/fs/) ───────────────────────────────
        • re-checks RESOLVE_BENEATH confinement
@@ -113,7 +113,7 @@ implemented exactly once and inherited by every front end:
        • per-page CRC32c (pgread/pgwrite) + buffer shaping
        • owns every EINTR / short-I/O / coalescing loop
                        │
-                       │  calls the storage-driver vtable (xrootd_sd_driver_t)
+                       │  calls the storage-driver vtable (brix_sd_driver_t)
                        ▼
   ── Storage driver — the "posix" layer (src/fs/backend/) ──────────
        POSIX driver (default) — one verbatim syscall per slot:
@@ -128,21 +128,21 @@ implemented exactly once and inherited by every front end:
 
 - **No protocol handler issues a raw file syscall.** `pread`/`pwrite`/`preadv`/
   `copy_file_range`/`fstat` on file data exist only inside `src/fs/backend/`. A
-  handler that needs bytes calls a `xrootd_vfs_*` entry point — never `open`/`read`
+  handler that needs bytes calls a `brix_vfs_*` entry point — never `open`/`read`
   directly. That is what makes confinement, metering, and CRC impossible to drift
   between protocols.
 - **The VFS owns *policy*; the driver owns *mechanism*.** The VFS keeps every
   EINTR/short-I/O/coalescing loop and builds the nginx buffer chain; only the raw
   syscall lives behind a driver slot, so behaviour is byte-identical on POSIX.
 - **The driver is pluggable.** POSIX is the default and only shipping backend, but
-  the seam (`xrootd_sd_driver_t` in `src/fs/backend/sd.h`) is capability-typed, so a
+  the seam (`brix_sd_driver_t` in `src/fs/backend/sd.h`) is capability-typed, so a
   block or object/S3 backend can register and become primary **without any change
   above it** — handlers, metrics, cache, and access logs are untouched.
 - **Two VFS surfaces, one driver.** HTTP/S3 use the metered entry points
-  (`xrootd_vfs_open`, `xrootd_vfs_file_sendfile_fd`, `xrootd_vfs_close`,
-  `xrootd_vfs_stat`, the staged-write family) on the event loop; the `root://` byte
+  (`brix_vfs_open`, `brix_vfs_file_sendfile_fd`, `brix_vfs_close`,
+  `brix_vfs_stat`, the staged-write family) on the event loop; the `root://` byte
   I/O (`kXR_read/write/readv/pgread/pgwrite/sync`) flows through the worker-safe I/O
-  core (`xrootd_vfs_io_execute()`), on the AIO thread pool or inline. Both surfaces
+  core (`brix_vfs_io_execute()`), on the AIO thread pool or inline. Both surfaces
   reach disk through the same POSIX storage driver.
 
 See [`src/fs/README.md`](../../src/fs/README.md) and
@@ -213,7 +213,7 @@ sequenceDiagram
     Ops-->>Client: kXR_ok + offset
     loop Read loop
         Client->>Ops: kXR_read / kXR_pgread (offset, size)
-        Ops->>VFS: build job → xrootd_vfs_io_execute()
+        Ops->>VFS: build job → brix_vfs_io_execute()
         VFS->>SD: driver->pread / preadv (cache + CRC32c in VFS)
         SD-->>VFS: data bytes
         VFS-->>Ops: ngx_chain + io_result
@@ -238,16 +238,16 @@ sequenceDiagram
     HTTPS->>Auth: Verify identity (cert or token)
     Auth-->>HTTPS: Verified ✓
     HTTPS->>Handler: Route to GET handler
-    Handler->>VFS: resolve path + xrootd_vfs_open(ctx)
+    Handler->>VFS: resolve path + brix_vfs_open(ctx)
     VFS->>SD: driver->open (RESOLVE_BENEATH) + fstat
     SD-->>VFS: fd + stat
     VFS-->>Handler: VFS handle
-    Handler->>VFS: xrootd_vfs_file_sendfile_fd() (+ Range)
+    Handler->>VFS: brix_vfs_file_sendfile_fd() (+ Range)
     VFS->>SD: driver->read_sendfile_fd (CAP_SENDFILE)
     SD-->>VFS: sendfile-able fd / bytes
     VFS-->>Handler: serve fd (sendfile) / ngx_chain
     Handler-->>Browser: HTTP 200 OK + body
-    Handler->>VFS: xrootd_vfs_close
+    Handler->>VFS: brix_vfs_close
     VFS->>SD: driver->close
     
     Note over Browser,SD: Fully VFS-mediated (proto→VFS→POSIX) —<br/>CORS + metrics handled once, in the VFS
@@ -290,7 +290,7 @@ sequenceDiagram
 | **Write path** | `src/protocols/root/write/` | write/writev/pgwrite/sync/truncate (frames VFS results onto the wire) |
 | **WebDAV dispatch** | `src/protocols/webdav/dispatch.c` | HTTP method routing, TPC detection |
 | **S3 handler** | `src/protocols/s3/handler.c` | REST API entry point and routing |
-| **Unified data plane (VFS)** | `src/fs/` | `xrootd_vfs_*` — the single path every protocol's file I/O takes: confinement, metrics, cache, page-CRC, buffer shaping |
+| **Unified data plane (VFS)** | `src/fs/` | `brix_vfs_*` — the single path every protocol's file I/O takes: confinement, metrics, cache, page-CRC, buffer shaping |
 | **Storage driver (POSIX)** | `src/fs/backend/` | Pluggable backend beneath the VFS; the POSIX driver issues the raw `pread`/`pwrite`/`sendfile`/`fstat` syscalls |
 
 For the complete operation-to-file mapping, see [AGENTS.md](../../AGENTS.md).
@@ -302,4 +302,4 @@ For the complete operation-to-file mapping, see [AGENTS.md](../../AGENTS.md).
 - **[What Is This Project?](../01-getting-started/what-is-this.md)** — Plain English explanation of what this module does
 - **[Deployment Modes](../02-concepts/deployment-modes.md)** — Which deployment pattern fits your needs
 - **[Architecture Deep Dive](../09-developer-guide/architecture-overview.md)** — Code paths, state machines, internals
-- **[XRootD Basics](../02-concepts/xrootd-basics.md)** — Understanding the XRootD protocol before diving into BriX-Cache
+- **[XRootD Basics](../02-concepts/brix-basics.md)** — Understanding the XRootD protocol before diving into BriX-Cache

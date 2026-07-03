@@ -10,7 +10,7 @@ library, the `xrdcp` / `xrdfs` apps, the `XrdClHttp` plugin, the `XrdFfs`
 `libXrdCl` / `libXrdSec*`**.
 
 Every claim below is grounded in source. The official side cites
-`/tmp/xrootd-src/src/XrdCl/` (the C++ library), `XrdApps/` (the `xrdcp` /
+`/tmp/brix-src/src/XrdCl/` (the C++ library), `XrdApps/` (the `xrdcp` /
 `xrdfs` config + driver), `XrdClHttp/` (the HTTP transport plugin), `XrdFfs/`
 (the FUSE driver), and `python/` (the bindings). The BriX-Cache side cites
 this repository's `client/` tree (`apps/`, `lib/`) and `shared/xrdproto/`.
@@ -51,7 +51,7 @@ only from the `src/protocols/root/protocol/` headers (cross-checked against
 The official client stack is a **heavyweight, asynchronous C++ library** with the
 apps as thin front-ends on top of it.
 
-- **`XrdCl` core library** (`/tmp/xrootd-src/src/XrdCl/`). The public API is the
+- **`XrdCl` core library** (`/tmp/brix-src/src/XrdCl/`). The public API is the
   C++ classes `XrdCl::File` (`XrdClFile.hh:51`), `XrdCl::FileSystem`
   (`XrdClFileSystem.hh:208`), and `XrdCl::CopyProcess` /
   `XrdCl::CopyJob` / `XrdCl::CopyProgressHandler` (`XrdClCopyProcess.hh`).
@@ -65,15 +65,15 @@ apps as thin front-ends on top of it.
 - **`xrdfs`** — `XrdCl/XrdClFS.cc` plus the command registry
   `XrdClFSExecutor.cc`; each subcommand is a `DoXxx` handler that calls
   `FileSystem`.
-- **`XrdClHttp` plugin** (`/tmp/xrootd-src/src/XrdClHttp/`) — a *separate*
+- **`XrdClHttp` plugin** (`/tmp/brix-src/src/XrdClHttp/`) — a *separate*
   bolt-on transport (factory `XrdClHttpFactory`, with `XrdClHttpFile` /
   `XrdClHttpFilesystem` and per-op files) that teaches `XrdCl` to speak
   `http(s)://` via davix. It is a plugin, not part of the core.
-- **`pyxrootd` bindings** (`/tmp/xrootd-src/python/`) — a C extension module
+- **`pyxrootd` bindings** (`/tmp/brix-src/python/`) — a C extension module
   named `client` (`PyXRootDModule.cc:68`), packaged as `XRootD.client`, exposing
   `FileSystem`, `File`, `URL`, and `CopyProcess` Python types with async response
   handlers.
-- **`xrootdfs` FUSE driver** (`/tmp/xrootd-src/src/XrdFfs/`) — notably does
+- **`xrootdfs` FUSE driver** (`/tmp/brix-src/src/XrdFfs/`) — notably does
   **not** use `XrdCl`; it rides the synchronous `XrdPosixXrootd` POSIX shim with
   its own `pthread` worker pool (`XrdFfsQueue`) and a write cache
   (`XrdFfsWcache`). `root://` only.
@@ -94,8 +94,8 @@ the project's own wire vocabulary.
   layer. Header `client/lib/xrdc.h` documents the whole API. It is built on
   `shared/xrdproto/libxrdproto.a` (the ngx-free protocol core shared
   server↔client) and links only OpenSSL, optionally `krb5`
-  (`client/lib/sec/sec_krb5.c`, compile-gated `XROOTD_HAVE_KRB5`) and `liburing`
-  (`client/lib/uring.c`, compile-gated `XROOTD_HAVE_LIBURING`). **No `libXrdCl`,
+  (`client/lib/sec/sec_krb5.c`, compile-gated `BRIX_HAVE_KRB5`) and `liburing`
+  (`client/lib/uring.c`, compile-gated `BRIX_HAVE_LIBURING`). **No `libXrdCl`,
   no `libXrdSec*`** (`client/Makefile` header).
 - **`xrdcp`** (`client/apps/xrdcp.c`) — a copy tool that handles `root://`,
   `roots://`, and the web schemes `davs:// http(s):// dav:// s3:// s3s://` in one
@@ -351,7 +351,7 @@ tools during this session. Some are fixed; the rest are documented for parity.
 
 ## Source references
 
-**Official (`/tmp/xrootd-src/src/`):**
+**Official (`/tmp/brix-src/src/`):**
 - `XrdCl/XrdClFile.hh`, `XrdClFileSystem.hh`, `XrdClCopyProcess.hh` — public API classes.
 - `XrdCl/XrdClPostMaster.{cc,hh}`, `XrdClAsyncSocketHandler.{cc,hh}`, `XrdClJobManager.{cc,hh}`, `XrdClPlugInManager.{cc,hh}` — async core + plugins.
 - `XrdApps/XrdCpConfig.{cc,hh}`, `XrdCl/XrdClCopy.cc` — `xrdcp` options + driver.

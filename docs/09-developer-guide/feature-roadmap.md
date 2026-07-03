@@ -31,7 +31,7 @@ HTTP PUT to the destination URL, forwarding the `Authorization:` /
 **Implementation sketch:**
 
 ```c
-/* in src/protocols/webdav/tpc.c, in ngx_http_xrootd_webdav_tpc_handle_copy() */
+/* in src/protocols/webdav/tpc.c, in ngx_http_brix_webdav_tpc_handle_copy() */
 
 if (source_hdr == NULL && dest_hdr != NULL) {
     /* push mode */
@@ -53,10 +53,10 @@ interoperability with standard FTS but makes large transfers observable.
 
 **Files to change:**
 - `src/protocols/webdav/tpc.c` — add `webdav_tpc_run_curl_push()` and wire into the
-  dispatch at the top of `ngx_http_xrootd_webdav_tpc_handle_copy()`
+  dispatch at the top of `ngx_http_brix_webdav_tpc_handle_copy()`
 - `src/protocols/webdav/webdav.h` — declare `webdav_tpc_run_curl_push()`
-- `src/observability/metrics/webdav.c` — add `XROOTD_WEBDAV_TPC_PUSH_OK` /
-  `XROOTD_WEBDAV_TPC_PUSH_FAIL` event slots
+- `src/observability/metrics/webdav.c` — add `BRIX_WEBDAV_TPC_PUSH_OK` /
+  `BRIX_WEBDAV_TPC_PUSH_FAIL` event slots
 - `src/protocols/webdav/dispatch.c` — OPTIONS Allow header already advertises COPY; no
   change needed
 - Tests: `tests/test_webdav_tpc.py` — add push-mode tests against a local
@@ -85,7 +85,7 @@ nginx↔nginx and nginx↔reference xrootd transfers.
   (`src/tpc/outbound/thread.c`, `source.c`, …) which opens the remote file with
   `?tpc.key=` / `&tpc.org=` as needed.
 - Manager mode: `kXR_redirect` with `?tpc.key=` (`src/protocols/root/response/control.c`).
-- Configurable TTL: `xrootd_tpc_key_ttl` (default 60s), merged in
+- Configurable TTL: `brix_tpc_key_ttl` (default 60s), merged in
   `src/core/config/server_conf.c`.
 
 **Remaining gap (parity, not protocol):** The outbound pull client can complete
@@ -131,11 +131,11 @@ link with a single large file. Without cross-handle sharing the per-file
 throughput ceiling is the throughput of a single TCP connection.
 
 **How the implementation works:** The module uses a second shared-memory zone
-named `xrootd_session_handles`. Primary connections publish readable handles as
+named `brix_session_handles`. Primary connections publish readable handles as
 `{sessid, handle_index, path, dev, ino, size, readable, writable, from_cache}`
 entries after `kXR_open`, and remove them on `kXR_close` or session teardown.
 Bound secondaries look up `{bound_sessid, handle_index}` in
-`xrootd_ensure_read_handle()` before serving `kXR_read`, `kXR_readv`, or
+`brix_ensure_read_handle()` before serving `kXR_read`, `kXR_readv`, or
 `kXR_pgread`.
 
 The shared table intentionally does **not** share raw file descriptors. nginx
@@ -163,9 +163,9 @@ changes; the bound stream closes any stale local fd and the read fails with
  **Status:** Complete. Basic HMAC-SHA256 signature chaining and caveat validation using a static secret is fully implemented as of 2026-05-09.
  
  **What was done:**
- - Implemented `xrootd_macaroon_validate()` in `src/auth/token/macaroon.c` with support for parsing ISO8601 timestamps and WLCG activity caveats.
- - Updated `xrootd_token_validate()` to dispatch Macaroon validation transparently.
- - Added `xrootd_macaroon_secret` directive in the stream module and `xrootd_webdav_macaroon_secret` in the WebDAV module for static secret configuration.
+ - Implemented `brix_macaroon_validate()` in `src/auth/token/macaroon.c` with support for parsing ISO8601 timestamps and WLCG activity caveats.
+ - Updated `brix_token_validate()` to dispatch Macaroon validation transparently.
+ - Added `brix_macaroon_secret` directive in the stream module and `brix_webdav_macaroon_secret` in the WebDAV module for static secret configuration.
  - Integrated secret parsing into `src/auth/gsi/token.c` and `src/protocols/webdav/auth_token.c`.
  - Created Macaroon generation helper and test cases in `tests/test_token_macaroon.py`.
 
@@ -187,7 +187,7 @@ authenticate.
  - Supported `Depth: 0` (shallow) and `Depth: infinity` (recursive) lock scope.
  - Updated OPTIONS advertisement in `src/protocols/webdav/methods_basic.c`.
  - Added `lockdiscovery` and `supportedlock` properties in `src/protocols/webdav/propfind.c`.
- - Added `xrootd_webdav_lock_timeout` directive for site-specific policy.
+ - Added `brix_webdav_lock_timeout` directive for site-specific policy.
  - Enforced lock checks in `PUT`, `DELETE`, `MKCOL`, `MOVE`, and `COPY`.
  - Added 9 integration tests in `tests/test_http_webdav_lock.py` covering timeout, conflict, depth, and owner parsing.
 
@@ -210,9 +210,9 @@ authenticate.
 
 **Status:** Implemented for local staging hints, durable FRM queueing, `kXR_QPrep`
 state, cancel, async open wait/attention, and the WLCG HTTP Tape REST gateway
-when `xrootd_frm on` is configured. FRM-off mode intentionally keeps the legacy
+when `brix_frm on` is configured. FRM-off mode intentionally keeps the legacy
 disk-only behavior: path validation/existence checks, optional
-`xrootd_prepare_command`, and request id `"0"`.
+`brix_prepare_command`, and request id `"0"`.
 
 **Why it matters:** Sites with tape backends (CASTOR, EOS tape, dCache tape)
 rely on FTS or physics frameworks issuing stage requests before data access. The
@@ -273,11 +273,11 @@ pull and push is fully implemented as of 2026-05-10.
   and push modes, and delegated tokens are injected into the curl subprocess
   as `Authorization: Bearer` headers.
 - Added nginx directives:
-  - `xrootd_webdav_tpc_token_endpoint` — OAuth2 token endpoint URL
-  - `xrootd_webdav_tpc_token_client_id` — OAuth2 client ID (optional)
-  - `xrootd_webdav_tpc_token_client_secret` — OAuth2 client secret (optional)
-  - `xrootd_webdav_tpc_token_scope` — scope string (default: `storage.read`)
-- Added Prometheus counter `xrootd_webdav_tpc_cred_total` with events:
+  - `brix_webdav_tpc_token_endpoint` — OAuth2 token endpoint URL
+  - `brix_webdav_tpc_token_client_id` — OAuth2 client ID (optional)
+  - `brix_webdav_tpc_token_client_secret` — OAuth2 client secret (optional)
+  - `brix_webdav_tpc_token_scope` — scope string (default: `storage.read`)
+- Added Prometheus counter `brix_webdav_tpc_cred_total` with events:
   `started`, `success`, `error`, `unknown_mode`, `parse_error`.
 - Two delegation modes are supported:
   - `oidc-agent` — UNIX-socket JSON IPC to a local `oidc-agent` daemon
@@ -295,16 +295,16 @@ authenticate to the remote source (pull) or destination (push).
 
 ```nginx
 location / {
-    xrootd_webdav              on;
-    xrootd_webdav_root         /data;
-    xrootd_webdav_allow_write  on;
-    xrootd_webdav_tpc          on;
+    brix_webdav              on;
+    brix_webdav_root         /data;
+    brix_webdav_allow_write  on;
+    brix_webdav_tpc          on;
 
     # OAuth2/OIDC token delegation for TPC
-    xrootd_webdav_tpc_token_endpoint https://idp.example.com/oauth2/token;
-    xrootd_webdav_tpc_token_client_id  nginx-xrootd;
-    xrootd_webdav_tpc_token_client_secret abc123secret;
-    xrootd_webdav_tpc_token_scope      storage.read;
+    brix_webdav_tpc_token_endpoint https://idp.example.com/oauth2/token;
+    brix_webdav_tpc_token_client_id  nginx-xrootd;
+    brix_webdav_tpc_token_client_secret abc123secret;
+    brix_webdav_tpc_token_scope      storage.read;
 }
 ```
 
@@ -352,11 +352,11 @@ full M6 plan and per-step status.
 **What is implemented (M6 steps 1–6):**
 
 - `kYR_gone` CMS opcode — data-server path deregistration (`src/net/cms/server_recv.c`)
-- Configurable registry slots (`xrootd_registry_slots`; `src/net/manager/registry.c`)
+- Configurable registry slots (`brix_registry_slots`; `src/net/manager/registry.c`)
 - Per-worker CMS connections — each nginx worker holds its own upstream CMS channel
 - Pending-locate table (`src/net/manager/pending.c`) — shared-memory bridge between a suspended XRootD session and an in-flight CMS query
-- `ngx_xrootd_cms_send_locate()` — builds and sends `kYR_locate` frames to the parent manager
-- `XRD_ST_WAITING_CMS` state — XRootD session suspension while awaiting `kYR_select`; `xrootd_cms_locate_timeout` fires `kXR_wait` to the client on expiry
+- `ngx_brix_cms_send_locate()` — builds and sends `kYR_locate` frames to the parent manager
+- `XRD_ST_WAITING_CMS` state — XRootD session suspension while awaiting `kYR_select`; `brix_cms_locate_timeout` fires `kXR_wait` to the client on expiry
 - `kYR_select` and `kYR_try` handling in `src/net/cms/recv.c` — wakes the suspended session and issues `kXR_redirect`
 
 **Validation status and remaining extension:**
@@ -379,14 +379,14 @@ rules. Operational caveats are documented below.
 
 **What is implemented** (`src/auth/authz/authdb.c`, `src/core/config/policy.c`):
 
-- `xrootd_authdb <path>` directive — registered as `NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1`, requires `xrootd_auth gsi`, `token`, or both
+- `brix_authdb <path>` directive — registered as `NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1`, requires `brix_auth gsi`, `token`, or both
 - Full authdb file parser: `[u|g|p|a] <id> <path> <privs>` line format, comments (`#`), blank lines
 - Identity types enforced: `u` (user DN matched against `ctx->dn`), `g` (VO group matched against `ctx->vo_list`), `a` (all/anonymous); wildcard `*` id accepted for `u` and `g`
 - Privilege flags: `r` (read + lookup), `l` (lookup only), `w`/`a` (update/append), `d` (delete), `m` (mkdir), `k` (admin)
 - Longest-prefix matching on resolved (absolute) paths — ties go to the later rule in file order
 - Opt-in model: no authdb configured → all paths pass; authdb configured → deny unless an explicit allow rule matches
-- Path resolution via `xrootd_finalize_authdb_rules()` — normalizes rule paths relative to `xrootd_root` at config time
-- Enforced in all core operation handlers before `xrootd_check_vo_acl()`:
+- Path resolution via `brix_finalize_authdb_rules()` — normalizes rule paths relative to `brix_root` at config time
+- Enforced in all core operation handlers before `brix_check_vo_acl()`:
 
 | Handler | Priv checked |
 |---|---|
@@ -413,8 +413,8 @@ dirlist/query/fattr tests.
 
 - Authdb is loaded at startup/reload. Runtime policy refresh requires
   `nginx -s reload`; files larger than 1 MiB are rejected at config time.
-- `kXR_chmod` uses `XROOTD_AUTH_UPDATE`, not `ADMIN`, via the op-descriptor
-  dispatcher (`src/protocols/root/write/op_table.c` → `xrootd_auth_gate()`).
+- `kXR_chmod` uses `BRIX_AUTH_UPDATE`, not `ADMIN`, via the op-descriptor
+  dispatcher (`src/protocols/root/write/op_table.c` → `brix_auth_gate()`).
 - Empty rule arrays mean allow-all; once rules are loaded, no matching grant
   means deny.
 
@@ -442,7 +442,7 @@ If the goal is maximum deployment coverage fastest:
 
 Items 1–4 are self-contained and have no shared dependencies. Native TPC and
 `kXR_bind` handle sharing each use a shared-memory zone; the TPC key table is
-already implemented (`xrootd_tpc_keys`).
+already implemented (`brix_tpc_keys`).
 
 ---
 
@@ -456,7 +456,7 @@ what is missing. Items are grouped by feature area.
 
 - ~~**No Performance-Marker streaming (chunked 202)**~~ ✓ **DONE:**
   `src/protocols/webdav/tpc_marker.c` streams WLCG `Performance-Marker:` blocks in a
-  chunked `202 Accepted` body when `xrootd_webdav_tpc_marker_interval` is set.
+  chunked `202 Accepted` body when `brix_webdav_tpc_marker_interval` is set.
 
 - **No automatic credential-mode fallback:** `tpc_cred.c` — if `oidc-agent`
   mode is requested but the daemon is unavailable, the request fails rather
@@ -471,7 +471,7 @@ what is missing. Items are grouped by feature area.
 - **curl subprocess is blocking:** `tpc_curl.c` forks and waits via
   `waitpid(2)`. While the thread pool keeps the nginx worker responsive, each
   in-flight TPC transfer consumes one thread-pool thread. The pool can be
-  exhausted under heavy concurrency; `xrootd_webdav_thread_pool` sizing must
+  exhausted under heavy concurrency; `brix_webdav_thread_pool` sizing must
   account for this.
 
 ### Native root:// TPC rendezvous (item 2), cache origin, and upstream connections
@@ -515,7 +515,7 @@ what is missing. Items are grouped by feature area.
   decrypts `vid` with AES-256-CBC, and intersects discharge caveats with the
   root token constraints. See `tests/test_macaroon_discharge.py`.
 
-- ~~**Static secret only — no key rotation**~~ ✓ **DONE:** `xrootd_macaroon_secret_old`
+- ~~**Static secret only — no key rotation**~~ ✓ **DONE:** `brix_macaroon_secret_old`
   grace-period directive added to both stream (`src/protocols/root/stream/module.c`) and WebDAV
   (`src/protocols/webdav/module.c`) modules. `src/auth/gsi/token.c` and `src/protocols/webdav/auth_token.c`
   now fall back to the old secret when primary validation fails, allowing zero-
@@ -534,7 +534,7 @@ what is missing. Items are grouped by feature area.
   migration, lock state is stored as an xattr on each resource rather than in a
   shared-memory zone, so locks now **survive** `nginx -s reload` and full
   restarts. This diverges from RFC 4918 §10.1's ephemeral model; enable
-  `xrootd_webdav_lock_startup_sweep` to clear persisted locks at startup if
+  `brix_webdav_lock_startup_sweep` to clear persisted locks at startup if
   ephemeral semantics are required.
 
 - **No fixed lock-table capacity:** Lock count is bounded only by filesystem
@@ -593,9 +593,9 @@ what is missing. Items are grouped by feature area.
   (`X-Amz-Signature`) and enforce `X-Amz-Expires`.
 
 - **Former STS-shaped session-token compatibility gap** ✓ **STATIC-SECRET COMPAT ADDED:**
-  `xrootd_s3_allow_unsigned_session_token on` accepts signed
+  `brix_s3_allow_unsigned_session_token on` accepts signed
   `X-Amz-Security-Token` header/query forms while still verifying SigV4 with
-  the configured static `xrootd_s3_secret_key`. A dynamic temporary-credential
+  the configured static `brix_s3_secret_key`. A dynamic temporary-credential
   store is still out of scope.
 
 ### Token / JWT validation (items 4, 10)
@@ -607,7 +607,7 @@ what is missing. Items are grouped by feature area.
   `src/auth/token/signature.c`. PS256, RS384/RS512, and `alg:"none"` remain refused.
 
 - ~~**Single JWKS file, no hot refresh**~~ ✓ **DONE:**
-  `xrootd_token_jwks_refresh_interval` mtime-polls file-based JWKS material and
+  `brix_token_jwks_refresh_interval` mtime-polls file-based JWKS material and
   keeps the old key set if a refresh parse fails.
 
 - ~~**`storage.stage:` not enforced**~~ ✓ **DONE:** `src/auth/token/scopes.c` now maps
@@ -619,7 +619,7 @@ what is missing. Items are grouped by feature area.
 
 - ~~**Former tape-dispatch gap**~~ ✓ **UPDATED:** the `src/fs/xfer/` stage engine (formerly `src/frm/`) provides a
   durable FRM-style stage queue, host-qualified request ids, cancel handling,
-  and queue-backed `kXR_QPrep` states when `xrootd_frm on` is configured.
+  and queue-backed `kXR_QPrep` states when `brix_frm on` is configured.
   WebDAV Tape REST gateway support also exists. This is still narrower than the
   full upstream XrdFrm/MSS ecosystem, so tape-backed sites must validate their
   actual stage, cancel, evict, purge, and recall workflows.
@@ -652,15 +652,15 @@ mechanism are all implemented (M6 steps 1–6). Remaining gaps:
 ### Cross-cutting gaps
 
 - ~~**`kXR_chmod` has no access control check**~~ ✓ **CLARIFIED:**
-  `src/protocols/root/write/op_table.c`'s `xrootd_dispatch_op()` runs `xrootd_auth_gate()`
-  (authdb `XROOTD_AUTH_UPDATE` + VO ACL + token scope) before dispatching to
+  `src/protocols/root/write/op_table.c`'s `brix_dispatch_op()` runs `brix_auth_gate()`
+  (authdb `BRIX_AUTH_UPDATE` + VO ACL + token scope) before dispatching to
   `chmod(2)` via the `exec_chmod` descriptor. The roadmap entry was stale.
 
 - **Former POSC gap** ✓ **DONE:** `kXR_open` with `kXR_posc` now opens a
   temp file (`.posc.<pid>.<rand>` in the same directory) and stores the final
-  target in `xrootd_file_t.posc_final_path`. On `kXR_close` the temp is
+  target in `brix_file_t.posc_final_path`. On `kXR_close` the temp is
   `fsync`d then atomically renamed to the final path. On disconnect or error the
-  temp is unlinked by `xrootd_free_fhandle()`. See `src/protocols/root/read/open.c`,
+  temp is unlinked by `brix_free_fhandle()`. See `src/protocols/root/read/open.c`,
   `src/protocols/root/read/close.c`, `src/protocols/root/connection/fd_table.c`.
 
 - **Former CRL delta-update gap** ✓ **DONE:**
@@ -674,15 +674,15 @@ mechanism are all implemented (M6 steps 1–6). Remaining gaps:
 - **Former WebDAV `PROPPATCH` 501 gap** ✓ **DONE:** See WebDAV PROPFIND section above.
 
 - **Former authdb `kXR_dirlist` bypass** ✓ **DONE:** `src/protocols/root/dirlist/handler.c` now
-  calls `xrootd_check_authdb(ctx, resolved, XROOTD_AUTH_LOOKUP)` before
-  `xrootd_check_vo_acl()`.
+  calls `brix_check_authdb(ctx, resolved, BRIX_AUTH_LOOKUP)` before
+  `brix_check_vo_acl()`.
 
 - ~~**Authdb not applied to `query/` or `fattr/` handlers**~~ ✓ **DONE:**
   `src/protocols/root/query/checksum_qcksum.c`, `src/protocols/root/query/checksum_ckscan_dispatch.c`,
   `src/protocols/root/query/metadata.c`, `src/protocols/root/query/prepare.c`, and `src/protocols/root/fattr/dispatch.c`
-  all now call `xrootd_check_authdb()` with the
-  appropriate privilege (`XROOTD_AUTH_READ` for queries; `XROOTD_AUTH_READ` or
-  `XROOTD_AUTH_UPDATE` depending on fattr subcode) before the vo_acl check.
+  all now call `brix_check_authdb()` with the
+  appropriate privilege (`BRIX_AUTH_READ` for queries; `BRIX_AUTH_READ` or
+  `BRIX_AUTH_UPDATE` depending on fattr subcode) before the vo_acl check.
 
 - ~~**Authdb file size limit**~~ ✓ **DONE:** `src/auth/authz/authdb.c` now uses
   `ngx_fd_info()` to determine the exact file size at config time and allocates
@@ -752,5 +752,5 @@ This section outlines the requirements for developing automated tests for featur
 - **Target File:** `tests/test_s3.py`.
 
 ### Authdb Enforcement on Query/Fattr
-- **Requirement:** Expand authdb testing to cover `kXR_query` (checksum, metadata) and `kXR_fattr` (get/set/del) opcodes. Verify that rules for `XROOTD_AUTH_READ` and `XROOTD_AUTH_UPDATE` are respected.
+- **Requirement:** Expand authdb testing to cover `kXR_query` (checksum, metadata) and `kXR_fattr` (get/set/del) opcodes. Verify that rules for `BRIX_AUTH_READ` and `BRIX_AUTH_UPDATE` are respected.
 - **Target File:** `tests/test_authdb.py`.

@@ -49,28 +49,28 @@ The WebDAV handler registers itself as an `ngx_http_module` content handler:
 
 ```c
 /* src/protocols/webdav/module.c — simplified */
-static ngx_http_module_t ngx_http_xrootd_webdav_module_ctx = {
+static ngx_http_module_t ngx_http_brix_webdav_module_ctx = {
     NULL,                                          /* preconfiguration */
-    ngx_http_xrootd_webdav_postconfiguration,      /* postconfiguration */
+    ngx_http_brix_webdav_postconfiguration,      /* postconfiguration */
     …
 };
 
 /* postconfiguration installs the content handler */
 static ngx_int_t
-ngx_http_xrootd_webdav_postconfiguration(ngx_conf_t *cf)
+ngx_http_brix_webdav_postconfiguration(ngx_conf_t *cf)
 {
     ngx_http_core_main_conf_t *cmcf;
     ngx_http_handler_pt       *h;
 
     cmcf = ngx_http_conf_get_module_main_conf(cf, ngx_http_core_module);
     h = ngx_array_push(&cmcf->phases[NGX_HTTP_CONTENT_PHASE].handlers);
-    *h = ngx_http_xrootd_webdav_handler;
+    *h = ngx_http_brix_webdav_handler;
     return NGX_OK;
 }
 ```
 
-From then on, every HTTP request to a `xrootd_webdav on` location calls
-`ngx_http_xrootd_webdav_handler(r)` with a fully-parsed `ngx_http_request_t`.
+From then on, every HTTP request to a `brix_webdav on` location calls
+`ngx_http_brix_webdav_handler(r)` with a fully-parsed `ngx_http_request_t`.
 
 ### What XRootD's HTTP plugin implements manually that we get for free
 

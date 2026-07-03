@@ -25,7 +25,7 @@
 > `tests/test_gfal_interop.py`.
 >
 > All five trees were read locally. File:line citations refer to the upstream
-> source at the revision checked out during analysis (XRootD `/tmp/xrootd-src`,
+> source at the revision checked out during analysis (XRootD `/tmp/brix-src`,
 > others cloned shallow from GitHub master); treat them as navigational anchors,
 > not eternal coordinates.
 >
@@ -83,7 +83,7 @@ semantics."
 
 ## 1. Architecture and concurrency model
 
-### XRootD C++ (`/tmp/xrootd-src`)
+### XRootD C++ (`/tmp/brix-src`)
 * **Server (`XrdXrootd/`)**: non-blocking, with a **continuation pattern** rather
   than blocking reads. Each connection is a pooled `XrdProtocol` implementing
   Match/Process/Recycle (`XrdXrootdProtocol.hh:187-195`); a partial socket read
@@ -94,7 +94,7 @@ semantics."
   present in this tree), 3 `JobManager` callback workers, and 1 `TaskManager`
   timer thread. Ownership: `PostMaster`→`Channel`→`Stream`→`AsyncSocketHandler`.
 
-### EOS (`/tmp/xrootd-cmp/eos`)
+### EOS (`/tmp/brix-cmp/eos`)
 Two stock `xrootd` daemons, each loading an EOS OFS plugin via `xrootd.fslib`:
 * **MGM** (`libXrdEosMgm.so`): `XrdMgmOfs : public XrdSfsFileSystem`
   (`mgm/ofs/XrdMgmOfs.hh:254`). The plugin factory `XrdSfsGetFileSystem2`
@@ -107,7 +107,7 @@ Two stock `xrootd` daemons, each loading an EOS OFS plugin via `xrootd.fslib`:
 The concurrency model is therefore *exactly* stock XRootD's; EOS only supplies
 virtual-method overrides.
 
-### dCache / xrootd4j (`/tmp/xrootd-cmp/xrootd4j`)
+### dCache / xrootd4j (`/tmp/brix-cmp/xrootd4j`)
 A pure **Netty `ChannelHandler` pipeline** (`DataServerChannelInitializer.java:60-123`):
 `handshaker → encoder → decoder → session-handler → chunk-writer → data-server`.
 The chosen `XrootdAuthenticationHandler` is **inserted into the pipeline lazily**,
@@ -117,7 +117,7 @@ pipeline. Raw bytes → typed `XrootdRequest` (decoder) → `doOnXxxRequest` dis
 segmentation** (`AbstractXrootdDecoder.verifyMessageLength():182-250`): only
 `kXR_write` may exceed `maxWriteBufferSize`; other oversized frames disconnect.
 
-### go-hep (`/tmp/xrootd-cmp/gohep/xrootd`)
+### go-hep (`/tmp/brix-cmp/gohep/brix`)
 **Goroutine-per-connection.** Client `cliSession` (`session.go:40`) runs a single
 `consume()` reader goroutine that fans responses out by StreamID through a `mux`
 (`internal/mux/mux.go`); caller goroutines block on per-request channels. Server
@@ -222,7 +222,7 @@ the low bits), 16-byte session id, optional trailing CGI/security blob.
   `src/protocols/root/connection/handler.c:80`).
 * **Anonymous handling differs:** BriX-Cache rejects non-printable usernames
   (`src/protocols/root/session/login.c:88`) and only sets `auth_done=1` immediately for
-  `XROOTD_AUTH_NONE`; dCache leaves anonymity to the application; go-hep's default
+  `BRIX_AUTH_NONE`; dCache leaves anonymity to the application; go-hep's default
   server is anonymous-only (echoes the sessid with no security blob).
 * **Auth trigger:** when security is configured, the login response carries the
   `&P=...` list and forces a follow-up `kXR_auth` (XRootD sets
@@ -358,7 +358,7 @@ this whole comparison:
 XRootD C++, go-hep, and BriX-Cache all implement `kXR_sigver`; dCache has the
 infrastructure but ships it OFF in the bundled standalone server. BriX-Cache's
 implementation is notable for using the **shared** HMAC kernel
-(`xrootd_gsi_sigver_hmac` over `seqno_be(8) || hdr24 || [payload unless nodata]`),
+(`brix_gsi_sigver_hmac` over `seqno_be(8) || hdr24 || [payload unless nodata]`),
 a shared opcode→level policy table, constant-time compare (`CRYPTO_memcmp`), and
 **fail-closed** enforcement (`src/protocols/root/handshake/sigver.c`): unsigned mutating ops are
 rejected, and in pedantic mode `nodata`-with-payload is rejected.
@@ -447,7 +447,7 @@ single pass writes each CRC into its preceding gap — no copy
 * **Asymmetric encrypt/decrypt re-pad** (`DHSession.java:365`, ENCRYPT only) can
   desync if the peer's secret length differs on the decrypt side.
 * **Strengths:** the Netty pipeline is clean and idiomatic; write-segmentation and
-  chunked/zero-copy reads are well done; the TPC client (`org/dcache/xrootd/tpc/`)
+  chunked/zero-copy reads are well done; the TPC client (`org/dcache/brix/tpc/`)
   is a real, separate GSI-capable client.
 
 ### 7.4 go-hep
@@ -580,7 +580,7 @@ single pass writes each CRC into its preceding gap — no copy
 |---|---|---|---|---|
 | Wire structs | `XProtocol/XProtocol.hh` | `XrootdProtocol.java` | `xrdproto/xrdproto.go` | `src/protocols/root/protocol/` |
 | Server dispatch | `XrdXrootd/XrdXrootdProtocol.cc:439` | `XrootdRequestHandler.java:229` | `server.go:242` | `src/protocols/root/handshake/dispatch.c` |
-| Client transport | `XrdCl/XrdClXRootDTransport.cc` | `org/dcache/xrootd/tpc/` | `client.go`, `session.go` | `client/lib/conn.c`, `frame.c` |
+| Client transport | `XrdCl/XrdClXRootDTransport.cc` | `org/dcache/brix/tpc/` | `client.go`, `session.go` | `client/lib/conn.c`, `frame.c` |
 | Handshake | `XrdXrootdProtocol.cc:311` | `XrootdHandshakeHandler.java:60` | `xrdproto/handshake/handshake.go` | `src/protocols/root/handshake/client_hello.c` |
 | GSI | `XrdSecgsi/XrdSecProtocolgsi.cc`, `XrdCrypto/XrdCryptosslCipher.cc` | `xrootd4j-gsi/.../{DHSession,GSIRequestHandler}.java` | — (absent) | `src/auth/gsi/`, `client/lib/sec/sec_gsi.c`, shared `src/auth/gsi/gsi_core.c` |
 | Data plane | `XrdXrootdXeq.cc`, `XrdXrootdXeqPgrw.cc` | `DataServerHandler.java` | `xrootd/file.go`, `xrdproto/read` | `src/protocols/root/read/`, `src/protocols/root/write/`, `src/protocols/root/response/status.c` |

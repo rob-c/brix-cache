@@ -2,8 +2,8 @@
 
 BriX-Cache can wear two hats as a manager or redirector. Here's what each mode does and when to use it.
 
-- **Static map** (`xrootd_manager_map`) — fixed path-prefix → backend mapping. Simple, no moving parts. Covered in this document.
-- **Dynamic cluster mode** (`xrootd_manager_mode` + `xrootd_cms_server`) — data servers register at runtime via the CMS protocol; the redirector picks the best server for each request. See [cluster-mode.md](cluster-management.md).
+- **Static map** (`brix_manager_map`) — fixed path-prefix → backend mapping. Simple, no moving parts. Covered in this document.
+- **Dynamic cluster mode** (`brix_manager_mode` + `brix_cms_server`) — data servers register at runtime via the CMS protocol; the redirector picks the best server for each request. See [cluster-mode.md](cluster-management.md).
 
 ---
 
@@ -16,12 +16,12 @@ to the mapped backend.
 
 Directive
 
-- `xrootd_manager_map /prefix host:port;`
+- `brix_manager_map /prefix host:port;`
 
 Behavior
 
 - The `prefix` is normalized by the same path-normalization used by other
-  policy directives (see the code comment for `xrootd_normalize_policy_path`).
+  policy directives (see the code comment for `brix_normalize_policy_path`).
 - Lookups use longest-prefix matching — the most-specific configured mapping
   that matches the request path is selected.
 - When a mapping matches, the server returns `kXR_redirect` (status 4004). The
@@ -45,8 +45,8 @@ stream {
     server {
         listen 127.0.0.1:11094;
         xrootd on;
-        xrootd_manager_map /maps backend.example.org:54321;
-        xrootd_manager_map /maps/prefix backend2.example.org:12345;
+        brix_manager_map /maps backend.example.org:54321;
+        brix_manager_map /maps/prefix backend2.example.org:12345;
     }
 }
 ```

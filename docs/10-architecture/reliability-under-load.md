@@ -153,12 +153,12 @@ The manager's server registry (`src/net/manager/registry.c`) is designed so that
 exists**, on two axes:
 
 - **Staleness fallback (Phase 39):** a data server that has missed its heartbeat
-  window is *de-preferred*, not dropped — `xrootd_srv_select()` prefers the
+  window is *de-preferred*, not dropped — `brix_srv_select()` prefers the
   freshest live server but falls back to the least-stale one rather than
   answering NotFound when every replica is stale.
 - **Blacklist fallback (this work):** a CMS-disconnect blacklists a server for
   30 s; `kXR_open`/`kXR_stat` now fall back to a *blacklisted-but-present* server
-  as a last resort (`xrootd_srv_select_or_blacklisted`), because the data plane
+  as a last resort (`brix_srv_select_or_blacklisted`), because the data plane
   is almost always still alive after a transient heartbeat drop. `kXR_locate`
   stays strict (it reports only live servers), so a genuinely dead node is still
   honestly "not found" there, and the `tried`/`triedrc` retry protocol converges
@@ -191,7 +191,7 @@ correct checksums, where the stock behaviour returned `file not found`.
 Rather than rejecting or stalling under pressure, the module uses the protocol's
 own backpressure primitives:
 
-- `xrootd_send_wait()` / `xrootd_send_waitresp()` (`src/protocols/root/response/control.c`) emit
+- `brix_send_wait()` / `brix_send_waitresp()` (`src/protocols/root/response/control.c`) emit
   `kXR_wait`/`kXR_waitresp` — telling a client to pause and retry after a bounded
   interval **without losing session context** — instead of an immediate
   `kXR_Overloaded` or a dropped connection.

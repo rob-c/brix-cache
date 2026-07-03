@@ -78,7 +78,7 @@ grep -rnE '\b(memcmp|ngx_memcmp|strcmp)\b' --include='*.c' src \
 
 **Gotcha for `strcmp` on a secret string:** constant-time requires equal-length,
 content-independent comparison. For a fixed-capacity field (the TPC key lives in a
-`char key[XROOTD_TPC_KEY_LEN]`, NUL-padded), copy the presented value into a
+`char key[BRIX_TPC_KEY_LEN]`, NUL-padded), copy the presented value into a
 zero-filled buffer of that width and `CRYPTO_memcmp` the **whole field**, so timing
 doesn't leak the matching-prefix length. Reject an over-long input up front.
 
@@ -86,7 +86,7 @@ doesn't leak the matching-prefix length. Reject an over-long input up front.
 
 The data plane reaches the filesystem two ways:
 
-- WebDAV/S3 and the primary root:// open → `xrootd_open_beneath` =
+- WebDAV/S3 and the primary root:// open → `brix_open_beneath` =
   `openat2(RESOLVE_BENEATH | RESOLVE_NO_MAGICLINKS)` — kernel-enforced, guards every
   path component.
 - A few narrow server-managed paths (resume staging, cache-hit serving) use a raw

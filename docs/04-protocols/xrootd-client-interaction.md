@@ -15,7 +15,7 @@ Exact request ordering can vary by:
 
 - client version
 - auth mode (`none`, `gsi`, `token`, `both`)
-- whether TLS is `davs://`, `root://` + `xrootd_tls`, or `roots://`
+- whether TLS is `davs://`, `root://` + `brix_tls`, or `roots://`
 - whether the client reuses an existing connection
 - whether the client is uploading, downloading, checksumming, or probing
 
@@ -147,7 +147,7 @@ kXR_auth                       ->
 
 Important notes:
 
-- if the listener uses `xrootd_tls on`, the TLS upgrade happens after
+- if the listener uses `brix_tls on`, the TLS upgrade happens after
   `kXR_protocol`
 - if the listener uses `listen ... ssl`, the transport is already `roots://`
   and the XRootD module sees decrypted bytes from the start
@@ -228,7 +228,7 @@ Important details:
 - `xrdcp` normally issues `kXR_sync` before closing the handle
 - **the bytes land in a staging file, not the final path.** A fresh upload
   (`kXR_new`) is written to a temporary/partial file and **atomically renamed
-  onto the destination only on a clean `kXR_close`** (`xrootd_upload_resume` is on
+  onto the destination only on a clean `kXR_close`** (`brix_upload_resume` is on
   by default). A reader never sees a half-written file, and a mid-transfer
   disconnect leaves the resumable partial behind rather than a torn destination.
   In-place updates (`kXR_open_updt`) write directly. See
@@ -256,7 +256,7 @@ The same read/write pattern sits on top of several auth and TLS variants:
 | anonymous `root://` | login succeeds without `kXR_auth` |
 | GSI `root://` | `kXR_auth` runs the GSI certificate exchange |
 | token `root://` | `kXR_auth` carries `ztn` + JWT |
-| `root://` + `xrootd_tls on` | native TLS upgrade after `kXR_protocol` |
+| `root://` + `brix_tls on` | native TLS upgrade after `kXR_protocol` |
 | `roots://` | TLS starts before any XRootD bytes |
 
 For the TLS-specific details, see [tls.md](../03-configuration/tls-config.md).
@@ -345,7 +345,7 @@ Things to know:
   before the module writes the destination file
 - the module then writes to a **staging file and atomically renames it onto the
   destination** when the `PUT` completes — so an interrupted `PUT` never leaves a
-  half-written object at the target path (same `xrootd_staged_open()`/`commit`
+  half-written object at the target path (same `brix_staged_open()`/`commit`
   lifecycle as S3 `PUT`; see
   [Writing files → Atomic uploads](../05-operations/write.md#atomic-uploads-stage-then-move))
 - overwrites are expressed as another `PUT` to the same path

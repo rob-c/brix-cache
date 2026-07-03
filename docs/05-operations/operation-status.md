@@ -46,7 +46,7 @@ explicitly rejected with `kXR_Unsupported`.
 | `kXR_set` | 3018 | `appid` and `clttl` modifiers; unknown modifiers accepted as no-op |
 | `kXR_write` | 3019 | Async via nginx thread pool |
 | `kXR_fattr` | 3020 | get / set / del / list; backed by Linux xattrs (`user.U.*` namespace) |
-| `kXR_prepare` | 3021 | Path validation + existence check. With `xrootd_frm on` (Phase 35): durable stage-request queue — real host-qualified reqid, `kXR_cancel` deletes the request, records survive disconnect + restart (`src/fs/xfer/`). `kXR_evict` accepted as a no-op (backend-delegated). Default (FRM off): legacy fire-and-forget `prepare_command`. |
+| `kXR_prepare` | 3021 | Path validation + existence check. With `brix_frm on` (Phase 35): durable stage-request queue — real host-qualified reqid, `kXR_cancel` deletes the request, records survive disconnect + restart (`src/fs/xfer/`). `kXR_evict` accepted as a no-op (backend-delegated). Default (FRM off): legacy fire-and-forget `prepare_command`. |
 | `kXR_statx` | 3022 | Multi-path stat (path list in payload) |
 | `kXR_endsess` | 3023 | Graceful session termination |
 | `kXR_bind` | 3024 | Secondary streams, pathid 1–253; inherits primary auth state |
@@ -97,10 +97,10 @@ treated as supported opcodes by this module.
 | GSI / x509 proxy certificates | ✅ | Full DH key exchange, RFC 3820 proxy chain, VOMS attribute extraction |
 | JWT / WLCG bearer tokens (`ztn`) | ✅ | JWKS validation, scope and group parsing |
 | Mixed (`both`) | ✅ | Accepts either GSI or token on the same listener |
-| SSS (Simple Shared Secrets) | ✅ | `xrootd_auth sss` + `xrootd_sss_keytab`; keytab uses the standard XRootD BF32-encrypted format; identity fields (user, group, name) extracted and logged |
+| SSS (Simple Shared Secrets) | ✅ | `brix_auth sss` + `brix_sss_keytab`; keytab uses the standard XRootD BF32-encrypted format; identity fields (user, group, name) extracted and logged |
 | krb5 | ✅ | Optional build-time Kerberos 5 support in `src/auth/krb5`; availability depends on build dependencies/configuration. |
-| pwd | ✅ | `xrootd_auth pwd` + `xrootd_pwd_file`; 2-round DH-bootstrapped password handshake (`src/auth/pwd/`). Legacy; run under TLS. Wire-equivalent, not the `xrdpwdadmin` admin ecosystem. |
-| host | ✅ | `xrootd_auth host` + `xrootd_host_allow`; reverse-DNS allowlist (`src/auth/host/`). Legacy; fail-closed, trusted-network only. |
+| pwd | ✅ | `brix_auth pwd` + `brix_pwd_file`; 2-round DH-bootstrapped password handshake (`src/auth/pwd/`). Legacy; run under TLS. Wire-equivalent, not the `xrdpwdadmin` admin ecosystem. |
+| host | ✅ | `brix_auth host` + `brix_host_allow`; reverse-DNS allowlist (`src/auth/host/`). Legacy; fail-closed, trusted-network only. |
 
 **Token scope enforcement**
 
@@ -110,7 +110,7 @@ treated as supported opcodes by this module.
 | `storage.write` / `storage.create` | `kXR_open` (write/create mode), `kXR_mkdir`, `kXR_rm`, `kXR_rmdir`, `kXR_mv`, `kXR_chmod`, `kXR_truncate`, `kXR_fattr` (set/del), TPC pull destinations | Write/create access for operations that modify namespace or file data. |
 
 - Handle-based I/O (e.g. `kXR_read`, `kXR_write`, `kXR_pgread`, `kXR_pgwrite`) inherits the scope decision from the `kXR_open` that produced the handle.
-- `xrootd_allow_write` is an additional server-wide write gate that applies to all sessions regardless of auth method.
+- `brix_allow_write` is an additional server-wide write gate that applies to all sessions regardless of auth method.
 - Scope enforcement described above applies to native XRootD (`root://`) path-resolution and handle semantics; WebDAV (`davs://`) enforcement is handled separately and is fully implemented.
 
 ---
@@ -133,7 +133,7 @@ See [tls.md](../03-configuration/tls-config.md) for configuration details.
 | Subtype | Value | Status |
 |---|---|---|
 | `kXR_QStats` | 1 | ✅ Server-wide operation counters |
-| `kXR_QPrep` | 2 | ✅ Per-file availability status; `A <path>` (on disk) or `M <path>` (missing/unauthorized) per line. With `xrootd_frm on`, a not-yet-resident file with a live queue record reports `q`/`s`/`f` (queued/staging/failed) and the request id is durable (not `"0"`); FRM off keeps the legacy `"0"` reqid + stat-only `A`/`M`. |
+| `kXR_QPrep` | 2 | ✅ Per-file availability status; `A <path>` (on disk) or `M <path>` (missing/unauthorized) per line. With `brix_frm on`, a not-yet-resident file with a live queue record reports `q`/`s`/`f` (queued/staging/failed) and the request id is durable (not `"0"`); FRM off keeps the legacy `"0"` reqid + stat-only `A`/`M`. |
 | `kXR_Qcksum` | 3 | ✅ adler32, crc32c, md5, sha1, sha256 |
 | `kXR_Qxattr` | 4 | ✅ Extended attributes (legacy path; prefer `kXR_fattr`) |
 | `kXR_Qspace` | 5 | ✅ Filesystem free/total via `statvfs` |
@@ -153,7 +153,7 @@ See [tls.md](../03-configuration/tls-config.md) for configuration details.
 | Feature | Status | Notes |
 |---|---|---|
 | Prometheus metrics (`/metrics`) | ✅ | Per-port native operation counters, native wire/debug counters, WebDAV counters for methods/status/auth/bytes/CORS/fd cache/Range/PROPFIND/HTTP-TPC, and S3 counters for methods/status/auth/bytes/ranges/PUT body modes/ListObjectsV2 diagnostics. See [metrics-and-logging.md](../08-metrics-monitoring/monitoring-guide.md). |
-| WLCG Storage Resource Reporting (SRR) | ✅ | HTTP/JSON `storageservice` document (schema v4.x) at an operator-chosen URL via `xrootd_srr on;`. Live per-share `statvfs` space + endpoints; harvested directly by CRIC / WLCG storage-space accounting. See [`src/protocols/srr/README.md`](../../src/protocols/srr/README.md). |
+| WLCG Storage Resource Reporting (SRR) | ✅ | HTTP/JSON `storageservice` document (schema v4.x) at an operator-chosen URL via `brix_srr on;`. Live per-share `statvfs` space + endpoints; harvested directly by CRIC / WLCG storage-space accounting. See [`src/protocols/srr/README.md`](../../src/protocols/srr/README.md). |
 | XRootD UDP monitoring (f-stream / g-stream) | ❌ (by design) | The binary UDP monitoring/accounting packet stream is intentionally **not** implemented. Storage accounting is served HTTP-native via the SRR endpoint above; transfer/operation counters are on `/metrics` (scrape → MonIT). No `xrootd-monitoring-shoveler` / collector is needed. |
 
 ---
@@ -166,7 +166,7 @@ The module can act as a **leaf data server**, a **redirector/manager**, or a
 ### Leaf data server role (outbound CMS client)
 
 A persistent outbound TCP connection to a configured CMS manager
-(`xrootd_cms_manager`).
+(`brix_cms_manager`).
 
 | CMS frame | Status | Notes |
 |---|---|---|
@@ -180,18 +180,18 @@ A persistent outbound TCP connection to a configured CMS manager
 
 ### Manager/redirector role (inbound CMS server + dynamic redirect)
 
-Enabled by `xrootd_cms_server on` on the management listener and
-`xrootd_manager_mode on` on the XRootD listener. The server registry is a
+Enabled by `brix_cms_server on` on the management listener and
+`brix_manager_mode on` on the XRootD listener. The server registry is a
 128-slot shared-memory table.
 
 | Feature | Status | Notes |
 |---|---|---|
-| CMS server listener (`xrootd_cms_server on`) | ✅ | Accepts data server registrations on a dedicated stream listener |
+| CMS server listener (`brix_cms_server on`) | ✅ | Accepts data server registrations on a dedicated stream listener |
 | Dynamic server registry | ✅ | Shared-memory table, spinlock-protected, 128 slots |
-| `kXR_locate` → `kXR_redirect` | ✅ | Registry lookup (lowest util); falls back to static `xrootd_manager_map` |
+| `kXR_locate` → `kXR_redirect` | ✅ | Registry lookup (lowest util); falls back to static `brix_manager_map` |
 | `kXR_open` → `kXR_redirect` | ✅ | Registry lookup before local open |
-| `kXR_isManager` advertisement | ✅ | Set in `kXR_protocol` response when `xrootd_manager_mode on` |
-| Cache node self-registration | ✅ | `xrootd_cache` + `xrootd_manager_mode` together: registers each cached file after fill; unregisters on eviction |
+| `kXR_isManager` advertisement | ✅ | Set in `kXR_protocol` response when `brix_manager_mode on` |
+| Cache node self-registration | ✅ | `brix_cache` + `brix_manager_mode` together: registers each cached file after fill; unregisters on eviction |
 | Sub-manager / hierarchical | ✅ | Run both CMS client and CMS server on one instance; sets `CMS_LOGIN_MODE_MANAGER` in upward login |
 
 See [cluster-mode.md](cluster-management.md) for configuration examples and architecture.
@@ -201,7 +201,7 @@ See [cluster-mode.md](cluster-management.md) for configuration examples and arch
 ## Async I/O
 
 Large memory-backed file reads and writes can use nginx thread pools when nginx
-is built with `--with-threads` and a working `xrootd_thread_pool` is configured.
+is built with `--with-threads` and a working `brix_thread_pool` is configured.
 Covered operations include `kXR_read`, `kXR_readv`, `kXR_pgread`, `kXR_write`,
 and `kXR_pgwrite`. Cleartext regular-file reads may instead use file-backed
 nginx buffers on the send path, and metadata/open syscalls still run in the
@@ -215,7 +215,7 @@ Full WebDAV over HTTPS is implemented as a separate nginx HTTP module.
 Operations: OPTIONS, GET, HEAD, PUT, DELETE, MKCOL, PROPFIND, COPY (RFC 4918 §9.8 server-side and HTTP-TPC pull/push), MOVE, LOCK, UNLOCK. Authentication accepts proxy certificates and bearer tokens.
 Configurable CORS headers are supported for browser-based WebDAV clients.
 
-**Upstream proxy mode** (`xrootd_webdav_proxy on`): all WebDAV requests — after auth — are forwarded to a backend HTTP or HTTPS server instead of serving from the local filesystem. Supports `http://` and `https://` backends. Three auth bridging policies (`anonymous`, `forward`, `token`). `COPY`/`MOVE` `Destination:` headers are rewritten to the upstream base. Implemented in `src/protocols/webdav/proxy.c`.
+**Upstream proxy mode** (`brix_webdav_proxy on`): all WebDAV requests — after auth — are forwarded to a backend HTTP or HTTPS server instead of serving from the local filesystem. Supports `http://` and `https://` backends. Three auth bridging policies (`anonymous`, `forward`, `token`). `COPY`/`MOVE` `Destination:` headers are rewritten to the upstream base. Implemented in `src/protocols/webdav/proxy.c`.
 
 See [webdav.md](../04-protocols/webdav-overview.md) for details.
 
@@ -228,14 +228,14 @@ subset. It supports path-style `GET`, `HEAD`, `PUT`, `DELETE`, and
 `ListObjectsV2` requests under a configured bucket/root.
 
 Authentication is optional AWS Signature Version 4. If
-`xrootd_s3_access_key` is unset, the endpoint accepts anonymous requests.
+`brix_s3_access_key` is unset, the endpoint accepts anonymous requests.
 This path does not use GSI, VOMS, or WLCG bearer-token policy.
 
 Implemented: multipart upload (`CreateMultipartUpload`, `UploadPart`,
 `CompleteMultipartUpload`, `AbortMultipartUpload`) with staging-directory
 lifecycle, part-number validation (1–10 000), atomic assembly via temp-file +
 rename, SigV4 presigned URLs, and static-secret `X-Amz-Security-Token`
-compatibility via `xrootd_s3_allow_unsigned_session_token`. Not implemented:
+compatibility via `brix_s3_allow_unsigned_session_token`. Not implemented:
 virtual-hosted-style buckets, dynamic STS credential stores, and full AWS S3
 policy/IAM semantics.
 
@@ -262,11 +262,11 @@ analysis.
 
 | Gap | Notes |
 |---|---|
-| **Native root:// TPC outbound auth polish** — After `kXR_authmore`, the pull client can complete **ztn** (JWT file via `xrootd_tpc_outbound_bearer_file`) or **GSI** (same PEM as `xrootd_certificate` / `xrootd_certificate_key`, with optional server verification via `xrootd_trusted_ca`). Native TPC source-side `kXR_gotoTLS` and multi-hop delegation beyond this exchange are not implemented. Transparent upstream/proxy connections have their own `kXR_gotoTLS` path; cache/write-through origins keep the separate direct-origin limitations documented in `src/fs/cache/README.md`. |
+| **Native root:// TPC outbound auth polish** — After `kXR_authmore`, the pull client can complete **ztn** (JWT file via `brix_tpc_outbound_bearer_file`) or **GSI** (same PEM as `brix_certificate` / `brix_certificate_key`, with optional server verification via `brix_trusted_ca`). Native TPC source-side `kXR_gotoTLS` and multi-hop delegation beyond this exchange are not implemented. Transparent upstream/proxy connections have their own `kXR_gotoTLS` path; cache/write-through origins keep the separate direct-origin limitations documented in `src/fs/cache/README.md`. |
 | **Remote storage backends** — no full PSS, PFC, HDFS, EOS, CASTOR, Ceph, Zip, or upstream OSS-plugin abstraction | By design: module primarily serves confined local POSIX storage; FRM/Tape REST integration is a control-plane bridge, not the full upstream storage plugin ecosystem |
 | **Hierarchical CMS gateway/proxy mode** — stream `kYR_select` / `kYR_try` sub-manager redirects are implemented and covered by three-tier tests; a select-then-proxy gateway mode is not implemented | Use standard XRootD client redirects for multi-tier deployments |
-| **~~HTTP-TPC OAuth2/OIDC delegation~~ — implemented in `src/protocols/webdav/tpc_cred.c`** | ✅ Implemented — `oidc-agent` UNIX-socket delegation and RFC 8693 token exchange are both supported. Configure with `xrootd_webdav_tpc_token_endpoint`. See `src/protocols/webdav/tpc_cred.c` and `tests/test_webdav_tpc_cred.py`. |
-| **Full XrdAcc / VO authorization database semantics** | Module supports VOMS extraction, `xrootd_require_vo`, authdb, ACLs, and token-scope checks; it does not reproduce every upstream `XrdAcc` privilege/plugin behavior |
+| **~~HTTP-TPC OAuth2/OIDC delegation~~ — implemented in `src/protocols/webdav/tpc_cred.c`** | ✅ Implemented — `oidc-agent` UNIX-socket delegation and RFC 8693 token exchange are both supported. Configure with `brix_webdav_tpc_token_endpoint`. See `src/protocols/webdav/tpc_cred.c` and `tests/test_webdav_tpc_cred.py`. |
+| **Full XrdAcc / VO authorization database semantics** | Module supports VOMS extraction, `brix_require_vo`, authdb, ACLs, and token-scope checks; it does not reproduce every upstream `XrdAcc` privilege/plugin behavior |
 | **Native root:// TPC credential edge cases** | Basic source/destination rendezvous works; TLS-upgraded origins, multihop delegation, and site-specific credential forwarding still need deployment validation |
 
 ### Intentionally not implemented

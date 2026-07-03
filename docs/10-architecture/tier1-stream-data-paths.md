@@ -1,6 +1,6 @@
 # Tier 1 XRootD Wire Protocol Operations — BriX-Cache Module
 
-Comprehensive documentation of all Tier 1 XRootD wire protocol operations through the BriX-Cache module. This covers the stream-layer operations that handle the XRootD binary wire protocol, as defined in `/tmp/xrootd-src/src/XProtocol/XProtocol.hh` and implemented via `src/protocols/root/protocol/wire_core_requests.h`.
+Comprehensive documentation of all Tier 1 XRootD wire protocol operations through the BriX-Cache module. This covers the stream-layer operations that handle the XRootD binary wire protocol, as defined in `/tmp/brix-src/src/XProtocol/XProtocol.hh` and implemented via `src/protocols/root/protocol/wire_core_requests.h`.
 
 ## Operations Covered (8 total)
 
@@ -24,15 +24,15 @@ The `fd_table` manages file handles using a slot-based system:
 ```c
 typedef struct {
     int fd;                    // OS file descriptor
-    char path[XROOTD_MAX_PATH]; // Resolved canonical path
+    char path[BRIX_MAX_PATH]; // Resolved canonical path
     uint8_t handle;            // Wire protocol handle (0-255)
     time_t last_access;        // Last access timestamp
-} xrootd_file_t;
+} brix_file_t;
 
 // Allocation helpers:
-xrootd_file_t* fd_alloc(int os_fd, const char *path);  // Allocates new slot
-void fd_set(xrootd_file_t *file, int os_fd, const char *path);  // Updates existing
-xrootd_file_t* fd_get(uint8_t handle);                  // Retrieves by wire handle
+brix_file_t* fd_alloc(int os_fd, const char *path);  // Allocates new slot
+void fd_set(brix_file_t *file, int os_fd, const char *path);  // Updates existing
+brix_file_t* fd_get(uint8_t handle);                  // Retrieves by wire handle
 ```
 
 - Single-byte wire format for handle values (0–255)
@@ -45,9 +45,9 @@ Path-based ACL rules with VO-specific attribute validation:
 
 ```c
 // Key functions:
-int acl_check_read(xrootd_file_t *file, const char *path);  // Check read permission
-int acl_check_write(xrootd_file_t *file, const char *path); // Check write permission
-void acl_update_vo_attrs(xrootd_file_t *file, const char *path); // Update VO attributes
+int acl_check_read(brix_file_t *file, const char *path);  // Check read permission
+int acl_check_write(brix_file_t *file, const char *path); // Check write permission
+void acl_update_vo_attrs(brix_file_t *file, const char *path); // Update VO attributes
 ```
 
 - ACL rules are evaluated per-path with VO-specific attribute checks
@@ -60,17 +60,17 @@ Prometheus counters for stream operations:
 
 ```c
 // Metric types tracked:
-XROOTD_METRIC_READ_BYTES      // Bytes read via kXR_read
-XROOTD_METRIC_WRITE_BYTES     // Bytes written via kXR_write  
-XROOTD_METRIC_STAT_CALLS      // Stat operation count
-XROOTD_METRIC_OPEN_CALLS      // Open operation count
-XROOTD_METRIC_CLOSE_CALLS     // Close operation count
-XROOTD_METRIC_PING_CALLS      // Ping keep-alive count
-XROOTD_METRIC_DIRLIST_CALLS   // Directory listing calls
+BRIX_METRIC_READ_BYTES      // Bytes read via kXR_read
+BRIX_METRIC_WRITE_BYTES     // Bytes written via kXR_write  
+BRIX_METRIC_STAT_CALLS      // Stat operation count
+BRIX_METRIC_OPEN_CALLS      // Open operation count
+BRIX_METRIC_CLOSE_CALLS     // Close operation count
+BRIX_METRIC_PING_CALLS      // Ping keep-alive count
+BRIX_METRIC_DIRLIST_CALLS   // Directory listing calls
 ```
 
 - Low-cardinality labels only (no paths/bucket-names/UUIDs)
-- Incremented via `XROOTD_PROXY_METRIC_INC(op, status)` macro at callsites
+- Incremented via `BRIX_PROXY_METRIC_INC(op, status)` macro at callsites
 
 ## Invariants Applied to Tier 1 Operations
 
@@ -84,7 +84,7 @@ XROOTD_METRIC_DIRLIST_CALLS   // Directory listing calls
 ### 1. kXR_read (3013)
 
 #### Entry Point
-`xrootd_dispatch_read_opcode()` in `src/protocols/root/handshake/dispatch_read.c` handles opcode dispatch for read operations. The switch case for `kXR_read` calls the read handler with parsed parameters.
+`brix_dispatch_read_opcode()` in `src/protocols/root/handshake/dispatch_read.c` handles opcode dispatch for read operations. The switch case for `kXR_read` calls the read handler with parsed parameters.
 
 #### Request Parsing
 From `wire_core_requests.h`, the ClientReadRequest struct:
@@ -111,7 +111,7 @@ Wire layout (big-endian):
 #### Core Logic
 1. Validate handle exists in fd_table
 2. Check read permission against ACL rules
-3. Read data via the VFS I/O core (`xrootd_vfs_io_execute()`, `src/fs/vfs/vfs_io_core.c`), which issues the raw `pread`/`preadv` through the POSIX storage driver (`src/fs/backend/`) — the handler never calls `pread` directly
+3. Read data via the VFS I/O core (`brix_vfs_io_execute()`, `src/fs/vfs/vfs_io_core.c`), which issues the raw `pread`/`preadv` through the POSIX storage driver (`src/fs/backend/`) — the handler never calls `pread` directly
 4. Build response chain with ngx_buf_t buffers
 
 #### Response Building
@@ -156,7 +156,7 @@ typedef struct {
 ### 2. kXR_write (3019)
 
 #### Entry Point
-`xrootd_dispatch_write_opcode()` in `src/protocols/root/handshake/dispatch_write.c` handles opcode dispatch for write operations, called from the switch case for `kXR_write`.
+`brix_dispatch_write_opcode()` in `src/protocols/root/handshake/dispatch_write.c` handles opcode dispatch for write operations, called from the switch case for `kXR_write`.
 
 #### Request Parsing
 From `wire_core_requests.h`, the ClientWriteRequest struct:
@@ -184,7 +184,7 @@ Wire layout (big-endian):
 #### Core Logic
 1. Validate handle exists in fd_table
 2. Check write permission against ACL rules and conf->allow_write gate
-3. Write data via the VFS I/O core (`xrootd_vfs_io_execute()`, `src/fs/vfs/vfs_io_core.c`), which issues the raw `pwrite`/`pwritev` through the POSIX storage driver (`src/fs/backend/`) — the handler never calls `pwrite` directly
+3. Write data via the VFS I/O core (`brix_vfs_io_execute()`, `src/fs/vfs/vfs_io_core.c`), which issues the raw `pwrite`/`pwritev` through the POSIX storage driver (`src/fs/backend/`) — the handler never calls `pwrite` directly
 4. Build response chain with ngx_buf_t buffers
 
 #### Response Building
@@ -227,7 +227,7 @@ typedef struct {
 ### 3. kXR_stat (3017)
 
 #### Entry Point
-`xrootd_dispatch_read_opcode()` in `src/protocols/root/handshake/dispatch_read.c` handles opcode dispatch for stat operations via the switch case for `kXR_stat`.
+`brix_dispatch_read_opcode()` in `src/protocols/root/handshake/dispatch_read.c` handles opcode dispatch for stat operations via the switch case for `kXR_stat`.
 
 #### Request Parsing
 From `wire_core_requests.h`, the ClientStatRequest struct:
@@ -291,7 +291,7 @@ typedef struct {
 ### 4. kXR_close (3003)
 
 #### Entry Point
-`xrootd_dispatch_read_opcode()` in `src/protocols/root/handshake/dispatch_read.c` handles opcode dispatch for close operations via the switch case for `kXR_close`.
+`brix_dispatch_read_opcode()` in `src/protocols/root/handshake/dispatch_read.c` handles opcode dispatch for close operations via the switch case for `kXR_close`.
 
 #### Request Parsing
 From `wire_core_requests.h`, the ClientCloseRequest struct:
@@ -354,7 +354,7 @@ typedef struct {
 ### 5. kXR_ping (3011)
 
 #### Entry Point
-`xrootd_dispatch_read_opcode()` in `src/protocols/root/handshake/dispatch_read.c` handles opcode dispatch for ping operations via the switch case for `kXR_ping`.
+`brix_dispatch_read_opcode()` in `src/protocols/root/handshake/dispatch_read.c` handles opcode dispatch for ping operations via the switch case for `kXR_ping`.
 
 #### Request Parsing
 From `wire_core_requests.h`, the ClientPingRequest struct:
@@ -416,7 +416,7 @@ typedef struct {
 ### 6. kXR_dirlist (3004)
 
 #### Entry Point
-`xrootd_dispatch_read_opcode()` in `src/protocols/root/handshake/dispatch_read.c` handles opcode dispatch for directory listing operations via the switch case for `kXR_dirlist`.
+`brix_dispatch_read_opcode()` in `src/protocols/root/handshake/dispatch_read.c` handles opcode dispatch for directory listing operations via the switch case for `kXR_dirlist`.
 
 #### Request Parsing
 From `wire_core_requests.h`, the ClientDirListRequest struct:
@@ -480,7 +480,7 @@ typedef struct {
 ### 7. kXR_open (3010) — Boundary Case
 
 #### Entry Point
-`xrootd_dispatch_read_opcode()` in `src/protocols/root/handshake/dispatch_read.c` handles opcode dispatch for open operations via the switch case for `kXR_open`. The handler is implemented in `src/protocols/root/read/open_request.c`.
+`brix_dispatch_read_opcode()` in `src/protocols/root/handshake/dispatch_read.c` handles opcode dispatch for open operations via the switch case for `kXR_open`. The handler is implemented in `src/protocols/root/read/open_request.c`.
 
 #### Request Parsing
 From `wire_core_requests.h`, the ClientOpenRequest struct:
@@ -550,7 +550,7 @@ typedef struct {
 ### 8. kXR_statx (3022) — Boundary Case
 
 #### Entry Point
-`xrootd_dispatch_read_opcode()` in `src/protocols/root/handshake/dispatch_read.c` handles opcode dispatch for batch stat operations via the switch case for `kXR_statx`. The handler is implemented in `src/protocols/root/read/statx.c`.
+`brix_dispatch_read_opcode()` in `src/protocols/root/handshake/dispatch_read.c` handles opcode dispatch for batch stat operations via the switch case for `kXR_statx`. The handler is implemented in `src/protocols/root/read/statx.c`.
 
 #### Request Parsing
 From `wire_core_requests.h`, the ClientStatxRequest struct:
@@ -626,13 +626,13 @@ typedef struct {
 
 ## Reference Files
 
-- `/tmp/xrootd-src/src/XProtocol/XProtocol.hh` — wire protocol definitions (source of truth for wire details)
+- `/tmp/brix-src/src/XProtocol/XProtocol.hh` — wire protocol definitions (source of truth for wire details)
 - `src/protocols/root/protocol/wire_core_requests.h` — Client*Request struct definitions used by BriX-Cache
 - `.sisyphus/plans/tier1-kxr-read.md`, `.sisyphus/plans/tier1-kxr-stat.md` — format reference for section structure
-- `src/protocols/root/handshake/dispatch_read.c` — opcode dispatch switch cases for Tier 1 operations (xrootd_dispatch_read_opcode, xrootd_dispatch_write_opcode)
+- `src/protocols/root/handshake/dispatch_read.c` — opcode dispatch switch cases for Tier 1 operations (brix_dispatch_read_opcode, brix_dispatch_write_opcode)
 - `src/protocols/root/read/open.c` — kXR_open handler implementation (boundary case)
 - `src/protocols/root/read/statx.c` — kXR_statx handler implementation (boundary case, batched stat)
-- `src/protocols/root/connection/fd_table.c` — file handle management, xrootd_file_t struct
+- `src/protocols/root/connection/fd_table.c` — file handle management, brix_file_t struct
 - `src/auth/authz/acl.c` — ACL enforcement for path-based operations
 
 ## Notes on Implementation Patterns
@@ -642,7 +642,7 @@ typedef struct {
 3. **Write permission gate**: `conf->allow_write` checked globally before token scope validation
 4. **Stat optimization**: Uses handle metadata — no extra path syscalls per stat call
 5. **fd_table management**: Single-byte wire format for handle values (0-255), slots allocated via fd_alloc() and retrieved via fd_get()
-6. **Metrics tracking**: Low-cardinality labels only, incremented via XROOTD_PROXY_METRIC_INC(op, status) macro at callsites
+6. **Metrics tracking**: Low-cardinality labels only, incremented via BRIX_PROXY_METRIC_INC(op, status) macro at callsites
 
 ## Summary
 
@@ -654,4 +654,4 @@ This documentation covers all 8 Tier 1 XRootD wire protocol operations through t
 - Invariants applied to Tier 1 ops (#2 TLS buffer, #3 allow_write gate, #4 resolve_path before open, #7 stat uses handle metadata)
 - errno → kXR → HTTP mapping reference table included at end of file
 
-All operations follow the wire protocol format defined in `/tmp/xrootd-src/src/XProtocol/XProtocol.hh` and use the Client*Request struct definitions from `src/protocols/root/protocol/wire_core_requests.h`.
+All operations follow the wire protocol format defined in `/tmp/brix-src/src/XProtocol/XProtocol.hh` and use the Client*Request struct definitions from `src/protocols/root/protocol/wire_core_requests.h`.

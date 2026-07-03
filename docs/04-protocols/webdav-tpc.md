@@ -18,12 +18,12 @@ flow relative to *this* server:
    THIS ◀═══ bytes ═══ REMOTE  (download)   THIS ═══ bytes ═══▶ REMOTE  (upload)
                      │                                            │
    written to a temp file, then renamed     reads local file, --upload-file PUT
-   atomically into place on curl success    using xrootd_webdav_tpc_cert/key
+   atomically into place on curl success    using brix_webdav_tpc_cert/key
 ```
 
 
 
-With `xrootd_webdav_tpc on`, this module also supports "push mode" where the server receiving the `COPY` request reads a local file and pushes it to a remote HTTPS destination:
+With `brix_webdav_tpc on`, this module also supports "push mode" where the server receiving the `COPY` request reads a local file and pushes it to a remote HTTPS destination:
 
 ```bash
 curl -sk --cert /tmp/x509up_u$(id -u) --key /tmp/x509up_u$(id -u) \
@@ -33,13 +33,13 @@ curl -sk --cert /tmp/x509up_u$(id -u) --key /tmp/x509up_u$(id -u) \
   https://source.example.org:8443//store/input.dat
 ```
 
-The source server invokes `curl --upload-file` to perform a standard HTTP `PUT` to the destination. Service X.509 credentials configured via `xrootd_webdav_tpc_cert/key` are used for the outbound request. `TransferHeader*` headers are forwarded as described in the pull section.
+The source server invokes `curl --upload-file` to perform a standard HTTP `PUT` to the destination. Service X.509 credentials configured via `brix_webdav_tpc_cert/key` are used for the outbound request. `TransferHeader*` headers are forwarded as described in the pull section.
 
 ---
 
 ## HTTP-TPC pull
 
-With `xrootd_webdav_tpc on`, this module accepts the WLCG-style WebDAV `COPY` pull shape:
+With `brix_webdav_tpc on`, this module accepts the WLCG-style WebDAV `COPY` pull shape:
 
 ```bash
 curl -sk --cert /tmp/x509up_u$(id -u) --key /tmp/x509up_u$(id -u) \
@@ -73,7 +73,7 @@ source (pull) or destination (push). Three modes are supported:
 | Value | Behaviour |
 |---|---|
 | `none` | No delegation. The server uses X.509 credentials configured via
-`xrootd_webdav_tpc_cert`/`xrootd_webdav_tpc_key` (or the default service
+`brix_webdav_tpc_cert`/`brix_webdav_tpc_key` (or the default service
 certificate) for the outbound HTTPS request. |
 | `oidc-agent` | The server contacts a local `oidc-agent` daemon via its
 UNIX socket to obtain an access token, then injects it as an
@@ -82,11 +82,11 @@ defaults to `/run/user/1000/oidc/oidc_agent.sock`; override it with the
 `OIDC_SOCK` environment variable. |
 | `token-exchange` | The server performs an RFC 8693 token-exchange request to
 the OAuth2 token endpoint configured via
-`xrootd_webdav_tpc_token_endpoint`. The client's session JWT (from the
+`brix_webdav_tpc_token_endpoint`. The client's session JWT (from the
 `Authorization:` header of the original COPY request) is used as the
-subject token. Requires `xrootd_webdav_tpc_token_endpoint` to be set;
-optional `xrootd_webdav_tpc_token_client_id` and
-`xrootd_webdav_tpc_token_client_secret` for confidential clients. |
+subject token. Requires `brix_webdav_tpc_token_endpoint` to be set;
+optional `brix_webdav_tpc_token_client_id` and
+`brix_webdav_tpc_token_client_secret` for confidential clients. |
 
 Unknown or empty `Credential:` values are rejected with HTTP 400.
 
@@ -116,27 +116,27 @@ curl -sk --cert /tmp/x509up_u$(id -u) --key /tmp/x509up_u$(id -u) \
 
 ```nginx
 location / {
-    xrootd_webdav              on;
-    xrootd_webdav_root         /data;
-    xrootd_webdav_allow_write  on;
-    xrootd_webdav_tpc          on;
+    brix_webdav              on;
+    brix_webdav_root         /data;
+    brix_webdav_allow_write  on;
+    brix_webdav_tpc          on;
 
     # OAuth2/OIDC token delegation for TPC
-    xrootd_webdav_tpc_token_endpoint https://idp.example.com/oauth2/token;
-    xrootd_webdav_tpc_token_client_id  nginx-xrootd;
-    xrootd_webdav_tpc_token_client_secret abc123secret;
-    xrootd_webdav_tpc_token_scope      storage.read;
+    brix_webdav_tpc_token_endpoint https://idp.example.com/oauth2/token;
+    brix_webdav_tpc_token_client_id  nginx-xrootd;
+    brix_webdav_tpc_token_client_secret abc123secret;
+    brix_webdav_tpc_token_scope      storage.read;
 }
 ```
 
-The `xrootd_webdav_tpc_token_scope` directive sets the scope string requested
+The `brix_webdav_tpc_token_scope` directive sets the scope string requested
 during token exchange (default: `storage.read`).
 
 Native `root://` third-party copy is not the same protocol. The stream module
 has a destination-side pull path for write opens carrying `tpc.src=root://...`
 opaque parameters. The pull worker runs through the configured thread pool and
 can complete ztn or GSI outbound auth after `kXR_authmore` when configured
-(`xrootd_tpc_outbound_bearer_file`, or the server certificate/key for GSI).
+(`brix_tpc_outbound_bearer_file`, or the server certificate/key for GSI).
 Remaining native TPC caveats are source-side `kXR_gotoTLS` and multihop
 delegation, which are still narrower than the full upstream rendezvous surface.
 
@@ -172,15 +172,15 @@ Set `X509_CERT_DIR` to your CA hash directory if the proxy's issuer CA is not in
 
 ## Relationship to the native XRootD protocol
 
-The WebDAV and native `root://` modules are independent; you can run both on the same nginx instance. They share the same `xrootd_root` / `xrootd_webdav_root` filesystem path if you want clients to access the same data via either protocol:
+The WebDAV and native `root://` modules are independent; you can run both on the same nginx instance. They share the same `brix_root` / `brix_webdav_root` filesystem path if you want clients to access the same data via either protocol:
 
 ```nginx
 stream {
     server {
         listen 1095;
         xrootd on;
-        xrootd_root /data;
-        xrootd_auth gsi;
+        brix_root /data;
+        brix_auth gsi;
         # ... GSI cert directives ...
     }
 }
@@ -190,9 +190,9 @@ http {
         listen 8443 ssl;
         # ... TLS directives ...
         location / {
-            xrootd_webdav      on;
-            xrootd_webdav_root /data;   # same data directory
-            xrootd_webdav_auth optional;
+            brix_webdav      on;
+            brix_webdav_root /data;   # same data directory
+            brix_webdav_auth optional;
         }
     }
 }

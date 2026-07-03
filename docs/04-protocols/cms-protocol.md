@@ -18,7 +18,7 @@ configure topologies*, see:
 
 - [Cluster Management](../05-operations/cluster-management.md) — redirector / manager / cache architecture and config.
 - [Hierarchical Cluster](../05-operations/hierarchical-cluster.md) — multi-tier (meta-manager → sub-manager → leaf) topology and the M-step implementation log.
-- [Manager Mode](../05-operations/manager-mode.md) — the static `xrootd_manager_map` alternative.
+- [Manager Mode](../05-operations/manager-mode.md) — the static `brix_manager_map` alternative.
 
 Authoritative upstream spec (verified against XRootD 5.9.2):
 `XProtocol/YProtocol.hh` (codes/structs), `XrdCms/XrdCmsLogin.cc` (login),
@@ -44,8 +44,8 @@ Client  ── kXR_open/locate ──►  MANAGER  ◄── kYR_login/load ─�
 
 | Role | `root://` side | CMS side | BriX-Cache directives |
 |---|---|---|---|
-| **Data server** (leaf) | serves files | **outbound** CMS *client* → registers with manager | `xrootd_cms_manager`, `xrootd_cms_paths` |
-| **Manager / redirector** | answers `kXR_locate`/`kXR_open` with `kXR_redirect` | **inbound** CMS *server* ← accepts data-server registrations | `xrootd_manager_mode on`, `xrootd_cms_server on` |
+| **Data server** (leaf) | serves files | **outbound** CMS *client* → registers with manager | `brix_cms_manager`, `brix_cms_paths` |
+| **Manager / redirector** | answers `kXR_locate`/`kXR_open` with `kXR_redirect` | **inbound** CMS *server* ← accepts data-server registrations | `brix_manager_mode on`, `brix_cms_server on` |
 | **Sub-manager** | redirector to its children | **both**: outbound client to parent **and** inbound server to children | all of the above together |
 
 The key invariant: **the manager never moves file bytes.** It keeps a live map
@@ -77,11 +77,11 @@ Every CMS frame, in either direction, begins with the same fixed 8-byte header,
    8    dlen   payload    opcode-specific body (see §5–§7)
 ```
 
-Implemented as `NGX_XROOTD_CMS_HDR_LEN = 8`. The big-endian get/put helpers live
-in `src/net/cms/wire.c` (`ngx_xrootd_cms_get16/get32`, `put16/put32`). The frame
+Implemented as `NGX_BRIX_CMS_HDR_LEN = 8`. The big-endian get/put helpers live
+in `src/net/cms/wire.c` (`ngx_brix_cms_get16/get32`, `put16/put32`). The frame
 reader (`src/net/cms/recv.c`, `src/net/cms/server_recv.c`) reads exactly 8 bytes, decodes
 `dlen` at offset 6, then reads `dlen` more bytes before dispatching. A frame whose
-`dlen + 8` exceeds `NGX_XROOTD_CMS_MAX_FRAME` (4096) is rejected and the
+`dlen + 8` exceeds `NGX_BRIX_CMS_MAX_FRAME` (4096) is rejected and the
 connection is dropped — a cheap guard against a desynchronised or hostile peer.
 
 ### `streamid` semantics
@@ -91,7 +91,7 @@ connection is dropped — a cheap guard against a desynchronised or hostile peer
 - **Echoed** on request/reply pairs so the originator can correlate: a manager's
   `kYR_state` carries a streamid, and the server's `kYR_have` reply **echoes the
   same value**; a sub-manager's `kYR_locate` carries a per-worker monotonic
-  streamid (`ngx_xrootd_cms_next_streamid()`), and the parent's `kYR_select`
+  streamid (`ngx_brix_cms_next_streamid()`), and the parent's `kYR_select`
   echoes it so the right suspended client session is woken (§7).
 
 ---
@@ -108,8 +108,8 @@ A leading tag byte announces the width, followed by the big-endian value:
 
 | Type | Tag | Bytes | Encoder |
 |---|---|---|---|
-| short (u16) | `0x80` (`CMS_PT_SHORT`) | tag + 2 = 3 | `ngx_xrootd_cms_put_short()` |
-| int (u32) | `0xa0` (`CMS_PT_INT`) | tag + 4 = 5 | `ngx_xrootd_cms_put_int()` |
+| short (u16) | `0x80` (`CMS_PT_SHORT`) | tag + 2 = 3 | `ngx_brix_cms_put_short()` |
+| int (u32) | `0xa0` (`CMS_PT_INT`) | tag + 4 = 5 | `ngx_brix_cms_put_int()` |
 | longlong (u64) | `0xc0` | tag + 8 = 9 | (not emitted by nginx) |
 
 ### Strings are **NOT** tagged
@@ -122,7 +122,7 @@ and the length **includes the trailing NUL**:
  ""/NULL  →  00 00                            (empty/absent string)
 ```
 
-Encoder: `ngx_xrootd_cms_put_string()` in `src/net/cms/wire.c`. The real
+Encoder: `ngx_brix_cms_put_string()` in `src/net/cms/wire.c`. The real
 `XrdCmsParser` distinguishes a string from a scalar **by the absence of the
 `0x80` high bit in the first length byte** — which is why a string must never
 carry a `PT_short`/`PT_int` tag.
@@ -188,21 +188,21 @@ values (the early nginx constants had `SUSPEND`/`RESUME` swapped and wrong — �
 ## 5. Negotiation A — nginx as data server (outbound CMS client)
 
 This is the `src/net/cms/` client half. One **independent connection per nginx
-worker** (see §8) is opened to `xrootd_cms_manager`. Lifecycle in
+worker** (see §8) is opened to `brix_cms_manager`. Lifecycle in
 `src/net/cms/connect.c`:
 
 ```
-worker init ──► ngx_xrootd_cms_start()           (arm 1 s initial-delay timer)
+worker init ──► ngx_brix_cms_start()           (arm 1 s initial-delay timer)
                      │
                      ▼
-            ngx_xrootd_cms_connect()              (ngx_event_connect_peer, non-blocking)
+            ngx_brix_cms_connect()              (ngx_event_connect_peer, non-blocking)
                      │ TCP up (write event)
                      ▼
             write handler:
               1. send kYR_login            ─────────────────►  manager
               2. send kYR_status(Resume|noStage) ────────────►  manager
               3. send kYR_load             ─────────────────►  manager
-              4. arm heartbeat timer (xrootd_cms_interval s)
+              4. arm heartbeat timer (brix_cms_interval s)
                      │
         ┌────────────┴──── steady state ───────────────┐
         │  timer  → send kYR_load                       │
@@ -213,15 +213,15 @@ worker init ──► ngx_xrootd_cms_start()           (arm 1 s initial-delay ti
         └───────────────────────────────────────────────┘
 ```
 
-Any I/O error or timeout → `ngx_xrootd_cms_disconnect()` → exponential backoff
-retry (`6 s → … → 60 s`, capped, in `ngx_xrootd_cms_schedule_retry()`).
+Any I/O error or timeout → `ngx_brix_cms_disconnect()` → exponential backoff
+retry (`6 s → … → 60 s`, capped, in `ngx_brix_cms_schedule_retry()`).
 
 #### Fast cold-start settling (mesh formation)
 
 When a whole cluster boots together — most acutely with several roles on **one host**
 — a node's first connect frequently races ahead of its manager's listen socket and is
 refused. To keep that from costing the multi-second backoff per node (which compounds
-per tier in a meta→sub-manager→leaf mesh), `ngx_xrootd_cms_schedule_retry()` runs a
+per tier in a meta→sub-manager→leaf mesh), `ngx_brix_cms_schedule_retry()` runs a
 **fast-retry regime while a node has never yet logged in**: it retries the connect on a
 short fixed interval for a bounded window, then falls back to exponential backoff. A
 loopback manager (`127.0.0.0/8` / `::1`) gets the most aggressive profile, so same-host
@@ -232,7 +232,7 @@ seconds. Each node logs its settle time once:
 xrootd: CMS registered with 127.0.0.1:2131 after 0 ms (1 connect attempt(s), loopback)
 ```
 
-Defaults (tunable via `xrootd_cms_initial_delay` / `xrootd_cms_connect_retry`):
+Defaults (tunable via `brix_cms_initial_delay` / `brix_cms_connect_retry`):
 loopback = 0 ms initial delay, 10 ms retry, 2 s window; remote = 10 ms / 75 ms / 3 s.
 The fast-retry is gated on *pre-first-login* and a *bounded window* and the interval is
 floored at 10 ms, so it can never become a busy-spin; a reconnect **after** a node has
@@ -242,7 +242,7 @@ for the measurement approach this shares.
 
 ### 5.1 `kYR_login` payload (the handshake)
 
-Built in `ngx_xrootd_cms_send_login()` (`src/net/cms/send.c`) in exact
+Built in `ngx_brix_cms_send_login()` (`src/net/cms/send.c`) in exact
 `CmsLoginData` Pup order — **ten tagged scalars, a logical "Fence", then four
 bare strings**:
 
@@ -269,20 +269,20 @@ peer `0x4`, **server `0x8`**, proxy `0x10`, subman `0x20`. nginx sends
 `server` always, and OR-s in the manager bit when `manager_mode` is on so the
 parent treats it as a sub-manager rather than a leaf.
 
-**Paths string format.** `xrootd_cms_paths` may carry several colon-separated
+**Paths string format.** `brix_cms_paths` may carry several colon-separated
 namespace prefixes (`/data:/atlas`). `send_login` rewrites them into the real
 cmsd form: newline-separated `"<type> <path>"` entries, where `<type>` is `w`
 when `allow_write` is set, else `r` (e.g. `"w /data\nw /atlas"`). The length
 prefix counts the NUL. A real manager logs this as `adding path: w /…`.
 
-**Space.** `ngx_xrootd_cms_stat_space()` (`src/net/cms/space.c`, via `statvfs`)
+**Space.** `ngx_brix_cms_stat_space()` (`src/net/cms/space.c`, via `statvfs`)
 fills `tSpace/fSpace/fsUtil`. In **manager mode** these are replaced by
-`xrootd_srv_aggregate_space()` so a sub-manager advertises the *sum* of its
+`brix_srv_aggregate_space()` so a sub-manager advertises the *sum* of its
 children's capacity upward instead of its own (possibly empty) disk.
 
 ### 5.2 `kYR_status` — becoming selectable
 
-Immediately after login, `ngx_xrootd_cms_send_status()` sends a **header-only**
+Immediately after login, `ngx_brix_cms_send_status()` sends a **header-only**
 frame with `modifier = CMS_ST_RESUME | CMS_ST_NOSTAGE`. This is mandatory: a real
 manager keeps a freshly-logged-in node **suspended** until it announces Resume,
 and a disk-only node must say `noStage` so the manager never asks it to stage
@@ -290,7 +290,7 @@ from tape. Without this frame the node logs in but is never redirected to.
 
 ### 5.3 `kYR_load` — periodic heartbeat
 
-`ngx_xrootd_cms_send_load()` runs every `xrootd_cms_interval` seconds. Its
+`ngx_brix_cms_send_load()` runs every `brix_cms_interval` seconds. Its
 payload is the one place a **bare blob** is used rather than a tagged scalar:
 
 ```
@@ -306,12 +306,12 @@ byte and mis-parse `dskFree`. A real manager parses this as `load dlen=13`.
 ### 5.4 `kYR_space` → `kYR_avail`
 
 When the manager wants an immediate space figure it sends header-only
-`kYR_space`; nginx replies `kYR_avail` (`ngx_xrootd_cms_send_avail()`) echoing
+`kYR_space`; nginx replies `kYR_avail` (`ngx_brix_cms_send_avail()`) echoing
 the request streamid, payload = `put_int(free_mb) put_int(util_pct)`.
 
 ### 5.5 `kYR_ping` → `kYR_pong`
 
-Both header-only. `ngx_xrootd_cms_send_pong()` echoes the streamid. Missing pongs
+Both header-only. `ngx_brix_cms_send_pong()` echoes the streamid. Missing pongs
 are how each side detects a dead peer.
 
 ### 5.6 `kYR_state` → `kYR_have` — on-demand selection (the subtle one)
@@ -325,7 +325,7 @@ broadcasting `kYR_state` to subscribed servers (`src/net/cms/recv.c`,
   namespace path** — **not** Pup-encoded.
 - nginx bounds the path length, **rejects any `..` traversal before touching the
   filesystem**, joins it under the export root, and `stat()`s it.
-- If present → reply `kYR_have` (`ngx_xrootd_cms_send_have()`), modifier
+- If present → reply `kYR_have` (`ngx_brix_cms_send_have()`), modifier
   `CMS_MOD_RAW | CMS_HAVE_ONLINE`, **echoing the state streamid**, payload = the
   same raw path. If absent → **stay silent** (the manager simply won't select us)
   — exactly matching real cmsd behaviour.
@@ -339,9 +339,9 @@ broadcasting `kYR_state` to subscribed servers (`src/net/cms/recv.c`,
 ## 6. Negotiation B — nginx as manager (inbound CMS server)
 
 This is the `src/net/cms/server_*.c` half plus the shared-memory
-`src/net/manager/registry.c`. Enabled with `xrootd_cms_server on` on a stream server
+`src/net/manager/registry.c`. Enabled with `brix_cms_server on` on a stream server
 block listening on the CMS port (e.g. `1213`). Each accepted data-server
-connection gets a per-connection `xrootd_cms_srv_ctx_t`
+connection gets a per-connection `brix_cms_srv_ctx_t`
 (`src/net/cms/server_handler.c`).
 
 ### 6.1 Inbound frame handling
@@ -350,12 +350,12 @@ connection gets a per-connection `xrootd_cms_srv_ctx_t`
 
 | Frame in | Action |
 |---|---|
-| `kYR_login` | parse `CmsLoginData` → `xrootd_srv_register(host, port, paths, free_mb, util_pct)`; mark `logged_in`; arm the per-server ping timer |
-| `kYR_load` | extract `dskFree` → `xrootd_srv_update_load()` |
-| `kYR_avail` / `kYR_space` | extract `free_mb` + `util_pct` → `xrootd_srv_update_load()` |
+| `kYR_login` | parse `CmsLoginData` → `brix_srv_register(host, port, paths, free_mb, util_pct)`; mark `logged_in`; arm the per-server ping timer |
+| `kYR_load` | extract `dskFree` → `brix_srv_update_load()` |
+| `kYR_avail` / `kYR_space` | extract `free_mb` + `util_pct` → `brix_srv_update_load()` |
 | `kYR_pong` | (debug) liveness confirmed |
-| `kYR_gone` | `xrootd_srv_unregister_path(host, port, path)` — drop one path, keep the rest of the registration |
-| disconnect | `xrootd_srv_close()` → **blacklist host:port for 30 s** then free, so in-flight redirects don't route to a server that just vanished |
+| `kYR_gone` | `brix_srv_unregister_path(host, port, path)` — drop one path, keep the rest of the registration |
+| disconnect | `brix_srv_close()` → **blacklist host:port for 30 s** then free, so in-flight redirects don't route to a server that just vanished |
 
 The login parser (`cms_srv_parse_login`) is the mirror image of §5.1: it walks
 the ten tagged scalars with `tlv_read_next()`, then reads the SID/Paths strings
@@ -363,27 +363,27 @@ with `cms_srv_read_string()` (bare `[len][data]`, length includes NUL), strips
 the `"<type> "` prefix off each path segment, and stores the bare paths
 colon-delimited (`/data:/atlas`) — the exact form `srv_path_matches()` expects.
 
-The manager sends its own `kYR_ping` on a timer (`xrootd_cms_srv_send_ping`,
+The manager sends its own `kYR_ping` on a timer (`brix_cms_srv_send_ping`,
 `src/net/cms/server_send.c`); a failed send closes and unregisters the server.
 
 ### 6.2 The registry
 
 `src/net/manager/registry.{h,c}` — a spinlock-protected shared-memory table
-(`XROOTD_SRV_REGISTRY_SLOTS = 128` by default, tunable via
-`xrootd_registry_slots`) so **every nginx worker shares one view**. Each slot
+(`BRIX_SRV_REGISTRY_SLOTS = 128` by default, tunable via
+`brix_registry_slots`) so **every nginx worker shares one view**. Each slot
 holds host, port, colon-delimited export paths, `free_mb`, `util_pct`,
 `last_seen`, a blacklist deadline, and health-check fields.
 
-Selection (`xrootd_srv_select`):
+Selection (`brix_srv_select`):
 
 - **longest-prefix match** over each colon-delimited path token,
 - **reads** → server with the lowest `util_pct`,
 - **writes** → server with the most `free_mb`,
 - blacklisted / drained entries are skipped.
 
-`xrootd_srv_locate_all()` builds a multi-server `kXR_locate` body
+`brix_srv_locate_all()` builds a multi-server `kXR_locate` body
 (`S<r|w>host:port …`). A full table drops new registrations with a `WARN` and
-bumps the `xrootd_registry_full_total` Prometheus counter.
+bumps the `brix_registry_full_total` Prometheus counter.
 
 ---
 
@@ -391,14 +391,14 @@ bumps the `xrootd_registry_full_total` Prometheus counter.
 
 This is where CMS meets the data protocol. A `root://` client never speaks CMS;
 it speaks `kXR_locate` / `kXR_open` on the data port, and the manager answers
-with `kXR_redirect`. The lookup order, when `xrootd_manager_mode on`
+with `kXR_redirect`. The lookup order, when `brix_manager_mode on`
 (`src/protocols/root/read/locate.c`, `src/protocols/root/read/open.c`):
 
 1. **Redirect-collapse cache** (`src/net/manager/redir_cache.c`) — if
-   `xrootd_collapse_redir` is on and a recent identical lookup is cached, answer
-   immediately, skipping CMS entirely. TTL = `xrootd_collapse_redir_ttl`.
-2. **Live registry** — `xrootd_srv_select(path, for_write)`.
-3. **Static map** — `xrootd_manager_map` fallback (see manager-mode.md).
+   `brix_collapse_redir` is on and a recent identical lookup is cached, answer
+   immediately, skipping CMS entirely. TTL = `brix_collapse_redir_ttl`.
+2. **Live registry** — `brix_srv_select(path, for_write)`.
+3. **Static map** — `brix_manager_map` fallback (see manager-mode.md).
 4. **CMS escalation** (sub-manager only) — ask the *parent* (§7.1).
 5. Otherwise `kXR_notFound` / serve locally.
 
@@ -414,17 +414,17 @@ which is the hard part. The mechanism (`src/net/manager/pending.c` +
  client kXR_locate /f  ─►  sub-manager (data channel, worker W)
                             │  registry miss
                             │  streamid = next_streamid()
-                            │  ngx_xrootd_cms_send_locate(streamid, "/f") ─► parent (CMS, worker W)
-                            │  xrootd_pending_insert(streamid, pid, client_fd, …)
+                            │  ngx_brix_cms_send_locate(streamid, "/f") ─► parent (CMS, worker W)
+                            │  brix_pending_insert(streamid, pid, client_fd, …)
                             │  ctx->state = XRD_ST_WAITING_CMS
-                            │  arm read timer (xrootd_cms_locate_timeout, default 5 s)
+                            │  arm read timer (brix_cms_locate_timeout, default 5 s)
                             ▼
  parent kYR_select host:port (echoes streamid) ─► sub-manager (CMS, worker W)
                             │  cms_wake_pending_session():
-                            │    xrootd_pending_lookup(streamid, pid)
+                            │    brix_pending_lookup(streamid, pid)
                             │    resolve client_fd → live ngx_connection_t
                             │    state == XRD_ST_WAITING_CMS ?
-                            │    xrootd_send_redirect(host, port)
+                            │    brix_send_redirect(host, port)
                             ▼
  client  ◄── kXR_redirect host:port ──  then connects there for the data
 ```
@@ -454,11 +454,11 @@ real interop failure against a real `cmsd`:
 1. **Pup strings carry no tag byte.** `[2-byte len][data + NUL]`, length includes
    the NUL; empty/NULL = `00 00`. Scalars *do* carry a `0x80`/`0xa0` tag. Putting
    a tag on a string (or omitting trailing strings) makes the real parser report
-   *"invalid login data."* (`ngx_xrootd_cms_put_string`, `cms_srv_read_string`.)
+   *"invalid login data."* (`ngx_brix_cms_put_string`, `cms_srv_read_string`.)
 
 2. **`kYR_load`'s `theLoad` is a bare blob, not a tagged short.** `[00 06][6
    bytes]` then a tagged `put_int` for `dskFree`. A `put_short` here desyncs the
-   whole frame. (`ngx_xrootd_cms_send_load`.)
+   whole frame. (`ngx_brix_cms_send_load`.)
 
 3. **Status bits are `Stage=0x01, noStage=0x02, Resume=0x04, Suspend=0x08,
    Reset=0x10`.** The original nginx constants had `SUSPEND=0x01`/`RESUME=0x02`,
@@ -476,7 +476,7 @@ real interop failure against a real `cmsd`:
    otherwise. Reject `..` *before* the `stat()`.
 
 6. **One CMS connection per nginx worker.** Each worker's `init_process` hook
-   calls `ngx_xrootd_cms_start()` independently; the master never connects. This
+   calls `ngx_brix_cms_start()` independently; the master never connects. This
    is deliberate — it makes the parent's `kYR_select` land on the same worker that
    holds the suspended client (§7.1), eliminating all cross-worker IPC for the
    pending-locate bridge. It does mean the parent sees N connections from one node
@@ -488,7 +488,7 @@ real interop failure against a real `cmsd`:
    clears it.
 
 8. **Aggregate space upward in manager mode.** A sub-manager's `kYR_login` and
-   `kYR_load` report `xrootd_srv_aggregate_space()` (sum of children's `free_mb`,
+   `kYR_load` report `brix_srv_aggregate_space()` (sum of children's `free_mb`,
    mean `util_pct`), not its own disk — so the parent balances on real downstream
    capacity. The `kYR_Manager` mode bit is OR-ed into the login so the parent
    knows it's a sub-manager.
@@ -496,7 +496,7 @@ real interop failure against a real `cmsd`:
 9. **`streamid` discipline.** `0` for unsolicited heartbeat frames; **echo** the
    request streamid on every reply (`pong`, `avail`, `have`). The sub-manager's
    outbound `kYR_locate` uses a per-worker monotonic counter
-   (`ngx_xrootd_cms_next_streamid`, wraps `UINT32_MAX → 1`) as the correlation
+   (`ngx_brix_cms_next_streamid`, wraps `UINT32_MAX → 1`) as the correlation
    key for the pending table.
 
 10. **Frame hygiene.** All header/scalar fields are big-endian via the `wire.c`
@@ -510,13 +510,13 @@ real interop failure against a real `cmsd`:
 
 | Directive | Block | Default | Purpose |
 |---|---|---|---|
-| `xrootd_cms_manager host:port` | stream server | — | upstream manager to register with (enables the CMS client) |
-| `xrootd_cms_paths /a:/b` | stream server | export root | namespace prefixes to advertise in `kYR_login` |
-| `xrootd_cms_interval secs` | stream server | 30 | `kYR_load` heartbeat period |
-| `xrootd_cms_server on` | stream server | off | accept inbound data-server CMS registrations (enables the CMS server / manager listener) |
-| `xrootd_manager_mode on` | stream server | off | turn `kXR_locate`/`kXR_open` into registry-driven redirects |
-| `xrootd_registry_slots N` | stream server | 128 | server-registry capacity |
-| `xrootd_cms_locate_timeout time` | stream server | 5s | how long to hold a client while escalating via CMS (§7.1) |
+| `brix_cms_manager host:port` | stream server | — | upstream manager to register with (enables the CMS client) |
+| `brix_cms_paths /a:/b` | stream server | export root | namespace prefixes to advertise in `kYR_login` |
+| `brix_cms_interval secs` | stream server | 30 | `kYR_load` heartbeat period |
+| `brix_cms_server on` | stream server | off | accept inbound data-server CMS registrations (enables the CMS server / manager listener) |
+| `brix_manager_mode on` | stream server | off | turn `kXR_locate`/`kXR_open` into registry-driven redirects |
+| `brix_registry_slots N` | stream server | 128 | server-registry capacity |
+| `brix_cms_locate_timeout time` | stream server | 5s | how long to hold a client while escalating via CMS (§7.1) |
 
 ### 9.1 Network-fault resilience (phase-50)
 
@@ -528,20 +528,20 @@ See [docs/refactor/phase-50-cms-protocol-hardening.md](../refactor/phase-50-cms-
 
 | Directive | Block | Default | Purpose |
 |---|---|---|---|
-| `xrootd_cms_read_timeout time` | stream server (client) | `max(3×interval, 90s)` | reconnect if the manager goes silent this long (detects black-holed/half-open managers) |
-| `xrootd_cms_send_timeout time` | stream server (client) | 10s | connect + first-write readiness window for the manager socket |
-| `xrootd_cms_initial_delay time` | stream server (client) | 0 (loopback) / 10ms | delay before the **first** connect attempt at worker start (see fast cold-start settling below) |
-| `xrootd_cms_connect_retry time` | stream server (client) | 10ms (loopback) / 75ms | retry interval while the manager is not yet listening, during the cold-start fast-retry window |
-| `xrootd_cms_tcp_keepalive on\|off` | stream server (client) | on | `SO_KEEPALIVE` + tight probes on the manager socket |
-| `xrootd_cms_tcp_user_timeout time` | stream server (client) | = read timeout | `TCP_USER_TIMEOUT` kernel backstop on the manager socket |
-| `xrootd_cms_server_login_timeout time` | stream server (manager) | 10s | close a peer that never completes LOGIN (+sss xauth) — anti-slowloris |
-| `xrootd_cms_server_idle_timeout time` | stream server (manager) | `max(3×interval, 90s)` | close + unregister a logged-in node that goes silent this long |
-| `xrootd_cms_server_max_connections N` | stream server (manager) | 4096 | per-worker cap on accepted CMS connections (`0` = unlimited) |
-| `xrootd_cms_server_tcp_keepalive on\|off` | stream server (manager) | on | `SO_KEEPALIVE` + tight probes on accepted sockets |
-| `xrootd_cms_server_tcp_user_timeout time` | stream server (manager) | = idle timeout | `TCP_USER_TIMEOUT` kernel backstop on accepted sockets |
+| `brix_cms_read_timeout time` | stream server (client) | `max(3×interval, 90s)` | reconnect if the manager goes silent this long (detects black-holed/half-open managers) |
+| `brix_cms_send_timeout time` | stream server (client) | 10s | connect + first-write readiness window for the manager socket |
+| `brix_cms_initial_delay time` | stream server (client) | 0 (loopback) / 10ms | delay before the **first** connect attempt at worker start (see fast cold-start settling below) |
+| `brix_cms_connect_retry time` | stream server (client) | 10ms (loopback) / 75ms | retry interval while the manager is not yet listening, during the cold-start fast-retry window |
+| `brix_cms_tcp_keepalive on\|off` | stream server (client) | on | `SO_KEEPALIVE` + tight probes on the manager socket |
+| `brix_cms_tcp_user_timeout time` | stream server (client) | = read timeout | `TCP_USER_TIMEOUT` kernel backstop on the manager socket |
+| `brix_cms_server_login_timeout time` | stream server (manager) | 10s | close a peer that never completes LOGIN (+sss xauth) — anti-slowloris |
+| `brix_cms_server_idle_timeout time` | stream server (manager) | `max(3×interval, 90s)` | close + unregister a logged-in node that goes silent this long |
+| `brix_cms_server_max_connections N` | stream server (manager) | 4096 | per-worker cap on accepted CMS connections (`0` = unlimited) |
+| `brix_cms_server_tcp_keepalive on\|off` | stream server (manager) | on | `SO_KEEPALIVE` + tight probes on accepted sockets |
+| `brix_cms_server_tcp_user_timeout time` | stream server (manager) | = idle timeout | `TCP_USER_TIMEOUT` kernel backstop on accepted sockets |
 
-A **leaf data server** sets `xrootd_cms_manager` (+ optional `xrootd_cms_paths`).
-A **manager** sets `xrootd_cms_server on` + `xrootd_manager_mode on`. A
+A **leaf data server** sets `brix_cms_manager` (+ optional `brix_cms_paths`).
+A **manager** sets `brix_cms_server on` + `brix_manager_mode on`. A
 **sub-manager** sets all of the above. See
 [Hierarchical Cluster](../05-operations/hierarchical-cluster.md) for full
 three-tier configs.
@@ -552,7 +552,7 @@ three-tier configs.
 
 | File | Responsibility |
 |---|---|
-| `src/net/cms/cms_internal.h` | opcode/modifier constants, `ngx_xrootd_cms_ctx_t`, prototypes |
+| `src/net/cms/cms_internal.h` | opcode/modifier constants, `ngx_brix_cms_ctx_t`, prototypes |
 | `src/net/cms/connect.c` | CMS-client lifecycle: connect, login→status→load, heartbeat timer, backoff |
 | `src/net/cms/send.c` | outbound client frames: login, status, load, avail, pong, locate, have |
 | `src/net/cms/recv.c` | inbound manager frames at a node: ping→pong, space→avail, status, state→have, select/try→wake |
@@ -598,6 +598,6 @@ the known-good mixed real-cmsd / nginx harness.
 
 - [Cluster Management](../05-operations/cluster-management.md) — operational architecture, M1–M5 phases.
 - [Hierarchical Cluster](../05-operations/hierarchical-cluster.md) — multi-tier topology, escalation, and the select-then-proxy extension.
-- [Manager Mode](../05-operations/manager-mode.md) — static `xrootd_manager_map`.
+- [Manager Mode](../05-operations/manager-mode.md) — static `brix_manager_map`.
 - [XRootD Client Interaction](xrootd-client-interaction.md) — what `xrdcp`/`xrdfs` do on the `root://` data channel.
 - [Protocol Notes](../10-reference/protocol-notes.md) — `root://` wire-structure details.

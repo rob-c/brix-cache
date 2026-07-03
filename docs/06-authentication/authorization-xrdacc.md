@@ -1,7 +1,7 @@
-# XrdAcc-compatible authorization (`xrootd_authdb_format xrdacc`)
+# XrdAcc-compatible authorization (`brix_authdb_format xrdacc`)
 
 The module ships **two** authorization-database engines, selected per server by
-`xrootd_authdb_format`:
+`brix_authdb_format`:
 
 | Format | Engine | Use when |
 |---|---|---|
@@ -21,33 +21,33 @@ The module ships **two** authorization-database engines, selected per server by
 server {
     listen 1094;
     xrootd on;
-    xrootd_root /export;
-    xrootd_auth token;                 # or gsi / none (anon `u *` rules)
-    xrootd_authdb_format xrdacc;        # <-- select the XrdAcc engine
-    xrootd_authdb /etc/xrootd/authdb;   # a stock XRootD authdb file
-    xrootd_authdb_audit all;            # none | deny | grant | all
-    xrootd_authdb_refresh 60;           # hot-reload on mtime change (s); 0 = off
+    brix_root /export;
+    brix_auth token;                 # or gsi / none (anon `u *` rules)
+    brix_authdb_format xrdacc;        # <-- select the XrdAcc engine
+    brix_authdb /etc/brix/authdb;   # a stock XRootD authdb file
+    brix_authdb_audit all;            # none | deny | grant | all
+    brix_authdb_refresh 60;           # hot-reload on mtime change (s); 0 = off
 }
 ```
 
 OS/NIS group resolution tunables (XrdAcc `acc.*` equivalents):
 
 ```nginx
-xrootd_acc_gidlifetime 43200;          # Unix-group cache TTL (s)
-xrootd_acc_pgo;                        # resolve the primary Unix group only
-xrootd_acc_nisdomain example.org;      # NIS domain for netgroup lookups
-xrootd_acc_gidretran "65534 100";      # gids to skip (ambiguous shared gid->name)
+brix_acc_gidlifetime 43200;          # Unix-group cache TTL (s)
+brix_acc_pgo;                        # resolve the primary Unix group only
+brix_acc_nisdomain example.org;      # NIS domain for netgroup lookups
+brix_acc_gidretran "65534 100";      # gids to skip (ambiguous shared gid->name)
 ```
 
 Host matching and legacy authdb encoding (off by default):
 
 ```nginx
-xrootd_acc_resolve_hosts on;           # reverse-DNS the peer so `h <host>` rules match
-xrootd_acc_spacechar +;                # substitute `+`->space in authdb identity names
-xrootd_acc_encoding on;                # URI-decode authdb path tokens (%20 -> space)
+brix_acc_resolve_hosts on;           # reverse-DNS the peer so `h <host>` rules match
+brix_acc_spacechar +;                # substitute `+`->space in authdb identity names
+brix_acc_encoding on;                # URI-decode authdb path tokens (%20 -> space)
 ```
 
-`xrootd_acc_resolve_hosts` does one blocking reverse lookup per connection
+`brix_acc_resolve_hosts` does one blocking reverse lookup per connection
 (cached); with it **off** (the default) `h`/`.domain` rules see only the peer IP
 and never match a hostname, exactly as XrdAcc behaves until a host rule is
 present. All of these directives are also valid in an `http` location (WebDAV/S3).
@@ -124,16 +124,16 @@ x dev /devarea rwid
   `AOP_Stage` (privilege `0x180`, granted only by `a`), routed through the same
   engine — not the native authdb.
 - **Fail-closed.** No matching rule, or a failed authdb load, denies.
-- **Hot reload.** `xrootd_authdb_refresh` re-reads the file on mtime change and
+- **Hot reload.** `brix_authdb_refresh` re-reads the file on mtime change and
   atomically swaps the per-worker tables — no restart, no `reload`. Supported on
   **both** the stream (root://) and HTTP (WebDAV/S3) tiers; the HTTP timer is
   armed lazily on the first request in each worker.
-- **Result cache.** When `xrootd_auth_cache` is configured the verdict is cached
+- **Result cache.** When `brix_auth_cache` is configured the verdict is cached
   under a key that includes the operation and peer host (plus path, DN, VO and
   token scope), so a cached *update* grant is never replayed for a *create*, and
   a `h`-rule verdict is never shared across peers. Group membership — the one
   remaining input — is bounded by the `gidlifetime` TTL.
-- **Audit.** `xrootd_authdb_audit` logs `grant`/`deny`/both as
+- **Audit.** `brix_authdb_audit` logs `grant`/`deny`/both as
   `xrootd authz: <id>@<host> grant|deny <op> "<path>"` (fields sanitised).
 
 ## Protocol coverage
@@ -147,13 +147,13 @@ engine:
 | **WebDAV** (davs://) | GET/HEAD→read, PUT→create, DELETE→delete, MKCOL→mkdir, MOVE→rename, COPY→read, PROPFIND→readdir, PROPPATCH/LOCK→update | cert DN / bearer-token subject |
 | **S3** | GET→read, HEAD→stat, PUT/POST→create, DELETE→delete | SigV4 access key |
 
-Set `xrootd_authdb_format xrdacc;` + `xrootd_authdb <path>;` in the `stream`
+Set `brix_authdb_format xrdacc;` + `brix_authdb <path>;` in the `stream`
 server block (root://) and/or the `http` location (WebDAV/S3). For HTTP the
 tables are built lazily per worker on first request, and the refresh timer is
 armed at that point; the stream tier builds and arms at worker start. Every
-`xrootd_authdb_*` / `xrootd_acc_*` directive is valid in both tiers; the HTTP
+`brix_authdb_*` / `brix_acc_*` directive is valid in both tiers; the HTTP
 forms are registered once (by the WebDAV module) and configure both the WebDAV
-and S3 loc-confs from a single shared `xrootd_acc_http_t` block.
+and S3 loc-confs from a single shared `brix_acc_http_t` block.
 
 ## Implementation
 
@@ -164,7 +164,7 @@ gidretran), `resolve.c` (reverse-DNS for `h` rules), `config.c` (build + hot
 reload for stream and HTTP), `audit.c`. The operation precision (create vs
 update, stage), the bypass-site routing (TPC dest-open, prepare) and the
 operation/host-keyed result cache live in `src/auth/authz/auth_gate.c`. Ported from
-`/tmp/xrootd-src/src/XrdAcc/` with numeric privilege values kept identical so a
+`/tmp/brix-src/src/XrdAcc/` with numeric privilege values kept identical so a
 stock authdb decides the same. Tests: `tests/test_acc.py` (engine + protocols),
 `tests/test_acc_residual.py` (create/update, stage, host-resolve, HTTP reload,
 encoding, result-cache).

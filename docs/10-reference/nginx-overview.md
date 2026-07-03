@@ -2,7 +2,7 @@
 
 > ⚠️ **Reference tier — contributor-focused.** nginx architecture decisions that shape how the module is structured. Useful when adding features or debugging; not needed to operate a server.
 >
-> Prerequisites: [XRootD Basics](../02-concepts/xrootd-basics.md), basic understanding of C programming.
+> Prerequisites: [XRootD Basics](../02-concepts/brix-basics.md), basic understanding of C programming.
 
 The nginx architecture decisions that shape how this module is structured — and, critically, what nginx provides for free that any standalone server (including the official XRootD daemon) must implement from scratch.
 
@@ -109,7 +109,7 @@ VO ACL matching, TPC rendezvous, S3 SigV4) and storage logic (path confinement,
 ## Related docs
 
 - [architecture.md](../10-architecture/overview.md) — end-to-end request lifecycle for both modules
-- [types.md](types.md) — `xrootd_ctx_t` and config struct field reference
+- [types.md](types.md) — `brix_ctx_t` and config struct field reference
 - [development.md](../09-developer-guide/dev-workflow.md) — AIO pattern, build workflow, configure vs make
 - [contributing.md](../09-developer-guide/contributing.md) — step-by-step guides for adding opcodes and WebDAV methods
 - [comparison-with-xrootd.md](../10-reference/design-rationale.md) — developer-hours comparison and deployment decision matrix

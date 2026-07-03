@@ -144,7 +144,7 @@ You expose a plain HTTP/WebDAV server to the outside world through an HTTPS gate
 
 - **Want a working server in 30 minutes?** → [Getting Started (Full)](getting-started-full.md) — comprehensive guide with concepts + build steps
 - **Never built software from source before?** → [Before You Start](before-you-start.md) — explains servers, ports, and building basics
-- **Need more context on XRootD concepts?** → [XRootD Basics](../02-concepts/xrootd-basics.md)
+- **Need more context on XRootD concepts?** → [XRootD Basics](../02-concepts/brix-basics.md)
 - **Already know the basics, want to configure auth?** → See [Authentication Overview](../06-authentication/)
 
 ---

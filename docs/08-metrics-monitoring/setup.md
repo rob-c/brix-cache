@@ -6,14 +6,14 @@ How to configure the Prometheus scrape endpoint and verify it's exporting data. 
 
 ## Endpoint Configuration
 
-Add an `http {}` block to `nginx.conf` with the `xrootd_metrics` directive:
+Add an `http {}` block to `nginx.conf` with the `brix_metrics` directive:
 
 ```nginx
 http {
     server {
         listen 9100;
         location /metrics {
-            xrootd_metrics on;
+            brix_metrics on;
         }
     }
 }
@@ -46,7 +46,7 @@ Client-controlled strings are not used as Prometheus label values. Exported labe
 
 ## Limits
 
-Up to 16 stream server blocks are tracked simultaneously. This is a compile-time limit (`XROOTD_METRICS_MAX_SERVERS` in `src/observability/metrics/metrics.h`).
+Up to 16 stream server blocks are tracked simultaneously. This is a compile-time limit (`BRIX_METRICS_MAX_SERVERS` in `src/observability/metrics/metrics.h`).
 
 When the limit is reached, additional listeners will not appear in metrics output. Monitor for this condition by checking that all expected ports/auth combinations appear in each metric series.
 

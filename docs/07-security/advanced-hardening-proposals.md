@@ -22,7 +22,7 @@ XRootD makes heavy use of "opaque" query strings (e.g., `?oss.asize=100&tpc.key=
 Attackers may attempt to force a session into a lower security state (e.g., cleartext or unsigned) by spoofing `kXR_protocol` flags.
 
 ### Proposal:
-*   **Minimum Security Level Enforcement**: Add a directive `xrootd_min_sec_level`. If a client attempts to negotiate a level below this (e.g., no TLS when `intense` is required), the server should terminate the connection immediately after the handshake.
+*   **Minimum Security Level Enforcement**: Add a directive `brix_min_sec_level`. If a client attempts to negotiate a level below this (e.g., no TLS when `intense` is required), the server should terminate the connection immediately after the handshake.
 *   **TLS Pinning for Upstream**: When acting as a proxy or cache, the module should require a valid, trusted certificate from the upstream origin, prohibiting fallback to cleartext even if requested by the client.
 
 ## 4. Metadata Side-Channel Mitigation

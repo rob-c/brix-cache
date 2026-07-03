@@ -20,8 +20,8 @@ VOMS AC extraction (src/auth/voms/collect.c)
 
           │
           ▼
-Path ACL check (src/auth/authz/ and xrootd_require_vo directives)
-    For each xrootd_require_vo rule:
+Path ACL check (src/auth/authz/ and brix_require_vo directives)
+    For each brix_require_vo rule:
         rule: path="/cms"  required_vo="cms"
         request path: "/cms/mc/file.root"
               → path starts with "/cms"  ✓
@@ -33,7 +33,7 @@ Path ACL check (src/auth/authz/ and xrootd_require_vo directives)
               → path starts with "/atlas"  ✗
               → skip rule
 
-    Path "/public/..." has no xrootd_require_vo rule
+    Path "/public/..." has no brix_require_vo rule
               → ALLOW (any authenticated user)
 
     Path "/atlas/..." with "cms" proxy
@@ -44,7 +44,7 @@ Path ACL check (src/auth/authz/ and xrootd_require_vo directives)
 
 Bearer tokens with `wlcg.groups` claims follow the same path.  The module
 maps `wlcg.groups` array entries as synthetic VO names into the same
-`ctx->vo_list` field, so `xrootd_require_vo` applies equally to both
+`ctx->vo_list` field, so `brix_require_vo` applies equally to both
 authentication methods.
 
 ---
@@ -57,9 +57,9 @@ paths, but both use the same logic:
 
 ```
 Stream GSI path:
-  On startup:  load CRL PEM from xrootd_crl directive
-               xrootd_pki_verify_crls() checks CRL signature against CA
-               CRL reloaded periodically (xrootd_crl_reload seconds)
+  On startup:  load CRL PEM from brix_crl directive
+               brix_pki_verify_crls() checks CRL signature against CA
+               CRL reloaded periodically (brix_crl_reload seconds)
 
   Per-session: after X509_verify_cert() succeeds:
                for each cert in proxy chain:
@@ -67,7 +67,7 @@ Stream GSI path:
                    if found → reject with kXR_NotAuthorized
 
 WebDAV HTTPS path:
-  On startup:  load CRL PEM from xrootd_webdav_crl directive
+  On startup:  load CRL PEM from brix_webdav_crl directive
                same signature check
 
   Per-request: after webdav_verify_proxy_cert() would succeed:
@@ -75,7 +75,7 @@ WebDAV HTTPS path:
 ```
 
 CRLs from Grid CAs typically have a 7-day validity period.  The
-`xrootd_crl_reload` timer (stream) and the CA store rebuild (WebDAV) must run
+`brix_crl_reload` timer (stream) and the CA store rebuild (WebDAV) must run
 more frequently than the CRL validity window or revoked certificates will
 eventually be accepted.
 
@@ -115,7 +115,7 @@ encryption and GSI credential exchange:
 Connection mode       Encrypted by      GSI proxy delivered by
 ──────────────────    ──────────────    ──────────────────────────────────────
 root://  no TLS       nothing           DH session key (AES-CBC, inside XRootD)
-root://  xrootd_tls   TLS (after        DH session key INSIDE the TLS tunnel
+root://  brix_tls   TLS (after        DH session key INSIDE the TLS tunnel
                       kXR_protocol)
 roots://              TLS (from         DH session key INSIDE the TLS tunnel
                       TCP connect)
@@ -123,7 +123,7 @@ davs://               TLS (TLS          TLS client cert (not a separate layer;
                       handshake)         the proxy cert IS the TLS client cert)
 ```
 
-For `root://` without `xrootd_tls`, the proxy certificate is protected only
+For `root://` without `brix_tls`, the proxy certificate is protected only
 by the DH session key established in the GSI exchange itself.  The DH exchange
 provides forward secrecy for the credential exchange but does not encrypt
 subsequent file traffic.
@@ -138,14 +138,14 @@ subsequent file traffic.
 | Proxy chain verification (stream) | `src/protocols/root/handshake/policy.c`, OpenSSL `X509_verify_cert` |
 | Proxy chain verification (WebDAV) | `src/protocols/webdav/auth_cert.c:webdav_verify_proxy_cert()` |
 | TLS auth cache (WebDAV) | `src/protocols/webdav/auth_cert.c`, `SSL_get_ex_data` / `SSL_SESSION_get_ex_data` |
-| `X509_V_FLAG_ALLOW_PROXY_CERTS` setup | `src/protocols/webdav/postconfig.c:ngx_http_xrootd_webdav_postconfiguration()` (lines 104-106) |
+| `X509_V_FLAG_ALLOW_PROXY_CERTS` setup | `src/protocols/webdav/postconfig.c:ngx_http_brix_webdav_postconfiguration()` (lines 104-106) |
 | VOMS AC parsing | `src/auth/voms/loader.c` (dlopen of libvomsapi) |
-| VOMS VO extraction | `src/auth/voms/collect.c:xrootd_collect_voms_vos()` |
+| VOMS VO extraction | `src/auth/voms/collect.c:brix_collect_voms_vos()` |
 | vomsdir LSC lookup | delegated to libvomsapi |
 | VO path ACL enforcement | `src/auth/authz/find_rule.c`, `src/core/config/policy.c` |
 | CA bundle load | `src/auth/crypto/pki_load.c` |
-| CRL signature verification | `src/auth/crypto/pki_check.c:xrootd_pki_verify_crls()` |
-| kXR_login challenge string | `src/protocols/root/session/login.c:xrootd_handle_login()` |
+| CRL signature verification | `src/auth/crypto/pki_check.c:brix_pki_verify_crls()` |
+| kXR_login challenge string | `src/protocols/root/session/login.c:brix_handle_login()` |
 | Token (JWT/WLCG) validation | `src/auth/token/` |
 | Request signing (kXR_sigver) | `src/protocols/root/session/signing.c`, `src/protocols/root/handshake/sigver.c` |
 
@@ -162,4 +162,4 @@ subsequent file traffic.
 | Proxy decryption produces garbage | DH padding not disabled | `EVP_PKEY_CTX_set_dh_pad(ctx, 0)` is required |
 | WebDAV returns 403 for valid proxy | Proxy rejected because `ssl_verify_client on` | Change to `ssl_verify_client optional_no_ca` — nginx's own verification does not accept RFC 3820 proxies |
 | `"cannot verify VOMS signature"` | vomsdir LSC DNs don't match VOMS signing cert | `openssl x509 -in vomscert.pem -noout -subject -nameopt compat` must match the LSC file exactly |
-| CRL checks always pass even for revoked certs | CRL not loaded or path wrong | Check `xrootd_crl` / `xrootd_webdav_crl` directives; verify the CRL's issuer matches the CA |
+| CRL checks always pass even for revoked certs | CRL not loaded or path wrong | Check `brix_crl` / `brix_webdav_crl` directives; verify the CRL's issuer matches the CA |

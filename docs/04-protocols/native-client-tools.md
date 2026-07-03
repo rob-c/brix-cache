@@ -101,7 +101,7 @@ client runtime into a deployment.
 | `xrdgsiproxy` | Create, inspect, destroy RFC 3820 X.509 proxies | Local OpenSSL implementation: `init`, `info`, and `destroy`. |
 | `xrdsssadmin` | Manage SSS keytabs | Creates/lists/deletes shared-secret entries with mode-0600 keytab writes. |
 | `xrootdfs` | Network-resilient FUSE filesystem | Async/pipelined mount over `root://` or http(s)/WebDAV with reconnect, retry, heartbeat, and open-file resumption. A `--legacy` flag selects a simple synchronous fallback mode (root:// only). |
-| `libxrdposix_preload.so` | LD_PRELOAD read path for legacy POSIX tools | Maps paths under `$XROOTD_VMP` to a `root://` export through `libxrdc`; first cut is read-oriented. |
+| `libxrdposix_preload.so` | LD_PRELOAD read path for legacy POSIX tools | Maps paths under `$BRIX_VMP` to a `root://` export through `libxrdc`; first cut is read-oriented. |
 
 Test and development binaries also exist under `client/tests` or the build
 output: `aio_smoke`, `aio_resil`, `aio_mfile`, and `fault_proxy`.
@@ -318,7 +318,7 @@ resets, or hangs connections half-open. Several layers cooperate:
   large transfer is frequently severed mid-flight and must simply be re-attempted
   many times. Server-throttle (`kXR_wait`/overload) still uses the slower
   exponential backoff. Verified against an **official `xrootd` server** through an
-  in-repo fault proxy (`tests/test_official_xrootd_resilience.py`): byte-exact
+  in-repo fault proxy (`tests/test_official_brix_resilience.py`): byte-exact
   through latency, tiny segmentation, single + repeated mid-transfer drops, a
   multi-second outage, and sustained packet loss up to ~12% (beyond which a
   multi-round-trip link is effectively dead; raise `--max-stall` to extend
@@ -351,7 +351,7 @@ and behaves the same as upstream.
 | `XDG_RUNTIME_DIR` | standard | A bearer-token discovery location. |
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION` | standard | S3 SigV4 credentials and region. |
 | `XrdSecSSSKT`, `XrdSecsssKT` | standard | SSS keytab path (upstream-compatible names). |
-| `XROOTD_VMP` | standard | POSIX preload virtual-mount prefix (upstream-compatible). |
+| `BRIX_VMP` | standard | POSIX preload virtual-mount prefix (upstream-compatible). |
 
 ## FUSE Mounts
 
@@ -414,12 +414,12 @@ without linking a client library:
 
 ```bash
 LD_PRELOAD=/path/to/libxrdposix_preload.so \
-XROOTD_VMP=/xrd=root://store.example:1094/ \
+BRIX_VMP=/xrd=root://store.example:1094/ \
 cat /xrd/data/file.root
 ```
 
 The shim interposes open/read/pread/lseek/close, stat-family calls, and access.
-Paths under the local prefix from `$XROOTD_VMP` are rewritten to the remote
+Paths under the local prefix from `$BRIX_VMP` are rewritten to the remote
 logical path and served through a lazily connected `libxrdc` session. Other paths
 fall through to libc.
 

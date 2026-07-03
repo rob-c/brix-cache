@@ -1,8 +1,8 @@
 # Monitoring Dashboard Feature Ideas
 
 The HTTPS monitoring dashboard is currently a lightweight live view: it serves
-the embedded page at `/xrootd/`, authenticates with the dashboard password, and
-polls `/xrootd/transfers` for active transfer rows plus aggregate byte and
+the embedded page at `/brix/`, authenticates with the dashboard password, and
+polls `/brix/transfers` for active transfer rows plus aggregate byte and
 connection totals.
 
 This document collects useful additions that would make the dashboard a better
@@ -170,8 +170,8 @@ The implementation already has a session lifetime field internally, but no
 public directive exposes it. Useful future directives:
 
 ```nginx
-xrootd_dashboard_session_ttl 8h;
-xrootd_dashboard_cookie_path /xrootd;
+brix_dashboard_session_ttl 8h;
+brix_dashboard_cookie_path /brix;
 ```
 
 Only document these in the directive reference after they are implemented.
@@ -181,7 +181,7 @@ Only document these in the directive reference after they are implemented.
 Replace the single shared password with an optional users file:
 
 ```nginx
-xrootd_dashboard_users /etc/nginx/xrootd-dashboard.htpasswd;
+brix_dashboard_users /etc/nginx/brix-dashboard.htpasswd;
 ```
 
 The first version can be read-only users with bcrypt or Apache htpasswd
@@ -198,7 +198,7 @@ full credential material.
 
 ### Versioned JSON
 
-Add schema metadata to `/xrootd/transfers`:
+Add schema metadata to `/brix/transfers`:
 
 ```json
 {

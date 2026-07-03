@@ -29,27 +29,27 @@ These pathways represent the foundational functionality required for a single-no
 ### A. Handshake & Session Lifecycle
 - **Entry Point**: `src/protocols/root/connection/handler.c`
 - **Logic Flow**:
-  1. `xrootd_conn_handshake_handler`: Detects protocol magic (ROOTD_PQ).
-  2. `xrootd_handle_protocol`: Negotiates version and capability flags (`src/protocols/root/session/protocol.c`).
-  3. `xrootd_handle_login`: Initial client identification (`src/protocols/root/session/login.c`).
-  4. `xrootd_handle_endsess`: Graceful termination (`src/protocols/root/session/lifecycle.c`).
+  1. `brix_conn_handshake_handler`: Detects protocol magic (ROOTD_PQ).
+  2. `brix_handle_protocol`: Negotiates version and capability flags (`src/protocols/root/session/protocol.c`).
+  3. `brix_handle_login`: Initial client identification (`src/protocols/root/session/login.c`).
+  4. `brix_handle_endsess`: Graceful termination (`src/protocols/root/session/lifecycle.c`).
 
 ### B. Authentication & Authorization
 - **Logic Flow**:
-  1. `xrootd_handle_auth`: Dispatches to specific security plugins.
+  1. `brix_handle_auth`: Dispatches to specific security plugins.
   2. **Plugins**:
      - **GSI**: X.509 proxy validation (`src/auth/gsi/`).
      - **Token**: JWT/WLCG bearer token validation (`src/auth/token/`).
      - **SSS**: Shared-secret authentication (`src/auth/sss/`).
-  3. `xrootd_check_authdb`: Verifies file-path permissions against `authdb` rules (`src/auth/authz/authdb.c`).
+  3. `brix_check_authdb`: Verifies file-path permissions against `authdb` rules (`src/auth/authz/authdb.c`).
 
 ### C. Basic File I/O
 - **Entry Point**: `src/protocols/root/handshake/dispatch_read.c` / `dispatch_write.c`
 - **Logic Flow**:
-  1. `xrootd_handle_open`: Resolves logical paths to physical paths using `xrootd_resolve_path`.
-  2. `xrootd_handle_read` / `xrootd_handle_write`: Standard POSIX-backed I/O.
-  3. `xrootd_handle_stat`: Metadata retrieval.
-  4. `xrootd_handle_close`: Releases file handles and flushes caches.
+  1. `brix_handle_open`: Resolves logical paths to physical paths using `brix_resolve_path`.
+  2. `brix_handle_read` / `brix_handle_write`: Standard POSIX-backed I/O.
+  3. `brix_handle_stat`: Metadata retrieval.
+  4. `brix_handle_close`: Releases file handles and flushes caches.
 
 ---
 
@@ -59,8 +59,8 @@ These pathways provide interoperability with larger XRootD clusters and optimize
 ### A. Clustering & Redirection (CMS)
 - **Logic Flow**:
   1. `src/net/cms/send.c`: Heartbeat and free-space reporting to a manager node.
-  2. `xrootd_handle_locate`: Redirects clients to the actual data node (`src/protocols/root/read/locate.c`).
-  3. `xrootd_manager_mode`: Toggles logic between a data server and a redirector.
+  2. `brix_handle_locate`: Redirects clients to the actual data node (`src/protocols/root/read/locate.c`).
+  3. `brix_manager_mode`: Toggles logic between a data server and a redirector.
 
 ### B. Third-Party Copy (TPC)
 - **Logic Flow**:

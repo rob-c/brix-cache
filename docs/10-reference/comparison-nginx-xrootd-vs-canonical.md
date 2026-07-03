@@ -60,7 +60,7 @@
 |---|---|---|---|---|
 | kXR_ok=0 | Success | ✓ | ✓ | Implemented |
 | kXR_oksofar=4000 | Partial result | ✓ | ✓ | Used for pgread/pgwrite page responses |
-| kXR_attn=4001 | Unsolicited notification | ✓ | ✓ | Native server-originated generation implemented (`src/protocols/root/response/async.c`: `xrootd_send_attn_asyncms()`/`xrootd_send_attn_asynresp()`); proxy relay also implemented (`proxy/events_read.c`) |
+| kXR_attn=4001 | Unsolicited notification | ✓ | ✓ | Native server-originated generation implemented (`src/protocols/root/response/async.c`: `brix_send_attn_asyncms()`/`brix_send_attn_asynresp()`); proxy relay also implemented (`proxy/events_read.c`) |
 | kXR_authmore=4002 | Auth needs round-trip | ✓ | ✓ | Implemented (GSI negotiation) |
 | kXR_error=4003 | Request failed | ✓ | ✓ | Implemented with errno→kXR mapping |
 | kXR_redirect=4004 | Redirect to another server | ✓ | ✓ | Implemented (manager mode, CMS locate, upstream proxy relay — `response/control.c`, `upstream/response.c`) |
@@ -93,9 +93,9 @@ All error codes declared in `opcodes.h` and mapped via `errno → kXR_*` helpers
 ### BriX-Cache (opcodes.h)
 - Advertises version **5.2.0** (`kXR_PROTOCOLVERSION = 0x00000520u`)
 - Falls back to stable v3 (`kXR_PROTOCOLVERSION_3 = 0x00000300u`)
-- Server type: `kXR_DataServer=1` by default; advertises `kXR_isManager` when `xrootd_manager_mode on` or `xrootd_manager_map` is configured (`session/protocol.c`)
+- Server type: `kXR_DataServer=1` by default; advertises `kXR_isManager` when `brix_manager_mode on` or `brix_manager_map` is configured (`session/protocol.c`)
 
-**Status:** The active async action codes `kXR_asyncms` (5002) and `kXR_asynresp` (5008) are declared in `opcodes.h`, and `src/protocols/root/response/async.c` (registered in `config`) implements native server-push generation via `xrootd_send_attn_asyncms()`. The deprecated codes 5000–5007 (except 5002) return `kXR_Unsupported` per the v5 spec; unknown async requests fall through to the generic `kXR_Unsupported` path.
+**Status:** The active async action codes `kXR_asyncms` (5002) and `kXR_asynresp` (5008) are declared in `opcodes.h`, and `src/protocols/root/response/async.c` (registered in `config`) implements native server-push generation via `brix_send_attn_asyncms()`. The deprecated codes 5000–5007 (except 5002) return `kXR_Unsupported` per the v5 spec; unknown async requests fall through to the generic `kXR_Unsupported` path.
 
 ---
 
@@ -108,12 +108,12 @@ All error codes declared in `opcodes.h` and mapped via `errno → kXR_*` helpers
 
 ### 3.2 `kXR_attn` Response (4001) — Unsolicited Notification
 - **Canonical:** Server pushes unsolicited notifications to client (e.g., drain, disconnect signals)
-- **BriX-Cache:** Implemented — native `xrootd_send_attn_asyncms()` generation exists (`src/protocols/root/response/async.c`); proxy mode also relays upstream `kXR_attn` frames (`proxy/events_read.c`). Full coverage exists.
+- **BriX-Cache:** Implemented — native `brix_send_attn_asyncms()` generation exists (`src/protocols/root/response/async.c`); proxy mode also relays upstream `kXR_attn` frames (`proxy/events_read.c`). Full coverage exists.
 - **Impact:** Both native server-originated notifications and proxy relay are supported
 
 ### 3.3 Async Operations (5000–5008) — Deprecated Legacy Actions
 - **Canonical:** Deprecated action codes exist for legacy async response workflows
-- **BriX-Cache:** `kXR_asyncms` (5002) and `kXR_asynresp` (5008) ARE defined in `opcodes.h`; `src/protocols/root/response/async.c` is registered in `config` and contains the native `xrootd_send_attn_asyncms()` implementation. The remaining deprecated action codes (5000–5007, except 5002) return `kXR_Unsupported` per the v5 spec.
+- **BriX-Cache:** `kXR_asyncms` (5002) and `kXR_asynresp` (5008) ARE defined in `opcodes.h`; `src/protocols/root/response/async.c` is registered in `config` and contains the native `brix_send_attn_asyncms()` implementation. The remaining deprecated action codes (5000–5007, except 5002) return `kXR_Unsupported` per the v5 spec.
 - **Impact:** Active async action codes are implemented natively; deprecated codes receive the generic `kXR_Unsupported` fallback
 
 ---
@@ -122,7 +122,7 @@ All error codes declared in `opcodes.h` and mapped via `errno → kXR_*` helpers
 
 ### 4.1 Confined Path Resolution (Security)
 - **Canonical:** Uses `XrdSysFilesystem` and configurable chroot paths
-- **BriX-Cache:** Uses `ngx_http_xrootd_webdav_resolve_path()` — canonical+confined path resolution in a single helper, applied before every open() call on all wire paths (INVARIANT #4 from AGENTS.md)
+- **BriX-Cache:** Uses `ngx_http_brix_webdav_resolve_path()` — canonical+confined path resolution in a single helper, applied before every open() call on all wire paths (INVARIANT #4 from AGENTS.md)
 
 **Advantage:** nginx applies confined path resolution as an invariant gate on ALL operations, ensuring no path escapes the configured root. This is more uniformly enforced than canonical's per-path filesystem lookup approach.
 
@@ -146,7 +146,7 @@ All error codes declared in `opcodes.h` and mapped via `errno → kXR_*` helpers
 
 ### 4.5 Token Scope Check (WebDAV + S3)
 - **Canonical:** Uses VOMS attributes and ACL policy files for authorization
-- **BriX-Cache:** Uses `xrootd_token_check_scope(scope, path)` to verify JWT scope grants access before write operations, with global `conf->allow_write` check as pre-gate (INVARIANT #3 from AGENTS.md)
+- **BriX-Cache:** Uses `brix_token_check_scope(scope, path)` to verify JWT scope grants access before write operations, with global `conf->allow_write` check as pre-gate (INVARIANT #3 from AGENTS.md)
 
 **Advantage:** Two-tier auth gate — global config + per-request token scope — provides finer-grained control than canonical's single ACL lookup. Combined with WebDAV lock checking (`webdav_check_locks()`) for MOVE/COPY/DELETE on collections.
 
@@ -178,7 +178,7 @@ missing from upstream XRootD.
 
 ### 4.10 Wire String Sanitization
 - **Canonical:** Raw wire strings passed through
-- **BriX-Cache:** `xrootd_sanitize_log_string()` — escapes control bytes, quotes, backslashes, non-ASCII to `\xNN` before logging
+- **BriX-Cache:** `brix_sanitize_log_string()` — escapes control bytes, quotes, backslashes, non-ASCII to `\xNN` before logging
 
 **Advantage:** Prevents log injection and garbled output from malicious or binary wire data.
 
@@ -220,7 +220,7 @@ integration models and operational controls.
 
 ### 5.4 File Handle Management
 - **Canonical:** Uses file descriptor table with opaque handles
-- **BriX-Cache:** Uses `xrootd_file_t` in `src/protocols/root/connection/fd_table.c`, handles mapped to 0–255 range (AGENTS.md FAQ)
+- **BriX-Cache:** Uses `brix_file_t` in `src/protocols/root/connection/fd_table.c`, handles mapped to 0–255 range (AGENTS.md FAQ)
 
 **Status:** Similar — both use opaque handle tables. nginx's fixed 0–255 range provides predictable memory allocation via ngx_palloc.
 
@@ -237,9 +237,9 @@ integration models and operational controls.
 ### 6.1 Server Model
 | Aspect | Canonical XRootD | BriX-Cache |
 |---|---|---|
-| Redirector/Data server split | Yes (redirectors + data servers) | Yes — `xrootd_manager_mode on` + `xrootd_manager_map` enable full manager/redirector role (`session/protocol.c` advertises `kXR_isManager`) |
+| Redirector/Data server split | Yes (redirectors + data servers) | Yes — `brix_manager_mode on` + `brix_manager_map` enable full manager/redirector role (`session/protocol.c` advertises `kXR_isManager`) |
 | Load balancing | Yes (kXR_locate returns replica list, kXR_redirect sends client elsewhere) | Yes — manager mode issues `kXR_redirect`/`kXR_wait`/`kXR_waitresp` via CMS locate and upstream relay (`response/control.c`, `upstream/response.c`) |
-| Cluster management | CMS/cluster protocol (`src/net/cms/send.c`, `upstream/`) | Implemented — `xrootd_cms_manager` directive; `manager/registry.c`, `cms/send.c` handle LOGIN/AVAIL/PING heartbeat and multi-tier cluster topologies |
+| Cluster management | CMS/cluster protocol (`src/net/cms/send.c`, `upstream/`) | Implemented — `brix_cms_manager` directive; `manager/registry.c`, `cms/send.c` handle LOGIN/AVAIL/PING heartbeat and multi-tier cluster topologies |
 
 ### 6.2 Auth Methods
 | Method | Canonical | BriX-Cache |
@@ -293,13 +293,13 @@ without protocol conversion.
 
 ### 8.1 Metrics
 - **Canonical:** Uses XrdStats for server-side metrics
-- **BriX-Cache:** `src/observability/metrics/stream.c`/`writer.c` — HTTP request counters, bytes_sent tracking via `webdav_metrics_return()` and `XROOTD_PROXY_METRIC_INC(op, status)`
+- **BriX-Cache:** `src/observability/metrics/stream.c`/`writer.c` — HTTP request counters, bytes_sent tracking via `webdav_metrics_return()` and `BRIX_PROXY_METRIC_INC(op, status)`
 
 **Advantage:** nginx provides HTTP-layer metrics (request counts + byte totals) in addition to protocol-level stats. Low-cardinality labels only (INVARIANT #8: no paths/bucket-names/UUIDs).
 
 ### 8.2 Logging
 - **Canonical:** XrdLog with configurable log levels
-- **BriX-Cache:** nginx error_log + `xrootd_sanitize_log_string()` for wire data sanitization
+- **BriX-Cache:** nginx error_log + `brix_sanitize_log_string()` for wire data sanitization
 
 **Advantage:** Wire string sanitization prevents control byte injection in logs.
 
@@ -340,16 +340,16 @@ without protocol conversion.
 
 ### ✓ Done: `kXR_sigver` handler — fully implemented
 - `src/protocols/root/session/signing.c` — parses ClientSigverRequest, validates seqno monotonicity (replay protection), stores HMAC pending state
-- `src/protocols/root/handshake/sigver.c` — HMAC-SHA256 verification before next dispatch; enforces `xrootd_security_level` directive
+- `src/protocols/root/handshake/sigver.c` — HMAC-SHA256 verification before next dispatch; enforces `brix_security_level` directive
 - `src/protocols/root/handshake/dispatch_signing.c` — routes `kXR_sigver` to handler
 - GSI key derivation: `src/auth/gsi/parse_crypto_helpers.c` sets `ctx->signing_key` = SHA-256(DH shared secret), `ctx->signing_active = 1`
 
 ### ✓ Done: Manager/redirector mode
-- Full two-tier and three-tier cluster topologies via `xrootd_manager_mode` + `xrootd_cms_manager`
+- Full two-tier and three-tier cluster topologies via `brix_manager_mode` + `brix_cms_manager`
 - `kXR_redirect`, `kXR_wait`, `kXR_waitresp` all generated by `response/control.c` and relayed by `upstream/response.c`
 
 ### ✓ Done: Native `kXR_attn` generation and active async action codes
-- `xrootd_send_attn()`, `xrootd_send_attn_asyncms()`, and `xrootd_send_attn_asynresp()` are declared in `src/protocols/root/response/async.h` and implemented in `src/protocols/root/response/async.c` (registered in `config`)
+- `brix_send_attn()`, `brix_send_attn_asyncms()`, and `brix_send_attn_asynresp()` are declared in `src/protocols/root/response/async.h` and implemented in `src/protocols/root/response/async.c` (registered in `config`)
 - Active action codes `kXR_asyncms` (5002) and `kXR_asynresp` (5008) are declared in `opcodes.h`; native generation is used by `kXR_notify` on `kXR_prepare` (`src/protocols/root/query/prepare.c`). Deprecated codes 5000–5007 (except 5002) return `kXR_Unsupported` per the v5 spec
 
 ### Request opcode coverage

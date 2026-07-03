@@ -15,7 +15,7 @@ five subsystems that turn a single data server into a federated storage service:
    BriX-Cache extension with no official equivalent).
 
 Every claim below is grounded in source. Official paths are under
-`/tmp/xrootd-src/src/`; module paths are repo-relative under `src/`. Where wire
+`/tmp/brix-src/src/`; module paths are repo-relative under `src/`. Where wire
 interoperability has not been validated end-to-end against a running daemon, the
 text says so explicitly ("not verified").
 
@@ -32,7 +32,7 @@ covered.
 
 Out of scope here (covered in sibling comparison pages): the HTTP/WebDAV
 **HTTP-TPC** `COPY` transport (`src/protocols/webdav/tpc*.c` vs
-`/tmp/xrootd-src/src/XrdHttpTpc/`); the data-plane I/O opcodes; auth plugins; and
+`/tmp/brix-src/src/XrdHttpTpc/`); the data-plane I/O opcodes; auth plugins; and
 UDP monitoring (an explicit module non-goal). Erasure-coded redirects
 (`kXR_ecRedir`) are defined but never set on the module side and require an EC
 backend, so they are not analysed.
@@ -91,7 +91,7 @@ subsystems map to the five topics:
 - **`src/net/cms/`** — speaks the CMS wire protocol in both directions. A
   *heartbeat client* (`connect.c`, `recv.c`, `send.c`, `wire.c`, `space.c`,
   `frame_io.c`) registers this node *up* to a parent manager; a *manager-side
-  server* (`server_*.c`, the separate `ngx_stream_xrootd_cms_srv_module`)
+  server* (`server_*.c`, the separate `ngx_stream_brix_cms_srv_module`)
   accepts CMS connections *down* from data nodes and records them.
 - **`src/net/manager/`** — the redirector control plane: a SHM server registry
   (`registry.c`), a redirect-collapse cache (`redir_cache.c`), a pending-locate
@@ -101,9 +101,9 @@ subsystems map to the five topics:
   cross-worker rendezvous-key registry (`key_registry.c`) and a hand-rolled
   outbound GSI/`ztn` exchange (`gsi_outbound_*.c`, `tpc_token.c`).
 - **`src/net/proxy/` + `src/net/upstream/`** — two different outbound modes. `proxy/` is
-  a *transparent frame relay* (`xrootd_proxy`) that forwards every post-login
+  a *transparent frame relay* (`brix_proxy`) that forwards every post-login
   opcode to a backend. `upstream/` is a narrower *redirector-resolution client*
-  (`xrootd_upstream`) that asks a backend to resolve `locate`/`open`/`stat` and
+  (`brix_upstream`) that asks a backend to resolve `locate`/`open`/`stat` and
   forwards the answer.
 - **`src/net/mirror/`** — fire-and-forget shadow replay of reads, metadata
   mutations, and (gated) writes to one or more shadow backends.
@@ -119,10 +119,10 @@ blocking native-TPC pull (a detached thread-pool task) and one `statvfs` in
 | Concept | Official XRootD | BriX-Cache |
 |---|---|---|
 | Daemon model | Separate `cmsd` per node, sharing config with `xrootd` | In-process; both halves are nginx stream modules |
-| Role set | 9 roles (`XrdCmsRole.hh`): meta-manager, manager, supervisor, server, proxy-manager/super/server, peer-manager, peer | Effective roles: **data server** (default), **manager/redirector** (`xrootd_manager_mode on`), **sub-manager** (manager_mode + CMS client up to a meta), **supervisor flag** (`xrootd_supervisor`, sets `kXR_attrSuper`) |
-| Role directive | `all.role manager` / `all.role server` / `all.role meta manager` (`XrdCmsConfig.cc xrole()`) | `xrootd_manager_mode on;` (redirector) + `xrootd_cms_server on;` (accept registrations); a leaf data node sets `xrootd_cms_manager host:port` to register upward |
-| Manager address | `all.manager <host>:<cmsport>` (`ManList`) | leaf: `xrootd_cms_manager <host>:<port>`; meta tier: a sub-manager runs both `xrootd_cms_server` and `xrootd_cms_manager` (memory: multi-tier mesh "D" validated) |
-| Membership store | `XrdCmsCluster` node table + `XrdCmsClustID` masks | SHM server registry `src/net/manager/registry.c` (`xrootd_srv_entry_t`: host/port/paths/free_mb/util_pct), spinlock-guarded, shared across workers |
+| Role set | 9 roles (`XrdCmsRole.hh`): meta-manager, manager, supervisor, server, proxy-manager/super/server, peer-manager, peer | Effective roles: **data server** (default), **manager/redirector** (`brix_manager_mode on`), **sub-manager** (manager_mode + CMS client up to a meta), **supervisor flag** (`brix_supervisor`, sets `kXR_attrSuper`) |
+| Role directive | `all.role manager` / `all.role server` / `all.role meta manager` (`XrdCmsConfig.cc xrole()`) | `brix_manager_mode on;` (redirector) + `brix_cms_server on;` (accept registrations); a leaf data node sets `brix_cms_manager host:port` to register upward |
+| Manager address | `all.manager <host>:<cmsport>` (`ManList`) | leaf: `brix_cms_manager <host>:<port>`; meta tier: a sub-manager runs both `brix_cms_server` and `brix_cms_manager` (memory: multi-tier mesh "D" validated) |
+| Membership store | `XrdCmsCluster` node table + `XrdCmsClustID` masks | SHM server registry `src/net/manager/registry.c` (`brix_srv_entry_t`: host/port/paths/free_mb/util_pct), spinlock-guarded, shared across workers |
 
 The module does not reproduce the full nine-role taxonomy. It implements the
 practically important subset: leaf server, redirector/manager, and sub-manager
@@ -147,7 +147,7 @@ The login payload is the official `CmsLoginData` field order
 followed (after the Pup `Fence`) by four strings (`SID, Paths, ifList, envCGI`).
 The module's `src/net/cms/send.c::_send_login` emits exactly this, with `Mode`
 set to `kYR_server (0x08)`, space figures from `src/net/cms/space.c` (`statvfs`),
-`dPort` taken from `xrootd_listen_port`, and `Paths` formatted as
+`dPort` taken from `brix_listen_port`, and `Paths` formatted as
 `"<w|r> <ns-path>\n"` per export.
 
 > Interop history (memory: *CMS real-protocol wire spec*): the module's original
@@ -167,10 +167,10 @@ getToken / Authenticate, and only then parses the login. It is opt-in (skipped
 unless `sec.protocol` is configured).
 
 Module: `src/net/cms/server_auth.c` implements the same gate. On the manager side,
-when `xrootd_cms_server_sss_keytab` is set, `kYR_login` does **not** register the
+when `brix_cms_server_sss_keytab` is set, `kYR_login` does **not** register the
 node; the manager sends its SSS parms (`&P=sss`) via
-`xrootd_cms_srv_send_xauth`, waits for the `kYR_xauth` credential, and registers
-only after `xrootd_cms_srv_verify_xauth` succeeds (`server_recv.c`
+`brix_cms_srv_send_xauth`, waits for the `kYR_xauth` credential, and registers
+only after `brix_cms_srv_verify_xauth` succeeds (`server_recv.c`
 `cms_srv_complete_login`). The credential is the same `XrdSecProtocolsss`
 `"sss\0"` blob the repo already parses for `kXR_auth`, so verification is reused.
 
@@ -178,11 +178,11 @@ Two more registration controls (the redirect-poisoning trust boundary, since any
 peer reaching the CMS port could otherwise self-report arbitrary
 `host:port:paths`):
 
-- **CIDR allowlist** `xrootd_cms_server_allow <cidr>...` — accept-time gate in
-  `server_handler.c` (`xrootd_cms_srv_check_peer`); with no list it fails *open*
+- **CIDR allowlist** `brix_cms_server_allow <cidr>...` — accept-time gate in
+  `server_handler.c` (`brix_cms_srv_check_peer`); with no list it fails *open*
   but warns once.
 - **Host-character validation** in `src/net/manager/registry.c`
-  (`xrootd_srv_register` rejects any host failing `xrootd_net_host_chars_valid`,
+  (`brix_srv_register` rejects any host failing `brix_net_host_chars_valid`,
   `registry.c:209`) — a single store choke point protecting every redirect-emit
   path.
 
@@ -210,11 +210,11 @@ verifies per file. Official flow (`XrdCmsNode.cc`,
 
 Module: `src/net/cms/recv.c` answers `kYR_state` with `kYR_have` only when it can
 serve the path. Critically, **the existence probe is kernel-confined**: a data
-node uses `xrootd_stat_beneath` against the persistent export rootfd
+node uses `brix_stat_beneath` against the persistent export rootfd
 (`recv.c:268`, `RESOLVE_BENEATH`), never a raw `stat`, so a malicious manager
 cannot probe arbitrary paths and a symlink under the export root cannot leak
 files outside it. In manager mode the `kYR_state` handler instead consults
-`xrootd_srv_select` over the registry, so a real meta-manager's on-demand query
+`brix_srv_select` over the registry, so a real meta-manager's on-demand query
 resolves down through the nginx sub-manager to its leaf (memory: multi-tier "D").
 After login the client sends `kYR_status` (`Resume|noStage`) to become selectable
 (`connect.c:119`) — a real `cmsd` keeps an un-status'd node suspended.
@@ -226,7 +226,7 @@ After login the client sends `kYR_status` (`Resume|noStage`) to become selectabl
 | `kYR_ping (17)` / `kYR_pong (18)` | `do_Ping`/`do_Pong`, header-only | client: `recv.c` ping→`_send_pong`; manager: `server_recv.c` ping timer, `_send_ping` |
 | `kYR_load (16)` | `do_Load`: 6-byte load array (cpu/net/xeq/mem/pag/dsk) + disk free, via `XrdCmsMeter` | `send.c::_send_load` periodic heartbeat (`theLoad` as `[2B 6][6 bytes]` blob + disk free) |
 | `kYR_space (19)` / `kYR_avail (12)` | `do_Space` query → server `kYR_avail` | client: `recv.c` space→`_send_avail`; capacity from `space.c` |
-| Heartbeat interval | `cms.*` timers; managers default `cms.delay startup ~90s` | `xrootd_cms_interval` (client), `xrootd_cms_server_interval` (manager ping) |
+| Heartbeat interval | `cms.*` timers; managers default `cms.delay startup ~90s` | `brix_cms_interval` (client), `brix_cms_server_interval` (manager ping) |
 
 > Operational gotcha (memory): a real manager defaults to ~90s `cms.delay
 > startup` before redirecting, so the first locate against a fresh real manager
@@ -238,18 +238,18 @@ After login the client sends `kYR_status` (`Resume|noStage`) to become selectabl
 The manager-side CMS server adds operational guards not present as discrete
 `cmsd` knobs (`src/net/cms/server_recv.c`, `server_module.c`):
 
-- **Frames-per-wakeup cap** `NGX_XROOTD_CMS_MAX_FRAMES_PER_WAKEUP`
+- **Frames-per-wakeup cap** `NGX_BRIX_CMS_MAX_FRAMES_PER_WAKEUP`
   (`recv.c:415`, `server_recv.c:555`): bounds how many CMS frames one event
   drains before yielding, counting `cms_frame_yields_total` — prevents a chatty
   peer from monopolising the event loop.
-- **Per-IP and total connection caps** `xrootd_cms_server_max_connections` and
-  `xrootd_cms_server_max_connections_per_ip` (with `cms_cap_rejections_total`).
+- **Per-IP and total connection caps** `brix_cms_server_max_connections` and
+  `brix_cms_server_max_connections_per_ip` (with `cms_cap_rejections_total`).
 - **Login / read / send / idle timeouts**, TCP keepalive and `TCP_USER_TIMEOUT`
-  (`xrootd_cms_server_login_timeout`, `_idle_timeout`, `_tcp_keepalive`,
-  `_tcp_user_timeout`; client-side `xrootd_cms_read_timeout`, `_send_timeout`,
+  (`brix_cms_server_login_timeout`, `_idle_timeout`, `_tcp_keepalive`,
+  `_tcp_user_timeout`; client-side `brix_cms_read_timeout`, `_send_timeout`,
   `_locate_timeout`, `_arm_read_deadline`).
 - On disconnect the manager **blacklists** the node for 30s and unregisters it
-  (`xrootd_cms_srv_close`).
+  (`brix_cms_srv_close`).
 
 ## Redirection & locate
 
@@ -267,19 +267,19 @@ Module (manager mode): the read-path handlers `src/protocols/root/read/open_requ
 `src/protocols/root/dirlist/handler.c` resolve a target locally and emit `kXR_redirect`. The
 resolution order (`open_request.c`, `locate.c`):
 
-1. **`tried/triedrc` exhaustion check** (`xrootd_manager_tried_exhausted`) — if
+1. **`tried/triedrc` exhaustion check** (`brix_manager_tried_exhausted`) — if
    the client's `tried=`/`triedrc=` CGI shows it has already visited every
    candidate, answer `kXR_NotFound` once instead of looping.
-2. **Redirect-collapse cache lookup** (`xrootd_redir_cache_lookup`).
-3. On a miss, **registry selection** (`xrootd_srv_select`): longest-prefix path
+2. **Redirect-collapse cache lookup** (`brix_redir_cache_lookup`).
+3. On a miss, **registry selection** (`brix_srv_select`): longest-prefix path
    match over colon-delimited export tokens (`srv_path_matches`), then policy —
    **lowest `util_pct` for reads, highest `free_mb` for writes**, skipping
    `in_use==0` and blacklisted slots. On success the result is cached
-   (`xrootd_redir_cache_insert`) and a redirect emitted.
-4. **Locate returns the full set** via `xrootd_srv_locate_all` (lateral
+   (`brix_redir_cache_insert`) and a redirect emitted.
+4. **Locate returns the full set** via `brix_srv_locate_all` (lateral
    redirect), not just one target.
 5. When resolution must be delegated upward to a parent CMS manager, the client
-   session is parked (`xrootd_pending_insert`, state `XRD_ST_WAITING_CMS`) and a
+   session is parked (`brix_pending_insert`, state `XRD_ST_WAITING_CMS`) and a
    `kYR_locate` is forwarded via `src/net/cms/send.c`; the manager's
    `kYR_select`/`kYR_try` reply arrives on `src/net/cms/recv.c`, which wakes the
    suspended client (`cms_wake_pending_session`) and emits `kXR_redirect`.
@@ -293,24 +293,24 @@ both fixed so all open handlers skip local serving when `conf->manager_mode`.
 
 Official XRootD uses the `tried=`/`triedrc=` CGI the client accumulates across
 redirects so a manager won't keep sending it to a node that failed. The module
-honours the same protocol in `xrootd_manager_tried_exhausted` /
-`xrootd_srv_select` (registry README: "`tried/triedrc` retry-exhaustion logic"),
+honours the same protocol in `brix_manager_tried_exhausted` /
+`brix_srv_select` (registry README: "`tried/triedrc` retry-exhaustion logic"),
 returning `kXR_NotFound` once all candidates are exhausted rather than risking a
 redirect loop. The module also implements **redirect collapse**: when
-`xrootd_collapse_redir on` is configured it advertises `kXR_collapseRedir` and
+`brix_collapse_redir on` is configured it advertises `kXR_collapseRedir` and
 memoises `path → (host,port)` in the SHM redirect cache (`redir_cache.c`,
-`xrootd_collapse_redir_ttl` TTL) so a busy manager answers repeat opens from
+`brix_collapse_redir_ttl` TTL) so a busy manager answers repeat opens from
 memory. This is a module-specific operational optimisation; the cache is an
 FNV-1a-hashed bounded-probe open-addressing table that evicts soonest-to-expire.
 
 ### Static routing (`manager_map`) and virtual redirector
 
 Beyond dynamic CMS membership, the module offers a **config-time static route
-table**: `xrootd_manager_map <prefix> <host>:<port>` (`src/core/config/manager_map.c`,
-consulted in `src/protocols/root/read/locate.c:150` via `xrootd_find_manager_map`). This routes
+table**: `brix_manager_map <prefix> <host>:<port>` (`src/core/config/manager_map.c`,
+consulted in `src/protocols/root/read/locate.c:150` via `brix_find_manager_map`). This routes
 `open/stat/dirlist/locate/checksum` for a path prefix straight to a fixed
 backend without any CMS handshake — useful for deterministic federation where the
-topology is known. `xrootd_virtual_redirector on` advertises `kXR_attrVirtRdr`
+topology is known. `brix_virtual_redirector on` advertises `kXR_attrVirtRdr`
 and auto-detects static-map deployment. These two are **nginx extensions**;
 official XRootD's redirector is always backed by a live `cmsd` mesh (clients
 understand `kXR_attrVirtRdr` but the server-side static map is module-specific).
@@ -318,7 +318,7 @@ understand `kXR_attrVirtRdr` but the server-side static map is module-specific).
 ### Confirming with the data server (`src/net/upstream/`)
 
 A subtle but important divergence: the module can optionally **confirm** a chosen
-server before redirecting. When `xrootd_upstream host:port` is set and a local
+server before redirecting. When `brix_upstream host:port` is set and a local
 lookup misses, `src/net/upstream/` opens an outbound XRootD client to the backend,
 completes the bootstrap (handshake → protocol → optional TLS → login → optional
 `ztn` token auth), serializes the saved `kXR_locate`/`kXR_open`/`kXR_stat`, and
@@ -362,20 +362,20 @@ Two material differences from official:
 1. **Cross-process SHM key registry (zero-copy rendezvous).** Where official
    uses an in-process mutex-protected list per data server, the module's source
    side registers rendezvous keys in a **shared-memory table**
-   (`src/tpc/engine/key_registry.c`: `XROOTD_TPC_KEY_SLOTS` = 256, `XROOTD_TPC_KEY_TTL_MS`
-   default, runtime override `xrootd_tpc_key_ttl`), guarded by an
+   (`src/tpc/engine/key_registry.c`: `BRIX_TPC_KEY_SLOTS` = 256, `BRIX_TPC_KEY_TTL_MS`
+   default, runtime override `brix_tpc_key_ttl`), guarded by an
    `ngx_shmtx_sh_t` spinlock so any nginx **worker** can validate/consume a key
    the destination presents on reconnect with `tpc.org`+`tpc.key`. Keys are
-   **single-use** — `xrootd_tpc_key_consume` removes the key on a successful
+   **single-use** — `brix_tpc_key_consume` removes the key on a successful
    match (replay protection); `_validate` only checks presence. This is the "SHM
    key registry, cross-process, zero-copy" architecture invariant.
 
 2. **Two-phase arm/flush keyed off `kXR_sync`.** Phase one (`kXR_open`,
-   `launch.c::xrootd_tpc_prepare_pull`) runs the SSRF preflight, creates the
+   `launch.c::brix_tpc_prepare_pull`) runs the SSRF preflight, creates the
    confined destination file, generates/echoes the key, and returns a handle
    immediately. Phase two is driven by `kXR_sync` (`src/protocols/root/write/sync.c`): the
    **first** sync arms the transfer (`ctx->tpc_armed`), the **second** fires it
-   (`launch.c::xrootd_tpc_start_pull`), posting the blocking pull to the nginx
+   (`launch.c::brix_tpc_start_pull`), posting the blocking pull to the nginx
    thread pool. This matches `xrdcp`/`gfal` TPC semantics and lets the client
    control when staging-to-final commit happens.
 
@@ -417,7 +417,7 @@ store with `X509_V_FLAG_ALLOW_PROXY_CERTS`). `gsi_outbound_dh_helpers.c` handles
 the `cipher_alg`/`md_alg` buckets — cipher selection from `kXRS_cipher_alg`,
 hex-pubkey → `BIGNUM`, peer `EVP_PKEY` assembly. `tpc_token.c` fetches delegated
 OAuth2/OIDC tokens (`oidc-agent` mode or RFC 8693 token-exchange via `curl`),
-configured by `xrootd_tpc_outbound_token_endpoint` / `_client_id` / `_client_secret`
+configured by `brix_tpc_outbound_token_endpoint` / `_client_id` / `_client_secret`
 / `_scope` / `_bearer_file`.
 
 Official GSI uses GSSAPI/`XrdSecgsi`; the module re-implements the GSI DH exchange
@@ -429,11 +429,11 @@ flagged as needing per-site verification.
 
 | Concern | Official `ofs.tpc` | BriX-Cache |
 |---|---|---|
-| Enable / key TTL | `ofs.tpc ttl <d>[ <m>]` | `xrootd_tpc_keys on`, `xrootd_tpc_key_ttl` |
-| Concurrency | `ofs.tpc xfr`, `streams` | `xrootd_tpc_transfers`, `xrootd_tpc_max_transfer_secs`, `xrootd_tpc_transfer_max_age` |
-| Source restriction | `ofs.tpc allow {dn\|group\|host\|vo}`, `restrict <path>` | SSRF policy `xrootd_tpc_allow_local` / `xrootd_tpc_allow_private` (two-stage: event-thread preflight + per-resolved-address recheck at connect, closing the resolve/connect TOCTOU) |
-| Credential delegation | `ofs.tpc fcreds <auth> =<envar>`, `fcpath` | `xrootd_tpc_outbound_*` (OIDC/token-exchange + bearer file); GSI cert via `gsi_store` |
-| Confinement | OSS namespace | mandatory `xrootd_open_beneath(conf->rootfd, ...)` (`RESOLVE_BENEATH`); `launch.c` strips `root_canon` to pass the logical path |
+| Enable / key TTL | `ofs.tpc ttl <d>[ <m>]` | `brix_tpc_keys on`, `brix_tpc_key_ttl` |
+| Concurrency | `ofs.tpc xfr`, `streams` | `brix_tpc_transfers`, `brix_tpc_max_transfer_secs`, `brix_tpc_transfer_max_age` |
+| Source restriction | `ofs.tpc allow {dn\|group\|host\|vo}`, `restrict <path>` | SSRF policy `brix_tpc_allow_local` / `brix_tpc_allow_private` (two-stage: event-thread preflight + per-resolved-address recheck at connect, closing the resolve/connect TOCTOU) |
+| Credential delegation | `ofs.tpc fcreds <auth> =<envar>`, `fcpath` | `brix_tpc_outbound_*` (OIDC/token-exchange + bearer file); GSI cert via `gsi_store` |
+| Confinement | OSS namespace | mandatory `brix_open_beneath(conf->rootfd, ...)` (`RESOLVE_BENEATH`); `launch.c` strips `root_canon` to pass the logical path |
 
 The module does **not** implement an external-program transfer model
 (`ofs.tpc pgm`); it always pulls in-process via its own XRootD client.
@@ -459,9 +459,9 @@ byte forwarder.
 
 ### Module `src/net/proxy/` (transparent frame relay)
 
-`xrootd_proxy on` makes the node a **transparent reverse proxy** at the wire
+`brix_proxy on` makes the node a **transparent reverse proxy** at the wire
 level. After local auth + TLS termination, `src/protocols/root/handshake/dispatch.c` calls
-`xrootd_proxy_dispatch()` for every post-login opcode (once
+`brix_proxy_dispatch()` for every post-login opcode (once
 `conf->proxy_enable && ctx->logged_in`), *before* any local read/write handler —
 so no local path is ever resolved. The proxy drives an independent event-loop
 state machine on the upstream socket: async TCP connect → optional TLS → XRootD
@@ -476,14 +476,14 @@ login, the client sees one endpoint.
 
 Capabilities (`src/net/proxy/`, memory: proxy enhancements / phase 2-3):
 
-- **Upstream credentialing** `xrootd_proxy_auth anonymous|forward|sss|sss:<keyname>`
-  and per-endpoint overrides on `xrootd_proxy_upstream host[:port] [auth]`:
+- **Upstream credentialing** `brix_proxy_auth anonymous|forward|sss|sss:<keyname>`
+  and per-endpoint overrides on `brix_proxy_upstream host[:port] [auth]`:
   anonymous; forward the client's WLCG bearer as a `ztn` credential; SSS keys
-  (global or per-upstream, via `xrootd_sss_build_proxy_credential`); or a
+  (global or per-upstream, via `brix_sss_build_proxy_credential`); or a
   file-token bridge. Pool reuse is **credential-scoped** (index + auth type +
   bearer-token MD5), so a forwarded-token session never reuses another user's
   backend connection.
-- **Upstream TLS** `xrootd_proxy_upstream_tls on` with `_tls_ca` / `_tls_name`
+- **Upstream TLS** `brix_proxy_upstream_tls on` with `_tls_ca` / `_tls_name`
   (SNI + optional cert verify).
 - **`kXR_bind` secondary proxying with lazy-open** — a bound secondary
   `read`/`pgread`/`readv` whose handle has no upstream mapping triggers a
@@ -494,27 +494,27 @@ Capabilities (`src/net/proxy/`, memory: proxy enhancements / phase 2-3):
   in-process (up to 3 hops); `kXR_attn` is relayed with its own streamid;
   zero-copy `splice()` for plaintext reads (declined when either side is TLS);
   the `kXR_status` two-phase pgread/pgwrite framing is preserved.
-- **Idle-only reconnect recovery** (`xrootd_proxy_reconnect_attempts`): a drop
+- **Idle-only reconnect recovery** (`brix_proxy_reconnect_attempts`): a drop
   while IDLE with no open handle re-bootstraps transparently; a drop mid-transfer
   is a hard `kXR_IOError`.
-- **Path rewriting** `xrootd_proxy_path_rewrite /strip /add`, multi-upstream
+- **Path rewriting** `brix_proxy_path_rewrite /strip /add`, multi-upstream
   round-robin over healthy endpoints, a worker-local idle-connection pool
-  (`xrootd_proxy_pool`), `kXR_endsess` forwarding, and JSON audit logging of file
-  and path-mutation ops (`xrootd_proxy_audit_log`).
+  (`brix_proxy_pool`), `kXR_endsess` forwarding, and JSON audit logging of file
+  and path-mutation ops (`brix_proxy_audit_log`).
 
 > Critical fix (memory: *proxy retry leak postmortem*): a proxy whose upstream
 > *permanently* rejected the forwarded credential previously spun forever in the
 > upstream read handler's `for(;;)` loop (95% CPU, RSS to >20GB) because the loop
-> keyed liveness off `proxy->state` while `xrootd_proxy_abort` signalled teardown
+> keyed liveness off `proxy->state` while `brix_proxy_abort` signalled teardown
 > via `ctx->proxy = NULL`. The fix is one teardown guard at the top of the loop in
 > `src/net/proxy/events_read.c` — `if (ctx->proxy != proxy) return;` — keying off the
 > same signal abort sets, catching abort from any branch. A
-> `XROOTD_PROXY_MAX_CONN_FAILS=8` per-connection cap is kept as defence-in-depth.
+> `BRIX_PROXY_MAX_CONN_FAILS=8` per-connection cap is kept as defence-in-depth.
 
 ### Module WebDAV proxy and `src/net/upstream/`
 
 For completeness, two more outbound paths exist (see also the HTTP comparison
-page): `src/protocols/webdav/proxy.c` (`xrootd_webdav_proxy`) forwards WebDAV/HTTP to a
+page): `src/protocols/webdav/proxy.c` (`brix_webdav_proxy`) forwards WebDAV/HTTP to a
 backend HTTP(S) origin using nginx's `ngx_http_upstream_t` (auth modes
 anonymous/forward/static-token, Destination rewrite for COPY/MOVE); and
 `src/net/upstream/` (described under [Redirection](#confirming-with-the-data-server-srcupstream))
@@ -530,7 +530,7 @@ answers identically against real traffic before cutover.
 `src/net/mirror/` replays a sampled copy of live requests to up to 4 shadow backends
 *after* the primary has already answered, compares the shadow status against the
 primary's, and counts divergence. The client never sees the shadow response and
-is never delayed. Three surfaces share one config block (`xrootd_mirror_conf_t`)
+is never delayed. Three surfaces share one config block (`brix_mirror_conf_t`)
 and one set of low-cardinality counters:
 
 - **HTTP/WebDAV** (`http_mirror.c`): a PRECONTENT-phase handler fires one
@@ -550,18 +550,18 @@ and one set of low-cardinality counters:
 
 Safety model (load-bearing): mirroring is **off by default**; writes are
 **double-gated** — a write op mirrors only when it is both listed
-(`xrootd_mirror_opcodes`/`_methods`) **and** `xrootd_mirror_writes on`. The
+(`brix_mirror_opcodes`/`_methods`) **and** `brix_mirror_writes on`. The
 shadow **MUST be an isolated namespace** (separate server/root); replaying writes
 to a shadow that shares the primary's backing store would corrupt data. Stream
 and write replays own a pool created from `ngx_cycle->pool` (never the client
 pool/log, which may free first — that would be a use-after-free). Benign
 differences — a shadow returning `kXR_Unsupported`, or demanding
 `kXR_gotoTLS`/`kXR_authmore` — are treated as alive-but-different and not counted
-as divergence. Configured by `xrootd_mirror_url` (HTTP) /
-`xrootd_stream_mirror_url` (stream), `xrootd_mirror_sample`,
-`xrootd_mirror_writes`, `xrootd_mirror_opcodes` / `_exclude_opcodes` /
-`_methods`, `xrootd_mirror_strip_auth`, `xrootd_mirror_token`,
-`xrootd_mirror_log_diverge`, `xrootd_mirror_timeout`.
+as divergence. Configured by `brix_mirror_url` (HTTP) /
+`brix_stream_mirror_url` (stream), `brix_mirror_sample`,
+`brix_mirror_writes`, `brix_mirror_opcodes` / `_exclude_opcodes` /
+`_methods`, `brix_mirror_strip_auth`, `brix_mirror_token`,
+`brix_mirror_log_diverge`, `brix_mirror_timeout`.
 
 ## Admin deployment (both sides)
 
@@ -602,15 +602,15 @@ stream {
     server {
         listen 1094;
         xrootd on;
-        xrootd_manager_mode on;        # redirect, do not serve locally
-        xrootd_cms_server on;          # accept CMS registrations from data nodes
-        xrootd_cms_server_allow 10.0.0.0/8;          # CIDR trust gate
-        # xrootd_cms_server_sss_keytab /etc/xrootd/cms.keytab;  # fail-closed SSS
-        xrootd_registry_slots 256;
-        xrootd_collapse_redir on;      # advertise kXR_collapseRedir + cache
+        brix_manager_mode on;        # redirect, do not serve locally
+        brix_cms_server on;          # accept CMS registrations from data nodes
+        brix_cms_server_allow 10.0.0.0/8;          # CIDR trust gate
+        # brix_cms_server_sss_keytab /etc/brix/cms.keytab;  # fail-closed SSS
+        brix_registry_slots 256;
+        brix_collapse_redir on;      # advertise kXR_collapseRedir + cache
         # static route alternative to live CMS membership:
-        # xrootd_manager_map /atlas/ ds1.example.org:1094;
-        # xrootd_virtual_redirector on;
+        # brix_manager_map /atlas/ ds1.example.org:1094;
+        # brix_virtual_redirector on;
     }
 }
 ```
@@ -621,20 +621,20 @@ stream {
     server {
         listen 1095;
         xrootd on;
-        xrootd_root /data/export;
-        xrootd_listen_port 1095;       # advertised in the CMS login (must match)
-        xrootd_cms_manager mgr.example.org:1094;
-        xrootd_tpc_keys on;            # enable native destination-pull TPC
-        xrootd_tpc_allow_private off;  # SSRF policy for the outbound pull
-        # xrootd_tpc_outbound_bearer_file /etc/xrootd/tpc.token;  # source auth
+        brix_root /data/export;
+        brix_listen_port 1095;       # advertised in the CMS login (must match)
+        brix_cms_manager mgr.example.org:1094;
+        brix_tpc_keys on;            # enable native destination-pull TPC
+        brix_tpc_allow_private off;  # SSRF policy for the outbound pull
+        # brix_tpc_outbound_bearer_file /etc/brix/tpc.token;  # source auth
     }
 }
 ```
 
-A **sub-manager** in a meta tree sets both `xrootd_cms_server on` (to leaves
-below) and `xrootd_cms_manager <meta>:<port>` (up to the meta). A redirector
-needs **no** `xrootd_root` (memory: validation skips it in manager mode; data
-servers on non-default ports **must** set `xrootd_listen_port`).
+A **sub-manager** in a meta tree sets both `brix_cms_server on` (to leaves
+below) and `brix_cms_manager <meta>:<port>` (up to the meta). A redirector
+needs **no** `brix_root` (memory: validation skips it in manager mode; data
+servers on non-default ports **must** set `brix_listen_port`).
 
 Transparent proxy and mirror are separate `server {}` modes:
 
@@ -643,21 +643,21 @@ Transparent proxy and mirror are separate `server {}` modes:
 server {
     listen 1196;
     xrootd on;
-    xrootd_proxy on;
-    xrootd_proxy_upstream backend.example.org:1094 forward;  # forward client ztn
-    xrootd_proxy_upstream_tls on;
-    xrootd_proxy_auth forward;
-    xrootd_proxy_pool on;
+    brix_proxy on;
+    brix_proxy_upstream backend.example.org:1094 forward;  # forward client ztn
+    brix_proxy_upstream_tls on;
+    brix_proxy_auth forward;
+    brix_proxy_pool on;
 }
 
 # Shadow a new backend for migration validation (isolated namespace!):
 server {
     listen 1094;
     xrootd on;
-    xrootd_root /data/export;
-    xrootd_stream_mirror_url newbackend.example.org:1094;
-    xrootd_mirror_sample 10;            # 10% of traffic
-    # xrootd_mirror_writes on;          # ONLY with an isolated shadow store
+    brix_root /data/export;
+    brix_stream_mirror_url newbackend.example.org:1094;
+    brix_mirror_sample 10;            # 10% of traffic
+    # brix_mirror_writes on;          # ONLY with an isolated shadow store
 }
 ```
 
@@ -673,24 +673,24 @@ server {
 | Ping/pong, load/space heartbeat | `XrdCmsNode.cc`, `XrdCmsMeter.cc` | `src/net/cms/send.c`/`recv.c`, `space.c` | Parity |
 | CMS resilience caps (frames/wakeup, per-IP, timeouts) | Not discrete `cmsd` knobs | `src/net/cms/server_*` directives + metrics | nginx+ |
 | Client redirect (`kXR_redirect`) | `XrdXrootd` + `XrdCmsFinder` | `src/protocols/root/read/open_request.c`/`locate.c`/`stat.c` | Parity |
-| `tried/triedrc` loop avoidance | Client CGI honoured by manager | `xrootd_manager_tried_exhausted`/`xrootd_srv_select` | Parity |
+| `tried/triedrc` loop avoidance | Client CGI honoured by manager | `brix_manager_tried_exhausted`/`brix_srv_select` | Parity |
 | Redirect collapse cache | Client/server mechanics | SHM `redir_cache.c` + `kXR_collapseRedir` | nginx+ |
 | Static `manager_map` routing | n/a (always live `cmsd`) | `src/core/config/manager_map.c` | nginx+ |
-| Virtual redirector | Clients understand `kXR_attrVirtRdr` | `xrootd_virtual_redirector` static-map mode | nginx+ |
+| Virtual redirector | Clients understand `kXR_attrVirtRdr` | `brix_virtual_redirector` static-map mode | nginx+ |
 | Redirector-confirm outbound client | `cmsd` mesh | `src/net/upstream/` (locate/open/stat only) | Different mechanism |
 | Native TPC key rendezvous | In-process mutex list (`XrdOfsTPCAuth.cc`) | **Cross-process SHM** registry (`key_registry.c`) | Parity + cross-worker, zero-copy |
 | TPC arm/flush handshake | Built-in/`pgm` driven | Two-phase via `kXR_sync` (`launch.c`/`sync.c`) | Parity |
 | TPC outbound source auth | `XrdSecgsi` + `fcreds` | hand-rolled GSI DH + `ztn` + OIDC/RFC8693 (`gsi_outbound_*`, `tpc_token.c`) | Parity (multi-hop/TLS edges not verified) |
 | External-program TPC (`ofs.tpc pgm`) | Yes | No (always in-process pull) | Missing (by design) |
 | Proxy storage model | XrdPss OSS re-client (`XrdPss/`) | Transparent wire frame relay (`src/net/proxy/`) | Different architecture |
-| Proxy upstream TLS / auth bridge / pool | XrdPss persona + XrdCl | `xrootd_proxy_*` (ztn/SSS/file, TLS, credential-scoped pool) | nginx+ for wire-relay form |
+| Proxy upstream TLS / auth bridge / pool | XrdPss persona + XrdCl | `brix_proxy_*` (ztn/SSS/file, TLS, credential-scoped pool) | nginx+ for wire-relay form |
 | Proxy `kXR_wait`/`kXR_redirect`/`kXR_bind` transparency | Client/server async | absorbed/followed/lazy-open in `src/net/proxy/` | Parity / nginx+ |
 | Proxy async `kXR_attn` full relay | Yes | `kXR_waitresp` forwarded; complete unsolicited `kXR_attn` path not fully verified | Partial (not verified) |
 | Traffic mirroring / shadow replay | None found | `src/net/mirror/` (HTTP + stream reads + gated writes) | nginx+ (extension) |
 
 ## Source references
 
-Official XRootD (`/tmp/xrootd-src/src/`):
+Official XRootD (`/tmp/brix-src/src/`):
 
 - CMS roles/config: `XrdCms/XrdCmsRole.hh`, `XrdCms/XrdCmsConfig.cc` (`xrole`),
   `XrdCms/XrdCmsConfig.hh` (`ManList`/`NanList`/`SanList`).

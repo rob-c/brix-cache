@@ -20,7 +20,7 @@ Stuck on a single term? Find it below by letter:
 
 A security credential that proves identity without requiring a password. Instead of "proving who you are" via a certificate, you simply *present* your token — whoever holds it is trusted ("bearer"). In BriX-Cache, bearer tokens are JWTs issued by WLCG Identity Providers (IdPs).
 
-**Where you'll encounter it:** `Authorization: Bearer <token>` HTTP header in WebDAV requests; `xrootd_auth token` directive.
+**Where you'll encounter it:** `Authorization: Bearer <token>` HTTP header in WebDAV requests; `brix_auth token` directive.
 
 See also: [JWT](#jwt), [WLCG Token](#wlcg-token)
 
@@ -30,7 +30,7 @@ See also: [JWT](#jwt), [WLCG Token](#wlcg-token)
 
 A list of X.509 certificates that have been **revoked before their natural expiration date**. When BriX-Cache verifies a proxy certificate, it checks the CRL to ensure the issuing CA hasn't revoked any intermediate certificates in the chain. A revoked cert means "this certificate is no longer trustworthy" — common reasons include private key compromise or administrative policy changes.
 
-**Where you'll encounter it:** `xrootd_crl` directive for native XRootD layer; `xrootd_webdav_cadir` with CRL files for WebDAV layer. See [PKI Configuration](../06-authentication/pki-config.md) for setup details.
+**Where you'll encounter it:** `brix_crl` directive for native XRootD layer; `brix_webdav_cadir` with CRL files for WebDAV layer. See [PKI Configuration](../06-authentication/pki-config.md) for setup details.
 
 See also: [X.509 Certificate](#x509-certificate), [GSI](#gsi-grid-security-infrastructure)
 
@@ -82,7 +82,7 @@ The security framework standard in the global computing grid ecosystem. Provides
 voms-proxy-init --voms atlas --valid 12:00
 ```
 
-**In BriX-Cache:** Handled by `src/auth/gsi/` module files. Requires `xrootd_auth gsi` directive and valid host certificate at `/etc/grid-security/hostcert.pem`.
+**In BriX-Cache:** Handled by `src/auth/gsi/` module files. Requires `brix_auth gsi` directive and valid host certificate at `/etc/grid-security/hostcert.pem`.
 
 See also: [Proxy Certificate](#proxy-certificate), [WLCG Token](#wlcg-token)
 
@@ -256,7 +256,7 @@ See also: [S3 Path-Style URL](#s3-path-style-url), [XrdClS3](#xrdcls3)
 
 An authentication method using a shared password instead of certificates or tokens. Simpler than GSI but less secure — typically used for testing or internal services where certificate management is impractical.
 
-**Where you'll encounter it:** `xrootd_auth sss` directive; `src/auth/sss/` source directory.
+**Where you'll encounter it:** `brix_auth sss` directive; `src/auth/sss/` source directory.
 
 See also: [Authentication Overview](../06-authentication/auth-overview.md)
 
@@ -276,7 +276,7 @@ See also: [HTTP-TPC](#http-tpc), [Native XRootD TPC](#native-xrootd-tpc)
 
 ### VO (Virtual Organization) / FQAN (Fully Qualified Attribute Name)
 
-In grid computing, a **VO** is a logical group of people and resources working together on a physics experiment. Each VO has **FQANs** — attributes like `/atlas/acl/role=production` that define what members are allowed to do. BriX-Cache can enforce VO-based access controls via `xrootd_require_vo`.
+In grid computing, a **VO** is a logical group of people and resources working together on a physics experiment. Each VO has **FQANs** — attributes like `/atlas/acl/role=production` that define what members are allowed to do. BriX-Cache can enforce VO-based access controls via `brix_require_vo`.
 
 **Common VOs:** ATLAS, CMS, LHCb, ALICE (the four main experiments at CERN's Large Hadron Collider).
 
@@ -392,7 +392,7 @@ stream {
     server {
         listen 1094;
         xrootd on;              # enable our module
-        xrootd_root /data;      # serve files from this directory
+        brix_root /data;      # serve files from this directory
     }
 }
 ```
@@ -457,13 +457,13 @@ A distributed computing resource that connects regional and institutional comput
 
 | Term | Category | Where to Learn More |
 |---|---|---|
-| XRootD | Protocol | [Background](../02-concepts/xrootd-basics.md), [Getting started](../01-getting-started/getting-started-full.md) |
+| XRootD | Protocol | [Background](../02-concepts/brix-basics.md), [Getting started](../01-getting-started/getting-started-full.md) |
 | xrdcp / xrdfs | Tools | [Getting started](../01-getting-started/getting-started-full.md#step-5-test-with-xrdcp) |
 | kXR_opcodes | Protocol | AGENTS.md §4, [Operations status](../05-operations/operation-status.md) |
 | GSI | Authentication | [Auth Overview](../06-authentication/auth-overview.md), [PKI Config](../06-authentication/pki-config.md) |
 | WLCG token | Authentication | [Auth Overview](../06-authentication/auth-overview.md#token--jwt-wlcg-bearer-token-authentication) |
 | VOMS / FQAN | Authorization | [PKI Config](../06-authentication/pki-config.md), [VO ACLs](../../tests/test_vo_acl.py) (tests) |
-| stream {} block | nginx | [Architecture Overview](../10-architecture/overview.md), [XRootD Basics](../02-concepts/xrootd-basics.md) |
+| stream {} block | nginx | [Architecture Overview](../10-architecture/overview.md), [XRootD Basics](../02-concepts/brix-basics.md) |
 | thread_pool | Performance | [Getting started](../01-getting-started/getting-started-full.md#step-3-write-a-minimal-nginxconf), [Optimizations](../09-developer-guide/optimizations.md) |
 | WebDAV (davs://) | Protocol | [WebDAV Overview](../04-protocols/webdav-overview.md) |
 | HTTP-TPC / Native TPC | Transfer | [HTTP TPC Reference](../04-protocols/http-tpc-reference.md), [Native TPC tests](../../tests/test_root_tpc.py) |

@@ -78,16 +78,16 @@ Expected output includes `verify-uploaded.txt`.
 
 ```bash
 # Query the Prometheus metrics endpoint
-curl -s http://localhost:9100/metrics | grep xrootd_requests_total
+curl -s http://localhost:9100/metrics | grep brix_requests_total
 
 # Expected output should show request counters incrementing as you use the server
 ```
 
 Example output:
 ```
-xrootd_requests_total{proto="root",op="read",status="ok"} 2
-xrootd_requests_total{proto="root",op="write",status="ok"} 1
-xrootd_requests_total{proto="root",op="dirlist",status="ok"} 1
+brix_requests_total{proto="root",op="read",status="ok"} 2
+brix_requests_total{proto="root",op="write",status="ok"} 1
+brix_requests_total{proto="root",op="dirlist",status="ok"} 1
 ```
 
 ---

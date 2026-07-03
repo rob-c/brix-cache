@@ -50,15 +50,15 @@ TPC transfers involving multiple network hops fail when the delegation of a GSI 
 `kXR_bind` handle sharing allows multiple streams to read from a single handle, but the handle table explicitly prohibits binding to write handles.
 
 *   **Files to Modify:**
-    *   `src/protocols/root/read/open.c`, `src/protocols/root/handshake/policy.c`: Adjust policies for `XROOTD_XFER_DIR_WRITE`.
+    *   `src/protocols/root/read/open.c`, `src/protocols/root/handshake/policy.c`: Adjust policies for `BRIX_XFER_DIR_WRITE`.
 *   **Work Required:** Allow sharing of write handles; ensure concurrent write operations to the same handle are safely serialized by the stream handlers.
 
 ### 6. OCSP Support — COMPLETED
 
 OCSP support was implemented in the May 2026 major release (commit `0bf185e`).
-`src/auth/crypto/ocsp.c` / `src/auth/crypto/ocsp.h` provide `xrootd_ocsp_check_cert()`
+`src/auth/crypto/ocsp.c` / `src/auth/crypto/ocsp.h` provide `brix_ocsp_check_cert()`
 (query the OCSP responder URL embedded in a client certificate's Authority
-Information Access extension) and `xrootd_ocsp_staple_fetch()` (fetch and cache
+Information Access extension) and `brix_ocsp_staple_fetch()` (fetch and cache
 an OCSP staple for the server certificate, RFC 6066 / RFC 6961). Client-cert
 revocation checking is wired into the GSI authentication path at
 `src/auth/gsi/auth.c`, after X.509 chain verification.

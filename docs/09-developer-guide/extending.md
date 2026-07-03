@@ -21,7 +21,7 @@ build script knows your file exists:
                 require_auth / require_write
                        │
                        ▼
-            ④ src/<sub>/newop.c   xrootd_handle_newop()
+            ④ src/<sub>/newop.c   brix_handle_newop()
                 validate ▶ resolve+acl ▶ do op ▶ ③ metric slot ▶ log ▶ reply
                        │                              │
                        ▼                              ▼
@@ -68,17 +68,17 @@ the endianness rules.
 ### Step 3 — Add a metrics slot
 
 `src/observability/metrics/metrics.h` maintains a numbered list of operation indices.
-Add your slot at the bottom, increment `XROOTD_NOPS`, and add the matching
-name string to `xrootd_op_names[]` in `src/observability/metrics/export.c`.
+Add your slot at the bottom, increment `BRIX_NOPS`, and add the matching
+name string to `brix_op_names[]` in `src/observability/metrics/export.c`.
 
 ```c
 /* metrics/metrics.h */
-#define XROOTD_OP_NEWOP   37
-#define XROOTD_NOPS       38
+#define BRIX_OP_NEWOP   37
+#define BRIX_NOPS       38
 ```
 
 ```c
-/* metrics/export.c — xrootd_op_names[] */
+/* metrics/export.c — brix_op_names[] */
 "newop",   /* index 37 */
 ```
 
@@ -91,8 +91,8 @@ Follow the eight-step handler pattern from `docs/architecture.md`:
 
 ```c
 ngx_int_t
-xrootd_handle_newop(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf)
+brix_handle_newop(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf)
 {
     ClientNewOpRequest *req = (ClientNewOpRequest *) ctx->hdr_buf;
 
@@ -100,9 +100,9 @@ xrootd_handle_newop(xrootd_ctx_t *ctx, ngx_connection_t *c,
     /* 2. Resolve and check the path (path/resolve.c, path/acl.c) */
     /* 3. Perform the operation */
     /* 4. Log, count, respond */
-    xrootd_log_access(ctx, c, "NEWOP", path, "", 1, kXR_ok, NULL, 0);
-    XROOTD_OP_OK(ctx, XROOTD_OP_NEWOP);
-    return xrootd_send_ok(ctx, c, NULL, 0);
+    brix_log_access(ctx, c, "NEWOP", path, "", 1, kXR_ok, NULL, 0);
+    BRIX_OP_OK(ctx, BRIX_OP_NEWOP);
+    return brix_send_ok(ctx, c, NULL, 0);
 }
 ```
 
@@ -117,18 +117,18 @@ signing op, then add a `case` to the matching `src/protocols/root/handshake/disp
 ```c
 /* dispatch_read.c */
 case kXR_newop:
-    rc = xrootd_dispatch_require_auth(ctx, c);
-    if (rc != XROOTD_DISPATCH_CONTINUE) { return rc; }
-    return xrootd_handle_newop(ctx, c, conf);
+    rc = brix_dispatch_require_auth(ctx, c);
+    if (rc != BRIX_DISPATCH_CONTINUE) { return rc; }
+    return brix_handle_newop(ctx, c, conf);
 ```
 
-Write opcodes additionally need `xrootd_dispatch_require_write()` before
+Write opcodes additionally need `brix_dispatch_require_write()` before
 calling the handler.
 
 ### Step 6 — Update the build system
 
 `config` (the nginx module build script in the project root) has two lists:
-`ngx_xrootd_stream_deps` (headers) and `ngx_module_srcs` (source files).
+`ngx_brix_stream_deps` (headers) and `ngx_module_srcs` (source files).
 Add the new `.h` to deps and the `.c` to srcs.
 
 ```sh
@@ -156,12 +156,12 @@ New directives let operators configure your feature in `nginx.conf`.
 
 ### Step 1 — Add the config field
 
-Add a typed field to `ngx_stream_xrootd_srv_conf_t` in
-`src/core/ngx_xrootd_module.h`.  Document the directive name in a square-bracket
+Add a typed field to `ngx_stream_brix_srv_conf_t` in
+`src/core/ngx_brix_module.h`.  Document the directive name in a square-bracket
 comment matching the pattern used by adjacent fields.
 
 ```c
-ngx_flag_t  my_feature;  /* [xrootd_my_feature on|off] */
+ngx_flag_t  my_feature;  /* [brix_my_feature on|off] */
 ```
 
 ### Step 2 — Register the directive
@@ -171,11 +171,11 @@ Add an `ngx_command_t` entry to the directive table in
 `NGX_CONF_FLAG` for on/off, `NGX_CONF_TAKE1` for a single string value).
 
 ```c
-{ ngx_string("xrootd_my_feature"),
+{ ngx_string("brix_my_feature"),
   NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
   ngx_conf_set_flag_slot,
   NGX_STREAM_SRV_CONF_OFFSET,
-  offsetof(ngx_stream_xrootd_srv_conf_t, my_feature),
+  offsetof(ngx_stream_brix_srv_conf_t, my_feature),
   NULL },
 ```
 
@@ -190,9 +190,9 @@ directive is subsystem-specific).  The function signature is:
 
 ```c
 char *
-xrootd_conf_set_my_feature(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+brix_conf_set_my_feature(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    ngx_stream_xrootd_srv_conf_t *xcf = conf;
+    ngx_stream_brix_srv_conf_t *xcf = conf;
     /* parse cf->args->elts[1], set xcf->my_feature */
     return NGX_CONF_OK;  /* or NGX_CONF_ERROR */
 }
@@ -203,7 +203,7 @@ it static if it is only referenced from `module.c`.
 
 ### Step 4 — Set defaults and merge
 
-`src/core/config/server_conf.c:ngx_stream_xrootd_create_srv_conf()` initialises
+`src/core/config/server_conf.c:ngx_stream_brix_create_srv_conf()` initialises
 every field to a sentinel (`NGX_CONF_UNSET`, `-1`, or `NULL`).  Add yours
 there.  `merge_srv_conf()` in the same file applies inheritance from parent
 blocks; use `ngx_conf_merge_value()` or `ngx_conf_merge_str_value()` as

@@ -27,7 +27,7 @@ everything below and are the single most common source of confusion:
    turned into a distinct local login that owns the bytes on disk.
 
    > **Optional (phase 40):** impersonation *can* be enabled with
-   > `xrootd_impersonation map` (off by default), which runs each open/metadata
+   > `brix_impersonation map` (off by default), which runs each open/metadata
    > op as the mapped local user via a privileged broker — so files are owned by,
    > and kernel DAC is enforced for, the real user. This is a deliberate
    > security-posture change (the master runs as root) and is documented
@@ -40,7 +40,7 @@ everything below and are the single most common source of confusion:
    | What | Where it happens | What "UNIX account" means there |
    |---|---|---|
    | **Authorization** | the auth gate (`src/auth/authz/auth_gate.c`) + the authz engine (`src/auth/authz/acc/`, `src/auth/authz/authdb.c`, `src/auth/authz/acl.c`) | the engine can match a `g <unixgroup>` / `n <netgroup>` rule against the principal's **OS supplementary groups** (`getpwnam`→`getgrouplist`) and NIS netgroups — i.e. local UNIX *groups* are consulted for the *allow/deny decision*, even though no process changes uid/gid |
-   | **Created-object ownership** | `src/auth/authz/group_policy.c` (`xrootd_inherit_parent_group`) | a freshly created file/dir is owned by the **worker uid**, but its **group** can be forced to the parent directory's group (with `setgid` propagation) |
+   | **Created-object ownership** | `src/auth/authz/group_policy.c` (`brix_inherit_parent_group`) | a freshly created file/dir is owned by the **worker uid**, but its **group** can be forced to the parent directory's group (with `setgid` propagation) |
 
 If you came here expecting "DN `/DC=org/CN=Rob` becomes local user `rob` who owns
 the file" — that is **not** what happens. The DN becomes an *authorization
@@ -51,10 +51,10 @@ The rest of this document is the precise, exhaustive version of those two column
 
 ---
 
-## 1. The identity pipeline: credential → `xrootd_identity_t`
+## 1. The identity pipeline: credential → `brix_identity_t`
 
 Every connection (or HTTP request) is authenticated by exactly one method, which
-populates one canonical identity object, `xrootd_identity_t`
+populates one canonical identity object, `brix_identity_t`
 (`src/core/types/identity.h`). The authz engine and the mapping logic only ever look
 at this object — the wire credential is gone by then.
 
@@ -69,13 +69,13 @@ typedef struct {
     ngx_str_t    acc_role_csv;  /* VOMS/token roles  e.g. "production,"          */
     ngx_str_t    acc_group_csv; /* group paths   e.g. "/cms,/atlas"              */
     ngx_str_t    scope_raw;     /* raw OAuth scope claim                         */
-    xrootd_token_scope_t token_scopes[XROOTD_MAX_TOKEN_SCOPES];
-    ngx_uint_t   auth_method;   /* XROOTD_AUTHN_* bitmask                        */
+    brix_token_scope_t token_scopes[BRIX_MAX_TOKEN_SCOPES];
+    ngx_uint_t   auth_method;   /* BRIX_AUTHN_* bitmask                        */
     unsigned     is_authenticated:1;
     unsigned     is_admin:1;
     unsigned     has_write_scope:1;
     unsigned     has_read_scope:1;
-} xrootd_identity_t;
+} brix_identity_t;
 ```
 
 ### 1.1 What each authn method fills in
@@ -89,7 +89,7 @@ typedef struct {
 | **Kerberos 5** (`src/auth/krb5/`) | **localname** (`krb5_aname_to_localname`, honoring `krb5.conf` `auth_to_local`) or the raw `user@REALM` | — | — | — | — | The localname is the natural bridge to a local UNIX user. |
 | **UNIX** (`src/auth/unix/`, loopback-only by default) | client-asserted user | — | — | client-asserted group | — | Unverified; gated to loopback/AF_UNIX unless `unix_trust_remote`. |
 | **S3 SigV4** (`src/protocols/s3/`) | — | the **access key id** | — | — | — | Identity is the access key; group/VO mapping comes from authz rules keyed on the access key as `u <name>`. |
-| **Anonymous** (`xrootd_auth none`) | — | — | — | — | — | `is_authenticated = 0`; the engine sees the principal name as `*` (the `u *` default applies). |
+| **Anonymous** (`brix_auth none`) | — | — | — | — | — | `is_authenticated = 0`; the engine sees the principal name as `*` (the `u *` default applies). |
 
 > **The single most important column is `dn`.** It is the string the authz engine
 > uses as the *principal name*, and it is the string handed to `getpwnam()` when
@@ -99,7 +99,7 @@ typedef struct {
 ### 1.2 The VOMS-FQAN / token-group parser (VO, role, group)
 
 VOMS FQANs and WLCG token groups are split into three **index-aligned** CSV views
-by `xrootd_identity_derive_attrs()` (`src/core/types/identity.c`). These feed the
+by `brix_identity_derive_attrs()` (`src/core/types/identity.c`). These feed the
 XrdAcc `o` (organization/VO), `r` (role) and `g` (group) records.
 
 Given an FQAN like `/cms/Role=production/Capability=NULL`:
@@ -123,20 +123,20 @@ position preserved), `group=/atlas`. Multiple FQANs accumulate, e.g.
 
 ## 2. The authorization gate: three tiers, fail-closed
 
-Every namespace/file operation passes through `xrootd_auth_gate*()`
+Every namespace/file operation passes through `brix_auth_gate*()`
 (`src/auth/authz/auth_gate.c`), which checks three tiers **in order** and denies on the
 first failure (kXR_NotAuthorized / HTTP 403):
 
 ```
    ┌─────────────────────────────────────────────────────────────────┐
    │ 1. AUTHDB / XrdAcc engine                                         │
-   │    native  (xrootd_authdb_format native)  → src/auth/authz/authdb.c     │
-   │    xrdacc  (xrootd_authdb_format xrdacc)   → src/auth/authz/acc/  (engine)    │
+   │    native  (brix_authdb_format native)  → src/auth/authz/authdb.c     │
+   │    xrdacc  (brix_authdb_format xrdacc)   → src/auth/authz/acc/  (engine)    │
    │    → matches the identity (DN/VO/role/group/host/OS-group) to a   │
    │      path + privilege rule.   THIS is where local UNIX groups     │
    │      enter the decision (xrdacc only).                            │
    ├─────────────────────────────────────────────────────────────────┤
-   │ 2. VO ACL    (xrootd_require_vo <path> <vo>)  → src/auth/authz/acl.c     │
+   │ 2. VO ACL    (brix_require_vo <path> <vo>)  → src/auth/authz/acl.c     │
    │    → requires the identity's vo_list to contain <vo> on <path>.   │
    ├─────────────────────────────────────────────────────────────────┤
    │ 3. Token scope (WLCG/SciToken)              → token_scopes        │
@@ -149,7 +149,7 @@ first failure (kXR_NotAuthorized / HTTP 403):
   scope, and vice-versa.
 - **`conf->allow_write` is checked globally** before any token scope — a
   read-only server refuses writes regardless of identity.
-- Tiers 2 and 3 are **skipped when not configured** (no `xrootd_require_vo`
+- Tiers 2 and 3 are **skipped when not configured** (no `brix_require_vo`
   rules ⇒ no VO gate; non-token auth ⇒ no scope gate).
 
 The rest of this document is mostly about **tier 1** (the authdb/XrdAcc engine)
@@ -160,18 +160,18 @@ and the **created-file group** side effect.
 ## 3. From identity to local UNIX **user** and **group**
 
 This is the section the title of the doc is about. It only applies to the
-**XrdAcc engine** (`xrootd_authdb_format xrdacc`) for OS-group resolution; the
+**XrdAcc engine** (`brix_authdb_format xrdacc`) for OS-group resolution; the
 native engine consults credential VO/groups only (§4.2).
 
 ### 3.1 The principal *name* and the OS *user*
 
-The engine's principal name is `name = xrootd_identity_dn_cstr(identity)` — i.e.
+The engine's principal name is `name = brix_identity_dn_cstr(identity)` — i.e.
 the `dn` field (§1.1). When the engine needs the principal's OS supplementary
 groups it calls, in `src/auth/authz/acc/groups.c`:
 
 ```c
 pw = getpwnam(name);                       /* name == the dn / sub / sss-user */
-if (acc_primary_only) gids[0] = pw->pw_gid;             /* xrootd_acc_pgo on  */
+if (acc_primary_only) gids[0] = pw->pw_gid;             /* brix_acc_pgo on  */
 else getgrouplist(name, pw->pw_gid, gids, &ng);         /* all supplementary  */
 for each gid:  if (!gidretran(gid))  getgrgid(gid)->gr_name;   /* → group set */
 ```
@@ -202,10 +202,10 @@ identity (see "force/override", §6.5).
 
 | Directive | Default | Effect |
 |---|---|---|
-| `xrootd_acc_gidlifetime <secs>` | `43200` (12 h) | TTL of the per-worker `getpwnam`/`getgrouplist` cache. Lower = pick up `/etc/group` edits faster; higher = fewer NSS calls. |
-| `xrootd_acc_pgo on` | off | "primary group only": resolve just `pw_gid`, skip the supplementary list (`getgrouplist`). |
-| `xrootd_acc_nisdomain <domain>` | — | NIS domain used for `n <netgroup>` (`innetgr`) lookups. Required for netgroup records to resolve. |
-| `xrootd_acc_gidretran "<gid> <gid> …"` | — | gids to **exclude** from name resolution (e.g. `nobody`/`nogroup` or any ambiguous shared gid). A gid in this list contributes **no** group name, so it can never satisfy a `g` rule. |
+| `brix_acc_gidlifetime <secs>` | `43200` (12 h) | TTL of the per-worker `getpwnam`/`getgrouplist` cache. Lower = pick up `/etc/group` edits faster; higher = fewer NSS calls. |
+| `brix_acc_pgo on` | off | "primary group only": resolve just `pw_gid`, skip the supplementary list (`getgrouplist`). |
+| `brix_acc_nisdomain <domain>` | — | NIS domain used for `n <netgroup>` (`innetgr`) lookups. Required for netgroup records to resolve. |
+| `brix_acc_gidretran "<gid> <gid> …"` | — | gids to **exclude** from name resolution (e.g. `nobody`/`nogroup` or any ambiguous shared gid). A gid in this list contributes **no** group name, so it can never satisfy a `g` rule. |
 
 ### 3.3 How XrdAcc records match the resolved user & groups
 
@@ -222,7 +222,7 @@ privileges from **all** matching identity categories (this is *additive* — see
 | `n <netgroup>` | the principal/host is in the NIS netgroup | `innetgr()` (needs `nisdomain`) |
 | `o <vo>` | VO/organization | the credential VO (`acc_vorg_csv`) |
 | `r <role>` | VOMS/token role | the credential role (`acc_role_csv`) |
-| `h <host>` / `h .<domain>` | the peer host/domain | peer IP, or reverse-DNS name with `xrootd_acc_resolve_hosts on` |
+| `h <host>` / `h .<domain>` | the peer host/domain | peer IP, or reverse-DNS name with `brix_acc_resolve_hosts on` |
 | `= <id> …` + `x`/`s` | a **compound** identity (AND of selectors) | see §6 |
 
 So **`g <name>` is the bridge to local UNIX groups**: it fires when the
@@ -235,11 +235,11 @@ principal's `/etc/group`/NIS membership *or* their VO group contains `<name>`.
 Select the engine per server/location:
 
 ```nginx
-xrootd_authdb_format  xrdacc;   # or: native (the default)
-xrootd_authdb         /etc/xrootd/authdb;
+brix_authdb_format  xrdacc;   # or: native (the default)
+brix_authdb         /etc/brix/authdb;
 ```
 
-### 4.1 XrdAcc engine (`xrootd_authdb_format xrdacc`) — recommended
+### 4.1 XrdAcc engine (`brix_authdb_format xrdacc`) — recommended
 
 Full grammar, privilege letters, accumulation order, templates and the legacy
 encoding tunables are documented in
@@ -254,7 +254,7 @@ record types are summarized in §3.3 above. Key points for mapping:
   (explicit deny); effective = `positive & ~negative`. **`r` does *not* imply
   `l`.**
 
-### 4.2 Native engine (`xrootd_authdb_format native`, the default)
+### 4.2 Native engine (`brix_authdb_format native`, the default)
 
 `src/auth/authz/authdb.c`. One rule per line, longest-path-prefix wins, **single**
 privilege check (no accumulation, no compound identities, no templates):
@@ -275,13 +275,13 @@ write/append, `d` delete, `m` mkdir, `k` admin.
 
 > **Critical native-vs-xrdacc difference:** native `g` matches only the
 > **VO/credential group list**. It has **no** `/etc/group` or NIS resolution. If
-> you need to authorize on local UNIX groups, use `xrootd_authdb_format xrdacc`.
+> you need to authorize on local UNIX groups, use `brix_authdb_format xrdacc`.
 
-### 4.3 VO ACL (tier 2): `xrootd_require_vo`
+### 4.3 VO ACL (tier 2): `brix_require_vo`
 
 ```nginx
-xrootd_require_vo  /cms   cms;       #  <path-prefix>  <required-VO>
-xrootd_require_vo  /atlas atlas;
+brix_require_vo  /cms   cms;       #  <path-prefix>  <required-VO>
+brix_require_vo  /atlas atlas;
 ```
 
 `src/auth/authz/acl.c`: longest-prefix path match, then the identity's `vo_list` must
@@ -310,11 +310,11 @@ When a client **creates** a file or directory, who owns it?
   you enable group inheritance:
 
 ```nginx
-xrootd_inherit_parent_group  /data;     # path prefix; repeatable
-xrootd_inherit_parent_group  /projects;
+brix_inherit_parent_group  /data;     # path prefix; repeatable
+brix_inherit_parent_group  /projects;
 ```
 
-`src/auth/authz/group_policy.c` (`xrootd_apply_parent_group_policy_*`) then, for any
+`src/auth/authz/group_policy.c` (`brix_apply_parent_group_policy_*`) then, for any
 created object **under a matching prefix** (longest-prefix wins):
 
 1. `stat`s the parent directory.
@@ -329,7 +329,7 @@ created object **under a matching prefix** (longest-prefix wins):
 
 > **Tip:** the cleanest way to make all data under `/data/cms` land in UNIX group
 > `cms` is the classic POSIX recipe — `chgrp cms /data/cms && chmod g+rwxs
-> /data/cms` once, then `xrootd_inherit_parent_group /data;`. The `setgid` bit on
+> /data/cms` once, then `brix_inherit_parent_group /data;`. The `setgid` bit on
 > the directory does most of the work; the directive guarantees the group/mode
 > even for clients/paths the kernel's `setgid` semantics wouldn't cover.
 
@@ -370,7 +370,7 @@ other matches) when you want to *add* a grant rather than replace.
 
 ### 6.3 Force a created file's UNIX group
 
-See §5 — `xrootd_inherit_parent_group <prefix>;` plus a `setgid` parent dir.
+See §5 — `brix_inherit_parent_group <prefix>;` plus a `setgid` parent dir.
 This is the only built-in way to force created-object group ownership (there is
 no "force uid").
 
@@ -380,13 +380,13 @@ For service-to-service (SSS) credentials, the UNIX user **and** group are pinned
 in the keytab — this is the most direct "force this credential to this account":
 
 ```
-# /etc/xrootd/sss.keytab   (mode 0600, or 0640 for a .grp keytab)
+# /etc/brix/sss.keytab   (mode 0600, or 0640 for a .grp keytab)
 0 N:1 k:<hex-key> u:svccms g:cms n:cms-mover
 0 N:2 k:<hex-key> u:anybody g:allusers n:gateway+    # decrypt user/group from cred
 ```
 
 ```nginx
-xrootd_sss_keytab  /etc/xrootd/sss.keytab;
+brix_sss_keytab  /etc/brix/sss.keytab;
 ```
 
 `u:`/`g:` set `identity.dn`/`identity.vo_list` directly; `anybody`/`allusers`
@@ -412,15 +412,15 @@ If `getgrouplist` returns a shared/ambiguous gid (e.g. `nobody`, or a gid reused
 across names) that you do **not** want to satisfy `g` rules, drop it:
 
 ```nginx
-xrootd_acc_gidretran  "65534 100";     # these gids contribute no group name
+brix_acc_gidretran  "65534 100";     # these gids contribute no group name
 ```
 
 ### 6.7 Tighten or loosen OS-group resolution
 
 ```nginx
-xrootd_acc_pgo on;                 # only the primary group counts (ignore supplementary)
-xrootd_acc_gidlifetime 300;        # re-read NSS every 5 min (pick up /etc/group edits faster)
-xrootd_acc_nisdomain  example.org; # enable NIS netgroup (n <name>) resolution
+brix_acc_pgo on;                 # only the primary group counts (ignore supplementary)
+brix_acc_gidlifetime 300;        # re-read NSS every 5 min (pick up /etc/group edits faster)
+brix_acc_nisdomain  example.org; # enable NIS netgroup (n <name>) resolution
 ```
 
 ### 6.8 Per-user home directories (template substitution)
@@ -448,14 +448,14 @@ granting fewer privileges.)
 ```
 h .cern.ch   /pub  rl       # any *.cern.ch peer
 h wn001.example.org /scratch rwid
-xrootd_acc_resolve_hosts on;            # reverse-DNS the peer so the names match
+brix_acc_resolve_hosts on;            # reverse-DNS the peer so the names match
 ```
 
 ### 6.11 Hot-reload an authdb edit (no restart)
 
 ```nginx
-xrootd_authdb_refresh 60;     # re-read the authdb on mtime change every 60s
-xrootd_authdb_audit   all;    # log every grant/deny while you tune the rules
+brix_authdb_refresh 60;     # re-read the authdb on mtime change every 60s
+brix_authdb_audit   all;    # log every grant/deny while you tune the rules
 ```
 
 Works on both stream (`root://`) and HTTP (WebDAV/S3) tiers.
@@ -471,18 +471,18 @@ Token: `sub = "alice"`, `wlcg.groups = ["/cms"]`, `scope =
 `cms`.
 
 ```nginx
-xrootd_auth            token;
-xrootd_authdb_format   xrdacc;
-xrootd_authdb          /etc/xrootd/authdb;
+brix_auth            token;
+brix_authdb_format   xrdacc;
+brix_authdb          /etc/brix/authdb;
 ```
 ```
-# /etc/xrootd/authdb
+# /etc/brix/authdb
 g cms   /cms   rwidl       # matches BOTH the token group /cms AND alice's UNIX group cms
 u *     /pub   rl
 ```
 Result: `getpwnam("alice")` → groups include `cms` → `g cms` fires → read/write on
 `/cms`; tier-3 token scope also allows write on `/cms`. Files alice creates are
-owned by the **nginx worker** uid; add `xrootd_inherit_parent_group /cms;` (and
+owned by the **nginx worker** uid; add `brix_inherit_parent_group /cms;` (and
 `chmod g+s /cms`) to keep them in group `cms`.
 
 ### 7.2 GSI + VOMS user → VO/role → access (no OS groups)
@@ -522,19 +522,19 @@ u *         /data  rl                 # everyone else: read
   (§3.1). Authorize on VOMS `o`/`r`/`g` (FQAN), or give them a username-shaped
   identity. Only token/SSS/krb5/unix principals get `/etc/group` resolution.
 - **"Native `g cms` doesn't see my `/etc/group`."** Native `g` matches the
-  **VO/credential** group only (§4.2). Switch to `xrootd_authdb_format xrdacc`.
+  **VO/credential** group only (§4.2). Switch to `brix_authdb_format xrdacc`.
 - **"`r` doesn't let me `stat`."** In XrdAcc, `r` ≠ `l`; grant `rl`. (Native `r`
   *does* imply `l`.)
 - **"Created files are owned by `nginx`, not the user."** By design — no
   impersonation (§0, §5). Control the worker user with nginx's `user` directive
-  and the group with `xrootd_inherit_parent_group` + `setgid`.
+  and the group with `brix_inherit_parent_group` + `setgid`.
 - **"My `/etc/group` edit didn't take effect."** Group sets are cached for
-  `xrootd_acc_gidlifetime` (default 12 h). Lower it, or restart the worker.
-- **"Netgroup (`n`) rules never match."** Set `xrootd_acc_nisdomain`.
+  `brix_acc_gidlifetime` (default 12 h). Lower it, or restart the worker.
+- **"Netgroup (`n`) rules never match."** Set `brix_acc_nisdomain`.
 - **"SSS keytab rejected at startup."** It must be mode `0600` (or `0640` for a
   `.grp` keytab); world-readable fails closed.
 - **Different identities, one cache key.** The XrdAcc auth-result cache (when
-  `xrootd_auth_cache` is configured) keys on DN + VO + scope + path + op + host,
+  `brix_auth_cache` is configured) keys on DN + VO + scope + path + op + host,
   so a cached decision is never replayed across principals; OS-group changes are
   bounded by `gidlifetime`.
 
@@ -556,8 +556,8 @@ u *         /data  rl                 # everyone else: read
 | Native authdb parse + match | `src/auth/authz/authdb.c` |
 | XrdAcc engine (grammar / decision) | `src/auth/authz/acc/authfile.c`, `src/auth/authz/acc/access.c`, `src/auth/authz/acc/entity.c` |
 | OS user/group + NIS netgroup resolution (`getpwnam`/`getgrouplist`/`innetgr`) | `src/auth/authz/acc/groups.c` |
-| VO ACL (`xrootd_require_vo`) | `src/auth/authz/acl.c`, `src/core/config/policy.c` |
-| Created-object group inheritance (`xrootd_inherit_parent_group`) | `src/auth/authz/group_policy.c` |
+| VO ACL (`brix_require_vo`) | `src/auth/authz/acl.c`, `src/core/config/policy.c` |
+| Created-object group inheritance (`brix_inherit_parent_group`) | `src/auth/authz/group_policy.c` |
 | Directive tables | `src/protocols/root/stream/module.c` (root://), `src/protocols/webdav/module.c` (WebDAV/S3) |
 
 ---
@@ -566,21 +566,21 @@ u *         /data  rl                 # everyone else: read
 
 | Directive | Context | Arg | Purpose |
 |---|---|---|---|
-| `xrootd_authdb_format` | srv / loc | `native`\|`xrdacc` | choose the authz engine |
-| `xrootd_authdb` | srv / loc | `<path>` | the authdb rule file |
-| `xrootd_authdb_refresh` | srv / loc | `<secs>` | hot-reload on mtime change (0 = off) |
-| `xrootd_authdb_audit` | srv / loc | `none`\|`deny`\|`grant`\|`all` | log authz decisions |
-| `xrootd_require_vo` | srv | `<path> <vo>` | tier-2 VO requirement on a prefix |
-| `xrootd_sss_keytab` | srv | `<path>` | SSS credential → fixed UNIX user/group |
-| `xrootd_inherit_parent_group` | srv | `<path>` | created files/dirs inherit parent group + setgid |
-| `xrootd_acc_gidlifetime` | srv / loc | `<secs>` | OS-group cache TTL (default 43200) |
-| `xrootd_acc_pgo` | srv / loc | `on`\|`off` | resolve primary group only |
-| `xrootd_acc_nisdomain` | srv / loc | `<domain>` | NIS domain for `n` netgroup rules |
-| `xrootd_acc_gidretran` | srv / loc | `"<gid> …"` | exclude ambiguous gids from resolution |
-| `xrootd_acc_resolve_hosts` | srv / loc | `on`\|`off` | reverse-DNS peer for `h` host rules |
-| `xrootd_acc_spacechar` | srv / loc | `<char>` | substitute char→space in authdb identity names |
-| `xrootd_acc_encoding` | srv / loc | `on`\|`off` | URI-decode authdb path tokens (`%20`→space) |
+| `brix_authdb_format` | srv / loc | `native`\|`xrdacc` | choose the authz engine |
+| `brix_authdb` | srv / loc | `<path>` | the authdb rule file |
+| `brix_authdb_refresh` | srv / loc | `<secs>` | hot-reload on mtime change (0 = off) |
+| `brix_authdb_audit` | srv / loc | `none`\|`deny`\|`grant`\|`all` | log authz decisions |
+| `brix_require_vo` | srv | `<path> <vo>` | tier-2 VO requirement on a prefix |
+| `brix_sss_keytab` | srv | `<path>` | SSS credential → fixed UNIX user/group |
+| `brix_inherit_parent_group` | srv | `<path>` | created files/dirs inherit parent group + setgid |
+| `brix_acc_gidlifetime` | srv / loc | `<secs>` | OS-group cache TTL (default 43200) |
+| `brix_acc_pgo` | srv / loc | `on`\|`off` | resolve primary group only |
+| `brix_acc_nisdomain` | srv / loc | `<domain>` | NIS domain for `n` netgroup rules |
+| `brix_acc_gidretran` | srv / loc | `"<gid> …"` | exclude ambiguous gids from resolution |
+| `brix_acc_resolve_hosts` | srv / loc | `on`\|`off` | reverse-DNS peer for `h` host rules |
+| `brix_acc_spacechar` | srv / loc | `<char>` | substitute char→space in authdb identity names |
+| `brix_acc_encoding` | srv / loc | `on`\|`off` | URI-decode authdb path tokens (`%20`→space) |
 
-*(srv = `server{}` stream block; loc = `location{}` http block. The `xrootd_acc_*`
-/ `xrootd_authdb*` directives exist in both; `xrootd_require_vo`,
-`xrootd_sss_keytab`, `xrootd_inherit_parent_group` are stream-side.)*
+*(srv = `server{}` stream block; loc = `location{}` http block. The `brix_acc_*`
+/ `brix_authdb*` directives exist in both; `brix_require_vo`,
+`brix_sss_keytab`, `brix_inherit_parent_group` are stream-side.)*

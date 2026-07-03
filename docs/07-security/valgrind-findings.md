@@ -51,7 +51,7 @@ client-visible/dashboard field; not directly attacker-controlled).
 
 **Symptom (Memcheck):** "Use of uninitialised value" on the WebDAV GET path,
 10 errors, traced into `dashboard_http_client()` →
-`xrootd_transfer_slot_alloc_ex()` → `ngx_cpystrn()`.
+`brix_transfer_slot_alloc_ex()` → `ngx_cpystrn()`.
 
 **Root cause:** `dashboard_http_client()` returned
 `r->connection->addr_text.data` directly. `addr_text` is an `ngx_str_t` whose
@@ -98,17 +98,17 @@ are definitely lost`, the parent of ~10 indirectly-lost OpenSSL allocations:
 malloc
   CRYPTO_zalloc / EVP_PKEY_new
   EVP_PKEY_fromdata
-  xrootd_token_rsa_pubkey_from_ne   (src/auth/token/keys.c:73)
-  xrootd_jwks_load_jansson          (src/auth/token/jwks.c:76)
-  xrootd_jwks_load                  (src/auth/token/jwks.c:177)
-  ngx_http_xrootd_webdav_merge_loc_conf (src/protocols/webdav/config.c)
+  brix_token_rsa_pubkey_from_ne   (src/auth/token/keys.c:73)
+  brix_jwks_load_jansson          (src/auth/token/jwks.c:76)
+  brix_jwks_load                  (src/auth/token/jwks.c:177)
+  ngx_http_brix_webdav_merge_loc_conf (src/protocols/webdav/config.c)
   ngx_http_merge_servers / ngx_http_block
   ngx_init_cycle / main
 ```
 
-**Root cause:** `xrootd_jwks_load()` parses each JWKS key into an `EVP_PKEY`
+**Root cause:** `brix_jwks_load()` parses each JWKS key into an `EVP_PKEY`
 (via OpenSSL `EVP_PKEY_fromdata`) and stores the handle in the **pool-allocated**
-conf array `conf->jwks_keys[]`. A matching `xrootd_jwks_free()` exists, but it
+conf array `conf->jwks_keys[]`. A matching `brix_jwks_free()` exists, but it
 was **never registered to run when the conf pool is destroyed**. Consequences:
 
 - On `nginx -s reload`, nginx builds a new cycle (re-parsing the config, loading
@@ -124,37 +124,37 @@ Both conf load sites had the defect: the stream module (`src/auth/token/config.c
 and the HTTP/WebDAV module (`src/protocols/webdav/config.c`).
 
 **Fix:** A new helper registers an `ngx_pool_cleanup_t` on the conf pool whose
-handler calls `xrootd_jwks_free()`:
+handler calls `brix_jwks_free()`:
 
 ```c
 /* src/auth/token/jwks.c */
 typedef struct {
-    xrootd_jwks_key_t *keys;
+    brix_jwks_key_t *keys;
     int               *count;   /* pointer, not value — see note below */
-} xrootd_jwks_cleanup_t;
+} brix_jwks_cleanup_t;
 
 static void
-xrootd_jwks_pool_cleanup(void *data)
+brix_jwks_pool_cleanup(void *data)
 {
-    xrootd_jwks_cleanup_t *c = data;
-    xrootd_jwks_free(c->keys, *c->count);
+    brix_jwks_cleanup_t *c = data;
+    brix_jwks_free(c->keys, *c->count);
 }
 
 ngx_int_t
-xrootd_jwks_register_cleanup(ngx_pool_t *pool, xrootd_jwks_key_t *keys,
+brix_jwks_register_cleanup(ngx_pool_t *pool, brix_jwks_key_t *keys,
     int *count)
 {
     ngx_pool_cleanup_t    *cln;
-    xrootd_jwks_cleanup_t *c;
+    brix_jwks_cleanup_t *c;
 
-    cln = ngx_pool_cleanup_add(pool, sizeof(xrootd_jwks_cleanup_t));
+    cln = ngx_pool_cleanup_add(pool, sizeof(brix_jwks_cleanup_t));
     if (cln == NULL) {
         return NGX_ERROR;
     }
     c = cln->data;
     c->keys = keys;
     c->count = count;
-    cln->handler = xrootd_jwks_pool_cleanup;
+    cln->handler = brix_jwks_pool_cleanup;
     return NGX_OK;
 }
 ```
@@ -165,7 +165,7 @@ Wired at both load sites, immediately after a successful load, e.g.:
 /* src/protocols/webdav/config.c */
 conf->jwks_key_count = rc;
 if (rc > 0
-    && xrootd_jwks_register_cleanup(cf->pool, conf->jwks_keys,
+    && brix_jwks_register_cleanup(cf->pool, conf->jwks_keys,
                                     &conf->jwks_key_count) != NGX_OK)
 {
     return NGX_CONF_ERROR;
@@ -175,7 +175,7 @@ if (rc > 0
 ```c
 /* src/auth/token/config.c */
 if (xcf->jwks_key_count > 0
-    && xrootd_jwks_register_cleanup(cf->pool, xcf->jwks_keys,
+    && brix_jwks_register_cleanup(cf->pool, xcf->jwks_keys,
                                     &xcf->jwks_key_count) != NGX_OK)
 {
     return NGX_ERROR;
@@ -184,10 +184,10 @@ if (xcf->jwks_key_count > 0
 
 **Why the cleanup stores a pointer to the count, not the value:** the JWKS
 refresh path (`src/auth/token/refresh.c`) rewrites the same `jwks_keys[]` array in
-place — it calls `xrootd_jwks_free()` on the old set, then `memcpy`s the new set
+place — it calls `brix_jwks_free()` on the old set, then `memcpy`s the new set
 in and updates `jwks_key_count`. Because the cleanup reads `*count` at
 pool-destroy time (not at registration time), it frees whatever set is current,
-and because `xrootd_jwks_free()` nulls each slot before the refresh overwrites
+and because `brix_jwks_free()` nulls each slot before the refresh overwrites
 it with a new non-NULL handle, there is **no double-free**.
 
 **nginx ordering guarantee relied upon:** pool cleanup handlers run *before* the

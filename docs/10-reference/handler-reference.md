@@ -10,10 +10,10 @@ The internal building blocks every handler uses — quick reference to keep open
 All response helpers are declared in `src/protocols/root/response/response.h` and
 implemented in `src/protocols/root/response/`.
 
-### `xrootd_send_ok`
+### `brix_send_ok`
 
 ```c
-ngx_int_t xrootd_send_ok(xrootd_ctx_t *ctx, ngx_connection_t *c,
+ngx_int_t brix_send_ok(brix_ctx_t *ctx, ngx_connection_t *c,
     const void *body, uint32_t bodylen);
 ```
 
@@ -22,10 +22,10 @@ common case). For responses with a body (stat results, read data, open
 handles) pass a pointer and byte count; the function copies the bytes into
 a pool-allocated wire buffer.
 
-### `xrootd_send_error`
+### `brix_send_error`
 
 ```c
-ngx_int_t xrootd_send_error(xrootd_ctx_t *ctx, ngx_connection_t *c,
+ngx_int_t brix_send_error(brix_ctx_t *ctx, ngx_connection_t *c,
     uint16_t errcode, const char *msg);
 ```
 
@@ -34,10 +34,10 @@ Sends a `kXR_error` response. `errcode` is one of the `kXR_*` constants from
 `kXR_IOError`). `msg` is a human-readable string; it is NUL-terminated on the
 wire so clients can treat it as a C string.
 
-### `xrootd_queue_response`
+### `brix_queue_response`
 
 ```c
-ngx_int_t xrootd_queue_response(xrootd_ctx_t *ctx, ngx_connection_t *c,
+ngx_int_t brix_queue_response(brix_ctx_t *ctx, ngx_connection_t *c,
     u_char *buf, size_t len);
 ```
 
@@ -46,16 +46,16 @@ and body are already assembled (e.g. kXR_open returns handle + stat string in
 one allocation). The buffer must be pool-allocated from `c->pool`; ownership
 passes to the send machinery.
 
-### `xrootd_send_redirect` / `xrootd_send_wait` / `xrootd_send_waitresp`
+### `brix_send_redirect` / `brix_send_wait` / `brix_send_waitresp`
 
 ```c
-ngx_int_t xrootd_send_redirect(xrootd_ctx_t *ctx, ngx_connection_t *c,
+ngx_int_t brix_send_redirect(brix_ctx_t *ctx, ngx_connection_t *c,
     const char *host, uint16_t port);
 
-ngx_int_t xrootd_send_wait(xrootd_ctx_t *ctx, ngx_connection_t *c,
+ngx_int_t brix_send_wait(brix_ctx_t *ctx, ngx_connection_t *c,
     uint32_t seconds);
 
-ngx_int_t xrootd_send_waitresp(xrootd_ctx_t *ctx, ngx_connection_t *c);
+ngx_int_t brix_send_waitresp(brix_ctx_t *ctx, ngx_connection_t *c);
 ```
 
 Used by the upstream redirect and CMS manager paths. Rarely needed for new
@@ -69,33 +69,33 @@ Defined in `src/core/types/tunables.h`. Use these when the error message in the
 access log and in the wire response are identical and the handler returns
 immediately.
 
-### `XROOTD_RETURN_OK`
+### `BRIX_RETURN_OK`
 
 ```c
-XROOTD_RETURN_OK(ctx, c, op, verb, path, detail, bytes)
+BRIX_RETURN_OK(ctx, c, op, verb, path, detail, bytes)
 ```
 
 Equivalent to:
 ```c
-xrootd_log_access(ctx, c, verb, path, detail, 1, kXR_ok, NULL, bytes);
-XROOTD_OP_OK(ctx, op);
-return xrootd_send_ok(ctx, c, NULL, 0);
+brix_log_access(ctx, c, verb, path, detail, 1, kXR_ok, NULL, bytes);
+BRIX_OP_OK(ctx, op);
+return brix_send_ok(ctx, c, NULL, 0);
 ```
 
 **Constraint**: only for zero-body responses. Handlers that send a body (read
 data, stat results, query output) must keep the three lines explicit.
 
-### `XROOTD_RETURN_ERR`
+### `BRIX_RETURN_ERR`
 
 ```c
-XROOTD_RETURN_ERR(ctx, c, op, verb, path, detail, code, msg)
+BRIX_RETURN_ERR(ctx, c, op, verb, path, detail, code, msg)
 ```
 
 Equivalent to:
 ```c
-xrootd_log_access(ctx, c, verb, path, detail, 0, code, msg, 0);
-XROOTD_OP_ERR(ctx, op);
-return xrootd_send_error(ctx, c, code, msg);
+brix_log_access(ctx, c, verb, path, detail, 0, code, msg, 0);
+BRIX_OP_ERR(ctx, op);
+return brix_send_error(ctx, c, code, msg);
 ```
 
 The `detail` string goes to the access log; `msg` goes to the wire. They can
@@ -106,7 +106,7 @@ differ when the access log needs more context than the client should see.
 ## Access logging
 
 ```c
-void xrootd_log_access(xrootd_ctx_t *ctx, ngx_connection_t *c,
+void brix_log_access(brix_ctx_t *ctx, ngx_connection_t *c,
     const char *verb, const char *path, const char *detail,
     ngx_uint_t xrd_ok, uint16_t errcode, const char *errmsg, size_t bytes);
 ```
@@ -124,7 +124,7 @@ Declared in `src/fs/path/path.h`, implemented in `src/observability/accesslog/ac
 | `bytes` | bytes transferred (use `0` for non-data ops) |
 
 **Rule**: every handler code path — both success and error — must call
-`xrootd_log_access` before returning. Missing log calls produce silent gaps
+`brix_log_access` before returning. Missing log calls produce silent gaps
 in the audit trail.
 
 ---
@@ -138,14 +138,14 @@ filesystem calls. The pattern is always a `_thread` / `_done` pair.
 
 ```c
 /* In the synchronous handler (event-loop side): */
-task = ngx_thread_task_alloc(c->pool, sizeof(xrootd_read_aio_t));
+task = ngx_thread_task_alloc(c->pool, sizeof(brix_read_aio_t));
 t = task->ctx;
 t->ctx = ctx;
 t->c = c;
 /* ... fill in t->fd, t->offset, t->rlen, etc. */
 
-task->handler = xrootd_read_aio_thread;   /* blocking syscall */
-task->event.handler = xrootd_read_aio_done; /* completion callback */
+task->handler = brix_read_aio_thread;   /* blocking syscall */
+task->event.handler = brix_read_aio_done; /* completion callback */
 task->event.data = task;
 
 ctx->state = XRD_ST_AIO;
@@ -157,9 +157,9 @@ if (ngx_thread_task_post(conf->thread_pool, task) != NGX_OK) {
 ### Thread function
 
 ```c
-void xrootd_read_aio_thread(void *data, ngx_log_t *log)
+void brix_read_aio_thread(void *data, ngx_log_t *log)
 {
-    xrootd_read_aio_t *t = data;
+    brix_read_aio_t *t = data;
     t->nread = pread(t->fd, t->databuf, t->rlen, t->offset);
     if (t->nread < 0) { t->io_errno = errno; }
     /* Do NOT touch ctx, c->pool, or any nginx structure here. */
@@ -172,14 +172,14 @@ The thread function may only touch fields stored in the task struct itself.
 ### Completion callback (done function)
 
 ```c
-void xrootd_read_aio_done(ngx_event_t *ev)
+void brix_read_aio_done(ngx_event_t *ev)
 {
-    xrootd_read_aio_t *t = ((ngx_thread_task_t *) ev->data)->ctx;
-    xrootd_ctx_t      *ctx = t->ctx;
+    brix_read_aio_t *t = ((ngx_thread_task_t *) ev->data)->ctx;
+    brix_ctx_t      *ctx = t->ctx;
     ngx_connection_t  *c = t->c;
 
     /* ALWAYS check destroyed first — connection may have closed. */
-    if (!xrootd_aio_restore_stream(ctx, t->streamid)) {
+    if (!brix_aio_restore_stream(ctx, t->streamid)) {
         return;   /* connection gone; nothing to do */
     }
 
@@ -189,7 +189,7 @@ void xrootd_read_aio_done(ngx_event_t *ev)
 }
 ```
 
-`xrootd_aio_restore_stream` (in `src/core/aio/resume.c`) checks `ctx->destroyed`
+`brix_aio_restore_stream` (in `src/core/aio/resume.c`) checks `ctx->destroyed`
 and restores `ctx->cur_streamid`. If it returns `0` the connection was torn
 down while the thread was running — return immediately without touching any
 connection state.
@@ -216,17 +216,17 @@ The eight-step pattern followed by every opcode handler:
 
 ```c
 ngx_int_t
-xrootd_handle_newop(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf)
+brix_handle_newop(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf)
 {
     ClientNewOpRequest *req = (ClientNewOpRequest *) ctx->hdr_buf;
-    char                path[XROOTD_MAX_PATH];
-    char                resolved[XROOTD_MAX_PATH];
+    char                path[BRIX_MAX_PATH];
+    char                resolved[BRIX_MAX_PATH];
     ngx_int_t           rc;
 
     /* 1. Validate wire fields (payload present, options recognised, etc.) */
     if (ctx->payload == NULL || ctx->cur_dlen == 0) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_NEWOP, "NEWOP",
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_NEWOP, "NEWOP",
                           "-", "newop", kXR_ArgMissing, "path required");
     }
 
@@ -235,12 +235,12 @@ xrootd_handle_newop(xrootd_ctx_t *ctx, ngx_connection_t *c,
     path[ctx->cur_dlen] = '\0';
 
     /* 3. Resolve the path (canonicalise + check jail root) */
-    rc = xrootd_resolve_path(ctx, c, conf, path, resolved, sizeof(resolved));
+    rc = brix_resolve_path(ctx, c, conf, path, resolved, sizeof(resolved));
     if (rc != NGX_OK) { return rc; }
 
     /* 4. Check ACL (read-only vs read-write, path rules) */
-    if (xrootd_acl_check_read(ctx, c, conf, resolved) != NGX_OK) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_NEWOP, "NEWOP",
+    if (brix_acl_check_read(ctx, c, conf, resolved) != NGX_OK) {
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_NEWOP, "NEWOP",
                           resolved, "acl", kXR_NotAuthorized, "permission denied");
     }
 
@@ -251,12 +251,12 @@ xrootd_handle_newop(xrootd_ctx_t *ctx, ngx_connection_t *c,
     /* ... */
 
     /* 7. Success path: log + metric + respond */
-    XROOTD_RETURN_OK(ctx, c, XROOTD_OP_NEWOP, "NEWOP", resolved, "", 0);
+    BRIX_RETURN_OK(ctx, c, BRIX_OP_NEWOP, "NEWOP", resolved, "", 0);
 }
 ```
 
 Steps 6–8 (log + metric + send) must always run together in that order.
-`XROOTD_RETURN_OK` / `XROOTD_RETURN_ERR` enforce this on the common paths;
+`BRIX_RETURN_OK` / `BRIX_RETURN_ERR` enforce this on the common paths;
 complex handlers that send a body keep the three lines explicit.
 
 ---
@@ -271,7 +271,7 @@ All WebDAV helpers are declared in `src/protocols/webdav/webdav.h`.
 /* Resolve request URI to absolute path under export root.
  * Returns NGX_OK or an HTTP error code (400, 403, 404, etc.).
  * Never bypasses this — it prevents path traversal. */
-ngx_int_t ngx_http_xrootd_webdav_resolve_path(
+ngx_int_t ngx_http_brix_webdav_resolve_path(
     ngx_http_request_t *r,
     const char *root_canon,
     char *out, size_t outsz);
@@ -302,12 +302,12 @@ ngx_int_t webdav_check_locks(ngx_http_request_t *r,
 /* Verify TLS client certificate as a proxy cert.
  * Returns NGX_OK on success, error on failure. */
 ngx_int_t webdav_verify_proxy_cert(ngx_http_request_t *r,
-    ngx_http_xrootd_webdav_loc_conf_t *conf);
+    ngx_http_brix_webdav_loc_conf_t *conf);
 
 /* Verify Authorization: Bearer <token>.
  * Returns NGX_OK on success, error on failure. */
 ngx_int_t webdav_verify_bearer_token(ngx_http_request_t *r,
-    ngx_http_xrootd_webdav_loc_conf_t *conf);
+    ngx_http_brix_webdav_loc_conf_t *conf);
 
 /* Check that the verified token includes a write scope for the given
  * method. Returns NGX_OK or NGX_HTTP_FORBIDDEN (403). */

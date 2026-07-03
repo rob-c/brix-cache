@@ -17,7 +17,7 @@
 ## 0. TL;DR
 
 Everything above the storage layer — `root://`, WebDAV, S3 REST, the cache — talks
-to **one narrow interface** (`xrootd_sd_driver_t`, the **Storage Driver / SD
+to **one narrow interface** (`brix_sd_driver_t`, the **Storage Driver / SD
 seam**). Below it, a driver decides *how* bytes and names physically live:
 
 | Name | Folder | Kind | Bytes live as | Namespace | Caps highlight |
@@ -33,14 +33,14 @@ seam**). Below it, a driver decides *how* bytes and names physically live:
 Three distinct kinds sit behind the seam:
 
 - **Registry drivers** (`posix`/`block`/`pblock`/`rados`) — selectable as an export
-  primary via `xrootd_storage_backend`; listed in `sd_drivers[]` (`sd_registry.c`).
-- **`sd_s3`** — NOT a registered `xrootd_sd_driver_t`; it is the shared S3 *protocol
+  primary via `brix_storage_backend`; listed in `sd_drivers[]` (`sd_registry.c`).
+- **`sd_s3`** — NOT a registered `brix_sd_driver_t`; it is the shared S3 *protocol
   handle library* (`sd_s3_open_read`/`size`/`pread`/`write`/`commit`). The client's
   S3 VFS and the module's `remote` driver both wrap it.
 - **Cache-constructed drivers** (`remote`/`xroot`) — built on demand by the cache
-  (`xrootd_sd_remote_create` / `xrootd_sd_xroot_create`) for read-through fill.
+  (`brix_sd_remote_create` / `brix_sd_xroot_create`) for read-through fill.
   `remote` (S3) is read-only. `xroot` is **also a registry-selectable primary**
-  (`xrootd_storage_backend root://host:port`) with read **and** write (transparent
+  (`brix_storage_backend root://host:port`) with read **and** write (transparent
   write-through to the remote server) — see §1.1 n.⁵.
 
 One subdirectory per driver; the **shared seam** (`sd.h`), the **registry**
@@ -55,7 +55,7 @@ level.
                           │               metrics, access log, page-CRC,
                           │               buffer shaping, the CACHE
                           ▼
-        ┌──────────────── SD seam  (xrootd_sd_driver_t, src/fs/backend/sd.h) ───────────────┐
+        ┌──────────────── SD seam  (brix_sd_driver_t, src/fs/backend/sd.h) ───────────────┐
         │  open close pread pwrite preadv fstat | stat unlink mkdir rename opendir readdir   │
         │  getxattr setxattr … | staged_open staged_write staged_commit staged_abort         │
         └───────┬───────────┬──────────┬──────────┬──────────┬──────────┬──────────┬─────────┘
@@ -76,17 +76,17 @@ policy; the driver slots are single, verbatim operations.
 Three opaque handles thread through every driver (`src/fs/backend/sd.h`):
 
 ```
-xrootd_sd_instance_t   one per export/role   { driver, log, pool, state }
+brix_sd_instance_t   one per export/role   { driver, log, pool, state }
    │                                                              │
    │ driver->open(inst, key, flags, mode, &err)                  (driver-private:
    ▼                                                              POSIX: rootfd+root_canon
-xrootd_sd_obj_t        one per open file      { driver, inst,     pblock: catalog handle
+brix_sd_obj_t        one per open file      { driver, inst,     pblock: catalog handle
    │   fd      = real kernel fd OR NGX_INVALID_FILE (-1)          s3/remote: endpoint+creds)
-   │   snap    = xrootd_sd_stat_t captured at open
+   │   snap    = brix_sd_stat_t captured at open
    │   state   = driver-private per-open (object key, S3 handle, origin conn…)
    │   heap_shell = 1 if open() malloc'd THIS shell (caller frees the copy)
    ▼
-xrootd_sd_staged_t     atomic write-then-publish { inst, state }
+brix_sd_staged_t     atomic write-then-publish { inst, state }
        staged_open → staged_write(off) … → staged_commit | staged_abort
 ```
 
@@ -113,7 +113,7 @@ truly has; the VFS degrades or rejects gracefully on the rest:
 > via `kXR_fattr` (get/set/list/del), rename via `kXR_mv`, server-copy as a gateway
 > read+write relay (not a remote zero-copy/TPC), and vectored read via per-segment
 > `preadv`. The origin wire helpers live in `src/fs/cache/origin_protocol.c`
-> (`xrootd_cache_origin_{getfattr,setfattr,listfattr,delfattr,rename}`). E2E:
+> (`brix_cache_origin_{getfattr,setfattr,listfattr,delfattr,rename}`). E2E:
 > `tests/run_remote_backend_meta.sh`. **Namespace:** the kXR_fattr handler maps a
 > user attr `X` to the on-disk key `user.U.X` *above* the VFS; since the origin
 > re-applies the same mapping, `sd_xroot` **strips** one `user.U.` before forwarding
@@ -153,12 +153,12 @@ key question when picking a backend for a site. `✓` = native; `adv` = *advisor
 | `remote` (S3 cache origin)⁴ | ✓ (read) | — | — | — | — | — |
 | **`xroot`** (remote root:// primary)⁵ | ✓ | follow-on | ✓⁵ | ✓⁵ | follow-on | ✓⁵ |
 
-¹ Two layers. The **wired** `sd_ceph` driver (phase-60, gated `XROOTD_HAVE_CEPH`)
+¹ Two layers. The **wired** `sd_ceph` driver (phase-60, gated `BRIX_HAVE_CEPH`)
 is basic librados: range read / random write / truncate only — **no** dirs /
 rename / xattr / setattr yet. The **stock-XrdCeph libradosstriper path** (the
 striper data plane, site `lfn2pfn` translation, stripe helpers, advisory codec, and
 the striper xattr wrappers — `sd_ceph_striper.c`, `site_n2n.c`,
-`sd_ceph_compat.c`, `meta_advisory.c`, gated `XROOTD_HAVE_RADOSSTRIPER`) is **built
+`sd_ceph_compat.c`, `meta_advisory.c`, gated `BRIX_HAVE_RADOSSTRIPER`) is **built
 and unit-tested but not yet wired into the live vtable**; final integration +
 live-pool validation (and the exact site `lfn2pfn` rule) is the open follow-on.
 ² target (stock-XrdCeph parity): flat object namespace, `opendir` only on `/`.
@@ -170,21 +170,21 @@ The advisory POSIX-attr blob rides in `x-amz-meta-xrd-unixattr`
 (`sd_s3_get/set_unixattr` ↔ `meta_advisory.c`). E2E: `tests/run_sd_s3_meta.sh`.
 ⁴ the `remote` (S3) driver is a read-only **byte fill** source; it exposes no write
 or metadata slots (see "read-only by absence" above).
-⁵ **`xroot` as a writable primary backend** (`xrootd_storage_backend
+⁵ **`xroot` as a writable primary backend** (`brix_storage_backend
 root://host:port`): the export's storage IS a remote XRootD server. The byte data
 path is done — **stat + read + write** (`pwrite`/`ftruncate`/`fsync` over
 kXR_write/_truncate/_sync) — so a write streams straight through to the origin
 (**transparent write-through, no local copy**) and a read serves from it. This
-required teaching the kXR handle path (and `xrootd_vfs_file_stat`, the WebDAV lock
+required teaching the kXR handle path (and `brix_vfs_file_stat`, the WebDAV lock
 pre-check) to accept a **no-fd (memory-served) primary** (additively, gated on
 `sd_obj.driver`), since no object/remote backend had ever been a root:// *primary*
 before. **Staged-write** (WebDAV PUT / S3 POST) works two ways:
 **(a) Mode A — passthrough** (default): `staged_open/write/commit` stream the body
 straight to the remote final path (no local copy; non-atomic on the remote).
 E2E: `tests/run_remote_backend_write.sh` (root://), `tests/run_remote_backend_webdav.sh`
-(WebDAV). **(b) Mode B — write-back** (`xrootd_webdav_storage_staging on`): the upload
+(WebDAV). **(b) Mode B — write-back** (`brix_webdav_storage_staging on`): the upload
 stages to a LOCAL POSIX temp under the export root (fast, random-write, atomic), then
-`xrootd_vfs_staged_promote()` reads it and drives the driver's staged path to the remote
+`brix_vfs_staged_promote()` reads it and drives the driver's staged path to the remote
 on commit, dropping the local temp. E2E: `tests/run_remote_backend_staging.sh`.
 Namespace (mkdir/rename), xattr/setattr forwarding, remote-side atomicity + a durable
 journal + backpressure on Mode B are later phases — see
@@ -194,7 +194,7 @@ use Mode B / the native-client path. Recommend a `thread_pool` on the node (the 
 write offloads to AIO).
 
 > **Two ways a remote `root://` filesystem gets full metadata.** (a) The
-> **transparent proxy** (`xrootd_proxy`) relays *every* opcode to the origin by
+> **transparent proxy** (`brix_proxy`) relays *every* opcode to the origin by
 > raw `requestid` — so a proxied remote `root://` already supports the **whole**
 > phase-space (mkdir/stat/chmod/mv/rm/xattr), live, not via the cache drivers.
 > Proof: `tests/run_proxy_metadata_phase.sh`. (b) The **cache** drivers
@@ -326,7 +326,7 @@ signing, HEAD, Range-GET, single-PUT, multipart upload, XML) and is `ngx`-free i
 vtable**:
 
 ```
-  xrootd_s3_transport_t  (sd_s3_transport.h)
+  brix_s3_transport_t  (sd_s3_transport.h)
   ┌──────────────────────────────────────────────────────────────────┐
   │ request(tctx, host,port,tls, method, path_and_query, headers,      │
   │         body,body_len, timeout, &resp, errbuf)   → 0 / -1          │
@@ -356,7 +356,7 @@ vtable**:
   └──────────────────────────┘              └─────────────────────────────────────┘
 ```
 
-> **Lesson — `xrootd_format_host_port` ALWAYS appends the port** (`%s:%u`, even
+> **Lesson — `brix_format_host_port` ALWAYS appends the port** (`%s:%u`, even
 > 80/443). So `sd_s3` signs the canonical host *with* the port. libcurl, left to
 > itself, omits the port on a default port and includes it otherwise — a
 > mismatch the moment endpoints differ. **Fix:** the server transport forces
@@ -398,7 +398,7 @@ three, **sorts them** (the canonical-headers + `SignedHeaders` list must be
 lexicographic), and emits the full signed request — so set-meta works against real
 AWS/MinIO, not just an anonymous endpoint.
 
-> **Gotcha — standalone consumers must `xrootd_crypto_init()` once.** SigV4's HMAC
+> **Gotcha — standalone consumers must `brix_crypto_init()` once.** SigV4's HMAC
 > goes through a fetched `EVP_MAC` handle (`src/core/compat/crypto.c`); the module and
 > client tools fetch it in worker init. A bare `sd_s3` harness that skips it gets
 > `s3 … SigV4 sign failed` on **every** request (the HMAC silently returns 0).
@@ -422,7 +422,7 @@ are SD instances, a read-through fill collapses to a **driver→driver copy**:
   │  origin_inst->driver->pread(src, buf, len, off)        ── the REMOTE side  │
   │            │                                                               │
   │            ▼                                                               │
-  │  xrootd_cache_sink_pwrite(sink, buf, n, off)  ── staged_write or mem/fd    │
+  │  brix_cache_sink_pwrite(sink, buf, n, off)  ── staged_write or mem/fd    │
   │            │                                                               │
   │            ▼                                                               │
   │  cache_inst->driver->staged_commit()  → commit-then-verify-then-publish    │
@@ -432,11 +432,11 @@ are SD instances, a read-through fill collapses to a **driver→driver copy**:
 ### 4.1 `remote` (S3 origin) — delegation, transport injected by the cache
 
 ```
-  fetch.c::xrootd_cache_fetch_origin_s3
-        │ build xrootd_sd_remote_cfg_t { host,port,tls,bucket,ak,sk,region,
+  fetch.c::brix_cache_fetch_origin_s3
+        │ build brix_sd_remote_cfg_t { host,port,tls,bucket,ak,sk,region,
         │                                transport = &server libcurl xport }
         ▼
-  xrootd_sd_remote_create(cfg) ─► sd_remote instance (CAP_RANGE_READ)
+  brix_sd_remote_create(cfg) ─► sd_remote instance (CAP_RANGE_READ)
         │ open("/sub/file")
         ▼
   sd_remote_open → builds sd_s3_open_params("/bucket/sub/file") → sd_s3_open_read
@@ -447,7 +447,7 @@ are SD instances, a read-through fill collapses to a **driver→driver copy**:
 ```
 
 > **Lesson — keep the backend layer free of the cache.** `sd_remote` is
-> transport-**agnostic**: the cache *injects* `&xrootd_s3_origin_curl_transport`.
+> transport-**agnostic**: the cache *injects* `&brix_s3_origin_curl_transport`.
 > No `cache/` or libcurl dependency leaks into `backend/` — exactly the same trick
 > `sd_s3` already used for the client.
 
@@ -471,10 +471,10 @@ needs only a **server conf + a logical path** (no connection object, no log):
 
 > **Lesson — a memory sink unifies streaming and pread.** The origin reader was
 > built to stream into a *sink* (fd or staged handle). To serve a driver `pread`
-> into the caller's buffer, `xrootd_cache_sink_t` grew a `mem`/`mem_cap` mode; the
+> into the caller's buffer, `brix_cache_sink_t` grew a `mem`/`mem_cap` mode; the
 > driver points `mem` at the caller buffer and `dst_off = 0`.
 
-> **Lesson — `xrootd_cache_sink_pwrite` returns `0`/`-1`, NOT a byte count.** The
+> **Lesson — `brix_cache_sink_pwrite` returns `0`/`-1`, NOT a byte count.** The
 > first S3/root fill loops wrote `if (sink_pwrite(...) != n) fail;` — and since a
 > success returns `0`, *every* successful write looked like a failure (S3 read was
 > fine; the cache write "failed"). The correct check is `!= 0`.
@@ -487,7 +487,7 @@ needs only a **server conf + a logical path** (no connection object, no log):
 ### 4.3 The fill dispatch + the origin auth matrix
 
 ```
-  xrootd_cache_fetch_origin(t)  — by cache_origin_scheme + creds
+  brix_cache_fetch_origin(t)  — by cache_origin_scheme + creds
   ┌───────────────────────────────────────────────────────────────────────────┐
   │ http:// https:// davs://  → http_transport.c (libcurl, whole-file)          │
   │ s3://                     → fetch_origin_s3   → sd_remote → sd_s3 → libcurl  │
@@ -597,9 +597,9 @@ Moving a driver into `<name>/` deepens its relative includes by one level:
 | 5 | `sd_s3` was client-only — add `s3/sd_s3.c` to the module `./config` | S3 origin |
 | 6 | Keep `backend/` free of `cache/`: inject the transport (`sd_remote`) | layering |
 | 7 | A **memory sink** lets a streaming origin reader serve driver `pread` | `sd_xroot` |
-| 8 | `xrootd_cache_sink_pwrite` returns `0`/`-1`, not a byte count | fill loops |
+| 8 | `brix_cache_sink_pwrite` returns `0`/`-1`, not a byte count | fill loops |
 | 9 | `.cinfo` must be in the eviction skip-list (dirty-protection durability) | watermark reaper |
-| 10 | `xrootd_format_host_port` always appends the port | S3 SigV4 |
+| 10 | `brix_format_host_port` always appends the port | S3 SigV4 |
 | 11 | A `*/` inside a `/* … X509_*​/BEARER_* … */` comment closes it early | exec env edit |
 | 12 | `sed` `.` is a regex wildcard — it mangled `sd_pblock_catalog` | reorg |
 | 13 | New `.c` ⇒ `rm -rf objs && ./configure && make` (no incremental over stale objs) | build governance |
@@ -610,7 +610,7 @@ Moving a driver into `<name>/` deepens its relative includes by one level:
 ## 8. Adding the next driver (recipe)
 
 1. `mkdir src/fs/backend/<name>/`; write `<name>/sd_<name>.c` defining a
-   `const xrootd_sd_driver_t` (include the seam as `../sd.h`). Set **only** the
+   `const brix_sd_driver_t` (include the seam as `../sd.h`). Set **only** the
    caps the backend truly has.
 2. `extern` it in `sd.h`; add a row to `sd_drivers[]` in `sd_registry.c`
    (`#include "<name>/sd_<name>.h"` for any header).

@@ -7,7 +7,7 @@
 > `v:10400`, `sha1:md5`) using an LHCb VOMS proxy — plus the regression guards
 > that keep it working and the xcache/TPC fronting scenarios.
 >
-> Companion deep-dive: [`../10-reference/comparison/xrootd-implementations.md`](../10-reference/comparison/xrootd-implementations.md).
+> Companion deep-dive: [`../10-reference/comparison/brix-implementations.md`](../10-reference/comparison/brix-implementations.md).
 > Guard tests: `tests/test_gsi_interop_guards.py`, `tests/c/gsi_interop_test.c`.
 
 ---
@@ -62,9 +62,9 @@ checks the result against the origin's own `adler32`. ✅ both pass.
 Config sketch:
 
 ```nginx
-xrootd_cache on;
-xrootd_cache_origin root://eoslhcb.cern.ch;       # or the dCache endpoint
-# xrootd_cache_origin_client /path/to/xrdcp;       # default: xrdcp
+brix_cache on;
+brix_cache_origin root://eoslhcb.cern.ch;       # or the dCache endpoint
+# brix_cache_origin_client /path/to/xrdcp;       # default: xrdcp
 # the fork/exec inherits $X509_USER_PROXY / $X509_CERT_DIR
 ```
 

@@ -3,7 +3,7 @@
 Last verified: 2026-06-14
 
 This is the current high-level matrix for BriX-Cache versus the official
-XRootD source tree under `/tmp/xrootd-src`. It intentionally excludes the
+XRootD source tree under `/tmp/brix-src`. It intentionally excludes the
 official UDP stream monitoring stack: this project has rejected that subsystem
 and uses Prometheus/SRR/dashboard/access-log reporting instead.
 
@@ -92,7 +92,7 @@ paths checked, see
 | Built-in operations dashboard | No equivalent | nginx+ | Implemented under dashboard/ops docs and module surfaces. |
 | Per-identity rate, bandwidth, and concurrency limits | Plugin/config dependent | nginx+ | Implemented through shared-memory policy helpers. |
 | Dynamic upstream health/management | Plugin/config dependent | nginx+ | Implemented for this module's nginx deployment model; not a drop-in CMS replacement. |
-| Traffic mirroring/shadow replay | No equivalent | nginx+ | HTTP/WebDAV and stream mirror support exists, including opt-in write/data-write mirroring gated by `xrootd_mirror_writes`. |
+| Traffic mirroring/shadow replay | No equivalent | nginx+ | HTTP/WebDAV and stream mirror support exists, including opt-in write/data-write mirroring gated by `brix_mirror_writes`. |
 
 ## Current Review Hotspots
 
@@ -116,5 +116,5 @@ These statements appeared in older docs and are no longer accurate:
 | "Official XRootD does not have HTTP-TPC." | Upstream has `src/XrdHttpTpc`; this project should not claim exclusivity for HTTP-TPC. |
 | "BriX-Cache lacks HTTP-TPC multistream/performance markers." | Current WebDAV TPC paths implement multistream/range transfer and progress/marker behavior. |
 | "Prepare always returns request id 0." | That is only the FRM-off legacy behavior; FRM-enabled operation returns durable request ids. |
-| "Write mirroring is out of scope." | Current source has opt-in HTTP/WebDAV write mirroring and stream data-write replay gated by `xrootd_mirror_writes`. |
+| "Write mirroring is out of scope." | Current source has opt-in HTTP/WebDAV write mirroring and stream data-write replay gated by `brix_mirror_writes`. |
 | "S3 auth is planned." | S3 SigV4/anonymous auth is implemented under `src/protocols/s3`. |

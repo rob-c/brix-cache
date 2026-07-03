@@ -7,8 +7,8 @@ tokens, proxy contents, passwords, or shared secrets.
 
 Assumptions used by every section:
 
-- Data is exported from `/srv/xrootd/export`.
-- Cache data lives under `/srv/xrootd/cache`.
+- Data is exported from `/srv/brix/export`.
+- Cache data lives under `/srv/brix/cache`.
 - Host certificates are installed at `/etc/grid-security/hostcert.pem` and
   `/etc/grid-security/hostkey.pem`.
 - Grid trust anchors are installed in `/etc/grid-security/certificates`.
@@ -17,7 +17,7 @@ Assumptions used by every section:
 - Grid-mapfile examples use `/etc/grid-security/grid-mapfile` and placeholder
   local pool accounts such as `alice` and `bob`.
 - Packet-marking examples report Fireflies to `flowd.example.org:10514` and use
-  a local SciTags registry file at `/etc/xrootd/scitags.json`.
+  a local SciTags registry file at `/etc/brix/scitags.json`.
 - Example cache origins use `origin.example.org:1094`.
 - CERN EOS cache examples use `eoslhcb.cern.ch:1094` and `/eos/lhcb` as a
   concrete EOS door and namespace; replace both with the experiment EOS service
@@ -66,37 +66,37 @@ stream {
         xrootd on;
 &#32;
         # Map client path "/" to this local directory.
-        xrootd_root /srv/xrootd/export;
+        brix_root /srv/brix/export;
 &#32;
         # Explicitly document anonymous access.
         # This is also the module default.
-        xrootd_auth none;
+        brix_auth none;
 &#32;
         # Allow write and namespace-changing operations.
         # Without this, the server is read-only.
-        xrootd_allow_write on;
+        brix_allow_write on;
 &#32;
         # Keep blocking filesystem work off the event loop.
-        xrootd_thread_pool default;
+        brix_thread_pool default;
     }
 }
 </code></pre>
 </td>
 <td>
-<pre><code class="language-text"># /etc/xrootd/xrootd.cfg
+<pre><code class="language-text"># /etc/brix/brix.cfg
 &#32;
 # Native XRootD listener for root://.
 xrd.port 1094
 &#32;
 # Runtime and IPC locations for the daemon.
-all.adminpath /var/spool/xrootd
-all.pidpath /run/xrootd
+all.adminpath /var/spool/brix
+all.pidpath /run/brix
 &#32;
 # Export the whole logical namespace and allow writes.
 all.export / rw
 &#32;
 # Map exported paths below "/" onto local storage.
-oss.localroot /srv/xrootd/export
+oss.localroot /srv/brix/export
 &#32;
 # No xrootd.seclib, sec.protocol, or sec.protbind lines:
 # clients are anonymous.
@@ -139,23 +139,23 @@ http {
 &#32;
         location / {
             # Enable the WebDAV data-plane handler.
-            xrootd_webdav on;
+            brix_webdav on;
 &#32;
             # Map URL path "/" to this local directory.
-            xrootd_webdav_root /srv/xrootd/export;
+            brix_webdav_root /srv/brix/export;
 &#32;
             # Explicit anonymous HTTP/WebDAV access.
-            xrootd_webdav_auth none;
+            brix_webdav_auth none;
 &#32;
             # Allow PUT, DELETE, MKCOL, and writable COPY paths.
-            xrootd_webdav_allow_write on;
+            brix_webdav_allow_write on;
         }
     }
 }
 </code></pre>
 </td>
 <td>
-<pre><code class="language-text"># /etc/xrootd/xrootd.cfg
+<pre><code class="language-text"># /etc/brix/brix.cfg
 &#32;
 # Keep a native root:// port available for tools that expect it.
 xrd.port 1094
@@ -163,14 +163,14 @@ xrd.port 1094
 # Add cleartext HTTP on port 8080 using XrdHttp.
 xrd.protocol XrdHttp:8080 libXrdHttp.so
 &#32;
-all.adminpath /var/spool/xrootd
-all.pidpath /run/xrootd
+all.adminpath /var/spool/brix
+all.pidpath /run/brix
 &#32;
 # Export the full namespace with write permission.
 all.export / rw
 &#32;
 # Local filesystem root for exported paths.
-oss.localroot /srv/xrootd/export
+oss.localroot /srv/brix/export
 &#32;
 # No sec.protocol binding is configured, so HTTP clients are anonymous.
 </code></pre>
@@ -211,38 +211,38 @@ stream {
         listen 1094;
 &#32;
         xrootd on;
-        xrootd_root /srv/xrootd/export;
+        brix_root /srv/brix/export;
 &#32;
         # Require a valid bearer token for every native XRootD session.
-        xrootd_auth token;
+        brix_auth token;
 &#32;
         # Write operations still need both this server-wide gate and an
         # appropriate storage.write or storage.create token scope.
-        xrootd_allow_write on;
+        brix_allow_write on;
 &#32;
         # Public signing keys trusted for token validation.
-        xrootd_token_jwks /etc/tokens/storage-jwks.json;
+        brix_token_jwks /etc/tokens/storage-jwks.json;
 &#32;
         # Reject tokens from other issuers or for other audiences.
-        xrootd_token_issuer   "https://idp.example.com";
-        xrootd_token_audience "my-storage";
+        brix_token_issuer   "https://idp.example.com";
+        brix_token_audience "my-storage";
 &#32;
-        xrootd_thread_pool default;
+        brix_thread_pool default;
     }
 }
 </code></pre>
 </td>
 <td>
-<pre><code class="language-text"># /etc/xrootd/xrootd.cfg
+<pre><code class="language-text"># /etc/brix/brix.cfg
 &#32;
 xrd.port 1094
-all.adminpath /var/spool/xrootd
-all.pidpath /run/xrootd
+all.adminpath /var/spool/brix
+all.pidpath /run/brix
 &#32;
 # Export the full namespace with write permission. SciTokens scopes
 # decide which authenticated token holders may actually use it.
 all.export / rw
-oss.localroot /srv/xrootd/export
+oss.localroot /srv/brix/export
 &#32;
 # Load XRootD security plugins and require ztn bearer-token auth.
 xrootd.seclib libXrdSec.so
@@ -251,9 +251,9 @@ sec.protbind * only ztn
 &#32;
 # Enforce token scopes with the SciTokens authorization plugin.
 ofs.authorize 1
-ofs.authlib libXrdAccSciTokens.so config=/etc/xrootd/scitokens.cfg
+ofs.authlib libXrdAccSciTokens.so config=/etc/brix/scitokens.cfg
 &#32;
-# /etc/xrootd/scitokens.cfg
+# /etc/brix/scitokens.cfg
 &#32;
 [Global]
 # Must match the token aud claim.
@@ -308,13 +308,13 @@ stream {
         listen 1094;
 &#32;
         xrootd on;
-        xrootd_root /srv/xrootd/export;
+        brix_root /srv/brix/export;
 &#32;
         # Anonymous native XRootD access.
-        xrootd_auth none;
-        xrootd_allow_write on;
+        brix_auth none;
+        brix_allow_write on;
 &#32;
-        xrootd_thread_pool default;
+        brix_thread_pool default;
     }
 }
 &#32;
@@ -326,19 +326,19 @@ http {
         client_max_body_size 0;
 &#32;
         location / {
-            xrootd_webdav on;
-            xrootd_webdav_root /srv/xrootd/export;
+            brix_webdav on;
+            brix_webdav_root /srv/brix/export;
 &#32;
             # Anonymous HTTP/WebDAV access.
-            xrootd_webdav_auth none;
-            xrootd_webdav_allow_write on;
+            brix_webdav_auth none;
+            brix_webdav_allow_write on;
         }
     }
 }
 </code></pre>
 </td>
 <td>
-<pre><code class="language-text"># /etc/xrootd/xrootd.cfg
+<pre><code class="language-text"># /etc/brix/brix.cfg
 &#32;
 # Native root:// listener.
 xrd.port 1094
@@ -346,12 +346,12 @@ xrd.port 1094
 # Cleartext HTTP listener using XrdHttp.
 xrd.protocol XrdHttp:8080 libXrdHttp.so
 &#32;
-all.adminpath /var/spool/xrootd
-all.pidpath /run/xrootd
+all.adminpath /var/spool/brix
+all.pidpath /run/brix
 &#32;
 # Export one shared namespace for both protocols with write permission.
 all.export / rw
-oss.localroot /srv/xrootd/export
+oss.localroot /srv/brix/export
 &#32;
 # No xrootd.seclib, sec.protocol, or sec.protbind lines:
 # both root:// and http:// clients are anonymous.
@@ -366,7 +366,7 @@ oss.localroot /srv/xrootd/export
 Clients are anonymous, but data flows are reported to a SciTags/Firefly
 collector. These examples intentionally keep only the Firefly path enabled for
 parity; BriX-Cache can also stamp IPv6 flow labels by setting
-`xrootd_pmark_flowlabel on`.
+`brix_pmark_flowlabel on`.
 
 <table>
 <thead>
@@ -393,38 +393,38 @@ stream {
         listen 1094;
 &#32;
         xrootd on;
-        xrootd_root /srv/xrootd/export;
+        brix_root /srv/brix/export;
 &#32;
         # Anonymous root:// access; packet marking is accounting only.
-        xrootd_auth none;
+        brix_auth none;
 &#32;
         # Keep this example read-only even though it is anonymous.
-        xrootd_allow_write off;
+        brix_allow_write off;
 &#32;
         # Enable SciTags packet marking for root:// transfers.
-        xrootd_pmark on;
-        xrootd_pmark_firefly on;
-        xrootd_pmark_scitag_cgi on;
+        brix_pmark on;
+        brix_pmark_firefly on;
+        brix_pmark_scitag_cgi on;
 &#32;
         # Firefly-only parity with stock XRootD. Set this on if the
         # deployment wants BriX-Cache's IPv6 flow-label marking too.
-        xrootd_pmark_flowlabel off;
+        brix_pmark_flowlabel off;
 &#32;
         # UDP collector for RFC5424-wrapped Firefly JSON datagrams.
-        xrootd_pmark_firefly_dest flowd.example.org:10514;
+        brix_pmark_firefly_dest flowd.example.org:10514;
 &#32;
         # Local SciTags experiment/activity registry.
-        xrootd_pmark_defsfile /etc/xrootd/scitags.json;
+        brix_pmark_defsfile /etc/brix/scitags.json;
 &#32;
         # Default tag used when the client sends no scitag.flow opaque value.
-        xrootd_pmark_map_experiment default example;
-        xrootd_pmark_map_activity   example default default;
+        brix_pmark_map_experiment default example;
+        brix_pmark_map_activity   example default default;
 &#32;
-        xrootd_thread_pool default;
+        brix_thread_pool default;
     }
 }
 &#32;
-# /etc/xrootd/scitags.json
+# /etc/brix/scitags.json
 &#32;
 {
   "modified": "2026-06-22",
@@ -442,15 +442,15 @@ stream {
 </code></pre>
 </td>
 <td>
-<pre><code class="language-text"># /etc/xrootd/xrootd.cfg
+<pre><code class="language-text"># /etc/brix/brix.cfg
 &#32;
 xrd.port 1094
-all.adminpath /var/spool/xrootd
-all.pidpath /run/xrootd
+all.adminpath /var/spool/brix
+all.pidpath /run/brix
 &#32;
 # Anonymous read-only export.
 all.export / r/o
-oss.localroot /srv/xrootd/export
+oss.localroot /srv/brix/export
 &#32;
 # Enable Firefly packet marking. Stock XRootD emits Firefly UDP reports;
 # flow-label parsing exists in config but is not the deployed data path.
@@ -460,13 +460,13 @@ pmark ffdest flowd.example.org:10514
 &#32;
 # Local SciTags registry. nofail keeps the data server up if the file is
 # temporarily unavailable; marking then simply does not resolve named tags.
-pmark defsfile nofail /etc/xrootd/scitags.json
+pmark defsfile nofail /etc/brix/scitags.json
 &#32;
 # Default tag used when the client sends no scitag.flow opaque value.
 pmark map2exp default example
 pmark map2act example default default
 &#32;
-# /etc/xrootd/scitags.json
+# /etc/brix/scitags.json
 &#32;
 {
   "modified": "2026-06-22",
@@ -518,36 +518,36 @@ stream {
         listen 1094;
 &#32;
         xrootd on;
-        xrootd_root /srv/xrootd/export;
+        brix_root /srv/brix/export;
 &#32;
         # Require GSI during the native XRootD login/auth flow.
-        xrootd_auth gsi;
+        brix_auth gsi;
 &#32;
         # Allow authenticated clients to perform writes.
-        xrootd_allow_write on;
+        brix_allow_write on;
 &#32;
         # Host credential presented by the server.
-        xrootd_certificate     /etc/grid-security/hostcert.pem;
-        xrootd_certificate_key /etc/grid-security/hostkey.pem;
+        brix_certificate     /etc/grid-security/hostcert.pem;
+        brix_certificate_key /etc/grid-security/hostkey.pem;
 &#32;
         # Trust anchor used to verify client proxy chains.
-        xrootd_trusted_ca /etc/grid-security/certificates;
+        brix_trusted_ca /etc/grid-security/certificates;
 &#32;
-        xrootd_thread_pool default;
+        brix_thread_pool default;
     }
 }
 </code></pre>
 </td>
 <td>
-<pre><code class="language-text"># /etc/xrootd/xrootd.cfg
+<pre><code class="language-text"># /etc/brix/brix.cfg
 &#32;
 xrd.port 1094
-all.adminpath /var/spool/xrootd
-all.pidpath /run/xrootd
+all.adminpath /var/spool/brix
+all.pidpath /run/brix
 &#32;
 # Export the full namespace with write permission.
 all.export / rw
-oss.localroot /srv/xrootd/export
+oss.localroot /srv/brix/export
 &#32;
 # Load the XRootD security plugin collection.
 xrootd.seclib libXrdSec.so
@@ -568,7 +568,7 @@ sec.protbind * only gsi
 ## 7. root:// GSI Fileserver With Explicit User Mapping
 
 Both examples authenticate clients with GSI and use a grid-mapfile, but the files
-mean different things. BriX-Cache uses `xrootd_gridmap` for optional
+mean different things. BriX-Cache uses `brix_gridmap` for optional
 per-request UNIX impersonation; its authdb still matches the GSI DN. Vanilla
 XRootD's GSI grid-mapfile maps the client DN to the local name that `acc.authdb`
 then authorizes.
@@ -598,38 +598,38 @@ events {
 stream {
     # Process-global broker settings. These can be placed in stream{}
     # because the broker is shared by the nginx instance.
-    xrootd_impersonation map;
-    xrootd_impersonation_socket /run/xrootd/impersonate.sock;
-    xrootd_impersonation_export /srv/xrootd/export;
-    xrootd_impersonation_broker_user xrootd-broker;
+    brix_impersonation map;
+    brix_impersonation_socket /run/brix/impersonate.sock;
+    brix_impersonation_export /srv/brix/export;
+    brix_impersonation_broker_user xrootd-broker;
 &#32;
     # DN to local account mapping used only by the impersonation broker.
-    xrootd_gridmap /etc/grid-security/grid-mapfile;
+    brix_gridmap /etc/grid-security/grid-mapfile;
 &#32;
-    # Fail closed for unmapped DNs by omitting xrootd_idmap_default_user.
-    xrootd_idmap_min_uid 1000;
-    xrootd_idmap_cache_ttl 600;
+    # Fail closed for unmapped DNs by omitting brix_idmap_default_user.
+    brix_idmap_min_uid 1000;
+    brix_idmap_cache_ttl 600;
 &#32;
     server {
         listen 1094;
 &#32;
         xrootd on;
-        xrootd_root /srv/xrootd/export;
-        xrootd_auth gsi;
-        xrootd_allow_write on;
+        brix_root /srv/brix/export;
+        brix_auth gsi;
+        brix_allow_write on;
 &#32;
-        xrootd_certificate     /etc/grid-security/hostcert.pem;
-        xrootd_certificate_key /etc/grid-security/hostkey.pem;
-        xrootd_trusted_ca      /etc/grid-security/certificates;
+        brix_certificate     /etc/grid-security/hostcert.pem;
+        brix_certificate_key /etc/grid-security/hostkey.pem;
+        brix_trusted_ca      /etc/grid-security/certificates;
 &#32;
         # Authorization is separate from impersonation. The authdb sees
         # the GSI DN, not the local account from the grid-mapfile.
-        xrootd_authdb_format xrdacc;
-        xrootd_authdb /etc/xrootd/authdb;
-        xrootd_authdb_refresh 60;
-        xrootd_authdb_audit deny;
+        brix_authdb_format xrdacc;
+        brix_authdb /etc/brix/authdb;
+        brix_authdb_refresh 60;
+        brix_authdb_audit deny;
 &#32;
-        xrootd_thread_pool default;
+        brix_thread_pool default;
     }
 }
 &#32;
@@ -638,7 +638,7 @@ stream {
 "/DC=org/DC=example/CN=Alice Example" alice
 "/DC=org/DC=example/CN=Bob Example" bob
 &#32;
-# /etc/xrootd/authdb
+# /etc/brix/authdb
 &#32;
 # BriX-Cache authdb grants are keyed by the authenticated DN.
 # The grid-mapfile controls the local uid/gid used for filesystem opens.
@@ -647,14 +647,14 @@ u /DC=org/DC=example/CN=Bob Example   /users/bob   a
 </code></pre>
 </td>
 <td>
-<pre><code class="language-text"># /etc/xrootd/xrootd.cfg
+<pre><code class="language-text"># /etc/brix/brix.cfg
 &#32;
 xrd.port 1094
-all.adminpath /var/spool/xrootd
-all.pidpath /run/xrootd
+all.adminpath /var/spool/brix
+all.pidpath /run/brix
 &#32;
 all.export / rw
-oss.localroot /srv/xrootd/export
+oss.localroot /srv/brix/export
 &#32;
 xrootd.seclib libXrdSec.so
 &#32;
@@ -672,14 +672,14 @@ sec.protbind * only gsi
 &#32;
 # XRootD authdb sees the mapped local names alice and bob.
 ofs.authorize 1
-acc.authdb /etc/xrootd/authdb
+acc.authdb /etc/brix/authdb
 &#32;
 # /etc/grid-security/grid-mapfile
 &#32;
 "/DC=org/DC=example/CN=Alice Example" alice
 "/DC=org/DC=example/CN=Bob Example" bob
 &#32;
-# /etc/xrootd/authdb
+# /etc/brix/authdb
 &#32;
 u alice /users/alice a
 u bob   /users/bob   a
@@ -720,39 +720,39 @@ stream {
         listen 1094;
 &#32;
         xrootd on;
-        xrootd_root /srv/xrootd/export;
+        brix_root /srv/brix/export;
 &#32;
         # Accept either GSI or ztn bearer-token authentication.
-        xrootd_auth both;
+        brix_auth both;
 &#32;
-        # Write requests still require xrootd_allow_write plus either
+        # Write requests still require brix_allow_write plus either
         # token storage scopes or the site's GSI authorization policy.
-        xrootd_allow_write on;
+        brix_allow_write on;
 &#32;
         # GSI server credential and client trust anchors.
-        xrootd_certificate     /etc/grid-security/hostcert.pem;
-        xrootd_certificate_key /etc/grid-security/hostkey.pem;
-        xrootd_trusted_ca      /etc/grid-security/certificates;
+        brix_certificate     /etc/grid-security/hostcert.pem;
+        brix_certificate_key /etc/grid-security/hostkey.pem;
+        brix_trusted_ca      /etc/grid-security/certificates;
 &#32;
         # Token validation inputs. The JWKS file contains public keys only.
-        xrootd_token_jwks /etc/tokens/storage-jwks.json;
-        xrootd_token_issuer   "https://idp.example.com";
-        xrootd_token_audience "my-storage";
+        brix_token_jwks /etc/tokens/storage-jwks.json;
+        brix_token_issuer   "https://idp.example.com";
+        brix_token_audience "my-storage";
 &#32;
-        xrootd_thread_pool default;
+        brix_thread_pool default;
     }
 }
 </code></pre>
 </td>
 <td>
-<pre><code class="language-text"># /etc/xrootd/xrootd.cfg
+<pre><code class="language-text"># /etc/brix/brix.cfg
 &#32;
 xrd.port 1094
-all.adminpath /var/spool/xrootd
-all.pidpath /run/xrootd
+all.adminpath /var/spool/brix
+all.pidpath /run/brix
 &#32;
 all.export / rw
-oss.localroot /srv/xrootd/export
+oss.localroot /srv/brix/export
 &#32;
 # Load security plugins and advertise both token and GSI auth.
 xrootd.seclib libXrdSec.so
@@ -763,10 +763,10 @@ sec.protbind * only ztn gsi
 # SciTokens authorizes scoped tokens first. The ++ chain lets GSI
 # sessions, which normally have no bearer token, fall through to authdb.
 ofs.authorize 1
-ofs.authlib ++ libXrdAccSciTokens.so config=/etc/xrootd/scitokens.cfg
-acc.authdb /etc/xrootd/authdb
+ofs.authlib ++ libXrdAccSciTokens.so config=/etc/brix/scitokens.cfg
+acc.authdb /etc/brix/authdb
 &#32;
-# /etc/xrootd/scitokens.cfg
+# /etc/brix/scitokens.cfg
 &#32;
 [Global]
 audience = my-storage
@@ -782,7 +782,7 @@ base_path = /
 # Authorize token access from explicit storage.* scopes.
 authorization_strategy = capability
 &#32;
-# /etc/xrootd/authdb
+# /etc/brix/authdb
 &#32;
 # Example GSI DN grant. Replace this placeholder with site-approved
 # GSI DNs, VO groups, roles, or compound XrdAcc rules.
@@ -833,29 +833,29 @@ http {
         ssl_verify_depth 10;
 &#32;
         # Allow the module's WebDAV verifier to accept proxy certificates.
-        xrootd_webdav_proxy_certs on;
+        brix_webdav_proxy_certs on;
 &#32;
         client_max_body_size 0;
 &#32;
         location / {
-            xrootd_webdav on;
-            xrootd_webdav_root /srv/xrootd/export;
+            brix_webdav on;
+            brix_webdav_root /srv/brix/export;
 &#32;
             # Require a valid TLS client proxy certificate.
-            xrootd_webdav_auth required;
+            brix_webdav_auth required;
 &#32;
             # CA directory used by the module for proxy-chain verification.
-            xrootd_webdav_cadir /etc/grid-security/certificates;
+            brix_webdav_cadir /etc/grid-security/certificates;
 &#32;
             # Allow writes only after authentication succeeds.
-            xrootd_webdav_allow_write on;
+            brix_webdav_allow_write on;
         }
     }
 }
 </code></pre>
 </td>
 <td>
-<pre><code class="language-text"># /etc/xrootd/xrootd.cfg
+<pre><code class="language-text"># /etc/brix/brix.cfg
 &#32;
 # Keep the native port available for root:// clients if desired.
 xrd.port 1094
@@ -863,11 +863,11 @@ xrd.port 1094
 # Serve HTTPS through XrdHttp on port 8443.
 xrd.protocol https:8443 libXrdHttp.so
 &#32;
-all.adminpath /var/spool/xrootd
-all.pidpath /run/xrootd
+all.adminpath /var/spool/brix
+all.pidpath /run/brix
 &#32;
 all.export / rw
-oss.localroot /srv/xrootd/export
+oss.localroot /srv/brix/export
 &#32;
 # TLS host credential and CA trust for HTTPS.
 xrd.tls /etc/grid-security/hostcert.pem /etc/grid-security/hostkey.pem
@@ -915,12 +915,12 @@ stream {
     # Global broker settings used by HTTP/WebDAV filesystem opens too.
     # Omit this block if the deployment only needs DN-based authdb
     # authorization and not per-user UNIX ownership.
-    xrootd_impersonation map;
-    xrootd_impersonation_socket /run/xrootd/impersonate.sock;
-    xrootd_impersonation_export /srv/xrootd/export;
-    xrootd_impersonation_broker_user xrootd-broker;
-    xrootd_gridmap /etc/grid-security/grid-mapfile;
-    xrootd_idmap_min_uid 1000;
+    brix_impersonation map;
+    brix_impersonation_socket /run/brix/impersonate.sock;
+    brix_impersonation_export /srv/brix/export;
+    brix_impersonation_broker_user xrootd-broker;
+    brix_gridmap /etc/grid-security/grid-mapfile;
+    brix_idmap_min_uid 1000;
 }
 &#32;
 http {
@@ -935,23 +935,23 @@ http {
         ssl_verify_depth 10;
 &#32;
         # Let the module verify RFC 3820 proxy chains.
-        xrootd_webdav_proxy_certs on;
+        brix_webdav_proxy_certs on;
 &#32;
         client_max_body_size 0;
 &#32;
         location / {
-            xrootd_webdav on;
-            xrootd_webdav_root /srv/xrootd/export;
-            xrootd_webdav_auth required;
-            xrootd_webdav_cadir /etc/grid-security/certificates;
-            xrootd_webdav_allow_write on;
+            brix_webdav on;
+            brix_webdav_root /srv/brix/export;
+            brix_webdav_auth required;
+            brix_webdav_cadir /etc/grid-security/certificates;
+            brix_webdav_allow_write on;
 &#32;
             # WebDAV authorization still matches the authenticated DN.
             # The grid-mapfile above controls the local user for I/O.
-            xrootd_authdb_format xrdacc;
-            xrootd_authdb /etc/xrootd/webdav-authdb;
-            xrootd_authdb_refresh 60;
-            xrootd_authdb_audit deny;
+            brix_authdb_format xrdacc;
+            brix_authdb /etc/brix/webdav-authdb;
+            brix_authdb_refresh 60;
+            brix_authdb_audit deny;
         }
     }
 }
@@ -961,14 +961,14 @@ http {
 "/DC=org/DC=example/CN=Alice Example" alice
 "/DC=org/DC=example/CN=Bob Example" bob
 &#32;
-# /etc/xrootd/webdav-authdb
+# /etc/brix/webdav-authdb
 &#32;
 u /DC=org/DC=example/CN=Alice Example /users/alice a
 u /DC=org/DC=example/CN=Bob Example   /users/bob   a
 </code></pre>
 </td>
 <td>
-<pre><code class="language-text"># /etc/xrootd/xrootd.cfg
+<pre><code class="language-text"># /etc/brix/brix.cfg
 &#32;
 # Optional native root:// port for tools that expect a data-server port.
 xrd.port 1094
@@ -976,11 +976,11 @@ xrd.port 1094
 # HTTPS/WebDAV endpoint.
 xrd.protocol XrdHttp:8443 libXrdHttp.so
 &#32;
-all.adminpath /var/spool/xrootd
-all.pidpath /run/xrootd
+all.adminpath /var/spool/brix
+all.pidpath /run/brix
 &#32;
 all.export / rw
-oss.localroot /srv/xrootd/export
+oss.localroot /srv/brix/export
 &#32;
 # XrdHttp TLS identity and CA trust for client certificates.
 http.cert  /etc/grid-security/hostcert.pem
@@ -997,14 +997,14 @@ http.desthttps yes
 &#32;
 # Authorize the mapped local names from the grid-mapfile.
 ofs.authorize 1
-acc.authdb /etc/xrootd/authdb
+acc.authdb /etc/brix/authdb
 &#32;
 # /etc/grid-security/grid-mapfile
 &#32;
 "/DC=org/DC=example/CN=Alice Example" alice
 "/DC=org/DC=example/CN=Bob Example" bob
 &#32;
-# /etc/xrootd/authdb
+# /etc/brix/authdb
 &#32;
 u alice /users/alice a
 u bob   /users/bob   a
@@ -1033,7 +1033,7 @@ clients; it fills local files from the origin.
 <pre><code class="language-nginx"># /etc/nginx/nginx.conf
 &#32;
 worker_processes auto;
-thread_pool xrootd_cache_io threads=8 max_queue=65536;
+thread_pool brix_cache_io threads=8 max_queue=65536;
 &#32;
 events {
     worker_connections 4096;
@@ -1047,46 +1047,46 @@ stream {
         xrootd on;
 &#32;
         # Anonymous clients are allowed to read through the cache.
-        xrootd_auth none;
+        brix_auth none;
 &#32;
         # Cache mode is read-only; writes must stay disabled.
-        xrootd_allow_write off;
+        brix_allow_write off;
 &#32;
         # Namespace root used for path handling. In cache mode, hits are
-        # served from xrootd_cache_root below.
-        xrootd_root /srv/xrootd/cache;
+        # served from brix_cache_root below.
+        brix_root /srv/brix/cache;
 &#32;
         # Enable read-through cache fills.
-        xrootd_cache on;
-        xrootd_cache_root /srv/xrootd/cache;
+        brix_cache on;
+        brix_cache_root /srv/brix/cache;
 &#32;
         # Origin data server. Use roots:// here if the origin requires TLS.
-        xrootd_cache_origin root://origin.example.org:1094;
+        brix_cache_origin root://origin.example.org:1094;
 &#32;
         # Service proxy used only for outbound origin fetches.
         # The file must be created and renewed outside nginx.
-        xrootd_cache_origin_proxy /run/xrootd/cache-fetcher.proxy;
-        xrootd_cache_origin_cadir /etc/grid-security/certificates;
-        xrootd_cache_origin_client /usr/bin/xrdcp;
+        brix_cache_origin_proxy /run/brix/cache-fetcher.proxy;
+        brix_cache_origin_cadir /etc/grid-security/certificates;
+        brix_cache_origin_client /usr/bin/xrdcp;
 &#32;
         # Operational cache policy.
-        xrootd_cache_lock_timeout 300s;
-        xrootd_cache_eviction_threshold 90%;
-        xrootd_cache_max_file_size 100g;
+        brix_cache_lock_timeout 300s;
+        brix_cache_eviction_threshold 90%;
+        brix_cache_max_file_size 100g;
 &#32;
-        xrootd_thread_pool xrootd_cache_io;
+        brix_thread_pool brix_cache_io;
     }
 }
 </code></pre>
 </td>
 <td>
-<pre><code class="language-text"># /etc/xrootd/xrootd.cfg
+<pre><code class="language-text"># /etc/brix/brix.cfg
 &#32;
 # Client-facing cache listener.
 xrd.port 1094
 &#32;
-all.adminpath /var/spool/xrootd
-all.pidpath /run/xrootd
+all.adminpath /var/spool/brix
+all.pidpath /run/brix
 &#32;
 # Anonymous clients can read the cached namespace.
 # Cache fill writes are internal to PFC, so the client export stays read-only.
@@ -1100,10 +1100,10 @@ pss.cachelib libXrdPfc.so
 pss.origin root://origin.example.org:1094
 &#32;
 # The cache's local namespace and cache storage.
-oss.localroot /srv/xrootd/cache/namespace
+oss.localroot /srv/brix/cache/namespace
 pfc.spaces data meta
-oss.space data /srv/xrootd/cache/data
-oss.space meta /srv/xrootd/cache/meta
+oss.space data /srv/brix/cache/data
+oss.space meta /srv/brix/cache/meta
 &#32;
 # Basic PFC policy.
 pfc.ram 16g
@@ -1114,7 +1114,7 @@ xrootd.seclib libXrdSec.so
 &#32;
 # Outbound origin GSI credential. This sets process environment for
 # the XRootD client code used by PSS; it does not contain the proxy.
-setenv X509_USER_PROXY = /run/xrootd/cache-fetcher.proxy
+setenv X509_USER_PROXY = /run/brix/cache-fetcher.proxy
 setenv X509_CERT_DIR = /etc/grid-security/certificates
 setenv XrdSecPROTOCOL = gsi
 </code></pre>
@@ -1143,7 +1143,7 @@ origin access.
 <pre><code class="language-nginx"># /etc/nginx/nginx.conf
 &#32;
 worker_processes auto;
-thread_pool xrootd_cache_io threads=8 max_queue=65536;
+thread_pool brix_cache_io threads=8 max_queue=65536;
 &#32;
 events {
     worker_connections 4096;
@@ -1157,44 +1157,44 @@ stream {
         xrootd on;
 &#32;
         # Require client-side GSI before serving cache reads.
-        xrootd_auth gsi;
-        xrootd_certificate     /etc/grid-security/hostcert.pem;
-        xrootd_certificate_key /etc/grid-security/hostkey.pem;
-        xrootd_trusted_ca      /etc/grid-security/certificates;
+        brix_auth gsi;
+        brix_certificate     /etc/grid-security/hostcert.pem;
+        brix_certificate_key /etc/grid-security/hostkey.pem;
+        brix_trusted_ca      /etc/grid-security/certificates;
 &#32;
         # Cache mode is read-only; writes must stay disabled.
-        xrootd_allow_write off;
+        brix_allow_write off;
 &#32;
-        xrootd_root /srv/xrootd/cache;
+        brix_root /srv/brix/cache;
 &#32;
         # Enable read-through cache fills.
-        xrootd_cache on;
-        xrootd_cache_root /srv/xrootd/cache;
+        brix_cache on;
+        brix_cache_root /srv/brix/cache;
 &#32;
         # Origin data server. Use roots:// if the origin requires TLS.
-        xrootd_cache_origin root://origin.example.org:1094;
+        brix_cache_origin root://origin.example.org:1094;
 &#32;
         # Service proxy for authenticated origin fetches.
         # Managed and renewed outside nginx.
-        xrootd_cache_origin_proxy /run/xrootd/cache-fetcher.proxy;
-        xrootd_cache_origin_cadir /etc/grid-security/certificates;
-        xrootd_cache_origin_client /usr/bin/xrdcp;
+        brix_cache_origin_proxy /run/brix/cache-fetcher.proxy;
+        brix_cache_origin_cadir /etc/grid-security/certificates;
+        brix_cache_origin_client /usr/bin/xrdcp;
 &#32;
-        xrootd_cache_lock_timeout 300s;
-        xrootd_cache_eviction_threshold 90%;
-        xrootd_cache_max_file_size 100g;
+        brix_cache_lock_timeout 300s;
+        brix_cache_eviction_threshold 90%;
+        brix_cache_max_file_size 100g;
 &#32;
-        xrootd_thread_pool xrootd_cache_io;
+        brix_thread_pool brix_cache_io;
     }
 }
 </code></pre>
 </td>
 <td>
-<pre><code class="language-text"># /etc/xrootd/xrootd.cfg
+<pre><code class="language-text"># /etc/brix/brix.cfg
 &#32;
 xrd.port 1094
-all.adminpath /var/spool/xrootd
-all.pidpath /run/xrootd
+all.adminpath /var/spool/brix
+all.pidpath /run/brix
 &#32;
 # Export the cache namespace read-only to clients. Cache fill writes are
 # internal to PFC.
@@ -1205,10 +1205,10 @@ ofs.osslib libXrdPss.so
 pss.cachelib libXrdPfc.so
 pss.origin root://origin.example.org:1094
 &#32;
-oss.localroot /srv/xrootd/cache/namespace
+oss.localroot /srv/brix/cache/namespace
 pfc.spaces data meta
-oss.space data /srv/xrootd/cache/data
-oss.space meta /srv/xrootd/cache/meta
+oss.space data /srv/brix/cache/data
+oss.space meta /srv/brix/cache/meta
 &#32;
 pfc.ram 16g
 pfc.diskusage 0.90 0.95 purgeinterval 300s
@@ -1220,7 +1220,7 @@ sec.protbind * only gsi
 &#32;
 # Use a separate service proxy for cache-to-origin GSI.
 # The proxy file is not shown here and must be renewed externally.
-setenv X509_USER_PROXY = /run/xrootd/cache-fetcher.proxy
+setenv X509_USER_PROXY = /run/brix/cache-fetcher.proxy
 setenv X509_CERT_DIR = /etc/grid-security/certificates
 setenv XrdSecPROTOCOL = gsi
 </code></pre>
@@ -1249,7 +1249,7 @@ only by path and must be created and renewed outside these configs.
 <pre><code class="language-nginx"># /etc/nginx/nginx.conf
 &#32;
 worker_processes auto;
-thread_pool xrootd_cache_io threads=8 max_queue=65536;
+thread_pool brix_cache_io threads=8 max_queue=65536;
 &#32;
 events {
     worker_connections 4096;
@@ -1263,45 +1263,45 @@ stream {
         xrootd on;
 &#32;
         # Client-facing GSI authentication.
-        xrootd_auth gsi;
-        xrootd_certificate     /etc/grid-security/hostcert.pem;
-        xrootd_certificate_key /etc/grid-security/hostkey.pem;
-        xrootd_trusted_ca      /etc/grid-security/certificates;
+        brix_auth gsi;
+        brix_certificate     /etc/grid-security/hostcert.pem;
+        brix_certificate_key /etc/grid-security/hostkey.pem;
+        brix_trusted_ca      /etc/grid-security/certificates;
 &#32;
         # Multi-user authorization at the cache edge. The authdb sees the
         # authenticated DN; grant only the EOS prefixes each user may read.
-        xrootd_authdb_format xrdacc;
-        xrootd_authdb /etc/xrootd/cache-authdb;
-        xrootd_authdb_refresh 60;
-        xrootd_authdb_audit deny;
+        brix_authdb_format xrdacc;
+        brix_authdb /etc/brix/cache-authdb;
+        brix_authdb_refresh 60;
+        brix_authdb_audit deny;
 &#32;
         # XCache is client read-only. Cache fills write internally.
-        xrootd_allow_write off;
-        xrootd_root /srv/xrootd/cache;
+        brix_allow_write off;
+        brix_root /srv/brix/cache;
 &#32;
         # Read-through cache storage.
-        xrootd_cache on;
-        xrootd_cache_root /srv/xrootd/cache;
+        brix_cache on;
+        brix_cache_root /srv/brix/cache;
 &#32;
         # CERN EOS root:// door. Replace eoslhcb.cern.ch and /eos/lhcb
         # policy below with the experiment's EOS endpoint and namespace.
-        xrootd_cache_origin root://eoslhcb.cern.ch:1094;
+        brix_cache_origin root://eoslhcb.cern.ch:1094;
 &#32;
         # Service proxy used only for cache-to-EOS fetches.
-        xrootd_cache_origin_proxy /run/xrootd/eos-cache-fetcher.proxy;
-        xrootd_cache_origin_cadir /etc/grid-security/certificates;
-        xrootd_cache_origin_client /usr/bin/xrdcp;
+        brix_cache_origin_proxy /run/brix/eos-cache-fetcher.proxy;
+        brix_cache_origin_cadir /etc/grid-security/certificates;
+        brix_cache_origin_client /usr/bin/xrdcp;
 &#32;
         # Operational cache policy.
-        xrootd_cache_lock_timeout 300s;
-        xrootd_cache_eviction_threshold 90%;
-        xrootd_cache_max_file_size 100g;
+        brix_cache_lock_timeout 300s;
+        brix_cache_eviction_threshold 90%;
+        brix_cache_max_file_size 100g;
 &#32;
-        xrootd_thread_pool xrootd_cache_io;
+        brix_thread_pool brix_cache_io;
     }
 }
 &#32;
-# /etc/xrootd/cache-authdb
+# /etc/brix/cache-authdb
 &#32;
 # Alice may read the experiment namespace.
 u /DC=org/DC=example/CN=Alice Example /eos/lhcb rl
@@ -1311,13 +1311,13 @@ u /DC=org/DC=example/CN=Bob Example /eos/lhcb/user/b/bob rl
 </code></pre>
 </td>
 <td>
-<pre><code class="language-text"># /etc/xrootd/xrootd.cfg
+<pre><code class="language-text"># /etc/brix/brix.cfg
 &#32;
 # Client-facing cache listener.
 xrd.port 1094
 &#32;
-all.adminpath /var/spool/xrootd
-all.pidpath /run/xrootd
+all.adminpath /var/spool/brix
+all.pidpath /run/brix
 &#32;
 # Cache namespace is read-only to clients.
 all.export / r/o
@@ -1330,10 +1330,10 @@ pss.cachelib libXrdPfc.so
 # with the experiment's EOS endpoint and namespace.
 pss.origin root://eoslhcb.cern.ch:1094
 &#32;
-oss.localroot /srv/xrootd/cache/namespace
+oss.localroot /srv/brix/cache/namespace
 pfc.spaces data meta
-oss.space data /srv/xrootd/cache/data
-oss.space meta /srv/xrootd/cache/meta
+oss.space data /srv/brix/cache/data
+oss.space meta /srv/brix/cache/meta
 pfc.ram 16g
 pfc.diskusage 0.90 0.95 purgeinterval 300s
 &#32;
@@ -1350,11 +1350,11 @@ sec.protbind * only gsi
 &#32;
 # Authorize the mapped users at the cache edge.
 ofs.authorize 1
-acc.authdb /etc/xrootd/cache-authdb
+acc.authdb /etc/brix/cache-authdb
 &#32;
 # Service proxy for cache-to-EOS GSI. The proxy file itself is a
 # secret-bearing short-lived credential and is not shown here.
-setenv X509_USER_PROXY = /run/xrootd/eos-cache-fetcher.proxy
+setenv X509_USER_PROXY = /run/brix/eos-cache-fetcher.proxy
 setenv X509_CERT_DIR = /etc/grid-security/certificates
 setenv XrdSecPROTOCOL = gsi
 &#32;
@@ -1363,7 +1363,7 @@ setenv XrdSecPROTOCOL = gsi
 "/DC=org/DC=example/CN=Alice Example" alice
 "/DC=org/DC=example/CN=Bob Example" bob
 &#32;
-# /etc/xrootd/cache-authdb
+# /etc/brix/cache-authdb
 &#32;
 u alice /eos/lhcb rl
 u bob   /eos/lhcb/user/b/bob rl
@@ -1406,10 +1406,10 @@ stream {
         listen 1094;
 &#32;
         xrootd on;
-        xrootd_root /srv/xrootd/export;
-        xrootd_auth none;
-        xrootd_allow_write on;
-        xrootd_thread_pool storage_io;
+        brix_root /srv/brix/export;
+        brix_auth none;
+        brix_allow_write on;
+        brix_thread_pool storage_io;
     }
 }
 &#32;
@@ -1420,11 +1420,11 @@ http {
         client_max_body_size 0;
 &#32;
         location / {
-            xrootd_webdav on;
-            xrootd_webdav_root /srv/xrootd/export;
-            xrootd_webdav_auth none;
-            xrootd_webdav_allow_write on;
-            xrootd_webdav_thread_pool storage_io;
+            brix_webdav on;
+            brix_webdav_root /srv/brix/export;
+            brix_webdav_auth none;
+            brix_webdav_allow_write on;
+            brix_webdav_thread_pool storage_io;
         }
     }
 &#32;
@@ -1434,16 +1434,16 @@ http {
         client_max_body_size 0;
 &#32;
         location / {
-            xrootd_s3 on;
-            xrootd_s3_root /srv/xrootd/export;
-            xrootd_s3_bucket data-bucket;
+            brix_s3 on;
+            brix_s3_root /srv/brix/export;
+            brix_s3_bucket data-bucket;
 &#32;
             # Anonymous S3 is deliberate for this example. Add SigV4 keys
             # through local config management when authenticated S3 is needed.
-            xrootd_s3_allow_write on;
-            xrootd_s3_list_cache on;
-            xrootd_s3_list_cache_ttl 30s;
-            xrootd_s3_thread_pool storage_io;
+            brix_s3_allow_write on;
+            brix_s3_list_cache on;
+            brix_s3_list_cache_ttl 30s;
+            brix_s3_thread_pool storage_io;
         }
     }
 &#32;
@@ -1452,18 +1452,18 @@ http {
         listen 9100;
 &#32;
         location /metrics {
-            xrootd_metrics on;
+            brix_metrics on;
         }
 &#32;
         location /healthz {
-            xrootd_health on;
+            brix_health on;
         }
     }
 }
 </code></pre>
 </td>
 <td>
-<pre><code class="language-text"># /etc/xrootd/xrootd.cfg
+<pre><code class="language-text"># /etc/brix/brix.cfg
 &#32;
 # Native root:// endpoint.
 xrd.port 1094
@@ -1471,12 +1471,12 @@ xrd.port 1094
 # XrdHttp endpoint for http:// and davs:// style access.
 xrd.protocol XrdHttp:8080 libXrdHttp.so
 &#32;
-all.adminpath /var/spool/xrootd
-all.pidpath /run/xrootd
+all.adminpath /var/spool/brix
+all.pidpath /run/brix
 &#32;
 # Export one local namespace through both native XRootD and XrdHttp.
 all.export / rw
-oss.localroot /srv/xrootd/export
+oss.localroot /srv/brix/export
 &#32;
 # No security protocol lines: anonymous by design.
 &#32;
@@ -1519,10 +1519,10 @@ stream {
     server {
         listen 1094;
         xrootd on;
-        xrootd_root /srv/xrootd/export;
-        xrootd_auth none;
-        xrootd_thread_pool default;
-        xrootd_access_log /var/log/nginx/root_access.json;
+        brix_root /srv/brix/export;
+        brix_auth none;
+        brix_thread_pool default;
+        brix_access_log /var/log/nginx/root_access.json;
     }
 }
 &#32;
@@ -1532,11 +1532,11 @@ http {
         listen 9100;
 &#32;
         location /metrics {
-            xrootd_metrics on;
+            brix_metrics on;
         }
 &#32;
         location /healthz {
-            xrootd_health on;
+            brix_health on;
         }
     }
 &#32;
@@ -1548,15 +1548,15 @@ http {
         ssl_certificate     /etc/grid-security/hostcert.pem;
         ssl_certificate_key /etc/grid-security/hostkey.pem;
 &#32;
-        location /xrootd/ {
-            xrootd_dashboard on;
+        location /brix/ {
+            brix_dashboard on;
 &#32;
             # htpasswd-style user:hash file. Hash contents are not shown.
-            xrootd_dashboard_users /etc/nginx/xrootd-dashboard.htpasswd;
-            xrootd_dashboard_session_ttl 8h;
-            xrootd_dashboard_idle_threshold 5s;
-            xrootd_dashboard_stalled_threshold 60s;
-            xrootd_dashboard_cluster_stale_after 90s;
+            brix_dashboard_users /etc/nginx/brix-dashboard.htpasswd;
+            brix_dashboard_session_ttl 8h;
+            brix_dashboard_idle_threshold 5s;
+            brix_dashboard_stalled_threshold 60s;
+            brix_dashboard_cluster_stale_after 90s;
 &#32;
             # Restrict dashboard access to an operations network.
             allow 192.0.2.0/24;
@@ -1567,15 +1567,15 @@ http {
 </code></pre>
 </td>
 <td>
-<pre><code class="language-text"># /etc/xrootd/xrootd.cfg
+<pre><code class="language-text"># /etc/brix/brix.cfg
 &#32;
 xrd.port 1094
 xrd.protocol XrdHttp:8080 libXrdHttp.so
 &#32;
-all.adminpath /var/spool/xrootd
-all.pidpath /run/xrootd
+all.adminpath /var/spool/brix
+all.pidpath /run/brix
 all.export / r/o
-oss.localroot /srv/xrootd/export
+oss.localroot /srv/brix/export
 &#32;
 # XRootD has native monitoring streams and logs, but not the same
 # embedded Prometheus /healthz / browser-dashboard endpoints. Deploy
@@ -1626,55 +1626,55 @@ http {
         client_max_body_size 0;
 &#32;
         location / {
-            xrootd_webdav on;
-            xrootd_webdav_root /srv/xrootd/export;
-            xrootd_webdav_allow_write on;
+            brix_webdav on;
+            brix_webdav_root /srv/brix/export;
+            brix_webdav_allow_write on;
 &#32;
             # Accept either a verified proxy cert or an anonymous request
             # that carries a valid bearer token.
-            xrootd_webdav_auth optional;
-            xrootd_webdav_cadir /etc/grid-security/certificates;
-            xrootd_webdav_token_jwks /etc/tokens/storage-jwks.json;
-            xrootd_webdav_token_issuer https://idp.example.com;
-            xrootd_webdav_token_audience my-storage;
+            brix_webdav_auth optional;
+            brix_webdav_cadir /etc/grid-security/certificates;
+            brix_webdav_token_jwks /etc/tokens/storage-jwks.json;
+            brix_webdav_token_issuer https://idp.example.com;
+            brix_webdav_token_audience my-storage;
 &#32;
             # Enable HTTP-TPC COPY Source:/Destination: handling.
-            xrootd_webdav_tpc on;
-            xrootd_webdav_tpc_curl /usr/bin/curl;
-            xrootd_webdav_tpc_cadir /etc/grid-security/certificates;
+            brix_webdav_tpc on;
+            brix_webdav_tpc_curl /usr/bin/curl;
+            brix_webdav_tpc_cadir /etc/grid-security/certificates;
 &#32;
             # Use site-managed outbound credentials by path only.
-            xrootd_webdav_tpc_cert /etc/grid-security/hostcert.pem;
-            xrootd_webdav_tpc_key  /etc/grid-security/hostkey.pem;
+            brix_webdav_tpc_cert /etc/grid-security/hostcert.pem;
+            brix_webdav_tpc_key  /etc/grid-security/hostkey.pem;
 &#32;
             # Operational limits and WLCG perf-marker streaming.
-            xrootd_webdav_tpc_timeout 7200;
-            xrootd_webdav_tpc_marker_interval 30;
-            xrootd_webdav_tpc_max_streams 4;
-            xrootd_webdav_tpc_low_speed_bytes 1024;
-            xrootd_webdav_tpc_low_speed_secs 300;
+            brix_webdav_tpc_timeout 7200;
+            brix_webdav_tpc_marker_interval 30;
+            brix_webdav_tpc_max_streams 4;
+            brix_webdav_tpc_low_speed_bytes 1024;
+            brix_webdav_tpc_low_speed_secs 300;
 &#32;
             # Block loopback/link-local SSRF. RFC1918 peers are allowed
             # because many HEP transfer nodes sit on private fabrics.
-            xrootd_webdav_tpc_allow_local off;
-            xrootd_webdav_tpc_allow_private on;
+            brix_webdav_tpc_allow_local off;
+            brix_webdav_tpc_allow_private on;
 &#32;
-            xrootd_webdav_thread_pool tpc_io;
+            brix_webdav_thread_pool tpc_io;
         }
     }
 }
 </code></pre>
 </td>
 <td>
-<pre><code class="language-text"># /etc/xrootd/xrootd.cfg
+<pre><code class="language-text"># /etc/brix/brix.cfg
 &#32;
 xrd.port 1094
 xrd.protocol XrdHttp:8443 libXrdHttp.so
 &#32;
-all.adminpath /var/spool/xrootd
-all.pidpath /run/xrootd
+all.adminpath /var/spool/brix
+all.pidpath /run/brix
 all.export / rw
-oss.localroot /srv/xrootd/export
+oss.localroot /srv/brix/export
 &#32;
 http.cert /etc/grid-security/hostcert.pem
 http.key  /etc/grid-security/hostkey.pem
@@ -1688,7 +1688,7 @@ ofs.tpc xfr 16
 ofs.tpc streams 4,8
 ofs.tpc restrict /
 ofs.tpc fcreds ?gsi =X509_USER_PROXY
-ofs.tpc fcpath /var/spool/xrootd/tpccreds
+ofs.tpc fcpath /var/spool/brix/tpccreds
 &#32;
 # Optional external transfer program. Keep program arguments site-local.
 # ofs.tpc pgm /usr/bin/xrdcp
@@ -1728,52 +1728,52 @@ stream {
         listen 1094;
 &#32;
         xrootd on;
-        xrootd_proxy on;
+        brix_proxy on;
 &#32;
         # Client-facing token authentication and scope enforcement.
-        xrootd_proxy_auth token;
-        xrootd_auth token;
-        xrootd_token_jwks /etc/tokens/storage-jwks.json;
-        xrootd_token_issuer https://idp.example.com;
-        xrootd_token_audience my-storage;
+        brix_proxy_auth token;
+        brix_auth token;
+        brix_token_jwks /etc/tokens/storage-jwks.json;
+        brix_token_issuer https://idp.example.com;
+        brix_token_audience my-storage;
 &#32;
         # Backend is an internal anonymous XRootD data server.
-        xrootd_proxy_upstream legacy-origin.internal.example.org:1094;
-        xrootd_proxy_login_user edge-token-gateway;
+        brix_proxy_upstream legacy-origin.internal.example.org:1094;
+        brix_proxy_login_user edge-token-gateway;
 &#32;
         # Audit the security-domain bridge.
-        xrootd_proxy_audit_log /var/log/nginx/root_proxy_audit.json;
+        brix_proxy_audit_log /var/log/nginx/root_proxy_audit.json;
 &#32;
         # The backend owns storage; the edge does not need a local root.
-        xrootd_root /srv/xrootd/export;
-        xrootd_allow_write off;
+        brix_root /srv/brix/export;
+        brix_allow_write off;
     }
 }
 </code></pre>
 </td>
 <td>
-<pre><code class="language-text"># /etc/xrootd/xrootd.cfg
+<pre><code class="language-text"># /etc/brix/brix.cfg
 &#32;
 # Closest vanilla pattern: use PSS as a read-through proxy/cache layer.
 # It does not provide the same full native root:// transparent proxy
 # behavior for every opcode.
 &#32;
 xrd.port 1094
-all.adminpath /var/spool/xrootd
-all.pidpath /run/xrootd
+all.adminpath /var/spool/brix
+all.pidpath /run/brix
 all.export / r/o
 &#32;
 ofs.osslib libXrdPss.so
 pss.origin root://legacy-origin.internal.example.org:1094
 &#32;
-oss.localroot /srv/xrootd/cache/namespace
+oss.localroot /srv/brix/cache/namespace
 &#32;
 # Token enforcement still happens with the normal XRootD security stack.
 xrootd.seclib libXrdSec.so
 sec.protocol ztn
 sec.protbind * only ztn
 ofs.authorize 1
-acc.authdb /etc/xrootd/authdb
+acc.authdb /etc/brix/authdb
 </code></pre>
 </td>
 </tr>
@@ -1814,45 +1814,45 @@ http {
         ssl_certificate_key /etc/grid-security/hostkey.pem;
 &#32;
         location / {
-            xrootd_webdav on;
-            xrootd_webdav_root /srv/xrootd/export;
+            brix_webdav on;
+            brix_webdav_root /srv/brix/export;
 &#32;
             # Authenticate clients at the edge.
-            xrootd_webdav_auth required;
-            xrootd_webdav_cadir /etc/grid-security/certificates;
+            brix_webdav_auth required;
+            brix_webdav_cadir /etc/grid-security/certificates;
 &#32;
             # Proxy accepted requests to an HTTP(S) origin pool.
-            xrootd_webdav_proxy on;
-            xrootd_webdav_proxy_dynamic on;
-            xrootd_webdav_proxy_upstream https://be1.example.org:8443;
-            xrootd_webdav_proxy_upstream https://be2.example.org:8443;
-            xrootd_webdav_proxy_max_fails 3;
-            xrootd_webdav_proxy_fail_timeout 30s;
-            xrootd_webdav_proxy_connect_timeout 5s;
-            xrootd_webdav_proxy_send_timeout 60s;
-            xrootd_webdav_proxy_read_timeout 300s;
+            brix_webdav_proxy on;
+            brix_webdav_proxy_dynamic on;
+            brix_webdav_proxy_upstream https://be1.example.org:8443;
+            brix_webdav_proxy_upstream https://be2.example.org:8443;
+            brix_webdav_proxy_max_fails 3;
+            brix_webdav_proxy_fail_timeout 30s;
+            brix_webdav_proxy_connect_timeout 5s;
+            brix_webdav_proxy_send_timeout 60s;
+            brix_webdav_proxy_read_timeout 300s;
 &#32;
             # Forward the client authorization header only when the
             # backend is in the same trust domain.
-            xrootd_webdav_proxy_auth forward;
+            brix_webdav_proxy_auth forward;
         }
 &#32;
-        location /xrootd/ {
-            xrootd_dashboard on;
-            xrootd_dashboard_users /etc/nginx/xrootd-dashboard.htpasswd;
+        location /brix/ {
+            brix_dashboard on;
+            brix_dashboard_users /etc/nginx/brix-dashboard.htpasswd;
 &#32;
             # Admin API controls the dynamic backend pool.
-            xrootd_admin_allow 192.0.2.0/24;
-            xrootd_admin_secret /run/nginx/xrootd-admin.bearer;
-            xrootd_admin_require_both on;
-            xrootd_admin_proxy_allow be1.example.org be2.example.org;
+            brix_admin_allow 192.0.2.0/24;
+            brix_admin_secret /run/nginx/brix-admin.bearer;
+            brix_admin_require_both on;
+            brix_admin_proxy_allow be1.example.org be2.example.org;
         }
     }
 }
 </code></pre>
 </td>
 <td>
-<pre><code class="language-text"># /etc/xrootd/xrootd.cfg
+<pre><code class="language-text"># /etc/brix/brix.cfg
 &#32;
 # XrdHttp can expose the local namespace, but vanilla XRootD does not
 # provide this nginx-style runtime HTTP upstream pool and drain API.
@@ -1862,10 +1862,10 @@ http {
 xrd.port 1094
 xrd.protocol XrdHttp:8443 libXrdHttp.so
 &#32;
-all.adminpath /var/spool/xrootd
-all.pidpath /run/xrootd
+all.adminpath /var/spool/brix
+all.pidpath /run/brix
 all.export / r/o
-oss.localroot /srv/xrootd/export
+oss.localroot /srv/brix/export
 &#32;
 http.cert /etc/grid-security/hostcert.pem
 http.key  /etc/grid-security/hostkey.pem
@@ -1904,27 +1904,27 @@ events {
 &#32;
 stream {
     # Shared leaky-bucket state for root:// requests.
-    xrootd_rate_limit_zone zone=stream_limits:10m;
+    brix_rate_limit_zone zone=stream_limits:10m;
 &#32;
     server {
         listen 1094;
         xrootd on;
-        xrootd_root /srv/xrootd/export;
-        xrootd_auth gsi;
-        xrootd_certificate     /etc/grid-security/hostcert.pem;
-        xrootd_certificate_key /etc/grid-security/hostkey.pem;
-        xrootd_trusted_ca      /etc/grid-security/certificates;
+        brix_root /srv/brix/export;
+        brix_auth gsi;
+        brix_certificate     /etc/grid-security/hostcert.pem;
+        brix_certificate_key /etc/grid-security/hostkey.pem;
+        brix_trusted_ca      /etc/grid-security/certificates;
 &#32;
         # Bound abusive request rates, tape bandwidth, and active sessions.
-        xrootd_rate_limit_rule zone=stream_limits key=vo rate=500r/s burst=800;
-        xrootd_bandwidth_limit zone=stream_limits key=volume:/store/tape rate=50m/s burst=200m;
-        xrootd_concurrency_limit zone=stream_limits key=dn limit=16;
+        brix_rate_limit_rule zone=stream_limits key=vo rate=500r/s burst=800;
+        brix_bandwidth_limit zone=stream_limits key=volume:/store/tape rate=50m/s burst=200m;
+        brix_concurrency_limit zone=stream_limits key=dn limit=16;
     }
 }
 &#32;
 http {
     # Separate HTTP zone, same policy shape.
-    xrootd_rate_limit_zone zone=http_limits:10m;
+    brix_rate_limit_zone zone=http_limits:10m;
 &#32;
     server {
         listen 8443 ssl;
@@ -1932,29 +1932,29 @@ http {
         ssl_certificate_key /etc/grid-security/hostkey.pem;
 &#32;
         location / {
-            xrootd_webdav on;
-            xrootd_webdav_root /srv/xrootd/export;
-            xrootd_webdav_auth required;
-            xrootd_webdav_cadir /etc/grid-security/certificates;
+            brix_webdav on;
+            brix_webdav_root /srv/brix/export;
+            brix_webdav_auth required;
+            brix_webdav_cadir /etc/grid-security/certificates;
 &#32;
-            xrootd_rate_limit_rule zone=http_limits key=vo rate=500r/s burst=800;
-            xrootd_bandwidth_limit zone=http_limits key=volume:/store/tape rate=50m/s burst=200m;
-            xrootd_concurrency_limit zone=http_limits key=dn limit=16;
+            brix_rate_limit_rule zone=http_limits key=vo rate=500r/s burst=800;
+            brix_bandwidth_limit zone=http_limits key=volume:/store/tape rate=50m/s burst=200m;
+            brix_concurrency_limit zone=http_limits key=dn limit=16;
         }
     }
 }
 </code></pre>
 </td>
 <td>
-<pre><code class="language-text"># /etc/xrootd/xrootd.cfg
+<pre><code class="language-text"># /etc/brix/brix.cfg
 &#32;
 xrd.port 1094
 xrd.protocol XrdHttp:8443 libXrdHttp.so
 &#32;
-all.adminpath /var/spool/xrootd
-all.pidpath /run/xrootd
+all.adminpath /var/spool/brix
+all.pidpath /run/brix
 all.export / r/o
-oss.localroot /srv/xrootd/export
+oss.localroot /srv/brix/export
 &#32;
 xrootd.seclib libXrdSec.so
 sec.protocol gsi -certdir:/etc/grid-security/certificates -cert:/etc/grid-security/hostcert.pem -key:/etc/grid-security/hostkey.pem
@@ -2003,32 +2003,32 @@ stream {
     server {
         listen 1094;
         xrootd on;
-        xrootd_root /srv/xrootd/export;
-        xrootd_auth none;
+        brix_root /srv/brix/export;
+        brix_auth none;
 &#32;
         # Shadow read-path operations to a separate validation server.
         # Do not point the shadow at the same writable storage root.
-        xrootd_stream_mirror_url shadow-xrd.example.org:21094;
-        xrootd_mirror_opcodes protocol login stat locate open dirlist;
-        xrootd_mirror_sample 10;
-        xrootd_mirror_strip_auth on;
-        xrootd_mirror_log_diverge on;
-        xrootd_mirror_timeout 2000;
+        brix_stream_mirror_url shadow-xrd.example.org:21094;
+        brix_mirror_opcodes protocol login stat locate open dirlist;
+        brix_mirror_sample 10;
+        brix_mirror_strip_auth on;
+        brix_mirror_log_diverge on;
+        brix_mirror_timeout 2000;
 &#32;
         # Writes are intentionally not mirrored in a canary read check.
-        xrootd_mirror_writes off;
+        brix_mirror_writes off;
     }
 }
 </code></pre>
 </td>
 <td>
-<pre><code class="language-text"># /etc/xrootd/xrootd.cfg
+<pre><code class="language-text"># /etc/brix/brix.cfg
 &#32;
 xrd.port 1094
-all.adminpath /var/spool/xrootd
-all.pidpath /run/xrootd
+all.adminpath /var/spool/brix
+all.pidpath /run/brix
 all.export / r/o
-oss.localroot /srv/xrootd/export
+oss.localroot /srv/brix/export
 &#32;
 # Vanilla XRootD does not include a transparent per-request shadow replay
 # directive with divergence accounting. Run a separate validation client,
@@ -2073,36 +2073,36 @@ http {
         ssl_certificate_key /etc/grid-security/hostkey.pem;
 &#32;
         location / {
-            xrootd_webdav on;
-            xrootd_webdav_root /srv/xrootd/export;
-            xrootd_webdav_auth optional;
-            xrootd_webdav_cadir /etc/grid-security/certificates;
+            brix_webdav on;
+            brix_webdav_root /srv/brix/export;
+            brix_webdav_auth optional;
+            brix_webdav_cadir /etc/grid-security/certificates;
 &#32;
             # Mirror only safe read/list methods while validating the shadow.
-            xrootd_mirror_url https://shadow-dav.example.org:8443;
-            xrootd_mirror_methods GET HEAD PROPFIND OPTIONS;
-            xrootd_mirror_sample 25;
-            xrootd_mirror_strip_auth on;
-            xrootd_mirror_log_diverge on;
-            xrootd_mirror_timeout 2000;
+            brix_mirror_url https://shadow-dav.example.org:8443;
+            brix_mirror_methods GET HEAD PROPFIND OPTIONS;
+            brix_mirror_sample 25;
+            brix_mirror_strip_auth on;
+            brix_mirror_log_diverge on;
+            brix_mirror_timeout 2000;
 &#32;
             # Write mirroring is off unless the shadow namespace is isolated.
-            xrootd_mirror_writes off;
+            brix_mirror_writes off;
         }
     }
 }
 </code></pre>
 </td>
 <td>
-<pre><code class="language-text"># /etc/xrootd/xrootd.cfg
+<pre><code class="language-text"># /etc/brix/brix.cfg
 &#32;
 xrd.port 1094
 xrd.protocol XrdHttp:8443 libXrdHttp.so
 &#32;
-all.adminpath /var/spool/xrootd
-all.pidpath /run/xrootd
+all.adminpath /var/spool/brix
+all.pidpath /run/brix
 all.export / r/o
-oss.localroot /srv/xrootd/export
+oss.localroot /srv/brix/export
 &#32;
 http.cert /etc/grid-security/hostcert.pem
 http.key  /etc/grid-security/hostkey.pem
@@ -2146,29 +2146,29 @@ stream {
     server {
         listen 1094;
         xrootd on;
-        xrootd_root /srv/xrootd/export;
-        xrootd_auth gsi;
-        xrootd_certificate     /etc/grid-security/hostcert.pem;
-        xrootd_certificate_key /etc/grid-security/hostkey.pem;
-        xrootd_trusted_ca      /etc/grid-security/certificates;
+        brix_root /srv/brix/export;
+        brix_auth gsi;
+        brix_certificate     /etc/grid-security/hostcert.pem;
+        brix_certificate_key /etc/grid-security/hostkey.pem;
+        brix_trusted_ca      /etc/grid-security/certificates;
 &#32;
         # Durable file-residency manager queue.
-        xrootd_frm on;
-        xrootd_frm_queue_path /var/spool/nginx-xrootd/frm.queue;
-        xrootd_frm_max_inflight 64;
-        xrootd_frm_max_per_source 4;
-        xrootd_frm_stagecmd /usr/local/libexec/xrootd-stage-in;
-        xrootd_frm_residency_cmd /usr/local/libexec/xrootd-residency;
-        xrootd_frm_stage_ttl 600s;
-        xrootd_frm_xfrhold 30s;
-        xrootd_frm_fail_backoff 60s;
-        xrootd_frm_fail_retries 3;
+        brix_frm on;
+        brix_frm_queue_path /var/spool/nginx-xrootd/frm.queue;
+        brix_frm_max_inflight 64;
+        brix_frm_max_per_source 4;
+        brix_frm_stagecmd /usr/local/libexec/brix-stage-in;
+        brix_frm_residency_cmd /usr/local/libexec/brix-residency;
+        brix_frm_stage_ttl 600s;
+        brix_frm_xfrhold 30s;
+        brix_frm_fail_backoff 60s;
+        brix_frm_fail_retries 3;
 &#32;
         # Optional disk purge hooks for tape-backed cache space.
-        xrootd_frm_purge_watermark 95% 85%;
-        xrootd_frm_purge_interval 300s;
+        brix_frm_purge_watermark 95% 85%;
+        brix_frm_purge_interval 300s;
 &#32;
-        xrootd_thread_pool tape_io;
+        brix_thread_pool tape_io;
     }
 }
 &#32;
@@ -2179,30 +2179,30 @@ http {
         ssl_certificate_key /etc/grid-security/hostkey.pem;
 &#32;
         location / {
-            xrootd_webdav on;
-            xrootd_webdav_root /srv/xrootd/export;
-            xrootd_webdav_auth required;
-            xrootd_webdav_cadir /etc/grid-security/certificates;
+            brix_webdav on;
+            brix_webdav_root /srv/brix/export;
+            brix_webdav_auth required;
+            brix_webdav_cadir /etc/grid-security/certificates;
 &#32;
             # Expose the HTTP Tape REST facade on the same namespace.
-            xrootd_webdav_tape_rest on;
+            brix_webdav_tape_rest on;
         }
     }
 }
 </code></pre>
 </td>
 <td>
-<pre><code class="language-text"># /etc/xrootd/xrootd.cfg
+<pre><code class="language-text"># /etc/brix/brix.cfg
 &#32;
 xrd.port 1094
 xrd.protocol XrdHttp:8443 libXrdHttp.so
 &#32;
-all.adminpath /var/spool/xrootd
-all.pidpath /run/xrootd
+all.adminpath /var/spool/brix
+all.pidpath /run/brix
 &#32;
 # Mark exported data as stage-capable and read-only to clients.
 all.export / stage r/o
-oss.localroot /srv/xrootd/export
+oss.localroot /srv/brix/export
 &#32;
 xrootd.seclib libXrdSec.so
 sec.protocol gsi -certdir:/etc/grid-security/certificates -cert:/etc/grid-security/hostcert.pem -key:/etc/grid-security/hostkey.pem
@@ -2214,7 +2214,7 @@ http.cadir /etc/grid-security/certificates
 http.secxtractor libXrdHttpVOMS.so
 &#32;
 # Site-specific FRM/MSS stage command. The helper script owns backend auth.
-frm.xfr.copycmd /usr/local/libexec/xrootd-stage-in /dev/null $PFN
+frm.xfr.copycmd /usr/local/libexec/brix-stage-in /dev/null $PFN
 </code></pre>
 </td>
 </tr>
@@ -2250,40 +2250,40 @@ stream {
     server {
         listen 1094;
         xrootd on;
-        xrootd_root /srv/xrootd/export;
-        xrootd_auth token;
-        xrootd_token_jwks /etc/tokens/storage-jwks.json;
-        xrootd_token_issuer https://idp.example.com;
-        xrootd_token_audience my-storage;
-        xrootd_allow_write on;
+        brix_root /srv/brix/export;
+        brix_auth token;
+        brix_token_jwks /etc/tokens/storage-jwks.json;
+        brix_token_issuer https://idp.example.com;
+        brix_token_audience my-storage;
+        brix_allow_write on;
 &#32;
         # Read-through fills for cold files.
-        xrootd_cache on;
-        xrootd_cache_root /srv/xrootd/cache;
-        xrootd_cache_origin root://origin.example.org:1094;
-        xrootd_cache_lock_timeout 300s;
-        xrootd_cache_eviction_threshold 90%;
+        brix_cache on;
+        brix_cache_root /srv/brix/cache;
+        brix_cache_origin root://origin.example.org:1094;
+        brix_cache_lock_timeout 300s;
+        brix_cache_eviction_threshold 90%;
 &#32;
         # Write-through mirrors only selected project prefixes.
-        xrootd_write_through on;
-        xrootd_wt_mode async;
-        xrootd_wt_origin root://origin.example.org:1094;
-        xrootd_wt_allow_prefix /projects/atlas;
-        xrootd_wt_allow_prefix /projects/cms;
-        xrootd_wt_deny_prefix /scratch;
+        brix_write_through on;
+        brix_wt_mode async;
+        brix_wt_origin root://origin.example.org:1094;
+        brix_wt_allow_prefix /projects/atlas;
+        brix_wt_allow_prefix /projects/cms;
+        brix_wt_deny_prefix /scratch;
 &#32;
-        xrootd_thread_pool edge_io;
+        brix_thread_pool edge_io;
     }
 }
 </code></pre>
 </td>
 <td>
-<pre><code class="language-text"># /etc/xrootd/xrootd.cfg
+<pre><code class="language-text"># /etc/brix/brix.cfg
 &#32;
 xrd.port 1094
 &#32;
-all.adminpath /var/spool/xrootd
-all.pidpath /run/xrootd
+all.adminpath /var/spool/brix
+all.pidpath /run/brix
 all.export / rw
 &#32;
 # PSS/PFC cache in front of the same origin.
@@ -2291,10 +2291,10 @@ ofs.osslib libXrdPss.so
 pss.cachelib libXrdPfc.so
 pss.origin root://origin.example.org:1094
 &#32;
-oss.localroot /srv/xrootd/cache/namespace
+oss.localroot /srv/brix/cache/namespace
 pfc.spaces data meta
-oss.space data /srv/xrootd/cache/data
-oss.space meta /srv/xrootd/cache/meta
+oss.space data /srv/brix/cache/data
+oss.space meta /srv/brix/cache/meta
 pfc.ram 16g
 pfc.diskusage 0.90 0.95 purgeinterval 300s
 &#32;
@@ -2308,7 +2308,7 @@ xrootd.seclib libXrdSec.so
 sec.protocol ztn
 sec.protbind * only ztn
 ofs.authorize 1
-acc.authdb /etc/xrootd/write-authdb
+acc.authdb /etc/brix/write-authdb
 </code></pre>
 </td>
 </tr>
@@ -2350,45 +2350,45 @@ http {
         client_max_body_size 0;
 &#32;
         location / {
-            xrootd_webdav on;
-            xrootd_webdav_root /srv/xrootd/export;
-            xrootd_webdav_auth optional;
-            xrootd_webdav_cadir /etc/grid-security/certificates;
-            xrootd_webdav_allow_write on;
+            brix_webdav on;
+            brix_webdav_root /srv/brix/export;
+            brix_webdav_auth optional;
+            brix_webdav_cadir /etc/grid-security/certificates;
+            brix_webdav_allow_write on;
 &#32;
             # Explicit browser origins. Avoid "*" when credentials are used.
-            xrootd_webdav_cors_origin https://notebooks.example.org;
-            xrootd_webdav_cors_origin https://portal.example.org;
-            xrootd_webdav_cors_credentials on;
-            xrootd_webdav_cors_max_age 86400;
+            brix_webdav_cors_origin https://notebooks.example.org;
+            brix_webdav_cors_origin https://portal.example.org;
+            brix_webdav_cors_credentials on;
+            brix_webdav_cors_max_age 86400;
 &#32;
             # Lock records are xattrs under the export root.
-            xrootd_webdav_lock_timeout 600;
-            xrootd_webdav_lock_startup_sweep off;
+            brix_webdav_lock_timeout 600;
+            brix_webdav_lock_startup_sweep off;
 &#32;
             # Cache stat/open metadata but keep errors out of cache.
-            xrootd_webdav_open_file_cache max=10000 inactive=30s;
-            xrootd_webdav_open_file_cache_valid 60s;
-            xrootd_webdav_open_file_cache_min_uses 2;
-            xrootd_webdav_open_file_cache_errors off;
-            xrootd_webdav_open_file_cache_events on;
+            brix_webdav_open_file_cache max=10000 inactive=30s;
+            brix_webdav_open_file_cache_valid 60s;
+            brix_webdav_open_file_cache_min_uses 2;
+            brix_webdav_open_file_cache_errors off;
+            brix_webdav_open_file_cache_events on;
 &#32;
-            xrootd_webdav_thread_pool webdav_io;
+            brix_webdav_thread_pool webdav_io;
         }
     }
 }
 </code></pre>
 </td>
 <td>
-<pre><code class="language-text"># /etc/xrootd/xrootd.cfg
+<pre><code class="language-text"># /etc/brix/brix.cfg
 &#32;
 xrd.port 1094
 xrd.protocol XrdHttp:8443 libXrdHttp.so
 &#32;
-all.adminpath /var/spool/xrootd
-all.pidpath /run/xrootd
+all.adminpath /var/spool/brix
+all.pidpath /run/brix
 all.export / rw
-oss.localroot /srv/xrootd/export
+oss.localroot /srv/brix/export
 &#32;
 http.cert /etc/grid-security/hostcert.pem
 http.key  /etc/grid-security/hostkey.pem

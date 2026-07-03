@@ -14,20 +14,20 @@ client connection
       |
       +-- root:// or roots://  (nginx stream module)
       |        |
-      |        +-- xrootd_auth none
+      |        +-- brix_auth none
       |        |        -> anonymous session
       |        |
-      |        +-- xrootd_auth gsi
+      |        +-- brix_auth gsi
       |        |        -> kXR_login
       |        |        -> multi-step kXR_auth GSI exchange
       |        |        -> DN + optional VOMS groups
       |        |
-      |        +-- xrootd_auth token
+      |        +-- brix_auth token
       |        |        -> kXR_login advertises ztn
       |        |        -> kXR_auth carries JWT
       |        |        -> sub + scopes + wlcg.groups
       |        |
-      |        +-- xrootd_auth both
+      |        +-- brix_auth both
       |                 -> client chooses gsi or ztn in kXR_auth
       |
       +-- davs:// or https:// WebDAV  (nginx HTTP module)
@@ -41,7 +41,7 @@ client connection
       |        |        -> sub + scopes + wlcg.groups
       |        |
       |        +-- no valid credential
-      |                 -> anonymous or 403, depending on xrootd_webdav_auth
+      |                 -> anonymous or 403, depending on brix_webdav_auth
       |
       +-- S3-compatible HTTP location
                |
@@ -57,7 +57,7 @@ verified identity facts
     |
     +-- token scopes: storage.read / storage.write / storage.create
     +-- VO/group facts: VOMS FQANs or token wlcg.groups
-    +-- server gates: xrootd_allow_write, xrootd_require_vo, filesystem mode
+    +-- server gates: brix_allow_write, brix_require_vo, filesystem mode
     |
     v
 allow or reject this operation on this path
@@ -82,7 +82,7 @@ read or metadata?                     use permissions recorded
         v
 write or namespace mutation?
         |
-        +-- yes -> xrootd_allow_write must be on
+        +-- yes -> brix_allow_write must be on
                   and token/VO/path policy must allow write/create
         |
         v
@@ -103,8 +103,8 @@ stream {
     server {
         listen 1094;
         xrootd on;
-        xrootd_root /data/public;
-        # xrootd_auth none;  ← this is the default, no need to write it
+        brix_root /data/public;
+        # brix_auth none;  ← this is the default, no need to write it
     }
 }
 ```
@@ -136,12 +136,12 @@ stream {
     server {
         listen 1095;
         xrootd on;
-        xrootd_auth gsi;
-        xrootd_root /data/store;
-        xrootd_certificate     /etc/grid-security/hostcert.pem;
-        xrootd_certificate_key /etc/grid-security/hostkey.pem;
-        xrootd_trusted_ca      /etc/grid-security/ca.pem;
-        xrootd_access_log /var/log/nginx/xrootd_gsi.log;
+        brix_auth gsi;
+        brix_root /data/store;
+        brix_certificate     /etc/grid-security/hostcert.pem;
+        brix_certificate_key /etc/grid-security/hostkey.pem;
+        brix_trusted_ca      /etc/grid-security/ca.pem;
+        brix_access_log /var/log/nginx/brix_gsi.log;
     }
 }
 ```
@@ -171,7 +171,7 @@ If authentication succeeds, the access log shows the client's subject DN:
 
 ### The authenticated identity
 
-After a successful GSI handshake, the module extracts the subject Distinguished Name from the proxy certificate chain and stores it in the session. It appears in the access log and is available for downstream logging. The module does not currently perform authorisation based on the DN itself. Path-level authorisation is handled by `xrootd_require_vo` rules when `libvomsapi.so.1` is available at runtime (see [building.md](../03-configuration/build-guide.md)).
+After a successful GSI handshake, the module extracts the subject Distinguished Name from the proxy certificate chain and stores it in the session. It appears in the access log and is available for downstream logging. The module does not currently perform authorisation based on the DN itself. Path-level authorisation is handled by `brix_require_vo` rules when `libvomsapi.so.1` is available at runtime (see [building.md](../03-configuration/build-guide.md)).
 
 ---
 
@@ -216,19 +216,19 @@ stream {
     server {
         listen 1094;
         xrootd on;
-        xrootd_root /data/public;
+        brix_root /data/public;
     }
 
     # Authenticated read-write
     server {
         listen 1095;
         xrootd on;
-        xrootd_auth gsi;
-        xrootd_allow_write on;
-        xrootd_root /data/restricted;
-        xrootd_certificate     /etc/grid-security/hostcert.pem;
-        xrootd_certificate_key /etc/grid-security/hostkey.pem;
-        xrootd_trusted_ca      /etc/grid-security/ca.pem;
+        brix_auth gsi;
+        brix_allow_write on;
+        brix_root /data/restricted;
+        brix_certificate     /etc/grid-security/hostcert.pem;
+        brix_certificate_key /etc/grid-security/hostkey.pem;
+        brix_trusted_ca      /etc/grid-security/ca.pem;
     }
 }
 ```
@@ -260,23 +260,23 @@ stream {
     server {
         listen 1094;
         xrootd on;
-        xrootd_auth token;
-        xrootd_root /data/store;
-        xrootd_allow_write on;
-        xrootd_token_jwks     /etc/tokens/jwks.json;
-        xrootd_token_issuer   "https://idp.example.com";
-        xrootd_token_audience "my-storage";
-        xrootd_access_log /var/log/nginx/xrootd_token.log;
+        brix_auth token;
+        brix_root /data/store;
+        brix_allow_write on;
+        brix_token_jwks     /etc/tokens/jwks.json;
+        brix_token_issuer   "https://idp.example.com";
+        brix_token_audience "my-storage";
+        brix_access_log /var/log/nginx/brix_token.log;
     }
 }
 ```
 
 | Directive | Purpose |
 |---|---|
-| `xrootd_auth token` | Require a bearer token for every native XRootD session |
-| `xrootd_token_jwks` | Path to the JWKS file containing trusted public keys |
-| `xrootd_token_issuer` | Expected `iss` claim — tokens from other issuers are rejected |
-| `xrootd_token_audience` | Expected `aud` claim — tokens for other services are rejected |
+| `brix_auth token` | Require a bearer token for every native XRootD session |
+| `brix_token_jwks` | Path to the JWKS file containing trusted public keys |
+| `brix_token_issuer` | Expected `iss` claim — tokens from other issuers are rejected |
+| `brix_token_audience` | Expected `aud` claim — tokens for other services are rejected |
 
 ### Testing token authentication
 
@@ -294,7 +294,7 @@ xrdfs root://localhost:1094 ls /
 xrdcp root://localhost:1094//test.txt /tmp/test.txt
 ```
 
-If authentication succeeds, the native stream session is marked authenticated and the token `sub` claim is stored internally as the session identity. Current stream access-log labels remain `anon` for non-GSI listeners and `gsi` for GSI-only listeners; token subjects are emitted in nginx info/debug logs rather than the `xrootd_access_log` identity field.
+If authentication succeeds, the native stream session is marked authenticated and the token `sub` claim is stored internally as the session identity. Current stream access-log labels remain `anon` for non-GSI listeners and `gsi` for GSI-only listeners; token subjects are emitted in nginx info/debug logs rather than the `brix_access_log` identity field.
 
 ### Scopes and groups
 
@@ -311,11 +311,11 @@ The native XRootD stream path validates tokens and enforces storage scopes on
 path-resolving operations. A read scope is required for read opens and metadata
 operations; a write/create scope is required for namespace mutation and write
 opens. Handle-based I/O inherits the decision made when the handle was opened.
-`xrootd_allow_write` remains an additional server-wide write gate. WebDAV
+`brix_allow_write` remains an additional server-wide write gate. WebDAV
 enforces `storage.write`/`storage.create` scopes for `PUT` requests when the
 request is authenticated via a bearer token.
 
-Tokens can also carry `wlcg.groups`. The stream module maps those groups into the same VO list used for VOMS, so `xrootd_require_vo` can protect paths for token-authenticated clients as well as GSI clients.
+Tokens can also carry `wlcg.groups`. The stream module maps those groups into the same VO list used for VOMS, so `brix_require_vo` can protect paths for token-authenticated clients as well as GSI clients.
 
 ### The authenticated identity
 
@@ -334,18 +334,18 @@ stream {
     server {
         listen 1094;
         xrootd on;
-        xrootd_auth both;
-        xrootd_root /data;
+        brix_auth both;
+        brix_root /data;
 
         # GSI settings
-        xrootd_certificate     /etc/grid-security/hostcert.pem;
-        xrootd_certificate_key /etc/grid-security/hostkey.pem;
-        xrootd_trusted_ca      /etc/grid-security/ca.pem;
+        brix_certificate     /etc/grid-security/hostcert.pem;
+        brix_certificate_key /etc/grid-security/hostkey.pem;
+        brix_trusted_ca      /etc/grid-security/ca.pem;
 
         # Token settings
-        xrootd_token_jwks     /etc/tokens/jwks.json;
-        xrootd_token_issuer   "https://idp.example.com";
-        xrootd_token_audience "my-storage";
+        brix_token_jwks     /etc/tokens/jwks.json;
+        brix_token_issuer   "https://idp.example.com";
+        brix_token_audience "my-storage";
     }
 }
 ```
@@ -359,7 +359,7 @@ This is the recommended production configuration for sites transitioning from GS
 The project now supports three encrypted transport patterns:
 
 - `davs://` via nginx HTTP TLS in the WebDAV module
-- `root://` plus the native XRootD in-protocol TLS upgrade with `xrootd_tls on`
+- `root://` plus the native XRootD in-protocol TLS upgrade with `brix_tls on`
 - `roots://` via nginx stream SSL (`listen ... ssl`)
 
 Those modes are implemented in different code paths and have different auth and
@@ -371,7 +371,7 @@ If you only need the short version:
 
 - GSI by itself protects the auth exchange but does not automatically encrypt
   the whole native XRootD session
-- `xrootd_tls on` upgrades a `root://` connection to TLS after
+- `brix_tls on` upgrades a `root://` connection to TLS after
   `kXR_protocol`
 - `roots://` uses nginx stream SSL from the first byte
 - `davs://` uses nginx HTTP SSL plus the WebDAV module's proxy-cert handling

@@ -20,10 +20,10 @@ path escape, and timing-side-channel attacks.
 
 **Defenses confirmed adequate (no action needed):**
 - JWT `alg:none` / algorithm confusion is rejected before verification
-- Log injection sanitized via `xrootd_sanitize_log_string()` on all logged strings
-- Path depth capped at `XROOTD_MAX_WALK_DEPTH = 32`
+- Log injection sanitized via `brix_sanitize_log_string()` on all logged strings
+- Path depth capped at `BRIX_MAX_WALK_DEPTH = 32`
 - HTTP-TPC restricted to `https://` with `--proto =https` passed to curl
-- Per-opcode `dlen` limits enforced before any allocation (`xrootd_max_payload_for_request`)
+- Per-opcode `dlen` limits enforced before any allocation (`brix_max_payload_for_request`)
 - TPC transfer headers checked for control characters (`webdav_tpc_str_has_ctl`)
 
 ---
@@ -83,8 +83,8 @@ hex_encode(computed, 32, computed_hex);
 /* CRYPTO_memcmp returns 0 on equal; is constant-time regardless of content */
 if (CRYPTO_memcmp(computed_hex, comp.signature, 64) != 0) {
     ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-                  "xrootd_s3: SigV4 mismatch for key=%s", comp.akid);
-    XROOTD_S3_METRIC_INC(auth_total[XROOTD_S3_AUTH_SIG_MISMATCH]);
+                  "brix_s3: SigV4 mismatch for key=%s", comp.akid);
+    BRIX_S3_METRIC_INC(auth_total[BRIX_S3_AUTH_SIG_MISMATCH]);
     return s3_send_xml_error(r, NGX_HTTP_FORBIDDEN, "SignatureDoesNotMatch",
                              "The request signature we calculated does "
                              "not match the signature you provided");
@@ -107,7 +107,7 @@ guard before the comparison, and replaced `ngx_strcmp` with `CRYPTO_memcmp`:
 ```c
 /* length guard — comp.signature is from parsed Authorization header */
 if (strlen(comp.signature) != 64) {
-    XROOTD_S3_METRIC_INC(auth_total[XROOTD_S3_AUTH_MALFORMED]);
+    BRIX_S3_METRIC_INC(auth_total[BRIX_S3_AUTH_MALFORMED]);
     return s3_send_xml_error(r, NGX_HTTP_FORBIDDEN, "InvalidRequest",
                              "Signature must be 64 hex characters");
 }
@@ -268,35 +268,35 @@ at ~40/second, saturating the nginx worker's crypto context.
 
 ### Existing Partial Mitigation
 
-`src/core/types/tunables.h` defines `XROOTD_MAX_AUTH_PAYLOAD (32 * 1024)` which caps the
+`src/core/types/tunables.h` defines `BRIX_MAX_AUTH_PAYLOAD (32 * 1024)` which caps the
 GSI payload size, preventing OOM from a single oversized auth packet. But there is no
 limit on the *number* of auth attempts per connection.
 
 ### Fix
 
-Add a per-connection auth failure counter to `xrootd_ctx_t`:
+Add a per-connection auth failure counter to `brix_ctx_t`:
 
 ```c
-/* src/core/types/context.h — add to xrootd_ctx_t */
+/* src/core/types/context.h — add to brix_ctx_t */
 uint8_t     auth_attempts;      /* failed kXR_auth count on this connection */
 ```
 
 In `src/protocols/root/session/login.c` or `src/auth/gsi/parse.c` (wherever auth failure is returned):
 
 ```c
-#define XROOTD_MAX_AUTH_ATTEMPTS 5
+#define BRIX_MAX_AUTH_ATTEMPTS 5
 
-if (++ctx->auth_attempts > XROOTD_MAX_AUTH_ATTEMPTS) {
+if (++ctx->auth_attempts > BRIX_MAX_AUTH_ATTEMPTS) {
     ngx_log_error(NGX_LOG_WARN, c->log, 0,
                   "xrootd: too many auth failures from %V, closing",
                   &c->addr_text);
-    return xrootd_send_error(ctx, c, kXR_NotAuthorized,
+    return brix_send_error(ctx, c, kXR_NotAuthorized,
                              "Too many authentication failures");
     /* caller should disconnect after kXR_error */
 }
 ```
 
-Separately, expose this as a config directive `xrootd_max_auth_attempts` (default: 5)
+Separately, expose this as a config directive `brix_max_auth_attempts` (default: 5)
 so operators can tune it for environments with flaky cert chains.
 
 **For IP-level rate limiting** across connections, use nginx's existing `limit_conn_zone`
@@ -304,11 +304,11 @@ in the `stream` block:
 
 ```nginx
 stream {
-    limit_conn_zone $remote_addr zone=xrootd_auth:10m;
+    limit_conn_zone $remote_addr zone=brix_auth:10m;
 
     server {
         listen 11094;
-        limit_conn xrootd_auth 8;   # max 8 concurrent connections per IP
+        limit_conn brix_auth 8;   # max 8 concurrent connections per IP
     }
 }
 ```
@@ -318,20 +318,20 @@ stream {
 **`src/core/types/context.h`** — added `uint8_t auth_fail_count` field adjacent to the
 session auth state fields.
 
-**`src/core/types/tunables.h`** — added `#define XROOTD_MAX_AUTH_ATTEMPTS 10` (allows
+**`src/core/types/tunables.h`** — added `#define BRIX_MAX_AUTH_ATTEMPTS 10` (allows
 5 full GSI retry cycles, each of which uses 2 rounds: certreq + cert).
 
-**`src/auth/gsi/auth.c`** — the public `xrootd_handle_auth()` entry point was refactored into
+**`src/auth/gsi/auth.c`** — the public `brix_handle_auth()` entry point was refactored into
 a thin wrapper that enforces the counter, with the previous body moved to a static inner
-function `xrootd_handle_auth_inner()`:
+function `brix_handle_auth_inner()`:
 
 ```c
 ngx_int_t
-xrootd_handle_auth(xrootd_ctx_t *ctx, ngx_connection_t *c)
+brix_handle_auth(brix_ctx_t *ctx, ngx_connection_t *c)
 {
-    if (ctx->auth_fail_count >= XROOTD_MAX_AUTH_ATTEMPTS) {
+    if (ctx->auth_fail_count >= BRIX_MAX_AUTH_ATTEMPTS) {
         /* close connection — limit reached */
-        return xrootd_send_error(ctx, c, kXR_NotAuthorized,
+        return brix_send_error(ctx, c, kXR_NotAuthorized,
                                  "Too many authentication failures");
     }
 
@@ -339,7 +339,7 @@ xrootd_handle_auth(xrootd_ctx_t *ctx, ngx_connection_t *c)
      * not a failure — must not increment the counter. */
     is_certreq = (auth type is GSI && step == kXGC_certreq);
 
-    rc = xrootd_handle_auth_inner(ctx, c);
+    rc = brix_handle_auth_inner(ctx, c);
 
     if (!is_certreq) {
         if (auth succeeded)  ctx->auth_fail_count = 0;
@@ -377,7 +377,7 @@ user[8] = '\0';
 ngx_memcpy(ctx->login_user, user, sizeof(ctx->login_user));
 ```
 
-The `xrootd_sanitize_log_string()` call at line 82 escapes control bytes for log output,
+The `brix_sanitize_log_string()` call at line 82 escapes control bytes for log output,
 but `ctx->login_user` retains the raw bytes including:
 - Embedded NUL bytes (`\x00`) — if `ctx->login_user` is later used in a context that
   treats it as a C-string, a NUL in position 2 silently truncates the username to 2 chars.
@@ -385,7 +385,7 @@ but `ctx->login_user` retains the raw bytes including:
   command-line tools that receive the username and may interpret these.
 - High-ASCII bytes (`\x80`–`\xff`) — UTF-8 partial sequences that could confuse log parsers.
 
-If `ctx->login_user` is ever passed to `ngx_xrootd_session_register()` or a downstream
+If `ctx->login_user` is ever passed to `ngx_brix_session_register()` or a downstream
 VOMS lookup using C-string semantics, NUL truncation silently grants username `a` access
 when the client sent `a\x00evil` (which no legitimate user is named).
 
@@ -401,7 +401,7 @@ user[8] = '\0';
 for (int i = 0; i < 8 && user[i] != '\0'; i++) {
     u_char ch = (u_char) user[i];
     if (ch < 0x20 || ch > 0x7e) {
-        return xrootd_send_error(ctx, c, kXR_InvalidRequest,
+        return brix_send_error(ctx, c, kXR_InvalidRequest,
                                  "Username contains invalid characters");
     }
 }
@@ -425,7 +425,7 @@ user[8] = '\0';
     int i;
     for (i = 0; i < 8 && user[i] != '\0'; i++) {
         if ((u_char) user[i] < 0x20 || (u_char) user[i] > 0x7e) {
-            return xrootd_send_error(ctx, c, kXR_ArgInvalid,
+            return brix_send_error(ctx, c, kXR_ArgInvalid,
                                      "username contains invalid characters");
         }
     }
@@ -441,7 +441,7 @@ to accept the username but sanitize it at log time).
 **Test:** `tests/test_security_hardening.py::test_login_username_rejects_control_bytes`
 sends a username containing `\n`, `\x1b`, and `"` control chars and asserts:
 - Response status is `kXR_ArgInvalid` (3000)
-- Raw username bytes are absent from both `xrootd_access_anon.log` and `error.log`
+- Raw username bytes are absent from both `brix_access_anon.log` and `error.log`
 
 ---
 
@@ -454,17 +454,17 @@ sends a username containing `\n`, `\x1b`, and `"` control chars and asserts:
 
 On Linux 5.6+ kernels, path confinement uses `openat2(2)` with `RESOLVE_BENEATH`,
 which is kernel-enforced and immune to TOCTOU races. On older kernels, the code falls
-back to `xrootd_open_confined_parent_fallback()`:
+back to `brix_open_confined_parent_fallback()`:
 
 ```c
 /* src/fs/path/resolve_confined_ops.c */
-fd = xrootd_openat2_confined(rootfd, rel, flags, mode);
+fd = brix_openat2_confined(rootfd, rel, flags, mode);
 if (fd >= 0 || (errno != ENOSYS && errno != EINVAL && errno != EOPNOTSUPP)) {
     close(rootfd);
     return fd;
 }
 /* fallback: segment-by-segment with O_NOFOLLOW */
-parentfd = xrootd_open_confined_parent_fallback(rootfd, parent);
+parentfd = brix_open_confined_parent_fallback(rootfd, parent);
 fd = openat(parentfd, base, flags | O_CLOEXEC | O_NOFOLLOW, mode);
 ```
 
@@ -478,7 +478,7 @@ replace `subdir` with a symlink to `/etc`. The kernel's `openat` receives the fd
 the parent directory and opens `subdir` relative to it — if `subdir` was renamed away
 and replaced with a symlink between these two points, `O_NOFOLLOW` on the final component
 does protect the final `open`, but a symlink on an intermediate component opened by
-`xrootd_open_dir_no_symlink` between two segment walks can slip through.
+`brix_open_dir_no_symlink` between two segment walks can slip through.
 
 The window is short (~microseconds) and requires local write access to the parent
 directory, so this is not a remote-only attack. But it is a real race on multi-tenant
@@ -495,12 +495,12 @@ RHEL9 / AlmaLinux9 ship kernel 5.14+ and use the safe `openat2` path.
 
 **Option A (Recommended): Enforce minimum kernel 5.6 for production deployments.**
 
-Add a startup check in `ngx_xrootd_init_process` that calls `SYS_openat2` on the
+Add a startup check in `ngx_brix_init_process` that calls `SYS_openat2` on the
 configured root directory and fails hard if it returns `ENOSYS`:
 
 ```c
 /* src/protocols/root/connection/handler.c or module init */
-if (!xrootd_kernel_has_openat2()) {
+if (!brix_kernel_has_openat2()) {
     ngx_log_error(NGX_LOG_EMERG, cycle->log, 0,
                   "xrootd: openat2(2) not available (kernel < 5.6); "
                   "path confinement is degraded. Refusing to start.");
@@ -508,11 +508,11 @@ if (!xrootd_kernel_has_openat2()) {
 }
 ```
 
-Or make it a hard warning with an operator opt-in directive `xrootd_allow_fallback_confinement on`.
+Or make it a hard warning with an operator opt-in directive `brix_allow_fallback_confinement on`.
 
 **Option B: Verify no symlinks in parent chain before use.**
 
-After `xrootd_open_confined_parent_fallback` returns a `parentfd`, call `fstat` on it
+After `brix_open_confined_parent_fallback` returns a `parentfd`, call `fstat` on it
 and verify it is still the expected inode via the path. This narrows but does not
 eliminate the TOCTOU window.
 
@@ -529,14 +529,14 @@ Option A was applied as a warning (not a hard refusal), so that the module conti
 to operate on pre-5.6 kernels while clearly communicating the degraded security posture
 to operators.
 
-**`src/fs/path/resolve_confined_helpers.c`** — added `xrootd_openat2_runtime_available()`,
+**`src/fs/path/resolve_confined_helpers.c`** — added `brix_openat2_runtime_available()`,
 which probes whether `SYS_openat2` works at worker startup:
 
 ```c
 int
-xrootd_openat2_runtime_available(void)
+brix_openat2_runtime_available(void)
 {
-#if (XROOTD_HAVE_OPENAT2)
+#if (BRIX_HAVE_OPENAT2)
     struct open_how how;
     int fd;
     ngx_memzero(&how, sizeof(how));
@@ -550,13 +550,13 @@ xrootd_openat2_runtime_available(void)
 }
 ```
 
-**`src/fs/path/path.h`** — added declaration `int xrootd_openat2_runtime_available(void);`
+**`src/fs/path/path.h`** — added declaration `int brix_openat2_runtime_available(void);`
 
 **`src/core/config/process.c`** — called the probe at the start of
-`ngx_stream_xrootd_init_process()` and emits `NGX_LOG_WARN` if unavailable:
+`ngx_stream_brix_init_process()` and emits `NGX_LOG_WARN` if unavailable:
 
 ```c
-if (!xrootd_openat2_runtime_available()) {
+if (!brix_openat2_runtime_available()) {
     ngx_log_error(NGX_LOG_WARN, cycle->log, 0,
                   "xrootd: openat2(2) is not available on this system "
                   "(requires Linux kernel 5.6+). Path confinement falls "
@@ -588,7 +588,7 @@ heap-allocated `payload_buf` that grows to hold the largest seen payload. There 
 cap on total bytes allocated from the nginx pool over a connection's lifetime.
 
 A long-lived connection can accumulate pool pages by:
-1. Opening `XROOTD_MAX_FILES (16)` file handles simultaneously.
+1. Opening `BRIX_MAX_FILES (16)` file handles simultaneously.
 2. Issuing the maximum number of `kXR_stat` / `kXR_query` / `kXR_locate` requests —
    each allocates from the connection pool.
 3. Sending `kXR_dirlist` on large directories — each entry adds a pool allocation.
@@ -600,7 +600,7 @@ gradually exhaust worker heap.
 
 ### Current Partial Mitigation
 
-- `XROOTD_MAX_WRITE_PAYLOAD (16 MB)` caps a single write allocation.
+- `BRIX_MAX_WRITE_PAYLOAD (16 MB)` caps a single write allocation.
 - nginx `worker_connections` (default 512) caps the total connection count.
 - `worker_rlimit_nofile` caps per-worker fd usage.
 
@@ -608,22 +608,22 @@ gradually exhaust worker heap.
 
 **Option A: Per-connection allocation counter.**
 
-Add a `size_t pool_bytes_used` counter to `xrootd_ctx_t` and increment it on every
+Add a `size_t pool_bytes_used` counter to `brix_ctx_t` and increment it on every
 `ngx_palloc` call via a wrapper:
 
 ```c
 static ngx_inline void *
-xrootd_palloc(xrootd_ctx_t *ctx, ngx_pool_t *pool, size_t sz)
+brix_palloc(brix_ctx_t *ctx, ngx_pool_t *pool, size_t sz)
 {
     ctx->pool_bytes_used += sz;
-    if (ctx->pool_bytes_used > XROOTD_MAX_CONN_POOL_BYTES) {
+    if (ctx->pool_bytes_used > BRIX_MAX_CONN_POOL_BYTES) {
         return NULL;  /* caller handles NGX_ERROR */
     }
     return ngx_palloc(pool, sz);
 }
 ```
 
-Define `XROOTD_MAX_CONN_POOL_BYTES` in `tunables.h` (suggested: 8 MB per connection).
+Define `BRIX_MAX_CONN_POOL_BYTES` in `tunables.h` (suggested: 8 MB per connection).
 
 **Option B: Short-lived pool strategy.**
 
@@ -636,10 +636,10 @@ file handles) rather than accumulated request history.
 
 ```nginx
 stream {
-    limit_conn_zone $remote_addr zone=xrootd_conns:10m;
+    limit_conn_zone $remote_addr zone=brix_conns:10m;
     server {
         listen 11094;
-        limit_conn xrootd_conns 32;
+        limit_conn brix_conns 32;
     }
 }
 ```
@@ -653,23 +653,23 @@ Option A (per-connection counter at the highest-growth allocation site) was appl
 A full wrapper for every `ngx_palloc` call was not required — the dirlist handler is
 the dominant source of pool growth (~65 KB per call), so the guard was placed there.
 
-**`src/core/types/tunables.h`** — added `#define XROOTD_MAX_CONN_POOL_BYTES (64 * 1024 * 1024)`
+**`src/core/types/tunables.h`** — added `#define BRIX_MAX_CONN_POOL_BYTES (64 * 1024 * 1024)`
 (64 MB — allows approximately 1000 dirlist calls before lockout).
 
-**`src/core/types/context.h`** — added `size_t pool_bytes_used` field to `xrootd_ctx_t`
+**`src/core/types/context.h`** — added `size_t pool_bytes_used` field to `brix_ctx_t`
 (adjacent to `auth_fail_count`).
 
 **`src/protocols/root/dirlist/handler.c`** — added a budget check before the chunk allocation:
 
 ```c
 if (ctx->pool_bytes_used + XRD_RESPONSE_HDR_LEN + chunk_cap
-        > XROOTD_MAX_CONN_POOL_BYTES)
+        > BRIX_MAX_CONN_POOL_BYTES)
 {
     closedir(dp);
     ngx_log_error(NGX_LOG_WARN, c->log, 0,
                   "xrootd: dirlist pool limit reached (%uz bytes), "
                   "closing connection", ctx->pool_bytes_used);
-    return xrootd_send_error(ctx, c, kXR_NoMemory,
+    return brix_send_error(ctx, c, kXR_NoMemory,
                              "connection pool limit exceeded");
 }
 chunk = ngx_palloc(c->pool, XRD_RESPONSE_HDR_LEN + chunk_cap);

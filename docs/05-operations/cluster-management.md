@@ -3,7 +3,7 @@
 BriX-Cache as a full XRootD cluster participant — redirector, sub-manager, or data server behind a redirector. This page covers the architecture, configuration, and the CMS protocol interactions that hold it together.
 cache node, not just a leaf data server.
 
-The static `xrootd_manager_map` (see [manager-mode.md](manager-mode.md)) provides
+The static `brix_manager_map` (see [manager-mode.md](manager-mode.md)) provides
 a fixed path-to-backend mapping useful for small deployments. Cluster mode
 replaces that with a **dynamic server registry** populated at runtime by data
 servers that connect via the standard CMS management protocol.
@@ -34,7 +34,7 @@ Test suite: `tests/test_manager_mode.py` (Part 1: static map; Part 2: live two-t
   Clients
      │
      ▼
-  Redirector  :1094              nginx-xrootd, xrootd_manager_mode on
+  Redirector  :1094              nginx-xrootd, brix_manager_mode on
      │   ▲
      │   │ kXR_redirect
      │   │
@@ -43,7 +43,7 @@ Test suite: `tests/test_manager_mode.py` (Part 1: static map; Part 2: live two-t
   Data servers :1094             nginx-xrootd (existing leaf role)
                                    → CMS client reports to redirector :1213
      ↑
-  CMS Server :1213               nginx-xrootd, xrootd_cms_server on
+  CMS Server :1213               nginx-xrootd, brix_cms_server on
 ```
 
 A **two-tier cluster** (redirector + data servers) needs M1 + M2 + M3 below.
@@ -64,16 +64,16 @@ It is the source of truth read by the redirect logic.
 
 **API**:
 ```c
-void xrootd_srv_register(const char *host, uint16_t port,
+void brix_srv_register(const char *host, uint16_t port,
     const char *paths, uint32_t free_mb, uint32_t util_pct);
 
-void xrootd_srv_update_load(const char *host, uint16_t port,
+void brix_srv_update_load(const char *host, uint16_t port,
     uint32_t free_mb, uint32_t util_pct);
 
-void xrootd_srv_unregister(const char *host, uint16_t port);
+void brix_srv_unregister(const char *host, uint16_t port);
 
 /* Returns 1 and fills host_out/port_out if a match is found. */
-int xrootd_srv_select(const char *path, int for_write,
+int brix_srv_select(const char *path, int for_write,
     char *host_out, size_t host_size, uint16_t *port_out);
 ```
 
@@ -84,7 +84,7 @@ with the most `free_mb`.
 **Implementation note**: follows the exact pattern in `src/protocols/root/session/registry.c`
 (shm zone init, `ngx_shmtx_lock`/`unlock`, linear scan, `ngx_cpystrn` copies).
 
-**Wiring**: call `xrootd_srv_configure_registry(cf)` from
+**Wiring**: call `brix_srv_configure_registry(cf)` from
 `src/core/config/postconfiguration.c` (after the metrics zone, same pattern).
 Add `src/net/manager/registry.c` to `ngx_module_srcs` in `config`.
 
@@ -100,24 +100,24 @@ registry.
 
 | File | Purpose |
 |---|---|
-| `src/net/cms/server_handler.c` | nginx stream handler: allocates `xrootd_cms_server_ctx_t`, wires read handler. Mirrors `src/protocols/root/connection/handler.c`. |
+| `src/net/cms/server_handler.c` | nginx stream handler: allocates `brix_cms_server_ctx_t`, wires read handler. Mirrors `src/protocols/root/connection/handler.c`. |
 | `src/net/cms/server_recv.c` | Frame reader: accumulates 8-byte header + payload, dispatches on `rrCode`. Mirrors `src/net/cms/recv.c`. |
 | `src/net/cms/server_send.c` | `cms_server_send_ping()` and `cms_server_send_status()`. Reuses `src/net/cms/wire.c` helpers. |
 | `src/net/cms/server_timer.c` | Per-worker timer: pings each active CMS connection every `cms_server_interval` seconds (default 60); marks stale connections for disconnect. |
-| `src/net/cms/server_module.c` | nginx stream module glue. Directive: `xrootd_cms_server on;`. |
+| `src/net/cms/server_module.c` | nginx stream module glue. Directive: `brix_cms_server on;`. |
 
 **CMS opcodes handled**:
 
 | `rrCode` | Action |
 |---|---|
-| `CMS_RR_LOGIN (0)` | Parse host/port/paths/free_mb/util_pct → `xrootd_srv_register()` |
-| `CMS_RR_LOAD (16)` | Update load metrics → `xrootd_srv_update_load()` |
+| `CMS_RR_LOGIN (0)` | Parse host/port/paths/free_mb/util_pct → `brix_srv_register()` |
+| `CMS_RR_LOAD (16)` | Update load metrics → `brix_srv_update_load()` |
 | `CMS_RR_AVAIL (12)` | Same as LOAD |
 | `CMS_RR_SPACE (19)` | Same as LOAD |
 | `CMS_RR_PONG (18)` | Update `ctx->last_seen` timestamp |
 | Unknown | Ignore (log at `NGX_LOG_DEBUG`) |
 
-On disconnect: if the connection logged in, call `xrootd_srv_unregister()`.
+On disconnect: if the connection logged in, call `brix_srv_unregister()`.
 
 ---
 
@@ -131,11 +131,11 @@ redirect-capable handlers.
 if (conf->manager_mode && !is_wildcard) {
     char     redir_host[256];
     uint16_t redir_port;
-    if (xrootd_srv_select(reqpath_buf, 0, redir_host,
+    if (brix_srv_select(reqpath_buf, 0, redir_host,
                           sizeof(redir_host), &redir_port)) {
-        xrootd_log_access(ctx, c, "LOCATE", reqpath_buf, "registry", 1, 0, NULL, 0);
-        XROOTD_OP_OK(ctx, XROOTD_OP_LOCATE);
-        return xrootd_send_redirect(ctx, c, redir_host, redir_port);
+        brix_log_access(ctx, c, "LOCATE", reqpath_buf, "registry", 1, 0, NULL, 0);
+        BRIX_OP_OK(ctx, BRIX_OP_LOCATE);
+        return brix_send_redirect(ctx, c, redir_host, redir_port);
     }
 }
 /* static manager_map fallback follows unchanged */
@@ -147,8 +147,8 @@ the local open path.
 **Changes to `src/protocols/root/session/protocol.c`**: set `kXR_isManager` flag when
 `conf->manager_mode` is on (extends the existing `manager_map` condition).
 
-**New config directive**: `xrootd_manager_mode on|off` (default off).
-Add `ngx_flag_t manager_mode` to `ngx_stream_xrootd_srv_conf_t` in
+**New config directive**: `brix_manager_mode on|off` (default off).
+Add `ngx_flag_t manager_mode` to `ngx_stream_brix_srv_conf_t` in
 `src/core/types/config.h`. Register in `src/protocols/root/stream/module.c`, initialise/merge in
 `src/core/config/server_conf.c`.
 
@@ -157,9 +157,9 @@ Add `ngx_flag_t manager_mode` to `ngx_stream_xrootd_srv_conf_t` in
 ### M4 — Sub-manager / Hierarchical Mode
 
 No new files. A sub-manager runs both the CMS client (reports upward) and the
-CMS server listener (accepts downward), with `xrootd_manager_mode on`.
+CMS server listener (accepts downward), with `brix_manager_mode on`.
 
-One change in `src/net/cms/send.c:ngx_xrootd_cms_send_login()`: when `manager_mode`
+One change in `src/net/cms/send.c:ngx_brix_cms_send_login()`: when `manager_mode`
 is on, set `CMS_LOGIN_MODE_MANAGER` in the mode field so the parent manager
 recognises this node as a sub-manager rather than a leaf data server.
 
@@ -168,10 +168,10 @@ recognises this node as a sub-manager rather than a leaf data server.
 ### M5 — Cache Node Integration
 
 After a cache fill completes (`src/fs/cache/thread.c`), if `manager_mode` is on,
-call `xrootd_srv_register(self_host, self_port, cached_path, ...)` so the
+call `brix_srv_register(self_host, self_port, cached_path, ...)` so the
 registry reflects this cache node as a valid source for the file.
 
-When a file is evicted (`src/fs/cache/evict.c`), call `xrootd_srv_unregister_path()`
+When a file is evicted (`src/fs/cache/evict.c`), call `brix_srv_unregister_path()`
 (a new single-path variant of unregister) to remove only that path from the
 cache node's entry.
 
@@ -186,15 +186,15 @@ stream {
     # CMS management port — data servers connect here
     server {
         listen 1213;
-        xrootd_cms_server on;
+        brix_cms_server on;
     }
 
     # XRootD protocol port — clients connect here
     server {
         listen 1094;
         xrootd on;
-        xrootd_root /dev/null;     # redirector has no local storage
-        xrootd_manager_mode on;    # enables registry-based kXR_redirect
+        brix_root /dev/null;     # redirector has no local storage
+        brix_manager_mode on;    # enables registry-based kXR_redirect
     }
 }
 ```
@@ -205,8 +205,8 @@ stream {
     server {
         listen 1094;
         xrootd on;
-        xrootd_root /data;
-        xrootd_cms_manager redirector.example.org:1213;  # existing directive
+        brix_root /data;
+        brix_cms_manager redirector.example.org:1213;  # existing directive
     }
 }
 ```
@@ -244,7 +244,7 @@ stream {
 # Two-tier smoke test
 
 # 1. Start redirector
-nginx -c tests/nginx-redirector.conf    # xrootd_manager_mode on :1094, cms :1213
+nginx -c tests/nginx-redirector.conf    # brix_manager_mode on :1094, cms :1213
 
 # 2. Start data server (CMS client connects to redirector on startup)
 nginx -c tests/nginx-dataserver.conf    # xrootd on :1095, cms_manager redirector:1213

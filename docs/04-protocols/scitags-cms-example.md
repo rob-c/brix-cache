@@ -76,30 +76,30 @@ stream {
     server {
         listen 1094;                       # root://  (and 1095 for roots:// + GSI)
         xrootd;
-        xrootd_export /eos/cms;
+        brix_export /eos/cms;
 
         # ---- SciTags packet marking --------------------------------------
-        xrootd_pmark               on;                       # master switch
-        xrootd_pmark_scitag_cgi    on;                       # honour scitag.flow=N
-        xrootd_pmark_firefly       on;                       # out-of-band reporting
-        xrootd_pmark_firefly_dest  flowd.mysite.example:10514;
-        xrootd_pmark_flowlabel     on;                       # in-band IPv6 label (default on)
+        brix_pmark               on;                       # master switch
+        brix_pmark_scitag_cgi    on;                       # honour scitag.flow=N
+        brix_pmark_firefly       on;                       # out-of-band reporting
+        brix_pmark_firefly_dest  flowd.mysite.example:10514;
+        brix_pmark_flowlabel     on;                       # in-band IPv6 label (default on)
 
         # Identify ourselves in the Firefly "application" field
-        xrootd_pmark_appname       nginx-xrootd/eoscms;
+        brix_pmark_appname       nginx-xrootd/eoscms;
 
         # Names below are resolved through the SciTags registry JSON
-        xrootd_pmark_defsfile      /etc/xrootd/scitags.json;
+        brix_pmark_defsfile      /etc/brix/scitags.json;
 
         # Fallback mapping when a client sends NO scitag.flow:
         #   everything under this gateway is CMS, default activity = "default"
-        xrootd_pmark_map_experiment default              cms;
-        xrootd_pmark_map_activity   cms     default      default;
+        brix_pmark_map_experiment default              cms;
+        brix_pmark_map_activity   cms     default      default;
     }
 }
 ```
 
-That is all a CMS site needs. With `xrootd_pmark_scitag_cgi on`, a client that
+That is all a CMS site needs. With `brix_pmark_scitag_cgi on`, a client that
 sends `?scitag.flow=206` overrides the fallback and the flow is marked **exp 3 /
 act 14** end-to-end.
 
@@ -110,15 +110,15 @@ http {
     server {
         listen 8443 ssl;
         location / {
-            xrootd_webdav on;
-            xrootd_pmark              on;
-            xrootd_pmark_scitag_cgi   on;        # honour ?scitag.flow=N on the URL
-            xrootd_pmark_firefly_dest flowd.mysite.example:10514;
-            xrootd_pmark_defsfile     /etc/xrootd/scitags.json;
-            xrootd_pmark_map_experiment default cms;
+            brix_webdav on;
+            brix_pmark              on;
+            brix_pmark_scitag_cgi   on;        # honour ?scitag.flow=N on the URL
+            brix_pmark_firefly_dest flowd.mysite.example:10514;
+            brix_pmark_defsfile     /etc/brix/scitags.json;
+            brix_pmark_map_experiment default cms;
 
             # Third-party COPY is always marked. To also mark plain GET/PUT:
-            xrootd_pmark_http_plain   on;
+            brix_pmark_http_plain   on;
         }
     }
 }
@@ -131,7 +131,7 @@ For HTTP the SciTag is taken from the request query string
 
 ## 3. The SciTags registry (`scitags.json`)
 
-`xrootd_pmark_defsfile` points at the standard SciTags experiment/activity
+`brix_pmark_defsfile` points at the standard SciTags experiment/activity
 registry so you can map by **name** instead of hard-coding numbers. It is the same
 JSON the SciTags project publishes
 (<https://www.scitags.org/api.html> / `flowd` ships a copy). Minimal CMS slice:
@@ -158,7 +158,7 @@ JSON the SciTags project publishes
 
 The defsfile is **optional**: if a client always sends `scitag.flow=N`, the numeric
 codes are used directly and no name resolution is needed. The defsfile only matters
-for the `xrootd_pmark_map_experiment` / `xrootd_pmark_map_activity` *fallback* rules
+for the `brix_pmark_map_experiment` / `brix_pmark_map_activity` *fallback* rules
 (which are by name).
 
 ---
@@ -247,17 +247,17 @@ Marking counters are exported on `/metrics`:
 
 | Directive | Default | Meaning |
 |---|---|---|
-| `xrootd_pmark on\|off` | off | master switch |
-| `xrootd_pmark_scitag_cgi on\|off` | on | honour client `scitag.flow=N` (override) |
-| `xrootd_pmark_firefly on\|off` | on | emit Firefly UDP reports |
-| `xrootd_pmark_firefly_dest host[:port]` | — | collector (repeatable; `origin` = the client; default port 10514) |
-| `xrootd_pmark_flowlabel on\|off` | on | stamp the IPv6 Flow Label |
-| `xrootd_pmark_defsfile <path>` | — | SciTags experiment/activity JSON registry |
-| `xrootd_pmark_appname <str>` | `nginx-xrootd` | Firefly `application` field |
-| `xrootd_pmark_map_experiment {default\|path <p>\|vo <v>} <expName>` | — | fallback experiment when no `scitag.flow` |
-| `xrootd_pmark_map_activity <expName> {default\|role <r>\|user <u>} <actName>` | — | fallback activity |
-| `xrootd_pmark_http_plain on\|off` | off | also mark plain WebDAV/S3 GET/PUT (TPC always marked) |
-| `xrootd_pmark_echo <seconds>` | 0 (off) | periodic "ongoing" Firefly for long flows |
+| `brix_pmark on\|off` | off | master switch |
+| `brix_pmark_scitag_cgi on\|off` | on | honour client `scitag.flow=N` (override) |
+| `brix_pmark_firefly on\|off` | on | emit Firefly UDP reports |
+| `brix_pmark_firefly_dest host[:port]` | — | collector (repeatable; `origin` = the client; default port 10514) |
+| `brix_pmark_flowlabel on\|off` | on | stamp the IPv6 Flow Label |
+| `brix_pmark_defsfile <path>` | — | SciTags experiment/activity JSON registry |
+| `brix_pmark_appname <str>` | `nginx-xrootd` | Firefly `application` field |
+| `brix_pmark_map_experiment {default\|path <p>\|vo <v>} <expName>` | — | fallback experiment when no `scitag.flow` |
+| `brix_pmark_map_activity <expName> {default\|role <r>\|user <u>} <actName>` | — | fallback activity |
+| `brix_pmark_http_plain on\|off` | off | also mark plain WebDAV/S3 GET/PUT (TPC always marked) |
+| `brix_pmark_echo <seconds>` | 0 (off) | periodic "ongoing" Firefly for long flows |
 
 See the [`src/observability/pmark/` README](../../src/observability/pmark/README.md) and the
 [phase-34 design doc](../refactor/phase-34-packet-marking-scitags.md) for the full

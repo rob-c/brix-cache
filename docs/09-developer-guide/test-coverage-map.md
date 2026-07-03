@@ -131,7 +131,7 @@ Cross-server bridge: proves GSI auth works end-to-end when copying between the B
 
 CRL revocation checking:
 
-- CRL file content (revoked serial present), stream rejection of revoked cert, WebDAV rejection of revoked cert, config directive acceptance, directory-mode CRL (`xrootd_crl` pointing at a directory), **hot reload** (`TestCRLReload`) — initially accepts a cert, then after reload rejects it without nginx restart.
+- CRL file content (revoked serial present), stream rejection of revoked cert, WebDAV rejection of revoked cert, config directive acceptance, directory-mode CRL (`brix_crl` pointing at a directory), **hot reload** (`TestCRLReload`) — initially accepts a cert, then after reload rejects it without nginx restart.
 
 ### `test_ocsp.py`
 
@@ -179,8 +179,8 @@ VOMS VO-based path ACL. CMS proxy admitted to `/cms/`, denied `/atlas/`. Atlas p
 
 Authorization boundary tests:
 
-- **Read-only server** (`TestReadOnlyServer`) — `xrootd_allow_write off` blocks all mutating opcodes while reads continue.
-- **Symlink escape** (`TestReadSideSymlinkEscape`) — stat/open/dirlist reject symlinks pointing outside `xrootd_root`.
+- **Read-only server** (`TestReadOnlyServer`) — `brix_allow_write off` blocks all mutating opcodes while reads continue.
+- **Symlink escape** (`TestReadSideSymlinkEscape`) — stat/open/dirlist reject symlinks pointing outside `brix_root`.
 - **Pre-auth rejection** (`TestPreAuthRejection`) — nine opcodes rejected before login; ping and protocol allowed.
 - **Unknown opcodes** — `kXR_Unsupported` before and after login.
 - **Handle misuse** — truncate on read-only handle, write to read-only handle, operations on invalid handles, use-after-close.
@@ -243,7 +243,7 @@ AIO thread pool path (`src/core/aio/`):
 
 ### `test_pgwrite_checksum.py`
 
-`kXR_pgwrite` CRC32c enforcement (`xrootd_pgwrite_decode_payload`):
+`kXR_pgwrite` CRC32c enforcement (`brix_pgwrite_decode_payload`):
 
 Good checksum accepted, bad checksum rejected, multi-page (first/second/middle page bad), good write reaches disk, bad write does not corrupt existing content. Unaligned offsets, page boundary offset, full 4096-byte page, sequential writes same handle, overwrite partial content.
 
@@ -509,7 +509,7 @@ SigV4 authentication for presigned URLs (`src/protocols/s3/auth.c`).
 
 ### `test_proxy_mode.py`
 
-Transparent proxy (`xrootd_proxy on`): the module connects to an upstream xrootd server and translates handles between client and upstream.
+Transparent proxy (`brix_proxy on`): the module connects to an upstream xrootd server and translates handles between client and upstream.
 
 - **Bootstrap** (`TestProxyBootstrap`) — lazy connect: ping handled before upstream touch, first FS op triggers connect, endsess clean, multiple independent proxy connections.
 - **Stat / Dirlist / Read / Write** — forwarding for all basic ops, error propagation.

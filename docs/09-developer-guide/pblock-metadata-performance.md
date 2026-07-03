@@ -44,7 +44,7 @@ p50/p95/p99. This is **Layer (a)** of [`tests/run_pblock_meta_gsi.sh`](../../tes
 the *storage* path, profiling uses **anonymous auth** (the GSI handshake is
 identical for both backends and would only add a shared crypto blob) and a high
 per-connection op count so handshakes amortise. Per-symbol self-time is dominated
-by `xrootd_session_handle_publish` purely because `-O3` inlines the dispatch
+by `brix_session_handle_publish` purely because `-O3` inlines the dispatch
 hot-path into it — the signal lives in the **per-DSO** breakdown.
 
 > Absolute ops/s is environment-specific (WSL2 + loopback + warm cache). The
@@ -160,7 +160,7 @@ writes and lowers CPU, which is the win on busier / multi-tenant workers.
 For an `EXISTING`-mode op (`stat`/`rm`/`chmod`/`setattr`/`truncate`), the gate's
 probe is redundant with the operation's own driver call, which already returns
 `ENOENT` → `NotFound`. `op_path_existence_gate` now **skips that probe when a
-non-POSIX backend is bound** (`xrootd_vfs_backend_resolve(root_canon) != NULL`):
+non-POSIX backend is bound** (`brix_vfs_backend_resolve(root_canon) != NULL`):
 
 - **Gated to non-POSIX** — the default POSIX export keeps the probe verbatim, so
   POSIX behaviour (and its existence-before-auth ordering) is **byte-identical**.
@@ -232,4 +232,4 @@ perf report --sort=dso        # the headline: libsqlite3.so self-%
 3. **#3's gate skip is non-POSIX-only and EXISTING-only.** Do not extend it to
    `WRITE` mode — `pblock` relies on the gate for parent-existence.
 4. **Measure by DSO, not by symbol** — `-O3` inlining hides the real split behind
-   `xrootd_session_handle_publish`.
+   `brix_session_handle_publish`.

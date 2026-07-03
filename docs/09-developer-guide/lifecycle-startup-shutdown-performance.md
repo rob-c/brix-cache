@@ -57,10 +57,10 @@ Design points that matter:
 
 Wired into two hooks:
 
-- **Master:** `ngx_stream_xrootd_postconfiguration` (`src/core/config/postconfiguration.c`)
+- **Master:** `ngx_stream_brix_postconfiguration` (`src/core/config/postconfiguration.c`)
   — buckets `prepare` (per-server prep + GSI/TLS/token/sss/krb5), `policy`,
   `registries` (metrics/dashboard/session/srv/tpc SHM zones), `frm`, `pools_uring`.
-- **Per worker:** `ngx_stream_xrootd_init_process` (`src/core/config/process.c`) —
+- **Per worker:** `ngx_stream_brix_init_process` (`src/core/config/process.c`) —
   buckets `uring`, `servers` (the per-server-block startup loop), `keypool`.
 
 ### Gotcha: `ngx_snprintf` does not null-terminate
@@ -115,7 +115,7 @@ Two lessons baked into the harness:
 | `uring`, `servers`, `policy`, `frm` | µs | non-issues |
 
 The headline: **one synchronous loop generating 64 ephemeral Diffie-Hellman keys on
-the event thread at worker start** (`xrootd_gsi_keypool_init`) was essentially the
+the event thread at worker start** (`brix_gsi_keypool_init`) was essentially the
 entire per-worker startup cost, and the bulk of respawn time too. None of the
 "obvious" suspects mattered.
 
@@ -129,7 +129,7 @@ respawn.
 
 ## 5. The fix: lazy keypool seed (the one change that mattered)
 
-The async refill machinery already existed for steady state (`xrootd_kp_schedule_refill`
+The async refill machinery already existed for steady state (`brix_kp_schedule_refill`
 posts a batch to the thread pool when the pool runs low). The warm-up just wasn't
 using it.
 
@@ -150,19 +150,19 @@ using it.
     synchronous full warm-up (correctness over latency, no speedup)
 ```
 
-`xrootd_gsi_keypool_init(cycle, pool, target, seed)` now:
+`brix_gsi_keypool_init(cycle, pool, target, seed)` now:
 
 1. generates only `seed` keys (default **4**) **synchronously** — enough to serve
    the first few handshakes before the off-thread fill lands;
 2. schedules the remainder up to `target` (default **64**) **off the event thread**
-   via the GSI server's thread pool; `xrootd_kp_refill_done` chains one batch at a
+   via the GSI server's thread pool; `brix_kp_refill_done` chains one batch at a
    time until the target is reached;
 3. falls back to a full synchronous warm-up **only when there is no thread pool** —
    correctness over latency, behaviour unchanged for those deployments.
 
-Two new directives expose the knobs: `xrootd_gsi_keypool_size` (target) and
-`xrootd_gsi_keypool_seed` (synchronous boot seed). The static ring is sized to a
-compile-time ceiling `XROOTD_GSI_KEYPOOL_CAP` (256) so the directive can't be set
+Two new directives expose the knobs: `brix_gsi_keypool_size` (target) and
+`brix_gsi_keypool_seed` (synchronous boot seed). The static ring is sized to a
+compile-time ceiling `BRIX_GSI_KEYPOOL_CAP` (256) so the directive can't be set
 unboundedly high; the low-water that triggers steady-state refill is now `target/2`.
 A one-shot `"GSI DH key pool warmed to N/N keys (off-thread)"` NOTICE confirms the
 background fill completed.
@@ -198,7 +198,7 @@ failure. Tune `seed` up for handshake-burst-heavy front doors.
 
 ## 6. The master `prepare` cost: why we instrumented instead of "fixed" it
 
-`prepare` (~2–3 ms) is the GSI `X509_STORE` build — `xrootd_rebuild_gsi_store`
+`prepare` (~2–3 ms) is the GSI `X509_STORE` build — `brix_rebuild_gsi_store`
 parsing every CA and CRL under the trusted-CA path. Two facts shaped the decision:
 
 - It **cannot be safely deferred**: the store must exist before the first GSI
@@ -278,8 +278,8 @@ connections — idle conns have no timer and never pin the worker.
 | `src/auth/gsi/keypool.{c,h}` | Lazy seed + off-thread fill to target; runtime target/seed; "warmed" NOTICE |
 | `src/auth/gsi/config.c` | Independent timing of the GSI trust-store build |
 | `src/core/types/config.h` | `gsi_keypool_size` / `gsi_keypool_seed` fields |
-| `src/core/types/tunables.h` | `XROOTD_GSI_KEYPOOL_CAP` / `_SIZE_DEFAULT` / `_SEED_DEFAULT` |
+| `src/core/types/tunables.h` | `BRIX_GSI_KEYPOOL_CAP` / `_SIZE_DEFAULT` / `_SEED_DEFAULT` |
 | `src/core/config/server_conf.c` | Merge defaults for the new directives |
-| `src/protocols/root/stream/module.c` | `xrootd_gsi_keypool_size` / `_seed` command entries |
+| `src/protocols/root/stream/module.c` | `brix_gsi_keypool_size` / `_seed` command entries |
 | `tests/profile_lifecycle.sh` | Throwaway lifecycle profiler |
 | `tests/test_lifecycle_speed.py` | Feature/regression guard |

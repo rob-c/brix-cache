@@ -8,7 +8,7 @@ class 2), HTTP third-party-copy (HTTP-TPC, the WebDAV `COPY` push/pull dialect u
 by FTS/gfal2), and the S3 REST gateway.
 
 Every claim below is grounded in source. The official side cites the upstream tree
-under `/tmp/xrootd-src/src/` (`XrdHttp/`, `XrdHttpTpc/`, `XrdHttpCors/`, and the
+under `/tmp/brix-src/src/` (`XrdHttp/`, `XrdHttpTpc/`, `XrdHttpCors/`, and the
 *client-side* `XrdClS3/` plugin). The BriX-Cache side cites this repository's
 `src/protocols/webdav/` and `src/protocols/s3/` trees. Where a fact was already established by the
 companion comparison documents, this doc reuses it rather than re-deriving it:
@@ -89,10 +89,10 @@ symbol in `XrdHttp`.
 ## In BriX-Cache
 
 The WebDAV/XrdHttp plane is an nginx HTTP module under `src/protocols/webdav/`. The master
-request router is `ngx_http_xrootd_webdav_handler()` in `src/protocols/webdav/dispatch.c`, which
+request router is `ngx_http_brix_webdav_handler()` in `src/protocols/webdav/dispatch.c`, which
 switches on the HTTP method and delegates to per-method handler files; the
 advertised method set and per-method metric slots/flags are described by the
-`xrootd_webdav_operations[]` descriptor array in `src/protocols/webdav/operation_table.c`. The
+`brix_webdav_operations[]` descriptor array in `src/protocols/webdav/operation_table.c`. The
 handler is installed in `NGX_HTTP_CONTENT_PHASE` by
 `src/protocols/webdav/postconfig.c`. The XrdHttp dialect (the `X-Xrootd-*` headers, `?xrd.stats`,
 `Want-Digest`, HTTP↔`kXR_*` status mapping) is layered on top in `src/protocols/webdav/xrdhttp.c`,
@@ -115,8 +115,8 @@ described throughout this document as **nginx-forward** (a feature the module *a
 not one it ports). See [S3 gateway](#s3-gateway-nginx-forward).
 
 A shared discipline applies to both modules: every wire path is resolved and confined
-before any syscall via `ngx_http_xrootd_webdav_resolve_path()` /
-`xrootd_open_confined_canon()` (and the S3 `s3_resolve_key()` equivalent), per the
+before any syscall via `ngx_http_brix_webdav_resolve_path()` /
+`brix_open_confined_canon()` (and the S3 `s3_resolve_key()` equivalent), per the
 project's path-confinement invariant.
 
 ---
@@ -130,17 +130,17 @@ BriX-Cache file and entry function.
 
 | Method | RFC class | Official XrdHttp | Our handler | Notes |
 |---|---|---|---|---|
-| `GET` | class 1 | `rtGET`; ranges via `XrdHttpReadRangeHandler`; ETag (`addETagHeader`, `inode-dev`); chunked TE; no compression | `src/protocols/webdav/get.c` → `webdav_handle_get()` | Single + multi-range (`multipart/byteranges`); `If-Modified-Since` → 304; optional response compression via `xrootd_webdav_compress`; TLS=memory-backed buffers, cleartext=sendfile |
+| `GET` | class 1 | `rtGET`; ranges via `XrdHttpReadRangeHandler`; ETag (`addETagHeader`, `inode-dev`); chunked TE; no compression | `src/protocols/webdav/get.c` → `webdav_handle_get()` | Single + multi-range (`multipart/byteranges`); `If-Modified-Since` → 304; optional response compression via `brix_webdav_compress`; TLS=memory-backed buffers, cleartext=sendfile |
 | `HEAD` | class 1 | `rtHEAD` | `src/protocols/webdav/methods_basic.c` → `webdav_handle_head()` | Stat via `webdav_resolve_stat()`; `Content-Length`, `Last-Modified`, optional `ETag`; `Content-Type` `httpd/unix-directory` for dirs |
 | `PUT` | class 1 | `rtPUT` | `src/protocols/webdav/put.c` → `webdav_handle_put_body()` | Async body read; lock check **before** body read; staged temp file + atomic rename; thread-pool offload |
 | `DELETE` | class 1 | `rtDELETE` | `src/protocols/webdav/namespace.c` → `webdav_handle_delete()` | Recursive delete; on collections checks child locks via `webdav_check_locks_tree()` |
 | `MKCOL` | class 1 | `rtMKCOL` | `src/protocols/webdav/namespace.c` → `webdav_handle_mkcol()` | Collection create (mkdir, confined) |
 | `OPTIONS` | class 1/2 | `rtOPTIONS`; `Allow` header | `src/protocols/webdav/methods_basic.c` → `webdav_handle_options()` | Emits `DAV: "1, 2"`, `DASL: <DAV:basicsearch>`, `MS-Author-Via: DAV`; `Allow` built from `allow_write` (read-only vs. full set) |
-| `PROPFIND` | class 1 | `rtPROPFIND` | `src/protocols/webdav/propfind.c` → `webdav_handle_propfind()` | `Depth: 0/1/infinity`; live + dead properties; libxml2 hardened (`NONET`, no-XXE, no `HUGE`); `infinity` capped at `XROOTD_WEBDAV_PROPFIND_MAX_ENTRIES` (DoS ceiling) |
+| `PROPFIND` | class 1 | `rtPROPFIND` | `src/protocols/webdav/propfind.c` → `webdav_handle_propfind()` | `Depth: 0/1/infinity`; live + dead properties; libxml2 hardened (`NONET`, no-XXE, no `HUGE`); `infinity` capped at `BRIX_WEBDAV_PROPFIND_MAX_ENTRIES` (DoS ceiling) |
 | `PROPPATCH` | class 1 | **not present** (no `rtPROPPATCH`) | `src/protocols/webdav/methods_basic.c` → `webdav_handle_proppatch()` (dead-prop storage in `dead_props.c`/`prop_xattr.c`) | Returns 207 Multi-Status; dead props stored as hex-encoded xattrs — needed by clients that treat `501` as fatal |
 | `MOVE` | class 1 | `rtMOVE` | `src/protocols/webdav/move.c` → `webdav_handle_move()` | Lock check on **both** source and destination; thread-pool offload; rename within confined root |
 | `COPY` | class 1 | `rtCOPY` (also the HTTP-TPC verb) | `src/protocols/webdav/copy.c` → `webdav_handle_copy()`; TPC path → `src/protocols/webdav/tpc.c` | Local server-side copy (recursive tree → temp → rename); when `Source`/`Credential` header present, dispatched to HTTP-TPC instead (see below) |
-| `LOCK` | **class 2** | **not present** | `src/protocols/webdav/lock.c` → `webdav_handle_lock()` | xattr-backed; exclusive + shared; `Depth: 0`/`infinity`; locks persist across restart unless `xrootd_webdav_lock_startup_sweep on` |
+| `LOCK` | **class 2** | **not present** | `src/protocols/webdav/lock.c` → `webdav_handle_lock()` | xattr-backed; exclusive + shared; `Depth: 0`/`infinity`; locks persist across restart unless `brix_webdav_lock_startup_sweep on` |
 | `UNLOCK` | **class 2** | **not present** | `src/protocols/webdav/lock.c` → `webdav_handle_unlock()` | Removes lock xattr; `If:`/lock-token matching |
 | `SEARCH` | RFC 5323 (DASL) | **not present** | `src/protocols/webdav/search.c` → `webdav_handle_search()` | Basic `<DAV:basicsearch>` over the confined namespace; `Depth: 0/1/infinity` |
 | `ACL` | RFC 3744 | **not present** | `src/protocols/webdav/acl.c` → `webdav_handle_acl()` | Read-only discovery; refuses client-side ACL mutation (403) |
@@ -177,8 +177,8 @@ Both sides speak the WLCG XrdHttp dialect on top of WebDAV:
   `xrdhttp_stats.c`.
 - **CORS.** Upstream CORS is the optional `XrdHttpCors` plugin (`cors.origin` config,
   echoes `Access-Control-Allow-Origin`). Ours is built in: `webdav_add_cors_headers()`
-  in `src/protocols/webdav/cors.c`, driven by `xrootd_webdav_cors_origin` (allowlist, repeatable)
-  and `xrootd_webdav_cors_credentials`, and emits `Vary: Origin` to avoid origin leakage.
+  in `src/protocols/webdav/cors.c`, driven by `brix_webdav_cors_origin` (allowlist, repeatable)
+  and `brix_webdav_cors_credentials`, and emits `Vary: Origin` to avoid origin leakage.
 
 ---
 
@@ -193,14 +193,14 @@ mechanism in `src/tpc/`), which is covered in the `root://` / clustering compari
 
 | Aspect | Official `XrdHttpTpc` | BriX-Cache `src/protocols/webdav/tpc*.c` |
 |---|---|---|
-| Dispatch | `rtCOPY` handler in `XrdHttpTpcTPC.cc`; `Source`/`Destination` headers select pull/push | `ngx_http_xrootd_webdav_tpc_handle_copy()` in `src/protocols/webdav/tpc.c`; detects `Source`/`Destination` (rejects both-or-neither with 400) |
-| Outbound client | libcurl (`#include <curl/curl.h>`, `curl_multi` for concurrency) | libcurl via `src/protocols/webdav/tpc_curl.c` (`curl_multi`); curl path configurable (`xrootd_webdav_tpc_curl`, default `/usr/bin/curl`) |
-| Multistream | `RunCurlWithStreams()`; `X-Number-Of-Streams` header | `X-Number-Of-Streams` parsed, capped by `xrootd_webdav_tpc_max_streams` (default 1); parallel Range-GET via per-stream `pwrite()` |
-| Performance markers | `XrdHttpTpc::PMarkManager`; periodic chunked `Perf Marker` blocks | `src/protocols/webdav/tpc_marker.c`; same `Perf Marker` wire block (`Timestamp:`/`Stripe Index:`/`Stripe Bytes Transferred:`/`Total Stripe Count:`/`End`), 202 + chunked body, 200 ms poll, interval set by `xrootd_webdav_tpc_marker_interval` (default 0 = off) |
+| Dispatch | `rtCOPY` handler in `XrdHttpTpcTPC.cc`; `Source`/`Destination` headers select pull/push | `ngx_http_brix_webdav_tpc_handle_copy()` in `src/protocols/webdav/tpc.c`; detects `Source`/`Destination` (rejects both-or-neither with 400) |
+| Outbound client | libcurl (`#include <curl/curl.h>`, `curl_multi` for concurrency) | libcurl via `src/protocols/webdav/tpc_curl.c` (`curl_multi`); curl path configurable (`brix_webdav_tpc_curl`, default `/usr/bin/curl`) |
+| Multistream | `RunCurlWithStreams()`; `X-Number-Of-Streams` header | `X-Number-Of-Streams` parsed, capped by `brix_webdav_tpc_max_streams` (default 1); parallel Range-GET via per-stream `pwrite()` |
+| Performance markers | `XrdHttpTpc::PMarkManager`; periodic chunked `Perf Marker` blocks | `src/protocols/webdav/tpc_marker.c`; same `Perf Marker` wire block (`Timestamp:`/`Stripe Index:`/`Stripe Bytes Transferred:`/`Total Stripe Count:`/`End`), 202 + chunked body, 200 ms poll, interval set by `brix_webdav_tpc_marker_interval` (default 0 = off) |
 | Credential / delegation | `Credential:` header (`none` only in reviewed source); `TransferHeaderN` forwarding (e.g. `TransferHeaderAuthorization`); `tpcForwardCreds` for redirects | `Credential:` modes `none`, `oidc-agent`, `token-exchange` (`src/protocols/webdav/tpc_cred.c`, `tpc_cred_parse.c`); injects `Authorization: Bearer <tok>` into the transfer |
-| OAuth2 token exchange | not in reviewed source | RFC 8693 exchange against `xrootd_webdav_tpc_token_endpoint` using the request's bearer as subject token (`src/protocols/webdav/tpc_cred.c`) |
-| SSRF / DNS-pinning | not in reviewed source | `tpc_curl_secure()` forces `SSL_VERIFYPEER=1`/`VERIFYHOST=2`, resolves+pins the target IP via `CURLOPT_RESOLVE` (`xrootd_net_target_check_dns_pin()`) to close the TOCTOU window; policy gated by `xrootd_webdav_tpc_allow_local`/`_allow_private` |
-| Stall protection | curl timeouts | 30 s connect timeout, TCP keepalive, low-speed detector (`xrootd_webdav_tpc_low_speed_bytes`/`_secs`, default 1024 B/s for 60 s) |
+| OAuth2 token exchange | not in reviewed source | RFC 8693 exchange against `brix_webdav_tpc_token_endpoint` using the request's bearer as subject token (`src/protocols/webdav/tpc_cred.c`) |
+| SSRF / DNS-pinning | not in reviewed source | `tpc_curl_secure()` forces `SSL_VERIFYPEER=1`/`VERIFYHOST=2`, resolves+pins the target IP via `CURLOPT_RESOLVE` (`brix_net_target_check_dns_pin()`) to close the TOCTOU window; policy gated by `brix_webdav_tpc_allow_local`/`_allow_private` |
+| Stall protection | curl timeouts | 30 s connect timeout, TCP keepalive, low-speed detector (`brix_webdav_tpc_low_speed_bytes`/`_secs`, default 1024 B/s for 60 s) |
 
 So the two are at parity on the core HTTP-TPC mechanics (pull/push, libcurl, multistream,
 performance markers), and BriX-Cache **adds** operational hardening: OAuth2 token
@@ -213,17 +213,17 @@ The full HTTP-TPC tuning surface is in `src/protocols/webdav/tpc_config.c`:
 
 | Directive | Default | Purpose |
 |---|---|---|
-| `xrootd_webdav_tpc` | off | Enable HTTP-TPC |
-| `xrootd_webdav_tpc_max_streams` | 1 | Max parallel Range-GET streams |
-| `xrootd_webdav_tpc_marker_interval` | 0 (off) | Performance-marker poll interval (ms) |
-| `xrootd_webdav_tpc_timeout` | 0 (no limit) | Overall transfer timeout (s) |
-| `xrootd_webdav_tpc_low_speed_bytes` / `_secs` | 1024 / 60 | Stall detector floor / window |
-| `xrootd_webdav_tpc_allow_local` / `_allow_private` | 0 / 1 | SSRF policy for loopback / RFC 1918 targets |
-| `xrootd_webdav_tpc_cert` / `_key` / `_cafile` / `_cadir` | inherit | Client X.509 material for the remote leg |
-| `xrootd_webdav_tpc_token_endpoint` / `_client_id` / `_client_secret` / `_token_scope` | "" / "" / "" / `storage.read` | RFC 8693 token-exchange parameters |
+| `brix_webdav_tpc` | off | Enable HTTP-TPC |
+| `brix_webdav_tpc_max_streams` | 1 | Max parallel Range-GET streams |
+| `brix_webdav_tpc_marker_interval` | 0 (off) | Performance-marker poll interval (ms) |
+| `brix_webdav_tpc_timeout` | 0 (no limit) | Overall transfer timeout (s) |
+| `brix_webdav_tpc_low_speed_bytes` / `_secs` | 1024 / 60 | Stall detector floor / window |
+| `brix_webdav_tpc_allow_local` / `_allow_private` | 0 / 1 | SSRF policy for loopback / RFC 1918 targets |
+| `brix_webdav_tpc_cert` / `_key` / `_cafile` / `_cadir` | inherit | Client X.509 material for the remote leg |
+| `brix_webdav_tpc_token_endpoint` / `_client_id` / `_client_secret` / `_token_scope` | "" / "" / "" / `storage.read` | RFC 8693 token-exchange parameters |
 
 A related HTTP tape surface, the WLCG **Tape REST** API
-(`src/protocols/webdav/tape_rest.c`, gated by `xrootd_webdav_tape_rest`), is an nginx-forward
+(`src/protocols/webdav/tape_rest.c`, gated by `brix_webdav_tape_rest`), is an nginx-forward
 feature with no upstream daemon equivalent; it shares the FRM stage queue and is
 detailed in the FRM/tape documentation.
 
@@ -273,7 +273,7 @@ and then routed by method + query string:
   `X-Amz-Expires`/`X-Amz-SignedHeaders`/`X-Amz-Signature` (same parser).
 - **Streaming `aws-chunked`** — `src/protocols/s3/aws_chunked.c` runs a chunk-framing state machine
   and verifies the per-chunk `AWS4-HMAC-SHA256-PAYLOAD` signature with a constant-time
-  compare; gated by `xrootd_s3_verify_chunk_signatures`.
+  compare; gated by `brix_s3_verify_chunk_signatures`.
 
 Canonicalisation (`auth_sigv4_canonical.c`) sorts and percent-encodes query parameters
 per the SigV4 rules. SigV4 is kept strictly separate from WLCG-token auth per the
@@ -283,16 +283,16 @@ project invariant (S3 SigV4 ≠ WLCG token — never shared).
 
 - **ListObjects** supports both V1 (`list_objects_v1.c`) and V2 (`list_objects_v2.c`),
   sharing the filesystem walk in `list_walk.c`. V2 parses `prefix`, `delimiter`,
-  `continuation-token` (base64url), `max-keys` (capped by `xrootd_s3_max_keys`,
+  `continuation-token` (base64url), `max-keys` (capped by `brix_s3_max_keys`,
   default 1000), `fetch-owner`, and `encoding-type=url`. A **per-worker LRU cache**
-  (`src/protocols/s3/list_cache.c`/`.h`, enabled by `xrootd_s3_list_cache`, TTL
-  `xrootd_s3_list_cache_ttl`, default 10 s) memoises sorted `(root, prefix, delimiter)`
+  (`src/protocols/s3/list_cache.c`/`.h`, enabled by `brix_s3_list_cache`, TTL
+  `brix_s3_list_cache_ttl`, default 10 s) memoises sorted `(root, prefix, delimiter)`
   listings keyed on the bucket-root mtime — bounded-eventual consistency, not SHM-shared.
 - **Multipart upload** is complete: initiate (with a generated upload-ID and a confined
   `0700` staging dir), upload part (`part.<N>` staging files), upload-part-copy, complete
   (XML part list validated against staged parts, sorted, assembled), abort (recursive
   staging cleanup), list-parts, and list-uploads. Abandoned uploads older than
-  `xrootd_s3_mpu_max_age` can be reaped.
+  `brix_s3_mpu_max_age` can be reaped.
 - **Conditional requests** (`src/protocols/s3/conditional.c`) implement RFC 9110 §13.2.2 precedence:
   `If-Match` → 412, `If-Unmodified-Since` → 412, `If-None-Match` → 304/412 (incl. `"*"`
   for atomic create-if-absent), `If-Modified-Since` → 304. ETags are synthetic
@@ -319,11 +319,11 @@ because BriX-Cache reuses nginx's TLS engine and certificate model rather than X
 | Concern | Official XrdHttp | BriX-Cache |
 |---|---|---|
 | TLS termination | XrdTls; `http.cert`/`http.key`/`http.cadir`/`http.httpsmode {off\|manual\|auto}` (`XrdHttpProtocol.cc`) | nginx `listen … ssl;` + `ssl_certificate`/`ssl_certificate_key`, plus module client-cert directives |
-| X.509 / GSI client cert | chain extraction in `XrdHttpSecurity.cc` (`EECname()`/`EEChash()` → `SecEntity`) | `src/protocols/webdav/auth_cert.c`, `pki.c`; `xrootd_webdav_cadir`/`cafile`/`crl`/`verify_depth` |
-| VOMS proxy | `http.secxtractor libXrdHttpVOMS.so` plugin (`XrdHttpSecXtractor.hh`) | proxy-cert support enabled by `xrootd_webdav_proxy_certs` (sets `X509_V_FLAG_ALLOW_PROXY_CERTS` on the SSL ctx in `postconfig.c`); verified by `webdav_verify_proxy_cert()` |
+| X.509 / GSI client cert | chain extraction in `XrdHttpSecurity.cc` (`EECname()`/`EEChash()` → `SecEntity`) | `src/protocols/webdav/auth_cert.c`, `pki.c`; `brix_webdav_cadir`/`cafile`/`crl`/`verify_depth` |
+| VOMS proxy | `http.secxtractor libXrdHttpVOMS.so` plugin (`XrdHttpSecXtractor.hh`) | proxy-cert support enabled by `brix_webdav_proxy_certs` (sets `X509_V_FLAG_ALLOW_PROXY_CERTS` on the SSL ctx in `postconfig.c`); verified by `webdav_verify_proxy_cert()` |
 | Grid-mapfile | `http.gridmap` → `dn2user()` (`XrdHttpSecurity.cc`) | DN/issuer mapping through the auth/ACC stack |
-| Bearer / token | `http.secretkey` token-hash check; HTTPS→HTTP+token redirect (`http.selfhttps2http`) | `webdav_verify_bearer_token()` + `xrootd_token_check_scope()` (HELPERS); macaroon issuance at `/.oauth2/token` (`macaroon_endpoint.c`) |
-| Auth requirement | per-protocol/path config | `xrootd_webdav_auth {none\|optional\|required}` |
+| Bearer / token | `http.secretkey` token-hash check; HTTPS→HTTP+token redirect (`http.selfhttps2http`) | `webdav_verify_bearer_token()` + `brix_token_check_scope()` (HELPERS); macaroon issuance at `/.oauth2/token` (`macaroon_endpoint.c`) |
+| Auth requirement | per-protocol/path config | `brix_webdav_auth {none\|optional\|required}` |
 
 A subtle but important policy invariant on our side: access is gated on the **completed**
 auth verdict (`allow_write` is checked globally *before* token scope), never on an
@@ -353,16 +353,16 @@ server {
     ssl_certificate_key /etc/grid-security/hostkey.pem;
 
     location / {
-        xrootd_webdav              on;
-        xrootd_webdav_root         /data/export;
-        xrootd_webdav_allow_write  on;          # PUT/DELETE/MKCOL/MOVE/COPY/LOCK
-        xrootd_webdav_auth         required;
-        xrootd_webdav_cadir        /etc/grid-security/certificates;
-        xrootd_webdav_proxy_certs  on;          # accept VOMS/GSI proxy chains
-        xrootd_webdav_tpc          on;          # HTTP third-party-copy
-        xrootd_webdav_tpc_max_streams       4;
-        xrootd_webdav_tpc_marker_interval   5000;
-        xrootd_webdav_cors_origin  https://portal.example.org;
+        brix_webdav              on;
+        brix_webdav_root         /data/export;
+        brix_webdav_allow_write  on;          # PUT/DELETE/MKCOL/MOVE/COPY/LOCK
+        brix_webdav_auth         required;
+        brix_webdav_cadir        /etc/grid-security/certificates;
+        brix_webdav_proxy_certs  on;          # accept VOMS/GSI proxy chains
+        brix_webdav_tpc          on;          # HTTP third-party-copy
+        brix_webdav_tpc_max_streams       4;
+        brix_webdav_tpc_marker_interval   5000;
+        brix_webdav_cors_origin  https://portal.example.org;
     }
 }
 ```
@@ -392,15 +392,15 @@ server {
     ssl_certificate_key /etc/pki/tls/private/s3.key;
 
     location / {
-        xrootd_s3             on;
-        xrootd_s3_root        /data/export;
-        xrootd_s3_bucket      mybucket;
-        xrootd_s3_access_key  AKIAEXAMPLE;
-        xrootd_s3_secret_key  <secret>;
-        xrootd_s3_region      us-east-1;
-        xrootd_s3_allow_write on;
-        xrootd_s3_list_cache  on;
-        xrootd_s3_max_keys    1000;
+        brix_s3             on;
+        brix_s3_root        /data/export;
+        brix_s3_bucket      mybucket;
+        brix_s3_access_key  AKIAEXAMPLE;
+        brix_s3_secret_key  <secret>;
+        brix_s3_region      us-east-1;
+        brix_s3_allow_write on;
+        brix_s3_list_cache  on;
+        brix_s3_max_keys    1000;
     }
 }
 ```
@@ -451,7 +451,7 @@ not handle is `PATCH`.
 
 ## Source references
 
-**Official XRootD** (`/tmp/xrootd-src/src/`):
+**Official XRootD** (`/tmp/brix-src/src/`):
 
 - `XrdHttp/XrdHttpReq.hh` — `ReqType` method enum (`rtGET`…`rtCOPY`); `XrdHttpReq.cc` —
   `addETagHeader()`, range/multipart byteranges, digest handling.

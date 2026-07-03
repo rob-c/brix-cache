@@ -22,7 +22,7 @@ events { worker_connections 65536; }
 - **`worker_rlimit_nofile`** must be larger than `worker_connections` plus the open
   file handles per connection. root:// gives each connection up to 256 file handles
   (`src/protocols/root/connection/fd_table.c`), so an FD-starved worker shows up as failed `open`s.
-  Watch `xrootd_connections_active` against your `worker_connections` ceiling.
+  Watch `brix_connections_active` against your `worker_connections` ceiling.
 
 ## Async thread pool
 
@@ -51,11 +51,11 @@ Sizing notes:
 - The **metrics** zone is fixed-shape and small; it does not grow with traffic.
 - **Rate-limit** and **KV** zones are LRU and sized by directive — size them to the
   number of distinct keys (VO/issuer/IP/DN, or KV entries) you expect to track.
-  `xrootd_kv_entries{zone}` / `xrootd_kv_capacity{zone}` and the
-  `xrootd_*_eviction_total` / `xrootd_*_full_errors_total` counters tell you when a
+  `brix_kv_entries{zone}` / `brix_kv_capacity{zone}` and the
+  `brix_*_eviction_total` / `brix_*_full_errors_total` counters tell you when a
   zone is too small (evictions climbing, or full-errors > 0).
-- The **session registry** has an LRU reaper; `xrootd_session_registry_full_total`
-  and `xrootd_session_evict_total` rising together mean the cap is too low for your
+- The **session registry** has an LRU reaper; `brix_session_registry_full_total`
+  and `brix_session_evict_total` rising together mean the cap is too low for your
   concurrent-session count.
 
 ## Transfer memory budget
@@ -64,32 +64,32 @@ To keep resident memory bounded on many-large-transfer workloads, the data plane
 uses windowed read/write and an explicit byte budget rather than buffering whole
 objects. Signals:
 
-- `xrootd_xfer_heap_bytes` / `xrootd_xfer_heap_high_water_bytes` — current and peak
+- `brix_xfer_heap_bytes` / `brix_xfer_heap_high_water_bytes` — current and peak
   transfer scratch memory.
-- `xrootd_budget_waits_total` — how often a transfer waited for budget. A steadily
+- `brix_budget_waits_total` — how often a transfer waited for budget. A steadily
   climbing rate means concurrency is being throttled by the budget; this is the
   backpressure working as intended. Add memory/raise the budget only if latency
   suffers and the host has headroom.
 
 ## Read cache (optional)
 
-If `xrootd_cache` is enabled, size it to your hot working set:
+If `brix_cache` is enabled, size it to your hot working set:
 
-- `xrootd_cache_occupancy_ratio` near 1.0 with a low
-  `xrootd_cache_hits_total / (hits+misses)` ratio ⇒ the cache is too small or the
+- `brix_cache_occupancy_ratio` near 1.0 with a low
+  `brix_cache_hits_total / (hits+misses)` ratio ⇒ the cache is too small or the
   working set is not cacheable.
-- `xrootd_cache_evictions_total` climbing ⇒ churn; grow the cache or raise
-  `xrootd_cache_max_file_size` selectivity.
+- `brix_cache_evictions_total` climbing ⇒ churn; grow the cache or raise
+  `brix_cache_max_file_size` selectivity.
 
 ## A sizing worksheet
 
-1. **Peak concurrent transfers** `C` (from `xrootd_connections_active` at peak).
+1. **Peak concurrent transfers** `C` (from `brix_connections_active` at peak).
 2. `worker_connections ≥ C × (1 + upstreams_per_transfer)` with headroom.
 3. `worker_rlimit_nofile ≥ worker_connections × avg_fds_per_conn`.
 4. `thread_pool threads ≈` peak concurrent **blocking IO** ops (≤ `C`, usually far less).
 5. Size each LRU SHM zone to its distinct-key count; confirm `*_eviction_total`/
    `*_full_errors_total` stay flat at peak.
-6. Confirm `xrootd_budget_waits_total` rate is acceptable; if not, add RAM/budget.
+6. Confirm `brix_budget_waits_total` rate is acceptable; if not, add RAM/budget.
 
 See also: [Troubleshooting](troubleshooting.md) ·
 [Performance Benchmarks](performance-benchmarks.md) ·

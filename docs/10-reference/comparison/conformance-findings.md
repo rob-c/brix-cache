@@ -9,7 +9,7 @@
 > there is positive evidence otherwise.**
 >
 > Suites:
-> - `tests/test_xrootd_conformance.py` — 20 raw-wire tests vs. the documented
+> - `tests/test_brix_conformance.py` — 20 raw-wire tests vs. the documented
 >   protocol (self-provisioned anon server, no external deps).
 > - `tests/test_official_interop.py` (+ `official_interop_lib.py`) — 53 differential
 >   tests that run the **stock `xrdfs`/`xrdcp` against our server** (Q3), **our
@@ -66,14 +66,14 @@ six more divergences, all corrected and pinned by a guarding test:
 
 Notes:
 - #10 mirrors `XrdXrootdProtocol::StatGen` exactly (shared encoder
-  `xrootd_stat_flags_from_stat`, owner/group/other checked against the server's
+  `brix_stat_flags_from_stat`, owner/group/other checked against the server's
   effective uid/gid — whom the confined export is accessed as).
 - #13/#14 were confirmed empirically (stock `xrdcp` leaves `MakePath` *off* by
   default yet the file still lands in a missing parent — the **server** makes the
   path on create-open / rename).
 - #15: the op-table ops (rm/mkdir/mv/chmod/…) already rejected `..` with traversal
-  logging in `xrootd_path_resolve_beneath`; only the kernel-RESOLVE_BENEATH ops
-  bypassed it. The new `xrootd_reject_dotdot_path` closes that gap with the same
+  logging in `brix_path_resolve_beneath`; only the kernel-RESOLVE_BENEATH ops
+  bypassed it. The new `brix_reject_dotdot_path` closes that gap with the same
   warning + access-log line. Escaping `..` was always confined; this is a
   protocol-conformance guard, not a new security boundary.
 
@@ -147,7 +147,7 @@ were found and fixed (each pinned by a now-passing guard):
 | 23 | `kXR_stat` **id** (chunks[0], `StatInfo::GetId`) | bare inode | `(st_ino<<32)\|(uint32_t)st_dev` — the reference `StatGen` union layout (`XrdXrootdProtocol.cc:766`) | XrdCl `FileSystem::Stat` |
 | 24 | `ENOTEMPTY`/`EEXIST` → kXR | `kXR_FSError`(3005) | `kXR_ItExists`(3018) — reference `mapError` (`XProtocol.hh:1422`) | XrdCl rm/rmdir of non-empty dir |
 | 25 | NS `NO_SPACE` → kXR | `kXR_NoMemory` | `kXR_NoSpace`(3017) (ENOSPC) | mapping audit alongside #24 |
-| 26 | `kXR_truncate` of a missing path | `kXR_IOError`(3007) | errno-mapped → `kXR_NotFound`(3011) (handler hard-coded IOError; now `xrootd_kxr_from_errno`) | XrdCl/stock truncate |
+| 26 | `kXR_truncate` of a missing path | `kXR_IOError`(3007) | errno-mapped → `kXR_NotFound`(3011) (handler hard-coded IOError; now `brix_kxr_from_errno`) | XrdCl/stock truncate |
 | 27 | `query config role` | echoed `role` (unknown-key) | `server` (or `manager` in manager mode) — `do_Qconf` `XRDROLE` | XrdCl `Query(Config)` |
 | 28 | `query config fattr` | echoed `fattr` | `248 65536` (usxParms: Linux user.* name/value caps) | XrdCl `Query(Config)` |
 | 29 | `query config` empty payload | `kXR_ok` empty | `kXR_ArgMissing` "query config argument not specified." (`do_Qconf`) | raw-wire |
@@ -175,7 +175,7 @@ Two findings were judged **non-bugs / deferred** (evidence otherwise):
 
 All nine fixes live in `src/protocols/root/path/stat_body.c`, `src/core/compat/error_mapping.c`,
 `src/protocols/root/write/truncate.c`, `src/protocols/root/query/{config,space,prepare}.c`,
-`src/protocols/root/fattr/list.c` (+ `ngx_xrootd_fattr.h`), and `src/protocols/root/session/login.c`, each
+`src/protocols/root/fattr/list.c` (+ `ngx_brix_fattr.h`), and `src/protocols/root/session/login.c`, each
 verified client-safe and regression-clean against the full `test_conf_*` suite.
 
 ---
@@ -199,14 +199,14 @@ between our server and the stock server.
 
 ```bash
 # raw-wire protocol conformance (no external deps)
-PYTHONPATH=tests pytest tests/test_xrootd_conformance.py -v        # 20 pass
+PYTHONPATH=tests pytest tests/test_brix_conformance.py -v        # 20 pass
 
 # differential against the stock xrootd server/tools (needs xrootd/xrdfs/xrdcp)
 PYTHONPATH=tests pytest tests/test_official_interop.py -v          # 53 pass
 
 # all conformance + interop + GSI/TPC regression
 PYTHONPATH=tests pytest tests/test_official_interop.py \
-  tests/test_xrootd_conformance.py tests/test_gohep_interop.py \
+  tests/test_brix_conformance.py tests/test_gohep_interop.py \
   tests/test_gsi_interop_guards.py tests/test_tpc_gsi_outbound.py -q
 # -> 87 passed, 5 skipped
 ```

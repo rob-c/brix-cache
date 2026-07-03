@@ -33,7 +33,7 @@ it, but stores data very differently:
 It advertises **the same capability bitmap as POSIX** and implements **every**
 vtable slot, so it is a true drop-in: `root://`, WebDAV, and S3 all run unchanged
 on top of it. It is **server-only** and **build-gated** on `libsqlite3`
-(`XROOTD_HAVE_SQLITE`); a no-sqlite build is byte-for-byte unchanged.
+(`BRIX_HAVE_SQLITE`); a no-sqlite build is byte-for-byte unchanged.
 
 ```
                     pblock in one picture
@@ -66,7 +66,7 @@ written once in the VFS and is *identical* regardless of which driver is bound.
       └────────────────┼─────────────────┘
                        ▼
    ┌───────────────────────────────────────────────────────────────┐
-   │  VFS  (src/fs/)   xrootd_vfs_open / read / write / stat /       │
+   │  VFS  (src/fs/)   brix_vfs_open / read / write / stat /       │
    │                   opendir / unlink / rename / mkdir / xattr …   │
    │   • re-checks confinement        • metrics + access log         │
    │   • read-through / write cache    • page-CRC (pgread/pgwrite)   │
@@ -88,7 +88,7 @@ written once in the VFS and is *identical* regardless of which driver is bound.
 **Key consequence:** because pblock implements every slot and advertises every
 POSIX capability, no protocol handler, metric, cache, or access-log call site
 changes when an export switches from POSIX to pblock. The switch is one config
-directive (`xrootd_storage_backend pblock`).
+directive (`brix_storage_backend pblock`).
 
 ---
 
@@ -260,7 +260,7 @@ lookup, then branches:
                                         obj->heap_shell = 1)
 ```
 
-The returned `xrootd_sd_obj_t` carries:
+The returned `brix_sd_obj_t` carries:
 
 ```
   obj.fd        = block-0 kernel fd  (or NGX_INVALID_FILE for a directory)
@@ -478,9 +478,9 @@ the catalog insert, and aborting is just deleting orphan blocks.
 
 ### 10.1 `upload_resume on` with a pblock export — stage on an independent POSIX mount
 
-`xrootd_upload_resume on` (the `root://` write path) stays **on** with a pblock
+`brix_upload_resume on` (the `root://` write path) stays **on** with a pblock
 export. The key is that the **resume partial is NOT a pblock object** — it is a
-plain POSIX file on an **independent POSIX staging mount** (`xrootd_stage_dir`),
+plain POSIX file on an **independent POSIX staging mount** (`brix_stage_dir`),
 and only the *committed* result lands in the pblock namespace.
 
 Why the partial must be POSIX:
@@ -488,14 +488,14 @@ Why the partial must be POSIX:
 - A resume partial takes **random-offset writes** and survives reconnects; that
   wants a real kernel fd and a real `stat()` for the deterministic resume-offset
   probe. A POSIX staging mount gives exactly that.
-- Reconnect detection (`xrootd_open_probe` of the partial) and the partial open
+- Reconnect detection (`brix_open_probe` of the partial) and the partial open
   both run **as the worker on the POSIX stage dir** — never through the pblock
   driver — so they are not confused by pblock's catalog namespace.
 
 The publish is then a **cross-filesystem atomic commit** done by the staged-write
 state machine on a clean `kXR_close` — it does **not** `rename(2)` (which cannot
 cross from the POSIX stage mount into the driver-owned pblock namespace). Instead
-`xrootd_commit_staged` resolves the final export's backend and, finding pblock,
+`brix_commit_staged` resolves the final export's backend and, finding pblock,
 streams the partial **into** the backend via the driver's `staged_*` state
 machine (§10), then drops the POSIX partial:
 
@@ -509,9 +509,9 @@ machine (§10), then drops the POSIX partial:
    └───────────────────────────────┘
                  │ clean kXR_close
                  ▼
-   xrootd_commit_staged(fd, stage_path, final_path)
+   brix_commit_staged(fd, stage_path, final_path)
      ├─ fsync(partial)                       ← durability
-     ├─ xrootd_vfs_backend_resolve_for_path(final_path) → pblock  (non-POSIX:
+     ├─ brix_vfs_backend_resolve_for_path(final_path) → pblock  (non-POSIX:
      │     longest-prefix match of the absolute final path to a registered export)
      └─ commit_staged_to_backend():          ← CROSS-FS atomic publish
           st = pblock.staged_open("/run42/AOD.root")
@@ -525,24 +525,24 @@ machine (§10), then drops the POSIX partial:
 
 So `rename(2)` is the same-filesystem fast path for POSIX exports; a pblock final
 takes the driver `staged_*` publish; a POSIX-to-POSIX cross-device commit takes
-the copy-then-rename path — all three behind the one `xrootd_commit_staged`
+the copy-then-rename path — all three behind the one `brix_commit_staged`
 chokepoint shared by `root://` close and WebDAV PUT.
 
 **Operational requirement:** with a pblock export and `upload_resume on`, point
-`xrootd_stage_dir` at an **independent POSIX mount**. (Without a stage dir the
+`brix_stage_dir` at an **independent POSIX mount**. (Without a stage dir the
 deterministic partial would be derived under the export root — a namespace the
 pblock driver, not the kernel, owns — so reconnect detection and the partial open
 would be inconsistent. The independent POSIX mount is the supported, intended
 layout.)
 
 > **Verified (2026-06-28).** A live `root://` upload to a pblock export
-> (`block_size=1m`, `upload_resume on`, an independent POSIX `xrootd_stage_dir`):
+> (`block_size=1m`, `upload_resume on`, an independent POSIX `brix_stage_dir`):
 > a 3.2 MB write staged on the POSIX mount and committed into pblock byte-exact —
 > the catalog recorded `size=3200000`, the data striped across 4 block files
 > (0,1,2 = 1 MiB, 3 = 54 272 B), the **stage dir was empty** afterwards (the POSIX
 > partial consumed), and the md5 read-back matched. Overwrite (delete+new) and
 > `rm` likewise behaved exactly as on a POSIX export. The single commit chokepoint
-> (`xrootd_commit_staged`) keeps POSIX exports on the original rename / cross-device
+> (`brix_commit_staged`) keeps POSIX exports on the original rename / cross-device
 > path, so non-pblock exports are unaffected.
 
 ---
@@ -648,7 +648,7 @@ Two axes of concurrency, handled differently:
 | **Bounded directories** | two-level `<aa>/<bb>` fan-out | millions of objects without a giant directory |
 | **Pure, testable metadata** | catalog is libc + sqlite3, no nginx | standalone unit tests; reusable; no data-plane cost |
 | **ngx-free, malloc-owned** | all state `malloc`'d, no nginx pool | identical in the module and the standalone test binary |
-| **Build-gated, fail-closed** | whole file under `#if XROOTD_HAVE_SQLITE` | no-sqlite build byte-for-byte unchanged; registry row `#if`'d out |
+| **Build-gated, fail-closed** | whole file under `#if BRIX_HAVE_SQLITE` | no-sqlite build byte-for-byte unchanged; registry row `#if`'d out |
 | **Confinement is the catalog** | logical paths are catalog keys; no `..` escape possible because there is no real path traversal | a non-POSIX namespace can't be tricked by symlinks |
 
 **Known limits / follow-ons** (honest about the edges):
@@ -674,22 +674,22 @@ pieces make that real for pblock (and any non-POSIX driver).
    CONFIG TIME (master process, parsing nginx.conf)
    ┌────────────────────────────────────────────────────────────────┐
    │  location /  {                                                  │
-   │     xrootd_webdav_storage_backend     pblock;                   │
-   │     xrootd_webdav_pblock_block_size   128m;                     │
+   │     brix_webdav_storage_backend     pblock;                   │
+   │     brix_webdav_pblock_block_size   128m;                     │
    │  }                                                              │
-   │  (stream: xrootd_storage_backend / xrootd_pblock_block_size)    │
+   │  (stream: brix_storage_backend / brix_pblock_block_size)    │
    └────────────────────────────────────────────────────────────────┘
         │ merge-time hook (webdav/config.c, config/runtime_server.c)
         ▼
-   xrootd_vfs_backend_config(root_canon, "pblock", block_size)
+   brix_vfs_backend_config(root_canon, "pblock", block_size)
         └─ records {root_canon, "pblock", block_size} in a small fixed
            table (deduped on root_canon → reload-idempotent).  NO instance
            is built here (the master must not hold a SQLite conn across fork).
 
    FIRST USE (per worker process, after fork)
-   xrootd_vfs_backend_resolve(root_canon, log)
+   brix_vfs_backend_resolve(root_canon, log)
         ├─ entry.inst != NULL ? return it          (already built this worker)
-        └─ else xrootd_sd_instance_create("pblock", {root, busy=5s, block})
+        └─ else brix_sd_instance_create("pblock", {root, busy=5s, block})
                  → sd_pblock_init: mkdir root+data, open catalog.db, ensure "/"
                  → cache entry.inst (on ngx_cycle->pool)  → return
 ```
@@ -700,7 +700,7 @@ never shared across `fork()`.
 
 ### 15.2 `ctx_init` resolves the backend for *every* op, automatically
 
-The crucial wiring: `xrootd_vfs_ctx_init()` calls `xrootd_vfs_backend_resolve()`
+The crucial wiring: `brix_vfs_ctx_init()` calls `brix_vfs_backend_resolve()`
 once, so **every** VFS context — from any protocol, for any op — carries the right
 bound instance without each of the ~50 ctx-build sites threading it by hand.
 
@@ -708,10 +708,10 @@ bound instance without each of the ~50 ctx-build sites threading it by hand.
    handler (root:// / WebDAV / S3)
         │  build ctx for "/atlas/run42/AOD.root"
         ▼
-   xrootd_vfs_ctx_init(ctx, …, root_canon, …)
-        └─ ctx->sd = xrootd_vfs_backend_resolve(root_canon)   ← pblock or NULL
+   brix_vfs_ctx_init(ctx, …, root_canon, …)
+        └─ ctx->sd = brix_vfs_backend_resolve(root_canon)   ← pblock or NULL
         ▼
-   xrootd_vfs_open(ctx, …)
+   brix_vfs_open(ctx, …)
         ├─ ctx->sd != default-driver ?  → ctx->sd->driver->open(logical,…)
         │                                  + adopt_obj (carry per-open state)
         └─ else (POSIX) → borrow rootfd instance → driver->open → adopt_fd
@@ -725,12 +725,12 @@ existing confinement cascade runs unchanged. So the pblock path is purely
 
 An instance-keyed driver op (`stat`/`open`/`xattr`/…) expects the
 **export-root-relative logical path**, because that is the pblock catalog key.
-The VFS supplies it via `xrootd_vfs_export_relative()`:
+The VFS supplies it via `brix_vfs_export_relative()`:
 
 ```
    ctx->root_canon = "/srv/exports/atlas"
    resolved path   = "/srv/exports/atlas/run42/AOD.root"
-        │  xrootd_vfs_export_relative()  strips root_canon
+        │  brix_vfs_export_relative()  strips root_canon
         ▼
    logical path    = "/run42/AOD.root"   ← the catalog key pblock stores
 ```
@@ -746,13 +746,13 @@ path.* The op stays metered + access-logged + confinement-checked above the seam
 regardless.
 
 ```
-   xrootd_vfs_<op>(ctx, …):
+   brix_vfs_<op>(ctx, …):
        require_confined(ctx)                       ← always (above the seam)
-       drv = xrootd_vfs_ctx_driver(ctx)            ← bound driver or NULL
+       drv = brix_vfs_ctx_driver(ctx)            ← bound driver or NULL
        if (drv != NULL && drv-><op> != NULL)
            rc = drv-><op>(ctx->sd, export_relative(ctx, path), …)   ← pblock
        else
-           rc = xrootd_<op>_confined_canon(root_canon, path, …)     ← POSIX
+           rc = brix_<op>_confined_canon(root_canon, path, …)     ← POSIX
        observe(ctx, OP_<X>, …)                     ← always (metric + log)
 ```
 
@@ -761,9 +761,9 @@ ops (`pread`/`pwrite`/`preadv`/`copy_range`/`fstat`/`sendfile`) dispatch on the
 handle's `obj.driver`.
 
 **Two resolvers, one registry.** Most call sites carry the export `root_canon`
-(from the request ctx) and use `xrootd_vfs_backend_resolve(root_canon)`. The
+(from the request ctx) and use `brix_vfs_backend_resolve(root_canon)`. The
 staged-commit path (§10.1) instead has only the absolute *final path* of a partial
-it must publish, so it uses `xrootd_vfs_backend_resolve_for_path(abs_path)`, which
+it must publish, so it uses `brix_vfs_backend_resolve_for_path(abs_path)`, which
 longest-prefix-matches the path against the registered export roots. Both share
 the same per-worker lazy-build helper, so they return the *same* cached instance.
 
@@ -777,7 +777,7 @@ on the server-only side.
 
 ```
    ┌───────────────────────── shared (compiles into BOTH) ─────────────────┐
-   │  sd.h            the seam: caps, vtable, obj model, xrootd_sd_posix_wrap│
+   │  sd.h            the seam: caps, vtable, obj model, brix_sd_posix_wrap│
    │  sd_posix.c      POSIX raw byte ops (pread/pwrite/…) — touch only fd    │
    │  sd_block.c      block-device driver (raw fd I/O + BLKGETSIZE64 fstat)  │
    │  sd_s3.c         object/S3 driver (SigV4/HEAD/GET/PUT/MPU) + transport  │
@@ -803,13 +803,13 @@ on the server-only side.
   **per-export, per-worker** catalog + block tree — a server-side storage role.
   The clients address *remote* endpoints (`root://…`, `s3://…`, a local file,
   a block device); they never own a pblock catalog.
-- The seam is still shared: pblock is *just another `xrootd_sd_driver_t`*. The
+- The seam is still shared: pblock is *just another `brix_sd_driver_t`*. The
   parts the client needs — the vtable shape, the POSIX raw-fd ops, the verb core —
   are exactly the ngx-free pieces in `libxrdproto`. pblock simply isn't compiled
   into that archive.
 
 **How the client reaches storage correctly:** the client builds its own
-`xrootd_sd_obj_t`/handle over the shared driver (e.g. `xrootd_sd_posix_wrap` for a
+`brix_sd_obj_t`/handle over the shared driver (e.g. `brix_sd_posix_wrap` for a
 local fd, `sd_s3` for an object endpoint) and runs the **same** `fs/core` verb
 loops the server runs. So the EINTR/short-I/O/CRC behaviour can never drift
 between server and client — there is one implementation. The split is only in
@@ -828,13 +828,13 @@ treatment.
    xrdcp big.root root://gw//atlas/run42/AOD.root
      │
      ▼ kXR_open (write)         handler → ctx_init → ctx->sd = pblock instance
-        xrootd_vfs_open(WRITE|CREATE) → driver->open("/run42/AOD.root")
+        brix_vfs_open(WRITE|CREATE) → driver->open("/run42/AOD.root")
            sd_pblock_open → open_create: blob_id, mkdir fan-out, blk0 O_EXCL,
                             INSERT catalog row, return heap obj (fd=blk0)
         adopt_obj → VFS handle carries obj by value (frees the heap shell)
      │
      ▼ kXR_write × N           (AIO thread pool)
-        xrootd_vfs_io_execute(WRITE) → obj.driver->pwrite(buf,len,off)
+        brix_vfs_io_execute(WRITE) → obj.driver->pwrite(buf,len,off)
            pblock_write_blocks: stripe across blocks 0..154 (blk0 reused,
            higher blocks transient); meta.size grows; dirty=1   (NO sqlite)
      │
@@ -852,7 +852,7 @@ state machine publishes it into pblock — see §10.1.
 
 ```
    GET /bucket/key   (cleartext)
-     │ ctx_init → ctx->sd = pblock; xrootd_vfs_open(READ) → driver->open
+     │ ctx_init → ctx->sd = pblock; brix_vfs_open(READ) → driver->open
      │ size = 2 MiB (≤ block_size) → block 0 holds it all
      ▼ VFS read path asks driver->read_sendfile_fd(off=0, len=2MiB, zc=1)
         pblock returns obj->fd  → nginx sendfile(2) straight from block 0
@@ -883,8 +883,8 @@ sqlite3, the test binary links it directly — no nginx, no server, no fixture
 export.
 
 **Live end-to-end (manual, 2026-06-28):** a dedicated stream instance with
-`xrootd_storage_backend pblock`, `xrootd_pblock_block_size 1m`,
-`xrootd_upload_resume on`, and an independent POSIX `xrootd_stage_dir` — a
+`brix_storage_backend pblock`, `brix_pblock_block_size 1m`,
+`brix_upload_resume on`, and an independent POSIX `brix_stage_dir` — a
 multi-block `root://` upload committed into pblock byte-exact, with correct
 path- *and* handle-`stat`, overwrite, and `rm` (see §10.1 and §6.1). A POSIX
 export's handle-`stat` was re-checked to confirm the driver-backed branch left it
@@ -914,14 +914,14 @@ unchanged.
 7. **Paths are bound parameters, never formatted into SQL.** The subtree rename
    uses a `substr()` prefix test, not `LIKE`, to avoid wildcard escaping on
    user-controlled paths. Keep it that way.
-8. **Build-gated.** All of `sd_pblock.c` is under `#if XROOTD_HAVE_SQLITE`; the
-   registry row and the `xrootd_sd_pblock_conf_t` type are too. A no-sqlite build
+8. **Build-gated.** All of `sd_pblock.c` is under `#if BRIX_HAVE_SQLITE`; the
+   registry row and the `brix_sd_pblock_conf_t` type are too. A no-sqlite build
    must remain byte-for-byte unchanged.
 9. **Never `fstat` the bare fd to size a driver-backed handle.** The fd is block 0
    only — use the driver's `fstat` (§6.1). Any new code that reports an open
    handle's size/metadata must take the `sd_obj.driver`-backed branch, not a raw
    `fstat(fd)`.
-10. **`upload_resume on` needs an independent POSIX `xrootd_stage_dir`.** The
+10. **`upload_resume on` needs an independent POSIX `brix_stage_dir`.** The
    resume partial is a POSIX file there; the close-time commit publishes it into
    pblock cross-filesystem via the driver `staged_*` machine (§10.1). Do not route
    the partial itself through the pblock driver — it must stay a real POSIX file so
@@ -933,20 +933,20 @@ unchanged.
 
 | File | Role |
 |---|---|
-| `src/fs/backend/sd_pblock.c` | the driver: block-striped byte I/O, object lifecycle, namespace/dir/xattr/staged ops, the `xrootd_sd_pblock_driver` descriptor |
+| `src/fs/backend/sd_pblock.c` | the driver: block-striped byte I/O, object lifecycle, namespace/dir/xattr/staged ops, the `brix_sd_pblock_driver` descriptor |
 | `src/fs/backend/sd_pblock_catalog.c` / `.h` | the SQLite metadata catalog: schema, typed CRUD, subtree rename, WAL/FULLMUTEX concurrency |
 | `src/fs/backend/sd_pblock_unittest.c` | standalone driver-vtable suite (incl. multi-thread / multi-process / fsync) |
 | `src/fs/backend/sd_pblock_catalog_unittest.c` | standalone catalog API suite |
-| `src/fs/backend/sd.h` | the SD seam: caps, vtable, object model, `xrootd_sd_pblock_conf_t` |
-| `src/fs/vfs/vfs_backend_registry.c` / `.h` | per-export backend choice (config time) → lazy per-worker instance; `xrootd_vfs_backend_resolve` (by root_canon) + `xrootd_vfs_backend_resolve_for_path` (by absolute path, longest-prefix — used by the staged commit) |
+| `src/fs/backend/sd.h` | the SD seam: caps, vtable, object model, `brix_sd_pblock_conf_t` |
+| `src/fs/vfs/vfs_backend_registry.c` / `.h` | per-export backend choice (config time) → lazy per-worker instance; `brix_vfs_backend_resolve` (by root_canon) + `brix_vfs_backend_resolve_for_path` (by absolute path, longest-prefix — used by the staged commit) |
 | `src/fs/vfs/vfs_open.c` | `ctx_init` backend resolve; the non-POSIX `driver->open` + `adopt_obj` path; `export_relative` |
 | `src/fs/vfs/vfs_xattr.c`, `vfs_unlink.c`, `vfs_copy.c`, `vfs_stat.c` | the per-op `driver-><op>` vs POSIX dispatch |
-| `src/core/compat/staged_file.c` | `xrootd_commit_staged` — backend-aware staged commit: POSIX rename / cross-device copy, **or** `commit_staged_to_backend` (driver `staged_*` upload) when the final export is non-POSIX (§10.1) |
+| `src/core/compat/staged_file.c` | `brix_commit_staged` — backend-aware staged commit: POSIX rename / cross-device copy, **or** `commit_staged_to_backend` (driver `staged_*` upload) when the final export is non-POSIX (§10.1) |
 | `src/protocols/root/read/open_resolved_file.c` | `kXR_open`: keeps resume/POSC partials on the POSIX-fd path; opens the final through the driver otherwise (Layer 3) |
 | `src/protocols/root/read/stat.c` | `kXR_stat` — path stat via `driver->stat`; handle stat via the driver-backed `fstat` branch (§6.1) |
-| `src/protocols/root/read/close.c` | `kXR_close`: POSC/resume commit via `xrootd_commit_staged` |
-| `src/protocols/root/stream/module.c`, `src/protocols/webdav/module.c` | the `xrootd_storage_backend` / `xrootd_pblock_block_size` directives |
-| `config` | build-gates `sd_pblock*.c` on `libsqlite3` (`-DXROOTD_HAVE_SQLITE=1`) |
+| `src/protocols/root/read/close.c` | `kXR_close`: POSC/resume commit via `brix_commit_staged` |
+| `src/protocols/root/stream/module.c`, `src/protocols/webdav/module.c` | the `brix_storage_backend` / `brix_pblock_block_size` directives |
+| `config` | build-gates `sd_pblock*.c` on `libsqlite3` (`-DBRIX_HAVE_SQLITE=1`) |
 
 ## See also
 

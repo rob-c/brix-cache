@@ -205,8 +205,8 @@ ssl_verify_client optional_no_ca;   # accept the cert chain even if verification
 
 The `optional_no_ca` setting makes nginx buffer the peer certificate chain in
 the connection without rejecting it outright.  The module then re-runs chain
-verification using its own `X509_STORE` (built from `xrootd_webdav_cadir` or
-`xrootd_webdav_cafile`) with `X509_V_FLAG_ALLOW_PROXY_CERTS` set on both the
+verification using its own `X509_STORE` (built from `brix_webdav_cadir` or
+`brix_webdav_cafile`) with `X509_V_FLAG_ALLOW_PROXY_CERTS` set on both the
 store and the context.
 
 ---

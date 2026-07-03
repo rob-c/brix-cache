@@ -23,10 +23,10 @@ evaluate symlink-swap risk.
 **Confirmed not vulnerable (no action needed):**
 
 - `src/protocols/webdav/copy.c`, `src/protocols/webdav/tpc.c`, `src/protocols/s3/put.c`, `src/protocols/s3/copy.c` — all
-  use `xrootd_staged_open` which enforces `O_CREAT|O_EXCL|O_NOFOLLOW`, random names
-  via `xrootd_make_tmp_path()`, and confined operations. ✅
-- `src/protocols/root/read/open_resolved_file.c` (POSC) — uses `xrootd_make_tmp_path()` (random name),
-  `O_EXCL` on first open attempt, `xrootd_open_confined()` (path escape prevention). ✅
+  use `brix_staged_open` which enforces `O_CREAT|O_EXCL|O_NOFOLLOW`, random names
+  via `brix_make_tmp_path()`, and confined operations. ✅
+- `src/protocols/root/read/open_resolved_file.c` (POSC) — uses `brix_make_tmp_path()` (random name),
+  `O_EXCL` on first open attempt, `brix_open_confined()` (path escape prevention). ✅
 - `src/fs/cache/lock.c`, `src/fs/cache/evict_candidates.c` — lock files use `O_CREAT|O_EXCL`;
   correct for lock semantics, not temp-file semantics. ✅
 - `src/protocols/webdav/lock.c` — WebDAV lock token file uses `O_CREAT|O_EXCL`; zero-byte resource
@@ -37,7 +37,7 @@ evaluate symlink-swap risk.
 ## T-01: TOCTOU Race in `cache/fetch.c`
 
 **Severity:** High
-**File:** `src/fs/cache/fetch.c` — `xrootd_cache_fetch_origin()`
+**File:** `src/fs/cache/fetch.c` — `brix_cache_fetch_origin()`
 
 ### Vulnerability
 
@@ -74,9 +74,9 @@ scheduler's time slice between the two syscalls.
 1. Attacker observes (or predicts) that path `/atlas/reco/file.root` is about to be
    fetched into the cache as `/var/cache/xrd/atlas/reco/file.root.part`.
 2. Attacker races: `rm /var/cache/xrd/atlas/reco/file.root.part &&
-   ln -s /etc/cron.d/xrootd-job /var/cache/xrd/atlas/reco/file.root.part`
+   ln -s /etc/cron.d/brix-job /var/cache/xrd/atlas/reco/file.root.part`
 3. The worker's `open(O_CREAT|O_TRUNC)` follows the symlink.
-4. The worker writes the fetched file body to `/etc/cron.d/xrootd-job`.
+4. The worker writes the fetched file body to `/etc/cron.d/brix-job`.
 
 ### Fix
 
@@ -98,7 +98,7 @@ Removing it collapses the two-step race into a single atomic operation.
 preceding the `open()`; added `O_NOFOLLOW` to the `open()` flags.
 
 **Note on naming:** `t->part_path` intentionally keeps the predictable `.part` suffix
-rather than switching to `xrootd_make_tmp_path()`.  `src/fs/cache/lock.c` uses the fixed
+rather than switching to `brix_make_tmp_path()`.  `src/fs/cache/lock.c` uses the fixed
 path for fill-lock coordination — exactly one worker holds the fill lock for a given
 cache entry at a time, preventing concurrent fetches.  Switching to a random name would
 break the lock protocol.  The security property that matters here is the atomic single
@@ -109,7 +109,7 @@ break the lock protocol.  The security property that matters here is the atomic 
 ## T-02: Missing `O_NOFOLLOW` in `write/chkpoint.c`
 
 **Severity:** Medium
-**File:** `src/protocols/root/write/chkpoint.c` — `xrootd_handle_chkpoint_begin()`
+**File:** `src/protocols/root/write/chkpoint.c` — `brix_handle_chkpoint_begin()`
 
 ### Vulnerability
 

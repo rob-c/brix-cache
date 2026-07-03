@@ -2,7 +2,7 @@
 
 > ⚠️ **Reference tier — advanced.** Internal nginx C implementation details. Only useful if you're contributing to the module or debugging deep issues. Running a server? Skip this entirely.
 >
-> Prerequisites: [XRootD Basics](../02-concepts/xrootd-basics.md), basic understanding of C and event-driven programming.
+> Prerequisites: [XRootD Basics](../02-concepts/brix-basics.md), basic understanding of C and event-driven programming.
 
 [← nginx concepts overview](nginx-overview.md)
 
@@ -36,9 +36,9 @@ goes to the thread pool:
 
 /* Thread function: runs in thread pool, must not call nginx APIs */
 void
-xrootd_read_aio_thread(void *data, ngx_log_t *log)
+brix_read_aio_thread(void *data, ngx_log_t *log)
 {
-    xrootd_read_aio_t *t = data;
+    brix_read_aio_t *t = data;
 
     /* Only the blocking syscall is here */
     t->nread = pread(t->fd, t->databuf, t->rlen, t->offset);
@@ -49,25 +49,25 @@ xrootd_read_aio_thread(void *data, ngx_log_t *log)
 
 /* Done callback: runs on the event loop thread after pread completes */
 void
-xrootd_read_aio_done(ngx_event_t *ev)
+brix_read_aio_done(ngx_event_t *ev)
 {
-    xrootd_read_aio_t *t = ev->data;
-    xrootd_ctx_t      *ctx = t->ctx;
+    brix_read_aio_t *t = ev->data;
+    brix_ctx_t      *ctx = t->ctx;
 
-    if (!xrootd_aio_restore_stream(ctx, t->streamid)) {
+    if (!brix_aio_restore_stream(ctx, t->streamid)) {
         return;   /* connection was closed while we were in the thread */
     }
 
     /* Build the response chain and send it — nginx APIs are safe here */
-    rsp_chain = xrootd_build_chunked_chain(ctx, c, t->databuf, t->nread);
+    rsp_chain = brix_build_chunked_chain(ctx, c, t->databuf, t->nread);
     c->send_chain(c, rsp_chain, 0);
-    xrootd_aio_resume(c);
+    brix_aio_resume(c);
 }
 ```
 
 nginx's thread pool posts the task and immediately returns the event loop to
 serve other connections. When `pread` completes, the thread posts an event
-back to the event loop, which calls `xrootd_read_aio_done`.
+back to the event loop, which calls `brix_read_aio_done`.
 
 **Contrast with XRootD's threading model:** XRootD uses a thread-per-connection
 model (via `XrdScheduler`). Every connection gets its own OS thread. This works
@@ -188,7 +188,7 @@ inserted **before** the built-in HTTP filter modules in that list:
 
 ```
 # objs/ngx_modules.c (excerpt — add-on modules come first)
-&ngx_http_xrootd_webdav_module,   /* ← add-on: postconfiguration runs first */
+&ngx_http_brix_webdav_module,   /* ← add-on: postconfiguration runs first */
 ...
 &ngx_http_header_filter_module,   /* ← built-in: postconfiguration runs second */
 &ngx_http_chunked_filter_module,
@@ -308,10 +308,10 @@ all 8. nginx provides a named shared-memory zone for this:
 
 ```c
 /* src/observability/metrics/config.c */
-ngx_xrootd_shm_zone = ngx_shared_memory_add(cf, &zone_name,
-                                              sizeof(ngx_xrootd_metrics_t),
-                                              &ngx_stream_xrootd_module);
-ngx_xrootd_shm_zone->init = ngx_xrootd_metrics_shm_init;
+ngx_brix_shm_zone = ngx_shared_memory_add(cf, &zone_name,
+                                              sizeof(ngx_brix_metrics_t),
+                                              &ngx_stream_brix_module);
+ngx_brix_shm_zone->init = ngx_brix_metrics_shm_init;
 ```
 
 The shared memory is an `mmap(MAP_SHARED)` region that all worker processes
@@ -324,10 +324,10 @@ typedef struct {
     ngx_atomic_t  connections_active;  /* currently open connections      */
     ngx_atomic_t  bytes_rx_total;      /* bytes received from clients     */
     ngx_atomic_t  bytes_tx_total;      /* bytes sent to clients           */
-    ngx_atomic_t  op_ok[XROOTD_OP_COUNT];
-    ngx_atomic_t  op_err[XROOTD_OP_COUNT];
+    ngx_atomic_t  op_ok[BRIX_OP_COUNT];
+    ngx_atomic_t  op_err[BRIX_OP_COUNT];
     …
-} ngx_xrootd_metrics_t;
+} ngx_brix_metrics_t;
 ```
 
 `ngx_atomic_t` uses processor-native compare-and-swap or locked increments
@@ -357,10 +357,10 @@ nginx's config system provides:
 ```c
 /* src/core/config/server_conf.c */
 static char *
-ngx_stream_xrootd_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
+ngx_stream_brix_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
 {
-    ngx_stream_xrootd_srv_conf_t *prev = parent;
-    ngx_stream_xrootd_srv_conf_t *conf = child;
+    ngx_stream_brix_srv_conf_t *prev = parent;
+    ngx_stream_brix_srv_conf_t *conf = child;
 
     ngx_conf_merge_value(conf->enable,      prev->enable,      0);
     ngx_conf_merge_str_value(conf->root,    prev->root,        "/");
@@ -383,8 +383,8 @@ ngx_stream_xrootd_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
 - **Type-checked directive setters**: `ngx_conf_set_flag_slot` (for `on`/`off`),
   `ngx_conf_set_str_slot` (for strings), `ngx_conf_set_num_slot` (for integers)
   — each validates the argument type and sets the field. The module only writes
-  custom handlers for semantically complex directives (like `xrootd_manager_map`
-  or `xrootd_authdb`).
+  custom handlers for semantically complex directives (like `brix_manager_map`
+  or `brix_authdb`).
 
 The XRootD daemon's config is a single large file (`xrootd.cfg`) parsed by
 `XrdConfig::Configure()` — a ~2,000 line function that manually tokenises each
@@ -481,7 +481,7 @@ src/observability/metrics/          ← Prometheus counters and HTTP export endp
 src/net/upstream/                   ← outbound XRootD redirect client
 src/protocols/webdav/               ← HTTP/WebDAV module (all methods, auth, TPC, S3)
 src/net/manager/                    ← dynamic server registry for manager mode
-src/core/types/                     ← shared type headers (xrootd_ctx_t, config.h, etc.)
+src/core/types/                     ← shared type headers (brix_ctx_t, config.h, etc.)
 src/protocols/root/protocol/        ← wire format constants (kXR_* opcodes, flags)
 ```
 

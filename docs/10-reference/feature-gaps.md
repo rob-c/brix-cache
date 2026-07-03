@@ -50,7 +50,7 @@ This document identifies incomplete features, missing corner cases, and areas re
 Implement the `OPTIONS` method for the S3 protocol to support CORS pre-flight requests and feature discovery.
 
 ### Implemented
-1.  **Operation Table**: Add `"OPTIONS"` to the `xrootd_s3_operations` table in `src/protocols/s3/operation_table.c`.
+1.  **Operation Table**: Add `"OPTIONS"` to the `brix_s3_operations` table in `src/protocols/s3/operation_table.c`.
 2.  **Handler**: Update `ngx_http_s3_handler` in `src/protocols/s3/handler.c` to catch `NGX_HTTP_OPTIONS`.
 3.  **Response**: Return `200 OK`, `Allow`, and browser preflight CORS headers before SigV4 authentication.
 4.  **Metrics**: Track `OPTIONS` in a fixed low-cardinality S3 method bucket.

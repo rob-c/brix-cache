@@ -6,7 +6,7 @@ gateway/proxy extensions remain outside the completed native redirect path.
 
 See [cluster-mode.md](cluster-management.md) for the existing two-tier configuration
 reference and [manager-mode.md](manager-mode.md) for the static
-`xrootd_manager_map` alternative. For the byte-by-byte CMS wire protocol —
+`brix_manager_map` alternative. For the byte-by-byte CMS wire protocol —
 framing, the `kYR_*` opcode catalogue, and the field-by-field login / load /
 state→have / select negotiation — see
 [The CMS Cluster Protocol (`cms://`)](../04-protocols/cms-protocol.md).
@@ -97,7 +97,7 @@ The Open Science Grid (DOMA storage task force) federates over 100 sites under
 a common namespace. No single redirector can hold registry entries for every
 storage node at every site — the hierarchy is essential for scale. Sites running
 BriX-Cache as a sub-manager can use live CMS escalation for native redirect
-workflows; static `xrootd_manager_map` remains available for simple fixed-prefix
+workflows; static `brix_manager_map` remains available for simple fixed-prefix
 routing.
 
 ### Rucio + XRootD storage element lookup
@@ -122,7 +122,7 @@ report to a site-level or experiment-level parent.
 | Site type | Works today | Blocked by M6 gap |
 |---|---|---|
 | Single-site disk-only (≤ 128 nodes) | ✅ Two-tier sufficient | — |
-| Single-site disk-only (> 128 nodes) | ✅ Configurable via `xrootd_registry_slots` | — |
+| Single-site disk-only (> 128 nodes) | ✅ Configurable via `brix_registry_slots` | — |
 | Multi-site federation (WLCG Tier-2) | ⚠️ Static map only | `kYR_locate` escalation |
 | OSDF / XCache deployment | ❌ Cache miss cannot escalate | `kYR_locate` + `kYR_select` |
 | CERN-scale EOS (1 000+ nodes) | ⚠️ Configurable slots; no fanout yet | Hierarchical fanout |
@@ -141,45 +141,45 @@ A shared-memory table, spinlock-protected, maps each registered data server to
 its host, port, colon-delimited export path list, free space, and utilisation.
 The table persists across nginx worker restarts because it lives in a dedicated
 `ngx_shm_zone_t`. The capacity defaults to 128 slots and is configurable at
-runtime via the `xrootd_registry_slots` directive (Step 1b — implemented).
+runtime via the `brix_registry_slots` directive (Step 1b — implemented).
 
-`xrootd_srv_select()` performs longest-prefix matching over each server's path
+`brix_srv_select()` performs longest-prefix matching over each server's path
 list. For reads it picks the server with the lowest `util_pct`; for writes the
 server with the most `free_mb`. When multiple servers tie on the scoring
 criterion the first matching slot is used (deterministic for a given registry
 state).
 
 If the table is full when a new registration arrives, a `NGX_LOG_WARN` message
-is written to the error log and the `xrootd_registry_full_total` Prometheus
+is written to the error log and the `brix_registry_full_total` Prometheus
 counter is incremented.
 
 Key files: `src/net/manager/registry.h`, `src/net/manager/registry.c`.
 
 ### M2 — CMS server listener (`src/net/cms/server_*.c`)
 
-A dedicated nginx stream server block (`xrootd_cms_server on`) accepts inbound
+A dedicated nginx stream server block (`brix_cms_server on`) accepts inbound
 TCP connections from data servers. It parses CMS frames and maintains the
 registry:
 
 | Frame received | Action |
 |---|---|
-| `kYR_login` | Calls `xrootd_srv_register()` with host, port, paths, and initial space metrics |
-| `kYR_load` / `kYR_avail` / `kYR_space` | Calls `xrootd_srv_update_load()` to refresh `free_mb` and `util_pct` |
+| `kYR_login` | Calls `brix_srv_register()` with host, port, paths, and initial space metrics |
+| `kYR_load` / `kYR_avail` / `kYR_space` | Calls `brix_srv_update_load()` to refresh `free_mb` and `util_pct` |
 | `kYR_pong` | Updates `last_seen` timestamp |
 | `kYR_ping` | Sends `kYR_pong` back |
-| `kYR_gone` | Calls `xrootd_srv_unregister_path()` for the path named in the payload (Step 1a — implemented) |
-| Disconnect | Calls `xrootd_srv_unregister()` to free the slot |
+| `kYR_gone` | Calls `brix_srv_unregister_path()` for the path named in the payload (Step 1a — implemented) |
+| Disconnect | Calls `brix_srv_unregister()` to free the slot |
 
 Key files: `src/net/cms/server_handler.c`, `src/net/cms/server_recv.c`,
 `src/net/cms/server_send.c`, `src/net/cms/server_module.c`.
 
 ### M3 — Dynamic redirect in `kXR_locate` and `kXR_open`
 
-When `xrootd_manager_mode on` is set, the redirect lookup sequence is:
+When `brix_manager_mode on` is set, the redirect lookup sequence is:
 
-1. Query the live registry via `xrootd_srv_select()`.
-2. If no registry match, fall back to the static `xrootd_manager_map` table.
-3. If still no match and `xrootd_upstream` is configured, forward the whole
+1. Query the live registry via `brix_srv_select()`.
+2. If no registry match, fall back to the static `brix_manager_map` table.
+3. If still no match and `brix_upstream` is configured, forward the whole
    request to the upstream redirector.
 4. Otherwise, attempt to serve locally.
 
@@ -190,8 +190,8 @@ Key files: `src/protocols/root/read/locate.c`, `src/protocols/root/read/open.c`,
 
 ### M4 — Sub-manager / hierarchical mode (partial)
 
-A node configured with both `xrootd_cms_manager` (outbound CMS client) and
-`xrootd_cms_server on` (inbound CMS listener) acts as a sub-manager. It
+A node configured with both `brix_cms_manager` (outbound CMS client) and
+`brix_cms_server on` (inbound CMS listener) acts as a sub-manager. It
 accepts registrations from its children and aggregates their capacity to report
 upward.
 
@@ -199,7 +199,7 @@ What works:
 
 - `CMS_LOGIN_MODE_MANAGER` bit is set in the `kYR_login` frame sent upward, so
   the parent recognises this node as a sub-manager rather than a leaf.
-- `xrootd_srv_aggregate_space()` sums `free_mb` and averages `util_pct` across
+- `brix_srv_aggregate_space()` sums `free_mb` and averages `util_pct` across
   all registered children; the aggregated value is used in `kYR_load` heartbeats
   sent upward (`src/net/cms/send.c`).
 - `CMS_RR_STATUS` (suspend / resume) from the parent manager is handled;
@@ -212,9 +212,9 @@ pending XRootD client session and emit a `kXR_redirect`. This is the M6 gap.
 
 ### M5 — Cache node auto-registration
 
-When `xrootd_manager_mode on` is combined with `xrootd_cache`, the cache
-module calls `xrootd_srv_register()` after each successful cache fill and
-`xrootd_srv_unregister_path()` on each eviction. The registry reflects the
+When `brix_manager_mode on` is combined with `brix_cache`, the cache
+module calls `brix_srv_register()` after each successful cache fill and
+`brix_srv_unregister_path()` on each eviction. The registry reflects the
 exact current contents of the cache, and clients are redirected to the cache
 for files it holds.
 
@@ -233,7 +233,7 @@ parent and relay the parent's answer back to the client.
 
 The following opcodes appear in the XRootD CMS wire protocol and are now
 handled. Values are verified against `YProtocol.hh` in the XRootD reference
-source tree at `/tmp/xrootd-src/src/XProtocol/YProtocol.hh`.
+source tree at `/tmp/brix-src/src/XProtocol/YProtocol.hh`.
 
 | Opcode | Value | Direction | Purpose |
 |---|---|---|---|
@@ -255,9 +255,9 @@ route the CMS response back to the correct worker and connection.
 ### Registry capacity
 
 The registry capacity defaults to 128 slots and is now configurable via
-`xrootd_registry_slots N` (Step 1b — implemented). When the table is full,
+`brix_registry_slots N` (Step 1b — implemented). When the table is full,
 new registrations are dropped with a `WARN`-level log message and a
-`xrootd_registry_full_total` Prometheus counter increment. For CERN-scale
+`brix_registry_full_total` Prometheus counter increment. For CERN-scale
 deployments, hierarchical fanout is still the expected design rather than simply
 increasing one redirector's slot count.
 
@@ -276,7 +276,7 @@ depend on steps 2 and 3. Step 6 depends on steps 3, 4, and 5.
 arriving from data servers — the correct direction for `kYR_gone`).
 
 When a `CMS_RR_GONE` frame arrives, the handler copies the NUL-terminated path
-from the payload and calls `xrootd_srv_unregister_path(ctx->host, ctx->port,
+from the payload and calls `brix_srv_unregister_path(ctx->host, ctx->port,
 path)` using the data server's login-time host and port.
 
 `#define CMS_RR_GONE 14` is in `src/net/cms/cms_internal.h`.
@@ -291,23 +291,23 @@ Files changed: `src/net/cms/cms_internal.h`, `src/net/cms/server_recv.c`.
 
 ### Step 1b — Configurable registry slots ✅ Implemented
 
-The `xrootd_registry_slots N` directive (default `128`) is implemented.
+The `brix_registry_slots N` directive (default `128`) is implemented.
 
-`xrootd_srv_table_t` now uses a C99 flexible array member with a `capacity`
+`brix_srv_table_t` now uses a C99 flexible array member with a `capacity`
 field in the shared-memory header. The zone size is computed at postconfiguration
 time by scanning all enabled server blocks for the largest `registry_slots`
 value:
 
 ```c
-size = sizeof(xrootd_srv_table_t)
-     + (size_t) slots * sizeof(xrootd_srv_entry_t)
+size = sizeof(brix_srv_table_t)
+     + (size_t) slots * sizeof(brix_srv_entry_t)
      + ngx_pagesize;
 ```
 
 All loop bounds in `registry.c` use `tbl->capacity` instead of the former
 compile-time constant. When the table is full, a `NGX_LOG_WARN` message is
 emitted and `m->registry_full_total` is incremented atomically. The counter is
-exported as the `xrootd_registry_full_total` Prometheus counter.
+exported as the `brix_registry_full_total` Prometheus counter.
 
 Files changed: `src/net/manager/registry.h`, `src/net/manager/registry.c`,
 `src/core/config/config.h`, `src/core/config/server_conf.c`,
@@ -320,9 +320,9 @@ Files changed: `src/net/manager/registry.h`, `src/net/manager/registry.c`,
 
 Each nginx worker process opens its own independent CMS connection to the parent
 manager. Workers are forked from the master process; each inherits
-`conf->cms_ctx = NULL` (the master never calls `ngx_xrootd_cms_start`). Each
-worker's `init_process` hook independently calls `ngx_xrootd_cms_start`, which
-allocates a private `ngx_xrootd_cms_ctx_t` from that worker's pool and
+`conf->cms_ctx = NULL` (the master never calls `ngx_brix_cms_start`). Each
+worker's `init_process` hook independently calls `ngx_brix_cms_start`, which
+allocates a private `ngx_brix_cms_ctx_t` from that worker's pool and
 schedules the initial connection timer.
 
 This means the parent manager receives one connection per nginx worker. When a
@@ -335,8 +335,8 @@ guard was not present in the codebase. The per-worker behavior was already
 correct. The actual changes in this step were:
 
 - Fixed a bug in `src/net/manager/registry.c`: the sentinel value for "no free slot
-  found" was `XROOTD_SRV_REGISTRY_SLOTS` (hardcoded to 128) instead of
-  `tbl->capacity`. This broke `xrootd_srv_register()` whenever `registry_slots`
+  found" was `BRIX_SRV_REGISTRY_SLOTS` (hardcoded to 128) instead of
+  `tbl->capacity`. This broke `brix_srv_register()` whenever `registry_slots`
   was configured to any value other than 128.
 - Updated the stale struct comment in `src/net/cms/cms_internal.h` that incorrectly
   stated "Only one worker manages the CMS connection per server block (worker
@@ -359,19 +359,19 @@ spinlock embedded in the zone header, and a linear scan over a fixed-size slot
 array.
 
 The struct signatures deviate slightly from the plan sketch: `worker_pid` was
-added to both `xrootd_pending_insert` and `xrootd_pending_lookup`/
-`xrootd_pending_remove` so that two workers can recycle the same `streamid`
-value concurrently without aliasing. A separate `xrootd_pending_unlock()` was
-split out so that `xrootd_pending_lookup()` can return a pointer into shared
+added to both `brix_pending_insert` and `brix_pending_lookup`/
+`brix_pending_remove` so that two workers can recycle the same `streamid`
+value concurrently without aliasing. A separate `brix_pending_unlock()` was
+split out so that `brix_pending_lookup()` can return a pointer into shared
 memory while still holding the lock, allowing the caller to copy `redir_host`
 and `redir_port` atomically before releasing.
 
 Expired entries are reaped lazily during the next insert pass rather than
 via a background timer.
 
-New `xrootd_cms_locate_timeout` directive (default `5000 ms`). Accepts nginx
+New `brix_cms_locate_timeout` directive (default `5000 ms`). Accepts nginx
 time strings (`5s`, `500ms`, etc.). Stored as `ngx_msec_t cms_locate_timeout`
-in `ngx_stream_xrootd_srv_conf_t`.
+in `ngx_stream_brix_srv_conf_t`.
 
 Files added: `src/net/manager/pending.h`, `src/net/manager/pending.c`.
 Files changed: `src/core/config/config.h`, `src/core/config/postconfiguration.c`,
@@ -380,14 +380,14 @@ Files changed: `src/core/config/config.h`, `src/core/config/postconfiguration.c`
 
 ---
 
-### Step 4 — `ngx_xrootd_cms_send_locate()` in `src/net/cms/send.c` ✅ Implemented
+### Step 4 — `ngx_brix_cms_send_locate()` in `src/net/cms/send.c` ✅ Implemented
 
-`ngx_xrootd_cms_send_locate()` builds a `kYR_locate` frame containing the
-NUL-terminated path (payload up to `XROOTD_SRV_MAX_PATHS` = 1024 bytes) and
-sends it via `ngx_xrootd_cms_send_frame()`.
+`ngx_brix_cms_send_locate()` builds a `kYR_locate` frame containing the
+NUL-terminated path (payload up to `BRIX_SRV_MAX_PATHS` = 1024 bytes) and
+sends it via `ngx_brix_cms_send_frame()`.
 
-`ngx_xrootd_cms_next_streamid()` increments and returns the per-worker
-`uint32_t next_streamid` counter stored in `ngx_xrootd_cms_ctx_t`. The counter
+`ngx_brix_cms_next_streamid()` increments and returns the per-worker
+`uint32_t next_streamid` counter stored in `ngx_brix_cms_ctx_t`. The counter
 starts at 0 and wraps safely (skipping 0 would require special casing; wrapping
 through UINT32_MAX resets to 1 instead). Because each nginx worker has its own
 independent CMS connection to the manager, streamids are per-worker and do not
@@ -395,7 +395,7 @@ need to be coordinated across workers.
 
 `#define CMS_RR_LOCATE 2` and the two new function declarations were added to
 `src/net/cms/cms_internal.h`. The `next_streamid` field was added to
-`ngx_xrootd_cms_ctx_s`.
+`ngx_brix_cms_ctx_s`.
 
 Files changed: `src/net/cms/send.c`, `src/net/cms/cms_internal.h`.
 
@@ -404,12 +404,12 @@ Files changed: `src/net/cms/send.c`, `src/net/cms/cms_internal.h`.
 ### Step 5 — XRootD session suspension ✅ Implemented
 
 Added `XRD_ST_WAITING_CMS` to the state enum in `src/core/types/state.h` and
-`cms_wait_streamid` to `xrootd_ctx_t` in `src/core/types/context.h`.
+`cms_wait_streamid` to `brix_ctx_t` in `src/core/types/context.h`.
 
 In `src/protocols/root/read/locate.c`, inside the `conf->manager_mode && !is_wildcard` block,
-after a registry miss: call `ngx_xrootd_cms_next_streamid()`, send a
-`kYR_locate` frame via `ngx_xrootd_cms_send_locate()`, insert into the pending
-table via `xrootd_pending_insert()`, set `ctx->state = XRD_ST_WAITING_CMS`,
+after a registry miss: call `ngx_brix_cms_next_streamid()`, send a
+`kYR_locate` frame via `ngx_brix_cms_send_locate()`, insert into the pending
+table via `brix_pending_insert()`, set `ctx->state = XRD_ST_WAITING_CMS`,
 arm `ngx_add_timer(c->read, conf->cms_locate_timeout)`, and return
 `NGX_AGAIN`. On failure of either send or insert the code falls through to
 the static-map / `kXR_notFound` path unchanged.
@@ -422,7 +422,7 @@ In `src/protocols/root/connection/recv.c`:
   return pattern as `XRD_ST_UPSTREAM`).
 - Added an early-return in the `rev->timedout` block: when the state is
   `XRD_ST_WAITING_CMS`, clear the timedout flag, call
-  `xrootd_pending_remove()`, reset state to `XRD_ST_REQ_HEADER`, send
+  `brix_pending_remove()`, reset state to `XRD_ST_REQ_HEADER`, send
   `kXR_wait 5` (ask client to retry in 5 seconds), and schedule a read
   resume. The existing connection-close path is unaffected for all other
   states.
@@ -440,19 +440,19 @@ Added `#include "../manager/pending.h"` to `src/net/cms/recv.c` and factored the
 wake logic into a static helper `cms_wake_pending_session(ctx, streamid, host,
 port)`. The helper:
 
-1. Calls `xrootd_pending_lookup(streamid, ngx_pid)` — returns `NULL` if the
+1. Calls `brix_pending_lookup(streamid, ngx_pid)` — returns `NULL` if the
    session already timed out (pending_remove was called by the recv.c
    timedout handler).
-2. Reads `conn_fd` from the entry, then calls `xrootd_pending_unlock()`
+2. Reads `conn_fd` from the entry, then calls `brix_pending_unlock()`
    before any nginx operations.
-3. Calls `xrootd_pending_remove()` to free the slot.
+3. Calls `brix_pending_remove()` to free the slot.
 4. Validates the fd index against `ngx_cycle->connection_n` and checks
    `client_conn->fd == conn_fd` to detect fd reuse after the client closed.
 5. Walks `client_conn->data` → `ngx_stream_get_module_ctx(session, ...)` to
-   get `xrootd_ctx_t *` and confirms `state == XRD_ST_WAITING_CMS`.
+   get `brix_ctx_t *` and confirms `state == XRD_ST_WAITING_CMS`.
 6. Calls `ngx_del_timer(client_conn->read)`, resets state to
-   `XRD_ST_REQ_HEADER`, and calls `xrootd_send_redirect()` +
-   `xrootd_schedule_read_resume()`.
+   `XRD_ST_REQ_HEADER`, and calls `brix_send_redirect()` +
+   `brix_schedule_read_resume()`.
 
 Both `CMS_RR_SELECT` and `CMS_RR_TRY` parse `payload[0..]` as a
 NUL-terminated hostname + 2-byte big-endian port (first entry in the case
@@ -472,13 +472,13 @@ No new external dependencies are introduced.
 |---|---|
 | `ngx_shm_zone_t` | Pending-locate table; same zone lifecycle as the server registry |
 | `ngx_shmtx_t` spinlock | Pending-locate table concurrency control |
-| `ngx_event_t` + timer | Locate timeout; fires if `kYR_select` does not arrive within `xrootd_cms_locate_timeout` |
+| `ngx_event_t` + timer | Locate timeout; fires if `kYR_select` does not arrive within `brix_cms_locate_timeout` |
 | `ngx_cycle->connections[fd]` | Looks up the waiting client connection by file descriptor within the same worker |
-| `ngx_post_event` | Optionally defers `xrootd_send_redirect()` to the next event loop tick |
+| `ngx_post_event` | Optionally defers `brix_send_redirect()` to the next event loop tick |
 | Per-worker CMS connection (step 2) | Eliminates cross-worker IPC entirely |
 | `XRD_ST_UPSTREAM` state machine | Template for `XRD_ST_WAITING_CMS`; suspend / wake / timeout pattern is identical |
-| `ngx_conf_set_num_slot` | Parses `xrootd_registry_slots` directive |
-| `ngx_conf_set_msec_slot` | Parses `xrootd_cms_locate_timeout` directive |
+| `ngx_conf_set_num_slot` | Parses `brix_registry_slots` directive |
+| `ngx_conf_set_msec_slot` | Parses `brix_cms_locate_timeout` directive |
 
 ---
 
@@ -486,13 +486,13 @@ No new external dependencies are introduced.
 
 ### New directives
 
-`xrootd_registry_slots N`
+`brix_registry_slots N`
 
 Maximum number of data server entries in the shared-memory registry. Default
 `128`. Increase at sites with more than 128 storage nodes. Applied at the next
 `nginx -s reload`.
 
-`xrootd_cms_locate_timeout time`
+`brix_cms_locate_timeout time`
 
 How long to hold a client `kXR_locate` or `kXR_open` open while waiting for a
 `kYR_select` response from the parent manager. Default `5s`. If the parent does
@@ -505,14 +505,14 @@ not respond within this window the client receives `kXR_wait` and may retry.
 stream {
     server {
         listen 2213;
-        xrootd_cms_server on;      # accepts sub-manager registrations
+        brix_cms_server on;      # accepts sub-manager registrations
     }
     server {
         listen 2094;
         xrootd on;
-        xrootd_root /dev/null;
-        xrootd_manager_mode on;
-        xrootd_registry_slots 256;
+        brix_root /dev/null;
+        brix_manager_mode on;
+        brix_registry_slots 256;
     }
 }
 
@@ -520,16 +520,16 @@ stream {
 stream {
     server {
         listen 1213;
-        xrootd_cms_server on;      # accepts data server registrations
+        brix_cms_server on;      # accepts data server registrations
     }
     server {
         listen 1094;
         xrootd on;
-        xrootd_root /dev/null;
-        xrootd_manager_mode on;
-        xrootd_cms_manager meta-manager.example.org:2213;
-        xrootd_cms_locate_timeout 5s;
-        xrootd_registry_slots 128;
+        brix_root /dev/null;
+        brix_manager_mode on;
+        brix_cms_manager meta-manager.example.org:2213;
+        brix_cms_locate_timeout 5s;
+        brix_registry_slots 128;
     }
 }
 
@@ -538,9 +538,9 @@ stream {
     server {
         listen 1094;
         xrootd on;
-        xrootd_root /data;
-        xrootd_cms_manager sub-manager.example.org:1213;
-        xrootd_cms_paths /data;
+        brix_root /data;
+        brix_cms_manager sub-manager.example.org:1213;
+        brix_cms_paths /data;
     }
 }
 ```
@@ -560,10 +560,10 @@ to the leaf for the data transfer.
 | Step | What | Depends on | Status |
 |---|---|---|---|
 | 1a | `kYR_gone` + `CMS_RR_GONE` in `server_recv.c` | — | ✅ Done |
-| 1b | Configurable `xrootd_registry_slots` + full-table warning + Prometheus counter | — | ✅ Done |
+| 1b | Configurable `brix_registry_slots` + full-table warning + Prometheus counter | — | ✅ Done |
 | 2 | Per-worker CMS connections; fix registry sentinel bug; add multi-worker test | — | ✅ Done |
 | 3 | Pending-locate table (`src/net/manager/pending.c`) | 1b | ✅ Done |
-| 4 | `ngx_xrootd_cms_send_locate()` + streamid counter | 2 | ✅ Done |
+| 4 | `ngx_brix_cms_send_locate()` + streamid counter | 2 | ✅ Done |
 | 5 | `XRD_ST_WAITING_CMS` + session suspension in `locate.c` / `open.c` | 3, 4 | ✅ Done |
 | 6 | `kYR_select` / `kYR_try` in `recv.c` + session wake | 3, 4, 5 | ✅ Done |
 | 7 | Three-tier integration tests (Parts 5–8) | 2–6 | ✅ Done |
@@ -601,8 +601,8 @@ emits `kXR_redirect` to the client naming the host:port from the select frame.
 
 **Part 7 — Registry-full counter**
 
-Configure `xrootd_registry_slots 4`. Connect five data servers via CMS. Assert
-the `xrootd_registry_full_total` Prometheus counter increments for the fifth
+Configure `brix_registry_slots 4`. Connect five data servers via CMS. Assert
+the `brix_registry_full_total` Prometheus counter increments for the fifth
 registration, that a warning appears in the error log, and that the fifth
 server is not returned by subsequent `kXR_locate` requests.
 
@@ -620,23 +620,23 @@ redirects to that server.
 | File | Change | Status |
 |---|---|---|
 | `src/net/cms/cms_internal.h` | Added `CMS_RR_GONE 14`, `CMS_RR_LOCATE 2`, `CMS_RR_SELECT 10`, `CMS_RR_TRY 24`; `next_streamid` field | ✅ Steps 1a, 2, 4, 6 done |
-| `src/net/cms/server_recv.c` | Added `CMS_RR_GONE` case calling `xrootd_srv_unregister_path()` | ✅ Step 1a done |
+| `src/net/cms/server_recv.c` | Added `CMS_RR_GONE` case calling `brix_srv_unregister_path()` | ✅ Step 1a done |
 | `src/net/cms/recv.c` | Added `cms_wake_pending_session()` helper; `CMS_RR_SELECT` and `CMS_RR_TRY` cases | ✅ Step 6 done |
-| `src/net/cms/send.c` | Added `ngx_xrootd_cms_send_locate()` and `ngx_xrootd_cms_next_streamid()` | ✅ Step 4 done |
-| `src/net/manager/registry.h` | C99 flexible array member; `capacity` field; updated `xrootd_srv_configure_registry` signature | ✅ Step 1b done |
+| `src/net/cms/send.c` | Added `ngx_brix_cms_send_locate()` and `ngx_brix_cms_next_streamid()` | ✅ Step 4 done |
+| `src/net/manager/registry.h` | C99 flexible array member; `capacity` field; updated `brix_srv_configure_registry` signature | ✅ Step 1b done |
 | `src/net/manager/registry.c` | Runtime zone size; `tbl->capacity` loop bounds and sentinel; full-table log and counter | ✅ Steps 1b, 2 done |
-| `src/net/manager/pending.h` | New: `xrootd_pending_locate_t`, `xrootd_pending_table_t`, API declarations | ✅ Step 3 done |
+| `src/net/manager/pending.h` | New: `brix_pending_locate_t`, `brix_pending_table_t`, API declarations | ✅ Step 3 done |
 | `src/net/manager/pending.c` | New: shm zone init, insert/lookup/remove with lock, lazy expiry reaping | ✅ Step 3 done |
 | `src/protocols/root/read/locate.c` | CMS-suspend path when no registry match | ✅ Step 5 done |
 | `src/protocols/root/read/open.c` | Same | ✅ Step 5 done |
-| `src/core/config/config.h` | Updated `xrootd_srv_configure_registry` declaration; added `xrootd_pending_configure` declaration | ✅ Steps 1b, 3 done |
+| `src/core/config/config.h` | Updated `brix_srv_configure_registry` declaration; added `brix_pending_configure` declaration | ✅ Steps 1b, 3 done |
 | `src/core/config/server_conf.c` | `registry_slots` UNSET + default-128 merge; `cms_locate_timeout` UNSET_MSEC + 5000 ms merge | ✅ Steps 1b, 3 done |
 | `src/protocols/root/connection/recv.c` | Added `XRD_ST_WAITING_CMS` loop guard and timedout handler | ✅ Step 5 done |
-| `src/protocols/root/stream/module.c` | Added `xrootd_registry_slots` and `xrootd_cms_locate_timeout` directive entries | ✅ Steps 1b, 3 done |
+| `src/protocols/root/stream/module.c` | Added `brix_registry_slots` and `brix_cms_locate_timeout` directive entries | ✅ Steps 1b, 3 done |
 | `src/core/types/state.h` | Added `XRD_ST_WAITING_CMS` | ✅ Step 5 done |
 | `config` | Added `pending.c` to `ngx_module_srcs` | ✅ Step 3 done |
-| `src/observability/metrics/metrics.h` | Added `registry_full_total` counter to `ngx_xrootd_metrics_t` | ✅ Step 1b done |
-| `src/observability/metrics/stream.c` | Added `xrootd_registry_full_total` Prometheus export | ✅ Step 1b done |
+| `src/observability/metrics/metrics.h` | Added `registry_full_total` counter to `ngx_brix_metrics_t` | ✅ Step 1b done |
+| `src/observability/metrics/stream.c` | Added `brix_registry_full_total` Prometheus export | ✅ Step 1b done |
 | `tests/test_manager_mode.py` | Part 3 (per-worker CMS) added; Parts 5–8 | Steps 2, 3–6 |
 
 ---
@@ -702,7 +702,7 @@ Mock meta-manager  (Python thread, CMS port M)
        kXR_redirect → leaf_port  (sent to Client)
 ```
 
-The sub-manager must have `xrootd_cms_manager 127.0.0.1:{M}` pointing at the
+The sub-manager must have `brix_cms_manager 127.0.0.1:{M}` pointing at the
 mock meta CMS. The path `/escalate/file.dat` must **not** be registered in the
 sub-manager's local registry (either use a fresh registry or a path that no
 data server has registered). On receiving `kXR_locate` for that path the
@@ -756,39 +756,39 @@ Client               Gateway (nginx-xrootd)              Backend
 ```
 
 The critical observation is that steps 1–2 are already implemented and tested.
-The pivot point is step 3: instead of calling `xrootd_send_redirect()` in
-`cms_wake_pending_session()`, call a new `xrootd_proxy_cms_selected()` that
+The pivot point is step 3: instead of calling `brix_send_redirect()` in
+`cms_wake_pending_session()`, call a new `brix_proxy_cms_selected()` that
 bootstraps an upstream proxy connection to the CMS-nominated host:port.
 
 ### What needs to be built
 
-#### G1 — Policy directive: `xrootd_cms_response redirect|proxy`
+#### G1 — Policy directive: `brix_cms_response redirect|proxy`
 
 ```nginx
 stream {
     server {
         listen 1094;
         xrootd on;
-        xrootd_manager_mode on;
-        xrootd_cms_manager parent.example.org:1213;
-        xrootd_cms_response proxy;   # NEW: proxy instead of redirect
+        brix_manager_mode on;
+        brix_cms_manager parent.example.org:1213;
+        brix_cms_response proxy;   # NEW: proxy instead of redirect
     }
 }
 ```
 
 Default `redirect` preserves current behaviour. `proxy` switches the wake
-action in `cms_wake_pending_session()` from `xrootd_send_redirect()` to
-`xrootd_proxy_cms_selected()`.
+action in `cms_wake_pending_session()` from `brix_send_redirect()` to
+`brix_proxy_cms_selected()`.
 
 **File:** `src/core/config/config.h` + `src/core/config/server_conf.c` + directive entry
 in `src/protocols/root/stream/module.c`.
 
-#### G2 — `xrootd_proxy_cms_selected()` in `src/net/upstream/start.c`
+#### G2 — `brix_proxy_cms_selected()` in `src/net/upstream/start.c`
 
 When `cms_response == PROXY` the wake function, rather than redirecting,
-allocates an upstream context (`xrootd_upstream_ctx_t`) and initiates a TCP
+allocates an upstream context (`brix_upstream_ctx_t`) and initiates a TCP
 connect to the CMS-selected host:port. This is exactly what
-`xrootd_upstream_start()` does today for the static `xrootd_upstream`
+`brix_upstream_start()` does today for the static `brix_upstream`
 directive, with two differences:
 
 - The target host:port comes from the `kYR_select` payload rather than static
@@ -801,14 +801,14 @@ directive, with two differences:
 The file-handle translation table (`fh_map[16]`) and the `kXR_oksofar`
 streaming relay from `src/net/upstream/response.c` apply unchanged.
 
-**Files:** `src/net/upstream/start.c` (new path in `xrootd_proxy_cms_selected`),
+**Files:** `src/net/upstream/start.c` (new path in `brix_proxy_cms_selected`),
 `src/net/upstream/bootstrap.c` (reuse), `src/net/cms/recv.c` (call site change when
 `cms_response == PROXY`).
 
 #### G3 — Auth bridging for CMS-selected upstreams
 
-When `xrootd_cms_response proxy` is set, the upstream auth mode is controlled
-by the existing `xrootd_proxy_auth` directive:
+When `brix_cms_response proxy` is set, the upstream auth mode is controlled
+by the existing `brix_proxy_auth` directive:
 
 - `anonymous` (default) — anonymous login to the backend. Sufficient when the
   backend grants access by path ACL or trusts the gateway's IP.
@@ -823,9 +823,9 @@ No new directives needed for G3; it reuses the existing proxy-auth enum.
 
 #### G4 — CMS-driven upstream pool (optional, larger scope)
 
-A further extension replaces the static `xrootd_proxy_upstream host:port` list
+A further extension replaces the static `brix_proxy_upstream host:port` list
 with a pool populated dynamically from CMS registrations. When the gateway also
-runs `xrootd_cms_server on`, data servers that register with it are added to
+runs `brix_cms_server on`, data servers that register with it are added to
 the proxy upstream pool. Load-aware selection (lowest `util_pct` / highest
 `free_mb` from `kYR_load` frames) replaces the current round-robin.
 
@@ -842,17 +842,17 @@ invisible, and load balancing is CMS-driven.
 
 **Approximate scope:** `src/net/upstream/pool.c` (new CMS-backed pool implementation
 replacing `upstream_ctx->round_robin_idx`), `src/net/cms/server_handler.c` (call
-`xrootd_pool_register()` on `kYR_login`, `xrootd_pool_update_load()` on
-`kYR_load`, `xrootd_pool_unregister()` on disconnect / `kYR_gone`).
+`brix_pool_register()` on `kYR_login`, `brix_pool_update_load()` on
+`kYR_load`, `brix_pool_unregister()` on disconnect / `kYR_gone`).
 
 ### Implementation sequencing for G1–G4
 
 | Step | What | Depends on | Estimated effort |
 |---|---|---|---|
-| G1 | `xrootd_cms_response` directive | — | 1 day |
-| G2 | `xrootd_proxy_cms_selected()` — redirect pivot | G1 | 2–3 days |
+| G1 | `brix_cms_response` directive | — | 1 day |
+| G2 | `brix_proxy_cms_selected()` — redirect pivot | G1 | 2–3 days |
 | G3 | Auth bridging reuse | G2 (uses existing proxy-auth enum) | — (already works) |
-| G4 | CMS-driven pool | G2, existing `xrootd_cms_server` | 3–5 days |
+| G4 | CMS-driven pool | G2, existing `brix_cms_server` | 3–5 days |
 
 G1+G2 are a self-contained unit that makes the select-then-proxy topology
 work end-to-end. G4 is an independent quality improvement that can follow

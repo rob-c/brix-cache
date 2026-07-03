@@ -67,18 +67,18 @@ implementation:
 
 | Opcode | Handler | File |
 |---|---|---|
-| `kXR_read` | `xrootd_handle_read` | `src/protocols/root/read/read.c:77` |
-| `kXR_readv` | `xrootd_handle_readv` | `src/protocols/root/read/readv.c:201` |
-| `kXR_pgread` | `xrootd_handle_pgread` | `src/protocols/root/read/pgread.c:181` |
-| `kXR_write` | `xrootd_handle_write` | `src/protocols/root/write/write.c:67` |
-| `kXR_writev` | `xrootd_handle_writev` | `src/protocols/root/write/writev.c:35` |
-| `kXR_pgwrite` | `xrootd_handle_pgwrite` | `src/protocols/root/write/pgwrite.c:146` |
-| `kXR_sync` | `xrootd_handle_sync` | `src/protocols/root/write/sync.c:42` |
+| `kXR_read` | `brix_handle_read` | `src/protocols/root/read/read.c:77` |
+| `kXR_readv` | `brix_handle_readv` | `src/protocols/root/read/readv.c:201` |
+| `kXR_pgread` | `brix_handle_pgread` | `src/protocols/root/read/pgread.c:181` |
+| `kXR_write` | `brix_handle_write` | `src/protocols/root/write/write.c:67` |
+| `kXR_writev` | `brix_handle_writev` | `src/protocols/root/write/writev.c:35` |
+| `kXR_pgwrite` | `brix_handle_pgwrite` | `src/protocols/root/write/pgwrite.c:146` |
+| `kXR_sync` | `brix_handle_sync` | `src/protocols/root/write/sync.c:42` |
 
 Asynchrony is the `src/core/aio/` subsystem: a thread-pool backend (nginx
 `ngx_thread_pool`) plus an optional `io_uring` backend (`src/core/aio/uring*.c`,
 Phase 44), both funnelled through one interposition point
-`xrootd_aio_post_task()` (`src/core/aio/resume.c:68`). Checksums are a single C
+`brix_aio_post_task()` (`src/core/aio/resume.c:68`). Checksums are a single C
 kernel per family (`src/core/compat/crc32c.c`, `src/core/compat/crc64.c`,
 `src/core/compat/checksum*.c`), with per-protocol encoding done at the edges. The
 module additionally implements transparent read/write **compression**
@@ -101,26 +101,26 @@ Official `do_Read` chooses one of four modes at request time
    (`as_maxperlnk = 8`, `as_maxpersrv = 4096`), AIO quantum
    `as_segsize = 65536` (`XrdXrootdProtocol.cc:120-136`).
 
-BriX-Cache's `xrootd_handle_read` runs a comparable dispatch ladder
+BriX-Cache's `brix_handle_read` runs a comparable dispatch ladder
 (`read.c:132-441`):
 
 1. slice-cache mode (if enabled);
 2. inline read-compression if the handle has a `read_codec` (see Compression);
 3. **zero-copy sendfile** when the target is a regular file and the connection
    is cleartext *or* kTLS is active (`read.c:160-245`, gate
-   `!c->ssl || xrootd_ktls_send_active()` at `read.c:66-75`);
+   `!c->ssl || brix_ktls_send_active()` at `read.c:66-75`);
 4. **windowed memory streaming** when the total exceeds
-   `XROOTD_READ_WINDOW = 2 MiB`, driven by `xrootd_read_window_pump`
+   `BRIX_READ_WINDOW = 2 MiB`, driven by `brix_read_window_pump`
    (`read.c:266-306`) to keep resident memory bounded;
 5. **small single-shot read** otherwise.
 
-The request length is capped at `XROOTD_READ_REQUEST_MAX = 64 MiB`
+The request length is capped at `BRIX_READ_REQUEST_MAX = 64 MiB`
 (`read.c:115`, `src/core/types/tunables.h`); the wire chunk is split at
-`XROOTD_READ_CHUNK_MAX = 16 MiB`. For the small memory path the module first
+`BRIX_READ_CHUNK_MAX = 16 MiB`. For the small memory path the module first
 tries a Phase-32 warm-cache probe — `preadv2(..., RWF_NOWAIT)` — and completes
 inline when the page cache already holds the exact range, skipping the thread
 pool entirely (`read.c:363-383`); otherwise it posts
-`xrootd_read_aio_thread` to the configured pool, degrading to an inline `pread`
+`brix_read_aio_thread` to the configured pool, degrading to an inline `pread`
 only when no pool is available (`read.c:385-441`).
 
 The key structural difference: official picks sync-vs-async by request *size*
@@ -134,16 +134,16 @@ Official `do_ReadV` reads a vector request into `rdVec[XrdProto::maxRvecsz+1]`
 and rejects vectors with more than `maxRvecsz` segments
 (`XrdXrootdXeq.cc:2746`, constant in `XProtocol/XProtocol.hh`).
 
-BriX-Cache's `xrootd_handle_readv` (`readv.c:201`) enforces several explicit
+BriX-Cache's `brix_handle_readv` (`readv.c:201`) enforces several explicit
 caps:
 
 | Cap | Constant | Value | Where |
 |---|---|---|---|
-| Max segment count | `XROOTD_READV_MAXSEGS` | 1024 | `src/protocols/root/protocol/flags.h:223` |
-| Per-segment header | `XROOTD_READV_SEGSIZE` | 16 B | `flags.h:222` |
+| Max segment count | `BRIX_READV_MAXSEGS` | 1024 | `src/protocols/root/protocol/flags.h:223` |
+| Per-segment header | `BRIX_READV_SEGSIZE` | 16 B | `flags.h:222` |
 | Per-element byte cap | `readv_segment_size` (= official `maxReadv_ior`) | 2 MiB − 16 = 2 097 136 | `config/server_conf.c:380` |
-| Total response cap | `XROOTD_MAX_READV_TOTAL` | 256 MiB | `readv.c:57` |
-| preadv scatter cap | `XROOTD_READV_PREADV_MAXIOV` | 64 iovecs/syscall | `readv.c:58` |
+| Total response cap | `BRIX_MAX_READV_TOTAL` | 256 MiB | `readv.c:57` |
+| preadv scatter cap | `BRIX_READV_PREADV_MAXIOV` | 64 iovecs/syscall | `readv.c:58` |
 
 These map to the protocol's advertised `readv_ior_max` (per-element) and
 `readv_iov_max` (segment count), reported through `kXR_query` Qconfig
@@ -163,13 +163,13 @@ partial/"oksofar" frame for intermediate chunks.
 
 | Property | Official | BriX-Cache |
 |---|---|---|
-| Page size | `kXR_pgPageSZ = 4096`, unit `kXR_pgUnitSZ = 4100` (`XProtocol.hh:528-530`) | same constants (`flags.h:255-257`), CRC word `XROOTD_PG_CKSZ = 4` (`pgread.c:56`) |
-| Per-page CRC | CRC-32C via `XrdOucCRC::Calc32C` (`XrdOucPgrwUtils.cc`), SSE4.2 with software fallback | `xrootd_crc32c_value`, SSE4.2 `_mm_crc32_u64` + software fallback, poly `0x82F63B78` (`crc32c.c:25`) |
+| Page size | `kXR_pgPageSZ = 4096`, unit `kXR_pgUnitSZ = 4100` (`XProtocol.hh:528-530`) | same constants (`flags.h:255-257`), CRC word `BRIX_PG_CKSZ = 4` (`pgread.c:56`) |
+| Per-page CRC | CRC-32C via `XrdOucCRC::Calc32C` (`XrdOucPgrwUtils.cc`), SSE4.2 with software fallback | `brix_crc32c_value`, SSE4.2 `_mm_crc32_u64` + software fallback, poly `0x82F63B78` (`crc32c.c:25`) |
 | File-offset alignment | first/last page may be short (`csNum`/`csVer`) | short first page from `in_off = cur & (kXR_pgPageSZ-1)` (`pgread.c:115-116`) |
-| Partial framing | `kXR_PartialResult` (0x01) intermediate, `kXR_FinalResult` last; iovec bounded `maxPGRD ≈ 2 093 056 B` (`XrdXrootdXeqPgrw.cc:219-242`) | `ServerStatusResponse_pgRead` next-offset header, oksofar chunking in `xrootd_build_pgread_chain`; batch ≤ `XROOTD_PGREAD_MAXIOV = 64` pages (`pgread.c:58,341`) |
+| Partial framing | `kXR_PartialResult` (0x01) intermediate, `kXR_FinalResult` last; iovec bounded `maxPGRD ≈ 2 093 056 B` (`XrdXrootdXeqPgrw.cc:219-242`) | `ServerStatusResponse_pgRead` next-offset header, oksofar chunking in `brix_build_pgread_chain`; batch ≤ `BRIX_PGREAD_MAXIOV = 64` pages (`pgread.c:58,341`) |
 
 The notable engineering difference is on the BriX-Cache side:
-`xrootd_pgread_read_encode_inplace()` (`pgread.c:88-165`) performs a
+`brix_pgread_read_encode_inplace()` (`pgread.c:88-165`) performs a
 **zero-copy gapped `preadv` plus an in-place 3-way CRC**. It lays out a batch of
 pages with the data positioned *after* each 4-byte CRC gap, `preadv`s the
 contiguous file region straight into that gapped wire buffer, then runs the
@@ -194,13 +194,13 @@ model with an epoll readiness front end — strong on many-core servers because
 each in-flight request can occupy its own worker.
 
 **BriX-Cache.** Asynchrony is a three-tier cascade behind one interposition
-point, `xrootd_aio_post_task()` (`resume.c:68-122`):
+point, `brix_aio_post_task()` (`resume.c:68-122`):
 
 1. **io_uring** (Phase 44, `src/core/aio/uring*.c`) when compiled in and enabled.
-   Directive `xrootd_io_uring off|on|auto` (default `auto`,
+   Directive `brix_io_uring off|on|auto` (default `auto`,
    `server_conf.c:387`); `on` is fail-fast at `nginx -t`. Companion directives:
-   `xrootd_io_uring_queue_depth` (default 256), `xrootd_io_uring_panic_file`
-   (kill-switch), `xrootd_io_uring_admin`, `xrootd_io_uring_restrict`. It maps
+   `brix_io_uring_queue_depth` (default 256), `brix_io_uring_panic_file`
+   (kill-switch), `brix_io_uring_admin`, `brix_io_uring_restrict`. It maps
    READ, WRITE, single-contiguous-group READV, and single-contiguous-fd WRITEV
    (with linked FSYNC for sync); pgread, dirlist, multi-fd, and gapped vector
    ops fall through to the thread pool (`uring_submit.c:100-121`). Submissions
@@ -208,12 +208,12 @@ point, `xrootd_aio_post_task()` (`resume.c:68-122`):
    (`uring.h`).
 2. **nginx thread pool** otherwise — the `_thread` worker does only the blocking
    syscall, the `_done` callback runs on the event loop (`aio/README.md`). The
-   pool is resolved by name (`xrootd_thread_pool`, default `"default"`) in
-   `xrootd_configure_thread_pools` (`aio/config.c:18-69`).
+   pool is resolved by name (`brix_thread_pool`, default `"default"`) in
+   `brix_configure_thread_pools` (`aio/config.c:18-69`).
 3. **inline blocking syscall** if no pool is resolvable (logged degradation).
 
 The safety-critical piece is the **destroyed-connection guard** in `resume.c`:
-`xrootd_aio_restore_stream` checks `ctx->destroyed` first and returns 0 so the
+`brix_aio_restore_stream` checks `ctx->destroyed` first and returns 0 so the
 completion callback touches nothing if the connection went away mid-flight
 (`resume.c:21-32`); the io_uring slot adds a second generation-guard layer on
 top of that (`uring.h:42-48`). This pattern is what lets a single-thread-per-
@@ -228,7 +228,7 @@ synchronously or, for large writes within the per-link/per-server caps, allocate
 `XrdXrootdNormAio` and issues `aioP->Write(offset, len)` — the same async
 machinery as reads.
 
-BriX-Cache's `xrootd_handle_write` (`write.c:67`) validates a writable handle,
+BriX-Cache's `brix_handle_write` (`write.c:67`) validates a writable handle,
 optionally decompresses, skips replayed writes during `kXR_recoverWrts`, then
 either posts to AIO or does an inline `pwrite`; a short write surfaces as a hard
 `kXR_IOError` ("short write (disk full?)", `write.c:159-163`).
@@ -237,16 +237,16 @@ On top of this the module adds **write pipelining**, which official XRootD does
 not implement in this form. The recv loop keeps receiving the next request while
 prior `pwrite`s are still in flight, bounded by `out_count + wr_inflight <
 ctx->pipeline_depth` (`write.c:131-137`). The depth is the directive
-`xrootd_pipeline_depth N`, default `XROOTD_PIPELINE_DEPTH_DEFAULT = 8`, clamped
+`brix_pipeline_depth N`, default `BRIX_PIPELINE_DEPTH_DEFAULT = 8`, clamped
 to `[1, 64]` (`tunables.h:108-110`, `server_conf.c:456-465`). On a successful
 post the payload is detached (`ctx->payload = NULL`), `wr_inflight++`, and the
 handler returns while recv continues. Acks are **asynchronous**:
-`xrootd_write_aio_done` decrements `wr_inflight` *before* the liveness check,
+`brix_write_aio_done` decrements `wr_inflight` *before* the liveness check,
 restores only the streamid, and sends the ack with `ctx->resp_async = 1` so it
 is parked in `out_ring` without suspending recv, then schedules a read resume
 (`aio/write.c:61-145`). Teardown is deferred: if the connection was destroyed
 while writes were in flight, the last completion (`wr_inflight == 0` with
-`finalize_pending`) runs `xrootd_run_deferred_teardown`, and the detached payload
+`finalize_pending`) runs `brix_run_deferred_teardown`, and the detached payload
 is freed unconditionally first — a UAF-safe finalize at every completion site
 (`aio/write.c:50-97`).
 
@@ -278,11 +278,11 @@ the `kXR_pgRetry` flag (`kXR_pgRetry = 0x01`). The retry path
 was registered as in-error. At close, `do_PgClose` (`XrdXrootdXeq.cc:665`)
 returns `kXR_ChkSumErr` while any page remains uncorrected.
 
-BriX-Cache's `xrootd_handle_pgwrite` (`pgwrite.c`) verifies **every** page via
+BriX-Cache's `brix_handle_pgwrite` (`pgwrite.c`) verifies **every** page via
 the shared `xrdp_pg_decode_collect` (`compat/pgio.c`), writes all pages — good
 and bad — to disk (accept-then-correct), and on any CRC failure replies with a
 **success** `kXR_status` frame carrying the `pgWrCSE` trailer + the bad-page
-offset list (`xrootd_send_pgwrite_cse`, `response/status.c`). Each uncorrected
+offset list (`brix_send_pgwrite_cse`, `response/status.c`). Each uncorrected
 page is registered in a per-handle "Fob" (`write/pgw_fob.c`, keyed exactly like
 stock `XrdXrootdPgwFob`). A `kXR_pgRetry` resend is single-page-bounded, must
 target a registered offset (else it is treated as a normal write), and clears
@@ -300,11 +300,11 @@ the offset list, `dlFirst`/`dlLast`, the retry correction, and the close gate.
 ### `kXR_sync`
 
 Official `do_Sync` (`XrdXrootdXeq.cc:3210`) calls `XrdSfsp->sync()` and supports
-async completion via a callback. BriX-Cache's `xrootd_handle_sync`
+async completion via a callback. BriX-Cache's `brix_handle_sync`
 (`sync.c:42-106`) validates the handle, fsyncs the fd, and additionally flushes
-the write-resilience journal (`xrootd_wrts_flush`) and any write-through dirty
+the write-resilience journal (`brix_wrts_flush`) and any write-through dirty
 data. It also dual-purposes sync on a TPC-destination handle: the first sync
-arms the pull, the second triggers `xrootd_tpc_start_pull` (`sync.c:56-66`).
+arms the pull, the second triggers `brix_tpc_start_pull` (`sync.c:56-66`).
 
 ## Zero-copy and TLS
 
@@ -322,7 +322,7 @@ in the buffer layout: for TLS responses buffers are memory-backed (`b->memory =
 1`), and for cleartext they are file-backed so nginx's `sendfile` engine can
 zero-copy. The read handler picks the sendfile branch only when the connection
 is not TLS *or* kTLS send is active (`read.c:66-75,160`). When the kernel has
-negotiated **kTLS**, `xrootd_ktls_send_active()` (checking `BIO_get_ktls_send`)
+negotiated **kTLS**, `brix_ktls_send_active()` (checking `BIO_get_ktls_send`)
 lets the connection rejoin the zero-copy sendfile path because the kernel can
 encrypt in place — this is the `SSL_sendfile` / kTLS gating verified in Phase 32
 (`docs/refactor/phase-32-data-plane-perf-parity.md`: the TLS GET shows
@@ -345,7 +345,7 @@ external plugin, and there is no CRC-64/XZ vs CRC-64/NVME distinction.
 wire as `"<algname> <hexvalue>\0"`.
 
 BriX-Cache parses and computes a broader set in a single small C kernel per
-family (`xrootd_checksum_parse`, `src/core/compat/checksum.c:42-169`): **adler32,
+family (`brix_checksum_parse`, `src/core/compat/checksum.c:42-169`): **adler32,
 crc32, crc32c, crc64 (alias crc64xz), crc64nvme, zcrc32, md5, sha1, sha256**.
 The crc32c kernel is `src/core/compat/crc32c.c` (SSE4.2 + software, poly
 `0x82F63B78`). The CRC64 kernel is the single engine in `src/core/compat/crc64.c`,
@@ -363,7 +363,7 @@ root:// and WebDAV paths emit 16 lowercase hex chars (`%016llx`), matching the
 official wire format; the S3 path emits base64 of the 8 big-endian bytes for
 `x-amz-checksum-crc64nvme`. `kXR_query` Qcksum reports the full supported list
 (adler32 first, the xrdcp default) as a bare comma-separated string
-(`query/config.c:119-130`). A `xrootd_crc64_combine` (GF(2) folding) supports
+(`query/config.c:119-130`). A `brix_crc64_combine` (GF(2) folding) supports
 S3 multipart FULL_OBJECT composition.
 
 Net: BriX-Cache ships crc64 (both XZ and NVME flavours) as first-class,
@@ -387,22 +387,22 @@ BriX-Cache implements real, negotiated codecs in `src/core/compat/codec_*.c`. Th
 codec table (`codec_core.c:81-90`) is IDENTITY, GZIP, DEFLATE, ZSTD, BROTLI, XZ
 (lzma), BZIP2, LZ4; each backend compiles to an `available = 0` stub if its
 library is absent. Decompression enforces an output cap and a maximum expansion
-ratio to defeat decompression bombs (`XROOTD_CODEC_ERR_BOMB`). Integration into
+ratio to defeat decompression bombs (`BRIX_CODEC_ERR_BOMB`). Integration into
 root:// is **opt-in and off by default**:
 
-- **Read** — `xrootd_read_compressed` (`src/protocols/root/read/read_compress.c:110-228`) runs
+- **Read** — `brix_read_compressed` (`src/protocols/root/read/read_compress.c:110-228`) runs
   only when the handle was opened with `?xrootd.compress=<codec>`
   (`read_codec != IDENTITY`); it compresses one bounded plaintext window
-  (clamped to `XROOTD_READ_CHUNK_MAX = 16 MiB`) into a single frame.
-- **Write** — `xrootd_write_compressed` decompresses inline before the `pwrite`
+  (clamped to `BRIX_READ_CHUNK_MAX = 16 MiB`) into a single frame.
+- **Write** — `brix_write_compressed` decompresses inline before the `pwrite`
   (`write.c:96-98`).
 - **pgread / pgwrite / readv never compress**, preserving the plaintext +
   per-page-CRC invariant.
 
-Toggles are stream directives `xrootd_read_compress` / `xrootd_write_compress`
+Toggles are stream directives `brix_read_compress` / `brix_write_compress`
 (both default off, `stream/module.c:556-572`), advertised via Qconfig
-`cmpread`/`cmpwrite`, with per-protocol siblings `xrootd_webdav_compress` and
-`xrootd_s3_compress`. Because this is an extension, a stock XRootD client will
+`cmpread`/`cmpwrite`, with per-protocol siblings `brix_webdav_compress` and
+`brix_s3_compress`. Because this is an extension, a stock XRootD client will
 simply never request it; interoperability is unaffected.
 
 ## Performance characteristics
@@ -427,7 +427,7 @@ distinctive wins over official are: zero-copy **on kTLS-negotiated TLS reads**
 and write pipelining. Its structural limitation is the inverse of official's
 strength — concurrency on one worker is bounded by the thread pool / io_uring
 queue depth rather than by spawning a worker per request, so a deep backlog of
-slow-storage operations is shaped by `xrootd_io_uring_queue_depth` and the
+slow-storage operations is shaped by `brix_io_uring_queue_depth` and the
 nginx thread-pool sizing rather than expanding unboundedly.
 
 **Measurement caveats.** The concrete numbers cited here — pgread CRC+copy cost
@@ -448,17 +448,17 @@ What an operator turns, and what an end user observes:
 
 | Concern | Directive (BriX-Cache) | Default | Official analogue |
 |---|---|---|---|
-| Thread pool (stream) | `xrootd_thread_pool` (resolves an nginx `thread_pool`) | `"default"` | `xrd.sched mint/maxt/avlt/idle` |
-| Thread pool (WebDAV/S3) | `xrootd_webdav_thread_pool` / `xrootd_s3_thread_pool` | — | (same scheduler) |
-| io_uring backend | `xrootd_io_uring off\|on\|auto` | `auto` | n/a (POSIX AIO only) |
-| io_uring queue depth | `xrootd_io_uring_queue_depth` | 256 | n/a |
-| io_uring kill-switch | `xrootd_io_uring_panic_file` | "" | n/a |
-| readv per-element cap | `xrootd_readv_segment_size` | 2 MiB − 16 | `maxReadv_ior` |
-| readv max segments | `XROOTD_READV_MAXSEGS` (compile constant) | 1024 | `XrdProto::maxRvecsz` |
-| Write/read pipeline depth | `xrootd_pipeline_depth` | 8 (clamp 1–64) | n/a |
-| Read compression | `xrootd_read_compress` | off | n/a |
-| Write compression | `xrootd_write_compress` | off | n/a |
-| Slice cache | `xrootd_cache_slice` | off | (PFC, separate) |
+| Thread pool (stream) | `brix_thread_pool` (resolves an nginx `thread_pool`) | `"default"` | `xrd.sched mint/maxt/avlt/idle` |
+| Thread pool (WebDAV/S3) | `brix_webdav_thread_pool` / `brix_s3_thread_pool` | — | (same scheduler) |
+| io_uring backend | `brix_io_uring off\|on\|auto` | `auto` | n/a (POSIX AIO only) |
+| io_uring queue depth | `brix_io_uring_queue_depth` | 256 | n/a |
+| io_uring kill-switch | `brix_io_uring_panic_file` | "" | n/a |
+| readv per-element cap | `brix_readv_segment_size` | 2 MiB − 16 | `maxReadv_ior` |
+| readv max segments | `BRIX_READV_MAXSEGS` (compile constant) | 1024 | `XrdProto::maxRvecsz` |
+| Write/read pipeline depth | `brix_pipeline_depth` | 8 (clamp 1–64) | n/a |
+| Read compression | `brix_read_compress` | off | n/a |
+| Write compression | `brix_write_compress` | off | n/a |
+| Slice cache | `brix_cache_slice` | off | (PFC, separate) |
 | Memory budget | `memory_budget` | 768 MiB | n/a (per-worker buffers) |
 | Async I/O (official) | — | — | `xrootd.async maxperlnk/maxsegs/minsz/...` |
 
@@ -480,7 +480,7 @@ CRC paths never compress.
 
 ## Source references
 
-**Official XRootD** (`/tmp/xrootd-src/src/`):
+**Official XRootD** (`/tmp/brix-src/src/`):
 
 - `XrdXrootd/XrdXrootdXeq.cc` — `do_Read:2543`, `do_ReadV:2746`, `do_Sync:3210`,
   `do_Write:3310`, `do_CKsum:436/513`; sendfile gate `:2588`; `SendFile:3832`.
@@ -508,7 +508,7 @@ CRC paths never compress.
 - `read/read.c:66-499` — read dispatch, sendfile/kTLS gate, warm-cache probe,
   windowed streaming.
 - `read/readv.c:54-466` — readv caps, two-phase layout, coalesced preadv.
-- `read/pgread.c:56-367` — pgread framing; `xrootd_pgread_read_encode_inplace:88`
+- `read/pgread.c:56-367` — pgread framing; `brix_pgread_read_encode_inplace:88`
   (gapped preadv + in-place 3-way CRC).
 - `read/read_compress.c:110-228` — opt-in read compression.
 - `write/write.c:67-203` — write path, pipelining gate.

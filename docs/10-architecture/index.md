@@ -31,10 +31,10 @@ nginx module code also tends to split configuration by lifecycle:
 
 | Phase | What happens |
 |---|---|
-| Config parsing | Directives are read and stored in `ngx_stream_xrootd_srv_conf_t` or the relevant HTTP location conf |
+| Config parsing | Directives are read and stored in `ngx_stream_brix_srv_conf_t` or the relevant HTTP location conf |
 | Postconfiguration | SSL contexts, module hooks, and shared settings are finalized |
 | Worker init | Per-worker timers or runtime objects can be started |
-| Connection/request runtime | `xrootd_ctx_t` or WebDAV request context carries live state |
+| Connection/request runtime | `brix_ctx_t` or WebDAV request context carries live state |
 
 If you are new to nginx, this explains why the code does not look like a
 single blocking server loop. There is no `while (accept()) { read(); write(); }`
@@ -85,18 +85,18 @@ requests enter through nginx HTTP and land under `src/protocols/webdav/`.
 
 | URL | nginx block | Main state object | Main source directories |
 |---|---|---|---|
-| `root://host//path` | `stream { server { xrootd on; } }` | `xrootd_ctx_t` | `connection/`, `handshake/`, `session/`, `read/`, `write/` |
-| `roots://host//path` | `stream { listen ... ssl; xrootd on; }` or native TLS upgrade | `xrootd_ctx_t` plus `c->ssl` | same native path, with TLS in `connection/tls.c` |
-| `http://host/path` | `http { location { xrootd_webdav on; } }` | `ngx_http_xrootd_webdav_req_ctx_t` | `webdav/` |
-| `https://host/path` | `http { listen ... ssl; location { xrootd_webdav on; } }` | `ngx_http_xrootd_webdav_req_ctx_t` plus `r->connection->ssl` | `webdav/`, plus nginx HTTP SSL |
-| `davs://host/path` | XRootD client WebDAV mode over HTTPS; same nginx block as `https://` WebDAV | `ngx_http_xrootd_webdav_req_ctx_t` plus `r->connection->ssl` | `webdav/`, plus nginx HTTP SSL |
-| `s3://host/bucket/key` in clients, or `https://host/bucket/key` on the wire | `http { location { xrootd_s3 on; } }` | `ngx_http_request_t` plus `ngx_http_s3_loc_conf_t` | `s3/` |
-| `/metrics` | `http { location { xrootd_metrics on; } }` | HTTP request | `metrics/` |
+| `root://host//path` | `stream { server { xrootd on; } }` | `brix_ctx_t` | `connection/`, `handshake/`, `session/`, `read/`, `write/` |
+| `roots://host//path` | `stream { listen ... ssl; xrootd on; }` or native TLS upgrade | `brix_ctx_t` plus `c->ssl` | same native path, with TLS in `connection/tls.c` |
+| `http://host/path` | `http { location { brix_webdav on; } }` | `ngx_http_brix_webdav_req_ctx_t` | `webdav/` |
+| `https://host/path` | `http { listen ... ssl; location { brix_webdav on; } }` | `ngx_http_brix_webdav_req_ctx_t` plus `r->connection->ssl` | `webdav/`, plus nginx HTTP SSL |
+| `davs://host/path` | XRootD client WebDAV mode over HTTPS; same nginx block as `https://` WebDAV | `ngx_http_brix_webdav_req_ctx_t` plus `r->connection->ssl` | `webdav/`, plus nginx HTTP SSL |
+| `s3://host/bucket/key` in clients, or `https://host/bucket/key` on the wire | `http { location { brix_s3 on; } }` | `ngx_http_request_t` plus `ngx_http_s3_loc_conf_t` | `s3/` |
+| `/metrics` | `http { location { brix_metrics on; } }` | HTTP request | `metrics/` |
 
 When debugging, start by identifying both the URL scheme and the configured
 nginx location. A `davs://` URL is WebDAV over HTTPS from nginx's point of
 view. S3 clients also use HTTP(S) on the wire, but a location with
-`xrootd_s3 on;` dispatches to `src/protocols/s3/` instead of `src/protocols/webdav/`. A
+`brix_s3 on;` dispatches to `src/protocols/s3/` instead of `src/protocols/webdav/`. A
 `root://` bug and an HTTPS/WebDAV/S3 bug may touch the same filesystem, CA
 bundle, and user credential, but they travel through different nginx modules
 and different code.
@@ -117,7 +117,7 @@ and different code.
       |                   |        |          |          |
       +---------+---------+        |          |          |
                 |                  |          |          |
-          xrootd_ctx_t       WebDAV req   S3 loc    counters
+          brix_ctx_t       WebDAV req   S3 loc    counters
                 |              ctx         conf
                 |                  |          |
                 +------------------+----------+
@@ -132,7 +132,7 @@ and different code.
 ```
 
 All four file-serving protocols converge on **one** data plane: the protocol
-handler populates an `xrootd_vfs_ctx_t` and calls the VFS (`src/fs/`), which applies
+handler populates an `brix_vfs_ctx_t` and calls the VFS (`src/fs/`), which applies
 confinement, metrics, caching and page-CRC once, then calls the storage driver
 (`src/fs/backend/`, POSIX by default) for the raw syscall — so the data path is
 `proto → VFS → backend` for `root://`, WebDAV, and S3 alike. See the [data-plane section of the architecture

@@ -25,8 +25,8 @@ as part of the current documentation expansion effort:
   code style, test requirements, dispatch routing table, adding a WebDAV method,
   adding an S3 endpoint.
 
-- [x] **`docs/reference/types.md`** — Core type reference: `xrootd_ctx_t` field groups,
-  `xrootd_file_t` fd/path/ckp_path ownership, `ngx_stream_xrootd_srv_conf_t`
+- [x] **`docs/reference/types.md`** — Core type reference: `brix_ctx_t` field groups,
+  `brix_file_t` fd/path/ckp_path ownership, `ngx_stream_brix_srv_conf_t`
   read-only vs mutable fields, nginx pool allocation patterns.
 
 - [x] **`docs/getting-started.md`** — Expanded with WebDAV quickstart (step 7),
@@ -97,9 +97,9 @@ redirector, and cache. Split into:
 
 | New file | Directives it contains |
 |---|---|
-| `config/manager_map.c` | `xrootd_manager_map` and related directives |
-| `upstream/directives.c` | `xrootd_upstream_*` directives |
-| `cache/directives.c` | `xrootd_cache_*` directives |
+| `config/manager_map.c` | `brix_manager_map` and related directives |
+| `upstream/directives.c` | `brix_upstream_*` directives |
+| `cache/directives.c` | `brix_cache_*` directives |
 
 After the moves, `config/` should contain only:
 `config.h`, `helpers.c`, `server_conf.c`, `policy.c`, `postconfiguration.c`,
@@ -116,7 +116,7 @@ Each file listed here contains two or more clearly separable concepts. The goal
 is: a contributor can open a file and immediately understand its single
 responsibility from its name and the first function signature.
 
-**Target: no file longer than ~300 lines** (except `ngx_xrootd_module.h` and
+**Target: no file longer than ~300 lines** (except `ngx_brix_module.h` and
 the wire-format headers, which are reference material).
 
 ### `read/open.c` (587 lines) → split into two files
@@ -139,11 +139,11 @@ Add `open_cache.c` to `config` build file; update `read/README.md` file table.
 The handler reads the directory (one concept), formats dStat stat lines
 (second concept), and formats dcksm per-entry checksums (third concept).
 
-- `dirlist/handler.c` — `xrootd_handle_dirlist`: open dir, iterate, dispatch to
+- `dirlist/handler.c` — `brix_handle_dirlist`: open dir, iterate, dispatch to
   formatters, send chunked kXR_oksofar / kXR_ok responses.
-- `dirlist/dstat.c` — `xrootd_dirlist_format_dstat`: build the
+- `dirlist/dstat.c` — `brix_dirlist_format_dstat`: build the
   `"id size flags mtime"` stat string for a single entry.
-- `dirlist/dcksm.c` — `xrootd_dirlist_format_dcksm`: build the extended stat
+- `dirlist/dcksm.c` — `brix_dirlist_format_dcksm`: build the extended stat
   string with checksum token for a single entry.
 
 Rename `dirlist/dirlist.c` → `dirlist/handler.c` with `git mv`.
@@ -159,7 +159,7 @@ a significantly more complex piece of logic.
 
 - `write/chkpoint.c` — `ckp_copy_range`, `ckp_clear_path`, `ckp_begin`,
   `ckp_commit`, `ckp_rollback`, `ckp_query`, and the top-level
-  `xrootd_handle_chkpoint` dispatcher.
+  `brix_handle_chkpoint` dispatcher.
 - `write/chkpoint_xeq.c` — `ckp_xeq` and all `ckp_xeq_*` sub-functions
   (ckp_xeq_write, ckp_xeq_pgwrite, ckp_xeq_truncate, ckp_xeq_writev).
   Declare the `ckp_xeq` prototype in a small static header or as a forward
@@ -209,40 +209,40 @@ and the generic crypto helpers. Eliminating it removes one unnecessary indirecti
 Nearly every handler ends with the same three-line sequence:
 
 ```c
-xrootd_log_access(ctx, c, "VERB", path, detail, 1, kXR_ok, NULL, bytes);
-XROOTD_OP_OK(ctx, XROOTD_OP_FOO);
-return xrootd_send_ok(ctx, c, NULL, 0);
+brix_log_access(ctx, c, "VERB", path, detail, 1, kXR_ok, NULL, bytes);
+BRIX_OP_OK(ctx, BRIX_OP_FOO);
+return brix_send_ok(ctx, c, NULL, 0);
 ```
 
 And errors follow:
 
 ```c
-xrootd_log_access(ctx, c, "VERB", path, detail, 0, errcode, msg, 0);
-XROOTD_OP_ERR(ctx, XROOTD_OP_FOO);
-return xrootd_send_error(ctx, c, errcode, msg);
+brix_log_access(ctx, c, "VERB", path, detail, 0, errcode, msg, 0);
+BRIX_OP_ERR(ctx, BRIX_OP_FOO);
+return brix_send_error(ctx, c, errcode, msg);
 ```
 
 This appears in ~30 handler callsites. A macro pair can collapse each to one
 line while keeping the same observable behaviour:
 
 ```c
-#define XROOTD_RETURN_OK(ctx, c, op, verb, path, detail, bytes)          \
+#define BRIX_RETURN_OK(ctx, c, op, verb, path, detail, bytes)          \
     do {                                                                   \
-        xrootd_log_access(ctx, c, verb, path, detail, 1, kXR_ok, NULL,   \
+        brix_log_access(ctx, c, verb, path, detail, 1, kXR_ok, NULL,   \
                           bytes);                                          \
-        XROOTD_OP_OK(ctx, op);                                            \
-        return xrootd_send_ok(ctx, c, NULL, 0);                           \
+        BRIX_OP_OK(ctx, op);                                            \
+        return brix_send_ok(ctx, c, NULL, 0);                           \
     } while (0)
 
-#define XROOTD_RETURN_ERR(ctx, c, op, verb, path, detail, code, msg)     \
+#define BRIX_RETURN_ERR(ctx, c, op, verb, path, detail, code, msg)     \
     do {                                                                   \
-        xrootd_log_access(ctx, c, verb, path, detail, 0, code, msg, 0);  \
-        XROOTD_OP_ERR(ctx, op);                                           \
-        return xrootd_send_error(ctx, c, code, msg);                      \
+        brix_log_access(ctx, c, verb, path, detail, 0, code, msg, 0);  \
+        BRIX_OP_ERR(ctx, op);                                           \
+        return brix_send_error(ctx, c, code, msg);                      \
     } while (0)
 ```
 
-Add these to `ngx_xrootd_module.h` alongside `XROOTD_OP_OK`/`XROOTD_OP_ERR`.
+Add these to `ngx_brix_module.h` alongside `BRIX_OP_OK`/`BRIX_OP_ERR`.
 Apply consistently across `write/`, `read/`, and `query/` — handlers that
 return a body other than `kXR_ok` (e.g., pgwrite status, read data) should not
 use these macros.
@@ -255,19 +255,19 @@ each subsystem. Do not mix other changes in the same commit.
 
 ## Phase 6 — Master header decomposition ✓ DONE
 
-`src/core/ngx_xrootd_module.h` (719 lines) is included by every `.c` file. Any edit
+`src/core/ngx_brix_module.h` (719 lines) is included by every `.c` file. Any edit
 to it triggers a full rebuild. Long-term, split it into focused sub-headers:
 
 | New file | Contents |
 |---|---|
-| `src/core/types/tunables.h` | `XROOTD_*` size limits, `XROOTD_OP_OK/ERR` macros |
-| `src/core/types/state.h` | `xrootd_state_t` enum, forward declarations |
-| `src/core/types/file.h` | `xrootd_file_t` struct |
-| `src/core/types/context.h` | `xrootd_ctx_t` struct (includes the above) |
-| `src/core/types/config.h` | `ngx_stream_xrootd_srv_conf_t` struct |
+| `src/core/types/tunables.h` | `BRIX_*` size limits, `BRIX_OP_OK/ERR` macros |
+| `src/core/types/state.h` | `brix_state_t` enum, forward declarations |
+| `src/core/types/file.h` | `brix_file_t` struct |
+| `src/core/types/context.h` | `brix_ctx_t` struct (includes the above) |
+| `src/core/types/config.h` | `ngx_stream_brix_srv_conf_t` struct |
 
-Keep `src/core/ngx_xrootd_module.h` as the umbrella include (include all of the
-above plus subsystem public headers). Files that only need `xrootd_file_t` can
+Keep `src/core/ngx_brix_module.h` as the umbrella include (include all of the
+above plus subsystem public headers). Files that only need `brix_file_t` can
 include `types/file.h` directly for faster incremental builds.
 
 **Defer this until Phases 1–4 are complete.** It touches every `.c` file and

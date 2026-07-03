@@ -7,7 +7,7 @@ Access log format, rotation policy, and the patterns that diagnose real client p
 ## Enable
 
 ```nginx
-xrootd_access_log /var/log/nginx/xrootd_access.log;
+brix_access_log /var/log/nginx/brix_access.log;
 ```
 
 One line is written per XRootD operation. The file is opened `O_APPEND` and is safe for multiple nginx worker processes to write concurrently.
@@ -116,7 +116,7 @@ destination path is never created half-written.
 
 ```bash
 # Rename the old log, then signal nginx to reopen
-mv /var/log/nginx/xrootd_access.log /var/log/nginx/xrootd_access.log.1
+mv /var/log/nginx/brix_access.log /var/log/nginx/brix_access.log.1
 kill -USR1 $(cat /run/nginx.pid)
 ```
 
@@ -133,7 +133,7 @@ The access log provides per-operation timing and byte counts that Prometheus cou
 ```bash
 # Find operations taking more than 500ms
 awk '$NF ~ /[0-9]+ms$/ { gsub("ms","",$NF); if ($NF+0 > 500) print }' \
-    /var/log/nginx/xrootd_access.log
+    /var/log/nginx/brix_access.log
 ```
 
 The `ms` field for `READ` and `READV` includes disk latency and any send blocking. A value significantly above what the disk hardware can sustain (e.g. >100ms for a local NVMe for a small read) points to disk contention, cache thrashing, or AIO thread-pool saturation.
@@ -142,7 +142,7 @@ The `ms` field for `READ` and `READV` includes disk latency and any send blockin
 
 ```bash
 # Print all CLOSE lines with their throughput
-grep '"CLOSE' /var/log/nginx/xrootd_access.log
+grep '"CLOSE' /var/log/nginx/brix_access.log
 ```
 
 The `CLOSE` line reports the throughput achieved for the file handle's lifetime. Compare it to the `DISCONNECT` line on the same IP for session-level throughput. A large gap between the two on a session with multiple files means some files transferred fast and some slow, which can indicate cache cold-start effects or network bursts.
@@ -155,7 +155,7 @@ A high rate of `LOGIN` lines without subsequent `OPEN` lines on the same IP mean
 
 ```bash
 # Show all ERR lines grouped by identity
-awk '/ERR/ { print $3 }' /var/log/nginx/xrootd_access.log | sort | uniq -c | sort -rn
+awk '/ERR/ { print $3 }' /var/log/nginx/brix_access.log | sort | uniq -c | sort -rn
 ```
 
 If one DN accounts for the majority of errors, the problem is credential- or path-specific. If errors are spread uniformly across identities, it is more likely a server-side condition (full disk, I/O error, config change).

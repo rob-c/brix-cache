@@ -110,7 +110,7 @@ XRootD client (xrdcp, ROOT, Python)
         ▼
 ┌──────────────────────────────────────────┐
 │ nginx                                    │
-│  stream { xrootd on; xrootd_root /data; }│
+│  stream { xrootd on; brix_root /data; }│
 │  (this module drives the XRootD protocol)│
 └──────────────────┬───────────────────────┘
                    │  POSIX open/read/write/stat/readdir
@@ -194,7 +194,7 @@ and never will — see [Monitoring](../08-metrics-monitoring/monitoring-guide.md
 - Anonymous access, GSI/x509 proxy certificate authentication, SSS, and JWT/WLCG bearer-token authentication
 - VO-style path ACLs from VOMS proxy attributes or token `wlcg.groups`
 - In-protocol TLS upgrade (`kXR_wantTLS`) and `roots://` stream-SSL
-- Transparent XRootD proxy: lazy upstream connect, file-handle translation, opaque opcode relay, optional upstream TLS (`xrootd_proxy_upstream_tls`), bearer-token auth bridging (`xrootd_proxy_auth forward`), per-handle JSON audit log (`xrootd_proxy_audit_log`), and Prometheus proxy counters
+- Transparent XRootD proxy: lazy upstream connect, file-handle translation, opaque opcode relay, optional upstream TLS (`brix_proxy_upstream_tls`), bearer-token auth bridging (`brix_proxy_auth forward`), per-handle JSON audit log (`brix_proxy_audit_log`), and Prometheus proxy counters
 - WebDAV over HTTPS (`davs://`) including HTTP TPC and WebDAV upstream proxy mode
 - S3-compatible HTTP endpoint for GET, HEAD, PUT, DELETE, and ListObjectsV2
 - CMS manager heartbeat (registration, ping/pong, space and load reporting)
@@ -205,7 +205,7 @@ and never will — see [Monitoring](../08-metrics-monitoring/monitoring-guide.md
 
 - XrdMon UDP monitoring — deliberately not implemented and will never be added; use Prometheus
 - Legacy `kXR_gpfile`
-- host / pwd authentication (krb5 is supported via `xrootd_auth krb5`)
+- host / pwd authentication (krb5 is supported via `brix_auth krb5`)
 - Remote storage backends (HDFS, EOS, Ceph, etc.)
 
 For a complete opcode-by-opcode breakdown see [status.md](../05-operations/operation-status.md).

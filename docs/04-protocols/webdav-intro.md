@@ -1,6 +1,6 @@
 # WebDAV / HTTPS+GSI/Bearer
 
-The `ngx_http_xrootd_webdav_module` adds a WebDAV content handler to nginx's HTTP layer. Pair it with TLS, GSI proxy-certificate support, and JWT bearer-token validation, and `xrdcp` can use `davs://host:8443/` — the same transfer path Grid and WLCG workflows reach for when they prefer HTTP over native `root://`.
+The `ngx_http_brix_webdav_module` adds a WebDAV content handler to nginx's HTTP layer. Pair it with TLS, GSI proxy-certificate support, and JWT bearer-token validation, and `xrdcp` can use `davs://host:8443/` — the same transfer path Grid and WLCG workflows reach for when they prefer HTTP over native `root://`.
 
 For the full TLS implementation details across both WebDAV and native XRootD,
 see [tls.md](../03-configuration/tls-config.md). For the WebDAV fast paths and syscall-reduction work, see
@@ -33,7 +33,7 @@ TLS handshake in nginx HTTP SSL
   +-- optional client proxy certificate is captured by nginx/OpenSSL
   |
   v
-HTTP request reaches location with xrootd_webdav on
+HTTP request reaches location with brix_webdav on
   |
   v
 WebDAV auth decision
@@ -84,7 +84,7 @@ http {
         ssl_verify_depth  10;
 
         # Patch the SSL_CTX to accept RFC 3820 proxy certificates.
-        xrootd_webdav_proxy_certs on;
+        brix_webdav_proxy_certs on;
 
         # Allow uploads up to 1 GB
         client_max_body_size 1g;
@@ -92,31 +92,31 @@ http {
         access_log /var/log/nginx/webdav_access.log;
 
         location / {
-            xrootd_webdav         on;
-            xrootd_webdav_root    /data;
-            xrootd_webdav_cadir   /etc/grid-security/certificates;
-            xrootd_webdav_auth    optional;    # or: none | required
-            xrootd_webdav_allow_write on;
+            brix_webdav         on;
+            brix_webdav_root    /data;
+            brix_webdav_cadir   /etc/grid-security/certificates;
+            brix_webdav_auth    optional;    # or: none | required
+            brix_webdav_allow_write on;
 
             # Optional HTTP-TPC pull support (COPY with a Source header)
-            xrootd_webdav_tpc       on;
-            xrootd_webdav_tpc_cert  /etc/grid-security/xrd/xrdcert.pem;
-            xrootd_webdav_tpc_key   /etc/grid-security/xrd/xrdkey.pem;
+            brix_webdav_tpc       on;
+            brix_webdav_tpc_cert  /etc/grid-security/xrd/xrdcert.pem;
+            brix_webdav_tpc_key   /etc/grid-security/xrd/xrdkey.pem;
 
             # Optional OAuth2/OIDC token delegation for TPC pull/push
-            xrootd_webdav_tpc_token_endpoint https://idp.example.com/oauth2/token;
-            xrootd_webdav_tpc_token_client_id  nginx-xrootd;
-            xrootd_webdav_tpc_token_client_secret abc123secret;
-            xrootd_webdav_tpc_token_scope      storage.read;
+            brix_webdav_tpc_token_endpoint https://idp.example.com/oauth2/token;
+            brix_webdav_tpc_token_client_id  nginx-xrootd;
+            brix_webdav_tpc_token_client_secret abc123secret;
+            brix_webdav_tpc_token_scope      storage.read;
 
             # Optional bearer-token auth
-            xrootd_webdav_token_jwks     /etc/tokens/jwks.json;
-            xrootd_webdav_token_issuer   "https://idp.example.com";
-            xrootd_webdav_token_audience "my-storage";
+            brix_webdav_token_jwks     /etc/tokens/jwks.json;
+            brix_webdav_token_issuer   "https://idp.example.com";
+            brix_webdav_token_audience "my-storage";
 
             # Optional browser/CORS access
-            xrootd_webdav_cors_origin https://monitoring.example.com;
-            xrootd_webdav_cors_credentials on;
+            brix_webdav_cors_origin https://monitoring.example.com;
+            brix_webdav_cors_credentials on;
         }
     }
 }
@@ -126,6 +126,6 @@ http {
 
 ## Sub-pages
 
-- [Directives](webdav-directives.md) — all xrootd_webdav_* directive reference
+- [Directives](webdav-directives.md) — all brix_webdav_* directive reference
 - [Methods and RFC compliance](webdav-methods.md) — supported WebDAV methods, RFC 4918 compliance, curl examples
 - [HTTP Third-Party Copy](webdav-tpc.md) — HTTP-TPC push and pull, xrdcp over WebDAV, native protocol relationship

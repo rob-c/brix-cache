@@ -25,7 +25,7 @@ The module provides three ways to observe what is happening: a **Prometheus metr
    ───────────────────▶│   SHM counters · live transfer rows   │
                        └───┬──────────────┬──────────────┬─────┘
                            │              │              │
-              :9100/metrics│   :8443/xrootd/│     access_log file
+              :9100/metrics│   :8443/brix/│     access_log file
                            ▼              ▼              ▼
                   ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
                   │ PROMETHEUS  │  │ DASHBOARD   │  │ ACCESS LOG  │
@@ -65,7 +65,7 @@ from the Prometheus `/metrics` endpoint: Prometheus scrapes low-cardinality
 counters for long-term storage, while the dashboard renders a short-lived view of
 active transfers and aggregate byte/connection totals.
 
-Mount the dashboard at `/xrootd/` on a TLS-enabled admin location:
+Mount the dashboard at `/brix/` on a TLS-enabled admin location:
 
 ```nginx
 server {
@@ -75,14 +75,14 @@ server {
     ssl_certificate     /etc/grid-security/hostcert.pem;
     ssl_certificate_key /etc/grid-security/hostkey.pem;
 
-    location /xrootd/ {
-        xrootd_dashboard on;
-        xrootd_dashboard_password "change-me";
-        # or: xrootd_dashboard_users /etc/nginx/xrootd-dashboard.htpasswd;
-        xrootd_dashboard_session_ttl 8h;
-        xrootd_dashboard_idle_threshold 5s;
-        xrootd_dashboard_stalled_threshold 60s;
-        xrootd_dashboard_cluster_stale_after 90s;
+    location /brix/ {
+        brix_dashboard on;
+        brix_dashboard_password "change-me";
+        # or: brix_dashboard_users /etc/nginx/brix-dashboard.htpasswd;
+        brix_dashboard_session_ttl 8h;
+        brix_dashboard_idle_threshold 5s;
+        brix_dashboard_stalled_threshold 60s;
+        brix_dashboard_cluster_stale_after 90s;
 
         # Recommended for production: restrict to an admin network or VPN.
         # allow 192.0.2.0/24;
@@ -95,18 +95,18 @@ Once enabled, use these URLs:
 
 | URL | Purpose |
 |---|---|
-| `https://storage.example.org:8443/xrootd/` | Embedded dashboard page |
-| `https://storage.example.org:8443/xrootd/login` | Password login form |
-| `https://storage.example.org:8443/xrootd/transfers` | Compatibility JSON transfer list |
-| `https://storage.example.org:8443/xrootd/api/v1/snapshot` | Versioned full JSON snapshot |
-| `https://storage.example.org:8443/xrootd/api/v1/transfers/<id>` | One active transfer detail row |
-| `https://storage.example.org:8443/xrootd/api/v1/events` | Recent bounded dashboard event ring |
-| `https://storage.example.org:8443/xrootd/api/v1/history` | Bounded short-term history buckets |
-| `https://storage.example.org:8443/xrootd/api/v1/cache` | Cache and write-through health |
-| `https://storage.example.org:8443/xrootd/api/v1/cluster` | Manager registry health snapshot |
+| `https://storage.example.org:8443/brix/` | Embedded dashboard page |
+| `https://storage.example.org:8443/brix/login` | Password login form |
+| `https://storage.example.org:8443/brix/transfers` | Compatibility JSON transfer list |
+| `https://storage.example.org:8443/brix/api/v1/snapshot` | Versioned full JSON snapshot |
+| `https://storage.example.org:8443/brix/api/v1/transfers/<id>` | One active transfer detail row |
+| `https://storage.example.org:8443/brix/api/v1/events` | Recent bounded dashboard event ring |
+| `https://storage.example.org:8443/brix/api/v1/history` | Bounded short-term history buckets |
+| `https://storage.example.org:8443/brix/api/v1/cache` | Cache and write-through health |
+| `https://storage.example.org:8443/brix/api/v1/cluster` | Manager registry health snapshot |
 
-The dashboard page polls `/xrootd/api/v1/snapshot` for the rich view and keeps
-`/xrootd/transfers` available for older tooling. The live table shows native
+The dashboard page polls `/brix/api/v1/snapshot` for the rich view and keeps
+`/brix/transfers` available for older tooling. The live table shows native
 XRootD, WebDAV, S3, and HTTP-TPC transfers with client address, authenticated
 identity, path, protocol, direction, operation, state, bytes, idle time, and
 rate. The page also includes protocol summary cards, cache/write-through health,
@@ -118,21 +118,21 @@ Security expectations:
 
 - Serve the dashboard only over HTTPS. The login cookie is marked `Secure`,
   `HttpOnly`, and `SameSite=Strict`.
-- Always set `xrootd_dashboard_password`; without it, the dashboard location is
+- Always set `brix_dashboard_password`; without it, the dashboard location is
   treated as unauthenticated. For named operators, use
-  `xrootd_dashboard_users` with an htpasswd-like `user:hash` file instead.
+  `brix_dashboard_users` with an htpasswd-like `user:hash` file instead.
 - Keep the dashboard behind an admin network, VPN, firewall, or nginx
   `allow`/`deny` rules. It exposes operationally sensitive data such as active
   file paths, client addresses, and authenticated identities.
-- Mount it at `/xrootd/`, not at `/`, because the dashboard page, login
-  redirect, JSON polling path, and cookie path are tied to `/xrootd`.
+- Mount it at `/brix/`, not at `/`, because the dashboard page, login
+  redirect, JSON polling path, and cookie path are tied to `/brix`.
 
 ### Access Logging
 
 Per-request access logs record every XRootD operation with timing and byte counts:
 
 ```nginx
-xrootd_access_log /var/log/nginx/xrootd_access.log;
+brix_access_log /var/log/nginx/brix_access.log;
 ```
 
 ---

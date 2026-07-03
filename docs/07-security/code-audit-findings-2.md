@@ -29,8 +29,8 @@ could not be confirmed by direct code reading are marked `[NEEDS VERIFICATION]`.
 | [G-10](#g-10-jwt-nbf-no-clock-skew-tolerance) | **Low** | Token auth | JWT `nbf` check has zero clock-skew tolerance | **FIXED** |
 
 **Defenses confirmed adequate (no further action needed):**
-- kXR_readv total size cap at 256 MB (`XROOTD_MAX_READV_TOTAL`) fires before any 64-bit overflow
-- `xrootd_validate_read_handle` / `xrootd_ensure_read_handle` both check `handle_index >= 0 && handle_index < XROOTD_MAX_FILES` before array access
+- kXR_readv total size cap at 256 MB (`BRIX_MAX_READV_TOTAL`) fires before any 64-bit overflow
+- `brix_validate_read_handle` / `brix_ensure_read_handle` both check `handle_index >= 0 && handle_index < BRIX_MAX_FILES` before array access
 - pgwrite overflow check (line 152) correctly guards against `page_offset + page_data` wrapping `int64_t`
 - kXR_bind security: session registry entry is only inserted after `auth_done` (`kXR_auth` success), so a secondary cannot bind to a primary that has not yet authenticated
 - JWT `alg:none` bypass: correctly blocked by strict `strcmp` against "RS256" and "ES256" before touching the signature
@@ -167,7 +167,7 @@ recurse.  **Alternating-type nesting** (e.g., `[{[{[{...`) causes a recursive ca
 on every opening brace/bracket of the opposite type: each `[` inside `{` produces a
 stack frame; each `{` inside that `[` produces another.
 
-The JWT payload is accepted up to `XROOTD_MAX_AUTH_PAYLOAD = 32 KB`.  A malicious
+The JWT payload is accepted up to `BRIX_MAX_AUTH_PAYLOAD = 32 KB`.  A malicious
 token body of 32 KB structured as `[{"a":[{"a":[...` produces approximately
 `32768 / 6 ≈ 5460` alternating-type nesting levels, each consuming a stack frame.
 At ~160 bytes per frame, total stack usage is ~870 KB, well within the nginx worker
@@ -175,7 +175,7 @@ stack limit (typically 8 MB).  However with tighter packing (`[{` = 2 bytes per
 level), a 32 KB body can produce **16384 levels** consuming ~2.6 MB of stack —
 sufficient to overflow in workers that have other deep call stacks at the time.
 
-The critical path is: `xrootd_handle_auth` → token validation → `json_get_string`
+The critical path is: `brix_handle_auth` → token validation → `json_get_string`
 → `json_skip_value` → `json_skip_compound` → recursion.  An unauthenticated
 attacker submits a single `kXR_auth` or HTTP `Authorization: Bearer …` request
 with a maliciously crafted JWT — no prior authentication required.
@@ -298,7 +298,7 @@ if (expected_audience != NULL && expected_audience[0]) {
 }
 ```
 
-When `xrootd_token_audience` is not set in `nginx.conf`, `expected_audience` is
+When `brix_token_audience` is not set in `nginx.conf`, `expected_audience` is
 `NULL` and any token — regardless of its `aud` claim — is accepted.
 
 In a deployment with multiple BriX-Cache instances (e.g., `cms-xrd.example.org`
@@ -318,18 +318,18 @@ access (e.g., `storage.read:/`), in which case one token works across all servic
 
 ### Fix
 
-**Option A (Recommended):** Require `xrootd_token_audience` to be set whenever
-`xrootd_auth token` or `xrootd_auth both` is configured.  Return `NGX_CONF_ERROR`
+**Option A (Recommended):** Require `brix_token_audience` to be set whenever
+`brix_auth token` or `brix_auth both` is configured.  Return `NGX_CONF_ERROR`
 during config parse if absent:
 
 ```c
 /* src/core/config/directives.c — in merge or postconfig */
-if ((xcf->auth == XROOTD_AUTH_TOKEN || xcf->auth == XROOTD_AUTH_BOTH)
+if ((xcf->auth == BRIX_AUTH_TOKEN || xcf->auth == BRIX_AUTH_BOTH)
     && xcf->token_audience.len == 0)
 {
     ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                       "xrootd_token_audience is required when "
-                       "xrootd_auth is token or both");
+                       "brix_token_audience is required when "
+                       "brix_auth is token or both");
     return NGX_CONF_ERROR;
 }
 ```
@@ -496,7 +496,7 @@ SSS authentication decrypts the client credential into a pool-allocated buffer:
 /* src/auth/sss/auth_request.c:83-93 */
 clear = ngx_palloc(c->pool, cipher_len);
 ...
-if (xrootd_sss_bf32_crypt(0, key->key, key->key_len,
+if (brix_sss_bf32_crypt(0, key->key, key->key_len,
                            cipher, cipher_len, clear, cipher_len, &out_len)
     != NGX_OK)
     ...
@@ -551,7 +551,7 @@ and then opens the file with `fopen()`:
 ```c
 /* src/auth/sss/config.c:366-395 */
 if (stat((const char *) xcf->sss_keytab.data, &st) != 0) { ... }
-if (xrootd_sss_keytab_mode_ok(..., st.st_mode) != NGX_OK) { ... }
+if (brix_sss_keytab_mode_ok(..., st.st_mode) != NGX_OK) { ... }
 fp = fopen((const char *) xcf->sss_keytab.data, "r");
 ```
 
@@ -578,7 +578,7 @@ Use `open(O_NOFOLLOW)` to open the file without following symlinks, then use
 int fd = open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
 if (fd < 0) { ... }
 if (fstat(fd, &st) != 0) { close(fd); ... }
-if (!xrootd_sss_keytab_mode_ok(path, st.st_mode)) { close(fd); ... }
+if (!brix_sss_keytab_mode_ok(path, st.st_mode)) { close(fd); ... }
 fp = fdopen(fd, "r");  /* takes ownership of fd */
 ```
 
@@ -599,7 +599,7 @@ The JWT "not before" (`nbf`) claim is enforced with zero tolerance:
 /* src/auth/token/validate.c:345-349 */
 if (claims->nbf > 0 && now < (time_t) claims->nbf) {
     ngx_log_error(NGX_LOG_WARN, log, 0,
-                  "xrootd_token: token not yet valid ...");
+                  "brix_token: token not yet valid ...");
     return -1;
 }
 ```
@@ -667,7 +667,7 @@ G-06 through G-10 are defensive hygiene improvements with minimal effort.
 | G-01 | PUT object with key of 1024 `&` chars; GET `?list-type=2`; assert 200 OK and correct XML, no worker crash |
 | G-02 | Send `kXR_auth` with a JWT payload of 10K alternating `[{` nesting; assert `kXR_error` (not worker crash) |
 | G-03 | Send UNLOCK with token that shares first N bytes with a real token; verify response times for N=0,25,50 are statistically identical |
-| G-04 | Issue token with `aud: https://other-service`; assert rejection when `xrootd_token_audience` is set to a different URL |
+| G-04 | Issue token with `aud: https://other-service`; assert rejection when `brix_token_audience` is set to a different URL |
 | G-05 | Send 20 concurrent `PROPFIND Depth: infinity` requests; verify all complete (not OOM) and server remains responsive |
 
 ---
@@ -679,13 +679,13 @@ G-06 through G-10 are defensive hygiene improvements with minimal effort.
 | G-01 | `src/protocols/s3/util.c`, `src/protocols/s3/list_objects_v2.c` | Added `b->last + elen > b->end` guard inside `s3_xml_escape`; raised capacity estimate from 3× to 6× worst-case XML entity expansion |
 | G-02 | `src/auth/token/json.c` | Added `JSON_MAX_NEST_DEPTH=32`; `json_skip_compound` now delegates to `json_skip_compound_depth` which decrements a remaining-depth counter and returns `NULL` when exhausted |
 | G-03 | `src/protocols/webdav/lock.c` | Replaced `ngx_strstr` with `CRYPTO_memcmp` after stripping angle-bracket delimiters; comparison is now constant-time in token length |
-| G-04 | — | Already enforced: `src/auth/token/config.c` rejects configuration when `xrootd_auth token` is set without `xrootd_token_audience` |
+| G-04 | — | Already enforced: `src/auth/token/config.c` rejects configuration when `brix_auth token` is set without `brix_token_audience` |
 | G-05 | `docs/07-security/hardening-guide.md` | Added `limit_req_zone propfind_limit` example with `rate=2r/s burst=4` guidance for operators |
 | G-06 | `src/protocols/s3/multipart_complete_list_parts.c` | Added `mn <= MPU_MAX_PART_NUMBER` guard before `(int)` cast of `strtol` result |
 | G-07 | `src/protocols/webdav/lock.c` | Changed `webdav_generate_uuid(char *buf)` → `webdav_generate_uuid(char *buf, size_t bufsz)`; replaced `sprintf` with `snprintf` |
 | G-08 | `src/auth/sss/auth_request.c` | Added `OPENSSL_cleanse(clear, cipher_len)` immediately before `ctx->auth_done = 1` |
 | G-09 | `src/auth/sss/config.c` | Replaced `stat()` + `fopen()` with `open(O_RDONLY\|O_NOFOLLOW\|O_CLOEXEC)` + `fstat()` + `fdopen()` to close the TOCTOU window and prevent symlink substitution |
-| G-10 | `src/core/types/tunables.h`, `src/auth/token/validate.c` | Defined `XROOTD_TOKEN_CLOCK_SKEW_SECS=30`; `exp` check now allows 30 s grace after expiry, `nbf` check now allows 30 s before the not-before instant |
+| G-10 | `src/core/types/tunables.h`, `src/auth/token/validate.c` | Defined `BRIX_TOKEN_CLOCK_SKEW_SECS=30`; `exp` check now allows 30 s grace after expiry, `nbf` check now allows 30 s before the not-before instant |
 
 All changes compile cleanly against nginx 1.28.3 and pass the full `tests/test_security_hardening.py` suite.
 

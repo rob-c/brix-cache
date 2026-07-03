@@ -281,7 +281,7 @@ token = issuer.generate(scope="storage.read:/")
 # Read-write token for /data
 token = issuer.generate(scope="storage.read:/ storage.write:/data")
 
-# Token with WLCG group claims (maps to VO groups in xrootd_require_vo)
+# Token with WLCG group claims (maps to VO groups in brix_require_vo)
 token = issuer.generate(scope="storage.read:/", groups=["/cms", "/atlas"])
 
 # Custom subject and lifetime
@@ -383,8 +383,8 @@ stream {{
     server {{
         listen 127.0.0.1:{PORT};
         xrootd on;
-        xrootd_root {DATA_DIR};
-        xrootd_auth none;
+        brix_root {DATA_DIR};
+        brix_auth none;
     }}
 }}
 """
@@ -483,7 +483,7 @@ Per-test instances use auto-assigned ephemeral ports.
 | `test_opcode_coverage.py` | All 33 opcodes respond with correct status | Anonymous + GSI |
 | `test_gsi_tls.py` | GSI over `roots://` (transport TLS) | GSI proxy |
 | `test_gsi_bridge.py` | BriX-Cache ↔ reference xrootd GSI interoperability | GSI proxy |
-| `test_vo_acl.py` | `xrootd_require_vo` path-based VO enforcement | VOMS proxy (CMS, ATLAS, plain) |
+| `test_vo_acl.py` | `brix_require_vo` path-based VO enforcement | VOMS proxy (CMS, ATLAS, plain) |
 | `test_crl.py` | CRL: stream revocation, WebDAV revocation, CRL reload | GSI proxy (revoked user) |
 | `test_sigver_verify.py` | Request signing verification (`kXR_sigver`) | GSI proxy |
 | `test_session_bind.py` | `kXR_bind` parallel streams | Anonymous |
@@ -494,8 +494,8 @@ Per-test instances use auto-assigned ephemeral ports.
 | `test_webdav_clients.py` | `curl`, `davix-get` interoperability | GSI proxy |
 | `test_http_webdav.py` | HTTP WebDAV (no TLS) | Anonymous |
 | `test_root_tpc.py` | XRootD TPC pull (`kXR_open` with TPC options) | Anonymous + GSI |
-| `test_upstream_redirect.py` | `xrootd_upstream` proxy: redirect, wait, waitresp, error | Anonymous |
-| `test_manager_mode.py` | Static `xrootd_manager_map` + live two-tier cluster | Anonymous |
+| `test_upstream_redirect.py` | `brix_upstream` proxy: redirect, wait, waitresp, error | Anonymous |
+| `test_manager_mode.py` | Static `brix_manager_map` + live two-tier cluster | Anonymous |
 | `test_cms.py` | CMS heartbeat protocol (outbound client) | — |
 | `test_metrics.py` | Prometheus `/metrics` endpoint: counters, labels | Anonymous |
 | `test_protocol_edge_cases.py` | Malformed requests, connection reuse, pipelining | Anonymous |

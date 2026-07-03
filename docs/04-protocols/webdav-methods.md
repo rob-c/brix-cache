@@ -12,7 +12,7 @@ Every HTTP method the WebDAV module handles, what RFC it follows, and any nginx-
 | `PUT` | Upload; body is written to a staging temp file and **atomically renamed onto the target** on completion (an interrupted PUT never leaves a half-written object). Returns 201 on create, 204 on overwrite |
 | `DELETE` | Removes files and empty directories |
 | `MKCOL` | Creates a directory; trailing slash in URL is accepted |
-| `COPY` | Server-side local copy (RFC 4918 §9.8) when `xrootd_webdav_allow_write on`; HTTP-TPC pull (`Source:` header) or push (`Destination: https://…` header) when `xrootd_webdav_tpc on` |
+| `COPY` | Server-side local copy (RFC 4918 §9.8) when `brix_webdav_allow_write on`; HTTP-TPC pull (`Source:` header) or push (`Destination: https://…` header) when `brix_webdav_tpc on` |
 | `PROPFIND` | `Depth: 0` for stat, `Depth: 1` for directory listing; returns `207 Multi-Status` XML |
 | `LOCK` | Acquire or refresh an exclusive write lock for a resource |
 | `UNLOCK` | Release a previously held exclusive write lock |
@@ -100,7 +100,7 @@ All previously identified RFC compliance gaps have been fixed:
 
 | Feature | RFC | Fix |
 |---|---|---|
-| ETag in GET/HEAD responses | RFC 7232 §2.3 | `W/"mtime-size"` weak ETag added by `xrootd_http_add_etag_header()` in `src/core/compat/http_file_response.c` |
+| ETag in GET/HEAD responses | RFC 7232 §2.3 | `W/"mtime-size"` weak ETag added by `brix_http_add_etag_header()` in `src/core/compat/http_file_response.c` |
 | `If-Modified-Since` on GET → 304 | RFC 7232 §3.3 | Direct check in `src/protocols/webdav/get.c` before range processing |
 | `If-None-Match: *` on PUT to existing → 412 | RFC 7232 §3.2 | Pre-open check in `src/protocols/webdav/put.c` |
 | `If-Match: <wrong>` on PUT → 412 | RFC 7232 §3.1 | Pre-open ETag comparison in `src/protocols/webdav/put.c` |

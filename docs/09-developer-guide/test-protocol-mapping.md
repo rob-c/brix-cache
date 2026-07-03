@@ -83,7 +83,7 @@ This document maps the testing suite in `tests/` to the XRootD protocol specific
 | `test_xrdcp_root_anon_compare.py` | Client | xrdcp anon compare | Agnostic |
 | `test_xrdhttp_conformance.py` | HTTP | XRootD/HTTP conf | Agnostic |
 | `test_xrdhttp.py` | HTTP | XRootD/HTTP | Agnostic |
-| `test_xrootd_performance_conformance.py` | Protocol | Perf conformance | Agnostic |
+| `test_brix_performance_conformance.py` | Protocol | Perf conformance | Agnostic |
 | `test_xrootd.py` | Protocol | XRootD core | Agnostic |
 | `tpc_parse_helpers.py` | TPC/Helpers | TPC parsing helpers | Agnostic |
 | `upstream_protocol_stubs.py` | Infrastructure | Protocol stubs | Agnostic |
@@ -109,7 +109,7 @@ This document maps the testing suite in `tests/` to the XRootD protocol specific
 | `test_path_depth_guards.py` | Security/FS | Path depth guards | Nginx-Specific |
 | `test_proxy_mode.py` | Proxy | Proxy mode | Nginx-Specific |
 | `test_s3_metrics.py` | S3/Metrics | S3 metrics | Nginx-Specific |
-| `test_s3_xrootd_gateway.py` | S3/Gateway | S3 XRootD gateway | Nginx-Specific |
+| `test_s3_brix_gateway.py` | S3/Gateway | S3 XRootD gateway | Nginx-Specific |
 | `test_vo_acl.py` | Security/ACL | VO ACLs | Nginx-Specific |
 | `test_webdav_auth_cache.py` | WebDAV/Auth | WebDAV auth cache | Nginx-Specific |
 | `test_webdav_http_security.py` | WebDAV/Security | WebDAV security | Nginx-Specific |

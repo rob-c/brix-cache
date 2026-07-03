@@ -60,8 +60,8 @@ This uses `packaging/rpm/Dockerfile.alma9` which builds on AlmaLinux 9 with EPEL
 rpm -ivh ./rpm-output/nginx-mod-brix-cache-*.rpm
 
 # Or manually copy if you built from source:
-cp objs/ngx_stream_xrootd_module.so /usr/lib64/nginx/modules/
-cp objs/ngx_http_xrootd_webdav_module.so /usr/lib64/nginx/modules/
+cp objs/ngx_stream_brix_module.so /usr/lib64/nginx/modules/
+cp objs/ngx_http_brix_webdav_module.so /usr/lib64/nginx/modules/
 ```
 
 ---
@@ -142,53 +142,53 @@ worker_processes 1;
 error_log /tmp/xrd-test/logs/error.log info;
 pid /tmp/xrd-test/logs/nginx.pid;
 
-load_module /usr/lib64/nginx/modules/ngx_stream_xrootd_module.so;
-load_module /usr/lib64/nginx/modules/ngx_http_xrootd_webdav_module.so;
+load_module /usr/lib64/nginx/modules/ngx_stream_brix_module.so;
+load_module /usr/lib64/nginx/modules/ngx_http_brix_webdav_module.so;
 
 stream {
     # Anonymous XRootD (no auth) — port 11094
     server {
         listen 11094;
         xrootd on;
-        xrootd_root /tmp/xrd-test/data;
-        xrootd_access_log /tmp/xrd-test/logs/xrootd_access_anon.log;
+        brix_root /tmp/xrd-test/data;
+        brix_access_log /tmp/xrd-test/logs/brix_access_anon.log;
     }
 
     # GSI auth (x509 proxy certificate) — port 11095
     server {
         listen 11095;
         xrootd on;
-        xrootd_root /tmp/xrd-test/data;
-        xrootd_certificate     /tmp/xrd-test/pki/server/hostcert.pem;
-        xrootd_certificate_key /tmp/xrd-test/pki/server/hostkey.pem;
-        xrootd_trusted_ca      /tmp/xrd-test/pki/ca/ca.pem;
-        xrootd_access_log /tmp/xrd-test/logs/xrootd_access_gsi.log;
+        brix_root /tmp/xrd-test/data;
+        brix_certificate     /tmp/xrd-test/pki/server/hostcert.pem;
+        brix_certificate_key /tmp/xrd-test/pki/server/hostkey.pem;
+        brix_trusted_ca      /tmp/xrd-test/pki/ca/ca.pem;
+        brix_access_log /tmp/xrd-test/logs/brix_access_gsi.log;
     }
 
     # GSI + TLS (encrypted channel with proxy cert) — port 11096
     server {
         listen 11096 ssl;
         xrootd on;
-        xrootd_root /tmp/xrd-test/data;
-        xrootd_certificate     /tmp/xrd-test/pki/server/hostcert.pem;
-        xrootd_certificate_key /tmp/xrd-test/pki/server/hostkey.pem;
-        xrootd_trusted_ca      /tmp/xrd-test/pki/ca/ca.pem;
+        brix_root /tmp/xrd-test/data;
+        brix_certificate     /tmp/xrd-test/pki/server/hostcert.pem;
+        brix_certificate_key /tmp/xrd-test/pki/server/hostkey.pem;
+        brix_trusted_ca      /tmp/xrd-test/pki/ca/ca.pem;
         ssl_certificate        /tmp/xrd-test/pki/server/hostcert.pem;
         ssl_certificate_key    /tmp/xrd-test/pki/server/hostkey.pem;
-        xrootd_access_log /tmp/xrd-test/logs/xrootd_access_gsi_tls.log;
+        brix_access_log /tmp/xrd-test/logs/brix_access_gsi_tls.log;
     }
 
     # JWT token auth — port 11097
     server {
         listen 11097;
         xrootd on;
-        xrootd_root /tmp/xrd-test/data;
-        xrootd_auth token;
-        xrootd_allow_write on;
-        xrootd_token_jwks     /tmp/xrd-test/tokens/jwks.json;
-        xrootd_token_issuer   "https://test.example.com";
-        xrootd_token_audience "nginx-xrootd";
-        xrootd_access_log /tmp/xrd-test/logs/xrootd_access_token.log;
+        brix_root /tmp/xrd-test/data;
+        brix_auth token;
+        brix_allow_write on;
+        brix_token_jwks     /tmp/xrd-test/tokens/jwks.json;
+        brix_token_issuer   "https://test.example.com";
+        brix_token_audience "nginx-xrootd";
+        brix_access_log /tmp/xrd-test/logs/brix_access_token.log;
     }
 }
 
@@ -202,14 +202,14 @@ http {
         ssl_certificate_key /tmp/xrd-test/pki/server/hostkey.pem;
 
         location / {
-            xrootd_webdav         on;
-            xrootd_webdav_root    /tmp/xrd-test/data;
-            xrootd_webdav_auth    optional;
-            xrootd_webdav_allow_write on;
+            brix_webdav         on;
+            brix_webdav_root    /tmp/xrd-test/data;
+            brix_webdav_auth    optional;
+            brix_webdav_allow_write on;
 
-            xrootd_webdav_token_jwks     /tmp/xrd-test/tokens/jwks.json;
-            xrootd_webdav_token_issuer   "https://test.example.com";
-            xrootd_webdav_token_audience "nginx-xrootd";
+            brix_webdav_token_jwks     /tmp/xrd-test/tokens/jwks.json;
+            brix_webdav_token_issuer   "https://test.example.com";
+            brix_webdav_token_audience "nginx-xrootd";
         }
     }
 
@@ -219,9 +219,9 @@ http {
         server_name localhost;
 
         location / {
-            xrootd_s3         on;
-            xrootd_s3_root    /tmp/xrd-test/s3-data;
-            xrootd_s3_bucket  test-bucket;
+            brix_s3         on;
+            brix_s3_root    /tmp/xrd-test/s3-data;
+            brix_s3_bucket  test-bucket;
         }
     }
 
@@ -231,7 +231,7 @@ http {
         server_name localhost;
 
         location /metrics {
-            xrootd_metrics on;
+            brix_metrics on;
         }
     }
 }
@@ -305,9 +305,9 @@ curl http://localhost:9100/metrics | grep xrootd
 ```
 
 You will see counters like:
-- `xrootd_requests_total{op="stat",status="OK"}` — stat operations completed successfully
-- `xrootd_bytes_sent_total{proto="stream"}` — bytes transferred over XRootD stream
-- `xrootd_bytes_received_total{proto="stream"}` — bytes uploaded via XRootD stream
+- `brix_requests_total{op="stat",status="OK"}` — stat operations completed successfully
+- `brix_bytes_sent_total{proto="stream"}` — bytes transferred over XRootD stream
+- `brix_bytes_received_total{proto="stream"}` — bytes uploaded via XRootD stream
 
 For HTTPS dashboard access: configure SSL on port 9100 with the same host cert/key.
 
@@ -389,7 +389,7 @@ curl http://localhost:9001/test-bucket/
 | `xrdcp` says "authentication failure" on GSI port | Ensure `X509_USER_PROXY` points to a valid proxy cert within its lifetime; check it was signed by the CA at `/tmp/xrd-test/pki/ca/ca.pem` |
 | curl returns 401/403 on HTTPS | Token missing or expired; use `--scope "storage.read:/"` for GET, `"storage.write:/"` for PUT. Check token expiry with `utils/inspect_token.py` |
 | nginx won't start | Verify all cert/key paths exist and JWKS file exists (`python3 utils/make_token.py init /tmp/xrd-test/tokens`) |
-| Write denied even with valid token | Server must have `xrootd_allow_write on` (stream) or `xrootd_webdav_allow_write on` (WebDAV); token scope must include `storage.write:PATH` |
+| Write denied even with valid token | Server must have `brix_allow_write on` (stream) or `brix_webdav_allow_write on` (WebDAV); token scope must include `storage.write:PATH` |
 | Metrics endpoint empty | Port 9100 must be listening; check `ss -tlnp \| grep 9100` |
 
 ---

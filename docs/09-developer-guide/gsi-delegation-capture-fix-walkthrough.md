@@ -7,7 +7,7 @@
 **Companion:** [`gsi-delegation-capture-investigation.md`](gsi-delegation-capture-investigation.md)
 (the terse root-cause record; this file is the long-form narrative of *how* it was found).
 
-> **TL;DR.** Our nginx XRootD server (as a TPC destination with `xrootd_tpc_delegate on`)
+> **TL;DR.** Our nginx XRootD server (as a TPC destination with `brix_tpc_delegate on`)
 > could not capture a delegated X.509 proxy from a stock `xrdcp` client. Three independent
 > problems stacked on top of each other and masked one another: (1) a **test-PKI confound**
 > (certs lacked `keyUsage`), (2) a **real server bug** in proxy-chain verification
@@ -37,12 +37,12 @@ client  --kXGC_sigpxy-> server        (client: "here is your signed delegated pr
 ```
 
 Our implementation lives in `src/auth/gsi/delegation.c`:
-`xrootd_gsi_begin_delegation()` builds and sends the `kXGS_pxyreq`;
-`xrootd_gsi_handle_sigpxy()` consumes the `kXGC_sigpxy` and assembles the credential.
+`brix_gsi_begin_delegation()` builds and sends the `kXGS_pxyreq`;
+`brix_gsi_handle_sigpxy()` consumes the `kXGC_sigpxy` and assembles the credential.
 
 ## 2. The symptom
 
-With `xrootd_tpc_delegate on`, the handshake reached `kXGC_sigpxy` but our server logged:
+With `brix_tpc_delegate on`, the handshake reached `kXGC_sigpxy` but our server logged:
 
 ```
 xrootd: GSI delegation: sent kXGS_pxyreq (awaiting signed proxy)
@@ -67,8 +67,8 @@ evidence sources were:
   `XrdSutBuffer` (bucket types, encrypted/plaintext, step names).
 * **A working reference** — the *same* stock client delegating to a *stock* `xrootd` source,
   captured the same way, to diff against.
-* **The authoritative stock source** at `/tmp/xrootd-src/src/XrdSecgsi/XrdSecProtocolgsi.cc`
-  and `/tmp/xrootd-src/src/XrdCrypto/XrdCryptosslX509Req.cc` — read, not guessed.
+* **The authoritative stock source** at `/tmp/brix-src/src/XrdSecgsi/XrdSecProtocolgsi.cc`
+  and `/tmp/brix-src/src/XrdCrypto/XrdCryptosslX509Req.cc` — read, not guessed.
 * **Small standalone C probes** compiled against the system OpenSSL to confirm exact error
   codes, and **Python bucket parsers** to decode the decrypted GSI buffers byte-by-byte.
 
@@ -225,19 +225,19 @@ if (!PEM_read_bio_X509_REQ(bmem,&creq,0,0)) {
 }
 ```
 
-The stock client parses the `kXRS_x509_req` bucket as **PEM**. But `xrootd_gsi_build_pxyreq`
+The stock client parses the `kXRS_x509_req` bucket as **PEM**. But `brix_gsi_build_pxyreq`
 emits **DER** (`i2d_X509_REQ`), and `delegation.c` put that DER straight on the wire:
 
 ```c
-xrootd_gbuf_bucket(&b.inner, kXRS_x509_req, b.req_der, b.req_len);   /* DER — wrong */
+brix_gbuf_bucket(&b.inner, kXRS_x509_req, b.req_der, b.req_len);   /* DER — wrong */
 ```
 
 A DER blob is not valid PEM, so `PEM_read_bio_X509_REQ` returns NULL and the client declines.
 This was the true, decisive defect — the AKID/SKID and keyUsage fixes were prerequisites that
 merely let the handshake *reach* this point.
 
-**Why the DER output is correct to keep:** `xrootd_gsi_build_pxyreq`'s DER is consumed as DER by
-`xrootd_gsi_sign_pxyreq` (our own outbound-signing path) and by `proxy_req_unittest.c`
+**Why the DER output is correct to keep:** `brix_gsi_build_pxyreq`'s DER is consumed as DER by
+`brix_gsi_sign_pxyreq` (our own outbound-signing path) and by `proxy_req_unittest.c`
 (`d2i_X509_REQ`). Changing the core to PEM would break those. The encoding is a **wire-format**
 concern, so the conversion belongs at the wire edge in `delegation.c`.
 
@@ -253,8 +253,8 @@ A small DER→PEM converter, applied to the request before it enters the `kXRS_x
 /*
  * Re-encode a DER X509_REQ as PEM.  The stock XrdSecgsi client parses the
  * kXRS_x509_req bucket with PEM_read_bio_X509_REQ (XrdCryptosslX509Req), so the
- * proxy request MUST travel as PEM on the wire; xrootd_gsi_build_pxyreq emits
- * DER (consumed as DER by xrootd_gsi_sign_pxyreq and its unit tests), so the
+ * proxy request MUST travel as PEM on the wire; brix_gsi_build_pxyreq emits
+ * DER (consumed as DER by brix_gsi_sign_pxyreq and its unit tests), so the
  * conversion happens here at the wire edge rather than in the crypto core.
  */
 static u_char *
@@ -280,7 +280,7 @@ gsi_req_der_to_pem(const u_char *der, size_t der_len, size_t *pem_len)
 }
 ```
 
-Wired into `xrootd_gsi_begin_delegation()` with matching lifecycle (new `req_pem`/`req_pem_len`
+Wired into `brix_gsi_begin_delegation()` with matching lifecycle (new `req_pem`/`req_pem_len`
 fields in the owned-scratch struct, converted right after `build_pxyreq`, freed in `bdg_fail`):
 
 ```c
@@ -288,11 +288,11 @@ fields in the owned-scratch struct, converted right after `build_pxyreq`, freed 
 b.req_pem = gsi_req_der_to_pem(b.req_der, b.req_len, &b.req_pem_len);
 if (b.req_pem == NULL) { … "cannot PEM-encode proxy request" … return bdg_fail(&b); }
 …
-xrootd_gbuf_bucket(&b.inner, kXRS_x509_req, b.req_pem, b.req_pem_len);   /* PEM — correct */
+brix_gbuf_bucket(&b.inner, kXRS_x509_req, b.req_pem, b.req_pem_len);   /* PEM — correct */
 ```
 
 The receive side already matched stock: the client returns the signed proxy as PEM
-(`kXRS_x509`), and `xrootd_gsi_handle_sigpxy` → `xrootd_gsi_assemble_proxy` reads it with
+(`kXRS_x509`), and `brix_gsi_handle_sigpxy` → `brix_gsi_assemble_proxy` reads it with
 `PEM_read_bio_X509`.
 
 ### 5.2 `src/auth/crypto/pki_build.c` — proxy-tolerant issuer selection
@@ -459,7 +459,7 @@ the bytes.
 
 ## 10. The tap-proxy GSI forwarding path (client → proxy → upstream, as the user)
 
-The same capture feeds the **monitoring/MITM tap proxy** (`src/net/proxy/`, `xrootd_tap_proxy_auth
+The same capture feeds the **monitoring/MITM tap proxy** (`src/net/proxy/`, `brix_tap_proxy_auth
 gsi`): a client delegates its proxy to the tap proxy, which logs in to the *upstream* **as the
 user** and relays. Verifying this end-to-end surfaced two more issues.
 
@@ -470,13 +470,13 @@ client only arms delegation for `--tpc delegate`; on a plain read it sends `clnt
 declines. This repo's client had **no delegation-send** at all. So we implemented it (the mirror
 of the server-side capture):
 
-* **`src/auth/gsi/gsi_core.c`** — `xrootd_gsi_build_cert_response_ex` now optionally hands the agreed
+* **`src/auth/gsi/gsi_core.c`** — `brix_gsi_build_cert_response_ex` now optionally hands the agreed
   AES **session key + cipher + IV flag** back to the caller (the round-2 builder previously wiped
   them). The old signature stays as a thin wrapper, so the TPC caller is untouched.
 * **`client/lib/sec/sec_gsi.c`** — `gsi_more` retains that session cipher on the connection, and
   dispatches a follow-up `kXGS_pxyreq` step to a new **`gsi_sigpxy`** handler: it decrypts the
   server's request, PEM→DER-decodes the `kXRS_x509_req`, signs it with the client's proxy
-  (`xrootd_gsi_sign_pxyreq`), and returns an AES-encrypted `kXGC_sigpxy` carrying the signed
+  (`brix_gsi_sign_pxyreq`), and returns an AES-encrypted `kXGC_sigpxy` carrying the signed
   proxy. Gated on **`XRDC_GSI_DELEGATE=1`** — handing your credential to a server is opt-in,
   mirroring the stock `XrdSecGSIDELEGPROXY`.
 * **`shared/xrdproto/Makefile`** — `proxy_req.o` (`sign_pxyreq`) was missing from the client
@@ -487,7 +487,7 @@ of the server-side capture):
 ### 10.2 A NULL-deref crash in the forward path
 
 With the client delegating, the tap proxy **captured** the proxy — then the worker **SIGSEGV'd**
-(gdb: `xrootd_proxy_connect` at `connect_upstream.c:242`) before reaching the upstream. Cause:
+(gdb: `brix_proxy_connect` at `connect_upstream.c:242`) before reaching the upstream. Cause:
 `proxy_up_status` (the per-upstream health table) is **allocated lazily and is NULL until a
 failure marks an upstream down**; every other accessor (`mark_fail`, `is_down`) is NULL-tolerant,
 but the upstream-selection loop dereferenced it unguarded. Fix: guard the loop — a NULL table
@@ -553,7 +553,7 @@ digit, so `test_conf_query2`/`test_conf_client` remain green.
 
 ### 11.2 Result — both clients, both nginx ends
 
-With nginx source (read-only GSI) + nginx dest (GSI, `xrootd_tpc_delegate on`), a 400 KB file:
+With nginx source (read-only GSI) + nginx dest (GSI, `brix_tpc_delegate on`), a 400 KB file:
 
 * **Official `xrdcp --tpc delegate only`** and **this repo's `xrdcp --tpc delegate`
   (`XRDC_GSI_DELEGATE=1`)** both transfer **byte-exact**.

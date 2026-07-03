@@ -32,7 +32,7 @@ TEST_SKIP_SERVER_SETUP=1 PYTHONPATH=tests pytest \
 | handshake / session / pgread / large_offset / sigver | shared fleet 11094 (no own ports) |
 
 **Drop-in divergences the suite caught and fixed:**
-- **Real product bug — kXR_pgread page alignment.** The encoder split pages from the read start instead of the absolute file offset, so an unaligned read emitted one full first page + 1 CRC where official XRootD emits a short first page (aligned) + 2 CRCs (`pgread(off=100,rlen=4096)`: official 4104 page-stream bytes vs old nginx 4100). Broke the pgRetry/AsyncPageReader contract. Fixed in `src/protocols/root/read/pgread.c::xrootd_pgread_encode_pages()` (now takes the file offset and caps the first page to the next 4096 boundary; sizing widened by the in-page offset) + the AIO path in `src/core/aio/reads.c`. Verified by `test_pgread_wire_conformance::test_sub_page_unaligned_first_page_crc` and `test_dropin_byte_for_byte::test_pgread_at_offset_page_stream_matches`.
+- **Real product bug — kXR_pgread page alignment.** The encoder split pages from the read start instead of the absolute file offset, so an unaligned read emitted one full first page + 1 CRC where official XRootD emits a short first page (aligned) + 2 CRCs (`pgread(off=100,rlen=4096)`: official 4104 page-stream bytes vs old nginx 4100). Broke the pgRetry/AsyncPageReader contract. Fixed in `src/protocols/root/read/pgread.c::brix_pgread_encode_pages()` (now takes the file offset and caps the first page to the next 4096 boundary; sizing widened by the in-page offset) + the AIO path in `src/core/aio/reads.c`. Verified by `test_pgread_wire_conformance::test_sub_page_unaligned_first_page_crc` and `test_dropin_byte_for_byte::test_pgread_at_offset_page_stream_matches`.
 - **Not a bug — POSC abort.** A POSC open that is written to but never cleanly closed (client drops the socket) leaves **no** final file and **no** `.xrd-tmp.` staging orphan: the server unlinks the staging temp ~0.02 s after the disconnect EOF (`on_disconnect → close_all_files → free_fhandle → unlink(file->path)`). The original `test_open_flags_lifecycle::test_posc_abort_leaves_no_final_file` failure was a test race (single check, no poll) — fixed by polling for the async teardown.
 
 ## Proposed test files (gap-driven)
@@ -109,7 +109,7 @@ _pgread is marked full but the dedicated suite is thin (security-suite only). Th
 
 #### `tests/test_open_flags_lifecycle.py` — root/root-fileio
 
-_kXR_open flag matrix + POSC abort path + handle exhaustion + double-close are partial/gap items in both root-fileio and errors-edge-security. These are exact POSIX-semantics behaviors a real client expects; POSC abort and handle-table exhaustion are crash/leak risks. Self-contained nginx with low XROOTD_MAX_OPEN_FILES makes exhaustion deterministic._
+_kXR_open flag matrix + POSC abort path + handle exhaustion + double-close are partial/gap items in both root-fileio and errors-edge-security. These are exact POSIX-semantics behaviors a real client expects; POSC abort and handle-table exhaustion are crash/leak risks. Self-contained nginx with low BRIX_MAX_OPEN_FILES makes exhaustion deterministic._
 
 - test_open_new_on_existing_returns_ItExists
 - test_open_delete_truncates_to_zero
@@ -177,8 +177,8 @@ _On-demand selection (state/have) is the correctness core of real cmsd routing a
 
 _X-Xrootd-Wait/Retry headers have NO tests, Digest-on-range/multipart and Want-Digest vs ?xrd.want.cksum conflict are gaps, and the PROPPATCH 207/200 client-compat behavior (rucio/Cyberduck) is a deliberate drop-in divergence that must be locked by a regression test. Self-contained nginx WebDAV (HTTP, no TLS needed) plus a rate-limit zone._
 
-- test_x_xrootd_wait_header_emitted_under_ratelimit
-- test_x_xrootd_retry_header_on_lock_contention
+- test_x_brix_wait_header_emitted_under_ratelimit
+- test_x_brix_retry_header_on_lock_contention
 - test_digest_on_range_206_partial_body
 - test_digest_on_multipart_byteranges
 - test_want_digest_vs_xrd_want_cksum_conflict_resolution
@@ -342,8 +342,8 @@ _kYR_status SUSPEND/RESUME reception is partial (server_recv is a no-op dispatch
 
 _X-Xrootd-Status mapping table is the XrdHttp drop-in contract; edge HTTP codes, server-generated requuid, and 63-byte truncation are gaps. A WLCG client switching from official XrdHttp to nginx relies on identical kXR codes in headers. Self-contained; optional official-XrdHttp cross-check when libXrdHttp present (skip otherwise)._
 
-- test_x_xrootd_status_kxr_code_for_each_http_status (200/404/403/409/412/416/423/500/501)
-- test_x_xrootd_proto_echoed
+- test_x_brix_status_kxr_code_for_each_http_status (200/404/403/409/412/416/423/500/501)
+- test_x_brix_proto_echoed
 - test_requuid_server_generated_when_absent
 - test_requuid_truncated_to_63_bytes
 - test_xrd_stats_xml_wellformed_and_unauthenticated
@@ -462,8 +462,8 @@ ENV CONSTRAINTS HONORED:
 - Reference-xrootd cross-checks (test_dropin_byte_for_byte, optional XrdHttp mapping cross-check) must shutil.which('xrootd')/('cmsd') and pytest.skip cleanly when absent (mirrors cms_mesh_lib.have_binaries()). For GSI/krb5/SSS files, generate the keytab/secret in-fixture and skip if crypto libs/binaries are missing.
 
 REAL PRODUCT-BEHAVIOR FINDINGS WORTH A FOLLOW-UP (verified against source, not assumptions):
-- kXR_set IS login-gated in product code (src/protocols/root/handshake/dispatch_session.c:140 calls require-login before xrootd_handle_set) but has ZERO tests — a behavioral contract currently unguarded. Worth confirming whether unknown options return kXR_ok (advisory) or error, since the inventory marks the whitelist 'TBD'.
-- krb5 auth (src/auth/krb5/auth.c, src/auth/krb5/config.c) exists and is compile-guarded (XROOTD_HAVE_KRB5; XROOTD_AUTH_KRB5 is the runtime auth-mode enum value) but has NO tests at all — a drop-in claiming krb5 support is presently unverified end-to-end; even an advertise + malformed-token-safety test would be a meaningful first guard. Follow-up: decide if krb5 is a supported drop-in mode or should be documented as experimental.
+- kXR_set IS login-gated in product code (src/protocols/root/handshake/dispatch_session.c:140 calls require-login before brix_handle_set) but has ZERO tests — a behavioral contract currently unguarded. Worth confirming whether unknown options return kXR_ok (advisory) or error, since the inventory marks the whitelist 'TBD'.
+- krb5 auth (src/auth/krb5/auth.c, src/auth/krb5/config.c) exists and is compile-guarded (BRIX_HAVE_KRB5; BRIX_AUTH_KRB5 is the runtime auth-mode enum value) but has NO tests at all — a drop-in claiming krb5 support is presently unverified end-to-end; even an advertise + malformed-token-safety test would be a meaningful first guard. Follow-up: decide if krb5 is a supported drop-in mode or should be documented as experimental.
 - dirlist chunking uses a 65536-byte accumulator (src/protocols/root/dirlist/handler.c:68 chunk_cap, flushed as kXR_oksofar) — the exactly-at-64KB frame boundary is a fragile, untested seam; recommend the boundary scenario as a regression anchor.
 - The inventory's test_wire_protocol_security.py defines kXR_pgread incorrectly (3026+1=3027 which is actually kXR_locate, then reassigns 3029 'for invalid opcode tests'); new pgread tests must use the real opcode kXR_pgread=3030 (and kXR_pgwrite=3026) — do not copy the stale constant from that file.
 - PROPPATCH intentionally returns 207+200 (not 501) to avoid breaking rucio/Cyberduck; this is a deliberate divergence from official XrdHttp and should be locked by a regression test so a future 'correctness' refactor doesn't reintroduce the client-hang.

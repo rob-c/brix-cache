@@ -17,73 +17,73 @@ These call-ladder diagrams trace each protocol from the wire to the filesystem a
 TCP Accept → TCP Connection Ready
      |
      v
-ngx_stream_xrootd_handler (handler.c:26)
+ngx_stream_brix_handler (handler.c:26)
  [ctx allocation, HANDSHAKE state]
      |
      v
-ngx_stream_xrootd_recv (recv.c:98)
+ngx_stream_brix_recv (recv.c:98)
  [state machine: HANDSHAKE → REQ_HEADER → REQ_PAYLOAD]
  [reads 20-byte ClientInitHandShake]
      |
      v
 Dispatch kXR_protocol
      |
-xrootd_dispatch_session_opcode (dispatch_session.c:123)
-     ├─→ xrootd_handle_protocol (protocol_hdr)
-     |    └─→ xrootd_queue_response (basic.c via response/)
+brix_dispatch_session_opcode (dispatch_session.c:123)
+     ├─→ brix_handle_protocol (protocol_hdr)
+     |    └─→ brix_queue_response (basic.c via response/)
      |         └─→ Send ServerResponseHdr + caps
      |
      v (next request)
 Dispatch kXR_login
      |
-xrootd_handle_login (login.c:61)
+brix_handle_login (login.c:61)
  [parse username, set logged_in=1]
  [session_start = ngx_current_msec]
      |
-     ├─→ XROOTD_AUTH_NONE?
-     |    └─→ xrootd_session_register (registry.h)
-     |         └─→ xrootd_queue_response (sessid only)
+     ├─→ BRIX_AUTH_NONE?
+     |    └─→ brix_session_register (registry.h)
+     |         └─→ brix_queue_response (sessid only)
      |              └─→ auth_done = 1 (skip auth round)
      |
-     └─→ XROOTD_AUTH_GSI/TOKEN/SSS?
-          └─→ xrootd_queue_response (sessid + param block)
+     └─→ BRIX_AUTH_GSI/TOKEN/SSS?
+          └─→ brix_queue_response (sessid + param block)
               └─→ auth_done = 0 (await kXR_auth)
      |
      v (if auth required)
 Dispatch kXR_auth
      |
-xrootd_handle_auth (gsi/auth.c:80 inner)
+brix_handle_auth (gsi/auth.c:80 inner)
  [extract credtype, route: gsi/token/sss]
      |
      ├─→ GSI path:
-     |    ├─→ kXGC_certreq: xrootd_gsi_send_cert()
-     |    └─→ kXGC_cert: xrootd_gsi_parse_x509()
+     |    ├─→ kXGC_certreq: brix_gsi_send_cert()
+     |    └─→ kXGC_cert: brix_gsi_parse_x509()
      |         ├─→ verify cert chain (X509_V_FLAG_ALLOW_PROXY_CERTS)
      |         ├─→ extract DN from leaf
      |         └─→ optional VOMS extraction
      |              └─→ auth_done = 1
-     |                   └─→ xrootd_session_register (dn, vo_list)
+     |                   └─→ brix_session_register (dn, vo_list)
      |
      ├─→ TOKEN path:
-     |    └─→ xrootd_handle_token_auth()
+     |    └─→ brix_handle_token_auth()
      |         └─→ validate JWT vs JWKS
      |              └─→ auth_done = 1
      |
      └─→ SSS path:
-          └─→ xrootd_handle_sss_auth()
+          └─→ brix_handle_sss_auth()
                └─→ verify shared secret
                     └─→ auth_done = 1
      |
      v (after auth_done=1)
 Dispatch kXR_open (read-mode)
      |
-xrootd_dispatch_read_opcode (dispatch_read.c)
+brix_dispatch_read_opcode (dispatch_read.c)
      |
-xrootd_handle_open (open_request.c:39)
+brix_handle_open (open_request.c:39)
      |
-     ├─→ TPC detection: xrootd_tpc_parse_opaque()
-     |    ├─→ is_write && tpc.src? → xrootd_tpc_prepare_pull()
-     |    └─→ is_read && tpc.key? → xrootd_tpc_register_key()
+     ├─→ TPC detection: brix_tpc_parse_opaque()
+     |    ├─→ is_write && tpc.src? → brix_tpc_prepare_pull()
+     |    └─→ is_read && tpc.key? → brix_tpc_register_key()
      |
      └─→ Normal read-open:
           ├─→ strip CGI query (strip_cgi.c)
@@ -93,45 +93,45 @@ xrootd_handle_open (open_request.c:39)
           |    └─→ authdb ACL check (auth_gate.c)
           |
           ├─→ Path resolution (op_path.c):
-          |    └─→ xrootd_beneath_full_path() [canonical path]
+          |    └─→ brix_beneath_full_path() [canonical path]
           |
           ├─→ Path confinement gate:
-          |    └─→ xrootd_open_confined_canon()
-          |         └─→ xrootd_openat2_confined() [RESOLVE_BENEATH]
+          |    └─→ brix_open_confined_canon()
+          |         └─→ brix_openat2_confined() [RESOLVE_BENEATH]
           |
-          └─→ xrootd_open_resolved_file (open_resolved_file.c)
+          └─→ brix_open_resolved_file (open_resolved_file.c)
                ├─→ POSC staging temp file (if O_CREAT)?
-               ├─→ xrootd_alloc_fhandle() [slot 0-255]
-               ├─→ xrootd_set_fhandle_path() [heap alloc]
+               ├─→ brix_alloc_fhandle() [slot 0-255]
+               ├─→ brix_set_fhandle_path() [heap alloc]
                ├─→ File metadata: fstat() → inode/size/flags/mtime
                └─→ Return fhandle in kXR_ok body
-                    └─→ xrootd_queue_response()
+                    └─→ brix_queue_response()
      |
      v (kXR_open succeeds)
 Dispatch kXR_read/pgread/readv
      |
-xrootd_dispatch_read_opcode (dispatch_read.c)
+brix_dispatch_read_opcode (dispatch_read.c)
      |
-xrootd_handle_read (read.c:78)
+brix_handle_read (read.c:78)
      |
-     ├─→ xrootd_validate_read_handle() [idx validation]
+     ├─→ brix_validate_read_handle() [idx validation]
      |
      ├─→ Parse offset (be64toh) + rlen (ntohl)
      |
-     ├─→ Cap rlen at XROOTD_READ_REQUEST_MAX
+     ├─→ Cap rlen at BRIX_READ_REQUEST_MAX
      |
      ├─→ sendfile fast-path?
-     |    ├─→ !c->ssl OR xrootd_ktls_send_active()?
-     |    └─→ xrootd_vfs_io_execute() → driver->pread / sendfile-able fd (src/fs/backend)
-     |         └─→ xrootd_build_chunked_chain()
-     |              └─→ xrootd_queue_response_chain()
+     |    ├─→ !c->ssl OR brix_ktls_send_active()?
+     |    └─→ brix_vfs_io_execute() → driver->pread / sendfile-able fd (src/fs/backend)
+     |         └─→ brix_build_chunked_chain()
+     |              └─→ brix_queue_response_chain()
      |
      └─→ fallback (TLS or irregular file):
-          ├─→ [NGX_THREADS]: AIO offload → xrootd_vfs_io_execute() → driver->preadv
+          ├─→ [NGX_THREADS]: AIO offload → brix_vfs_io_execute() → driver->preadv
           |    └─→ completion callback frees payload_buf
           |
-          └─→ sync xrootd_vfs_io_execute() (inline) → driver->pread
-               └─→ xrootd_queue_response()
+          └─→ sync brix_vfs_io_execute() (inline) → driver->pread
+               └─→ brix_queue_response()
      |
      v (parallel: multiple read requests)
 Recv loop defers non-pipelinable ops
@@ -141,30 +141,30 @@ Recv loop defers non-pipelinable ops
      v
 Dispatch kXR_write/pgwrite
      |
-xrootd_dispatch_write_opcode (dispatch_write.c)
+brix_dispatch_write_opcode (dispatch_write.c)
      |
-xrootd_handle_write (write.c:68)
+brix_handle_write (write.c:68)
      |
-     ├─→ xrootd_validate_write_handle() [idx validation]
+     ├─→ brix_validate_write_handle() [idx validation]
      |
      ├─→ Parse offset (be64toh)
      |    [fresh upload: fd is a STAGING temp/.part file, not the final path —
      |     staged when upload_resume (default on) or POSC; in-place updt writes direct]
      |
-     ├─→ [NGX_THREADS]: AIO offload → xrootd_vfs_io_execute() → driver->pwrite
-     |    ├─→ xrootd_ensure_payload_buffer() [detach buffer]
+     ├─→ [NGX_THREADS]: AIO offload → brix_vfs_io_execute() → driver->pwrite
+     |    ├─→ brix_ensure_payload_buffer() [detach buffer]
      |    └─→ completion callback sends kXR_ok + frees buffer
      |
-     └─→ fallback: sync xrootd_vfs_io_execute() (inline) → driver->pwrite
+     └─→ fallback: sync brix_vfs_io_execute() (inline) → driver->pwrite
           └─→ Track: wt_bytes_written, wt_dirty_offset [PFC]
-               └─→ xrootd_queue_response() (kXR_ok)
+               └─→ brix_queue_response() (kXR_ok)
      |
      v
 Dispatch kXR_close
      |
-xrootd_handle_close (close.c:40)
+brix_handle_close (close.c:40)
      |
-     ├─→ xrootd_validate_file_handle() [idx validation]
+     ├─→ brix_validate_file_handle() [idx validation]
      |
      ├─→ Log access entry:
      |    └─→ path = posc_final_path OR ctx->files[idx].path
@@ -177,43 +177,43 @@ xrootd_handle_close (close.c:40)
      |         └─→ on failure: return kXR_IOError
      |
      ├─→ Write-through flush (if enabled):
-     |    └─→ xrootd_wt_flush_on_close()
+     |    └─→ brix_wt_flush_on_close()
      |         └─→ propagate dirty bytes to origin
      |
      ├─→ Write-recovery journal flush:
-     |    └─→ xrootd_wrts_flush() [post-reconnect tracking]
+     |    └─→ brix_wrts_flush() [post-reconnect tracking]
      |
-     └─→ xrootd_free_fhandle():
+     └─→ brix_free_fhandle():
           ├─→ close(fd)
           ├─→ ngx_free(ctx->files[idx].path)
           ├─→ fd = -1 [sentinel clear]
-          └─→ xrootd_queue_response() (kXR_ok empty body)
+          └─→ brix_queue_response() (kXR_ok empty body)
      |
      v (session cleanup)
 Dispatch kXR_endsess
      |
-xrootd_handle_endsess (session/lifecycle.c:97)
+brix_handle_endsess (session/lifecycle.c:97)
      |
-     ├─→ xrootd_close_all_files() [release all fhandles]
+     ├─→ brix_close_all_files() [release all fhandles]
      |
-     └─→ xrootd_session_unregister()
+     └─→ brix_session_unregister()
           └─→ Free shared sessid slot
-               └─→ xrootd_queue_response() (kXR_ok)
+               └─→ brix_queue_response() (kXR_ok)
                     └─→ TCP connection closes
-                         └─→ xrootd_on_disconnect()
+                         └─→ brix_on_disconnect()
                               ├─→ ngx_free(payload_buf)
-                              └─→ xrootd_log_access() [final]
+                              └─→ brix_log_access() [final]
 ```
 
 **Key**
 
-PARTICIPANTS: Client = XRootD root:// user; recv loop = TCP state machine in recv.c; dispatch = central router in dispatch.c switching on opcode; handlers = protocol opcode implementations (login/open/read/write/close); fs/path layer = confinement gates via openat2(RESOLVE_BENEATH) in beneath.c and op_path.c; response queue = xrootd_queue_response() in response/ handling partial writes and EAGAIN retries.
+PARTICIPANTS: Client = XRootD root:// user; recv loop = TCP state machine in recv.c; dispatch = central router in dispatch.c switching on opcode; handlers = protocol opcode implementations (login/open/read/write/close); fs/path layer = confinement gates via openat2(RESOLVE_BENEATH) in beneath.c and op_path.c; response queue = brix_queue_response() in response/ handling partial writes and EAGAIN retries.
 
 KEY FILES: src/protocols/root/connection/handler.c (entry point), src/protocols/root/connection/recv.c (framing state machine), src/protocols/root/handshake/dispatch.c (opcode router), src/protocols/root/handshake/dispatch_session.c (login/auth), src/auth/gsi/auth.c (GSI certificate verification), src/protocols/root/session/login.c (kXR_login), src/protocols/root/read/open_request.c (kXR_open), src/protocols/root/read/read.c (kXR_read), src/protocols/root/write/write.c (kXR_write), src/protocols/root/read/close.c (kXR_close), src/protocols/root/path/op_path.c (path resolution), src/fs/path/beneath.c (openat2 RESOLVE_BENEATH confinement), src/protocols/root/connection/fd_table.c (file handle table).
 
-CRITICAL INVARIANTS: (1) Path confinement: all client paths → xrootd_resolve_path() (canonical) THEN xrootd_open_confined_canon() (kernel RESOLVE_BENEATH gate). Escape attempts return EXDEV/ELOOP → kXR_NotAuthorized. (2) Auth ordering: login MUST precede auth; auth_done gates file operations. (3) Handle lifecycle: fd slot = -1 (free) | >= 0 (open); allocation bounded by XROOTD_MAX_FILES <= 256 (wire format one byte). (4) Response format: [streamid:2B][status:2B BE][dlen:4B BE][body:dlen bytes]. (5) POSC durability: write temp, fsync+rename on close before fd release. (6) Write-through PFC: wt_dirty_offset tracks unflushed origin bytes for cache-origin propagation. (7) TLS vs sendfile: !c->ssl OR xrootd_ktls_send_active() gates zero-copy; else memory-backed buffers. (8) Rate-limiting and signing: sigver()/kXR_sigver envelope wraps costly operations; fail-closed on verification failure. (9) Data-plane layering: every file open/read/write/stat/copy goes proto → VFS (src/fs) → POSIX storage driver (src/fs/backend); protocol handlers never issue raw file syscalls, so confinement, metrics, cache, and CRC cannot drift between protocols.
+CRITICAL INVARIANTS: (1) Path confinement: all client paths → brix_resolve_path() (canonical) THEN brix_open_confined_canon() (kernel RESOLVE_BENEATH gate). Escape attempts return EXDEV/ELOOP → kXR_NotAuthorized. (2) Auth ordering: login MUST precede auth; auth_done gates file operations. (3) Handle lifecycle: fd slot = -1 (free) | >= 0 (open); allocation bounded by BRIX_MAX_FILES <= 256 (wire format one byte). (4) Response format: [streamid:2B][status:2B BE][dlen:4B BE][body:dlen bytes]. (5) POSC durability: write temp, fsync+rename on close before fd release. (6) Write-through PFC: wt_dirty_offset tracks unflushed origin bytes for cache-origin propagation. (7) TLS vs sendfile: !c->ssl OR brix_ktls_send_active() gates zero-copy; else memory-backed buffers. (8) Rate-limiting and signing: sigver()/kXR_sigver envelope wraps costly operations; fail-closed on verification failure. (9) Data-plane layering: every file open/read/write/stat/copy goes proto → VFS (src/fs) → POSIX storage driver (src/fs/backend); protocol handlers never issue raw file syscalls, so confinement, metrics, cache, and CRC cannot drift between protocols.
 
-**Jump-to anchors:** `src/protocols/root/connection/handler.c:ngx_stream_xrootd_handler` · `src/protocols/root/connection/recv.c:ngx_stream_xrootd_recv` · `src/protocols/root/handshake/dispatch.c:xrootd_dispatch` · `src/protocols/root/handshake/dispatch_session.c:xrootd_dispatch_session_opcode` · `src/protocols/root/read/open_request.c:xrootd_handle_open` · `src/fs/path/beneath.c:xrootd_open_beneath`
+**Jump-to anchors:** `src/protocols/root/connection/handler.c:ngx_stream_brix_handler` · `src/protocols/root/connection/recv.c:ngx_stream_brix_recv` · `src/protocols/root/handshake/dispatch.c:brix_dispatch` · `src/protocols/root/handshake/dispatch_session.c:brix_dispatch_session_opcode` · `src/protocols/root/read/open_request.c:brix_handle_open` · `src/fs/path/beneath.c:brix_open_beneath`
 
 ## davs:// — WebDAV / HTTPS request lifecycle
 
@@ -231,7 +231,7 @@ CRITICAL INVARIANTS: (1) Path confinement: all client paths → xrootd_resolve_p
   ├─ Verb (GET, PUT, etc)
   └─ URI, headers         
                         
-                        → ngx_http_xrootd_webdav_access_handler() (access.c:58)
+                        → ngx_http_brix_webdav_access_handler() (access.c:58)
                           ├─ Rate limit check
                           ├─ CORS headers added
                           │                              
@@ -240,12 +240,12 @@ CRITICAL INVARIANTS: (1) Path confinement: all client paths → xrootd_resolve_p
                           │  │  ├─ Check cached TLS auth (ex_data)
                           │  │  ├─ SSL_get_peer_certificate()
                           │  │  ├─ Try nginx-compatible verify
-                          │  │  └─ Fallback: xrootd_gsi_verify_chain()
+                          │  │  └─ Fallback: brix_gsi_verify_chain()
                           │  │     → [auth success: dn → req ctx]
                           │  │
                           │  └─ webdav_verify_bearer_token() (auth_token.c:77)
                           │     ├─ Extract "Authorization: Bearer"
-                          │     ├─ xrootd_token_validate() [JWKS/macaroon]
+                          │     ├─ brix_token_validate() [JWKS/macaroon]
                           │     └─ Store claims in req ctx
                           │                              
                           ├─ Write permission gate (allow_write check)
@@ -253,8 +253,8 @@ CRITICAL INVARIANTS: (1) Path confinement: all client paths → xrootd_resolve_p
                           └─ Return NGX_OK → content handler proceeds
                         
                                                           
-                                                          → ngx_http_xrootd_webdav_handler() (dispatch.c:24)
-                                                            ├─ Conf check: xrootd_webdav enabled?
+                                                          → ngx_http_brix_webdav_handler() (dispatch.c:24)
+                                                            ├─ Conf check: brix_webdav enabled?
                                                             │
                                                             ├─ OPTIONS → webdav_handle_options()
                                                             │
@@ -270,7 +270,7 @@ CRITICAL INVARIANTS: (1) Path confinement: all client paths → xrootd_resolve_p
                                                             │  ├─ Open/sendfile (with fd-cache)
                                                             │  └─ ngx_http_send_header() + body
                                                             │
-                                                            ├─ PUT → xrootd_http_read_body()
+                                                            ├─ PUT → brix_http_read_body()
                                                             │     → webdav_handle_put_body() (put.c:200+)
                                                             │  ├─ Resolve path + lock check
                                                             │  ├─ Create/open file
@@ -285,10 +285,10 @@ CRITICAL INVARIANTS: (1) Path confinement: all client paths → xrootd_resolve_p
                                                             │
                                                             ├─ COPY → Check headers for TPC signal
                                                             │  ├─ Source: header (TPC pull)
-                                                            │  │  └─ ngx_http_xrootd_webdav_tpc_handle_copy() (tpc.c:405)
+                                                            │  │  └─ ngx_http_brix_webdav_tpc_handle_copy() (tpc.c:405)
                                                             │  │     ├─ Extract auth (bearer or cert identity)
                                                             │  │     ├─ webdav_tpc_authorize() scope check
-                                                            │  │     ├─ xrootd_tpc_cred_from_request() [delegation]
+                                                            │  │     ├─ brix_tpc_cred_from_request() [delegation]
                                                             │  │     ├─ Launch in tpc_thread_pool:
                                                             │  │     │  └─ tpc_transfer_pull_curl_thread()
                                                             │  │     │     ├─ tpc_curl_secure() DNS pin + TLS verify
@@ -309,13 +309,13 @@ CRITICAL INVARIANTS: (1) Path confinement: all client paths → xrootd_resolve_p
                                                             │  ├─ Resolve + lock check
                                                             │  └─ Rename (within export root)
                                                             │
-                                                            ├─ PROPFIND → xrootd_http_read_body()
+                                                            ├─ PROPFIND → brix_http_read_body()
                                                             │      → webdav_handle_propfind() (propfind.c:1037)
                                                             │  ├─ Parse body XML (allprop/propname/prop)
                                                             │  ├─ Recurse directory (depth hdr)
                                                             │  └─ Build XML response (memory-buffered)
                                                             │
-                                                            ├─ LOCK → xrootd_http_read_body()
+                                                            ├─ LOCK → brix_http_read_body()
                                                             │    → webdav_handle_lock() (lock.c:344)
                                                             │  ├─ Parse body + record lock
                                                             │  └─ Respond lock token
@@ -326,9 +326,9 @@ CRITICAL INVARIANTS: (1) Path confinement: all client paths → xrootd_resolve_p
                                                             
   
   Path confinement (all methods):
-  ├─ ngx_http_xrootd_webdav_resolve_path() (path.c:58)
+  ├─ ngx_http_brix_webdav_resolve_path() (path.c:58)
   │  ├─ URL-decode URI
-  │  ├─ xrootd_http_resolve_path() (shared compat layer)
+  │  ├─ brix_http_resolve_path() (shared compat layer)
   │  └─ Ensure under export root (403 if breakout detected)
   │
   
@@ -355,12 +355,12 @@ Participants:
 - Client HTTPS: WebDAV client connecting over TLS (davix, curl, XRootD xrdcp).
 - nginx: HTTP/1.1 reverse proxy with xrootd modules (base core + webdav_module).
 - Access Phase: NGX_HTTP_ACCESS_PHASE handler (runs before content handlers) enforces auth, scope, and write policy.
-- Content Handler: ngx_http_xrootd_webdav_handler() routes HTTP method to specialized handler.
+- Content Handler: ngx_http_brix_webdav_handler() routes HTTP method to specialized handler.
 - Method Handler: GET/PUT/PROPFIND/etc — performs method-specific work (file ops, metadata, TPC).
 - Response: Final HTTP response + metrics logging.
 
 Critical invariants:
-1. Path confinement (xrootd_http_resolve_path): ALL file operations confined to export_root via symlink resolution.
+1. Path confinement (brix_http_resolve_path): ALL file operations confined to export_root via symlink resolution.
 2. TLS auth cache (auth_cert.c): GSI cert verification cached in SSL ex_data per connection; permits zero-copy cert auth on subsequent requests.
 3. Bearer token validation: JWT (JWKS) or macaroon (secret-key); claims (sub, scopes) stored in req ctx.
 4. TPC DNS pinning (tpc_curl.c:tpc_curl_secure): SSRF-validated target pinned to resolved IP; TLS verification still uses original hostname (no cert bypass).
@@ -373,7 +373,7 @@ Key files:
 - auth_token.c: WLCG bearer token validation.
 - tpc.c + tpc_curl.c: third-party-copy handler + curl integration.
 
-**Jump-to anchors:** `access.c:ngx_http_xrootd_webdav_access_handler:58` · `dispatch.c:ngx_http_xrootd_webdav_handler:24` · `auth_cert.c:webdav_verify_proxy_cert:418` · `auth_token.c:webdav_verify_bearer_token:77` · `tpc.c:ngx_http_xrootd_webdav_tpc_handle_copy:405` · `path.c:ngx_http_xrootd_webdav_resolve_path:58`
+**Jump-to anchors:** `access.c:ngx_http_brix_webdav_access_handler:58` · `dispatch.c:ngx_http_brix_webdav_handler:24` · `auth_cert.c:webdav_verify_proxy_cert:418` · `auth_token.c:webdav_verify_bearer_token:77` · `tpc.c:ngx_http_brix_webdav_tpc_handle_copy:405` · `path.c:ngx_http_brix_webdav_resolve_path:58`
 
 ## S3 REST request lifecycle
 
@@ -400,10 +400,10 @@ S3 Client
 | Parse: Authorization header → AKID, date, region,      |
 |        signed_hdrs, signature                          |
 | Build canonical request:                               |
-|   - URI: xrootd_http_urlencode(r->uri)                 |
+|   - URI: brix_http_urlencode(r->uri)                 |
 |   - QS:  build_canonical_qs() (canonical.c:74)         |
 |   - Headers: build_canonical_headers() (auth_sigv4_verify.c:297)  |
-|   - Hash: xrootd_sha256(canonical)                     |
+|   - Hash: brix_sha256(canonical)                     |
 | Derive signing key (cached):                           |
 |   - s3_sigv4_derive_signing_key_cached()               |
 |     (auth_sigv4_verify.c:265) → 4-round HMAC chain                |
@@ -417,7 +417,7 @@ S3 Client
    v
 +-------- s3_parse_uri (handler.c:66) --------+
 | Extract: bucket, key from path-style URI  |
-| URL-decode: key via xrootd_http_urldecode |
+| URL-decode: key via brix_http_urldecode |
 | Return: 1=success, 0=malformed, -1=bucket |
 | mismatch → NoSuchBucket 404                |
 +------------------------------------------+
@@ -444,7 +444,7 @@ S3 Client
    |       v
    |    +------ s3_resolve_key (util.c:50) ------+
    |    | Confine key to root_canon via        |
-   |    | xrootd_http_resolve_path()           |
+   |    | brix_http_resolve_path()           |
    |    | Returns: 1=confined, 0=escape/error  |
    |    | Fail → AccessDenied 403              |
    |    +----------------------------------------+
@@ -454,7 +454,7 @@ S3 Client
    |    - VFS open (read, cache-aware)
    |    - File stat (reject directories)
    |    - Range parse (RFC 7233)
-   |    - Delegate to xrootd_http_serve_file_ranged()
+   |    - Delegate to brix_http_serve_file_ranged()
    |    - Send via sendfile (if no TLS) or TLS buffer
    |    - Track bytes_tx, range_total
    |
@@ -473,9 +473,9 @@ S3 Client
    |       +---> Else (PutObject):
    |               Read body asynchronously
    |               s3_put_body_handler (put.c:295)
-   |               - Confine via xrootd_open_confined_canon()
+   |               - Confine via brix_open_confined_canon()
    |               - Write to temp file (O_EXCL)
-   |               - Atomic rename via xrootd_staged_commit()
+   |               - Atomic rename via brix_staged_commit()
    |
    +---> If DELETE:
    |       |
@@ -515,23 +515,23 @@ Participants and Files:
 
 5. auth_sigv4_verify.c:265 (s3_sigv4_derive_signing_key_cached) — Derives the SigV4 signing key via four-round HMAC chain: k1=HMAC("AWS4"+secret, date), k2=HMAC(k1, region), k3=HMAC(k2, "s3"), k4=HMAC(k3, "aws4_request"). Worker-local cache prevents re-deriving the same key multiple times per calendar day.
 
-6. util.c:50 (s3_resolve_key) — Confines S3 object keys to the filesystem root via xrootd_http_resolve_path(). Rejects any path that would escape root_canon (e.g. "/../../../etc/passwd" after canonicalization). Critical security gate before any file operation.
+6. util.c:50 (s3_resolve_key) — Confines S3 object keys to the filesystem root via brix_http_resolve_path(). Rejects any path that would escape root_canon (e.g. "/../../../etc/passwd" after canonicalization). Critical security gate before any file operation.
 
-7. object.c:64 (s3_handle_get) — GetObject handler. Opens file via VFS (cache-aware), stats, parses HTTP Range headers, and delegates to xrootd_http_serve_file_ranged() which sends via sendfile (or TLS buffer if encrypted). Tracks bytes_tx and range hit/miss metrics.
+7. object.c:64 (s3_handle_get) — GetObject handler. Opens file via VFS (cache-aware), stats, parses HTTP Range headers, and delegates to brix_http_serve_file_ranged() which sends via sendfile (or TLS buffer if encrypted). Tracks bytes_tx and range hit/miss metrics.
 
 8. object.c:165 (s3_handle_head) — HeadObject handler. Opens file, stats, sends headers only (no body). Immediately closes file handle.
 
-9. put.c:295 (s3_put_body_handler) — Async callback after client PUT body is fully read by nginx. Writes temp file via O_EXCL (prevents concurrent corruption), then atomic rename via xrootd_staged_commit(). Confined writes only via xrootd_open_confined_canon().
+9. put.c:295 (s3_put_body_handler) — Async callback after client PUT body is fully read by nginx. Writes temp file via O_EXCL (prevents concurrent corruption), then atomic rename via brix_staged_commit(). Confined writes only via brix_open_confined_canon().
 
 10. object.c:211 (s3_handle_delete) — DeleteObject handler. Unlink (delete) the object file.
 
 11. copy.c:52 (s3_handle_copy_object) — CopyObject handler. Reads source object (via VFS), writes to destination (via staged temp+rename), all confined.
 
 Critical Invariants:
-- Path confinement: every filesystem operation uses fs_path vetted by s3_resolve_key() (util.c:50), which delegates to xrootd_http_resolve_path() for canonicalization and escape detection.
+- Path confinement: every filesystem operation uses fs_path vetted by s3_resolve_key() (util.c:50), which delegates to brix_http_resolve_path() for canonicalization and escape detection.
 - Constant-time auth: access-key mismatch and signature mismatch both run full HMAC before returning error (auth_sigv4_verify.c:434-452, 613); no timing oracle.
 - Atomic writes: PutObject/UploadPart use temp file + rename (O_EXCL prevents concurrent corruption).
-- Cache-aware GET: xrootd_vfs_open() honors cache configuration; sendfile used for non-TLS, buffered for TLS.
+- Cache-aware GET: brix_vfs_open() honors cache configuration; sendfile used for non-TLS, buffered for TLS.
 - SigV4 signing key cache: per-worker, per-calendar-day; avoids four HMAC rounds per request (auth_sigv4_verify.c:258-287).
 
 **Jump-to anchors:** `handler.c:286 ngx_http_s3_handler()` · `auth_sigv4_verify.c:377 s3_verify_sigv4()` · `util.c:50 s3_resolve_key()` · `object.c:64 s3_handle_get()` · `put.c:295 s3_put_body_handler()` · `auth_sigv4_canonical.c:74 build_canonical_qs()`
@@ -546,32 +546,32 @@ FLOW A: DATA-NODE CMSD PEER REGISTRATION WITH NGINX MANAGER
  DATA-NODE               NGINX-XROOTD MANAGER         REGISTRY (SHM)
   CMSD                                                 TABLE
      |                        |                           |
-     |--- TCP accept -------->| xrootd_cms_srv_handler()  |
+     |--- TCP accept -------->| brix_cms_srv_handler()  |
      |                        | (server_handler.c:21)     |
      |                        | [W1b CIDR allowlist]      |
      |                        |                           |
-     |                        | xrootd_cms_srv_check_peer |
+     |                        | brix_cms_srv_check_peer |
      |                        | (server_auth.c:31)        |
      |            [ACCEPT or REJECT based on IP]         |
      |                        |                           |
      |--- [sss? CHALLENGE]--->| [if sss keytab configured]|
-     |    kYR_xauth parms     | xrootd_cms_srv_read()     |
+     |    kYR_xauth parms     | brix_cms_srv_read()     |
      | (server_recv.c:440)    | cms_srv_process_frame()   |
      |                        | (server_recv.c:316)       |
      |                        | case CMS_RR_LOGIN         |
      |                        |                           |
-     |<-- [sss? CHALLENGE]----| xrootd_cms_srv_send_xauth |
+     |<-- [sss? CHALLENGE]----| brix_cms_srv_send_xauth |
      |    kYR_xauth parms     | (server_send.c:39)        |
      |                        |                           |
      |--- [sss CREDENTIAL]--->| kYR_xauth blob received   |
-     |    kYR_xauth blob      | xrootd_cms_srv_verify_xauth
+     |    kYR_xauth blob      | brix_cms_srv_verify_xauth
      |                        | (server_auth.c:62)        |
      |                        | [VERIFY SSS: pass/fail]   |
      |                        |                           |
      |                        | cms_srv_complete_login()  |
      |                        | (server_recv.c:298)       |
      |                        |                           |
-     |                        | xrootd_srv_register()     |
+     |                        | brix_srv_register()     |
      |                        | (registry.c:198)          |
      |                        | [W1c HOST-CHAR VALIDATION]|
      |                        |-->| Write entry: host,port |
@@ -588,15 +588,15 @@ FLOW B: CLIENT LOCATE/OPEN REDIRECT TO REGISTERED DATA-NODE
   CLIENT                 NGINX-XROOTD MANAGER        REGISTRY (SHM)
  XROOTD                  (Redirector)                TABLE
      |                        |                        |
-     |--- kXR_locate path --->| xrootd_handle_locate()  |
+     |--- kXR_locate path --->| brix_handle_locate()  |
      |    (locate.c:43)       |                        |
      |                        | [CACHE FAST-PATH]      |
-     |                        | xrootd_redir_cache_    |
+     |                        | brix_redir_cache_    |
      |                        | lookup(path)           |
      |                        | [HIT: send redirect]   |
      |                        |                        |
      |                        | [CACHE MISS: query]    |
-     |                        | xrootd_srv_select()    |
+     |                        | brix_srv_select()    |
      |                        | (registry.c:385)       |
      |                        |-->| LOCK mutex          |
      |                        |   | Scan slots:in_use   |
@@ -608,7 +608,7 @@ FLOW B: CLIENT LOCATE/OPEN REDIRECT TO REGISTERED DATA-NODE
      |                        |   | UNLOCK mutex        |
      |                        |-->| Return host, port   |
      |                        |                        |
-     |<-- kXR_redirect -------| xrootd_send_redirect() |
+     |<-- kXR_redirect -------| brix_send_redirect() |
      |    port+hostname       | (control.c:72)         |
      |    Sr/Sw host:port     | [ENCODE: port(BE)+host]|
      |                        |                        |
@@ -620,9 +620,9 @@ INVARIANT CHECKLIST
 ===================
 [W1a] SSS-Auth Gate: kYR_xauth credential verified BEFORE registry entry
 [W1b] CIDR Allowlist: IP checked at accept, BEFORE frame dispatch
-[W1c] Host Validation: xrootd_net_host_chars_valid() at xrootd_srv_register()
+[W1c] Host Validation: brix_net_host_chars_valid() at brix_srv_register()
       prevents control-byte/scheme injection into Sr/Sw redirect string
-[Path-Confine] xrootd_extract_path() confines client request paths
+[Path-Confine] brix_extract_path() confines client request paths
 [Redirect-Integrity] Host string pinned from registry.c, never re-resolved
 [Load-Balance] Reads=min(util_pct), Writes=max(free_mb) from live entries
 [Blacklist] Expired entries filtered by blacklisted_until > ngx_current_msec
@@ -636,18 +636,18 @@ the BriX-Cache CMS server port (default 1213). The handler accepts it
 (server_handler.c line 21), checks CIDR allowlist (server_auth.c line 31),
 optionally challenges the node with SSS authentication (server_send.c line 39,
 server_auth.c line 62), then parses the kYR_login frame (server_recv.c line 440)
-and calls xrootd_srv_register() (registry.c line 198) to store the node's
+and calls brix_srv_register() (registry.c line 198) to store the node's
 host/port/paths/load into shared-memory registry, protected by spinlock.
 Periodic heartbeat updates (LOAD/AVAIL frames) refresh load metrics via
-xrootd_srv_update_load().
+brix_srv_update_load().
 
 Flow B (Redirect): A client requests kXR_locate for a path
 (locate.c line 43). The manager first consults collapse-redir cache, then
-xrootd_srv_select() (registry.c line 385) which locks the registry, scans all
+brix_srv_select() (registry.c line 385) which locks the registry, scans all
 in-use, non-blacklisted entries matching the path's longest-prefix, and picks
 the best by load policy (reads: lowest util_pct; writes: highest free_mb).
 The selected host and port are returned, formatted as Sr/Sw redirect payload
-("Sr<host>:<port>"), and sent to the client via xrootd_send_redirect()
+("Sr<host>:<port>"), and sent to the client via brix_send_redirect()
 (control.c line 72). The client connects directly to that data node.
 
 Critical invariants: W1a (SSS auth gates entry), W1b (CIDR gate at accept),
@@ -658,7 +658,7 @@ never re-resolved).
 Key file ownership: server_handler.c (accept), server_auth.c (auth),
 server_recv.c (frame parse), registry.c (store/select), control.c (redirect).
 
-**Jump-to anchors:** `server_handler.c:xrootd_cms_srv_handler (line 21)` · `server_auth.c:xrootd_cms_srv_check_peer (line 31)` · `server_recv.c:xrootd_cms_srv_read (line 440)` · `registry.c:xrootd_srv_register (line 198)` · `registry.c:xrootd_srv_select (line 385)` · `control.c:xrootd_send_redirect (line 72)`
+**Jump-to anchors:** `server_handler.c:brix_cms_srv_handler (line 21)` · `server_auth.c:brix_cms_srv_check_peer (line 31)` · `server_recv.c:brix_cms_srv_read (line 440)` · `registry.c:brix_srv_register (line 198)` · `registry.c:brix_srv_select (line 385)` · `control.c:brix_send_redirect (line 72)`
 
 ## See also
 

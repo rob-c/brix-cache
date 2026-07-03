@@ -9,9 +9,9 @@ for those three you usually do not even need `nginx -s reload`.
 
 | Credential | Directive | Mechanism |
 |---|---|---|
-| Token signing keys (JWKS) | `xrootd_token_jwks` / `xrootd_webdav_token_jwks`, interval `xrootd_token_jwks_refresh_interval` | A per-worker timer polls the JWKS file's mtime and reloads keys in place. Old keys are freed only **after** a successful reload, so in-flight token validations never see an empty key set. |
-| CRLs | `xrootd_crl` / `xrootd_webdav_crl`, reload via `xrootd_crl_reload` | The X509 store is rebuilt and swapped atomically; active TLS sessions are unaffected. |
-| Authorization DB | `xrootd_authdb`, `xrootd_authdb_refresh` | The authz table is re-read and swapped on change. |
+| Token signing keys (JWKS) | `brix_token_jwks` / `brix_webdav_token_jwks`, interval `brix_token_jwks_refresh_interval` | A per-worker timer polls the JWKS file's mtime and reloads keys in place. Old keys are freed only **after** a successful reload, so in-flight token validations never see an empty key set. |
+| CRLs | `brix_crl` / `brix_webdav_crl`, reload via `brix_crl_reload` | The X509 store is rebuilt and swapped atomically; active TLS sessions are unaffected. |
+| Authorization DB | `brix_authdb`, `brix_authdb_refresh` | The authz table is re-read and swapped on change. |
 
 **To roll a token key:** publish the new JWKS (containing both old and new keys
 during the overlap window) to the configured path, atomically (write-temp +
@@ -19,12 +19,12 @@ during the overlap window) to the configured path, atomically (write-temp +
 have expired, drop the old key from the JWKS.
 
 **To refresh CRLs:** update the CRL files in place (e.g. via `fetch-crl`), atomically.
-The store rebuild picks them up on the next reload tick / `xrootd_crl_reload` cadence.
+The store rebuild picks them up on the next reload tick / `brix_crl_reload` cadence.
 
 ## What needs `nginx -s reload` (the host cert/key)
 
 The TLS **host certificate** (`ssl_certificate` / `ssl_certificate_key`, and the
-root:// `xrootd_certificate` / `xrootd_certificate_key`) is read by nginx at
+root:// `brix_certificate` / `brix_certificate_key`) is read by nginx at
 configuration load. To roll it:
 
 1. Install the new cert+key at the configured paths (atomically).
@@ -44,7 +44,7 @@ configuration load. To roll it:
 - Check the host cert manually:
   `openssl x509 -in /etc/grid-security/hostcert.pem -noout -enddate`.
 - Watch the auth-rejection metric for the tell-tale of a missed roll:
-  `rate(xrootd_webdav_auth_total{result="rejected"}[5m])` (and the S3 equivalent)
+  `rate(brix_webdav_auth_total{result="rejected"}[5m])` (and the S3 equivalent)
   jumping at the moment a cert/CRL/key expired. The
   [alert rules](../../contrib/prometheus-alerts.yml) include `XrootdAuthRejectionSpike`.
 

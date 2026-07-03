@@ -71,7 +71,7 @@ AWS SDK/CLI enable CRC64NVME integrity by default (since late 2024).
 - **Multipart** — `CompleteMultipartUpload` returns the FULL_OBJECT
   `<ChecksumCRC64NVME>` (+ `<ChecksumType>FULL_OBJECT</ChecksumType>` and the header).
   Because parts are reassembled into a single object, the whole-object value is
-  computed directly on the result. (A zlib-style 64-bit `xrootd_crc64_combine` is also
+  computed directly on the result. (A zlib-style 64-bit `brix_crc64_combine` is also
   provided and unit-tested for callers that keep parts separate.)
 
 ## Caching
@@ -89,8 +89,8 @@ extended attributes (keyed by mtime+size, invalidated on write) via the shared
 ## Implementation map
 
 - Engine: `src/core/compat/crc64.{c,h}` (+ `shared/xrdproto/Makefile`, root `config`).
-- Spine: `src/core/compat/checksum.{c,h}` (enum, `is_u64`, `xrootd_checksum_u64_fd`, hex),
-  `src/core/compat/checksum_core.c` (`xrootd_cksum_u64_fd`), `src/core/compat/integrity_info.*`.
+- Spine: `src/core/compat/checksum.{c,h}` (enum, `is_u64`, `brix_checksum_u64_fd`, hex),
+  `src/core/compat/checksum_core.c` (`brix_cksum_u64_fd`), `src/core/compat/integrity_info.*`.
 - root://: `src/protocols/root/query/config.c`, `src/protocols/root/query/checksum_ckscan_*.c`.
 - WebDAV: `src/protocols/webdav/xrdhttp.c` (inherits via the fd-based Digest path).
 - S3: `src/protocols/s3/util.c`, `object.c`, `put.c`, `handler.c` (CORS),

@@ -134,7 +134,7 @@
 | `src/protocols/root/fattr/get.c` | [x] | [ ] | ✓ |
 | `src/protocols/root/fattr/helpers.c` | [x] | [ ] | ✓ |
 | `src/protocols/root/fattr/list.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/fattr/ngx_xrootd_fattr.h` | [x] | [ ] | ✓ |
+| `src/protocols/root/fattr/ngx_brix_fattr.h` | [x] | [ ] | ✓ |
 | `src/protocols/root/fattr/set.c` | [x] | [ ] | ✓ |
 | `src/auth/gsi/auth.c` | [x] | [ ] | ✓ |
 | `src/auth/gsi/buffer.c` | [x] | [ ] | ✓ |
@@ -173,7 +173,7 @@
 | `src/observability/metrics/tracking.c` | [x] | [ ] | ✓ |
 | `src/observability/metrics/webdav.c` | [x] | [ ] | ✓ |
 | `src/observability/metrics/writer.c` | [x] | [ ] | ✓ |
-| `src/core/ngx_xrootd_module.h` | [x] | [ ] | ✓ |
+| `src/core/ngx_brix_module.h` | [x] | [ ] | ✓ |
 | `src/observability/accesslog/access_log.c` | [x] | [ ] | ✓ |
 | `src/auth/authz/acl.c` | [x] | [ ] | ✓ |
 | `src/auth/authz/authdb.c` | [x] | [ ] | ✓ |

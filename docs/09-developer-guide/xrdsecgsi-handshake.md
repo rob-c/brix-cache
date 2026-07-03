@@ -5,7 +5,7 @@
 > /eos/lhcb` lists the directory, identical to `/usr/bin/xrdfs`. This documents
 > the protocol, every wire-format detail, and **every gotcha that cost an
 > iteration**, so the remaining work (the v≥10400 signed-DH path and the
-> *server* side) is mechanical. Reference source: `/tmp/xrootd-src/src`
+> *server* side) is mechanical. Reference source: `/tmp/brix-src/src`
 > (`XrdSecgsi/`, `XrdCrypto/`, `XrdSut/`).
 
 This is the single most intricate wire protocol in the XRootD stack. Read it
@@ -97,7 +97,7 @@ repeat: <type:int32 BE><size:int32 BE><data[size]>          one per bucket
 ```
 
 **Gotcha #7 — length-delimited, NO terminator.** `Serialized` writes *no*
-`kXRS_none` at the end; the buffer length bounds it. Our `xrootd_gbuf_end`
+`kXRS_none` at the end; the buffer length bounds it. Our `brix_gbuf_end`
 appends a 4-byte `kXRS_none` (type only, no size field) — fine for a *top-level*
 buffer the peer scans by type, but inside an **encrypted main** it is mis-read as
 a malformed bucket and the deserialize drops the real buckets → *"client
@@ -110,7 +110,7 @@ Bucket type codes (`src/protocols/root/protocol/gsi.h`): `kXRS_cryptomod=3000`, 
 
 ---
 
-## 4. Round 1 — the certreq (`xrootd_gsi_build_certreq`)
+## 4. Round 1 — the certreq (`brix_gsi_build_certreq`)
 
 The first client message. **Gotcha #1:** a bare `"gsi\0"+kXGC_certreq` is
 rejected (*"main buffer missing: kXGC_certreq"*) — the certreq opcode and the
@@ -130,7 +130,7 @@ OUTER (step kXGC_certreq):
 
 `v:`, `c:`, `ca:` come from the gsi protocol `parms`
 (`v:10600,c:ssl,ca:5168735f.0|4339b4bc.0`) the auth driver passes —
-`xrootd_gsi_parse_parms` extracts them.
+`brix_gsi_parse_parms` extracts them.
 
 ---
 
@@ -140,7 +140,7 @@ The hardest part. All in `gsi_core.c`; unit-tested by `tests/c/gsi_cipher_test.c
 
 **Fixed DH parameters.** Both ends use ONE hard-coded 3072-bit safe-prime group
 (`XrdCryptosslCipher.cc::dh_param_enc`), embedded verbatim as
-`xrootd_gsi_dh_params_pem`. **Gotcha #2:** our old code used `ffdhe2048` and
+`brix_gsi_dh_params_pem`. **Gotcha #2:** our old code used `ffdhe2048` and
 derived against *our* params, not the peer's → *"no/garbled server DH key"*. The
 peer sends its params in the PEM; we key off **those**.
 
@@ -159,7 +159,7 @@ the *local/stored* form, e.g. a session file; never the wire form.)
 its first 16 bytes** (`XrdCryptosslCipher.cc` L580-620: it `SetBuffer(ldef=16,
 ktmp)`). **Gotcha #4:** the derive's `dh_pad` must equal the peer's `HasPad` —
 **0 for v<10400**, 1 otherwise — or the leading secret bytes differ and the key
-is wrong (*"error decrypting main buffer"*). `xrootd_gsi_cipher_session_key`
+is wrong (*"error decrypting main buffer"*). `brix_gsi_cipher_session_key`
 takes a `padded` flag.
 
 **Symmetric encryption.** `aes-128-cbc`, standard **PKCS#7** padding (XrdCrypto
@@ -186,7 +186,7 @@ public, which we send in the response). So parse it directly for the server's
 
 Proof of possession = **sign the server's rtag with the proxy private key**
 (`XrdCryptosslRSA::EncryptPrivate` = `EVP_PKEY_sign` with `RSA_PKCS1_PADDING`
-over the **raw** rtag bytes, no message digest — `xrootd_gsi_rsa_sign_raw`). The
+over the **raw** rtag bytes, no message digest — `brix_gsi_rsa_sign_raw`). The
 proxy file (`$X509_USER_PROXY` or `/tmp/x509up_u<uid>`) holds the cert chain
 **and** the RSA private key (`PEM_read_bio_PrivateKey`).
 
@@ -219,10 +219,10 @@ Everything is in `src/auth/gsi/gsi_core.{c,h}` → compiled into **both** the cl
 (`shared/xrdproto/libxrdproto.a`) and the server (the nginx module, via the root
 `config`). New primitives:
 
-- `xrootd_gsi_parse_parms` / `xrootd_gsi_rand` / `xrootd_gsi_build_certreq` (R1)
-- `xrootd_gsi_cipher_keygen` / `_public` / `_parse_peer` / `_session_key(padded)`
+- `brix_gsi_parse_parms` / `brix_gsi_rand` / `brix_gsi_build_certreq` (R1)
+- `brix_gsi_cipher_keygen` / `_public` / `_parse_peer` / `_session_key(padded)`
   / `_encrypt(use_iv)` / `_decrypt(use_iv)` (the cipher)
-- `xrootd_gsi_rsa_sign_raw` (EncryptPrivate / proof of possession)
+- `brix_gsi_rsa_sign_raw` (EncryptPrivate / proof of possession)
 
 Client glue is `client/lib/sec/sec_gsi.c` (`gsi_first`, `gsi_more`).
 
@@ -297,7 +297,7 @@ the AES key is the first *keylen* bytes of the DH secret either way.
   key and emit it as `kXRS_cipher` instead of `kXRS_puk`. The client recovers it
   with the host cert it also receives in `kXRS_x509`. The pooled `ffdhe2048` key
   is reused (no parameter sensitivity — see the cipher gotcha below).
-- **Round 2** (`parse_x509.c` → `xrootd_gsi_parse_x509_signed`): recover the
+- **Round 2** (`parse_x509.c` → `brix_gsi_parse_x509_signed`): recover the
   client's `Public()` from its signed `kXRS_cipher` using the proxy public key it
   sends in `kXRS_puk` (`DecryptPublic`), derive the **padded** DH secret
   (`set_dh_pad(1)`), AES-128 key = first 16 bytes, decrypt the **IV-prepended**
@@ -305,7 +305,7 @@ the AES key is the first *keylen* bytes of the DH secret either way.
 - The version the server advertises in `login.c`'s `&P=gsi,v:…` block drives the
   client's signed-vs-unsigned decision (10000 = unsigned, 10600 = signed-capable).
 
-### 9c. Configurability — `xrootd_gsi_signed_dh off|auto|require`
+### 9c. Configurability — `brix_gsi_signed_dh off|auto|require`
 A stream `server{}` directive (`src/protocols/root/stream/module.c`,
 `src/core/types/config.h` `gsi_signed_dh`):
 - `off` (default) — always emit unsigned `kXRS_puk`; advertise `v:10000`.
@@ -353,10 +353,10 @@ A stream `server{}` directive (`src/protocols/root/stream/module.c`,
   `curl`) and our native client (`client/bin/xrd{fs,cp}`, built on demand by an
   autouse fixture):
   - `root://` ls/stat/read/write **plus 5 MiB large I/O and
-    mkdir/rmdir/mv/query-checksum** across all `xrootd_gsi_signed_dh` policies
+    mkdir/rmdir/mv/query-checksum** across all `brix_gsi_signed_dh` policies
     (`off`/`auto`/`require`) — read and write together prove the session cipher
     in both directions over many AES-CBC blocks.
-  - **GSI followed by an in-protocol TLS upgrade** (`roots://`, `xrootd_tls on`)
+  - **GSI followed by an in-protocol TLS upgrade** (`roots://`, `brix_tls on`)
     read + write.
   - **concurrent handshakes** (12 in parallel, per policy) — the ephemeral-DH
     keypool must answer every certreq without head-of-line blocking.
@@ -383,14 +383,14 @@ A stream `server{}` directive (`src/protocols/root/stream/module.c`,
   - **VOMS** — a fake VOMS proxy (`voms-proxy-fake` + an LSC vomsdir) carrying a
     VO is admitted to a `require_vo`-gated path while the plain (no-VO) proxy is
     refused, proving the server extracts the VOMS attribute (stock + native).
-  - **`xrootd_auth both`** — the GSI client selects gsi from a `&P=ztn…&P=gsi…`
+  - **`brix_auth both`** — the GSI client selects gsi from a `&P=ztn…&P=gsi…`
     advertisement (stock + native), and the wire advertisement carries both.
   - more query opcodes (config / locate / stat-q), a spread of file sizes
     (0/1/16/17/9973/65537 bytes) over the session cipher, a deeper wire check
     (kXGS_cert offers a sha256 digest; login carries an 8-hex CA hash), and
     concurrent HTTPS proxy-cert requests.
   - `https://` WebDAV with the **same** x509 proxy over TLS client-cert auth
-    (`xrootd_webdav_proxy_certs`): PROPFIND/GET/PUT/HEAD/DELETE/MKCOL/COPY/MOVE/
+    (`brix_webdav_proxy_certs`): PROPFIND/GET/PUT/HEAD/DELETE/MKCOL/COPY/MOVE/
     OPTIONS/range/Depth-1/4 MiB with a proxy, and the rejections (no cert /
     untrusted / expired — any non-2xx).
 

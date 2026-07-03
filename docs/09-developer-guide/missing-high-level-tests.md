@@ -12,9 +12,9 @@ The existing test suite has 90+ files covering individual opcodes, protocol conf
 
 ### `tests/test_metrics.py`
 Tests Prometheus `/metrics` endpoint for:
-- Anon/GSI/op labels counters (`xrootd_requests_total`)
-- Error counters (`xrootd_errors_total`)
-- Byte counters per protocol (`xrootd_bytes_sent_total`, `xrootd_bytes_recv_total`)
+- Anon/GSI/op labels counters (`brix_requests_total`)
+- Error counters (`brix_errors_total`)
+- Byte counters per protocol (`brix_bytes_sent_total`, `brix_bytes_recv_total`)
 - IP version tracking
 - Token auth counters
 
@@ -35,16 +35,16 @@ The monitoring guide documents these expected Prometheus metric families:
 
 | Metric Family | Description | PromQL Examples in Guide |
 |---------------|-------------|-------------------------|
-| `xrootd_requests_total` | Per-op counters by protocol + status | `sum by (op, proto) (rate(xrootd_requests_total[5m]))` |
-| `xrootd_bytes_sent_total` / `xrootd_bytes_recv_total` | Byte counters per protocol | `irate(xrootd_bytes_sent_total[1m])` for throughput |
-| `xrootd_auth_total` | Auth events by method + result | `sum by (method, result) (rate(xrootd_auth_total[5m]))` |
-| `xrootd_errors_total` | Errors by errno family | `sum by (errno) (rate(xrootd_errors_total[5m]))` |
-| `xrootd_fd_cache_hits_total` / `misses_total` | FD cache hit/miss ratio | `fd_cache_hits_total / (fd_cache_hits_total + fd_cache_misses_total)` |
-| `xrootd_tpc_transfers_total` | TPC transfers by mode | `sum by (mode) (rate(xrootd_tpc_transfers_total[5m]))` |
-| `xrootd_cache_hits_total` / `misses_total` | Read-through cache hit/miss | Cache fill rate analysis |
-| `xrootd_write_through_syncs_total` | Write-through mirroring events | Sync success/failure rates |
-| `xrootd_cms_heartbeat_total` | CMS heartbeat ping events | Heartbeat interval monitoring |
-| `xrootd_session_bind_total` / `unbind_total` | Session lifecycle events | Active session count tracking |
+| `brix_requests_total` | Per-op counters by protocol + status | `sum by (op, proto) (rate(brix_requests_total[5m]))` |
+| `brix_bytes_sent_total` / `brix_bytes_recv_total` | Byte counters per protocol | `irate(brix_bytes_sent_total[1m])` for throughput |
+| `brix_auth_total` | Auth events by method + result | `sum by (method, result) (rate(brix_auth_total[5m]))` |
+| `brix_errors_total` | Errors by errno family | `sum by (errno) (rate(brix_errors_total[5m]))` |
+| `brix_fd_cache_hits_total` / `misses_total` | FD cache hit/miss ratio | `fd_cache_hits_total / (fd_cache_hits_total + fd_cache_misses_total)` |
+| `brix_tpc_transfers_total` | TPC transfers by mode | `sum by (mode) (rate(brix_tpc_transfers_total[5m]))` |
+| `brix_cache_hits_total` / `misses_total` | Read-through cache hit/miss | Cache fill rate analysis |
+| `brix_write_through_syncs_total` | Write-through mirroring events | Sync success/failure rates |
+| `brix_cms_heartbeat_total` | CMS heartbeat ping events | Heartbeat interval monitoring |
+| `brix_session_bind_total` / `unbind_total` | Session lifecycle events | Active session count tracking |
 
 ---
 
@@ -57,9 +57,9 @@ These tests exercise the full stack from client → nginx redirect → xrootd ba
 | # | Test Name | What It Tests | Why Missing? |
 |---|-----------|---------------|--------------|
 | 1 | `test_e2e_xrdcp_metrics_validation` | Run xrdcp read/write through nginx redirect port → scrape `/metrics` → verify counters incremented by exact amounts (bytes_sent = file size, requests_total[op="read"] += N) | Only `test_large_file_metrics.py` tests metrics with Python client; no test uses real xrdcp binary + nginx redirect + metric validation together |
-| 2 | `test_e2e_xrdcp_auth_metrics_validation` | Run xrdcp login (anon → GSI → token) through nginx redirect → scrape `/metrics` → verify `xrootd_auth_total{method="gsi",result="ok"}` increments, then read operation → verify bytes counters match | Auth metrics tested per-protocol but not validated against actual auth events from real xrdcp client |
+| 2 | `test_e2e_xrdcp_auth_metrics_validation` | Run xrdcp login (anon → GSI → token) through nginx redirect → scrape `/metrics` → verify `brix_auth_total{method="gsi",result="ok"}` increments, then read operation → verify bytes counters match | Auth metrics tested per-protocol but not validated against actual auth events from real xrdcp client |
 | 3 | `test_e2e_xrdcp_parallel_metrics_validation` | Run parallel xrdcp copies (N files) through nginx redirect → scrape `/metrics` → verify `requests_total` = N × operations, bytes counters sum correctly across concurrent sessions | Concurrent tests exist (`test_concurrent.py`) but no test validates metrics under concurrency pressure |
-| 4 | `test_e2e_xrdcp_error_metrics_validation` | Run xrdcp against non-existent path / unauthorized path → scrape `/metrics` → verify `xrootd_errors_total{errno="ENOENT"}` and `xrootd_requests_total{status="error"}` increment correctly | Error counters tested individually but not validated end-to-end with real client errors |
+| 4 | `test_e2e_xrdcp_error_metrics_validation` | Run xrdcp against non-existent path / unauthorized path → scrape `/metrics` → verify `brix_errors_total{errno="ENOENT"}` and `brix_requests_total{status="error"}` increment correctly | Error counters tested individually but not validated end-to-end with real client errors |
 | 5 | `test_e2e_xrdcp_proxy_mode_metrics_validation` | Run xrdcp through nginx transparent proxy mode → backend xrootd → scrape `/metrics` → verify metrics show nginx as the observed layer, backend identity hidden, counters still increment correctly | Proxy mode tested (`test_proxy_mode.py`) but no test validates metrics in proxy mode specifically |
 
 ### Category 2: Cross-Protocol Metrics Consistency
@@ -68,8 +68,8 @@ These tests validate that a single operation performed via multiple protocols pr
 
 | # | Test Name | What It Tests | Why Missing? |
 |---|-----------|---------------|--------------|
-| 6 | `test_cross_protocol_metrics_consistency` | Upload same file via root:// and davs:// → scrape `/metrics` → verify `xrootd_bytes_sent_total{proto="root"}` + `xrootd_bytes_sent_total{proto="dav"}` = 2 × file_size, request counters match per protocol | Metrics tested per-protocol but never validated that cross-protocol operations produce consistent totals |
-| 7 | `test_cross_protocol_auth_metrics_consistency` | Authenticate via GSI on root:// port and davs:// port with same proxy cert → scrape `/metrics` → verify `xrootd_auth_total{method="gsi",result="ok"}` counts both sessions, no double-counting | Auth metrics exist but cross-protocol auth consistency not validated |
+| 6 | `test_cross_protocol_metrics_consistency` | Upload same file via root:// and davs:// → scrape `/metrics` → verify `brix_bytes_sent_total{proto="root"}` + `brix_bytes_sent_total{proto="dav"}` = 2 × file_size, request counters match per protocol | Metrics tested per-protocol but never validated that cross-protocol operations produce consistent totals |
+| 7 | `test_cross_protocol_auth_metrics_consistency` | Authenticate via GSI on root:// port and davs:// port with same proxy cert → scrape `/metrics` → verify `brix_auth_total{method="gsi",result="ok"}` counts both sessions, no double-counting | Auth metrics exist but cross-protocol auth consistency not validated |
 | 8 | `test_cross_protocol_error_metrics_consistency` | Same path error (ENOENT) via root:// and davs:// → scrape `/metrics` → verify error counters increment per protocol independently, total errors = sum across protocols | Error metrics tested individually but cross-protocol aggregation not verified |
 
 ### Category 3: Full-Stack TLS + Auth + Data Transfer Lifecycle
@@ -88,8 +88,8 @@ These tests validate native and WebDAV TPC transfers through the full stack with
 
 | # | Test Name | What It Tests | Why Missing? |
 |---|-----------|---------------|--------------|
-| 12 | `test_e2e_native_tpc_metrics` | Native TPC: xrdcp copyprocess from source → destination via SHM key registry → scrape `/metrics` → verify `xrootd_tpc_transfers_total{mode="native"}` increments, bytes counters on both source and destination servers match | Native TPC tested (`test_root_tpc.py`) but no test validates metrics on both sides of the transfer |
-| 13 | `test_e2e_webdav_tpc_metrics` | WebDAV HTTP-TPC: curl COPY with Source/Credential headers → scrape `/metrics` → verify `xrootd_tpc_transfers_total{mode="webdav"}` increments, bytes counters on source/destination match, TPC-specific counters increment | WebDAV TPC tested (`test_webdav_tpc.py`) but no test validates metrics across the HTTP-TPC transfer |
+| 12 | `test_e2e_native_tpc_metrics` | Native TPC: xrdcp copyprocess from source → destination via SHM key registry → scrape `/metrics` → verify `brix_tpc_transfers_total{mode="native"}` increments, bytes counters on both source and destination servers match | Native TPC tested (`test_root_tpc.py`) but no test validates metrics on both sides of the transfer |
+| 13 | `test_e2e_webdav_tpc_metrics` | WebDAV HTTP-TPC: curl COPY with Source/Credential headers → scrape `/metrics` → verify `brix_tpc_transfers_total{mode="webdav"}` increments, bytes counters on source/destination match, TPC-specific counters increment | WebDAV TPC tested (`test_webdav_tpc.py`) but no test validates metrics across the HTTP-TPC transfer |
 | 14 | `test_e2e_cross_protocol_tpc` | TPC from root:// source to davs:// destination (or vice versa) → scrape `/metrics` on both servers → verify cross-protocol metric labels, bytes transferred consistent on both sides | No test exercises TPC across protocol boundaries (root:// ↔ davs://) |
 
 ### Category 5: Cache Metrics + End-to-End Validation
@@ -98,8 +98,8 @@ These tests validate read-through cache hit/miss ratios and write-through mirror
 
 | # | Test Name | What It Tests | Why Missing? |
 |---|-----------|---------------|--------------|
-| 15 | `test_e2e_cache_hit_metrics_validation` | Configure nginx read-through cache → xrdcp read same file N times through redirect → scrape `/metrics` → verify first request = cache miss, subsequent requests = cache hits, `xrootd_cache_hits_total` / `xrootd_cache_misses_total` ratio matches expected pattern | Cache tested (`test_http_cache_hit.py`) but no test validates cache hit/miss metrics over multiple accesses |
-| 16 | `test_e2e_write_through_metrics_validation` | Configure write-through mirroring → xrdcp write file through nginx redirect to origin → scrape `/metrics` → verify `xrootd_write_through_syncs_total` increments, bytes_sent on both cache server and origin match, sync success/failure counters accurate | Write-through tested (`test_cache_write_through.py`) but no test validates metrics during write-through operations |
+| 15 | `test_e2e_cache_hit_metrics_validation` | Configure nginx read-through cache → xrdcp read same file N times through redirect → scrape `/metrics` → verify first request = cache miss, subsequent requests = cache hits, `brix_cache_hits_total` / `brix_cache_misses_total` ratio matches expected pattern | Cache tested (`test_http_cache_hit.py`) but no test validates cache hit/miss metrics over multiple accesses |
+| 16 | `test_e2e_write_through_metrics_validation` | Configure write-through mirroring → xrdcp write file through nginx redirect to origin → scrape `/metrics` → verify `brix_write_through_syncs_total` increments, bytes_sent on both cache server and origin match, sync success/failure counters accurate | Write-through tested (`test_cache_write_through.py`) but no test validates metrics during write-through operations |
 | 17 | `test_e2e_cache_eviction_metrics` | Fill cache → evict entries (via config reload or TTL expiry) → scrape `/metrics` → verify cache hit ratio drops after eviction, new accesses = misses, total hits/misses reset appropriately | Cache lifecycle tested but no test validates metrics during cache eviction events |
 
 ### Category 6: CMS / Manager Mode + Metrics Validation
@@ -108,7 +108,7 @@ These tests validate CMS heartbeat, cluster registry, and multi-tier topology me
 
 | # | Test Name | What It Tests | Why Missing? |
 |---|-----------|---------------|--------------|
-| 18 | `test_e2e_cms_heartbeat_metrics` | Start manager mode with multiple servers → scrape `/metrics` → verify `xrootd_cms_heartbeat_total{server="X"}` increments per heartbeat interval, server registry count matches active servers, locate responses counted correctly | CMS tested (`test_cms.py`) but no test validates CMS-specific metrics over time |
+| 18 | `test_e2e_cms_heartbeat_metrics` | Start manager mode with multiple servers → scrape `/metrics` → verify `brix_cms_heartbeat_total{server="X"}` increments per heartbeat interval, server registry count matches active servers, locate responses counted correctly | CMS tested (`test_cms.py`) but no test validates CMS-specific metrics over time |
 | 19 | `test_e2e_manager_cluster_metrics` | Multi-tier manager topology (3 tiers) → scrape `/metrics` → verify per-server counters, cluster-wide totals, redirect events counted correctly, server registration/unregistration tracked in metrics | Manager mode tested (`test_manager_mode.py`) but no test validates cluster-level metrics aggregation |
 | 20 | `test_e2e_cms_reconnect_metrics` | CMS server disconnects and reconnects → scrape `/metrics` → verify unbind_total increments on disconnect, bind_total increments on reconnect, session counters reflect active sessions correctly after reconnection | CMS reconnect tested but no test validates metrics during reconnect events |
 
@@ -118,8 +118,8 @@ These tests validate session bind/unbind events, handle lifecycle, and FD cache 
 
 | # | Test Name | What It Tests | Why Missing? |
 |---|-----------|---------------|--------------|
-| 21 | `test_e2e_session_bind_metrics` | Multiple concurrent xrdcp sessions → scrape `/metrics` → verify `xrootd_session_bind_total` = N active sessions, `xrootd_session_unbind_total` = closed sessions, fd_cache_hits/misses correlate with session count | Session bind tested (`test_session_bind.py`) but no test validates session lifecycle metrics under concurrency |
-| 22 | `test_e2e_fd_cache_metrics_validation` | Open same file via multiple sessions → scrape `/metrics` → verify `xrootd_fd_cache_hits_total` increments for reused handles, `fd_cache_misses_total` for new opens, cache hit ratio = reused_handles / total_opens | FD cache tested in proxy mode but no standalone test validates fd_cache metrics directly |
+| 21 | `test_e2e_session_bind_metrics` | Multiple concurrent xrdcp sessions → scrape `/metrics` → verify `brix_session_bind_total` = N active sessions, `brix_session_unbind_total` = closed sessions, fd_cache_hits/misses correlate with session count | Session bind tested (`test_session_bind.py`) but no test validates session lifecycle metrics under concurrency |
+| 22 | `test_e2e_fd_cache_metrics_validation` | Open same file via multiple sessions → scrape `/metrics` → verify `brix_fd_cache_hits_total` increments for reused handles, `fd_cache_misses_total` for new opens, cache hit ratio = reused_handles / total_opens | FD cache tested in proxy mode but no standalone test validates fd_cache metrics directly |
 | 23 | `test_e2e_handle_lifecycle_metrics` | Open → read → stat (same handle) → close → open again → scrape `/metrics` → verify requests_total[op="read"] and [op="stat"] counted on same session, close increments unbind or session counter appropriately | Handle lifecycle tested in individual opcode tests but not validated as complete lifecycle with metrics |
 
 ### Category 8: Throughput + Latency Metrics End-to-End
@@ -128,18 +128,18 @@ These tests validate throughput and latency metric tracking during large file tr
 
 | # | Test Name | What It Tests | Why Missing? |
 |---|-----------|---------------|--------------|
-| 24 | `test_e2e_throughput_metrics_validation` | xrdcp copy large file (100MB+) through nginx redirect → scrape `/metrics` during transfer → verify `irate(xrootd_bytes_sent_total[1m])` matches actual throughput, requests_total[op="read"] = page_count, pgread counters match | Throughput tested (`test_throughput.py`) with 200MB streaming but no test validates metrics during the transfer in real-time |
-| 25 | `test_e2e_latency_metrics_validation` | Run stat/dirlist/locate/query/read operations through nginx redirect → scrape `/metrics` → verify latency counters (if defined) or derive from request timing + counter increments, compare against reference xrootd latency | Latency tested in performance conformance (`test_xrootd_performance_conformance.py`) but no test validates latency reflected in metrics |
+| 24 | `test_e2e_throughput_metrics_validation` | xrdcp copy large file (100MB+) through nginx redirect → scrape `/metrics` during transfer → verify `irate(brix_bytes_sent_total[1m])` matches actual throughput, requests_total[op="read"] = page_count, pgread counters match | Throughput tested (`test_throughput.py`) with 200MB streaming but no test validates metrics during the transfer in real-time |
+| 25 | `test_e2e_latency_metrics_validation` | Run stat/dirlist/locate/query/read operations through nginx redirect → scrape `/metrics` → verify latency counters (if defined) or derive from request timing + counter increments, compare against reference xrootd latency | Latency tested in performance conformance (`test_brix_performance_conformance.py`) but no test validates latency reflected in metrics |
 | 26 | `test_e2e_chunked_read_metrics` | xrdcp chunked read (multiple reads with gaps) through nginx redirect → scrape `/metrics` → verify each read increments requests_total[op="read"] independently, bytes_sent = sum of all chunks, no duplicate counting for overlapping ranges | Chunked reads tested in throughput but metrics per-chunk validation not present |
 
 ### Category 9: Dashboard API + Metrics Cross-Validation
 
-These tests validate the HTTPS dashboard API (`/xrootd/api/v1/`) against actual Prometheus metric values.
+These tests validate the HTTPS dashboard API (`/brix/api/v1/`) against actual Prometheus metric values.
 
 | # | Test Name | What It Tests | Why Missing? |
 |---|-----------|---------------|--------------|
-| 27 | `test_e2e_dashboard_api_metrics_cross_validation` | Run operations through nginx → scrape `/metrics` AND scrape `/xrootd/api/v1/snapshot` → verify dashboard JSON values match Prometheus counter values (transfers count, auth events, bytes transferred) | Dashboard API tested (`test_dashboard.py`) for schema correctness but no test cross-validates against actual Prometheus counters |
-| 28 | `test_e2e_dashboard_api_realtime_update` | Run operations through nginx → scrape `/xrootd/api/v1/snapshot` before and after → verify snapshot values increment correctly (active transfers count, auth event counts, bytes transferred) | Dashboard tested for static schema but no test validates realtime updates during active operations |
+| 27 | `test_e2e_dashboard_api_metrics_cross_validation` | Run operations through nginx → scrape `/metrics` AND scrape `/brix/api/v1/snapshot` → verify dashboard JSON values match Prometheus counter values (transfers count, auth events, bytes transferred) | Dashboard API tested (`test_dashboard.py`) for schema correctness but no test cross-validates against actual Prometheus counters |
+| 28 | `test_e2e_dashboard_api_realtime_update` | Run operations through nginx → scrape `/brix/api/v1/snapshot` before and after → verify snapshot values increment correctly (active transfers count, auth event counts, bytes transferred) | Dashboard tested for static schema but no test validates realtime updates during active operations |
 
 ### Category 10: Metrics Label Cardinality + Scale Validation
 
@@ -216,7 +216,7 @@ Each missing test should follow the standard pattern of **success + error + secu
 ### Required Infrastructure
 - All tests require `tests/manage_test_servers.sh start` (nginx + ref xrootd servers running)
 - Metrics endpoint accessible at port 9100 (`/metrics`)
-- Dashboard API accessible at configured dashboard port (`/xrootd/api/v1/snapshot`)
+- Dashboard API accessible at configured dashboard port (`/brix/api/v1/snapshot`)
 - xrdcp binary available on test system path
 
 ### Helper Functions Needed

@@ -121,8 +121,8 @@ For the longer-form version, see [quirks.md](../10-reference/quirks.md) and
 - **Trailing NUL in path `dlen`:** Some XRootD clients include a single trailing NUL inside the path length field. The server must tolerate this terminator but still reject embedded NULs before it.
 - **`xrdfs ping` support:** `kXR_ping` is implemented in the server. If your version of `xrdfs` (e.g. 5.9.2) does not support a dedicated ping command, use `xrdfs ... ls /` as a readiness probe instead.
 - **Repeated upload tests:** Use `xrdcp -f` or remove the destination first; otherwise reruns fail because the file already exists rather than testing the server.
-- **Log injection:** All client-controlled strings that reach log output must go through `xrootd_sanitize_log_string()` so control bytes are escaped as `\xNN`.
-- **Token auth split:** Native XRootD enforces token scopes on path-resolving operations and still applies the server-wide `xrootd_allow_write` gate. WebDAV enforces token write scopes per mutating HTTP request.
+- **Log injection:** All client-controlled strings that reach log output must go through `brix_sanitize_log_string()` so control bytes are escaped as `\xNN`.
+- **Token auth split:** Native XRootD enforces token scopes on path-resolving operations and still applies the server-wide `brix_allow_write` gate. WebDAV enforces token write scopes per mutating HTTP request.
 - **Protocol edge cases:** Many things that look obvious from the XRootD spec differ from what real clients actually send. Check [protocol-notes.md](../10-reference/protocol-notes.md) before simplifying any wire-level behavior.
 - **nginx `O_EXCL` trap:** `ngx_open_file(path, mode, create, access)` ORs `create` into the flags argument. `NGX_FILE_DEFAULT_ACCESS` is `0644` (octal), and `0644` octal contains the bit for `O_EXCL` (`0200` octal). Always pass `NGX_FILE_DEFAULT_ACCESS` as the `access` (fourth) argument, never as `create`.
 
@@ -206,7 +206,7 @@ Every operation that may block on disk I/O uses the same `_thread` / `_done` pai
 ```c
 /* ── Task context (allocated on connection pool before posting) ──────── */
 typedef struct {
-    xrootd_ctx_t       *ctx;
+    brix_ctx_t       *ctx;
     ngx_connection_t   *c;
     int                 fd;
     off_t               offset;
@@ -214,7 +214,7 @@ typedef struct {
     u_char             *buf;
     ssize_t             result;   /* output: bytes read/written, or -1 */
     int                 io_errno; /* output: errno on failure */
-    ngx_uint_t          streamid; /* for xrootd_aio_restore_stream() */
+    ngx_uint_t          streamid; /* for brix_aio_restore_stream() */
 } myop_aio_ctx_t;
 
 /* ── Thread function (runs on nginx thread pool) ─────────────────────── */
@@ -237,14 +237,14 @@ myop_aio_done(ngx_event_t *ev)
     myop_aio_ctx_t     *t = task->ctx;
 
     /* ALWAYS check destroyed first */
-    if (!xrootd_aio_restore_stream(t->ctx, t->streamid)) {
+    if (!brix_aio_restore_stream(t->ctx, t->streamid)) {
         ngx_free(t->buf);  /* free any separately-allocated memory */
         return;
     }
 
     /* Now safe to use t->ctx and t->c */
     if (t->result < 0) {
-        XROOTD_RETURN_ERR(t->ctx, t->c, XROOTD_OP_MYOP, "MYOP",
+        BRIX_RETURN_ERR(t->ctx, t->c, BRIX_OP_MYOP, "MYOP",
                           "-", "aio-read", kXR_IOError, strerror(t->io_errno));
         return;
     }
@@ -255,7 +255,7 @@ myop_aio_done(ngx_event_t *ev)
 
 /* ── Dispatch (runs on main event loop, posts the task) ─────────────── */
 ngx_int_t
-xrootd_try_post_myop_aio(xrootd_ctx_t *ctx, ngx_connection_t *c, ...)
+brix_try_post_myop_aio(brix_ctx_t *ctx, ngx_connection_t *c, ...)
 {
     ngx_thread_task_t  *task;
     myop_aio_ctx_t     *t;
@@ -287,5 +287,5 @@ xrootd_try_post_myop_aio(xrootd_ctx_t *ctx, ngx_connection_t *c, ...)
 Key rules:
 - Allocate `t->buf` with `ngx_alloc` (not `ngx_palloc`) — `ngx_palloc` is not thread-safe
 - Never call `ngx_palloc`, `ngx_log_error`, or any nginx API from inside `_thread`
-- Always check `xrootd_aio_restore_stream` at the top of `_done`
+- Always check `brix_aio_restore_stream` at the top of `_done`
 - Set `ctx->state = XRD_ST_AIO` before posting, restore in `_done` or on error

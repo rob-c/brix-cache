@@ -18,7 +18,7 @@ stream {
     server {
         listen 1094;
         xrootd on;
-        xrootd_root /data/public;
+        brix_root /data/public;
     }
 }
 ```
@@ -35,9 +35,9 @@ stream {
     server {
         listen 1094;
         xrootd on;
-        xrootd_root /data/upload;
-        xrootd_allow_write on;
-        xrootd_access_log /var/log/nginx/xrootd_access.log;
+        brix_root /data/upload;
+        brix_allow_write on;
+        brix_access_log /var/log/nginx/brix_access.log;
     }
 }
 ```
@@ -46,7 +46,7 @@ stream {
 
 ```nginx
 worker_processes auto;
-thread_pool xrootd_cache_io threads=8 max_queue=65536;
+thread_pool brix_cache_io threads=8 max_queue=65536;
 
 events { worker_connections 4096; }
 
@@ -54,14 +54,14 @@ stream {
     server {
         listen 1094;
         xrootd on;
-        xrootd_root /;
-        xrootd_cache on;
-        xrootd_cache_root /srv/xcache;
-        xrootd_cache_origin root://origin.example.org:1094;
-        xrootd_cache_lock_timeout 300s;
-        xrootd_cache_eviction_threshold 90%;
-        xrootd_access_log /var/log/nginx/xrootd_cache.log;
-        xrootd_thread_pool xrootd_cache_io;
+        brix_root /;
+        brix_cache on;
+        brix_cache_root /srv/xcache;
+        brix_cache_origin root://origin.example.org:1094;
+        brix_cache_lock_timeout 300s;
+        brix_cache_eviction_threshold 90%;
+        brix_access_log /var/log/nginx/brix_cache.log;
+        brix_thread_pool brix_cache_io;
     }
 }
 ```
@@ -71,7 +71,7 @@ Requests for `/store/...` are opened from `/srv/xcache/store/...` if present. A 
 ```text
   client ── root://cache//store/a.root ──▶ ┌─────────────────────────┐
                                            │  nginx-xrootd (XCache)   │
-                                           │  xrootd_cache_root       │
+                                           │  brix_cache_root       │
                                            └───────────┬─────────────┘
                   ┌────────────────────────────────────┴───────────┐
                   ▼ HIT: /srv/xcache/store/a.root exists            ▼ MISS
@@ -83,7 +83,7 @@ Requests for `/store/...` are opened from `/srv/xcache/store/...` if present. A 
                   │                                                 ▼
                   └──── cached for next client ◀── stream from ── origin
                         (eviction at 90% via                     data server
-                         xrootd_cache_eviction_threshold)
+                         brix_cache_eviction_threshold)
 ```
 
 ---
@@ -100,28 +100,28 @@ stream {
     server {
         listen 1095;
         xrootd on;
-        xrootd_auth          gsi;
-        xrootd_allow_write   on;
-        xrootd_root          /ceph/store;
+        brix_auth          gsi;
+        brix_allow_write   on;
+        brix_root          /ceph/store;
 
-        xrootd_certificate     /etc/grid-security/hostcert.pem;
-        xrootd_certificate_key /etc/grid-security/hostkey.pem;
-        xrootd_trusted_ca      /etc/grid-security/ca.pem;
+        brix_certificate     /etc/grid-security/hostcert.pem;
+        brix_certificate_key /etc/grid-security/hostkey.pem;
+        brix_trusted_ca      /etc/grid-security/ca.pem;
 
         # VOMS: where to find VO membership information
-        xrootd_vomsdir         /etc/voms;
-        xrootd_voms_cert_dir   /etc/grid-security/certificates;
+        brix_vomsdir         /etc/voms;
+        brix_voms_cert_dir   /etc/grid-security/certificates;
 
         # Restrict /atlas and /cms sub-trees to their respective VOs
-        xrootd_require_vo /atlas atlas;
-        xrootd_require_vo /cms   cms;
+        brix_require_vo /atlas atlas;
+        brix_require_vo /cms   cms;
 
         # Keep group ownership consistent for all new files/dirs
-        xrootd_inherit_parent_group /atlas;
-        xrootd_inherit_parent_group /cms;
+        brix_inherit_parent_group /atlas;
+        brix_inherit_parent_group /cms;
 
-        xrootd_access_log /var/log/nginx/xrootd_gsi.log;
-        xrootd_thread_pool default;
+        brix_access_log /var/log/nginx/brix_gsi.log;
+        brix_thread_pool default;
     }
 }
 ```
@@ -142,15 +142,15 @@ stream {
     server {
         listen 1096;
         xrootd on;
-        xrootd_root /data/token;
-        xrootd_auth token;
-        xrootd_allow_write on;
+        brix_root /data/token;
+        brix_auth token;
+        brix_allow_write on;
 
-        xrootd_token_jwks     /etc/tokens/jwks.json;
-        xrootd_token_issuer   "https://idp.example.com";
-        xrootd_token_audience "my-storage";
+        brix_token_jwks     /etc/tokens/jwks.json;
+        brix_token_issuer   "https://idp.example.com";
+        brix_token_audience "my-storage";
 
-        xrootd_access_log /var/log/nginx/xrootd_token.log;
+        brix_access_log /var/log/nginx/brix_token.log;
     }
 }
 ```
@@ -160,8 +160,8 @@ Native stream token auth validates the JWT and stores the `sub`, `scope`, and
 `storage.read` is required for read opens and metadata operations, while
 `storage.write` or `storage.create` is required for write opens and namespace
 mutation. Handle-based I/O inherits the decision made when the handle was
-opened. `xrootd_allow_write` remains an additional server-wide write gate, and
-`xrootd_require_vo` can still use token `wlcg.groups` for path ACLs.
+opened. `brix_allow_write` remains an additional server-wide write gate, and
+`brix_require_vo` can still use token `wlcg.groups` for path ACLs.
 
 ---
 
@@ -169,12 +169,12 @@ opened. `xrootd_allow_write` remains an additional server-wide write gate, and
 
 ```text
                         ┌──────────────────────────────────────┐
-   anonymous reader ──▶ │ :1094  xrootd_root /data/public      │ read-only
+   anonymous reader ──▶ │ :1094  brix_root /data/public      │ read-only
                         │        (no auth, no write)            │
                         ├──────────────────────────────────────┤
-   GSI cert holder  ──▶ │ :1095  xrootd_auth gsi                │ read-write
-                        │        xrootd_allow_write on          │ (cert + CA)
-                        │        xrootd_root /data/upload       │
+   GSI cert holder  ──▶ │ :1095  brix_auth gsi                │ read-write
+                        │        brix_allow_write on          │ (cert + CA)
+                        │        brix_root /data/upload       │
                         ├──────────────────────────────────────┤
    Prometheus       ──▶ │ :9100  http /metrics                  │ scrape
                         └──────────────────────────────────────┘
@@ -192,21 +192,21 @@ stream {
     server {
         listen 1094;
         xrootd on;
-        xrootd_root /data/public;
-        xrootd_access_log /var/log/nginx/xrootd_public.log;
+        brix_root /data/public;
+        brix_access_log /var/log/nginx/brix_public.log;
     }
 
     # Authenticated read-write endpoint
     server {
         listen 1095;
         xrootd on;
-        xrootd_auth gsi;
-        xrootd_allow_write on;
-        xrootd_root /data/upload;
-        xrootd_certificate     /etc/grid-security/hostcert.pem;
-        xrootd_certificate_key /etc/grid-security/hostkey.pem;
-        xrootd_trusted_ca      /etc/grid-security/ca.pem;
-        xrootd_access_log /var/log/nginx/xrootd_gsi.log;
+        brix_auth gsi;
+        brix_allow_write on;
+        brix_root /data/upload;
+        brix_certificate     /etc/grid-security/hostcert.pem;
+        brix_certificate_key /etc/grid-security/hostkey.pem;
+        brix_trusted_ca      /etc/grid-security/ca.pem;
+        brix_access_log /var/log/nginx/brix_gsi.log;
     }
 }
 
@@ -215,7 +215,7 @@ http {
     server {
         listen 9100;
         location /metrics {
-            xrootd_metrics on;
+            brix_metrics on;
         }
     }
 }
