@@ -17,7 +17,7 @@ brix_kxr_err_string(int err)
     switch (err) {
     case EACCES: /* fall through */
     case EPERM:  return "permission denied";
-    case ENOENT: return "file not found";
+    case ENOENT: return "no such file or directory";
     case ENOTDIR:return "not a directory";
     case EISDIR: return "is a directory";
     case ENOSPC: return "no space left on device";
