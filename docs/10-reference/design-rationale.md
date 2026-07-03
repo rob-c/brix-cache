@@ -1,6 +1,6 @@
-# gnuBall vs the official XRootD server
+# BriX-Cache vs the official XRootD server
 
-A direct comparison for operators and developers deciding whether gnuBall fits their site — as of **2026-05-08**.
+A direct comparison for operators and developers deciding whether BriX-Cache fits their site — as of **2026-05-08**.
 project is a better fit for a modern HEP storage endpoint.
 
 The short version: upstream XRootD is a mature, extremely broad storage

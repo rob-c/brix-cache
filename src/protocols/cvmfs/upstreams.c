@@ -93,5 +93,12 @@ xrootd_cvmfs_upstream_get(ngx_http_request_t *r,
     s->inst = inst;
     cvmfs_ups_n++;
     *up_root_out = s->up_root;
+
+    /* First time this worker sees this Stratum-1: record it so the origin
+     * decisions that follow (which host served, any failover) can be tied
+     * back to a concrete upstream. */
+    ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
+        "cvmfs: proxy-mode upstream registered %s:%u (slot %ui/%ui, store %s)",
+        s->host, (unsigned) port, cvmfs_ups_n, cap, s->up_root);
     return inst;
 }

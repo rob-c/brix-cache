@@ -3,14 +3,14 @@
 This directory contains RPM packaging for AlmaLinux 9 / EPEL 9 and
 AlmaLinux 10 / EPEL 10 style nginx dynamic module builds.
 
-A single spec (`nginx-mod-xrootd.spec`) builds **three** packages from one
+A single spec (`nginx-mod-brix-cache.spec`) builds **three** packages from one
 source tree:
 
 | Package | Arch | Contents |
 |---|---|---|
-| `nginx-mod-xrootd` | arch | The 8 nginx dynamic modules (stream/webdav/s3/metrics/srr/cms/dashboard/xrdhttp-filter) + the `mod-xrootd.conf` loader |
-| `nginx-xrootd-client` | arch | The clean-room native CLI tools (`xrdcp`, `xrdfs`, …), the `xrootdfs` FUSE mount (default + `--legacy` mode), the `libxrdposix_preload.so` POSIX shim, and their man pages |
-| `nginx-xrootd-tests` | noarch | The full pytest integration/conformance suite under `%{_datadir}/nginx-xrootd`, pulling in the python packages it needs |
+| `nginx-mod-brix-cache` | arch | The 8 nginx dynamic modules (stream/webdav/s3/metrics/srr/cms/dashboard/xrdhttp-filter) + the `mod-xrootd.conf` loader |
+| `brix-cache-client` | arch | The clean-room native CLI tools (`xrdcp`, `xrdfs`, …), the `xrootdfs` FUSE mount (default + `--legacy` mode), the `libxrdposix_preload.so` POSIX shim, and their man pages |
+| `brix-cache-tests` | noarch | The full pytest integration/conformance suite under `%{_datadir}/nginx-xrootd`, pulling in the python packages it needs |
 
 The module package builds against the distribution nginx source exposed by
 `nginx-mod-devel`, installs the module `.so` files under the nginx module
@@ -25,7 +25,7 @@ Most shared-library dependencies are auto-detected from the ELF link records by
 libxml2, jansson, libcurl, libxcrypt, fuse3-libs, …).  The following cannot be
 auto-detected and are therefore declared explicitly.
 
-**`nginx-mod-xrootd` (modules):**
+**`nginx-mod-brix-cache` (modules):**
 
 | Package | Why explicit |
 |---|---|
@@ -34,14 +34,14 @@ auto-detected and are therefore declared explicitly.
 | `curl` | The `curl(1)` binary is `fork/exec`'d by the WebDAV HTTP-TPC handler; not a library dependency |
 | `openssl-libs` | Directly linked (`-lssl -lcrypto`) and auto-detected, but listed explicitly for clarity |
 
-**`nginx-xrootd-client` (tools):**
+**`brix-cache-client` (tools):**
 
 | Package | Why explicit |
 |---|---|
 | `fuse3` | `xrootdfs` `fork/exec`s the `fusermount3(1)` helper at mount/unmount; the libraries (`libfuse3`, OpenSSL, krb5, …) are auto-detected from the ELF |
 
-**`nginx-xrootd-tests` (suite, noarch):** depends on the system under test
-(`nginx-mod-xrootd`, `nginx-xrootd-client`, `nginx`) plus the python packages
+**`brix-cache-tests` (suite, noarch):** depends on the system under test
+(`nginx-mod-brix-cache`, `brix-cache-client`, `nginx`) plus the python packages
 the suite drives pytest with: `python3-pytest`, `python3-pytest-timeout`,
 `python3-pytest-xdist`, `python3-cryptography`, `python3-requests`,
 `python3-urllib3`.  `python3-xrootd` (the official XRootD python bindings, from
@@ -151,13 +151,13 @@ The corresponding Dockerfiles are:
 ## Release build (mock)
 
 For a Fedora/EPEL-style build, create a matching upstream tag such as `v0.1.0`,
-then build `packaging/rpm/nginx-mod-xrootd.spec` in `mock`:
+then build `packaging/rpm/nginx-mod-brix-cache.spec` in `mock`:
 
 ```bash
 mock -r epel-9-x86_64 --buildsrpm \
-    --spec packaging/rpm/nginx-mod-xrootd.spec \
+    --spec packaging/rpm/nginx-mod-brix-cache.spec \
     --sources .
-mock -r epel-9-x86_64 --rebuild result/nginx-mod-xrootd-*.src.rpm
+mock -r epel-9-x86_64 --rebuild result/nginx-mod-brix-cache-*.src.rpm
 ```
 
 The spec expects the release source archive to unpack as

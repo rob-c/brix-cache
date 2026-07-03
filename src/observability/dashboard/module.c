@@ -580,6 +580,11 @@ ngx_http_xrootd_dashboard_main_handler(ngx_http_request_t *r)
             XROOTD_DASHBOARD_API_V1_RATELIMIT);
     }
 
+    if (dashboard_uri_eq(uri, "/xrootd/api/v1/cvmfs")) {   /* phase-68 */
+        return ngx_http_xrootd_dashboard_api_handler(r,
+            XROOTD_DASHBOARD_API_V1_CVMFS);
+    }
+
     /* Config download — own handler (text/plain attachment); ALWAYS auth-only,
      * never anonymous.  Must precede the generic /api/v1/ catch-all below. */
     if (dashboard_uri_eq(uri, "/xrootd/api/v1/config")) {

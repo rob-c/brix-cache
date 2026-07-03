@@ -123,7 +123,7 @@ Both files must be under `/tmp/xrd-test/data/`. The xrootd perf config symlinks 
 
 `tests/run_load_test.sh` starts servers, runs `load_test.py`, and stops servers on exit. The script accepts an optional target (`nginx`, `xrootd`, or `both`) and forwards remaining flags to `load_test.py`.
 
-### root:// + GSI — gnuBall vs xrootd native
+### root:// + GSI — BriX-Cache vs xrootd native
 
 This is the primary comparison in the README table:
 
@@ -140,7 +140,7 @@ bash tests/run_load_test.sh both \
 
 `--read-sink devnull` discards downloaded bytes to `/dev/null` so you do not need 128 GiB of free disk space for the 128-worker run. Throughput numbers are identical to writing to a temp file because the bottleneck is protocol/CPU, not disk.
 
-### WebDAV davs:// + x509 — gnuBall vs xrootd XrdHttp
+### WebDAV davs:// + x509 — BriX-Cache vs xrootd XrdHttp
 
 xrootd native serves HTTPS/WebDAV via the `XrdHttp` plugin (`libXrdHttp-5.so`), configured in `tests/xrootd.perf.conf` on port 12443. Client x509 proxy certificates are authenticated by the `libXrdHttpVOMS-5.so` extractor, which maps the TLS client-cert DN through the same authdb that the `root://` protocol uses.
 

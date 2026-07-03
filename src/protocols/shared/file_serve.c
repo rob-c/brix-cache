@@ -40,6 +40,7 @@
 #include "core/http/http_compress.h"
 #include "core/compat/range.h"
 #include "observability/dashboard/dashboard_tracking.h"
+#include "observability/metrics/unified.h"    /* xrootd_metric_backend_bytes */
 #include "fs/cache/open.h"
 #include "protocols/webdav/webdav.h"          /* xrootd_tcp_congestion (webdav-owned directive) */
 #include "protocols/root/connection/netopt.h"      /* xrootd_apply_tcp_congestion */
@@ -138,8 +139,13 @@ xrootd_http_serve_file_ranged(ngx_http_request_t *r,
     ngx_int_t            rc;
     ngx_uint_t           from_cache;
     const char          *cache_path;
+    const char          *backend_name;
 
     ngx_memzero(result, sizeof(*result));
+
+    /* Backend attribution label — captured now because every send path below
+     * releases the vfs handle before the bytes are counted. */
+    backend_name = xrootd_vfs_file_backend_name(fh);
 
     /*
      * Select the configured TCP congestion control on this connection before the
@@ -227,6 +233,8 @@ xrootd_http_serve_file_ranged(ngx_http_request_t *r,
             }
             result->range_result = XROOTD_SERVE_RANGE_FULL;
             result->bytes_sent   = bytes_out;          /* compressed bytes on wire */
+            xrootd_metric_backend_bytes(backend_name, XROOTD_METRIC_OP_READ,
+                                        (size_t) bytes_out);
             xrootd_dashboard_http_add(r, (ngx_atomic_int_t) bytes_out);
             if (from_cache && vst->size > 0) {
                 (void) xrootd_cache_record_access(cache_path, (size_t) vst->size,
@@ -278,6 +286,8 @@ xrootd_http_serve_file_ranged(ngx_http_request_t *r,
         }
         if (!r->header_only) {
             result->bytes_sent = send_len;
+            xrootd_metric_backend_bytes(backend_name, XROOTD_METRIC_OP_READ,
+                                        (size_t) send_len);
             xrootd_dashboard_http_add(r, (ngx_atomic_int_t) send_len);
             if (from_cache && send_len > 0) {
                 (void) xrootd_cache_record_access(cache_path, (size_t) send_len,
@@ -313,6 +323,8 @@ xrootd_http_serve_file_ranged(ngx_http_request_t *r,
 
     /* Phase 5: post-send accounting */
     result->bytes_sent = send_len;
+    xrootd_metric_backend_bytes(backend_name, XROOTD_METRIC_OP_READ,
+                                (size_t) send_len);
     xrootd_dashboard_http_add(r, (ngx_atomic_int_t) send_len);
 
     if (from_cache && send_len > 0) {

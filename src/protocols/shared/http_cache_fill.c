@@ -24,10 +24,12 @@
 #include "fs/backend/http/sd_http.h"    /* sd_http_n_endpoints (verify budget) */
 #include "fs/cache/fill_retry.h"        /* T20 classification + backoff */
 #include "core/aio/aio.h"                      /* xrootd_task_bind */
+#include "fs/path/path.h"        /* xrootd_sanitize_log_string (wire keys) */
 
 #include <limits.h>                          /* PATH_MAX */
 #include <stdatomic.h>
 #include <stdlib.h>                          /* calloc/free (worker heap) */
+#include <sys/socket.h>                     /* recv(MSG_PEEK): client-abort probe */
 
 #if (NGX_THREADS)
 
@@ -41,6 +43,7 @@ typedef struct xrootd_http_fill_waiter_s {
     struct xrootd_http_fill_waiter_s     *next;
     struct xrootd_http_cache_fill_ctx_s  *owner;   /* valid while !resolved */
     ngx_event_t                           hold;    /* T20 client-hold timer */
+    ngx_msec_t                            parked_ms;  /* attach timestamp   */
     unsigned                              resolved:1;
 } xrootd_http_fill_waiter_t;
 
@@ -56,8 +59,18 @@ typedef struct xrootd_http_cache_fill_ctx_s {
     time_t                               max_life;
     ngx_int_t                            result;    /* NGX_OK/DECLINED/ERROR */
     int                                  err;       /* errno from the fill  */
+    ngx_msec_t                           started_ms; /* fill post timestamp */
+    unsigned                             attempts;   /* origin attempts run */
     char                                 key[PATH_MAX];
 } xrootd_http_cache_fill_ctx_t;
+
+/* Sanitize the (wire-derived) object key for a log line. */
+static const char *
+xrootd_http_fill_log_key(const char *key, char *buf, size_t cap)
+{
+    xrootd_sanitize_log_string(key, buf, cap);
+    return buf;
+}
 
 /* Per-worker in-flight fills (event-loop-only; a handful at a time). */
 static xrootd_http_cache_fill_ctx_t  *xrootd_http_fills;
@@ -86,6 +99,13 @@ xrootd_http_fill_detach(xrootd_http_fill_waiter_t *w)
         return;
     }
     w->resolved = 1;
+    /* Un-arm the parked-window client-abort handler: past this point the
+     * request is either served (reenter), sent a 504, or being finalized —
+     * downstream read handling reverts to nginx's default, exactly as before
+     * the request parked. */
+    if (w->r != NULL) {
+        w->r->read_event_handler = ngx_http_block_reading;
+    }
     if (w->hold.timer_set) {
         ngx_del_timer(&w->hold);
     }
@@ -149,6 +169,24 @@ xrootd_http_fill_hold_expire(ngx_event_t *ev)
     ngx_http_request_t        *r = w->r;
     ngx_connection_t          *c = r->connection;
 
+    /* Diagnosis line for hold/CVMFS_TIMEOUT misalignment: WHO waited HOW
+     * LONG on WHAT while the origin still hadn't answered. */
+    if (w->owner != NULL) {
+        char kbuf[256];
+
+        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+            "xrootd-fill: event=hold-expired key=\"%s\" client=%V "
+            "held_ms=%M fill_elapsed_ms=%M waiters_left=%d "
+            "action=\"504+Retry-After sent on the kept-alive connection; "
+            "the fill keeps running\"",
+            xrootd_http_fill_log_key(w->owner->key, kbuf, sizeof(kbuf)),
+            &c->addr_text,
+            (ngx_msec_t) (ngx_current_msec - w->parked_ms),
+            (ngx_msec_t) (ngx_current_msec - w->owner->started_ms),
+            atomic_load_explicit(&w->owner->waiters_n,
+                                 memory_order_relaxed) - 1);
+    }
+
     xrootd_http_fill_detach(w);
     xrootd_http_fill_send_retry_later(r);
     ngx_http_run_posted_requests(c);
@@ -163,8 +201,98 @@ xrootd_http_fill_waiter_cleanup(void *data)
 {
     xrootd_http_fill_waiter_t *w = data;
 
+    /* Still attached at teardown = an ABNORMAL finalize the read-abort
+     * handler and the hold timer both missed (worker shutdown mid-fill, or
+     * nginx forcibly closing the request). The routine client-abort case is
+     * logged promptly by xrootd_http_fill_client_read; this is the safety
+     * net so a parked request never disappears without a trace. */
+    if (!w->resolved && w->owner != NULL) {
+        ngx_connection_t *c = w->r->connection;
+        char              kbuf[256];
+
+        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+            "xrootd-fill: event=parked-teardown key=\"%s\" client=%V "
+            "parked_ms=%M fill_elapsed_ms=%M "
+            "cause=\"request finalized while parked (worker shutdown or "
+            "forced close); the fill continues detached\"",
+            xrootd_http_fill_log_key(w->owner->key, kbuf, sizeof(kbuf)),
+            &c->addr_text,
+            (ngx_msec_t) (ngx_current_msec - w->parked_ms),
+            (ngx_msec_t) (ngx_current_msec - w->owner->started_ms));
+    }
+
     xrootd_http_fill_detach(w);
     free(w);
+}
+
+/* Find the waiter parked for request `r` (a handful in flight; linear is
+ * fine). NULL if `r` is not currently parked on any fill. */
+static xrootd_http_fill_waiter_t *
+xrootd_http_fill_waiter_for(ngx_http_request_t *r)
+{
+    xrootd_http_cache_fill_ctx_t *t;
+    xrootd_http_fill_waiter_t    *w;
+
+    for (t = xrootd_http_fills; t != NULL; t = t->next) {
+        for (w = t->waiters; w != NULL; w = w->next) {
+            if (w->r == r) {
+                return w;
+            }
+        }
+    }
+    return NULL;
+}
+
+/* Read-event handler for a PARKED request: nginx normally ignores downstream
+ * reads while a request is suspended (r->main->count raised), so a client
+ * that breaks its connection mid-fill would go unnoticed until its hold timer
+ * fires. Detecting it here lets us log the broken client, reclaim its parked
+ * slot immediately, and finalize — while the fill keeps running detached
+ * (never-drop: one client hanging up must not cancel the origin fetch that
+ * other clients, or the client's own retry, still need). */
+static void
+xrootd_http_fill_client_read(ngx_http_request_t *r)
+{
+    ngx_connection_t          *c = r->connection;
+    ngx_event_t               *rev = c->read;
+    xrootd_http_fill_waiter_t *w;
+    u_char                     probe;
+    ssize_t                    n;
+
+    if (!rev->ready && !rev->eof) {
+        return;                                  /* spurious wakeup */
+    }
+    /* Peek: EOF (0) or a hard error means the client is gone; EAGAIN means it
+     * merely sent data we don't want (ignore — never-drop keeps waiting). */
+    n = recv(c->fd, &probe, 1, MSG_PEEK);
+    if (n > 0) {
+        return;
+    }
+    if (n < 0 && (ngx_errno == NGX_EAGAIN || ngx_errno == NGX_EINTR)) {
+        return;
+    }
+
+    w = xrootd_http_fill_waiter_for(r);
+    if (w != NULL && w->owner != NULL) {
+        char kbuf[256];
+
+        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+            "xrootd-fill: event=client-gone key=\"%s\" client=%V "
+            "parked_ms=%M fill_elapsed_ms=%M waiters_left=%d "
+            "hint=\"client broke the connection before the origin answered; "
+            "the fill continues detached. If this recurs the client timeout "
+            "is shorter than the fill latency (CVMFS_TIMEOUT vs client_hold)\"",
+            xrootd_http_fill_log_key(w->owner->key, kbuf, sizeof(kbuf)),
+            &c->addr_text,
+            (ngx_msec_t) (ngx_current_msec - w->parked_ms),
+            (ngx_msec_t) (ngx_current_msec - w->owner->started_ms),
+            atomic_load_explicit(&w->owner->waiters_n,
+                                 memory_order_relaxed) - 1);
+        xrootd_http_fill_detach(w);              /* resolved=1: no dup log */
+        r->main->count--;                        /* release the parked ref */
+    }
+    c->error = 1;
+    ngx_http_finalize_request(r, NGX_HTTP_CLIENT_CLOSED_REQUEST);
 }
 
 /* Park `r` on fill `t` (r->main->count++ balanced by the finalize in done /
@@ -188,6 +316,7 @@ xrootd_http_fill_attach(xrootd_http_cache_fill_ctx_t *t,
     w->r            = r;
     w->reenter      = reenter;
     w->reenter_data = reenter_data;
+    w->parked_ms    = ngx_current_msec;
     w->owner        = t;
     w->next         = t->waiters;
     t->waiters      = w;
@@ -203,6 +332,16 @@ xrootd_http_fill_attach(xrootd_http_cache_fill_ctx_t *t,
         ngx_add_timer(&w->hold, (ngx_msec_t) t->client_hold * 1000);
     }
 
+    /* Notice a client that breaks its connection while parked (above): the
+     * read handler logs it, reclaims this slot, and finalizes — the fill
+     * runs on. Arm the read event so the abort actually wakes us. */
+    r->read_event_handler = xrootd_http_fill_client_read;
+    if (ngx_handle_read_event(r->connection->read, 0) != NGX_OK) {
+        /* non-fatal: we simply fall back to the hold timer for teardown */
+        ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+            "xrootd-fill: could not arm client-abort read event");
+    }
+
     r->main->count++;
     return NGX_DONE;
 }
@@ -216,23 +355,44 @@ xrootd_http_cache_fill_thread(void *data, ngx_log_t *log)
     xrootd_http_cache_fill_ctx_t *t = data;
     xrootd_fill_retry_t           rs;
     unsigned                      n_eps;
+    char                          kbuf[256];
 
-    (void) log;
     n_eps = (unsigned) sd_http_n_endpoints(
                 xrootd_sd_cache_source_instance(t->inst));
     xrootd_fill_retry_init(&rs, t->client_hold, t->max_life, &t->waiters_n,
                            n_eps);
     for ( ;; ) {
         errno = 0;
+        t->attempts++;
         t->result = xrootd_sd_cache_fill_key(t->inst, t->key);
         t->err = errno;
         switch (xrootd_fill_classify(t->result, t->err, &rs)) {
         case XROOTD_FILL_OK:
+            if (t->attempts > 1) {
+                ngx_log_error(NGX_LOG_WARN, log, 0,
+                    "xrootd-fill: event=recovered key=\"%s\" attempts=%ud "
+                    "elapsed_ms=%M — origin answered after transient failures",
+                    xrootd_http_fill_log_key(t->key, kbuf, sizeof(kbuf)),
+                    t->attempts,
+                    (ngx_msec_t) (ngx_current_msec - t->started_ms));
+            }
+            return;
         case XROOTD_FILL_DEFINITIVE:
             return;
         case XROOTD_FILL_RETRY:
             break;
         }
+        /* One line per failed attempt: WHICH object, WHICH attempt, WHY —
+         * the trail that locates a flapping origin or a lossy WAN window.
+         * Bounded by the backoff schedule (a handful per fill, worst case). */
+        ngx_log_error(NGX_LOG_WARN, log, t->err,
+            "xrootd-fill: event=retry key=\"%s\" attempt=%ud rc=%i "
+            "elapsed_ms=%M endpoints=%ud waiters=%d next_backoff_ms=%M",
+            xrootd_http_fill_log_key(t->key, kbuf, sizeof(kbuf)),
+            t->attempts, t->result,
+            (ngx_msec_t) (ngx_current_msec - t->started_ms), n_eps,
+            atomic_load_explicit(&t->waiters_n, memory_order_relaxed),
+            rs.backoff_ms);
         if (!xrootd_fill_retry_wait(&rs)) {
             if (t->err == EBADMSG) {
                 return;              /* proven-bad data: 502, not "later" */
@@ -272,8 +432,11 @@ xrootd_http_fill_resolve_waiter(xrootd_http_cache_fill_ctx_t *t,
         ngx_http_run_posted_requests(c);
         return;
     } else {
-        ngx_log_error(NGX_LOG_ERR, c->log, t->err,
-            "xrootd: cache fill failed for \"%s\" - returning 502", t->key);
+        /* per-waiter detail at debug; the fill-level ERR line in done()
+         * carries the full story once, not once per parked client */
+        ngx_log_debug2(NGX_LOG_DEBUG_HTTP, c->log, 0,
+            "xrootd-fill: resolving waiter with 502 (key \"%s\", err %d)",
+            t->key, t->err);
         rc = NGX_HTTP_BAD_GATEWAY;
     }
 
@@ -298,6 +461,46 @@ xrootd_http_cache_fill_done(ngx_event_t *ev)
         if (*pp == t) {
             *pp = t->next;
             break;
+        }
+    }
+
+    /* ONE outcome line per fill — the anchor every other event (retry /
+     * hold-expired / client-gone) correlates with via the key. */
+    {
+        int   waiters = atomic_load_explicit(&t->waiters_n,
+                                             memory_order_relaxed);
+        char  kbuf[256];
+        const char *k = xrootd_http_fill_log_key(t->key, kbuf, sizeof(kbuf));
+        ngx_msec_t elapsed = ngx_current_msec - t->started_ms;
+
+        if (t->result == NGX_OK) {
+            ngx_uint_t lvl = (waiters > 0) ? NGX_LOG_INFO : NGX_LOG_NOTICE;
+
+            ngx_log_error(lvl, ev->log, 0,
+                "xrootd-fill: event=%s key=\"%s\" attempts=%ud "
+                "elapsed_ms=%M waiters=%d",
+                (waiters > 0) ? "done" : "done-detached", k,
+                t->attempts, elapsed, waiters);
+        } else if (t->err == ENOENT || t->err == ENOTDIR) {
+            ngx_log_error(NGX_LOG_INFO, ev->log, 0,
+                "xrootd-fill: event=not-found key=\"%s\" attempts=%ud "
+                "elapsed_ms=%M waiters=%d — the origin's definitive 404",
+                k, t->attempts, elapsed, waiters);
+        } else if (t->err == ETIMEDOUT) {
+            ngx_log_error(NGX_LOG_WARN, ev->log, 0,
+                "xrootd-fill: event=exhausted key=\"%s\" attempts=%ud "
+                "elapsed_ms=%M waiters=%d verdict=\"504 retry-later to every "
+                "waiter; no origin answered within the deadline\"",
+                k, t->attempts, elapsed, waiters);
+        } else {
+            ngx_log_error(NGX_LOG_ERR, ev->log, t->err,
+                "xrootd-fill: event=failed key=\"%s\" attempts=%ud "
+                "elapsed_ms=%M waiters=%d verdict=%s",
+                k, t->attempts, elapsed, waiters,
+                (t->err == EBADMSG)
+                    ? "\"502; every endpoint served corrupt data "
+                      "(verify quarantined the evidence)\""
+                    : "\"502 to every waiter\"");
         }
     }
 
@@ -379,6 +582,7 @@ xrootd_http_cache_fill_if_needed(ngx_http_request_t *r,
     t->result      = NGX_ERROR;
     t->client_hold = common->cache_client_hold;   /* 0 = single-pass fill */
     t->max_life    = common->cache_fill_max_life;
+    t->started_ms  = ngx_current_msec;
     ngx_cpystrn((u_char *) t->key, (u_char *) key, sizeof(t->key));
 
     xrootd_task_bind(task, xrootd_http_cache_fill_thread,

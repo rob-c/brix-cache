@@ -1,4 +1,4 @@
-# gnuBall Code-Level Security Audit — Round 2
+# BriX-Cache Code-Level Security Audit — Round 2
 
 **Scope:** Full second-pass review covering S3, WebDAV, XRootD stream, JWT/token
 validation, GSI/SSS authentication, and proxy/metrics paths.  The first audit
@@ -301,7 +301,7 @@ if (expected_audience != NULL && expected_audience[0]) {
 When `xrootd_token_audience` is not set in `nginx.conf`, `expected_audience` is
 `NULL` and any token — regardless of its `aud` claim — is accepted.
 
-In a deployment with multiple gnuBall instances (e.g., `cms-xrd.example.org`
+In a deployment with multiple BriX-Cache instances (e.g., `cms-xrd.example.org`
 and `atlas-xrd.example.org`), a token issued with `aud: https://cms-xrd.example.org`
 is also accepted by `atlas-xrd.example.org` if that instance has no audience
 configured.  This violates the WLCG token profile requirement that servers must
@@ -364,7 +364,7 @@ An attacker can send N parallel `PROPFIND Depth: infinity` requests on
 exhausting nginx worker memory.
 
 The standard nginx `limit_req_zone` directive is available but is not documented
-or recommended in the gnuBall WebDAV configuration guides.
+or recommended in the BriX-Cache WebDAV configuration guides.
 
 ### Fix
 
@@ -691,4 +691,4 @@ All changes compile cleanly against nginx 1.28.3 and pass the full `tests/test_s
 
 ---
 
-*Second-pass audit: gnuBall main branch, 2026-05-20.*
+*Second-pass audit: BriX-Cache main branch, 2026-05-20.*

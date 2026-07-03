@@ -20,11 +20,11 @@
 #define XROOTD_CORE_IDENT_H
 
 /* Product name reported wherever the server names itself. */
-#define XROOTD_SERVER_NAME          "GNUBall"
+#define XROOTD_SERVER_NAME          "BriX-Cache"
 
 /* Version, bare and with the "v" prefix XRootD clients expect from
  * Qconfig "version" (they parse it for digits — keep digits present). */
-#define XROOTD_SERVER_VERSION_BARE  "1.0.5"
+#define XROOTD_SERVER_VERSION_BARE  "1.0.7"
 #define XROOTD_SERVER_VERSION       "v" XROOTD_SERVER_VERSION_BARE
 
 #endif /* XROOTD_CORE_IDENT_H */

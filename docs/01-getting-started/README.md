@@ -1,6 +1,6 @@
 # Getting Started
 
-New to gnuBall? Start here.
+New to BriX-Cache? Start here.
 
 > **Navigation:** [← Back to docs/index](../index.md) | [Architecture Overview →](../10-architecture/overview.md)
 

@@ -97,6 +97,10 @@ json_t * dashboard_build_v1_history(ngx_http_request_t *r, int64_t now_ms, const
 json_t * dashboard_build_v1_cluster(ngx_http_request_t *r, int64_t now_ms, const ngx_http_xrootd_dashboard_loc_conf_t *conf, ngx_uint_t redact);
 json_t * dashboard_build_v1_cache(int64_t now_ms, const ngx_http_xrootd_dashboard_loc_conf_t *conf, ngx_uint_t redact);
 
+/* api_cvmfs.c */
+void dashboard_fill_cvmfs(json_t *target, ngx_uint_t redact);
+json_t * dashboard_build_v1_cvmfs(int64_t now_ms, const ngx_http_xrootd_dashboard_loc_conf_t *conf, ngx_uint_t redact);
+
 /* api_ratelimit.c */
 json_t * dashboard_build_v1_ratelimit(int64_t now_ms, const ngx_http_xrootd_dashboard_loc_conf_t *conf, ngx_uint_t redact);
 json_t * dashboard_build_v1_not_found(int64_t now_ms, const ngx_http_xrootd_dashboard_loc_conf_t *conf, ngx_uint_t redact);

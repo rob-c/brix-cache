@@ -92,7 +92,7 @@ behavior.
 
 FTS3/FTS4 supports WebDAV HTTP-TPC in two modes:
 
-| FTS mode | gnuBall support |
+| FTS mode | BriX-Cache support |
 |---|---|
 | Pull — destination server fetches from source (`Source:` header) | **Yes** — pull COPY with `curl` subprocess |
 | Push — source server pushes to destination (`Destination:` header) | **Yes** — push COPY with `curl --upload-file` |
@@ -233,7 +233,7 @@ sharper tool for nginx-native POSIX data serving.
 
 ---
 
-## Where gnuBall should look better
+## Where BriX-Cache should look better
 
 This project should be positioned aggressively in these situations:
 

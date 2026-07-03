@@ -161,11 +161,23 @@ xrootd_cvmfs_gate(ngx_http_request_t *r, ngx_http_xrootd_cvmfs_loc_conf_t *lcf)
         if (lcf->cvmfs.negative_ttl > 0
             && cvmfs_neg_check(&r->uri, ngx_time()))
         {
+            char neg_uri[512];
+
             XROOTD_CVMFS_METRIC_INC(negative_hits_total);
             if (ctx->repo != NULL) {
                 XROOTD_ATOMIC_INC(&ctx->repo->negative_hits_total);
             }
             ctx->cache_status = XROOTD_CVMFS_CACHE_NEG;
+            /* One NOTICE per absorbed 404: a client hammering missing
+             * objects shows as a stream of these (bounded by its own
+             * request rate; the origin sees none of them). */
+            xrootd_sanitize_log_string((const char *) r->uri.data, neg_uri,
+                                       sizeof(neg_uri));
+            ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
+                "cvmfs-neg: event=absorbed-404 client=%V uri=\"%s\" "
+                "hint=\"repeated lines from one client = it is retrying a "
+                "missing object instead of backing off\"",
+                &r->connection->addr_text, neg_uri);
             return NGX_HTTP_NOT_FOUND;    /* absorbed 404 storm (T13)    */
         }
         return NGX_DECLINED;              /* tier serve path (handler.c) */
@@ -184,6 +196,11 @@ xrootd_cvmfs_gate(ngx_http_request_t *r, ngx_http_xrootd_cvmfs_loc_conf_t *lcf)
         XROOTD_CVMFS_METRIC_INC(requests_total[XROOTD_CVMFS_CLASS_GEO]);
         if (ctx->repo != NULL) {
             XROOTD_ATOMIC_INC(&ctx->repo->requests_total[XROOTD_CVMFS_CLASS_GEO]);
+        }
+        /* Answer locally (RTT-ranked from this proxy's vantage) when enabled,
+         * bypassing a mis-ordering upstream GeoAPI; else relay verbatim. */
+        if (lcf->cvmfs.geo_answer == XROOTD_CVMFS_GEO_RTT) {
+            return xrootd_cvmfs_geo_answer(r, lcf);
         }
         return xrootd_cvmfs_geo_passthrough(r, lcf);
     case CVMFS_URL_REJECT:

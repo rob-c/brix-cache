@@ -57,7 +57,7 @@ location = /.well-known/wlcg-storage-resource-reporting {
 | `xrootd_srr_endpoint` | `<name> <iftype> <url>` | one `storageendpoints[]` entry |
 
 `implementation` is fixed to the product name from `core/ident.h` (currently
-`"GNUBall"`); `servicetype` is `"disk"`.
+`"BriX-Cache"`); `servicetype` is `"disk"`.
 `storagecapacity.online.{totalsize,usedsize}` is the site-wide sum of the shares.
 `latestupdate`/share `timestamp` are the request-time unix epoch.
 

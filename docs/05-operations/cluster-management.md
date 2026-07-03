@@ -1,6 +1,6 @@
 # Cluster Mode: Redirector / Manager / Cache
 
-gnuBall as a full XRootD cluster participant — redirector, sub-manager, or data server behind a redirector. This page covers the architecture, configuration, and the CMS protocol interactions that hold it together.
+BriX-Cache as a full XRootD cluster participant — redirector, sub-manager, or data server behind a redirector. This page covers the architecture, configuration, and the CMS protocol interactions that hold it together.
 cache node, not just a leaf data server.
 
 The static `xrootd_manager_map` (see [manager-mode.md](manager-mode.md)) provides

@@ -94,6 +94,7 @@ typedef enum {
     XROOTD_DASHBOARD_API_V1_CLUSTER,
     XROOTD_DASHBOARD_API_V1_CACHE,
     XROOTD_DASHBOARD_API_V1_RATELIMIT,   /* Phase 25 */
+    XROOTD_DASHBOARD_API_V1_CVMFS,       /* phase-68 cvmfs:// site cache */
     XROOTD_DASHBOARD_API_V1_NOT_FOUND
 } xrootd_dashboard_api_endpoint_e;
 

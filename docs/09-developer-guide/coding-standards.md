@@ -1,4 +1,4 @@
-# Coding Standards for gnuBall
+# Coding Standards for BriX-Cache
 
 **Status:** AUTHORITATIVE and MANDATORY — this is *the* coding standard for the
 project. Every agent or contributor making changes under `src/` or `client/`

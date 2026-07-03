@@ -1,6 +1,6 @@
-# TPC: gnuBall vs official xrootd
+# TPC: BriX-Cache vs official xrootd
 
-A concrete side-by-side of where gnuBall's third-party copy support
+A concrete side-by-side of where BriX-Cache's third-party copy support
 matches the official XRootD implementation, where it diverges, and why. Read
 this before writing TPC-related tests or integrating with WLCG FTS.
 
@@ -26,7 +26,7 @@ sends control requests and watches for completion.
                                        3. bulk data: SRC ──▶ DST only
 ```
 
-Two transports carry this in gnuBall:
+Two transports carry this in BriX-Cache:
 
 ```text
   NATIVE root:// pull (src/tpc/)            HTTP/WebDAV COPY (src/protocols/webdav/tpc*.c)
@@ -40,7 +40,7 @@ Two transports carry this in gnuBall:
 
 ## Executive summary
 
-- gnuBall implements two practical TPC paths:
+- BriX-Cache implements two practical TPC paths:
   - native destination-side XRootD pull and source rendezvous implemented in
     `src/tpc/` (root:// sources).
   - HTTP/WebDAV TPC implemented in `src/protocols/webdav/tpc*.c` with libcurl-based
@@ -49,14 +49,14 @@ Two transports carry this in gnuBall:
 - Official xrootd (`XrdHttpTpc`) provides a full-featured HTTP(S) TPC handler
   built on libcurl multi/pipelining with perf markers, monitoring, CA/CRL
   integration, multi‑stream transfers, and richer auth/delegation wiring.
-- Key remaining gaps in gnuBall vs official xrootd: upstream-style
+- Key remaining gaps in BriX-Cache vs official xrootd: upstream-style
   in-server TPC integration, richer timeout/retry semantics, production TPC
   monitoring hooks, more configurable SSRF policy, and native root TPC edge
   cases such as TLS-upgraded origins and multihop delegation.
 
 ## Where to read the implementations
 
-- gnuBall (module):
+- BriX-Cache (module):
   - native TPC: [src/tpc/](../../src/tpc/)
     - `src/tpc/engine/launch.c`, `src/tpc/outbound/thread.c`, `src/tpc/outbound/source.c`,
       `src/tpc/outbound/bootstrap.c`, `src/tpc/outbound/connect.c`, `src/tpc/engine/tpc_internal.h`
@@ -80,7 +80,7 @@ module source links above point into this repository.
 
 ### 1) Entry points & scope
 
-- gnuBall:
+- BriX-Cache:
   - native TPC is destination‑pull for `root://` style sources. The code
     allocates a local temp file, posts a worker task to an nginx thread pool,
     then performs synchronous XRootD opcode exchanges over a TCP socket
@@ -94,18 +94,18 @@ module source links above point into this repository.
     server multistream pulls/pushes, and both push/pull flows implemented
     inside the server using libcurl multi APIs.
 
-Implication: gnuBall is pragmatic and compact; official xrootd integrates
+Implication: BriX-Cache is pragmatic and compact; official xrootd integrates
 TPC deeply into its HTTP stack and avoids external helpers.
 
 ### 2) Supported source schemes
 
-- gnuBall: native TPC: `root://` only; WebDAV TPC: `https://` via curl.
+- BriX-Cache: native TPC: `root://` only; WebDAV TPC: `https://` via curl.
 - official xrootd: HTTP(S) TPC (native multi‑stream), supports disk-server
   redirection semantics and additional schemes handled by its OSS layer.
 
 ### 3) Authentication & delegation
 
-- gnuBall:
+- BriX-Cache:
   - native TPC supports the source/destination rendezvous key flow and can
     complete ztn or GSI after `kXR_authmore` when configured. TLS-upgraded
     origins and multihop delegation remain narrower than upstream.
@@ -123,18 +123,18 @@ credential forwarding locked behind explicit policy checks.
 
 ### 4) SSRF / address policy
 
-- gnuBall: has an explicit SSRF guard rejecting loopback (127/8, ::1)
+- BriX-Cache: has an explicit SSRF guard rejecting loopback (127/8, ::1)
   and IPv6 link-local addresses in `src/tpc/outbound/connect.c::tpc_addr_is_prohibited()`.
   RFC1918 private ranges are intentionally allowed.
 - official xrootd: uses libcurl socket callbacks to reject local/private
   addresses by configuration (`allow_private` / `allow_local`).
 
 Parity note: official xrootd provides more runtime configurability for these
-policies — adding similar config flags in gnuBall is advised.
+policies — adding similar config flags in BriX-Cache is advised.
 
 ### 5) Concurrency & I/O model
 
-- gnuBall:
+- BriX-Cache:
   - native TPC uses blocking sockets inside an nginx thread‑pool task. That
     is simple and robust but incurs task dispatch and blocking overhead.
   - WebDAV TPC uses libcurl from worker/helper paths. Multi-stream pull uses
@@ -147,13 +147,13 @@ policies — adding similar config flags in gnuBall is advised.
     buffer management to drive parallel transfers without blocking server
     threads.
 
-This is one of the largest practical differences: gnuBall has practical
+This is one of the largest practical differences: BriX-Cache has practical
 multi-stream support, but official xrootd's TPC engine is more deeply integrated
 with its HTTP/TPC scheduler and monitoring model.
 
 ### 6) Chunking, perf markers & client experience
 
-- gnuBall: native TPC streams raw XRootD read responses into the file.
+- BriX-Cache: native TPC streams raw XRootD read responses into the file.
   IMPLEMENTED: perf‑marker multipart streaming for HTTP/WebDAV TPC COPYs is now
   implemented in `src/protocols/webdav/tpc_marker.c` (202 Accepted + chunked WLCG
   Performance-Marker blocks, including per-stripe markers for multi-stream
@@ -165,7 +165,7 @@ with its HTTP/TPC scheduler and monitoring model.
 
 ### 7) Timeout, retry and error semantics
 
-- gnuBall: uses simple socket-level timeouts per TPC connect/read and
+- BriX-Cache: uses simple socket-level timeouts per TPC connect/read and
   best-effort remote close; error detail is logged but retry policies are
   minimal.
 - official xrootd: has configurable initial and idle timeouts, multi-handle
@@ -175,13 +175,13 @@ with its HTTP/TPC scheduler and monitoring model.
 ### 8) Commit/atomic semantics
 
 - Both implement the safe pattern of writing to a temp file and linking/renaming
-  into place on success. gnuBall uses `tmp_path` + `rename/link` logic in
+  into place on success. BriX-Cache uses `tmp_path` + `rename/link` logic in
   `src/protocols/webdav/tpc.c` and the native TPC launcher stages a local file and then
   returns the open response once the pull finishes (see `src/tpc/engine/done.c`).
 
 ### 9) Monitoring and metrics
 
-- gnuBall: simple counters in WebDAV (pull started/success/fail) exist
+- BriX-Cache: simple counters in WebDAV (pull started/success/fail) exist
   but there is no TPC-level streaming JSON monitor comparable to xrootd's
   `XrdXrootdTpcMon` tracking per-transfer metrics and reporting JSON to a
   dedicated stream.
@@ -191,7 +191,7 @@ with its HTTP/TPC scheduler and monitoring model.
 
 ## Parity roadmap — concrete tasks
 
-Below are prioritized tasks to bring gnuBall's TPC feature set closer
+Below are prioritized tasks to bring BriX-Cache's TPC feature set closer
 to the official xrootd behaviour. Each item contains a short implementation
 note and an estimated effort (Small / Medium / Large).
 

@@ -98,7 +98,7 @@ What each flag does:
 | `--with-stream_ssl_module` | Recommended | TLS for the stream (XRootD) protocol |
 | `--with-http_ssl_module` | Recommended | TLS for HTTP modules: WebDAV and S3-compatible HTTPS |
 | `--with-threads` | **Strongly recommended** | Enables nginx thread pools for async file I/O. Without this, slow disk/network I/O paths may fall back to synchronous work on a worker process. |
-| `--add-module=<path>` | **Yes** | Points to the gnuBall source directory |
+| `--add-module=<path>` | **Yes** | Points to the BriX-Cache source directory |
 
 ```text
    nginx source tree          this repo
@@ -527,7 +527,7 @@ The binary installs to `/usr/local/nginx/sbin/nginx` and configuration goes in `
 
 ## 11. RPM packaging (AlmaLinux 9 / RHEL 9 / Rocky 9)
 
-The `packaging/rpm/nginx-mod-xrootd.spec` file builds three dynamic modules as
+The `packaging/rpm/nginx-mod-brix-cache.spec` file builds three dynamic modules as
 a single RPM against the system nginx from the RHEL 9 AppStream repository.
 
 ### Prerequisites
@@ -565,7 +565,7 @@ Or, to build from a released tag:
 
 ```bash
 VERSION=0.1.0
-spectool -g -R packaging/rpm/nginx-mod-xrootd.spec
+spectool -g -R packaging/rpm/nginx-mod-brix-cache.spec
 ```
 
 (`spectool` is in the `rpm-build` package.)
@@ -573,17 +573,17 @@ spectool -g -R packaging/rpm/nginx-mod-xrootd.spec
 ### Build the RPM
 
 ```bash
-cp packaging/rpm/nginx-mod-xrootd.spec ~/rpmbuild/SPECS/
+cp packaging/rpm/nginx-mod-brix-cache.spec ~/rpmbuild/SPECS/
 
 rpmbuild -bb \
     --define "version_override 0.1.0" \
-    ~/rpmbuild/SPECS/nginx-mod-xrootd.spec
+    ~/rpmbuild/SPECS/nginx-mod-brix-cache.spec
 ```
 
 The finished RPM lands in `~/rpmbuild/RPMS/x86_64/`:
 
 ```
-~/rpmbuild/RPMS/x86_64/nginx-mod-xrootd-0.1.0-1.el9.x86_64.rpm
+~/rpmbuild/RPMS/x86_64/nginx-mod-brix-cache-0.1.0-1.el9.x86_64.rpm
 ```
 
 You can also build directly from the working tree without a tarball by using
@@ -593,13 +593,13 @@ You can also build directly from the working tree without a tarball by using
 rpmbuild -bb --build-in-place \
     --define "_builddir $(pwd)" \
     --define "version_override 0.1.0" \
-    packaging/rpm/nginx-mod-xrootd.spec
+    packaging/rpm/nginx-mod-brix-cache.spec
 ```
 
 ### Verify the RPM contents
 
 ```bash
-rpm -qpl ~/rpmbuild/RPMS/x86_64/nginx-mod-xrootd-*.rpm
+rpm -qpl ~/rpmbuild/RPMS/x86_64/nginx-mod-brix-cache-*.rpm
 ```
 
 Expected output:
@@ -611,14 +611,14 @@ Expected output:
 /usr/lib64/nginx/modules/ngx_http_xrootd_webdav_module.so
 /usr/lib64/nginx/modules/ngx_http_xrootd_s3_module.so
 /usr/share/nginx/modules/mod-xrootd.conf
-/usr/share/doc/nginx-mod-xrootd/README.md
-/usr/share/doc/nginx-mod-xrootd/docs/   (all docs files)
+/usr/share/doc/nginx-mod-brix-cache/README.md
+/usr/share/doc/nginx-mod-brix-cache/docs/   (all docs files)
 ```
 
 Check the automatic ABI dependency:
 
 ```bash
-rpm -qp --requires ~/rpmbuild/RPMS/x86_64/nginx-mod-xrootd-*.rpm | grep nginx
+rpm -qp --requires ~/rpmbuild/RPMS/x86_64/nginx-mod-brix-cache-*.rpm | grep nginx
 # nginx(abi) = 1.20.1
 # nginx-mod-stream(x86-64)
 ```
@@ -626,13 +626,13 @@ rpm -qp --requires ~/rpmbuild/RPMS/x86_64/nginx-mod-xrootd-*.rpm | grep nginx
 ### Install
 
 ```bash
-sudo dnf install ~/rpmbuild/RPMS/x86_64/nginx-mod-xrootd-*.rpm
+sudo dnf install ~/rpmbuild/RPMS/x86_64/nginx-mod-brix-cache-*.rpm
 ```
 
 Or, for a local-only install without updating the dnf database:
 
 ```bash
-sudo rpm -ivh ~/rpmbuild/RPMS/x86_64/nginx-mod-xrootd-*.rpm
+sudo rpm -ivh ~/rpmbuild/RPMS/x86_64/nginx-mod-brix-cache-*.rpm
 ```
 
 ### Post-install: load the modules
@@ -671,8 +671,8 @@ To rebuild after a nginx update:
 
 ```bash
 sudo dnf update nginx nginx-mod-devel
-rpmbuild -bb --define "version_override 0.1.0" ~/rpmbuild/SPECS/nginx-mod-xrootd.spec
-sudo dnf install ~/rpmbuild/RPMS/x86_64/nginx-mod-xrootd-*.rpm
+rpmbuild -bb --define "version_override 0.1.0" ~/rpmbuild/SPECS/nginx-mod-brix-cache.spec
+sudo dnf install ~/rpmbuild/RPMS/x86_64/nginx-mod-brix-cache-*.rpm
 ```
 
 ---

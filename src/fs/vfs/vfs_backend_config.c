@@ -409,6 +409,22 @@ xrootd_vfs_backend_config_str(ngx_conf_t *cf, const char *root_canon,
         return NGX_OK;
     }
 
+    /* An export that names NO backend is the default-POSIX case. Phase-68 made
+     * an EXPLICIT "posix" register; register the default too so the census
+     * surfaces (dashboard /vfs + storage panel, /metrics info + capacity
+     * gauges) see the most common configuration. Guard root_canon "/": a pure
+     * cache node's namespace anchor is the whole host fs — never a census row. */
+    if (sb->len == 0) {
+        if (root_canon != NULL && root_canon[0] == '/'
+            && root_canon[1] != '\0')
+        {
+            static const ngx_str_t posix_name = ngx_string("posix");
+
+            xrootd_vfs_backend_config(root_canon, &posix_name, block_size);
+        }
+        return NGX_OK;
+    }
+
     /* "cephfsro:<meta_pool>+<data_pool>[@<conf>][?assume_quiesced=1]" → read-only
      * CephFS-via-RADOS backend. Both pools are required. The fs MUST be quiesced;
      * the operator asserts that with the "?assume_quiesced=1" suffix (the driver

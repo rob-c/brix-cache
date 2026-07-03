@@ -38,6 +38,7 @@
 #include "fs/backend/http/sd_http.h"       /* SD_HTTP_EP_MAX */
 #include "auth/token/issuer_registry.h"    /* scvmfs bearer registry (T22) */
 #include "fs/backend/cache/sd_cache.h"     /* unwrap for $cvmfs_origin (T16) */
+#include "fs/cache/origin/s3_transport.h"  /* xrootd_origin_trace_set (trace) */
 
 #include <stdlib.h>                        /* strtod (coord parsing) */
 
@@ -85,6 +86,14 @@ ngx_http_xrootd_cvmfs_create_loc_conf(ngx_conf_t *cf)
     c->cvmfs.rtt_interval   = NGX_CONF_UNSET;
     c->cvmfs.client_hold    = NGX_CONF_UNSET;
     c->cvmfs.fill_max_life  = NGX_CONF_UNSET;
+    c->cvmfs.trace          = NGX_CONF_UNSET;
+    c->cvmfs.origin_connect_timeout = NGX_CONF_UNSET;
+    c->cvmfs.origin_stall_timeout   = NGX_CONF_UNSET;
+    c->cvmfs.origin_stall_bytes     = NGX_CONF_UNSET_UINT;
+    c->cvmfs.fill_retry_policy      = NGX_CONF_UNSET_UINT;
+    c->cvmfs.geo_answer             = NGX_CONF_UNSET_UINT;
+    c->cvmfs.geo_cache_ttl          = NGX_CONF_UNSET;
+    c->cvmfs.geo_max_servers        = NGX_CONF_UNSET_UINT;
     c->scvmfs               = NGX_CONF_UNSET;
     c->scvmfs_authz         = NGX_CONF_UNSET_UINT;
 
@@ -230,6 +239,28 @@ cvmfs_geo_rank_config(ngx_conf_t *cf, ngx_http_xrootd_cvmfs_loc_conf_t *conf)
     xrootd_cvmfs_rank_by_metric(metric, n, ranks);
     xrootd_vfs_backend_set_http_ranks(conf->common.root_canon, ranks,
                                       SD_HTTP_EP_MAX);
+
+    /* Record the computed ordering so an operator can confirm at startup that,
+     * e.g., RAL really did rank ahead of CERN from this site's coordinates.
+     * One line per origin with its great-circle distance and resulting rank.
+     * WARN, not NOTICE: at config-parse time cf->log is still the prefix log
+     * at NGX_LOG_ERR, so a NOTICE would be silently dropped and never reach
+     * `nginx -t` output or the startup log — the level that is actually seen
+     * is the point of the line. It fires once and reports a decision, not a
+     * fault. */
+    for (idx = 0; idx < n; idx++) {
+        if (xrootd_vfs_backend_http_endpoint_at(conf->common.root_canon, idx,
+                                                &host, &port) != 0)
+        {
+            break;
+        }
+        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+            "xrootd_cvmfs_origin_select geo [selection report]: origin "
+            "%s:%d is %.0f km from here (%.4f:%.4f) -> rank %d%s",
+            host, port, metric[idx], here_lat, here_lon, ranks[idx],
+            (ranks[idx] == 0) ? " (preferred: reads try this origin first)"
+                              : " (failover only)");
+    }
     return NGX_CONF_OK;
 }
 
@@ -358,6 +389,45 @@ ngx_http_xrootd_cvmfs_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
                              25);
     ngx_conf_merge_sec_value(conf->cvmfs.fill_max_life,
                              prev->cvmfs.fill_max_life, 300);
+    ngx_conf_merge_value(conf->cvmfs.trace, prev->cvmfs.trace, 0);
+    /* Trace promotion is process-wide (the shared origin transport has no
+     * per-location handle): any cvmfs location turning it on promotes the
+     * upstream-request lines to INFO for every worker (set pre-fork). */
+    if (conf->cvmfs.trace) {
+        xrootd_origin_trace_set(1);
+    }
+
+    /* Upstream stall detection + force-through retry (2026-07-03). The transport
+     * bounds and the force-primary toggle are process-wide operator policy (the
+     * shared curl transport / sd_http driver have no per-location handle), set
+     * pre-fork here beside the trace flag so every worker inherits them. */
+    ngx_conf_merge_sec_value(conf->cvmfs.origin_connect_timeout,
+                             prev->cvmfs.origin_connect_timeout, 2);
+    ngx_conf_merge_sec_value(conf->cvmfs.origin_stall_timeout,
+                             prev->cvmfs.origin_stall_timeout, 4);
+    ngx_conf_merge_uint_value(conf->cvmfs.origin_stall_bytes,
+                              prev->cvmfs.origin_stall_bytes, 1);
+    ngx_conf_merge_uint_value(conf->cvmfs.fill_retry_policy,
+                              prev->cvmfs.fill_retry_policy,
+                              XROOTD_CVMFS_RETRY_FAILOVER);
+    if (conf->cvmfs.enable) {
+        xrootd_s3_origin_timeouts_set(
+            (long) conf->cvmfs.origin_connect_timeout * 1000,
+            (long) conf->cvmfs.origin_stall_timeout,
+            (long) conf->cvmfs.origin_stall_bytes);
+        if (conf->cvmfs.fill_retry_policy == XROOTD_CVMFS_RETRY_FORCE_PRIMARY) {
+            sd_http_force_primary_set(1);
+        }
+    }
+
+    /* Server-side geo answering (2026-07-03). */
+    ngx_conf_merge_uint_value(conf->cvmfs.geo_answer, prev->cvmfs.geo_answer,
+                              XROOTD_CVMFS_GEO_PASSTHROUGH);
+    ngx_conf_merge_sec_value(conf->cvmfs.geo_cache_ttl, prev->cvmfs.geo_cache_ttl,
+                             60);
+    ngx_conf_merge_uint_value(conf->cvmfs.geo_max_servers,
+                              prev->cvmfs.geo_max_servers, 16);
+
     ngx_conf_merge_value(conf->scvmfs, prev->scvmfs, 0);
     ngx_conf_merge_uint_value(conf->scvmfs_authz, prev->scvmfs_authz,
                               XROOTD_SCVMFS_AUTHZ_NONE);
@@ -687,6 +757,18 @@ static ngx_conf_enum_t  xrootd_cvmfs_select_enum[] = {
     { ngx_null_string, 0 }
 };
 
+static ngx_conf_enum_t  xrootd_cvmfs_retry_policy_enum[] = {
+    { ngx_string("failover"),      XROOTD_CVMFS_RETRY_FAILOVER },
+    { ngx_string("force-primary"), XROOTD_CVMFS_RETRY_FORCE_PRIMARY },
+    { ngx_null_string, 0 }
+};
+
+static ngx_conf_enum_t  xrootd_cvmfs_geo_answer_enum[] = {
+    { ngx_string("off"), XROOTD_CVMFS_GEO_PASSTHROUGH },
+    { ngx_string("rtt"), XROOTD_CVMFS_GEO_RTT },
+    { ngx_null_string, 0 }
+};
+
 static ngx_command_t ngx_http_xrootd_cvmfs_commands[] = {
 
     { ngx_string("xrootd_cvmfs_origin_select"),
@@ -729,6 +811,59 @@ static ngx_command_t ngx_http_xrootd_cvmfs_commands[] = {
       ngx_conf_set_sec_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_xrootd_cvmfs_loc_conf_t, cvmfs.rtt_interval),
+      NULL },
+
+    /* ---- upstream stall detection + force-through retry (2026-07-03) ---- */
+
+    { ngx_string("xrootd_cvmfs_origin_connect_timeout"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_sec_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_cvmfs_loc_conf_t, cvmfs.origin_connect_timeout),
+      NULL },
+
+    { ngx_string("xrootd_cvmfs_origin_stall_timeout"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_sec_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_cvmfs_loc_conf_t, cvmfs.origin_stall_timeout),
+      NULL },
+
+    { ngx_string("xrootd_cvmfs_origin_stall_bytes"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_cvmfs_loc_conf_t, cvmfs.origin_stall_bytes),
+      NULL },
+
+    { ngx_string("xrootd_cvmfs_fill_retry_policy"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_cvmfs_loc_conf_t, cvmfs.fill_retry_policy),
+      xrootd_cvmfs_retry_policy_enum },
+
+    /* ---- server-side geo answering (2026-07-03) ---- */
+
+    { ngx_string("xrootd_cvmfs_geo_answer"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_cvmfs_loc_conf_t, cvmfs.geo_answer),
+      xrootd_cvmfs_geo_answer_enum },
+
+    { ngx_string("xrootd_cvmfs_geo_cache_ttl"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_sec_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_cvmfs_loc_conf_t, cvmfs.geo_cache_ttl),
+      NULL },
+
+    { ngx_string("xrootd_cvmfs_geo_max_servers"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_cvmfs_loc_conf_t, cvmfs.geo_max_servers),
       NULL },
 
     /* ---- scvmfs:// (T22, EXPERIMENTAL) — the secure layer ON cvmfs ---- */
@@ -801,6 +936,13 @@ static ngx_command_t ngx_http_xrootd_cvmfs_commands[] = {
       ngx_conf_set_num_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_xrootd_cvmfs_loc_conf_t, cvmfs.upstream_max),
+      NULL },
+
+    { ngx_string("xrootd_cvmfs_trace"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_cvmfs_loc_conf_t, cvmfs.trace),
       NULL },
 
     /* ---- per-protocol tier directives over the shared preamble ---- */

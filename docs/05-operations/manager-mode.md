@@ -1,6 +1,6 @@
 # Manager Mode
 
-gnuBall can wear two hats as a manager or redirector. Here's what each mode does and when to use it.
+BriX-Cache can wear two hats as a manager or redirector. Here's what each mode does and when to use it.
 
 - **Static map** (`xrootd_manager_map`) — fixed path-prefix → backend mapping. Simple, no moving parts. Covered in this document.
 - **Dynamic cluster mode** (`xrootd_manager_mode` + `xrootd_cms_server`) — data servers register at runtime via the CMS protocol; the redirector picks the best server for each request. See [cluster-mode.md](cluster-management.md).

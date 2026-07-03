@@ -260,9 +260,9 @@ current implementation and the official daemon in a controlled setup.
 | Workload | Pattern visible in current results |
 |---|---|
 | single native `root://` stream | official xrootd is faster in the measured v5.9.2 run; it has less framing and module overhead at the lowest concurrency |
-| low-to-mid parallel `davs://` | gnuBall is very competitive and wins several measured concurrency points |
-| high parallel native `root://` | gnuBall overtakes in the measured table as concurrency rises |
-| high parallel WebDAV | gnuBall wins the measured 32/64 concurrency points and keeps p95 lower in the README table |
+| low-to-mid parallel `davs://` | BriX-Cache is very competitive and wins several measured concurrency points |
+| high parallel native `root://` | BriX-Cache overtakes in the measured table as concurrency rises |
+| high parallel WebDAV | BriX-Cache wins the measured 32/64 concurrency points and keeps p95 lower in the README table |
 
 The design lesson is favourable to this module: when the workload stops being a
 single ideal transfer and starts looking like a real service with many clients,

@@ -8,14 +8,14 @@ import Cta from '../../components/Cta.astro';
 
 <Layout
   title="For grid sysadmins"
-  description="Slide gnuBall in front of an existing xrootd server for TLS, auth, and Prometheus metrics — no client or backend changes. One nginx binary, three deploy modes, config validated before traffic."
+  description="Slide BriX-Cache in front of an existing xrootd server for TLS, auth, and Prometheus metrics — no client or backend changes. One nginx binary, three deploy modes, config validated before traffic."
   accent="root"
 >
   <Band first={true}>
     <AudienceHero
       group="grid sysadmins"
       title="Add TLS, auth, and metrics. Change nothing downstream."
-      lede="gnuBall is an nginx module — so your storage endpoint inherits nginx's worker model, graceful reloads, and operational muscle memory. Deploy it standalone, or slide it in front of what you already run."
+      lede="BriX-Cache is an nginx module — so your storage endpoint inherits nginx's worker model, graceful reloads, and operational muscle memory. Deploy it standalone, or slide it in front of what you already run."
     >
       <div class="term" aria-label="Transparent proxy config">
         <div class="term-title">in front of an existing server</div>
@@ -34,7 +34,7 @@ import Cta from '../../components/Cta.astro';
     <div class="grid grid-2">
       <Benefit marker="drop-in" title="Front any XRootD service">
         <p>
-          Run in transparent-proxy mode and gnuBall terminates TLS and auth, emits metrics, then
+          Run in transparent-proxy mode and BriX-Cache terminates TLS and auth, emits metrics, then
           relays opcodes verbatim to your backend — lazy upstream connect, end-to-end file-handle
           translation, backend identity never exposed. No client or backend config changes.
         </p>

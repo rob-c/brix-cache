@@ -30,6 +30,18 @@ typedef enum {
     XROOTD_CVMFS_SELECT_RTT           /* measured TCP connect RTT (EWMA)   */
 } xrootd_cvmfs_select_e;
 
+/* Fill retry policy when an origin stalls (xrootd_cvmfs_fill_retry_policy). */
+typedef enum {
+    XROOTD_CVMFS_RETRY_FAILOVER = 0,  /* T11 alternate-endpoint failover   */
+    XROOTD_CVMFS_RETRY_FORCE_PRIMARY  /* pin preferred origin, never fail  */
+} xrootd_cvmfs_retry_policy_e;
+
+/* Geo API answering mode (xrootd_cvmfs_geo_answer). */
+typedef enum {
+    XROOTD_CVMFS_GEO_PASSTHROUGH = 0, /* relay upstream GeoAPI verbatim    */
+    XROOTD_CVMFS_GEO_RTT              /* answer locally, RTT-ranked         */
+} xrootd_cvmfs_geo_answer_e;
+
 /* One xrootd_cvmfs_origin_coords entry: an entry WITH a port matches only
  * that endpoint; without one it matches every endpoint on that host. */
 typedef struct {
@@ -52,6 +64,20 @@ typedef struct {
     time_t       client_hold;      /* xrootd_cvmfs_client_hold (default 25;
                                       MUST stay below the WN CVMFS_TIMEOUT)   */
     time_t       fill_max_life;    /* xrootd_cvmfs_fill_max_life (default 300)*/
+    ngx_flag_t   trace;            /* xrootd_cvmfs_trace on|off (default off):
+                                      promote the client-op + upstream-request
+                                      trace lines from DEBUG to INFO          */
+
+    /* upstream stall detection + force-through retry (2026-07-03) */
+    time_t       origin_connect_timeout; /* connect ceiling s (default 2)     */
+    time_t       origin_stall_timeout;   /* no-first-byte/low-speed s (def 4)  */
+    ngx_uint_t   origin_stall_bytes;     /* throughput floor B/s (default 1)   */
+    ngx_uint_t   fill_retry_policy;      /* failover|force-primary (def fail)  */
+
+    /* server-side geo answering (2026-07-03) */
+    ngx_uint_t   geo_answer;       /* off|rtt (default off = passthrough)      */
+    time_t       geo_cache_ttl;    /* per-host RTT cache TTL s (default 60)     */
+    ngx_uint_t   geo_max_servers;  /* probed-list cap (default 16)             */
 } xrootd_cvmfs_conf_t;
 
 typedef struct {
@@ -107,6 +133,18 @@ ngx_int_t xrootd_cvmfs_gate(ngx_http_request_t *r,
 /* Uncached Geo-API passthrough over the shared HTTP transport (Task 9). */
 ngx_int_t xrootd_cvmfs_geo_passthrough(ngx_http_request_t *r,
     ngx_http_xrootd_cvmfs_loc_conf_t *lcf);
+
+/* Server-side geo answer (2026-07-03): RTT-rank the client-supplied server list
+ * from THIS proxy's vantage and reply with the nearest-first permutation,
+ * instead of trusting the upstream GeoAPI. Returns NGX_DONE (async) or falls
+ * back to xrootd_cvmfs_geo_passthrough on any parse/setup failure. */
+ngx_int_t xrootd_cvmfs_geo_answer(ngx_http_request_t *r,
+    ngx_http_xrootd_cvmfs_loc_conf_t *lcf);
+
+/* One timed nonblocking connect → RTT µs, or -1 on any failure. Shared between
+ * the background origin RTT probe (origin_probe.c) and the on-demand geo
+ * answer (geo_answer.c). */
+long xrootd_cvmfs_connect_rtt_us(const char *host, int port, int timeout_ms);
 
 /* Proxy-mode target extraction (T14): NGX_DECLINED = origin-form (reverse
  * mode), NGX_OK = allowed absolute-form authority (host/port filled), or a

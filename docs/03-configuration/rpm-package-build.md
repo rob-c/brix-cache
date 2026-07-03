@@ -1,6 +1,6 @@
 # RPM Package Build
 
-Building and distributing gnuBall as an RPM for RHEL/AlmaLinux — for sites that deploy everything through a package manager. For general build instructions, see [Build Guide](build-guide.md).
+Building and distributing BriX-Cache as an RPM for RHEL/AlmaLinux — for sites that deploy everything through a package manager. For general build instructions, see [Build Guide](build-guide.md).
 
 From a fresh AlmaLinux host to a running `root://` server that authenticates clients via x509 proxy certificate (GSI) and serves files from a local POSIX directory — packaged as an RPM.
 
@@ -45,13 +45,13 @@ packaging/rpm/build-rpm-container.sh -d alma10 -v 0.1.0
 packaging/rpm/build-rpm-container.sh -d alma11 -v 0.1.0
 ```
 
-Built RPMs appear in `dist/`.  The `nginx-mod-xrootd-*.rpm` is the installable
+Built RPMs appear in `dist/`.  The `nginx-mod-brix-cache-*.rpm` is the installable
 module package; the `.src.rpm` is the source package.
 
 ```
 dist/
-  nginx-mod-xrootd-0.1.0-1.el9.x86_64.rpm   ← install this
-  nginx-mod-xrootd-0.1.0-1.el9.src.rpm
+  nginx-mod-brix-cache-0.1.0-1.el9.x86_64.rpm   ← install this
+  nginx-mod-brix-cache-0.1.0-1.el9.src.rpm
 ```
 
 ---
@@ -76,7 +76,7 @@ sudo dnf install -y https://linuxsoft.cern.ch/wlcg/el9/x86_64/wlcg-repo-1.0.0-1.
 ### 2.2 Install the RPM
 
 ```bash
-sudo dnf install -y dist/nginx-mod-xrootd-0.1.0-1.el9.x86_64.rpm
+sudo dnf install -y dist/nginx-mod-brix-cache-0.1.0-1.el9.x86_64.rpm
 ```
 
 This pulls in `nginx-mod-stream`, `openssl-libs`, `voms-libs`, and `curl`

@@ -1,6 +1,6 @@
-# Tier 1 XRootD Wire Protocol Operations — gnuBall Module
+# Tier 1 XRootD Wire Protocol Operations — BriX-Cache Module
 
-Comprehensive documentation of all Tier 1 XRootD wire protocol operations through the gnuBall module. This covers the stream-layer operations that handle the XRootD binary wire protocol, as defined in `/tmp/xrootd-src/src/XProtocol/XProtocol.hh` and implemented via `src/protocols/root/protocol/wire_core_requests.h`.
+Comprehensive documentation of all Tier 1 XRootD wire protocol operations through the BriX-Cache module. This covers the stream-layer operations that handle the XRootD binary wire protocol, as defined in `/tmp/xrootd-src/src/XProtocol/XProtocol.hh` and implemented via `src/protocols/root/protocol/wire_core_requests.h`.
 
 ## Operations Covered (8 total)
 
@@ -627,7 +627,7 @@ typedef struct {
 ## Reference Files
 
 - `/tmp/xrootd-src/src/XProtocol/XProtocol.hh` — wire protocol definitions (source of truth for wire details)
-- `src/protocols/root/protocol/wire_core_requests.h` — Client*Request struct definitions used by gnuBall
+- `src/protocols/root/protocol/wire_core_requests.h` — Client*Request struct definitions used by BriX-Cache
 - `.sisyphus/plans/tier1-kxr-read.md`, `.sisyphus/plans/tier1-kxr-stat.md` — format reference for section structure
 - `src/protocols/root/handshake/dispatch_read.c` — opcode dispatch switch cases for Tier 1 operations (xrootd_dispatch_read_opcode, xrootd_dispatch_write_opcode)
 - `src/protocols/root/read/open.c` — kXR_open handler implementation (boundary case)
@@ -646,7 +646,7 @@ typedef struct {
 
 ## Summary
 
-This documentation covers all 8 Tier 1 XRootD wire protocol operations through the gnuBall module:
+This documentation covers all 8 Tier 1 XRootD wire protocol operations through the BriX-Cache module:
 - 6 core operations (read, write, stat, close, ping, dirlist)
 - 2 boundary cases (open, statx)
 - Each operation documented with Entry Point, Request Parsing, Security Checks, Core Logic, Response Building, Error Handling, and Wire Struct Details sections

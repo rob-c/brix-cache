@@ -1,4 +1,4 @@
-# TLS in gnuBall
+# TLS in BriX-Cache
 
 Three distinct encrypted transport patterns — each serves a different client type and security requirement. Pick the one that matches your clients:
 

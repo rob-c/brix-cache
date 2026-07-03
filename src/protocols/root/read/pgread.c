@@ -285,6 +285,14 @@ xrootd_handle_pgread(xrootd_ctx_t *ctx, ngx_connection_t *c)
                 flat_buf = scratch;
                 out_buf  = scratch;
                 warm_hit = 1;          /* rlen already == bytes encoded */
+
+                /* The warm fast path bypasses xrootd_vfs_io_execute (where the
+                 * cold pgread paths attribute), so charge the per-backend read
+                 * total here for the file bytes just read. */
+                xrootd_metric_backend_bytes(
+                    ctx->files[idx].sd_obj.driver != NULL
+                        ? ctx->files[idx].sd_obj.driver->name : "posix",
+                    XROOTD_METRIC_OP_READ, (size_t) warm_nread);
             }
         }
 

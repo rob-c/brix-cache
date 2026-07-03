@@ -208,6 +208,37 @@ Every request lands in `cvmfs_access.log` with the cvmfs format:
 `cache=fill` lines ARE your WAN traffic; `awk '$0~/cache=fill/'` over a
 time window is a poor man's WAN audit when Prometheus is down.
 
+### Diagnostic event log (error_log)
+
+Beyond the access log, the cache emits single-line, greppable events to the
+`error_log` (at `info` or lower) whenever a connection breaks, an origin
+misbehaves, or a client does. Every line names the object (`key=`) and/or
+the client (`client=`) so you can pivot on either. Grep prefixes:
+
+| Prefix / event | Level | Means / what to do |
+|---|---|---|
+| `xrootd-fill: event=retry` | warn | an origin attempt failed transiently; the fill is backing off and retrying (attempt/backoff/elapsed on the line). A burst for one host ⇒ that Stratum-1 is flapping. |
+| `xrootd-fill: event=recovered` | warn | the fill succeeded after retries — how long the WAN wobble lasted (`elapsed_ms`). |
+| `xrootd-fill: event=exhausted` | warn | no origin answered within the deadline; every waiter got a `504 Retry-After` (kept-alive). Sustained ⇒ origins down or `client_hold` too short. |
+| `xrootd-fill: event=hold-expired` | warn | a client waited out `client_hold` and got a 504 while the fill kept running. **Recurring ⇒ `CVMFS_TIMEOUT` shorter than the fill latency** — raise it (see client tuning). `held_ms` is how long it waited. |
+| `xrootd-fill: event=client-gone` | warn | a client **broke its connection** mid-fill (the fill continues detached). `parked_ms` is how long it had waited. A flood ⇒ clients are giving up — same `CVMFS_TIMEOUT` misalignment, or a farm-side network problem. |
+| `xrootd-fill: event=failed` | error | 502 to every waiter (e.g. every endpoint served corrupt data — the verify quarantined it). |
+| `xrootd-origin: event=degraded` / `recovered` | warn / notice | an origin endpoint crossed the health threshold and reads started preferring alternates, then came back. The origin-flap timeline. |
+| `cvmfs-client: event=send-timeout` | warn | nginx's `send_timeout` fired mid-response — the client **stopped reading** (overloaded WN, dead NAT entry, kernel-keepalive gap). Line carries sent-vs-expected bytes. |
+| `cvmfs-client: event=aborted` | warn | the client closed the connection during the response. |
+| `cvmfs-neg: event=absorbed-404` | notice | a client requested a known-missing object; the negative cache answered it (the origin saw nothing). **Repeated lines from one client ⇒ it is hammering a missing object instead of backing off** — a misbehaving client. |
+
+Two quick triage recipes:
+
+```
+# which clients are giving up / breaking connections, most first
+grep -hoE 'event=(client-gone|hold-expired|aborted|send-timeout).*client=[0-9.]+' \
+    error.log | grep -oE 'client=[0-9.]+' | sort | uniq -c | sort -rn
+
+# which objects/repos are costing retries (a flapping origin surfaces here)
+grep -oE 'event=retry key="[^"]+"' error.log | sort | uniq -c | sort -rn
+```
+
 ### Live dashboard
 
 The built-in operator dashboard (`xrootd_dashboard on` location, see

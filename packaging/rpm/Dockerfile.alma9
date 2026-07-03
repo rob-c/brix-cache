@@ -60,7 +60,7 @@ RUN set -euo pipefail && \
         -C /build/src . && \
     rpmbuild -ba \
         --define "version_override ${VERSION}" \
-        /build/src/packaging/rpm/nginx-mod-xrootd.spec
+        /build/src/packaging/rpm/nginx-mod-brix-cache.spec
 
 # Collect built RPMs into /artifacts for extraction.
 RUN mkdir -p /artifacts && \

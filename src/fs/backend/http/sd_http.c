@@ -7,6 +7,7 @@
  */
 
 #include "sd_http.h"
+#include "fs/path/path.h"        /* xrootd_sanitize_log_string (wire keys) */
 
 #include <errno.h>
 #include <stdatomic.h>
@@ -20,6 +21,21 @@
 #define SD_HTTP_BASE_MAX   512                  /* URL base path prefix */
 #define SD_HTTP_PATH_MAX   2048                 /* full URL path = base + key */
 #define SD_HTTP_AUTH_MAX   4160                 /* "Authorization: Bearer <tok>\r\n" */
+
+/* Force-primary read policy (process-global operator toggle; set pre-fork from
+ * the cvmfs merge when xrootd_cvmfs_fill_retry_policy is force-primary, so all
+ * workers inherit it — the trace/timeouts idiom). When set, a read always
+ * targets the RANK-PREFERRED endpoint and NEVER fails over to an alternate on a
+ * transport failure: the fill loop retries the SAME preferred origin (RAL) with
+ * a fresh connection until it forces through or the client-hold budget expires.
+ * Off (default) keeps the phase-68 T11 alternate-endpoint failover. */
+static int  g_sd_http_force_primary;
+
+void
+sd_http_force_primary_set(int on)
+{
+    g_sd_http_force_primary = on ? 1 : 0;
+}
 
 /* One ranked origin endpoint (phase-68 T11). fail_score is an integer EWMA of
  * transport failures (0 = healthy, decays 7/8 per outcome); rank is the
@@ -45,12 +61,27 @@ typedef struct {
     void                        *tctx;
     int                          timeout_ms;
     void                       (*failover_note)(void);  /* T16 metric hook */
+    void                       (*health_note)(const char *host, int port,
+                                              int healthy);
     char                         last_origin[300]; /* "host:port" of the last
                                     endpoint that answered a read — display
                                     only ($cvmfs_origin); racy-by-design
                                     under concurrent fills. */
+    int                          last_failover; /* 1 iff the last answering
+                                    endpoint was NOT the first tried (a
+                                    failover); pairs with last_origin.       */
     unsigned                     probe_tick;  /* half-open recovery probe clock */
     char                         auth_hdr[SD_HTTP_AUTH_MAX]; /* §14 bearer hdr or "" */
+    ngx_log_t                   *log;         /* selection diagnostics (create-
+                                    time log; the registry builds instances
+                                    with the cycle log, which outlives any
+                                    request/connection). */
+    int                          cur_ep;      /* index of the endpoint that
+                                    answered the last successful request, -1 =
+                                    none yet. Written by fill threads without
+                                    ordering (like last_origin): a duplicated
+                                    or missed "origin switched" line under a
+                                    concurrent-fill race is acceptable. */
 } sd_http_inst_state;
 
 typedef struct {
@@ -127,6 +158,86 @@ sd_http_score(sd_http_endpoint *ep, int ok)
     ep->fail_score = ep->fail_score * 7 / 8 + (ok ? 0 : 256);
 }
 
+/* Score + health-transition note in one step: crossing the 128 hysteresis
+ * band emits ONE degraded/recovered event (not one per failure) through the
+ * owner-injected hook — the operator's origin-flap trail. */
+static void
+sd_http_score_noted(sd_http_inst_state *is, sd_http_endpoint *ep, int ok)
+{
+    int was = ep->fail_score;
+
+    sd_http_score(ep, ok);
+    if (is->health_note == NULL) {
+        return;
+    }
+    if (!ok && was < 128 && ep->fail_score >= 128) {
+        is->health_note(ep->host, ep->port, 0);
+    } else if (ok && was >= 128 && ep->fail_score < 128) {
+        is->health_note(ep->host, ep->port, 1);
+    }
+}
+
+/* Endpoint's rank as currently published by the selection policy. */
+static int
+sd_http_ep_rank(const sd_http_endpoint *ep)
+{
+    return atomic_load_explicit((_Atomic int *) &ep->rank,
+                                memory_order_relaxed);
+}
+
+/* Sanitised copy of a wire-derived request key for log lines (control bytes
+ * hex-escaped so a crafted path cannot forge log records). */
+static const char *
+sd_http_log_key(const char *key, char *buf, size_t cap)
+{
+    (void) xrootd_sanitize_log_string((key != NULL && key[0]) ? key : "/",
+                                      buf, cap);
+    return buf;
+}
+
+/* Selection audit: log (NOTICE) every change of the endpoint that answers —
+ * the "why is RAL being skipped for CERN" record. States why the policy-
+ * preferred endpoint was overridden when it was (health benching). Called
+ * from fill threads; cur_ep is racy-by-design (see the field comment). */
+static void
+sd_http_log_switch(sd_http_inst_state *is, sd_http_endpoint *ep)
+{
+    int               idx = (int) (ep - is->eps);
+    sd_http_endpoint *pref;
+    char              prev[300];
+
+    if (idx == is->cur_ep) {
+        return;
+    }
+    if (is->cur_ep >= 0 && is->cur_ep < is->n_eps) {
+        snprintf(prev, sizeof(prev), "%s:%d",
+                 is->eps[is->cur_ep].host, is->eps[is->cur_ep].port);
+    } else {
+        snprintf(prev, sizeof(prev), "(none)");
+    }
+    is->cur_ep = idx;
+    if (is->log == NULL) {
+        return;
+    }
+    pref = sd_http_preferred(is);
+    if (ep == pref) {
+        ngx_log_error(NGX_LOG_NOTICE, is->log, 0,
+            "xrootd: http origin switched to %s:%d (endpoint %d, rank %d, "
+            "fail_score %d; the policy-preferred endpoint), was %s",
+            ep->host, ep->port, idx, sd_http_ep_rank(ep), ep->fail_score,
+            prev);
+    } else {
+        ngx_log_error(NGX_LOG_NOTICE, is->log, 0,
+            "xrootd: http origin switched to %s:%d (endpoint %d, rank %d, "
+            "fail_score %d), was %s; policy-preferred %s:%d SKIPPED "
+            "(rank %d, fail_score %d - benched by recent transport failures, "
+            "recovers via half-open probing as its score decays)",
+            ep->host, ep->port, idx, sd_http_ep_rank(ep), ep->fail_score,
+            prev, pref->host, pref->port, sd_http_ep_rank(pref),
+            pref->fail_score);
+    }
+}
+
 /* One request with read-failover (phase-68 T11): try the best endpoint, then
  * ONE alternate on a TRANSPORT failure (an HTTP 4xx is NOT a transport
  * failure — the object genuinely isn't there; do not mask it by failing
@@ -136,19 +247,34 @@ static int
 sd_http_request_fo(sd_http_inst_state *is, const char *method, const char *key,
     const char *extra_hdrs, xrootd_s3_resp_t *resp, sd_http_endpoint **used)
 {
-    sd_http_endpoint *ep = sd_http_pick(is);
+    int               force_primary = g_sd_http_force_primary;
+    /* Force-primary pins the rank-preferred endpoint (ignore health — there is
+     * nowhere to fail over to by policy); otherwise pick best-by-score. The
+     * outer fill loop retries this same origin on a fresh connection. */
+    sd_http_endpoint *ep = force_primary ? sd_http_preferred(is)
+                                         : sd_http_pick(is);
     sd_http_endpoint *first;
-    char              full[SD_HTTP_PATH_MAX], errbuf[256];
-    int               attempt, rc, i;
+    char              full[SD_HTTP_PATH_MAX], errbuf[256], klog[160];
+    int               attempt, rc, i, score_before;
 
     /* Half-open recovery: scores only move on outcomes, so a benched origin
      * would stay benched forever. Every 4th request re-tries the rank-
      * preferred endpoint; a recovered origin earns its score back (and the
-     * in-loop failover still answers the client if it is still down). */
-    if (is->n_eps > 1 && (++is->probe_tick & 3u) == 0) {
+     * in-loop failover still answers the client if it is still down).
+     * Skipped under force-primary: the preferred endpoint is already pinned. */
+    if (!force_primary && is->n_eps > 1 && (++is->probe_tick & 3u) == 0) {
         sd_http_endpoint *pref = sd_http_preferred(is);
 
         if (pref->fail_score > 0) {
+            if (pref != ep && is->log != NULL) {
+                ngx_log_error(NGX_LOG_INFO, is->log, 0,
+                    "xrootd: http origin half-open probe: re-trying benched "
+                    "preferred %s:%d (rank %d, fail_score %d) instead of "
+                    "%s:%d for %s \"%s\"",
+                    pref->host, pref->port, sd_http_ep_rank(pref),
+                    pref->fail_score, ep->host, ep->port, method,
+                    sd_http_log_key(key, klog, sizeof(klog)));
+            }
             ep = pref;
         }
     }
@@ -157,21 +283,41 @@ sd_http_request_fo(sd_http_inst_state *is, const char *method, const char *key,
     for (attempt = 0; attempt < 2; attempt++) {
         snprintf(full, sizeof(full), "%s%s", ep->base_path,
                  (key != NULL && key[0]) ? key : "/");
+        errbuf[0] = '\0';
+        score_before = ep->fail_score;
         rc = is->transport->request(is->tctx, ep->host, ep->port, ep->tls,
                                     method, full, extra_hdrs, NULL, 0,
                                     is->timeout_ms, resp,
                                     errbuf, sizeof(errbuf));
-        sd_http_score(ep, rc == 0);
+        sd_http_score_noted(is, ep, rc == 0);
         if (rc == 0) {
             if (used != NULL) {
                 *used = ep;
             }
             snprintf(is->last_origin, sizeof(is->last_origin), "%s:%d",
                      ep->host, ep->port);
+            /* "failover" for the per-upstream metric = served by a NON-PRIMARY
+             * endpoint (not the configured endpoint 0). Keyed on eps[0] rather
+             * than `first` so it holds however scoring reordered the picks and
+             * across the HEAD-then-GET sub-requests of one fill. */
+            is->last_failover = (ep != &is->eps[0]);
+            sd_http_log_switch(is, ep);
             return 0;
         }
-        if (is->n_eps < 2) {
-            break;
+        /* The transport failure is the evidence an operator needs to explain
+         * a later "origin switched" line — record it with the curl detail. */
+        if (is->log != NULL) {
+            ngx_log_error(NGX_LOG_WARN, is->log, 0,
+                "xrootd: http origin %s:%d failed %s \"%s\": %s "
+                "(attempt %d/2, rank %d, fail_score %d -> %d)",
+                ep->host, ep->port, method,
+                sd_http_log_key(key, klog, sizeof(klog)),
+                errbuf[0] ? errbuf : "transport error",
+                attempt + 1, sd_http_ep_rank(ep), score_before,
+                ep->fail_score);
+        }
+        if (is->n_eps < 2 || force_primary) {
+            break;                    /* force-primary: never fail over */
         }
         /* next-best endpoint distinct from the first attempt */
         ep = NULL;
@@ -191,6 +337,21 @@ sd_http_request_fo(sd_http_inst_state *is, const char *method, const char *key,
         if (is->failover_note != NULL) {
             is->failover_note();               /* T16: failover accounting */
         }
+        if (is->log != NULL) {
+            ngx_log_error(NGX_LOG_NOTICE, is->log, 0,
+                "xrootd: http origin failover for %s \"%s\": %s:%d -> %s:%d "
+                "(alternate rank %d, fail_score %d)",
+                method, sd_http_log_key(key, klog, sizeof(klog)),
+                first->host, first->port, ep->host, ep->port,
+                sd_http_ep_rank(ep), ep->fail_score);
+        }
+    }
+    if (is->log != NULL) {
+        ngx_log_error(NGX_LOG_ERR, is->log, 0,
+            "xrootd: http origin request exhausted all endpoints (%d tried) "
+            "for %s \"%s\" - reporting EIO to the fill layer",
+            (is->n_eps < 2) ? 1 : 2, method,
+            sd_http_log_key(key, klog, sizeof(klog)));
     }
     errno = EIO;
     return -1;
@@ -585,6 +746,15 @@ sd_http_last_origin(xrootd_sd_instance_t *inst, char *buf, size_t cap)
     return 0;
 }
 
+/* 1 iff the endpoint that answered the most recent read was a failover (not
+ * the first-tried). Pairs with sd_http_last_origin; racy-by-design. */
+int
+sd_http_last_was_failover(xrootd_sd_instance_t *inst)
+{
+    return sd_http_instance_is(inst)
+         ? ((sd_http_inst_state *) inst->state)->last_failover : 0;
+}
+
 /* Health snapshot for /healthz: copies up to `max` (host, port, fail_score)
  * triplets. Returns the count (0 for a non-http instance). */
 int
@@ -659,8 +829,11 @@ xrootd_sd_http_create(const xrootd_sd_http_cfg_t *cfg, ngx_log_t *log)
     }
     is->transport  = cfg->transport;
     is->failover_note = cfg->failover_note;
+    is->health_note   = cfg->health_note;
     is->tctx       = cfg->tctx;
     is->timeout_ms = (cfg->timeout_ms > 0) ? cfg->timeout_ms : 60000;
+    is->log        = log;
+    is->cur_ep     = -1;
     if (cfg->bearer_token != NULL && cfg->bearer_token[0] != '\0') {
         snprintf(is->auth_hdr, sizeof(is->auth_hdr),
                  "Authorization: Bearer %s\r\n", cfg->bearer_token);

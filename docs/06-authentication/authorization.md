@@ -99,7 +99,7 @@ ca/
 ```
 
 The `.signing_policy` files are only read by the XRootD C++ `XrdSecGSI`
-library on the client side — gnuBall's server-side verification does not
+library on the client side — BriX-Cache's server-side verification does not
 read them.  They must still be present in the CA directory if your test clients
 use the XRootD library for GSI, because the client validates the server cert
 against its own CA bundle.

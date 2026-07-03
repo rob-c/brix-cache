@@ -1,6 +1,6 @@
 # Threat Model & Security Posture
 
-This document records the adversarial threat model for the gnuBall gateway, the
+This document records the adversarial threat model for the BriX-Cache gateway, the
 controls already in place, the hardening delivered in **Phase 28**, and the items
 explicitly deferred. It is the companion to `docs/refactor/phase-28-adversarial-hardening.md`.
 

@@ -4,7 +4,7 @@
 
 This document records **specific failure modes observed in the official XRootD
 stack under sustained, concurrent, and adversarial load**, and the **concrete
-architectural choices the gnuBall module makes** that address those classes
+architectural choices the BriX-Cache module makes** that address those classes
 of problem. Every "official-server problem" below is something that was *directly
 observed* while validating this module — most of it during a single
 ~4,000-test conformance/stress marathon on a constrained host — not a claim
@@ -38,7 +38,7 @@ than *silently* or *fatally*.
 The two servers also differ in concurrency model in a way that explains most of
 what follows:
 
-| | Official `xrootd` / `cmsd` | gnuBall module |
+| | Official `xrootd` / `cmsd` | BriX-Cache module |
 |---|---|---|
 | Concurrency | Thread-per-connection / thread pools, blocking I/O | Single-threaded **epoll event loop** per worker, non-blocking I/O |
 | A slow/blocked op | Ties up a thread; under load threads saturate | Must never block the loop — slow work is cached, offloaded, or deferred with backpressure |
@@ -264,7 +264,7 @@ Reliability is not only about not failing; it is about failing legibly:
 
 ## Summary table
 
-| Observed failure mode (official stack, under load) | gnuBall mitigation |
+| Observed failure mode (official stack, under load) | BriX-Cache mitigation |
 |---|---|
 | 1. `XrdCl` sync-call deadlock (un-interruptible) | No blocking call on the request path; offload to thread pool; out-of-process containment for embedded `XrdCl` |
 | 2. `XrdCl` "Invalid response" framing under concurrent dirlist | Module-side dirlist returns `[SUCCESS]` under the same load |

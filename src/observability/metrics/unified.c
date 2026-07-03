@@ -255,6 +255,44 @@ xrootd_metric_op_done(xrootd_proto_t proto, xrootd_metric_op_t op,
 }
 
 /*
+ * xrootd_metric_backend_bytes — add a completed data op's byte count to the
+ * per-backend storage totals. Resolves the driver's census name to its
+ * xrootd_fs_id_t slot (NULL ⇒ "posix", the default-instance convention) and
+ * adds to the read or write array. Pure lock-free SHM atomics so it is safe
+ * from thread-pool workers; silently no-ops on unknown names, non-data ops,
+ * zero bytes, or a detached SHM zone.
+ */
+void
+xrootd_metric_backend_bytes(const char *backend_name, xrootd_metric_op_t op,
+    size_t bytes)
+{
+    ngx_xrootd_metrics_t *shm;
+    int                   id;
+
+    if (bytes == 0
+        || (op != XROOTD_METRIC_OP_READ && op != XROOTD_METRIC_OP_WRITE))
+    {
+        return;
+    }
+
+    id = xrootd_fs_id_from_name(backend_name != NULL ? backend_name : "posix");
+    if (id < 0) {
+        return;
+    }
+
+    shm = xrootd_metrics_shared();
+    if (shm == NULL) {
+        return;
+    }
+
+    if (op == XROOTD_METRIC_OP_READ) {
+        XROOTD_ATOMIC_ADD(&shm->unified.io_bytes_read_backend[id], bytes);
+    } else {
+        XROOTD_ATOMIC_ADD(&shm->unified.io_bytes_written_backend[id], bytes);
+    }
+}
+
+/*
  * xrootd_metric_cache_result — record a cache lookup outcome for proto:
  * increment cache_hits or cache_misses per hit, and add bytes_evicted to the
  * per-protocol eviction total.

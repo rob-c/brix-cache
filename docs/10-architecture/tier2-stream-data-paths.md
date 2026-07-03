@@ -1,8 +1,8 @@
-# Tier 2: Stream Data Paths — Wire Protocol Through gnuBall
+# Tier 2: Stream Data Paths — Wire Protocol Through BriX-Cache
 
 ## Overview
 
-This document maps every XRootD wire protocol operation to its implementation in the gnuBall module, showing how the native `stream` module translates binary opcodes into file operations.
+This document maps every XRootD wire protocol operation to its implementation in the BriX-Cache module, showing how the native `stream` module translates binary opcodes into file operations.
 
 **Reference:** `/tmp/xrootd-src/src/XProtocol/XProtocol.hh` — full wire spec  
 **Entry point:** `src/protocols/root/connection/handler.c` → `src/protocols/root/handshake/dispatch.c` → opcode handlers in `src/protocols/root/read/`, `src/protocols/root/write/`, etc.
@@ -263,7 +263,7 @@ Client                          Server
 
 ### Overview
 
-Native TPC enables a client to copy files between two XRootD servers through gnuBall acting as the destination server. The protocol uses `kXR_open` with opaque parameters (`tpc.src=`, `tpc.key=`) and relies on shared-memory key registry for cross-process rendezvous.
+Native TPC enables a client to copy files between two XRootD servers through BriX-Cache acting as the destination server. The protocol uses `kXR_open` with opaque parameters (`tpc.src=`, `tpc.key=`) and relies on shared-memory key registry for cross-process rendezvous.
 
 **Key file:** `src/tpc/engine/key_registry.c` — SHM-based key registry (256 slots, 60s TTL)  
 **Entry point:** `src/protocols/root/handshake/dispatch.c` → `xrootd_handle_open()` with TPC params
@@ -365,7 +365,7 @@ void xrootd_tpc_pull_done(ngx_event_t *ev);  // Sends kXR_open response or error
 **File:** `src/tpc/outbound/source.c` — Remote source open + read loop  
 **File:** `src/tpc/outbound/bootstrap.c` — Anonymous XRootD session setup on remote side
 
-The push path is the inverse of pull: gnuBall acts as a client to a remote origin, reading data and writing locally.
+The push path is the inverse of pull: BriX-Cache acts as a client to a remote origin, reading data and writing locally.
 
 ---
 

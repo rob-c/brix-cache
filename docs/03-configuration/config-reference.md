@@ -1,6 +1,6 @@
 # Configuration reference
 
-Every directive that gnuBall recognizes, with types, defaults, and examples. Native XRootD stream directives live inside a `server {}` block in the `stream {}` section; WebDAV, S3, and metrics directives are collected at the end.
+Every directive that BriX-Cache recognizes, with types, defaults, and examples. Native XRootD stream directives live inside a `server {}` block in the `stream {}` section; WebDAV, S3, and metrics directives are collected at the end.
 
 ## Fail-fast path validation
 

@@ -54,6 +54,7 @@ Full mapping: [docs/refactor/phase-66-map.tsv](docs/refactor/phase-66-map.tsv).
 | `root://` / `roots://` | stream | `src/protocols/root/connection/handler.c`→`src/protocols/root/handshake/dispatch.c` | anon=11094 GSI=11095 TLS=11096 Token=11097 |
 | `davs://` (GSI+TLS) | http | `src/protocols/webdav/dispatch.c`→method handler | 8444 |
 | `davs://` / `http://` (no GSI) | http | `src/protocols/webdav/dispatch.c`→method handler | 8443 |
+| `cvmfs://` (HTTP) / `scvmfs://` (TLS, experimental) | http | `src/protocols/cvmfs/handler.c` | site-config (e.g. 3128 / 8443); tests 12831–12902 |
 | S3 REST | http | `src/protocols/s3/handler.c`→method handler | 9001 |
 | `/metrics` | http | `src/observability/metrics/stream.c`/`writer.c` | 9100 |
 
@@ -87,6 +88,7 @@ Full mapping: [docs/refactor/phase-66-map.tsv](docs/refactor/phase-66-map.tsv).
 | s3 dispatch | `src/protocols/s3/handler.c`, `auth.c`, `util.c` |
 | s3 ops | `src/protocols/s3/get.c`, `put.c`, `list.c`, `multipart.c` |
 | guard / bad-actor / fail2ban | `src/net/httpguard/*`, `src/net/guard/*` (pure-C core), `src/protocols/root/relay/relay_guard.c`, `deploy/fail2ban/` |
+| cvmfs:// site cache (+ experimental scvmfs://) | `src/protocols/cvmfs/module.c`, `handler.c`, `gate.c`, `classify.c`, `geo.c`, `request.c`, `upstreams.c`, `origin_geo.c`, `origin_probe.c`, `secure.c`, `src/fs/cache/verify.c` (cvmfs-cas), `fill_retry.c`, `src/protocols/shared/http_cache_fill.c` (coalescing+hold) |
 
 ---
 
@@ -210,6 +212,7 @@ tests/manage_test_servers.sh start|restart|stop
 **New WebDAV method:** `src/protocols/webdav/op.c` → declare `webdav.h` → register `dispatch.c` → update Allow header test → `make` → 3 tests
 **New XRootD opcode:** `src/protocols/root/<sub>/op.c` → register `protocols/root/handshake/dispatch_<type>.c` → constants `protocols/root/protocol/opcodes.h`/`wire.h` → add to `./config` → `./configure`+`make` → 3 tests
 **New metric:** enum `metrics.h` → field `metrics_internal.h` → export `src/observability/metrics/<sub>.c` → `XROOTD_<TYPE>_METRIC_INC(slot)` at callsite
+**New protocol:** ONE row in `src/core/types/proto_list.h` (append-only!) → unified enum+labels, dashboard ids+names+JSON buckets all generate; then follow the checklist in that header (SHM family, totals glue, vfs proto, zone-ensure for HTTP-only, docs, tests)
 **New config directive:** field `src/core/config/config.h` (`NGX_CONF_UNSET`) → `ngx_command_t` `src/core/config/directives.c` → merge in `merge_*_conf()` — no `./configure` unless new top-level block
 
 ---

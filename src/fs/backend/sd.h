@@ -40,6 +40,7 @@
 #include <string.h>
 #include <time.h>     /* struct timespec for xrootd_sd_setattr_t */
 typedef intptr_t          ngx_int_t;
+typedef uintptr_t         ngx_uint_t;
 typedef int               ngx_fd_t;
 typedef struct ngx_log_s  ngx_log_t;   /* opaque: only ever a pointer field */
 typedef struct ngx_pool_s ngx_pool_t;  /* opaque: only ever a pointer field */

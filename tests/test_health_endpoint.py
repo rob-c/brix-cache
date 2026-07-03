@@ -31,7 +31,7 @@ def test_healthz_liveness_ok(test_env):
     assert r.headers["Content-Type"] == "application/json"
     body = json.loads(r.text)
     assert body["status"] == "ok"
-    assert body["service"] == "GNUBall"
+    assert body["service"] == "BriX-Cache"
     assert body["version"] == "v1.0.5"
 
 

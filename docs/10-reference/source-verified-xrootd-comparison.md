@@ -120,7 +120,7 @@ Source anchors:
   `src/protocols/root/handshake/dispatch_read.c`, `src/protocols/root/handshake/dispatch_write.c`,
   `src/protocols/root/handshake/dispatch_signing.c`
 
-| Feature | Upstream XRootD source | gnuBall source | Status | Notes |
+| Feature | Upstream XRootD source | BriX-Cache source | Status | Notes |
 |---|---|---|---|---|
 | Protocol version constants | `XProtocol.hh` advertises `kXR_PROTOCOLVERSION 0x00000520` and `5.2.0`. | `src/protocols/root/protocol/opcodes.h` advertises `0x00000520`. | Parity | The module intentionally speaks the current 5.2 wire vocabulary even if the surrounding XRootD software release number is newer. |
 | Request opcodes `3000..3032` | `XProtocol.hh` defines auth through clone, including historical gaps. | `src/protocols/root/protocol/opcodes.h` defines the same visible request IDs. | Parity | `kXR_gpfile` is the only defined request without a practical handler here. |
@@ -156,7 +156,7 @@ Source anchors:
   `src/auth/gsi/`, `src/auth/token/`, `src/auth/sss/`, `src/auth/unix/`, `src/auth/krb5/`,
   `src/auth/authz/authdb.c`, `src/auth/authz/acl.c`, `src/core/config/policy.c`
 
-| Feature | Upstream XRootD source | gnuBall source | Status | Notes |
+| Feature | Upstream XRootD source | BriX-Cache source | Status | Notes |
 |---|---|---|---|---|
 | Anonymous mode | Core XRootD config/auth flow. | `xrootd_auth none`; login/session code. | Parity | Used heavily in tests and proxy/cache modes. |
 | GSI / x509 proxy cert auth | `XrdSecgsi`, `XrdVoms`. | `src/auth/gsi/`, `src/auth/voms/`, WebDAV cert auth in `src/protocols/webdav/auth_cert.c`. | Parity | Module supports proxy certs and optional VOMS/VO authorization. |
@@ -183,7 +183,7 @@ Source anchors:
 - nginx HTTP:
   `src/protocols/webdav/`, `src/protocols/s3/`
 
-| Feature | Upstream XRootD source | gnuBall source | Status | Notes |
+| Feature | Upstream XRootD source | BriX-Cache source | Status | Notes |
 |---|---|---|---|---|
 | XrdHttp core methods | `XrdHttpReq.hh`/`.cc` support `GET`, `HEAD`, `PUT`, `OPTIONS`, `DELETE`, `PROPFIND`, `MKCOL`, `MOVE`, and `COPY`. | `src/protocols/webdav/dispatch.c`, `src/protocols/webdav/get.c`, `put.c`, `namespace.c`, `move.c`, `copy.c`, `propfind.c`. | Parity | Older docs saying XrdHttp is absent are stale. |
 | XrdHttp headers/dialect | Upstream `XrdHttp` implements XRootD-over-HTTP behavior. | `src/protocols/webdav/xrdhttp.c`, `xrdhttp_filter.c`, `xrdhttp_stats.c`, checksum/header helpers. | Parity | Module implements `X-Xrootd-*` headers, status translation, `?xrd.stats`, digest/checksum, and redirect dialect. |
@@ -219,7 +219,7 @@ Source anchors:
   `src/fs/`, `src/fs/path/`, `src/fs/cache/`, `src/fs/xfer/`,
   `src/fs/backend/frm/`, `src/core/compat/namespace_ops.c`
 
-| Feature | Upstream XRootD source | gnuBall source | Status | Notes |
+| Feature | Upstream XRootD source | BriX-Cache source | Status | Notes |
 |---|---|---|---|---|
 | POSIX local filesystem serving | Core `XrdOss`/`XrdSfs` stack. | Local POSIX operations through confined path helpers, namespace ops, fd table, sendfile/mmap-style HTTP paths. | Parity | This module is intentionally strongest as a POSIX-backed data server/gateway. |
 | Path confinement and symlink escape defense | Upstream has its own namespace and auth mechanisms. | `src/fs/path/`, `src/core/compat/namespace_ops.c`, `ngx_http_xrootd_webdav_resolve_path()`, `xrootd_open_confined_canon()`. | nginx+ | All wire paths should resolve before syscall; this is a major auditability advantage. |
@@ -238,7 +238,7 @@ Source anchors:
 
 ## Cluster, Redirector, Proxy, and TPC
 
-| Feature | Upstream XRootD source | gnuBall source | Status | Notes |
+| Feature | Upstream XRootD source | BriX-Cache source | Status | Notes |
 |---|---|---|---|---|
 | Data server role | Core XrdXrootd. | `kXR_isServer` always set. | Parity | Module is a data server by default. |
 | Manager / redirector | `XrdCms`, XrdXrootd manager integration. | `src/net/manager/`, `src/net/cms/`, `src/protocols/root/read/locate.c`, `src/net/upstream/`. | Partial | Practical locate/redirect and manager mode exist. Upstream CMS has broader tooling and battle-tested semantics. |
@@ -253,7 +253,7 @@ Source anchors:
 
 ## Observability and Operations
 
-| Feature | Upstream XRootD source | gnuBall source | Status | Notes |
+| Feature | Upstream XRootD source | BriX-Cache source | Status | Notes |
 |---|---|---|---|---|
 | UDP XrdMon stream monitoring | Upstream `XrdXrootdMon*` / XrdMon ecosystem. | Not implemented. | Not counted | Explicit product decision: do not implement. Use HTTP-native observability instead. |
 | Prometheus metrics | Upstream has some HTTP/monitoring counters but UDP monitoring is historical primary grid surface. | `src/observability/metrics/`, `/metrics`, low-cardinality counters across stream/WebDAV/S3/rate-limit/cache/FRM/mirror. | nginx+ | Primary replacement for UDP monitoring. |
@@ -360,7 +360,7 @@ fit:
 
 High-signal source files inspected for this comparison:
 
-| Area | gnuBall | Official XRootD |
+| Area | BriX-Cache | Official XRootD |
 |---|---|---|
 | Protocol opcodes/flags | `src/protocols/root/protocol/opcodes.h`, `src/protocols/root/protocol/flags.h`, `src/protocols/root/session/protocol.c` | `/tmp/xrootd-src/src/XProtocol/XProtocol.hh` |
 | Dispatch | `src/protocols/root/handshake/dispatch*.c` | `/tmp/xrootd-src/src/XrdXrootd/XrdXrootdProtocol.cc`, `/tmp/xrootd-src/src/XrdXrootd/XrdXrootdXeq.cc` |

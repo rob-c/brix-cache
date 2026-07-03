@@ -11,10 +11,15 @@
 %bcond_with bzip2
 %bcond_with lz4
 
-Name:           nginx-mod-xrootd
+Name:           nginx-mod-brix-cache
 Version:        %{upstream_version}
-Release:        4%{?dist}
-Summary:        XRootD, WebDAV, S3, CMS, and metrics dynamic modules for nginx
+Release:        5%{?dist}
+Summary:        BriX-Cache — XRootD, WebDAV, S3, CMS, and metrics dynamic modules for nginx
+
+# Rebrand (gnuBall -> BriX-Cache, 0.1.0-5): same modules, new product name.
+# Provides + Obsoletes give dnf a clean upgrade path from the old package name.
+Provides:       nginx-mod-xrootd = %{version}-%{release}
+Obsoletes:      nginx-mod-xrootd < 0.1.0-5
 
 License:        AGPL-3.0-only
 URL:            https://github.com/HEP-x/nginx-xrootd
@@ -35,7 +40,7 @@ BuildRequires:  libcurl-devel
 BuildRequires:  krb5-devel
 BuildRequires:  libcom_err-devel
 BuildRequires:  libxcrypt-devel
-# --- phase-42 optional compression codecs (off by default; see %bcond above).
+# --- phase-42 optional compression codecs (off by default; see %%bcond above).
 # When enabled, ./configure links the lib and find-requires turns it into a
 # runtime dep automatically; when disabled, the codec reports available=0. ---
 %{?with_zstd:BuildRequires:  libzstd-devel}
@@ -43,7 +48,7 @@ BuildRequires:  libxcrypt-devel
 %{?with_brotli:BuildRequires:  libbrotli-devel}
 %{?with_bzip2:BuildRequires:  bzip2-devel}
 %{?with_lz4:BuildRequires:  lz4-devel}
-# --- native client (nginx-xrootd-client subpackage) extra link deps ---
+# --- native client (brix-cache-client subpackage) extra link deps ---
 # fuse3-devel: the xrootdfs FUSE mount (default + --legacy mode); libcom_err-devel above
 # resolves the -lcom_err pulled in by `pkg-config --libs krb5`.
 BuildRequires:  fuse3-devel
@@ -61,22 +66,24 @@ Requires:       voms-libs%{?_isa}
 Requires:       curl
 
 %description
-Dynamic nginx modules that serve files over the native XRootD stream protocol,
-WebDAV over HTTPS, and an S3-compatible HTTP subset, with CMS management-listener
-and Prometheus metrics support.
+BriX-Cache: dynamic nginx modules that serve files over the native XRootD
+stream protocol, WebDAV over HTTPS, and an S3-compatible HTTP subset, with CMS
+management-listener and Prometheus metrics support.
 
 # ---------------------------------------------------------------------------
 # Subpackage 2: native clean-room client tools (CLI + FUSE + LD_PRELOAD shim)
 # ---------------------------------------------------------------------------
-%package -n nginx-xrootd-client
-Summary:        Clean-room native XRootD client tools (xrdcp, xrdfs, xrootdfs, ...)
+%package -n brix-cache-client
+Summary:        BriX-Cache clean-room native XRootD client tools (xrdcp, xrdfs, xrootdfs, ...)
+Provides:       nginx-xrootd-client = %{version}-%{release}
+Obsoletes:      nginx-xrootd-client < 0.1.0-5
 # fuse3: xrootdfs forks/execs fusermount3 at mount/unmount time —
 # a runtime dependency that find-requires (which only sees libfuse3.so) misses.
 # All other shared-library deps (openssl-libs, krb5-libs, libcom_err, zlib,
 # fuse3-libs) are picked up automatically from the ELF link records.
 Requires:       fuse3
 
-%description -n nginx-xrootd-client
+%description -n brix-cache-client
 Native command-line XRootD clients built clean-room on the in-tree protocol
 core (libxrdc + libxrdproto) with NO libXrdCl / libXrdSec dependency: xrdcp,
 xrdfs, xrdcrc32c, xrdcrc64, xrdadler32, xrdqstats, xrdprep, xrdgsiproxy,
@@ -86,12 +93,14 @@ xrootdfs FUSE mount (default + --legacy mode) and an LD_PRELOAD POSIX shim.
 # ---------------------------------------------------------------------------
 # Subpackage 3: the pytest integration/conformance test-suite + its python deps
 # ---------------------------------------------------------------------------
-%package -n nginx-xrootd-tests
-Summary:        Integration and conformance test-suite for nginx-xrootd
+%package -n brix-cache-tests
+Summary:        Integration and conformance test-suite for BriX-Cache
 BuildArch:      noarch
+Provides:       nginx-xrootd-tests = %{version}-%{release}
+Obsoletes:      nginx-xrootd-tests < 0.1.0-5
 # The system under test:
-Requires:       nginx-mod-xrootd = %{version}-%{release}
-Requires:       nginx-xrootd-client = %{version}-%{release}
+Requires:       nginx-mod-brix-cache = %{version}-%{release}
+Requires:       brix-cache-client = %{version}-%{release}
 Requires:       nginx
 # Python packages the suite imports / drives pytest with:
 Requires:       python3-pytest
@@ -105,9 +114,9 @@ Requires:       python3-urllib3
 # hard-require it so the package installs where that repo is not enabled.
 Recommends:     python3-xrootd
 
-%description -n nginx-xrootd-tests
+%description -n brix-cache-tests
 The full pytest integration, conformance, and adversarial test-suite for
-nginx-xrootd (root://, WebDAV, S3, CMS, metrics, FRM, TPC, ...), installed under
+BriX-Cache (root://, WebDAV, S3, CMS, metrics, FRM, TPC, ...), installed under
 %{_datadir}/nginx-xrootd.  Run with, e.g.:
     cd %{_datadir}/nginx-xrootd && PYTHONPATH=tests python3 -m pytest tests/ -v
 
@@ -165,7 +174,7 @@ install -Dpm0644 contrib/grafana-dashboard.json \
 install -Dpm0644 contrib/prometheus-alerts.yml \
     %{buildroot}%{_datadir}/nginx-xrootd/prometheus-alerts.yml
 
-# --- native client tools (nginx-xrootd-client) ---
+# --- native client tools (brix-cache-client) ---
 for b in xrdfs xrdcp xrdcrc32c xrdcrc64 xrdadler32 xrdqstats wait41 \
          xrdprep xrdgsiproxy xrddiag xrdmapc xrdgsitest mpxstats xrdsssadmin \
          xrootdfs; do
@@ -176,13 +185,17 @@ install -Dpm0755 client/libxrdposix_preload.so \
 install -Dpm0644 client/man/xrootdfs.1 \
     %{buildroot}%{_mandir}/man1/xrootdfs.1
 
-# --- test-suite (nginx-xrootd-tests, noarch data) ---
+# --- test-suite (brix-cache-tests, noarch data) ---
 install -d %{buildroot}%{_datadir}/nginx-xrootd
 cp -a tests %{buildroot}%{_datadir}/nginx-xrootd/tests
-# Never ship the prebuilt test nginx binary or any python bytecode caches.
+# Never ship the prebuilt test nginx binary, any python bytecode caches, or
+# stray compiled test helpers (e.g. tests/fuzz/*) — the package is noarch, so
+# any ELF object in the payload fails the build.
 rm -f %{buildroot}%{_datadir}/nginx-xrootd/tests/nginx-bin
 find %{buildroot}%{_datadir}/nginx-xrootd/tests -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || :
 find %{buildroot}%{_datadir}/nginx-xrootd/tests -name '*.pyc' -delete
+find %{buildroot}%{_datadir}/nginx-xrootd/tests -type f \
+    -exec sh -c 'head -c4 "$1" | od -An -tx1 | grep -q "7f 45 4c 46"' _ {} \; -delete
 install -Dpm0644 conftest.py      %{buildroot}%{_datadir}/nginx-xrootd/conftest.py
 install -Dpm0644 pytest.ini       %{buildroot}%{_datadir}/nginx-xrootd/pytest.ini
 install -Dpm0644 requirements.txt %{buildroot}%{_datadir}/nginx-xrootd/requirements.txt
@@ -198,7 +211,7 @@ install -Dpm0644 requirements.txt %{buildroot}%{_datadir}/nginx-xrootd/requireme
 %{_datadir}/nginx-xrootd/grafana-dashboard.json
 %{_datadir}/nginx-xrootd/prometheus-alerts.yml
 
-%files -n nginx-xrootd-client
+%files -n brix-cache-client
 %license LICENSE
 %{_bindir}/xrdfs
 %{_bindir}/xrdcp
@@ -218,7 +231,7 @@ install -Dpm0644 requirements.txt %{buildroot}%{_datadir}/nginx-xrootd/requireme
 %{_libdir}/libxrdposix_preload.so
 %{_mandir}/man1/xrootdfs.1*
 
-%files -n nginx-xrootd-tests
+%files -n brix-cache-tests
 %license LICENSE
 %dir %{_datadir}/nginx-xrootd
 %{_datadir}/nginx-xrootd/tests
@@ -227,6 +240,16 @@ install -Dpm0644 requirements.txt %{buildroot}%{_datadir}/nginx-xrootd/requireme
 %{_datadir}/nginx-xrootd/requirements.txt
 
 %changelog
+* Fri Jul 03 2026 Rob Currie <rob.currie@ed.ac.uk> - 0.1.0-5
+- Rebrand: the product is now BriX-Cache (server identity string, docs, site).
+  Package renames: nginx-mod-xrootd -> nginx-mod-brix-cache,
+  nginx-xrootd-client -> brix-cache-client, nginx-xrootd-tests -> brix-cache-tests,
+  each with Provides/Obsoletes on the old name for a clean dnf upgrade path.
+  Installed artifact names (module .so files, mod-xrootd.conf, xrootd.conf.example,
+  %%{_datadir}/nginx-xrootd) are unchanged — configs keep working as-is.
+- Server now reports "BriX-Cache" in kXR_query Qconfig version, stats XML pgm/name,
+  /healthz service, SRR implementation, and the dashboard (src/core/ident.h)
+
 * Sun Jun 21 2026 nginx-xrootd maintainers <maintainers@example.com> - 0.1.0-4
 - phase-47 W1: bundle the dynamic modules into a single combined .so
   (ngx_stream_xrootd_module.so = stream+metrics+srr+webdav+s3+dashboard+cms)

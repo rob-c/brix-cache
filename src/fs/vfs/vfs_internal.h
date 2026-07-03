@@ -334,6 +334,16 @@ xrootd_vfs_observe_ctx_op(const xrootd_vfs_ctx_t *ctx, const char *path,
 
     xrootd_metric_op_done(xrootd_vfs_metrics_proto(ctx), op, bytes,
                           latency_usec, err);
+
+    /* Per-backend storage byte totals (staged-commit writes, VFS-metered
+     * reads). ctx->sd == NULL is the default-POSIX instance. */
+    if (rc == NGX_OK && bytes > 0) {
+        xrootd_metric_backend_bytes(
+            ctx != NULL && ctx->sd != NULL ? xrootd_sd_backend_name(ctx->sd)
+                                           : "posix",
+            op, bytes);
+    }
+
     xrootd_access_log_emit(ctx, path, op, result, bytes, err, latency_usec);
 
     errno = sys_errno;

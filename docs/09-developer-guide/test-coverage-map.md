@@ -100,7 +100,7 @@ Functional edge cases on a live connection:
 
 ### `test_conformance.py`
 
-Runs the same operations against both the gnuBall endpoint and a reference xrootd server side-by-side, asserting identical results. Covers: ping, stat (file/dir/non-existent/large), read (small/offset/beyond-EOF/5MB MD5), dirlist, checksum, write+readback, open, and `..` rejection.
+Runs the same operations against both the BriX-Cache endpoint and a reference xrootd server side-by-side, asserting identical results. Covers: ping, stat (file/dir/non-existent/large), read (small/offset/beyond-EOF/5MB MD5), dirlist, checksum, write+readback, open, and `..` rejection.
 
 ---
 
@@ -125,7 +125,7 @@ Focused functional tests for `roots://` (GSI + in-protocol TLS):
 
 ### `test_gsi_bridge.py`
 
-Cross-server bridge: proves GSI auth works end-to-end when copying between the gnuBall endpoint and the reference xrootd. Small/large files, checksum preservation, directory listing after bridge transfer, rejection of missing proxy.
+Cross-server bridge: proves GSI auth works end-to-end when copying between the BriX-Cache endpoint and the reference xrootd. Small/large files, checksum preservation, directory listing after bridge transfer, rejection of missing proxy.
 
 ### `test_crl.py`
 
@@ -361,8 +361,8 @@ Redirector functionality:
 Native root:// third-party copy (SHM key registry):
 
 - `QConfig` reports TPC supported.
-- TPC between two gnuBall endpoints (nginx→nginx).
-- TPC between reference xrootd and gnuBall (both directions).
+- TPC between two BriX-Cache endpoints (nginx→nginx).
+- TPC between reference xrootd and BriX-Cache (both directions).
 - `tpc=only` and `tpc=first` modes.
 
 ---
@@ -548,7 +548,7 @@ Upstream redirect handling (`kXR_redirect`, `kXR_wait`, `kXR_waitresp`):
 
 ### `test_interop_io.py`
 
-readv, pgread, pgwrite, writev, sync, locate, clone — all verified to produce identical results on both gnuBall and reference xrootd.
+readv, pgread, pgwrite, writev, sync, locate, clone — all verified to produce identical results on both BriX-Cache and reference xrootd.
 
 ### `test_interop_query.py`
 

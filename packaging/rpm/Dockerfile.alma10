@@ -75,7 +75,7 @@ RUN set -euo pipefail && \
         -C /build/src . && \
     rpmbuild -ba \
         --define "version_override ${VERSION}" \
-        /build/src/packaging/rpm/nginx-mod-xrootd.spec
+        /build/src/packaging/rpm/nginx-mod-brix-cache.spec
 
 RUN mkdir -p /artifacts && \
     find ~/rpmbuild/RPMS ~/rpmbuild/SRPMS -name '*.rpm' -exec cp {} /artifacts/ \;

@@ -218,7 +218,7 @@ def test_srr_consumer(srr_server):
                         "--probe-timeout", "6000"],
                        capture_output=True, text=True, timeout=30)
     assert p.returncode == 0, f"{p.stdout}\n{p.stderr}"
-    assert "implementation=GNUBall" in p.stdout, p.stdout
+    assert "implementation=BriX-Cache" in p.stdout, p.stdout
     assert "shares:" in p.stdout and "capacity:" in p.stdout, p.stdout
 
 

@@ -25,7 +25,7 @@ const buckets = [
     <AudienceHero
       group="infra & OSS engineers"
       title="Three protocols, one core, no monolith."
-      lede="gnuBall is a single nginx module. Three protocol front-ends parse the wire, one auth layer decides access, and all storage funnels through a VFS — raw file I/O exists in exactly one place."
+      lede="BriX-Cache is a single nginx module. Three protocol front-ends parse the wire, one auth layer decides access, and all storage funnels through a VFS — raw file I/O exists in exactly one place."
     >
       <div class="term" aria-label="Source layout">
         <div class="term-title">src/ — seven concept buckets</div>
@@ -74,7 +74,7 @@ const buckets = [
       </Benefit>
       <Benefit marker="conformance" title="Tested against the reference">
         <p>
-          Whole test modules run unchanged against both gnuBall and the reference xrootd daemon —
+          Whole test modules run unchanged against both BriX-Cache and the reference xrootd daemon —
           native <span class="mono">root://</span> and the XrdHttp WebDAV endpoint. Any divergence
           in status code or bytes is a conformance failure, not a footnote.
         </p>

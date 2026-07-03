@@ -1,4 +1,4 @@
-# gnuBall vs Canonical XRootD — Feature Comparison
+# BriX-Cache vs Canonical XRootD — Feature Comparison
 
 **Date:** 2026-05-25 (updated 2026-06-14 to correct source-verified implementation-state mismatches)
 **Source:** `/home/rcurrie/HEP-x/nginx-xrootd` (nginx module) vs `/tmp/xrootd-src` (official XRootD source)
@@ -14,7 +14,7 @@
 
 ### 1.1 Request Opcodes (kXR_* = 3000–3032)
 
-| Opcode | Name | Canonical | gnuBall | Status |
+| Opcode | Name | Canonical | BriX-Cache | Status |
 |---|---|---|---|---|
 | kXR_auth=3000 | Authentication | ✓ | ✓ | Implemented (GSI, token, SSS) |
 | kXR_query=3001 | Server/file query | ✓ | ✓ | Implemented |
@@ -56,7 +56,7 @@
 
 ### 1.3 Response Codes (kXR_* = 4000–4007)
 
-| Code | Name | Canonical | gnuBall | Status |
+| Code | Name | Canonical | BriX-Cache | Status |
 |---|---|---|---|---|
 | kXR_ok=0 | Success | ✓ | ✓ | Implemented |
 | kXR_oksofar=4000 | Partial result | ✓ | ✓ | Used for pgread/pgwrite page responses |
@@ -72,7 +72,7 @@
 
 All error codes declared in `opcodes.h` and mapped via `errno → kXR_*` helpers:
 
-| Canonical errno mapping | gnuBall mapping | HTTP response |
+| Canonical errno mapping | BriX-Cache mapping | HTTP response |
 |---|---|---|
 | ENOENT → kXR_NotFound(3011) | ✓ | 404 |
 | EACCES/EPERM → kXR_NotAuthorized(3010) | ✓ | 403 |
@@ -90,7 +90,7 @@ All error codes declared in `opcodes.h` and mapped via `errno → kXR_*` helpers
 - Async operations: kXR_asyncms(5002), kXR_asyncdi/rd/wt/av/go (5001–5007)
 - Multiple capability negotiation rounds via `kXR_protocol`
 
-### gnuBall (opcodes.h)
+### BriX-Cache (opcodes.h)
 - Advertises version **5.2.0** (`kXR_PROTOCOLVERSION = 0x00000520u`)
 - Falls back to stable v3 (`kXR_PROTOCOLVERSION_3 = 0x00000300u`)
 - Server type: `kXR_DataServer=1` by default; advertises `kXR_isManager` when `xrootd_manager_mode on` or `xrootd_manager_map` is configured (`session/protocol.c`)
@@ -103,82 +103,82 @@ All error codes declared in `opcodes.h` and mapped via `errno → kXR_*` helpers
 
 ### 3.1 `kXR_gpfile` — Legacy Get/Put File
 - **Canonical:** Legacy opcode (was kXR_getfile), rarely used in modern clients
-- **gnuBall:** Declared constant, no dispatch handler
+- **BriX-Cache:** Declared constant, no dispatch handler
 - **Impact:** Minimal — legacy unused opcode; modern clients use kXR_open+kXR_read/kXR_write instead
 
 ### 3.2 `kXR_attn` Response (4001) — Unsolicited Notification
 - **Canonical:** Server pushes unsolicited notifications to client (e.g., drain, disconnect signals)
-- **gnuBall:** Implemented — native `xrootd_send_attn_asyncms()` generation exists (`src/protocols/root/response/async.c`); proxy mode also relays upstream `kXR_attn` frames (`proxy/events_read.c`). Full coverage exists.
+- **BriX-Cache:** Implemented — native `xrootd_send_attn_asyncms()` generation exists (`src/protocols/root/response/async.c`); proxy mode also relays upstream `kXR_attn` frames (`proxy/events_read.c`). Full coverage exists.
 - **Impact:** Both native server-originated notifications and proxy relay are supported
 
 ### 3.3 Async Operations (5000–5008) — Deprecated Legacy Actions
 - **Canonical:** Deprecated action codes exist for legacy async response workflows
-- **gnuBall:** `kXR_asyncms` (5002) and `kXR_asynresp` (5008) ARE defined in `opcodes.h`; `src/protocols/root/response/async.c` is registered in `config` and contains the native `xrootd_send_attn_asyncms()` implementation. The remaining deprecated action codes (5000–5007, except 5002) return `kXR_Unsupported` per the v5 spec.
+- **BriX-Cache:** `kXR_asyncms` (5002) and `kXR_asynresp` (5008) ARE defined in `opcodes.h`; `src/protocols/root/response/async.c` is registered in `config` and contains the native `xrootd_send_attn_asyncms()` implementation. The remaining deprecated action codes (5000–5007, except 5002) return `kXR_Unsupported` per the v5 spec.
 - **Impact:** Active async action codes are implemented natively; deprecated codes receive the generic `kXR_Unsupported` fallback
 
 ---
 
-## 4. Features Where gnuBall is Superior to Canonical XRootD
+## 4. Features Where BriX-Cache is Superior to Canonical XRootD
 
 ### 4.1 Confined Path Resolution (Security)
 - **Canonical:** Uses `XrdSysFilesystem` and configurable chroot paths
-- **gnuBall:** Uses `ngx_http_xrootd_webdav_resolve_path()` — canonical+confined path resolution in a single helper, applied before every open() call on all wire paths (INVARIANT #4 from AGENTS.md)
+- **BriX-Cache:** Uses `ngx_http_xrootd_webdav_resolve_path()` — canonical+confined path resolution in a single helper, applied before every open() call on all wire paths (INVARIANT #4 from AGENTS.md)
 
 **Advantage:** nginx applies confined path resolution as an invariant gate on ALL operations, ensuring no path escapes the configured root. This is more uniformly enforced than canonical's per-path filesystem lookup approach.
 
 ### 4.2 Atomic Temp Write Pattern (S3 PUT + WebDAV PUT)
 - **Canonical:** Direct write to target file; crash recovery via checkpoint transactions (`kXR_chkpoint`)
-- **gnuBall:** Writes to temp file with `O_EXCL`, then renames to final path — atomic swap
+- **BriX-Cache:** Writes to temp file with `O_EXCL`, then renames to final path — atomic swap
 
 **Advantage:** nginx's O_EXCL + rename pattern prevents partial writes from being visible. If the write fails mid-stream, no corrupted data appears at the target path. Canonical uses kXR_chkpoint for transactional writes but requires explicit client checkpoint mode.
 
 ### 4.3 Mixed Body Modes (S3 PUT)
 - **Canonical:** Single write mode per file handle
-- **gnuBall:** S3 PUT handler (`s3_put_body_handler()`) supports mixed body modes — UploadPart and regular PUT handled in same dispatch with different callback paths
+- **BriX-Cache:** S3 PUT handler (`s3_put_body_handler()`) supports mixed body modes — UploadPart and regular PUT handled in same dispatch with different callback paths
 
 **Advantage:** Unified handling for both standard PUT and multipart UploadPart operations, reducing code duplication between S3 REST and XRootD protocol paths.
 
 ### 4.4 ETag Generation via Stat
 - **Canonical:** No native ETag concept (XRootD uses mtime+size as implicit version)
-- **gnuBall:** After successful PUT, calls `stat(final_path)` → `s3_etag()` to generate RFC-compliant S3 ETags
+- **BriX-Cache:** After successful PUT, calls `stat(final_path)` → `s3_etag()` to generate RFC-compliant S3 ETags
 
 **Advantage:** Bridges XRootD semantics with S3 REST API expectations — clients get verifiable content hashes without extra filesystem overhead.
 
 ### 4.5 Token Scope Check (WebDAV + S3)
 - **Canonical:** Uses VOMS attributes and ACL policy files for authorization
-- **gnuBall:** Uses `xrootd_token_check_scope(scope, path)` to verify JWT scope grants access before write operations, with global `conf->allow_write` check as pre-gate (INVARIANT #3 from AGENTS.md)
+- **BriX-Cache:** Uses `xrootd_token_check_scope(scope, path)` to verify JWT scope grants access before write operations, with global `conf->allow_write` check as pre-gate (INVARIANT #3 from AGENTS.md)
 
 **Advantage:** Two-tier auth gate — global config + per-request token scope — provides finer-grained control than canonical's single ACL lookup. Combined with WebDAV lock checking (`webdav_check_locks()`) for MOVE/COPY/DELETE on collections.
 
 ### 4.6 Async I/O via nginx Event Loop
 - **Canonical:** Uses thread pools and async I/O workers (XrdAsync)
-- **gnuBall:** Uses `ngx_http_read_client_request_body()` for async body reads — non-blocking event-loop model, no threads needed per request
+- **BriX-Cache:** Uses `ngx_http_read_client_request_body()` for async body reads — non-blocking event-loop model, no threads needed per request
 
 **Advantage:** nginx's event-loop architecture handles thousands of concurrent requests with minimal memory overhead. No thread-per-request cost; async callbacks (`s3_put_body_handler()`) integrate cleanly with the event loop.
 
 ### 4.7 WebDAV TPC via curl COPY
 - **Official XRootD:** HTTP-TPC is implemented by `src/XrdHttpTpc`; native root TPC is implemented separately in the XRootD stack.
-- **gnuBall:** WebDAV TPC uses libcurl/helper paths with Source/Credential headers (`src/protocols/webdav/tpc.c`, `tpc_curl.c`, `tpc_cred.c`, `tpc_headers.c`)
+- **BriX-Cache:** WebDAV TPC uses libcurl/helper paths with Source/Credential headers (`src/protocols/webdav/tpc.c`, `tpc_curl.c`, `tpc_cred.c`, `tpc_headers.c`)
 
-**Difference:** gnuBall's WebDAV TPC is operationally tied to nginx/WebDAV
+**Difference:** BriX-Cache's WebDAV TPC is operationally tied to nginx/WebDAV
 and includes module-specific hardening; it should not be presented as a feature
 missing from upstream XRootD.
 
 ### 4.8 S3 SigV4 Auth Gate
 - **Canonical:** No native S3 REST API support
-- **gnuBall:** Full S3 REST API with AWS Signature Version 4 authentication gate (`src/protocols/s3/auth.c`) — GET, PUT, List, Multipart operations
+- **BriX-Cache:** Full S3 REST API with AWS Signature Version 4 authentication gate (`src/protocols/s3/auth.c`) — GET, PUT, List, Multipart operations
 
-**Advantage:** gnuBall adds a complete S3-compatible REST layer on top of XRootD storage — clients can access the same data via both `root://` protocol and `s3://` REST API without duplication.
+**Advantage:** BriX-Cache adds a complete S3-compatible REST layer on top of XRootD storage — clients can access the same data via both `root://` protocol and `s3://` REST API without duplication.
 
 ### 4.9 Response Buffer Layout (TLS vs Cleartext)
 - **Canonical:** Uses raw socket writes; buffer type determined by transport
-- **gnuBall:** Strict buffer separation — TLS: `b->memory=1` memory-backed buffers only; cleartext: file-backed + sendfile; never mixed (INVARIANT #2 from AGENTS.md)
+- **BriX-Cache:** Strict buffer separation — TLS: `b->memory=1` memory-backed buffers only; cleartext: file-backed + sendfile; never mixed (INVARIANT #2 from AGENTS.md)
 
 **Advantage:** Prevents subtle bugs where TLS and cleartext buffer types are accidentally mixed, ensuring correct I/O path selection for every response.
 
 ### 4.10 Wire String Sanitization
 - **Canonical:** Raw wire strings passed through
-- **gnuBall:** `xrootd_sanitize_log_string()` — escapes control bytes, quotes, backslashes, non-ASCII to `\xNN` before logging
+- **BriX-Cache:** `xrootd_sanitize_log_string()` — escapes control bytes, quotes, backslashes, non-ASCII to `\xNN` before logging
 
 **Advantage:** Prevents log injection and garbled output from malicious or binary wire data.
 
@@ -187,7 +187,7 @@ missing from upstream XRootD.
 ## 5. Performance Optimizations Comparison
 
 ### 5.1 Checksum Operations
-| Feature | Canonical | gnuBall |
+| Feature | Canonical | BriX-Cache |
 |---|---|---|
 | CRC32c per-page (pgread/pgwrite) | ✓ | ✓ |
 | Max checksum errors per request | kXR_pgMaxEpr=128 | Declared, used in pgread/pgwrite |
@@ -195,13 +195,13 @@ missing from upstream XRootD.
 | SHA256 checksums | ✓ (via kXR_query) | ✓ (via kXR_query handler) |
 | CRC64 checksums | Stock XRootD declares the name/length convention but ships no calculator | ✓ `crc64` / `crc64nvme` via `src/core/compat/crc64.c`; S3 CRC64NVME headers supported |
 
-**Status:** gnuBall is stronger here: both support per-page CRC32c
-integrity and SHA256 query checksums, while gnuBall additionally implements
+**Status:** BriX-Cache is stronger here: both support per-page CRC32c
+integrity and SHA256 query checksums, while BriX-Cache additionally implements
 CRC-64/XZ and CRC-64/NVME across root://, WebDAV/XrdHttp, S3, and the native
 client (`docs/10-reference/crc64-checksums.md`).
 
 ### 5.2 Scatter-Gather I/O
-| Feature | Canonical | gnuBall |
+| Feature | Canonical | BriX-Cache |
 |---|---|---|
 | kXR_readv (scatter-gather read) | ✓ | ✓ |
 | kXR_writev (scatter-gather write) | ✓ | ✓ |
@@ -210,7 +210,7 @@ client (`docs/10-reference/crc64-checksums.md`).
 **Status:** Parity — all scatter-gather and paged operations implemented.
 
 ### 5.3 Server-Side Transfer (TPC)
-| Feature | Canonical | gnuBall |
+| Feature | Canonical | BriX-Cache |
 |---|---|---|
 | Native root TPC | ✓ (official XRootD TPC handling in `src/XrdOfs` / `src/XrdXrootd`) | ✓ (`src/tpc/engine/key_registry.c`, `launch.c`, `thread.c`, `io.c`, `done.c`) |
 | HTTP/WebDAV TPC | ✓ (`src/XrdHttpTpc`) | ✓ (`src/protocols/webdav/tpc.c`, `tpc_curl.c`, `tpc_marker.c`, `tpc_cred.c`) |
@@ -220,13 +220,13 @@ integration models and operational controls.
 
 ### 5.4 File Handle Management
 - **Canonical:** Uses file descriptor table with opaque handles
-- **gnuBall:** Uses `xrootd_file_t` in `src/protocols/root/connection/fd_table.c`, handles mapped to 0–255 range (AGENTS.md FAQ)
+- **BriX-Cache:** Uses `xrootd_file_t` in `src/protocols/root/connection/fd_table.c`, handles mapped to 0–255 range (AGENTS.md FAQ)
 
 **Status:** Similar — both use opaque handle tables. nginx's fixed 0–255 range provides predictable memory allocation via ngx_palloc.
 
 ### 5.5 Open Cache
 - **Canonical:** Uses file descriptor caching at filesystem level
-- **gnuBall:** `open_cache.c` — caches open handles to avoid repeated path resolution and stat calls (INVARIANT #7: "use handle metadata; no extra path syscalls per read")
+- **BriX-Cache:** `open_cache.c` — caches open handles to avoid repeated path resolution and stat calls (INVARIANT #7: "use handle metadata; no extra path syscalls per read")
 
 **Advantage:** nginx's open cache is tighter — avoids redundant syscall overhead by caching resolved+confined paths, not just file descriptors.
 
@@ -235,14 +235,14 @@ integration models and operational controls.
 ## 6. Architecture Comparison
 
 ### 6.1 Server Model
-| Aspect | Canonical XRootD | gnuBall |
+| Aspect | Canonical XRootD | BriX-Cache |
 |---|---|---|
 | Redirector/Data server split | Yes (redirectors + data servers) | Yes — `xrootd_manager_mode on` + `xrootd_manager_map` enable full manager/redirector role (`session/protocol.c` advertises `kXR_isManager`) |
 | Load balancing | Yes (kXR_locate returns replica list, kXR_redirect sends client elsewhere) | Yes — manager mode issues `kXR_redirect`/`kXR_wait`/`kXR_waitresp` via CMS locate and upstream relay (`response/control.c`, `upstream/response.c`) |
 | Cluster management | CMS/cluster protocol (`src/net/cms/send.c`, `upstream/`) | Implemented — `xrootd_cms_manager` directive; `manager/registry.c`, `cms/send.c` handle LOGIN/AVAIL/PING heartbeat and multi-tier cluster topologies |
 
 ### 6.2 Auth Methods
-| Method | Canonical | gnuBall |
+| Method | Canonical | BriX-Cache |
 |---|---|---|
 | GSI (Grid Security Infrastructure) | ✓ | ✓ (`session/gsi/parse.c`) |
 | Token-based (JWT/OIDC) | ✓ | ✓ (`session/token/validate.c`) |
@@ -255,7 +255,7 @@ integration models and operational controls.
 
 ### 6.3 Protocol Lifecycle
 - **Canonical:** Full lifecycle with bind/unbind, async resp, redirect chains
-- **gnuBall:** Simplified lifecycle: login → protocol negotiation → ops → endsess/bind
+- **BriX-Cache:** Simplified lifecycle: login → protocol negotiation → ops → endsess/bind
 
 **Advantage:** nginx's simplified lifecycle reduces state complexity and memory overhead for single-server deployments.
 
@@ -264,7 +264,7 @@ integration models and operational controls.
 ## 7. WebDAV & S3 REST API
 
 ### 7.1 WebDAV
-| Method | Canonical | gnuBall |
+| Method | Canonical | BriX-Cache |
 |---|---|---|
 | GET | ✓ (`src/XrdHttp`) | ✓ |
 | PUT | ✓ (`src/XrdHttp`) | ✓ |
@@ -274,8 +274,8 @@ integration models and operational controls.
 | LOCK | Site/plugin dependent | ✓ (`src/protocols/webdav/lock.c`) |
 | HTTP/WebDAV TPC | ✓ (`src/XrdHttpTpc`) | ✓ (`src/protocols/webdav/tpc.c`) |
 
-### 7.2 S3 REST API (Unique to gnuBall)
-| Operation | Canonical | gnuBall |
+### 7.2 S3 REST API (Unique to BriX-Cache)
+| Operation | Canonical | BriX-Cache |
 |---|---|---|
 | GET Object | ✗ | ✓ (`src/protocols/s3/get.c`) |
 | PUT Object | ✗ | ✓ (`src/protocols/s3/put.c`) — atomic temp write + rename |
@@ -283,7 +283,7 @@ integration models and operational controls.
 | Multipart Upload | ✗ | ✓ (`src/protocols/s3/multipart.c`) |
 | SigV4 Auth | ✗ | ✓ (`src/protocols/s3/auth.c`) |
 
-**Advantage:** gnuBall provides an S3-compatible REST layer in addition to
+**Advantage:** BriX-Cache provides an S3-compatible REST layer in addition to
 native/WebDAV storage access, enabling cloud-native clients to access HEP data
 without protocol conversion.
 
@@ -293,13 +293,13 @@ without protocol conversion.
 
 ### 8.1 Metrics
 - **Canonical:** Uses XrdStats for server-side metrics
-- **gnuBall:** `src/observability/metrics/stream.c`/`writer.c` — HTTP request counters, bytes_sent tracking via `webdav_metrics_return()` and `XROOTD_PROXY_METRIC_INC(op, status)`
+- **BriX-Cache:** `src/observability/metrics/stream.c`/`writer.c` — HTTP request counters, bytes_sent tracking via `webdav_metrics_return()` and `XROOTD_PROXY_METRIC_INC(op, status)`
 
 **Advantage:** nginx provides HTTP-layer metrics (request counts + byte totals) in addition to protocol-level stats. Low-cardinality labels only (INVARIANT #8: no paths/bucket-names/UUIDs).
 
 ### 8.2 Logging
 - **Canonical:** XrdLog with configurable log levels
-- **gnuBall:** nginx error_log + `xrootd_sanitize_log_string()` for wire data sanitization
+- **BriX-Cache:** nginx error_log + `xrootd_sanitize_log_string()` for wire data sanitization
 
 **Advantage:** Wire string sanitization prevents control byte injection in logs.
 

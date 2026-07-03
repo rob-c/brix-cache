@@ -197,14 +197,35 @@ Proxy-mode properties, all security-load-bearing:
 Both modes coexist on one listener: an origin-form request on a
 proxy-enabled location simply falls through to the static backend.
 
-### 3.3 Geo API passthrough
+### 3.3 Geo API — passthrough or local answer
 
 `/cvmfs/<repo>/api/v1.0/geo/<proxy>/<server-list>` is how a *client* orders
-its `CVMFS_SERVER_URL` list at mount time. The cache relays it uncached
-(`geo.c`): a bounded in-memory exchange on a fill thread (response cap
-64 KiB, timeout 5 s), status and body relayed verbatim. Do not confuse this
-with the cache's own origin selection (§5) — the geo API orders the
-*client's* view; `xrootd_cvmfs_origin_select` orders the *cache's* fills.
+its `CVMFS_SERVER_URL` list at mount time: the server-list is the last
+`/`-segment (comma-separated server names); the reply is a `text/plain`
+comma-separated list of 1-based indices, nearest-first. Two modes
+(`xrootd_cvmfs_geo_answer`):
+
+- **`off` (default) — passthrough** (`geo.c`): a bounded in-memory exchange on
+  a fill thread (response cap 64 KiB, timeout 5 s), status and body relayed
+  verbatim from the upstream GeoAPI.
+- **`rtt` — local answer** (`geo_answer.c`): the proxy ranks the client's
+  server list by TCP-connect RTT *from its own vantage* (which, as the client's
+  proxy, is the client's effective network position) and replies with the
+  nearest-first permutation itself — never trusting the upstream GeoAPI. This
+  keeps a client whose upstream returns a bad order (probing far Stratum-1s)
+  pinned to the near ones. Ranking uses three order-preserving buckets —
+  reachable (by RTT) → unreachable → unprobed — so a server is never dropped and
+  the reply is always a complete permutation. The list is client-supplied, so
+  probing is guarded: only CVMFS server ports `{80,443,8000}` are connected to,
+  capped at `xrootd_cvmfs_geo_max_servers` (default 16); anything else lands in
+  the unprobed bucket, and the node cannot be used as a port scanner. A short
+  per-worker EWMA cache (`xrootd_cvmfs_geo_cache_ttl`, default 60 s, keyed
+  host:port) answers remounts without re-probing. Any parse/setup failure falls
+  back to passthrough.
+
+Do not confuse either mode with the cache's own origin selection (§5) — the geo
+API orders the *client's* view; `xrootd_cvmfs_origin_select` orders the
+*cache's* fills.
 
 ---
 
@@ -387,6 +408,100 @@ The single source of truth is `src/fs/cache/fill_retry.{h,c}` (convention
 | HTTP 404 / 403 from origin | `ENOENT`/`EACCES`… | **DEFINITIVE** | propagate; 404 feeds the negative memo |
 | CAS verify mismatch | `EBADMSG` | RETRY while `verify_budget` (= n endpoints) lasts, then DEFINITIVE | quarantine each bad part; all-corrupt ⇒ 502 |
 | success | — | OK | publish |
+
+### 5.6a Absorbing a stuck upstream (stall detection + force-primary)
+
+The retry loop above only helps if a failure is *seen*. The shared curl
+transport otherwise only bounds the total transfer (`CURLOPT_TIMEOUT_MS`,
+60 s default): a connect that blackholes, or a connection that opens and then
+delivers **no bytes** (path DPI, or an origin rate-limiting a single node),
+hangs the whole ceiling — burning the client-hold window on one attempt so the
+retry loop never runs, and the client times out and geo-flails to far mirrors.
+
+Three directives make such a connection fail in *seconds* (process-wide operator
+policy, set pre-fork; `0` leaves libcurl's default):
+
+- `xrootd_cvmfs_origin_connect_timeout` (default 2 s) → `CURLOPT_CONNECTTIMEOUT_MS`.
+- `xrootd_cvmfs_origin_stall_timeout` (default 4 s) + `xrootd_cvmfs_origin_stall_bytes`
+  (default 1 B/s) → `CURLOPT_LOW_SPEED_TIME`/`LOW_SPEED_LIMIT`: a transfer below
+  the floor for the window is aborted with a transport error the retry loop
+  retries — on a fresh curl handle, i.e. a **fresh connection** that dodges a
+  single poisoned/half-open socket.
+
+`xrootd_cvmfs_fill_retry_policy` (default `failover`) picks what a retry targets:
+
+- `failover` — the §5.4 walk: try the alternate endpoint on a transport failure.
+- `force-primary` — pin the rank-preferred origin and **never** fail over; every
+  retry re-hits the same origin (e.g. RAL) with a fresh connection until it
+  forces through or the client-hold budget expires. Use when the preferred
+  mirror is the right source and the trouble is transient path/rate-limit noise,
+  not the mirror being down. (For a manifest with a cached copy, §4.2's bounded
+  stale-if-error serves the prior copy on the first failed attempt instead —
+  the client gets a valid manifest immediately.)
+
+### 5.7 Reading the selection log (why RAL was skipped for CERN)
+
+Every selection decision is logged so an operator can reconstruct *why* a
+fill went to a farther/less-preferred mirror. Nothing here is sampled — the
+lines below are the complete evidence trail for one flap.
+
+**Startup — the ranking, once.** `geo` prints the computed order at config
+time (visible in `nginx -t` output and the startup log). It is logged at
+**WARN** deliberately: at config-parse time the active log is still the
+prefix log at `ERR` level, so a `NOTICE` would be dropped and never seen.
+It reports a decision, not a fault, and fires once per export:
+
+```
+[warn] xrootd_cvmfs_origin_select geo [selection report]: origin
+  ral.example:8000 is 0 km from here (51.57:-1.31) -> rank 0
+  (preferred: reads try this origin first)
+[warn] xrootd_cvmfs_origin_select geo [selection report]: origin
+  cern.example:8000 is 800 km from here (51.57:-1.31) -> rank 1
+  (failover only)
+```
+
+`rtt` instead prints its ranking each probe tick from every worker
+(`origin_probe.c`): **NOTICE** with the full per-endpoint table
+(`sample`, `ewma`, `rank`) on the first tick and on any *change* of order;
+plain **INFO** in steady state. Reachability flaps log a **WARN** on
+`ok → unreachable` and a **NOTICE** on recovery — the steady state stays
+quiet, the transition is what you want to see.
+
+**Runtime — the switch, when it happens** (`sd_http.c`, into the runtime
+error log at the export's `error_log` level):
+
+- **WARN** per failed transport attempt, carrying the libcurl reason and
+  the endpoint's rank + `fail_score` before/after — e.g.
+  `http origin ral.example:8000 failed GET "/…": curl: Couldn't connect to
+  server (attempt 1/2, rank 0, fail_score 0 -> 256)`. This is the "what went
+  wrong" line.
+- **NOTICE** on the one-alternate failover hop
+  (`http origin failover for GET "/…": ral.example:8000 ->
+  cern.example:8000`).
+- **NOTICE** on a *change* of the answering origin — and when the
+  policy-preferred endpoint was overridden it says so explicitly:
+  `http origin switched to cern.example:8000 (endpoint 1, rank 1) …
+  policy-preferred ral.example:8000 SKIPPED (rank 0, fail_score 256 -
+  benched by recent transport failures, recovers via half-open probing as
+  its score decays)`. This single line answers "why is RAL being skipped
+  for CERN" directly.
+- **INFO** when a half-open probe re-tries the benched preferred origin —
+  the recovery attempt that eventually earns RAL back.
+
+**The fill layer** (`http_cache_fill.c`) ties the driver evidence to the
+cache key and retry schedule: **WARN** `xrootd-fill: event=retry key="…"
+attempt=N … next_backoff_ms=…` per failed fill, and a matching
+`event=recovered` once an origin answers after transient failures. In
+**proxy mode**, the first time a worker sees a Stratum-1 it logs a
+**NOTICE** `cvmfs: proxy-mode upstream registered host:port` (`upstreams.c`)
+so the per-host decisions that follow are attributable.
+
+All wire-derived keys are passed through `xrootd_sanitize_log_string`
+before logging (control bytes become `\xNN`), so a crafted request path
+cannot forge a log record.
+
+Regression coverage: `tests/run_cvmfs_selectlog.sh` (config-time table +
+live failover switch + both-down deadline + CRLF-injection negative).
 
 ---
 
@@ -578,6 +693,40 @@ topk(5, sum by (repo) (rate(xrootd_cvmfs_repo_origin_bytes_total[5m])))
 sum by (repo) (rate(xrootd_cvmfs_repo_files_accessed_total[5m]))
 ```
 
+#### Per-upstream (Stratum-1) file access
+
+"How much am I pulling from RAL versus CERN?" — a bounded `upstream="host:port"`
+family attributes every origin fill to the Stratum-1 that served it. The label
+set is bounded exactly like the repo table (a fixed 16-slot table keyed on the
+host:port from the http backend's last-answering endpoint; overflow folds into
+`upstream="_other"` — a scanner cannot explode the series space, INVARIANT #8).
+
+| Metric | Meaning |
+|---|---|
+| `xrootd_cvmfs_upstream_requests_total{upstream}` | origin fill attempts against this Stratum-1 |
+| `xrootd_cvmfs_upstream_fills_total{upstream}` | fills that published from this Stratum-1 |
+| `xrootd_cvmfs_upstream_fill_failures_total{upstream}` | fill attempts that failed (transport error or a verify mismatch) |
+| `xrootd_cvmfs_upstream_failovers_total{upstream}` | fills served by this endpoint when it was NOT the configured primary (endpoint 0) |
+| `xrootd_cvmfs_upstream_origin_bytes_total{upstream}` | WAN-in bytes pulled from this Stratum-1 |
+| `xrootd_cvmfs_upstream_fill_duration_seconds{upstream}` | fill-duration histogram (buckets 5ms…10s + `+Inf`, `_sum`/`_count`) |
+
+```promql
+# WAN pulled from RAL over 5m
+rate(xrootd_cvmfs_upstream_origin_bytes_total{upstream=~"cernvmfs.gridpp.rl.ac.uk.*"}[5m])
+
+# per-upstream fill throughput and median fill latency
+sum by (upstream) (rate(xrootd_cvmfs_upstream_fills_total[5m]))
+histogram_quantile(0.5,
+  sum by (upstream, le) (rate(xrootd_cvmfs_upstream_fill_duration_seconds_bucket[5m])))
+
+# is a Stratum-1 flaky? (failovers away from / failures at it)
+sum by (upstream) (rate(xrootd_cvmfs_upstream_fill_failures_total[5m]))
+```
+
+The duration is measured across the whole source→cache fill spine (HEAD +
+Range GET) on the fill worker; a fill that fails over records against the
+endpoint that ultimately answered.
+
 Hit ratio and WAN-saved are one PromQL expression away:
 `bytes_served{hit} / (bytes_served{hit}+bytes_served{fill})`. Additionally
 `XROOTD_PROTO_CVMFS` joined the unified per-protocol enum, so **every**
@@ -598,11 +747,47 @@ log_format cvmfs '$remote_addr [$time_local] "$request" $status '
                  'origin=$cvmfs_origin';
 ```
 
+### Per-request trace logging (file queried + upstream requests)
+
+Optional, off by default. Two correlated lines let an operator see exactly
+what a client asked for and which Stratum-1 requests it caused:
+
+- **client op** (one per classified request, from the finalization observer):
+  `cvmfs-trace: client id=<conn> class=<cas|manifest|geo|reject> repo=<fqrn> path=<path> cache=<hit|fill|neg|-> status=<code>`
+- **upstream request** (one per request the shared origin transport issues —
+  so it also covers WebDAV/S3/Pelican fills on the same transport):
+  `cvmfs-trace: upstream <METHOD> http://<host>:<port><path> status=<code> bytes=<n> host=<host>:<port> dur_ms=<ms>`
+
+Both are logged at **`NGX_LOG_DEBUG`** by default — set `error_log … debug`
+to see them (no `--with-debug` rebuild needed). `xrootd_cvmfs_trace on;`
+**promotes them to `NGX_LOG_INFO`** so an operator can trace targeted traffic
+without full debug noise. The two lines correlate by **path**: under
+fill-coalescing one upstream fetch backs many client requests, so the path is
+a truer join key than a synthetic per-request id. Wire-derived paths are
+sanitized (`xrootd_sanitize_log_string`).
+
 ### healthz
 
 `GET /healthz` (`xrootd_health on`) gains
 `"cvmfs_origins":[{"host":…,"port":…,"fail_score":…},…]` — the live EWMA
 scores of §5.2, per configured http backend.
+
+### Diagnostic event log
+
+The metrics/dashboard answer "how much / how healthy"; the `error_log`
+answers "**which** connection broke and **who** did it". Single-line,
+greppable events (each with `key=` and/or `client=`) cover the fill
+lifecycle (`xrootd-fill: event=retry|recovered|exhausted|hold-expired|
+client-gone|failed|done`), origin health transitions (`xrootd-origin:
+event=degraded|recovered`), broken client connections (`cvmfs-client:
+event=send-timeout|aborted`), and 404-hammering clients (`cvmfs-neg:
+event=absorbed-404`). A client that **breaks its connection mid-fill** is
+detected promptly (`client-gone`, with how long it had waited), its parked
+slot reclaimed, and the fill left running detached — so the client's retry
+is still a hit. The full table + triage recipes are in the runbook
+([deploy/cvmfs/README.md](../../deploy/cvmfs/README.md) → "Diagnostic event
+log"). The recurring signal to watch is `hold-expired`/`client-gone` from
+many clients: that is `CVMFS_TIMEOUT` set shorter than the fill latency.
 
 ---
 
@@ -623,8 +808,16 @@ scores of §5.2, per configured http backend.
 | `xrootd_cvmfs_origin_coords <host[:port]> <lat>:<lon>` | — | one origin's coordinates (geo; one per origin, `nginx -t` enforced) |
 | `xrootd_cvmfs_here <lat>:<lon>` | — | this cache's coordinates (geo) |
 | `xrootd_cvmfs_rtt_interval <sec>` | 60 | RTT probe period (first probe < 500 ms after worker start) |
+| `xrootd_cvmfs_origin_connect_timeout <sec>` | 2 | origin connect ceiling (§5.6a; 0 = libcurl default) |
+| `xrootd_cvmfs_origin_stall_timeout <sec>` | 4 | abort a transfer below the byte floor this long (§5.6a; 0 = off) |
+| `xrootd_cvmfs_origin_stall_bytes <B/s>` | 1 | throughput floor for the stall timeout (§5.6a) |
+| `xrootd_cvmfs_fill_retry_policy failover\|force-primary` | failover | retry target on origin trouble (§5.6a) |
 | `xrootd_cvmfs_client_hold <sec>` | 25 | never-drop hold; MUST stay below the WN's `CVMFS_TIMEOUT` |
 | `xrootd_cvmfs_fill_max_life <sec>` | 300 | detached-fill retry budget |
+| `xrootd_cvmfs_geo_answer off\|rtt` | off | answer the geo API locally, RTT-ranked, vs. relay upstream (§3.3) |
+| `xrootd_cvmfs_geo_cache_ttl <sec>` | 60 | per-worker geo RTT cache TTL (§3.3) |
+| `xrootd_cvmfs_geo_max_servers <n>` | 16 | geo-answer probed-list cap (§3.3) |
+| `xrootd_cvmfs_trace on\|off` | off | promote the file/upstream trace lines from DEBUG to INFO (see "Per-request trace logging") |
 | `xrootd_cvmfs_thread_pool <name>` | default | async fill/relay pool |
 | `xrootd_scvmfs on\|off` | off | EXPERIMENTAL secure preamble (§8; needs `listen … ssl`) |
 | `xrootd_scvmfs_authz none\|bearer` | none | scvmfs client authz mode |

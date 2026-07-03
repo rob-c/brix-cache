@@ -1,4 +1,4 @@
-# gnuBall Quick-Start Guide
+# BriX-Cache Quick-Start Guide
 
 **One container → root:// + https:// + S3 → xrdcp transfers → Prometheus monitoring → CURL with JWT or x509 auth.**
 
@@ -49,7 +49,7 @@ cd /home/rcurrie/HEP-x/nginx-xrootd
 # Output: RPM in ./rpm-output/
 ```
 
-This uses `packaging/rpm/Dockerfile.alma9` which builds on AlmaLinux 9 with EPEL installed. The spec file is at `packaging/rpm/nginx-mod-xrootd.spec`.
+This uses `packaging/rpm/Dockerfile.alma9` which builds on AlmaLinux 9 with EPEL installed. The spec file is at `packaging/rpm/nginx-mod-brix-cache.spec`.
 
 ---
 
@@ -57,7 +57,7 @@ This uses `packaging/rpm/Dockerfile.alma9` which builds on AlmaLinux 9 with EPEL
 
 ```bash
 # Place the RPM-installed module where nginx can find it
-rpm -ivh ./rpm-output/nginx-mod-xrootd-*.rpm
+rpm -ivh ./rpm-output/nginx-mod-brix-cache-*.rpm
 
 # Or manually copy if you built from source:
 cp objs/ngx_stream_xrootd_module.so /usr/lib64/nginx/modules/

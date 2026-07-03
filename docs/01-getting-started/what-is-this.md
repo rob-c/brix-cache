@@ -99,7 +99,7 @@ This is not a web application. It doesn't have a UI, login page, or dashboard.
 ### 1. Standalone Server *(simplest)*
 
 ```
-xrdcp client ──> gnuBall ──> local files on disk
+xrdcp client ──> BriX-Cache ──> local files on disk
 ```
 
 You install nginx-xrootd directly on the machine that holds the data. Clients connect to it like a normal XRootD server.
@@ -109,7 +109,7 @@ You install nginx-xrootd directly on the machine that holds the data. Clients co
 ### 2. Transparent Proxy *(for existing infrastructure)*
 
 ```
-xrdcp client ──> gnuBall ──> existing xrootd daemon on backend
+xrdcp client ──> BriX-Cache ──> existing xrootd daemon on backend
 ```
 
 You place nginx-xrootd in front of an *existing* XRootD server. The clients see nginx; the backend is invisible to them. nginx handles [TLS](../10-reference/glossary.md#tls), authentication, and metrics — the backend just relays data.
@@ -119,7 +119,7 @@ You place nginx-xrootd in front of an *existing* XRootD server. The clients see 
 ### 3. WebDAV Perimeter Proxy *(for external access)*
 
 ```
-HTTP client ──> gnuBall (HTTPS + token auth) ──> internal WebDAV server
+HTTP client ──> BriX-Cache (HTTPS + token auth) ──> internal WebDAV server
 ```
 
 You expose a plain HTTP/WebDAV server to the outside world through an HTTPS gateway that enforces [WLCG](../10-reference/glossary.md#wlcg) JWT bearer token authentication.

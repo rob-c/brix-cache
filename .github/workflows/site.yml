@@ -1,4 +1,4 @@
-# Build the gnuBall marketing site (site/) and publish it to the gh-pages branch.
+# Build the BriX-Cache marketing site (site/) and publish it to the gh-pages branch.
 # GitHub Pages is configured (Settings → Pages) to serve from gh-pages / root.
 name: site
 
@@ -44,4 +44,4 @@ jobs:
           publish_branch: gh-pages
           # If you adopt a custom domain, uncomment and set here (or rename
           # site/public/CNAME.example to site/public/CNAME):
-          # cname: gnuball.dev
+          # cname: brix-cache.dev

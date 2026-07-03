@@ -7,8 +7,8 @@ repo_root="$(cd -- "$script_dir/../.." && pwd)"
 topdir="${RPMBUILD_TOPDIR:-$repo_root/.rpmbuild}"
 source_name="nginx-xrootd-$version"
 source_archive="$topdir/SOURCES/$source_name.tar.gz"
-spec_src="$repo_root/packaging/rpm/nginx-mod-xrootd.spec"
-spec_dst="$topdir/SPECS/nginx-mod-xrootd.spec"
+spec_src="$repo_root/packaging/rpm/nginx-mod-brix-cache.spec"
+spec_dst="$topdir/SPECS/nginx-mod-brix-cache.spec"
 
 mkdir -p "$topdir"/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS,tmp}
 
@@ -29,7 +29,7 @@ tar \
     --exclude='./tests/__pycache__' \
     --exclude='*.o' \
     --exclude='*.a' \
-    --exclude='*.d' \
+    --exclude='./client/*.d' \
     --exclude='*.so' \
     --exclude='*.pc' \
     --exclude='./shared/xrdproto/build' \

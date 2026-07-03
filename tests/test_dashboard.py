@@ -323,3 +323,102 @@ class TestDashboardThrottledState:
             assert state == "stalled", f"expected stalled, got {state!r}"
         finally:
             f.close()
+
+
+class TestDashboardCvmfs:
+    """cvmfs:// site-cache section of the dashboard API (api_cvmfs.c).
+
+    The metrics SHM zone always exists on the test fleet, so the endpoint
+    returns the full aggregate shape even when no cvmfs traffic has flowed
+    (enabled=false); repo/upstream slot tables are empty until a cvmfs
+    request registers one.
+    """
+
+    CVMFS_SCALARS = (
+        "negative_hits_total",
+        "fills_total",
+        "fill_failures_total",
+        "verify_failures_total",
+        "origin_failovers_total",
+        "secure_requests_total",
+        "bytes_served_hit_total",
+        "bytes_served_fill_total",
+        "origin_bytes_total",
+    )
+
+    def test_v1_cvmfs_endpoint_schema(self):
+        """Success path: authenticated GET returns the schema envelope plus the
+        aggregate counters, the request-mix object, and the slot-table arrays."""
+        cookie = _dashboard_cookie()
+        status, body = _get("/xrootd/api/v1/cvmfs", cookie)
+
+        assert status == 200
+        data = json.loads(body.decode())
+        assert data["schema"] == "xrootd-dashboard.v1"
+        assert isinstance(data["enabled"], bool)
+        assert set(data["requests"]) == {"cas", "manifest", "geo", "reject"}
+        for key in self.CVMFS_SCALARS:
+            assert key in data, f"missing cvmfs counter {key}"
+            assert isinstance(data[key], int)
+        assert isinstance(data["repos"], list)
+        assert isinstance(data["upstreams"], list)
+
+    def test_v1_snapshot_has_cvmfs_section_and_totals(self):
+        """The snapshot nests the same section under "cvmfs", and the generated
+        per-protocol totals now carry the cvmfs in/out byte counters (in = WAN
+        origin pull, out = LAN bytes served)."""
+        cookie = _dashboard_cookie()
+        status, body = _get("/xrootd/api/v1/snapshot", cookie)
+
+        assert status == 200
+        data = json.loads(body.decode())
+        cvmfs = data["cvmfs"]
+        assert isinstance(cvmfs["enabled"], bool)
+        assert isinstance(cvmfs["repos"], list)
+        assert isinstance(cvmfs["upstreams"], list)
+        assert "cvmfs_bytes_rx" in data["totals"]
+        assert "cvmfs_bytes_tx" in data["totals"]
+        assert "cvmfs_errors_total" in data["totals"]
+        # bytes_*_total keys appear in the per-protocol summary only once
+        # traffic has flowed (dashboard_build_proto_summary elides zero/zero);
+        # the always-present rate/active fields prove the summary is wired.
+        for key in ("active", "ingress_bps", "egress_bps"):
+            assert key in data["protocols"]["cvmfs"]
+
+    def test_v1_cvmfs_rejects_non_get(self):
+        """Error path: the endpoint is read-only — POST is 405, like every other
+        JSON read endpoint (method gate in api.c)."""
+        rc, out, err = _curl(
+            "-X", "POST",
+            "-o", "/dev/null",
+            "-w", "%{http_code}",
+            f"{BASE_URL}/xrootd/api/v1/cvmfs",
+        )
+        assert rc == 0, f"curl POST failed: {err.decode()}"
+        assert out == b"405"
+
+    def test_v1_cvmfs_anonymous_redacts_names(self):
+        """Security-negative: repo fqrns and upstream hosts arrive from the
+        wire/config, so the anonymous (cookieless) view must redact every name
+        while keeping the counters."""
+        status, body = _get("/xrootd/api/v1/cvmfs")
+
+        assert status == 200, "anonymous read tier must serve the endpoint"
+        data = json.loads(body.decode())
+        assert data["anonymous"] is True
+        for row in data["repos"] + data["upstreams"]:
+            assert row["name"] == "[redacted]"
+
+    def test_dashboard_page_contains_cvmfs_ui(self):
+        """The embedded page ships the cvmfs card/panel/filter markers."""
+        cookie = _dashboard_cookie()
+        status, body = _get("/xrootd/", cookie)
+
+        assert status == 200
+        html = body.decode("utf-8")
+        for marker in (
+            'id="cvmfs-panel"',
+            "<option>cvmfs</option>",
+            "renderCvmfs",
+        ):
+            assert marker in html

@@ -1,6 +1,6 @@
 # Protocol Conformance Test Design — root:// / cms:// / root+https (XrdHttp)
 
-Goal: a thorough, gap-driven test suite proving gnuBall is a verified **drop-in for an official XRootD instance** across the three protocol surfaces, including in complex mesh networks. Generated from a 7-area protocol-surface + coverage map (see workflow `protocol-test-design`).
+Goal: a thorough, gap-driven test suite proving BriX-Cache is a verified **drop-in for an official XRootD instance** across the three protocol surfaces, including in complex mesh networks. Generated from a 7-area protocol-surface + coverage map (see workflow `protocol-test-design`).
 
 All proposed files are **self-contained** (provision their own nginx and, where needed, a reference xrootd / Python protocol peer) so they are immune to the shared-fleet churn; run each with `TEST_SKIP_SERVER_SETUP=1 PYTHONPATH=tests pytest <file> -v`.
 

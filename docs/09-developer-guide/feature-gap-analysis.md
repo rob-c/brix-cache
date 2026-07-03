@@ -1,4 +1,4 @@
-# Feature Gap Analysis: gnuBall vs. XRootD
+# Feature Gap Analysis: BriX-Cache vs. XRootD
 
 This document outlines the remaining feature gaps between the `nginx-xrootd` module and a canonical XRootD implementation suitable for WLCG Tier-2 disk-only and tape-backed sites.
 

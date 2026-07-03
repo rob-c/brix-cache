@@ -63,6 +63,7 @@ the SHM zones; the **HTTP** group (`module.c`, `auth.c`, `api.c`,
 | `api_transfers.c` | **(http)** Live-transfer model: `build_transfer_object`/`_rows`, TPC registry, and the v1 transfers + per-id detail builders. *(Phase 38 split of `api.c`.)* |
 | `api_snapshot.c` | **(http)** Top-level snapshot assembly: totals/protocols collect + build, events/history/cache/cluster fill, and the v1 snapshot wiring. *(Phase 38 split of `api.c`.)* |
 | `api_ratelimit.c` | **(http)** The v1 ratelimit view + the not-found/truncated responses. *(Phase 38 split of `api.c`.)* |
+| `api_cvmfs.c` | **(http)** The cvmfs:// site-cache view (`/api/v1/cvmfs` + the snapshot's `cvmfs` section): aggregate counters, hit/fill/origin byte split, and the bounded per-repo/per-upstream slot tables (READY + lowest-index-dup rules mirror `metrics/cvmfs.c`; names redacted for anonymous viewers). |
 | `dashboard_api_internal.h` | Private split contract shared by `api*.c` (the totals/protocols structs + de-`static`'d builder prototypes). |
 | `api_admin.c` | **(http)** Admin write API: dispatch, auth (CIDR/bearer/require-both), async body reader, input validation, structured audit log. *(Phase 38: split.)* |
 | `api_admin_cluster.c` | **(http)** Cluster registry write endpoints (`register`/`drain`/`delete`/`undrain` + server-URI parse). *(Phase 38 split of `api_admin.c`.)* |

@@ -1,6 +1,6 @@
 # Python API Deep-Surface Cross-Backend Test Plan
 
-This document defines a strategy for **maximum exploration** of the `pyxrootd` (XRootD Python API) surface area. It ensures that every implemented feature in the client library is validated against both the **gnuBall** plugin and the **official XRootD** reference server.
+This document defines a strategy for **maximum exploration** of the `pyxrootd` (XRootD Python API) surface area. It ensures that every implemented feature in the client library is validated against both the **BriX-Cache** plugin and the **official XRootD** reference server.
 
 ---
 

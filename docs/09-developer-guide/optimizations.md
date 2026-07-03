@@ -1,4 +1,4 @@
-# Optimizations in gnuBall
+# Optimizations in BriX-Cache
 
 Code-level optimizations that matter at scale: what changed, what cost was removed, why it matters, and which workloads
 benefit. It is intentionally about implementation choices inside

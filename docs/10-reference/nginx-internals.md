@@ -296,7 +296,7 @@ for x509 proxy chain validation, in `src/auth/crypto/pki_check.c`).
 
 Compare: the XRootD daemon's `XrdTls` subsystem is ~3,000 lines of C++ that
 wires OpenSSL, manages session caches, implements non-blocking handshake
-retries, and handles certificate reload. gnuBall has zero equivalent code.
+retries, and handles certificate reload. BriX-Cache has zero equivalent code.
 
 ---
 
@@ -510,6 +510,6 @@ them:
 ```
 
 This is the core economic argument in the [comparison doc](design-rationale.md):
-gnuBall took ~5,000 developer-hours to build because it did not need to
+BriX-Cache took ~5,000 developer-hours to build because it did not need to
 implement any of those absent subsystems. The official XRootD daemon took
 ~200,000 developer-hours in part because it did.

@@ -103,6 +103,13 @@ xrootd_read_serve_sendfile(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ctx->session_bytes += data_total;
     xrootd_rl_charge_ctx(ctx, data_total);  /* Phase 25 bandwidth */
 
+    /* Per-backend storage byte totals: this zero-copy branch never reaches
+     * xrootd_vfs_io_execute (the kernel moves the bytes), so attribute here.
+     * The branch gate (sd_obj.driver == NULL) means the backend is always the
+     * default POSIX driver. Buffered/driver-backed reads attribute at the
+     * io_execute seam instead — no double count. */
+    xrootd_metric_backend_bytes("posix", XROOTD_METRIC_OP_READ, data_total);
+
     if (ctx->files[idx].dashboard_slot >= 0 &&
         ngx_xrootd_dashboard_shm_zone != NULL)
     {
@@ -399,6 +406,15 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
             {
                 nread = -1;
                 errno = EIO;
+            }
+
+            /* The warm fast path bypasses xrootd_vfs_io_execute (where the other
+             * read paths attribute), so charge the per-backend read total here. */
+            if (nread > 0) {
+                xrootd_metric_backend_bytes(
+                    ctx->files[idx].sd_obj.driver != NULL
+                        ? ctx->files[idx].sd_obj.driver->name : "posix",
+                    XROOTD_METRIC_OP_READ, (size_t) nread);
             }
 
         } else if (rconf->common.thread_pool != NULL) {
