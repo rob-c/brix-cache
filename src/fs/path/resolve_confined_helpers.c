@@ -112,7 +112,7 @@ brix_resolved_relative_to_root(ngx_log_t *log, const char *root_canon,
     size_t      rel_len;
 
     if (!brix_path_within_root(root_canon, resolved)) {
-        brix_log_path_warning(log, "xrootd: confined path escaped root",
+        brix_log_path_warning(log, "brix: confined path escaped root",
                                 resolved);
         errno = EXDEV;
         return 0;
@@ -155,7 +155,7 @@ brix_open_root_fd(ngx_log_t *log, const char *root_canon)
     fd = open(root_canon, O_PATH | O_DIRECTORY | O_CLOEXEC);
     if (fd < 0) {
         ngx_log_error(NGX_LOG_WARN, log, errno,
-                      "xrootd: unable to open export root for confined syscall");
+                      "brix: unable to open export root for confined syscall");
     }
 
     return fd;

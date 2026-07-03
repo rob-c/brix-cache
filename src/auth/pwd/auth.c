@@ -100,7 +100,7 @@ pwd_send_credsreq(brix_ctx_t *ctx, ngx_connection_t *c, EVP_PKEY *srv)
     brix_gbuf_free(&g);
 
     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                   "xrootd: pwd round 1 → credsreq (srv puk %uz B)", pub_len);
+                   "brix: pwd round 1 → credsreq (srv puk %uz B)", pub_len);
     return brix_queue_response(ctx, c, buf, total);
 }
 
@@ -231,7 +231,7 @@ pwd_round2(brix_ctx_t *ctx, ngx_connection_t *c,
 
     if (!verified) {
         ngx_log_error(NGX_LOG_NOTICE, c->log, 0,
-                      "xrootd: pwd auth denied for user (bad credential)");
+                      "brix: pwd auth denied for user (bad credential)");
         brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_PWD, 0);
         BRIX_RETURN_ERR(ctx, c, BRIX_OP_AUTH, "AUTH", "-", "pwd",
                           kXR_NotAuthorized, "invalid password");
@@ -253,7 +253,7 @@ pwd_round2(brix_ctx_t *ctx, ngx_connection_t *c,
 
     brix_session_register(ctx->sessid, ctx->dn, ctx->vo_list, 0);
 
-    ngx_log_error(NGX_LOG_INFO, c->log, 0, "xrootd: pwd auth OK user=\"%s\"",
+    ngx_log_error(NGX_LOG_INFO, c->log, 0, "brix: pwd auth OK user=\"%s\"",
                   ctx->dn);
     brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_PWD, 1);
     BRIX_RETURN_OK(ctx, c, BRIX_OP_AUTH, "AUTH", "-", "pwd", 0);

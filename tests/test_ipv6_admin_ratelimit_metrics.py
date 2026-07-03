@@ -9,7 +9,7 @@ peer-addressing paths of the IPv6 stream instance (``ipv6-stream`` on
   (a) GATING — the admin write API accepts a *bracketed* IPv6 host segment in the
       request URI (``/cluster/servers/[::1]/PORT``), strips the brackets, and the
       registered member round-trips *bare* in the dashboard cluster snapshot
-      (``GET /xrootd/api/v1/cluster``).  This proves the bracket-aware URI parse
+      (``GET /brix/api/v1/cluster``).  This proves the bracket-aware URI parse
       in ``src/observability/dashboard/api_admin.c`` (``admin_parse_server_uri`` :395).
       register / drain / undrain / remove are all driven through bracketed URIs.
 
@@ -26,12 +26,12 @@ Harness contract (do NOT edit settings.py / manage_test_servers.sh here):
     ``nginx_ipv6_mgr.conf``.  That config (owned by the cms-redirect agent) MUST:
       - listen ``[::1]:{PORT}`` (stream manager) + ``listen [::1]:11242;`` (CMS)
         + an ``http{}`` server ``listen [::1]:11247;`` carrying the dashboard
-        (``/xrootd/`` -> brix_dashboard on) and ``/metrics`` (brix_metrics on);
+        (``/brix/`` -> brix_dashboard on) and ``/metrics`` (brix_metrics on);
       - set ``brix_admin_secret`` to a file whose sole contents are the literal
         ``ipv6-admin-secret`` (see ADMIN_SECRET below) so the admin write API is
         enabled and bearer-gated;
-      - NOT set ``brix_dashboard_password`` on the ``/xrootd/`` location, so the
-        read-only ``GET /xrootd/api/v1/cluster`` snapshot is reachable without a
+      - NOT set ``brix_dashboard_password`` on the ``/brix/`` location, so the
+        read-only ``GET /brix/api/v1/cluster`` snapshot is reachable without a
         login cookie (the round-trip assertion reads it unauthenticated).
   * ``ipv6-stream`` is pre-started from ``nginx_ipv6_stream.conf`` (owned by the
     stream agent) on ``[::1]:{IPV6_STREAM_PORT}``.
@@ -119,7 +119,7 @@ def _http6(method, port, path, *, headers=None, body=None, timeout=8):
 
 
 def _admin(method, path, *, token=ADMIN_SECRET, json_body=None):
-    """Call the admin write API under /xrootd/api/v1/admin with a Bearer token."""
+    """Call the admin write API under /brix/api/v1/admin with a Bearer token."""
     headers = {}
     body = None
     if token is not None:
@@ -127,16 +127,16 @@ def _admin(method, path, *, token=ADMIN_SECRET, json_body=None):
     if json_body is not None:
         headers["Content-Type"] = "application/json"
         body = json.dumps(json_body)
-    full = f"/xrootd/api/v1/admin{path}"
+    full = f"/brix/api/v1/admin{path}"
     return _http6(method, MGR_HTTP, full, headers=headers, body=body)
 
 
-# The read-only dashboard JSON API (GET /xrootd/api/v1/cluster) is gated by the
+# The read-only dashboard JSON API (GET /brix/api/v1/cluster) is gated by the
 # dashboard session cookie because the live ipv6-mgr config sets
-# ``brix_dashboard_password "testpassword"`` on /xrootd/ (the admin WRITE API
+# ``brix_dashboard_password "testpassword"`` on /brix/ (the admin WRITE API
 # on the same location is gated independently by the ::1/128 CIDR allowlist).
 # So the snapshot read must first authenticate: POST the password to
-# /xrootd/login (single-user mode, empty username) and reuse the resulting
+# /brix/login (single-user mode, empty username) and reuse the resulting
 # ``xrd_dashboard`` cookie.  The cookie is cached for the module's lifetime.
 DASHBOARD_PASSWORD = "testpassword"
 _dashboard_cookie = None
@@ -152,7 +152,7 @@ def _dashboard_login_cookie():
     conn = http.client.HTTPConnection(HOST6, MGR_HTTP, timeout=8)
     try:
         conn.request(
-            "POST", "/xrootd/login",
+            "POST", "/brix/login",
             body=f"username=&password={DASHBOARD_PASSWORD}",
             headers={"Content-Type": "application/x-www-form-urlencoded"})
         resp = conn.getresponse()
@@ -172,7 +172,7 @@ def _cluster_servers():
     if the endpoint is unreachable, unauthorized, or not JSON."""
     cookie = _dashboard_login_cookie()
     headers = {"Cookie": cookie} if cookie else None
-    status, _hdrs, body = _http6("GET", MGR_HTTP, "/xrootd/api/v1/cluster",
+    status, _hdrs, body = _http6("GET", MGR_HTTP, "/brix/api/v1/cluster",
                                  headers=headers)
     if status != 200:
         return status, []
@@ -323,7 +323,7 @@ def _skip_unless_admin_enabled():
     if status == 404:
         pytest.skip(
             "ipv6-mgr config does not expose the admin write API "
-            "(/xrootd/api/v1/admin -> 404)")
+            "(/brix/api/v1/admin -> 404)")
 
 
 # =========================================================================== #
@@ -334,7 +334,7 @@ def test_ipv6_admin_instance_startup():
     """SMOKE: the ipv6-mgr HTTP endpoint answers over [::1] (any HTTP status is
     fine — proves the AF_INET6 listener is up)."""
     _skip_unless_mgr_http()
-    status, _hdrs, _body = _http6("GET", MGR_HTTP, "/xrootd/api/v1/cluster")
+    status, _hdrs, _body = _http6("GET", MGR_HTTP, "/brix/api/v1/cluster")
     assert status in (200, 401, 403, 404), status
 
 

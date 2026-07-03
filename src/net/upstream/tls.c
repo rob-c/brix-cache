@@ -47,7 +47,7 @@ brix_upstream_start_tls(brix_upstream_t *up,
     up->bs_phase = XRD_UP_BS_TLS;
 
     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, up->client_conn->log, 0,
-                   "xrootd: upstream starting TLS handshake (sni=%s)", sni);
+                   "brix: upstream starting TLS handshake (sni=%s)", sni);
 
     if (ngx_ssl_handshake(uconn) != NGX_AGAIN) {
         /* Completed synchronously (unlikely but handle it). */
@@ -83,7 +83,7 @@ brix_upstream_tls_handshake_done(ngx_connection_t *uconn)
     }
 
     ngx_log_debug0(NGX_LOG_DEBUG_STREAM, up->client_conn->log, 0,
-                   "xrootd: upstream TLS handshake done; resending kXR_login");
+                   "brix: upstream TLS handshake done; resending kXR_login");
 
     /* Restore normal event handlers (TLS handshake replaces them). */
     uconn->read->handler  = brix_upstream_read_handler;

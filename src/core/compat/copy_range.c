@@ -61,7 +61,7 @@ brix_copy_range_fallback(ngx_log_t *log, int src_fd, off_t src_off,
          * filling `want` bytes unless the source ends early. */
         if (brix_vfs_pread_full(src_fd, buf, want, src_off, &got) != NGX_OK) {
             ngx_log_error(NGX_LOG_ERR, log, errno,
-                          "xrootd: copy_range pread failed %s",
+                          "brix: copy_range pread failed %s",
                           src_path ? src_path : "-");
             return NGX_ERROR;
         }
@@ -71,14 +71,14 @@ brix_copy_range_fallback(ngx_log_t *log, int src_fd, off_t src_off,
         if (got < want) {
             errno = EIO;
             ngx_log_error(NGX_LOG_ERR, log, 0,
-                          "xrootd: copy_range pread unexpected EOF %s",
+                          "brix: copy_range pread unexpected EOF %s",
                           src_path ? src_path : "-");
             return NGX_ERROR;
         }
 
         if (brix_vfs_pwrite_full(dst_fd, buf, got, dst_off) != NGX_OK) {
             ngx_log_error(NGX_LOG_ERR, log, errno,
-                          "xrootd: copy_range pwrite failed %s",
+                          "brix: copy_range pwrite failed %s",
                           dst_path ? dst_path : "-");
             return NGX_ERROR;
         }
@@ -121,7 +121,7 @@ brix_copy_range(ngx_log_t *log,
         if (n == 0) {
             errno = EIO;
             ngx_log_error(NGX_LOG_ERR, log, 0,
-                          "xrootd: copy_file_range unexpected EOF %s -> %s",
+                          "brix: copy_file_range unexpected EOF %s -> %s",
                           src_path ? src_path : "-",
                           dst_path ? dst_path : "-");
             return NGX_ERROR;
@@ -142,7 +142,7 @@ brix_copy_range(ngx_log_t *log,
         }
 
         ngx_log_error(NGX_LOG_ERR, log, errno,
-                      "xrootd: copy_file_range failed %s -> %s",
+                      "brix: copy_file_range failed %s -> %s",
                       src_path ? src_path : "-",
                       dst_path ? dst_path : "-");
         return NGX_ERROR;

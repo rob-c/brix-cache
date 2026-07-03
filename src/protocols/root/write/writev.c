@@ -199,7 +199,7 @@ brix_handle_writev(brix_ctx_t *ctx, ngx_connection_t *c)
 				    brix_wrts_is_replay(&ctx->files[hidx], off, wlen))
 				{
 					ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
-					    "xrootd: writev AIO recovery replay skip"
+					    "brix: writev AIO recovery replay skip"
 					    " offset=%lld len=%u", (long long) off, wlen);
 					seg_descs[i].wlen = 0;
 				}
@@ -229,7 +229,7 @@ brix_handle_writev(brix_ctx_t *ctx, ngx_connection_t *c)
 			brix_task_bind(task, brix_writev_write_aio_thread, brix_writev_write_aio_done);
 
 			(void) brix_aio_post_task(ctx, c, conf->common.thread_pool, task,
-			    "xrootd: thread_task_post failed, falling back to sync writev",
+			    "brix: thread_task_post failed, falling back to sync writev",
 			    &posted);
 			/* posted == 1: ownership of payload_buf now lives on the task and
 			 * the done callback will free it and send the reply. Detach it from
@@ -267,7 +267,7 @@ brix_handle_writev(brix_ctx_t *ctx, ngx_connection_t *c)
 		    brix_wrts_is_replay(&ctx->files[idx], offset, wlen))
 		{
 			ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
-			    "xrootd: writev recovery replay skip offset=%lld len=%u",
+			    "brix: writev recovery replay skip offset=%lld len=%u",
 			    (long long) offset, wlen);
 			bytes_written_total += (size_t) wlen;
 			data_ptr += wlen;

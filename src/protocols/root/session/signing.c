@@ -39,7 +39,7 @@ brix_handle_sigver(brix_ctx_t *ctx, ngx_connection_t *c)
         /* Reject replays: seqno must strictly increase across the session. */
         if (seqno <= ctx->last_seqno) {
             ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                          "xrootd: sigver replay (seqno=%llu <= last=%llu)",
+                          "brix: sigver replay (seqno=%llu <= last=%llu)",
                           (unsigned long long) seqno,
                           (unsigned long long) ctx->last_seqno);
             return brix_send_error(ctx, c, kXR_NotAuthorized,
@@ -63,16 +63,16 @@ brix_handle_sigver(brix_ctx_t *ctx, ngx_connection_t *c)
             ngx_memcpy(ctx->sigver_hmac, ctx->payload, 32);
 
             ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                           "xrootd: sigver pending expectrid=%d seqno=%llu",
+                           "brix: sigver pending expectrid=%d seqno=%llu",
                            (int) expectrid, (unsigned long long) seqno);
         } else {
             ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                           "xrootd: sigver crypto=0x%02xd not verified (RSA path)",
+                           "brix: sigver crypto=0x%02xd not verified (RSA path)",
                            (unsigned) req.crypto);
         }
     } else {
         ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                       "xrootd: sigver accepted without verification (no GSI key)");
+                       "brix: sigver accepted without verification (no GSI key)");
     }
 
     brix_log_access(ctx, c, "SIGVER", "-", "-", 1, 0, NULL, 0);

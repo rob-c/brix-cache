@@ -416,7 +416,7 @@ brix_http_fill_resolve_waiter(brix_http_cache_fill_ctx_t *t,
         rc = w->reenter(r, w->reenter_data);    /* hit -> serve (zero-copy) */
     } else if (t->result == NGX_DECLINED) {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
-            "xrootd: cache fill declined for \"%s\" (object not cacheable and "
+            "brix: cache fill declined for \"%s\" (object not cacheable and "
             "remote-source streaming is not yet supported) - returning 502",
             t->key);
         rc = NGX_HTTP_BAD_GATEWAY;
@@ -561,7 +561,7 @@ brix_http_cache_fill_if_needed(ngx_http_request_t *r,
         /* No pool: nothing can run off-loop, so fall through to the inline path
          * (preserves the pre-SP2 behaviour - a remote miss may stall/fail). */
         ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-            "xrootd: cache miss on \"%s\" needs an async thread pool to fill a "
+            "brix: cache miss on \"%s\" needs an async thread pool to fill a "
             "remote tier; none configured - serving inline (may stall)", key);
         return NGX_DECLINED;
     }
@@ -605,7 +605,7 @@ brix_http_cache_fill_if_needed(ngx_http_request_t *r,
     brix_http_fills = t;
 
     ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
-        "xrootd: offloaded cache fill of \"%s\" to the thread pool", key);
+        "brix: offloaded cache fill of \"%s\" to the thread pool", key);
     return NGX_DONE;
 }
 

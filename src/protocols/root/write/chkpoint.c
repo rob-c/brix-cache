@@ -274,7 +274,7 @@ brix_handle_chkpoint(brix_ctx_t *ctx, ngx_connection_t *c,
 
     default:
         ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                       "xrootd: kXR_chkpoint unknown opcode=%d",
+                       "brix: kXR_chkpoint unknown opcode=%d",
                        (int)(unsigned char) req.opcode);
         BRIX_OP_ERR(ctx, BRIX_OP_CHKPOINT);
         return brix_send_error(ctx, c, kXR_ArgInvalid,
@@ -317,7 +317,7 @@ ckp_recover_one(ngx_log_t *log, const char *root_canon,
                                         O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0);
     if (ckp_fd < 0) {
         brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
-                             "xrootd: checkpoint recovery cannot open \"%s\"",
+                             "brix: checkpoint recovery cannot open \"%s\"",
                              ckp_path);
         return NGX_ERROR;
     }
@@ -325,7 +325,7 @@ ckp_recover_one(ngx_log_t *log, const char *root_canon,
     if (fstat(ckp_fd, &st) != 0 || !S_ISREG(st.st_mode)) {
         ngx_close_file(ckp_fd);
         brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
-                             "xrootd: checkpoint recovery invalid snapshot "
+                             "brix: checkpoint recovery invalid snapshot "
                              "\"%s\"", ckp_path);
         return NGX_ERROR;
     }
@@ -335,7 +335,7 @@ ckp_recover_one(ngx_log_t *log, const char *root_canon,
     {
         ngx_close_file(ckp_fd);
         brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
-                             "xrootd: checkpoint recovery cannot stage "
+                             "brix: checkpoint recovery cannot stage "
                              "\"%s\"", orig_path);
         return NGX_ERROR;
     }
@@ -348,7 +348,7 @@ ckp_recover_one(ngx_log_t *log, const char *root_canon,
         brix_staged_abort(log, root_canon, &staged, 1);
         ngx_close_file(ckp_fd);
         brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
-                             "xrootd: checkpoint recovery copy failed for "
+                             "brix: checkpoint recovery copy failed for "
                              "\"%s\"", orig_path);
         return NGX_ERROR;
     }
@@ -365,7 +365,7 @@ ckp_recover_one(ngx_log_t *log, const char *root_canon,
     {
         ngx_close_file(ckp_fd);
         brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
-                             "xrootd: checkpoint recovery commit failed for "
+                             "brix: checkpoint recovery commit failed for "
                              "\"%s\"", orig_path);
         return NGX_ERROR;
     }
@@ -374,13 +374,13 @@ ckp_recover_one(ngx_log_t *log, const char *root_canon,
 
     if (brix_vfs_unlink_path(log, root_canon, ckp_path) != 0) {
         brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
-                             "xrootd: checkpoint recovery cannot remove "
+                             "brix: checkpoint recovery cannot remove "
                              "\"%s\"", ckp_path);
         return NGX_ERROR;
     }
 
     brix_log_safe_path(log, NGX_LOG_NOTICE, 0,
-                         "xrootd: recovered abandoned checkpoint \"%s\"",
+                         "brix: recovered abandoned checkpoint \"%s\"",
                          ckp_path);
     return NGX_OK;
 }
@@ -395,7 +395,7 @@ ckp_recover_scan(ngx_log_t *log, const char *root_canon, const char *dir,
 
     if (depth > 128) {
         brix_log_safe_path(log, NGX_LOG_ERR, 0,
-                             "xrootd: checkpoint recovery depth exceeded at "
+                             "brix: checkpoint recovery depth exceeded at "
                              "\"%s\"", dir);
         return NGX_ERROR;
     }
@@ -416,12 +416,12 @@ ckp_recover_scan(ngx_log_t *log, const char *root_canon, const char *dir,
                           || ngx_errno == ENOTDIR || ngx_errno == ELOOP))
         {
             brix_log_safe_path(log, NGX_LOG_INFO, ngx_errno,
-                                 "xrootd: checkpoint recovery skipping "
+                                 "brix: checkpoint recovery skipping "
                                  "inaccessible dir \"%s\"", dir);
             return NGX_OK;
         }
         brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
-                             "xrootd: checkpoint recovery cannot scan \"%s\"",
+                             "brix: checkpoint recovery cannot scan \"%s\"",
                              dir);
         return NGX_ERROR;
     }
@@ -430,7 +430,7 @@ ckp_recover_scan(ngx_log_t *log, const char *root_canon, const char *dir,
     if (dp == NULL) {
         ngx_close_file(dfd);
         brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
-                             "xrootd: checkpoint recovery cannot scan \"%s\"",
+                             "brix: checkpoint recovery cannot scan \"%s\"",
                              dir);
         return NGX_ERROR;
     }
@@ -459,7 +459,7 @@ ckp_recover_scan(ngx_log_t *log, const char *root_canon, const char *dir,
             /* A transiently-removed or inaccessible entry: skip it, don't abort
              * the whole recovery (and thus the worker). */
             brix_log_safe_path(log, NGX_LOG_INFO, ngx_errno,
-                                 "xrootd: checkpoint recovery skipping entry "
+                                 "brix: checkpoint recovery skipping entry "
                                  "\"%s\"", path);
             continue;
         }
@@ -516,7 +516,7 @@ brix_chkpoint_recover_root(ngx_log_t *log, const char *root_canon)
     lock_fd = open(lock_path, O_CREAT | O_RDWR | O_CLOEXEC | O_NOFOLLOW, 0600);
     if (lock_fd < 0) {
         brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
-                             "xrootd: checkpoint recovery lock failed "
+                             "brix: checkpoint recovery lock failed "
                              "\"%s\"", lock_path);
         return NGX_ERROR;
     }
@@ -524,7 +524,7 @@ brix_chkpoint_recover_root(ngx_log_t *log, const char *root_canon)
     if (flock(lock_fd, LOCK_EX) != 0) {
         ngx_close_file(lock_fd);
         brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
-                             "xrootd: checkpoint recovery cannot lock "
+                             "brix: checkpoint recovery cannot lock "
                              "\"%s\"", lock_path);
         return NGX_ERROR;
     }

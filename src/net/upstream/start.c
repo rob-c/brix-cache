@@ -117,7 +117,7 @@ brix_upstream_start(brix_ctx_t *ctx, ngx_connection_t *c,
             && rstatus == BRIX_RESOLVE_ERR_DNS)
         {
             ngx_log_error(NGX_LOG_ERR, c->log, 0,
-                          "xrootd: upstream: cannot resolve \"%s\"",
+                          "brix: upstream: cannot resolve \"%s\"",
                           (char *) conf->upstream_host.data);
             brix_upstream_cleanup(up);
             return NGX_ERROR;
@@ -126,7 +126,7 @@ brix_upstream_start(brix_ctx_t *ctx, ngx_connection_t *c,
 
     if (fd == (int) NGX_INVALID_FILE) {
         ngx_log_error(NGX_LOG_ERR, c->log, 0,
-                      "xrootd: upstream: no usable address for \"%s\"",
+                      "brix: upstream: no usable address for \"%s\"",
                       (char *) conf->upstream_host.data);
         brix_upstream_cleanup(up);
         return NGX_ERROR;
@@ -191,7 +191,7 @@ brix_upstream_start(brix_ctx_t *ctx, ngx_connection_t *c,
                  chosen_addrlen);
     if (rc == -1 && ngx_socket_errno != NGX_EINPROGRESS) {
         ngx_log_error(NGX_LOG_ERR, c->log, ngx_socket_errno,
-                      "xrootd: upstream connect to %s:%d failed",
+                      "brix: upstream connect to %s:%d failed",
                       (char *) conf->upstream_host.data,
                       (int) conf->upstream_port);
         brix_upstream_cleanup(up);
@@ -225,7 +225,7 @@ brix_upstream_start(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                   "xrootd: upstream connecting to %s:%d",
+                   "brix: upstream connecting to %s:%d",
                    (char *) conf->upstream_host.data,
                    (int) conf->upstream_port);
 

@@ -149,7 +149,7 @@ brix_uring_panic_handler(ngx_event_t *ev)
     if (prev != (ngx_int_t) exists) {
         brix_uring_killswitch_set(exists);
         ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
-            "xrootd: io_uring %s via panic-file \"%s\"",
+            "brix: io_uring %s via panic-file \"%s\"",
             exists ? "DISABLED" : "re-enabled",
             (char *) brix_uring_panic_path);
     }
@@ -165,7 +165,7 @@ brix_uring_panicfile_arm(ngx_cycle_t *cycle, ngx_str_t *path)
     }
     if (path->len >= sizeof(brix_uring_panic_path)) {
         ngx_log_error(NGX_LOG_WARN, cycle->log, 0,
-            "xrootd: io_uring panic-file path too long; ignoring");
+            "brix: io_uring panic-file path too long; ignoring");
         return NGX_OK;
     }
 

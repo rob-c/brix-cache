@@ -110,7 +110,7 @@ echo "$MET" | grep -q 'brix_cvmfs_bytes_served_total{source="hit"} [1-9]' \
     && ok "metrics: warm hit bytes counted" || bad "metrics: hit bytes"
 
 # --- 4: dashboard -----------------------------------------------------------
-DC="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3129/xrootd/)"
+DC="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3129/brix/)"
 case "$DC" in 200|302) ok "dashboard answering on :3129 ($DC)" ;;
               *) bad "dashboard on :3129 (got $DC)" ;; esac
 

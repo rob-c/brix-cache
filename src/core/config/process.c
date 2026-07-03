@@ -54,7 +54,7 @@ brix_crl_reload_handler(ngx_event_t *ev)
 
     if (is_reg_file && xcf->crl_mtime != 0 && st.st_mtime == xcf->crl_mtime) {
         ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ev->log, 0,
-                       "xrootd: CRL \"%s\" unchanged — skipping reload",
+                       "brix: CRL \"%s\" unchanged — skipping reload",
                        xcf->crl.data);
         if (xcf->crl_reload > 0 && !ngx_exiting) {
             ngx_add_timer(ev, (ngx_msec_t) xcf->crl_reload * 1000);
@@ -63,12 +63,12 @@ brix_crl_reload_handler(ngx_event_t *ev)
     }
 
     ngx_log_error(NGX_LOG_INFO, ev->log, 0,
-                  "xrootd: CRL reload timer fired, rebuilding store "
+                  "brix: CRL reload timer fired, rebuilding store "
                   "from \"%s\"", xcf->crl.data);
 
     if (brix_rebuild_gsi_store(xcf, ev->log) != NGX_OK) {
         BRIX_DIAG_CRIT(ev->log, 0,
-            "xrootd: CRL reload failed for \"%s\" — keeping previous store",
+            "brix: CRL reload failed for \"%s\" — keeping previous store",
             "the CRL file/dir is unreadable, malformed, or mid-rewrite",
             "check the path's permissions and that fetch-crl writes atomically; "
             "the server keeps serving with the LAST-GOOD CRLs, so a newly "
@@ -102,7 +102,7 @@ brix_pending_reap_handler(ngx_event_t *ev)
 
     if (reaped > 0) {
         ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ev->log, 0,
-                       "xrootd: pending-locate reaper freed %ui expired slot(s)",
+                       "brix: pending-locate reaper freed %ui expired slot(s)",
                        reaped);
     }
     if (!ngx_exiting) {
@@ -129,7 +129,7 @@ brix_stage_reap_handler(ngx_event_t *ev)
     ngx_uint_t n = brix_stage_reap_all(ev->log);
     if (n > 0) {
         ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
-                      "xrootd: stage-out reaper completed %ui pending commit(s)",
+                      "brix: stage-out reaper completed %ui pending commit(s)",
                       n);
     }
     if (!ngx_exiting) {
@@ -154,7 +154,7 @@ brix_cache_reap_handler(ngx_event_t *ev)
 
     if (n > 0) {
         ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
-                      "xrootd: cache stale-dirty reaper removed %ui file(s)", n);
+                      "brix: cache stale-dirty reaper removed %ui file(s)", n);
     }
     if (!ngx_exiting) {
         ngx_add_timer(ev, BRIX_CACHE_REAP_INTERVAL_MS);
@@ -202,7 +202,7 @@ ngx_stream_brix_init_process(ngx_cycle_t *cycle)
 
     if (!brix_crypto_init()) {
         ngx_log_error(NGX_LOG_EMERG, cycle->log, 0,
-                      "xrootd: failed to initialise OpenSSL crypto primitives");
+                      "brix: failed to initialise OpenSSL crypto primitives");
         return NGX_ERROR;
     }
 
@@ -243,7 +243,7 @@ ngx_stream_brix_init_process(ngx_cycle_t *cycle)
      */
     if (!brix_openat2_runtime_available()) {
         ngx_log_error(NGX_LOG_WARN, cycle->log, 0,
-                      "xrootd: openat2(2) is not available on this system "
+                      "brix: openat2(2) is not available on this system "
                       "(requires Linux kernel 5.6+). Path confinement falls "
                       "back to O_NOFOLLOW traversal, which has a TOCTOU race "
                       "window on multi-tenant storage. Upgrade the kernel for "
@@ -328,7 +328,7 @@ ngx_stream_brix_init_process(ngx_cycle_t *cycle)
                                O_PATH | O_DIRECTORY | O_CLOEXEC);
             if (xcf->rootfd < 0) {
                 ngx_log_error(NGX_LOG_EMERG, cycle->log, errno,
-                              "xrootd: cannot open export root \"%s\" for "
+                              "brix: cannot open export root \"%s\" for "
                               "kernel-confined path operations",
                               xcf->common.root_canon);
                 return NGX_ERROR;
@@ -427,7 +427,7 @@ ngx_stream_brix_init_process(ngx_cycle_t *cycle)
         ngx_add_timer(xcf->crl_timer, (ngx_msec_t) xcf->crl_reload * 1000);
 
         ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
-                      "xrootd: CRL reload timer started - interval=%ds "
+                      "brix: CRL reload timer started - interval=%ds "
                       "path=\"%s\"",
                       (int) xcf->crl_reload, xcf->crl.data);
 

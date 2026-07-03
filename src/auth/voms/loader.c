@@ -38,7 +38,7 @@ brix_voms_init(ngx_log_t *log)
     brix_voms_api.handle = dlopen("libvomsapi.so.1", RTLD_NOW | RTLD_LOCAL);
     if (brix_voms_api.handle == NULL) {
         ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                      "xrootd: libvomsapi.so.1 not found (%s) — "
+                      "brix: libvomsapi.so.1 not found (%s) — "
                       "VOMS VO ACL enforcement disabled",
                       dlerror());
         return NGX_DECLINED;
@@ -52,7 +52,7 @@ brix_voms_init(ngx_log_t *log)
             dlsym(brix_voms_api.handle, #name);                     \
         if (brix_voms_api.field == NULL) {                          \
             ngx_log_error(NGX_LOG_ERR, log, 0,                        \
-                          "xrootd: dlsym(%s) failed: %s",             \
+                          "brix: dlsym(%s) failed: %s",             \
                           #name, dlerror());                          \
             dlclose(brix_voms_api.handle);                          \
             ngx_memzero(&brix_voms_api, sizeof(brix_voms_api));    \
@@ -70,7 +70,7 @@ brix_voms_init(ngx_log_t *log)
     brix_voms_loaded = 1;
 
     ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                  "xrootd: libvomsapi.so.1 loaded — "
+                  "brix: libvomsapi.so.1 loaded — "
                   "VOMS VO ACL enforcement available");
     return NGX_OK;
 }

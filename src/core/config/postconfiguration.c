@@ -29,7 +29,7 @@ static void
 brix_log_startup_summary(ngx_log_t *log, ngx_stream_brix_srv_conf_t *xcf)
 {
     ngx_log_error(NGX_LOG_NOTICE, log, 0,
-        "xrootd: root:// endpoint ready — export \"%V\" (%s), auth: %s",
+        "brix: root:// endpoint ready — export \"%V\" (%s), auth: %s",
         &xcf->common.root,
         xcf->common.allow_write ? "read-write" : "read-only",
         brix_auth_mode_name(xcf->auth));
@@ -37,11 +37,11 @@ brix_log_startup_summary(ngx_log_t *log, ngx_stream_brix_srv_conf_t *xcf)
     if (xcf->crl.len > 0) {
         if (xcf->crl_reload > 0) {
             ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                "xrootd:   revocation: CRL \"%V\", reloaded every %T s",
+                "brix:   revocation: CRL \"%V\", reloaded every %T s",
                 &xcf->crl, (time_t) xcf->crl_reload);
         } else {
             ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                "xrootd:   revocation: CRL \"%V\", loaded once at startup "
+                "brix:   revocation: CRL \"%V\", loaded once at startup "
                 "(set brix_crl_reload for periodic refresh)",
                 &xcf->crl);
         }
@@ -49,28 +49,28 @@ brix_log_startup_summary(ngx_log_t *log, ngx_stream_brix_srv_conf_t *xcf)
 
     if (xcf->jwks_key_count > 0) {
         ngx_log_error(NGX_LOG_NOTICE, log, 0,
-            "xrootd:   token validation: %d JWKS key(s) loaded",
+            "brix:   token validation: %d JWKS key(s) loaded",
             xcf->jwks_key_count);
     }
 
     if (xcf->manager_mode) {
         ngx_log_error(NGX_LOG_NOTICE, log, 0,
-            "xrootd:   mode: cluster manager — redirects clients to data "
+            "brix:   mode: cluster manager — redirects clients to data "
             "servers (does not serve local files)");
     }
     if (xcf->proxy_enable) {
         ngx_log_error(NGX_LOG_NOTICE, log, 0,
-            "xrootd:   mode: proxy — forwards client traffic to a backend");
+            "brix:   mode: proxy — forwards client traffic to a backend");
     }
     if (xcf->cache) {
         ngx_log_error(NGX_LOG_NOTICE, log, 0,
-            "xrootd:   mode: read-through cache in front of an origin");
+            "brix:   mode: read-through cache in front of an origin");
     }
 
     /* Valid-but-noteworthy settings a first-time admin should see explicitly. */
     if (xcf->auth == BRIX_AUTH_NONE) {
         ngx_log_error(NGX_LOG_NOTICE, log, 0,
-            "xrootd:   NOTE: no authentication required — this endpoint is "
+            "brix:   NOTE: no authentication required — this endpoint is "
             "OPEN to anonymous clients (set brix_auth to require "
             "credentials)");
     }
@@ -78,13 +78,13 @@ brix_log_startup_summary(ngx_log_t *log, ngx_stream_brix_srv_conf_t *xcf)
         && xcf->crl.len == 0)
     {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-            "xrootd:   NOTE: GSI auth is enabled but no CRL is configured — "
+            "brix:   NOTE: GSI auth is enabled but no CRL is configured — "
             "REVOKED certificates will be ACCEPTED (set brix_crl to a CRL "
             "file/dir, e.g. /etc/grid-security/certificates)");
     }
     if (xcf->common.allow_write) {
         ngx_log_error(NGX_LOG_NOTICE, log, 0,
-            "xrootd:   NOTE: write access is enabled — authorized clients can "
+            "brix:   NOTE: write access is enabled — authorized clients can "
             "create, modify and delete files under the export root");
     }
 }

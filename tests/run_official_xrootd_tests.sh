@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Run the official XRootD integration tests (from /tmp/xrootd-src/tests/XRootD/)
+# Run the official XRootD integration tests (from /tmp/brix-src/tests/XRootD/)
 # against our nginx+xrootd-module proxy instead of a native xrootd server.
 #
 # The official tests are designed as:
@@ -17,13 +17,13 @@
 # Prerequisites:
 #   - nginx+xrootd-module running (ports 11094 anon, 11095 GSI)
 #   - XRootD client tools on PATH (xrdfs, xrdcp, xrdcrc32c, xrdadler32)
-#   - Official XRootD source at /tmp/xrootd-src
+#   - Official XRootD source at /tmp/brix-src
 #
 set -uo pipefail
 # Note: we intentionally do NOT use set -e because individual sub-tests
 # are expected to fail; pass/fail is tracked per sub-test.
 
-BRIX_SRC="${BRIX_SRC:-/tmp/xrootd-src}"
+BRIX_SRC="${BRIX_SRC:-/tmp/brix-src}"
 TEST_DIR="${BRIX_SRC}/tests/XRootD"
 NGINX_ANON_PORT="${NGINX_ANON_PORT:-11094}"
 NGINX_GSI_PORT="${NGINX_GSI_PORT:-11095}"

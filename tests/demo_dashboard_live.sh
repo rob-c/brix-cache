@@ -30,7 +30,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 ROOT_URL="root://localhost:11094"          # anonymous root:// (read + write)
 DASH_HOST_PORT="localhost:8445"            # dedicated dashboard portal (no client-cert prompt)
-DASH_URL="https://${DASH_HOST_PORT}/xrootd/"
+DASH_URL="https://${DASH_HOST_PORT}/brix/"
 DASH_PASS="testpassword"                   # from the test config
 DEMO_OBJ="dashboard_demo_100mb.bin"
 SIZE_BYTES=$((100 * 1024 * 1024))          # 100 MiB
@@ -76,10 +76,10 @@ ss -tln 2>/dev/null | grep -q ':8443 '  || die "dashboard (:8443) not listening"
 code=$(curl -sk -o /dev/null -w '%{http_code}' "$DASH_URL")
 [ "$code" != "000" ] || die "dashboard not reachable at $DASH_URL"
 cookie=$(curl -sk -i -X POST -d "password=${DASH_PASS}" \
-              "https://${DASH_HOST_PORT}/xrootd/login" 2>/dev/null \
+              "https://${DASH_HOST_PORT}/brix/login" 2>/dev/null \
          | awk 'tolower($1)=="set-cookie:"{print $2; exit}' | tr -d ';\r')
 snap=$(curl -sk -o /dev/null -w '%{http_code}' --cookie "$cookie" \
-            "https://${DASH_HOST_PORT}/xrootd/api/v1/snapshot")
+            "https://${DASH_HOST_PORT}/brix/api/v1/snapshot")
 say "Dashboard OK  (portal http=$code, api/v1/snapshot http=$snap)"
 
 # 3) Make a 100 MB source file ----------------------------------------------
@@ -193,7 +193,7 @@ cat <<EOF
 
          ${DASH_URL}
          (if localhost doesn't resolve from Windows:
-          https://${WSL_IP}:8443/xrootd/ )
+          https://${WSL_IP}:8443/brix/ )
 
   🔑  Login password:  ${DASH_PASS}
   ⚠   Self-signed TLS cert — accept the browser's security warning.

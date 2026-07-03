@@ -152,7 +152,7 @@ admin_audit(ngx_http_request_t *r, const char *action, const char *target,
     const char *result)
 {
     ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
-        "xrootd: admin: %V %s target=%s client=%V result=%s",
+        "brix: admin: %V %s target=%s client=%V result=%s",
         &r->method_name, action, target ? target : "-",
         &r->connection->addr_text, result);
 }

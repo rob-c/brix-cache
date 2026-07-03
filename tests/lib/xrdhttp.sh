@@ -111,8 +111,8 @@ EOF
     fi
 
     # Save PID file for later cleanup
-    if [[ -f "${xrdhttp_dir}/run-conf/xrootd.pid" ]]; then
-        cp "${xrdhttp_dir}/run-conf/xrootd.pid" "$pid_file" 2>/dev/null || true
+    if [[ -f "${xrdhttp_dir}/run-conf/brix.pid" ]]; then
+        cp "${xrdhttp_dir}/run-conf/brix.pid" "$pid_file" 2>/dev/null || true
     fi
 }
 
@@ -136,7 +136,7 @@ stop_xrdhttp() {
     fi
 
     # Also try to stop via any xrootd.pid in run-conf
-    local run_pid="${xrdhttp_dir}/run-conf/xrootd.pid"
+    local run_pid="${xrdhttp_dir}/run-conf/brix.pid"
     if [[ -f "$run_pid" ]]; then
         local pid
         pid="$(cat "$run_pid" 2>/dev/null || true)"
@@ -156,7 +156,7 @@ stop_xrdhttp() {
     )"
     kill_pid_list "$pids"
 
-    rm -f "$pid_file" "${xrdhttp_dir}/run-conf/xrootd.pid"
+    rm -f "$pid_file" "${xrdhttp_dir}/run-conf/brix.pid"
     echo "XrdHttp stopped (ports $port, $root_port)"
 }
 

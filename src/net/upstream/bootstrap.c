@@ -211,7 +211,7 @@ brix_upstream_handle_bootstrap_response(brix_upstream_t *up)
 
     if (up->bs_phase == XRD_UP_BS_DONE) {
         ngx_log_debug0(NGX_LOG_DEBUG_STREAM, up->client_conn->log, 0,
-                       "xrootd: upstream bootstrap done; sending request");
+                       "brix: upstream bootstrap done; sending request");
         if (brix_upstream_send_request(up) == NGX_ERROR) {
             brix_upstream_abort(up, "upstream: send request failed");
         }

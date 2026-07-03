@@ -484,7 +484,7 @@ brix_check_authdb_identity(ngx_log_t *log, ngx_array_t *rules,
     brix_sanitize_log_string(resolved_path, safe_path, sizeof(safe_path));
 
     ngx_log_error(NGX_LOG_WARN, log, 0,
-                  "xrootd: authdb denied path=\"%s\" privs=0x%02xd "
+                  "brix: authdb denied path=\"%s\" privs=0x%02xd "
                   "dn=\"%s\" vos=\"%s\" peer=\"%s\"",
                   safe_path, needed_privs, dn,
                   vo_list[0] ? vo_list : "-",

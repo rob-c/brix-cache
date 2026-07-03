@@ -85,7 +85,7 @@ http {{
     scgi_temp_path {root}/tmp;
     server {{
         listen {BIND_HOST}:{http_port};
-        location /xrootd/ {{
+        location /brix/ {{
             brix_dashboard on;
             brix_dashboard_password "{DASH_PW}";
             brix_dashboard_anonymous on;
@@ -112,7 +112,7 @@ http {{
     # wait for readiness
     for _ in range(50):
         try:
-            urllib.request.urlopen(base + "/xrootd/api/v1/snapshot", timeout=2)
+            urllib.request.urlopen(base + "/brix/api/v1/snapshot", timeout=2)
             break
         except Exception:
             time.sleep(0.1)
@@ -147,7 +147,7 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 def _login(base):
     data = f"password={DASH_PW}".encode()
     opener = urllib.request.build_opener(_NoRedirect)
-    req = urllib.request.Request(base + "/xrootd/login", data=data, method="POST")
+    req = urllib.request.Request(base + "/brix/login", data=data, method="POST")
     try:
         # On a 2xx (e.g. wrong password re-renders the form) there is no cookie.
         hdrs = opener.open(req, timeout=5).headers
@@ -161,14 +161,14 @@ def _login(base):
 # ---------------------------------------------------------------- config download
 
 def test_config_download_requires_auth_even_with_anonymous(server):
-    code, _, _ = _get(server["base"], "/xrootd/api/v1/config")
+    code, _, _ = _get(server["base"], "/brix/api/v1/config")
     assert code == 401
 
 
 def test_config_download_authed_is_text_attachment(server):
     cookie = _login(server["base"])
     assert cookie
-    code, body, hdrs = _get(server["base"], "/xrootd/api/v1/config", cookie)
+    code, body, hdrs = _get(server["base"], "/brix/api/v1/config", cookie)
     assert code == 200
     assert hdrs.get("Content-Type", "").startswith("text/plain")
     assert "attachment" in hdrs.get("Content-Disposition", "")
@@ -178,7 +178,7 @@ def test_config_download_authed_is_text_attachment(server):
 
 def test_config_download_leaks_no_secret(server):
     cookie = _login(server["base"])
-    code, body, _ = _get(server["base"], "/xrootd/api/v1/config", cookie)
+    code, body, _ = _get(server["base"], "/brix/api/v1/config", cookie)
     assert code == 200
     for secret in PLANTED_SECRETS:
         assert secret not in body, f"config download LEAKED secret: {secret}"
@@ -192,7 +192,7 @@ def test_config_download_leaks_no_secret(server):
 @pytest.mark.parametrize("ep", ["snapshot", "transfers", "events", "history",
                                  "cluster", "cache", "ratelimit"])
 def test_anonymous_read_endpoints_open_and_flagged(server, ep):
-    code, body, _ = _get(server["base"], f"/xrootd/api/v1/{ep}")
+    code, body, _ = _get(server["base"], f"/brix/api/v1/{ep}")
     assert code == 200
     assert '"anonymous":true' in body.replace(" ", "")
 
@@ -200,19 +200,19 @@ def test_anonymous_read_endpoints_open_and_flagged(server, ep):
 @pytest.mark.parametrize("path", ["api/v1/transfers/1", "api/v1/config",
                                    "api/v1/admin/x"])
 def test_anonymous_does_not_open_privileged_endpoints(server, path):
-    code, _, _ = _get(server["base"], f"/xrootd/{path}")
+    code, _, _ = _get(server["base"], f"/brix/{path}")
     assert code in (401, 403)
 
 
 def test_anonymous_page_served_not_redirected(server):
-    code, body, _ = _get(server["base"], "/xrootd/")
+    code, body, _ = _get(server["base"], "/brix/")
     assert code == 200
     assert "BriX-Cache Dashboard" in body
 
 
 def test_authed_snapshot_is_full(server):
     cookie = _login(server["base"])
-    code, body, _ = _get(server["base"], "/xrootd/api/v1/snapshot", cookie)
+    code, body, _ = _get(server["base"], "/brix/api/v1/snapshot", cookie)
     assert code == 200
     assert '"anonymous":false' in body.replace(" ", "")
 
@@ -246,11 +246,11 @@ def test_live_transfer_row_pii_redacted_for_anonymous(server):
     try:
         anon = authed = None
         for _ in range(60):
-            _, b, _ = _get(server["base"], "/xrootd/api/v1/snapshot")
+            _, b, _ = _get(server["base"], "/brix/api/v1/snapshot")
             if '"state":"active"' in b:
                 anon = b
                 _, authed, _ = _get(server["base"],
-                                    "/xrootd/api/v1/snapshot", cookie)
+                                    "/brix/api/v1/snapshot", cookie)
                 break
             time.sleep(0.1)
         assert anon is not None, "no active transfer row appeared"

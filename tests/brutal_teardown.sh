@@ -14,13 +14,13 @@ echo "[1/4] Stopping all servers..."
 "${SCRIPT_DIR}/manage_test_servers.sh" stop-all 2>/dev/null || true
 
 # stop-all only knows the servers it launched via its own pidfiles.  Test
-# fixtures also spawn nginx/xrootd directly via subprocess on fixed ports
+# fixtures also spawn nginx/brix directly via subprocess on fixed ports
 # (conformance topologies under /tmp/xrd_conf_topo, the mirror under
 # /tmp/xrd-mirror*, perf servers under /tmp/xrd-perf*, handshake probes under
 # /tmp/hsproto_test, reference xrootd under /tmp/xrd-test/ref).  When a pytest
 # run is interrupted those leak and hold ports, which makes the NEXT
 # `start-all` fail to bind (the classic "start-all returned exit 1 ->
-# INTERNALERROR, no tests ran" symptom).  Reap any nginx/xrootd whose command
+# INTERNALERROR, no tests ran" symptom).  Reap any nginx/brix whose command
 # line references a test path so this is a true full reset.  Matched by
 # inspecting each candidate's own cmdline (never a broad `pkill -f`, which would
 # also match this script's shell).
@@ -30,7 +30,7 @@ reap_test_servers() {
     # krb5kdc (and one-shot kadmin.local, never a kadmind daemon) whose argv
     # carries the test pidfile path under ${TEST_ROOT}; an interrupted run can
     # orphan it past stop_krb5_tier's pidfile-based stop.  Match it the same
-    # cmdline-scoped way as nginx/xrootd (never a broad pkill).
+    # cmdline-scoped way as nginx/brix (never a broad pkill).
     for p in $(pgrep -x nginx 2>/dev/null) $(pgrep -x xrootd 2>/dev/null) \
              $(pgrep -x krb5kdc 2>/dev/null) $(pgrep -x kadmind 2>/dev/null); do
         cmd=$(tr '\0' ' ' < "/proc/$p/cmdline" 2>/dev/null) || continue

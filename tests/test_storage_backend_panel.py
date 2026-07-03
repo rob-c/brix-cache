@@ -74,7 +74,7 @@ http {{
     scgi_temp_path {root}/tmp/st;
     server {{
         listen {BIND_HOST}:{http_port};
-        location /xrootd/ {{
+        location /brix/ {{
             brix_dashboard on;
             brix_dashboard_password "{DASH_PW}";
             brix_dashboard_anonymous on;
@@ -105,7 +105,7 @@ http {{
     base = f"http://{HOST}:{http_port}"
     for _ in range(50):
         try:
-            urllib.request.urlopen(base + "/xrootd/api/v1/snapshot", timeout=2)
+            urllib.request.urlopen(base + "/brix/api/v1/snapshot", timeout=2)
             break
         except Exception:
             time.sleep(0.1)
@@ -124,7 +124,7 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 def _login(base):
     data = f"password={DASH_PW}".encode()
     opener = urllib.request.build_opener(_NoRedirect)
-    req = urllib.request.Request(base + "/xrootd/login", data=data,
+    req = urllib.request.Request(base + "/brix/login", data=data,
                                  method="POST")
     try:
         hdrs = opener.open(req, timeout=5).headers
@@ -143,7 +143,7 @@ def _http(url, data=None, method=None, cookie=None):
 
 
 def _snapshot(server, cookie=None):
-    _, body = _http(server["base"] + "/xrootd/api/v1/snapshot", cookie=cookie)
+    _, body = _http(server["base"] + "/brix/api/v1/snapshot", cookie=cookie)
     return json.loads(body)
 
 

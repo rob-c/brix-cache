@@ -6,7 +6,7 @@
 
 
 /*
- * Parse the tail after "/xrootd/api/v1/admin/cluster/servers/" into host,
+ * Parse the tail after "/brix/api/v1/admin/cluster/servers/" into host,
  * port, and an optional trailing action ("drain"/"undrain"/"").  Returns
  * NGX_OK on success.
  */
@@ -14,7 +14,7 @@ ngx_int_t
 admin_parse_server_uri(ngx_http_request_t *r, char *host_out, size_t host_size,
     uint16_t *port_out, char *action_out, size_t action_size)
 {
-    static const char  pfx[] = "/xrootd/api/v1/admin/cluster/servers/";
+    static const char  pfx[] = "/brix/api/v1/admin/cluster/servers/";
     size_t             pfxlen = sizeof(pfx) - 1;
     char               tail[512];
     size_t             taillen;

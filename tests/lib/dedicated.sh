@@ -26,7 +26,7 @@ start_krb5_tier() {
     # process environment; principal + keytab feed substitute_config.
     KRB5_CONFIG="${TEST_ROOT}/krb5/krb5.conf" \
     KRB5_PRINCIPAL="xrootd/localhost@NGINX.TEST" \
-    KRB5_KEYTAB="${TEST_ROOT}/krb5/xrootd.keytab" \
+    KRB5_KEYTAB="${TEST_ROOT}/krb5/brix.keytab" \
         start_dedicated_nginx "krb5" "nginx_krb5.conf" "${NGINX_KRB5_PORT:-11116}"
 }
 
@@ -74,7 +74,7 @@ start_all_dedicated() {
     fi
 
     # Kick the CMS mesh off in the BACKGROUND now and barrier on it at the very
-    # end of start-all.  The mesh is a self-contained set of cmsd/xrootd/nginx
+    # end of start-all.  The mesh is a self-contained set of cmsd/brix/nginx
     # topologies (no dependency on the rest of the fleet) whose readiness gate is
     # ~20 s of CMS cluster convergence — the single largest serial cost in
     # start-all.  Running it concurrently with the ~17 s of fleet startup overlaps

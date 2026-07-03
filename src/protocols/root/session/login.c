@@ -69,7 +69,7 @@ brix_handle_login(brix_ctx_t *ctx, ngx_connection_t *c,
     brix_sanitize_log_string(user, user_log, sizeof(user_log));
 
     ngx_log_debug3(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                   "xrootd: login user=\"%s\" pid=%d auth=%s",
+                   "brix: login user=\"%s\" pid=%d auth=%s",
                    user_log, (int) req.pid,
                    (conf->auth == BRIX_AUTH_GSI) ? "gsi" :
                    (conf->auth == BRIX_AUTH_TOKEN) ? "token" :
@@ -187,7 +187,7 @@ brix_handle_login(brix_ctx_t *ctx, ngx_connection_t *c,
                    parms, parms_len);
 
         ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                       "xrootd: login->kXGS_init parms=\"%s\" ca_hash=%08xd",
+                       "brix: login->kXGS_init parms=\"%s\" ca_hash=%08xd",
                        parms, (unsigned) conf->gsi_ca_hash);
 
         /* Successful login still marks the start of the session even though auth continues. */

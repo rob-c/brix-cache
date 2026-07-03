@@ -15,8 +15,8 @@ read/pgread framing boundaries:
   /hello.txt (12)   /empty.txt (0)
 
 References for read framing (consulted, not modified):
-  /tmp/xrootd-src/src/XrdXrootd/XrdXrootdXeq.cc      do_ReadAll / do_ReadV
-  /tmp/xrootd-src/src/XrdXrootd/XrdXrootdXeqPgrw.cc  do_PgRead
+  /tmp/brix-src/src/XrdXrootd/XrdXrootdXeq.cc      do_ReadAll / do_ReadV
+  /tmp/brix-src/src/XrdXrootd/XrdXrootdXeqPgrw.cc  do_PgRead
 
 Self-provisioning on high ports; skips entirely without the stock toolchain.
 """

@@ -26,13 +26,13 @@ void brix_tls_handshake_done(ngx_connection_t *c) {
     ngx_stream_session_t *s   = c->data;
     brix_ctx_t         *ctx = ngx_stream_get_module_ctx(s, ngx_stream_brix_module);
     if (!c->ssl->handshaked) {
-        ngx_log_error(NGX_LOG_ERR, c->log, 0, "xrootd: kXR_ableTLS handshake failed");
+        ngx_log_error(NGX_LOG_ERR, c->log, 0, "brix: kXR_ableTLS handshake failed");
         brix_on_disconnect(ctx, c);
         brix_close_all_files(ctx);
         ngx_stream_finalize_session(s, NGX_STREAM_INTERNAL_SERVER_ERROR);
         return;
     }
-    ngx_log_error(NGX_LOG_INFO, c->log, 0, "xrootd: kXR_ableTLS TLS handshake complete (%s)", SSL_get_cipher(c->ssl->connection));
+    ngx_log_error(NGX_LOG_INFO, c->log, 0, "brix: kXR_ableTLS TLS handshake complete (%s)", SSL_get_cipher(c->ssl->connection));
     ctx->tls_pending = 0;
     ctx->state       = XRD_ST_REQ_HEADER;
     ctx->hdr_pos     = 0;
@@ -57,7 +57,7 @@ brix_start_tls(brix_ctx_t *ctx, ngx_connection_t *c,
     ERR_clear_error();
     ctx->state = XRD_ST_TLS_HANDSHAKE;
     if (ngx_ssl_create_connection(conf->tls_ctx, c, NGX_SSL_BUFFER) != NGX_OK) {
-        ngx_log_error(NGX_LOG_ERR, c->log, 0, "xrootd: ngx_ssl_create_connection failed");
+        ngx_log_error(NGX_LOG_ERR, c->log, 0, "brix: ngx_ssl_create_connection failed");
         brix_on_disconnect(ctx, c);
         brix_close_all_files(ctx);
         ngx_stream_finalize_session(s, NGX_STREAM_INTERNAL_SERVER_ERROR);
@@ -72,7 +72,7 @@ brix_start_tls(brix_ctx_t *ctx, ngx_connection_t *c,
         brix_tls_handshake_done(c);
         return;
     }
-    ngx_log_error(NGX_LOG_ERR, c->log, 0, "xrootd: kXR_ableTLS ngx_ssl_handshake error");
+    ngx_log_error(NGX_LOG_ERR, c->log, 0, "brix: kXR_ableTLS ngx_ssl_handshake error");
     brix_on_disconnect(ctx, c);
     brix_close_all_files(ctx);
     ngx_stream_finalize_session(s, NGX_STREAM_INTERNAL_SERVER_ERROR);

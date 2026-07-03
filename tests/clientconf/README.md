@@ -19,7 +19,7 @@ Full design: `docs/superpowers/specs/2026-06-26-client-tools-conformance-suite-d
 | `model.py` | `Case` and `KnobSpec` data types. |
 | `runner.py` | `expand()` cases → params; `run_param()` executes parity / knob / skip. `Ctx` per-test scratch + unique paths. |
 | `divergence.py` + `divergence.yaml` | Sanctioned-divergence registry consulted by the comparison verbs. |
-| `flag_inventory.py` | Live parse of the stock flag/command surface from `/tmp/xrootd-src`. |
+| `flag_inventory.py` | Live parse of the stock flag/command surface from `/tmp/brix-src`. |
 | `surface.py` + `surface_map.yaml` | Stock-flag → project-tool classification (same/alias/default/unsupported) + project extras. |
 | `fixtures.py` | `clientconf_env` session fixture: build clients, seed corpus, discover healthy endpoints. |
 | `cases/*.py` | Per-tool case tables (`CASES`, or `cases_for(tool)`). |

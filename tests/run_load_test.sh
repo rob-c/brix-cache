@@ -31,7 +31,7 @@
 #
 # Requires:
 #   • nginx built with nginx-xrootd module (./nginx -v should show the module)
-#   • xrootd 5.x installed (/usr/bin/xrootd)
+#   • xrootd 5.x installed (/usr/bin/brix)
 #   • Test PKI already generated under /tmp/xrd-load/pki/
 #   • Python 3 with XRootD python bindings (from xrootd package)
 #
@@ -157,7 +157,7 @@ shift || true
 EXTRA_ARGS=("$@")
 
 NGINX_BIN="${NGINX_BIN:-/tmp/nginx-1.28.3/objs/nginx}"
-BRIX_BIN="${BRIX_BIN:-/usr/bin/xrootd}"
+BRIX_BIN="${BRIX_BIN:-/usr/bin/brix}"
 AUTHDB_FILE="/tmp/xrd-perf-xrd/authdb"
 
 NGINX_PERF_DIR="/tmp/xrd-perf-test"
@@ -166,14 +166,14 @@ XRD_PERF_DIR="/tmp/xrd-perf-xrd"
 # Generated (templated) configs — start the servers from these, not the static
 # sources, so --data-tls can toggle the data-plane TLS posture symmetrically.
 NGINX_GEN_CONF="$NGINX_PERF_DIR/nginx.gen.conf"
-XRD_GEN_CONF="$XRD_PERF_DIR/xrootd.gen.conf"
+XRD_GEN_CONF="$XRD_PERF_DIR/brix.gen.conf"
 
 # Second official-xrootd instance: anonymous root:// on 12093 (no GSI), so the
 # anon read/write suites have a real xrootd peer to compare against (the primary
 # perf.conf only serves GSI on 12094).  Separate admin/pid paths so the two
 # daemons do not collide.
 XRD_ANON_PERF_DIR="/tmp/xrd-perf-xrd-anon"
-XRD_ANON_GEN_CONF="$XRD_ANON_PERF_DIR/xrootd.anon.gen.conf"
+XRD_ANON_GEN_CONF="$XRD_ANON_PERF_DIR/brix.anon.gen.conf"
 
 # --data-tls {on,off}: set the SAME data-stream TLS posture on BOTH servers for a
 # fair data-plane comparison. Default off = cleartext-vs-cleartext (apples-to-
@@ -204,7 +204,7 @@ gen_configs() {
         "$SCRIPT_DIR/nginx.perf.conf" > "$NGINX_GEN_CONF"
     # xrootd: cleartext data by default; add data-phase TLS for --data-tls on so
     # the native side encrypts too (parity with nginx brix_tls on).
-    cp "$SCRIPT_DIR/xrootd.perf.conf" "$XRD_GEN_CONF"
+    cp "$SCRIPT_DIR/brix.perf.conf" "$XRD_GEN_CONF"
     if [[ "$DATA_TLS" == "on" ]]; then
         cat >> "$XRD_GEN_CONF" <<EOF
 
@@ -387,8 +387,8 @@ start_xrootd() {
         log "ERROR: xrootd binary not found or not executable at $BRIX_BIN"
         exit 1
     fi
-    if [[ ! -f "$SCRIPT_DIR/xrootd.perf.conf" ]]; then
-        log "ERROR: xrootd config $SCRIPT_DIR/xrootd.perf.conf missing"
+    if [[ ! -f "$SCRIPT_DIR/brix.perf.conf" ]]; then
+        log "ERROR: xrootd config $SCRIPT_DIR/brix.perf.conf missing"
         exit 1
     fi
     mkdir -p "$XRD_PERF_DIR"/{logs,data,admin,run}
@@ -425,18 +425,18 @@ all.allow host any
 u * / rwld
 AUTHDB
 
-    local xrd_cmd=("$BRIX_BIN" -c "$XRD_GEN_CONF" -l "$XRD_PERF_DIR/logs/xrootd.log" -n perf -b)
+    local xrd_cmd=("$BRIX_BIN" -c "$XRD_GEN_CONF" -l "$XRD_PERF_DIR/logs/brix.log" -n perf -b)
     log "xrootd launch command: ${xrd_cmd[*]}"
     # Capture stdout/stderr for debug
-    "${xrd_cmd[@]}" > "$XRD_PERF_DIR/logs/xrootd.debug.log" 2>&1 &
+    "${xrd_cmd[@]}" > "$XRD_PERF_DIR/logs/brix.debug.log" 2>&1 &
     # xrootd -b double-forks; the parent exits immediately, so a fixed
     # `sleep 1 && ps | grep` race fails under load even though the daemon is
     # coming up fine. wait_port (polls the actual listen socket) is the real
     # readiness authority — use it, and only error if the data port never binds.
     if ! wait_port localhost 12094 "xrootd GSI"; then
         log "ERROR: xrootd failed to bind 12094. See xrootd.debug.log / xrootd.log:"
-        cat "$XRD_PERF_DIR/logs/xrootd.debug.log" >&2 2>/dev/null || true
-        cat "$XRD_PERF_DIR/logs/xrootd.log"       >&2 2>/dev/null || true
+        cat "$XRD_PERF_DIR/logs/brix.debug.log" >&2 2>/dev/null || true
+        cat "$XRD_PERF_DIR/logs/brix.log"       >&2 2>/dev/null || true
         exit 1
     fi
     # XrdHttp (12443) is not needed for the root:// suites — wait best-effort so
@@ -447,13 +447,13 @@ AUTHDB
     # Second instance: anonymous xrootd on 12093 for the root-anon suites.
     log "Starting official xrootd (anon, port 12093)..."
     local xrd_anon_cmd=("$BRIX_BIN" -c "$XRD_ANON_GEN_CONF" \
-        -l "$XRD_ANON_PERF_DIR/logs/xrootd.log" -n perfanon -b)
+        -l "$XRD_ANON_PERF_DIR/logs/brix.log" -n perfanon -b)
     log "xrootd anon launch command: ${xrd_anon_cmd[*]}"
-    "${xrd_anon_cmd[@]}" > "$XRD_ANON_PERF_DIR/logs/xrootd.debug.log" 2>&1 &
+    "${xrd_anon_cmd[@]}" > "$XRD_ANON_PERF_DIR/logs/brix.debug.log" 2>&1 &
     if ! wait_port localhost 12093 "xrootd anon"; then
         log "ERROR: xrootd anon failed to bind 12093. See logs:"
-        cat "$XRD_ANON_PERF_DIR/logs/xrootd.debug.log" >&2 2>/dev/null || true
-        cat "$XRD_ANON_PERF_DIR/logs/xrootd.log"       >&2 2>/dev/null || true
+        cat "$XRD_ANON_PERF_DIR/logs/brix.debug.log" >&2 2>/dev/null || true
+        cat "$XRD_ANON_PERF_DIR/logs/brix.log"       >&2 2>/dev/null || true
         exit 1
     fi
     log "xrootd started"

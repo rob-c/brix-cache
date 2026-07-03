@@ -3,7 +3,7 @@
 Motivation: the kXR_sigver-ack bug survived for a long time because our tests
 checked our server against our OWN client — a consistent-but-non-standard pair.
 These 20 tests instead assert what the XRootD C++ REFERENCE
-(/tmp/xrootd-src/src) guarantees to ANY standard client, via a minimal raw-wire
+(/tmp/brix-src/src) guarantees to ANY standard client, via a minimal raw-wire
 client against a self-provisioned anon server. A failure here means this
 implementation diverges from the protocol every other client/server speaks.
 

@@ -184,7 +184,7 @@ brix_cms_srv_set_sss_keytab(ngx_conf_t *cf, ngx_command_t *cmd,
     }
 
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-                       "xrootd: CMS server sss auth configured - keytab=%V "
+                       "brix: CMS server sss auth configured - keytab=%V "
                        "keys=%ui", &conf->sss_keytab, conf->sss_keys->nelts);
     return NGX_CONF_OK;
 }

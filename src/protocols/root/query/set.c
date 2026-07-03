@@ -61,7 +61,7 @@ brix_set_handle_cms_space(ngx_connection_t *c, const char *payload,
     total_bytes = strtoull(p, &end, 10);
     if (end == p || *end != ' ') {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                      "xrootd: kXR_set cms.space: malformed payload");
+                      "brix: kXR_set cms.space: malformed payload");
         return;
     }
     p = end;
@@ -71,12 +71,12 @@ brix_set_handle_cms_space(ngx_connection_t *c, const char *payload,
     free_bytes = strtoull(p, &end, 10);
     if (end == p) {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                      "xrootd: kXR_set cms.space: missing free_bytes");
+                      "brix: kXR_set cms.space: missing free_bytes");
         return;
     }
 
     ngx_log_error(NGX_LOG_INFO, c->log, 0,
-                  "xrootd: cms.space report: total=%lluB free=%lluB "
+                  "brix: cms.space report: total=%lluB free=%lluB "
                   "used=%lluB",
                   total_bytes, free_bytes,
                   (total_bytes > free_bytes) ? total_bytes - free_bytes : 0ULL);
@@ -156,7 +156,7 @@ brix_handle_set(brix_ctx_t *ctx, ngx_connection_t *c)
              (unsigned) modifier, mod_name, payload_snippet);
 
     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                   "xrootd: kXR_set %s", detail);
+                   "brix: kXR_set %s", detail);
 
     BRIX_RETURN_OK(ctx, c, BRIX_OP_SET, "SET", "-", detail, 0);
 }

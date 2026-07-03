@@ -170,7 +170,7 @@ brix_handle_sss_auth(brix_ctx_t *ctx, ngx_connection_t *c,
         brix_sanitize_log_string(group[0] ? group : "-",
                                    safe_group, sizeof(safe_group));
         ngx_log_error(NGX_LOG_INFO, c->log, 0,
-                      "xrootd: SSS auth OK user=\"%s\" group=\"%s\"",
+                      "brix: SSS auth OK user=\"%s\" group=\"%s\"",
                       safe_user, safe_group);
     }
 

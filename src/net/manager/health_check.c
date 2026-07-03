@@ -209,7 +209,7 @@ brix_hc_write_handler(ngx_event_t *wev)
             || err != 0)
         {
             BRIX_DIAG_WARN(hc->log, err, /* may be 0 */
-                "xrootd: health check failed to connect to %s:%d",
+                "brix: health check failed to connect to %s:%d",
                 "the cluster member is down or unreachable from the manager",
                 "check that member's xrootd/data service and the network path "
                 "to it; it is marked DOWN and clients are routed elsewhere "
@@ -316,7 +316,7 @@ brix_hc_dispatch(brix_hc_ctx_t *hc)
             ngx_memcpy(&flags_be, hc->resp_body + 4, sizeof(flags_be));
             if (ntohl(flags_be) & kXR_gotoTLS) {
                 ngx_log_debug2(NGX_LOG_DEBUG_STREAM, hc->log, 0,
-                    "xrootd: health check: %s:%d wants TLS; "
+                    "brix: health check: %s:%d wants TLS; "
                     "treating protocol-OK as alive", hc->host, (int) hc->port);
                 brix_hc_finish(hc, 1);
                 return;
@@ -401,7 +401,7 @@ brix_hc_timeout_handler(ngx_event_t *ev)
     brix_hc_ctx_t *hc = ev->data;
 
     BRIX_DIAG_WARN(hc->log, 0,
-        "xrootd: health check to %s:%d timed out",
+        "brix: health check to %s:%d timed out",
         "the member accepted the TCP connection but never finished the "
         "health probe — it is overloaded, hung, or half-broken",
         "investigate that member's load and logs; it is marked DOWN until it "
@@ -437,7 +437,7 @@ brix_hc_finish(brix_hc_ctx_t *hc, int passed)
         brix_srv_hc_pass(hc->host, hc->port);
         BRIX_HC_METRIC_INC(hc_pass_total);
         ngx_log_debug2(NGX_LOG_DEBUG_STREAM, hc->log, 0,
-                       "xrootd: health check: %s:%d passed",
+                       "brix: health check: %s:%d passed",
                        hc->host, (int) hc->port);
     } else {
         if (brix_srv_hc_fail(hc->host, hc->port,
@@ -445,7 +445,7 @@ brix_hc_finish(brix_hc_ctx_t *hc, int passed)
         {
             BRIX_HC_METRIC_INC(hc_blacklist_total);
             ngx_log_error(NGX_LOG_WARN, hc->log, 0,
-                          "xrootd: health check: %s:%d blacklisted after"
+                          "brix: health check: %s:%d blacklisted after"
                           " %ui consecutive failures",
                           hc->host, (int) hc->port, (ngx_uint_t) hc->threshold);
         }
@@ -528,7 +528,7 @@ brix_hc_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf,
                         (int) port);
     if (getaddrinfo(host, portstr, &hints, &res) != 0 || res == NULL) {
         ngx_log_error(NGX_LOG_WARN, cycle->log, 0,
-                      "xrootd: health check: cannot resolve %s:%d",
+                      "brix: health check: cannot resolve %s:%d",
                       host, (int) port);
         brix_srv_hc_fail(host, port, conf->hc_threshold,
                            conf->hc_blacklist_ms);
@@ -693,7 +693,7 @@ brix_hc_manager_start(ngx_cycle_t *cycle,
     ngx_add_timer(&mgr->timer, 2000);  /* let CMS connections settle first */
 
     ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
-                  "xrootd: health check manager started "
+                  "brix: health check manager started "
                   "(interval=%Ms timeout=%Ms scan=%Ms)",
                   conf->hc_interval_ms, conf->hc_timeout_ms,
                   mgr->scan_interval_ms);

@@ -69,7 +69,7 @@ manager_redirect_mutation(brix_ctx_t *ctx, ngx_connection_t *c,
 
     if (brix_srv_select_or_blacklisted(path, 1, host, sizeof(host), &port)) {
         ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                       "xrootd: manager redirect mutation \"%s\" -> %s",
+                       "brix: manager redirect mutation \"%s\" -> %s",
                        path, host);
         return brix_send_redirect(ctx, c, host, port);
     }

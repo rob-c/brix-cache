@@ -57,13 +57,13 @@ brix_gsi_verify_chain(ngx_log_t *log, X509_STORE *store,
     vctx = X509_STORE_CTX_new();
     if (vctx == NULL) {
         ngx_log_error(NGX_LOG_ERR, log, 0,
-                      "xrootd: GSI: X509_STORE_CTX_new() failed");
+                      "brix: GSI: X509_STORE_CTX_new() failed");
         return NGX_ERROR;
     }
 
     if (!X509_STORE_CTX_init(vctx, store, leaf, untrusted)) {
         ngx_log_error(NGX_LOG_ERR, log, 0,
-                      "xrootd: GSI: X509_STORE_CTX_init() failed");
+                      "brix: GSI: X509_STORE_CTX_init() failed");
         X509_STORE_CTX_free(vctx);
         return NGX_ERROR;
     }
@@ -80,7 +80,7 @@ brix_gsi_verify_chain(ngx_log_t *log, X509_STORE *store,
         const char *verr_str = X509_verify_cert_error_string(verr);
 
         BRIX_DIAG_WARN(log, 0,
-            "xrootd: GSI client cert rejected: %s",
+            "brix: GSI client cert rejected: %s",
             "the client proxy/cert is expired, or its issuing CA is not in "
             "this server's trust store",
             "if \"expired\": the user must renew their proxy "

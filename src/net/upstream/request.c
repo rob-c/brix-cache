@@ -79,7 +79,7 @@ brix_upstream_send_request(brix_upstream_t *up)
 
     default:
         ngx_log_error(NGX_LOG_ERR, up->client_conn->log, 0,
-                      "xrootd: upstream: unsupported opcode %d",
+                      "brix: upstream: unsupported opcode %d",
                       (int) up->req_opcode);
         return NGX_ERROR;
     }

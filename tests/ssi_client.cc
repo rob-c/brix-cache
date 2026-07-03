@@ -3,7 +3,7 @@
  * engine, proving end-to-end interop with stock XRootD's own client stack.
  *
  * Build (headers from the xrootd source tree, libs from the system):
- *   g++ -std=c++17 -I/tmp/xrootd-src/src -o /tmp/ssi_client tests/ssi_client.cc \
+ *   g++ -std=c++17 -I/tmp/brix-src/src -o /tmp/ssi_client tests/ssi_client.cc \
  *       -lXrdSsiLib -lXrdCl -lXrdUtils
  *
  * Usage:  ssi_client <host:port> <resource> <request-bytes>

@@ -459,7 +459,7 @@ brix_handle_read(brix_ctx_t *ctx, ngx_connection_t *c)
             brix_task_bind(task, brix_read_aio_thread, brix_read_aio_done);
 
             (void) brix_aio_post_task(ctx, c, rconf->common.thread_pool, task,
-                                        "xrootd: thread_task_post failed, sync read fallback",
+                                        "brix: thread_task_post failed, sync read fallback",
                                         &posted);
             /*
              * Posted: the read now completes off-thread; the done-callback owns

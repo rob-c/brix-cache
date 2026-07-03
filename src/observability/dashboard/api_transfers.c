@@ -264,7 +264,7 @@ dashboard_build_v1_transfers(ngx_http_request_t *r,
 
 
 /*
- * Parse the numeric transfer id from "/xrootd/api/v1/transfers/<id>".
+ * Parse the numeric transfer id from "/brix/api/v1/transfers/<id>".
  * Strict: the tail must be present and consist solely of decimal digits — any
  * non-digit (path traversal, trailing slash, query) yields NGX_DECLINED so the
  * caller returns 400 rather than risking a misparse.
@@ -272,8 +272,8 @@ dashboard_build_v1_transfers(ngx_http_request_t *r,
 ngx_int_t
 dashboard_parse_detail_id(ngx_http_request_t *r, uint32_t *id)
 {
-    const char *prefix = "/xrootd/api/v1/transfers/";
-    size_t      prefix_len = sizeof("/xrootd/api/v1/transfers/") - 1;
+    const char *prefix = "/brix/api/v1/transfers/";
+    size_t      prefix_len = sizeof("/brix/api/v1/transfers/") - 1;
     uint32_t    value = 0;
     size_t      i;
 

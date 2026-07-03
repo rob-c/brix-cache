@@ -45,7 +45,7 @@ brix_token_jwks_try_reload(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log)
 
     if (stat((const char *) conf->token_jwks.data, &st) != 0) {
         ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
-                      "xrootd: JWKS stat failed for \"%s\" — will retry",
+                      "brix: JWKS stat failed for \"%s\" — will retry",
                       conf->token_jwks.data);
         return;
     }
@@ -59,7 +59,7 @@ brix_token_jwks_try_reload(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log)
                                  new_keys, BRIX_MAX_JWKS_KEYS);
     if (new_count <= 0) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd: JWKS reload from \"%s\" returned %d keys "
+                      "brix: JWKS reload from \"%s\" returned %d keys "
                       "— keeping old keys",
                       conf->token_jwks.data, new_count);
         return;
@@ -73,7 +73,7 @@ brix_token_jwks_try_reload(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log)
     conf->jwks_mtime     = st.st_mtime;
 
     ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                  "xrootd: JWKS refreshed from \"%s\" — %d key(s) loaded",
+                  "brix: JWKS refreshed from \"%s\" — %d key(s) loaded",
                   conf->token_jwks.data, new_count);
 }
 
@@ -122,7 +122,7 @@ brix_token_jwks_schedule_refresh(ngx_cycle_t *cycle,
     ev = ngx_pcalloc(cycle->pool, sizeof(*ev));
     if (ev == NULL) {
         ngx_log_error(NGX_LOG_ERR, cycle->log, 0,
-                      "xrootd: failed to allocate JWKS refresh timer");
+                      "brix: failed to allocate JWKS refresh timer");
         return;
     }
 
@@ -134,6 +134,6 @@ brix_token_jwks_schedule_refresh(ngx_cycle_t *cycle,
     ngx_add_timer(ev, conf->token_jwks_refresh_interval);
 
     ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
-                  "xrootd: JWKS refresh timer started — interval=%Mms path=\"%s\"",
+                  "brix: JWKS refresh timer started — interval=%Mms path=\"%s\"",
                   conf->token_jwks_refresh_interval, conf->token_jwks.data);
 }

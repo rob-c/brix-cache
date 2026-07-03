@@ -21,7 +21,7 @@ brix_get_canonical_root(ngx_log_t *log, const ngx_str_t *root,
 
     if (realpath(root_buf, root_canon) == NULL) {
         ngx_log_error(NGX_LOG_WARN, log, errno,
-                      "xrootd: cannot canonicalize root \"%s\"", root_buf);
+                      "brix: cannot canonicalize root \"%s\"", root_buf);
         return 0;
     }
 

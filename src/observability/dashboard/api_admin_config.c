@@ -6,7 +6,7 @@
 
 
 /*
- * WHAT: Top-level router for the admin write API ("/xrootd/api/v1/admin/...").
+ * WHAT: Top-level router for the admin write API ("/brix/api/v1/admin/...").
  * WHY:  Authentication is enforced HERE, once, before any route is considered —
  *       every mutating handler below assumes the caller is already authorized.
  * HOW:  Auth first (403 + audit on failure), then match the resource (cluster

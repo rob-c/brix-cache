@@ -292,7 +292,7 @@ brix_pelican_discover_cfg(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log,
 
     if (res != CURLE_OK || code < 200 || code >= 300) {
         ngx_log_error(NGX_LOG_ERR, log, 0,
-            "xrootd: pelican advertise: discovery failed (%s, http %ld)",
+            "brix: pelican advertise: discovery failed (%s, http %ld)",
             curl_easy_strerror(res), code);
         return NGX_ERROR;
     }
@@ -364,12 +364,12 @@ brix_pelican_post(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log,
 
     if (res != CURLE_OK || code < 200 || code >= 300) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-            "xrootd: pelican advertise: registerCache POST failed "
+            "brix: pelican advertise: registerCache POST failed "
             "(%s, http %ld) to %s", curl_easy_strerror(res), code, url);
         return NGX_ERROR;
     }
     ngx_log_error(NGX_LOG_INFO, log, 0,
-        "xrootd: pelican advertise: registered cache with director (http %ld)",
+        "brix: pelican advertise: registered cache with director (http %ld)",
         code);
     return NGX_OK;
 }
@@ -408,7 +408,7 @@ brix_cache_pelican_advertise_once(ngx_stream_brix_srv_conf_t *conf,
     {
         free(body);
         ngx_log_error(NGX_LOG_ERR, log, 0,
-                      "xrootd: pelican advertise: JWT signing failed");
+                      "brix: pelican advertise: JWT signing failed");
         return NGX_ERROR;
     }
 
@@ -481,7 +481,7 @@ brix_cache_pelican_schedule_advertise(ngx_cycle_t *cycle,
         brix_jwt_load_ec_key((char *) conf->cache_advertise_key.data);
     if (conf->cache_advertise_key_pkey == NULL) {
         ngx_log_error(NGX_LOG_ERR, cycle->log, 0,
-            "xrootd: pelican advertise disabled — cannot load EC key \"%s\"",
+            "brix: pelican advertise disabled — cannot load EC key \"%s\"",
             conf->cache_advertise_key.data);
         return;
     }
@@ -513,7 +513,7 @@ brix_cache_pelican_schedule_advertise(ngx_cycle_t *cycle,
     ngx_add_timer(ev, 2000);
 
     ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
-        "xrootd: pelican cache advertise started — federation=%s interval=%Mms "
+        "brix: pelican cache advertise started — federation=%s interval=%Mms "
         "data-url=%V", conf->cache_origin_host.data,
         conf->cache_advertise_interval, &conf->cache_data_url);
 }

@@ -138,7 +138,7 @@ brix_fs_walk_dir(ngx_log_t *log, const char *dir,
     dp = opendir(dir);
     if (dp == NULL) {
         ngx_log_error(NGX_LOG_WARN, log, errno,
-                      "xrootd: cannot open directory \"%s\"", dir);
+                      "brix: cannot open directory \"%s\"", dir);
         return NGX_ERROR;
     }
 
@@ -168,7 +168,7 @@ brix_fs_walk_dir(ngx_log_t *log, const char *dir,
         if (lstat(child, &st) != 0) {
             if (errno != ENOENT) {
                 ngx_log_error(NGX_LOG_WARN, log, errno,
-                              "xrootd: lstat failed \"%s\"", child);
+                              "brix: lstat failed \"%s\"", child);
                 rc = NGX_ERROR;
             }
             continue;
@@ -275,7 +275,7 @@ brix_fs_remove_tree_confined(ngx_log_t *log, const char *root_canon,
     rootfd = brix_beneath_open_root(root_canon);
     if (rootfd < 0) {
         ngx_log_error(NGX_LOG_ERR, log, errno,
-                      "xrootd: remove-tree cannot open root for \"%s\"", path);
+                      "brix: remove-tree cannot open root for \"%s\"", path);
         return NGX_ERROR;
     }
     path_rel = brix_beneath_strip_root(root_canon, path);
@@ -296,7 +296,7 @@ brix_fs_remove_tree_confined(ngx_log_t *log, const char *root_canon,
             return NGX_OK;
         }
         ngx_log_error(NGX_LOG_ERR, log, errno,
-                      "xrootd: remove-tree opendir failed \"%s\"", path);
+                      "brix: remove-tree opendir failed \"%s\"", path);
         return NGX_ERROR;
     }
 
@@ -333,7 +333,7 @@ brix_fs_remove_tree_confined(ngx_log_t *log, const char *root_canon,
                 continue;
             }
             ngx_log_error(NGX_LOG_ERR, log, errno,
-                          "xrootd: remove-tree lstat failed \"%s\"", child);
+                          "brix: remove-tree lstat failed \"%s\"", child);
             rc = NGX_ERROR;
             break;
         }
@@ -348,7 +348,7 @@ brix_fs_remove_tree_confined(ngx_log_t *log, const char *root_canon,
         } else {
             if (brix_unlink_beneath(rootfd, child_rel, 0) != 0) {
                 ngx_log_error(NGX_LOG_ERR, log, errno,
-                              "xrootd: remove-tree unlink failed \"%s\"", child);
+                              "brix: remove-tree unlink failed \"%s\"", child);
                 rc = NGX_ERROR;
                 break;
             }
@@ -361,7 +361,7 @@ brix_fs_remove_tree_confined(ngx_log_t *log, const char *root_canon,
         && brix_unlink_beneath(rootfd, path_rel, 1) != 0)
     {
         ngx_log_error(NGX_LOG_ERR, log, errno,
-                      "xrootd: remove-tree rmdir failed \"%s\"", path);
+                      "brix: remove-tree rmdir failed \"%s\"", path);
         rc = NGX_ERROR;
     }
 

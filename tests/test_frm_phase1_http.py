@@ -167,7 +167,7 @@ def test_metrics_exposes_frm_families(srv):
 
 def _propfind_locality(path):
     body = (b'<?xml version="1.0"?>'
-            b'<D:propfind xmlns:D="DAV:" xmlns:xrd="http://xrootd.org/2010/ns/dav">'
+            b'<D:propfind xmlns:D="DAV:" xmlns:xrd="http://brix.org/2010/ns/dav">'
             b'<D:prop><xrd:locality/></D:prop></D:propfind>')
     st, _h, resp = _http("PROPFIND", path, body=body,
                          headers={"Depth": "0",

@@ -101,7 +101,7 @@ propfind_walk(ngx_http_request_t *r,
 
         if (*entry_count >= max_entries) {
             ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-                          "xrootd: PROPFIND Depth:infinity capped at %ui entries "
+                          "brix: PROPFIND Depth:infinity capped at %ui entries "
                           "for \"%s\"", max_entries, dir_path);
             break;
         }

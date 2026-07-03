@@ -35,7 +35,7 @@ result of writes):
   * two open-write handles to different files in ONE session -> both correct
 
 The framing is copied from test_conf_truncate_sync.py / test_conf_openflags.py
-and pinned against /tmp/xrootd-src/src/XProtocol/XProtocol.hh:
+and pinned against /tmp/brix-src/src/XProtocol/XProtocol.hh:
   ClientWriteRequest = streamid[2] requestid[2] fhandle[4] offset[8]
     pathid[1] reserved[3] dlen[4] then `dlen` data bytes  (XProtocol.hh:845),
   do_Write in XrdXrootd/XrdXrootdXeq.cc.

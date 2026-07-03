@@ -34,7 +34,7 @@ ngx_stream_brix_send(ngx_event_t *wev)
 
     if (wev->timedout) {
         ngx_log_error(NGX_LOG_INFO, c->log, NGX_ETIMEDOUT,
-                      "xrootd: write timed out");
+                      "brix: write timed out");
         /* Phase 39: the response-drain deadline fired — the consumer made no
          * progress for brix_send_timeout (slow / half-open reader).  Attribute
          * it and tear down via the single disconnect funnel. */
@@ -83,7 +83,7 @@ ngx_stream_brix_send(ngx_event_t *wev)
     ctx->state = XRD_ST_REQ_HEADER;
     ctx->hdr_pos = 0;
     ngx_log_debug(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                  "xrootd: send_done avail=%d ready=%d active=%d",
+                  "brix: send_done avail=%d ready=%d active=%d",
                   c->read->available, (int) c->read->ready,
                   (int) c->read->active);
 

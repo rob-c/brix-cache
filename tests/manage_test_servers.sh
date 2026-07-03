@@ -34,7 +34,7 @@ REF_BIN="${REF_BIN:-xrootd}"
 REF_DIR="${REF_DIR:-$TEST_ROOT/ref}"
 REF_CFG="${REF_CFG:-${REF_DIR}/conformance.cfg}"
 REF_LOG="${REF_LOG:-${REF_DIR}/conformance.log}"
-REF_PID_FILE="${REF_PID_FILE:-${REF_DIR}/run-conf/xrootd.pid}"
+REF_PID_FILE="${REF_PID_FILE:-${REF_DIR}/run-conf/brix.pid}"
 REF_PORT="${REF_PORT:-11098}"
 
 DATA_DIR="${DATA_DIR:-$TEST_ROOT/data}"

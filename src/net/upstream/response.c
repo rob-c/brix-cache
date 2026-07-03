@@ -55,7 +55,7 @@ brix_upstream_forward_response(brix_upstream_t *up)
 
             ngx_memcpy(&port_be, body, sizeof(port_be));
             ngx_log_error(NGX_LOG_INFO, c->log, 0,
-                          "xrootd: upstream redirect to %.*s:%u",
+                          "brix: upstream redirect to %.*s:%u",
                           (int) (dlen - 4), body + 4, ntohl(port_be));
         }
 
@@ -72,7 +72,7 @@ brix_upstream_forward_response(brix_upstream_t *up)
                                             BRIX_UP_WAIT_MAX);
 
         ngx_log_error(NGX_LOG_INFO, c->log, 0,
-                      "xrootd: upstream kXR_wait %u s; scheduling retry",
+                      "brix: upstream kXR_wait %u s; scheduling retry",
                       secs);
 
         up->rhdr_pos = 0;
@@ -100,7 +100,7 @@ brix_upstream_forward_response(brix_upstream_t *up)
 
     case kXR_waitresp:
         ngx_log_error(NGX_LOG_INFO, c->log, 0,
-                      "xrootd: upstream kXR_waitresp; forwarding to client");
+                      "brix: upstream kXR_waitresp; forwarding to client");
 
         up->state = XRD_UP_ASYNC;
         up->rhdr_pos = 0;
@@ -137,7 +137,7 @@ brix_upstream_forward_response(brix_upstream_t *up)
         }
 
         ngx_log_error(NGX_LOG_INFO, c->log, 0,
-                      "xrootd: upstream ok (dlen=%u)", dlen);
+                      "brix: upstream ok (dlen=%u)", dlen);
 
         ctx->state = XRD_ST_REQ_HEADER;
         brix_upstream_cleanup(up);
@@ -169,7 +169,7 @@ brix_upstream_forward_response(brix_upstream_t *up)
         }
 
         ngx_log_error(NGX_LOG_INFO, c->log, 0,
-                      "xrootd: upstream error %d: %s", (int) errcode, msg);
+                      "brix: upstream error %d: %s", (int) errcode, msg);
 
         ctx->state = XRD_ST_REQ_HEADER;
         brix_upstream_cleanup(up);
@@ -180,7 +180,7 @@ brix_upstream_forward_response(brix_upstream_t *up)
 
     default:
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                      "xrootd: upstream unexpected status %d", (int) status);
+                      "brix: upstream unexpected status %d", (int) status);
         brix_upstream_abort(up, "unexpected status from upstream");
         return;
     }

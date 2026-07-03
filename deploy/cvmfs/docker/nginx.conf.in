@@ -96,7 +96,7 @@ http {
     # ---- :3129  operator dashboard (firewall this port in production) -----
     server {
         listen 3129;
-        location /xrootd/ {
+        location /brix/ {
             brix_dashboard on;
             brix_dashboard_password "@DASH_PASSWORD@";
 
@@ -110,7 +110,7 @@ http {
             # realpath() resolves at config load and the workers can read it.
             brix_dashboard_browse_root /var/cache/cvmfs;
         }
-        location = / { return 302 /xrootd/; }
+        location = / { return 302 /brix/; }
     }
 
     # ---- :3130  Prometheus scrape + liveness ------------------------------

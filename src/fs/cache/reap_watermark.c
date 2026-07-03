@@ -38,7 +38,7 @@ brix_cache_watermark_purge(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log)
     if (brix_cache_fs_usage_sampled((char *) phys_root, 1000, &usage) != NGX_OK)
     {
         ngx_log_error(NGX_LOG_WARN, log, errno,
-                      "xrootd: watermark reaper could not stat cache root \"%s\"",
+                      "brix: watermark reaper could not stat cache root \"%s\"",
                       phys_root);
         return 0;
     }
@@ -67,7 +67,7 @@ brix_cache_watermark_purge(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log)
     if (evicted_files > 0) {
         brix_metric_cache_watermark_purge(evicted_files, evicted_bytes);
         ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                      "xrootd: watermark reaper purged %ui file(s), %uL bytes "
+                      "brix: watermark reaper purged %ui file(s), %uL bytes "
                       "from \"%s\" (low=0.%06ui)",
                       evicted_files, (uint64_t) evicted_bytes,
                       phys_root, conf->cache_low_watermark);

@@ -227,7 +227,7 @@ brix_conf_set_cache_max_file_size(ngx_conf_t *cf, ngx_command_t *cmd,
     xcf->cache_max_file_size = bytes;
 
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-        "xrootd: cache admission limit: %llu bytes",
+        "brix: cache admission limit: %llu bytes",
         (unsigned long long) bytes);
 
     return NGX_CONF_OK;
@@ -273,7 +273,7 @@ brix_conf_set_cache_include_regex(ngx_conf_t *cf, ngx_command_t *cmd,
     xcf->cache_include_regex_set      = 1;
 
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-        "xrootd: cache include regex: \"%V\"", &value[1]);
+        "brix: cache include regex: \"%V\"", &value[1]);
 
     return NGX_CONF_OK;
 }
@@ -309,7 +309,7 @@ brix_conf_set_cache_verify(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-        "xrootd: cache checksum-on-fill: %V", &value[1]);
+        "brix: cache checksum-on-fill: %V", &value[1]);
     return NGX_CONF_OK;
 }
 
@@ -348,7 +348,7 @@ brix_conf_set_cache_verify_digest(ngx_conf_t *cf, ngx_command_t *cmd,
     }
 
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-        "xrootd: cache verify preferred digest: %s", norm);
+        "brix: cache verify preferred digest: %s", norm);
     return NGX_CONF_OK;
 }
 
@@ -417,7 +417,7 @@ brix_conf_set_wt_enable(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     xcf->wt_enable = flag;
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-        "xrootd: write-through %s", (flag ? "on" : "off"));
+        "brix: write-through %s", (flag ? "on" : "off"));
     return NGX_CONF_OK;
 }
 
@@ -446,7 +446,7 @@ brix_conf_set_wt_mode(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-        "xrootd: write-through mode: %s", (xcf->wt_mode == BRIX_WT_MODE_SYNC) ? "sync" : "async");
+        "brix: write-through mode: %s", (xcf->wt_mode == BRIX_WT_MODE_SYNC) ? "sync" : "async");
     return NGX_CONF_OK;
 }
 
@@ -523,7 +523,7 @@ brix_conf_set_wt_origin(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     xcf->wt_origin_port = (uint16_t) pnum;
 
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-        "xrootd: write-through origin: %s:%d",
+        "brix: write-through origin: %s:%d",
         (char *) xcf->wt_origin_host.data, (int) xcf->wt_origin_port);
 
     return NGX_CONF_OK;

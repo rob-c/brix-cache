@@ -298,7 +298,7 @@ brix_uring_eventfd_handler(ngx_event_t *ev)
             return;
         }
         ngx_log_error(NGX_LOG_ALERT, evc->log, ngx_errno,
-                      "xrootd: io_uring eventfd read() failed");
+                      "brix: io_uring eventfd read() failed");
         return;
     }
 
@@ -425,7 +425,7 @@ brix_uring_init_fail(brix_uring_t *u, ngx_cycle_t *cycle, ngx_uint_t mode_on,
     ngx_uint_t level = mode_on ? NGX_LOG_EMERG : NGX_LOG_NOTICE;
 
     ngx_log_error(level, cycle->log, ngx_errno,
-        "xrootd: io_uring bring-up failed at %s%s", what,
+        "brix: io_uring bring-up failed at %s%s", what,
         mode_on
             ? " — \"brix_io_uring on\" requires it; this worker refuses to run"
             : "; falling back to the thread pool");
@@ -500,7 +500,7 @@ brix_uring_init_worker(ngx_cycle_t *cycle)
      * already passed it at config time but re-checking is cheap + memoized. */
     if (!mode_on && !brix_uring_runtime_available()) {
         ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
-            "xrootd: io_uring unavailable on this host; using the thread pool");
+            "brix: io_uring unavailable on this host; using the thread pool");
         return NGX_OK;
     }
 
@@ -553,7 +553,7 @@ brix_uring_init_worker(ngx_cycle_t *cycle)
             u->restrict_ops = 1;
         } else {
             ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
-                "xrootd: io_uring_register_restrictions unavailable "
+                "brix: io_uring_register_restrictions unavailable "
                 "(kernel < 5.10?); ring runs unrestricted — containment still "
                 "holds via the unprivileged worker + confined fd");
         }
@@ -615,7 +615,7 @@ brix_uring_init_worker(ngx_cycle_t *cycle)
 
     u->enabled = 1;
     ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
-        "xrootd: io_uring disk-I/O backend active (queue_depth=%ui%s)",
+        "brix: io_uring disk-I/O backend active (queue_depth=%ui%s)",
         (ngx_uint_t) u->queue_depth,
         u->restrict_ops ? ", restricted" : "");
 

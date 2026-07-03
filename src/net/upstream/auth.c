@@ -50,7 +50,7 @@ brix_upstream_send_token_auth(brix_upstream_t *up,
 
     if (brix_token_read_file(&conf->upstream_token_file, token_buf,
                                sizeof(token_buf), &token_len, up->conn->log,
-                               "xrootd: upstream") != NGX_OK)
+                               "brix: upstream") != NGX_OK)
     {
         return NGX_ERROR;
     }
@@ -102,7 +102,7 @@ brix_upstream_send_token_auth(brix_upstream_t *up,
     up->resp_body_pos = 0;
 
     ngx_log_debug2(NGX_LOG_DEBUG_STREAM, up->conn->log, 0,
-                   "xrootd: upstream sending ztn token auth (%uz bytes); "
+                   "brix: upstream sending ztn token auth (%uz bytes); "
                    "frame_len=%uz",
                    token_len, frame_len);
 

@@ -354,7 +354,7 @@ brix_handle_readv(brix_ctx_t *ctx, ngx_connection_t *c)
             brix_task_bind(task, brix_readv_aio_thread, brix_readv_aio_done);
 
             (void) brix_aio_post_task(ctx, c, rconf->common.thread_pool, task,
-                                        "xrootd: thread_task_post failed, falling back to sync readv",
+                                        "brix: thread_task_post failed, falling back to sync readv",
                                         &posted);
             if (posted) {
                 return NGX_OK;

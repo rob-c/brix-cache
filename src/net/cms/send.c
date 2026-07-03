@@ -231,13 +231,13 @@ ngx_brix_cms_send_load(ngx_brix_cms_ctx_t *ctx)
     uint32_t  free_mb;
 
     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, ctx->cycle->log, 0,
-                   "xrootd: send_load: conn=%p", ctx->connection);
+                   "brix: send_load: conn=%p", ctx->connection);
 
     free_mb = 0;
     (void) ngx_brix_cms_stat_space(ctx->conf, NULL, &free_mb, NULL);
 
     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, ctx->cycle->log, 0,
-                   "xrootd: send_load: free_mb=%uD", free_mb);
+                   "brix: send_load: free_mb=%uD", free_mb);
 
     if (ctx->conf->manager_mode) {
         uint32_t agg_free = 0, agg_util = 0;

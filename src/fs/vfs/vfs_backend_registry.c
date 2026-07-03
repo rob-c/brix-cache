@@ -125,7 +125,7 @@ brix_vfs_backend_build_source(brix_vfs_backend_entry_t *e, ngx_log_t *log)
                                          (void *) e->root_canon, &err);
         if (inst == NULL) {
             ngx_log_error(NGX_LOG_ERR, log, err,
-                "xrootd: posix source init failed for export \"%s\"",
+                "brix: posix source init failed for export \"%s\"",
                 e->root_canon);
         }
         return inst;
@@ -143,11 +143,11 @@ brix_vfs_backend_build_source(brix_vfs_backend_entry_t *e, ngx_log_t *log)
                  log);
         if (inst == NULL) {
             ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
-                "xrootd: remote root:// backend init failed for export \"%s\"",
+                "brix: remote root:// backend init failed for export \"%s\"",
                 e->root_canon);
         } else {
             ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                "xrootd: remote root:// storage backend ready at \"%s\"",
+                "brix: remote root:// storage backend ready at \"%s\"",
                 e->root_canon);
         }
         return inst;
@@ -170,11 +170,11 @@ brix_vfs_backend_build_source(brix_vfs_backend_entry_t *e, ngx_log_t *log)
                                          &conf, &sderr);
         if (inst == NULL) {
             ngx_log_error(NGX_LOG_ERR, log, sderr,
-                "xrootd: %s backend init failed for export \"%s\" (pool=%s)",
+                "brix: %s backend init failed for export \"%s\" (pool=%s)",
                 e->backend, e->root_canon, e->ceph_pool);
         } else {
             ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                "xrootd: %s storage backend ready at \"%s\" (pool=%s)",
+                "brix: %s storage backend ready at \"%s\" (pool=%s)",
                 e->backend, e->root_canon, e->ceph_pool);
         }
         return inst;
@@ -196,12 +196,12 @@ brix_vfs_backend_build_source(brix_vfs_backend_entry_t *e, ngx_log_t *log)
                                          &conf, &sderr);
         if (inst == NULL) {
             ngx_log_error(NGX_LOG_ERR, log, sderr,
-                "xrootd: cephfsro backend init failed for export \"%s\" "
+                "brix: cephfsro backend init failed for export \"%s\" "
                 "(meta=%s data=%s)", e->root_canon, e->ceph_pool,
                 e->ceph_data_pool);
         } else {
             ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                "xrootd: cephfsro (read-only CephFS) backend ready at \"%s\" "
+                "brix: cephfsro (read-only CephFS) backend ready at \"%s\" "
                 "(meta=%s data=%s)", e->root_canon, e->ceph_pool,
                 e->ceph_data_pool);
         }
@@ -217,11 +217,11 @@ brix_vfs_backend_build_source(brix_vfs_backend_entry_t *e, ngx_log_t *log)
             e->origin_path, log);
         if (inst == NULL) {
             ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
-                "xrootd: tape (frm) backend init failed for export \"%s\"",
+                "brix: tape (frm) backend init failed for export \"%s\"",
                 e->root_canon);
         } else {
             ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                "xrootd: nearline (tape) storage backend ready at \"%s\" "
+                "brix: nearline (tape) storage backend ready at \"%s\" "
                 "(adapter=%s base=%s)", e->root_canon,
                 (e->origin_host[0] != '\0') ? e->origin_host : "stub",
                 e->origin_path);
@@ -259,14 +259,14 @@ brix_vfs_backend_build_source(brix_vfs_backend_entry_t *e, ngx_log_t *log)
         inst = brix_sd_http_create(&cfg, log);
         if (inst == NULL) {
             ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
-                "xrootd: http backend init failed for export \"%s\"",
+                "brix: http backend init failed for export \"%s\"",
                 e->root_canon);
         } else {
             if (e->has_http_ranks) {
                 sd_http_set_ranks(inst, e->http_ranks, 8);   /* T19 geo/static */
             }
             ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                "xrootd: http storage backend ready at \"%s\"", e->root_canon);
+                "brix: http storage backend ready at \"%s\"", e->root_canon);
         }
         return inst;
     }
@@ -302,11 +302,11 @@ brix_vfs_backend_build_source(brix_vfs_backend_entry_t *e, ngx_log_t *log)
         inst = brix_sd_remote_create(&cfg, log);
         if (inst == NULL) {
             ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
-                "xrootd: s3 backend init failed for export \"%s\" (bucket=%s)",
+                "brix: s3 backend init failed for export \"%s\" (bucket=%s)",
                 e->root_canon, e->origin_path);
         } else {
             ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                "xrootd: s3 storage backend ready at \"%s\" (host=%s bucket=%s)",
+                "brix: s3 storage backend ready at \"%s\" (host=%s bucket=%s)",
                 e->root_canon, e->origin_host, e->origin_path);
         }
         return inst;
@@ -325,11 +325,11 @@ brix_vfs_backend_build_source(brix_vfs_backend_entry_t *e, ngx_log_t *log)
                                          &conf, &sderr);
         if (inst == NULL) {
             ngx_log_error(NGX_LOG_ERR, log, sderr,
-                "xrootd: pblock backend init failed for export \"%s\"",
+                "brix: pblock backend init failed for export \"%s\"",
                 e->root_canon);
         } else {
             ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                "xrootd: pblock storage backend ready at \"%s\" "
+                "brix: pblock storage backend ready at \"%s\" "
                 "(block_size=%uz)", e->root_canon, (size_t) e->block_size);
         }
         return inst;
@@ -381,12 +381,12 @@ brix_vfs_backend_entry_build(brix_vfs_backend_entry_t *e, ngx_log_t *log)
 
         if (dec != NULL) {
             ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                "xrootd: write-back stage decorator composed over \"%s\"",
+                "brix: write-back stage decorator composed over \"%s\"",
                 e->root_canon);
             top = dec;
         } else {
             ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
-                "xrootd: stage shim init failed for \"%s\" - source direct",
+                "brix: stage shim init failed for \"%s\" - source direct",
                 e->root_canon);
         }
     }
@@ -400,7 +400,7 @@ brix_vfs_backend_entry_build(brix_vfs_backend_entry_t *e, ngx_log_t *log)
 
         if (dec != NULL) {
             ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                "xrootd: write-stage tier (%s) composed over \"%s\"",
+                "brix: write-stage tier (%s) composed over \"%s\"",
                 e->stage_tier.driver, e->root_canon);
             top = dec;
         }
@@ -418,7 +418,7 @@ brix_vfs_backend_entry_build(brix_vfs_backend_entry_t *e, ngx_log_t *log)
 
         if (dec != NULL) {
             ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                "xrootd: read-cache tier (%s) composed over \"%s\"",
+                "brix: read-cache tier (%s) composed over \"%s\"",
                 e->cache_tier.driver, e->root_canon);
             top = dec;
         }

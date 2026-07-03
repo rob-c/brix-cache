@@ -107,7 +107,7 @@ brix_conf_set_manager_map(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-        "xrootd: manager_map configured: prefix=%s backend=%s:%d",
+        "brix: manager_map configured: prefix=%s backend=%s:%d",
         (char *) entry->prefix.data, (char *) entry->host.data, (int) entry->port);
 
     return NGX_CONF_OK;

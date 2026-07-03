@@ -22,13 +22,13 @@ differs from stock -- is treated as a BUG IN OUR SERVER, and the assertion is
 written to fail (no xfail/skip to paper over a real diff).
 
 Wire references (consulted, not modified):
-  /tmp/xrootd-src/src/XProtocol/XProtocol.hh
+  /tmp/brix-src/src/XProtocol/XProtocol.hh
       ClientPgReadRequest / ClientPgWriteRequest
       ServerResponseBody_Status (kXR_status)  + ServerResponseBody_pgRead
       ServerResponseBody_pgWrite + ServerResponseBody_pgWrCSE
       kXR_pgPageSZ=4096  kXR_pgUnitSZ=4100  kXR_pgRetry=0x01
-  /tmp/xrootd-src/src/XrdXrootd/XrdXrootdXeqPgrw.cc  do_PgRIO / do_PgWIO
-  /tmp/xrootd-src/src/XrdXrootd/XrdXrootdResponse.cc srsComplete (status framing)
+  /tmp/brix-src/src/XrdXrootd/XrdXrootdXeqPgrw.cc  do_PgRIO / do_PgWIO
+  /tmp/brix-src/src/XrdXrootd/XrdXrootdResponse.cc srsComplete (status framing)
 
 The status-response crc32c body field covers streamID..info (NOT the page
 data); the per-page CRC32c values are what this suite verifies for data

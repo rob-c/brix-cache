@@ -90,7 +90,7 @@ brix_handle_query(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                   "xrootd: kXR_query unsupported infotype=%d",
+                   "brix: kXR_query unsupported infotype=%d",
                    (int) infotype);
     return brix_send_error(ctx, c, kXR_Unsupported,
                              "query type not supported");

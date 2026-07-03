@@ -18,7 +18,7 @@ brix_prefetch_fd_range(ngx_log_t *log, int fd, off_t offset, size_t length)
     rc = posix_fadvise(fd, offset, (off_t) length, POSIX_FADV_WILLNEED);
     if (rc != 0) {
         ngx_log_debug1(NGX_LOG_DEBUG_STREAM, log, rc,
-                       "xrootd: POSIX_FADV_WILLNEED ignored: %s",
+                       "brix: POSIX_FADV_WILLNEED ignored: %s",
                        strerror(rc));
     }
 #else

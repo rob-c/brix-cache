@@ -119,7 +119,7 @@ brix_handle_write(brix_ctx_t *ctx, ngx_connection_t *c)
 	    brix_wrts_is_replay(&ctx->files[idx], offset, (uint32_t) wlen))
 	{
 		ngx_log_debug(NGX_LOG_DEBUG_STREAM, c->log, 0,
-		    "xrootd: write recovery replay skip offset=%L len=%uz",
+		    "brix: write recovery replay skip offset=%L len=%uz",
 		    offset, wlen);
 		BRIX_OP_OK(ctx, BRIX_OP_WRITE);
 		return brix_send_ok(ctx, c, NULL, 0);
@@ -131,7 +131,7 @@ brix_handle_write(brix_ctx_t *ctx, ngx_connection_t *c)
 	rc = brix_try_post_write_aio(ctx, c, idx, (off_t) offset,
 								   ctx->payload ? ctx->payload : (u_char *) "",
 								   wlen, offset, 0, ctx->payload, NULL, 0,
-								   "xrootd: thread_task_post failed, falling back to sync write",
+								   "brix: thread_task_post failed, falling back to sync write",
 								   &posted);
 	if (rc != NGX_OK) {
 		return rc;

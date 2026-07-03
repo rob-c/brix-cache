@@ -222,13 +222,13 @@ sd_http_log_switch(sd_http_inst_state *is, sd_http_endpoint *ep)
     pref = sd_http_preferred(is);
     if (ep == pref) {
         ngx_log_error(NGX_LOG_NOTICE, is->log, 0,
-            "xrootd: http origin switched to %s:%d (endpoint %d, rank %d, "
+            "brix: http origin switched to %s:%d (endpoint %d, rank %d, "
             "fail_score %d; the policy-preferred endpoint), was %s",
             ep->host, ep->port, idx, sd_http_ep_rank(ep), ep->fail_score,
             prev);
     } else {
         ngx_log_error(NGX_LOG_NOTICE, is->log, 0,
-            "xrootd: http origin switched to %s:%d (endpoint %d, rank %d, "
+            "brix: http origin switched to %s:%d (endpoint %d, rank %d, "
             "fail_score %d), was %s; policy-preferred %s:%d SKIPPED "
             "(rank %d, fail_score %d - benched by recent transport failures, "
             "recovers via half-open probing as its score decays)",
@@ -268,7 +268,7 @@ sd_http_request_fo(sd_http_inst_state *is, const char *method, const char *key,
         if (pref->fail_score > 0) {
             if (pref != ep && is->log != NULL) {
                 ngx_log_error(NGX_LOG_INFO, is->log, 0,
-                    "xrootd: http origin half-open probe: re-trying benched "
+                    "brix: http origin half-open probe: re-trying benched "
                     "preferred %s:%d (rank %d, fail_score %d) instead of "
                     "%s:%d for %s \"%s\"",
                     pref->host, pref->port, sd_http_ep_rank(pref),
@@ -308,7 +308,7 @@ sd_http_request_fo(sd_http_inst_state *is, const char *method, const char *key,
          * a later "origin switched" line — record it with the curl detail. */
         if (is->log != NULL) {
             ngx_log_error(NGX_LOG_WARN, is->log, 0,
-                "xrootd: http origin %s:%d failed %s \"%s\": %s "
+                "brix: http origin %s:%d failed %s \"%s\": %s "
                 "(attempt %d/2, rank %d, fail_score %d -> %d)",
                 ep->host, ep->port, method,
                 sd_http_log_key(key, klog, sizeof(klog)),
@@ -339,7 +339,7 @@ sd_http_request_fo(sd_http_inst_state *is, const char *method, const char *key,
         }
         if (is->log != NULL) {
             ngx_log_error(NGX_LOG_NOTICE, is->log, 0,
-                "xrootd: http origin failover for %s \"%s\": %s:%d -> %s:%d "
+                "brix: http origin failover for %s \"%s\": %s:%d -> %s:%d "
                 "(alternate rank %d, fail_score %d)",
                 method, sd_http_log_key(key, klog, sizeof(klog)),
                 first->host, first->port, ep->host, ep->port,
@@ -348,7 +348,7 @@ sd_http_request_fo(sd_http_inst_state *is, const char *method, const char *key,
     }
     if (is->log != NULL) {
         ngx_log_error(NGX_LOG_ERR, is->log, 0,
-            "xrootd: http origin request exhausted all endpoints (%d tried) "
+            "brix: http origin request exhausted all endpoints (%d tried) "
             "for %s \"%s\" - reporting EIO to the fill layer",
             (is->n_eps < 2) ? 1 : 2, method,
             sd_http_log_key(key, klog, sizeof(klog)));

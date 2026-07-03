@@ -39,7 +39,7 @@ head -c 480000 /dev/urandom > "$PFX/realtape/f.bin"; SHA=$(sha256sum "$PFX/realt
 sleep 1
 echo "== PROPFIND xrd:locality of the offline object → NEARLINE (residency seam, no recall) =="
 loc=$(curl -s -X PROPFIND -H 'Depth: 0' \
-  --data '<D:propfind xmlns:D="DAV:" xmlns:xrd="http://xrootd.org/2010/ns/dav"><D:prop><xrd:locality/></D:prop></D:propfind>' \
+  --data '<D:propfind xmlns:D="DAV:" xmlns:xrd="http://brix.org/2010/ns/dav"><D:prop><xrd:locality/></D:prop></D:propfind>' \
   "$U/f.bin")
 echo "$loc" | grep -q "<xrd:locality>NEARLINE</xrd:locality>" \
   && ok "PROPFIND locality NEARLINE (from the tape backend via the VFS seam, no FRM xattr)" \

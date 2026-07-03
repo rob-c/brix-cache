@@ -203,7 +203,7 @@ brix_gsi_send_cert(brix_ctx_t *ctx, ngx_connection_t *c)
      * kOptsFwdPxy (forward) vs kOptsDlgPxy/kOptsSigReq (sign-request). */
     ctx->gsi_clnt_opts = gsi_certreq_clnt_opts(ctx->payload, ctx->cur_dlen);
     ngx_log_error(NGX_LOG_INFO, c->log, 0,
-                  "xrootd: GSI client delegation opts=0x%02xd (fwd=%d sign=%d dlg=%d)",
+                  "brix: GSI client delegation opts=0x%02xd (fwd=%d sign=%d dlg=%d)",
                   (unsigned) ctx->gsi_clnt_opts,
                   (ctx->gsi_clnt_opts & 0x2) ? 1 : 0,
                   (ctx->gsi_clnt_opts & 0x4) ? 1 : 0,
@@ -273,7 +273,7 @@ brix_gsi_send_cert(brix_ctx_t *ctx, ngx_connection_t *c)
                                                        puk_len, sig, cap) : 0;
         if (pub_len == 0) {
             ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                          "xrootd: GSI signed-DH: failed to sign DH public");
+                          "brix: GSI signed-DH: failed to sign DH public");
             return NGX_ERROR;
         }
         pub_data = sig;
@@ -354,7 +354,7 @@ brix_gsi_send_cert(brix_ctx_t *ctx, ngx_connection_t *c)
     }
 
     ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                   "xrootd: kXGS_cert signed rtag=%uz bytes main_len=%uz",
+                   "brix: kXGS_cert signed rtag=%uz bytes main_len=%uz",
                    signed_rtag_len, main_len);
 
     body_len = 4 + 4
@@ -420,7 +420,7 @@ brix_gsi_send_cert(brix_ctx_t *ctx, ngx_connection_t *c)
     p += 4;
 
     ngx_log_debug3(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                   "xrootd: kXGS_cert sent cert_len=%uz puk_len=%uz main_len=%uz",
+                   "brix: kXGS_cert sent cert_len=%uz puk_len=%uz main_len=%uz",
                    cert_len, puk_len, main_len);
 
     return brix_queue_response(ctx, c, buf, total);

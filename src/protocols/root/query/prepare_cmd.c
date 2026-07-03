@@ -66,7 +66,7 @@ brix_prepare_invoke_command(ngx_log_t *log,
     if (pid < 0) {
         ngx_free(argv);
         ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
-                      "xrootd: prepare_command fork() failed");
+                      "brix: prepare_command fork() failed");
         return NGX_ERROR;
     }
 
@@ -95,7 +95,7 @@ brix_prepare_invoke_command(ngx_log_t *log,
         waitpid(pid, &wstatus, 0);
         ngx_free(argv);
         ngx_log_error(NGX_LOG_INFO, log, 0,
-                      "xrootd: prepare_command spawned pid %P for %ui path(s)%s",
+                      "brix: prepare_command spawned pid %P for %ui path(s)%s",
                       pid, count, coloc ? " (coloc)" : "");
         return NGX_OK;
     }

@@ -106,7 +106,7 @@ brix_gsi_complete_auth(brix_ctx_t *ctx, ngx_connection_t *c,
 
         brix_sanitize_log_string(ctx->dn, dn_log, sizeof(dn_log));
         ngx_log_error(NGX_LOG_INFO, c->log, 0,
-                      "xrootd: GSI auth OK dn=\"%s\"", dn_log);
+                      "brix: GSI auth OK dn=\"%s\"", dn_log);
     }
 
     BRIX_RETURN_OK(ctx, c, BRIX_OP_AUTH, "AUTH", "-", "gsi", 0);
@@ -151,7 +151,7 @@ brix_handle_auth_inner(brix_ctx_t *ctx, ngx_connection_t *c)
                                    sizeof(safe_credtype));
 
         ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                       "xrootd: kXR_auth credtype=\"%s\" payloadlen=%d",
+                       "brix: kXR_auth credtype=\"%s\" payloadlen=%d",
                        safe_credtype, (int) ctx->cur_dlen);
 
         if (credtype[0] == 'z' && credtype[1] == 't' && credtype[2] == 'n') {
@@ -214,7 +214,7 @@ brix_handle_auth_inner(brix_ctx_t *ctx, ngx_connection_t *c)
 
         if (credtype[0] != 'g' || credtype[1] != 's' || credtype[2] != 'i') {
             ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                          "xrootd: kXR_auth unknown credtype=\"%s\"",
+                          "brix: kXR_auth unknown credtype=\"%s\"",
                           safe_credtype);
             return brix_send_error(ctx, c, kXR_NotAuthorized,
                                      "unsupported credential type");
@@ -240,14 +240,14 @@ brix_handle_auth_inner(brix_ctx_t *ctx, ngx_connection_t *c)
     gsi_step = ntohl(gsi_step);
 
     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                   "xrootd: GSI kXR_auth step=%ud", (unsigned) gsi_step);
+                   "brix: GSI kXR_auth step=%ud", (unsigned) gsi_step);
 
     if (gsi_step == (uint32_t) kXGC_certreq) {
         /* E4: admit this new handshake under the per-worker in-flight cap; shed
          * the excess with kXR_wait so a handshake flood cannot bury the loop. */
         if (!brix_gsi_inflight_admit(ctx, conf->gsi_max_inflight)) {
             ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                          "xrootd: GSI handshake shed — %i concurrent in-flight "
+                          "brix: GSI handshake shed — %i concurrent in-flight "
                           "(cap reached); asking client to retry",
                           conf->gsi_max_inflight);
             return brix_send_wait(ctx, c, 3);
@@ -268,7 +268,7 @@ brix_handle_auth_inner(brix_ctx_t *ctx, ngx_connection_t *c)
 
     if (gsi_step != (uint32_t) kXGC_cert) {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                      "xrootd: unexpected GSI step %ud", (unsigned) gsi_step);
+                      "brix: unexpected GSI step %ud", (unsigned) gsi_step);
         return brix_send_error(ctx, c, kXR_NotAuthorized,
                                  "unexpected GSI auth step");
     }
@@ -337,7 +337,7 @@ brix_handle_auth_inner(brix_ctx_t *ctx, ngx_connection_t *c)
 
     if (strlen(verify_res.dn_buf) >= sizeof(ctx->dn)) {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                      "xrootd: GSI DN too long (%uz bytes), truncating to %uz; "
+                      "brix: GSI DN too long (%uz bytes), truncating to %uz; "
                       "VO ACL rules may not match correctly",
                       strlen(verify_res.dn_buf), sizeof(ctx->dn) - 1);
     }
@@ -359,7 +359,7 @@ brix_handle_auth_inner(brix_ctx_t *ctx, ngx_connection_t *c)
 
             brix_sanitize_log_string(ctx->vo_list, vo_log, sizeof(vo_log));
             ngx_log_error(NGX_LOG_INFO, c->log, 0,
-                          "xrootd: VOMS VO membership: %s", vo_log);
+                          "brix: VOMS VO membership: %s", vo_log);
         }
     }
 
@@ -410,7 +410,7 @@ brix_handle_auth(brix_ctx_t *ctx, ngx_connection_t *c)
      * and CPU-amplification via costly GSI/OpenSSL/VOMS operations. */
     if (ctx->auth_fail_count >= BRIX_MAX_AUTH_ATTEMPTS) {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                      "xrootd: %s: auth attempt limit reached, disconnecting",
+                      "brix: %s: auth attempt limit reached, disconnecting",
                       ctx->login_user);
         return brix_send_error(ctx, c, kXR_NotAuthorized,
                                  "Too many authentication failures");

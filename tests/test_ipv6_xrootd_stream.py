@@ -17,7 +17,7 @@ What this proves:
     BRACKETED "Sr[::1]:<port>" location token, never the bare "Sr::1:<port>"
     form (GATING — proves the AF_INET6 bracket-on-emit in src/protocols/root/read/locate.c).
 
-Wire framing verified against /tmp/xrootd-src/src/XProtocol/XProtocol.hh:
+Wire framing verified against /tmp/brix-src/src/XProtocol/XProtocol.hh:
   * ClientInitHandShake — five 32-bit BE words; word4==4, word5==2012.
   * ClientProtocolRequest / ClientLoginRequest — see the handshake-wire suite.
   * ClientOpenRequest    — streamid[2] reqid[2] mode[2] options[2] optiont[2]

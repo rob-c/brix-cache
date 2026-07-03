@@ -81,7 +81,7 @@ substitute_config() {
     : "${META_CMS_PORT:=11186}"
     : "${SELF_REGISTER_PORT:=11189}"
     : "${KRB5_PRINCIPAL:=xrootd/localhost@NGINX.TEST}"
-    : "${KRB5_KEYTAB:=${TEST_ROOT}/krb5/xrootd.keytab}"
+    : "${KRB5_KEYTAB:=${TEST_ROOT}/krb5/brix.keytab}"
 
     sed -e "s|{PORT}|$NGINX_PORT|g" \
         -e "s|{ANON_PORT}|${NGINX_ANON_PORT}|g" \

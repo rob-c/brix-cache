@@ -160,7 +160,7 @@ brix_config_finalize_policy(ngx_conf_t *cf,
         != NGX_OK)
     {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd: failed to finalize brix_require_vo rules for root \"%V\"",
+            "brix: failed to finalize brix_require_vo rules for root \"%V\"",
             &xcf->common.root);
         return NGX_ERROR;
     }
@@ -169,7 +169,7 @@ brix_config_finalize_policy(ngx_conf_t *cf,
         != NGX_OK)
     {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd: failed to finalize brix_authdb rules for root \"%V\"",
+            "brix: failed to finalize brix_authdb rules for root \"%V\"",
             &xcf->common.root);
         return NGX_ERROR;
     }
@@ -178,7 +178,7 @@ brix_config_finalize_policy(ngx_conf_t *cf,
                                     xcf->group_rules) != NGX_OK)
     {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd: failed to finalize brix_inherit_parent_group rules for root \"%V\"",
+            "brix: failed to finalize brix_inherit_parent_group rules for root \"%V\"",
             &xcf->common.root);
         return NGX_ERROR;
     }

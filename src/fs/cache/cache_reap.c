@@ -152,11 +152,11 @@ reap_dir(const char *dir, time_t cutoff, dev_t dev, ngx_log_t *log,
         }
         if (reason == BRIX_CACHE_REAP_COMPLETED) {
             ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                "xrootd: cache reaped completed write-back file "
+                "brix: cache reaped completed write-back file "
                 "(flushed, reclaimed): \"%s\"", child);
         } else {
             ngx_log_error(NGX_LOG_WARN, log, 0,
-                "xrootd: cache reaped stale-dirty file (reason=%s, %uL "
+                "brix: cache reaped stale-dirty file (reason=%s, %uL "
                 "un-flushed bytes discarded): \"%s\"",
                 reason == BRIX_CACHE_REAP_INCOMPLETE ? "incomplete"
                                                        : "abandoned",

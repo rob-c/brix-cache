@@ -196,7 +196,7 @@ brix_cms_srv_handler(ngx_stream_session_t *s)
         && brix_cms_srv_conn_count() >= (ngx_uint_t) conf->max_connections)
     {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                      "xrootd: CMS server: connection from %s refused — "
+                      "brix: CMS server: connection from %s refused — "
                       "max_connections (%i) reached",
                       ctx->host, conf->max_connections);
         BRIX_RESIL_METRIC_INC(cms_cap_rejections_total);
@@ -213,7 +213,7 @@ brix_cms_srv_handler(ngx_stream_session_t *s)
            >= (ngx_uint_t) conf->max_connections_per_ip)
     {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                      "xrootd: CMS server: connection from %s refused — "
+                      "brix: CMS server: connection from %s refused — "
                       "max_connections_per_ip (%i) reached",
                       ctx->host, conf->max_connections_per_ip);
         BRIX_RESIL_METRIC_INC(cms_cap_rejections_total);
@@ -275,7 +275,7 @@ brix_cms_srv_handler(ngx_stream_session_t *s)
     }
 
     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                   "xrootd: CMS server accepted from %s", ctx->host);
+                   "brix: CMS server accepted from %s", ctx->host);
 
     brix_cms_srv_read(c->read);
 }

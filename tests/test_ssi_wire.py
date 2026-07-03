@@ -244,7 +244,7 @@ class TestSsiUnary:
 
 import shutil
 
-_BRIX_SRC = "/tmp/xrootd-src/src"
+_BRIX_SRC = "/tmp/brix-src/src"
 _SSI_CLIENT_SRC = os.path.join(os.path.dirname(__file__), "ssi_client.cc")
 
 

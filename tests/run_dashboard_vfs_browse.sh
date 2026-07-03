@@ -3,7 +3,7 @@
 #
 # Proves the explorer goes through the VFS (never raw POSIX): a posix export
 # and a PBLOCK export (logical namespace in sqlite, bytes in packed blobs)
-# both list and download identically through /xrootd/api/v1/vfs*. Plus the
+# both list and download identically through /brix/api/v1/vfs*. Plus the
 # security posture: admin-auth required, traversal rejected, feature 404s
 # where the directive is off.
 set -u
@@ -46,7 +46,7 @@ http {
     }
     server {   # dashboard WITH the VFS browser
         listen 127.0.0.1:$P_DASH;
-        location /xrootd/ {
+        location /brix/ {
             brix_dashboard on;
             brix_dashboard_password "vfsb";
             brix_dashboard_vfs_browse on;
@@ -54,7 +54,7 @@ http {
     }
     server {   # dashboard WITHOUT it (feature must 404)
         listen 127.0.0.1:$P_OFF;
-        location /xrootd/ {
+        location /brix/ {
             brix_dashboard on;
             brix_dashboard_password "vfsb";
         }
@@ -67,7 +67,7 @@ EOF
 
 TS="$(date +%s)"; H="$(printf '%s' "$TS" | openssl dgst -sha256 -hmac "vfsb" -hex | sed 's/^.*= //')"
 CK="Cookie: xrd_dashboard=${H}.${TS}"
-API="http://127.0.0.1:$P_DASH/xrootd/api/v1"
+API="http://127.0.0.1:$P_DASH/brix/api/v1"
 
 # seed the pblock export THROUGH the data plane (its namespace lives in sqlite)
 printf 'pblock payload bytes' > "$PFX/pb_src.bin"
@@ -124,7 +124,7 @@ C1="$(curl -s -o /dev/null -w '%{http_code}' "$API/vfs/files?export=$PIDX&path=/
 C2="$(curl -s -o /dev/null -w '%{http_code}' -H "$CK" \
       "$API/vfs/files?export=$PIDX&path=/../../../etc")"
 C3="$(curl -s -o /dev/null -w '%{http_code}' -H "$CK" \
-      "http://127.0.0.1:$P_OFF/xrootd/api/v1/vfs")"
+      "http://127.0.0.1:$P_OFF/brix/api/v1/vfs")"
 [ "$C1" = 401 ] && ok "unauthenticated → 401" || bad "no-auth: $C1"
 [ "$C2" = 400 ] && ok "traversal path rejected (400)" || bad "traversal: $C2"
 [ "$C3" = 404 ] && ok "feature off → 404" || bad "directive-off: $C3"

@@ -10,7 +10,7 @@ session survived intact, exactly like tests/test_readv_security.py.  The suite
 runs against the shared anon stream fleet (root://localhost:11094, auth none)
 and skips cleanly with a clear reason when that fleet is unreachable.
 
-Wire framing verified against /tmp/xrootd-src/src/XProtocol/XProtocol.hh:
+Wire framing verified against /tmp/brix-src/src/XProtocol/XProtocol.hh:
   * ClientInitHandShake  — five 32-bit BE words; only word4==4 and word5==2012
     are validated (src/protocols/root/handshake/client_hello.c).
   * ClientProtocolRequest — streamid[2] requestid[2] clientpv[4] flags[1]
@@ -33,7 +33,7 @@ from settings import NGINX_ANON_PORT, SERVER_HOST
 
 # ---------------------------------------------------------------------------
 # Wire constants (from src/protocols/root/protocol/opcodes.h + src/protocols/root/protocol/flags.h, which
-# mirror /tmp/xrootd-src/src/XProtocol/XProtocol.hh)
+# mirror /tmp/brix-src/src/XProtocol/XProtocol.hh)
 # ---------------------------------------------------------------------------
 
 ANON_HOST = SERVER_HOST

@@ -94,7 +94,7 @@ def _skip_if_http_down():
 # Raw-wire root:// helpers — connect to ("::1", port) (AF_INET6 automatically),
 # drive handshake + login, then locate / open.  Frame layouts mirror
 # tests/test_handshake_protocol_wire.py and tests/test_pgread_wire_conformance.py
-# and are verified against /tmp/xrootd-src/src/XProtocol/XProtocol.hh.
+# and are verified against /tmp/brix-src/src/XProtocol/XProtocol.hh.
 # ===========================================================================
 
 kXR_protocol = 3006
@@ -236,7 +236,7 @@ def _admin(method, uri, body=None, token=ADMIN_SECRET):
         conn.close()
 
 
-_ADMIN_BASE = "/xrootd/api/v1/admin"
+_ADMIN_BASE = "/brix/api/v1/admin"
 
 
 def _dashboard_cookie():
@@ -244,7 +244,7 @@ def _dashboard_cookie():
     Set-Cookie session value, or None if login did not set a cookie."""
     conn = _http6_conn()
     try:
-        conn.request("POST", "/xrootd/login", body="password=testpassword",
+        conn.request("POST", "/brix/login", body="password=testpassword",
                      headers={"Content-Type": "application/x-www-form-urlencoded"})
         resp = conn.getresponse()
         resp.read()
@@ -364,7 +364,7 @@ class TestAdminBracketStrip:
 # ===========================================================================
 
 class TestDashboardClusterRoundTrip:
-    """GET /xrootd/api/v1/cluster (dashboard/api.c:dashboard_fill_cluster) must
+    """GET /brix/api/v1/cluster (dashboard/api.c:dashboard_fill_cluster) must
     round-trip the registered IPv6 host in the "servers" array unmangled."""
 
     def test_cluster_json_contains_registered_ipv6_host(self):
@@ -377,7 +377,7 @@ class TestDashboardClusterRoundTrip:
         cookie = _dashboard_cookie()
         if cookie is None:
             pytest.skip("dashboard login did not set a session cookie")
-        status, data = _dashboard_get("/xrootd/api/v1/cluster", cookie)
+        status, data = _dashboard_get("/brix/api/v1/cluster", cookie)
         assert status == 200, data
         assert isinstance(data, dict), data
         servers = data.get("servers", [])
@@ -393,7 +393,7 @@ class TestDashboardClusterRoundTrip:
         """REGRESSION: the read-only cluster endpoint is auth-gated (no cookie ->
         401), so the round-trip assertion above proves an authenticated read."""
         _skip_if_http_down()
-        status, _ = _dashboard_get("/xrootd/api/v1/cluster")
+        status, _ = _dashboard_get("/brix/api/v1/cluster")
         assert status == 401
 
 

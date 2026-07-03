@@ -51,7 +51,7 @@ EEC_DN="$(openssl x509 -in "$USERCERT" -noout -subject -nameopt compat 2>/dev/nu
 printf '"%s" %s\n' "$EEC_DN" "$ME" > "$PFX/gridmap"
 
 # --- OFFICIAL xrootd GSI-only upstream ---
-cat > "$PFX/xrootd.cfg" <<EOF
+cat > "$PFX/brix.cfg" <<EOF
 xrd.port $XO
 all.export /data
 oss.localroot $PFX
@@ -60,7 +60,7 @@ sec.protocol /usr/lib64 gsi -certdir:$CADIR -cert:$SC -key:$PFX/hostkey.pem -gri
 sec.protbind * only gsi
 EOF
 fuser -k ${XO}/tcp 2>/dev/null; sleep 0.3
-xrootd -c "$PFX/xrootd.cfg" -l "$PFX/xrootd.log" -n up >/dev/null 2>&1 &
+xrootd -c "$PFX/brix.cfg" -l "$PFX/brix.log" -n up >/dev/null 2>&1 &
 echo $! > "$PFX/up.pid"
 for _ in $(seq 1 50); do ss -tln | grep -q ":$XO " && break; sleep 0.1; done
 ss -tln | grep -q ":$XO " || { echo "SKIP: official xrootd upstream did not start"; exit 0; }
@@ -82,8 +82,8 @@ for _ in $(seq 1 30); do ss -tln | grep -q ":$PP " && break; sleep 0.1; done
 export X509_USER_PROXY="$PROXY_STD" X509_CERT_DIR="$CADIR" XrdSecGSICADIR="$CADIR"
 
 # --- positive: repo delegating client -> nginx tap proxy -> OFFICIAL xrootd ---
-# xrootd -n up writes its log under the instance subdir (…/up/xrootd.log).
-UPLOG="$PFX/up/xrootd.log"
+# xrootd -n up writes its log under the instance subdir (…/up/brix.log).
+UPLOG="$PFX/up/brix.log"
 if [ -x "$OUR_XRDCP" ]; then
     : > "$UPLOG"
     XRDC_GSI_DELEGATE=1 "$OUR_XRDCP" -f "root://localhost:${PP}//data/f.bin" \

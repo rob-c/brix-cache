@@ -6,7 +6,7 @@ coexists in a single process:
 | Port | Surface |
 |---|---|
 | **3128** | `cvmfs://` site cache, forward-proxy mode (`CVMFS_HTTP_PROXY` target), CAS verify-on-fill, never-drop semantics, **bad-actor guard** active on the listener |
-| **3129** | built-in operator dashboard (`/xrootd/`) |
+| **3129** | built-in operator dashboard (`/brix/`) |
 | **3130** | Prometheus `/metrics` + `/healthz` |
 
 Cached CVMFS objects land in the posix folder **`/var/cache/cvmfs`** (a
@@ -89,7 +89,7 @@ add its hostname: `-e UPSTREAM_ALLOW="… my-stratum1.example.org"`.
 
 Then watch it work:
 
-- **Dashboard:** `http://<docker-host>:3129/xrootd/` (password above) —
+- **Dashboard:** `http://<docker-host>:3129/brix/` (password above) —
   live transfers, per-protocol counters (`cvmfs` identity), events.
 - **Prometheus:** `curl http://<docker-host>:3130/metrics | grep cvmfs_` —
   request classes, fills, verify failures, origin failovers, the

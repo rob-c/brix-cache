@@ -190,7 +190,7 @@ brix_gsi_begin_delegation(brix_ctx_t *ctx, ngx_connection_t *c,
 
     if (gsi_session_cipher(ctx, &cipher) != 0) {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                      "xrootd: GSI delegation: no session cipher captured");
+                      "brix: GSI delegation: no session cipher captured");
         return bdg_fail(&b);
     }
 
@@ -205,7 +205,7 @@ brix_gsi_begin_delegation(brix_ctx_t *ctx, ngx_connection_t *c,
     if (brix_gsi_build_pxyreq(b.leaf_pem, leaf_len, &b.reqkey,
                                 &b.req_der, &b.req_len, err, sizeof(err)) != 0) {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                      "xrootd: GSI delegation: build pxyreq failed: %s", err);
+                      "brix: GSI delegation: build pxyreq failed: %s", err);
         return bdg_fail(&b);
     }
 
@@ -213,7 +213,7 @@ brix_gsi_begin_delegation(brix_ctx_t *ctx, ngx_connection_t *c,
     b.req_pem = gsi_req_der_to_pem(b.req_der, b.req_len, &b.req_pem_len);
     if (b.req_pem == NULL) {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                      "xrootd: GSI delegation: cannot PEM-encode proxy request");
+                      "brix: GSI delegation: cannot PEM-encode proxy request");
         return bdg_fail(&b);
     }
 
@@ -231,7 +231,7 @@ brix_gsi_begin_delegation(brix_ctx_t *ctx, ngx_connection_t *c,
     }
     if (signed_rtag_len == 0 || !brix_gsi_rand(new_rtag, sizeof(new_rtag))) {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                      "xrootd: GSI delegation: cannot sign rtag (proof-of-possession)");
+                      "brix: GSI delegation: cannot sign rtag (proof-of-possession)");
         return bdg_fail(&b);
     }
 
@@ -250,7 +250,7 @@ brix_gsi_begin_delegation(brix_ctx_t *ctx, ngx_connection_t *c,
                                       &b.enc_len);
     if (b.enc == NULL) {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                      "xrootd: GSI delegation: encrypt pxyreq main failed");
+                      "brix: GSI delegation: encrypt pxyreq main failed");
         return bdg_fail(&b);
     }
 
@@ -286,7 +286,7 @@ brix_gsi_begin_delegation(brix_ctx_t *ctx, ngx_connection_t *c,
     (void) bdg_fail(&b);   /* free the rest (req_der, enc, gbufs, leaf_pem) */
 
     ngx_log_error(NGX_LOG_INFO, c->log, 0,
-                  "xrootd: GSI delegation: sent kXGS_pxyreq (awaiting signed proxy)");
+                  "brix: GSI delegation: sent kXGS_pxyreq (awaiting signed proxy)");
     return brix_queue_response(ctx, c, buf, total);
 }
 
@@ -307,28 +307,28 @@ brix_gsi_handle_sigpxy(brix_ctx_t *ctx, ngx_connection_t *c)
         || ctx->gsi_deleg_chain_pem == NULL
         || gsi_session_cipher(ctx, &cipher) != 0) {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                      "xrootd: GSI kXGC_sigpxy: not awaiting delegation");
+                      "brix: GSI kXGC_sigpxy: not awaiting delegation");
         return NGX_ERROR;
     }
 
     if (brix_gsi_find_bucket(payload, plen, (uint32_t) kXRS_main,
                                &enc, &enc_len) != 0) {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                      "xrootd: GSI kXGC_sigpxy: kXRS_main missing");
+                      "brix: GSI kXGC_sigpxy: kXRS_main missing");
         return NGX_ERROR;
     }
     plain = brix_gsi_cipher_decrypt(&cipher, ctx->gsi_sess_key, enc, enc_len,
                                       ctx->gsi_sess_use_iv, &plain_len);
     if (plain == NULL) {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                      "xrootd: GSI kXGC_sigpxy: main decrypt failed");
+                      "brix: GSI kXGC_sigpxy: main decrypt failed");
         return NGX_ERROR;
     }
 
     if (brix_gsi_find_bucket(plain, plain_len, (uint32_t) kXRS_x509,
                                &signed_pem, &signed_len) != 0) {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                      "xrootd: GSI kXGC_sigpxy: signed proxy (kXRS_x509) missing "
+                      "brix: GSI kXGC_sigpxy: signed proxy (kXRS_x509) missing "
                       "(client declined to delegate?)");
         free(plain);
         return NGX_ERROR;
@@ -346,7 +346,7 @@ brix_gsi_handle_sigpxy(brix_ctx_t *ctx, ngx_connection_t *c)
                                       ctx->gsi_deleg_chain_len, &verify_out,
                                       &verify_len, err, sizeof(err)) != 0) {
             ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                          "xrootd: GSI kXGC_sigpxy: assemble proxy failed: %s", err);
+                          "brix: GSI kXGC_sigpxy: assemble proxy failed: %s", err);
             free(plain);
             return NGX_ERROR;
         }
@@ -371,7 +371,7 @@ brix_gsi_handle_sigpxy(brix_ctx_t *ctx, ngx_connection_t *c)
             BIO_free(kb);
             free(plain);
             ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                          "xrootd: GSI kXGC_sigpxy: cannot export proxy key");
+                          "brix: GSI kXGC_sigpxy: cannot export proxy key");
             return NGX_ERROR;
         }
         kl = BIO_get_mem_data(kb, &kd);
@@ -397,7 +397,7 @@ brix_gsi_handle_sigpxy(brix_ctx_t *ctx, ngx_connection_t *c)
     free(plain);
 
     ngx_log_error(NGX_LOG_INFO, c->log, 0,
-                  "xrootd: GSI delegation: captured delegated proxy (%uz bytes) "
+                  "brix: GSI delegation: captured delegated proxy (%uz bytes) "
                   "dn=\"%s\"", ctx->gsi_deleg_proxy_len, ctx->dn);
 
     /* The request key is consumed; the captured proxy credential remains for the

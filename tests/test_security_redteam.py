@@ -81,7 +81,7 @@ http {{
   uwsgi_temp_path {prefix}/tmp;
   scgi_temp_path {prefix}/tmp;
   server {{ listen 28310;
-    location /xrootd/api/v1/admin/ {{
+    location /brix/api/v1/admin/ {{
       brix_dashboard on;
       brix_admin_secret {secret};
       {extra}

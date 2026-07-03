@@ -206,7 +206,7 @@ brix_cache_open_fill_offload(brix_ctx_t *ctx, ngx_connection_t *c,
 
     if (pool == NULL) {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
-            "xrootd: cache miss on \"%s\" needs an async thread pool to fill a "
+            "brix: cache miss on \"%s\" needs an async thread pool to fill a "
             "remote tier; none configured - serving inline (may stall)",
             clean_path);
         return NGX_DECLINED;

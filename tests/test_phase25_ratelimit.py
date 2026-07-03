@@ -11,7 +11,7 @@ Coverage:
      client is bucketed by IP; bandwidth is charged (dashboard bytes_total).
   4. Stream functional: a per-IP kXR_read rate returns kXR_wait once the burst
      is spent; kXR_stat is never throttled.
-  5. Dashboard: GET /xrootd/api/v1/ratelimit reports per-principal throttle
+  5. Dashboard: GET /brix/api/v1/ratelimit reports per-principal throttle
      counts, sorted most-throttled first.
   6. Stream concurrency (W7): brix_concurrency_limit caps concurrent root://
      connections per principal — over-cap connections get kXR_wait, and a slot
@@ -97,7 +97,7 @@ def test_metrics_and_dashboard_wired():
     assert "rl_throttled_http_total" in m
     assert "rl_throttled_stream_total" in m
     assert "brix_rate_limit_throttled_total" in _read("src/observability/metrics/ratelimit.c")
-    assert "/xrootd/api/v1/ratelimit" in _read("src/observability/dashboard/module.c")
+    assert "/brix/api/v1/ratelimit" in _read("src/observability/dashboard/module.c")
 
 
 # --------------------------------------------------------------------------- #
@@ -362,7 +362,7 @@ def test_http_bandwidth_throttled(tmp_path):
 def _curl_cookie(port):
     out = subprocess.run(
         ["curl", "-si", "-X", "POST", "--data", "password=pw",
-         f"http://{HOST}:{port}/xrootd/login"],
+         f"http://{HOST}:{port}/brix/login"],
         capture_output=True, text=True, timeout=8).stdout
     m = re.search(r"(?im)^Set-Cookie:\s*(xrd_dashboard=[^;]+)", out)
     return m.group(1) if m else None
@@ -371,7 +371,7 @@ def _curl_cookie(port):
 def _curl_ratelimit(port, cookie):
     out = subprocess.run(
         ["curl", "-s", "-H", f"Cookie: {cookie}",
-         f"http://{HOST}:{port}/xrootd/api/v1/ratelimit"],
+         f"http://{HOST}:{port}/brix/api/v1/ratelimit"],
         capture_output=True, text=True, timeout=8).stdout
     return json.loads(out)
 
@@ -389,7 +389,7 @@ def test_dashboard_shows_throttle_count(tmp_path):
                 brix_webdav_auth none;
                 brix_rate_limit_rule zone=rl key=ip rate=2r/s burst=2;
             }}
-            location /xrootd/ {{
+            location /brix/ {{
                 brix_dashboard on;
                 brix_dashboard_password "pw";
             }}

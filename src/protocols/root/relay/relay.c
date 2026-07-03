@@ -96,7 +96,7 @@ brix_conf_set_transparent_proxy(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     xcf->relay_addr = addr;
 
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-        "xrootd: transparent relay upstream configured: %V", &value[1]);
+        "brix: transparent relay upstream configured: %V", &value[1]);
     return NGX_CONF_OK;
 }
 

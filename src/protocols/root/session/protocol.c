@@ -171,7 +171,7 @@ brix_handle_protocol(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     ngx_log_debug4(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                   "xrootd: kXR_protocol ok (client_flags=0x%02xd "
+                   "brix: kXR_protocol ok (client_flags=0x%02xd "
                    "bodylen=%uz auth=%s tls=%d)",
                    (int) client_flags, bodylen,
                    want_sss ? "sss" :

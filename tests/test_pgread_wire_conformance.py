@@ -4,7 +4,7 @@ conformance.
 
 This suite verifies that the paged-read opcode emitted by the nginx-xrootd
 stream module is byte- and frame-faithful to the XRootD wire spec
-(/tmp/xrootd-src/src/XProtocol/XProtocol.hh).  Every request is built by hand
+(/tmp/brix-src/src/XProtocol/XProtocol.hh).  Every request is built by hand
 over a raw TCP socket — the high-level XRootD python client sanitises
 offsets/lengths and re-frames the chunked response before it is observable, so
 only raw framing can prove the on-the-wire contract.  We assert: the success

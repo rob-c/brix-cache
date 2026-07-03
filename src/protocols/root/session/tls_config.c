@@ -107,7 +107,7 @@ brix_configure_tls(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
     if (xcf->tls_ktls) {
         SSL_CTX_set_options(xcf->tls_ctx->ctx, SSL_OP_ENABLE_KTLS);
         ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-            "xrootd: kernel-TLS (kTLS) send offload enabled for TLS context "
+            "brix: kernel-TLS (kTLS) send offload enabled for TLS context "
             "(brix_ktls on) - only beneficial with HW TLS-offload NICs");
     }
 #endif
@@ -117,11 +117,11 @@ brix_configure_tls(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
         SSL_CTX_set_tlsext_status_cb(xcf->tls_ctx->ctx, brix_ocsp_stapling_cb);
         SSL_CTX_set_tlsext_status_arg(xcf->tls_ctx->ctx, xcf);
         ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-            "xrootd: OCSP stapling enabled for TLS context");
+            "brix: OCSP stapling enabled for TLS context");
     }
 
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-        "xrootd: kXR_ableTLS enabled - cert=%s",
+        "brix: kXR_ableTLS enabled - cert=%s",
         xcf->certificate.data);
 
     return NGX_OK;

@@ -31,7 +31,7 @@ brix_upstream_wait_timer_handler(ngx_event_t *ev)
     }
 
     ngx_log_error(NGX_LOG_INFO, up->client_conn->log, 0,
-                  "xrootd: upstream kXR_wait expired; retrying");
+                  "brix: upstream kXR_wait expired; retrying");
 
     if (brix_upstream_send_request(up) != NGX_OK && up->conn != NULL) {
         brix_upstream_abort(up, "upstream retry failed");
@@ -78,7 +78,7 @@ brix_upstream_write_handler(ngx_event_t *wev)
         {
             BRIX_DIAG_ERR(up->client_conn->log,
                 err ? err : ngx_socket_errno,
-                "xrootd: cannot connect to upstream data server",
+                "brix: cannot connect to upstream data server",
                 "the upstream is down, unreachable, or refusing connections "
                 "(wrong host/port, or a firewall)",
                 "confirm the upstream xrootd/data server is up and reachable "
@@ -88,7 +88,7 @@ brix_upstream_write_handler(ngx_event_t *wev)
         }
 
         ngx_log_debug0(NGX_LOG_DEBUG_STREAM, up->client_conn->log, 0,
-                       "xrootd: upstream TCP connected");
+                       "brix: upstream TCP connected");
 
         /* Connect succeeded — begin bootstrap and reset the read accumulator so the
          * first reply (the handshake response) parses from a clean slate. */

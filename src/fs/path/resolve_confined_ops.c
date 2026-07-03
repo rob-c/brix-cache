@@ -302,7 +302,7 @@ rename_confined_canon_impl(ngx_log_t *log, const char *root_canon,
             if (!warned) {
                 warned = 1;
                 ngx_log_error(NGX_LOG_WARN, log, errno,
-                              "xrootd: renameat2(RENAME_NOREPLACE) unsupported; "
+                              "brix: renameat2(RENAME_NOREPLACE) unsupported; "
                               "create-if-absent falls back to non-atomic rename");
             }
             rc = renameat(src_parentfd, src_base, dst_parentfd, dst_base);

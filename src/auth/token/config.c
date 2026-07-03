@@ -62,7 +62,7 @@ brix_configure_token_auth(ngx_conf_t *cf,
 
     if (xcf->jwks_key_count < 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd: failed to load JWKS from \"%s\"",
+            "brix: failed to load JWKS from \"%s\"",
             xcf->token_jwks.data);
         return NGX_ERROR;
     }
@@ -83,7 +83,7 @@ brix_configure_token_auth(ngx_conf_t *cf,
     }
 
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-        "xrootd: token auth configured - jwks=%s issuer=%s "
+        "brix: token auth configured - jwks=%s issuer=%s "
         "audience=%s keys=%d",
         xcf->token_jwks.data, xcf->token_issuer.data,
         xcf->token_audience.data, xcf->jwks_key_count);

@@ -266,40 +266,40 @@ webdav_log_endpoint_summary(ngx_conf_t *cf,
     ngx_uint_t  has_token = (conf->jwks_key_count > 0);
 
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-        "xrootd: WebDAV (davs://) endpoint ready — export \"%V\" (%s), auth: %s",
+        "brix: WebDAV (davs://) endpoint ready — export \"%V\" (%s), auth: %s",
         &conf->common.root,
         conf->common.allow_write ? "read-write" : "read-only",
         webdav_auth_name(conf->auth));
 
     if (has_x509 || has_token) {
         ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-            "xrootd:   credentials accepted:%s%s",
+            "brix:   credentials accepted:%s%s",
             has_x509 ? " x509/GSI-proxy" : "",
             has_token ? " bearer-token" : "");
     }
     if (conf->crl.len > 0) {
         ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-            "xrootd:   revocation: CRL \"%V\"", &conf->crl);
+            "brix:   revocation: CRL \"%V\"", &conf->crl);
     }
     if (conf->tpc) {
         ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-            "xrootd:   third-party copy (TPC COPY) enabled");
+            "brix:   third-party copy (TPC COPY) enabled");
     }
     if (conf->upstream_proxy) {
         ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-            "xrootd:   mode: proxy — forwards to backend \"%V\"",
+            "brix:   mode: proxy — forwards to backend \"%V\"",
             &conf->upstream_url);
     }
 
     /* Valid-but-noteworthy settings, surfaced explicitly for a first-time admin. */
     if (has_x509 && conf->crl.len == 0) {
         ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
-            "xrootd:   NOTE: x509/GSI is accepted but no CRL is configured — "
+            "brix:   NOTE: x509/GSI is accepted but no CRL is configured — "
             "REVOKED certificates will be ACCEPTED (set brix_webdav_crl)");
     }
     if (conf->common.allow_write && conf->auth != WEBDAV_AUTH_REQUIRED) {
         ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
-            "xrootd:   NOTE: writes are enabled but authentication is not "
+            "brix:   NOTE: writes are enabled but authentication is not "
             "required — anonymous clients may be able to create/modify/delete "
             "files (set brix_webdav_auth required)");
     }
@@ -307,7 +307,7 @@ webdav_log_endpoint_summary(ngx_conf_t *cf,
         && !conf->upstream_proxy)
     {
         ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
-            "xrootd:   NOTE: auth is required but no x509 CA or token JWKS is "
+            "brix:   NOTE: auth is required but no x509 CA or token JWKS is "
             "configured — every client will be rejected (set "
             "brix_webdav_cadir and/or brix_webdav_token_jwks)");
     }

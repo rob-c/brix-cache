@@ -317,7 +317,7 @@ brix_cache_evict_if_needed(brix_cache_fill_t *t, const char *protect_path,
         brix_cache_metric_add(t->ctx, cache_evicted_bytes_total,
                                 evicted_bytes);
         ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                      "xrootd: cache eviction (on-fill) removed %ui files, "
+                      "brix: cache eviction (on-fill) removed %ui files, "
                       "%uL bytes, threshold=0.%06ui",
                       evicted_files, (uint64_t) evicted_bytes, threshold);
     }

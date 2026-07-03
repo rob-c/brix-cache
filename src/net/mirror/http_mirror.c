@@ -775,7 +775,7 @@ brix_http_mirror_set_url(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     t->socklen = u.addrs[0].socklen;
 
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-        "xrootd: WebDAV mirror target %V (ssl=%d)", &t->url_base, (int) ssl);
+        "brix: WebDAV mirror target %V (ssl=%d)", &t->url_base, (int) ssl);
     return NGX_CONF_OK;
 }
 

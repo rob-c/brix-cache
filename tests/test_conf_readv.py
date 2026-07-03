@@ -23,8 +23,8 @@ covers the hostile/bounds-checking angle):
   * full-file readv reassembly byte-identical to an xrdcp download
 
 Wire framing references (consulted, not modified):
-  /tmp/xrootd-src/src/XProtocol/XProtocol.hh        read_list / readahead_list
-  /tmp/xrootd-src/src/XrdXrootd/XrdXrootdXeq.cc      do_ReadV  (EOF -> error)
+  /tmp/brix-src/src/XProtocol/XProtocol.hh        read_list / readahead_list
+  /tmp/brix-src/src/XrdXrootd/XrdXrootdXeq.cc      do_ReadV  (EOF -> error)
 
 Self-provisioning on high ports; skips entirely without the stock toolchain.
 """

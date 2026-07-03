@@ -3,7 +3,7 @@
 These tests defend the GSI handshake fixes that make the native client and the
 nginx server interoperate with stock XRootD, EOS, and dCache, so a refactor
 cannot silently drop back to a GSI dialect those servers reject. See
-docs/10-reference/comparison/xrootd-implementations.md (§5) for the full rationale.
+docs/10-reference/comparison/brix-implementations.md (§5) for the full rationale.
 
 Four tiers, from always-on to opt-in:
 
@@ -225,7 +225,7 @@ def test_wire_contract_tripwires():
 
     These guard requirements that ONLY a strict peer (notably dCache) rejects and
     that no CI-reachable server would catch — see the interop landmines in
-    docs/10-reference/comparison/xrootd-implementations.md (§5.4).
+    docs/10-reference/comparison/brix-implementations.md (§5.4).
     """
     client_gsi = _read("client/lib/sec/sec_gsi.c")
     core = _read("src/auth/gsi/gsi_core.c")

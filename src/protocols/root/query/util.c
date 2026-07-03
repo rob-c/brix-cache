@@ -129,7 +129,7 @@ brix_query_adler32_file(const ngx_str_t *root, const char *path,
     fd = brix_open_confined(log, root, path, O_RDONLY, 0);
     if (fd < 0) {
         ngx_log_error(NGX_LOG_ERR, log, errno,
-                      "xrootd: adler32 open(\"%s\") failed", safe_path);
+                      "brix: adler32 open(\"%s\") failed", safe_path);
         return 0xFFFFFFFF;
     }
 
@@ -160,7 +160,7 @@ brix_query_digest_file(const ngx_str_t *root, const char *path,
     if (fd < 0) {
         brix_sanitize_log_string(path, safe, sizeof(safe));
         ngx_log_error(NGX_LOG_ERR, log, errno,
-                      "xrootd: digest open(\"%s\") failed", safe);
+                      "brix: digest open(\"%s\") failed", safe);
         return 0;
     }
 
@@ -215,7 +215,7 @@ brix_query_crc32_file(const ngx_str_t *root, const char *path,
     fd = brix_open_confined(log, root, path, O_RDONLY, 0);
     if (fd < 0) {
         ngx_log_error(NGX_LOG_ERR, log, errno,
-                      "xrootd: crc32 open(\"%s\") failed", safe_path);
+                      "brix: crc32 open(\"%s\") failed", safe_path);
         return 0xFFFFFFFF;
     }
 
