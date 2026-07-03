@@ -53,7 +53,7 @@ Copied verbatim from CLAUDE.md / spec — every task's requirements implicitly i
 **fail2ban — `deploy/fail2ban/`:**
 - `xrootd-guard.filter` — `failregex` per signal.
 - `jail.d/xrootd-guard.conf` — per-signal jails.
-- `samples/xrootd-guard-audit.sample.log` — fixture for `fail2ban-regex`.
+- `samples/brix-guard-audit.sample.log` — fixture for `fail2ban-regex`.
 
 **Tests — `tests/`:**
 - `tests/guard/run_guard_core.sh` — build+run `guard_test.c`.
@@ -1505,7 +1505,7 @@ git commit -m "feat(relay): stream guard sink — frame classify + connection dr
 **Files:**
 - Create: `deploy/fail2ban/xrootd-guard.filter`
 - Create: `deploy/fail2ban/jail.d/xrootd-guard.conf`
-- Create: `deploy/fail2ban/samples/xrootd-guard-audit.sample.log`
+- Create: `deploy/fail2ban/samples/brix-guard-audit.sample.log`
 - Create: `tests/test_fail2ban_regex.py`
 
 **Interfaces:**
@@ -1574,7 +1574,7 @@ bantime  = 7200
 banaction = nftables-multiport
 ```
 
-- [ ] **Step 3: Write the sample log** `samples/xrootd-guard-audit.sample.log` — one line per signal, real format from Task 5:
+- [ ] **Step 3: Write the sample log** `samples/brix-guard-audit.sample.log` — one line per signal, real format from Task 5:
 
 ```
 2026-07-01T12:00:00Z ip=203.0.113.9 proto=arc signal=signature op=read path="/wp-login.php" status=444
@@ -1588,7 +1588,7 @@ banaction = nftables-multiport
 ```python
 import shutil, subprocess, pytest, pathlib
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-SAMPLE = ROOT / "deploy/fail2ban/samples/xrootd-guard-audit.sample.log"
+SAMPLE = ROOT / "deploy/fail2ban/samples/brix-guard-audit.sample.log"
 
 @pytest.mark.skipif(not shutil.which("fail2ban-regex"),
                     reason="fail2ban-regex not installed")

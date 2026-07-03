@@ -16,7 +16,7 @@ install -m 644 packaging/nginx-xrootd.service /etc/systemd/system/
 systemctl daemon-reload
 
 # Create the dedicated nginx config from the example:
-cp /etc/nginx/conf.d/xrootd.conf.example /etc/nginx/nginx-xrootd.conf
+cp /etc/nginx/conf.d/brix-cache.conf.example /etc/nginx/nginx-xrootd.conf
 # Edit nginx-xrootd.conf; ensure the top-level block contains:
 #   pid /run/nginx-xrootd.pid;
 

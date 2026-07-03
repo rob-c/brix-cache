@@ -25,7 +25,7 @@ The other subpackages are independent: `nginx-xrootd-client` (the `xrdcp`/`xrdfs
 tools + FUSE), `nginx-xrootd-tests` (the pytest suite). Operational extras
 (`grafana-dashboard.json`, `prometheus-alerts.yml`) install under
 `/usr/share/nginx-xrootd/`; the example config is
-`/etc/nginx/conf.d/xrootd.conf.example` (inactive until you copy it to a `.conf` name).
+`/etc/nginx/conf.d/brix-cache.conf.example` (inactive until you copy it to a `.conf` name).
 
 ## Upgrade
 

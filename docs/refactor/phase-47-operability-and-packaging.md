@@ -25,7 +25,7 @@
   `src/observability/metrics/health.c`, no new `.so`). `GET /healthz` → 200 liveness JSON;
   `?verbose` adds `metrics_shm`/`worker_pid`/`nginx_version`; HEAD → 200; POST →
   405. Wired into the harness metrics block; `tests/test_health_endpoint.py` 4/4.
-- **W3 — `contrib/xrootd.conf.example`** (http-context davs+s3+metrics+healthz+
+- **W3 — `contrib/brix-cache.conf.example`** (http-context davs+s3+metrics+healthz+
   dashboard, with the top-level `stream{}` root:// block in a paste-ready header
   comment) + **`contrib/logrotate.d/nginx-xrootd`**; both RPM-installed. `nginx -t`
   on the example passes (caught + fixed a real `tpc_cafile`-is-a-file error).
@@ -148,11 +148,11 @@ working `dnf install`.
 ### W3 — Ship a default example config + logrotate
 **Files:** new `contrib/`, `packaging/rpm/nginx-mod-xrootd.spec`
 
-- Create `contrib/xrootd.conf.example` — a minimal, **heavily-commented** server serving
+- Create `contrib/brix-cache.conf.example` — a minimal, **heavily-commented** server serving
   `davs://` (TLS) + `s3://` from one export, with `/metrics`, `/healthz`, and the dashboard
   wired (sourced from `docs/03-configuration/examples.md`). Create
   `contrib/logrotate.d/nginx-xrootd` for the access logs.
-- RPM installs `xrootd.conf.example` to `/etc/nginx/conf.d/` (as `%config(noreplace)`, named
+- RPM installs `brix-cache.conf.example` to `/etc/nginx/conf.d/` (as `%config(noreplace)`, named
   `.example` so it doesn't auto-activate) and the logrotate file to `/etc/logrotate.d/`.
 - **Validation:** `nginx -t` on the example config passes; `rpmbuild` lists the new files.
 
@@ -237,7 +237,7 @@ All three landed (each opt-in / transparent-fallback, wire-compatible). 9 new te
 |---|---|
 | W1 | root `config` (collapse module blocks → one combined + the filter); `packaging/rpm/nginx-mod-xrootd.spec` |
 | W2 | `src/observability/metrics/module.c` + new `src/observability/metrics/health.c` (register the new `.c` in root `config`) |
-| W3 | new `contrib/xrootd.conf.example`, `contrib/logrotate.d/nginx-xrootd`; spec `%install`/`%files` |
+| W3 | new `contrib/brix-cache.conf.example`, `contrib/logrotate.d/nginx-xrootd`; spec `%install`/`%files` |
 | W4 | new `contrib/grafana-dashboard.json`, `contrib/prometheus-alerts.yml`; spec dashboards subpackage |
 | W5 | new `docs/05-operations/{troubleshooting,capacity-planning,certificate-rotation,upgrade-procedure}.md` + `docs/index.md` |
 | W6 (optional) | per-feature (`src/protocols/s3/aws_chunked.c`+auth, beneath/impersonate rename, `src/protocols/s3/list_objects_v2.c`) |

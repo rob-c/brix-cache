@@ -419,7 +419,7 @@ generator and serves the file out of band; an BriX-Cache operator turns on
   Free-text fields are escaped by `xrootd_access_json_escape()` (escapes `"`/`\`,
   renders bytes `<0x20` / `≥0x7f` as `\u00NN`). This is the deliberate home for
   the high-cardinality fields banned from metric labels.
-- **Per-protocol log files** (from `contrib/xrootd.conf.example`):
+- **Per-protocol log files** (from `contrib/brix-cache.conf.example`):
   `xrootd_webdav_access.log`, `xrootd_s3_access.log`; the `root://` access log is
   configured with `xrootd_access_log` (opened in `src/core/config/runtime_server.c`,
   set `off` to disable). A separate path-layer access log lives in
@@ -448,7 +448,7 @@ aggregate counts in Prometheus.
 | Logrotate | `config/xrootd.logrotate` (cooperates with logger FIFO) | `contrib/logrotate.d/nginx-xrootd` |
 | Dashboards | external (MonaLisa, shoveler→Prometheus pipelines) | `contrib/grafana-dashboard.json` |
 | Alerts | external | `contrib/prometheus-alerts.yml` |
-| Example config | `config/xrootd-*.cfg` | `contrib/xrootd.conf.example` |
+| Example config | `config/xrootd-*.cfg` | `contrib/brix-cache.conf.example` |
 | Runbooks | XRootD project docs | `docs/09-developer-guide/testing-runbook.md` |
 
 **Operator view:** an XRootD operator manages multiple systemd-templated daemons
@@ -570,7 +570,7 @@ BriX-Cache shapes by *identity* (VO/issuer/DN/IP/volume) uniformly across
 | Logging / sanitize | `src/observability/metrics/access_log.{c,h}`, `src/observability/accesslog/access_log.c`, `src/fs/path/path.h` (`xrootd_sanitize_log_string` decl) + `src/auth/authz/{acl,authdb}.c`, `src/fs/path/{helpers,resolve_confined_helpers}.c` (uses) |
 | Health | `src/observability/metrics/health.c` |
 | Rate limiting | `src/net/ratelimit/{ratelimit,ratelimit_keys,ratelimit_zone,ratelimit_http,ratelimit_stream}.c`, `ratelimit.h`, `README.md`; `src/observability/metrics/ratelimit.c` |
-| Packaging / ops | `packaging/rpm/nginx-mod-brix-cache.spec`; `contrib/{grafana-dashboard.json,prometheus-alerts.yml,logrotate.d/nginx-xrootd,xrootd.conf.example}`; `docs/09-developer-guide/testing-runbook.md` |
+| Packaging / ops | `packaging/rpm/nginx-mod-brix-cache.spec`; `contrib/{grafana-dashboard.json,prometheus-alerts.yml,logrotate.d/nginx-xrootd,brix-cache.conf.example}`; `docs/09-developer-guide/testing-runbook.md` |
 
 ### Companion docs
 

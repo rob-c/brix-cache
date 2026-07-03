@@ -220,7 +220,7 @@ check and random-tag signing.
 - **D3. Negotiation edge cases**: no mutually-supported cipher → clean auth
   failure (not a crash); server advertises N, client offers M, intersection picked.
 - **D4. Docs**: `docs/04-protocols/` security-protocol matrix; update
-  `CLAUDE.md` ROUTING/auth notes; `contrib/xrootd.conf.example` for the new
+  `CLAUDE.md` ROUTING/auth notes; `contrib/brix-cache.conf.example` for the new
   directives with security caveats.
 
 ---
