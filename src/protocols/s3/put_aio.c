@@ -12,7 +12,7 @@
  * location.
  *
  * WHY: the S3 postconfiguration only resolves common.thread_pool on the
- * *server-level* loc-conf, but `xrootd_s3 on` is normally inside a `location {}`
+ * *server-level* loc-conf, but `brix_s3 on` is normally inside a `location {}`
  * block whose loc-conf never gets that pointer set — so the offload below would
  * silently never engage.  Mirror the WebDAV COPY/MOVE pattern
  * (src/webdav/copy.c, move.c): resolve lazily at request time via ngx_cycle and
@@ -57,9 +57,9 @@ s3_put_aio_thread(void *data, ngx_log_t *log)
     /* A driver-backed (remote-stage) staged target has no kernel fd — stream the
      * body through the staged-write primitive; otherwise write straight to the temp
      * fd (memory pwrite / spooled copy_file_range). Mirrors the WebDAV PUT path. */
-    if (xrootd_vfs_staged_is_driver(t->staged)
-            ? xrootd_http_body_write_to_staged(t->r, t->staged) != NGX_OK
-            : xrootd_http_body_write_to_fd(t->r, xrootd_vfs_staged_fd(t->staged),
+    if (brix_vfs_staged_is_driver(t->staged)
+            ? brix_http_body_write_to_staged(t->r, t->staged) != NGX_OK
+            : brix_http_body_write_to_fd(t->r, brix_vfs_staged_fd(t->staged),
                                            t->final_path, NULL) != NGX_OK)
     {
         t->io_errno = errno;
@@ -80,11 +80,11 @@ s3_put_aio_done(ngx_event_t *ev)
     ngx_log_t          *log = r->connection->log;
 
     if (t->nwritten < 0 || (size_t) t->nwritten < t->len) {
-        xrootd_log_safe_path(log, NGX_LOG_ERR,
+        brix_log_safe_path(log, NGX_LOG_ERR,
                              (ngx_uint_t) t->io_errno,
                              "s3: async write() failed for: \"%s\"",
                              t->final_path);
-        xrootd_vfs_staged_abort(t->staged, 1);
+        brix_vfs_staged_abort(t->staged, 1);
         s3_put_finalize_error(r);
         return;
     }
@@ -96,7 +96,7 @@ s3_put_aio_done(ngx_event_t *ev)
         if (s3_put_commit_conflict(r)) {
             return;
         }
-        xrootd_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
+        brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
                              "s3: async staged commit to \"%s\" failed",
                              t->final_path);
         s3_put_finalize_error(r);
@@ -106,13 +106,13 @@ s3_put_aio_done(ngx_event_t *ev)
     /* S3 PutObject requires an ETag on the 200 response (the synchronous path
      * sets it too — keep the offload path's response identical). */
     {
-        xrootd_vfs_ctx_t  fctx;
-        xrootd_vfs_stat_t fst;
+        brix_vfs_ctx_t  fctx;
+        brix_vfs_stat_t fst;
         char              etag_buf[48];
 
-        xrootd_vfs_ctx_init(&fctx, r->pool, log, XROOTD_PROTO_S3, t->root_canon,
+        brix_vfs_ctx_init(&fctx, r->pool, log, BRIX_PROTO_S3, t->root_canon,
             NULL, 0 /* allow_write */, 0 /* is_tls */, NULL, t->final_path);
-        if (xrootd_vfs_probe(&fctx, 1 /* no-follow */, &fst) == NGX_OK) {
+        if (brix_vfs_probe(&fctx, 1 /* no-follow */, &fst) == NGX_OK) {
             struct stat final_sb;
 
             ngx_memzero(&final_sb, sizeof(final_sb));
@@ -134,14 +134,14 @@ s3_put_aio_done(ngx_event_t *ev)
     /* x-amz-meta-* (best-effort): store the request's user metadata set. */
     (void) s3_apply_put_user_metadata(r, t->final_path, t->root_canon);
 
-    xrootd_dashboard_http_add(r, (ngx_atomic_int_t) t->body_bytes);
-    XROOTD_S3_METRIC_ADD(bytes_rx_total, t->body_bytes);
+    brix_dashboard_http_add(r, (ngx_atomic_int_t) t->body_bytes);
+    BRIX_S3_METRIC_ADD(bytes_rx_total, t->body_bytes);
     if (r->connection && r->connection->sockaddr
         && r->connection->sockaddr->sa_family == AF_INET6) {
-        XROOTD_S3_METRIC_ADD(bytes_rx_ipv6_total, t->body_bytes);
+        BRIX_S3_METRIC_ADD(bytes_rx_ipv6_total, t->body_bytes);
     } else {
-        XROOTD_S3_METRIC_ADD(bytes_rx_ipv4_total, t->body_bytes);
+        BRIX_S3_METRIC_ADD(bytes_rx_ipv4_total, t->body_bytes);
     }
-    XROOTD_S3_METRIC_INC(put_body_total[t->body_mode]);
+    BRIX_S3_METRIC_INC(put_body_total[t->body_mode]);
     s3_put_finalize_empty_ok(r);
 }

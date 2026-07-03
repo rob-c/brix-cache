@@ -1,7 +1,7 @@
 /*
  * scitag.c — SciTags flow-id parsing from a client-supplied opaque/CGI string.
  *
- * WHAT: xrootd_pmark_parse_scitag() extracts the `scitag.flow=<N>` parameter a
+ * WHAT: brix_pmark_parse_scitag() extracts the `scitag.flow=<N>` parameter a
  *   client may attach to a root:// open (opaque `?scitag.flow=N`) or send as an
  *   HTTP `SciTag:` header (rendered here as "scitag.flow=N"), validates it
  *   against the 16-bit SciTags range, and splits it into (experiment, activity).
@@ -16,13 +16,13 @@
  *
  * HOW: Scan for the "scitag.flow=" token at a parameter boundary (string start,
  *   or just after '?' / '&' / ';'), parse the following run of decimal digits,
- *   range-check [65,65535], and split via xrootd_pmark_flow_split().
+ *   range-check [65,65535], and split via brix_pmark_flow_split().
  */
 
 #include "pmark.h"
 
-#define XROOTD_PMARK_SCITAG_KEY      "scitag.flow="
-#define XROOTD_PMARK_SCITAG_KEY_LEN  (sizeof(XROOTD_PMARK_SCITAG_KEY) - 1)
+#define BRIX_PMARK_SCITAG_KEY      "scitag.flow="
+#define BRIX_PMARK_SCITAG_KEY_LEN  (sizeof(BRIX_PMARK_SCITAG_KEY) - 1)
 
 /* True if `p` begins a CGI parameter (start-of-string handled by caller). */
 static ngx_inline int
@@ -48,7 +48,7 @@ pmark_parse_flow_value(const char *p, ngx_uint_t *exp, ngx_uint_t *act)
     while (*p >= '0' && *p <= '9') {
         have_digits = 1;
         flow = flow * 10 + (ngx_uint_t) (*p - '0');
-        if (flow > XROOTD_PMARK_FLOW_MAX) {
+        if (flow > BRIX_PMARK_FLOW_MAX) {
             return NGX_ERROR;          /* out of range -> "no tag" */
         }
         p++;
@@ -59,12 +59,12 @@ pmark_parse_flow_value(const char *p, ngx_uint_t *exp, ngx_uint_t *act)
         return NGX_ERROR;
     }
 
-    if (xrootd_pmark_flow_split(flow, exp, act) != NGX_OK) {
+    if (brix_pmark_flow_split(flow, exp, act) != NGX_OK) {
         return NGX_ERROR;              /* < 65 etc. */
     }
 
     /* Defence in depth: the split fields must also be individually in range. */
-    if (xrootd_pmark_codes_valid(*exp, *act) != NGX_OK) {
+    if (brix_pmark_codes_valid(*exp, *act) != NGX_OK) {
         return NGX_ERROR;
     }
 
@@ -72,7 +72,7 @@ pmark_parse_flow_value(const char *p, ngx_uint_t *exp, ngx_uint_t *act)
 }
 
 ngx_int_t
-xrootd_pmark_parse_scitag(const char *cgi, ngx_uint_t *exp, ngx_uint_t *act)
+brix_pmark_parse_scitag(const char *cgi, ngx_uint_t *exp, ngx_uint_t *act)
 {
     const char  *p;
 
@@ -85,10 +85,10 @@ xrootd_pmark_parse_scitag(const char *cgi, ngx_uint_t *exp, ngx_uint_t *act)
         if (p != cgi && !pmark_is_param_boundary(p[-1])) {
             continue;
         }
-        if (ngx_strncmp(p, XROOTD_PMARK_SCITAG_KEY, XROOTD_PMARK_SCITAG_KEY_LEN)
+        if (ngx_strncmp(p, BRIX_PMARK_SCITAG_KEY, BRIX_PMARK_SCITAG_KEY_LEN)
             == 0)
         {
-            return pmark_parse_flow_value(p + XROOTD_PMARK_SCITAG_KEY_LEN,
+            return pmark_parse_flow_value(p + BRIX_PMARK_SCITAG_KEY_LEN,
                                           exp, act);
         }
     }

@@ -24,7 +24,7 @@ THE CONTRACT (encoded below)
        Any other cast/assignment/ngx_memzero through ``shm.addr`` clobbers the
        header and is rejected.
     R2 (completeness): every file that registers a zone (ngx_shared_memory_add)
-       must allocate its table with a slab-safe allocator — ``xrootd_shm_table_alloc``
+       must allocate its table with a slab-safe allocator — ``brix_shm_table_alloc``
        (src/core/compat/shm_slots.c) or raw ``ngx_slab_alloc`` — either in the file
        itself or in the ``->init`` callback it registers. A pure no-op init
        (never touches shm.addr) is accepted (it cannot clobber).
@@ -164,7 +164,7 @@ def _find_init_body(stripped_by_path, name):
     return None
 
 
-_SAFE_ALLOC = ("xrootd_shm_table_alloc", "ngx_slab_alloc")
+_SAFE_ALLOC = ("brix_shm_table_alloc", "ngx_slab_alloc")
 
 
 def _rule2_unsafe_registrars(sources, exempt=frozenset()):
@@ -239,7 +239,7 @@ static ngx_int_t
 good_init(ngx_shm_zone_t *shm_zone, void *data)
 {
     ngx_flag_t fresh;
-    my_table_t *t = xrootd_shm_table_alloc(shm_zone, data, sizeof(*t),
+    my_table_t *t = brix_shm_table_alloc(shm_zone, data, sizeof(*t),
                                            &my_mtx, &fresh);
     if (t == NULL) { return NGX_ERROR; }
     if (fresh) { t->capacity = 16; }
@@ -250,7 +250,7 @@ ngx_int_t
 configure(ngx_conf_t *cf)
 {
     ngx_shm_zone_t *z = ngx_shared_memory_add(cf, &name,
-                            xrootd_shm_zone_size(sizeof(my_table_t)), &mod);
+                            brix_shm_zone_size(sizeof(my_table_t)), &mod);
     z->init = good_init;
     return NGX_OK;
 }
@@ -317,13 +317,13 @@ def test_no_zone_clobbers_slab_header():
         pytest.fail(
             "Shared-memory zones must not lay a struct over shm.addr (it clobbers "
             "the ngx_slab_pool_t header that ngx_unlock_mutexes() dereferences on "
-            "every child death -> master SIGSEGV). Use xrootd_shm_table_alloc() "
+            "every child death -> master SIGSEGV). Use brix_shm_table_alloc() "
             "from src/core/compat/shm_slots.h instead. Offending uses:\n" + lines)
 
 
 def test_every_zone_uses_a_slab_safe_allocator():
     """R2 over src/: every ngx_shared_memory_add registrar reaches a slab-safe
-    allocator (xrootd_shm_table_alloc or ngx_slab_alloc)."""
+    allocator (brix_shm_table_alloc or ngx_slab_alloc)."""
     if not os.path.isdir(_SRC):
         pytest.skip("src/ not found at %s" % _SRC)
     sources = _iter_repo_sources()
@@ -332,7 +332,7 @@ def test_every_zone_uses_a_slab_safe_allocator():
         lines = "\n".join("  %s  ->  %s" % v for v in viol)
         pytest.fail(
             "Every SHM zone must allocate its table from the slab pool "
-            "(xrootd_shm_table_alloc, or raw ngx_slab_alloc) so nginx's slab "
+            "(brix_shm_table_alloc, or raw ngx_slab_alloc) so nginx's slab "
             "header survives. These registrars do not:\n" + lines)
 
 

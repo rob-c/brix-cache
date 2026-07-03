@@ -1,5 +1,5 @@
-#ifndef XROOTD_TPC_COMMON_TRANSFER_H
-#define XROOTD_TPC_COMMON_TRANSFER_H
+#ifndef BRIX_TPC_COMMON_TRANSFER_H
+#define BRIX_TPC_COMMON_TRANSFER_H
 
 /* ---- Module: TPC Transfer Vocabulary ----
  *
@@ -7,7 +7,7 @@
  *       (STREAM / WEBDAV), direction tags (PULL / PUSH), lifecycle states
  *       (PENDING / ACTIVE / DONE / ERROR), the registry sizing constants
  *       (slot count and max URL/path lengths), and the protocol-neutral
- *       xrootd_tpc_transfer_t describing one in-flight copy.
+ *       brix_tpc_transfer_t describing one in-flight copy.
  *
  * WHY: Every other file in tpc/common builds on these definitions, so they live
  *      in one leaf header with no dependencies beyond nginx core. Keeping the
@@ -15,10 +15,10 @@
  *      WebDAV transports, the registry, and the metrics/dashboard readers all
  *      agree on the same enum values and buffer bounds.
  *
- * HOW: Plain #define tags and a POD struct. The xrootd_tpc_transfer_t ngx_str_t
+ * HOW: Plain #define tags and a POD struct. The brix_tpc_transfer_t ngx_str_t
  *      members (src_url, dst_path) point at storage owned by the registry slot
  *      that holds the transfer; callers may pass stack/request-pool strings to
- *      xrootd_tpc_registry_add(), which copies them before publishing.
+ *      brix_tpc_registry_add(), which copies them before publishing.
  */
 
 #include <ngx_config.h>
@@ -26,27 +26,27 @@
 
 #include <stdint.h>
 
-#define XROOTD_TPC_PROTO_STREAM  1
-#define XROOTD_TPC_PROTO_WEBDAV  2
+#define BRIX_TPC_PROTO_STREAM  1
+#define BRIX_TPC_PROTO_WEBDAV  2
 
-#define XROOTD_TPC_DIR_PULL      1
-#define XROOTD_TPC_DIR_PUSH      2
+#define BRIX_TPC_DIR_PULL      1
+#define BRIX_TPC_DIR_PUSH      2
 
-#define XROOTD_TPC_STATE_PENDING 1
-#define XROOTD_TPC_STATE_ACTIVE  2
-#define XROOTD_TPC_STATE_DONE    3
-#define XROOTD_TPC_STATE_ERROR   4
+#define BRIX_TPC_STATE_PENDING 1
+#define BRIX_TPC_STATE_ACTIVE  2
+#define BRIX_TPC_STATE_DONE    3
+#define BRIX_TPC_STATE_ERROR   4
 
-#define XROOTD_TPC_REGISTRY_SLOTS 1024
-#define XROOTD_TPC_SRC_URL_MAX    1024
-#define XROOTD_TPC_DST_PATH_MAX   1024
+#define BRIX_TPC_REGISTRY_SLOTS 1024
+#define BRIX_TPC_SRC_URL_MAX    1024
+#define BRIX_TPC_DST_PATH_MAX   1024
 
 /*
  * Protocol-neutral state for an in-flight third-party copy.
  *
  * The ngx_str_t members point at storage owned by the registry slot that
  * contains this transfer.  Callers may pass stack/request-pool strings to
- * xrootd_tpc_registry_add(); the registry copies them before publishing.
+ * brix_tpc_registry_add(); the registry copies them before publishing.
  */
 typedef struct {
     uint64_t       id;
@@ -64,6 +64,6 @@ typedef struct {
                                    progress callback reads it (lock-free best-effort
                                    via registry_find) and aborts promptly instead
                                    of waiting for the low-speed/transfer timeout. */
-} xrootd_tpc_transfer_t;
+} brix_tpc_transfer_t;
 
-#endif /* XROOTD_TPC_COMMON_TRANSFER_H */
+#endif /* BRIX_TPC_COMMON_TRANSFER_H */

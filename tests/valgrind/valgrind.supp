@@ -5,7 +5,7 @@
 #
 # RULE (same as lsan.supp): suppress ONLY benign nginx-core-startup / library
 # one-time residuals. NEVER suppress a leak whose stack contains a module frame
-# (xrootd_*, ngx_http_xrootd_*, ngx_stream_xrootd_*, or any src/<module>/ file).
+# (brix_*, ngx_http_brix_*, ngx_stream_brix_*, or any src/<module>/ file).
 # Suppressions match from the TOP of the stack, so deliberately list the full
 # distinctive frame chain — do NOT write a blanket `obj:*/libcrypto.so*` leak
 # rule: it would also hide a real module leak that merely allocates via OpenSSL

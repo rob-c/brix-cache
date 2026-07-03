@@ -23,7 +23,7 @@ suite skips:
       while a --compress gzip download of the SAME file DOES log "z=".
 
 Drives the harness anonymous root:// server (NGINX_ANON_PORT, 11094) which runs
-with `xrootd_read_compress on`.  Uses the native clean-room xrdcp/xrdfs
+with `brix_read_compress on`.  Uses the native clean-room xrdcp/xrdfs
 (client/xrdcp, client/xrdfs); no libXrdCl.  Remote keys are uuid-tagged and torn
 down with `xrdfs rm`.
 """
@@ -41,7 +41,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
 XRDFS = os.path.join(REPO, "client", "bin", "xrdfs")
 BASE = f"root://localhost:{NGINX_ANON_PORT}"
-ANON_ACCESS_LOG = os.path.join(LOG_DIR, "xrootd_access_anon.log")
+ANON_ACCESS_LOG = os.path.join(LOG_DIR, "brix_access_anon.log")
 
 # ~5 MiB of highly compressible repeating text — big enough to span MANY read
 # windows so a whole-file download stitches together many codec frames (the

@@ -1,9 +1,9 @@
 #include "open.h"
 #include "fs/vfs/vfs.h"   /* VFS confined open/probe seam */
 #include "fs/vfs/vfs_backend_registry.h"  /* per-export storage-driver resolution */
-#include "fs/vfs/vfs_internal.h"          /* xrootd_vfs_export_relative_root key form */
+#include "fs/vfs/vfs_internal.h"          /* brix_vfs_export_relative_root key form */
 #include "fs/backend/sd.h"            /* Layer 3: driver-backed export open */
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 #include "fs/backend/csi_tagstore.h"
 #include "net/ratelimit/throttle_compat.h"  /* phase-59 W3a: open-files cap */
 #include "protocols/root/response/async.h"
@@ -24,7 +24,7 @@
 
 /* kXR_wait retry interval handed to a client whose read-open faulted a nearline
  * (tape) recall - the stream equivalent of the WebDAV 202 Retry-After (§9.2). */
-#define XROOTD_RECALL_WAIT_SECS  10
+#define BRIX_RECALL_WAIT_SECS  10
 
 /* Confined existence/type probe of an absolute path beneath `root` via the VFS
  * (no metric, no pool). Returns 1 with *vst filled when the path exists, else 0.
@@ -33,14 +33,14 @@
  * which has its own confinement root — the export root for the final path, the
  * upload stage dir for an external resume partial. */
 static int
-xrootd_open_probe(ngx_log_t *log, const char *root, const char *abs,
-    int nofollow, xrootd_vfs_stat_t *vst)
+brix_open_probe(ngx_log_t *log, const char *root, const char *abs,
+    int nofollow, brix_vfs_stat_t *vst)
 {
-    xrootd_vfs_ctx_t vctx;
+    brix_vfs_ctx_t vctx;
 
-    xrootd_vfs_ctx_init(&vctx, NULL, log, XROOTD_PROTO_ROOT, root, NULL,
+    brix_vfs_ctx_init(&vctx, NULL, log, BRIX_PROTO_ROOT, root, NULL,
         1 /* allow_write */, 0 /* is_tls */, NULL, abs);
-    return xrootd_vfs_probe(&vctx, nofollow, vst) == NGX_OK;
+    return brix_vfs_probe(&vctx, nofollow, vst) == NGX_OK;
 }
 
 /* The export-root-relative ("logical") form of an absolute path confined under
@@ -49,7 +49,7 @@ xrootd_open_probe(ngx_log_t *log, const char *root, const char *abs,
  * Centralises the rel-strip the kXR_open path repeats for the export-root open
  * (the cache/stage domains open as the worker and need no rel form). */
 static const char *
-xrootd_open_logical(const char *abs, const char *root)
+brix_open_logical(const char *abs, const char *root)
 {
     size_t root_len = (root != NULL) ? strlen(root) : 0;
 
@@ -63,20 +63,20 @@ xrootd_open_logical(const char *abs, const char *root)
 }
 
 /* Map the POSIX open(2) flags the kXR_open path computed back to the backend-
- * neutral XROOTD_SD_O_* intent the storage driver understands. The driver
+ * neutral BRIX_SD_O_* intent the storage driver understands. The driver
  * re-derives its own native flags from these (the POSIX driver re-expands to
  * O_*), so a non-POSIX backend never sees Linux-specific bits. */
 static int
-xrootd_open_oflags_to_sd(int oflags, int is_readable, int is_write)
+brix_open_oflags_to_sd(int oflags, int is_readable, int is_write)
 {
     int sd = 0;
 
-    if (is_readable)        { sd |= XROOTD_SD_O_READ;   }
-    if (is_write)           { sd |= XROOTD_SD_O_WRITE;  }
-    if (oflags & O_CREAT)   { sd |= XROOTD_SD_O_CREATE; }
-    if (oflags & O_EXCL)    { sd |= XROOTD_SD_O_EXCL;   }
-    if (oflags & O_TRUNC)   { sd |= XROOTD_SD_O_TRUNC;  }
-    if (oflags & O_APPEND)  { sd |= XROOTD_SD_O_APPEND; }
+    if (is_readable)        { sd |= BRIX_SD_O_READ;   }
+    if (is_write)           { sd |= BRIX_SD_O_WRITE;  }
+    if (oflags & O_CREAT)   { sd |= BRIX_SD_O_CREATE; }
+    if (oflags & O_EXCL)    { sd |= BRIX_SD_O_EXCL;   }
+    if (oflags & O_TRUNC)   { sd |= BRIX_SD_O_TRUNC;  }
+    if (oflags & O_APPEND)  { sd |= BRIX_SD_O_APPEND; }
     return sd;
 }
 
@@ -90,14 +90,14 @@ xrootd_open_oflags_to_sd(int oflags, int is_readable, int is_write)
  * NGX_OK; on failure sets errno and returns NGX_ERROR (the caller maps errno to
  * the kXR error exactly as for a POSIX open). */
 static ngx_int_t
-xrootd_open_resolved_via_driver(xrootd_sd_instance_t *sd, const char *logical,
+brix_open_resolved_via_driver(brix_sd_instance_t *sd, const char *logical,
     int oflags, int is_readable, int is_write, mode_t create_mode,
-    xrootd_file_t *fh, int *out_fd, struct stat *st)
+    brix_file_t *fh, int *out_fd, struct stat *st)
 {
-    int              sd_flags = xrootd_open_oflags_to_sd(oflags, is_readable,
+    int              sd_flags = brix_open_oflags_to_sd(oflags, is_readable,
                                                          is_write);
     int              oerr = 0;
-    xrootd_sd_obj_t *obj;
+    brix_sd_obj_t *obj;
 
     obj = sd->driver->open(sd, logical, sd_flags, create_mode, &oerr);
     if (obj == NULL) {
@@ -133,8 +133,8 @@ xrootd_open_resolved_via_driver(xrootd_sd_instance_t *sd, const char *logical,
  * WHAT: Opens the actual file on disk and allocates a file handle (fhandle). Called after path resolution.
  *       This function performs the POSIX open(2) call with proper security guarantees including:
  *       - POSC mode: staging temp file for persist-on-successful-close writes
- *       - Confined open: xrootd_open_confined() prevents post-open path escape attacks
- *       - Handle allocation: xrootd_alloc_fhandle() assigns a slot (0–255) in fd_table.c
+ *       - Confined open: brix_open_confined() prevents post-open path escape attacks
+ *       - Handle allocation: brix_alloc_fhandle() assigns a slot (0–255) in fd_table.c
  *       - Bookkeeping initialization: readable/writable flags, cache origin, inode/device tracking,
  *         byte counters, timestamps, read-ahead state.
  *
@@ -144,15 +144,15 @@ xrootd_open_resolved_via_driver(xrootd_sd_instance_t *sd, const char *logical,
  *      handle allocation enforces the 0–255 fd-table limit.
  *
  * HOW: Determine POSIX flags from options/mode_bits → build POSC staging path if kXR_posc set →
- *      allocate fhandle slot → open via O_CLOEXEC (cache) or xrootd_open_confined() (non-cache) →
+ *      allocate fhandle slot → open via O_CLOEXEC (cache) or brix_open_confined() (non-cache) →
  *      stat the fd to validate regular file and populate handle metadata → set fhandle path field +
  *      posc_final_path if POSC active → apply parent group policy on write opens → evaluate WT
  *      decision policy at open time → build ServerOpenBody with fhandle + optional retstat → queue response.
  */
 
 ngx_int_t
-xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
-						  ngx_stream_xrootd_srv_conf_t *conf,
+brix_open_resolved_file(brix_ctx_t *ctx, ngx_connection_t *c,
+						  ngx_stream_brix_srv_conf_t *conf,
 						  const char *resolved, uint16_t options,
 						  uint16_t mode_bits, ngx_flag_t is_write,
 						  uint8_t codec)
@@ -170,14 +170,14 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	 * POSC (persist-on-successful-close): when kXR_posc is set on a write
 	 * open we stage writes to a temp file and rename to the final path only
 	 * on a clean kXR_close.  If the session drops mid-write the temp file is
-	 * unlinked by xrootd_free_fhandle() (via the path field + posc_final_path
+	 * unlinked by brix_free_fhandle() (via the path field + posc_final_path
 	 * sentinel).  We build posc_temp_path here; it is used as the actual
 	 * filesystem target for the open(2) call below.
 	 */
 	char               posc_temp_path[PATH_MAX];
 	ngx_flag_t         use_posc   = (is_write && (options & kXR_posc)) ? 1 : 0;
 	/*
-	 * Upload resume (xrootd_upload_resume on): stage EVERY writable open to a
+	 * Upload resume (brix_upload_resume on): stage EVERY writable open to a
 	 * deterministic identity-keyed partial that survives a disconnect, so a
 	 * reconnecting client resumes in place.  This is a superset of POSC staging
 	 * (same temp-then-rename commit), so `stage` drives the open + commit and
@@ -200,7 +200,7 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	 * directory's name, create it, and wrongly report success — diverging from
 	 * stock. The read side is rejected symmetrically just below. */
 	if (is_write) {
-		xrootd_vfs_stat_t dst;
+		brix_vfs_stat_t dst;
 		/* A final path that is itself a symlink must be rejected for write: we
 		 * never write THROUGH an in-root link. The direct-open mapping enforces
 		 * this with O_NOFOLLOW on the final component (ELOOP), but the staging
@@ -209,15 +209,15 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		 * the link as itself; resolution is already confined to the export, so
 		 * this catches an in-export link with EITHER an in-root or outward target
 		 * without following it. */
-		if (xrootd_open_probe(c->log, conf->common.root_canon, resolved, 1,
+		if (brix_open_probe(c->log, conf->common.root_canon, resolved, 1,
 		                      &dst) && S_ISLNK((mode_t) dst.mode)) {
-			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_WR, "OPEN",
+			BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN",
 			                  resolved, "wr", kXR_NotAuthorized,
 			                  "refusing to write through a symlink");
 		}
-		if (xrootd_open_probe(c->log, conf->common.root_canon, resolved, 0,
+		if (brix_open_probe(c->log, conf->common.root_canon, resolved, 0,
 		                      &dst) && dst.is_directory) {
-			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_WR, "OPEN",
+			BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN",
 			                  resolved, "wr", kXR_isDirectory,
 			                  "is a directory");
 		}
@@ -230,18 +230,18 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	 * staging-temp allocation, so a shed write consumes nothing. Reads never reach
 	 * here. */
 	if (is_write && conf->wt_enable) {
-		switch (xrootd_wt_stage_admit(conf)) {
-		case XROOTD_WT_ADMIT_WAIT:
-			xrootd_metric_wt_stage_throttled(0 /* wait */);
-			xrootd_log_access(ctx, c, "OPEN", resolved, "wr-staging-wait",
+		switch (brix_wt_stage_admit(conf)) {
+		case BRIX_WT_ADMIT_WAIT:
+			brix_metric_wt_stage_throttled(0 /* wait */);
+			brix_log_access(ctx, c, "OPEN", resolved, "wr-staging-wait",
 			                  0, 0, "write-back staging busy; retry", 0);
-			return xrootd_send_wait(ctx, c, XROOTD_WT_STAGE_WAIT_SECS);
-		case XROOTD_WT_ADMIT_REJECT:
-			xrootd_metric_wt_stage_throttled(1 /* reject */);
-			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_WR, "OPEN", resolved,
+			return brix_send_wait(ctx, c, BRIX_WT_STAGE_WAIT_SECS);
+		case BRIX_WT_ADMIT_REJECT:
+			brix_metric_wt_stage_throttled(1 /* reject */);
+			BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN", resolved,
 			                  "wr", kXR_Overloaded,
 			                  "write-back staging area full");
-		case XROOTD_WT_ADMIT_ALLOW:
+		case BRIX_WT_ADMIT_ALLOW:
 		default:
 			break;
 		}
@@ -267,10 +267,10 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	 * (e.g. xrdcp -f, or a kXR_recoverWrts reopen) was wrongly rejected with
 	 * kXR_ItExists. */
 	if (stage && (options & kXR_new) && !(options & kXR_delete)) {
-		xrootd_vfs_stat_t fst;
-		if (xrootd_open_probe(c->log, conf->common.root_canon, resolved, 0,
+		brix_vfs_stat_t fst;
+		if (brix_open_probe(c->log, conf->common.root_canon, resolved, 0,
 		                      &fst)) {
-			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_WR, "OPEN",
+			BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN",
 			                  resolved, "wr", kXR_ItExists,
 			                  "file already exists");
 		}
@@ -280,23 +280,23 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		/* Deterministic, identity-keyed: a reconnecting client re-opening the
 		 * same final path lands on the SAME partial and resumes from its
 		 * offset.  Anonymous (empty dn) shares per-path (no per-user isolation
-		 * on such an endpoint anyway).  When xrootd_stage_dir is set the partial
+		 * on such an endpoint anyway).  When brix_stage_dir is set the partial
 		 * lives on that fast device and the close-time commit moves it to the
 		 * destination (cross-device copy). */
 		const char *principal = ctx->dn[0] ? ctx->dn : NULL;
 		const char *stage_dir = conf->upload_stage_dir_canon[0]
 		                        ? conf->upload_stage_dir_canon : NULL;
-		if (xrootd_make_resume_path(resolved, principal, stage_dir,
+		if (brix_make_resume_path(resolved, principal, stage_dir,
 		                            posc_temp_path, sizeof(posc_temp_path))
 		    != NGX_OK) {
-			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_WR, "OPEN",
+			BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN",
 			                  resolved, "wr", kXR_ServerError,
 			                  "resume temp path too long");
 		}
 	} else if (use_posc) {
-		if (xrootd_make_tmp_path(resolved, posc_temp_path,
+		if (brix_make_tmp_path(resolved, posc_temp_path,
 		                         sizeof(posc_temp_path)) != NGX_OK) {
-			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_WR, "OPEN",
+			BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN",
 			                  resolved, "wr", kXR_ServerError,
 			                  "POSC temp path too long");
 		}
@@ -319,7 +319,7 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	 * committed regular file, fall through to opening it directly, in place.
 	 */
 	if (use_resume && !(options & kXR_delete) && !(options & kXR_new)) {
-		xrootd_vfs_stat_t fst;
+		brix_vfs_stat_t fst;
 		int               have_partial;
 
 		/* A pure update-in-place open is NOT an upload to stage when no resume
@@ -340,11 +340,11 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 			struct stat sst;   /* vfs-seam-allow: separate upload stage-dir domain */
 			have_partial = (stat(posc_temp_path, &sst) == 0);  /* vfs-seam-allow: separate upload stage-dir domain */
 		} else {
-			xrootd_vfs_stat_t pst;
-			have_partial = xrootd_open_probe(c->log, conf->common.root_canon,
+			brix_vfs_stat_t pst;
+			have_partial = brix_open_probe(c->log, conf->common.root_canon,
 			                                 posc_temp_path, 0, &pst);
 		}
-		int final_exists = xrootd_open_probe(c->log, conf->common.root_canon,
+		int final_exists = brix_open_probe(c->log, conf->common.root_canon,
 		                                     resolved, 0, &fst);
 		if (!have_partial && (!final_exists || fst.is_regular)) {
 			use_resume = 0;
@@ -353,10 +353,10 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	}
 
 	if (!is_write) {
-		xrootd_vfs_stat_t rst;
-		if (xrootd_open_probe(c->log, conf->common.root_canon, resolved, 0,
+		brix_vfs_stat_t rst;
+		if (brix_open_probe(c->log, conf->common.root_canon, resolved, 0,
 		                      &rst) && rst.is_directory) {
-			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN",
+			BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN",
 							  resolved, "rd", kXR_isDirectory,
 							  "is a directory");
 		}
@@ -364,7 +364,7 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
 	/* The kXR_open option-bit -> POSIX open(2) mapping is the single-sourced
 	 * inverse of the client's request builder (protocol/open_flags.h). */
-	xrootd_open_options_to_posix(options, is_write, &oflags, &is_readable);
+	brix_open_options_to_posix(options, is_write, &oflags, &is_readable);
 
 	/* Convert XRootD mode bits (Unix permission bits in low 9 bits). */
 	mode_t create_mode = (mode_bits & 0777);
@@ -372,10 +372,10 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		create_mode = 0644;
 	}
 
-	idx = xrootd_alloc_fhandle(ctx);
+	idx = brix_alloc_fhandle(ctx);
 	if (idx < 0) {
-		XROOTD_RETURN_ERR(ctx, c,
-						  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
+		BRIX_RETURN_ERR(ctx, c,
+						  is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
 						  "OPEN", resolved, is_write ? "wr" : "rd",
 						  kXR_ServerError, "too many open files");
 	}
@@ -386,15 +386,15 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	ngx_int_t              driver_backed = 0;
 	ngx_int_t              open_failed   = 0;
 	ngx_int_t              wt_via_stage  = 0;
-	xrootd_sd_instance_t  *sd_inst =
-	    xrootd_vfs_backend_resolve(conf->common.root_canon, c->log);
+	brix_sd_instance_t  *sd_inst =
+	    brix_vfs_backend_resolve(conf->common.root_canon, c->log);
 
 	/* Write-through as ONE mechanism (Option A): route a WRITE through the composed
 	 * wt sd_stage decorator (buffer on the export store, flush to the origin on
 	 * sync/close) instead of the local backend + close-time run_flush. Falls back to
 	 * run_flush (wt_via_stage stays 0) when no sd_stage is composed. */
 	if (is_write && conf->wt_enable && !from_cache && !use_resume) {
-		xrootd_sd_instance_t *wt = xrootd_cache_wt_stage_sd_inst(conf);
+		brix_sd_instance_t *wt = brix_cache_wt_stage_sd_inst(conf);
 
 		if (wt != NULL) {
 			sd_inst      = wt;
@@ -405,16 +405,16 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	/* §14 (phase-64): the legacy driver-backed read cache (cache_storage_backend)
 	 * and the legacy slice decorator (cache_slice_inst) are RETIRED — a driver
 	 * cache store and slice/partial serving are the tier grammar's composed
-	 * sd_cache, reached through the sd_inst branch below. A POSIX `xrootd_cache
+	 * sd_cache, reached through the sd_inst branch below. A POSIX `brix_cache
 	 * on` cache keeps the raw-fd from_cache path. */
 	if (sd_inst != NULL && !from_cache && !use_resume) {
 		driver_backed = 1;
 		/* Key the driver namespace on the export-root-relative ("/sub/file")
 		 * form — the same convention WebDAV/S3 and the VFS stat/dirlist/unlink
-		 * paths use (xrootd_vfs_export_relative_root, leading slash retained), so
+		 * paths use (brix_vfs_export_relative_root, leading slash retained), so
 		 * a file written here is found by every other driver-backed op. */
-		if (xrootd_open_resolved_via_driver(sd_inst,
-		        xrootd_vfs_export_relative_root(resolved,
+		if (brix_open_resolved_via_driver(sd_inst,
+		        brix_vfs_export_relative_root(resolved,
 		                                        conf->common.root_canon),
 		        oflags, is_readable, is_write, create_mode,
 		        &ctx->files[idx], &fd, &st) != NGX_OK) {
@@ -436,7 +436,7 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		 * export would otherwise freeze the worker's event loop and stall every
 		 * connection pinned to it).  It is harmless for the regular files we
 		 * serve and is cleared again on the surviving fd once fstat() confirms
-		 * S_ISREG below.  Mirrors the central guard in xrootd_vfs_open_fd_at(). */
+		 * S_ISREG below.  Mirrors the central guard in brix_vfs_open_fd_at(). */
 		int effective_oflags = oflags | (stage ? O_CREAT : 0) | O_NONBLOCK;
 
 		/* Resume staging on a configured fast device: the partial lives OUTSIDE
@@ -468,8 +468,8 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 			/* The export final/staged path: open beneath the export root through
 			 * the VFS (openat2 RESOLVE_BENEATH, impersonation-aware). The VFS
 			 * strips the absolute path to its rootfd-relative form. */
-			fd = xrootd_vfs_open_fd_at(conf->rootfd,
-			    xrootd_open_logical(open_path, conf->common.root_canon),
+			fd = brix_vfs_open_fd_at(conf->rootfd,
+			    brix_open_logical(open_path, conf->common.root_canon),
 			    effective_oflags, create_mode);
 		}
 		open_failed = (fd < 0);
@@ -479,8 +479,8 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		const char *mode_str = is_write ? "wr" : "rd";
 
 		if (err == ENOENT || err == ENOTDIR) {
-			XROOTD_RETURN_ERR(ctx, c,
-							  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
+			BRIX_RETURN_ERR(ctx, c,
+							  is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
 							  "OPEN", resolved, mode_str,
 							  kXR_NotFound, "file not found");
 		}
@@ -488,20 +488,20 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 			/* O_EXCL (kXR_new without kXR_delete) on an existing file → EEXIST,
 			 * which the reference maps to kXR_ItExists (the code raised by the
 			 * kXR_new flag), NOT kXR_FileLocked. */
-			XROOTD_RETURN_ERR(ctx, c,
-							  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
+			BRIX_RETURN_ERR(ctx, c,
+							  is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
 							  "OPEN", resolved, mode_str,
 							  kXR_ItExists, "file already exists");
 		}
 		if (err == EACCES) {
-			XROOTD_RETURN_ERR(ctx, c,
-							  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
+			BRIX_RETURN_ERR(ctx, c,
+							  is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
 							  "OPEN", resolved, mode_str,
 							  kXR_NotAuthorized, "permission denied");
 		}
 		if (err == EISDIR) {
-			XROOTD_RETURN_ERR(ctx, c,
-							  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
+			BRIX_RETURN_ERR(ctx, c,
+							  is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
 							  "OPEN", resolved, mode_str,
 							  kXR_isDirectory, "is a directory");
 		}
@@ -512,12 +512,12 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 			 * blocking the worker for the MSS latency. A later re-open re-polls the
 			 * recall and, once the object is online in the cache tier, opens +
 			 * serves it. */
-			xrootd_log_access(ctx, c, "OPEN", resolved, "rd-recall-wait",
+			brix_log_access(ctx, c, "OPEN", resolved, "rd-recall-wait",
 			                  0, 0, "nearline recall in progress; retry", 0);
-			return xrootd_send_wait(ctx, c, XROOTD_RECALL_WAIT_SECS);
+			return brix_send_wait(ctx, c, BRIX_RECALL_WAIT_SECS);
 		}
-		XROOTD_RETURN_ERR(ctx, c,
-						  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
+		BRIX_RETURN_ERR(ctx, c,
+						  is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
 						  "OPEN", resolved, mode_str,
 						  kXR_IOError, strerror(err));
 	}
@@ -531,16 +531,16 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 			int err = errno;
 
 			close(fd);
-			XROOTD_RETURN_ERR(ctx, c,
-							  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
+			BRIX_RETURN_ERR(ctx, c,
+							  is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
 							  "OPEN", resolved, is_write ? "wr" : "rd",
 							  kXR_IOError, strerror(err));
 		}
 
 		if (S_ISDIR(st.st_mode)) {
 			close(fd);
-			XROOTD_RETURN_ERR(ctx, c,
-							  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
+			BRIX_RETURN_ERR(ctx, c,
+							  is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
 							  "OPEN", resolved, is_write ? "wr" : "rd",
 							  kXR_isDirectory, "is a directory");
 		}
@@ -552,8 +552,8 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		 * temp, so this only ever rejects a pre-existing special file. */
 		if (!S_ISREG(st.st_mode)) {
 			close(fd);
-			XROOTD_RETURN_ERR(ctx, c,
-							  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
+			BRIX_RETURN_ERR(ctx, c,
+							  is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
 							  "OPEN", resolved, is_write ? "wr" : "rd",
 							  kXR_IOError, "not a regular file");
 		}
@@ -593,24 +593,24 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	if (conf->csi_enable && S_ISREG(st.st_mode)
 	    && !(conf->csi_trust_fs && !is_write))
 	{
-		xrootd_csi_t *csi = ngx_alloc(sizeof(xrootd_csi_t), c->log);
+		brix_csi_t *csi = ngx_alloc(sizeof(brix_csi_t), c->log);
 
 		if (csi != NULL) {
-			int crc = xrootd_csi_open(csi, resolved,
+			int crc = brix_csi_open(csi, resolved,
 			    (uint32_t) conf->csi_block, is_write);
 
 			csi->trust_fs = conf->csi_trust_fs ? 1 : 0;
-			if (crc == XROOTD_CSI_OK) {
+			if (crc == BRIX_CSI_OK) {
 				ctx->files[idx].csi = csi;
 			} else {
-				xrootd_csi_close(csi);
+				brix_csi_close(csi);
 				ngx_free(csi);
-				if (!is_write && crc == XROOTD_CSI_NOTAGS
+				if (!is_write && crc == BRIX_CSI_NOTAGS
 				    && conf->csi_require)
 				{
 					close(fd);
 					ctx->files[idx].fd = -1;
-					XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD,
+					BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD,
 					    "OPEN", resolved, "rd",
 					    kXR_ChkSumErr, "integrity record missing");
 				}
@@ -625,18 +625,18 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	if (conf->throttle_zone != NULL && conf->throttle_max_open_files > 0) {
 		const char *tuser = ctx->dn[0] ? ctx->dn : "anonymous";
 
-		if (!xrootd_throttle_open_inc(conf->throttle_zone, tuser,
+		if (!brix_throttle_open_inc(conf->throttle_zone, tuser,
 		                              conf->throttle_max_open_files))
 		{
 			close(fd);
 			ctx->files[idx].fd = -1;
 			if (ctx->files[idx].csi != NULL) {
-				xrootd_csi_close(ctx->files[idx].csi);
+				brix_csi_close(ctx->files[idx].csi);
 				ngx_free(ctx->files[idx].csi);
 				ctx->files[idx].csi = NULL;
 			}
-			XROOTD_RETURN_ERR(ctx, c,
-			    is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
+			BRIX_RETURN_ERR(ctx, c,
+			    is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
 			    "OPEN", resolved, is_write ? "wr" : "rd",
 			    kXR_Overloaded, "too many open files for this user");
 		}
@@ -651,11 +651,11 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	 * payloads).  The default (codec==0) leaves both slots 0 / byte-identical.
 	 */
 	ctx->files[idx].read_codec  = (!is_write && S_ISREG(st.st_mode)
-	    && codec != XROOTD_CODEC_IDENTITY) ? codec : (uint8_t) XROOTD_CODEC_IDENTITY;
+	    && codec != BRIX_CODEC_IDENTITY) ? codec : (uint8_t) BRIX_CODEC_IDENTITY;
 	ctx->files[idx].write_codec = (is_write && S_ISREG(st.st_mode)
-	    && codec != XROOTD_CODEC_IDENTITY) ? codec : (uint8_t) XROOTD_CODEC_IDENTITY;
+	    && codec != BRIX_CODEC_IDENTITY) ? codec : (uint8_t) BRIX_CODEC_IDENTITY;
 	ctx->files[idx].wt_enabled = 0;
-	ctx->files[idx].wt_policy = XROOTD_WT_DECISION_DENY;
+	ctx->files[idx].wt_policy = BRIX_WT_DECISION_DENY;
 	ctx->files[idx].wt_mode_bits = create_mode;
 	ctx->files[idx].wt_dirty_offset = -1;
 	ctx->files[idx].wt_bytes_written = 0;
@@ -665,14 +665,14 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	/* kXR_recoverWrts journal initialisation
 	 * Arm the write-recovery ring when the handle is opened for writing and
 	 * the recover_writes directive is on.  Read-only handles get the fields
-	 * zeroed (they are zero from xrootd_free_fhandle, but be explicit).
+	 * zeroed (they are zero from brix_free_fhandle, but be explicit).
 	 */
 	{
-		ngx_stream_xrootd_srv_conf_t *wrts_conf;
+		ngx_stream_brix_srv_conf_t *wrts_conf;
 		wrts_conf = ngx_stream_get_module_srv_conf(
-		    (ngx_stream_session_t *) c->data, ngx_stream_xrootd_module);
+		    (ngx_stream_session_t *) c->data, ngx_stream_brix_module);
 		if (is_write && wrts_conf->recover_writes) {
-			xrootd_wrts_open(&ctx->files[idx]);
+			brix_wrts_open(&ctx->files[idx]);
 		} else {
 			ctx->files[idx].wrts_enabled = 0;
 			ctx->files[idx].wrts_head    = 0;
@@ -684,48 +684,48 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	ctx->files[idx].dashboard_slot = -1;
 
 	/* Register the open file with the live transfer monitor. */
-	if (ngx_xrootd_dashboard_shm_zone != NULL) {
-		xrootd_transfer_table_t *dash_tbl = ngx_xrootd_dashboard_shm_zone->data;
+	if (ngx_brix_dashboard_shm_zone != NULL) {
+		brix_transfer_table_t *dash_tbl = ngx_brix_dashboard_shm_zone->data;
 		const char *dash_identity = ctx->dn[0] ? ctx->dn : "anonymous";
-		uint8_t     dash_dir = is_write ? XROOTD_XFER_DIR_WRITE
-		                                : XROOTD_XFER_DIR_READ;
-		ctx->files[idx].dashboard_slot = xrootd_transfer_slot_alloc(
+		uint8_t     dash_dir = is_write ? BRIX_XFER_DIR_WRITE
+		                                : BRIX_XFER_DIR_READ;
+		ctx->files[idx].dashboard_slot = brix_transfer_slot_alloc(
 		    dash_tbl, ctx->sessid, ctx->peer_ip,
 		    dash_identity, resolved, dash_dir,
-		    XROOTD_XFER_PROTO_ROOT, (int64_t) ngx_current_msec);
+		    BRIX_XFER_PROTO_ROOT, (int64_t) ngx_current_msec);
 	}
 
 	/*
 	 * POSC: store the temp path in the path field so that a non-clean close
-	 * (handled by xrootd_free_fhandle → unlink(path)) discards the partial
-	 * upload.  Store the final target in posc_final_path; xrootd_handle_close
+	 * (handled by brix_free_fhandle → unlink(path)) discards the partial
+	 * upload.  Store the final target in posc_final_path; brix_handle_close
 	 * will rename() on clean close and then clear this field before freeing.
 	 */
 	if (stage) {
-		if (xrootd_set_fhandle_path(ctx, c, idx, posc_temp_path) != NGX_OK) {
-			xrootd_free_fhandle(ctx, idx);
+		if (brix_set_fhandle_path(ctx, c, idx, posc_temp_path) != NGX_OK) {
+			brix_free_fhandle(ctx, idx);
 			return NGX_ERROR;
 		}
 		ctx->files[idx].posc_final_path = ngx_alloc(strlen(resolved) + 1,
 		                                             c->log);
 		if (ctx->files[idx].posc_final_path == NULL) {
-			xrootd_free_fhandle(ctx, idx);
+			brix_free_fhandle(ctx, idx);
 			return NGX_ERROR;
 		}
 		ngx_cpystrn((u_char *) ctx->files[idx].posc_final_path,
 		            (u_char *) resolved, strlen(resolved) + 1);
 		/* Resume staging: keep the partial on a non-clean close (the difference
-		 * from plain POSC, which discards it).  See xrootd_free_fhandle. */
+		 * from plain POSC, which discards it).  See brix_free_fhandle. */
 		ctx->files[idx].is_resume = use_resume ? 1 : 0;
 	} else {
-		if (xrootd_set_fhandle_path(ctx, c, idx, resolved) != NGX_OK) {
-			xrootd_free_fhandle(ctx, idx);
+		if (brix_set_fhandle_path(ctx, c, idx, resolved) != NGX_OK) {
+			brix_free_fhandle(ctx, idx);
 			return NGX_ERROR;
 		}
 	}
 
 	if (is_write && conf->group_rules != NULL) {
-		xrootd_apply_parent_group_policy_fd(c->log, fd, resolved,
+		brix_apply_parent_group_policy_fd(c->log, fd, resolved,
 											conf->group_rules);
 	}
 
@@ -762,7 +762,7 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	if (c->log->log_level & NGX_LOG_DEBUG_STREAM) {
 		char log_path[512];
 
-		xrootd_sanitize_log_string(resolved, log_path, sizeof(log_path));
+		brix_sanitize_log_string(resolved, log_path, sizeof(log_path));
 		ngx_log_debug4(NGX_LOG_DEBUG_STREAM, c->log, 0,
 					   "xrootd: kXR_open handle=%d path=%s mode=%s retstat=%d",
 					   idx, log_path, is_write ? "wr" : "rd",
@@ -778,7 +778,7 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	 *      reduces latency, and ensures consistent close-time behavior across the session.
 	 *
 	 * HOW: Policy callback flow (src/cache/writethrough_decision.h):
-	 *   1. conf->wt_decision.fn(resolved, options, &conf->wt_decision) — default is xrootd_wt_default_decide()
+	 *   1. conf->wt_decision.fn(resolved, options, &conf->wt_decision) — default is brix_wt_default_decide()
 	 *   2. Default engine checks: size filter → deny prefixes → allow prefixes → ALLOW_ASYNC (default)
 	 *   3. Cache result on handle: ctx->files[idx].wt_policy = decision, wt_enabled = (decision != DENY),
 	 *      wt_dirty_offset = -1 (clean state), wt_bytes_written = 0
@@ -789,7 +789,7 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	 *   ALLOW_ASYNC→ schedule async thread-pool flush, return immediately to client */
 
 /* WT decision policy engine (default: prefix-based)
- * WHAT: xrootd_wt_default_decide() — built-in prefix-based policy engine.
+ * WHAT: brix_wt_default_decide() — built-in prefix-based policy engine.
  *       External plugins can provide their own fn pointer for custom policies.
  *
  * WHY: Provides sensible defaults for most deployments without requiring external plugin setup.
@@ -802,7 +802,7 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
  *   4. Default: ALLOW_ASYNC (mirrors XrdPfcAllowDecision, sync preferred for local origins) */
 
 	if (is_write && conf->wt_enable) {
-		xrootd_wt_decision_t decision = XROOTD_WT_DECISION_DENY;
+		brix_wt_decision_t decision = BRIX_WT_DECISION_DENY;
 
 		if (conf->wt_decision.fn != NULL) {
 			decision = conf->wt_decision.fn(resolved, options, &conf->wt_decision);
@@ -811,7 +811,7 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		/* wt sd_stage handles flush on the storage path (sync job / close), NOT via
 		 * the close-time run_flush — so leave wt_enabled clear for them. */
 		ctx->files[idx].wt_enabled  = (!wt_via_stage
-		                               && decision != XROOTD_WT_DECISION_DENY) ? 1 : 0;
+		                               && decision != BRIX_WT_DECISION_DENY) ? 1 : 0;
 		ctx->files[idx].wt_policy   = decision;
 		ctx->files[idx].wt_mode_bits = create_mode;
 		ctx->files[idx].wt_dirty_offset = -1; /* no dirty writes yet */
@@ -823,12 +823,12 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		if (c->log->log_level & NGX_LOG_DEBUG_STREAM) {
 			char wt_log_path[512];
 
-			xrootd_sanitize_log_string(resolved, wt_log_path,
+			brix_sanitize_log_string(resolved, wt_log_path,
 			                           sizeof(wt_log_path));
 			ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
 			               "xrootd: wt decision=%s path=%s",
-			               decision == XROOTD_WT_DECISION_DENY ? "DENY" :
-			               decision == XROOTD_WT_DECISION_ALLOW_SYNC ? "ALLOW_SYNC" : "ALLOW_ASYNC",
+			               decision == BRIX_WT_DECISION_DENY ? "DENY" :
+			               decision == BRIX_WT_DECISION_ALLOW_SYNC ? "ALLOW_SYNC" : "ALLOW_ASYNC",
 			               wt_log_path);
 		}
 	}
@@ -849,7 +849,7 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	{
 		uint8_t    sig_codec = ctx->files[idx].read_codec
 		    ? ctx->files[idx].read_codec : ctx->files[idx].write_codec;
-		ngx_flag_t have_codec = (sig_codec != XROOTD_CODEC_IDENTITY);
+		ngx_flag_t have_codec = (sig_codec != BRIX_CODEC_IDENTITY);
 		ngx_flag_t full_body  = want_stat || have_codec;
 		size_t     hbytes     = full_body ? sizeof(ServerOpenBody)
 		                                   : sizeof(body.fhandle);  /* 4 */
@@ -858,7 +858,7 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		body.fhandle[0] = (u_char) idx;
 		body.cpsize     = 0;
 		if (have_codec) {
-			body.cpsize    = (kXR_int32) htonl(XROOTD_INLINE_CMP_MAGIC);
+			body.cpsize    = (kXR_int32) htonl(BRIX_INLINE_CMP_MAGIC);
 			body.cptype[0] = sig_codec;
 		}
 
@@ -870,11 +870,11 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		total = XRD_RESPONSE_HDR_LEN + bodylen;
 		buf   = ngx_palloc(c->pool, total);
 		if (buf == NULL) {
-			xrootd_free_fhandle(ctx, idx);
+			brix_free_fhandle(ctx, idx);
 			return NGX_ERROR;
 		}
 
-		xrootd_build_resp_hdr(ctx->cur_streamid, kXR_ok,
+		brix_build_resp_hdr(ctx->cur_streamid, kXR_ok,
 							  (uint32_t) bodylen,
 							  (ServerResponseHdr *) buf);
 
@@ -892,27 +892,27 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	ctx->files[idx].open_time     = ngx_current_msec;
 
 	if (!ctx->is_bound) {
-		xrootd_session_handle_publish(ctx->sessid, idx, &ctx->files[idx]);
+		brix_session_handle_publish(ctx->sessid, idx, &ctx->files[idx]);
 	}
 
-	xrootd_log_access(ctx, c, "OPEN", resolved,
+	brix_log_access(ctx, c, "OPEN", resolved,
 					  is_write ? "wr" : "rd", 1, 0, NULL, 0);
-	XROOTD_OP_OK(ctx, is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD);
+	BRIX_OP_OK(ctx, is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD);
 
 	/* Phase 24 W3: begin accumulating this write-open for the data-write mirror.
-	 * No-op unless xrootd_mirror_writes is on and a stream mirror is configured. */
-	xrootd_stream_wmirror_on_open(ctx, c, conf, idx, is_write);
+	 * No-op unless brix_mirror_writes is on and a stream mirror is configured. */
+	brix_stream_wmirror_on_open(ctx, c, conf, idx, is_write);
 
 	/* Phase 35 / Phase 3: when this open is the async-recall replay for a parked
 	 * client, the answer must travel as kXR_attn(asynresp) on the saved streamid,
 	 * not a plain kXR_ok header. The body bytes (ServerOpenBody [+ stat]) sit at
 	 * buf + header; asynresp wraps them itself. */
 	if (ctx->stage_async_active) {
-		return xrootd_send_attn_asynresp(ctx, c, ctx->stage_async_streamid,
+		return brix_send_attn_asynresp(ctx, c, ctx->stage_async_streamid,
 		                                 (uint16_t) kXR_ok,
 		                                 buf + XRD_RESPONSE_HDR_LEN,
 		                                 (uint32_t) bodylen);
 	}
 
-	return xrootd_queue_response(ctx, c, buf, total);
+	return brix_queue_response(ctx, c, buf, total);
 }

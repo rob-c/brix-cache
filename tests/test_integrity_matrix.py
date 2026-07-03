@@ -387,7 +387,7 @@ def _driver(proto):
 # ===========================================================================
 # Mirror fixture — the fleet has no mirror server, so provision one:
 #   origin-sink (storage)  <- mirrored shadow traffic
-#   mirror-front (storage + xrootd_stream_mirror_url -> sink)  <- client I/O
+#   mirror-front (storage + brix_stream_mirror_url -> sink)  <- client I/O
 # The client reads/writes the front; integrity must be unaffected by mirroring.
 # ===========================================================================
 
@@ -419,8 +419,8 @@ events {{}}
 stream {{
     server {{
         listen 0.0.0.0:{MIRROR_SINK_PORT};
-        xrootd on; xrootd_storage_backend posix:{sink_data}; xrootd_auth none;
-        xrootd_allow_write on;
+        xrootd on; brix_storage_backend posix:{sink_data}; brix_auth none;
+        brix_allow_write on;
     }}
 }}
 """)
@@ -432,10 +432,10 @@ events {{}}
 stream {{
     server {{
         listen 0.0.0.0:{MIRROR_FRONT_PORT};
-        xrootd on; xrootd_storage_backend posix:{data}; xrootd_auth none;
-        xrootd_allow_write on;
-        xrootd_stream_mirror_url {H}:{MIRROR_SINK_PORT};
-        xrootd_mirror_opcodes open read readv stat;
+        xrootd on; brix_storage_backend posix:{data}; brix_auth none;
+        brix_allow_write on;
+        brix_stream_mirror_url {H}:{MIRROR_SINK_PORT};
+        brix_mirror_opcodes open read readv stat;
     }}
 }}
 """)
@@ -620,14 +620,14 @@ def proxy_chain():
     data = os.path.join(_PROXY_DIR, "data")
     confs = {
         "storage": (PROXY_STORAGE_PORT, f"""\
-        xrootd on; xrootd_storage_backend posix:{data}; xrootd_auth none;
-        xrootd_allow_write on;"""),
+        xrootd on; brix_storage_backend posix:{data}; brix_auth none;
+        brix_allow_write on;"""),
         "hop1": (PROXY_HOP1_PORT, f"""\
-        xrootd on; xrootd_auth none;
-        xrootd_proxy on; xrootd_proxy_upstream {HOST}:{PROXY_STORAGE_PORT};"""),
+        xrootd on; brix_auth none;
+        brix_proxy on; brix_proxy_upstream {HOST}:{PROXY_STORAGE_PORT};"""),
         "hop2": (PROXY_HOP2_PORT, f"""\
-        xrootd on; xrootd_auth none;
-        xrootd_proxy on; xrootd_proxy_upstream {HOST}:{PROXY_HOP1_PORT};"""),
+        xrootd on; brix_auth none;
+        brix_proxy on; brix_proxy_upstream {HOST}:{PROXY_HOP1_PORT};"""),
     }
     os.makedirs(data, exist_ok=True)
     started = []

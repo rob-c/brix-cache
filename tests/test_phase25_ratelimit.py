@@ -5,7 +5,7 @@ Coverage:
   1. Source-marker checks: the ratelimit module, dispatch gate, body filter,
      directives, metrics, and dashboard route are wired.
   2. Config validation: the new directives parse (and do not collide with the
-     Phase 20 xrootd_rate_limit); bad rate/key are rejected; off by default.
+     Phase 20 brix_rate_limit); bad rate/key are rejected; off by default.
   3. HTTP functional: a per-IP request rate returns 429 once the burst is spent
      (success + Retry-After); nodelay rejects immediately; an unauthenticated
      client is bucketed by IP; bandwidth is charged (dashboard bytes_total).
@@ -13,9 +13,9 @@ Coverage:
      is spent; kXR_stat is never throttled.
   5. Dashboard: GET /xrootd/api/v1/ratelimit reports per-principal throttle
      counts, sorted most-throttled first.
-  6. Stream concurrency (W7): xrootd_concurrency_limit caps concurrent root://
+  6. Stream concurrency (W7): brix_concurrency_limit caps concurrent root://
      connections per principal — over-cap connections get kXR_wait, and a slot
-     freed by a disconnect is reusable (release wired in xrootd_on_disconnect).
+     freed by a disconnect is reusable (release wired in brix_on_disconnect).
 """
 
 import json
@@ -65,29 +65,29 @@ def test_ratelimit_module_present():
 
 def test_stream_gate_and_charge_wired():
     d = _read("src/protocols/root/handshake/dispatch.c")
-    assert "xrootd_rl_stream_gate" in d
-    assert "xrootd_rl_charge_ctx" in _read("src/protocols/root/read/read.c")
-    assert "xrootd_rl_charge_ctx" in _read("src/protocols/root/write/write.c")
+    assert "brix_rl_stream_gate" in d
+    assert "brix_rl_charge_ctx" in _read("src/protocols/root/read/read.c")
+    assert "brix_rl_charge_ctx" in _read("src/protocols/root/write/write.c")
     s = _read("src/net/ratelimit/ratelimit_stream.c")
-    assert "xrootd_send_wait" in s
+    assert "brix_send_wait" in s
 
 
 def test_http_handler_and_filter_wired():
     pc = _read("src/protocols/webdav/postconfig.c")
-    assert "xrootd_rl_http_access_handler" in pc
-    assert "xrootd_rl_http_log_handler" in pc      # bandwidth charge (log phase)
+    assert "brix_rl_http_access_handler" in pc
+    assert "brix_rl_http_log_handler" in pc      # bandwidth charge (log phase)
     h = _read("src/net/ratelimit/ratelimit_http.c")
     assert "NGX_HTTP_TOO_MANY_REQUESTS" in h
     assert "Retry-After" in h
-    assert "xrootd_rl_charge_bytes" in h
+    assert "brix_rl_charge_bytes" in h
 
 
 def test_directives_distinct_from_phase20():
-    # Phase 25 directives must be distinct from the Phase 20 xrootd_rate_limit.
+    # Phase 25 directives must be distinct from the Phase 20 brix_rate_limit.
     wd = _read("src/protocols/webdav/module.c")
     st = _read("src/protocols/root/stream/module.c")
-    for name in ("xrootd_rate_limit_zone", "xrootd_rate_limit_rule",
-                 "xrootd_bandwidth_limit"):
+    for name in ("brix_rate_limit_zone", "brix_rate_limit_rule",
+                 "brix_bandwidth_limit"):
         assert name in wd, name
         assert name in st, name
 
@@ -96,7 +96,7 @@ def test_metrics_and_dashboard_wired():
     m = _read("src/observability/metrics/metrics.h")
     assert "rl_throttled_http_total" in m
     assert "rl_throttled_stream_total" in m
-    assert "xrootd_rate_limit_throttled_total" in _read("src/observability/metrics/ratelimit.c")
+    assert "brix_rate_limit_throttled_total" in _read("src/observability/metrics/ratelimit.c")
     assert "/xrootd/api/v1/ratelimit" in _read("src/observability/dashboard/module.c")
 
 
@@ -140,16 +140,16 @@ def test_http_directives_parse(tmp_path):
         server {{
             listen {BIND_HOST}:{port};
             location / {{
-                xrootd_webdav on;
-                xrootd_webdav_storage_backend posix:{data};
-                xrootd_webdav_auth none;
-                xrootd_rate_limit_rule zone=rl key=vo rate=500r/s burst=800;
-                xrootd_rate_limit_rule zone=rl key=ip rate=10r/s burst=10 nodelay;
-                xrootd_rate_limit_rule zone=rl key=volume:/store/tape rate=50r/s burst=80;
-                xrootd_bandwidth_limit zone=rl key=vo rate=100m/s burst=500m;
+                brix_webdav on;
+                brix_webdav_storage_backend posix:{data};
+                brix_webdav_auth none;
+                brix_rate_limit_rule zone=rl key=vo rate=500r/s burst=800;
+                brix_rate_limit_rule zone=rl key=ip rate=10r/s burst=10 nodelay;
+                brix_rate_limit_rule zone=rl key=volume:/store/tape rate=50r/s burst=80;
+                brix_bandwidth_limit zone=rl key=vo rate=100m/s burst=500m;
             }}
         }}
-    """, tmp_path, http_extra="xrootd_rate_limit_zone zone=rl:4m;")
+    """, tmp_path, http_extra="brix_rate_limit_zone zone=rl:4m;")
     rc, out = _nginx_check(conf, tmp_path)
     assert rc == 0, out
 
@@ -161,13 +161,13 @@ def test_bad_rate_rejected(tmp_path):
         server {{
             listen {BIND_HOST}:{port};
             location / {{
-                xrootd_webdav on;
-                xrootd_webdav_storage_backend posix:{data};
-                xrootd_webdav_auth none;
-                xrootd_rate_limit_rule zone=rl key=ip rate=500 burst=10;
+                brix_webdav on;
+                brix_webdav_storage_backend posix:{data};
+                brix_webdav_auth none;
+                brix_rate_limit_rule zone=rl key=ip rate=500 burst=10;
             }}
         }}
-    """, tmp_path, http_extra="xrootd_rate_limit_zone zone=rl:1m;")
+    """, tmp_path, http_extra="brix_rate_limit_zone zone=rl:1m;")
     rc, out = _nginx_check(conf, tmp_path)
     assert rc != 0
     assert "rate" in out.lower()
@@ -180,10 +180,10 @@ def test_unknown_zone_rejected(tmp_path):
         server {{
             listen {BIND_HOST}:{port};
             location / {{
-                xrootd_webdav on;
-                xrootd_webdav_storage_backend posix:{data};
-                xrootd_webdav_auth none;
-                xrootd_rate_limit_rule zone=missing key=ip rate=5r/s burst=5;
+                brix_webdav on;
+                brix_webdav_storage_backend posix:{data};
+                brix_webdav_auth none;
+                brix_rate_limit_rule zone=missing key=ip rate=5r/s burst=5;
             }}
         }}
     """, tmp_path)
@@ -193,22 +193,22 @@ def test_unknown_zone_rejected(tmp_path):
 
 
 def test_coexists_with_phase20_rate_limit(tmp_path):
-    # The new directives and the Phase 20 xrootd_rate_limit must not collide.
+    # The new directives and the Phase 20 brix_rate_limit must not collide.
     data = tmp_path / "data"; data.mkdir()
     port = free_port()
     conf = _http_block(f"""
         server {{
             listen {BIND_HOST}:{port};
             location / {{
-                xrootd_webdav on;
-                xrootd_webdav_storage_backend posix:{data};
-                xrootd_webdav_auth none;
-                xrootd_rate_limit_rule zone=rl key=ip rate=10r/s burst=10;
+                brix_webdav on;
+                brix_webdav_storage_backend posix:{data};
+                brix_webdav_auth none;
+                brix_rate_limit_rule zone=rl key=ip rate=10r/s burst=10;
             }}
         }}
     """, tmp_path,
-        http_extra="xrootd_kv_zone kv 1m key=64 val=64;\n"
-                   "        xrootd_rate_limit_zone zone=rl:1m;")
+        http_extra="brix_kv_zone kv 1m key=64 val=64;\n"
+                   "        brix_rate_limit_zone zone=rl:1m;")
     rc, out = _nginx_check(conf, tmp_path)
     assert rc == 0, out
 
@@ -283,13 +283,13 @@ def test_http_429_after_burst(tmp_path):
         server {{
             listen {BIND_HOST}:{port};
             location / {{
-                xrootd_webdav on;
-                xrootd_webdav_storage_backend posix:{data};
-                xrootd_webdav_auth none;
-                xrootd_rate_limit_rule zone=rl key=ip rate=2r/s burst=2;
+                brix_webdav on;
+                brix_webdav_storage_backend posix:{data};
+                brix_webdav_auth none;
+                brix_rate_limit_rule zone=rl key=ip rate=2r/s burst=2;
             }}
         }}
-    """, tmp_path, http_extra="xrootd_rate_limit_zone zone=rl:1m;")
+    """, tmp_path, http_extra="brix_rate_limit_zone zone=rl:1m;")
     proc = _spawn(conf, tmp_path, port)
     try:
         codes = [_get(port, "/f.txt")[0] for _ in range(6)]
@@ -311,13 +311,13 @@ def test_http_nodelay_immediate(tmp_path):
         server {{
             listen {BIND_HOST}:{port};
             location / {{
-                xrootd_webdav on;
-                xrootd_webdav_storage_backend posix:{data};
-                xrootd_webdav_auth none;
-                xrootd_rate_limit_rule zone=rl key=ip rate=1r/s burst=1 nodelay;
+                brix_webdav on;
+                brix_webdav_storage_backend posix:{data};
+                brix_webdav_auth none;
+                brix_rate_limit_rule zone=rl key=ip rate=1r/s burst=1 nodelay;
             }}
         }}
-    """, tmp_path, http_extra="xrootd_rate_limit_zone zone=rl:1m;")
+    """, tmp_path, http_extra="brix_rate_limit_zone zone=rl:1m;")
     proc = _spawn(conf, tmp_path, port)
     try:
         codes = [_get(port, "/f.txt")[0] for _ in range(4)]
@@ -343,13 +343,13 @@ def test_http_bandwidth_throttled(tmp_path):
         server {{
             listen {BIND_HOST}:{port};
             location / {{
-                xrootd_webdav on;
-                xrootd_webdav_storage_backend posix:{data};
-                xrootd_webdav_auth none;
-                xrootd_bandwidth_limit zone=rl key=ip rate=10k/s burst=120k;
+                brix_webdav on;
+                brix_webdav_storage_backend posix:{data};
+                brix_webdav_auth none;
+                brix_bandwidth_limit zone=rl key=ip rate=10k/s burst=120k;
             }}
         }}
-    """, tmp_path, http_extra="xrootd_rate_limit_zone zone=rl:1m;")
+    """, tmp_path, http_extra="brix_rate_limit_zone zone=rl:1m;")
     proc = _spawn(conf, tmp_path, port)
     try:
         codes = [_get(port, "/big.bin")[0] for _ in range(5)]
@@ -384,17 +384,17 @@ def test_dashboard_shows_throttle_count(tmp_path):
         server {{
             listen {BIND_HOST}:{port};
             location / {{
-                xrootd_webdav on;
-                xrootd_webdav_storage_backend posix:{data};
-                xrootd_webdav_auth none;
-                xrootd_rate_limit_rule zone=rl key=ip rate=2r/s burst=2;
+                brix_webdav on;
+                brix_webdav_storage_backend posix:{data};
+                brix_webdav_auth none;
+                brix_rate_limit_rule zone=rl key=ip rate=2r/s burst=2;
             }}
             location /xrootd/ {{
-                xrootd_dashboard on;
-                xrootd_dashboard_password "pw";
+                brix_dashboard on;
+                brix_dashboard_password "pw";
             }}
         }}
-    """, tmp_path, http_extra="xrootd_rate_limit_zone zone=rl:1m;")
+    """, tmp_path, http_extra="brix_rate_limit_zone zone=rl:1m;")
     proc = _spawn(conf, tmp_path, port)
     try:
         # Drive throttling on the ip:127.0.0.1 principal.
@@ -486,13 +486,13 @@ def test_stream_kxr_wait_after_burst(tmp_path):
     port = free_port()
     conf = HEADER.format(logs=tmp_path / "logs") + f"""
     stream {{
-        xrootd_rate_limit_zone zone=rls:1m;
+        brix_rate_limit_zone zone=rls:1m;
         server {{
             listen {BIND_HOST}:{port};
             xrootd on;
-            xrootd_storage_backend posix:{data};
-            xrootd_auth none;
-            xrootd_rate_limit_rule zone=rls key=ip rate=2r/s burst=2;
+            brix_storage_backend posix:{data};
+            brix_auth none;
+            brix_rate_limit_rule zone=rls key=ip rate=2r/s burst=2;
         }}
     }}
     """
@@ -516,13 +516,13 @@ def test_stream_stat_never_throttled(tmp_path):
     port = free_port()
     conf = HEADER.format(logs=tmp_path / "logs") + f"""
     stream {{
-        xrootd_rate_limit_zone zone=rls:1m;
+        brix_rate_limit_zone zone=rls:1m;
         server {{
             listen {BIND_HOST}:{port};
             xrootd on;
-            xrootd_storage_backend posix:{data};
-            xrootd_auth none;
-            xrootd_rate_limit_rule zone=rls key=ip rate=1r/s burst=1;
+            brix_storage_backend posix:{data};
+            brix_auth none;
+            brix_rate_limit_rule zone=rls key=ip rate=1r/s burst=1;
         }}
     }}
     """
@@ -541,48 +541,48 @@ def test_stream_stat_never_throttled(tmp_path):
 # --------------------------------------------------------------------------- #
 # 6. Stream concurrency limiting (W7)                                          #
 #                                                                             #
-# The stream plane has no per-request LOG phase, so xrootd_concurrency_limit  #
+# The stream plane has no per-request LOG phase, so brix_concurrency_limit  #
 # caps *concurrent connections* per principal: the gate acquires one in-flight #
 # slot on the first rate-limited opcode (kXR_open/read/...) and releases it in #
-# xrootd_on_disconnect.  Over-cap connections get kXR_wait; a freed slot is    #
+# brix_on_disconnect.  Over-cap connections get kXR_wait; a freed slot is    #
 # reusable.                                                                    #
 # --------------------------------------------------------------------------- #
 
 def test_stream_concurrency_wiring():
     # The directive is registered on the stream srv table (not HTTP-only) ...
     st = _read("src/protocols/root/stream/module.c")
-    assert "xrootd_concurrency_limit" in st
-    assert "xrootd_rl_conc_directive" in st
+    assert "brix_concurrency_limit" in st
+    assert "brix_rl_conc_directive" in st
     # ... the gate acquires a slot ...
     rs = _read("src/net/ratelimit/ratelimit_stream.c")
-    assert "xrootd_rl_conc_acquire" in rs
-    assert "xrootd_rl_release_ctx" in rs
+    assert "brix_rl_conc_acquire" in rs
+    assert "brix_rl_release_ctx" in rs
     # ... the per-connection slot lives on the ctx ...
     ctx = _read("src/core/types/context.h")
     assert "rl_conc_rule" in ctx
     assert "rl_conc_key" in ctx
     # ... and the release is hooked on disconnect (no LOG phase on the stream).
     dc = _read("src/protocols/root/connection/disconnect.c")
-    assert "xrootd_rl_release_ctx" in dc
+    assert "brix_rl_release_ctx" in dc
 
 
 def _conc_stream_conf(tmp_path, port, data, limit):
     return HEADER.format(logs=tmp_path / "logs") + f"""
     stream {{
-        xrootd_rate_limit_zone zone=rlc:1m;
+        brix_rate_limit_zone zone=rlc:1m;
         server {{
             listen {BIND_HOST}:{port};
             xrootd on;
-            xrootd_storage_backend posix:{data};
-            xrootd_auth none;
-            xrootd_concurrency_limit zone=rlc key=ip limit={limit};
+            brix_storage_backend posix:{data};
+            brix_auth none;
+            brix_concurrency_limit zone=rlc key=ip limit={limit};
         }}
     }}
     """
 
 
 def test_stream_concurrency_directive_parses(tmp_path):
-    # Regression: xrootd_concurrency_limit used to be HTTP-only and would be
+    # Regression: brix_concurrency_limit used to be HTTP-only and would be
     # rejected in a stream{} server block. It must now parse there.
     data = tmp_path / "data"; data.mkdir()
     rc, out = _nginx_check(_conc_stream_conf(tmp_path, free_port(), data, 4), tmp_path)
@@ -596,13 +596,13 @@ def test_stream_concurrency_bad_limit_rejected(tmp_path):
     port = free_port()
     conf = HEADER.format(logs=tmp_path / "logs") + f"""
     stream {{
-        xrootd_rate_limit_zone zone=rlc:1m;
+        brix_rate_limit_zone zone=rlc:1m;
         server {{
             listen {BIND_HOST}:{port};
             xrootd on;
-            xrootd_storage_backend posix:{data};
-            xrootd_auth none;
-            xrootd_concurrency_limit zone=rlc key=ip limit=0;
+            brix_storage_backend posix:{data};
+            brix_auth none;
+            brix_concurrency_limit zone=rlc key=ip limit=0;
         }}
     }}
     """
@@ -695,13 +695,13 @@ def test_stream_concurrency_high_limit_no_throttle(tmp_path):
 # --------------------------------------------------------------------------- #
 
 def test_keycache_wiring():
-    assert "XROOTD_RL_RULE_CACHE_MAX" in _read("src/core/types/tunables.h")
+    assert "BRIX_RL_RULE_CACHE_MAX" in _read("src/core/types/tunables.h")
     ctx = _read("src/core/types/context.h")
     assert "rl_key_cache" in ctx and "rl_key_cache_valid" in ctx
     gate = _read("src/net/ratelimit/ratelimit_stream.c")
     assert "rl_key_cache_valid" in gate
     # VOLUME rules must be excluded from caching.
-    assert "XROOTD_RL_KEY_VOLUME" in gate
+    assert "BRIX_RL_KEY_VOLUME" in gate
 
 
 def test_keycache_read_path_still_throttles(tmp_path):
@@ -713,13 +713,13 @@ def test_keycache_read_path_still_throttles(tmp_path):
     port = free_port()
     conf = HEADER.format(logs=tmp_path / "logs") + f"""
     stream {{
-        xrootd_rate_limit_zone zone=rlk:1m;
+        brix_rate_limit_zone zone=rlk:1m;
         server {{
             listen {BIND_HOST}:{port};
             xrootd on;
-            xrootd_storage_backend posix:{data};
-            xrootd_auth none;
-            xrootd_rate_limit_rule zone=rlk key=ip rate=2r/s burst=2;
+            brix_storage_backend posix:{data};
+            brix_auth none;
+            brix_rate_limit_rule zone=rlk key=ip rate=2r/s burst=2;
         }}
     }}
     """
@@ -748,13 +748,13 @@ def test_keycache_volume_not_collapsed(tmp_path):
     port = free_port()
     conf = HEADER.format(logs=tmp_path / "logs") + f"""
     stream {{
-        xrootd_rate_limit_zone zone=rlv:1m;
+        brix_rate_limit_zone zone=rlv:1m;
         server {{
             listen {BIND_HOST}:{port};
             xrootd on;
-            xrootd_storage_backend posix:{data};
-            xrootd_auth none;
-            xrootd_rate_limit_rule zone=rlv key=volume:/hot rate=1r/s burst=1;
+            brix_storage_backend posix:{data};
+            brix_auth none;
+            brix_rate_limit_rule zone=rlv key=volume:/hot rate=1r/s burst=1;
         }}
     }}
     """

@@ -4,7 +4,7 @@
  * Phase 21 Step D extends the original single-upstream parser into a
  * multi-backend builder: every URL in conf->upstream_urls (or the legacy
  * single conf->upstream_url) is resolved at configuration time, and each
- * resolved address becomes one xrootd_webdav_backend_t carrying its own Host:
+ * resolved address becomes one brix_webdav_backend_t carrying its own Host:
  * header value, request-line URL base, and TLS flag.  proxy.c round-robins
  * across the resulting backend array with passive health tracking; the legacy
  * conf->upstream_{host,url_base,resolved,ssl} fields are aliased to backend[0]
@@ -12,7 +12,7 @@
  */
 
 #include "proxy_internal.h"
-#include "core/compat/host_format.h"  /* xrootd_format_host[_port] — IPv6 bracketing */
+#include "core/compat/host_format.h"  /* brix_format_host[_port] — IPv6 bracketing */
 #include "core/compat/log_diag.h"
 
 /*
@@ -20,7 +20,7 @@
  * All addresses of a single URL share that URL's host/url_base/ssl.
  */
 static ngx_int_t
-webdav_proxy_add_url(ngx_conf_t *cf, ngx_http_xrootd_webdav_loc_conf_t *conf,
+webdav_proxy_add_url(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *conf,
     ngx_str_t *url)
 {
     ngx_url_t                u;
@@ -31,13 +31,13 @@ webdav_proxy_add_url(ngx_conf_t *cf, ngx_http_xrootd_webdav_loc_conf_t *conf,
     ngx_str_t                host;
     ngx_str_t                url_base;
     ngx_uint_t               a;
-    xrootd_webdav_backend_t *be;
+    brix_webdav_backend_t *be;
 
     if (url->len == 0) {
-        XROOTD_DIAG_CONF(NGX_LOG_EMERG, cf, 0,
-            "xrootd_webdav_proxy: no upstream URL given",
+        BRIX_DIAG_CONF(NGX_LOG_EMERG, cf, 0,
+            "brix_webdav_proxy: no upstream URL given",
             "the directive was used without a backend URL argument",
-            "supply the backend, e.g. xrootd_webdav_proxy https://backend:1094;");
+            "supply the backend, e.g. brix_webdav_proxy https://backend:1094;");
         return NGX_ERROR;
     }
 
@@ -47,7 +47,7 @@ webdav_proxy_add_url(ngx_conf_t *cf, ngx_http_xrootd_webdav_loc_conf_t *conf,
         ssl = 0; scheme_len = 7; default_port = 80;
     } else {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_webdav_proxy: upstream URL \"%V\" must start with"
+            "brix_webdav_proxy: upstream URL \"%V\" must start with"
             " http:// or https://", url);
         return NGX_ERROR;
     }
@@ -61,14 +61,14 @@ webdav_proxy_add_url(ngx_conf_t *cf, ngx_http_xrootd_webdav_loc_conf_t *conf,
     if (ngx_parse_url(cf->pool, &u) != NGX_OK) {
         if (u.err) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd_webdav_proxy: \"%V\" in upstream URL \"%V\"",
+                "brix_webdav_proxy: \"%V\" in upstream URL \"%V\"",
                 &u.err, url);
         }
         return NGX_ERROR;
     }
     if (u.naddrs == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_webdav_proxy: upstream URL \"%V\" resolved to zero"
+            "brix_webdav_proxy: upstream URL \"%V\" resolved to zero"
             " addresses", url);
         return NGX_ERROR;
     }
@@ -85,9 +85,9 @@ webdav_proxy_add_url(ngx_conf_t *cf, ngx_http_xrootd_webdav_loc_conf_t *conf,
         hostz[hn] = '\0';
 
         if (u.port == default_port) {
-            fn = xrootd_format_host(hostz, fmt, sizeof(fmt));
+            fn = brix_format_host(hostz, fmt, sizeof(fmt));
         } else {
-            fn = xrootd_format_host_port(hostz, (uint16_t) u.port,
+            fn = brix_format_host_port(hostz, (uint16_t) u.port,
                                          fmt, sizeof(fmt));
         }
 
@@ -149,12 +149,12 @@ webdav_proxy_add_url(ngx_conf_t *cf, ngx_http_xrootd_webdav_loc_conf_t *conf,
 
 ngx_int_t
 webdav_proxy_build_backends(ngx_conf_t *cf,
-    ngx_http_xrootd_webdav_loc_conf_t *conf)
+    ngx_http_brix_webdav_loc_conf_t *conf)
 {
-    xrootd_webdav_backend_t *be0;
+    brix_webdav_backend_t *be0;
 
     conf->upstream_backends = ngx_array_create(cf->pool, 4,
-                                               sizeof(xrootd_webdav_backend_t));
+                                               sizeof(brix_webdav_backend_t));
     if (conf->upstream_backends == NULL) {
         return NGX_ERROR;
     }
@@ -173,13 +173,13 @@ webdav_proxy_build_backends(ngx_conf_t *cf,
         }
     } else {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "xrootd_webdav_proxy: missing upstream URL");
+                           "brix_webdav_proxy: missing upstream URL");
         return NGX_ERROR;
     }
 
     if (conf->upstream_backends->nelts == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "xrootd_webdav_proxy: no usable backends");
+                           "brix_webdav_proxy: no usable backends");
         return NGX_ERROR;
     }
 
@@ -210,14 +210,14 @@ webdav_proxy_build_backends(ngx_conf_t *cf,
 #endif
 
     /* Legacy aliases point at the first backend. */
-    be0 = (xrootd_webdav_backend_t *) conf->upstream_backends->elts;
+    be0 = (brix_webdav_backend_t *) conf->upstream_backends->elts;
     conf->upstream_host     = be0->host;
     conf->upstream_url_base = be0->url_base;
     conf->upstream_ssl      = be0->ssl;
     conf->upstream_resolved = &be0->resolved;
 
     ngx_log_error(NGX_LOG_NOTICE, cf->log, 0,
-                  "xrootd_webdav_proxy: %ui backend(s); primary %V (ssl=%d)",
+                  "brix_webdav_proxy: %ui backend(s); primary %V (ssl=%d)",
                   conf->upstream_backends->nelts,
                   &conf->upstream_url_base, (int) conf->upstream_ssl);
 
@@ -227,7 +227,7 @@ webdav_proxy_build_backends(ngx_conf_t *cf,
 /* Backward-compatible single-entry parser — delegates to the builder. */
 ngx_int_t
 webdav_proxy_parse_upstream_url(ngx_conf_t *cf,
-    ngx_http_xrootd_webdav_loc_conf_t *conf)
+    ngx_http_brix_webdav_loc_conf_t *conf)
 {
     return webdav_proxy_build_backends(cf, conf);
 }
@@ -244,15 +244,15 @@ webdav_proxy_parse_upstream_url(ngx_conf_t *cf,
  */
 ngx_int_t
 webdav_proxy_pool_setup(ngx_conf_t *cf,
-    ngx_http_xrootd_webdav_loc_conf_t *conf,
-    ngx_http_xrootd_webdav_loc_conf_t *prev)
+    ngx_http_brix_webdav_loc_conf_t *conf,
+    ngx_http_brix_webdav_loc_conf_t *prev)
 {
     static ngx_str_t  webdav_proxy_hide_headers[] = { ngx_null_string };
     ngx_hash_init_t   hh;
 
-    if (xrootd_proxy_pool_configure(cf) != NGX_OK) {
+    if (brix_proxy_pool_configure(cf) != NGX_OK) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "xrootd_webdav_proxy_dynamic: shared zone setup"
+                           "brix_webdav_proxy_dynamic: shared zone setup"
                            " failed");
         return NGX_ERROR;
     }
@@ -307,7 +307,7 @@ webdav_proxy_pool_setup(ngx_conf_t *cf,
     }
 
     ngx_log_error(NGX_LOG_NOTICE, cf->log, 0,
-                  "xrootd_webdav_proxy_dynamic: SHM pool configured"
+                  "brix_webdav_proxy_dynamic: SHM pool configured"
                   " (backends added at runtime via admin API)");
     return NGX_OK;
 }

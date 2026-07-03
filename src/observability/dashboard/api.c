@@ -8,8 +8,8 @@ const char *
 dashboard_direction_name(uint8_t direction)
 {
     switch (direction) {
-    case XROOTD_XFER_DIR_WRITE: return "write";
-    case XROOTD_XFER_DIR_TPC:   return "tpc";
+    case BRIX_XFER_DIR_WRITE: return "write";
+    case BRIX_XFER_DIR_TPC:   return "tpc";
     default:                    return "read";
     }
 }
@@ -20,13 +20,13 @@ dashboard_proto_name(uint8_t proto)
 {
     /* Generated from the central protocol declaration; slot ids are
      * list row + 1. Untracked/legacy slots keep the historic "root". */
-    static const char *names[XROOTD_XFER_NPROTOS] = {
+    static const char *names[BRIX_XFER_NPROTOS] = {
 #define X(ID, metric_label, dash_name, http_plane) dash_name,
-        XROOTD_PROTO_LIST(X)
+        BRIX_PROTO_LIST(X)
 #undef X
     };
 
-    if (proto >= 1 && proto <= XROOTD_XFER_NPROTOS) {
+    if (proto >= 1 && proto <= BRIX_XFER_NPROTOS) {
         return names[proto - 1];
     }
     return "root";
@@ -34,11 +34,11 @@ dashboard_proto_name(uint8_t proto)
 
 
 const char *
-dashboard_state_name(const ngx_http_xrootd_dashboard_loc_conf_t *conf,
+dashboard_state_name(const ngx_http_brix_dashboard_loc_conf_t *conf,
     uint8_t state, int64_t idle_ms, int moving)
 {
-    if (state == XROOTD_XFER_STATE_ERROR)   { return "error"; }
-    if (state == XROOTD_XFER_STATE_CLOSING) { return "closing"; }
+    if (state == BRIX_XFER_STATE_ERROR)   { return "error"; }
+    if (state == BRIX_XFER_STATE_CLOSING) { return "closing"; }
     /*
      * A transfer idle past the stalled threshold is normally "stalled".  But a
      * transfer that has moved data overall (moving != 0) and is merely between
@@ -61,8 +61,8 @@ const char *
 dashboard_tpc_protocol_name(ngx_uint_t protocol)
 {
     switch (protocol) {
-    case XROOTD_TPC_PROTO_STREAM: return "stream";
-    case XROOTD_TPC_PROTO_WEBDAV: return "webdav";
+    case BRIX_TPC_PROTO_STREAM: return "stream";
+    case BRIX_TPC_PROTO_WEBDAV: return "webdav";
     default:                      return "unknown";
     }
 }
@@ -72,8 +72,8 @@ const char *
 dashboard_tpc_direction_name(ngx_uint_t direction)
 {
     switch (direction) {
-    case XROOTD_TPC_DIR_PUSH: return "push";
-    case XROOTD_TPC_DIR_PULL: return "pull";
+    case BRIX_TPC_DIR_PUSH: return "push";
+    case BRIX_TPC_DIR_PULL: return "pull";
     default:                  return "unknown";
     }
 }
@@ -83,10 +83,10 @@ const char *
 dashboard_tpc_state_name(ngx_uint_t state)
 {
     switch (state) {
-    case XROOTD_TPC_STATE_PENDING: return "pending";
-    case XROOTD_TPC_STATE_ACTIVE:  return "active";
-    case XROOTD_TPC_STATE_DONE:    return "done";
-    case XROOTD_TPC_STATE_ERROR:   return "error";
+    case BRIX_TPC_STATE_PENDING: return "pending";
+    case BRIX_TPC_STATE_ACTIVE:  return "active";
+    case BRIX_TPC_STATE_DONE:    return "done";
+    case BRIX_TPC_STATE_ERROR:   return "error";
     default:                       return "unknown";
     }
 }
@@ -96,11 +96,11 @@ const char *
 dashboard_event_class_name(uint8_t class_id)
 {
     switch (class_id) {
-    case XROOTD_DASH_EVENT_AUTH:      return "auth";
-    case XROOTD_DASH_EVENT_NAMESPACE: return "namespace";
-    case XROOTD_DASH_EVENT_IO:        return "io";
-    case XROOTD_DASH_EVENT_TPC:       return "tpc";
-    case XROOTD_DASH_EVENT_DASHBOARD: return "dashboard";
+    case BRIX_DASH_EVENT_AUTH:      return "auth";
+    case BRIX_DASH_EVENT_NAMESPACE: return "namespace";
+    case BRIX_DASH_EVENT_IO:        return "io";
+    case BRIX_DASH_EVENT_TPC:       return "tpc";
+    case BRIX_DASH_EVENT_DASHBOARD: return "dashboard";
     default:                          return "unknown";
     }
 }
@@ -151,26 +151,26 @@ dashboard_avg_bps(int64_t bytes, int64_t start_ms, int64_t now_ms)
  */
 /*
  * Read-only endpoints that may be served to an unauthenticated viewer (with all
- * PII/secrets redacted) when xrootd_dashboard_anonymous is on. Transfer-detail
+ * PII/secrets redacted) when brix_dashboard_anonymous is on. Transfer-detail
  * (session hash + per-op counters) is deliberately NOT here — it stays
  * auth-only; config download and the admin API are separate handlers entirely.
  */
 ngx_uint_t
-dashboard_endpoint_is_anon_allowed(xrootd_dashboard_api_endpoint_e e)
+dashboard_endpoint_is_anon_allowed(brix_dashboard_api_endpoint_e e)
 {
     switch (e) {
-    case XROOTD_DASHBOARD_API_COMPAT_TRANSFERS:
-    case XROOTD_DASHBOARD_API_V1_TRANSFERS:
-    case XROOTD_DASHBOARD_API_V1_SNAPSHOT:
-    case XROOTD_DASHBOARD_API_V1_EVENTS:
-    case XROOTD_DASHBOARD_API_V1_HISTORY:
-    case XROOTD_DASHBOARD_API_V1_CLUSTER:
-    case XROOTD_DASHBOARD_API_V1_CACHE:
-    case XROOTD_DASHBOARD_API_V1_RATELIMIT:
-    case XROOTD_DASHBOARD_API_V1_CVMFS:
-    case XROOTD_DASHBOARD_API_V1_NOT_FOUND:
+    case BRIX_DASHBOARD_API_COMPAT_TRANSFERS:
+    case BRIX_DASHBOARD_API_V1_TRANSFERS:
+    case BRIX_DASHBOARD_API_V1_SNAPSHOT:
+    case BRIX_DASHBOARD_API_V1_EVENTS:
+    case BRIX_DASHBOARD_API_V1_HISTORY:
+    case BRIX_DASHBOARD_API_V1_CLUSTER:
+    case BRIX_DASHBOARD_API_V1_CACHE:
+    case BRIX_DASHBOARD_API_V1_RATELIMIT:
+    case BRIX_DASHBOARD_API_V1_CVMFS:
+    case BRIX_DASHBOARD_API_V1_NOT_FOUND:
         return 1;
-    case XROOTD_DASHBOARD_API_V1_TRANSFER_DETAIL:
+    case BRIX_DASHBOARD_API_V1_TRANSFER_DETAIL:
     default:
         return 0;
     }
@@ -178,25 +178,25 @@ dashboard_endpoint_is_anon_allowed(xrootd_dashboard_api_endpoint_e e)
 
 
 ngx_int_t
-ngx_http_xrootd_dashboard_api_handler(ngx_http_request_t *r,
-    xrootd_dashboard_api_endpoint_e endpoint)
+ngx_http_brix_dashboard_api_handler(ngx_http_request_t *r,
+    brix_dashboard_api_endpoint_e endpoint)
 {
-    ngx_http_xrootd_dashboard_loc_conf_t *conf;
-    xrootd_dashboard_totals_t             totals;
+    ngx_http_brix_dashboard_loc_conf_t *conf;
+    brix_dashboard_totals_t             totals;
     json_t                               *root = NULL;
     int64_t                               now_ms;
     ngx_int_t                             status = NGX_HTTP_OK;
     ngx_uint_t                            redact = 0;
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_dashboard_module);
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_dashboard_module);
 
     /* Three-way auth gate. Authenticated -> full payload. Unauthenticated but
-     * xrootd_dashboard_anonymous is on AND this is an anon-allowed read endpoint
+     * brix_dashboard_anonymous is on AND this is an anon-allowed read endpoint
      * -> serve a PII/secret-redacted payload (redact=1). Otherwise -> 401.
      * (check_auth suppresses its "missing cookie" event when anonymous is on,
      * so anonymous polls do not spam the event ring.) */
     {
-        ngx_int_t auth_rc = ngx_http_xrootd_dashboard_check_auth(r, conf,
+        ngx_int_t auth_rc = ngx_http_brix_dashboard_check_auth(r, conf,
                                                                  conf->anonymous);
         if (auth_rc == NGX_OK) {
             redact = 0;
@@ -213,41 +213,41 @@ ngx_http_xrootd_dashboard_api_handler(ngx_http_request_t *r,
     }
 
     now_ms = (int64_t) ngx_current_msec;
-    xrootd_dashboard_history_sample(now_ms);
+    brix_dashboard_history_sample(now_ms);
     dashboard_collect_totals(&totals);
 
     switch (endpoint) {
-    case XROOTD_DASHBOARD_API_COMPAT_TRANSFERS:
+    case BRIX_DASHBOARD_API_COMPAT_TRANSFERS:
         root = dashboard_build_compat_transfers(now_ms, conf, &totals, redact);
         break;
-    case XROOTD_DASHBOARD_API_V1_TRANSFERS:
+    case BRIX_DASHBOARD_API_V1_TRANSFERS:
         root = dashboard_build_v1_transfers(r, now_ms, conf, &totals, redact);
         break;
-    case XROOTD_DASHBOARD_API_V1_TRANSFER_DETAIL:
+    case BRIX_DASHBOARD_API_V1_TRANSFER_DETAIL:
         root = dashboard_build_v1_transfer_detail(r, now_ms, conf, &status);
         break;
-    case XROOTD_DASHBOARD_API_V1_SNAPSHOT:
+    case BRIX_DASHBOARD_API_V1_SNAPSHOT:
         root = dashboard_build_v1_snapshot(r, now_ms, conf, &totals, redact);
         break;
-    case XROOTD_DASHBOARD_API_V1_EVENTS:
+    case BRIX_DASHBOARD_API_V1_EVENTS:
         root = dashboard_build_v1_events(r, now_ms, conf, redact);
         break;
-    case XROOTD_DASHBOARD_API_V1_HISTORY:
+    case BRIX_DASHBOARD_API_V1_HISTORY:
         root = dashboard_build_v1_history(r, now_ms, conf, redact);
         break;
-    case XROOTD_DASHBOARD_API_V1_CLUSTER:
+    case BRIX_DASHBOARD_API_V1_CLUSTER:
         root = dashboard_build_v1_cluster(r, now_ms, conf, redact);
         break;
-    case XROOTD_DASHBOARD_API_V1_CACHE:
+    case BRIX_DASHBOARD_API_V1_CACHE:
         root = dashboard_build_v1_cache(now_ms, conf, redact);
         break;
-    case XROOTD_DASHBOARD_API_V1_RATELIMIT:
+    case BRIX_DASHBOARD_API_V1_RATELIMIT:
         root = dashboard_build_v1_ratelimit(now_ms, conf, redact);
         break;
-    case XROOTD_DASHBOARD_API_V1_CVMFS:
+    case BRIX_DASHBOARD_API_V1_CVMFS:
         root = dashboard_build_v1_cvmfs(now_ms, conf, redact);
         break;
-    case XROOTD_DASHBOARD_API_V1_NOT_FOUND:
+    case BRIX_DASHBOARD_API_V1_NOT_FOUND:
     default:
         status = NGX_HTTP_NOT_FOUND;
         root = dashboard_build_v1_not_found(now_ms, conf, redact);
@@ -255,7 +255,7 @@ ngx_http_xrootd_dashboard_api_handler(ngx_http_request_t *r,
     }
 
     if (root == NULL) {
-        xrootd_dashboard_event_add(XROOTD_DASH_EVENT_DASHBOARD, 0, 507,
+        brix_dashboard_event_add(BRIX_DASH_EVENT_DASHBOARD, 0, 507,
                                    "dashboard JSON response truncated", NULL);
         status = NGX_HTTP_INSUFFICIENT_STORAGE;
         root   = dashboard_build_v1_truncated(now_ms, conf);

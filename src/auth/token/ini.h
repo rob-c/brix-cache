@@ -1,5 +1,5 @@
-#ifndef XROOTD_TOKEN_INI_H
-#define XROOTD_TOKEN_INI_H
+#ifndef BRIX_TOKEN_INI_H
+#define BRIX_TOKEN_INI_H
 
 #include <stddef.h>
 
@@ -17,7 +17,7 @@
  * section name (empty string before the first [section]). Return 0 to continue
  * parsing, non-zero to abort the parse early with that return code.
  */
-typedef int (*xrootd_ini_cb)(void *user, const char *section,
+typedef int (*brix_ini_cb)(void *user, const char *section,
     const char *key, const char *value);
 
 /*
@@ -26,7 +26,7 @@ typedef int (*xrootd_ini_cb)(void *user, const char *section,
  * least errlen bytes); on success returns 0. A non-zero return from `cb`
  * aborts and is propagated as the return value.
  */
-int xrootd_ini_parse_file(const char *path, xrootd_ini_cb cb, void *user,
+int brix_ini_parse_file(const char *path, brix_ini_cb cb, void *user,
     char *errbuf, size_t errlen);
 
-#endif /* XROOTD_TOKEN_INI_H */
+#endif /* BRIX_TOKEN_INI_H */

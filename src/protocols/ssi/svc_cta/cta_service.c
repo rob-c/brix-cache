@@ -17,12 +17,12 @@
 #include <string.h>
 
 /* Per-worker singletons (long-lived; created lazily) + config. */
-static xrootd_cta_queue_t *g_cta_queue;
+static brix_cta_queue_t *g_cta_queue;
 static char                g_cta_journal[1024];
 static int                 g_cta_use_prod;
 
 void
-xrootd_ssi_cta_configure(const char *journal_path, int use_prod_executor)
+brix_ssi_cta_configure(const char *journal_path, int use_prod_executor)
 {
     g_cta_use_prod = use_prod_executor;
     if (journal_path != NULL && journal_path[0] != '\0') {
@@ -32,7 +32,7 @@ xrootd_ssi_cta_configure(const char *journal_path, int use_prod_executor)
     }
 }
 
-static xrootd_cta_queue_t *
+static brix_cta_queue_t *
 cta_queue(void)
 {
     if (g_cta_queue == NULL) {
@@ -56,13 +56,13 @@ cta_exec_vtbl(void)
 static void
 cta_prog_alert(void *ctx, const char *msg)
 {
-    xrootd_ssi_responder_t *r = ctx;
+    brix_ssi_responder_t *r = ctx;
     r->alert(r, (const unsigned char *) msg, strlen(msg));
 }
 
 /* Encode and deliver a cta.xrd.Response (set_response, terminal). */
 static void
-cta_respond(xrootd_ssi_responder_t *r, cta_rsp_type_t type, const char *msg,
+cta_respond(brix_ssi_responder_t *r, cta_rsp_type_t type, const char *msg,
             uint64_t archive_id)
 {
     unsigned char buf[512];
@@ -76,8 +76,8 @@ cta_respond(xrootd_ssi_responder_t *r, cta_rsp_type_t type, const char *msg,
 }
 
 int
-xrootd_ssi_cta_process(const unsigned char *req, size_t req_len,
-                       xrootd_ssi_responder_t *r)
+brix_ssi_cta_process(const unsigned char *req, size_t req_len,
+                       brix_ssi_responder_t *r)
 {
     void      **slot = r->svc_slot != NULL ? r->svc_slot(r) : NULL;
     cta_req_t  *e    = slot != NULL ? (cta_req_t *) *slot : NULL;

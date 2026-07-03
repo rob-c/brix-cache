@@ -12,7 +12,7 @@
 #include <openssl/x509.h>
 
 /*
- * xrootd_build_ca_store — build an X509_STORE for CA/CRL-based certificate
+ * brix_build_ca_store — build an X509_STORE for CA/CRL-based certificate
  * verification.
  *
  * @log:           nginx log context.
@@ -31,7 +31,7 @@
  * Returns a new X509_STORE on success, NULL on failure.  On failure the store
  * has been freed and no cleanup is required by the caller.
  */
-X509_STORE *xrootd_build_ca_store(ngx_log_t *log,
+X509_STORE *brix_build_ca_store(ngx_log_t *log,
     const char *cadir,
     const char *cafile,
     const char *crl_path,

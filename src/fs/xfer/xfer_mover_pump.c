@@ -1,7 +1,7 @@
 /*
  * xfer_mover_pump.c — the in-process byte mover for the transfer engine.
  *
- * WHAT: xrootd_xfer_pump_objects() — a positional read-through/write-through copy
+ * WHAT: brix_xfer_pump_objects() — a positional read-through/write-through copy
  *       between two SD objects. This is the canonical VFS<->VFS (backend<->backend)
  *       move that the synchronous STAGE path and any same-process SD-to-SD commit
  *       use.
@@ -9,7 +9,7 @@
  * WHY:  The loop lived as a private `stage_move_objects` static inside
  *       compat/staged_file.c, reachable only by the staged-commit path. The
  *       transfer engine needs the same mover as a first-class, reusable strategy
- *       (XROOTD_XFER_MOVE_PUMP), so it is lifted here verbatim — behaviour
+ *       (BRIX_XFER_MOVE_PUMP), so it is lifted here verbatim — behaviour
  *       identical — and staged_file.c now calls it. One mover, one place.
  *
  * HOW:  Read CHUNK bytes from the source driver, write them through the
@@ -25,7 +25,7 @@
 #include <stdlib.h>
 
 ngx_int_t
-xrootd_xfer_pump_objects(xrootd_sd_obj_t *src, xrootd_sd_obj_t *dst)
+brix_xfer_pump_objects(brix_sd_obj_t *src, brix_sd_obj_t *dst)
 {
     static const size_t CHUNK = 256 * 1024;
     char               *buf;

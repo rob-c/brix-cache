@@ -10,8 +10,8 @@
  * HOW:  pure ptr+len over caller buffers, using the shared CRC32c kernels
  *       (libxrdproto). No ngx, no allocation, no I/O. (libxrdproto)
  */
-#ifndef XROOTD_COMPAT_PGIO_H
-#define XROOTD_COMPAT_PGIO_H
+#ifndef BRIX_COMPAT_PGIO_H
+#define BRIX_COMPAT_PGIO_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -65,4 +65,4 @@ ssize_t xrdp_pg_decode_collect(const uint8_t *pg, size_t pglen, int64_t file_off
                                xrdp_pg_bad_t *bad_out, size_t max_bad,
                                size_t *bad_count);
 
-#endif /* XROOTD_COMPAT_PGIO_H */
+#endif /* BRIX_COMPAT_PGIO_H */

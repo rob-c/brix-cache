@@ -1,7 +1,7 @@
 /*
  * xfer_spawn.h — crash-safe synchronous external-command runner.
  *
- * WHAT: xrootd_xfer_run_reparented() runs an argv (no shell) in a double-forked,
+ * WHAT: brix_xfer_run_reparented() runs an argv (no shell) in a double-forked,
  *       reparented-to-init agent so the calling process manager (nginx) never
  *       reaps it, blocks until it finishes, and returns the command's exit status.
  *
@@ -20,8 +20,8 @@
  *       call from a multithreaded (thread-pool) context.
  */
 
-#ifndef XROOTD_FS_XFER_SPAWN_H
-#define XROOTD_FS_XFER_SPAWN_H
+#ifndef BRIX_FS_XFER_SPAWN_H
+#define BRIX_FS_XFER_SPAWN_H
 
 /*
  * Run argv[0] with argv/envp (no shell). Blocks until the command exits.
@@ -30,6 +30,6 @@
  * errno set if the agent could not be spawned or its result could not be read.
  * envp == NULL inherits the current environment.
  */
-int xrootd_xfer_run_reparented(const char *const argv[], char *const envp[]);
+int brix_xfer_run_reparented(const char *const argv[], char *const envp[]);
 
-#endif /* XROOTD_FS_XFER_SPAWN_H */
+#endif /* BRIX_FS_XFER_SPAWN_H */

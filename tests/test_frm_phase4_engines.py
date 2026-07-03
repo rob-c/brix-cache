@@ -4,14 +4,14 @@ tests/test_frm_phase4_engines.py
 Phase 35 / Phase 4 engines — F3 (residency-cmd oracle) + F5 (checksum-on-stage),
 end-to-end through the stage agent.
 
-F3: with xrootd_frm_residency_cmd set, the stage agent consults the oracle BEFORE
+F3: with brix_frm_residency_cmd set, the stage agent consults the oracle BEFORE
     copying. Oracle exit 0 = "already resident" → the copycmd is skipped and the
     open is served from disk (proven: the served bytes are the on-disk content and
     the fake-MSS audit log records no copy).
 
 F5: with a per-file checksum on a Tape REST stage request, the agent verifies the
     recalled file after copy. A correct checksum → COMPLETED; a wrong one → FAILED
-    and xrootd_frm_stage_fail_total{reason="verify"} increments.
+    and brix_frm_stage_fail_total{reason="verify"} increments.
 
 Self-contained; skips cleanly without nginx / xrdcp / xattrs / requests.
 """
@@ -100,11 +100,11 @@ events {{ worker_connections 64; }}
 stream {{
   server {{
     listen {BIND_HOST}:{port};
-    xrootd on; xrootd_storage_backend posix:{data}; xrootd_auth none;
-    xrootd_frm on; xrootd_frm_queue_path {d}/frm.queue;
-    xrootd_frm_copycmd {copycmd};
-    xrootd_frm_residency_cmd {oracle};
-    xrootd_frm_stage_wait 1;
+    xrootd on; brix_storage_backend posix:{data}; brix_auth none;
+    brix_frm on; brix_frm_queue_path {d}/frm.queue;
+    brix_frm_copycmd {copycmd};
+    brix_frm_residency_cmd {oracle};
+    brix_frm_stage_wait 1;
   }}
 }}
 daemon off; master_process off;
@@ -172,19 +172,19 @@ events {{ worker_connections 64; }}
 stream {{
   server {{
     listen {BIND_HOST}:{port};
-    xrootd on; xrootd_storage_backend posix:{data}; xrootd_auth none;
-    xrootd_frm on; xrootd_frm_queue_path {d}/frm.queue;
-    xrootd_frm_copycmd {copycmd};
+    xrootd on; brix_storage_backend posix:{data}; brix_auth none;
+    brix_frm on; brix_frm_queue_path {d}/frm.queue;
+    brix_frm_copycmd {copycmd};
   }}
 }}
 http {{
   access_log off;
   server {{
     listen {BIND_HOST}:{mport};
-    location = /metrics {{ xrootd_metrics on; }}
+    location = /metrics {{ brix_metrics on; }}
     location / {{
-      xrootd_webdav on; xrootd_webdav_storage_backend posix:{data}; xrootd_webdav_auth none;
-      xrootd_webdav_allow_write on; xrootd_webdav_tape_rest on;
+      brix_webdav on; brix_webdav_storage_backend posix:{data}; brix_webdav_auth none;
+      brix_webdav_allow_write on; brix_webdav_tape_rest on;
     }}
   }}
 }}
@@ -252,10 +252,10 @@ def test_f5_correct_checksum_completes(f5):
 
 
 def test_f5_wrong_checksum_fails_verify(f5):
-    before = _metric(f5.mport, "xrootd_frm_stage_fail_total", 'reason="verify"')
+    before = _metric(f5.mport, "brix_frm_stage_fail_total", 'reason="verify"')
     rid = _tape_stage(f5.mport, "/bad.dat", "deadbeef")
     st = _poll_state(f5.mport, rid, {"FAILED"})
     assert st == "FAILED", "wrong checksum should fail the recall, got %r" % st
-    after = _metric(f5.mport, "xrootd_frm_stage_fail_total", 'reason="verify"')
+    after = _metric(f5.mport, "brix_frm_stage_fail_total", 'reason="verify"')
     assert after > before, \
         "verify-fail metric did not increment (%r → %r)" % (before, after)

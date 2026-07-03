@@ -5,7 +5,7 @@ tests/test_ssi_multiplex.py — two (and more) concurrent reqIds on one open
 A single libXrdSsi resource handle pipelines several requests, each keyed by the
 reqId carried in the XrdSsiRRInfo. This proves the session routes each reqId to
 its own request slot, that an unknown reqId is rejected, and that the per-session
-inflight cap (XROOTD_SSI_MAX_INFLIGHT = 8) is enforced.
+inflight cap (BRIX_SSI_MAX_INFLIGHT = 8) is enforced.
 
 Run:
     TEST_SKIP_SERVER_SETUP=1 PYTHONPATH=tests pytest tests/test_ssi_multiplex.py -v

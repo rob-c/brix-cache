@@ -18,13 +18,13 @@ static const uint8_t tpc_bootstrap_streamid[2] = { 0, 1 };
 
 /* Helper functions declared in gsi_outbound_common.c — extern to link them. */
 extern void tpc_put_u32(u_char *p, uint32_t v);
-extern int tpc_send_kxr_auth(xrootd_tpc_pull_t *t, int fd, u_char seq, const u_char *cred, uint32_t len);
+extern int tpc_send_kxr_auth(brix_tpc_pull_t *t, int fd, u_char seq, const u_char *cred, uint32_t len);
 
 /* Anonymous XRootD session setup: handshake → kXR_protocol → kXR_login */
 /* WHAT: Bootstrap anonymous XRootD session on remote TPC origin — execute handshake → protocol version negotiation → login pipeline. */
 
 int
-tpc_bootstrap(xrootd_tpc_pull_t *t, int fd)
+tpc_bootstrap(brix_tpc_pull_t *t, int fd)
 {
     ClientInitHandShake   hs;
     ClientProtocolRequest pr;
@@ -101,7 +101,7 @@ tpc_bootstrap(xrootd_tpc_pull_t *t, int fd)
         if (flags & kXR_gotoTLS) {
             if (!t->conf->tpc_outbound_tls) {
                 snprintf(t->err_msg, sizeof(t->err_msg),
-                    "TPC source requires TLS; set xrootd_tpc_outbound_tls on");
+                    "TPC source requires TLS; set brix_tpc_outbound_tls on");
                 t->xrd_error = kXR_NotAuthorized;
                 return -1;
             }
@@ -142,7 +142,7 @@ tpc_bootstrap(xrootd_tpc_pull_t *t, int fd)
     /*
      * Authenticate whenever the login reply carries a security token, whether the
      * status is kXR_authmore OR kXR_ok.  In XRootD a kXR_ok login can still
-     * REQUIRE auth: the reply body is the session id (XROOTD_SESSION_ID_LEN) plus
+     * REQUIRE auth: the reply body is the session id (BRIX_SESSION_ID_LEN) plus
      * the "&P=<proto>,..." security-protocol list, and the client must send
      * kXR_auth before any operation (exactly what stock XrdCl does — its own login
      * returns ok with a non-empty body, then it sends kXR_auth).  Treating kXR_ok
@@ -154,7 +154,7 @@ tpc_bootstrap(xrootd_tpc_pull_t *t, int fd)
     if (status == kXR_ok || status == kXR_authmore) {
         int frc = 0;
 
-        if (dlen > XROOTD_SESSION_ID_LEN) {
+        if (dlen > BRIX_SESSION_ID_LEN) {
             frc = tpc_outbound_finish_login(t, fd, body, dlen);
         }
         free(body);

@@ -1,4 +1,4 @@
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 
 #include "core/compat/hex.h"
 #include "path_internal.h"
@@ -7,14 +7,14 @@
 // Returns true for "." and ".." components that enable directory traversal attacks.
 /* Return 1 if a path component is "." or ".." (forbidden in a resolved path). */
 int
-xrootd_path_component_forbidden(const char *comp, size_t comp_len)
+brix_path_component_forbidden(const char *comp, size_t comp_len)
 {
     return (comp_len == 1 && comp[0] == '.')
         || (comp_len == 2 && comp[0] == '.' && comp[1] == '.');
 }
 /* Return 1 if `path` contains a ".." component (traversal attempt). */
 int
-xrootd_path_has_dotdot(const char *path)
+brix_path_has_dotdot(const char *path)
 {
     const char *p = path;
 
@@ -43,7 +43,7 @@ xrootd_path_has_dotdot(const char *path)
 /* Copy in -> out, escaping control bytes, quotes, backslashes and non-ASCII to
  * \xNN, so a wire string is safe to write to the access log. */
 size_t
-xrootd_sanitize_log_string(const char *in, char *out, size_t outsz)
+brix_sanitize_log_string(const char *in, char *out, size_t outsz)
 {
     const u_char *src;
     size_t        written;
@@ -70,8 +70,8 @@ xrootd_sanitize_log_string(const char *in, char *out, size_t outsz)
 
         out[written++] = '\\';
         out[written++] = 'x';
-        out[written++] = (char) xrootd_hex_nibble((u_char) (ch >> 4));
-        out[written++] = (char) xrootd_hex_nibble((u_char) (ch & 0x0f));
+        out[written++] = (char) brix_hex_nibble((u_char) (ch >> 4));
+        out[written++] = (char) brix_hex_nibble((u_char) (ch & 0x0f));
     }
 
     out[written] = '\0';
@@ -80,12 +80,12 @@ xrootd_sanitize_log_string(const char *in, char *out, size_t outsz)
 }
 
 // Count path components by iterating through '/' separators — O(n) string scan.
-// Returns NGX_ERROR if component count exceeds XROOTD_MAX_WALK_DEPTH (32);
+// Returns NGX_ERROR if component count exceeds BRIX_MAX_WALK_DEPTH (32);
 // returns NGX_OK otherwise. Leading slashes skipped; trailing empty
 // components do not increment depth.
 /* Return the number of (non-empty, slash-separated) components in `path`. */
 ngx_int_t
-xrootd_count_path_depth(const char *path)
+brix_count_path_depth(const char *path)
 {
     const char  *p = path;
     ngx_uint_t   count;
@@ -110,12 +110,12 @@ xrootd_count_path_depth(const char *path)
         }
     }
 
-    return (count > XROOTD_MAX_WALK_DEPTH) ? NGX_ERROR : NGX_OK;
+    return (count > BRIX_MAX_WALK_DEPTH) ? NGX_ERROR : NGX_OK;
 }
 /* Generic postconfig finalizer: resolve the path field (at path_offset, with
  * element_size stride) of each rule-array entry against the export root. */
 ngx_int_t
-xrootd_finalize_path_rules(ngx_log_t *log, const ngx_str_t *root,
+brix_finalize_path_rules(ngx_log_t *log, const ngx_str_t *root,
     ngx_array_t *rules, size_t element_size, size_t path_offset,
     size_t resolved_offset, size_t resolved_size)
 {
@@ -127,7 +127,7 @@ xrootd_finalize_path_rules(ngx_log_t *log, const ngx_str_t *root,
         return NGX_OK;
     }
 
-    if (!xrootd_get_canonical_root(log, root, root_canon, sizeof(root_canon))) {
+    if (!brix_get_canonical_root(log, root, root_canon, sizeof(root_canon))) {
         return NGX_ERROR;
     }
 
@@ -154,7 +154,7 @@ xrootd_finalize_path_rules(ngx_log_t *log, const ngx_str_t *root,
          * config-parse time and no untrusted input here, so openat2
          * RESOLVE_BENEATH would add nothing.
          */
-        if (!xrootd_resolve_path_noexist(log, root,
+        if (!brix_resolve_path_noexist(log, root,
                                          (const char *) path->data,
                                          resolved, resolved_size))
         {

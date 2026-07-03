@@ -1,5 +1,5 @@
-#ifndef XROOTD_SSI_CTA_EXEC_H
-#define XROOTD_SSI_CTA_EXEC_H
+#ifndef BRIX_SSI_CTA_EXEC_H
+#define BRIX_SSI_CTA_EXEC_H
 
 /*
  * cta_exec.h — CTA request executor (pluggable vtable).
@@ -39,4 +39,4 @@ const cta_exec_vtbl_t *cta_exec_prod_vtbl(void);
  * the executor result, or -1 for an op the executor does not handle (e.g. query). */
 int cta_exec_run(const cta_exec_vtbl_t *vt, cta_req_t *e, cta_progress_t *p);
 
-#endif /* XROOTD_SSI_CTA_EXEC_H */
+#endif /* BRIX_SSI_CTA_EXEC_H */

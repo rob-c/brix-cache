@@ -41,9 +41,9 @@ from settings import (
     PROXY_STD,
     PKI_DIR,
     READONLY_PORT,
-    REF_XROOTD_GSI_PORT,
-    REF_XROOTD_GSI_SHARED_PORT,
-    REF_XROOTD_PORT,
+    REF_BRIX_GSI_PORT,
+    REF_BRIX_GSI_SHARED_PORT,
+    REF_BRIX_PORT,
     REMOTE_SERVER,
     SERVER_HOST,
     TEST_ROOT,
@@ -209,7 +209,7 @@ def _selected_tests_do_not_need_server(config) -> bool:
         "test_loss_sweep_gsi.py",
         "test_tools_resilience.py",
         "test_net_resilience.py",
-        "test_official_xrootd_resilience.py",
+        "test_official_brix_resilience.py",
         "test_phase0_guardrails.py",
         "test_phase1_commodity_libraries.py",
         "test_plan6_guardrails.py",
@@ -601,25 +601,25 @@ def test_env():
 @pytest.fixture(scope="session")
 def ref_xrootd(test_env):
     return {
-        "url": f"root://{HOST}:{REF_XROOTD_PORT}",
-        "port": REF_XROOTD_PORT,
+        "url": f"root://{HOST}:{REF_BRIX_PORT}",
+        "port": REF_BRIX_PORT,
         "data_dir": test_env["data_dir"],
     }
 
 
 @pytest.fixture(scope="session")
-def ref_xrootd_gsi(test_env):
+def ref_brix_gsi(test_env):
     return {
-        "url": f"root://{HOST}:{REF_XROOTD_GSI_PORT}",
-        "port": REF_XROOTD_GSI_PORT,
+        "url": f"root://{HOST}:{REF_BRIX_GSI_PORT}",
+        "port": REF_BRIX_GSI_PORT,
         "data_dir": os.path.join(TEST_ROOT, "data-gsi-bridge"),
     }
 
 
 @pytest.fixture(scope="session")
-def ref_xrootd_gsi_shared(test_env):
+def ref_brix_gsi_shared(test_env):
     return {
-        "url": f"root://{HOST}:{REF_XROOTD_GSI_SHARED_PORT}",
-        "port": REF_XROOTD_GSI_SHARED_PORT,
+        "url": f"root://{HOST}:{REF_BRIX_GSI_SHARED_PORT}",
+        "port": REF_BRIX_GSI_SHARED_PORT,
         "data_dir": test_env["data_dir"],
     }

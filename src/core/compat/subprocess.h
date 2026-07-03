@@ -14,8 +14,8 @@
  *       bytes; each caller maps to its own error type and parses (JSON vs plain).
  *       ngx-free; libc only. (libxrdproto)
  */
-#ifndef XROOTD_COMPAT_SUBPROCESS_H
-#define XROOTD_COMPAT_SUBPROCESS_H
+#ifndef BRIX_COMPAT_SUBPROCESS_H
+#define BRIX_COMPAT_SUBPROCESS_H
 
 #include <stddef.h>
 
@@ -26,10 +26,10 @@
  * Returns 0 if the child ran to a normal exit (check *exit_code for its result),
  * -1 on pipe/fork failure or if the child was killed by a signal.
  */
-int xrootd_subprocess_capture(char *const argv[], char *out, size_t outsz,
+int brix_subprocess_capture(char *const argv[], char *out, size_t outsz,
                               size_t *out_len, int *exit_code);
 
 /* Strip trailing \n \r \t and spaces from s in place; returns the new length. */
-size_t xrootd_rstrip(char *s);
+size_t brix_rstrip(char *s);
 
-#endif /* XROOTD_COMPAT_SUBPROCESS_H */
+#endif /* BRIX_COMPAT_SUBPROCESS_H */

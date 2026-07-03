@@ -50,8 +50,8 @@ def _reachable(host, port, timeout=1.0):
 @pytest.fixture(scope="module")
 def s3_mpu_server():
     """Connect to the dedicated WRITABLE S3 server pre-started by
-    manage_test_servers.sh start-all (the "s3-mpu" instance, xrootd_s3 on +
-    xrootd_s3_allow_write on, bucket "testbucket", serving S3_MPU_DATA_ROOT).
+    manage_test_servers.sh start-all (the "s3-mpu" instance, brix_s3 on +
+    brix_s3_allow_write on, bucket "testbucket", serving S3_MPU_DATA_ROOT).
     Skips cleanly if that dedicated instance is not running.  The server and this
     test share the local filesystem, so the in-bucket source objects this suite
     relies on are seeded directly into the data root: a real "legit.txt" object

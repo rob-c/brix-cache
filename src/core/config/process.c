@@ -17,12 +17,12 @@
 #include "net/manager/health_check.h"
 #include "net/manager/pending.h"
 #include "fs/cache/origin/pelican_register.h"
-#include "fs/cache/cache_internal.h"   /* xrootd_wt_replay_register (durable WT) */
+#include "fs/cache/cache_internal.h"   /* brix_wt_replay_register (durable WT) */
 #include "fs/cache/cache_reap.h"       /* stale-dirty reaper (cache-state engine) */
 #include "fs/cache/reap_watermark.h"  /* proactive watermark LRU reaper */
 #include "fs/xfer/stage_request_registry.h"  /* FRM-dissolution: composable registry */
 #include "fs/cache/cache_storage.h"    /* per-role SD storage instances (exclusively-VFS) */
-#include "fs/xfer/xfer.h"           /* xrootd_xfer_resume_sweep_register      */
+#include "fs/xfer/xfer.h"           /* brix_xfer_resume_sweep_register      */
 #include "fs/xfer/stage_engine.h"   /* phase-64 SP4 async stage scheduler     */
 #include "auth/gsi/keypool.h"
 #include "auth/impersonate/lifecycle.h"
@@ -36,9 +36,9 @@
 /* Timer callback: rebuild the GSI X509_STORE from the configured CRL file at the
  * reload interval, then re-arm the timer. */
 static void
-xrootd_crl_reload_handler(ngx_event_t *ev)
+brix_crl_reload_handler(ngx_event_t *ev)
 {
-    ngx_stream_xrootd_srv_conf_t *xcf = ev->data;
+    ngx_stream_brix_srv_conf_t *xcf = ev->data;
     struct stat                   st;
     int                           is_reg_file;
 
@@ -66,8 +66,8 @@ xrootd_crl_reload_handler(ngx_event_t *ev)
                   "xrootd: CRL reload timer fired, rebuilding store "
                   "from \"%s\"", xcf->crl.data);
 
-    if (xrootd_rebuild_gsi_store(xcf, ev->log) != NGX_OK) {
-        XROOTD_DIAG_CRIT(ev->log, 0,
+    if (brix_rebuild_gsi_store(xcf, ev->log) != NGX_OK) {
+        BRIX_DIAG_CRIT(ev->log, 0,
             "xrootd: CRL reload failed for \"%s\" — keeping previous store",
             "the CRL file/dir is unreadable, malformed, or mid-rewrite",
             "check the path's permissions and that fetch-crl writes atomically; "
@@ -91,14 +91,14 @@ xrootd_crl_reload_handler(ngx_event_t *ev)
  * rearmed (never self-rearms to 0ms) so it cannot busy-loop.  A cheap no-op when
  * no locates have expired or the zone is absent.
  */
-static ngx_event_t  xrootd_pending_reap_timer;
+static ngx_event_t  brix_pending_reap_timer;
 
 /* Timer callback: reap expired slots from the CMS pending-locate registry
- * (xrootd_pending_reap_expired), then re-arm the timer. */
+ * (brix_pending_reap_expired), then re-arm the timer. */
 static void
-xrootd_pending_reap_handler(ngx_event_t *ev)
+brix_pending_reap_handler(ngx_event_t *ev)
 {
-    ngx_uint_t  reaped = xrootd_pending_reap_expired();
+    ngx_uint_t  reaped = brix_pending_reap_expired();
 
     if (reaped > 0) {
         ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ev->log, 0,
@@ -106,7 +106,7 @@ xrootd_pending_reap_handler(ngx_event_t *ev)
                        reaped);
     }
     if (!ngx_exiting) {
-        ngx_add_timer(ev, XROOTD_PENDING_REAP_INTERVAL_MS);
+        ngx_add_timer(ev, BRIX_PENDING_REAP_INTERVAL_MS);
     }
 }
 
@@ -117,67 +117,67 @@ xrootd_pending_reap_handler(ngx_event_t *ev)
  * commits that failed at runtime (e.g. storage briefly unavailable).  No-op when
  * no stage dir is configured.  See src/compat/staged_file.c.
  */
-#define XROOTD_STAGE_REAP_FIRST_MS     1000
-#define XROOTD_STAGE_REAP_INTERVAL_MS  60000
-static ngx_event_t  xrootd_stage_reap_timer;
+#define BRIX_STAGE_REAP_FIRST_MS     1000
+#define BRIX_STAGE_REAP_INTERVAL_MS  60000
+static ngx_event_t  brix_stage_reap_timer;
 
 /* Timer callback: complete/reap stale FRM stage-out commits
- * (xrootd_stage_reap_all), then re-arm the timer. */
+ * (brix_stage_reap_all), then re-arm the timer. */
 static void
-xrootd_stage_reap_handler(ngx_event_t *ev)
+brix_stage_reap_handler(ngx_event_t *ev)
 {
-    ngx_uint_t n = xrootd_stage_reap_all(ev->log);
+    ngx_uint_t n = brix_stage_reap_all(ev->log);
     if (n > 0) {
         ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
                       "xrootd: stage-out reaper completed %ui pending commit(s)",
                       n);
     }
     if (!ngx_exiting) {
-        ngx_add_timer(ev, XROOTD_STAGE_REAP_INTERVAL_MS);
+        ngx_add_timer(ev, BRIX_STAGE_REAP_INTERVAL_MS);
     }
 }
 
 /*
  * Unified cache-state engine: per-server stale-dirty reaper. Removes write-back
- * staging files dirty longer than xrootd_cache_dirty_max_age (the eviction guard
+ * staging files dirty longer than brix_cache_dirty_max_age (the eviction guard
  * protects them, so without this an abandoned flush leaks disk forever). Runs on
  * a maintenance timer independent of occupancy. ev->data is the server conf.
  */
-#define XROOTD_CACHE_REAP_FIRST_MS     5000
-#define XROOTD_CACHE_REAP_INTERVAL_MS  3600000   /* hourly */
+#define BRIX_CACHE_REAP_FIRST_MS     5000
+#define BRIX_CACHE_REAP_INTERVAL_MS  3600000   /* hourly */
 
 static void
-xrootd_cache_reap_handler(ngx_event_t *ev)
+brix_cache_reap_handler(ngx_event_t *ev)
 {
-    ngx_stream_xrootd_srv_conf_t *xcf = ev->data;
-    ngx_uint_t                    n = xrootd_cache_reap_dirty(xcf, ev->log);
+    ngx_stream_brix_srv_conf_t *xcf = ev->data;
+    ngx_uint_t                    n = brix_cache_reap_dirty(xcf, ev->log);
 
     if (n > 0) {
         ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
                       "xrootd: cache stale-dirty reaper removed %ui file(s)", n);
     }
     if (!ngx_exiting) {
-        ngx_add_timer(ev, XROOTD_CACHE_REAP_INTERVAL_MS);
+        ngx_add_timer(ev, BRIX_CACHE_REAP_INTERVAL_MS);
     }
 }
 
 /* phase-64 SP4: drain the deferred (async) stage-flush queue every second. Armed
  * in every worker (the queue is per-worker); a no-op when empty. */
-#define XROOTD_STAGE_SCHED_MS  1000
-static ngx_event_t  xrootd_stage_sched_timer;
+#define BRIX_STAGE_SCHED_MS  1000
+static ngx_event_t  brix_stage_sched_timer;
 
 static void
-xrootd_stage_sched_handler(ngx_event_t *ev)
+brix_stage_sched_handler(ngx_event_t *ev)
 {
-    xrootd_stage_scheduler_tick();
+    brix_stage_scheduler_tick();
     if (!ngx_exiting) {
-        ngx_add_timer(ev, XROOTD_STAGE_SCHED_MS);
+        ngx_add_timer(ev, BRIX_STAGE_SCHED_MS);
     }
 }
 
 /*
  * Worker process init: start CRL reload timers for every server block that
- * has xrootd_crl_reload configured. Timers are per-worker because each
+ * has brix_crl_reload configured. Timers are per-worker because each
  * nginx worker process has its own event loop and its own copy of the config
  * pointers (but the X509_STORE* is shared within a worker).
  */
@@ -185,49 +185,49 @@ xrootd_stage_sched_handler(ngx_event_t *ev)
  * handlers when cms_addr is set, and arm the CRL/pending/stage maintenance
  * timers.  Returns NGX_OK / NGX_ERROR. */
 ngx_int_t
-ngx_stream_xrootd_init_process(ngx_cycle_t *cycle)
+ngx_stream_brix_init_process(ngx_cycle_t *cycle)
 {
     ngx_stream_core_main_conf_t   *cmcf;
     ngx_stream_core_srv_conf_t   **cscfp;
-    ngx_stream_xrootd_srv_conf_t  *xcf;
+    ngx_stream_brix_srv_conf_t  *xcf;
     ngx_uint_t                     i;
     ngx_uint_t                     gsi_seen = 0;
-    ngx_stream_xrootd_srv_conf_t  *gsi_xcf = NULL;  /* first GSI block: keypool cfg */
+    ngx_stream_brix_srv_conf_t  *gsi_xcf = NULL;  /* first GSI block: keypool cfg */
     ngx_uint_t                     manager_seen = 0;
-    xrootd_phase_timer_t           pt;
+    brix_phase_timer_t           pt;
     u_char                         ctx[64];
 
     /* Permanent per-worker boot-cost breakdown (one NOTICE line at the end). */
-    xrootd_phase_timer_start(&pt);
+    brix_phase_timer_start(&pt);
 
-    if (!xrootd_crypto_init()) {
+    if (!brix_crypto_init()) {
         ngx_log_error(NGX_LOG_EMERG, cycle->log, 0,
                       "xrootd: failed to initialise OpenSSL crypto primitives");
         return NGX_ERROR;
     }
 
     /* phase-64 SP4: durable stage journal + restart reconcile. The journal dir is
-     * opt-in via $XROOTD_STAGE_JOURNAL_DIR (unset = in-memory, no recovery). On a
+     * opt-in via $BRIX_STAGE_JOURNAL_DIR (unset = in-memory, no recovery). On a
      * restart worker 0 replays any staged FLUSH left in flight by a crash so the
      * write reaches the backend (only staged writes are recoverable - a non-staged
      * direct write's partial is reaped, not replayed; §11.3). */
-    xrootd_stage_engine_init(getenv("XROOTD_STAGE_JOURNAL_DIR"));
+    brix_stage_engine_init(getenv("BRIX_STAGE_JOURNAL_DIR"));
     if (ngx_worker == 0) {
-        xrootd_stage_reconcile(NULL);
+        brix_stage_reconcile(NULL);
         /* Clean up the OTHER half: a NON-staged direct write interrupted by the
          * crash left an orphan "<final>.xrd-tmp.<dead-pid>.*" in the export tree -
          * reap it (the broken write is discarded; the client retries). */
-        (void) xrootd_tmp_reap_all(cycle->log);
+        (void) brix_tmp_reap_all(cycle->log);
     }
 
     /* arm the per-worker async stage-flush scheduler. Done BEFORE the stream-config
      * early-return below so it runs in HTTP-only (WebDAV/S3) workers too - the
      * deferred-flush queue is per-worker and protocol-agnostic; the tick is a no-op
      * when the queue is empty. */
-    xrootd_stage_sched_timer.handler = xrootd_stage_sched_handler;
-    xrootd_stage_sched_timer.data    = NULL;
-    xrootd_stage_sched_timer.log     = cycle->log;
-    ngx_add_timer(&xrootd_stage_sched_timer, XROOTD_STAGE_SCHED_MS);
+    brix_stage_sched_timer.handler = brix_stage_sched_handler;
+    brix_stage_sched_timer.data    = NULL;
+    brix_stage_sched_timer.log     = cycle->log;
+    ngx_add_timer(&brix_stage_sched_timer, BRIX_STAGE_SCHED_MS);
 
     cmcf = ngx_stream_cycle_get_module_main_conf(cycle, ngx_stream_core_module);
     if (cmcf == NULL) {
@@ -241,7 +241,7 @@ ngx_stream_xrootd_init_process(ngx_cycle_t *cycle)
      * Emit a persistent startup warning so operators know confinement is
      * degraded and can plan a kernel upgrade.
      */
-    if (!xrootd_openat2_runtime_available()) {
+    if (!brix_openat2_runtime_available()) {
         ngx_log_error(NGX_LOG_WARN, cycle->log, 0,
                       "xrootd: openat2(2) is not available on this system "
                       "(requires Linux kernel 5.6+). Path confinement falls "
@@ -252,23 +252,23 @@ ngx_stream_xrootd_init_process(ngx_cycle_t *cycle)
 
     cscfp = cmcf->servers.elts;
 
-    xrootd_proxy_pool_init();
+    brix_proxy_pool_init();
 
     /*
      * Phase 44: bring up this worker's optional io_uring ring (after the proxy
      * pool, same lifetime as every other per-worker async resource).  A no-op
-     * unless a server block enabled it; under `xrootd_io_uring on` a bring-up
+     * unless a server block enabled it; under `brix_io_uring on` a bring-up
      * failure returns NGX_ERROR so the worker refuses to run on the thread pool
      * (§32.7 backstop).  Under `auto` it degrades silently.
      */
-    if (xrootd_uring_init_worker(cycle) != NGX_OK) {
+    if (brix_uring_init_worker(cycle) != NGX_OK) {
         return NGX_ERROR;
     }
-    xrootd_phase_mark(&pt, "uring");
+    brix_phase_mark(&pt, "uring");
 
     for (i = 0; i < cmcf->servers.nelts; i++) {
         xcf = ngx_stream_conf_get_module_srv_conf(cscfp[i],
-                                                   ngx_stream_xrootd_module);
+                                                   ngx_stream_brix_module);
 
         if (!xcf->common.enable) {
             continue;
@@ -299,18 +299,18 @@ ngx_stream_xrootd_init_process(ngx_cycle_t *cycle)
             char _jd[NGX_MAX_PATH];
             ngx_memcpy(_jd, xcf->frm.control_dir.data, xcf->frm.control_dir.len);
             _jd[xcf->frm.control_dir.len] = '\0';
-            (void) xrootd_stage_registry_init(_jd, cycle->log);
+            (void) brix_stage_registry_init(_jd, cycle->log);
         }
 
         /* Phase 6 housekeeping: TTL-sweep abandoned upload-resume partials from
          * the stage dir (worker-0 only; the register itself is idempotent and
          * arms a single timer for the first stage-dir server). */
         if (xcf->upload_stage_dir_canon[0] != '\0') {
-            xrootd_xfer_resume_sweep_register(cycle,
+            brix_xfer_resume_sweep_register(cycle,
                                               xcf->upload_stage_dir_canon);
         }
 
-        if (xcf->auth == XROOTD_AUTH_GSI || xcf->auth == XROOTD_AUTH_BOTH) {
+        if (xcf->auth == BRIX_AUTH_GSI || xcf->auth == BRIX_AUTH_BOTH) {
             gsi_seen = 1;   /* Phase 33: warm the GSI DH key pool below */
             if (gsi_xcf == NULL) {
                 gsi_xcf = xcf;   /* keypool sizing + thread pool come from here */
@@ -335,7 +335,7 @@ ngx_stream_xrootd_init_process(ngx_cycle_t *cycle)
             }
         }
 
-        if (xrootd_chkpoint_recover_root(cycle->log, xcf->common.root_canon)
+        if (brix_chkpoint_recover_root(cycle->log, xcf->common.root_canon)
             != NGX_OK)
         {
             return NGX_ERROR;
@@ -343,53 +343,53 @@ ngx_stream_xrootd_init_process(ngx_cycle_t *cycle)
 
         /* The per-export storage backend (e.g. pblock) is registered at config
          * time and built per worker lazily by the VFS backend registry on first
-         * use (xrootd_vfs_ctx_init → xrootd_vfs_backend_resolve); no per-server
+         * use (brix_vfs_ctx_init → brix_vfs_backend_resolve); no per-server
          * init_process creation is needed here. */
 
         /* The cache performs all disk I/O through SD storage instances (POSIX
          * driver on a per-worker rootfd by default, or a configured backend) —
          * build them now. No-op unless a cache is configured. */
-        if (xrootd_cache_storage_init(xcf, cycle) != NGX_OK) {
+        if (brix_cache_storage_init(xcf, cycle) != NGX_OK) {
             return NGX_ERROR;
         }
 
         /* Build the per-worker XrdAcc tables + hot-reload timer (no-op unless
-         * this server uses `xrootd_authdb_format xrdacc`). */
-        if (xrootd_acc_init_server(xcf, cycle) != NGX_OK) {
+         * this server uses `brix_authdb_format xrdacc`). */
+        if (brix_acc_init_server(xcf, cycle) != NGX_OK) {
             return NGX_ERROR;
         }
 
         if (xcf->cms_addr != NULL) {
-            ngx_xrootd_cms_start(cycle, xcf);
+            ngx_brix_cms_start(cycle, xcf);
         }
 
         /* Phase 22: start the active health-check timer (no-op if disabled). */
-        xrootd_hc_manager_start(cycle, xcf);
+        brix_hc_manager_start(cycle, xcf);
 
         /* Pelican: start the cache advertisement timer (no-op unless
-         * xrootd_cache_advertise is on with a key + data-url configured). */
-        xrootd_cache_pelican_schedule_advertise(cycle, xcf);
+         * brix_cache_advertise is on with a key + data-url configured). */
+        brix_cache_pelican_schedule_advertise(cycle, xcf);
 
         /* Unified cache-state engine: arm the per-worker stale-dirty reaper when
          * a state root resolves and a max age is set. Independent of occupancy. */
         if (xcf->cache_dirty_max_age > 0
-            && xrootd_cache_state_root(xcf) != NULL)
+            && brix_cache_state_root(xcf) != NULL)
         {
             xcf->cache_reap_timer = ngx_pcalloc(cycle->pool, sizeof(ngx_event_t));
             if (xcf->cache_reap_timer == NULL) {
                 return NGX_ERROR;
             }
-            xcf->cache_reap_timer->handler = xrootd_cache_reap_handler;
+            xcf->cache_reap_timer->handler = brix_cache_reap_handler;
             xcf->cache_reap_timer->data    = xcf;
             xcf->cache_reap_timer->log     = cycle->log;
-            ngx_add_timer(xcf->cache_reap_timer, XROOTD_CACHE_REAP_FIRST_MS);
+            ngx_add_timer(xcf->cache_reap_timer, BRIX_CACHE_REAP_FIRST_MS);
         }
 
         /* Watermark-driven LRU reaper: arm the proactive per-worker timer when a
          * cache is configured with a valid HIGH watermark. A small per-worker
          * jitter on the first tick keeps the workers from all firing together. */
         if ((xcf->cache || xcf->common.cache_store.len > 0)
-            && xrootd_cache_state_root(xcf) != NULL
+            && brix_cache_state_root(xcf) != NULL
             && xcf->cache_high_watermark > 0
             && xcf->cache_high_watermark < 1000000)
         {
@@ -399,19 +399,19 @@ ngx_stream_xrootd_init_process(ngx_cycle_t *cycle)
                 return NGX_ERROR;
             }
             xcf->cache_watermark_timer->handler =
-                xrootd_cache_watermark_timer_handler;
+                brix_cache_watermark_timer_handler;
             xcf->cache_watermark_timer->data = xcf;
             xcf->cache_watermark_timer->log  = cycle->log;
             ngx_add_timer(xcf->cache_watermark_timer,
-                          XROOTD_CACHE_REAP_FIRST_MS
+                          BRIX_CACHE_REAP_FIRST_MS
                           + (ngx_msec_t) (ngx_pid % 1000));
         }
 
-        if ((xcf->auth != XROOTD_AUTH_GSI && xcf->auth != XROOTD_AUTH_BOTH)
+        if ((xcf->auth != BRIX_AUTH_GSI && xcf->auth != BRIX_AUTH_BOTH)
             || xcf->crl.len == 0 || xcf->crl_reload == 0)
         {
             /* CRL timer not needed — but still check for JWKS refresh */
-            xrootd_token_jwks_schedule_refresh(cycle, xcf);
+            brix_token_jwks_schedule_refresh(cycle, xcf);
             continue;
         }
 
@@ -420,7 +420,7 @@ ngx_stream_xrootd_init_process(ngx_cycle_t *cycle)
         if (xcf->crl_timer == NULL) {
             return NGX_ERROR;
         }
-        xcf->crl_timer->handler = xrootd_crl_reload_handler;
+        xcf->crl_timer->handler = brix_crl_reload_handler;
         xcf->crl_timer->data    = xcf;
         xcf->crl_timer->log     = cycle->log;
 
@@ -432,10 +432,10 @@ ngx_stream_xrootd_init_process(ngx_cycle_t *cycle)
                       (int) xcf->crl_reload, xcf->crl.data);
 
         /* Also check for JWKS refresh on GSI/BOTH servers */
-        xrootd_token_jwks_schedule_refresh(cycle, xcf);
+        brix_token_jwks_schedule_refresh(cycle, xcf);
     }
 
-    xrootd_phase_mark(&pt, "servers");
+    brix_phase_mark(&pt, "servers");
 
     /* Phase 33: warm the per-worker GSI ephemeral-DH key pool so kXGC_certreq
      * never runs keygen on the event thread under a concurrent handshake burst.
@@ -443,52 +443,52 @@ ngx_stream_xrootd_init_process(ngx_cycle_t *cycle)
      * configured size off the event thread (via the GSI server's thread pool) so
      * worker startup is not blocked on the full warm-up. */
     if (gsi_seen && gsi_xcf != NULL) {
-        xrootd_gsi_keypool_init(cycle, gsi_xcf->common.thread_pool,
+        brix_gsi_keypool_init(cycle, gsi_xcf->common.thread_pool,
                                 gsi_xcf->gsi_keypool_size,
                                 gsi_xcf->gsi_keypool_seed);
     }
-    xrootd_phase_mark(&pt, "keypool");
+    brix_phase_mark(&pt, "keypool");
 
 
     /* A4: arm the pending-locate reaper (worker 0 only) when any server is a
      * manager — reclaims abandoned in-flight locate slots even when traffic
      * ceases.  Single process-global SHM table, so one worker suffices. */
     if (manager_seen && ngx_worker == 0) {
-        xrootd_pending_reap_timer.handler = xrootd_pending_reap_handler;
-        xrootd_pending_reap_timer.data    = NULL;
-        xrootd_pending_reap_timer.log      = cycle->log;
-        ngx_add_timer(&xrootd_pending_reap_timer,
-                      XROOTD_PENDING_REAP_INTERVAL_MS);
+        brix_pending_reap_timer.handler = brix_pending_reap_handler;
+        brix_pending_reap_timer.data    = NULL;
+        brix_pending_reap_timer.log      = cycle->log;
+        ngx_add_timer(&brix_pending_reap_timer,
+                      BRIX_PENDING_REAP_INTERVAL_MS);
     }
 
     /* Phase 40: connect this worker to the identity broker (no-op unless
-     * xrootd_impersonation=map; lazily reconnects if the broker isn't up yet). */
-    xrootd_imp_init_worker(cycle);
+     * brix_impersonation=map; lazily reconnects if the broker isn't up yet). */
+    brix_imp_init_worker(cycle);
 
     /* Upload stage-out reaper (worker 0): finish any interrupted cache->storage
      * commit left by a previous run, then sweep periodically.  Covers both
      * root:// and davs:// stage dirs (registered at config time).  The first tick
      * is soon (startup recovery); armed only when a stage dir is configured. */
-    if (ngx_worker == 0 && xrootd_stage_dir_count() > 0) {
-        xrootd_stage_reap_timer.handler = xrootd_stage_reap_handler;
-        xrootd_stage_reap_timer.data    = NULL;
-        xrootd_stage_reap_timer.log     = cycle->log;
-        ngx_add_timer(&xrootd_stage_reap_timer, XROOTD_STAGE_REAP_FIRST_MS);
+    if (ngx_worker == 0 && brix_stage_dir_count() > 0) {
+        brix_stage_reap_timer.handler = brix_stage_reap_handler;
+        brix_stage_reap_timer.data    = NULL;
+        brix_stage_reap_timer.log     = cycle->log;
+        ngx_add_timer(&brix_stage_reap_timer, BRIX_STAGE_REAP_FIRST_MS);
     }
 
     ngx_snprintf(ctx, sizeof(ctx) - 1, "xrootd init_process[w%ui]%Z", ngx_worker);
-    xrootd_phase_timer_log(&pt, cycle->log, (const char *) ctx);
+    brix_phase_timer_log(&pt, cycle->log, (const char *) ctx);
 
     return NGX_OK;
 }
 
 /* Per-worker teardown at exit: release process-scoped resources. */
 void
-xrootd_exit_process(ngx_cycle_t *cycle)
+brix_exit_process(ngx_cycle_t *cycle)
 {
     ngx_stream_core_main_conf_t   *cmcf;
     ngx_stream_core_srv_conf_t   **cscfp;
-    ngx_stream_xrootd_srv_conf_t  *xcf;
+    ngx_stream_brix_srv_conf_t  *xcf;
     ngx_uint_t                     i;
 
     /*
@@ -510,10 +510,10 @@ xrootd_exit_process(ngx_cycle_t *cycle)
      * worker releases authenticated upstream sockets immediately (with a clean
      * FIN) rather than leaving process-exit to reap them.  Idempotent and safe
      * when proxy mode was never used (the pool is simply empty). */
-    xrootd_proxy_pool_shutdown();
+    brix_proxy_pool_shutdown();
 
     /* Phase 44: tear down this worker's io_uring ring (no-op if never up). */
-    xrootd_uring_exit_worker(cycle);
+    brix_uring_exit_worker(cycle);
 
     cmcf = ngx_stream_cycle_get_module_main_conf(cycle, ngx_stream_core_module);
     if (cmcf == NULL) {
@@ -523,7 +523,7 @@ xrootd_exit_process(ngx_cycle_t *cycle)
     cscfp = cmcf->servers.elts;
     for (i = 0; i < cmcf->servers.nelts; i++) {
         xcf = ngx_stream_conf_get_module_srv_conf(cscfp[i],
-                                                   ngx_stream_xrootd_module);
+                                                   ngx_stream_brix_module);
         if (!xcf->common.enable) {
             continue;
         }
@@ -531,8 +531,8 @@ xrootd_exit_process(ngx_cycle_t *cycle)
             close(xcf->rootfd);
             xcf->rootfd = -1;
         }
-        xrootd_cache_storage_cleanup(xcf);
+        brix_cache_storage_cleanup(xcf);
     }
 
-    xrootd_crypto_cleanup();
+    brix_crypto_cleanup();
 }

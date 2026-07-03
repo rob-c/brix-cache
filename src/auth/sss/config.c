@@ -12,13 +12,13 @@
 
 /* The neutral entry caps must match this module's key struct so the copy-out
  * below never truncates a valid field (a drift in either would be a real bug). */
-_Static_assert(sizeof(((xrootd_sss_key_t *) 0)->key)   == SSS_K_KEY_MAX,
+_Static_assert(sizeof(((brix_sss_key_t *) 0)->key)   == SSS_K_KEY_MAX,
                "SSS key buffer size drift vs shared kernel");
-_Static_assert(sizeof(((xrootd_sss_key_t *) 0)->user)  == SSS_K_USER_MAX,
+_Static_assert(sizeof(((brix_sss_key_t *) 0)->user)  == SSS_K_USER_MAX,
                "SSS user buffer size drift vs shared kernel");
-_Static_assert(sizeof(((xrootd_sss_key_t *) 0)->group) == SSS_K_GROUP_MAX,
+_Static_assert(sizeof(((brix_sss_key_t *) 0)->group) == SSS_K_GROUP_MAX,
                "SSS group buffer size drift vs shared kernel");
-_Static_assert(sizeof(((xrootd_sss_key_t *) 0)->name)  == SSS_K_NAME_MAX,
+_Static_assert(sizeof(((brix_sss_key_t *) 0)->name)  == SSS_K_NAME_MAX,
                "SSS name buffer size drift vs shared kernel");
 
 /*
@@ -27,21 +27,21 @@ _Static_assert(sizeof(((xrootd_sss_key_t *) 0)->name)  == SSS_K_NAME_MAX,
  *       from the user/group/name fields.
  * HOW:  The shared kernel tokenises and validates the line; this function maps
  *       its tri-state result onto NGX_OK / NGX_ERROR, copies the neutral entry
- *       into an xrootd_sss_key_t, computes the option flags, and pushes the key.
+ *       into an brix_sss_key_t, computes the option flags, and pushes the key.
  */
 static ngx_int_t
-xrootd_sss_parse_key_line(ngx_conf_t *cf, ngx_array_t *keys,
+brix_sss_parse_key_line(ngx_conf_t *cf, ngx_array_t *keys,
     char *line, ngx_uint_t line_no)
 {
     sss_keytab_entry_t  entry;
-    xrootd_sss_key_t    key, *dst;
+    brix_sss_key_t    key, *dst;
     size_t              name_len;
     int                 rc;
 
     rc = sss_keytab_parse_line(line, &entry, (int64_t) ngx_time());
     if (rc < 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "xrootd_sss_keytab: invalid key entry on line %ui",
+                           "brix_sss_keytab: invalid key entry on line %ui",
                            line_no);
         return NGX_ERROR;
     }
@@ -59,20 +59,20 @@ xrootd_sss_parse_key_line(ngx_conf_t *cf, ngx_array_t *keys,
     ngx_cpystrn((u_char *) key.name,  (u_char *) entry.name,  sizeof(key.name));
 
     if (strcmp(key.user, "anybody") == 0) {
-        key.opts |= XROOTD_SSS_OPT_ANYUSR;
+        key.opts |= BRIX_SSS_OPT_ANYUSR;
     } else if (strcmp(key.user, "allusers") == 0) {
-        key.opts |= XROOTD_SSS_OPT_ALLUSR;
+        key.opts |= BRIX_SSS_OPT_ALLUSR;
     }
 
     if (strcmp(key.group, "anygroup") == 0) {
-        key.opts |= XROOTD_SSS_OPT_ANYGRP;
+        key.opts |= BRIX_SSS_OPT_ANYGRP;
     } else if (strcmp(key.group, "usrgroup") == 0) {
-        key.opts |= XROOTD_SSS_OPT_USRGRP;
+        key.opts |= BRIX_SSS_OPT_USRGRP;
     }
 
     name_len = strlen(key.name);
     if (name_len > 0 && key.name[name_len - 1] == '+') {
-        key.opts |= XROOTD_SSS_OPT_NOIPCK;
+        key.opts |= BRIX_SSS_OPT_NOIPCK;
     }
 
     dst = ngx_array_push(keys);
@@ -84,12 +84,12 @@ xrootd_sss_parse_key_line(ngx_conf_t *cf, ngx_array_t *keys,
 }
 
 /* WHAT: SSS authentication configuration validator                     */
-/*      Calls stat() to check permissions via xrootd_sss_keytab_mode_ok().*/
+/*      Calls stat() to check permissions via brix_sss_keytab_mode_ok().*/
 /* WHAT: Generic SSS keytab loader (path -> parsed key array)           */
 /* WHY:  Shared by the main stream module's SSS auth (kXR_auth) and the */
 /*       permission policy; keeping a single loader avoids two diverging */
 ngx_int_t
-xrootd_sss_load_keytab(ngx_conf_t *cf, ngx_str_t *path, ngx_array_t **out_keys)
+brix_sss_load_keytab(ngx_conf_t *cf, ngx_str_t *path, ngx_array_t **out_keys)
 {
     FILE        *fp;
     struct stat  st;
@@ -101,15 +101,15 @@ xrootd_sss_load_keytab(ngx_conf_t *cf, ngx_str_t *path, ngx_array_t **out_keys)
     *out_keys = NULL;
 
     if (path == NULL || path->len == 0) {
-        XROOTD_DIAG_CONF(NGX_LOG_EMERG, cf, 0,
+        BRIX_DIAG_CONF(NGX_LOG_EMERG, cf, 0,
             "xrootd: SSS keytab path is empty",
-            "xrootd_sss_keytab was given without a path argument",
-            "supply the keytab file path: xrootd_sss_keytab /etc/xrootd/sss.keytab;");
+            "brix_sss_keytab was given without a path argument",
+            "supply the keytab file path: brix_sss_keytab /etc/xrootd/sss.keytab;");
         return NGX_ERROR;
     }
 
-    if (xrootd_validate_path(cf, "sss keytab", path,
-                             XROOTD_PATH_REGULAR_FILE, R_OK)
+    if (brix_validate_path(cf, "sss keytab", path,
+                             BRIX_PATH_REGULAR_FILE, R_OK)
         != NGX_OK)
     {
         return NGX_ERROR;
@@ -122,7 +122,7 @@ xrootd_sss_load_keytab(ngx_conf_t *cf, ngx_str_t *path, ngx_array_t **out_keys)
     keytab_fd = open((const char *) path->data,
                      O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
     if (keytab_fd < 0) {
-        XROOTD_DIAG_CONF(NGX_LOG_EMERG, cf, ngx_errno,
+        BRIX_DIAG_CONF(NGX_LOG_EMERG, cf, ngx_errno,
             "xrootd: cannot open SSS keytab \"%V\"",
             "the path is wrong, the file is unreadable by the nginx user, or "
             "it is a symlink (rejected for safety)",
@@ -140,7 +140,7 @@ xrootd_sss_load_keytab(ngx_conf_t *cf, ngx_str_t *path, ngx_array_t **out_keys)
     }
 
     if (sss_keytab_mode_ok((const char *) path->data, st.st_mode, 1) != 0) {
-        XROOTD_DIAG_CONF(NGX_LOG_EMERG, cf, 0,
+        BRIX_DIAG_CONF(NGX_LOG_EMERG, cf, 0,
             "xrootd: SSS keytab \"%V\" has unsafe permissions",
             "the keytab is a shared secret but is group/world readable or not "
             "owned correctly",
@@ -160,7 +160,7 @@ xrootd_sss_load_keytab(ngx_conf_t *cf, ngx_str_t *path, ngx_array_t **out_keys)
     }
     /* O_CLOEXEC was set at open() — no separate fcntl needed */
 
-    keys = ngx_array_create(cf->pool, 4, sizeof(xrootd_sss_key_t));
+    keys = ngx_array_create(cf->pool, 4, sizeof(brix_sss_key_t));
     if (keys == NULL) {
         fclose(fp);
         return NGX_ERROR;
@@ -169,7 +169,7 @@ xrootd_sss_load_keytab(ngx_conf_t *cf, ngx_str_t *path, ngx_array_t **out_keys)
     line_no = 0;
     while (fgets(line, sizeof(line), fp) != NULL) {
         line_no++;
-        if (xrootd_sss_parse_key_line(cf, keys, line, line_no) != NGX_OK) {
+        if (brix_sss_parse_key_line(cf, keys, line, line_no) != NGX_OK) {
             fclose(fp);
             return NGX_ERROR;
         }
@@ -196,24 +196,24 @@ xrootd_sss_load_keytab(ngx_conf_t *cf, ngx_str_t *path, ngx_array_t **out_keys)
 
 /* Does this server need the SSS keytab loaded for UPSTREAM proxy auth?  A proxy
  * authenticates to an SSS upstream using conf->sss_keys even when its own client
- * auth is not SSS (e.g. xrootd_auth none + xrootd_proxy_auth sss, or a
+ * auth is not SSS (e.g. brix_auth none + brix_proxy_auth sss, or a
  * per-upstream "sss" policy).  Without this the keys are never parsed and the
  * upstream SSS handshake silently fails NotAuthorized. */
 static int
-xrootd_sss_upstream_needed(ngx_stream_xrootd_srv_conf_t *xcf)
+brix_sss_upstream_needed(ngx_stream_brix_srv_conf_t *xcf)
 {
     ngx_uint_t i;
 
     if (!xcf->proxy_enable) {
         return 0;
     }
-    if (xcf->proxy_auth == XROOTD_PROXY_AUTH_SSS) {
+    if (xcf->proxy_auth == BRIX_PROXY_AUTH_SSS) {
         return 1;
     }
     if (xcf->proxy_upstreams != NULL) {
-        xrootd_proxy_upstream_t *ups = xcf->proxy_upstreams->elts;
+        brix_proxy_upstream_t *ups = xcf->proxy_upstreams->elts;
         for (i = 0; i < xcf->proxy_upstreams->nelts; i++) {
-            if (ups[i].auth == (ngx_int_t) XROOTD_PROXY_AUTH_SSS) {
+            if (ups[i].auth == (ngx_int_t) BRIX_PROXY_AUTH_SSS) {
                 return 1;
             }
         }
@@ -222,10 +222,10 @@ xrootd_sss_upstream_needed(ngx_stream_xrootd_srv_conf_t *xcf)
 }
 
 ngx_int_t
-xrootd_configure_sss_auth(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *xcf)
+brix_configure_sss_auth(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
 {
-    int need_client   = (xcf->auth == XROOTD_AUTH_SSS);
-    int need_upstream = xrootd_sss_upstream_needed(xcf);
+    int need_client   = (xcf->auth == BRIX_AUTH_SSS);
+    int need_upstream = brix_sss_upstream_needed(xcf);
 
     if (!need_client && !need_upstream) {
         return NGX_OK;
@@ -234,12 +234,12 @@ xrootd_configure_sss_auth(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *xcf)
     if (xcf->sss_keytab.len == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             need_client
-                ? "xrootd_auth sss requires xrootd_sss_keytab"
-                : "SSS proxy upstream auth requires xrootd_sss_keytab");
+                ? "brix_auth sss requires brix_sss_keytab"
+                : "SSS proxy upstream auth requires brix_sss_keytab");
         return NGX_ERROR;
     }
 
-    if (xrootd_sss_load_keytab(cf, &xcf->sss_keytab, &xcf->sss_keys)
+    if (brix_sss_load_keytab(cf, &xcf->sss_keytab, &xcf->sss_keys)
         != NGX_OK)
     {
         return NGX_ERROR;

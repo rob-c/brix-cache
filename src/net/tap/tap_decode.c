@@ -13,7 +13,7 @@
 
 /* True for request opcodes whose data payload is (or begins with) a path. */
 int
-xrootd_tap_opcode_has_path(uint16_t op)
+brix_tap_opcode_has_path(uint16_t op)
 {
     switch (op) {
     case kXR_open:
@@ -33,8 +33,8 @@ xrootd_tap_opcode_has_path(uint16_t op)
 }
 
 size_t
-xrootd_tap_decode_request(const uint8_t *buf, size_t len,
-    xrootd_tap_frame_t *out)
+brix_tap_decode_request(const uint8_t *buf, size_t len,
+    brix_tap_frame_t *out)
 {
     if (buf == NULL || out == NULL || len < XRD_REQUEST_HDR_LEN) {
         return 0;
@@ -49,7 +49,7 @@ xrootd_tap_decode_request(const uint8_t *buf, size_t len,
     out->path       = NULL;
     out->path_len   = 0;
 
-    if (out->dlen > 0 && xrootd_tap_opcode_has_path(out->opcode)) {
+    if (out->dlen > 0 && brix_tap_opcode_has_path(out->opcode)) {
         size_t avail = len - XRD_REQUEST_HDR_LEN;
         size_t plen  = (out->dlen < avail) ? out->dlen : avail;
         if (plen > 0) {
@@ -61,8 +61,8 @@ xrootd_tap_decode_request(const uint8_t *buf, size_t len,
 }
 
 size_t
-xrootd_tap_decode_response(const uint8_t *buf, size_t len,
-    xrootd_tap_frame_t *out)
+brix_tap_decode_response(const uint8_t *buf, size_t len,
+    brix_tap_frame_t *out)
 {
     if (buf == NULL || out == NULL || len < 8) {
         return 0;

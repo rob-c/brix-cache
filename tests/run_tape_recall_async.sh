@@ -13,13 +13,13 @@ trap cleanup EXIT
 mkdir -p "$PFX/tape" "$PFX/cache" "$PFX/export" "$PFX/tmp" "$PFX/logs"
 cat > "$PFX/nginx.conf" <<E2
 daemon on; error_log $PFX/logs/e.log info; pid $PFX/nginx.pid;
-env XROOTD_FRM_STUB_RECALL_DELAY_MS=2500;
+env BRIX_FRM_STUB_RECALL_DELAY_MS=2500;
 thread_pool default threads=2;
 events { worker_connections 64; }
 http { client_body_temp_path $PFX/tmp; server { listen 127.0.0.1:${BPORT};
-  location / { xrootd_webdav on; xrootd_webdav_root $PFX/export; xrootd_webdav_auth none;
-    xrootd_webdav_storage_backend tape://stub${PFX}/tape;
-    xrootd_webdav_cache_store posix:${PFX}/cache; } } }
+  location / { brix_webdav on; brix_webdav_root $PFX/export; brix_webdav_auth none;
+    brix_webdav_storage_backend tape://stub${PFX}/tape;
+    brix_webdav_cache_store posix:${PFX}/cache; } } }
 E2
 # Seed an OFFLINE object: on "tape" (<base>/<key>) with NO online buffer.
 head -c 500000 /dev/urandom > "$PFX/tape/f.bin"; SHA=$(sha256sum "$PFX/tape/f.bin"|cut -d' ' -f1)

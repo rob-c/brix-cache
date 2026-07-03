@@ -14,11 +14,11 @@
  *
  * HOW:  proxy_write_audit() writes a JSON line (path, bytes_read, bytes_written, duration_ms)
  *       to conf->proxy_audit_log_fd when configured; skips if audit fd is invalid or
- *       local_fh slot is out of range. xrootd_proxy_wait_handler() fires on timer expiry,
+ *       local_fh slot is out of range. brix_proxy_wait_handler() fires on timer expiry,
  *       restores fwd_reqid/streamid/fh from saved retry data, resets response state,
  *       flushes the saved request to upstream, and arms read event.
- *       xrootd_proxy_alloc_local_fh() scans fh_map for a free slot (upstream_fh == FREE)
- *       returning the index or -1 if exhausted. xrootd_proxy_lazy_open() looks up the
+ *       brix_proxy_alloc_local_fh() scans fh_map for a free slot (upstream_fh == FREE)
+ *       returning the index or -1 if exhausted. brix_proxy_lazy_open() looks up the
  *       canonical path from shared session handle registry, builds a synthetic anonymous
  *       kXR_open with streamid[1]=0xfe, marks the slot pending (255), saves read_req for
  *       later dispatch by relay_to_client after open response arrives, and flushes.
@@ -31,10 +31,10 @@
  * duration_ms) to the configured audit log for a local file-handle slot; no-op if
  * the audit fd is invalid or the slot is out of range. */
 void
-proxy_write_audit(xrootd_proxy_ctx_t *proxy, int local_fh)
+proxy_write_audit(brix_proxy_ctx_t *proxy, int local_fh)
 {
-    ngx_stream_xrootd_srv_conf_t *conf = proxy->conf;
-    xrootd_proxy_fh_entry_t      *entry;
+    ngx_stream_brix_srv_conf_t *conf = proxy->conf;
+    brix_proxy_fh_entry_t      *entry;
     u_char                        buf[1024];
     u_char                       *p;
     ngx_msec_int_t                duration_ms;
@@ -42,7 +42,7 @@ proxy_write_audit(xrootd_proxy_ctx_t *proxy, int local_fh)
     if (conf == NULL || conf->proxy_audit_log_fd == NGX_INVALID_FILE) {
         return;
     }
-    if (local_fh < 0 || local_fh >= XROOTD_MAX_FILES) {
+    if (local_fh < 0 || local_fh >= BRIX_MAX_FILES) {
         return;
     }
     entry = &proxy->fh_map[local_fh];
@@ -62,15 +62,15 @@ proxy_write_audit(xrootd_proxy_ctx_t *proxy, int local_fh)
     ngx_write_fd(conf->proxy_audit_log_fd, buf, (size_t)(p - buf));
 }
 
-/* xrootd_proxy_wait_handler — kXR_wait retry timer: restore the saved request
+/* brix_proxy_wait_handler — kXR_wait retry timer: restore the saved request
  * metadata (reqid, streamid, local fh), reset response state, re-flush the saved
  * request to upstream, and arm the read event; cleans up the proxy if the client
  * context was destroyed. */
 void
-xrootd_proxy_wait_handler(ngx_event_t *ev)
+brix_proxy_wait_handler(ngx_event_t *ev)
 {
-    xrootd_proxy_ctx_t *proxy = ev->data;
-    xrootd_ctx_t       *ctx;
+    brix_proxy_ctx_t *proxy = ev->data;
+    brix_ctx_t       *ctx;
     u_char             *req;
     size_t              len;
     ngx_int_t           rc;
@@ -80,7 +80,7 @@ xrootd_proxy_wait_handler(ngx_event_t *ev)
     }
     ctx = proxy->client_ctx;
     if (ctx == NULL || ctx->destroyed) {
-        xrootd_proxy_cleanup(proxy);
+        brix_proxy_cleanup(proxy);
         return;
     }
 
@@ -112,32 +112,32 @@ xrootd_proxy_wait_handler(ngx_event_t *ev)
     proxy->resp_body     = NULL;
     proxy->resp_body_pos = 0;
 
-    rc = xrootd_proxy_flush(proxy);
+    rc = brix_proxy_flush(proxy);
     if (rc == NGX_ERROR) {
         ngx_free(req);
         proxy->wbuf = NULL;
-        xrootd_proxy_abort(proxy, "proxy: wait retry send failed");
+        brix_proxy_abort(proxy, "proxy: wait retry send failed");
         return;
     }
     if (proxy->wbuf_pos == proxy->wbuf_len) {
         ngx_free(req);
         proxy->wbuf = NULL;
         if (ngx_handle_read_event(proxy->conn->read, 0) != NGX_OK) {
-            xrootd_proxy_abort(proxy, "proxy: read arm failed after wait retry");
+            brix_proxy_abort(proxy, "proxy: read arm failed after wait retry");
         }
     }
     /* else: write handler will complete the send */
 }
 
-/* xrootd_proxy_alloc_local_fh — return the first free slot (upstream_fh == FREE) in
+/* brix_proxy_alloc_local_fh — return the first free slot (upstream_fh == FREE) in
  * the proxy fh_map (its own file-handle namespace), or -1 if all are occupied. */
 int
-xrootd_proxy_alloc_local_fh(xrootd_proxy_ctx_t *proxy)
+brix_proxy_alloc_local_fh(brix_proxy_ctx_t *proxy)
 {
     int i;
 
-    for (i = 0; i < XROOTD_MAX_FILES; i++) {
-        if (proxy->fh_map[i].upstream_fh == XROOTD_PROXY_FH_FREE) {
+    for (i = 0; i < BRIX_MAX_FILES; i++) {
+        if (proxy->fh_map[i].upstream_fh == BRIX_PROXY_FH_FREE) {
             return i;
         }
     }
@@ -147,7 +147,7 @@ xrootd_proxy_alloc_local_fh(xrootd_proxy_ctx_t *proxy)
 /* lazy open for bound secondary connections */
 
 /*
- * xrootd_proxy_lazy_open — issue a synthetic kXR_open on the upstream for a
+ * brix_proxy_lazy_open — issue a synthetic kXR_open on the upstream for a
  * handle that was opened by the primary session.
  *
  * Used when a bound secondary connection (ctx->is_bound) sends kXR_read for a
@@ -161,19 +161,19 @@ xrootd_proxy_alloc_local_fh(xrootd_proxy_ctx_t *proxy)
  * free it.  On error the function frees read_req itself.
  */
 ngx_int_t
-xrootd_proxy_lazy_open(xrootd_proxy_ctx_t *proxy,
-    xrootd_ctx_t *ctx, ngx_connection_t *c,
+brix_proxy_lazy_open(brix_proxy_ctx_t *proxy,
+    brix_ctx_t *ctx, ngx_connection_t *c,
     int local_fh, u_char *read_req, size_t read_req_len)
 {
-    xrootd_shared_handle_entry_t  he;
+    brix_shared_handle_entry_t  he;
     size_t                         pathlen, frame_len;
     u_char                        *frame;
     ClientOpenRequest             *oreq;
     ngx_int_t                      rc;
 
-    if (!xrootd_session_handle_lookup(ctx->bound_sessid, local_fh, &he)) {
+    if (!brix_session_handle_lookup(ctx->bound_sessid, local_fh, &he)) {
         ngx_free(read_req);
-        return xrootd_send_error(ctx, c, kXR_InvalidRequest,
+        return brix_send_error(ctx, c, kXR_InvalidRequest,
                                  "proxy: bound handle not published by primary");
     }
 
@@ -183,7 +183,7 @@ xrootd_proxy_lazy_open(xrootd_proxy_ctx_t *proxy,
     frame = ngx_alloc(frame_len, c->log);
     if (frame == NULL) {
         ngx_free(read_req);
-        return xrootd_send_error(ctx, c, kXR_IOError,
+        return brix_send_error(ctx, c, kXR_IOError,
                                  "proxy: OOM for lazy open");
     }
 
@@ -225,18 +225,18 @@ xrootd_proxy_lazy_open(xrootd_proxy_ctx_t *proxy,
 
     ctx->state = XRD_ST_PROXY;
 
-    rc = xrootd_proxy_flush(proxy);
+    rc = brix_proxy_flush(proxy);
     if (rc == NGX_ERROR) {
         ngx_free(frame);
         proxy->wbuf = NULL;
-        xrootd_proxy_abort(proxy, "proxy: lazy open send failed");
+        brix_proxy_abort(proxy, "proxy: lazy open send failed");
         return NGX_ERROR;
     }
     if (proxy->wbuf_pos == proxy->wbuf_len) {
         ngx_free(frame);
         proxy->wbuf = NULL;
         if (ngx_handle_read_event(proxy->conn->read, 0) != NGX_OK) {
-            xrootd_proxy_abort(proxy, "proxy: read arm failed after lazy open");
+            brix_proxy_abort(proxy, "proxy: read arm failed after lazy open");
             return NGX_ERROR;
         }
     }

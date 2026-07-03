@@ -1,11 +1,11 @@
-#ifndef XROOTD_FS_VFS_IO_CORE_H
-#define XROOTD_FS_VFS_IO_CORE_H
+#ifndef BRIX_FS_VFS_IO_CORE_H
+#define BRIX_FS_VFS_IO_CORE_H
 
 /*
  * vfs_io_core.h — thread-safe VFS I/O execution descriptors.
  *
  * WHAT: Declares the POD job descriptor and small segment descriptor types used
- *       by worker-thread and inline-fallback disk I/O. xrootd_vfs_io_execute()
+ *       by worker-thread and inline-fallback disk I/O. brix_vfs_io_execute()
  *       consumes one initialized job, performs the requested blocking syscall /
  *       CRC operation, and writes only the job OUT fields plus caller-owned
  *       buffers.
@@ -16,9 +16,9 @@
  *      synchronous fallbacks can share one raw-I/O implementation without
  *      pulling loop-only VFS internals into a thread.
  *
- * HOW: Callers fill immutable IN fields on xrootd_vfs_job_t, optionally pass
+ * HOW: Callers fill immutable IN fields on brix_vfs_job_t, optionally pass
  *      readv/writev segment arrays and an error-message buffer, then call
- *      xrootd_vfs_io_execute(). The function zeroes OUT fields first, dispatches
+ *      brix_vfs_io_execute(). The function zeroes OUT fields first, dispatches
  *      by op, captures errno into io_errno, and returns via the job.
  *
  * Requires: ngx_config.h / ngx_core.h types are included here explicitly.
@@ -27,21 +27,21 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 
-#include "fs/backend/sd.h"   /* xrootd_sd_obj_t — the per-handle storage object */
+#include "fs/backend/sd.h"   /* brix_sd_obj_t — the per-handle storage object */
 
 #include <stdint.h>
 #include <sys/types.h>
 
 typedef enum {
-    XROOTD_VFS_IO_READ = 0,
-    XROOTD_VFS_IO_WRITE,
-    XROOTD_VFS_IO_PGREAD,
-    XROOTD_VFS_IO_READV,
-    XROOTD_VFS_IO_WRITEV,
-    XROOTD_VFS_IO_SYNC,
-    XROOTD_VFS_IO_TRUNCATE,
-    XROOTD_VFS_IO_OPENDIR
-} xrootd_vfs_io_op_e;
+    BRIX_VFS_IO_READ = 0,
+    BRIX_VFS_IO_WRITE,
+    BRIX_VFS_IO_PGREAD,
+    BRIX_VFS_IO_READV,
+    BRIX_VFS_IO_WRITEV,
+    BRIX_VFS_IO_SYNC,
+    BRIX_VFS_IO_TRUNCATE,
+    BRIX_VFS_IO_OPENDIR
+} brix_vfs_io_op_e;
 
 typedef struct {
     int             fd;
@@ -52,8 +52,8 @@ typedef struct {
     u_char         *payload_ptr;
     /* The handle's storage object (driver+state) when a non-POSIX backend is
      * bound; obj.driver == NULL ⇒ use `fd` via the POSIX wrap (unchanged). */
-    xrootd_sd_obj_t obj;
-} xrootd_vfs_readv_seg_t;
+    brix_sd_obj_t obj;
+} brix_vfs_readv_seg_t;
 
 typedef struct {
     int             fd;
@@ -61,17 +61,17 @@ typedef struct {
     off_t           offset;
     const u_char   *data;
     uint32_t        wlen;
-    xrootd_sd_obj_t obj;   /* see xrootd_vfs_readv_seg_t.obj */
-} xrootd_vfs_writev_seg_t;
+    brix_sd_obj_t obj;   /* see brix_vfs_readv_seg_t.obj */
+} brix_vfs_writev_seg_t;
 
 typedef struct {
     /* IN: immutable once posted to a worker. */
-    xrootd_vfs_io_op_e  op;
+    brix_vfs_io_op_e  op;
     ngx_fd_t            fd;
     /* The handle's storage object for a non-POSIX backend (driver+state+fd).
      * obj.driver == NULL ⇒ the executor POSIX-wraps `fd` (byte-for-byte the
-     * pre-Layer-3 path). Set via xrootd_vfs_job_set_obj. */
-    xrootd_sd_obj_t     obj;
+     * pre-Layer-3 path). Set via brix_vfs_job_set_obj. */
+    brix_sd_obj_t     obj;
     off_t               offset;
     size_t              length;
     u_char             *buf;
@@ -83,7 +83,7 @@ typedef struct {
     unsigned            want_stat:1;
     unsigned            want_cksum:1;
     unsigned            csi_mismatch:1;  /* OUT: a page failed CSI verify (W2) */
-    void               *csi;             /* IN: xrootd_csi_t* or NULL (W2)      */
+    void               *csi;             /* IN: brix_csi_t* or NULL (W2)      */
     int                 rootfd;
     u_char              streamid[2];
     const char         *path;
@@ -92,15 +92,15 @@ typedef struct {
     char               *err_msg;
     size_t              err_msg_cap;
 
-    /* OUT: written only by xrootd_vfs_io_execute(). */
+    /* OUT: written only by brix_vfs_io_execute(). */
     ssize_t             nio;
     size_t              out_size;
     uint32_t            crc32c;
     int                 io_errno;
     unsigned            short_io:1;
-} xrootd_vfs_job_t;
+} brix_vfs_job_t;
 
-/* ---- xrootd_vfs_job_read_init — initialize a thread-safe READ job ----
+/* ---- brix_vfs_job_read_init — initialize a thread-safe READ job ----
  *
  * WHAT: Zeroes *job and fills a READ request over fd/offset/length into dst.
  *       dst_cap is retained for defensive validation. Returns nothing.
@@ -109,14 +109,14 @@ typedef struct {
  *      OUT fields from a previous operation from leaking into a new worker run.
  *
  * HOW: ngx_memzero() the descriptor, set op/fd/offset/length/buf/buf_cap, and
- *      leave all OUT fields clear for xrootd_vfs_io_execute().
+ *      leave all OUT fields clear for brix_vfs_io_execute().
  */
 static ngx_inline void
-xrootd_vfs_job_read_init(xrootd_vfs_job_t *job, ngx_fd_t fd, off_t offset,
+brix_vfs_job_read_init(brix_vfs_job_t *job, ngx_fd_t fd, off_t offset,
     size_t length, u_char *dst, size_t dst_cap, unsigned want_pgcrc)
 {
     ngx_memzero(job, sizeof(*job));
-    job->op = XROOTD_VFS_IO_READ;
+    job->op = BRIX_VFS_IO_READ;
     job->fd = fd;
     job->offset = offset;
     job->length = length;
@@ -128,14 +128,14 @@ xrootd_vfs_job_read_init(xrootd_vfs_job_t *job, ngx_fd_t fd, off_t offset,
 /* The effective storage object for a data op: the handle's bound driver object
  * when set (a non-POSIX backend), else a POSIX wrap of the bare fd (the unchanged
  * pre-Layer-3 path). `src` is the slot/job/segment obj (may be NULL/zeroed). */
-static ngx_inline xrootd_sd_obj_t *
-xrootd_vfs_effective_obj(xrootd_sd_obj_t *src, ngx_fd_t fd,
-    xrootd_sd_obj_t *scratch)
+static ngx_inline brix_sd_obj_t *
+brix_vfs_effective_obj(brix_sd_obj_t *src, ngx_fd_t fd,
+    brix_sd_obj_t *scratch)
 {
     if (src != NULL && src->driver != NULL) {
         return src;
     }
-    xrootd_sd_posix_wrap(scratch, fd);
+    brix_sd_posix_wrap(scratch, fd);
     return scratch;
 }
 
@@ -144,14 +144,14 @@ xrootd_vfs_effective_obj(xrootd_sd_obj_t *src, ngx_fd_t fd,
  * is ignored — the job keeps using its bare fd (the unchanged POSIX path). Call
  * after the op-specific init. */
 static ngx_inline void
-xrootd_vfs_job_set_obj(xrootd_vfs_job_t *job, const xrootd_sd_obj_t *obj)
+brix_vfs_job_set_obj(brix_vfs_job_t *job, const brix_sd_obj_t *obj)
 {
     if (obj != NULL && obj->driver != NULL) {
         job->obj = *obj;
     }
 }
 
-/* ---- xrootd_vfs_job_write_init — initialize a thread-safe WRITE job ----
+/* ---- brix_vfs_job_write_init — initialize a thread-safe WRITE job ----
  *
  * WHAT: Zeroes *job and fills a WRITE request over fd/offset from src[0..len).
  *
@@ -162,11 +162,11 @@ xrootd_vfs_job_set_obj(xrootd_vfs_job_t *job, const xrootd_sd_obj_t *obj)
  *      fields clear for execution.
  */
 static ngx_inline void
-xrootd_vfs_job_write_init(xrootd_vfs_job_t *job, ngx_fd_t fd, off_t offset,
+brix_vfs_job_write_init(brix_vfs_job_t *job, ngx_fd_t fd, off_t offset,
     const u_char *src, size_t len)
 {
     ngx_memzero(job, sizeof(*job));
-    job->op = XROOTD_VFS_IO_WRITE;
+    job->op = BRIX_VFS_IO_WRITE;
     job->fd = fd;
     job->offset = offset;
     job->buf = (u_char *) src;
@@ -174,25 +174,25 @@ xrootd_vfs_job_write_init(xrootd_vfs_job_t *job, ngx_fd_t fd, off_t offset,
     job->buf_cap = len;
 }
 
-/* ---- xrootd_vfs_job_sync_init — initialize a thread-safe SYNC job ----
+/* ---- brix_vfs_job_sync_init — initialize a thread-safe SYNC job ----
  *
  * WHAT: Zeroes *job and fills a SYNC request for one open storage fd.
  *
  * WHY: kXR_sync and writev doSync must not bypass the VFS raw-I/O choke point
  *      when flushing main-storage handles.
  *
- * HOW: Store fd with op=SYNC; xrootd_vfs_io_execute() performs the durable
+ * HOW: Store fd with op=SYNC; brix_vfs_io_execute() performs the durable
  *      flush and reports errno in the job OUT fields.
  */
 static ngx_inline void
-xrootd_vfs_job_sync_init(xrootd_vfs_job_t *job, ngx_fd_t fd)
+brix_vfs_job_sync_init(brix_vfs_job_t *job, ngx_fd_t fd)
 {
     ngx_memzero(job, sizeof(*job));
-    job->op = XROOTD_VFS_IO_SYNC;
+    job->op = BRIX_VFS_IO_SYNC;
     job->fd = fd;
 }
 
-/* ---- xrootd_vfs_job_truncate_init — initialize a thread-safe TRUNCATE job ----
+/* ---- brix_vfs_job_truncate_init — initialize a thread-safe TRUNCATE job ----
  *
  * WHAT: Zeroes *job and fills a TRUNCATE request for fd to the given length.
  *
@@ -203,15 +203,15 @@ xrootd_vfs_job_sync_init(xrootd_vfs_job_t *job, ngx_fd_t fd)
  *      input and no payload buffer.
  */
 static ngx_inline void
-xrootd_vfs_job_truncate_init(xrootd_vfs_job_t *job, ngx_fd_t fd, off_t length)
+brix_vfs_job_truncate_init(brix_vfs_job_t *job, ngx_fd_t fd, off_t length)
 {
     ngx_memzero(job, sizeof(*job));
-    job->op = XROOTD_VFS_IO_TRUNCATE;
+    job->op = BRIX_VFS_IO_TRUNCATE;
     job->fd = fd;
     job->offset = length;
 }
 
-/* ---- xrootd_vfs_job_opendir_init — initialize a thread-safe OPENDIR job ----
+/* ---- brix_vfs_job_opendir_init — initialize a thread-safe OPENDIR job ----
  *
  * WHAT: Zeroes *job and fills an OPENDIR request over a confined directory fd.
  *
@@ -220,16 +220,16 @@ xrootd_vfs_job_truncate_init(xrootd_vfs_job_t *job, ngx_fd_t fd, off_t length)
  *      keeps the scan/build operation POD-owned by the in-flight task.
  *
  * HOW: Store the prepared fd in rootfd, copy the stream id, and retain pointers
- *      to task-owned response/algo/path/error buffers for xrootd_vfs_io_execute.
+ *      to task-owned response/algo/path/error buffers for brix_vfs_io_execute.
  */
 static ngx_inline void
-xrootd_vfs_job_opendir_init(xrootd_vfs_job_t *job, int rootfd,
+brix_vfs_job_opendir_init(brix_vfs_job_t *job, int rootfd,
     u_char *response, size_t response_cap, const u_char streamid[2],
     ngx_flag_t want_stat, ngx_flag_t want_cksum, const char *path,
     const char *cksum_algo, ngx_log_t *log, char *err_msg, size_t err_msg_cap)
 {
     ngx_memzero(job, sizeof(*job));
-    job->op = XROOTD_VFS_IO_OPENDIR;
+    job->op = BRIX_VFS_IO_OPENDIR;
     job->rootfd = rootfd;
     job->buf = response;
     job->buf_cap = response_cap;
@@ -244,6 +244,6 @@ xrootd_vfs_job_opendir_init(xrootd_vfs_job_t *job, int rootfd,
     job->err_msg_cap = err_msg_cap;
 }
 
-void xrootd_vfs_io_execute(xrootd_vfs_job_t *job);
+void brix_vfs_io_execute(brix_vfs_job_t *job);
 
-#endif /* XROOTD_FS_VFS_IO_CORE_H */
+#endif /* BRIX_FS_VFS_IO_CORE_H */

@@ -60,7 +60,7 @@ static int  pmark_fl_usable = -1;
 
 
 ngx_int_t
-xrootd_pmark_flowlabel_usable(ngx_log_t *log)
+brix_pmark_flowlabel_usable(ngx_log_t *log)
 {
     int                        fd;
     struct pmark_flowlabel_req fl;
@@ -72,7 +72,7 @@ xrootd_pmark_flowlabel_usable(ngx_log_t *log)
 
     fd = (int) ngx_socket(AF_INET6, SOCK_DGRAM, 0);
     if (fd < 0) {
-        XROOTD_DIAG(NGX_LOG_NOTICE, log, ngx_errno,
+        BRIX_DIAG(NGX_LOG_NOTICE, log, ngx_errno,
             "pmark: IPv6 flow-label marking disabled (no AF_INET6 socket)",
             "this host has IPv6 disabled, so SciTags cannot set the IPv6 "
             "flow label; packet marking falls back to firefly UDP only",
@@ -87,8 +87,8 @@ xrootd_pmark_flowlabel_usable(ngx_log_t *log)
     fl.flr_dst   = in6addr_loopback;
     /* A representative in-range structural label (exp/act minima) just to learn
      * whether the kernel will lease a SPECIFIC label on this host at all. */
-    fl.flr_label = htonl(xrootd_pmark_flowlabel_encode(XROOTD_PMARK_EXP_MIN,
-                                                       XROOTD_PMARK_ACT_MIN));
+    fl.flr_label = htonl(brix_pmark_flowlabel_encode(BRIX_PMARK_EXP_MIN,
+                                                       BRIX_PMARK_ACT_MIN));
     fl.flr_action = PMARK_FL_A_GET;
     fl.flr_flags  = PMARK_FL_F_CREATE;
     fl.flr_share  = PMARK_FL_S_EXCL;
@@ -120,8 +120,8 @@ pmark_flowlabel_lease(int fd, const struct in6_addr *dst6, ngx_uint_t exp,
 
     /* Structural bits (community + activity) plus 5 random entropy bits, set once
      * here per flow so same-(exp,act) flows hash differently for ECMP (spec §4). */
-    label = xrootd_pmark_flowlabel_encode(exp, act)
-            | ((uint32_t) ngx_random() & XROOTD_PMARK_FL_ENTROPY_MASK);
+    label = brix_pmark_flowlabel_encode(exp, act)
+            | ((uint32_t) ngx_random() & BRIX_PMARK_FL_ENTROPY_MASK);
 
     ngx_memzero(&fl, sizeof(fl));
     fl.flr_dst    = *dst6;
@@ -131,14 +131,14 @@ pmark_flowlabel_lease(int fd, const struct in6_addr *dst6, ngx_uint_t exp,
     fl.flr_share  = PMARK_FL_S_EXCL;
 
     if (setsockopt(fd, IPPROTO_IPV6, IPV6_FLOWLABEL_MGR, &fl, sizeof(fl)) != 0) {
-        XROOTD_PMARK_METRIC_INC(pmark_flowlabel_failed_total);
+        BRIX_PMARK_METRIC_INC(pmark_flowlabel_failed_total);
         ngx_log_debug1(NGX_LOG_DEBUG_CORE, log, ngx_errno,
             "pmark: flow-label lease failed (label=0x%05xui)", label);
         return NGX_DECLINED;
     }
     (void) setsockopt(fd, IPPROTO_IPV6, IPV6_FLOWINFO_SEND, &on, sizeof(on));
 
-    XROOTD_PMARK_METRIC_INC(pmark_flowlabel_set_total);
+    BRIX_PMARK_METRIC_INC(pmark_flowlabel_set_total);
     ngx_log_debug1(NGX_LOG_DEBUG_CORE, log, 0,
         "pmark: stamped IPv6 flow label 0x%05xui", label);
     return NGX_OK;
@@ -146,7 +146,7 @@ pmark_flowlabel_lease(int fd, const struct in6_addr *dst6, ngx_uint_t exp,
 
 
 ngx_int_t
-xrootd_pmark_flowlabel_apply(ngx_connection_t *c, int fd, ngx_uint_t exp,
+brix_pmark_flowlabel_apply(ngx_connection_t *c, int fd, ngx_uint_t exp,
     ngx_uint_t act, ngx_log_t *log)
 {
     struct sockaddr_storage    ss;
@@ -155,7 +155,7 @@ xrootd_pmark_flowlabel_apply(ngx_connection_t *c, int fd, ngx_uint_t exp,
 
     (void) c;
 
-    if (fd < 0 || xrootd_pmark_flowlabel_usable(log) != NGX_OK) {
+    if (fd < 0 || brix_pmark_flowlabel_usable(log) != NGX_OK) {
         return NGX_DECLINED;
     }
     if (getpeername(fd, (struct sockaddr *) &ss, &len) != 0
@@ -172,14 +172,14 @@ xrootd_pmark_flowlabel_apply(ngx_connection_t *c, int fd, ngx_uint_t exp,
 
 
 ngx_int_t
-xrootd_pmark_flowlabel_apply_addr(int fd, const struct sockaddr *dst,
+brix_pmark_flowlabel_apply_addr(int fd, const struct sockaddr *dst,
     socklen_t dstlen, ngx_uint_t exp, ngx_uint_t act, ngx_log_t *log)
 {
     const struct sockaddr_in6 *sin6;
 
     if (fd < 0 || dst == NULL || dstlen < (socklen_t) sizeof(*sin6)
         || dst->sa_family != AF_INET6
-        || xrootd_pmark_flowlabel_usable(log) != NGX_OK)
+        || brix_pmark_flowlabel_usable(log) != NGX_OK)
     {
         return NGX_DECLINED;
     }
@@ -193,14 +193,14 @@ xrootd_pmark_flowlabel_apply_addr(int fd, const struct sockaddr *dst,
 #else  /* !__linux__ */
 
 ngx_int_t
-xrootd_pmark_flowlabel_usable(ngx_log_t *log)
+brix_pmark_flowlabel_usable(ngx_log_t *log)
 {
     (void) log;
     return NGX_DECLINED;
 }
 
 ngx_int_t
-xrootd_pmark_flowlabel_apply(ngx_connection_t *c, int fd, ngx_uint_t exp,
+brix_pmark_flowlabel_apply(ngx_connection_t *c, int fd, ngx_uint_t exp,
     ngx_uint_t act, ngx_log_t *log)
 {
     (void) c; (void) fd; (void) exp; (void) act; (void) log;
@@ -208,7 +208,7 @@ xrootd_pmark_flowlabel_apply(ngx_connection_t *c, int fd, ngx_uint_t exp,
 }
 
 ngx_int_t
-xrootd_pmark_flowlabel_apply_addr(int fd, const struct sockaddr *dst,
+brix_pmark_flowlabel_apply_addr(int fd, const struct sockaddr *dst,
     socklen_t dstlen, ngx_uint_t exp, ngx_uint_t act, ngx_log_t *log)
 {
     (void) fd; (void) dst; (void) dstlen; (void) exp; (void) act; (void) log;

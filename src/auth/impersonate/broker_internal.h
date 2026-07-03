@@ -2,8 +2,8 @@
  * broker_internal.h - private split contract for broker.c and its Phase-38 siblings.
  * Not a public API: include only from src/impersonate/.  See docs/refactor/phase-38-file-size-unix-modularity.md.
  */
-#ifndef XROOTD_BROKER_INTERNAL_H
-#define XROOTD_BROKER_INTERNAL_H
+#ifndef BRIX_BROKER_INTERNAL_H
+#define BRIX_BROKER_INTERNAL_H
 
 #include "impersonate.h"
 #include "impersonate_proto.h"
@@ -29,7 +29,7 @@
 
 extern uid_t  imp_base_uid;
 extern gid_t  imp_base_gid;
-extern gid_t  imp_base_groups[XROOTD_IDMAP_MAXGROUPS];
+extern gid_t  imp_base_groups[BRIX_IDMAP_MAXGROUPS];
 extern int    imp_base_ngroups;
 extern uid_t  imp_self_uid;
 #ifndef RENAME_NOREPLACE
@@ -43,7 +43,7 @@ int imp_peer_allowed(int conn_fd);
 /* broker_creds.c */
 int imp_capset_setuid_setgid(int with_effective, ngx_log_t *log);
 int imp_drop_to_service_user(ngx_log_t *log);
-int imp_become(const xrootd_idmap_creds_t *cr);
+int imp_become(const brix_idmap_creds_t *cr);
 void imp_restore(void);
 const char * imp_rel(const char *path);
 
@@ -62,4 +62,4 @@ int imp_read_full(int fd, void *buf, size_t n);
 int imp_send_reply(int conn_fd, const imp_rep_t *rep, int fd, const void *data, size_t data_len);
 int imp_serve_one(int conn_fd, int rootfd, ngx_log_t *log);
 
-#endif /* XROOTD_BROKER_INTERNAL_H */
+#endif /* BRIX_BROKER_INTERNAL_H */

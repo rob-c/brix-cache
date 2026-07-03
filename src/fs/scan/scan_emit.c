@@ -10,7 +10,7 @@
 #include <stddef.h>
 
 void
-xrootd_scan_emitq_init(xrootd_scan_emitq_t *q, void **slots, unsigned char *used,
+brix_scan_emitq_init(brix_scan_emitq_t *q, void **slots, unsigned char *used,
                        unsigned window)
 {
     unsigned i;
@@ -26,8 +26,8 @@ xrootd_scan_emitq_init(xrootd_scan_emitq_t *q, void **slots, unsigned char *used
 }
 
 int
-xrootd_scan_emitq_submit(xrootd_scan_emitq_t *q, uint64_t seq, void *payload,
-                         xrootd_scan_emit_cb cb, void *ctx)
+brix_scan_emitq_submit(brix_scan_emitq_t *q, uint64_t seq, void *payload,
+                         brix_scan_emit_cb cb, void *ctx)
 {
     unsigned idx;
     int      released = 0;

@@ -1,7 +1,7 @@
 from _test_proxy_protocol_edges_helpers import *  # noqa: F401,F403  (Phase-38 split shared header)
 
 def test_handle_map_saturation_clean_error(saturation_stack):
-    """Open files until the proxy's fixed-size local handle map (XROOTD_MAX_FILES
+    """Open files until the proxy's fixed-size local handle map (BRIX_MAX_FILES
     = 16 slots) is exhausted; the next open must fail with a single clean
     kXR_error ('no free file handles'), not crash or hang.  We loop up to 256
     opens — the documented cap is hit far earlier."""
@@ -22,8 +22,8 @@ def test_handle_map_saturation_clean_error(saturation_stack):
             break
         assert saturation_status == kXR_error, \
             "handle map never saturated within 256 opens"
-        assert len(handles) <= XROOTD_MAX_FILES, \
-            f"more than {XROOTD_MAX_FILES} concurrent handles accepted"
+        assert len(handles) <= BRIX_MAX_FILES, \
+            f"more than {BRIX_MAX_FILES} concurrent handles accepted"
         # Connection survived the saturation error.
         assert _ping(sock)[1] == kXR_ok
     finally:
@@ -66,7 +66,7 @@ def test_handle_reuse_after_close_distinct_upstream(reuse_stack):
 
 def test_wait_retry_exhaustion_relayed(wait_exhaust_stack):
     """Upstream replies kXR_wait to every (re-)issued request.  The proxy
-    absorbs XROOTD_PROXY_MAX_WAIT_RETRIES retries then relays the wait to the
+    absorbs BRIX_PROXY_MAX_WAIT_RETRIES retries then relays the wait to the
     client rather than looping forever."""
     port = wait_exhaust_stack
     sock = _connect_login(H, port)
@@ -203,7 +203,7 @@ def test_redirect_invalidates_handles_on_new_upstream(redirect_stack):
     if status == kXR_ok:
         # Re-issue completed against the new upstream: a clean handle map.
         fh = body[:4]
-        assert fh[0] < XROOTD_MAX_FILES, \
+        assert fh[0] < BRIX_MAX_FILES, \
             "post-redirect handle is not from a fresh low-slot map"
     else:
         # Redirect relayed instead of followed-to-completion — also acceptable;

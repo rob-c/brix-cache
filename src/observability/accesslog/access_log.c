@@ -2,7 +2,7 @@
  * WHAT: Format and write an access log line for every XRootD request. Produces a structured
  * one-line record containing client IP, authentication method, user identity (DN), timestamp,
  * verb/path/detail triple, result status (OK/ERR), byte count, and request duration in milliseconds.
- * All fields are sanitized through xrootd_sanitize_log_string() before inclusion in the log line.
+ * All fields are sanitized through brix_sanitize_log_string() before inclusion in the log line.
  */
 
 /* WHY: Every request must be observable for security auditing, capacity planning, and anomaly detection.
@@ -17,12 +17,12 @@
  * Phase 2: Determine authmethod (gsi/sss/anon) and identity (ctx->dn or '-') based on server config + session state.
  * Phase 3: Format timestamp using ngx_timeofday() + strftime() in Apache-like "%d/%b/%Y:%H:%M:%S %z" format.
  * Phase 4: Compute request duration from ngx_current_msec - ctx->req_start with floor at zero (clock skew protection).
- * Phase 5: Sanitize ALL fields through xrootd_sanitize_log_string() — client_ip, identity, verb, path, detail, errmsg.
+ * Phase 5: Sanitize ALL fields through brix_sanitize_log_string() — client_ip, identity, verb, path, detail, errmsg.
  * If error but no errmsg provided, generate "code:N" placeholder from errcode. Phase 6: Select line template based on
  * xrd_ok flag (OK or ERR variant), snprintf into 4096-byte buffer, write to conf->access_log_fd if valid. Early return
  * if access_log_fd == NGX_INVALID_FILE (logging disabled by config). */
 
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 
 #include <arpa/inet.h>
 #include <time.h>
@@ -35,37 +35,37 @@
  * logging is on.  The nginx stream worker is a single-threaded event loop, so a
  * single static buffer per worker needs no locking: lines accumulate and are
  * flushed with one write(2) on buffer-full, a target-fd switch, a 1s timer, and
- * connection close (xrootd_on_disconnect → xrootd_access_log_flush).  The log fd
+ * connection close (brix_on_disconnect → brix_access_log_flush).  The log fd
  * is opened O_APPEND (src/config/runtime_server.c), so a batched multi-line
  * write stays atomic per call and interleaves cleanly with other workers.
  */
-#define XROOTD_ALOG_BUF_SIZE  (64 * 1024)
+#define BRIX_ALOG_BUF_SIZE  (64 * 1024)
 
-static u_char       xrootd_alog_buf[XROOTD_ALOG_BUF_SIZE];
-static size_t       xrootd_alog_len;
-static ngx_fd_t     xrootd_alog_fd = NGX_INVALID_FILE;
-static ngx_event_t  xrootd_alog_timer;
-static ngx_uint_t   xrootd_alog_timer_set;
+static u_char       brix_alog_buf[BRIX_ALOG_BUF_SIZE];
+static size_t       brix_alog_len;
+static ngx_fd_t     brix_alog_fd = NGX_INVALID_FILE;
+static ngx_event_t  brix_alog_timer;
+static ngx_uint_t   brix_alog_timer_set;
 
 void
-xrootd_access_log_flush(void)
+brix_access_log_flush(void)
 {
-    if (xrootd_alog_len > 0 && xrootd_alog_fd != NGX_INVALID_FILE) {
-        (void) ngx_write_fd(xrootd_alog_fd, xrootd_alog_buf, xrootd_alog_len);
+    if (brix_alog_len > 0 && brix_alog_fd != NGX_INVALID_FILE) {
+        (void) ngx_write_fd(brix_alog_fd, brix_alog_buf, brix_alog_len);
     }
-    xrootd_alog_len = 0;
+    brix_alog_len = 0;
 }
 
 static void
-xrootd_alog_timer_handler(ngx_event_t *ev)
+brix_alog_timer_handler(ngx_event_t *ev)
 {
-    xrootd_alog_timer_set = 0;
-    xrootd_access_log_flush();
+    brix_alog_timer_set = 0;
+    brix_access_log_flush();
 }
 
 /* Append one formatted line to the per-worker buffer, flushing as needed. */
 static void
-xrootd_alog_emit(ngx_fd_t fd, const char *line, size_t n)
+brix_alog_emit(ngx_fd_t fd, const char *line, size_t n)
 {
     if (fd == NGX_INVALID_FILE || n == 0) {
         return;
@@ -73,44 +73,44 @@ xrootd_alog_emit(ngx_fd_t fd, const char *line, size_t n)
 
     /* Never let lines cross fds: if this line targets a different log than what
      * is buffered, flush the buffered run first, then adopt the new fd. */
-    if (xrootd_alog_len > 0 && fd != xrootd_alog_fd) {
-        xrootd_access_log_flush();
+    if (brix_alog_len > 0 && fd != brix_alog_fd) {
+        brix_access_log_flush();
     }
-    xrootd_alog_fd = fd;
+    brix_alog_fd = fd;
 
     /* A line at least as large as the whole buffer can never be batched; flush
      * any pending run and write it directly so nothing is dropped/truncated. */
-    if (n >= XROOTD_ALOG_BUF_SIZE) {
-        xrootd_access_log_flush();
+    if (n >= BRIX_ALOG_BUF_SIZE) {
+        brix_access_log_flush();
         (void) ngx_write_fd(fd, (void *) line, n);
         return;
     }
 
-    if (xrootd_alog_len + n > XROOTD_ALOG_BUF_SIZE) {
-        xrootd_access_log_flush();
+    if (brix_alog_len + n > BRIX_ALOG_BUF_SIZE) {
+        brix_access_log_flush();
     }
-    ngx_memcpy(xrootd_alog_buf + xrootd_alog_len, line, n);
-    xrootd_alog_len += n;
+    ngx_memcpy(brix_alog_buf + brix_alog_len, line, n);
+    brix_alog_len += n;
 
     /* Bound how long a buffered line waits on a low-rate connection.  The timer
      * fires once (no rearm here); the next append re-arms it.  A flush from any
      * other path before it fires just makes the eventual fire a no-op. */
-    if (!xrootd_alog_timer_set) {
-        xrootd_alog_timer.handler = xrootd_alog_timer_handler;
-        xrootd_alog_timer.log = ngx_cycle->log;
-        xrootd_alog_timer.data = NULL;
-        ngx_add_timer(&xrootd_alog_timer, 1000);
-        xrootd_alog_timer_set = 1;
+    if (!brix_alog_timer_set) {
+        brix_alog_timer.handler = brix_alog_timer_handler;
+        brix_alog_timer.log = ngx_cycle->log;
+        brix_alog_timer.data = NULL;
+        ngx_add_timer(&brix_alog_timer, 1000);
+        brix_alog_timer_set = 1;
     }
 }
 
 void
-xrootd_log_access(xrootd_ctx_t *ctx, ngx_connection_t *c,
+brix_log_access(brix_ctx_t *ctx, ngx_connection_t *c,
                   const char *verb, const char *path, const char *detail,
                   ngx_uint_t xrd_ok, uint16_t errcode, const char *errmsg,
                   size_t bytes)
 {
-    ngx_stream_xrootd_srv_conf_t *conf;
+    ngx_stream_brix_srv_conf_t *conf;
     ngx_msec_int_t                duration_ms;
     char                          line[4096];
     int                           n;
@@ -128,7 +128,7 @@ xrootd_log_access(xrootd_ctx_t *ctx, ngx_connection_t *c,
     char                          timebuf[64];
     char                          errbuf[64];
 
-    conf = ngx_stream_get_module_srv_conf(ctx->session, ngx_stream_xrootd_module);
+    conf = ngx_stream_get_module_srv_conf(ctx->session, ngx_stream_brix_module);
 
     if (conf->access_log_fd == NGX_INVALID_FILE) {
         return;
@@ -142,16 +142,16 @@ xrootd_log_access(xrootd_ctx_t *ctx, ngx_connection_t *c,
         client_ip[1] = '\0';
     }
 
-    if (conf->auth == XROOTD_AUTH_GSI) {
+    if (conf->auth == BRIX_AUTH_GSI) {
         authmethod = "gsi";
         identity = (ctx->dn[0] != '\0') ? ctx->dn : "-";
-    } else if (conf->auth == XROOTD_AUTH_SSS) {
+    } else if (conf->auth == BRIX_AUTH_SSS) {
         authmethod = "sss";
         identity = (ctx->dn[0] != '\0') ? ctx->dn : "-";
-    } else if (conf->auth == XROOTD_AUTH_UNIX) {
+    } else if (conf->auth == BRIX_AUTH_UNIX) {
         authmethod = "unix";
         identity = (ctx->dn[0] != '\0') ? ctx->dn : "-";
-    } else if (conf->auth == XROOTD_AUTH_KRB5) {
+    } else if (conf->auth == BRIX_AUTH_KRB5) {
         authmethod = "krb5";
         identity = (ctx->dn[0] != '\0') ? ctx->dn : "-";
     } else {
@@ -173,12 +173,12 @@ xrootd_log_access(xrootd_ctx_t *ctx, ngx_connection_t *c,
         errmsg = errbuf;
     }
 
-    xrootd_sanitize_log_string(client_ip, safe_client_ip, sizeof(safe_client_ip));
-    xrootd_sanitize_log_string(identity, safe_identity, sizeof(safe_identity));
-    xrootd_sanitize_log_string(verb ? verb : "-", safe_verb, sizeof(safe_verb));
-    xrootd_sanitize_log_string(path ? path : "-", safe_path, sizeof(safe_path));
-    xrootd_sanitize_log_string(detail ? detail : "-", safe_detail, sizeof(safe_detail));
-    xrootd_sanitize_log_string(errmsg ? errmsg : "-", safe_errmsg,
+    brix_sanitize_log_string(client_ip, safe_client_ip, sizeof(safe_client_ip));
+    brix_sanitize_log_string(identity, safe_identity, sizeof(safe_identity));
+    brix_sanitize_log_string(verb ? verb : "-", safe_verb, sizeof(safe_verb));
+    brix_sanitize_log_string(path ? path : "-", safe_path, sizeof(safe_path));
+    brix_sanitize_log_string(detail ? detail : "-", safe_detail, sizeof(safe_detail));
+    brix_sanitize_log_string(errmsg ? errmsg : "-", safe_errmsg,
                                sizeof(safe_errmsg));
 
     if (xrd_ok) {
@@ -196,6 +196,6 @@ xrootd_log_access(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
 
     if (n > 0 && (size_t) n < sizeof(line)) {
-        xrootd_alog_emit(conf->access_log_fd, line, (size_t) n);
+        brix_alog_emit(conf->access_log_fd, line, (size_t) n);
     }
 }

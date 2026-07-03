@@ -34,25 +34,25 @@ static ngx_int_t webdav_dispatch_inner(ngx_http_request_t *r);
  * loop while a body is pending.
  */
 ngx_int_t
-ngx_http_xrootd_webdav_handler(ngx_http_request_t *r)
+ngx_http_brix_webdav_handler(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_webdav_req_ctx_t *rx =
-        ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    ngx_http_brix_webdav_req_ctx_t *rx =
+        ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     ngx_int_t rc;
 
-    xrootd_imp_request_begin(rx != NULL ? rx->identity : NULL);
+    brix_imp_request_begin(rx != NULL ? rx->identity : NULL);
     rc = webdav_dispatch_inner(r);
-    xrootd_imp_request_end();
+    brix_imp_request_end();
     return rc;
 }
 
 static ngx_int_t
 webdav_dispatch_inner(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *conf;
+    ngx_http_brix_webdav_loc_conf_t *conf;
     ngx_int_t                          rc;
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
     if (!conf->common.enable) {
         return NGX_DECLINED;
     }
@@ -78,11 +78,11 @@ webdav_dispatch_inner(ngx_http_request_t *r)
     }
 
     /* AGPL-3.0 sec.13: offer remote users the source (X-Source header). */
-    xrootd_http_source_offer(r);
+    brix_http_source_offer(r);
 
     /*
      * SciTags packet marking (phase-34).  TPC (COPY) is always marked; plain
-     * GET/PUT only when xrootd_pmark_http_plain is on (default off = XRootD
+     * GET/PUT only when brix_pmark_http_plain is on (default off = XRootD
      * parity).  Begun here post-auth; ended via a request-pool cleanup.
      */
     if (conf->common.pmark.enable
@@ -90,14 +90,14 @@ webdav_dispatch_inner(ngx_http_request_t *r)
             || (conf->common.pmark.http_plain
                 && (r->method == NGX_HTTP_GET || r->method == NGX_HTTP_PUT))))
     {
-        ngx_http_xrootd_webdav_req_ctx_t *rx =
-            ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+        ngx_http_brix_webdav_req_ctx_t *rx =
+            ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
         const char *vo = "", *us = "";
         u_char      pth[2048], cgi[512];
 
         if (rx != NULL && rx->identity != NULL) {
-            vo = xrootd_identity_vo_csv_cstr(rx->identity);
-            us = xrootd_identity_dn_cstr(rx->identity);
+            vo = brix_identity_vo_csv_cstr(rx->identity);
+            us = brix_identity_dn_cstr(rx->identity);
         }
         ngx_cpystrn(pth, r->uri.data, ngx_min(r->uri.len + 1, sizeof(pth)));
         if (r->args.len) {
@@ -105,7 +105,7 @@ webdav_dispatch_inner(ngx_http_request_t *r)
         } else {
             cgi[0] = '\0';
         }
-        xrootd_pmark_http_mark(&conf->common.pmark, r->pool, r->connection,
+        brix_pmark_http_mark(&conf->common.pmark, r->pool, r->connection,
             (r->method == NGX_HTTP_PUT || r->method == NGX_HTTP_COPY),
             vo, us, (const char *) pth, (const char *) cgi);
     }
@@ -137,7 +137,7 @@ webdav_dispatch_inner(ngx_http_request_t *r)
             if (r->method != NGX_HTTP_POST) {
                 return webdav_metrics_return(r, NGX_HTTP_NOT_ALLOWED);
             }
-            rc = xrootd_http_read_body(r, webdav_handle_macaroon_token);
+            rc = brix_http_read_body(r, webdav_handle_macaroon_token);
             if (rc != NGX_DONE) {
                 return webdav_metrics_return(r, rc);
             }
@@ -147,7 +147,7 @@ webdav_dispatch_inner(ngx_http_request_t *r)
         /* §3 XrdDig: read-only diagnostics under /.well-known/dig/ (default off).
          * Declines (falls through) when disabled or not a dig path. */
         if (conf->dig_enable) {
-            rc = xrootd_dig_handle(r);
+            rc = brix_dig_handle(r);
             if (rc != NGX_DECLINED) {
                 return webdav_metrics_return(r, rc);
             }
@@ -157,12 +157,12 @@ webdav_dispatch_inner(ngx_http_request_t *r)
          * application/macaroon-request content type is a token-issue request,
          * regardless of path (the target path becomes the base caveat). */
         if (r->method == NGX_HTTP_POST) {
-            ngx_str_t         ct = xrootd_http_get_header(r, "Content-Type");
+            ngx_str_t         ct = brix_http_get_header(r, "Content-Type");
             static const char mr[] = "application/macaroon-request";
             if (ct.len >= sizeof(mr) - 1
                 && ngx_strncasecmp(ct.data, (u_char *) mr, sizeof(mr) - 1) == 0)
             {
-                rc = xrootd_http_read_body(r, webdav_handle_macaroon_request);
+                rc = brix_http_read_body(r, webdav_handle_macaroon_request);
                 if (rc != NGX_DONE) {
                     return webdav_metrics_return(r, rc);
                 }
@@ -206,7 +206,7 @@ webdav_dispatch_inner(ngx_http_request_t *r)
          * reading the request body (reading body is async / NGX_DONE). */
         {
             char      path[WEBDAV_MAX_PATH];
-            ngx_int_t res = ngx_http_xrootd_webdav_resolve_path(
+            ngx_int_t res = ngx_http_brix_webdav_resolve_path(
                                 r, conf->common.root_canon, path, sizeof(path));
             if (res == NGX_OK) {
                 res = webdav_check_locks(r, path, 1);
@@ -217,7 +217,7 @@ webdav_dispatch_inner(ngx_http_request_t *r)
         }
 
         r->request_body_in_single_buf = 1;
-        rc = xrootd_http_read_body(r, webdav_handle_put_body);
+        rc = brix_http_read_body(r, webdav_handle_put_body);
         if (rc != NGX_DONE) {
             return webdav_metrics_return(r, rc);
         }
@@ -250,7 +250,7 @@ webdav_dispatch_inner(ngx_http_request_t *r)
                 return webdav_metrics_return(r, NGX_HTTP_NOT_ALLOWED);
             }
             return webdav_metrics_return(r,
-                                         ngx_http_xrootd_webdav_tpc_handle_copy(r));
+                                         ngx_http_brix_webdav_tpc_handle_copy(r));
         }
 
         /* TPC push: Credential: header signals a WLCG HTTP-TPC request. */
@@ -264,7 +264,7 @@ webdav_dispatch_inner(ngx_http_request_t *r)
                 return webdav_metrics_return(r, NGX_HTTP_NOT_ALLOWED);
             }
             return webdav_metrics_return(r,
-                                         ngx_http_xrootd_webdav_tpc_handle_copy(r));
+                                         ngx_http_brix_webdav_tpc_handle_copy(r));
         }
 
         /* Server-side copy (RFC 4918 §9.8): local copy within the export root */
@@ -275,7 +275,7 @@ webdav_dispatch_inner(ngx_http_request_t *r)
         && ngx_strncmp(r->method_name.data, "MOVE", 4) == 0)
     {
         char      path[WEBDAV_MAX_PATH];
-        ngx_int_t res = ngx_http_xrootd_webdav_resolve_path(
+        ngx_int_t res = ngx_http_brix_webdav_resolve_path(
                             r, conf->common.root_canon, path, sizeof(path));
         if (res == NGX_OK) {
             res = webdav_check_locks(r, path, 1);
@@ -295,7 +295,7 @@ webdav_dispatch_inner(ngx_http_request_t *r)
     if (r->method_name.len == 4
         && ngx_strncmp(r->method_name.data, "LOCK", 4) == 0)
     {
-        rc = xrootd_http_read_body(r, webdav_handle_lock);
+        rc = brix_http_read_body(r, webdav_handle_lock);
         if (rc != NGX_DONE) {
             return webdav_metrics_return(r, rc);
         }
@@ -334,9 +334,9 @@ webdav_dispatch_inner(ngx_http_request_t *r)
         if (h_allow != NULL) {
             h_allow->hash = 1;
             ngx_str_set(&h_allow->key, "Allow");
-            if (xrootd_http_operation_allow_header(r->pool,
-                    xrootd_webdav_operations, xrootd_webdav_operations_count,
-                    XROOTD_WEBDAV_ALLOW_FLAGS(conf), &h_allow->value) != NGX_OK)
+            if (brix_http_operation_allow_header(r->pool,
+                    brix_webdav_operations, brix_webdav_operations_count,
+                    BRIX_WEBDAV_ALLOW_FLAGS(conf), &h_allow->value) != NGX_OK)
             {
                 ngx_str_set(&h_allow->value,
                     "GET, HEAD, OPTIONS, PUT, DELETE, MKCOL,"

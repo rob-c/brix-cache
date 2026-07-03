@@ -7,8 +7,8 @@
 #include "net/manager/pending.h"
 #include "net/manager/registry.h"
 #include "fs/path/beneath.h"
-#include "fs/path/path.h"           /* xrootd_sanitize_log_string (WS6) */
-#include "core/compat/net_target.h"   /* xrootd_net_host_chars_valid (WS6) */
+#include "fs/path/path.h"           /* brix_sanitize_log_string (WS6) */
+#include "core/compat/net_target.h"   /* brix_net_host_chars_valid (WS6) */
 #include "observability/metrics/metrics_macros.h"   /* Phase 51 (A1): resilience counters */
 
 #include <errno.h>
@@ -26,10 +26,10 @@ static ngx_connection_t *cms_find_client_connection(int fd);
  * is inherently export-confined, so a hostile manager still cannot escape it.
  */
 static int
-cms_node_exec_driver(xrootd_sd_instance_t *sd, const char *root_canon,
-    const xrootd_cms_node_plan_t *plan, ngx_log_t *log, int *handled)
+cms_node_exec_driver(brix_sd_instance_t *sd, const char *root_canon,
+    const brix_cms_node_plan_t *plan, ngx_log_t *log, int *handled)
 {
-    const xrootd_sd_driver_t *drv = sd->driver;
+    const brix_sd_driver_t *drv = sd->driver;
 
     *handled = 1;
 
@@ -40,7 +40,7 @@ cms_node_exec_driver(xrootd_sd_instance_t *sd, const char *root_canon,
 
     case XRDCMS_NACT_MKPATH:
         /* create the whole path + missing parents in the driver namespace. */
-        return xrootd_vfs_backend_mkpath(root_canon, plan->path, plan->mode, log);
+        return brix_vfs_backend_mkpath(root_canon, plan->path, plan->mode, log);
 
     case XRDCMS_NACT_RMDIR:
         if (drv->unlink == NULL) { errno = ENOSYS; return -1; }
@@ -55,7 +55,7 @@ cms_node_exec_driver(xrootd_sd_instance_t *sd, const char *root_canon,
         return drv->rename(sd, plan->path, plan->path2, 0) == NGX_OK ? 0 : -1;
 
     case XRDCMS_NACT_CHMOD: {
-        xrootd_sd_setattr_t attr;
+        brix_sd_setattr_t attr;
         if (drv->setattr == NULL) { return 0; }   /* no mutable metadata — no-op */
         ngx_memzero(&attr, sizeof(attr));
         attr.set_mode = 1;
@@ -67,10 +67,10 @@ cms_node_exec_driver(xrootd_sd_instance_t *sd, const char *root_canon,
         int              err = 0;
         int              rc;
         int              saved;
-        xrootd_sd_obj_t *o;
+        brix_sd_obj_t *o;
 
         if (drv->open == NULL || drv->ftruncate == NULL) { errno = ENOSYS; return -1; }
-        o = drv->open(sd, plan->path, XROOTD_SD_O_WRITE, 0, &err);
+        o = drv->open(sd, plan->path, BRIX_SD_O_WRITE, 0, &err);
         if (o == NULL) { errno = err ? err : EIO; return -1; }
         rc = drv->ftruncate(o, (off_t) plan->size) == NGX_OK ? 0 : -1;
         saved = errno;
@@ -92,25 +92,25 @@ cms_node_exec_driver(xrootd_sd_instance_t *sd, const char *root_canon,
  * kYR_error (kYR_EINVAL + strerror) on failure. A hostile manager cannot make the
  * node mutate outside its export root — an escape fails EXDEV and becomes kYR_error. */
 static ngx_int_t
-cms_node_exec_forward(ngx_xrootd_cms_ctx_t *ctx, u_char code, uint32_t streamid,
+cms_node_exec_forward(ngx_brix_cms_ctx_t *ctx, u_char code, uint32_t streamid,
     const u_char *payload, size_t plen)
 {
-    xrootd_cms_rrdata_t      d;
-    xrootd_cms_node_plan_t   plan;
+    brix_cms_rrdata_t      d;
+    brix_cms_node_plan_t   plan;
     int                      rootfd = ctx->conf->rootfd;
     const char              *root_canon = ctx->conf->common.root_canon;
     int                      rc = 0;
 
-    if (xrootd_cms_rrdata_parse(code, payload, plen, &d) != 0
-        || xrootd_cms_node_plan(code, &d, &plan) != 0)
+    if (brix_cms_rrdata_parse(code, payload, plen, &d) != 0
+        || brix_cms_node_plan(code, &d, &plan) != 0)
     {
-        return ngx_xrootd_cms_send_error(ctx, streamid, CMS_ERR_EINVAL,
+        return ngx_brix_cms_send_error(ctx, streamid, CMS_ERR_EINVAL,
                                          "badly formed request");
     }
 
     /* A manager-only node (no local export) cannot satisfy a mutation. */
     if (rootfd < 0) {
-        return ngx_xrootd_cms_send_error(ctx, streamid, CMS_ERR_EINVAL,
+        return ngx_brix_cms_send_error(ctx, streamid, CMS_ERR_EINVAL,
                                          "no local storage");
     }
 
@@ -118,22 +118,22 @@ cms_node_exec_forward(ngx_xrootd_cms_ctx_t *ctx, u_char code, uint32_t streamid,
      * namespace slots; the default POSIX export keeps the confined *_beneath path
      * below unchanged. */
     {
-        xrootd_sd_instance_t *sd =
-            xrootd_vfs_backend_resolve(root_canon, ctx->cycle->log);
+        brix_sd_instance_t *sd =
+            brix_vfs_backend_resolve(root_canon, ctx->cycle->log);
 
-        if (sd != NULL && sd->driver != xrootd_sd_default_driver()) {
+        if (sd != NULL && sd->driver != brix_sd_default_driver()) {
             int handled;
             rc = cms_node_exec_driver(sd, root_canon, &plan, ctx->cycle->log,
                                       &handled);
             if (!handled) {
-                return ngx_xrootd_cms_send_error(ctx, streamid, CMS_ERR_EINVAL,
+                return ngx_brix_cms_send_error(ctx, streamid, CMS_ERR_EINVAL,
                                                  "unsupported operation");
             }
             if (rc != 0) {
                 ngx_log_error(NGX_LOG_NOTICE, ctx->cycle->log, 0,
                     "xrootd: CMS node: forwarded op code=%ui path=%s failed: %s",
                     (ngx_uint_t) code, plan.path, strerror(errno));
-                return ngx_xrootd_cms_send_error(ctx, streamid, CMS_ERR_EINVAL,
+                return ngx_brix_cms_send_error(ctx, streamid, CMS_ERR_EINVAL,
                                                  strerror(errno));
             }
             ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
@@ -145,38 +145,38 @@ cms_node_exec_forward(ngx_xrootd_cms_ctx_t *ctx, u_char code, uint32_t streamid,
 
     switch (plan.action) {
     case XRDCMS_NACT_MKDIR:
-        rc = xrootd_mkdir_beneath(rootfd, plan.path, plan.mode);
+        rc = brix_mkdir_beneath(rootfd, plan.path, plan.mode);
         break;
     case XRDCMS_NACT_MKPATH: {
         char full[PATH_MAX];
-        xrootd_beneath_full_path(root_canon, plan.path, full, sizeof(full));
-        rc = xrootd_mkdir_recursive_beneath(ctx->cycle->log, rootfd, root_canon,
+        brix_beneath_full_path(root_canon, plan.path, full, sizeof(full));
+        rc = brix_mkdir_recursive_beneath(ctx->cycle->log, rootfd, root_canon,
                                             full, plan.mode, NULL);
         break;
     }
     case XRDCMS_NACT_RMDIR:
-        rc = xrootd_vfs_unlink_at(rootfd, plan.path, 1);
+        rc = brix_vfs_unlink_at(rootfd, plan.path, 1);
         break;
     case XRDCMS_NACT_RM:
-        rc = xrootd_vfs_unlink_at(rootfd, plan.path, 0);
+        rc = brix_vfs_unlink_at(rootfd, plan.path, 0);
         break;
     case XRDCMS_NACT_MV:
-        rc = xrootd_rename_beneath(rootfd, plan.path, plan.path2);
+        rc = brix_rename_beneath(rootfd, plan.path, plan.path2);
         break;
     case XRDCMS_NACT_CHMOD: {
-        int fd = xrootd_vfs_open_fd_at(rootfd, plan.path, O_RDONLY, 0);
+        int fd = brix_vfs_open_fd_at(rootfd, plan.path, O_RDONLY, 0);
         if (fd < 0) { rc = -1; }
         else { rc = fchmod(fd, plan.mode); close(fd); }  /* vfs-seam-allow: metadata on a VFS-opened confined fd */
         break;
     }
     case XRDCMS_NACT_TRUNC: {
-        int fd = xrootd_vfs_open_fd_at(rootfd, plan.path, O_WRONLY, 0);
+        int fd = brix_vfs_open_fd_at(rootfd, plan.path, O_WRONLY, 0);
         if (fd < 0) { rc = -1; }
         else { rc = ftruncate(fd, (off_t) plan.size); close(fd); }  /* vfs-seam-allow: metadata on a VFS-opened confined fd */
         break;
     }
     default:
-        return ngx_xrootd_cms_send_error(ctx, streamid, CMS_ERR_EINVAL,
+        return ngx_brix_cms_send_error(ctx, streamid, CMS_ERR_EINVAL,
                                          "unsupported operation");
     }
 
@@ -185,7 +185,7 @@ cms_node_exec_forward(ngx_xrootd_cms_ctx_t *ctx, u_char code, uint32_t streamid,
                       "xrootd: CMS node: forwarded op code=%ui path=%s failed: %s",
                       (ngx_uint_t) code, plan.path, strerror(errno));
         /* byte-exact: ecode is always kYR_EINVAL; text carries strerror. */
-        return ngx_xrootd_cms_send_error(ctx, streamid, CMS_ERR_EINVAL,
+        return ngx_brix_cms_send_error(ctx, streamid, CMS_ERR_EINVAL,
                                          strerror(errno));
     }
 
@@ -200,22 +200,22 @@ cms_node_exec_forward(ngx_xrootd_cms_ctx_t *ctx, u_char code, uint32_t streamid,
 /* cms_wake_pending_session — parse the first host:port from a kYR_select/kYR_try
  * payload and wake the suspended XRootD client waiting on its locate: look up the
  * pending entry by streamid+pid, resolve its saved fd to the live connection (same
- * worker, per-worker design), set XRD_ST_REQ_HEADER, xrootd_send_redirect to the
+ * worker, per-worker design), set XRD_ST_REQ_HEADER, brix_send_redirect to the
  * resolved server, and resume reading. */
 
 static ngx_int_t
-cms_wake_pending_session(ngx_xrootd_cms_ctx_t *cms_ctx, uint32_t streamid,
+cms_wake_pending_session(ngx_brix_cms_ctx_t *cms_ctx, uint32_t streamid,
     const char *host, uint16_t port)
 {
-    xrootd_pending_locate_t  *pending;
+    brix_pending_locate_t  *pending;
     ngx_connection_t         *client_conn;
     ngx_stream_session_t     *session;
-    xrootd_ctx_t             *xrd_ctx;
+    brix_ctx_t             *xrd_ctx;
     int                       conn_fd;
     ngx_atomic_uint_t         conn_number;
     u_char                    client_streamid[2];
 
-    pending = xrootd_pending_lookup(streamid, ngx_pid);
+    pending = brix_pending_lookup(streamid, ngx_pid);
     if (pending == NULL) {
         ngx_log_debug1(NGX_LOG_DEBUG_EVENT, cms_ctx->cycle->log, 0,
                        "xrootd: CMS wake: streamid=%uD not found in pending table",
@@ -227,9 +227,9 @@ cms_wake_pending_session(ngx_xrootd_cms_ctx_t *cms_ctx, uint32_t streamid,
     conn_number = pending->conn_number;
     client_streamid[0] = pending->client_streamid[0];
     client_streamid[1] = pending->client_streamid[1];
-    xrootd_pending_unlock();
+    brix_pending_unlock();
 
-    xrootd_pending_remove(streamid, ngx_pid);
+    brix_pending_remove(streamid, ngx_pid);
 
     client_conn = cms_find_client_connection(conn_fd);
     if (client_conn == NULL || client_conn->number != conn_number) {
@@ -241,7 +241,7 @@ cms_wake_pending_session(ngx_xrootd_cms_ctx_t *cms_ctx, uint32_t streamid,
         return NGX_OK;
     }
 
-    xrd_ctx = ngx_stream_get_module_ctx(session, ngx_stream_xrootd_module);
+    xrd_ctx = ngx_stream_get_module_ctx(session, ngx_stream_brix_module);
     if (xrd_ctx == NULL || xrd_ctx->state != XRD_ST_WAITING_CMS) {
         return NGX_OK;
     }
@@ -251,15 +251,15 @@ cms_wake_pending_session(ngx_xrootd_cms_ctx_t *cms_ctx, uint32_t streamid,
      * kYR_try payload and is copied verbatim into the "Shost:port" redirect the
      * client parses.  A compromised/hostile manager could inject control bytes or
      * an alternate scheme here, so validate it with the same character allowlist
-     * the registry uses as its store choke point (xrootd_net_host_chars_valid).
+     * the registry uses as its store choke point (brix_net_host_chars_valid).
      * On reject, drop the redirect and leave the client in XRD_ST_WAITING_CMS to
      * hit its own cms_locate_timeout — we never emit a poisoned host.
      */
     if (host == NULL
-        || !xrootd_net_host_chars_valid(host, ngx_strlen(host)))
+        || !brix_net_host_chars_valid(host, ngx_strlen(host)))
     {
         char  safe[256];
-        xrootd_sanitize_log_string(host, safe, sizeof(safe));
+        brix_sanitize_log_string(host, safe, sizeof(safe));
         ngx_log_error(NGX_LOG_WARN, cms_ctx->cycle->log, 0,
                       "xrootd: CMS select: rejected redirect to invalid host "
                       "\"%s\" for fd=%d", safe, conn_fd);
@@ -274,13 +274,13 @@ cms_wake_pending_session(ngx_xrootd_cms_ctx_t *cms_ctx, uint32_t streamid,
     xrd_ctx->state = XRD_ST_REQ_HEADER;
     xrd_ctx->cur_streamid[0] = client_streamid[0];
     xrd_ctx->cur_streamid[1] = client_streamid[1];
-    if (xrootd_send_redirect(xrd_ctx, client_conn, host, port) == NGX_ERROR) {
+    if (brix_send_redirect(xrd_ctx, client_conn, host, port) == NGX_ERROR) {
         ngx_log_error(NGX_LOG_ERR, cms_ctx->cycle->log, 0,
                       "xrootd: CMS select: failed to queue redirect for fd=%d",
                       conn_fd);
         return NGX_ERROR;
     }
-    xrootd_schedule_read_resume(client_conn);
+    brix_schedule_read_resume(client_conn);
     return NGX_OK;
 }
 
@@ -312,18 +312,18 @@ cms_find_client_connection(int fd)
     return NULL;
 }
 
-/* ngx_xrootd_cms_process_frame — decode a complete CMS frame's streamid + rrCode
+/* ngx_brix_cms_process_frame — decode a complete CMS frame's streamid + rrCode
  * (first 4 bytes + offset 4) and dispatch by opcode: PING→PONG, SPACE→AVAIL,
  * STATUS→suspend/resume conf flags, SELECT/TRY→client redirect. Unknown opcodes are
  * silently ignored (debug log). Handlers are inline to keep recv.c self-contained. */
 
 static ngx_int_t
-ngx_xrootd_cms_process_frame(ngx_xrootd_cms_ctx_t *ctx)
+ngx_brix_cms_process_frame(ngx_brix_cms_ctx_t *ctx)
 {
     uint32_t  streamid;
     u_char    code;
 
-    streamid = ngx_xrootd_cms_get32(ctx->inbuf);
+    streamid = ngx_brix_cms_get32(ctx->inbuf);
     code = ctx->inbuf[4];
 
     ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
@@ -332,10 +332,10 @@ ngx_xrootd_cms_process_frame(ngx_xrootd_cms_ctx_t *ctx)
 
     switch (code) {
     case CMS_RR_PING:
-        return ngx_xrootd_cms_send_pong(ctx, streamid);
+        return ngx_brix_cms_send_pong(ctx, streamid);
 
     case CMS_RR_SPACE:
-        return ngx_xrootd_cms_send_avail(ctx, streamid);
+        return ngx_brix_cms_send_avail(ctx, streamid);
 
     case CMS_RR_STATUS: {
         u_char mod = ctx->inbuf[5];
@@ -360,8 +360,8 @@ ngx_xrootd_cms_process_frame(ngx_xrootd_cms_ctx_t *ctx)
          * kYR_select payload: NUL-terminated hostname + 2-byte big-endian port.
          * The manager has resolved the kYR_locate and named a specific server.
          */
-        const u_char  *payload = ctx->inbuf + NGX_XROOTD_CMS_HDR_LEN;
-        size_t         payload_len = ctx->in_need - NGX_XROOTD_CMS_HDR_LEN;
+        const u_char  *payload = ctx->inbuf + NGX_BRIX_CMS_HDR_LEN;
+        size_t         payload_len = ctx->in_need - NGX_BRIX_CMS_HDR_LEN;
         char           host[256];
         size_t         host_len;
         uint16_t       port;
@@ -379,7 +379,7 @@ ngx_xrootd_cms_process_frame(ngx_xrootd_cms_ctx_t *ctx)
             return NGX_OK;
         }
 
-        port = ngx_xrootd_cms_get16(payload + host_len + 1);
+        port = ngx_brix_cms_get16(payload + host_len + 1);
         return cms_wake_pending_session(ctx, streamid, host, port);
     }
 
@@ -390,8 +390,8 @@ ngx_xrootd_cms_process_frame(ngx_xrootd_cms_ctx_t *ctx)
          * big-endian port.  Use only the first entry; the client will
          * retry remaining entries if it cannot reach this one.
          */
-        const u_char  *payload = ctx->inbuf + NGX_XROOTD_CMS_HDR_LEN;
-        size_t         payload_len = ctx->in_need - NGX_XROOTD_CMS_HDR_LEN;
+        const u_char  *payload = ctx->inbuf + NGX_BRIX_CMS_HDR_LEN;
+        size_t         payload_len = ctx->in_need - NGX_BRIX_CMS_HDR_LEN;
         char           host[256];
         size_t         host_len;
         uint16_t       port;
@@ -407,7 +407,7 @@ ngx_xrootd_cms_process_frame(ngx_xrootd_cms_ctx_t *ctx)
             return NGX_OK;
         }
 
-        port = ngx_xrootd_cms_get16(payload + host_len + 1);
+        port = ngx_brix_cms_get16(payload + host_len + 1);
         return cms_wake_pending_session(ctx, streamid, host, port);
     }
 
@@ -428,8 +428,8 @@ ngx_xrootd_cms_process_frame(ngx_xrootd_cms_ctx_t *ctx)
          *     resolve.
          *   - data node: the file exists on our local export filesystem.
          */
-        const u_char  *payload = ctx->inbuf + NGX_XROOTD_CMS_HDR_LEN;
-        size_t         plen = ctx->in_need - NGX_XROOTD_CMS_HDR_LEN;
+        const u_char  *payload = ctx->inbuf + NGX_BRIX_CMS_HDR_LEN;
+        size_t         plen = ctx->in_need - NGX_BRIX_CMS_HDR_LEN;
         char           pathz[1024];
         size_t         pl;
 
@@ -455,11 +455,11 @@ ngx_xrootd_cms_process_frame(ngx_xrootd_cms_ctx_t *ctx)
         if (ctx->conf->manager_mode) {
             char      host[256];
             uint16_t  dport;
-            if (xrootd_srv_select(pathz, 0, host, sizeof(host), &dport)) {
+            if (brix_srv_select(pathz, 0, host, sizeof(host), &dport)) {
                 ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
                                "xrootd: CMS state(mgr): registry serves "
                                "\"%*s\", replying kYR_have", pl, payload);
-                return ngx_xrootd_cms_send_have(ctx, streamid, pathz, pl);
+                return ngx_brix_cms_send_have(ctx, streamid, pathz, pl);
             }
             return NGX_OK;
         }
@@ -473,7 +473,7 @@ ngx_xrootd_cms_process_frame(ngx_xrootd_cms_ctx_t *ctx)
              * followed symlinks, so a symlink planted under the export root
              * (e.g. /link -> /etc) would make us answer kYR_have for a file
              * OUTSIDE the root — a cross-root information leak and a
-             * cluster-poisoning vector.  xrootd_stat_beneath() resolves the
+             * cluster-poisoning vector.  brix_stat_beneath() resolves the
              * path under the persistent export rootfd with openat2
              * RESOLVE_BENEATH, so any symlink or ".." that escapes the root is
              * rejected by the kernel and we correctly stay silent.  (The ".."
@@ -481,12 +481,12 @@ ngx_xrootd_cms_process_frame(ngx_xrootd_cms_ctx_t *ctx)
              * no local export root (rootfd < 0) never holds files locally.
              */
             if (ctx->conf->rootfd >= 0
-                && xrootd_stat_beneath(ctx->conf->rootfd, pathz, &st) == 0)
+                && brix_stat_beneath(ctx->conf->rootfd, pathz, &st) == 0)
             {
                 ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
                                "xrootd: CMS state: have \"%*s\", "
                                "replying kYR_have", pl, payload);
-                return ngx_xrootd_cms_send_have(ctx, streamid, pathz, pl);
+                return ngx_brix_cms_send_have(ctx, streamid, pathz, pl);
             }
         }
 
@@ -507,8 +507,8 @@ ngx_xrootd_cms_process_frame(ngx_xrootd_cms_ctx_t *ctx)
          * Plane B: a manager-forwarded namespace mutation.  Execute it under
          * kernel confinement and reply silent-on-success / kYR_error-on-failure.
          */
-        const u_char  *payload = ctx->inbuf + NGX_XROOTD_CMS_HDR_LEN;
-        size_t         plen    = ctx->in_need - NGX_XROOTD_CMS_HDR_LEN;
+        const u_char  *payload = ctx->inbuf + NGX_BRIX_CMS_HDR_LEN;
+        size_t         plen    = ctx->in_need - NGX_BRIX_CMS_HDR_LEN;
         return cms_node_exec_forward(ctx, code, streamid, payload, plen);
     }
 
@@ -516,19 +516,19 @@ ngx_xrootd_cms_process_frame(ngx_xrootd_cms_ctx_t *ctx)
         /* Manager asks us to resend state (do_Update -> sendState). */
         ngx_log_debug0(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
                        "xrootd: CMS node: update -> status");
-        return ngx_xrootd_cms_send_status(ctx);
+        return ngx_brix_cms_send_status(ctx);
 
     case CMS_RR_DISC:
         /* Manager requested disconnect (do_Disc on a node simply closes). */
         ngx_log_error(NGX_LOG_NOTICE, ctx->cycle->log, 0,
                       "xrootd: CMS node: manager requested disconnect");
-        ngx_xrootd_cms_disconnect(ctx);
-        ngx_xrootd_cms_schedule_retry(ctx);
+        ngx_brix_cms_disconnect(ctx);
+        ngx_brix_cms_schedule_retry(ctx);
         return NGX_OK;
 
     default: {
-        const xrootd_cms_route_t *r =
-            xrootd_cms_route_lookup(XRDCMS_ROLE_NODE, code);
+        const brix_cms_route_t *r =
+            brix_cms_route_lookup(XRDCMS_ROLE_NODE, code);
         if (r != NULL) {
             ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
                            "xrootd: CMS node: unhandled opcode '%s'", r->name);
@@ -541,16 +541,16 @@ ngx_xrootd_cms_process_frame(ngx_xrootd_cms_ctx_t *ctx)
     }
 }
 
-/* ngx_xrootd_cms_read_handler — read event handler for the manager connection:
+/* ngx_brix_cms_read_handler — read event handler for the manager connection:
  * accumulate bytes to a complete header, read the dlen-sized payload, and dispatch
- * each frame via ngx_xrootd_cms_process_frame(); disconnect and retry on
+ * each frame via ngx_brix_cms_process_frame(); disconnect and retry on
  * timeout/error. */
 
 void
-ngx_xrootd_cms_read_handler(ngx_event_t *ev)
+ngx_brix_cms_read_handler(ngx_event_t *ev)
 {
     ngx_connection_t      *c;
-    ngx_xrootd_cms_ctx_t  *ctx;
+    ngx_brix_cms_ctx_t  *ctx;
     ssize_t                n;
     uint16_t               dlen;
     ngx_uint_t             processed = 0;
@@ -575,9 +575,9 @@ ngx_xrootd_cms_read_handler(ngx_event_t *ev)
         ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
                       "xrootd: CMS manager silent past read timeout — "
                       "reconnecting");
-        XROOTD_RESIL_METRIC_INC(cms_read_timeouts_total);
-        ngx_xrootd_cms_disconnect(ctx);
-        ngx_xrootd_cms_schedule_retry(ctx);
+        BRIX_RESIL_METRIC_INC(cms_read_timeouts_total);
+        ngx_brix_cms_disconnect(ctx);
+        ngx_brix_cms_schedule_retry(ctx);
         return;
     }
 
@@ -592,8 +592,8 @@ ngx_xrootd_cms_read_handler(ngx_event_t *ev)
         if (n == NGX_ERROR || n == 0) {
             ngx_log_debug0(NGX_LOG_DEBUG_EVENT, ev->log, 0,
                            "xrootd: CMS recv EOF/error, disconnecting");
-            ngx_xrootd_cms_disconnect(ctx);
-            ngx_xrootd_cms_schedule_retry(ctx);
+            ngx_brix_cms_disconnect(ctx);
+            ngx_brix_cms_schedule_retry(ctx);
             return;
         }
 
@@ -603,21 +603,21 @@ ngx_xrootd_cms_read_handler(ngx_event_t *ev)
             continue;
         }
 
-        if (ctx->in_need == NGX_XROOTD_CMS_HDR_LEN) {
-            dlen = ngx_xrootd_cms_get16(ctx->inbuf + 6);
+        if (ctx->in_need == NGX_BRIX_CMS_HDR_LEN) {
+            dlen = ngx_brix_cms_get16(ctx->inbuf + 6);
 
-            if ((size_t) dlen + NGX_XROOTD_CMS_HDR_LEN
-                > NGX_XROOTD_CMS_MAX_FRAME)
+            if ((size_t) dlen + NGX_BRIX_CMS_HDR_LEN
+                > NGX_BRIX_CMS_MAX_FRAME)
             {
                 ngx_log_error(NGX_LOG_WARN, ev->log, 0,
                               "xrootd: CMS frame too large: %ui",
                               (ngx_uint_t) dlen);
-                ngx_xrootd_cms_disconnect(ctx);
-                ngx_xrootd_cms_schedule_retry(ctx);
+                ngx_brix_cms_disconnect(ctx);
+                ngx_brix_cms_schedule_retry(ctx);
                 return;
             }
 
-            ctx->in_need = NGX_XROOTD_CMS_HDR_LEN + dlen;
+            ctx->in_need = NGX_BRIX_CMS_HDR_LEN + dlen;
             if (ctx->in_pos < ctx->in_need) {
                 continue;
             }
@@ -627,29 +627,29 @@ ngx_xrootd_cms_read_handler(ngx_event_t *ev)
                        "xrootd: CMS process_frame code=%ui",
                        (ngx_uint_t) ctx->inbuf[4]);
 
-        if (ngx_xrootd_cms_process_frame(ctx) != NGX_OK) {
-            ngx_xrootd_cms_disconnect(ctx);
-            ngx_xrootd_cms_schedule_retry(ctx);
+        if (ngx_brix_cms_process_frame(ctx) != NGX_OK) {
+            ngx_brix_cms_disconnect(ctx);
+            ngx_brix_cms_schedule_retry(ctx);
             return;
         }
 
         ctx->in_pos = 0;
-        ctx->in_need = NGX_XROOTD_CMS_HDR_LEN;
+        ctx->in_need = NGX_BRIX_CMS_HDR_LEN;
 
         /* WS1: a frame from the manager proves it is alive — reset the silence
          * deadline so a responsive manager is never reconnected. */
-        ngx_xrootd_cms_arm_read_deadline(ctx);
+        ngx_brix_cms_arm_read_deadline(ctx);
 
         /* A2: fairness — after a bounded number of frames, yield the worker to
          * other connections and resume via a posted read event, so a flooding
          * manager cannot monopolise the event loop. */
-        if (++processed >= NGX_XROOTD_CMS_MAX_FRAMES_PER_WAKEUP) {
+        if (++processed >= NGX_BRIX_CMS_MAX_FRAMES_PER_WAKEUP) {
             if (ngx_handle_read_event(c->read, 0) != NGX_OK) {
-                ngx_xrootd_cms_disconnect(ctx);
-                ngx_xrootd_cms_schedule_retry(ctx);
+                ngx_brix_cms_disconnect(ctx);
+                ngx_brix_cms_schedule_retry(ctx);
                 return;
             }
-            XROOTD_RESIL_METRIC_INC(cms_frame_yields_total);
+            BRIX_RESIL_METRIC_INC(cms_frame_yields_total);
             ngx_post_event(c->read, &ngx_posted_events);
             return;
         }
@@ -658,7 +658,7 @@ ngx_xrootd_cms_read_handler(ngx_event_t *ev)
     if (ctx->connection != NULL
         && ngx_handle_read_event(c->read, 0) != NGX_OK)
     {
-        ngx_xrootd_cms_disconnect(ctx);
-        ngx_xrootd_cms_schedule_retry(ctx);
+        ngx_brix_cms_disconnect(ctx);
+        ngx_brix_cms_schedule_retry(ctx);
     }
 }

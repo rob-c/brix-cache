@@ -9,7 +9,7 @@ shared test fleet:
     binding, no PKI, no fleet) to prove the new directives are accepted and merge
     cleanly — covering A3 (per-IP CMS cap), E4 (GSI in-flight cap), A4 (manager
     reaper arming) and B1 (proxy write-stall);
-  * the metrics test asserts the new ``xrootd_*`` resilience counters are exported
+  * the metrics test asserts the new ``brix_*`` resilience counters are exported
     on /metrics, and SKIPS cleanly when the metrics endpoint is not running.
 
 Run:
@@ -50,19 +50,19 @@ events { worker_connections 64; }
 stream {
     server {
         listen 127.0.0.1:19951;
-        xrootd on; xrootd_storage_backend posix:@DIR@; xrootd_auth none;
-        xrootd_gsi_max_inflight_handshakes 128;
+        xrootd on; brix_storage_backend posix:@DIR@; brix_auth none;
+        brix_gsi_max_inflight_handshakes 128;
     }
     server {
         listen 127.0.0.1:19952;
-        xrootd_cms_server on;
-        xrootd_cms_server_max_connections 1024;
-        xrootd_cms_server_max_connections_per_ip 64;
+        brix_cms_server on;
+        brix_cms_server_max_connections 1024;
+        brix_cms_server_max_connections_per_ip 64;
     }
     server {
         listen 127.0.0.1:19953;
-        xrootd on; xrootd_storage_backend posix:@DIR@; xrootd_auth none;
-        xrootd_manager_mode on;
+        xrootd on; brix_storage_backend posix:@DIR@; brix_auth none;
+        brix_manager_mode on;
     }
 }
 """
@@ -81,13 +81,13 @@ events { worker_connections 64; }
 stream {
     server {
         listen 127.0.0.1:19954;
-        xrootd on; xrootd_storage_backend posix:@DIR@; xrootd_auth none;
-        xrootd_gsi_max_inflight_handshakes 0;
+        xrootd on; brix_storage_backend posix:@DIR@; brix_auth none;
+        brix_gsi_max_inflight_handshakes 0;
     }
     server {
         listen 127.0.0.1:19955;
-        xrootd_cms_server on;
-        xrootd_cms_server_max_connections_per_ip 0;
+        brix_cms_server on;
+        brix_cms_server_max_connections_per_ip 0;
     }
 }
 """
@@ -95,18 +95,18 @@ stream {
     assert rc == 0, f"nginx -t rejected the disable values:\n{out}"
 
 
-# Counters that xrootd_export_resilience_metrics() must emit (E6/A1).
+# Counters that brix_export_resilience_metrics() must emit (E6/A1).
 _EXPECTED_COUNTERS = [
-    "xrootd_cms_read_timeouts_total",
-    "xrootd_cms_login_timeouts_total",
-    "xrootd_cms_idle_closes_total",
-    "xrootd_cms_cap_rejections_total",
-    "xrootd_cms_frame_yields_total",
-    "xrootd_ocsp_timeouts_total",
-    "xrootd_auth_l1_hits_total",
-    "xrootd_auth_l1_misses_total",
-    "xrootd_acc_nss_breaker_open_total",
-    "xrootd_acc_dns_breaker_open_total",
+    "brix_cms_read_timeouts_total",
+    "brix_cms_login_timeouts_total",
+    "brix_cms_idle_closes_total",
+    "brix_cms_cap_rejections_total",
+    "brix_cms_frame_yields_total",
+    "brix_ocsp_timeouts_total",
+    "brix_auth_l1_hits_total",
+    "brix_auth_l1_misses_total",
+    "brix_acc_nss_breaker_open_total",
+    "brix_acc_dns_breaker_open_total",
 ]
 
 

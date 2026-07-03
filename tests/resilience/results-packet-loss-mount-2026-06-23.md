@@ -24,7 +24,7 @@ integrity/failure semantics are the durable findings.
   sweep continues instead of hanging.
 - **Mount options:** `--max-stall 30000 --keepalive 3000` (30 s resilience window).
 - **Watchdog:** 90 s per op (`op-timeout`).
-- **Auth:** anonymous (`xrootd_auth none`), to isolate the data plane from PKI.
+- **Auth:** anonymous (`brix_auth none`), to isolate the data plane from PKI.
 
 ### Reproduce
 

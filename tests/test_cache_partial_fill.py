@@ -17,7 +17,7 @@ from _cache_partial_helpers import (
 # suite runs in run_suite.sh's SERIAL lane, not the -n12 parallel pool.
 pytestmark = pytest.mark.serial
 
-BLK = 1024 * 1024  # 1 MiB slice granule (matches the proven xrootd_cache_slice 1m)
+BLK = 1024 * 1024  # 1 MiB slice granule (matches the proven brix_cache_slice 1m)
 
 
 # ===========================================================================
@@ -77,7 +77,7 @@ def test_eof_partial_last_block(tmp_path):
 
 def test_slice_size_reflected_in_cinfo(tmp_path):
     # The cinfo block_size records the configured slice granule, and a fixed
-    # range maps to the block computed from it. NOTE: xrootd_cache_slice must be
+    # range maps to the block computed from it. NOTE: brix_cache_slice must be
     # a positive multiple of 1 MiB, and the per-slice fill pulls slice_size bytes
     # from the origin in one read (so >1 MiB exceeds the origin read cap) — 1 MiB
     # is the practical granule, which is why run_root_slice_fill.sh uses it.
@@ -115,10 +115,10 @@ def test_generic_backend_partial_read_is_whole_file(tmp_path, backend):
 
 @pytest.mark.parametrize("backend", ["posix", "pblock"])
 def test_generic_backend_slice_partial_fills(tmp_path, backend):
-    """Generic-backend slice (§14 landed): xrootd_cache_slice_size on a LOCAL
+    """Generic-backend slice (§14 landed): brix_cache_slice_size on a LOCAL
     (posix/pblock) storage backend partial-fills — a one-block read caches only
     block 0 (PARTIAL), not the whole file. (Formerly a strict xfail: the legacy
-    xrootd_cache_slice directive never reached the composed sd_cache policy.)"""
+    brix_cache_slice directive never reached the composed sd_cache policy.)"""
     with make_cache_node(backend, slice_size=BLK, tmp=tmp_path) as node:
         seed_origin(node, "/f.bin", 4 * BLK)
         read_range(node.cache_port, "/f.bin", 0, BLK)
@@ -154,7 +154,7 @@ def test_within_cap_is_cached(tmp_path):
                   "any exercised config (cache_origin whole-file/slice OR "
                   "storage_backend composable) — the file was cached regardless. "
                   "The size gate that DOES work on the read path is "
-                  "xrootd_cache_max_object (test_oversized_file_not_cached). Which "
+                  "brix_cache_max_object (test_oversized_file_not_cached). Which "
                   "fill path invokes cache_admit for a READ needs a dedicated "
                   "investigation; recorded in phase-64-generic-slice-fill.md.")
 def test_admission_prefix_regex_gating(tmp_path):

@@ -16,7 +16,7 @@
  *      logging) would affect only one path, causing inconsistent security
  *      behaviour between the two protocols.
  *
- * HOW: See xrootd_gsi_verify_chain() below.  The caller retains ownership of
+ * HOW: See brix_gsi_verify_chain() below.  The caller retains ownership of
  *      all passed-in objects; none are freed here.
  */
 
@@ -43,10 +43,10 @@
  *      OpenSSL-allocated string, and return NGX_OK.
  */
 ngx_int_t
-xrootd_gsi_verify_chain(ngx_log_t *log, X509_STORE *store,
+brix_gsi_verify_chain(ngx_log_t *log, X509_STORE *store,
     X509 *leaf, STACK_OF(X509) *untrusted,
     ngx_uint_t verify_depth,
-    xrootd_gsi_verify_result_t *res)
+    brix_gsi_verify_result_t *res)
 {
     X509_STORE_CTX *vctx;
     char           *dn_str;
@@ -79,7 +79,7 @@ xrootd_gsi_verify_chain(ngx_log_t *log, X509_STORE *store,
         int         verr     = X509_STORE_CTX_get_error(vctx);
         const char *verr_str = X509_verify_cert_error_string(verr);
 
-        XROOTD_DIAG_WARN(log, 0,
+        BRIX_DIAG_WARN(log, 0,
             "xrootd: GSI client cert rejected: %s",
             "the client proxy/cert is expired, or its issuing CA is not in "
             "this server's trust store",

@@ -4,7 +4,7 @@ tests/test_https_webdav_status_codes.py
 Comprehensive HTTPS status-code and RFC compliance tests for the TLS WebDAV
 endpoint (port 8444, required x509 GSI proxy-cert auth).
 
-Targets the dedicated HTTPS+GSI server (port 8444, xrootd_webdav_auth required).
+Targets the dedicated HTTPS+GSI server (port 8444, brix_webdav_auth required).
 All requests require a valid GSI proxy certificate; unauthenticated requests
 return 401 Unauthorized.
 

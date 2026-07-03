@@ -1,4 +1,4 @@
-"""test_acc.py — XrdAcc-compatible authorization engine (xrootd_authdb_format xrdacc).
+"""test_acc.py — XrdAcc-compatible authorization engine (brix_authdb_format xrdacc).
 
 Stands up a self-contained dedicated nginx running the `xrdacc` engine over an
 anonymous root:// stream tier and drives real `xrdfs`/`xrdcp` requests to verify
@@ -54,7 +54,7 @@ def acc_server():
     # The binary must be built with the module (acc engine linked).
     try:
         syms = subprocess.run(["nm", NGINX_BIN], capture_output=True, text=True)
-        if "xrootd_acc_access" not in syms.stdout:
+        if "brix_acc_access" not in syms.stdout:
             pytest.skip("nginx binary not built with the xrdacc engine")
     except Exception:
         pass
@@ -77,13 +77,13 @@ stream {{
     server {{
         listen {url_host(BIND_HOST)}:{ACC_PORT};
         xrootd on;
-        xrootd_storage_backend posix:{ROOT}/data;
-        xrootd_auth none;
-        xrootd_allow_write on;
-        xrootd_authdb_format xrdacc;
-        xrootd_authdb {ROOT}/authdb;
-        xrootd_authdb_audit all;
-        xrootd_access_log {ROOT}/logs/access.log;
+        brix_storage_backend posix:{ROOT}/data;
+        brix_auth none;
+        brix_allow_write on;
+        brix_authdb_format xrdacc;
+        brix_authdb {ROOT}/authdb;
+        brix_authdb_audit all;
+        brix_access_log {ROOT}/logs/access.log;
     }}
 }}
 """)
@@ -133,7 +133,7 @@ class TestXrdAccEngine:
         assert r.returncode != 0, "write must be denied with only rl privileges"
 
     def test_audit_log_records_grant_and_deny(self, acc_server):
-        """`xrootd_authdb_audit all` emits structured grant + deny lines."""
+        """`brix_authdb_audit all` emits structured grant + deny lines."""
         _stat(acc_server, "/sub/test.txt")   # grant
         _stat(acc_server, "/other.txt")      # deny
         with open(f"{ROOT}/logs/error.log") as f:
@@ -192,9 +192,9 @@ http {{
         listen {url_host(BIND_HOST)}:{HTTP_PORT};
         location / {{
 {location_block}
-            xrootd_authdb_format xrdacc;
-            xrootd_authdb {HTTP_ROOT}/authdb;
-            xrootd_authdb_audit all;
+            brix_authdb_format xrdacc;
+            brix_authdb {HTTP_ROOT}/authdb;
+            brix_authdb_audit all;
         }}
     }}
 }}
@@ -217,10 +217,10 @@ def webdav_server():
     if not (shutil.which("curl") or True) or not os.path.exists(NGINX_BIN):
         pytest.skip("nginx binary unavailable")
     conf = _start_http(
-        f"            xrootd_webdav on;\n"
-        f"            xrootd_webdav_storage_backend posix:{HTTP_ROOT}/data;\n"
-        f"            xrootd_webdav_auth none;\n"
-        f"            xrootd_webdav_allow_write on;")
+        f"            brix_webdav on;\n"
+        f"            brix_webdav_storage_backend posix:{HTTP_ROOT}/data;\n"
+        f"            brix_webdav_auth none;\n"
+        f"            brix_webdav_allow_write on;")
     yield f"http://{url_host(HOST)}:{HTTP_PORT}"
     _stop_http(conf)
 
@@ -230,8 +230,8 @@ def s3_server():
     if not os.path.exists(NGINX_BIN):
         pytest.skip("nginx binary unavailable")
     conf = _start_http(
-        f"            xrootd_s3 on;\n"
-        f"            xrootd_s3_storage_backend posix:{HTTP_ROOT}/data;")
+        f"            brix_s3 on;\n"
+        f"            brix_s3_storage_backend posix:{HTTP_ROOT}/data;")
     yield f"http://{url_host(HOST)}:{HTTP_PORT}"
     _stop_http(conf)
 

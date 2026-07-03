@@ -1,12 +1,12 @@
 /*
- * codec_lz4.c — LZ4 backend for the codec abstraction (XROOTD_CODEC_LZ4).
+ * codec_lz4.c — LZ4 backend for the codec abstraction (BRIX_CODEC_LZ4).
  *
  * WHAT: Streaming LZ4 (de)compression via liblz4's LZ4 Frame API (lz4frame.h),
  *       producing/consuming the self-describing .lz4 frame format.
  * WHY:  LZ4 is the fastest mainstream codec — useful when CPU, not bandwidth, is
  *       the bottleneck (fast links, cheap clients).  It is a deliberate extension
  *       beyond upstream XRootD (which ships only DEFLATE), compile-gated on
- *       -DXROOTD_HAVE_LZ4 exactly like zstd/xz/brotli/bzip2.
+ *       -DBRIX_HAVE_LZ4 exactly like zstd/xz/brotli/bzip2.
  * HOW:  Decompress maps directly onto LZ4F_decompress (it already streams to any
  *       output size).  Compress is block-oriented (LZ4F_compressBegin/Update/End
  *       emit whole chunks that must fit the destination), so it uses a small
@@ -18,7 +18,7 @@
 
 #include "codec_core.h"
 
-#if defined(XROOTD_HAVE_LZ4)
+#if defined(BRIX_HAVE_LZ4)
 
 #include <stdlib.h>
 #include <string.h>
@@ -40,24 +40,24 @@ typedef struct {
 } lz4_state;
 
 static int
-lz4_init(void **state, xrootd_codec_id_t id, xrootd_codec_dir_t dir, int level)
+lz4_init(void **state, brix_codec_id_t id, brix_codec_dir_t dir, int level)
 {
     lz4_state *st = calloc(1, sizeof(*st));
 
     (void) id;
     if (st == NULL) {
-        return XROOTD_CODEC_ERR_MEM;
+        return BRIX_CODEC_ERR_MEM;
     }
     st->dir = dir;
-    if (dir == XROOTD_CODEC_DIR_DECOMPRESS) {
+    if (dir == BRIX_CODEC_DIR_DECOMPRESS) {
         if (LZ4F_isError(LZ4F_createDecompressionContext(&st->dctx, LZ4F_VERSION))) {
             free(st);
-            return XROOTD_CODEC_ERR_MEM;
+            return BRIX_CODEC_ERR_MEM;
         }
     } else {
         if (LZ4F_isError(LZ4F_createCompressionContext(&st->cctx, LZ4F_VERSION))) {
             free(st);
-            return XROOTD_CODEC_ERR_MEM;
+            return BRIX_CODEC_ERR_MEM;
         }
         st->prefs.compressionLevel = level;
         /* One staging buffer big enough for the frame header + one chunk's
@@ -68,7 +68,7 @@ lz4_init(void **state, xrootd_codec_id_t id, xrootd_codec_dir_t dir, int level)
         if (st->stage == NULL) {
             LZ4F_freeCompressionContext(st->cctx);
             free(st);
-            return XROOTD_CODEC_ERR_MEM;
+            return BRIX_CODEC_ERR_MEM;
         }
     }
     *state = st;
@@ -96,13 +96,13 @@ lz4_drain(lz4_state *st, uint8_t *out, size_t out_size, size_t *out_pos)
     return 1;
 }
 
-static xrootd_codec_rc_t
+static brix_codec_rc_t
 lz4_step(void *state, const uint8_t *in, size_t in_len, size_t *in_pos,
          uint8_t *out, size_t out_size, size_t *out_pos, int finish)
 {
     lz4_state *st = state;
 
-    if (st->dir == XROOTD_CODEC_DIR_DECOMPRESS) {
+    if (st->dir == BRIX_CODEC_DIR_DECOMPRESS) {
         size_t  src_n = in_len - *in_pos;
         size_t  dst_n = out_size - *out_pos;
         size_t  hint  = LZ4F_decompress(st->dctx, out + *out_pos, &dst_n,
@@ -110,22 +110,22 @@ lz4_step(void *state, const uint8_t *in, size_t in_len, size_t *in_pos,
         *in_pos  += src_n;
         *out_pos += dst_n;
         if (LZ4F_isError(hint)) {
-            return XROOTD_CODEC_ERR_DATA;
+            return BRIX_CODEC_ERR_DATA;
         }
         /* hint == 0 means a frame end was reached. */
-        return (hint == 0) ? XROOTD_CODEC_END : XROOTD_CODEC_OK;
+        return (hint == 0) ? BRIX_CODEC_END : BRIX_CODEC_OK;
     }
 
     /* compress */    /* 1) Drain any output staged from a previous refill first. */
     if (st->stage_len > st->stage_pos) {
         if (lz4_drain(st, out, out_size, out_pos)) {
-            return XROOTD_CODEC_OK;          /* out full; more staged */
+            return BRIX_CODEC_OK;          /* out full; more staged */
         }
     }
     if (*out_pos >= out_size) {
         /* No room to do useful work this call (and stage is empty). Report
          * END only once everything is flushed; otherwise ask to be called again. */
-        return (st->ended) ? XROOTD_CODEC_END : XROOTD_CODEC_OK;
+        return (st->ended) ? BRIX_CODEC_END : BRIX_CODEC_OK;
     }
 
     /* 2) Stage empty + out has room: emit the next frame piece. */
@@ -137,7 +137,7 @@ lz4_step(void *state, const uint8_t *in, size_t in_len, size_t *in_pos,
         if (!st->begun) {
             r = LZ4F_compressBegin(st->cctx, st->stage, cap, &st->prefs);
             if (LZ4F_isError(r)) {
-                return XROOTD_CODEC_ERR_INTERNAL;
+                return BRIX_CODEC_ERR_INTERNAL;
             }
             produced += r;
             st->begun = 1;
@@ -150,14 +150,14 @@ lz4_step(void *state, const uint8_t *in, size_t in_len, size_t *in_pos,
             r = LZ4F_compressUpdate(st->cctx, st->stage + produced, cap - produced,
                                     in + *in_pos, chunk, NULL);
             if (LZ4F_isError(r)) {
-                return XROOTD_CODEC_ERR_INTERNAL;
+                return BRIX_CODEC_ERR_INTERNAL;
             }
             *in_pos  += chunk;
             produced += r;
         } else if (finish && !st->ended) {
             r = LZ4F_compressEnd(st->cctx, st->stage + produced, cap - produced, NULL);
             if (LZ4F_isError(r)) {
-                return XROOTD_CODEC_ERR_INTERNAL;
+                return BRIX_CODEC_ERR_INTERNAL;
             }
             produced += r;
             st->ended = 1;
@@ -170,9 +170,9 @@ lz4_step(void *state, const uint8_t *in, size_t in_len, size_t *in_pos,
 
     /* END only when finished AND the final bytes are fully drained. */
     if (st->ended && st->stage_len == st->stage_pos) {
-        return XROOTD_CODEC_END;
+        return BRIX_CODEC_END;
     }
-    return XROOTD_CODEC_OK;
+    return BRIX_CODEC_OK;
 }
 
 static void
@@ -189,18 +189,18 @@ lz4_end(void *state)
     free(st);
 }
 
-static const xrootd_codec_backend_t lz4_backend = {
+static const brix_codec_backend_t lz4_backend = {
     lz4_init, lz4_step, lz4_end
 };
 
-const xrootd_codec_desc_t xrootd_codec_lz4_desc = {
-    XROOTD_CODEC_LZ4, "lz4", "lz4", 1, 1, 12, 1, &lz4_backend
+const brix_codec_desc_t brix_codec_lz4_desc = {
+    BRIX_CODEC_LZ4, "lz4", "lz4", 1, 1, 12, 1, &lz4_backend
 };
 
 #else
 
-const xrootd_codec_desc_t xrootd_codec_lz4_desc = {
-    XROOTD_CODEC_LZ4, "lz4", "lz4", 0, 0, 0, 0, NULL
+const brix_codec_desc_t brix_codec_lz4_desc = {
+    BRIX_CODEC_LZ4, "lz4", "lz4", 0, 0, 0, 0, NULL
 };
 
 #endif

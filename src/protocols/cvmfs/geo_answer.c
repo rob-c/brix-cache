@@ -1,6 +1,6 @@
 /* geo_answer.c — server-side RTT-ranked answer to the CVMFS geo API.
  *
- * WHAT: when xrootd_cvmfs_geo_answer is `rtt`, this replaces the blind upstream
+ * WHAT: when brix_cvmfs_geo_answer is `rtt`, this replaces the blind upstream
  *       passthrough (geo.c): it parses the client-supplied server list, measures
  *       TCP-connect RTT from THIS proxy to each server, and replies with the
  *       nearest-first 1-based permutation the CVMFS client expects. Because the
@@ -17,10 +17,10 @@
  *       so a server is never dropped and the client always gets a complete,
  *       well-formed permutation. The list is client-supplied, so probing is
  *       guarded: only CVMFS server ports {80,443,8000}, capped at
- *       xrootd_cvmfs_geo_max_servers — the node cannot be turned into a general
+ *       brix_cvmfs_geo_max_servers — the node cannot be turned into a general
  *       port scanner. A short per-worker EWMA cache (keyed host:port) answers
  *       repeat/remount requests without re-probing. Any parse/setup failure
- *       falls back to xrootd_cvmfs_geo_passthrough.
+ *       falls back to brix_cvmfs_geo_passthrough.
  */
 #include "cvmfs.h"
 #include "origin_geo.h"
@@ -250,7 +250,7 @@ cvmfs_geo_thread(void *data, ngx_log_t *log)
         cvmfs_geo_entry_t *e = &t->e[i];
 
         if (e->valid && e->need_probe) {
-            e->sample_us = xrootd_cvmfs_connect_rtt_us(e->host, e->port,
+            e->sample_us = brix_cvmfs_connect_rtt_us(e->host, e->port,
                                                        CVMFS_GEO_PROBE_TIMEOUT_MS);
         }
     }
@@ -281,7 +281,7 @@ cvmfs_geo_render(cvmfs_geo_task_t *t, time_t now)
         }
     }
 
-    xrootd_cvmfs_rank_by_metric(metric, t->n, ranks);
+    brix_cvmfs_rank_by_metric(metric, t->n, ranks);
     for (i = 0; i < t->n; i++) {
         order[ranks[i]] = i + 1;                        /* 1-based index     */
     }
@@ -338,8 +338,8 @@ cvmfs_geo_done(ngx_event_t *ev)
 }
 
 ngx_int_t
-xrootd_cvmfs_geo_answer(ngx_http_request_t *r,
-    ngx_http_xrootd_cvmfs_loc_conf_t *lcf)
+brix_cvmfs_geo_answer(ngx_http_request_t *r,
+    ngx_http_brix_cvmfs_loc_conf_t *lcf)
 {
     ngx_thread_task_t *task;
     cvmfs_geo_task_t  *t;
@@ -359,12 +359,12 @@ xrootd_cvmfs_geo_answer(ngx_http_request_t *r,
         }
     }
     if (pool == NULL) {
-        return xrootd_cvmfs_geo_passthrough(r, lcf);   /* no pool → relay     */
+        return brix_cvmfs_geo_passthrough(r, lcf);   /* no pool → relay     */
     }
 
     task = ngx_thread_task_alloc(r->pool, sizeof(cvmfs_geo_task_t));
     if (task == NULL) {
-        return xrootd_cvmfs_geo_passthrough(r, lcf);
+        return brix_cvmfs_geo_passthrough(r, lcf);
     }
     t = task->ctx;
     ngx_memzero(t, sizeof(*t));
@@ -374,21 +374,21 @@ xrootd_cvmfs_geo_answer(ngx_http_request_t *r,
     max_probe = (lcf->cvmfs.geo_max_servers > 0) ? lcf->cvmfs.geo_max_servers
                                                  : 16;
     if (cvmfs_geo_parse(r, t, max_probe) != 0) {
-        return xrootd_cvmfs_geo_passthrough(r, lcf);   /* unparseable → relay */
+        return brix_cvmfs_geo_passthrough(r, lcf);   /* unparseable → relay */
     }
 
     t->body = ngx_palloc(r->pool, (size_t) t->n * 8 + 2);
     if (t->body == NULL) {
-        return xrootd_cvmfs_geo_passthrough(r, lcf);
+        return brix_cvmfs_geo_passthrough(r, lcf);
     }
 
     cvmfs_geo_cache_read(t, ngx_time());
 
-    xrootd_task_bind(task, cvmfs_geo_thread, cvmfs_geo_done);
+    brix_task_bind(task, cvmfs_geo_thread, cvmfs_geo_done);
     task->event.log = r->connection->log;
 
     if (ngx_thread_task_post(pool, task) != NGX_OK) {
-        return xrootd_cvmfs_geo_passthrough(r, lcf);
+        return brix_cvmfs_geo_passthrough(r, lcf);
     }
     r->main->count++;
     return NGX_DONE;

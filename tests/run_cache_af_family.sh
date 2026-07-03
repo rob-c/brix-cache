@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# End-to-end: xrootd_cache_origin_family constrains the storage_backend root://
+# End-to-end: brix_cache_origin_family constrains the storage_backend root://
 # origin connect. Origin binds 127.0.0.1 (IPv4) only.
 #   inet  -> fill succeeds (byte-exact)
 #   inet6 -> fill fails FAST (no AAAA/refused), well under the connect deadline
@@ -20,7 +20,7 @@ mkdir -p "$PFX/o/root" "$PFX/o/logs" "$PFX/n/cache" "$PFX/n/logs"
 cat > "$PFX/o/nginx.conf" <<EOF
 daemon on; error_log $PFX/o/logs/e.log info; pid $PFX/o/pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${OP}; xrootd on; xrootd_root $PFX/o/root; xrootd_auth none; } }
+stream { server { listen 127.0.0.1:${OP}; xrootd on; brix_root $PFX/o/root; brix_auth none; } }
 EOF
 
 node_conf() {  # $1 = family token
@@ -29,10 +29,10 @@ daemon on; error_log $PFX/n/logs/e.log info; pid $PFX/n/pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:${NP}; xrootd on; xrootd_auth none;
-    xrootd_storage_backend root://127.0.0.1:${OP};
-    xrootd_cache_store posix:$PFX/n/cache; xrootd_cache_root /;
-    xrootd_cache_origin_family $1;
+    listen 127.0.0.1:${NP}; xrootd on; brix_auth none;
+    brix_storage_backend root://127.0.0.1:${OP};
+    brix_cache_store posix:$PFX/n/cache; brix_cache_root /;
+    brix_cache_origin_family $1;
 } }
 EOF
 }

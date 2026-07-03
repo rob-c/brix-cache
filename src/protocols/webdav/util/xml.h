@@ -1,5 +1,5 @@
-#ifndef XROOTD_WEBDAV_UTIL_XML_H
-#define XROOTD_WEBDAV_UTIL_XML_H
+#ifndef BRIX_WEBDAV_UTIL_XML_H
+#define BRIX_WEBDAV_UTIL_XML_H
 
 #include "protocols/webdav/webdav.h"
 
@@ -14,8 +14,8 @@
  *      values embed raw filesystem paths, lock owner names, and metadata as XML text.
  *      Escaping prevents XML injection from filenames containing special characters.
  *
- * HOW: Delegates to xrootd_xml_escaped_len() + xrootd_xml_escape() from compat/xml.h
- *      with flag XROOTD_XML_ESCAPE_CONTROL_PERCENT. Pre-sizes buffer via escaped_len(),
+ * HOW: Delegates to brix_xml_escaped_len() + brix_xml_escape() from compat/xml.h
+ *      with flag BRIX_XML_ESCAPE_CONTROL_PERCENT. Pre-sizes buffer via escaped_len(),
  *      allocates from nginx pool, calls escape(), returns pointer on success or NULL
  *      on OOM/badarg.
  *
@@ -23,4 +23,4 @@
  */
 char *webdav_escape_xml_text(ngx_pool_t *pool, const char *src);
 
-#endif /* XROOTD_WEBDAV_UTIL_XML_H */
+#endif /* BRIX_WEBDAV_UTIL_XML_H */

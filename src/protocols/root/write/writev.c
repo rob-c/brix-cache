@@ -1,24 +1,24 @@
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 #include "fs/cache/writethrough_metrics.h"
 #include "wrts_journal.h"
 
-/* xrootd_writev_body_extra — trailing segment-data length for kXR_writev
+/* brix_writev_body_extra — trailing segment-data length for kXR_writev
  * WHAT: Validates a dlen-framed write_list descriptor block under the stock
  * wire contract (dlen frames ONLY the descriptors: non-zero, 16-aligned,
- * <= XROOTD_WRITEV_MAXSEGS entries, descriptors + declared data within
- * XROOTD_MAX_WRITE_PAYLOAD) and reports sum(wlen) — the number of segment-data
+ * <= BRIX_WRITEV_MAXSEGS entries, descriptors + declared data within
+ * BRIX_MAX_WRITE_PAYLOAD) and reports sum(wlen) — the number of segment-data
  * bytes the client streams after the request frame.
  * WHY: Shared by the recv framing (to extend the read obligation so the
  * streamed data lands in payload_buf before dispatch) and kept next to the
  * handler that consumes the same layout.  Also delegated to by
- * xrootd_ckpxeq_body_extra (chkpoint_xeq.c): a kXR_ckpXeq-embedded writev
+ * brix_ckpxeq_body_extra (chkpoint_xeq.c): a kXR_ckpXeq-embedded writev
  * tunnels this exact contract — its embedded header's dlen frames the
  * descriptors only, and the segment data streams behind.  Returns NGX_OK
  * with *extra set, or NGX_DECLINED when the block violates the contract (the
  * caller decides the error; the framing never rejects so the auth gates
  * still run first). */
 ngx_int_t
-xrootd_writev_body_extra(const u_char *desc, uint32_t dlen, uint32_t *extra)
+brix_writev_body_extra(const u_char *desc, uint32_t dlen, uint32_t *extra)
 {
 	const write_list *wl = (const write_list *) desc;
 	uint32_t          n_segs, i;
@@ -26,12 +26,12 @@ xrootd_writev_body_extra(const u_char *desc, uint32_t dlen, uint32_t *extra)
 
 	*extra = 0;
 
-	if (desc == NULL || dlen == 0 || dlen % XROOTD_WRITEV_SEGSIZE != 0) {
+	if (desc == NULL || dlen == 0 || dlen % BRIX_WRITEV_SEGSIZE != 0) {
 		return NGX_DECLINED;
 	}
 
-	n_segs = dlen / XROOTD_WRITEV_SEGSIZE;
-	if (n_segs > XROOTD_WRITEV_MAXSEGS) {
+	n_segs = dlen / BRIX_WRITEV_SEGSIZE;
+	if (n_segs > BRIX_WRITEV_MAXSEGS) {
 		return NGX_DECLINED;
 	}
 
@@ -39,7 +39,7 @@ xrootd_writev_body_extra(const u_char *desc, uint32_t dlen, uint32_t *extra)
 		total += (uint32_t) ntohl((uint32_t) wl[i].wlen);
 	}
 
-	if ((uint64_t) dlen + total > XROOTD_MAX_WRITE_PAYLOAD) {
+	if ((uint64_t) dlen + total > BRIX_MAX_WRITE_PAYLOAD) {
 		return NGX_DECLINED;
 	}
 
@@ -65,7 +65,7 @@ xrootd_writev_body_extra(const u_char *desc, uint32_t dlen, uint32_t *extra)
  * sub-header's dlen frames the descriptors and the data streams behind, so
  * the two paths must be kept contract-identical. */
 ngx_int_t
-xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
+brix_handle_writev(brix_ctx_t *ctx, ngx_connection_t *c)
 {
 	xrdw_writev_req_t    req;
 	write_list          *wl;
@@ -81,21 +81,21 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 	/* Stock parity: a dlen that is zero or not a whole number of write_list
 	 * descriptors is "Write vector is invalid" (kXR_ArgInvalid) + link drop. */
 	if (ctx->payload == NULL || ctx->cur_dlen == 0
-	    || ctx->cur_dlen % XROOTD_WRITEV_SEGSIZE != 0)
+	    || ctx->cur_dlen % BRIX_WRITEV_SEGSIZE != 0)
 	{
-		XROOTD_OP_ERR(ctx, XROOTD_OP_WRITEV);
-		(void) xrootd_send_error(ctx, c, kXR_ArgInvalid,
+		BRIX_OP_ERR(ctx, BRIX_OP_WRITEV);
+		(void) brix_send_error(ctx, c, kXR_ArgInvalid,
 								 "Write vector is invalid");
 		return NGX_ERROR;
 	}
 
 	wl     = (write_list *) ctx->payload;
-	n_segs = ctx->cur_dlen / XROOTD_WRITEV_SEGSIZE;
+	n_segs = ctx->cur_dlen / BRIX_WRITEV_SEGSIZE;
 
 	/* Stock parity: vector count cap (stock maxWvecsz == 1024 == ours). */
-	if (n_segs > XROOTD_WRITEV_MAXSEGS) {
-		XROOTD_OP_ERR(ctx, XROOTD_OP_WRITEV);
-		(void) xrootd_send_error(ctx, c, kXR_ArgTooLong,
+	if (n_segs > BRIX_WRITEV_MAXSEGS) {
+		BRIX_OP_ERR(ctx, BRIX_OP_WRITEV);
+		(void) brix_send_error(ctx, c, kXR_ArgTooLong,
 								 "Write vector is too long");
 		return NGX_ERROR;
 	}
@@ -108,9 +108,9 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 	/* Our aggregate transfer cap (stock instead caps each element at its
 	 * maxTransz); enforced by the framing BEFORE it reads the data, so a
 	 * violation means the trailing bytes were never accepted — drop. */
-	if ((uint64_t) ctx->cur_dlen + total_wlen > XROOTD_MAX_WRITE_PAYLOAD) {
-		XROOTD_OP_ERR(ctx, XROOTD_OP_WRITEV);
-		(void) xrootd_send_error(ctx, c, kXR_NoMemory,
+	if ((uint64_t) ctx->cur_dlen + total_wlen > BRIX_MAX_WRITE_PAYLOAD) {
+		BRIX_OP_ERR(ctx, BRIX_OP_WRITEV);
+		(void) brix_send_error(ctx, c, kXR_NoMemory,
 								 "writev transfer is too large");
 		return NGX_ERROR;
 	}
@@ -119,8 +119,8 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 	 * mismatch means the extension never ran for this frame (unreachable in
 	 * normal operation) and the data bytes are not in the buffer. */
 	if (total_wlen != (uint64_t) ctx->cur_body_extra) {
-		XROOTD_OP_ERR(ctx, XROOTD_OP_WRITEV);
-		(void) xrootd_send_error(ctx, c, kXR_ArgInvalid,
+		BRIX_OP_ERR(ctx, BRIX_OP_WRITEV);
+		(void) brix_send_error(ctx, c, kXR_ArgInvalid,
 								 "Write vector is invalid");
 		return NGX_ERROR;
 	}
@@ -128,8 +128,8 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 	/* Stock parity: an all-zero-length vector succeeds immediately, before
 	 * any handle validation (do_WriteV returns Send() when maxSZ == 0). */
 	if (total_wlen == 0) {
-		XROOTD_OP_OK(ctx, XROOTD_OP_WRITEV);
-		return xrootd_send_ok(ctx, c, NULL, 0);
+		BRIX_OP_OK(ctx, BRIX_OP_WRITEV);
+		return brix_send_ok(ctx, c, NULL, 0);
 	}
 
 	/* INVARIANT: validate every targeted handle up front so a bad handle in a
@@ -139,32 +139,32 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 		int idx = (int)(unsigned char) wl[i].fhandle[0];
 
 		/* fd < 0 means the slot is closed/never-opened (stale handle). */
-		if (idx < 0 || idx >= XROOTD_MAX_FILES || ctx->files[idx].fd < 0) {
-			XROOTD_OP_ERR(ctx, XROOTD_OP_WRITEV);
-			return xrootd_send_error(ctx, c, kXR_FileNotOpen,
+		if (idx < 0 || idx >= BRIX_MAX_FILES || ctx->files[idx].fd < 0) {
+			BRIX_OP_ERR(ctx, BRIX_OP_WRITEV);
+			return brix_send_error(ctx, c, kXR_FileNotOpen,
 									 "invalid file handle in writev");
 		}
 		if (!ctx->files[idx].writable) {
-			XROOTD_OP_ERR(ctx, XROOTD_OP_WRITEV);
-			return xrootd_send_error(ctx, c, kXR_NotAuthorized,
+			BRIX_OP_ERR(ctx, BRIX_OP_WRITEV);
+			return brix_send_error(ctx, c, kXR_NotAuthorized,
 									 "file not open for writing");
 		}
 	}
 
 	/* All N descriptors occupy the first n_segs*16 bytes; the per-segment data
 	 * blocks follow contiguously in segment order from here. */
-	data_ptr = ctx->payload + n_segs * XROOTD_WRITEV_SEGSIZE;
+	data_ptr = ctx->payload + n_segs * BRIX_WRITEV_SEGSIZE;
 
 	{
-		ngx_stream_xrootd_srv_conf_t *conf;
+		ngx_stream_brix_srv_conf_t *conf;
 
 		conf = ngx_stream_get_module_srv_conf(
-		    (ngx_stream_session_t *) c->data, ngx_stream_xrootd_module);
+		    (ngx_stream_session_t *) c->data, ngx_stream_brix_module);
 
 		if (conf->common.thread_pool != NULL) {
 			ngx_thread_task_t        *task;
-			xrootd_writev_aio_t      *t;
-			xrootd_writev_seg_desc_t *seg_descs;
+			brix_writev_aio_t      *t;
+			brix_writev_seg_desc_t *seg_descs;
 			ngx_flag_t                posted;
 			const u_char             *dp = data_ptr;
 
@@ -173,7 +173,7 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 			 * thread may mutate once we return). Decode all big-endian fields
 			 * now, while we are still on the event-loop thread. */
 			seg_descs = ngx_palloc(c->pool,
-			                       n_segs * sizeof(xrootd_writev_seg_desc_t));
+			                       n_segs * sizeof(brix_writev_seg_desc_t));
 			if (seg_descs == NULL) {
 				return NGX_ERROR;
 			}
@@ -196,7 +196,7 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 				 * the worker thread treats wlen == 0 as "skip" so the bytes are
 				 * neither rewritten nor double-counted. */
 				if (ctx->files[hidx].wrts_enabled &&
-				    xrootd_wrts_is_replay(&ctx->files[hidx], off, wlen))
+				    brix_wrts_is_replay(&ctx->files[hidx], off, wlen))
 				{
 					ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
 					    "xrootd: writev AIO recovery replay skip"
@@ -209,7 +209,7 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 				dp += wlen;
 			}
 
-			task = ngx_thread_task_alloc(c->pool, sizeof(xrootd_writev_aio_t));
+			task = ngx_thread_task_alloc(c->pool, sizeof(brix_writev_aio_t));
 			if (task == NULL) {
 				return NGX_ERROR;
 			}
@@ -226,9 +226,9 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 			t->streamid[0] = ctx->cur_streamid[0];
 			t->streamid[1] = ctx->cur_streamid[1];
 
-			xrootd_task_bind(task, xrootd_writev_write_aio_thread, xrootd_writev_write_aio_done);
+			brix_task_bind(task, brix_writev_write_aio_thread, brix_writev_write_aio_done);
 
-			(void) xrootd_aio_post_task(ctx, c, conf->common.thread_pool, task,
+			(void) brix_aio_post_task(ctx, c, conf->common.thread_pool, task,
 			    "xrootd: thread_task_post failed, falling back to sync writev",
 			    &posted);
 			/* posted == 1: ownership of payload_buf now lives on the task and
@@ -264,7 +264,7 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 		 * stay aligned, and we count the bytes toward the client-visible total
 		 * so the reply matches what the client thinks it sent. */
 		if (ctx->files[idx].wrts_enabled &&
-		    xrootd_wrts_is_replay(&ctx->files[idx], offset, wlen))
+		    brix_wrts_is_replay(&ctx->files[idx], offset, wlen))
 		{
 			ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
 			    "xrootd: writev recovery replay skip offset=%lld len=%u",
@@ -275,12 +275,12 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 		}
 
 		{
-			xrootd_vfs_job_t job;
+			brix_vfs_job_t job;
 
-			xrootd_vfs_job_write_init(&job, ctx->files[idx].fd,
+			brix_vfs_job_write_init(&job, ctx->files[idx].fd,
 									  (off_t) offset, data_ptr, (size_t) wlen);
-			xrootd_vfs_job_set_obj(&job, &ctx->files[idx].sd_obj);
-			xrootd_vfs_io_execute(&job);
+			brix_vfs_job_set_obj(&job, &ctx->files[idx].sd_obj);
+			brix_vfs_io_execute(&job);
 			nw = job.nio;
 			if (job.io_errno != 0) {
 				errno = job.io_errno;
@@ -288,12 +288,12 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 		}
 
 		if (nw < 0) {
-			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_WRITEV, "WRITEV",
+			BRIX_RETURN_ERR(ctx, c, BRIX_OP_WRITEV, "WRITEV",
 							  ctx->files[idx].path, "-",
 							  kXR_IOError, strerror(errno));
 		}
 		if ((uint32_t) nw < wlen) {
-			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_WRITEV, "WRITEV",
+			BRIX_RETURN_ERR(ctx, c, BRIX_OP_WRITEV, "WRITEV",
 							  ctx->files[idx].path, "-",
 							  kXR_IOError, "short write (disk full?)");
 		}
@@ -304,13 +304,13 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 		/* write-through cache: flag the just-written extent dirty so it gets
 		 * flushed to the backing store (end offset is inclusive: off+nw-1). */
 		if (ctx->files[idx].wt_enabled) {
-			xrootd_wt_mark_dirty(ctx, idx, offset + (int64_t) nw - 1,
+			brix_wt_mark_dirty(ctx, idx, offset + (int64_t) nw - 1,
 			                      (size_t) nw);
 		}
 		/* write-recovery journal: remember this range so a later replay after
-		 * reconnect is recognised by xrootd_wrts_is_replay() above. */
+		 * reconnect is recognised by brix_wrts_is_replay() above. */
 		if (ctx->files[idx].wrts_enabled) {
-			xrootd_wrts_record(&ctx->files[idx], offset, (uint32_t) nw);
+			brix_wrts_record(&ctx->files[idx], offset, (uint32_t) nw);
 		}
 		/* Advance by wlen (== nw here, short writes already errored out). */
 		data_ptr                       += wlen;
@@ -323,27 +323,27 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 		for (i = 0; i < n_segs; i++) {
 			int idx = (int)(unsigned char) wl[i].fhandle[0];
 			if (ntohl((uint32_t) wl[i].wlen) > 0) {
-				xrootd_vfs_job_t job;
+				brix_vfs_job_t job;
 
-				xrootd_vfs_job_sync_init(&job, ctx->files[idx].fd);
-				xrootd_vfs_job_set_obj(&job, &ctx->files[idx].sd_obj);
-				xrootd_vfs_io_execute(&job);
+				brix_vfs_job_sync_init(&job, ctx->files[idx].fd);
+				brix_vfs_job_set_obj(&job, &ctx->files[idx].sd_obj);
+				brix_vfs_io_execute(&job);
 			}
 		}
 	}
 
 	{
-		ngx_stream_xrootd_srv_conf_t *rconf;
+		ngx_stream_brix_srv_conf_t *rconf;
 		char                          detail[64];
 
 		rconf = ngx_stream_get_module_srv_conf(
-		    (ngx_stream_session_t *) c->data, ngx_stream_xrootd_module);
+		    (ngx_stream_session_t *) c->data, ngx_stream_brix_module);
 		if (rconf->access_log_fd != NGX_INVALID_FILE) {
 			snprintf(detail, sizeof(detail), "%zu_segs", n_segs);
-			xrootd_log_access(ctx, c, "WRITEV", "-", detail, 1, 0, NULL,
+			brix_log_access(ctx, c, "WRITEV", "-", detail, 1, 0, NULL,
 			                  bytes_written_total);
 		}
 	}
-	XROOTD_OP_OK(ctx, XROOTD_OP_WRITEV);
-	return xrootd_send_ok(ctx, c, NULL, 0);
+	BRIX_OP_OK(ctx, BRIX_OP_WRITEV);
+	return brix_send_ok(ctx, c, NULL, 0);
 }

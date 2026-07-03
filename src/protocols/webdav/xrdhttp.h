@@ -22,8 +22,8 @@
  * xrdhttp_handle_multipart_get() instead of the standard single-range path.
  */
 
-#ifndef XROOTD_WEBDAV_XRDHTTP_H
-#define XROOTD_WEBDAV_XRDHTTP_H
+#ifndef BRIX_WEBDAV_XRDHTTP_H
+#define BRIX_WEBDAV_XRDHTTP_H
 
 /* nginx core headers — provide ngx_http_request_t, ngx_fd_t, ngx_int_t, etc. */
 #include <ngx_config.h>
@@ -208,4 +208,4 @@ int xrdhttp_http_to_xrd_status(ngx_int_t http_status);
 ngx_int_t xrdhttp_digest_body_filter(ngx_http_request_t *r, ngx_chain_t *in,
     ngx_http_output_body_filter_pt next);
 
-#endif /* XROOTD_WEBDAV_XRDHTTP_H */
+#endif /* BRIX_WEBDAV_XRDHTTP_H */

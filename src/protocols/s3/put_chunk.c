@@ -13,7 +13,7 @@
  */
 void
 s3_chunk_finalize(ngx_http_request_t *r, const char *root_canon,
-    const char *fs_path, xrootd_vfs_staged_t *staged,
+    const char *fs_path, brix_vfs_staged_t *staged,
     const s3_chunk_trailer_t *trailer, uint64_t expected, ngx_uint_t body_mode)
 {
     if (s3_commit_put(r, r->connection->log, root_canon, staged,
@@ -22,20 +22,20 @@ s3_chunk_finalize(ngx_http_request_t *r, const char *root_canon,
         if (s3_put_commit_conflict(r)) {
             return;
         }
-        xrootd_log_safe_path(r->connection->log, NGX_LOG_ERR, ngx_errno,
+        brix_log_safe_path(r->connection->log, NGX_LOG_ERR, ngx_errno,
                              "s3: staged commit to \"%s\" failed", fs_path);
         s3_put_finalize_error(r);
         return;
     }
 
     {
-        xrootd_vfs_ctx_t  fctx;
-        xrootd_vfs_stat_t fst;
+        brix_vfs_ctx_t  fctx;
+        brix_vfs_stat_t fst;
         char              etag_buf[48];
 
-        xrootd_vfs_ctx_init(&fctx, r->pool, r->connection->log, XROOTD_PROTO_S3,
+        brix_vfs_ctx_init(&fctx, r->pool, r->connection->log, BRIX_PROTO_S3,
             root_canon, NULL, 0 /* allow_write */, 0 /* is_tls */, NULL, fs_path);
-        if (xrootd_vfs_probe(&fctx, 1 /* no-follow */, &fst) == NGX_OK) {
+        if (brix_vfs_probe(&fctx, 1 /* no-follow */, &fst) == NGX_OK) {
             struct stat sb;
 
             ngx_memzero(&sb, sizeof(sb));
@@ -73,9 +73,9 @@ s3_chunk_finalize(ngx_http_request_t *r, const char *root_canon,
 /* Decode-failure path: abort the staged temp and send the mapped S3 error. */
 void
 s3_chunk_decode_failed(ngx_http_request_t *r, const char *root_canon,
-    xrootd_vfs_staged_t *staged, int http_status)
+    brix_vfs_staged_t *staged, int http_status)
 {
-    xrootd_vfs_staged_abort(staged, 1);
+    brix_vfs_staged_abort(staged, 1);
     if (http_status >= 500) {
         s3_put_finalize_error(r);
     } else if (http_status == NGX_HTTP_FORBIDDEN) {
@@ -104,7 +104,7 @@ s3_chunk_aio_thread(void *data, ngx_log_t *log)
 
     (void) log;
     t->http_status = NGX_HTTP_INTERNAL_SERVER_ERROR;
-    t->rc = s3_aws_chunked_decode_to_fd(t->r, xrootd_vfs_staged_fd(t->staged), t->fs_path,
+    t->rc = s3_aws_chunked_decode_to_fd(t->r, brix_vfs_staged_fd(t->staged), t->fs_path,
                                         t->expected, &t->trailer,
                                         &t->http_status, t->window,
                                         &t->verify);
@@ -127,7 +127,7 @@ s3_build_chunk_verify(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     if (!cf->verify_chunk_signatures) {
         return;
     }
-    rx = ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+    rx = ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
     if (rx == NULL || !rx->have_sigv4) {
         return;
     }

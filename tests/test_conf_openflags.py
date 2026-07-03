@@ -77,7 +77,7 @@ kXR_ItExists = 3018
 
 
 # --------------------------------------------------------------------------- #
-# raw-wire client (minimal pattern copied from test_xrootd_conformance.py)
+# raw-wire client (minimal pattern copied from test_brix_conformance.py)
 # --------------------------------------------------------------------------- #
 def _recv_exact(s, n):
     b = b""

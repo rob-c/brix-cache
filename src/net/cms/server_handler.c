@@ -7,29 +7,29 @@
  * Phase 50 (WS4): per-worker live gauge of accepted CMS data-server connections.
  * One process-global counter encapsulated behind accessors; incremented once a
  * connection is admitted (handler) and decremented when it closes (server_recv.c
- * xrootd_cms_srv_close), gated by ctx->counted so it can never double-count or
- * underflow.  Enforces xrootd_cms_server_max_connections so a peer inside the
+ * brix_cms_srv_close), gated by ctx->counted so it can never double-count or
+ * underflow.  Enforces brix_cms_server_max_connections so a peer inside the
  * (often unset) CIDR allowlist cannot exhaust memory/fds with idle connections.
  */
-static ngx_uint_t  xrootd_cms_srv_conns;
+static ngx_uint_t  brix_cms_srv_conns;
 
 ngx_uint_t
-xrootd_cms_srv_conn_count(void)
+brix_cms_srv_conn_count(void)
 {
-    return xrootd_cms_srv_conns;
+    return brix_cms_srv_conns;
 }
 
 void
-xrootd_cms_srv_conn_inc(void)
+brix_cms_srv_conn_inc(void)
 {
-    xrootd_cms_srv_conns++;
+    brix_cms_srv_conns++;
 }
 
 void
-xrootd_cms_srv_conn_dec(void)
+brix_cms_srv_conn_dec(void)
 {
-    if (xrootd_cms_srv_conns > 0) {
-        xrootd_cms_srv_conns--;
+    if (brix_cms_srv_conns > 0) {
+        brix_cms_srv_conns--;
     }
 }
 
@@ -41,17 +41,17 @@ xrootd_cms_srv_conn_dec(void)
  * global cap still bounds the total, we just stop enforcing per-IP for the
  * overflow.  Lock-free: per-worker, event-loop only.
  */
-#define XROOTD_CMS_IP_SLOTS  4096
+#define BRIX_CMS_IP_SLOTS  4096
 
 typedef struct {
     char        ip[64];     /* peer IP string; '\0' = free slot */
     ngx_uint_t  count;      /* live connections from this IP in this worker */
-} xrootd_cms_ip_slot_t;
+} brix_cms_ip_slot_t;
 
-static xrootd_cms_ip_slot_t  xrootd_cms_ip_table[XROOTD_CMS_IP_SLOTS];
+static brix_cms_ip_slot_t  brix_cms_ip_table[BRIX_CMS_IP_SLOTS];
 
 static ngx_uint_t
-xrootd_cms_ip_hash(const char *ip)
+brix_cms_ip_hash(const char *ip)
 {
     ngx_uint_t  h = 5381;
     const u_char *p = (const u_char *) ip;
@@ -59,20 +59,20 @@ xrootd_cms_ip_hash(const char *ip)
     while (*p) {
         h = ((h << 5) + h) ^ (ngx_uint_t) *p++;   /* djb2-xor */
     }
-    return h % XROOTD_CMS_IP_SLOTS;
+    return h % BRIX_CMS_IP_SLOTS;
 }
 
 /* Find the slot for ip; if create, claim a free slot when absent.  Returns NULL
  * when absent and (not create OR table full). Probes a bounded window. */
-static xrootd_cms_ip_slot_t *
-xrootd_cms_ip_find(const char *ip, int create)
+static brix_cms_ip_slot_t *
+brix_cms_ip_find(const char *ip, int create)
 {
-    ngx_uint_t  start = xrootd_cms_ip_hash(ip);
+    ngx_uint_t  start = brix_cms_ip_hash(ip);
     ngx_uint_t  i;
 
-    for (i = 0; i < XROOTD_CMS_IP_SLOTS; i++) {
-        xrootd_cms_ip_slot_t *slot =
-            &xrootd_cms_ip_table[(start + i) % XROOTD_CMS_IP_SLOTS];
+    for (i = 0; i < BRIX_CMS_IP_SLOTS; i++) {
+        brix_cms_ip_slot_t *slot =
+            &brix_cms_ip_table[(start + i) % BRIX_CMS_IP_SLOTS];
 
         if (slot->ip[0] == '\0') {
             if (!create) {
@@ -90,25 +90,25 @@ xrootd_cms_ip_find(const char *ip, int create)
 }
 
 ngx_uint_t
-xrootd_cms_srv_ip_count(const char *ip)
+brix_cms_srv_ip_count(const char *ip)
 {
-    xrootd_cms_ip_slot_t *slot = xrootd_cms_ip_find(ip, 0);
+    brix_cms_ip_slot_t *slot = brix_cms_ip_find(ip, 0);
     return slot ? slot->count : 0;
 }
 
 void
-xrootd_cms_srv_ip_inc(const char *ip)
+brix_cms_srv_ip_inc(const char *ip)
 {
-    xrootd_cms_ip_slot_t *slot = xrootd_cms_ip_find(ip, 1);
+    brix_cms_ip_slot_t *slot = brix_cms_ip_find(ip, 1);
     if (slot != NULL) {
         slot->count++;
     }
 }
 
 void
-xrootd_cms_srv_ip_dec(const char *ip)
+brix_cms_srv_ip_dec(const char *ip)
 {
-    xrootd_cms_ip_slot_t *slot = xrootd_cms_ip_find(ip, 0);
+    brix_cms_ip_slot_t *slot = brix_cms_ip_find(ip, 0);
     if (slot != NULL && slot->count > 0) {
         slot->count--;
         if (slot->count == 0) {
@@ -136,7 +136,7 @@ xrootd_cms_srv_ip_dec(const char *ip)
  */
 
 void
-xrootd_cms_srv_handler(ngx_stream_session_t *s)
+brix_cms_srv_handler(ngx_stream_session_t *s)
 /*
  *
  * WHAT: Entry point for CMS server connections accepted by the stream module.
@@ -157,26 +157,26 @@ xrootd_cms_srv_handler(ngx_stream_session_t *s)
 
 {
     ngx_connection_t                  *c;
-    xrootd_cms_srv_ctx_t              *ctx;
-    ngx_stream_xrootd_cms_srv_conf_t  *conf;
+    brix_cms_srv_ctx_t              *ctx;
+    ngx_stream_brix_cms_srv_conf_t  *conf;
     size_t                             len;
 
     c = s->connection;
 
-    ctx = ngx_pcalloc(c->pool, sizeof(xrootd_cms_srv_ctx_t));
+    ctx = ngx_pcalloc(c->pool, sizeof(brix_cms_srv_ctx_t));
     if (ctx == NULL) {
         ngx_stream_finalize_session(s, NGX_STREAM_INTERNAL_SERVER_ERROR);
         return;
     }
 
     ctx->c       = c;
-    ctx->in_need = NGX_XROOTD_CMS_HDR_LEN;
+    ctx->in_need = NGX_BRIX_CMS_HDR_LEN;
 
     len = ngx_sock_ntop(c->sockaddr, c->socklen,
                         (u_char *) ctx->host, sizeof(ctx->host) - 1, 0);
     ctx->host[len] = '\0';
 
-    conf = ngx_stream_get_module_srv_conf(s, ngx_stream_xrootd_cms_srv_module);
+    conf = ngx_stream_get_module_srv_conf(s, ngx_stream_brix_cms_srv_module);
     ctx->conf        = conf;
     ctx->interval_ms = (ngx_msec_t) conf->interval * 1000;
     if (ctx->interval_ms < 1000) {
@@ -193,13 +193,13 @@ xrootd_cms_srv_handler(ngx_stream_session_t *s)
      * memory/fds with idle connections.  0 = unlimited (back-compat).
      */
     if (conf->max_connections > 0
-        && xrootd_cms_srv_conn_count() >= (ngx_uint_t) conf->max_connections)
+        && brix_cms_srv_conn_count() >= (ngx_uint_t) conf->max_connections)
     {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
                       "xrootd: CMS server: connection from %s refused — "
                       "max_connections (%i) reached",
                       ctx->host, conf->max_connections);
-        XROOTD_RESIL_METRIC_INC(cms_cap_rejections_total);
+        BRIX_RESIL_METRIC_INC(cms_cap_rejections_total);
         ngx_stream_finalize_session(s, NGX_STREAM_FORBIDDEN);
         return;
     }
@@ -209,14 +209,14 @@ xrootd_cms_srv_handler(ngx_stream_session_t *s)
      * the global cap above.  0 = disabled (back-compat).
      */
     if (conf->max_connections_per_ip > 0
-        && xrootd_cms_srv_ip_count(ctx->host)
+        && brix_cms_srv_ip_count(ctx->host)
            >= (ngx_uint_t) conf->max_connections_per_ip)
     {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
                       "xrootd: CMS server: connection from %s refused — "
                       "max_connections_per_ip (%i) reached",
                       ctx->host, conf->max_connections_per_ip);
-        XROOTD_RESIL_METRIC_INC(cms_cap_rejections_total);
+        BRIX_RESIL_METRIC_INC(cms_cap_rejections_total);
         ngx_stream_finalize_session(s, NGX_STREAM_FORBIDDEN);
         return;
     }
@@ -226,13 +226,13 @@ xrootd_cms_srv_handler(ngx_stream_session_t *s)
      * frame handler so an unauthorised peer never reaches the LOGIN/registry
      * path.  When no allowlist is configured this passes (back-compat).
      */
-    if (xrootd_cms_srv_check_peer(c, conf) != NGX_OK) {
-        XROOTD_DIAG(NGX_LOG_NOTICE, c->log, 0,
+    if (brix_cms_srv_check_peer(c, conf) != NGX_OK) {
+        BRIX_DIAG(NGX_LOG_NOTICE, c->log, 0,
             "xrootd[cms]: rejected data-server registration from %s",
-            "the peer's IP is not covered by the xrootd_cms_server_allow "
+            "the peer's IP is not covered by the brix_cms_server_allow "
             "allowlist (or the allowlist is wrong)",
             "if this is a legitimate data server, add its IP/CIDR to "
-            "xrootd_cms_server_allow; otherwise this is an unauthorised peer "
+            "brix_cms_server_allow; otherwise this is an unauthorised peer "
             "being correctly refused",
             ctx->host);
         ngx_stream_finalize_session(s, NGX_STREAM_FORBIDDEN);
@@ -247,20 +247,20 @@ xrootd_cms_srv_handler(ngx_stream_session_t *s)
     ctx->ping_timer.data = ctx;
 
     /* WS4 + A3: admitted — count it globally and per-IP (decremented in
-     * xrootd_cms_srv_close). */
-    xrootd_cms_srv_conn_inc();
-    xrootd_cms_srv_ip_inc(ctx->host);
+     * brix_cms_srv_close). */
+    brix_cms_srv_conn_inc();
+    brix_cms_srv_ip_inc(ctx->host);
     ctx->counted = 1;
 
     c->data = ctx;
-    c->read->handler  = xrootd_cms_srv_read;
-    c->write->handler = xrootd_cms_srv_write;
+    c->read->handler  = brix_cms_srv_read;
+    c->write->handler = brix_cms_srv_write;
 
     /*
      * WS5: OS-level dead-peer reaping on the accepted socket, so a silently-
      * dropped data node is torn down by the kernel.  Best-effort, non-fatal.
      */
-    xrootd_apply_tcp_deadpeer_opts(c->fd, conf->tcp_keepalive,
+    brix_apply_tcp_deadpeer_opts(c->fd, conf->tcp_keepalive,
                                    conf->tcp_user_timeout);
 
     /*
@@ -277,5 +277,5 @@ xrootd_cms_srv_handler(ngx_stream_session_t *s)
     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "xrootd: CMS server accepted from %s", ctx->host);
 
-    xrootd_cms_srv_read(c->read);
+    brix_cms_srv_read(c->read);
 }

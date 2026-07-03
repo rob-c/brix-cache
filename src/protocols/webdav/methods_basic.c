@@ -38,10 +38,10 @@
 ngx_int_t
 webdav_handle_options(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *conf;
+    ngx_http_brix_webdav_loc_conf_t *conf;
     ngx_table_elt_t                   *h;
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
 
     r->headers_out.status = NGX_HTTP_OK;
     r->headers_out.content_length_n = 0;
@@ -68,9 +68,9 @@ webdav_handle_options(ngx_http_request_t *r)
     }
     h->hash = 1;
     ngx_str_set(&h->key, "Allow");
-    if (xrootd_http_operation_allow_header(r->pool,
-            xrootd_webdav_operations, xrootd_webdav_operations_count,
-            XROOTD_WEBDAV_ALLOW_FLAGS(conf),
+    if (brix_http_operation_allow_header(r->pool,
+            brix_webdav_operations, brix_webdav_operations_count,
+            BRIX_WEBDAV_ALLOW_FLAGS(conf),
             &h->value) != NGX_OK)
     {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
@@ -126,8 +126,8 @@ webdav_handle_head(ngx_http_request_t *r, int send_body)
     }
 
     if (!S_ISDIR(sb.st_mode)) {
-        rc = xrootd_http_add_etag_header(r, sb.st_mtime, sb.st_size,
-                                         XROOTD_ETAG_WEAK, 1);
+        rc = brix_http_add_etag_header(r, sb.st_mtime, sb.st_size,
+                                         BRIX_ETAG_WEAK, 1);
         if (rc != NGX_OK) {
             return rc;
         }
@@ -139,12 +139,12 @@ webdav_handle_head(ngx_http_request_t *r, int send_body)
     if (!S_ISDIR(sb.st_mode)) {
         xrdhttp_req_ctx_t *ctx = xrdhttp_get_ctx(r);
         if (ctx != NULL && ctx->want_cksum[0]) {
-            ngx_http_xrootd_webdav_loc_conf_t *conf =
-                ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
-            ngx_http_xrootd_webdav_req_ctx_t  *wctx =
-                ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
-            xrootd_vfs_ctx_t   vctx;
-            xrootd_vfs_file_t *fh;
+            ngx_http_brix_webdav_loc_conf_t *conf =
+                ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
+            ngx_http_brix_webdav_req_ctx_t  *wctx =
+                ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
+            brix_vfs_ctx_t   vctx;
+            brix_vfs_file_t *fh;
             int                vfs_err = 0;
             int                is_tls  = 0;
 
@@ -154,15 +154,15 @@ webdav_handle_head(ngx_http_request_t *r, int send_body)
 #if (NGX_HTTP_SSL)
             is_tls = (r->connection->ssl != NULL) ? 1 : 0;
 #endif
-            xrootd_vfs_ctx_init(&vctx, r->pool, r->connection->log,
-                XROOTD_PROTO_WEBDAV, conf->common.root_canon,
+            brix_vfs_ctx_init(&vctx, r->pool, r->connection->log,
+                BRIX_PROTO_WEBDAV, conf->common.root_canon,
                 conf->cache_root_canon, conf->common.allow_write, is_tls,
                 (wctx != NULL) ? wctx->identity : NULL, path);
 
-            fh = xrootd_vfs_open(&vctx, XROOTD_VFS_O_READ, &vfs_err);
+            fh = brix_vfs_open(&vctx, BRIX_VFS_O_READ, &vfs_err);
             if (fh != NULL) {
-                (void) xrdhttp_add_checksum_header(r, xrootd_vfs_file_fd(fh), &sb);
-                xrootd_vfs_close(fh, r->connection->log);
+                (void) xrdhttp_add_checksum_header(r, brix_vfs_file_fd(fh), &sb);
+                brix_vfs_close(fh, r->connection->log);
             }
         }
     }
@@ -220,13 +220,13 @@ webdav_proppatch_serialize_dead_prop(ngx_http_request_t *r, xmlNodePtr prop,
          * and close tag) + the escaped namespace + escaped text + NUL. */
         len = ngx_strlen("<X: xmlns:X=\"\"></X:>")
               + strlen(local) * 2 + strlen(safe_ns) + strlen(safe_text) + 1;
-        XROOTD_PNALLOC_OR_RETURN(xml, r->pool, len, NULL);
+        BRIX_PNALLOC_OR_RETURN(xml, r->pool, len, NULL);
         snprintf(xml, len, "<X:%s xmlns:X=\"%s\">%s</X:%s>",
                  local, safe_ns, safe_text, local);
 
     } else {
         len = ngx_strlen("<></>") + strlen(local) * 2 + strlen(safe_text) + 1;
-        XROOTD_PNALLOC_OR_RETURN(xml, r->pool, len, NULL);
+        BRIX_PNALLOC_OR_RETURN(xml, r->pool, len, NULL);
         snprintf(xml, len, "<%s>%s</%s>", local, safe_text, local);
     }
 
@@ -245,7 +245,7 @@ webdav_proppatch_append_propstat(ngx_http_request_t *r, ngx_chain_t **head,
     ngx_chain_t **tail, const char *ns, const char *local,
     const char *status)
 {
-    if (xrootd_http_chain_appendf(r->pool, head, tail,
+    if (brix_http_chain_appendf(r->pool, head, tail,
             "<D:propstat><D:prop>") == NULL)
     {
         return NGX_ERROR;
@@ -255,7 +255,7 @@ webdav_proppatch_append_propstat(ngx_http_request_t *r, ngx_chain_t **head,
         return NGX_ERROR;
     }
 
-    if (xrootd_http_chain_appendf(r->pool, head, tail,
+    if (brix_http_chain_appendf(r->pool, head, tail,
             "</D:prop><D:status>%s</D:status></D:propstat>",
             status) == NULL)
     {
@@ -308,7 +308,7 @@ webdav_proppatch_do(ngx_http_request_t *r)
         return rc;
     }
 
-    rc = xrootd_http_body_read_all(r, WEBDAV_PROPPATCH_BODY_MAX,
+    rc = brix_http_body_read_all(r, WEBDAV_PROPPATCH_BODY_MAX,
                                    &body, &body_len);
     if (rc != NGX_OK || body_len == 0) {
         return NGX_HTTP_BAD_REQUEST;
@@ -339,7 +339,7 @@ webdav_proppatch_do(ngx_http_request_t *r)
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    if (xrootd_http_chain_appendf(pool, &head, &tail,
+    if (brix_http_chain_appendf(pool, &head, &tail,
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
             "<D:multistatus xmlns:D=\"DAV:\">"
             "<D:response>"
@@ -437,7 +437,7 @@ webdav_proppatch_do(ngx_http_request_t *r)
         return NGX_HTTP_BAD_REQUEST;
     }
 
-    if (xrootd_http_chain_appendf(pool, &head, &tail,
+    if (brix_http_chain_appendf(pool, &head, &tail,
             "</D:response></D:multistatus>") == NULL)
     {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
@@ -484,13 +484,13 @@ webdav_proppatch_do(ngx_http_request_t *r)
 static void
 webdav_proppatch_body_handler(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_webdav_req_ctx_t *rx =
-        ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    ngx_http_brix_webdav_req_ctx_t *rx =
+        ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     ngx_int_t rc;
 
-    xrootd_imp_request_begin(rx != NULL ? rx->identity : NULL);
+    brix_imp_request_begin(rx != NULL ? rx->identity : NULL);
     rc = webdav_proppatch_do(r);
-    xrootd_imp_request_end();
+    brix_imp_request_end();
 
     webdav_metrics_finalize_request(r, rc);
 }
@@ -504,5 +504,5 @@ webdav_proppatch_body_handler(ngx_http_request_t *r)
 ngx_int_t
 webdav_handle_proppatch(ngx_http_request_t *r)
 {
-    return xrootd_http_read_body(r, webdav_proppatch_body_handler);
+    return brix_http_read_body(r, webdav_proppatch_body_handler);
 }

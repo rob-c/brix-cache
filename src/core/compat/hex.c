@@ -12,26 +12,26 @@
 #include "hex.h"
 
 /*
- * xrootd_hex_nibble — convert 4-bit value (0-15) to uppercase hex character.
+ * brix_hex_nibble — convert 4-bit value (0-15) to uppercase hex character.
  *
  * WHAT: Returns '0'-'9' for values 0-9, 'A'-'F' for values 10-15. WHY: Used by encoding
  *      functions to produce hex output characters from individual nibbles. */
 
 uint8_t
-xrootd_hex_nibble(uint8_t v)
+brix_hex_nibble(uint8_t v)
 {
     return (v < 10) ? (uint8_t) ('0' + v)
                     : (uint8_t) ('A' + (v - 10));
 }
 
 /*
- * xrootd_hex_from_char — parse hex character to nibble value, case-insensitive.
+ * brix_hex_from_char — parse hex character to nibble value, case-insensitive.
  *
  * WHAT: Returns 0-9 for '0'-'9', 10-15 for 'a'-'f'/'A'-'F', -1 for invalid input. WHY: Used
  *      by checksum parsing functions to convert hex strings back to byte values. */
 
 int
-xrootd_hex_from_char(unsigned char c)
+brix_hex_from_char(unsigned char c)
 {
     if (c >= '0' && c <= '9') {
         return (int) (c - '0');
@@ -49,14 +49,14 @@ xrootd_hex_from_char(unsigned char c)
 }
 
 /*
- * xrootd_hex_encode — convert byte array to null-terminated hex string.
+ * brix_hex_encode — convert byte array to null-terminated hex string.
  *
  * WHAT: Writes each input byte as two uppercase hex characters into out, null-terminating at
  *      end. WHY: Checksum computation results, ETag generation, metadata display need hex
  *      representation of arbitrary binary data. */
 
 void
-xrootd_hex_encode(const uint8_t *in, size_t len, char *out)
+brix_hex_encode(const uint8_t *in, size_t len, char *out)
 {
     static const char hex[] = "0123456789abcdef";
     size_t            i;

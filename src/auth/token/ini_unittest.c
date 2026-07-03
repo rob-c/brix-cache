@@ -92,7 +92,7 @@ test_stock_fixture(void)
     if (access(path, R_OK) != 0) {
         path = "../../tests/fixtures/scitokens.cfg";
     }
-    int rc = xrootd_ini_parse_file(path, collect_cb, &c, err, sizeof(err));
+    int rc = brix_ini_parse_file(path, collect_cb, &c, err, sizeof(err));
     CHECK(rc == 0, "stock fixture parses");
     if (rc != 0) { fprintf(stderr, "  err: %s\n", err); return; }
 
@@ -127,7 +127,7 @@ test_trim_and_comments(void)
         "base_path = /x\n",
         path, sizeof(path));
 
-    int rc = xrootd_ini_parse_file(path, collect_cb, &c, err, sizeof(err));
+    int rc = brix_ini_parse_file(path, collect_cb, &c, err, sizeof(err));
     CHECK(rc == 0, "trim/comment fixture parses");
 
     const struct kv *k = find_kv(&c, "Global", "audience");
@@ -146,7 +146,7 @@ test_malformed(void)
     char err[256], path[64];
     write_tmp("[Issuer X]\nthis line has no equals\n", path, sizeof(path));
 
-    int rc = xrootd_ini_parse_file(path, collect_cb, &c, err, sizeof(err));
+    int rc = brix_ini_parse_file(path, collect_cb, &c, err, sizeof(err));
     CHECK(rc != 0, "malformed line rejected");
     CHECK(strstr(err, "missing '='") != NULL, "error message names the cause");
     unlink(path);
@@ -157,7 +157,7 @@ test_missing_file(void)
 {
     struct collector c = {0};
     char err[256] = "";
-    int rc = xrootd_ini_parse_file("/nonexistent/xyz.cfg", collect_cb, &c,
+    int rc = brix_ini_parse_file("/nonexistent/xyz.cfg", collect_cb, &c,
                                    err, sizeof(err));
     CHECK(rc == -1, "missing file returns -1");
     CHECK(err[0] != '\0', "missing file sets an error string");

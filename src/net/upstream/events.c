@@ -1,5 +1,5 @@
 /* File: events.c — Upstream connection non-blocking read/write event handlers and wait retry timer
- * WHAT: Three nginx event-loop callbacks managing outbound upstream redirector connection lifecycle. xrootd_upstream_wait_timer_handler(ev) is the kXR_wait expiry timer callback — checks ctx validity/cleaned flag, logs info-level "upstream kXR_wait expired; retrying", calls xrootd_upstream_send_request() to resend saved client request, aborts on failure. xrootd_upstream_write_handler(wev) handles non-blocking upstream write: checks ctx validity, aborts on timeout ("connect/write timeout"), if state=XRD_UP_CONNECTING performs SO_ERROR getsockopt check (abort on TCP connect failure, otherwise transitions to XRD_UP_BOOTSTRAP with bs_phase=BS_HANDSHAKE and resets response accumulator), if wbuf_pos < wbuf_len calls xrootd_upstream_flush() for partial write drain (abort on error), after flush completes arms read event via ngx_handle_read_event(uconn->read, 0). xrootd_upstream_read_handler(rev) implements response accumulation loop: checks ctx validity/timeout, accumulates XRD_RESPONSE_HDR_LEN bytes parsing ServerResponseHdr to extract resp_status/resps_dlen (abort on NGX_AGAIN with re-arm, abort on n<=0), allocates resp_body from uconn->pool for dlen>0 bytes with size cap MAX_PATH+256 (abort on oversized or pool failure), accumulates body bytes until full (NGX_AGAIN re-arms read event, n<=0 closes connection), dispatches based on state: XRD_UP_BOOTSTRAP→handle_bootstrap_response(), XRD_UP_REQUEST/XRD_UP_ASYNC→forward_response(), default abort ("unexpected state"). All handlers clean up via xrootd_upstream_cleanup() when ctx destroyed. */
+ * WHAT: Three nginx event-loop callbacks managing outbound upstream redirector connection lifecycle. brix_upstream_wait_timer_handler(ev) is the kXR_wait expiry timer callback — checks ctx validity/cleaned flag, logs info-level "upstream kXR_wait expired; retrying", calls brix_upstream_send_request() to resend saved client request, aborts on failure. brix_upstream_write_handler(wev) handles non-blocking upstream write: checks ctx validity, aborts on timeout ("connect/write timeout"), if state=XRD_UP_CONNECTING performs SO_ERROR getsockopt check (abort on TCP connect failure, otherwise transitions to XRD_UP_BOOTSTRAP with bs_phase=BS_HANDSHAKE and resets response accumulator), if wbuf_pos < wbuf_len calls brix_upstream_flush() for partial write drain (abort on error), after flush completes arms read event via ngx_handle_read_event(uconn->read, 0). brix_upstream_read_handler(rev) implements response accumulation loop: checks ctx validity/timeout, accumulates XRD_RESPONSE_HDR_LEN bytes parsing ServerResponseHdr to extract resp_status/resps_dlen (abort on NGX_AGAIN with re-arm, abort on n<=0), allocates resp_body from uconn->pool for dlen>0 bytes with size cap MAX_PATH+256 (abort on oversized or pool failure), accumulates body bytes until full (NGX_AGAIN re-arms read event, n<=0 closes connection), dispatches based on state: XRD_UP_BOOTSTRAP→handle_bootstrap_response(), XRD_UP_REQUEST/XRD_UP_ASYNC→forward_response(), default abort ("unexpected state"). All handlers clean up via brix_upstream_cleanup() when ctx destroyed. */
 
 /*
  * WHY: Upstream connection uses nginx's non-blocking event model — write events drain partial buffers, read events accumulate response headers+body in a single loop. TCP connect completion detected via SO_ERROR on first write event (not separate connect callback). Bootstrap phase requires sequential header/body reads for handshake/protocol/TLS/login responses; request phase forwards accumulated responses verbatim to client. Wait timer handles kXR_wait opcode server-side processing delays — retries after timeout expires. Response body size cap MAX_PATH+256 prevents unbounded allocation from malicious upstream. Pool allocation (uconn->pool) ensures cleanup tied to connection lifecycle. State-based dispatch ensures correct handler called per phase: bootstrap responses go through state machine, request/async responses forwarded directly. ctx destroyed check prevents callbacks on closed connections from re-entering handlers. */
@@ -19,22 +19,22 @@
  *      send_request(). On failure (with the upstream conn still live) abort the proxy.
  */
 void
-xrootd_upstream_wait_timer_handler(ngx_event_t *ev)
+brix_upstream_wait_timer_handler(ngx_event_t *ev)
 {
-    xrootd_upstream_t *up = ev->data;
-    xrootd_ctx_t      *ctx = up->client_ctx;
+    brix_upstream_t *up = ev->data;
+    brix_ctx_t      *ctx = up->client_ctx;
 
     /* Client session may have gone away while we were waiting — drop the upstream. */
     if (ctx == NULL || ctx->destroyed) {
-        xrootd_upstream_cleanup(up);
+        brix_upstream_cleanup(up);
         return;
     }
 
     ngx_log_error(NGX_LOG_INFO, up->client_conn->log, 0,
                   "xrootd: upstream kXR_wait expired; retrying");
 
-    if (xrootd_upstream_send_request(up) != NGX_OK && up->conn != NULL) {
-        xrootd_upstream_abort(up, "upstream retry failed");
+    if (brix_upstream_send_request(up) != NGX_OK && up->conn != NULL) {
+        brix_upstream_abort(up, "upstream retry failed");
     }
 }
 
@@ -50,20 +50,20 @@ xrootd_upstream_wait_timer_handler(ngx_event_t *ev)
  *      Only once the buffer is fully drained do we arm the read side for the reply.
  */
 void
-xrootd_upstream_write_handler(ngx_event_t *wev)
+brix_upstream_write_handler(ngx_event_t *wev)
 {
     ngx_connection_t  *uconn = wev->data;
-    xrootd_upstream_t *up = uconn->data;
-    xrootd_ctx_t      *ctx = up->client_ctx;
+    brix_upstream_t *up = uconn->data;
+    brix_ctx_t      *ctx = up->client_ctx;
 
     /* Don't act on a socket whose client session has already been torn down. */
     if (ctx == NULL || ctx->destroyed) {
-        xrootd_upstream_cleanup(up);
+        brix_upstream_cleanup(up);
         return;
     }
 
     if (wev->timedout) {
-        xrootd_upstream_abort(up, "upstream connect/write timeout");
+        brix_upstream_abort(up, "upstream connect/write timeout");
         return;
     }
 
@@ -76,14 +76,14 @@ xrootd_upstream_write_handler(ngx_event_t *wev)
         if (getsockopt(uconn->fd, SOL_SOCKET, SO_ERROR,
                        (char *) &err, &len) == -1 || err)
         {
-            XROOTD_DIAG_ERR(up->client_conn->log,
+            BRIX_DIAG_ERR(up->client_conn->log,
                 err ? err : ngx_socket_errno,
                 "xrootd: cannot connect to upstream data server",
                 "the upstream is down, unreachable, or refusing connections "
                 "(wrong host/port, or a firewall)",
                 "confirm the upstream xrootd/data server is up and reachable "
                 "from this host; the OS reason is appended below");
-            xrootd_upstream_abort(up, "upstream TCP connect failed");
+            brix_upstream_abort(up, "upstream TCP connect failed");
             return;
         }
 
@@ -103,17 +103,17 @@ xrootd_upstream_write_handler(ngx_event_t *wev)
     /* Partial-write drain: flush() advances wbuf_pos. If bytes remain we return and
      * wait for the next writable event rather than arming the read side prematurely. */
     if (up->wbuf_pos < up->wbuf_len) {
-        ngx_int_t rc = xrootd_upstream_flush(up);
+        ngx_int_t rc = brix_upstream_flush(up);
 
         if (rc == NGX_ERROR) {
-            xrootd_upstream_abort(up, "upstream write error");
+            brix_upstream_abort(up, "upstream write error");
         }
         return;
     }
 
     /* Buffer fully sent — now wait for the upstream's reply. */
     if (ngx_handle_read_event(uconn->read, 0) != NGX_OK) {
-        xrootd_upstream_abort(up, "upstream read arm failed in write handler");
+        brix_upstream_abort(up, "upstream read arm failed in write handler");
     }
 }
 
@@ -132,21 +132,21 @@ xrootd_upstream_write_handler(ngx_event_t *wev)
  *      responses are forwarded to the client; any other state is a logic error.
  */
 void
-xrootd_upstream_read_handler(ngx_event_t *rev)
+brix_upstream_read_handler(ngx_event_t *rev)
 {
     ngx_connection_t  *uconn = rev->data;
-    xrootd_upstream_t *up = uconn->data;
-    xrootd_ctx_t      *ctx = up->client_ctx;
+    brix_upstream_t *up = uconn->data;
+    brix_ctx_t      *ctx = up->client_ctx;
     ssize_t            n;
 
     /* Stale event after the client session was destroyed: just clean up. */
     if (ctx == NULL || ctx->destroyed) {
-        xrootd_upstream_cleanup(up);
+        brix_upstream_cleanup(up);
         return;
     }
 
     if (rev->timedout) {
-        xrootd_upstream_abort(up, "upstream read timeout");
+        brix_upstream_abort(up, "upstream read timeout");
         return;
     }
 
@@ -158,12 +158,12 @@ xrootd_upstream_read_handler(ngx_event_t *rev)
             if (n == NGX_AGAIN) {
                 /* Socket drained mid-header; re-arm and resume here next event. */
                 if (ngx_handle_read_event(rev, 0) != NGX_OK) {
-                    xrootd_upstream_abort(up, "upstream read arm failed (hdr)");
+                    brix_upstream_abort(up, "upstream read arm failed (hdr)");
                 }
                 return;
             }
             if (n <= 0) {
-                xrootd_upstream_abort(up, "upstream connection closed");
+                brix_upstream_abort(up, "upstream connection closed");
                 return;
             }
 
@@ -187,8 +187,8 @@ xrootd_upstream_read_handler(ngx_event_t *rev)
             if (up->resp_dlen > 0) {
                 /* Cap untrusted body size to bound allocation — the largest legitimate
                  * upstream payload here is a path plus protocol slack. */
-                if (up->resp_dlen > XROOTD_MAX_PATH + 256) {
-                    xrootd_upstream_abort(up,
+                if (up->resp_dlen > BRIX_MAX_PATH + 256) {
+                    brix_upstream_abort(up,
                                           "upstream response body too large");
                     return;
                 }
@@ -196,7 +196,7 @@ xrootd_upstream_read_handler(ngx_event_t *rev)
                  * string by downstream parsers; allocated from the connection pool. */
                 up->resp_body = ngx_palloc(uconn->pool, up->resp_dlen + 1);
                 if (up->resp_body == NULL) {
-                    xrootd_upstream_abort(up, "upstream pool alloc failed");
+                    brix_upstream_abort(up, "upstream pool alloc failed");
                     return;
                 }
                 up->resp_body[up->resp_dlen] = '\0';
@@ -211,13 +211,13 @@ xrootd_upstream_read_handler(ngx_event_t *rev)
             if (n == NGX_AGAIN) {
                 /* Body fragmented across reads; re-arm and resume at this offset. */
                 if (ngx_handle_read_event(rev, 0) != NGX_OK) {
-                    xrootd_upstream_abort(up,
+                    brix_upstream_abort(up,
                                           "upstream read arm failed (body)");
                 }
                 return;
             }
             if (n <= 0) {
-                xrootd_upstream_abort(up, "upstream connection closed (body)");
+                brix_upstream_abort(up, "upstream connection closed (body)");
                 return;
             }
 
@@ -232,18 +232,18 @@ xrootd_upstream_read_handler(ngx_event_t *rev)
         /* Bootstrap replies (handshake/protocol/TLS/login) drive the login FSM, which
          * advances bs_phase and, when DONE, replays the saved client request. */
         if (up->state == XRD_UP_BOOTSTRAP) {
-            xrootd_upstream_handle_bootstrap_response(up);
+            brix_upstream_handle_bootstrap_response(up);
             return;
         }
 
         /* Live request/async replies are relayed verbatim to the client connection. */
         if (up->state == XRD_UP_REQUEST || up->state == XRD_UP_ASYNC) {
-            xrootd_upstream_forward_response(up);
+            brix_upstream_forward_response(up);
             return;
         }
 
         /* No other state should ever reach the read handler with a complete frame. */
-        xrootd_upstream_abort(up, "upstream: unexpected state in read handler");
+        brix_upstream_abort(up, "upstream: unexpected state in read handler");
         return;
     }
 }

@@ -13,7 +13,7 @@
  *   we use a synchronous SSL_connect over the blocking fd rather than nginx's
  *   async ngx_ssl_handshake.
  *
- * HOW: SSL_CTX_new(TLS_client_method) → min TLS 1.2 → if xrootd_trusted_ca is set,
+ * HOW: SSL_CTX_new(TLS_client_method) → min TLS 1.2 → if brix_trusted_ca is set,
  *   load it as a CA directory and SSL_VERIFY_PEER (chain verification; on load
  *   failure fall back to no verification so an encrypted-but-unverified transport
  *   still works) → SSL_new + SSL_set_fd(fd) + SNI(src_host) → SSL_connect. On any
@@ -31,7 +31,7 @@
 /* WHAT: blocking client TLS handshake over the pull fd; stores SSL on t->tls.
  * Returns 0 on success, -1 with t->err_msg / t->xrd_error set on failure. */
 int
-tpc_start_tls(xrootd_tpc_pull_t *t, int fd)
+tpc_start_tls(brix_tpc_pull_t *t, int fd)
 {
     SSL_CTX *ctx;
     SSL     *ssl;
@@ -44,7 +44,7 @@ tpc_start_tls(xrootd_tpc_pull_t *t, int fd)
     }
     SSL_CTX_set_min_proto_version(ctx, TLS1_2_VERSION);
 
-    /* Verify the source's certificate chain against xrootd_trusted_ca when it is
+    /* Verify the source's certificate chain against brix_trusted_ca when it is
      * configured (treated as a CA directory). If the CA store cannot be loaded,
      * downgrade to an encrypted-but-unverified transport rather than failing the
      * pull outright. When chain verification IS active we ALSO bind the expected
@@ -109,7 +109,7 @@ tpc_start_tls(xrootd_tpc_pull_t *t, int fd)
 
 /* WHAT: release the pull's TLS objects (NULL-safe); called from thread.c teardown. */
 void
-tpc_tls_teardown(xrootd_tpc_pull_t *t)
+tpc_tls_teardown(brix_tpc_pull_t *t)
 {
     if (t->tls != NULL) {
         (void) SSL_shutdown((SSL *) t->tls);

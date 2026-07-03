@@ -22,8 +22,8 @@
  *
  * This header is pure C with no nginx/RADOS dependency by design.
  */
-#ifndef XROOTD_CEPHFS_DENC_H
-#define XROOTD_CEPHFS_DENC_H
+#ifndef BRIX_CEPHFS_DENC_H
+#define BRIX_CEPHFS_DENC_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -83,4 +83,4 @@ uint8_t cephfs_denc_start(cephfs_denc_t *d, cephfs_denc_frame_t *f);
  * cursor is already at/past payload_end. */
 void   cephfs_denc_finish(cephfs_denc_t *d, const cephfs_denc_frame_t *f);
 
-#endif /* XROOTD_CEPHFS_DENC_H */
+#endif /* BRIX_CEPHFS_DENC_H */

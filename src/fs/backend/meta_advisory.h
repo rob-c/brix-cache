@@ -1,5 +1,5 @@
-#ifndef XROOTD_META_ADVISORY_H
-#define XROOTD_META_ADVISORY_H
+#ifndef BRIX_META_ADVISORY_H
+#define BRIX_META_ADVISORY_H
 
 /*
  * meta_advisory.h — shared "advisory" unix-metadata codec for object-store backends.
@@ -20,7 +20,7 @@
  *       present fields after the version token. Decode is forward-compatible: it
  *       skips an unknown version and any unknown `key=val` token. Kept dependency-
  *       free so it unit-tests standalone and links into both the module and
- *       libxrdproto. The overlay-onto-`xrootd_sd_stat_t` happens at the call site
+ *       libxrdproto. The overlay-onto-`brix_sd_stat_t` happens at the call site
  *       (it owns both the decoded struct and the backend's base stat).
  */
 
@@ -28,8 +28,8 @@
 #include <stddef.h>      /* size_t */
 
 /* Reserved slot names (RADOS xattr / S3 user-metadata header suffix). */
-#define XROOTD_META_ADVISORY_XATTR  "user.xrd.unixattr"
-#define XROOTD_META_ADVISORY_S3META "xrd-unixattr"      /* → x-amz-meta-xrd-unixattr */
+#define BRIX_META_ADVISORY_XATTR  "user.xrd.unixattr"
+#define BRIX_META_ADVISORY_S3META "xrd-unixattr"      /* → x-amz-meta-xrd-unixattr */
 
 typedef struct {
     mode_t   mode;
@@ -40,23 +40,23 @@ typedef struct {
     unsigned have_mode:1;
     unsigned have_owner:1;   /* uid AND gid present */
     unsigned have_mtime:1;
-} xrootd_meta_advisory_t;
+} brix_meta_advisory_t;
 
 /* Encode the present fields of *m into out[cap] (NUL-terminated). Returns the
  * string length (excl. NUL), or -1 on bad args / truncation. */
-int xrootd_meta_advisory_encode(const xrootd_meta_advisory_t *m,
+int brix_meta_advisory_encode(const brix_meta_advisory_t *m,
                                 char *out, size_t cap);
 
 /* Decode `blob` (len bytes, need NOT be NUL-terminated) into *m (zeroed first).
  * Tolerates an empty blob, missing fields, an unknown version, and unknown
  * tokens (forward-compat). Returns 0, or -1 only on a NULL *m. */
-int xrootd_meta_advisory_decode(const char *blob, size_t len,
-                                xrootd_meta_advisory_t *m);
+int brix_meta_advisory_decode(const char *blob, size_t len,
+                                brix_meta_advisory_t *m);
 
 /* Read-modify-write: decode the current NUL-terminated `blob` (may be empty),
  * overlay the present fields of *delta, and re-encode into blob[cap]. For a
  * setattr that touches only some fields. Returns the new length, or -1. */
-int xrootd_meta_advisory_patch(char *blob, size_t cap,
-                               const xrootd_meta_advisory_t *delta);
+int brix_meta_advisory_patch(char *blob, size_t cap,
+                               const brix_meta_advisory_t *delta);
 
-#endif /* XROOTD_META_ADVISORY_H */
+#endif /* BRIX_META_ADVISORY_H */

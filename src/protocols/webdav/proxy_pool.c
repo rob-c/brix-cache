@@ -7,37 +7,37 @@
  * I/O inside the critical section; the per-entry in_flight counter is updated
  * atomically without the lock.
  */
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 #include "proxy_pool.h"
-#include "core/compat/host_format.h"  /* xrootd_format_host[_port] — IPv6 bracketing */
+#include "core/compat/host_format.h"  /* brix_format_host[_port] — IPv6 bracketing */
 #include "core/compat/shm_slots.h"    /* slab-safe SHM table alloc (preserves slab header) */
 
-static ngx_shm_zone_t *xrootd_proxy_pool_zone;
-static ngx_shmtx_t     xrootd_proxy_pool_mutex;
+static ngx_shm_zone_t *brix_proxy_pool_zone;
+static ngx_shmtx_t     brix_proxy_pool_mutex;
 
-extern ngx_module_t ngx_http_xrootd_webdav_module;
+extern ngx_module_t ngx_http_brix_webdav_module;
 
 /*
  * Return the live backend table, or NULL if the SHM zone is not ready.
- * (void *) 1 is the pre-init placeholder that xrootd_proxy_pool_configure stores
+ * (void *) 1 is the pre-init placeholder that brix_proxy_pool_configure stores
  * in ->data before the zone's init callback runs; treat it (and NULL) as "not
  * ready" so callers degrade gracefully instead of dereferencing it.
  */
-static xrootd_proxy_be_table_t *
+static brix_proxy_be_table_t *
 pool_table(void)
 {
-    if (xrootd_proxy_pool_zone == NULL
-        || xrootd_proxy_pool_zone->data == NULL
-        || xrootd_proxy_pool_zone->data == (void *) 1)
+    if (brix_proxy_pool_zone == NULL
+        || brix_proxy_pool_zone->data == NULL
+        || brix_proxy_pool_zone->data == (void *) 1)
     {
         return NULL;
     }
-    return (xrootd_proxy_be_table_t *) xrootd_proxy_pool_zone->data;
+    return (brix_proxy_be_table_t *) brix_proxy_pool_zone->data;
 }
 
 /*
  * SHM zone init callback (run by nginx on startup and reload).
- * The table is allocated FROM the slab pool (via xrootd_shm_table_alloc) so the
+ * The table is allocated FROM the slab pool (via brix_shm_table_alloc) so the
  * ngx_slab_pool_t header at shm.addr survives — nginx's ngx_unlock_mutexes()
  * force-unlocks that header's mutex on every child death, so a zone that laid its
  * own struct over shm.addr would crash the master.  On reload/re-attach the helper
@@ -46,21 +46,21 @@ pool_table(void)
  * a brand-new allocation (*fresh) gets its capacity/next_id initialised.
  */
 static ngx_int_t
-xrootd_proxy_pool_init_zone(ngx_shm_zone_t *shm_zone, void *data)
+brix_proxy_pool_init_zone(ngx_shm_zone_t *shm_zone, void *data)
 {
     ngx_flag_t               fresh;
-    xrootd_proxy_be_table_t *tbl;
+    brix_proxy_be_table_t *tbl;
 
-    tbl = xrootd_shm_table_alloc(shm_zone, data,
-              sizeof(xrootd_proxy_be_table_t)
-              + (size_t) XROOTD_PROXY_POOL_SLOTS
-                * sizeof(xrootd_proxy_be_entry_t),
-              &xrootd_proxy_pool_mutex, &fresh);
+    tbl = brix_shm_table_alloc(shm_zone, data,
+              sizeof(brix_proxy_be_table_t)
+              + (size_t) BRIX_PROXY_POOL_SLOTS
+                * sizeof(brix_proxy_be_entry_t),
+              &brix_proxy_pool_mutex, &fresh);
     if (tbl == NULL) {
         return NGX_ERROR;
     }
     if (fresh) {
-        tbl->capacity = XROOTD_PROXY_POOL_SLOTS;
+        tbl->capacity = BRIX_PROXY_POOL_SLOTS;
         tbl->next_id  = 1;
     }
     return NGX_OK;
@@ -70,33 +70,33 @@ xrootd_proxy_pool_init_zone(ngx_shm_zone_t *shm_zone, void *data)
  * Declare the shared-memory zone at config time (called once from postconfig per
  * worker tree).  Idempotent: the single zone is shared by every location that
  * enables the dynamic pool.  Size = the table bytes (header + fixed slot array)
- * grown by xrootd_shm_zone_size() to cover the slab allocator's own bookkeeping,
+ * grown by brix_shm_zone_size() to cover the slab allocator's own bookkeeping,
  * since the table is slab-allocated rather than overlaid on shm.addr.  The
  * (void *) 1 sentinel marks the zone as "declared but not yet initialised" until
  * init_zone runs.
  */
 ngx_int_t
-xrootd_proxy_pool_configure(ngx_conf_t *cf)
+brix_proxy_pool_configure(ngx_conf_t *cf)
 {
-    ngx_str_t  name = ngx_string("xrootd_proxy_pool");
+    ngx_str_t  name = ngx_string("brix_proxy_pool");
     size_t     size;
 
-    if (xrootd_proxy_pool_zone != NULL) {
+    if (brix_proxy_pool_zone != NULL) {
         return NGX_OK;                   /* idempotent: shared across locations */
     }
 
-    size = xrootd_shm_zone_size(
-               sizeof(xrootd_proxy_be_table_t)
-               + (size_t) XROOTD_PROXY_POOL_SLOTS
-                 * sizeof(xrootd_proxy_be_entry_t));
+    size = brix_shm_zone_size(
+               sizeof(brix_proxy_be_table_t)
+               + (size_t) BRIX_PROXY_POOL_SLOTS
+                 * sizeof(brix_proxy_be_entry_t));
 
-    xrootd_proxy_pool_zone = ngx_shared_memory_add(cf, &name, size,
-                                                   &ngx_http_xrootd_webdav_module);
-    if (xrootd_proxy_pool_zone == NULL) {
+    brix_proxy_pool_zone = ngx_shared_memory_add(cf, &name, size,
+                                                   &ngx_http_brix_webdav_module);
+    if (brix_proxy_pool_zone == NULL) {
         return NGX_ERROR;
     }
-    xrootd_proxy_pool_zone->init = xrootd_proxy_pool_init_zone;
-    xrootd_proxy_pool_zone->data = (void *) 1;
+    brix_proxy_pool_zone->init = brix_proxy_pool_init_zone;
+    brix_proxy_pool_zone->data = (void *) 1;
     return NGX_OK;
 }
 
@@ -111,7 +111,7 @@ xrootd_proxy_pool_configure(ngx_conf_t *cf)
  */
 static ngx_int_t
 proxy_pool_resolve(const char *url, ngx_pool_t *pool, ngx_log_t *log,
-    xrootd_proxy_be_entry_t *out)
+    brix_proxy_be_entry_t *out)
 {
     ngx_url_t   u;
     ngx_str_t   us;
@@ -140,7 +140,7 @@ proxy_pool_resolve(const char *url, ngx_pool_t *pool, ngx_log_t *log,
     if (ngx_parse_url(pool, &u) != NGX_OK || u.naddrs == 0) {
         if (u.err) {
             ngx_log_error(NGX_LOG_WARN, log, 0,
-                          "xrootd_proxy_pool: \"%s\" in url \"%s\"", u.err, url);
+                          "brix_proxy_pool: \"%s\" in url \"%s\"", u.err, url);
         }
         return NGX_ERROR;
     }
@@ -164,9 +164,9 @@ proxy_pool_resolve(const char *url, ngx_pool_t *pool, ngx_log_t *log,
         ngx_memcpy(hostz, u.host.data, n);
         hostz[n] = '\0';
         if (u.port == default_port) {
-            xrootd_format_host(hostz, out->host, sizeof(out->host));
+            brix_format_host(hostz, out->host, sizeof(out->host));
         } else {
-            xrootd_format_host_port(hostz, (uint16_t) u.port,
+            brix_format_host_port(hostz, (uint16_t) u.port,
                                     out->host, sizeof(out->host));
         }
     }
@@ -184,12 +184,12 @@ proxy_pool_resolve(const char *url, ngx_pool_t *pool, ngx_log_t *log,
  * critical section; the locked region is a pure O(n) free-slot scan + slot fill.
  */
 ngx_int_t
-xrootd_proxy_pool_add(const char *url, ngx_uint_t weight, ngx_pool_t *pool,
+brix_proxy_pool_add(const char *url, ngx_uint_t weight, ngx_pool_t *pool,
     ngx_log_t *log, uint32_t *id_out)
 {
-    xrootd_proxy_be_table_t *tbl;
-    xrootd_proxy_be_entry_t  resolved;
-    xrootd_proxy_be_entry_t *e;
+    brix_proxy_be_table_t *tbl;
+    brix_proxy_be_entry_t  resolved;
+    brix_proxy_be_entry_t *e;
     ngx_uint_t               i, free_slot;
     ngx_int_t                rc = NGX_ERROR;
 
@@ -205,7 +205,7 @@ xrootd_proxy_pool_add(const char *url, ngx_uint_t weight, ngx_pool_t *pool,
         weight = 1;
     }
 
-    ngx_shmtx_lock(&xrootd_proxy_pool_mutex);
+    ngx_shmtx_lock(&brix_proxy_pool_mutex);
 
     /* Find the first unused slot (free_slot == capacity means the table is full). */
     free_slot = tbl->capacity;
@@ -223,7 +223,7 @@ xrootd_proxy_pool_add(const char *url, ngx_uint_t weight, ngx_pool_t *pool,
         ngx_memcpy(e->host, resolved.host, sizeof(e->host));
         ngx_memcpy(e->url_base, resolved.url_base, sizeof(e->url_base));
         e->weight    = weight;
-        e->state     = XROOTD_PROXY_BE_ACTIVE;
+        e->state     = BRIX_PROXY_BE_ACTIVE;
         e->added_at  = ngx_current_msec;
         e->drained_at = 0;
         e->in_flight = 0;
@@ -233,7 +233,7 @@ xrootd_proxy_pool_add(const char *url, ngx_uint_t weight, ngx_pool_t *pool,
         rc = NGX_OK;
     }
 
-    ngx_shmtx_unlock(&xrootd_proxy_pool_mutex);
+    ngx_shmtx_unlock(&brix_proxy_pool_mutex);
     return rc;
 }
 
@@ -244,9 +244,9 @@ xrootd_proxy_pool_add(const char *url, ngx_uint_t weight, ngx_pool_t *pool,
  * found, 0 otherwise.  Holds the lock for the whole O(n) scan.
  */
 static int
-proxy_pool_set_state(uint32_t id, int remove_it, xrootd_proxy_be_state_e state)
+proxy_pool_set_state(uint32_t id, int remove_it, brix_proxy_be_state_e state)
 {
-    xrootd_proxy_be_table_t *tbl;
+    brix_proxy_be_table_t *tbl;
     ngx_uint_t               i;
     int                      found = 0;
 
@@ -255,9 +255,9 @@ proxy_pool_set_state(uint32_t id, int remove_it, xrootd_proxy_be_state_e state)
         return 0;
     }
 
-    ngx_shmtx_lock(&xrootd_proxy_pool_mutex);
+    ngx_shmtx_lock(&brix_proxy_pool_mutex);
     for (i = 0; i < tbl->capacity; i++) {
-        xrootd_proxy_be_entry_t *e = &tbl->slots[i];
+        brix_proxy_be_entry_t *e = &tbl->slots[i];
         if (!e->in_use || e->id != id) {
             continue;
         }
@@ -265,44 +265,44 @@ proxy_pool_set_state(uint32_t id, int remove_it, xrootd_proxy_be_state_e state)
             ngx_memzero(e, sizeof(*e));
         } else {
             e->state = state;
-            e->drained_at = (state == XROOTD_PROXY_BE_DRAINING)
+            e->drained_at = (state == BRIX_PROXY_BE_DRAINING)
                             ? ngx_current_msec : 0;
         }
         found = 1;
         break;
     }
-    ngx_shmtx_unlock(&xrootd_proxy_pool_mutex);
+    ngx_shmtx_unlock(&brix_proxy_pool_mutex);
     return found;
 }
 
 /* Remove a backend entirely (frees its slot). Returns 1 if found. */
 int
-xrootd_proxy_pool_remove(uint32_t id)
+brix_proxy_pool_remove(uint32_t id)
 {
-    return proxy_pool_set_state(id, 1, XROOTD_PROXY_BE_ACTIVE);
+    return proxy_pool_set_state(id, 1, BRIX_PROXY_BE_ACTIVE);
 }
 
 /* Mark a backend draining: it stops receiving new picks (select skips non-ACTIVE)
  * but existing in-flight requests are allowed to finish. Returns 1 if found. */
 int
-xrootd_proxy_pool_drain(uint32_t id)
+brix_proxy_pool_drain(uint32_t id)
 {
-    return proxy_pool_set_state(id, 0, XROOTD_PROXY_BE_DRAINING);
+    return proxy_pool_set_state(id, 0, BRIX_PROXY_BE_DRAINING);
 }
 
 /* Return a drained backend to ACTIVE so it is eligible for selection again. */
 int
-xrootd_proxy_pool_undrain(uint32_t id)
+brix_proxy_pool_undrain(uint32_t id)
 {
-    return proxy_pool_set_state(id, 0, XROOTD_PROXY_BE_ACTIVE);
+    return proxy_pool_set_state(id, 0, BRIX_PROXY_BE_ACTIVE);
 }
 
 /* Current in-flight request count for a backend, or -1 if the id is unknown
  * (used by the admin API to confirm a draining backend has quiesced). */
 long
-xrootd_proxy_pool_in_flight(uint32_t id)
+brix_proxy_pool_in_flight(uint32_t id)
 {
-    xrootd_proxy_be_table_t *tbl;
+    brix_proxy_be_table_t *tbl;
     ngx_uint_t               i;
     long                     result = -1;
 
@@ -310,14 +310,14 @@ xrootd_proxy_pool_in_flight(uint32_t id)
     if (tbl == NULL) {
         return -1;
     }
-    ngx_shmtx_lock(&xrootd_proxy_pool_mutex);
+    ngx_shmtx_lock(&brix_proxy_pool_mutex);
     for (i = 0; i < tbl->capacity; i++) {
         if (tbl->slots[i].in_use && tbl->slots[i].id == id) {
             result = (long) tbl->slots[i].in_flight;
             break;
         }
     }
-    ngx_shmtx_unlock(&xrootd_proxy_pool_mutex);
+    ngx_shmtx_unlock(&brix_proxy_pool_mutex);
     return result;
 }
 
@@ -332,10 +332,10 @@ xrootd_proxy_pool_in_flight(uint32_t id)
  * Returns NGX_DECLINED when the pool is unavailable or no backend is ACTIVE.
  */
 ngx_int_t
-xrootd_proxy_pool_select(xrootd_proxy_be_pick_t *out)
+brix_proxy_pool_select(brix_proxy_be_pick_t *out)
 {
-    xrootd_proxy_be_table_t *tbl;
-    xrootd_proxy_be_entry_t *e, *chosen = NULL;
+    brix_proxy_be_table_t *tbl;
+    brix_proxy_be_entry_t *e, *chosen = NULL;
     ngx_uint_t               i, total = 0, pick;
 
     tbl = pool_table();
@@ -343,17 +343,17 @@ xrootd_proxy_pool_select(xrootd_proxy_be_pick_t *out)
         return NGX_DECLINED;
     }
 
-    ngx_shmtx_lock(&xrootd_proxy_pool_mutex);
+    ngx_shmtx_lock(&brix_proxy_pool_mutex);
 
     /* Pass 1: total weight of selectable (in_use + ACTIVE) backends. */
     for (i = 0; i < tbl->capacity; i++) {
         e = &tbl->slots[i];
-        if (e->in_use && e->state == XROOTD_PROXY_BE_ACTIVE) {
+        if (e->in_use && e->state == BRIX_PROXY_BE_ACTIVE) {
             total += (e->weight ? e->weight : 1);
         }
     }
     if (total == 0) {
-        ngx_shmtx_unlock(&xrootd_proxy_pool_mutex);
+        ngx_shmtx_unlock(&brix_proxy_pool_mutex);
         return NGX_DECLINED;   /* no active backend */
     }
 
@@ -362,7 +362,7 @@ xrootd_proxy_pool_select(xrootd_proxy_be_pick_t *out)
     /* Pass 2: walk weight bands until `pick` falls within one. */
     for (i = 0; i < tbl->capacity; i++) {
         e = &tbl->slots[i];
-        if (!e->in_use || e->state != XROOTD_PROXY_BE_ACTIVE) {
+        if (!e->in_use || e->state != BRIX_PROXY_BE_ACTIVE) {
             continue;
         }
         {
@@ -372,7 +372,7 @@ xrootd_proxy_pool_select(xrootd_proxy_be_pick_t *out)
         }
     }
     if (chosen == NULL) {
-        ngx_shmtx_unlock(&xrootd_proxy_pool_mutex);
+        ngx_shmtx_unlock(&brix_proxy_pool_mutex);
         return NGX_DECLINED;
     }
 
@@ -387,28 +387,28 @@ xrootd_proxy_pool_select(xrootd_proxy_be_pick_t *out)
      * dec_in_flight when the proxied request completes). */
     (void) ngx_atomic_fetch_add(&chosen->in_flight, 1);
 
-    ngx_shmtx_unlock(&xrootd_proxy_pool_mutex);
+    ngx_shmtx_unlock(&brix_proxy_pool_mutex);
     return NGX_OK;
 }
 
 /*
- * Release one in-flight reference taken by xrootd_proxy_pool_select, identified
+ * Release one in-flight reference taken by brix_proxy_pool_select, identified
  * by backend id.  Guards against underflow (count already 0) and silently does
  * nothing if the backend was removed meanwhile.
  */
 void
-xrootd_proxy_pool_dec_in_flight(uint32_t id)
+brix_proxy_pool_dec_in_flight(uint32_t id)
 {
-    xrootd_proxy_be_table_t *tbl;
+    brix_proxy_be_table_t *tbl;
     ngx_uint_t               i;
 
     tbl = pool_table();
     if (tbl == NULL) {
         return;
     }
-    ngx_shmtx_lock(&xrootd_proxy_pool_mutex);
+    ngx_shmtx_lock(&brix_proxy_pool_mutex);
     for (i = 0; i < tbl->capacity; i++) {
-        xrootd_proxy_be_entry_t *e = &tbl->slots[i];
+        brix_proxy_be_entry_t *e = &tbl->slots[i];
         if (e->in_use && e->id == id) {
             if (e->in_flight > 0) {
                 (void) ngx_atomic_fetch_add(&e->in_flight, -1);
@@ -416,7 +416,7 @@ xrootd_proxy_pool_dec_in_flight(uint32_t id)
             break;
         }
     }
-    ngx_shmtx_unlock(&xrootd_proxy_pool_mutex);
+    ngx_shmtx_unlock(&brix_proxy_pool_mutex);
 }
 
 /*
@@ -426,18 +426,18 @@ xrootd_proxy_pool_dec_in_flight(uint32_t id)
  * by value so the caller can release/format without holding the lock.
  */
 ngx_uint_t
-xrootd_proxy_pool_snapshot(xrootd_proxy_be_snapshot_t *out, ngx_uint_t max)
+brix_proxy_pool_snapshot(brix_proxy_be_snapshot_t *out, ngx_uint_t max)
 {
-    xrootd_proxy_be_table_t *tbl;
+    brix_proxy_be_table_t *tbl;
     ngx_uint_t               i, n = 0;
 
     tbl = pool_table();
     if (tbl == NULL) {
         return 0;
     }
-    ngx_shmtx_lock(&xrootd_proxy_pool_mutex);
+    ngx_shmtx_lock(&brix_proxy_pool_mutex);
     for (i = 0; i < tbl->capacity && n < max; i++) {
-        xrootd_proxy_be_entry_t *e = &tbl->slots[i];
+        brix_proxy_be_entry_t *e = &tbl->slots[i];
         if (!e->in_use) {
             continue;
         }
@@ -451,6 +451,6 @@ xrootd_proxy_pool_snapshot(xrootd_proxy_be_snapshot_t *out, ngx_uint_t max)
         out[n].in_flight = (uint32_t) e->in_flight;
         n++;
     }
-    ngx_shmtx_unlock(&xrootd_proxy_pool_mutex);
+    ngx_shmtx_unlock(&brix_proxy_pool_mutex);
     return n;
 }

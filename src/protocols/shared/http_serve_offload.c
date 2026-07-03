@@ -3,8 +3,8 @@
  * See http_serve_offload.h for the WHAT/WHY/HOW.
  */
 #include "http_serve_offload.h"
-#include "core/aio/aio.h"                          /* xrootd_task_bind */
-#include "fs/vfs/vfs.h"                           /* xrootd_vfs_adopt_fd / _ctx_t */
+#include "core/aio/aio.h"                          /* brix_task_bind */
+#include "fs/vfs/vfs.h"                           /* brix_vfs_adopt_fd / _ctx_t */
 #include "fs/core/vfs_core.h"                 /* xvfs_drain (shared copy verb) */
 #include "fs/backend/cache/sd_cache.h"        /* cache store accessor */
 #include "fs/backend/stage/sd_stage.h"        /* stage source accessor */
@@ -18,13 +18,13 @@
 #if (NGX_THREADS)
 
 /* The chunk size for the materialise copy (driver pread -> temp pwrite). */
-#define XROOTD_SERVE_OFFLOAD_CHUNK  (1024 * 1024)
+#define BRIX_SERVE_OFFLOAD_CHUNK  (1024 * 1024)
 
 /* Per-serve task context (lives on r->pool inside the ngx_thread_task_t). */
 typedef struct {
     ngx_http_request_t           *r;
-    xrootd_sd_instance_t         *inst;          /* composed instance to open       */
-    xrootd_http_serve_metrics_pt  metrics_cb;
+    brix_sd_instance_t         *inst;          /* composed instance to open       */
+    brix_http_serve_metrics_pt  metrics_cb;
     ngx_log_t                    *log;
     off_t                         size;          /* materialised size               */
     time_t                        mtime;         /* captured object mtime           */
@@ -46,16 +46,16 @@ typedef struct {
  * only such driver is "xroot"; in-process (rados) and curl (s3/http) block-but-
  * complete on-loop and are served inline. */
 static int
-serve_is_remote_socket(const xrootd_sd_instance_t *inst)
+serve_is_remote_socket(const brix_sd_instance_t *inst)
 {
     if (inst == NULL) {
         return 0;
     }
-    if (xrootd_sd_cache_instance_is(inst)) {
-        return serve_is_remote_socket(xrootd_sd_cache_store_instance(inst));
+    if (brix_sd_cache_instance_is(inst)) {
+        return serve_is_remote_socket(brix_sd_cache_store_instance(inst));
     }
-    if (xrootd_sd_stage_instance_is(inst)) {
-        return serve_is_remote_socket(xrootd_sd_stage_source_instance(inst));
+    if (brix_sd_stage_instance_is(inst)) {
+        return serve_is_remote_socket(brix_sd_stage_source_instance(inst));
     }
     return (inst->driver != NULL && inst->driver->name != NULL
             && ngx_strcmp(inst->driver->name, "xroot") == 0) ? 1 : 0;
@@ -101,9 +101,9 @@ static void
 serve_offload_thread(void *data, ngx_log_t *log)
 {
     serve_offload_ctx *t = data;
-    xrootd_sd_obj_t   *obj;
-    xrootd_sd_obj_t    dst;            /* worker-owned scratch, driver-routed */
-    xrootd_sd_stat_t   snap;
+    brix_sd_obj_t   *obj;
+    brix_sd_obj_t    dst;            /* worker-owned scratch, driver-routed */
+    brix_sd_stat_t   snap;
     u_char            *buf;
     off_t              off = 0;
     int                err = 0;
@@ -113,7 +113,7 @@ serve_offload_thread(void *data, ngx_log_t *log)
         t->mret = ENOSYS;
         return;
     }
-    obj = t->inst->driver->open(t->inst, t->key, XROOTD_SD_O_READ, 0, &err);
+    obj = t->inst->driver->open(t->inst, t->key, BRIX_SD_O_READ, 0, &err);
     if (obj == NULL) {
         t->mret = err ? err : EIO;
         return;
@@ -125,7 +125,7 @@ serve_offload_thread(void *data, ngx_log_t *log)
     }
     t->mtime = snap.mtime;
 
-    buf = malloc(XROOTD_SERVE_OFFLOAD_CHUNK);
+    buf = malloc(BRIX_SERVE_OFFLOAD_CHUNK);
     if (buf == NULL) {
         obj->driver->close(obj);
         if (obj->heap_shell) { free(obj); }
@@ -135,8 +135,8 @@ serve_offload_thread(void *data, ngx_log_t *log)
     /* Materialise the whole object into the scratch fd through the driver seam:
      * read from the (possibly remote/object) source obj, write to the POSIX-
      * wrapped temp. xvfs_drain owns the chunked pread->pwrite + EINTR loop. */
-    xrootd_sd_posix_wrap(&dst, t->tmp_fd);
-    t->mret = (xvfs_drain(obj, &dst, buf, XROOTD_SERVE_OFFLOAD_CHUNK, &off) == 0)
+    brix_sd_posix_wrap(&dst, t->tmp_fd);
+    t->mret = (xvfs_drain(obj, &dst, buf, BRIX_SERVE_OFFLOAD_CHUNK, &off) == 0)
               ? 0 : (errno ? errno : EIO);
     free(buf);
     obj->driver->close(obj);
@@ -156,11 +156,11 @@ serve_offload_done(ngx_event_t *ev)
     serve_offload_ctx          *t = task->ctx;
     ngx_http_request_t         *r = t->r;
     ngx_connection_t           *c = r->connection;
-    xrootd_vfs_ctx_t            tvctx;
-    xrootd_vfs_file_t          *tfh = NULL;
-    xrootd_vfs_stat_t           vst;
-    xrootd_http_serve_opts_t    opts;
-    xrootd_http_serve_result_t  result;
+    brix_vfs_ctx_t            tvctx;
+    brix_vfs_file_t          *tfh = NULL;
+    brix_vfs_stat_t           vst;
+    brix_http_serve_opts_t    opts;
+    brix_http_serve_result_t  result;
     ngx_int_t                   rc;
 
     if (t->mret != 0) {
@@ -183,7 +183,7 @@ serve_offload_done(ngx_event_t *ev)
     tvctx.log    = t->log;
     tvctx.sd     = NULL;
     tvctx.is_tls = t->is_tls;
-    if (xrootd_vfs_adopt_fd(&tvctx, t->fs_path, t->tmp_fd, 0, 0, &tfh) != NGX_OK) {
+    if (brix_vfs_adopt_fd(&tvctx, t->fs_path, t->tmp_fd, 0, 0, &tfh) != NGX_OK) {
         (void) close(t->tmp_fd);
         ngx_log_error(NGX_LOG_ERR, c->log, ngx_errno,
             "serve offload: temp adopt failed for \"%s\"", t->fs_path);
@@ -208,7 +208,7 @@ serve_offload_done(ngx_event_t *ev)
      * survive the offload, so it is not run: a materialised serve omits the
      * checksum / xrdhttp / response-override headers (the bytes/range are exact). */
 
-    rc = xrootd_http_serve_file_ranged(r, tfh, &vst, t->fs_path, &opts, &result);
+    rc = brix_http_serve_file_ranged(r, tfh, &vst, t->fs_path, &opts, &result);
     if (t->metrics_cb != NULL) {
         t->metrics_cb(r, &result);
     }
@@ -218,7 +218,7 @@ serve_offload_done(ngx_event_t *ev)
 
 /* Lazily resolve the export's async thread pool (the webdav/copy.c idiom). */
 static ngx_thread_pool_t *
-serve_offload_pool(ngx_http_xrootd_shared_conf_t *common)
+serve_offload_pool(ngx_http_brix_shared_conf_t *common)
 {
     ngx_thread_pool_t *pool = common->thread_pool;
 
@@ -236,11 +236,11 @@ serve_offload_pool(ngx_http_xrootd_shared_conf_t *common)
 }
 
 ngx_int_t
-xrootd_http_serve_offload_remote(ngx_http_request_t *r,
-    xrootd_sd_instance_t *inst, const char *key, const char *fs_path,
-    const xrootd_http_serve_opts_t *opts,
-    ngx_http_xrootd_shared_conf_t *common,
-    xrootd_http_serve_metrics_pt metrics_cb)
+brix_http_serve_offload_remote(ngx_http_request_t *r,
+    brix_sd_instance_t *inst, const char *key, const char *fs_path,
+    const brix_http_serve_opts_t *opts,
+    ngx_http_brix_shared_conf_t *common,
+    brix_http_serve_metrics_pt metrics_cb)
 {
     ngx_thread_task_t *task;
     serve_offload_ctx *t;
@@ -295,7 +295,7 @@ xrootd_http_serve_offload_remote(ngx_http_request_t *r,
                 (u_char *) (opts->identity ? opts->identity : ""),
                 sizeof(t->identity));
 
-    xrootd_task_bind(task, serve_offload_thread, serve_offload_done);
+    brix_task_bind(task, serve_offload_thread, serve_offload_done);
     task->event.log = r->connection->log;
 
     if (ngx_thread_task_post(pool, task) != NGX_OK) {
@@ -312,11 +312,11 @@ xrootd_http_serve_offload_remote(ngx_http_request_t *r,
 #else  /* !NGX_THREADS */
 
 ngx_int_t
-xrootd_http_serve_offload_remote(ngx_http_request_t *r,
-    xrootd_sd_instance_t *inst, const char *key, const char *fs_path,
-    const xrootd_http_serve_opts_t *opts,
-    ngx_http_xrootd_shared_conf_t *common,
-    xrootd_http_serve_metrics_pt metrics_cb)
+brix_http_serve_offload_remote(ngx_http_request_t *r,
+    brix_sd_instance_t *inst, const char *key, const char *fs_path,
+    const brix_http_serve_opts_t *opts,
+    ngx_http_brix_shared_conf_t *common,
+    brix_http_serve_metrics_pt metrics_cb)
 {
     (void) r; (void) inst; (void) key; (void) fs_path;
     (void) opts; (void) common; (void) metrics_cb;

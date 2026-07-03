@@ -4,7 +4,7 @@
 /*
  * dashboard/noop.c — stub implementation of the entire dashboard public API.
  *
- * WHAT: Defines the three SHM zone pointers (ngx_xrootd_dashboard_shm_zone,
+ * WHAT: Defines the three SHM zone pointers (ngx_brix_dashboard_shm_zone,
  *       _events_shm_zone, _history_shm_zone) and a do-nothing version of every
  *       symbol that transfer_table.c, events.c, history.c and http_tracking.c
  *       normally provide — the slot ops, event log, history sampler and HTTP
@@ -23,19 +23,19 @@
  *       with dashboard_tracking.h and dashboard.h whenever the API changes.
  */
 
-ngx_shm_zone_t *ngx_xrootd_dashboard_shm_zone;
-ngx_shm_zone_t *ngx_xrootd_dashboard_events_shm_zone;
-ngx_shm_zone_t *ngx_xrootd_dashboard_history_shm_zone;
+ngx_shm_zone_t *ngx_brix_dashboard_shm_zone;
+ngx_shm_zone_t *ngx_brix_dashboard_events_shm_zone;
+ngx_shm_zone_t *ngx_brix_dashboard_history_shm_zone;
 
 ngx_int_t
-xrootd_configure_dashboard(ngx_conf_t *cf)
+brix_configure_dashboard(ngx_conf_t *cf)
 {
     (void) cf;
     return NGX_OK;
 }
 
 ngx_int_t
-ngx_xrootd_dashboard_shm_init(ngx_shm_zone_t *shm_zone, void *data)
+ngx_brix_dashboard_shm_init(ngx_shm_zone_t *shm_zone, void *data)
 {
     (void) shm_zone;
     (void) data;
@@ -43,7 +43,7 @@ ngx_xrootd_dashboard_shm_init(ngx_shm_zone_t *shm_zone, void *data)
 }
 
 ngx_int_t
-ngx_xrootd_dashboard_events_shm_init(ngx_shm_zone_t *shm_zone, void *data)
+ngx_brix_dashboard_events_shm_init(ngx_shm_zone_t *shm_zone, void *data)
 {
     (void) shm_zone;
     (void) data;
@@ -51,7 +51,7 @@ ngx_xrootd_dashboard_events_shm_init(ngx_shm_zone_t *shm_zone, void *data)
 }
 
 ngx_int_t
-ngx_xrootd_dashboard_history_shm_init(ngx_shm_zone_t *shm_zone, void *data)
+ngx_brix_dashboard_history_shm_init(ngx_shm_zone_t *shm_zone, void *data)
 {
     (void) shm_zone;
     (void) data;
@@ -59,7 +59,7 @@ ngx_xrootd_dashboard_history_shm_init(ngx_shm_zone_t *shm_zone, void *data)
 }
 
 int
-xrootd_transfer_slot_alloc(xrootd_transfer_table_t *t,
+brix_transfer_slot_alloc(brix_transfer_table_t *t,
     const u_char sessid[16], const char *client_ip, const char *identity,
     const char *path, uint8_t direction, uint8_t proto, int64_t now_ms)
 {
@@ -76,7 +76,7 @@ xrootd_transfer_slot_alloc(xrootd_transfer_table_t *t,
 }
 
 int
-xrootd_transfer_slot_alloc_ex(xrootd_transfer_table_t *t,
+brix_transfer_slot_alloc_ex(brix_transfer_table_t *t,
     const u_char sessid[16], const char *client_ip, const char *identity,
     const char *vo, const char *path, const char *op, uint8_t direction,
     uint8_t proto, int64_t expected_bytes, int64_t now_ms)
@@ -97,7 +97,7 @@ xrootd_transfer_slot_alloc_ex(xrootd_transfer_table_t *t,
 }
 
 void
-xrootd_transfer_slot_update(xrootd_transfer_table_t *t, int slot_idx,
+brix_transfer_slot_update(brix_transfer_table_t *t, int slot_idx,
     ngx_atomic_int_t nbytes, int64_t now_ms)
 {
     (void) t;
@@ -107,7 +107,7 @@ xrootd_transfer_slot_update(xrootd_transfer_table_t *t, int slot_idx,
 }
 
 void
-xrootd_transfer_slot_update_bytes(xrootd_transfer_table_t *t, int slot_idx,
+brix_transfer_slot_update_bytes(brix_transfer_table_t *t, int slot_idx,
     ngx_atomic_int_t nbytes, int64_t now_ms)
 {
     (void) t;
@@ -117,7 +117,7 @@ xrootd_transfer_slot_update_bytes(xrootd_transfer_table_t *t, int slot_idx,
 }
 
 void
-xrootd_transfer_slot_set_state(xrootd_transfer_table_t *t, int slot_idx,
+brix_transfer_slot_set_state(brix_transfer_table_t *t, int slot_idx,
     uint8_t state, int64_t now_ms)
 {
     (void) t;
@@ -127,7 +127,7 @@ xrootd_transfer_slot_set_state(xrootd_transfer_table_t *t, int slot_idx,
 }
 
 void
-xrootd_transfer_slot_set_error(xrootd_transfer_table_t *t, int slot_idx,
+brix_transfer_slot_set_error(brix_transfer_table_t *t, int slot_idx,
     const char *reason, int64_t now_ms)
 {
     (void) t;
@@ -137,7 +137,7 @@ xrootd_transfer_slot_set_error(xrootd_transfer_table_t *t, int slot_idx,
 }
 
 void
-xrootd_transfer_slot_set_tpc_remote(xrootd_transfer_table_t *t, int slot_idx,
+brix_transfer_slot_set_tpc_remote(brix_transfer_table_t *t, int slot_idx,
     const char *remote_host, const char *path_hint, int remote_status,
     int curl_exit)
 {
@@ -150,7 +150,7 @@ xrootd_transfer_slot_set_tpc_remote(xrootd_transfer_table_t *t, int slot_idx,
 }
 
 void
-xrootd_transfer_slot_count_op(xrootd_transfer_table_t *t, int slot_idx,
+brix_transfer_slot_count_op(brix_transfer_table_t *t, int slot_idx,
     const char *op)
 {
     (void) t;
@@ -159,14 +159,14 @@ xrootd_transfer_slot_count_op(xrootd_transfer_table_t *t, int slot_idx,
 }
 
 void
-xrootd_transfer_slot_free(xrootd_transfer_table_t *t, int slot_idx)
+brix_transfer_slot_free(brix_transfer_table_t *t, int slot_idx)
 {
     (void) t;
     (void) slot_idx;
 }
 
 void
-xrootd_transfer_slot_free_all_for_session(xrootd_transfer_table_t *t,
+brix_transfer_slot_free_all_for_session(brix_transfer_table_t *t,
     const u_char sessid[16])
 {
     (void) t;
@@ -174,7 +174,7 @@ xrootd_transfer_slot_free_all_for_session(xrootd_transfer_table_t *t,
 }
 
 void
-xrootd_dashboard_event_add(uint8_t class_id, uint8_t proto, uint16_t status,
+brix_dashboard_event_add(uint8_t class_id, uint8_t proto, uint16_t status,
     const char *message, const char *path_hint)
 {
     (void) class_id;
@@ -185,7 +185,7 @@ xrootd_dashboard_event_add(uint8_t class_id, uint8_t proto, uint16_t status,
 }
 
 ngx_uint_t
-xrootd_dashboard_events_snapshot(xrootd_dashboard_event_t *out,
+brix_dashboard_events_snapshot(brix_dashboard_event_t *out,
     ngx_uint_t max_events)
 {
     (void) out;
@@ -194,13 +194,13 @@ xrootd_dashboard_events_snapshot(xrootd_dashboard_event_t *out,
 }
 
 void
-xrootd_dashboard_history_sample(int64_t now_ms)
+brix_dashboard_history_sample(int64_t now_ms)
 {
     (void) now_ms;
 }
 
 ngx_uint_t
-xrootd_dashboard_history_snapshot(xrootd_dashboard_history_bucket_t *out,
+brix_dashboard_history_snapshot(brix_dashboard_history_bucket_t *out,
     ngx_uint_t max_buckets)
 {
     (void) out;
@@ -209,7 +209,7 @@ xrootd_dashboard_history_snapshot(xrootd_dashboard_history_bucket_t *out,
 }
 
 int
-xrootd_dashboard_http_start(ngx_http_request_t *r, const char *path,
+brix_dashboard_http_start(ngx_http_request_t *r, const char *path,
     uint8_t proto, uint8_t direction, const char *op, int64_t expected_bytes)
 {
     (void) r;
@@ -222,7 +222,7 @@ xrootd_dashboard_http_start(ngx_http_request_t *r, const char *path,
 }
 
 int
-xrootd_dashboard_http_start_identity(ngx_http_request_t *r,
+brix_dashboard_http_start_identity(ngx_http_request_t *r,
     const char *path, const char *identity, const char *vo, uint8_t proto,
     uint8_t direction, const char *op, int64_t expected_bytes)
 {
@@ -238,28 +238,28 @@ xrootd_dashboard_http_start_identity(ngx_http_request_t *r,
 }
 
 void
-xrootd_dashboard_http_add(ngx_http_request_t *r, ngx_atomic_int_t bytes)
+brix_dashboard_http_add(ngx_http_request_t *r, ngx_atomic_int_t bytes)
 {
     (void) r;
     (void) bytes;
 }
 
 void
-xrootd_dashboard_http_state(ngx_http_request_t *r, uint8_t state)
+brix_dashboard_http_state(ngx_http_request_t *r, uint8_t state)
 {
     (void) r;
     (void) state;
 }
 
 void
-xrootd_dashboard_http_error(ngx_http_request_t *r, const char *reason)
+brix_dashboard_http_error(ngx_http_request_t *r, const char *reason)
 {
     (void) r;
     (void) reason;
 }
 
 void
-xrootd_dashboard_http_tpc_remote(ngx_http_request_t *r,
+brix_dashboard_http_tpc_remote(ngx_http_request_t *r,
     const char *remote_url, int remote_status, int curl_exit)
 {
     (void) r;
@@ -269,7 +269,7 @@ xrootd_dashboard_http_tpc_remote(ngx_http_request_t *r,
 }
 
 void
-xrootd_dashboard_http_finish(ngx_http_request_t *r)
+brix_dashboard_http_finish(ngx_http_request_t *r)
 {
     (void) r;
 }

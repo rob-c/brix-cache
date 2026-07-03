@@ -16,7 +16,7 @@
 #include "core/compat/alloc_guard.h"
 
 /*
- * xrootd_http_chain_append_file_range - append one file-backed ngx_buf_t to a chain.
+ * brix_http_chain_append_file_range - append one file-backed ngx_buf_t to a chain.
  *
  * Allocates ngx_buf_t + ngx_file_t from r->pool, sets in_file / file_pos / file_last
  * for [start, end] (inclusive), links it onto the chain tail, and registers a pool
@@ -24,7 +24,7 @@
  */
 
 ngx_int_t
-xrootd_http_chain_append_file_range(ngx_http_request_t *r,
+brix_http_chain_append_file_range(ngx_http_request_t *r,
     ngx_chain_t **tail, ngx_fd_t fd, const char *path,
     off_t start, off_t end, ngx_flag_t close_fd)
 {
@@ -34,7 +34,7 @@ xrootd_http_chain_append_file_range(ngx_http_request_t *r,
     ngx_pool_cleanup_file_t *clnf;
     size_t                   path_len;
 
-    XROOTD_PCALLOC_OR_RETURN(b, r->pool, sizeof(ngx_buf_t), NGX_ERROR);
+    BRIX_PCALLOC_OR_RETURN(b, r->pool, sizeof(ngx_buf_t), NGX_ERROR);
     b->file = ngx_pcalloc(r->pool, sizeof(ngx_file_t));
     if (b->file == NULL) {
         return NGX_ERROR;
@@ -82,9 +82,9 @@ xrootd_http_chain_append_file_range(ngx_http_request_t *r,
 }
 
 /*
- * xrootd_http_add_etag_header - generate ETag from mtime/size and set as response header.
+ * brix_http_add_etag_header - generate ETag from mtime/size and set as response header.
  *
- * WHAT: Calls xrootd_http_etag_str() to format ETag string, then xrootd_http_set_header()
+ * WHAT: Calls brix_http_etag_str() to format ETag string, then brix_http_set_header()
  *       to insert "ETag" into r->headers_out. Optionally registers h as
  *       r->headers_out.etag for later conditional-request comparison (If-None-Match).
  *
@@ -97,16 +97,16 @@ xrootd_http_chain_append_file_range(ngx_http_request_t *r,
  */
 
 ngx_int_t
-xrootd_http_add_etag_header(ngx_http_request_t *r, time_t mtime, off_t size,
+brix_http_add_etag_header(ngx_http_request_t *r, time_t mtime, off_t size,
     unsigned etag_flags, ngx_flag_t register_not_modified)
 {
     char             etag_buf[64];
     ngx_table_elt_t *h;
     ngx_int_t        rc;
 
-    xrootd_http_etag_str(etag_buf, sizeof(etag_buf), mtime, size, etag_flags);
+    brix_http_etag_str(etag_buf, sizeof(etag_buf), mtime, size, etag_flags);
 
-    rc = xrootd_http_set_header(r, "ETag", etag_buf, &h);
+    rc = brix_http_set_header(r, "ETag", etag_buf, &h);
     if (rc != NGX_OK) {
         return rc;
     }
@@ -119,10 +119,10 @@ xrootd_http_add_etag_header(ngx_http_request_t *r, time_t mtime, off_t size,
 }
 
 /*
- * xrootd_http_add_content_range_header - set Content-Range header for partial responses.
+ * brix_http_add_content_range_header - set Content-Range header for partial responses.
  *
  * WHAT: Formats "bytes start-end/size" into the Content-Range response header via
- *       snprintf and xrootd_http_set_header().
+ *       snprintf and brix_http_set_header().
  *
  * WHY: HTTP Range requests (RFC 7233 §4.2) require servers to return 206 Partial
  *      Content with a Content-Range header specifying served byte range and total size.
@@ -132,7 +132,7 @@ xrootd_http_add_etag_header(ngx_http_request_t *r, time_t mtime, off_t size,
  */
 
 ngx_int_t
-xrootd_http_add_content_range_header(ngx_http_request_t *r,
+brix_http_add_content_range_header(ngx_http_request_t *r,
     off_t start, off_t end, off_t size)
 {
     char cr_buf[80];
@@ -140,15 +140,15 @@ xrootd_http_add_content_range_header(ngx_http_request_t *r,
     snprintf(cr_buf, sizeof(cr_buf), "bytes %lld-%lld/%lld",
              (long long) start, (long long) end, (long long) size);
 
-    return xrootd_http_set_header(r, "Content-Range", cr_buf, NULL);
+    return brix_http_set_header(r, "Content-Range", cr_buf, NULL);
 }
 
 /*
- * xrootd_http_set_file_headers - set standard file-serving response headers.
+ * brix_http_set_file_headers - set standard file-serving response headers.
  */
 
 ngx_int_t
-xrootd_http_set_file_headers(ngx_http_request_t *r,
+brix_http_set_file_headers(ngx_http_request_t *r,
     time_t mtime, off_t total_size, off_t send_len,
     const char *content_type, unsigned etag_flags,
     int has_range, off_t range_start, off_t range_end)
@@ -159,7 +159,7 @@ xrootd_http_set_file_headers(ngx_http_request_t *r,
     r->headers_out.last_modified_time = mtime;
 
     if (content_type != NULL) {
-        if (xrootd_http_set_header(r, "Content-Type", content_type, NULL)
+        if (brix_http_set_header(r, "Content-Type", content_type, NULL)
             != NGX_OK)
         {
             return NGX_ERROR;
@@ -172,14 +172,14 @@ xrootd_http_set_file_headers(ngx_http_request_t *r,
 
     /* register_not_modified=1: sets r->headers_out.etag so nginx's built-in
      * not-modified filter can evaluate If-Match / If-None-Match conditionals. */
-    if (xrootd_http_add_etag_header(r, mtime, total_size, etag_flags, 1)
+    if (brix_http_add_etag_header(r, mtime, total_size, etag_flags, 1)
         != NGX_OK)
     {
         return NGX_ERROR;
     }
 
     if (has_range) {
-        if (xrootd_http_add_content_range_header(r, range_start, range_end,
+        if (brix_http_add_content_range_header(r, range_start, range_end,
                                                  total_size) != NGX_OK)
         {
             return NGX_ERROR;
@@ -190,7 +190,7 @@ xrootd_http_set_file_headers(ngx_http_request_t *r,
 }
 
 /*
- * xrootd_http_send_file_range - build file-backed ngx_buf_t for byte range and dispatch.
+ * brix_http_send_file_range - build file-backed ngx_buf_t for byte range and dispatch.
  *
  * WHAT: Allocates ngx_buf_t + ngx_file_t from r->pool, sets in_file/last_buf,
  *       file_pos=file_last=start+len. Optionally adds pool cleanup (ngx_pool_cleanup_file)
@@ -207,7 +207,7 @@ xrootd_http_set_file_headers(ngx_http_request_t *r,
  */
 
 ngx_int_t
-xrootd_http_send_file_range(ngx_http_request_t *r, ngx_fd_t fd,
+brix_http_send_file_range(ngx_http_request_t *r, ngx_fd_t fd,
     const char *path, off_t start, off_t len, ngx_flag_t close_fd)
 {
     ngx_buf_t                *b;

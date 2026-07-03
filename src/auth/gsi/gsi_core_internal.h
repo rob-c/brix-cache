@@ -2,8 +2,8 @@
  * gsi_core_internal.h - private split contract for gsi_core.c and its Phase-38 siblings.
  * Not a public API: include only from src/gsi/.  See docs/refactor/phase-38-file-size-unix-modularity.md.
  */
-#ifndef XROOTD_GSI_CORE_INTERNAL_H
-#define XROOTD_GSI_CORE_INTERNAL_H
+#ifndef BRIX_GSI_CORE_INTERNAL_H
+#define BRIX_GSI_CORE_INTERNAL_H
 
 #include "gsi_core.h"
 #include <arpa/inet.h>
@@ -25,7 +25,7 @@
 #include "protocols/root/protocol/opcodes.h"  
 #include "core/compat/crypto.h"     
 
-extern const char xrootd_gsi_dh_params_pem[];
+extern const char brix_gsi_dh_params_pem[];
 extern const char *const gsi_cipher_allow[];
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
 #endif
@@ -41,8 +41,8 @@ typedef struct {
     size_t       signed_cpub_len;
     char        *pubpem;        /* proxy public key PEM (signed path)       */
     uint8_t     *enc;           /* encrypted response main                  */
-    xrootd_gbuf  inner;
-    xrootd_gbuf  outer;
+    brix_gbuf  inner;
+    brix_gbuf  outer;
 } gsi_cresp_ctx;
 
 
@@ -59,4 +59,4 @@ char * gsi_cresp_export_pubkey_pem(EVP_PKEY *key, size_t *outlen);
 size_t gsi_cresp_pick_md_alg(const uint8_t *sbody, uint32_t slen, char *out, size_t outcap);
 int gsi_cresp_fail(gsi_cresp_ctx *x, char *err, size_t errcap, const char *msg);
 
-#endif /* XROOTD_GSI_CORE_INTERNAL_H */
+#endif /* BRIX_GSI_CORE_INTERNAL_H */

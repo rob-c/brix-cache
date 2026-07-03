@@ -78,8 +78,8 @@ ini_section(char *s, char *out, size_t outsz)
     return 0;
 }
 
-/* xrootd_ini_parse_file — parse path, dispatch each key line */int
-xrootd_ini_parse_file(const char *path, xrootd_ini_cb cb, void *user,
+/* brix_ini_parse_file — parse path, dispatch each key line */int
+brix_ini_parse_file(const char *path, brix_ini_cb cb, void *user,
     char *errbuf, size_t errlen)
 {
     FILE *f;

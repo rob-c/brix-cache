@@ -1,5 +1,5 @@
-#ifndef XROOTD_SD_REMOTE_H
-#define XROOTD_SD_REMOTE_H
+#ifndef BRIX_SD_REMOTE_H
+#define BRIX_SD_REMOTE_H
 
 /*
  * sd_remote.h — read-only remote-origin storage driver for the read-through cache.
@@ -26,12 +26,12 @@
 
 /* Remote-origin schemes the driver can serve. */
 typedef enum {
-    XROOTD_SD_REMOTE_S3 = 1
-} xrootd_sd_remote_scheme_t;
+    BRIX_SD_REMOTE_S3 = 1
+} brix_sd_remote_scheme_t;
 
 /* Origin endpoint + credentials + injected transport. Strings are copied. */
 typedef struct {
-    xrootd_sd_remote_scheme_t    scheme;
+    brix_sd_remote_scheme_t    scheme;
     char                         host[256];
     int                          port;
     int                          tls;
@@ -40,17 +40,17 @@ typedef struct {
     char                         secret_key[256];
     char                         region[64];
     int                          timeout_ms;
-    const xrootd_s3_transport_t *transport;        /* injected by the cache */
+    const brix_s3_transport_t *transport;        /* injected by the cache */
     void                        *tctx;
-} xrootd_sd_remote_cfg_t;
+} brix_sd_remote_cfg_t;
 
 /* Build a remote-origin instance from cfg (deep-copied). Returns a malloc-owned
  * instance whose ->driver is the read-only remote driver, or NULL (errno set).
- * Destroy with xrootd_sd_remote_destroy. Worker-thread safe (no nginx pool). */
-xrootd_sd_instance_t *xrootd_sd_remote_create(
-    const xrootd_sd_remote_cfg_t *cfg, ngx_log_t *log);
+ * Destroy with brix_sd_remote_destroy. Worker-thread safe (no nginx pool). */
+brix_sd_instance_t *brix_sd_remote_create(
+    const brix_sd_remote_cfg_t *cfg, ngx_log_t *log);
 
-/* Free a remote instance built by xrootd_sd_remote_create. NULL-safe. */
-void xrootd_sd_remote_destroy(xrootd_sd_instance_t *inst);
+/* Free a remote instance built by brix_sd_remote_create. NULL-safe. */
+void brix_sd_remote_destroy(brix_sd_instance_t *inst);
 
-#endif /* XROOTD_SD_REMOTE_H */
+#endif /* BRIX_SD_REMOTE_H */

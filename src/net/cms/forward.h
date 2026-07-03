@@ -1,5 +1,5 @@
-#ifndef XROOTD_CMS_FORWARD_H
-#define XROOTD_CMS_FORWARD_H
+#ifndef BRIX_CMS_FORWARD_H
+#define BRIX_CMS_FORWARD_H
 
 /*
  * forward.h — manager-side Plane B fan-out primitive.
@@ -10,7 +10,7 @@
  * WHY:  the reusable core of manager fan-out: the manager calls this once per
  *       eligible node when a client mutates the namespace. The node executes it
  *       confined (see node_ops.c) and replies silent-on-success / kYR_error.
- * HOW:  xrootd_cms_rrdata_encode() builds the Pup payload; xrootd_cms_send_frame()
+ * HOW:  brix_cms_rrdata_encode() builds the Pup payload; brix_cms_send_frame()
  *       writes the header+payload on the given connection. The caller chooses the
  *       streamid (its correlation key for aggregating replies) and the nodes.
  *
@@ -29,8 +29,8 @@
  * (chmod/mkdir/trunc-size), and opaque are op-dependent and may be NULL.
  * Returns NGX_OK on a full send, NGX_ERROR on an encode overflow or write error.
  */
-ngx_int_t xrootd_cms_forward_to_node(ngx_connection_t *c, u_char code,
+ngx_int_t brix_cms_forward_to_node(ngx_connection_t *c, u_char code,
     uint32_t streamid, const char *ident, const char *path,
     const char *path2, const char *mode, const char *opaque);
 
-#endif /* XROOTD_CMS_FORWARD_H */
+#endif /* BRIX_CMS_FORWARD_H */

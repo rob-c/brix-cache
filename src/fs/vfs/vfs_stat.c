@@ -1,8 +1,8 @@
 /*
  * vfs_stat.c — VFS path stat.
  *
- * WHAT: Implements xrootd_vfs_stat(), which lstat()s the resolved ctx path and
- *       fills an xrootd_vfs_stat_t (size/mtime/ctime/mode/ino plus the
+ * WHAT: Implements brix_vfs_stat(), which lstat()s the resolved ctx path and
+ *       fills an brix_vfs_stat_t (size/mtime/ctime/mode/ino plus the
  *       is_directory / is_regular flags).
  *
  * WHY:  kXR_stat / kXR_statx, WebDAV PROPFIND on a single resource, and S3 HEAD
@@ -11,9 +11,9 @@
  *
  * HOW:  Re-verifies confinement (and a non-NULL stat_out), uses lstat() so
  *       symlinks are reported rather than followed, converts via
- *       xrootd_vfs_fill_stat(), and emits an XROOTD_METRIC_OP_STAT
+ *       brix_vfs_fill_stat(), and emits an BRIX_METRIC_OP_STAT
  *       metric/access-log line on every path through
- *       xrootd_vfs_observe_ctx_op().
+ *       brix_vfs_observe_ctx_op().
  */
 #include "vfs_internal.h"
 #include "fs/backend/cache/sd_cache.h"
@@ -31,58 +31,58 @@
  * owner/group-member. Off impersonation this is the same bare lstat/stat.
  */
 static ngx_int_t
-xrootd_vfs_stat_impl(xrootd_vfs_ctx_t *ctx, xrootd_vfs_stat_t *stat_out,
+brix_vfs_stat_impl(brix_vfs_ctx_t *ctx, brix_vfs_stat_t *stat_out,
     int nofollow)
 {
     struct stat               st;
     const char               *path;
     uint64_t                  start;
     int                       saved_errno;
-    const xrootd_sd_driver_t *drv;
+    const brix_sd_driver_t *drv;
 
-    start = xrootd_vfs_now_ns();
-    path = xrootd_vfs_ctx_path(ctx);
+    start = brix_vfs_now_ns();
+    path = brix_vfs_ctx_path(ctx);
 
-    if (stat_out == NULL || xrootd_vfs_require_confined(ctx) != NGX_OK) {
+    if (stat_out == NULL || brix_vfs_require_confined(ctx) != NGX_OK) {
         errno = EINVAL;
         saved_errno = errno;
-        xrootd_vfs_observe_ctx_op(ctx, path, XROOTD_METRIC_OP_STAT, NULL, 0,
+        brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_STAT, NULL, 0,
                                   NGX_ERROR, saved_errno, start);
         return NGX_ERROR;
     }
 
     /* Non-POSIX backend: the namespace lives in the driver, not the export tree.
      * nofollow is moot (an object/block backend has no symlinks). */
-    drv = xrootd_vfs_ctx_driver(ctx);
+    drv = brix_vfs_ctx_driver(ctx);
     if (drv != NULL) {
-        xrootd_sd_stat_t sd_st;
+        brix_sd_stat_t sd_st;
 
         if (drv->stat == NULL
-            || drv->stat(ctx->sd, xrootd_vfs_export_relative(ctx, path), &sd_st)
+            || drv->stat(ctx->sd, brix_vfs_export_relative(ctx, path), &sd_st)
                != NGX_OK)
         {
             saved_errno = errno;
-            xrootd_vfs_observe_ctx_op(ctx, path, XROOTD_METRIC_OP_STAT, NULL, 0,
+            brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_STAT, NULL, 0,
                                       NGX_ERROR, saved_errno, start);
             return NGX_ERROR;
         }
-        xrootd_vfs_sd_stat_fill(&sd_st, stat_out);
-        xrootd_vfs_observe_ctx_op(ctx, path, XROOTD_METRIC_OP_STAT, NULL, 0,
+        brix_vfs_sd_stat_fill(&sd_st, stat_out);
+        brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_STAT, NULL, 0,
                                   NGX_OK, 0, start);
         return NGX_OK;
     }
 
-    if (xrootd_lstat_confined_canon(ctx->log, ctx->root_canon, path, &st,
+    if (brix_lstat_confined_canon(ctx->log, ctx->root_canon, path, &st,
                                     nofollow) != 0)
     {
         saved_errno = errno;
-        xrootd_vfs_observe_ctx_op(ctx, path, XROOTD_METRIC_OP_STAT, NULL, 0,
+        brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_STAT, NULL, 0,
                                   NGX_ERROR, saved_errno, start);
         return NGX_ERROR;
     }
 
-    xrootd_vfs_fill_stat(&st, stat_out);
-    xrootd_vfs_observe_ctx_op(ctx, path, XROOTD_METRIC_OP_STAT, NULL, 0,
+    brix_vfs_fill_stat(&st, stat_out);
+    brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_STAT, NULL, 0,
                               NGX_OK, 0, start);
     return NGX_OK;
 }
@@ -90,30 +90,30 @@ xrootd_vfs_stat_impl(xrootd_vfs_ctx_t *ctx, xrootd_vfs_stat_t *stat_out,
 /* lstat the resolved ctx path into *stat_out (no symlink follow). Confined and
  * metered as OP_STAT; NGX_ERROR with errno set on guard failure or lstat error. */
 ngx_int_t
-xrootd_vfs_stat(xrootd_vfs_ctx_t *ctx, xrootd_vfs_stat_t *stat_out)
+brix_vfs_stat(brix_vfs_ctx_t *ctx, brix_vfs_stat_t *stat_out)
 {
-    return xrootd_vfs_stat_impl(ctx, stat_out, 1 /* nofollow */);
+    return brix_vfs_stat_impl(ctx, stat_out, 1 /* nofollow */);
 }
 
 /* stat the resolved ctx path into *stat_out, FOLLOWING a trailing in-export
  * symlink chroot-style (RESOLVE_IN_ROOT). Confined and metered as OP_STAT;
  * NGX_ERROR with errno set on guard failure or stat error. */
 ngx_int_t
-xrootd_vfs_statf(xrootd_vfs_ctx_t *ctx, xrootd_vfs_stat_t *stat_out)
+brix_vfs_statf(brix_vfs_ctx_t *ctx, brix_vfs_stat_t *stat_out)
 {
-    return xrootd_vfs_stat_impl(ctx, stat_out, 0 /* follow */);
+    return brix_vfs_stat_impl(ctx, stat_out, 0 /* follow */);
 }
 
 /* Descend one cache/stage decorator to its wrapped source (NULL at a leaf or a
  * non-decorator instance). Both unwrap helpers self-guard, so this is safe on any
  * instance and lets the residency seam find a nearline driver buried under a
  * read-cache and/or write-stage tier. */
-static xrootd_sd_instance_t *
-xrootd_vfs_decorator_source(const xrootd_sd_instance_t *inst)
+static brix_sd_instance_t *
+brix_vfs_decorator_source(const brix_sd_instance_t *inst)
 {
-    xrootd_sd_instance_t *s = xrootd_sd_cache_source_instance(inst);
+    brix_sd_instance_t *s = brix_sd_cache_source_instance(inst);
 
-    return (s != NULL) ? s : xrootd_sd_stage_source_instance(inst);
+    return (s != NULL) ? s : brix_sd_stage_source_instance(inst);
 }
 
 /* Classify the resolved ctx path's nearline residency (online/nearline/offline/
@@ -125,42 +125,42 @@ xrootd_vfs_decorator_source(const xrootd_sd_instance_t *inst)
  * internal classification the caller's own op accounts for). NGX_OK with *out set,
  * or NGX_ERROR (errno) on a guard failure or a driver error. */
 ngx_int_t
-xrootd_vfs_residency(xrootd_vfs_ctx_t *ctx, xrootd_sd_residency_t *out,
+brix_vfs_residency(brix_vfs_ctx_t *ctx, brix_sd_residency_t *out,
     int *nearline_export)
 {
-    xrootd_sd_instance_t *inst;
+    brix_sd_instance_t *inst;
 
     if (nearline_export != NULL) {
         *nearline_export = 0;
     }
-    if (out == NULL || xrootd_vfs_require_confined(ctx) != NGX_OK) {
+    if (out == NULL || brix_vfs_require_confined(ctx) != NGX_OK) {
         errno = EINVAL;
         return NGX_ERROR;
     }
 
-    *out = XROOTD_SD_RES_ONLINE;
+    *out = BRIX_SD_RES_ONLINE;
 
     for (inst = ctx->sd; inst != NULL;
-         inst = xrootd_vfs_decorator_source(inst))
+         inst = brix_vfs_decorator_source(inst))
     {
-        if ((xrootd_sd_caps(inst) & XROOTD_SD_CAP_NEARLINE) != 0
+        if ((brix_sd_caps(inst) & BRIX_SD_CAP_NEARLINE) != 0
             && inst->driver->residency != NULL)
         {
-            const char *path = xrootd_vfs_ctx_path(ctx);
+            const char *path = brix_vfs_ctx_path(ctx);
 
             if (nearline_export != NULL) {
                 *nearline_export = 1;
             }
             return inst->driver->residency(
-                inst, xrootd_vfs_export_relative(ctx, path), out);
+                inst, brix_vfs_export_relative(ctx, path), out);
         }
     }
     return NGX_OK;
 }
 
 /*
- * xrootd_vfs_probe — confined existence/type probe for pre-op resolution and
- * ACL gates. Unlike xrootd_vfs_stat/statf this emits NO OP_STAT metric or
+ * brix_vfs_probe — confined existence/type probe for pre-op resolution and
+ * ACL gates. Unlike brix_vfs_stat/statf this emits NO OP_STAT metric or
  * access-log line: it is an internal namespace pre-check that the caller's own
  * operation accounts for (routing it through the metered stat would record a
  * phantom STAT for every rm/chmod/mkdir/mv). nofollow selects lstat vs stat
@@ -169,39 +169,39 @@ xrootd_vfs_residency(xrootd_vfs_ctx_t *ctx, xrootd_sd_residency_t *out,
  * NGX_ERROR on a confinement-guard failure.
  */
 ngx_int_t
-xrootd_vfs_probe(xrootd_vfs_ctx_t *ctx, int nofollow,
-    xrootd_vfs_stat_t *stat_out)
+brix_vfs_probe(brix_vfs_ctx_t *ctx, int nofollow,
+    brix_vfs_stat_t *stat_out)
 {
     struct stat               st;
-    const xrootd_sd_driver_t *drv;
+    const brix_sd_driver_t *drv;
 
-    if (stat_out == NULL || xrootd_vfs_require_confined(ctx) != NGX_OK) {
+    if (stat_out == NULL || brix_vfs_require_confined(ctx) != NGX_OK) {
         errno = EINVAL;
         return NGX_ERROR;
     }
 
-    drv = xrootd_vfs_ctx_driver(ctx);
+    drv = brix_vfs_ctx_driver(ctx);
     if (drv != NULL) {
-        xrootd_sd_stat_t sd_st;
+        brix_sd_stat_t sd_st;
 
         if (drv->stat == NULL
             || drv->stat(ctx->sd,
-                         xrootd_vfs_export_relative(ctx, xrootd_vfs_ctx_path(ctx)),
+                         brix_vfs_export_relative(ctx, brix_vfs_ctx_path(ctx)),
                          &sd_st) != NGX_OK)
         {
             return NGX_DECLINED;   /* absent (or unsupported) — caller's errno */
         }
-        xrootd_vfs_sd_stat_fill(&sd_st, stat_out);
+        brix_vfs_sd_stat_fill(&sd_st, stat_out);
         return NGX_OK;
     }
 
-    if (xrootd_lstat_confined_canon(ctx->log, ctx->root_canon,
-                                    xrootd_vfs_ctx_path(ctx), &st,
+    if (brix_lstat_confined_canon(ctx->log, ctx->root_canon,
+                                    brix_vfs_ctx_path(ctx), &st,
                                     nofollow) != 0)
     {
         return NGX_DECLINED;
     }
 
-    xrootd_vfs_fill_stat(&st, stat_out);
+    brix_vfs_fill_stat(&st, stat_out);
     return NGX_OK;
 }

@@ -7,7 +7,7 @@
 
 int64_t
 webdav_lock_parse_timeout(ngx_http_request_t *r,
-                          ngx_http_xrootd_webdav_loc_conf_t *conf)
+                          ngx_http_brix_webdav_loc_conf_t *conf)
 {
     ngx_table_elt_t *h;
     u_char          *p, *end;
@@ -115,6 +115,6 @@ webdav_lock_parse_body(ngx_http_request_t *r, char *owner,
     body_data = (char *) cl->buf->pos;
     blen = cl->buf->last - cl->buf->pos;
 
-    (void) xrootd_xml_parse_lockinfo(body_data, blen, owner, owner_len,
+    (void) brix_xml_parse_lockinfo(body_data, blen, owner, owner_len,
                                      exclusive);
 }

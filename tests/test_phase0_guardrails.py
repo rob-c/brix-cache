@@ -154,7 +154,7 @@ def test_cache_and_tpc_guardrails_present():
     _assert_markers(
         "tests/test_cache_write_through.py",
         [
-            "test_server_accepts_xrootd_session",
+            "test_server_accepts_brix_session",
             "test_read_seeded_file",
             "test_write_and_read_back",
             "test_sync_checksum_matches",
@@ -196,7 +196,7 @@ def test_phase0_dependency_matrix_hooks_present():
         "config",
         [
             "pkg-config --exists libxml-2.0",
-            "-dxrootd_have_libxml2=1",
+            "-dbrix_have_libxml2=1",
             "src/core/compat/xml.c",
             "src/core/compat/crc32c.c",
         ],
@@ -212,15 +212,15 @@ def test_phase0_dependency_matrix_hooks_present():
     _assert_markers(
         "tests/unit/test_xml_compat.c",
         [
-            "xrootd_xml_escape",
-            "xrootd_xml_parse_lockinfo",
+            "brix_xml_escape",
+            "brix_xml_parse_lockinfo",
         ],
     )
     _assert_markers(
         "tests/unit/test_crc32c.c",
         [
-            "xrootd_crc32c_value",
-            "xrootd_crc32c_copy_value",
+            "brix_crc32c_value",
+            "brix_crc32c_copy_value",
         ],
     )
 

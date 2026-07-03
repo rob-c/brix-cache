@@ -11,7 +11,7 @@
 #include "ssi_rrinfo.h"
 
 void
-xrootd_ssi_rrinfo_decode(const unsigned char off[XROOTD_SSI_RRINFO_LEN],
+brix_ssi_rrinfo_decode(const unsigned char off[BRIX_SSI_RRINFO_LEN],
                          int *cmd, uint32_t *id, uint32_t *size)
 {
     *cmd = off[0];
@@ -25,10 +25,10 @@ xrootd_ssi_rrinfo_decode(const unsigned char off[XROOTD_SSI_RRINFO_LEN],
 }
 
 void
-xrootd_ssi_rrinfo_encode(int cmd, uint32_t id, uint32_t size,
-                         unsigned char off[XROOTD_SSI_RRINFO_LEN])
+brix_ssi_rrinfo_encode(int cmd, uint32_t id, uint32_t size,
+                         unsigned char off[BRIX_SSI_RRINFO_LEN])
 {
-    id &= XROOTD_SSI_ID_MAX;
+    id &= BRIX_SSI_ID_MAX;
     off[0] = (unsigned char) cmd;
     off[1] = (unsigned char) ((id >> 16) & 0xff);
     off[2] = (unsigned char) ((id >> 8) & 0xff);
@@ -40,8 +40,8 @@ xrootd_ssi_rrinfo_encode(int cmd, uint32_t id, uint32_t size,
 }
 
 void
-xrootd_ssi_attn_encode(char tag, unsigned char flags, uint16_t pfx_len,
-                       uint32_t md_len, unsigned char out[XROOTD_SSI_ATTN_LEN])
+brix_ssi_attn_encode(char tag, unsigned char flags, uint16_t pfx_len,
+                       uint32_t md_len, unsigned char out[BRIX_SSI_ATTN_LEN])
 {
     int i;
 
@@ -53,7 +53,7 @@ xrootd_ssi_attn_encode(char tag, unsigned char flags, uint16_t pfx_len,
     out[5] = (unsigned char) ((md_len >> 16) & 0xff);
     out[6] = (unsigned char) ((md_len >> 8) & 0xff);
     out[7] = (unsigned char) (md_len & 0xff);
-    for (i = 8; i < XROOTD_SSI_ATTN_LEN; i++) {
+    for (i = 8; i < BRIX_SSI_ATTN_LEN; i++) {
         out[i] = 0;
     }
 }

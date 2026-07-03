@@ -1,7 +1,7 @@
 """
 test_frm_control_locality.py — control-dir residency locality semantics.
 
-Completes the materialize-to-scratch follow-up #2. With XROOTD_FRM_CONTROL_DIR
+Completes the materialize-to-scratch follow-up #2. With BRIX_FRM_CONTROL_DIR
 set, residency markers live in a local POSIX control mount (a flat hashed stub),
 not as an xattr on the export object. The probe must then resolve a missing
 marker correctly: the object is ONLINE only if it actually exists in storage,
@@ -79,13 +79,13 @@ stream {{
     server {{
         listen {BIND_HOST}:{stream_port};
         xrootd on;
-        xrootd_storage_backend posix:{data};
-        xrootd_auth none;
-        xrootd_allow_write on;
-        xrootd_frm on;
-        xrootd_frm_queue_path {queue};
-        xrootd_frm_stagecmd /bin/true;
-        xrootd_frm_control_dir {control};
+        brix_storage_backend posix:{data};
+        brix_auth none;
+        brix_allow_write on;
+        brix_frm on;
+        brix_frm_queue_path {queue};
+        brix_frm_stagecmd /bin/true;
+        brix_frm_control_dir {control};
     }}
 }}
 http {{
@@ -98,11 +98,11 @@ http {{
     server {{
         listen {BIND_HOST}:{http_port};
         location / {{
-            xrootd_webdav on;
-            xrootd_webdav_storage_backend posix:{data};
-            xrootd_webdav_auth none;
-            xrootd_webdav_allow_write on;
-            xrootd_webdav_tape_rest on;
+            brix_webdav on;
+            brix_webdav_storage_backend posix:{data};
+            brix_webdav_auth none;
+            brix_webdav_allow_write on;
+            brix_webdav_tape_rest on;
         }}
     }}
 }}

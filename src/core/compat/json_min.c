@@ -194,7 +194,7 @@ jm_skip_value(const char *p, const char *end)
 }
 
 int
-xrootd_json_get_str(const char *json, size_t len, const char *key, char *out,
+brix_json_get_str(const char *json, size_t len, const char *key, char *out,
     size_t outsz)
 {
     const char *p = json;

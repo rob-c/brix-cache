@@ -3,7 +3,7 @@ Phase-42 W5 — root:// inline WRITE compression (client compresses each kXR_wri
 payload, server decompresses on ingest and stores plaintext).
 
 The symmetric inverse of W4: `xrdcp --compress <codec>` on an UPLOAD makes the
-native client compress each write frame; the server (xrootd_write_compress on,
+native client compress each write frame; the server (brix_write_compress on,
 which the harness anon server has) decompresses it under a bomb guard and stores
 the file plaintext.  Wire bytes shrink; the bytes on disk (and read back) are
 byte-identical to the source.
@@ -29,7 +29,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
 XRDFS = os.path.join(REPO, "client", "bin", "xrdfs")
 BASE = f"root://localhost:{NGINX_ANON_PORT}"
-ANON_ACCESS_LOG = os.path.join(LOG_DIR, "xrootd_access_anon.log")
+ANON_ACCESS_LOG = os.path.join(LOG_DIR, "brix_access_anon.log")
 
 CODECS = ["gzip", "deflate", "zstd", "br", "xz", "bzip2", "lz4"]
 
@@ -173,7 +173,7 @@ def test_bogus_codec_degrades_to_plaintext(src, tmp_path):
 
 def test_cmpwrite_advertised():
     """The server advertises the write-compression codecs via kXR_Qconfig cmpwrite
-    when xrootd_write_compress is on."""
+    when brix_write_compress is on."""
     if not os.access(XRDFS, os.X_OK):
         pytest.skip("xrdfs not built")
     r = subprocess.run([XRDFS, BASE, "query", "config", "cmpwrite"],

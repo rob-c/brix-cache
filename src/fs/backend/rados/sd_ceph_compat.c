@@ -6,8 +6,8 @@
 
 #include <string.h>
 
-#define SUFFIX     XROOTD_CEPH_FIRST_STRIPE_SUFFIX
-#define SUFFIX_LEN (sizeof(XROOTD_CEPH_FIRST_STRIPE_SUFFIX) - 1)   /* 17 */
+#define SUFFIX     BRIX_CEPH_FIRST_STRIPE_SUFFIX
+#define SUFFIX_LEN (sizeof(BRIX_CEPH_FIRST_STRIPE_SUFFIX) - 1)   /* 17 */
 
 int
 sd_ceph_first_stripe(const char *name, char *oid, size_t cap)

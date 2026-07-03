@@ -38,15 +38,15 @@ JOBS="$(nproc 2>/dev/null || echo 4)"
 # Pass it via the same env-hint the main build uses, linking the SYSTEM soname
 # (never a conda -L, which would poison the OTHER codec links). Honour any value
 # already exported; otherwise probe a couple of common locations.
-if [[ -z "${XROOTD_LZ4_CFLAGS:-}" ]]; then
+if [[ -z "${BRIX_LZ4_CFLAGS:-}" ]]; then
     for inc in /usr/include "${HOME}/miniconda3/include" /opt/conda/include; do
         if [[ -f "${inc}/lz4frame.h" ]]; then
-            [[ "${inc}" != /usr/include ]] && export XROOTD_LZ4_CFLAGS="-I${inc}"
+            [[ "${inc}" != /usr/include ]] && export BRIX_LZ4_CFLAGS="-I${inc}"
             break
         fi
     done
 fi
-export XROOTD_LZ4_LIBS="${XROOTD_LZ4_LIBS:--l:liblz4.so.1}"
+export BRIX_LZ4_LIBS="${BRIX_LZ4_LIBS:--l:liblz4.so.1}"
 
 skip() { echo "SKIP: $*" >&2; exit 75; }
 fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -102,9 +102,9 @@ done
 
 # --- PHASE-42 PRIMARY ASSERTION: codec libs are linked into the dynamic stream
 # .so as DT_NEEDED records and every one resolves to a real path. This is the
-# whole point of putting XROOTD_CODEC_LIBS in ngx_module_libs (not just
+# whole point of putting BRIX_CODEC_LIBS in ngx_module_libs (not just
 # CORE_LIBS): a dynamic .so must carry its own NEEDED records. ---
-STREAM_SO="objs/ngx_stream_xrootd_module.so"
+STREAM_SO="objs/ngx_stream_brix_module.so"
 [[ -f "${STREAM_SO}" ]] || fail "stream module .so not produced"
 
 echo "== codec libs linked into the stream module .so =="
@@ -121,7 +121,7 @@ done
 if echo "${NEEDED}" | grep -qiE "liblz4"; then
     echo "   (lz4 linked into the dynamic .so)"
 else
-    echo "   NOTE: lz4 not linked (header not found at build; set XROOTD_LZ4_CFLAGS) — it degrades to available=0"
+    echo "   NOTE: lz4 not linked (header not found at build; set BRIX_LZ4_CFLAGS) — it degrades to available=0"
 fi
 
 # Every NEEDED shared library of the .so must resolve (no dangling soname). ldd
@@ -132,7 +132,7 @@ fi
 echo "   all NEEDED shared libraries of the stream .so resolve"
 
 # phase-47 W1 should emit ONE combined non-filter .so; the per-module split is gone.
-COMBINED="objs/ngx_stream_xrootd_module.so"
+COMBINED="objs/ngx_stream_brix_module.so"
 NADDON=0
 for so in "${SOS[@]}"; do
     case "$(basename "${so}")" in
@@ -156,7 +156,7 @@ CONF="${BUILD}/dlopen.conf"
     for so in "${SOS[@]}"; do
         b="$(basename "${so}")"
         case "${b}" in
-            ngx_stream_module.so|ngx_stream_xrootd_module.so) ;;   # already emitted
+            ngx_stream_module.so|ngx_stream_brix_module.so) ;;   # already emitted
             *) echo "load_module objs/${b};" ;;
         esac
     done

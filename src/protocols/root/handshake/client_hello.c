@@ -2,7 +2,7 @@
 #include "core/compat/alloc_guard.h"
 
 /*
- * xrootd_process_handshake
+ * brix_process_handshake
  *
  * Validates the 20-byte client handshake and sends the server reply.
  *
@@ -11,7 +11,7 @@
  * (streamid={0,0}, status=ok, dlen=8) followed by 8 bytes of protover+msgval.
  */
 ngx_int_t
-xrootd_process_handshake(xrootd_ctx_t *ctx, ngx_connection_t *c)
+brix_process_handshake(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     ClientInitHandShake  *hs;
     ServerResponseHdr    *hdr;
@@ -38,7 +38,7 @@ xrootd_process_handshake(xrootd_ctx_t *ctx, ngx_connection_t *c)
     }
 
     total = XRD_RESPONSE_HDR_LEN + BODY_LEN;
-    XROOTD_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
+    BRIX_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
 
     /* The initial reply uses streamid={0,0} because no request header exists yet. */
     hdr = (ServerResponseHdr *) buf;
@@ -55,5 +55,5 @@ xrootd_process_handshake(xrootd_ctx_t *ctx, ngx_connection_t *c)
     ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "xrootd: handshake ok, sending standard-format response");
 
-    return xrootd_queue_response(ctx, c, buf, total);
+    return brix_queue_response(ctx, c, buf, total);
 }

@@ -12,16 +12,16 @@ semantics (stored + deflate members).
 | Central-directory reader | `zip_dir.{c,h}` | **Done + unit-tested** (15 checks) — fd adapter over the kernel |
 | Standalone parser unit test | `zip_dir_unittest.c` | **Done** (not in nginx build) |
 | Virtual member handle I/O | `zip_member.{c,h}` | **Done** (stored + deflate streaming) |
-| Full-extract helper (HTTP/S3) | `zip_dir.c` (`xrootd_zip_extract_full`) | **Done** |
-| Shared HTTP serving | `zip_http.{c,h}` (`xrootd_zip_http_serve`) | **Done** (stored sendfile / deflate memory / Range) |
+| Full-extract helper (HTTP/S3) | `zip_dir.c` (`brix_zip_extract_full`) | **Done** |
+| Shared HTTP serving | `zip_http.{c,h}` (`brix_zip_http_serve`) | **Done** (stored sendfile / deflate memory / Range) |
 | WebDAV GET member path | `../webdav/get.c` | **Done** (uses zip_http) |
 | S3 GetObject member path | `../s3/object.c` | **Done** (uses zip_http) |
-| `xrootd_{webdav,s3}_zip_access` directives | webdav + s3 modules | **Done** (default off) |
-| `xrootd_file_t` zip fields | `../types/file.h` | **Done** |
+| `brix_{webdav,s3}_zip_access` directives | webdav + s3 modules | **Done** (default off) |
+| `brix_file_t` zip fields | `../types/file.h` | **Done** |
 | Open-path opaque trigger | `../read/open_request.c` | **Done** (`open_extract_zip_member`) |
 | read / stat routing | `../read/read.c`, `stat.c` | **Done** (zip_mode branch) |
 | handle cleanup | `../connection/fd_table.c` | **Done** (frees inflate, clears zip_*) |
-| directive `xrootd_zip_access` + `_cd_max_bytes` | `../stream/module.c`, `../types/config.h`, `../config/server_conf.c` | **Done** (default off) |
+| directive `brix_zip_access` + `_cd_max_bytes` | `../stream/module.c`, `../types/config.h`, `../config/server_conf.c` | **Done** (default off) |
 | Build registration | `../../config` | **Done** (zip_dir.c + zip_member.c) |
 | root:// integration test | `../../tests/test_zip_member.py` | **Done** (8 pass, raw-wire) |
 
@@ -41,15 +41,15 @@ Status (stored): a `kXR_open` carrying `?xrdcl.unzip=<member>` opens the archive
 resolves the member, and serves its bytes by offset translation; a bad member
 name → kXR_ArgInvalid; a missing member → kXR_NotFound; a deflate member opens
 but reads return kXR_Unsupported pending streaming inflate. Gated by
-`xrootd_zip_access` (default off).
+`brix_zip_access` (default off).
 
 ## zip_dir.c — the parser
 
 Pure C (no nginx / OpenSSL), `pread`-only, fully bounds-checked. Entry point:
 
 ```c
-int xrootd_zip_find_member(int fd, off_t archive_size, const char *member,
-                           size_t cd_max, xrootd_zip_member_t *out);
+int brix_zip_find_member(int fd, off_t archive_size, const char *member,
+                           size_t cd_max, brix_zip_member_t *out);
 ```
 
 Resolves a member name → `{method, comp_size, uncomp_size, data_off, crc32}` by

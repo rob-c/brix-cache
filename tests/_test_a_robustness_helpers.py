@@ -26,7 +26,7 @@ Prerequisites:
     • nginx-xrootd running with anonymous auth on ANON_PORT  (default 1094)
     • A file at /tmp/xrd-test/data/ for read tests
 
-Protocol wire layout (from xrootd_protocol.h + XProtocol.hh):
+Protocol wire layout (from brix_protocol.h + XProtocol.hh):
 
   ClientInitHandShake (20 bytes):
     first[4]=0  second[4]=0  third[4]=0  fourth[4]=htonl(4)  fifth[4]=htonl(2012)

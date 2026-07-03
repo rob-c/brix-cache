@@ -105,23 +105,23 @@ http {{
         listen {BIND_HOST}:{dav_port};
         client_max_body_size 64m;
         location / {{
-            xrootd_webdav on;
-            xrootd_webdav_storage_backend posix:{dav_data};
-            xrootd_webdav_auth none;
-            xrootd_webdav_allow_write on;
+            brix_webdav on;
+            brix_webdav_storage_backend posix:{dav_data};
+            brix_webdav_auth none;
+            brix_webdav_allow_write on;
         }}
     }}
     server {{
         listen {BIND_HOST}:{s3_port};
         client_max_body_size 64m;
         location / {{
-            xrootd_s3 on;
-            xrootd_s3_storage_backend posix:{s3_data};
-            xrootd_s3_bucket testbucket;
-            xrootd_s3_access_key {S3_AK};
-            xrootd_s3_secret_key {S3_SK};
-            xrootd_s3_region us-east-1;
-            xrootd_s3_allow_write on;
+            brix_s3 on;
+            brix_s3_storage_backend posix:{s3_data};
+            brix_s3_bucket testbucket;
+            brix_s3_access_key {S3_AK};
+            brix_s3_secret_key {S3_SK};
+            brix_s3_region us-east-1;
+            brix_s3_allow_write on;
         }}
     }}
 }}

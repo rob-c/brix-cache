@@ -37,8 +37,8 @@ from settings import (
     NGINX_ANON_RESUME_OFF_PORT,
     NGINX_GSI_PORT,
     PROXY_STD,
-    REF_XROOTD_GSI_SHARED_PORT,
-    REF_XROOTD_PORT,
+    REF_BRIX_GSI_SHARED_PORT,
+    REF_BRIX_PORT,
     SERVER_HOST,
 )
 
@@ -49,8 +49,8 @@ from settings import (
 CROSS_BACKEND = selected_backend_name()
 
 if CROSS_BACKEND == "xrootd":
-    ANON_URL = f"root://{HOST}:{REF_XROOTD_PORT}"
-    GSI_URL  = f"root://{HOST}:{REF_XROOTD_GSI_SHARED_PORT}"
+    ANON_URL = f"root://{HOST}:{REF_BRIX_PORT}"
+    GSI_URL  = f"root://{HOST}:{REF_BRIX_GSI_SHARED_PORT}"
     # Stock xrootd has no upload_resume — it is already direct-to-disk.
     RESUME_OFF_URL = ANON_URL
 else:

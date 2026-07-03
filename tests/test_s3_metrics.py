@@ -1,10 +1,10 @@
 """
 Prometheus metrics tests for the S3-compatible protocol layer.
 
-Covers xrootd_s3_requests_total, xrootd_s3_responses_total,
-xrootd_s3_bytes_rx/tx_total, per-IP-version byte counters,
-xrootd_s3_list_contents_total / list_common_prefixes_total / list_truncated_total,
-and xrootd_s3_auth_total.
+Covers brix_s3_requests_total, brix_s3_responses_total,
+brix_s3_bytes_rx/tx_total, per-IP-version byte counters,
+brix_s3_list_contents_total / list_common_prefixes_total / list_truncated_total,
+and brix_s3_auth_total.
 
 All requests target the main S3 port (9001) using the requests library.
 Per-IP counters use 127.0.0.1 to force IPv4.
@@ -116,9 +116,9 @@ class TestS3RequestCounters:
         r = requests.get(_obj_url(key), timeout=10)
         assert r.status_code == 200
         after = _fetch()
-        assert _delta(self.before, after, "xrootd_s3_requests_total",
+        assert _delta(self.before, after, "brix_s3_requests_total",
                       {"method": "GET"}) >= 1
-        assert _delta(self.before, after, "xrootd_s3_responses_total",
+        assert _delta(self.before, after, "brix_s3_responses_total",
                       {"method": "GET", "status_class": "2xx"}) >= 1
 
     def test_put_increments_requests_and_bytes_rx(self):
@@ -127,9 +127,9 @@ class TestS3RequestCounters:
         r = requests.put(_obj_url(key), data=payload, timeout=10)
         assert r.status_code == 200
         after = _fetch()
-        assert _delta(self.before, after, "xrootd_s3_requests_total",
+        assert _delta(self.before, after, "brix_s3_requests_total",
                       {"method": "PUT"}) >= 1
-        delta_rx = _delta(self.before, after, "xrootd_s3_bytes_rx_total")
+        delta_rx = _delta(self.before, after, "brix_s3_bytes_rx_total")
         assert delta_rx >= len(payload), f"bytes_rx delta {delta_rx} < payload {len(payload)}"
 
     def test_delete_increments_requests(self):
@@ -139,7 +139,7 @@ class TestS3RequestCounters:
         r = requests.delete(_obj_url(key), timeout=10)
         assert r.status_code in (200, 204)
         after = _fetch()
-        assert _delta(self.before, after, "xrootd_s3_requests_total",
+        assert _delta(self.before, after, "brix_s3_requests_total",
                       {"method": "DELETE"}) >= 1
 
     def test_missing_key_increments_responses_4xx(self):
@@ -148,7 +148,7 @@ class TestS3RequestCounters:
         r = requests.get(_obj_url(key), timeout=10)
         assert r.status_code == 404
         after = _fetch()
-        assert _delta(before, after, "xrootd_s3_responses_total",
+        assert _delta(before, after, "brix_s3_responses_total",
                       {"method": "GET", "status_class": "4xx"}) >= 1
 
 
@@ -175,7 +175,7 @@ class TestS3ListCounters:
         assert r.status_code == 200
         after = _fetch()
 
-        delta = _delta(before, after, "xrootd_s3_list_contents_total")
+        delta = _delta(before, after, "brix_s3_list_contents_total")
         assert delta >= 3, (
             f"list_contents_total delta {delta} < 3 objects listed. "
             "This counter was never written before the fix to list_objects_v2.c."
@@ -194,7 +194,7 @@ class TestS3ListCounters:
         assert r.status_code == 200
         after = _fetch()
 
-        delta = _delta(before, after, "xrootd_s3_list_common_prefixes_total")
+        delta = _delta(before, after, "brix_s3_list_common_prefixes_total")
         assert delta >= 1, f"list_common_prefixes_total delta {delta} < 1"
 
     def test_list_truncated_total_increments(self):
@@ -215,7 +215,7 @@ class TestS3ListCounters:
         is_trunc = root.findtext(f"{{{ns}}}IsTruncated")
         assert is_trunc == "true", "Expected truncated response"
 
-        delta = _delta(before, after, "xrootd_s3_list_truncated_total")
+        delta = _delta(before, after, "brix_s3_list_truncated_total")
         assert delta >= 1, f"list_truncated_total delta {delta} < 1"
 
 
@@ -239,7 +239,7 @@ class TestS3IpVersionBytes:
         key = f"ipv4_rx_{_uid()}.bin"
         r = requests.put(_obj_url(key), data=payload, timeout=10)
         assert r.status_code == 200
-        delta = _delta(self.before, _fetch(), "xrootd_s3_bytes_rx_ipv4_total")
+        delta = _delta(self.before, _fetch(), "brix_s3_bytes_rx_ipv4_total")
         assert delta >= self.PAYLOAD_SIZE, f"s3 bytes_rx_ipv4 delta {delta} < payload"
         assert delta != 1, "s3 bytes_rx_ipv4 is counting requests, not bytes (bug regression)"
 
@@ -251,7 +251,7 @@ class TestS3IpVersionBytes:
         self.before = _fetch()
         r = requests.get(_obj_url(key), timeout=10)
         assert r.status_code == 200
-        delta = _delta(self.before, _fetch(), "xrootd_s3_bytes_tx_ipv4_total")
+        delta = _delta(self.before, _fetch(), "brix_s3_bytes_tx_ipv4_total")
         assert delta >= self.PAYLOAD_SIZE, f"s3 bytes_tx_ipv4 delta {delta} < payload"
         assert delta != 1, "s3 bytes_tx_ipv4 is counting requests, not bytes (bug regression)"
 
@@ -283,11 +283,11 @@ class TestS3AuthCounters:
         after = _fetch()
 
         # Accept any of: auth counter increment, 403, or 400 (server rejected it).
-        bad_key_delta = _delta(before, after, "xrootd_s3_auth_total",
+        bad_key_delta = _delta(before, after, "brix_s3_auth_total",
                                {"result": "bad_access_key"})
-        sig_delta = _delta(before, after, "xrootd_s3_auth_total",
+        sig_delta = _delta(before, after, "brix_s3_auth_total",
                            {"result": "signature_mismatch"})
-        malformed_delta = _delta(before, after, "xrootd_s3_auth_total",
+        malformed_delta = _delta(before, after, "brix_s3_auth_total",
                                  {"result": "malformed"})
 
         # Anonymous S3 port ignores Authorization headers and returns 404 for

@@ -2,7 +2,7 @@
 #
 # run_remote_backend_write.sh — Mode A (transparent write-through) for a writable
 # remote root:// backend. Node B's PRIMARY storage IS a remote root:// server
-# (node O), selected with `xrootd_storage_backend root://O`. A write to B streams
+# (node O), selected with `brix_storage_backend root://O`. A write to B streams
 # straight through the sd_xroot driver to O (no local copy); a read back through B
 # returns the same bytes. Byte-exact, incl. a multi-chunk object.
 #
@@ -30,8 +30,8 @@ mkdir -p "$PFX/o/root" "$PFX/o/logs" "$PFX/b/export" "$PFX/b/logs"
 cat > "$PFX/o/nginx.conf" <<EOF
 daemon on; error_log $PFX/o/logs/e.log info; pid $PFX/o/nginx.pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${OPORT}; xrootd on; xrootd_root $PFX/o/root;
-    xrootd_auth none; xrootd_allow_write on; xrootd_upload_resume off; } }
+stream { server { listen 127.0.0.1:${OPORT}; xrootd on; brix_root $PFX/o/root;
+    brix_auth none; brix_allow_write on; brix_upload_resume off; } }
 EOF
 
 # Node B — its export storage IS the remote origin O (sd_xroot backend).
@@ -40,9 +40,9 @@ daemon on; error_log $PFX/b/logs/e.log info; pid $PFX/b/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:${BPORT}; xrootd on; xrootd_root $PFX/b/export; xrootd_auth none;
-    xrootd_allow_write on; xrootd_upload_resume off;
-    xrootd_storage_backend root://127.0.0.1:${OPORT};
+    listen 127.0.0.1:${BPORT}; xrootd on; brix_root $PFX/b/export; brix_auth none;
+    brix_allow_write on; brix_upload_resume off;
+    brix_storage_backend root://127.0.0.1:${OPORT};
 } }
 EOF
 

@@ -15,19 +15,19 @@
 
 int main(void) {
     char buf[256];
-    xrootd_meta_advisory_t m, d;
+    brix_meta_advisory_t m, d;
 
     /* 1. full encode → decode round-trip */
     memset(&m, 0, sizeof(m));
     m.mode = 0640; m.have_mode = 1;
     m.uid = 1000; m.gid = 2000; m.have_owner = 1;
     m.mtime = 1782726000; m.mtime_ns = 500; m.have_mtime = 1;
-    int n = xrootd_meta_advisory_encode(&m, buf, sizeof(buf));
+    int n = brix_meta_advisory_encode(&m, buf, sizeof(buf));
     assert(n > 0 && (size_t) n == strlen(buf));
     assert(strncmp(buf, "v1 ", 3) == 0);
 
     memset(&d, 0xff, sizeof(d));
-    assert(xrootd_meta_advisory_decode(buf, strlen(buf), &d) == 0);
+    assert(brix_meta_advisory_decode(buf, strlen(buf), &d) == 0);
     assert(d.have_mode && d.mode == 0640);
     assert(d.have_owner && d.uid == 1000 && d.gid == 2000);
     assert(d.have_mtime && d.mtime == 1782726000 && d.mtime_ns == 500);
@@ -35,17 +35,17 @@ int main(void) {
     /* 2. partial: only mode present → decode sets have_mode only */
     memset(&m, 0, sizeof(m));
     m.mode = 0700; m.have_mode = 1;
-    n = xrootd_meta_advisory_encode(&m, buf, sizeof(buf));
+    n = brix_meta_advisory_encode(&m, buf, sizeof(buf));
     assert(n > 0);
     memset(&d, 0, sizeof(d));
-    assert(xrootd_meta_advisory_decode(buf, strlen(buf), &d) == 0);
+    assert(brix_meta_advisory_decode(buf, strlen(buf), &d) == 0);
     assert(d.have_mode && d.mode == 0700);
     assert(!d.have_owner && !d.have_mtime);
 
     /* 3. forward-compat: unknown version + unknown token are ignored, knowns parsed */
     const char *future = "v9 mode=0644 acl=rwxr-x newthing=42 mtime=123";
     memset(&d, 0, sizeof(d));
-    assert(xrootd_meta_advisory_decode(future, strlen(future), &d) == 0);
+    assert(brix_meta_advisory_decode(future, strlen(future), &d) == 0);
     assert(d.have_mode && d.mode == 0644);
     assert(d.have_mtime && d.mtime == 123);
     assert(!d.have_owner);
@@ -54,10 +54,10 @@ int main(void) {
     strcpy(buf, "v1 mode=0644");
     memset(&d, 0, sizeof(d));
     d.mtime = 999; d.mtime_ns = 0; d.have_mtime = 1;     /* delta: only mtime */
-    n = xrootd_meta_advisory_patch(buf, sizeof(buf), &d);
+    n = brix_meta_advisory_patch(buf, sizeof(buf), &d);
     assert(n > 0);
     memset(&m, 0, sizeof(m));
-    assert(xrootd_meta_advisory_decode(buf, strlen(buf), &m) == 0);
+    assert(brix_meta_advisory_decode(buf, strlen(buf), &m) == 0);
     assert(m.have_mode && m.mode == 0644);               /* preserved */
     assert(m.have_mtime && m.mtime == 999);              /* applied */
 
@@ -65,20 +65,20 @@ int main(void) {
     strcpy(buf, "v1 mode=0644");
     memset(&d, 0, sizeof(d));
     d.mode = 0600; d.have_mode = 1;
-    assert(xrootd_meta_advisory_patch(buf, sizeof(buf), &d) > 0);
+    assert(brix_meta_advisory_patch(buf, sizeof(buf), &d) > 0);
     memset(&m, 0, sizeof(m));
-    assert(xrootd_meta_advisory_decode(buf, strlen(buf), &m) == 0);
+    assert(brix_meta_advisory_decode(buf, strlen(buf), &m) == 0);
     assert(m.mode == 0600);
 
     /* 6. truncation → -1 (no overflow) */
     memset(&m, 0, sizeof(m));
     m.mode = 0644; m.have_mode = 1; m.uid = 1; m.gid = 1; m.have_owner = 1;
     m.mtime = 1782726000; m.have_mtime = 1;
-    assert(xrootd_meta_advisory_encode(&m, buf, 8) == -1);
+    assert(brix_meta_advisory_encode(&m, buf, 8) == -1);
 
     /* 7. empty/garbage decode is benign (no fields set) */
     memset(&d, 0, sizeof(d));
-    assert(xrootd_meta_advisory_decode("", 0, &d) == 0);
+    assert(brix_meta_advisory_decode("", 0, &d) == 0);
     assert(!d.have_mode && !d.have_owner && !d.have_mtime);
 
     printf("test_meta_advisory: ALL PASS\n");

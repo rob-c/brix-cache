@@ -1,5 +1,5 @@
-#ifndef NGX_XROOTD_COMPAT_AF_POLICY_H
-#define NGX_XROOTD_COMPAT_AF_POLICY_H
+#ifndef NGX_BRIX_COMPAT_AF_POLICY_H
+#define NGX_BRIX_COMPAT_AF_POLICY_H
 
 /*
  * af_policy.h — outbound address-family policy for cache/proxy origin connects.
@@ -19,19 +19,19 @@
 #include <string.h>
 
 typedef enum {
-    XROOTD_AF_AUTO  = AF_UNSPEC,   /* try every family (legacy default) */
-    XROOTD_AF_INET  = AF_INET,     /* IPv4-only origin */
-    XROOTD_AF_INET6 = AF_INET6     /* IPv6-only origin */
-} xrootd_af_policy_t;
+    BRIX_AF_AUTO  = AF_UNSPEC,   /* try every family (legacy default) */
+    BRIX_AF_INET  = AF_INET,     /* IPv4-only origin */
+    BRIX_AF_INET6 = AF_INET6     /* IPv6-only origin */
+} brix_af_policy_t;
 
 /* Parse "auto" | "inet" | "inet6" → policy value; -1 on any other token. */
 static inline int
-xrootd_af_policy_parse(const char *s, size_t len)
+brix_af_policy_parse(const char *s, size_t len)
 {
-    if (len == 4 && memcmp(s, "auto", 4) == 0)  { return XROOTD_AF_AUTO; }
-    if (len == 4 && memcmp(s, "inet", 4) == 0)  { return XROOTD_AF_INET; }
-    if (len == 5 && memcmp(s, "inet6", 5) == 0) { return XROOTD_AF_INET6; }
+    if (len == 4 && memcmp(s, "auto", 4) == 0)  { return BRIX_AF_AUTO; }
+    if (len == 4 && memcmp(s, "inet", 4) == 0)  { return BRIX_AF_INET; }
+    if (len == 5 && memcmp(s, "inet6", 5) == 0) { return BRIX_AF_INET6; }
     return -1;
 }
 
-#endif /* NGX_XROOTD_COMPAT_AF_POLICY_H */
+#endif /* NGX_BRIX_COMPAT_AF_POLICY_H */

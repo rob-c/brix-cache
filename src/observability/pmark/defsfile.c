@@ -48,7 +48,7 @@ pmark_dup_json_str(ngx_pool_t *pool, json_t *js, ngx_str_t *out)
 
 
 ngx_int_t
-xrootd_pmark_defsfile_load(const char *path, ngx_pool_t *pool,
+brix_pmark_defsfile_load(const char *path, ngx_pool_t *pool,
     ngx_array_t **out, ngx_log_t *log)
 {
     json_t        *root, *exps, *e;
@@ -82,14 +82,14 @@ xrootd_pmark_defsfile_load(const char *path, ngx_pool_t *pool,
     }
 
     defs = ngx_array_create(pool, json_array_size(exps),
-                            sizeof(xrootd_pmark_exp_def_t));
+                            sizeof(brix_pmark_exp_def_t));
     if (defs == NULL) {
         json_decref(root);
         return NGX_ERROR;
     }
 
     json_array_foreach(exps, i, e) {
-        xrootd_pmark_exp_def_t *def;
+        brix_pmark_exp_def_t *def;
         json_t                 *acts, *a;
         size_t                  j;
 
@@ -116,14 +116,14 @@ xrootd_pmark_defsfile_load(const char *path, ngx_pool_t *pool,
             continue;
         }
         def->activities = ngx_array_create(pool, json_array_size(acts),
-                                           sizeof(xrootd_pmark_named_t));
+                                           sizeof(brix_pmark_named_t));
         if (def->activities == NULL) {
             json_decref(root);
             return NGX_ERROR;
         }
 
         json_array_foreach(acts, j, a) {
-            xrootd_pmark_named_t *act;
+            brix_pmark_named_t *act;
 
             if (!json_is_object(a)) {
                 continue;
@@ -151,9 +151,9 @@ xrootd_pmark_defsfile_load(const char *path, ngx_pool_t *pool,
 
 
 ngx_uint_t
-xrootd_pmark_defs_exp_id(ngx_array_t *defs, ngx_str_t *name)
+brix_pmark_defs_exp_id(ngx_array_t *defs, ngx_str_t *name)
 {
-    xrootd_pmark_exp_def_t *d;
+    brix_pmark_exp_def_t *d;
     ngx_uint_t              i;
 
     if (defs == NULL || name == NULL) {
@@ -172,9 +172,9 @@ xrootd_pmark_defs_exp_id(ngx_array_t *defs, ngx_str_t *name)
 
 
 ngx_uint_t
-xrootd_pmark_defs_act_id(ngx_array_t *defs, ngx_uint_t exp_id, ngx_str_t *name)
+brix_pmark_defs_act_id(ngx_array_t *defs, ngx_uint_t exp_id, ngx_str_t *name)
 {
-    xrootd_pmark_exp_def_t *d;
+    brix_pmark_exp_def_t *d;
     ngx_uint_t              i, j;
 
     if (defs == NULL || name == NULL) {
@@ -186,7 +186,7 @@ xrootd_pmark_defs_act_id(ngx_array_t *defs, ngx_uint_t exp_id, ngx_str_t *name)
             continue;
         }
         {
-            xrootd_pmark_named_t *a = d[i].activities->elts;
+            brix_pmark_named_t *a = d[i].activities->elts;
             for (j = 0; j < d[i].activities->nelts; j++) {
                 if (a[j].name.len == name->len
                     && ngx_strncmp(a[j].name.data, name->data, name->len) == 0)

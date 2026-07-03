@@ -1,47 +1,47 @@
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 #include "fs/cache/writethrough_metrics.h"
 #include "protocols/root/write/wrts_journal.h"
 #include "protocols/root/connection/disconnect.h"     /* deferred-teardown guards */
-#include "protocols/root/connection/event_sched.h"    /* xrootd_schedule_read_resume */
+#include "protocols/root/connection/event_sched.h"    /* brix_schedule_read_resume */
 
 /*
- * xrootd_write_aio_thread — thread-pool worker for kXR_write / kXR_pgwrite.
+ * brix_write_aio_thread — thread-pool worker for kXR_write / kXR_pgwrite.
  *
  * Runs on a worker thread; must not touch nginx state, connection pools, or
  * any field that is not owned by the task struct.
  */
 void
-xrootd_write_aio_thread(void *data, ngx_log_t *log)
+brix_write_aio_thread(void *data, ngx_log_t *log)
 {
-    xrootd_write_aio_t *t = data;
-    xrootd_vfs_job_t    job;
+    brix_write_aio_t *t = data;
+    brix_vfs_job_t    job;
 
     /*
      * Off-loop blocking write.  Capture errno into the task struct immediately:
      * errno is thread-local and would be clobbered before the done callback runs
      * on the main thread.  No nginx state may be touched from here.
      */
-    xrootd_vfs_job_write_init(&job, t->fd, t->offset, t->data, t->len);
+    brix_vfs_job_write_init(&job, t->fd, t->offset, t->data, t->len);
     job.csi = t->csi;                    /* phase-59 W2: update tags in worker */
-    xrootd_vfs_job_set_obj(&job, &t->obj); /* Layer 3: route via driver if bound */
-    xrootd_vfs_io_execute(&job);
+    brix_vfs_job_set_obj(&job, &t->obj); /* Layer 3: route via driver if bound */
+    brix_vfs_io_execute(&job);
 
     t->nwritten = job.nio;
     t->io_errno = job.io_errno;
 }
 
 /*
- * xrootd_write_aio_done — main-thread completion callback for kXR_write / kXR_pgwrite AIO.
+ * brix_write_aio_done — main-thread completion callback for kXR_write / kXR_pgwrite AIO.
  */
 void
-xrootd_write_aio_done(ngx_event_t *ev)
+brix_write_aio_done(ngx_event_t *ev)
 {
     ngx_thread_task_t            *task = ev->data;
-    xrootd_write_aio_t           *t = task->ctx;
-    xrootd_ctx_t                 *ctx = t->ctx;
+    brix_write_aio_t           *t = task->ctx;
+    brix_ctx_t                 *ctx = t->ctx;
     ngx_connection_t             *c = t->c;
-    ngx_stream_xrootd_srv_conf_t *rconf;
-    ngx_int_t                     op = XROOTD_OP_WRITE;
+    ngx_stream_brix_srv_conf_t *rconf;
+    ngx_int_t                     op = BRIX_OP_WRITE;
     ngx_flag_t                    pipelined = !t->is_pgwrite;
 
     /*
@@ -73,13 +73,13 @@ xrootd_write_aio_done(ngx_event_t *ev)
          * pipelined completion, running the teardown that was held off.
          */
         if (pipelined && ctx->finalize_pending && ctx->wr_inflight == 0) {
-            xrootd_run_deferred_teardown(ctx, c);   /* frees ctx — return now */
+            brix_run_deferred_teardown(ctx, c);   /* frees ctx — return now */
         }
         return;
     }
 
     rconf = ngx_stream_get_module_srv_conf(
-        (ngx_stream_session_t *) c->data, ngx_stream_xrootd_module);
+        (ngx_stream_session_t *) c->data, ngx_stream_brix_module);
 
     if (pipelined) {
         /*
@@ -93,9 +93,9 @@ xrootd_write_aio_done(ngx_event_t *ev)
          */
         const char *errmsg = NULL;
 
-        if (!xrootd_aio_restore_stream(ctx, t->streamid)) {
+        if (!brix_aio_restore_stream(ctx, t->streamid)) {
             if (ctx->finalize_pending && ctx->wr_inflight == 0) {
-                xrootd_run_deferred_teardown(ctx, c);
+                brix_run_deferred_teardown(ctx, c);
             }
             return;
         }
@@ -111,41 +111,41 @@ xrootd_write_aio_done(ngx_event_t *ev)
                 char detail[64];
                 snprintf(detail, sizeof(detail), "%lld+%zu",
                          (long long) t->req_offset, t->len);
-                xrootd_log_access(ctx, c, "WRITE", t->path, detail,
+                brix_log_access(ctx, c, "WRITE", t->path, detail,
                                   0, kXR_IOError, errmsg, 0);
             }
-            XROOTD_OP_ERR(ctx, op);
+            BRIX_OP_ERR(ctx, op);
             ctx->resp_async = 1;
-            (void) xrootd_send_error(ctx, c, kXR_IOError, errmsg);
+            (void) brix_send_error(ctx, c, kXR_IOError, errmsg);
             ctx->resp_async = 0;
-            (void) xrootd_schedule_read_resume(c);
+            (void) brix_schedule_read_resume(c);
             return;
         }
 
         ctx->files[t->handle_idx].bytes_written += (size_t) t->nwritten;
         ctx->session_bytes_written += (size_t) t->nwritten;
         if (ctx->files[t->handle_idx].wt_enabled) {
-            xrootd_wt_mark_dirty(ctx, t->handle_idx,
+            brix_wt_mark_dirty(ctx, t->handle_idx,
                 t->req_offset + (int64_t) t->nwritten - 1,
                 (size_t) t->nwritten);
         }
         if (ctx->files[t->handle_idx].wrts_enabled) {
-            xrootd_wrts_record(&ctx->files[t->handle_idx], t->req_offset,
+            brix_wrts_record(&ctx->files[t->handle_idx], t->req_offset,
                                (uint32_t) t->nwritten);
         }
         if (rconf->access_log_fd != NGX_INVALID_FILE) {
             char detail[64];
             snprintf(detail, sizeof(detail), "%lld+%zu",
                      (long long) t->req_offset, t->len);
-            xrootd_log_access(ctx, c, "WRITE", t->path, detail,
+            brix_log_access(ctx, c, "WRITE", t->path, detail,
                               1, 0, NULL, (size_t) t->nwritten);
         }
-        XROOTD_OP_OK(ctx, op);
+        BRIX_OP_OK(ctx, op);
 
         ctx->resp_async = 1;
-        (void) xrootd_send_ok(ctx, c, NULL, 0);
+        (void) brix_send_ok(ctx, c, NULL, 0);
         ctx->resp_async = 0;
-        (void) xrootd_schedule_read_resume(c);
+        (void) brix_schedule_read_resume(c);
         return;
     }
 
@@ -154,7 +154,7 @@ xrootd_write_aio_done(ngx_event_t *ev)
      * loop is suspended in XRD_ST_AIO and it is safe to restore the full request
      * context (state + hdr_pos) and drive the response + resume synchronously.
      */
-    if (!xrootd_aio_restore_request(ctx, t->streamid)) {
+    if (!brix_aio_restore_request(ctx, t->streamid)) {
         return;
     }
 
@@ -163,17 +163,17 @@ xrootd_write_aio_done(ngx_event_t *ev)
             char detail[64];
             snprintf(detail, sizeof(detail), "%lld+%zu",
                      (long long) t->req_offset, t->len);
-            xrootd_log_access(ctx, c, "WRITE", t->path, detail,
+            brix_log_access(ctx, c, "WRITE", t->path, detail,
                               0, kXR_IOError,
                               t->io_errno ? strerror(t->io_errno)
                                           : "async write error",
                               0);
         }
-        XROOTD_OP_ERR(ctx, op);
-        xrootd_send_error(ctx, c, kXR_IOError,
+        BRIX_OP_ERR(ctx, op);
+        brix_send_error(ctx, c, kXR_IOError,
                           t->io_errno ? strerror(t->io_errno)
                                       : "async write error");
-        xrootd_aio_resume(c);
+        brix_aio_resume(c);
         return;
     }
 
@@ -188,12 +188,12 @@ xrootd_write_aio_done(ngx_event_t *ev)
             char detail[64];
             snprintf(detail, sizeof(detail), "%lld+%zu",
                      (long long) t->req_offset, t->len);
-            xrootd_log_access(ctx, c, "WRITE", t->path, detail,
+            brix_log_access(ctx, c, "WRITE", t->path, detail,
                               0, kXR_IOError, "short write (disk full?)", 0);
         }
-        XROOTD_OP_ERR(ctx, op);
-        xrootd_send_error(ctx, c, kXR_IOError, "short write (disk full?)");
-        xrootd_aio_resume(c);
+        BRIX_OP_ERR(ctx, op);
+        brix_send_error(ctx, c, kXR_IOError, "short write (disk full?)");
+        brix_aio_resume(c);
         return;
     }
 
@@ -208,14 +208,14 @@ xrootd_write_aio_done(ngx_event_t *ev)
          * requested (t->offset is the same value; req_offset is kept distinct
          * for logging the original request).
          */
-        xrootd_wt_mark_dirty(ctx, t->handle_idx,
+        brix_wt_mark_dirty(ctx, t->handle_idx,
             t->req_offset + (int64_t) t->nwritten - 1,
             (size_t) t->nwritten);
     }
 
     /* Record the committed write in the recovery journal. */
     if (ctx->files[t->handle_idx].wrts_enabled) {
-        xrootd_wrts_record(&ctx->files[t->handle_idx], t->req_offset,
+        brix_wrts_record(&ctx->files[t->handle_idx], t->req_offset,
                            (uint32_t) t->nwritten);
     }
 
@@ -223,10 +223,10 @@ xrootd_write_aio_done(ngx_event_t *ev)
         char detail[64];
         snprintf(detail, sizeof(detail), "%lld+%zu",
                  (long long) t->req_offset, t->len);
-        xrootd_log_access(ctx, c, "WRITE", t->path, detail,
+        brix_log_access(ctx, c, "WRITE", t->path, detail,
                           1, 0, NULL, (size_t) t->nwritten);
     }
-    XROOTD_OP_OK(ctx, op);
+    BRIX_OP_OK(ctx, op);
 
     /*
      * Reply framing differs by opcode: kXR_pgwrite expects a kXR_status response
@@ -239,30 +239,30 @@ xrootd_write_aio_done(ngx_event_t *ev)
          * (accept-then-correct); reply with the retransmit list so the client
          * resends those pages with kXR_pgRetry. */
         if (t->bad_page_count > 0) {
-            xrootd_send_pgwrite_cse(ctx, c, t->req_offset,
+            brix_send_pgwrite_cse(ctx, c, t->req_offset,
                                     t->bad_pages, t->bad_page_count);
         } else {
-            xrootd_send_pgwrite_status(ctx, c, t->req_offset);
+            brix_send_pgwrite_status(ctx, c, t->req_offset);
         }
     } else {
-        xrootd_send_ok(ctx, c, NULL, 0);
+        brix_send_ok(ctx, c, NULL, 0);
     }
 
     /* Re-arm the connection events and resume the recv loop for the next op. */
-    xrootd_aio_resume(c);
+    brix_aio_resume(c);
 }
 
 /*
- * xrootd_writev_write_aio_thread — thread-pool worker for kXR_writev multi-segment write.
+ * brix_writev_write_aio_thread — thread-pool worker for kXR_writev multi-segment write.
  *
  * Runs on a worker thread. io_error=1 on hard failure, io_error=2 on short write.
  * If do_sync is set, fsync(2) is called per unique fd after all segments succeed.
  */
 void
-xrootd_writev_write_aio_thread(void *data, ngx_log_t *log)
+brix_writev_write_aio_thread(void *data, ngx_log_t *log)
 {
-    xrootd_writev_aio_t *t = data;
-    xrootd_vfs_job_t     job;
+    brix_writev_aio_t *t = data;
+    brix_vfs_job_t     job;
 
     t->bytes_total = 0;
     t->io_error = 0;
@@ -276,14 +276,14 @@ xrootd_writev_write_aio_thread(void *data, ngx_log_t *log)
      * callback: 1 = hard pwrite error, 2 = short write.
      */
     ngx_memzero(&job, sizeof(job));
-    job.op = XROOTD_VFS_IO_WRITEV;
+    job.op = BRIX_VFS_IO_WRITEV;
     job.segs = t->segs;
     job.nsegs = t->n_segs;
     job.do_sync = t->do_sync ? 1 : 0;
     job.err_msg = t->err_msg;
     job.err_msg_cap = sizeof(t->err_msg);
 
-    xrootd_vfs_io_execute(&job);
+    brix_vfs_io_execute(&job);
 
     t->bytes_total = job.out_size;
     if (job.io_errno != 0) {
@@ -296,16 +296,16 @@ xrootd_writev_write_aio_thread(void *data, ngx_log_t *log)
 }
 
 /*
- * xrootd_writev_write_aio_done — completion callback for kXR_writev AIO.
+ * brix_writev_write_aio_done — completion callback for kXR_writev AIO.
  */
 void
-xrootd_writev_write_aio_done(ngx_event_t *ev)
+brix_writev_write_aio_done(ngx_event_t *ev)
 {
     ngx_thread_task_t            *task = ev->data;
-    xrootd_writev_aio_t          *t = task->ctx;
-    xrootd_ctx_t                 *ctx = t->ctx;
+    brix_writev_aio_t          *t = task->ctx;
+    brix_ctx_t                 *ctx = t->ctx;
     ngx_connection_t             *c = t->c;
-    ngx_stream_xrootd_srv_conf_t *rconf;
+    ngx_stream_brix_srv_conf_t *rconf;
     size_t                        i;
 
     /*
@@ -319,17 +319,17 @@ xrootd_writev_write_aio_done(ngx_event_t *ev)
     }
 
     /*
-     * Liveness guard — see xrootd_write_aio_done.  If the request can't be
+     * Liveness guard — see brix_write_aio_done.  If the request can't be
      * restored the connection is dead; ctx/c are stale, so return now.
      */
-    if (!xrootd_aio_restore_request(ctx, t->streamid)) {
+    if (!brix_aio_restore_request(ctx, t->streamid)) {
         return;
     }
 
     if (t->io_error) {
-        XROOTD_OP_ERR(ctx, XROOTD_OP_WRITEV);
-        xrootd_send_error(ctx, c, kXR_IOError, t->err_msg);
-        xrootd_aio_resume(c);
+        BRIX_OP_ERR(ctx, BRIX_OP_WRITEV);
+        brix_send_error(ctx, c, kXR_IOError, t->err_msg);
+        brix_aio_resume(c);
         return;
     }
 
@@ -340,19 +340,19 @@ xrootd_writev_write_aio_done(ngx_event_t *ev)
      */
     for (i = 0; i < t->n_segs; i++) {
         if (t->segs[i].wlen > 0) {
-            xrootd_file_t *file = &ctx->files[t->segs[i].handle_idx];
+            brix_file_t *file = &ctx->files[t->segs[i].handle_idx];
 
             file->bytes_written += t->segs[i].wlen;
 
             /* Record the committed write in the recovery journal. */
             if (file->wrts_enabled) {
-                xrootd_wrts_record(file, (int64_t) t->segs[i].offset,
+                brix_wrts_record(file, (int64_t) t->segs[i].offset,
                                    t->segs[i].wlen);
             }
 
             if (file->wt_enabled) {
                 /* Dirty range end is inclusive: offset + wlen - 1. */
-                xrootd_wt_mark_dirty(ctx, t->segs[i].handle_idx,
+                brix_wt_mark_dirty(ctx, t->segs[i].handle_idx,
                     t->segs[i].offset + (off_t) t->segs[i].wlen - 1,
                     t->segs[i].wlen);
             }
@@ -361,15 +361,15 @@ xrootd_writev_write_aio_done(ngx_event_t *ev)
     ctx->session_bytes_written += t->bytes_total;
 
     rconf = ngx_stream_get_module_srv_conf(
-        (ngx_stream_session_t *) c->data, ngx_stream_xrootd_module);
+        (ngx_stream_session_t *) c->data, ngx_stream_brix_module);
     if (rconf->access_log_fd != NGX_INVALID_FILE) {
         char detail[64];
         snprintf(detail, sizeof(detail), "%zu_segs", t->n_segs);
-        xrootd_log_access(ctx, c, "WRITEV", "-", detail, 1, 0, NULL,
+        brix_log_access(ctx, c, "WRITEV", "-", detail, 1, 0, NULL,
                           t->bytes_total);
     }
-    XROOTD_OP_OK(ctx, XROOTD_OP_WRITEV);
+    BRIX_OP_OK(ctx, BRIX_OP_WRITEV);
 
-    xrootd_send_ok(ctx, c, NULL, 0);
-    xrootd_aio_resume(c);
+    brix_send_ok(ctx, c, NULL, 0);
+    brix_aio_resume(c);
 }

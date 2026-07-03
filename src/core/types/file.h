@@ -1,10 +1,10 @@
-#ifndef XROOTD_TYPES_FILE_H
-#define XROOTD_TYPES_FILE_H
+#ifndef BRIX_TYPES_FILE_H
+#define BRIX_TYPES_FILE_H
 
-#include "fs/backend/sd.h"   /* xrootd_sd_obj_t — per-handle storage object */
+#include "fs/backend/sd.h"   /* brix_sd_obj_t — per-handle storage object */
 
 /* Number of committed-write entries kept per open handle for replay detection. */
-#define XROOTD_WRTS_JOURNAL_SLOTS 64
+#define BRIX_WRTS_JOURNAL_SLOTS 64
 
 /*
  * One entry in the per-handle write-recovery ring buffer.
@@ -14,7 +14,7 @@ typedef struct {
     int64_t  offset;   /* file byte offset of the write */
     uint32_t length;   /* byte count (0 = slot unused) */
     uint32_t gen;      /* monotonically increasing generation counter */
-} xrootd_wrts_entry_t;
+} brix_wrts_entry_t;
 
 /* ---- pgwrite CSE (checksum-error) uncorrected-page registry (the "Fob") ----
  *
@@ -24,31 +24,31 @@ typedef struct {
  * data integrity once corrupt bytes are written to disk (accept-then-correct).
  * Capacity is kXR_pgMaxEos (256); a fixed array keyed by the stock encoding
  * key = (offset << kXR_pgPageBL) | (dlen < pgPageSZ ? dlen : 0). */
-#define XROOTD_PGW_FOB_SLOTS 256   /* == kXR_pgMaxEos */
+#define BRIX_PGW_FOB_SLOTS 256   /* == kXR_pgMaxEos */
 
 typedef struct {
     int64_t  key;      /* encoded (offset,dlen) — valid only when used == 1 */
     uint8_t  used;     /* 1 = slot occupied (key 0 is a legal member)       */
-} xrootd_pgw_fob_entry_t;
+} brix_pgw_fob_entry_t;
 
-/* ---- File: file.h — Per-open-file bookkeeping type (xrootd_file_t) ----
+/* ---- File: file.h — Per-open-file bookkeeping type (brix_file_t) ----
  *
- * WHAT: Defines xrootd_file_t — one slot per open XRootD file handle where array index IS the handle value (0..XROOTD_MAX_FILES-1). Fields: fd (OS descriptor; -1 = free), path (resolved absolute allocated on open), bytes_read/bytes_written cumulative counters, open_time timestamp for throughput log, writable/readable permission flags, from_cache flag drives kXR_cachersp in stat. Immutable over handle lifetime: is_regular S_ISREG at open, device/ino captured at open validates bound reopens, cached_size st_size valid for read-only. Read tracking: read_last_end previous read end offset (-1=none), read_ahead_end WILLNEED hint farthest byte. kXR_chkpoint state: ckp_path checkpoint temp file (NULL=no active checkpoint), ckp_size bytes captured at kXR_ckpBegin. kXR_posc persist-on-successful-close lifecycle: write open with posc → staged to temporary path → clean kXR_close renames temp to posc_final_path → disconnect/error close unlinks temp via path field (set to temp path at open). Native root:// TPC destination state: tpc_destination=1 pending target, tpc_armed first sync acknowledged rendezvous setup, tpc_started pull task posted, tpc_done completed successfully, tpc_key[128] shared rendezvous key, tpc_org[256] origin identity sent to source as tpc.org, tpc_src_host/tpc_src_port/tpc_src_path[PATH_MAX] source address + path, tpc_token_mode[32] OAuth2/OIDC delegation mode for source auth. Write-through state (mirrors XrdPfcFile::m_dirtyOffset/m_bytesWritten): wt_enabled=1 eligible for WT flush on close, wt_policy cached decision at open time (XROOTD_WT_*), wt_mode_bits POSIX mode sent to origin write-open, wt_dirty_offset last dirty write offset (-1=no pending writes), wt_bytes_written cumulative writes since last sync for metrics. Async flush state: wt_flush_task pending async flush task heap allocated before ngx_thread_task_post freed in completion callback after result consumed on main thread, wt_flush_pending=1 flush posted but not confirmed.
+ * WHAT: Defines brix_file_t — one slot per open XRootD file handle where array index IS the handle value (0..BRIX_MAX_FILES-1). Fields: fd (OS descriptor; -1 = free), path (resolved absolute allocated on open), bytes_read/bytes_written cumulative counters, open_time timestamp for throughput log, writable/readable permission flags, from_cache flag drives kXR_cachersp in stat. Immutable over handle lifetime: is_regular S_ISREG at open, device/ino captured at open validates bound reopens, cached_size st_size valid for read-only. Read tracking: read_last_end previous read end offset (-1=none), read_ahead_end WILLNEED hint farthest byte. kXR_chkpoint state: ckp_path checkpoint temp file (NULL=no active checkpoint), ckp_size bytes captured at kXR_ckpBegin. kXR_posc persist-on-successful-close lifecycle: write open with posc → staged to temporary path → clean kXR_close renames temp to posc_final_path → disconnect/error close unlinks temp via path field (set to temp path at open). Native root:// TPC destination state: tpc_destination=1 pending target, tpc_armed first sync acknowledged rendezvous setup, tpc_started pull task posted, tpc_done completed successfully, tpc_key[128] shared rendezvous key, tpc_org[256] origin identity sent to source as tpc.org, tpc_src_host/tpc_src_port/tpc_src_path[PATH_MAX] source address + path, tpc_token_mode[32] OAuth2/OIDC delegation mode for source auth. Write-through state (mirrors XrdPfcFile::m_dirtyOffset/m_bytesWritten): wt_enabled=1 eligible for WT flush on close, wt_policy cached decision at open time (BRIX_WT_*), wt_mode_bits POSIX mode sent to origin write-open, wt_dirty_offset last dirty write offset (-1=no pending writes), wt_bytes_written cumulative writes since last sync for metrics. Async flush state: wt_flush_task pending async flush task heap allocated before ngx_thread_task_post freed in completion callback after result consumed on main thread, wt_flush_pending=1 flush posted but not confirmed.
  *
- * WHY: Array index directly = XRootD file handle — clients echo back this opaque 4-byte value in kXR_read/kXR_write/kXR_close etc., server uses index directly so handles are sequential 0..N-1. Slot "in use" when fd >= 0, reset to -1 via xrootd_free_fhandle() on close or disconnect. Bound connections validate device/inode against values captured at open time (nginx workers cannot share post-fork fd integers safely). POSC lifecycle ensures atomic rename-on-success: temp file created at open, renamed to final path only on clean close, unlinked on error/disconnect preventing orphaned temps. TPC destination mirrors XrdCl's full sequence: open target → sync arm rendezvous → open source with tpc.dst → sync run copy. Write-through dirty semantics: wt_enabled=1 eligible for flush on close, wt_dirty_offset > -1 means data written since last sync point, actual write-back happens synchronously (wt_mode==SYNC) or asynchronously via ngx_thread_task_post (WT_ASYNC).
+ * WHY: Array index directly = XRootD file handle — clients echo back this opaque 4-byte value in kXR_read/kXR_write/kXR_close etc., server uses index directly so handles are sequential 0..N-1. Slot "in use" when fd >= 0, reset to -1 via brix_free_fhandle() on close or disconnect. Bound connections validate device/inode against values captured at open time (nginx workers cannot share post-fork fd integers safely). POSC lifecycle ensures atomic rename-on-success: temp file created at open, renamed to final path only on clean close, unlinked on error/disconnect preventing orphaned temps. TPC destination mirrors XrdCl's full sequence: open target → sync arm rendezvous → open source with tpc.dst → sync run copy. Write-through dirty semantics: wt_enabled=1 eligible for flush on close, wt_dirty_offset > -1 means data written since last sync point, actual write-back happens synchronously (wt_mode==SYNC) or asynchronously via ngx_thread_task_post (WT_ASYNC).
  *
  * HOW: Struct layout — fd/path/bytes_read/bytes_written/open_time/writable/readable/from_cache (lines 17-25) → is_regular/device/inode/cached_size/read_last_end/read_ahead_end (lines 27-32) → ckp_path/ckp_size chkpoint state (lines 35-36) → posc_final_path POSC state (line 47) → TPC destination tpc_destination/tpc_armed/tpc_started/tpc_done + tpc_key[128]/tpc_org[256]/tpc_src_host[256]/tpc_src_port/tpc_src_path[PATH_MAX]/tpc_token_mode[32] (lines 57-66) → write-through wt_enabled/wt_policy/wt_mode_bits/wt_dirty_offset/wt_bytes_written (lines 81-85) → async flush wt_flush_task/wt_flush_pending (lines 91-92). */
 
 /*
- * Per-open-file bookkeeping (xrootd_file_t).
+ * Per-open-file bookkeeping (brix_file_t).
  *
  * One slot per open file handle.  The array index IS the XRootD "file
  * handle" — a 4-byte opaque value the client echoes back in kXR_read,
  * kXR_write, kXR_close, etc.  We use the index directly, so handle
- * values are 0..XROOTD_MAX_FILES-1.
+ * values are 0..BRIX_MAX_FILES-1.
  *
  * A slot is "in use" when fd >= 0.  On kXR_close (or disconnect), fd
- * is closed and reset to -1 via xrootd_free_fhandle().
+ * is closed and reset to -1 via brix_free_fhandle().
  *
  * Requires: ngx_msec_t (ngx_config.h + ngx_core.h) before inclusion.
  */
@@ -72,9 +72,9 @@ typedef struct {
 
     /*
      * Phase-42 W4 — root:// inline read compression.  Holds the negotiated
-     * codec ordinal (xrootd_codec_id_t) when the client opened this read handle
-     * with "?xrootd.compress=<codec>" AND the server has xrootd_read_compress
-     * on.  0 (XROOTD_CODEC_IDENTITY) means no compression — the default, byte-
+     * codec ordinal (brix_codec_id_t) when the client opened this read handle
+     * with "?xrootd.compress=<codec>" AND the server has brix_read_compress
+     * on.  0 (BRIX_CODEC_IDENTITY) means no compression — the default, byte-
      * identical hot read path.  kXR_read responses for a non-zero codec are
      * codec-framed; pgread/readv ignore this field and always serve plaintext
      * (preserving the pgread kXR_status + per-page CRC32c invariant).  Stored as
@@ -84,8 +84,8 @@ typedef struct {
 
     /*
      * Phase-42 W5 — root:// inline write decompression.  Negotiated codec ordinal
-     * (xrootd_codec_id_t) when a WRITE handle was opened with "?xrootd.compress="
-     * AND xrootd_write_compress is on.  0 = no compression (the default, byte-
+     * (brix_codec_id_t) when a WRITE handle was opened with "?xrootd.compress="
+     * AND brix_write_compress is on.  0 = no compression (the default, byte-
      * identical write path).  Each kXR_write payload on such a handle is a
      * self-contained codec frame the server decompresses (bomb-guarded) before
      * storing plaintext; pgwrite ignores this field and stays plaintext.
@@ -98,7 +98,7 @@ typedef struct {
      * fd is the ARCHIVE fd, and the handle serves one member of it: stored
      * members (zip_method 0) by pure offset translation (fd read at
      * zip_data_off + request offset), deflate members (zip_method 8) by
-     * streaming inflate through zip_inflate (a xrootd_codec_stream_t*, lazily
+     * streaming inflate through zip_inflate (a brix_codec_stream_t*, lazily
      * created on first read).  cached_size holds the member's UNCOMPRESSED size
      * (the logical file size reported to clients).  Read-only: write/pgwrite/
      * truncate/sync on a zip_mode handle are rejected.  pgread/readv reject
@@ -111,7 +111,7 @@ typedef struct {
     uint64_t   zip_comp_size;     /* compressed bytes in the archive */
     uint64_t   zip_uncomp_size;   /* uncompressed (logical) size == cached_size */
     uint32_t   zip_crc32;         /* expected IEEE CRC-32 of the uncompressed data */
-    void      *zip_inflate;       /* xrootd_codec_stream_t* (deflate); NULL until used */
+    void      *zip_inflate;       /* brix_codec_stream_t* (deflate); NULL until used */
     uint64_t   zip_logical_pos;   /* next uncompressed offset the inflate stream will emit */
     uint64_t   zip_comp_pos;      /* next compressed offset consumed from the archive */
 
@@ -124,17 +124,17 @@ typedef struct {
      *
      * When a write open carries kXR_posc the file is staged to a temporary
      * path.  On a clean kXR_close the temp is renamed to posc_final_path.
-     * On disconnect / error close xrootd_free_fhandle() unlinks the temp
+     * On disconnect / error close brix_free_fhandle() unlinks the temp
      * (via the path field, which was set to the temp path at open time).
      * posc_final_path is heap-allocated (ngx_alloc / ngx_free), like path.
      */
     char      *posc_final_path; /* target path for POSC rename; NULL if not POSC */
 
     /*
-     * Upload-resume staging (xrootd_upload_resume on).  When set, `path` is a
-     * DETERMINISTIC identity-keyed partial (xrootd_make_resume_path) and
+     * Upload-resume staging (brix_upload_resume on).  When set, `path` is a
+     * DETERMINISTIC identity-keyed partial (brix_make_resume_path) and
      * posc_final_path is the destination, so the close-time POSC rename commits
-     * it.  The difference from plain POSC: xrootd_free_fhandle() must NOT unlink
+     * it.  The difference from plain POSC: brix_free_fhandle() must NOT unlink
      * the partial on a disconnect/abort — it is preserved on disk so the same
      * client reconnecting (re-open in place, no truncate) resumes from its
      * offset.  Cleared once committed (close) so the free path leaves the renamed
@@ -180,7 +180,7 @@ typedef struct {
                                        * (Option A): flush happens on the storage path (sync
                                        * job / close); close does an explicit fsync-and-check
                                        * so a failed flush still fails the close (durability). */
-    uint8_t          wt_policy;       /* cached decision at open time — XROOTD_WT_* */
+    uint8_t          wt_policy;       /* cached decision at open time — BRIX_WT_* */
     uint16_t         wt_mode_bits;    /* POSIX mode sent to the origin write-open */
     off_t            wt_dirty_offset; /* last dirty write offset; -1 = no pending writes */
     size_t           wt_bytes_written;/* cumulative writes since last sync (metrics) */
@@ -196,20 +196,20 @@ typedef struct {
      *
      * A fixed-size ring buffer of committed (offset, length) write ranges.
      * When a client reconnects and replays an in-flight write, the server
-     * checks this ring via xrootd_wrts_is_replay() and short-circuits the
+     * checks this ring via brix_wrts_is_replay() and short-circuits the
      * pwrite() when the range is already covered — making the replay idempotent
      * and preventing data corruption (double-write).
      *
      * wrts_enabled  = 1 when the journal is active (writable open + recover_writes on)
-     * wrts_head     = next write slot (mod XROOTD_WRTS_JOURNAL_SLOTS)
-     * wrts_count    = number of valid entries (capped at XROOTD_WRTS_JOURNAL_SLOTS)
+     * wrts_head     = next write slot (mod BRIX_WRTS_JOURNAL_SLOTS)
+     * wrts_count    = number of valid entries (capped at BRIX_WRTS_JOURNAL_SLOTS)
      * wrts_gen      = per-handle write generation counter (incremented per record)
      */
     int                  wrts_enabled;
     uint32_t             wrts_head;
     uint32_t             wrts_count;
     uint32_t             wrts_gen;
-    xrootd_wrts_entry_t  wrts_journal[XROOTD_WRTS_JOURNAL_SLOTS];
+    brix_wrts_entry_t  wrts_journal[BRIX_WRTS_JOURNAL_SLOTS];
 
     /* ---- pgwrite CSE uncorrected-page registry (the "Fob") ----
      * pgw_fob_enabled = 1 once a writable handle has taken the pgwrite path.
@@ -220,15 +220,15 @@ typedef struct {
     uint32_t                pgw_fob_count;
     uint32_t                pgw_fob_errs;
     uint32_t                pgw_fob_fixes;
-    xrootd_pgw_fob_entry_t  pgw_fob[XROOTD_PGW_FOB_SLOTS];
+    brix_pgw_fob_entry_t  pgw_fob[BRIX_PGW_FOB_SLOTS];
 
-    /* Live transfer monitor slot index — index into xrootd_transfer_table_t.slots[].
+    /* Live transfer monitor slot index — index into brix_transfer_table_t.slots[].
      * -1 means this handle is not currently tracked (table full, or dashboard disabled). */
     int32_t  dashboard_slot;
 
     /* Phase 33 C2 — bound-secondary SHM handle-table slot hint.
-     * For a bound stream, xrootd_ensure_read_handle() re-validates the published
-     * handle under xrootd_handle_mutex on EVERY read.  Caching the slot index
+     * For a bound stream, brix_ensure_read_handle() re-validates the published
+     * handle under brix_handle_mutex on EVERY read.  Caching the slot index
      * matched on the first lookup turns the per-read linear scan of the handle
      * table into an O(1) direct check (still under the lock, still re-validating
      * sessid/handle_index/in_use + device/inode, so a primary close/reuse is
@@ -237,13 +237,13 @@ typedef struct {
     int      shared_handle_slot_hint;
 
     /* §7 XrdSsi: non-NULL marks this handle as an SSI request/response channel
-     * (no real fd). Points to an xrootd_ssi_req_t (connection-pool allocated); the
-     * read/write handlers branch on it and xrootd_free_fhandle clears it. */
+     * (no real fd). Points to an brix_ssi_req_t (connection-pool allocated); the
+     * read/write handlers branch on it and brix_free_fhandle clears it. */
     void    *ssi;
 
     /* phase-59 W2: non-NULL when CSI page-checksum integrity is active for this
-     * handle. Points to a heap-allocated xrootd_csi_t (its own tag-file fd);
-     * read verifies, write/pgwrite update, xrootd_free_fhandle closes+frees it. */
+     * handle. Points to a heap-allocated brix_csi_t (its own tag-file fd);
+     * read verifies, write/pgwrite update, brix_free_fhandle closes+frees it. */
     void    *csi;
 
     /* Layer-3 storage-driver object for this handle.  When a non-POSIX backend
@@ -252,8 +252,8 @@ typedef struct {
      * above is then a driver-managed descriptor (block-0 fd or -1).  When
      * sd_obj.driver == NULL (the default POSIX export) data I/O POSIX-wraps `fd`,
      * byte-for-byte the pre-Layer-3 path. */
-    xrootd_sd_obj_t  sd_obj;
+    brix_sd_obj_t  sd_obj;
 
-} xrootd_file_t;
+} brix_file_t;
 
-#endif /* XROOTD_TYPES_FILE_H */
+#endif /* BRIX_TYPES_FILE_H */

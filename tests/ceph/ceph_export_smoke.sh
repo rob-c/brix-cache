@@ -7,7 +7,7 @@
 #   http://  : xrdcp (WebDAV) PUT/GET byte-exact
 #   backend  : the objects actually land in the RADOS pool (rados ls)
 #
-# Prereqs in the container: /opt/nginx-src/objs/nginx built (XROOTD_HAVE_CEPH),
+# Prereqs in the container: /opt/nginx-src/objs/nginx built (BRIX_HAVE_CEPH),
 # /work/repo source, /etc/ceph/ceph.conf for pool xrdtest.
 set -u
 
@@ -43,12 +43,12 @@ stream {
     server {
         listen 127.0.0.1:${RPORT};
         xrootd on;
-        xrootd_root /export;
-        xrootd_auth none;
-        xrootd_allow_write on;
-        xrootd_upload_resume off;
-        xrootd_storage_backend ceph:${POOL};
-        xrootd_access_log $RUN/xrd_access.log;
+        brix_root /export;
+        brix_auth none;
+        brix_allow_write on;
+        brix_upload_resume off;
+        brix_storage_backend ceph:${POOL};
+        brix_access_log $RUN/xrd_access.log;
     }
 }
 http {
@@ -62,10 +62,10 @@ http {
     server {
         listen 127.0.0.1:${HPORT};
         location / {
-            xrootd_webdav on;
-            xrootd_webdav_root /export;
-            xrootd_webdav_auth none;
-            xrootd_webdav_allow_write on;
+            brix_webdav on;
+            brix_webdav_root /export;
+            brix_webdav_auth none;
+            brix_webdav_allow_write on;
         }
     }
 }

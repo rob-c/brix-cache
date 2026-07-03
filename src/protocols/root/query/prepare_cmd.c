@@ -10,7 +10,7 @@
  * prepare_cmd.c — Fire-and-forget subprocess invocation for kXR_prepare staging.
  *
  * WHAT: When a kXR_prepare request carries the kXR_stage flag and
- *       xrootd_prepare_command is configured, this module forks a subprocess
+ *       brix_prepare_command is configured, this module forks a subprocess
  *       that exec()s the configured command with the resolved absolute paths as
  *       arguments.  The parent returns immediately (fire-and-forget); SIGCHLD
  *       is handled by nginx's existing reap-children logic (double-fork or
@@ -31,18 +31,18 @@
  *
  * SECURITY:
  *   - Path arguments have already been confined and auth-checked by the
- *     caller (xrootd_handle_prepare); no further validation is needed here.
+ *     caller (brix_handle_prepare); no further validation is needed here.
  *   - All fds ≥ 3 are closed in the child to avoid leaking nginx sockets.
  *   - FD_CLOEXEC is the belt; closing explicitly is the suspenders.
  *   - The command is execv()ed directly — no shell expansion, no injection.
  */
 
 /* Maximum resolved paths passed to the staging command per request — defined
- * in query_internal.h as XROOTD_PREPARE_CMD_MAX_PATHS (512). */
+ * in query_internal.h as BRIX_PREPARE_CMD_MAX_PATHS (512). */
 
 ngx_int_t
-xrootd_prepare_invoke_command(ngx_log_t *log,
-    ngx_stream_xrootd_srv_conf_t *conf,
+brix_prepare_invoke_command(ngx_log_t *log,
+    ngx_stream_brix_srv_conf_t *conf,
     const char **paths, ngx_uint_t count, ngx_flag_t coloc)
 {
     pid_t   pid;
@@ -102,7 +102,7 @@ xrootd_prepare_invoke_command(ngx_log_t *log,
 
     /* grandchild process */
     if (coloc) {
-        setenv("XROOTD_PREPARE_COLOC", "1", 1);
+        setenv("BRIX_PREPARE_COLOC", "1", 1);
     }
 
     /* Close all inherited file descriptors ≥ 3 so we don't leak nginx

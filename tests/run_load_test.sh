@@ -157,7 +157,7 @@ shift || true
 EXTRA_ARGS=("$@")
 
 NGINX_BIN="${NGINX_BIN:-/tmp/nginx-1.28.3/objs/nginx}"
-XROOTD_BIN="${XROOTD_BIN:-/usr/bin/xrootd}"
+BRIX_BIN="${BRIX_BIN:-/usr/bin/xrootd}"
 AUTHDB_FILE="/tmp/xrd-perf-xrd/authdb"
 
 NGINX_PERF_DIR="/tmp/xrd-perf-test"
@@ -177,7 +177,7 @@ XRD_ANON_GEN_CONF="$XRD_ANON_PERF_DIR/xrootd.anon.gen.conf"
 
 # --data-tls {on,off}: set the SAME data-stream TLS posture on BOTH servers for a
 # fair data-plane comparison. Default off = cleartext-vs-cleartext (apples-to-
-# apples). The old default compared nginx-TLS (xrootd_tls on) vs xrootd-cleartext,
+# apples). The old default compared nginx-TLS (brix_tls on) vs xrootd-cleartext,
 # which is not like-for-like. Parsed out of the forwarded args so load_test.py
 # never sees it.
 DATA_TLS="off"
@@ -198,12 +198,12 @@ gen_configs() {
     mkdir -p "$NGINX_PERF_DIR"/{logs,tmp} "$XRD_PERF_DIR"/logs
     local ntls="off"
     [[ "$DATA_TLS" == "on" ]] && ntls="on"
-    # nginx: toggle the GSI block's data-stream TLS (the only `xrootd_tls`
+    # nginx: toggle the GSI block's data-stream TLS (the only `brix_tls`
     # directive in the file; the roots:// blocks use nginx-level `ssl`).
-    sed "s/xrootd_tls on;/xrootd_tls ${ntls};/" \
+    sed "s/brix_tls on;/brix_tls ${ntls};/" \
         "$SCRIPT_DIR/nginx.perf.conf" > "$NGINX_GEN_CONF"
     # xrootd: cleartext data by default; add data-phase TLS for --data-tls on so
-    # the native side encrypts too (parity with nginx xrootd_tls on).
+    # the native side encrypts too (parity with nginx brix_tls on).
     cp "$SCRIPT_DIR/xrootd.perf.conf" "$XRD_GEN_CONF"
     if [[ "$DATA_TLS" == "on" ]]; then
         cat >> "$XRD_GEN_CONF" <<EOF
@@ -216,7 +216,7 @@ EOF
     fi
 
     # Anonymous xrootd on 12093 — no security layer, no authz (matches nginx
-    # `xrootd_auth none`).  Same namespace as the GSI instance so
+    # `brix_auth none`).  Same namespace as the GSI instance so
     # root://host//load_1g.bin resolves identically.
     mkdir -p "$XRD_ANON_PERF_DIR"/{logs,admin,run}
     cat > "$XRD_ANON_GEN_CONF" <<EOF
@@ -237,7 +237,7 @@ xrd.tlsca certdir /tmp/xrd-load/pki/ca
 xrootd.tls data
 EOF
     fi
-    log "data-plane TLS posture: --data-tls=$DATA_TLS (nginx xrootd_tls=$ntls)"
+    log "data-plane TLS posture: --data-tls=$DATA_TLS (nginx brix_tls=$ntls)"
 }
 
 # ---------------------------------------------------------------------------
@@ -383,8 +383,8 @@ stop_nginx() {
 start_xrootd() {
     log "Starting official xrootd (perf config)..."
     # Pre-launch checks
-    if [[ ! -x "$XROOTD_BIN" ]]; then
-        log "ERROR: xrootd binary not found or not executable at $XROOTD_BIN"
+    if [[ ! -x "$BRIX_BIN" ]]; then
+        log "ERROR: xrootd binary not found or not executable at $BRIX_BIN"
         exit 1
     fi
     if [[ ! -f "$SCRIPT_DIR/xrootd.perf.conf" ]]; then
@@ -425,7 +425,7 @@ all.allow host any
 u * / rwld
 AUTHDB
 
-    local xrd_cmd=("$XROOTD_BIN" -c "$XRD_GEN_CONF" -l "$XRD_PERF_DIR/logs/xrootd.log" -n perf -b)
+    local xrd_cmd=("$BRIX_BIN" -c "$XRD_GEN_CONF" -l "$XRD_PERF_DIR/logs/xrootd.log" -n perf -b)
     log "xrootd launch command: ${xrd_cmd[*]}"
     # Capture stdout/stderr for debug
     "${xrd_cmd[@]}" > "$XRD_PERF_DIR/logs/xrootd.debug.log" 2>&1 &
@@ -446,7 +446,7 @@ AUTHDB
 
     # Second instance: anonymous xrootd on 12093 for the root-anon suites.
     log "Starting official xrootd (anon, port 12093)..."
-    local xrd_anon_cmd=("$XROOTD_BIN" -c "$XRD_ANON_GEN_CONF" \
+    local xrd_anon_cmd=("$BRIX_BIN" -c "$XRD_ANON_GEN_CONF" \
         -l "$XRD_ANON_PERF_DIR/logs/xrootd.log" -n perfanon -b)
     log "xrootd anon launch command: ${xrd_anon_cmd[*]}"
     "${xrd_anon_cmd[@]}" > "$XRD_ANON_PERF_DIR/logs/xrootd.debug.log" 2>&1 &

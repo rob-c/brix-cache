@@ -6,7 +6,7 @@
  *       on a client-supplied reqpath but are GUARANTEED never to escape a
  *       per-worker O_PATH rootfd anchored on the export root. The core wrapper
  *       do_openat2() drives the openat2(2) syscall with RESOLVE_BENEATH |
- *       RESOLVE_NO_MAGICLINKS; xrootd_open_beneath()/xrootd_stat_beneath() use it
+ *       RESOLVE_NO_MAGICLINKS; brix_open_beneath()/brix_stat_beneath() use it
  *       directly, while the path-MUTATING ops route through beneath_open_parent().
  *
  * WHY:  This layer IS the confinement boundary (see op_path.c: the lexical
@@ -30,7 +30,7 @@
  *       the *at() op on the final component name only (which those syscalls do
  *       not dereference as a symlink for delete/rename/create).
  */
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 #include "beneath.h"
 #include "auth/impersonate/impersonate.h"
 
@@ -49,14 +49,14 @@
 /*
  * IMPERSONATION SEAM (phase 40).
  *
- * When `xrootd_impersonation map` is active and a per-request principal is set,
- * xrootd_imp_client_active() returns true and the confined helpers below delegate
+ * When `brix_impersonation map` is active and a per-request principal is set,
+ * brix_imp_client_active() returns true and the confined helpers below delegate
  * the open/metadata syscall to the privileged broker, which performs it as the
  * mapped UNIX user under its OWN rootfd (the kernel enforces RESOLVE_BENEATH
  * there too).  In that mode the worker's local `rootfd` argument is unused — the
  * broker is the confinement authority — but the helper signatures are unchanged,
  * so no caller is touched.  When impersonation is off (the default) or no
- * principal is set, xrootd_imp_client_active() is false and the original local
+ * principal is set, brix_imp_client_active() is false and the original local
  * openat2 path below runs exactly as before.
  */
 
@@ -76,7 +76,7 @@
  * a persistent per-worker rootfd rather than calling this per request.
  */
 int
-xrootd_beneath_open_root(const char *root_canon)
+brix_beneath_open_root(const char *root_canon)
 {
     return open(root_canon, O_PATH | O_DIRECTORY | O_CLOEXEC);
 }
@@ -139,21 +139,21 @@ do_openat2(int rootfd, const char *rel, int flags, mode_t mode)
 }
 
 int
-xrootd_open_beneath(int rootfd, const char *reqpath, int flags, mode_t mode)
+brix_open_beneath(int rootfd, const char *reqpath, int flags, mode_t mode)
 {
-    if (xrootd_imp_client_active()) {
-        return xrootd_imp_open(reqpath, flags, mode);
+    if (brix_imp_client_active()) {
+        return brix_imp_open(reqpath, flags, mode);
     }
-    return do_openat2(rootfd, xrootd_beneath_rel(reqpath), flags, mode);
+    return do_openat2(rootfd, brix_beneath_rel(reqpath), flags, mode);
 }
 
 int
-xrootd_stat_beneath(int rootfd, const char *reqpath, struct stat *st)
+brix_stat_beneath(int rootfd, const char *reqpath, struct stat *st)
 {
     int fd, rc;
 
-    if (xrootd_imp_client_active()) {
-        return xrootd_imp_stat(reqpath, st, 0 /* follow */);
+    if (brix_imp_client_active()) {
+        return brix_imp_stat(reqpath, st, 0 /* follow */);
     }
     /* O_PATH without O_NOFOLLOW: follow symlinks.  RESOLVE_IN_ROOT (not BENEATH)
      * so an in-export symlink — including one with an ABSOLUTE target that points
@@ -161,7 +161,7 @@ xrootd_stat_beneath(int rootfd, const char *reqpath, struct stat *st)
      * ".." relative to rootfd) and still CANNOT escape the root.  BENEATH rejected
      * every absolute/symlink target outright (EXDEV), diverging from stock, which
      * follows in-export links (test_conf_stattypes). */
-    fd = do_openat2_resolve(rootfd, xrootd_beneath_rel(reqpath), O_PATH, 0,
+    fd = do_openat2_resolve(rootfd, brix_beneath_rel(reqpath), O_PATH, 0,
                             RESOLVE_IN_ROOT | RESOLVE_NO_MAGICLINKS);
     if (fd < 0) { return -1; }
     rc = fstat(fd, st);
@@ -170,19 +170,19 @@ xrootd_stat_beneath(int rootfd, const char *reqpath, struct stat *st)
 }
 
 int
-xrootd_lstat_beneath(int rootfd, const char *reqpath, struct stat *st)
+brix_lstat_beneath(int rootfd, const char *reqpath, struct stat *st)
 {
     int fd, rc;
 
-    if (xrootd_imp_client_active()) {
-        return xrootd_imp_stat(reqpath, st, 1 /* nofollow */);
+    if (brix_imp_client_active()) {
+        return brix_imp_stat(reqpath, st, 1 /* nofollow */);
     }
     /* O_PATH | O_NOFOLLOW: do NOT follow a trailing symlink, so fstat() reports
      * the link itself (lstat semantics).  RESOLVE_IN_ROOT (chroot-style) confines
      * the path while still permitting in-export symlinks in INTERMEDIATE
      * components; the trailing link is opened as itself via O_NOFOLLOW.  (BENEATH
      * rejected even a trailing symlink here with EXDEV, so lstat of a link failed.) */
-    fd = do_openat2_resolve(rootfd, xrootd_beneath_rel(reqpath),
+    fd = do_openat2_resolve(rootfd, brix_beneath_rel(reqpath),
                             O_PATH | O_NOFOLLOW, 0,
                             RESOLVE_IN_ROOT | RESOLVE_NO_MAGICLINKS);
     if (fd < 0) { return -1; }
@@ -192,7 +192,7 @@ xrootd_lstat_beneath(int rootfd, const char *reqpath, struct stat *st)
 }
 
 DIR *
-xrootd_opendir_beneath(int rootfd, const char *reqpath)
+brix_opendir_beneath(int rootfd, const char *reqpath)
 {
     int  fd;
     DIR *d;
@@ -203,7 +203,7 @@ xrootd_opendir_beneath(int rootfd, const char *reqpath)
      * resolved relative to rootfd and so lands on a non-existent in-root path
      * (ENOENT) or is refused (EXDEV) rather than escaping the export root. The
      * legacy bare opendir() followed an outward link straight out of the root. */
-    fd = do_openat2_resolve(rootfd, xrootd_beneath_rel(reqpath),
+    fd = do_openat2_resolve(rootfd, brix_beneath_rel(reqpath),
                             O_RDONLY | O_DIRECTORY, 0,
                             RESOLVE_IN_ROOT | RESOLVE_NO_MAGICLINKS);
     if (fd < 0) { return NULL; }
@@ -231,7 +231,7 @@ static int
 beneath_open_parent(int rootfd, const char *reqpath,
                     char *pbuf, size_t pbufsz, const char **base)
 {
-    const char *rel = xrootd_beneath_rel(reqpath);   /* strip leading '/'s */
+    const char *rel = brix_beneath_rel(reqpath);   /* strip leading '/'s */
     const char *slash = strrchr(rel, '/');
     size_t      plen;
 
@@ -253,14 +253,14 @@ beneath_open_parent(int rootfd, const char *reqpath,
 }
 
 int
-xrootd_unlink_beneath(int rootfd, const char *reqpath, int is_dir)
+brix_unlink_beneath(int rootfd, const char *reqpath, int is_dir)
 {
     char         pbuf[PATH_MAX];
     const char  *base;
     int          pfd, rc, e;
 
-    if (xrootd_imp_client_active()) {
-        return xrootd_imp_unlink(reqpath, is_dir);
+    if (brix_imp_client_active()) {
+        return brix_imp_unlink(reqpath, is_dir);
     }
 
     pfd = beneath_open_parent(rootfd, reqpath, pbuf, sizeof(pbuf), &base);
@@ -272,14 +272,14 @@ xrootd_unlink_beneath(int rootfd, const char *reqpath, int is_dir)
 }
 
 int
-xrootd_mkdir_beneath(int rootfd, const char *reqpath, mode_t mode)
+brix_mkdir_beneath(int rootfd, const char *reqpath, mode_t mode)
 {
     char         pbuf[PATH_MAX];
     const char  *base;
     int          pfd, rc, e;
 
-    if (xrootd_imp_client_active()) {
-        return xrootd_imp_mkdir(reqpath, mode);
+    if (brix_imp_client_active()) {
+        return brix_imp_mkdir(reqpath, mode);
     }
 
     pfd = beneath_open_parent(rootfd, reqpath, pbuf, sizeof(pbuf), &base);
@@ -291,14 +291,14 @@ xrootd_mkdir_beneath(int rootfd, const char *reqpath, mode_t mode)
 }
 
 int
-xrootd_rename_beneath(int rootfd, const char *src, const char *dst)
+brix_rename_beneath(int rootfd, const char *src, const char *dst)
 {
     char         sbuf[PATH_MAX], dbuf[PATH_MAX];
     const char  *sbase, *dbase;
     int          sfd, dfd, rc, e;
 
-    if (xrootd_imp_client_active()) {
-        return xrootd_imp_rename(src, dst);
+    if (brix_imp_client_active()) {
+        return brix_imp_rename(src, dst);
     }
 
     sfd = beneath_open_parent(rootfd, src, sbuf, sizeof(sbuf), &sbase);
@@ -315,7 +315,7 @@ xrootd_rename_beneath(int rootfd, const char *src, const char *dst)
 
 /*
  * Atomic create-if-absent rename: renameat2(RENAME_NOREPLACE) on the final
- * components, confined under rootfd exactly like xrootd_rename_beneath().  On a
+ * components, confined under rootfd exactly like brix_rename_beneath().  On a
  * kernel/filesystem without RENAME_NOREPLACE (ENOSYS/EINVAL) it falls back to a
  * plain renameat — logged once — so behaviour degrades to the legacy
  * last-writer-wins rather than spuriously failing (callers still ran their
@@ -323,14 +323,14 @@ xrootd_rename_beneath(int rootfd, const char *src, const char *dst)
  * Returns 0; or -1 with errno (EEXIST when the destination already exists).
  */
 int
-xrootd_rename_beneath_excl(int rootfd, const char *src, const char *dst)
+brix_rename_beneath_excl(int rootfd, const char *src, const char *dst)
 {
     char         sbuf[PATH_MAX], dbuf[PATH_MAX];
     const char  *sbase, *dbase;
     int          sfd, dfd, rc, e;
 
-    if (xrootd_imp_client_active()) {
-        return xrootd_imp_rename_noreplace(src, dst);
+    if (brix_imp_client_active()) {
+        return brix_imp_rename_noreplace(src, dst);
     }
 
     sfd = beneath_open_parent(rootfd, src, sbuf, sizeof(sbuf), &sbase);
@@ -358,14 +358,14 @@ xrootd_rename_beneath_excl(int rootfd, const char *src, const char *dst)
 }
 
 int
-xrootd_link_beneath(int rootfd, const char *src, const char *dst)
+brix_link_beneath(int rootfd, const char *src, const char *dst)
 {
     char         sbuf[PATH_MAX], dbuf[PATH_MAX];
     const char  *sbase, *dbase;
     int          sfd, dfd, rc, e;
 
-    if (xrootd_imp_client_active()) {
-        return xrootd_imp_link(src, dst);
+    if (brix_imp_client_active()) {
+        return brix_imp_link(src, dst);
     }
 
     sfd = beneath_open_parent(rootfd, src, sbuf, sizeof(sbuf), &sbase);

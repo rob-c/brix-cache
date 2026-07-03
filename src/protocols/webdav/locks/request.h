@@ -1,5 +1,5 @@
-#ifndef XROOTD_WEBDAV_LOCKS_REQUEST_H
-#define XROOTD_WEBDAV_LOCKS_REQUEST_H
+#ifndef BRIX_WEBDAV_LOCKS_REQUEST_H
+#define BRIX_WEBDAV_LOCKS_REQUEST_H
 
 #include "protocols/webdav/webdav.h"
 
@@ -13,7 +13,7 @@
  * yield conf->lock_timeout. Never fails.
  */
 int64_t webdav_lock_parse_timeout(ngx_http_request_t *r,
-    ngx_http_xrootd_webdav_loc_conf_t *conf);
+    ngx_http_brix_webdav_loc_conf_t *conf);
 /*
  * Test whether the client presented a given lock token for refresh/unlock.
  * Returns 1 if NUL-terminated C string `token` occurs as a SUBSTRING of the
@@ -38,4 +38,4 @@ ngx_int_t webdav_lock_parse_depth(ngx_http_request_t *r,
 void webdav_lock_parse_body(ngx_http_request_t *r, char *owner,
     size_t owner_len, int *exclusive);
 
-#endif /* XROOTD_WEBDAV_LOCKS_REQUEST_H */
+#endif /* BRIX_WEBDAV_LOCKS_REQUEST_H */

@@ -3,8 +3,8 @@
 # A suppression matches if ANY frame in the leak's stack contains the substring.
 # These are kept DELIBERATELY NARROW — third-party library one-time global
 # state and the dynamic loader only — so that any leak passing through the
-# module's own code (a `src/...` frame, i.e. xrootd_* / ngx_http_xrootd_* /
-# ngx_stream_xrootd_*) is still reported.
+# module's own code (a `src/...` frame, i.e. brix_* / ngx_http_brix_* /
+# ngx_stream_brix_*) is still reported.
 #
 # Note: LSan by default reports only "definitely/indirectly lost", not "still
 # reachable", so nginx-core config/cycle allocations kept for the process

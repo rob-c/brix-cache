@@ -8,7 +8,7 @@
 #include "scan_throttle.h"
 
 void
-xrootd_scan_tb_init(xrootd_scan_tb_t *tb, double rate_bps, double capacity,
+brix_scan_tb_init(brix_scan_tb_t *tb, double rate_bps, double capacity,
                     uint64_t now_ns)
 {
     tb->rate_bps = rate_bps;
@@ -18,7 +18,7 @@ xrootd_scan_tb_init(xrootd_scan_tb_t *tb, double rate_bps, double capacity,
 }
 
 void
-xrootd_scan_tb_refill(xrootd_scan_tb_t *tb, uint64_t now_ns)
+brix_scan_tb_refill(brix_scan_tb_t *tb, uint64_t now_ns)
 {
     double dt_s;
 
@@ -38,14 +38,14 @@ xrootd_scan_tb_refill(xrootd_scan_tb_t *tb, uint64_t now_ns)
 }
 
 uint64_t
-xrootd_scan_tb_wait_ns(xrootd_scan_tb_t *tb, double need, uint64_t now_ns)
+brix_scan_tb_wait_ns(brix_scan_tb_t *tb, double need, uint64_t now_ns)
 {
     double deficit;
 
     if (tb->rate_bps <= 0.0) {
         return 0;                       /* unlimited                               */
     }
-    xrootd_scan_tb_refill(tb, now_ns);
+    brix_scan_tb_refill(tb, now_ns);
     if (tb->tokens >= need) {
         return 0;
     }
@@ -54,7 +54,7 @@ xrootd_scan_tb_wait_ns(xrootd_scan_tb_t *tb, double need, uint64_t now_ns)
 }
 
 void
-xrootd_scan_tb_consume(xrootd_scan_tb_t *tb, double need)
+brix_scan_tb_consume(brix_scan_tb_t *tb, double need)
 {
     tb->tokens -= need;
     if (tb->tokens < -tb->capacity) {
@@ -63,7 +63,7 @@ xrootd_scan_tb_consume(xrootd_scan_tb_t *tb, double need)
 }
 
 int
-xrootd_scan_budget_hit(const xrootd_scan_budget_t *b, uint64_t bytes_done,
+brix_scan_budget_hit(const brix_scan_budget_t *b, uint64_t bytes_done,
                        double elapsed_s)
 {
     if (b->max_bytes > 0 && bytes_done >= b->max_bytes) {
@@ -76,7 +76,7 @@ xrootd_scan_budget_hit(const xrootd_scan_budget_t *b, uint64_t bytes_done,
 }
 
 double
-xrootd_scan_adapt(int foreground_active, double latency_ewma_ms,
+brix_scan_adapt(int foreground_active, double latency_ewma_ms,
                   double nominal_latency_ms)
 {
     double pressure_factor;

@@ -20,13 +20,13 @@
  */
 static uint64_t ssi_gen_seq;
 
-xrootd_ssi_session_t *
-xrootd_ssi_session_create(ngx_pool_t *pool, const char *service,
-                          size_t service_len, const xrootd_ssi_provider_t *provider)
+brix_ssi_session_t *
+brix_ssi_session_create(ngx_pool_t *pool, const char *service,
+                          size_t service_len, const brix_ssi_provider_t *provider)
 {
-    xrootd_ssi_session_t *s;
+    brix_ssi_session_t *s;
 
-    if (service_len >= sizeof(((xrootd_ssi_session_t *) 0)->service)) {
+    if (service_len >= sizeof(((brix_ssi_session_t *) 0)->service)) {
         return NULL;
     }
     s = SSI_ALLOC(pool, sizeof(*s));
@@ -43,11 +43,11 @@ xrootd_ssi_session_create(ngx_pool_t *pool, const char *service,
     return s;
 }
 
-xrootd_ssi_req_t *
-xrootd_ssi_session_req(xrootd_ssi_session_t *s, uint32_t req_id, int create)
+brix_ssi_req_t *
+brix_ssi_session_req(brix_ssi_session_t *s, uint32_t req_id, int create)
 {
     int i, free_slot = -1;
-    int cap = XROOTD_SSI_MAX_INFLIGHT;
+    int cap = BRIX_SSI_MAX_INFLIGHT;
 
     if (s == NULL) {
         return NULL;
@@ -77,14 +77,14 @@ xrootd_ssi_session_req(xrootd_ssi_session_t *s, uint32_t req_id, int create)
 }
 
 void
-xrootd_ssi_session_drop(xrootd_ssi_session_t *s, uint32_t req_id)
+brix_ssi_session_drop(brix_ssi_session_t *s, uint32_t req_id)
 {
     int i;
 
     if (s == NULL) {
         return;
     }
-    for (i = 0; i < XROOTD_SSI_MAX_INFLIGHT; i++) {
+    for (i = 0; i < BRIX_SSI_MAX_INFLIGHT; i++) {
         if (s->rr[i].in_use && s->rr[i].req_id == req_id) {
             s->rr[i].in_use = 0;
             return;

@@ -1,7 +1,7 @@
 """S3 aws-chunked per-chunk SigV4 signature verification (phase-47 W6a).
 
 The dedicated *signed* S3 server (port 11183) runs with
-`xrootd_s3_verify_chunk_signatures on`.  These tests build a real
+`brix_s3_verify_chunk_signatures on`.  These tests build a real
 STREAMING-AWS4-HMAC-SHA256-PAYLOAD upload, computing each chunk's signature with
 the rolling-previous-signature chain, and assert:
 

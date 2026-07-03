@@ -189,13 +189,13 @@ def cms_server():
     body = (
         f"    server {{\n"
         f"        listen 0.0.0.0:{port};\n"
-        f"        xrootd on; xrootd_storage_backend posix:{data_dir}; xrootd_auth none;\n"
-        f"        xrootd_manager_mode on;\n"
-        f"        xrootd_cms_server on;\n"
-        f"        xrootd_cms_server_interval 1;\n"
-        f"        xrootd_cms_server_login_timeout 2s;\n"
-        f"        xrootd_cms_server_idle_timeout 3s;\n"
-        f"        xrootd_cms_server_max_connections 2;\n"
+        f"        xrootd on; brix_storage_backend posix:{data_dir}; brix_auth none;\n"
+        f"        brix_manager_mode on;\n"
+        f"        brix_cms_server on;\n"
+        f"        brix_cms_server_interval 1;\n"
+        f"        brix_cms_server_login_timeout 2s;\n"
+        f"        brix_cms_server_idle_timeout 3s;\n"
+        f"        brix_cms_server_max_connections 2;\n"
         f"    }}\n")
     conf = _write_conf("cmssrv", body)
     ok, err = _start_nginx(conf)
@@ -286,7 +286,7 @@ def test_server_idle_kept_alive_by_pongs(cms_server):
 # ---------------------------------------------------------------------------
 
 def test_server_connection_cap_refuses_excess(cms_server):
-    """With xrootd_cms_server_max_connections 2, the third concurrent CMS
+    """With brix_cms_server_max_connections 2, the third concurrent CMS
     connection is refused (closed promptly) while the first two persist."""
     held = []
     try:
@@ -312,7 +312,7 @@ def test_server_connection_cap_refuses_excess(cms_server):
 # ---------------------------------------------------------------------------
 
 def test_server_oversized_frame_closes(cms_server):
-    """A frame whose dlen pushes the total over NGX_XROOTD_CMS_MAX_FRAME is
+    """A frame whose dlen pushes the total over NGX_BRIX_CMS_MAX_FRAME is
     rejected with a connection close (unchanged from before phase-50)."""
     s = socket.create_connection((H, cms_server), timeout=5)
     try:
@@ -445,12 +445,12 @@ def silent_manager_node():
     body = (
         f"    server {{\n"
         f"        listen 0.0.0.0:{node_port};\n"
-        f"        xrootd on; xrootd_storage_backend posix:{data_dir}; xrootd_auth none;\n"
-        f"        xrootd_listen_port {node_port};\n"
-        f"        xrootd_cms_manager {H}:{mgr_port};\n"
-        f"        xrootd_cms_paths /;\n"
-        f"        xrootd_cms_interval 1;\n"
-        f"        xrootd_cms_read_timeout 3s;\n"
+        f"        xrootd on; brix_storage_backend posix:{data_dir}; brix_auth none;\n"
+        f"        brix_listen_port {node_port};\n"
+        f"        brix_cms_manager {H}:{mgr_port};\n"
+        f"        brix_cms_paths /;\n"
+        f"        brix_cms_interval 1;\n"
+        f"        brix_cms_read_timeout 3s;\n"
         f"    }}\n")
     conf = _write_conf("node", body)
     ok, err = _start_nginx(conf)
@@ -486,7 +486,7 @@ def test_client_rejects_poisoned_redirect_host(silent_manager_node):
     """WS6: a kYR_select naming a host with control bytes is refused — the node
     logs a rejection and does NOT crash/redirect.  We assert the node connection
     survives the malicious frame (liveness probe: it keeps reconnecting/serving),
-    proving the poisoned host never reached xrootd_send_redirect."""
+    proving the poisoned host never reached brix_send_redirect."""
     peer = silent_manager_node
     assert peer.wait_connections(1, timeout=20.0), \
         "node never dialed the manager peer"

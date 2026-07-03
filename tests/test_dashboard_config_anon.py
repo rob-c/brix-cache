@@ -71,9 +71,9 @@ stream {{
     server {{
         listen {BIND_HOST}:{root_port};
         xrootd on;
-        xrootd_storage_backend posix:{data};
-        xrootd_auth none;
-        xrootd_allow_write on;
+        brix_storage_backend posix:{data};
+        brix_auth none;
+        brix_allow_write on;
     }}
 }}
 http {{
@@ -86,16 +86,16 @@ http {{
     server {{
         listen {BIND_HOST}:{http_port};
         location /xrootd/ {{
-            xrootd_dashboard on;
-            xrootd_dashboard_password "{DASH_PW}";
-            xrootd_dashboard_anonymous on;
+            brix_dashboard on;
+            brix_dashboard_password "{DASH_PW}";
+            brix_dashboard_anonymous on;
         }}
         location / {{
             root {data};
-            xrootd_webdav on;
-            xrootd_webdav_storage_backend posix:{data};
-            xrootd_webdav_auth none;
-            xrootd_webdav_macaroon_secret {MACAROON_HEX};
+            brix_webdav on;
+            brix_webdav_storage_backend posix:{data};
+            brix_webdav_auth none;
+            brix_webdav_macaroon_secret {MACAROON_HEX};
             set $planted_leak "{SET_SECRET}";
             proxy_set_header X-Api-Key "{HEADER_SECRET}";
         }}
@@ -173,7 +173,7 @@ def test_config_download_authed_is_text_attachment(server):
     assert hdrs.get("Content-Type", "").startswith("text/plain")
     assert "attachment" in hdrs.get("Content-Disposition", "")
     # the dump is real (a non-secret directive survives)
-    assert "xrootd_dashboard on" in body
+    assert "brix_dashboard on" in body
 
 
 def test_config_download_leaks_no_secret(server):

@@ -33,11 +33,11 @@ RUN wget -q "https://nginx.org/download/nginx-${NGINX_VER}.tar.gz" -O /tmp/nginx
  && rm -f /tmp/nginx.tgz
 
 # Sanity: the librados dev header + a linkable .so must be present so the module's
-# ./configure detects XROOTD_HAVE_CEPH.
+# ./configure detects BRIX_HAVE_CEPH.
 RUN test -f /usr/include/rados/librados.h \
  && printf '#include <rados/librados.h>\nint main(void){rados_t c;return rados_create(&c,0);}\n' > /tmp/t.c \
  && gcc /tmp/t.c -lrados -o /tmp/t \
- && echo "librados-devel OK (XROOTD_HAVE_CEPH will be detected)"
+ && echo "librados-devel OK (BRIX_HAVE_CEPH will be detected)"
 
 WORKDIR /work
 ENTRYPOINT ["/bin/bash"]

@@ -2,12 +2,12 @@
 Phase 39 — network-fault resilience, stream (root://) plane.
 
 Verifies the steady-state per-connection deadlines added in Phase 1 (WS1/WS2/WS3):
-  * xrootd_handshake_timeout — a stalled/partial UNAUTHENTICATED handshake is reaped
-  * xrootd_read_timeout      — a stalled/partial in-flight request PDU is reaped
-  * xrootd_send_timeout      — a slow/half-open CONSUMER (not reading) is reaped
+  * brix_handshake_timeout — a stalled/partial UNAUTHENTICATED handshake is reaped
+  * brix_read_timeout      — a stalled/partial in-flight request PDU is reaped
+  * brix_send_timeout      — a slow/half-open CONSUMER (not reading) is reaped
   * normal operations are unaffected, and an authenticated IDLE connection (no PDU
     in progress) is NOT killed (long-lived xrdcp keepalive must survive)
-  * xrootd_tcp_keepalive / xrootd_tcp_user_timeout are accepted (WS3 setsockopt path)
+  * brix_tcp_keepalive / brix_tcp_user_timeout are accepted (WS3 setsockopt path)
 
 These are SELF-CONTAINED: the test launches its own single-process nginx with the
 deadlines set to small values, so it needs no running fleet and no privilege.  The
@@ -44,9 +44,9 @@ SEND_TIMEOUT_MS = 2000
 
 
 def _nginx_bin():
-    cand = os.environ.get("XROOTD_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
+    cand = os.environ.get("BRIX_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
     if not os.path.exists(cand):
-        pytest.skip(f"nginx binary not found at {cand}; set XROOTD_NGINX_BIN")
+        pytest.skip(f"nginx binary not found at {cand}; set BRIX_NGINX_BIN")
     return cand
 
 
@@ -88,12 +88,12 @@ stream {{
     server {{
         listen {HOST}:{PORT};
         xrootd on;
-        xrootd_storage_backend posix:{dataroot};
-        xrootd_handshake_timeout {HANDSHAKE_TIMEOUT_MS}ms;
-        xrootd_read_timeout {READ_TIMEOUT_MS}ms;
-        xrootd_send_timeout {SEND_TIMEOUT_MS}ms;
-        xrootd_tcp_keepalive on;
-        xrootd_tcp_user_timeout 30s;
+        brix_storage_backend posix:{dataroot};
+        brix_handshake_timeout {HANDSHAKE_TIMEOUT_MS}ms;
+        brix_read_timeout {READ_TIMEOUT_MS}ms;
+        brix_send_timeout {SEND_TIMEOUT_MS}ms;
+        brix_tcp_keepalive on;
+        brix_tcp_user_timeout 30s;
     }}
 }}
 """)

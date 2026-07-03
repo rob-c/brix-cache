@@ -2,7 +2,7 @@
  * bind.c — kXR_bind opcode: attach a secondary data channel to a session.
  */
 
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 #include "registry.h"
 #include "core/compat/alloc_guard.h"
 
@@ -25,15 +25,15 @@
  * authority that decides which handles exist; secondaries are data channels.
  */
 
-static ngx_uint_t  xrootd_next_pathid = 0;
+static ngx_uint_t  brix_next_pathid = 0;
 
 /* Handle kXR_bind — attach a secondary TCP data channel to an existing primary
  * session: look the session up in the registry and assign a pathid (1-253; 0 is
  * the primary).  Bound connections are capability-restricted (e.g. read primary-
  * published handles via pathid-tagged kXR_read). */
 ngx_int_t
-xrootd_handle_bind(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf)
+brix_handle_bind(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf)
 {
     xrdw_sessid_req_t  req;
     u_char             pathid;
@@ -50,33 +50,33 @@ xrootd_handle_bind(xrootd_ctx_t *ctx, ngx_connection_t *c,
      * where the session is allowed to perform file I/O: anonymous login for
      * auth=none, or successful kXR_auth for authenticated deployments.
      */
-    if (!xrootd_session_lookup(req.sessid,
+    if (!brix_session_lookup(req.sessid,
                                ctx->dn, sizeof(ctx->dn),
                                ctx->vo_list, sizeof(ctx->vo_list),
                                &token_auth))
     {
-        xrootd_log_access(ctx, c, "BIND", "-", "-",
+        brix_log_access(ctx, c, "BIND", "-", "-",
                           0, kXR_NotAuthorized,
                           "sessid not found in session registry", 0);
-        return xrootd_send_error(ctx, c, kXR_NotAuthorized,
+        return brix_send_error(ctx, c, kXR_NotAuthorized,
                                  "bind sessid not recognised");
     }
     ctx->token_auth = (int) token_auth;
     if (ctx->identity != NULL) {
         if (token_auth) {
-            if (xrootd_identity_set_subject(ctx->identity, c->pool, ctx->dn,
-                                            XROOTD_AUTHN_TOKEN) != NGX_OK
-                || xrootd_identity_set_cstr(c->pool, &ctx->identity->dn,
+            if (brix_identity_set_subject(ctx->identity, c->pool, ctx->dn,
+                                            BRIX_AUTHN_TOKEN) != NGX_OK
+                || brix_identity_set_cstr(c->pool, &ctx->identity->dn,
                                             ctx->dn) != NGX_OK)
             {
                 return NGX_ERROR;
             }
-        } else if (xrootd_identity_set_dn(ctx->identity, c->pool, ctx->dn,
-                                          XROOTD_AUTHN_GSI) != NGX_OK)
+        } else if (brix_identity_set_dn(ctx->identity, c->pool, ctx->dn,
+                                          BRIX_AUTHN_GSI) != NGX_OK)
         {
             return NGX_ERROR;
         }
-        if (xrootd_identity_set_vos_csv(ctx->identity, c->pool,
+        if (brix_identity_set_vos_csv(ctx->identity, c->pool,
                                         ctx->vo_list) != NGX_OK)
         {
             return NGX_ERROR;
@@ -84,13 +84,13 @@ xrootd_handle_bind(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
 
     /* Assign a path ID.  Pathid 0 is reserved for the primary; we cycle 1–253. */
-    if (++xrootd_next_pathid > 253) {
-        xrootd_next_pathid = 1;
+    if (++brix_next_pathid > 253) {
+        brix_next_pathid = 1;
     }
-    pathid = (u_char) xrootd_next_pathid;
+    pathid = (u_char) brix_next_pathid;
 
     /* Bind the session: record the primary's sessid and inherit auth state. */
-    ngx_memcpy(ctx->bound_sessid, req.sessid, XROOTD_SESSION_ID_LEN);
+    ngx_memcpy(ctx->bound_sessid, req.sessid, BRIX_SESSION_ID_LEN);
     ctx->is_bound  = 1;
     ctx->pathid    = (int) pathid;
     ctx->logged_in = 1;   /* secondary skips kXR_login */
@@ -103,13 +103,13 @@ xrootd_handle_bind(xrootd_ctx_t *ctx, ngx_connection_t *c,
                    (unsigned) req.sessid[1]);
 
     total = XRD_RESPONSE_HDR_LEN + 1;
-    XROOTD_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
+    BRIX_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
 
-    xrootd_build_resp_hdr(ctx->cur_streamid, kXR_ok, 1,
+    brix_build_resp_hdr(ctx->cur_streamid, kXR_ok, 1,
                           (ServerResponseHdr *) buf);
     buf[XRD_RESPONSE_HDR_LEN] = pathid;
 
-    xrootd_log_access(ctx, c, "BIND", "-", "-", 1, 0, NULL, 0);
+    brix_log_access(ctx, c, "BIND", "-", "-", 1, 0, NULL, 0);
 
-    return xrootd_queue_response(ctx, c, buf, total);
+    return brix_queue_response(ctx, c, buf, total);
 }

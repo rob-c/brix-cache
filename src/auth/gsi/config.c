@@ -13,7 +13,7 @@
  * existing connections are not disrupted.
  */
 ngx_int_t
-xrootd_rebuild_gsi_store(ngx_stream_xrootd_srv_conf_t *xcf, ngx_log_t *log)
+brix_rebuild_gsi_store(ngx_stream_brix_srv_conf_t *xcf, ngx_log_t *log)
 {
     X509_STORE *store;
     X509_STORE *old_store;
@@ -21,14 +21,14 @@ xrootd_rebuild_gsi_store(ngx_stream_xrootd_srv_conf_t *xcf, ngx_log_t *log)
     struct stat ca_st;
     int         ca_is_dir;
 
-    /* xrootd_trusted_ca may name a single CA bundle file OR a hashed CA
+    /* brix_trusted_ca may name a single CA bundle file OR a hashed CA
      * directory (e.g. /etc/grid-security/certificates).  A directory is loaded
      * as an OpenSSL CApath so on-demand hash lookup verifies real grid proxy
      * chains (any CA under the dir), which a single-file bundle cannot cover. */
     ca_is_dir = (stat((char *) xcf->trusted_ca.data, &ca_st) == 0
                  && S_ISDIR(ca_st.st_mode));
 
-    store = xrootd_build_ca_store(log,
+    store = brix_build_ca_store(log,
                                    ca_is_dir ? (char *) xcf->trusted_ca.data
                                              : NULL,
                                    ca_is_dir ? NULL
@@ -58,13 +58,13 @@ xrootd_rebuild_gsi_store(ngx_stream_xrootd_srv_conf_t *xcf, ngx_log_t *log)
 }
 
 /*
- * WHAT: Full GSI authentication configuration loader — validates auth method (GSI or BOTH), checks all three trust inputs (certificate, private key, trusted CA) are present and path-valid, loads server certificate via PEM_read_X509(), serializes it into cached PEM buffer for kXGS_cert responses on every GSI login, loads private key via PEM_read_PrivateKey(), builds X509_STORE with trusted CA + CRLs via xrootd_rebuild_gsi_store() (with proxy cert flag and CRL_CHECK_ALL), runs PKI/CRL consistency check, computes CA hash via X509_subject_name_hash() for kXRS_issuer_hash advertisement during GSI bootstrap.
+ * WHAT: Full GSI authentication configuration loader — validates auth method (GSI or BOTH), checks all three trust inputs (certificate, private key, trusted CA) are present and path-valid, loads server certificate via PEM_read_X509(), serializes it into cached PEM buffer for kXGS_cert responses on every GSI login, loads private key via PEM_read_PrivateKey(), builds X509_STORE with trusted CA + CRLs via brix_rebuild_gsi_store() (with proxy cert flag and CRL_CHECK_ALL), runs PKI/CRL consistency check, computes CA hash via X509_subject_name_hash() for kXRS_issuer_hash advertisement during GSI bootstrap.
  * WHY: All three trust inputs must be present simultaneously — missing any one makes GSI auth meaningless. Cert serialization caching avoids per-request PEM encoding overhead on every client login. CRL checking enables revocation detection across the full certificate chain. CA hash allows clients to confirm which CA the server trusts before initiating DH exchange.
  */
 ngx_int_t
-xrootd_configure_gsi(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *xcf)
+brix_configure_gsi(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
 {
-    if (xcf->auth != XROOTD_AUTH_GSI && xcf->auth != XROOTD_AUTH_BOTH) {
+    if (xcf->auth != BRIX_AUTH_GSI && xcf->auth != BRIX_AUTH_BOTH) {
         return NGX_OK;
     }
 
@@ -73,20 +73,20 @@ xrootd_configure_gsi(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *xcf)
         || xcf->trusted_ca.len == 0)
     {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_auth gsi requires xrootd_certificate, "
-            "xrootd_certificate_key and xrootd_trusted_ca");
+            "brix_auth gsi requires brix_certificate, "
+            "brix_certificate_key and brix_trusted_ca");
         return NGX_ERROR;
     }
 
-    if (xrootd_validate_path(cf, "xrootd_certificate", &xcf->certificate,
-                             XROOTD_PATH_REGULAR_FILE, R_OK) != NGX_OK
-        || xrootd_validate_path(cf, "xrootd_certificate_key",
+    if (brix_validate_path(cf, "brix_certificate", &xcf->certificate,
+                             BRIX_PATH_REGULAR_FILE, R_OK) != NGX_OK
+        || brix_validate_path(cf, "brix_certificate_key",
                                 &xcf->certificate_key,
-                                XROOTD_PATH_REGULAR_FILE, R_OK) != NGX_OK
-        || xrootd_validate_path(cf, "xrootd_trusted_ca", &xcf->trusted_ca,
-                                XROOTD_PATH_FILE_OR_DIRECTORY, R_OK) != NGX_OK
-        || xrootd_validate_path(cf, "xrootd_crl", &xcf->crl,
-                                XROOTD_PATH_FILE_OR_DIRECTORY, R_OK) != NGX_OK)
+                                BRIX_PATH_REGULAR_FILE, R_OK) != NGX_OK
+        || brix_validate_path(cf, "brix_trusted_ca", &xcf->trusted_ca,
+                                BRIX_PATH_FILE_OR_DIRECTORY, R_OK) != NGX_OK
+        || brix_validate_path(cf, "brix_crl", &xcf->crl,
+                                BRIX_PATH_FILE_OR_DIRECTORY, R_OK) != NGX_OK)
     {
         return NGX_ERROR;
     }
@@ -166,19 +166,19 @@ xrootd_configure_gsi(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *xcf)
      * CA distribution (hundreds of CAs + CRLs) it dominates GSI config time.
      * Time it independently so a slow startup is attributable at a glance. */
     {
-        uint64_t t0 = xrootd_phase_now_ns();
+        uint64_t t0 = brix_phase_now_ns();
 
-        if (xrootd_rebuild_gsi_store(xcf, cf->log) != NGX_OK) {
+        if (brix_rebuild_gsi_store(xcf, cf->log) != NGX_OK) {
             return NGX_ERROR;
         }
 
         /* Run a lightweight PKI/CRL consistency check and log any problems. */
-        (void) xrootd_check_pki_consistency_stream(cf->log, xcf);
+        (void) brix_check_pki_consistency_stream(cf->log, xcf);
 
         ngx_log_error(NGX_LOG_NOTICE, cf->log, 0,
                       "xrootd: GSI trust store built from \"%V\" in %uLus",
                       &xcf->trusted_ca,
-                      (xrootd_phase_now_ns() - t0) / 1000ull);
+                      (brix_phase_now_ns() - t0) / 1000ull);
     }
 
     /* Compute CA hash (for kXRS_issuer_hash in kXGS_init) */

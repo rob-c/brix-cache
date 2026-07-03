@@ -367,7 +367,7 @@ class TestXrdHttpStats:
         assert "<statistics" in body, "Response should contain <statistics> element"
         assert "</statistics>" in body, "Response should close <statistics>"
 
-    def test_stats_contains_xrootd_section(self, base_url):
+    def test_stats_contains_brix_section(self, base_url):
         """Verify <stats id=\"xrootd\"> block is present."""
         r = requests.get(
             f"{base_url}/?xrd.stats",

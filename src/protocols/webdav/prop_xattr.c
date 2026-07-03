@@ -23,7 +23,7 @@
  * impersonation, else the worker (svc) cannot setxattr on the user-owned lock
  * file (EACCES) and LOCK/UNLOCK break.  These helpers take the request so they
  * can resolve the export root and route through the VFS xattr surface, which
- * delegates to xrootd_*xattr_confined_canon (the broker when map mode is active,
+ * delegates to brix_*xattr_confined_canon (the broker when map mode is active,
  * the raw path-based syscall otherwise) while adding the OP_XATTR metric +
  * access-log line — confinement and errno behaviour are unchanged.
  */
@@ -35,20 +35,20 @@
  */
 static void
 webdav_lock_vfs_ctx_init(ngx_http_request_t *r, const char *path,
-    xrootd_vfs_ctx_t *vctx)
+    brix_vfs_ctx_t *vctx)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *conf =
-        ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
-    ngx_http_xrootd_webdav_req_ctx_t *wctx =
-        ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    ngx_http_brix_webdav_loc_conf_t *conf =
+        ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
+    ngx_http_brix_webdav_req_ctx_t *wctx =
+        ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     int is_tls = 0;
 
 #if (NGX_HTTP_SSL)
     is_tls = (r->connection->ssl != NULL) ? 1 : 0;
 #endif
 
-    xrootd_vfs_ctx_init(vctx, r->pool, r->connection->log,
-        XROOTD_PROTO_WEBDAV, conf->common.root_canon,
+    brix_vfs_ctx_init(vctx, r->pool, r->connection->log,
+        BRIX_PROTO_WEBDAV, conf->common.root_canon,
         conf->cache_root_canon, conf->common.allow_write, is_tls,
         (wctx != NULL) ? wctx->identity : NULL, path);
 }
@@ -153,25 +153,25 @@ webdav_lock_xattr_write(ngx_http_request_t *r, const char *path,
     const webdav_lock_xattr_t *e, int flags)
 {
     ngx_log_t        *log = r->connection->log;
-    xrootd_vfs_ctx_t  vctx;
+    brix_vfs_ctx_t  vctx;
     char              buf[WEBDAV_LOCK_XATTR_MAXLEN];
 
     if (webdav_lock_xattr_encode(e, buf, sizeof(buf)) != NGX_OK) {
         ngx_log_error(NGX_LOG_ERR, log, 0,
-                      "xrootd_webdav: lock xattr encode failed for \"%s\"", path);
+                      "brix_webdav: lock xattr encode failed for \"%s\"", path);
         return NGX_ERROR;
     }
 
     webdav_lock_vfs_ctx_init(r, path, &vctx);
 
-    if (xrootd_vfs_setxattr(&vctx, WEBDAV_LOCK_XATTR_KEY, buf, strlen(buf),
+    if (brix_vfs_setxattr(&vctx, WEBDAV_LOCK_XATTR_KEY, buf, strlen(buf),
                             flags) != NGX_OK)
     {
         if (errno == EEXIST) {
             return NGX_DECLINED;   /* XATTR_CREATE race — another worker won */
         }
         ngx_log_error(NGX_LOG_ERR, log, errno,
-                      "xrootd_webdav: setxattr lock on \"%s\" failed", path);
+                      "brix_webdav: setxattr lock on \"%s\" failed", path);
         return NGX_ERROR;
     }
 
@@ -183,13 +183,13 @@ webdav_lock_xattr_read(ngx_http_request_t *r, const char *path,
     webdav_lock_xattr_t *e)
 {
     ngx_log_t        *log = r->connection->log;
-    xrootd_vfs_ctx_t  vctx;
+    brix_vfs_ctx_t  vctx;
     char              buf[WEBDAV_LOCK_XATTR_MAXLEN];
     ssize_t           n;
 
     webdav_lock_vfs_ctx_init(r, path, &vctx);
 
-    n = xrootd_vfs_getxattr(&vctx, WEBDAV_LOCK_XATTR_KEY, buf, sizeof(buf) - 1);
+    n = brix_vfs_getxattr(&vctx, WEBDAV_LOCK_XATTR_KEY, buf, sizeof(buf) - 1);
     if (n < 0) {
         /* No lock present, OR a backend that cannot store xattrs at all (object /
          * remote root:// stores) — either way the resource carries no WebDAV lock,
@@ -200,7 +200,7 @@ webdav_lock_xattr_read(ngx_http_request_t *r, const char *path,
             return NGX_DECLINED;
         }
         ngx_log_error(NGX_LOG_ERR, log, errno,
-                      "xrootd_webdav: getxattr lock on \"%s\" failed", path);
+                      "brix_webdav: getxattr lock on \"%s\" failed", path);
         return NGX_ERROR;
     }
 
@@ -211,18 +211,18 @@ ngx_int_t
 webdav_lock_xattr_delete(ngx_http_request_t *r, const char *path)
 {
     ngx_log_t        *log = r->connection->log;
-    xrootd_vfs_ctx_t  vctx;
+    brix_vfs_ctx_t  vctx;
 
     webdav_lock_vfs_ctx_init(r, path, &vctx);
 
-    if (xrootd_vfs_removexattr(&vctx, WEBDAV_LOCK_XATTR_KEY) != NGX_OK) {
+    if (brix_vfs_removexattr(&vctx, WEBDAV_LOCK_XATTR_KEY) != NGX_OK) {
         if (errno == ENODATA || errno == ENOATTR || errno == ENOENT
             || errno == ENOTSUP || errno == EOPNOTSUPP)
         {
             return NGX_OK;   /* idempotent (incl. backends without xattr) */
         }
         ngx_log_error(NGX_LOG_WARN, log, errno,
-                      "xrootd_webdav: removexattr lock on \"%s\" failed", path);
+                      "brix_webdav: removexattr lock on \"%s\" failed", path);
         return NGX_ERROR;
     }
 

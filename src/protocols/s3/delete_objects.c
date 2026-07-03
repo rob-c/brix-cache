@@ -46,7 +46,7 @@
  * is idempotent, so a missing key (ENOENT) is reported as success. On a real
  * failure returns NGX_ERROR and sets the code/msg out-params to the S3 error
  * pair (errno is
- * mapped the same way the old xrootd_ns_delete status was: EACCES/EPERM →
+ * mapped the same way the old brix_ns_delete status was: EACCES/EPERM →
  * AccessDenied, ENOTEMPTY → BucketNotEmpty, else InternalError).
  */
 static ngx_int_t
@@ -54,19 +54,19 @@ s3_delete_one(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     const char *fs_path, const char **code, const char **msg)
 {
     ngx_http_s3_req_ctx_t *s3ctx =
-        ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
-    xrootd_vfs_ctx_t       vctx;
+        ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
+    brix_vfs_ctx_t       vctx;
     int                    is_tls = 0;
 
 #if (NGX_HTTP_SSL)
     is_tls = (r->connection->ssl != NULL) ? 1 : 0;
 #endif
 
-    xrootd_vfs_ctx_init(&vctx, r->pool, r->connection->log, XROOTD_PROTO_S3,
+    brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_S3,
         cf->common.root_canon, cf->cache_root_canon, cf->common.allow_write,
         is_tls, (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
 
-    if (xrootd_vfs_unlink(&vctx) == NGX_OK || errno == ENOENT) {
+    if (brix_vfs_unlink(&vctx) == NGX_OK || errno == ENOENT) {
         return NGX_OK;   /* deleted, or idempotent-missing */
     }
 
@@ -112,8 +112,8 @@ s3_delete_xml_append_elem(ngx_buf_t *xml_buf, size_t *xml_len,
     }
 
     room = (size_t) (xml_buf->end - xml_buf->start) - *xml_len;
-    if (xrootd_xml_write_text_element(name, value, value_len,
-            XROOTD_XML_ESCAPE_APOS_ENTITY | XROOTD_XML_ESCAPE_CONTROL_PERCENT,
+    if (brix_xml_write_text_element(name, value, value_len,
+            BRIX_XML_ESCAPE_APOS_ENTITY | BRIX_XML_ESCAPE_CONTROL_PERCENT,
             xml_buf->start + *xml_len, room, &written) != 0)
     {
         return NGX_ERROR;
@@ -219,7 +219,7 @@ s3_delete_objects_finish(ngx_http_request_t *r,
     b->last_buf = 1;
 
     s3_metrics_finalize_request_method(r, method_slot,
-        xrootd_http_send_xml_buffer(r, NGX_HTTP_OK,
+        brix_http_send_xml_buffer(r, NGX_HTTP_OK,
             (ngx_str_t) ngx_string("application/xml"), b));
 }
 
@@ -241,7 +241,7 @@ s3_delete_objects_finish(ngx_http_request_t *r,
  *     - AccessDenied → path escaped outside root_canon via s3_resolve_key()
  *
  * HOW:
- *   1. Read body via xrootd_http_body_read_all() (cap: S3_DEL_MAX_BODY)
+ *   1. Read body via brix_http_body_read_all() (cap: S3_DEL_MAX_BODY)
  *   2. Allocate XML output buffer (S3_DEL_XML_MAX)
  *   3. Write XML header
  *   4. Parse <Delete><Object><Key> entries with libxml2, resolve fs_path
@@ -267,11 +267,11 @@ void
 s3_delete_objects_body_handler(ngx_http_request_t *r)
 {
     ngx_http_s3_req_ctx_t *rx =
-        ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+        ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
 
-    xrootd_imp_request_begin(rx != NULL ? rx->identity : NULL);
+    brix_imp_request_begin(rx != NULL ? rx->identity : NULL);
     s3_delete_objects_body_handler_inner(r);
-    xrootd_imp_request_end();
+    brix_imp_request_end();
 }
 
 static void
@@ -290,17 +290,17 @@ s3_delete_objects_body_handler_inner(ngx_http_request_t *r)
     xmlNodePtr               obj;
     ngx_int_t                rc;
 
-    cf          = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_s3_module);
+    cf          = ngx_http_get_module_loc_conf(r, ngx_http_brix_s3_module);
     method_slot = s3_metrics_method_slot(r);
 
     if (r->request_body == NULL) {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
         s3_metrics_finalize_request_method(r, method_slot,
                                            NGX_HTTP_INTERNAL_SERVER_ERROR);
         return;
     }
 
-    rc = xrootd_http_body_read_all(r, S3_DEL_MAX_BODY, &body_buf, &body_len);
+    rc = brix_http_body_read_all(r, S3_DEL_MAX_BODY, &body_buf, &body_len);
     if (rc == NGX_DECLINED) {
         s3_metrics_finalize_request_method(r, method_slot,
             s3_send_xml_error(r, NGX_HTTP_BAD_REQUEST,

@@ -21,67 +21,67 @@
  *       and for checksum-based deduplication. Multiple algorithm support (adler32/crc32c/md5/sha1/sha256) covers legacy HEP tools
  *       (xrdcp uses adler32) alongside modern requirements (SHA256 for cloud storage). Async execution prevents blocking on large files.
  *
- * HOW:  xrootd_query_cksum() routes by payload prefix byte: non-zero → path-based handler (cksum_path); zero or empty → handle-based
+ * HOW:  brix_query_cksum() routes by payload prefix byte: non-zero → path-based handler (cksum_path); zero or empty → handle-based
  *       handler (cksum_handle). cksum_path parses algo:path from wire, resolves path, checks authdb/VO/token scope, opens confined fd,
  *       then either posts thread task or computes sync. cksum_handle validates fhandle index, optionally extracts algo prefix, delegates to
  *       build_checksum which dispatches via checksum_parse to specialized helper functions per algorithm. Both paths log access + increment metric.
  */
 
 /* defined in checksum_qcksum_async.c */
-extern void xrootd_cksum_aio_thread(void *data, ngx_log_t *log);
-extern void xrootd_cksum_aio_done(ngx_event_t *ev);
+extern void brix_cksum_aio_thread(void *data, ngx_log_t *log);
+extern void brix_cksum_aio_done(ngx_event_t *ev);
 
 static ngx_flag_t
-xrootd_query_parse_algorithm(const u_char *src, size_t len, char *algo,
+brix_query_parse_algorithm(const u_char *src, size_t len, char *algo,
     size_t algo_sz)
 {
-    xrootd_checksum_alg_t alg;
+    brix_checksum_alg_t alg;
 
-    return xrootd_checksum_parse((const char *) src, len, &alg, algo,
+    return brix_checksum_parse((const char *) src, len, &alg, algo,
                                  algo_sz) == NGX_OK;
 }
 
-/* WHAT: Wraps xrootd_send_error() and returns NGX_DONE if the error was successfully sent (NGX_OK), otherwise
+/* WHAT: Wraps brix_send_error() and returns NGX_DONE if the error was successfully sent (NGX_OK), otherwise
  *      propagates the original return value. This ensures callers receive consistent result semantics.
  * WHY: kXR_Qcksum must distinguish between "error sent to client" vs "send failed internally"; NGX_DONE signals
  *      that the error response reached the wire while NGX_ERROR indicates a transport failure. Callers use this
  *      distinction for different retry/failure handling strategies.
- * HOW: Single wrapper — call xrootd_send_error(), return NGX_DONE if result was NGX_OK, else propagate original value. */
+ * HOW: Single wrapper — call brix_send_error(), return NGX_DONE if result was NGX_OK, else propagate original value. */
 
 static ngx_int_t
-xrootd_query_cksum_send_error(xrootd_ctx_t *ctx, ngx_connection_t *c,
+brix_query_cksum_send_error(brix_ctx_t *ctx, ngx_connection_t *c,
     uint16_t errcode, const char *errmsg)
 {
     ngx_int_t rc;
 
-    rc = xrootd_send_error(ctx, c, errcode, errmsg);
+    rc = brix_send_error(ctx, c, errcode, errmsg);
     return (rc == NGX_OK) ? NGX_DONE : rc;
 }
 
 /* WHAT: Computes a file checksum using one of six supported algorithms: adler32, crc32, crc32c, md5, sha1, or sha256.
- *      All algorithms dispatch through xrootd_integrity_get_fd() → xrootd_checksum_hex_fd().
+ *      All algorithms dispatch through brix_integrity_get_fd() → brix_checksum_hex_fd().
  * WHY: kXR_Qcksum supports multiple hash algorithms for client flexibility and cross-platform compatibility.
  *      HEP clients historically use adler32/crc32c; modern tools prefer SHA1/SHA256. MD5 is retained for legacy support.
  * HOW: Sequential strcmp checks against supported algo strings, dispatching to specialized helper functions per algorithm. */
 
 static ngx_int_t
-xrootd_query_build_checksum(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    int fd, xrootd_sd_obj_t *obj, const char *resolved, const char *algo,
+brix_query_build_checksum(brix_ctx_t *ctx, ngx_connection_t *c,
+    int fd, brix_sd_obj_t *obj, const char *resolved, const char *algo,
     char *resp, size_t resp_sz)
 {
-    xrootd_integrity_info_t  info;
-    xrootd_integrity_opts_t  iopts;
+    brix_integrity_info_t  info;
+    brix_integrity_opts_t  iopts;
     char                     token[256];
 
     ngx_memzero(&iopts, sizeof(iopts));
     iopts.allow_xattr_cache  = 1;
     iopts.update_xattr_cache = 1;
 
-    if (xrootd_integrity_get_fd(c->log, fd, obj, resolved, algo, &iopts, &info)
+    if (brix_integrity_get_fd(c->log, fd, obj, resolved, algo, &iopts, &info)
         != NGX_OK)
     {
-        XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_CKSUM);
-        return xrootd_query_cksum_send_error(ctx, c, kXR_IOError,
+        BRIX_OP_ERR(ctx, BRIX_OP_QUERY_CKSUM);
+        return brix_query_cksum_send_error(ctx, c, kXR_IOError,
                                              "checksum computation failed");
     }
 
@@ -92,20 +92,20 @@ xrootd_query_build_checksum(xrootd_ctx_t *ctx, ngx_connection_t *c,
 }
 
 /* WHAT: Parses a payload containing "algo:path", resolves the path through security checks (authdb, VO ACL, token scope),
- *      opens the file confined, and delegates checksum computation to xrootd_query_build_checksum(). Returns hex-formatted result.
+ *      opens the file confined, and delegates checksum computation to brix_query_build_checksum(). Returns hex-formatted result.
  * WHY: kXR_Qcksum can query either open-file handles or arbitrary paths; this handler implements the path-based variant with
  *      full security chain verification before accessing any filesystem resource.
- * HOW: 1) Parse payload for algo:path separator (':' or ' '). 2) Extract and resolve path via xrootd_extract_path + resolve_path. 3) Verify authdb/VO ACL/token scope. 4) Open confined fd. 5) Build checksum + send result. */
+ * HOW: 1) Parse payload for algo:path separator (':' or ' '). 2) Extract and resolve path via brix_extract_path + resolve_path. 3) Verify authdb/VO ACL/token scope. 4) Open confined fd. 5) Build checksum + send result. */
 
 static ngx_int_t
-xrootd_query_cksum_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf, char *algo, size_t algo_sz)
+brix_query_cksum_path(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, char *algo, size_t algo_sz)
 {
     char               full_path[PATH_MAX];
-    char               pathbuf[XROOTD_MAX_PATH + 1];
+    char               pathbuf[BRIX_MAX_PATH + 1];
     char               resp[256];
     int                fd;
-    xrootd_vfs_file_t *fh = NULL;
+    brix_vfs_file_t *fh = NULL;
     const u_char      *payload = ctx->payload;
     size_t        payload_len = (size_t) ctx->cur_dlen;
     size_t        wire_len;
@@ -126,9 +126,9 @@ xrootd_query_cksum_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
 
     if (sep != NULL && alg_len > 0 && alg_len + 1 < payload_len) {
-        if (!xrootd_query_parse_algorithm(payload, alg_len, algo, algo_sz)) {
-            XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_CKSUM);
-            return xrootd_send_error(ctx, c, kXR_ArgInvalid,
+        if (!brix_query_parse_algorithm(payload, alg_len, algo, algo_sz)) {
+            BRIX_OP_ERR(ctx, BRIX_OP_QUERY_CKSUM);
+            return brix_send_error(ctx, c, kXR_ArgInvalid,
                                      "unknown checksum algorithm");
         }
         path_payload = sep + 1;
@@ -137,7 +137,7 @@ xrootd_query_cksum_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
     /*
      * Standard XRootD also requests the algorithm as a "?cks.type=<algo>" CGI on
-     * the path (what stock clients and EOS send; xrootd_extract_path strips the
+     * the path (what stock clients and EOS send; brix_extract_path strips the
      * ?cgi suffix below). Honor it — overriding any legacy "algo path" prefix — so
      * `xrdfs ... cksum -a <algo>` selects the algorithm here too, not just via the
      * non-standard prefix form.
@@ -165,10 +165,10 @@ xrootd_query_cksum_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
                 }
                 if (flen > sizeof(key) - 1
                     && ngx_strncmp(p, key, sizeof(key) - 1) == 0) {
-                    if (!xrootd_query_parse_algorithm(p + sizeof(key) - 1,
+                    if (!brix_query_parse_algorithm(p + sizeof(key) - 1,
                             flen - (sizeof(key) - 1), algo, algo_sz)) {
-                        XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_CKSUM);
-                        return xrootd_send_error(ctx, c, kXR_ArgInvalid,
+                        BRIX_OP_ERR(ctx, BRIX_OP_QUERY_CKSUM);
+                        return brix_send_error(ctx, c, kXR_ArgInvalid,
                                                  "unknown checksum algorithm");
                     }
                     break;
@@ -181,10 +181,10 @@ xrootd_query_cksum_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
         }
     }
 
-    if (!xrootd_extract_path(c->log, path_payload, path_payload_len,
+    if (!brix_extract_path(c->log, path_payload, path_payload_len,
                              pathbuf, sizeof(pathbuf), 1)) {
-        XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_CKSUM);
-        return xrootd_send_error(ctx, c, kXR_ArgInvalid,
+        BRIX_OP_ERR(ctx, BRIX_OP_QUERY_CKSUM);
+        return brix_send_error(ctx, c, kXR_ArgInvalid,
                                  "invalid path payload");
     }
 
@@ -200,16 +200,16 @@ xrootd_query_cksum_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
         /* tried/triedrc: converge to not-found once the client has visited
          * every server holding this path (avoids the redirect-limit loop). */
-        if (xrootd_manager_tried_exhausted(ctx->payload, ctx->cur_dlen,
+        if (brix_manager_tried_exhausted(ctx->payload, ctx->cur_dlen,
                                            pathbuf)) {
-            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_QUERY_CKSUM, "QUERY", pathbuf,
+            BRIX_RETURN_ERR(ctx, c, BRIX_OP_QUERY_CKSUM, "QUERY", pathbuf,
                               "cksum", kXR_NotFound,
                               "file not found on any data server");
         }
 
-        if (xrootd_srv_select(pathbuf, 0, redir_host,
+        if (brix_srv_select(pathbuf, 0, redir_host,
                               sizeof(redir_host), &redir_port)) {
-            XROOTD_RETURN_REDIR(ctx, c, XROOTD_OP_QUERY_CKSUM, "QUERY",
+            BRIX_RETURN_REDIR(ctx, c, BRIX_OP_QUERY_CKSUM, "QUERY",
                                 pathbuf, "registry", redir_host, redir_port);
         }
 
@@ -217,47 +217,47 @@ xrootd_query_cksum_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
         if (conf->cms_ctx != NULL) {
             uint32_t streamid;
 
-            streamid = ngx_xrootd_cms_next_streamid(conf->cms_ctx);
-            if (xrootd_pending_insert(streamid, ngx_pid, c->fd, c->number,
+            streamid = ngx_brix_cms_next_streamid(conf->cms_ctx);
+            if (brix_pending_insert(streamid, ngx_pid, c->fd, c->number,
                                       ctx->cur_streamid,
                                       conf->cms_locate_timeout) == NGX_OK)
             {
                 ctx->cms_wait_streamid = streamid;
                 ctx->state = XRD_ST_WAITING_CMS;
                 ngx_add_timer(c->read, conf->cms_locate_timeout);
-                if (ngx_xrootd_cms_send_locate(conf->cms_ctx, streamid,
+                if (ngx_brix_cms_send_locate(conf->cms_ctx, streamid,
                                                pathbuf) == NGX_OK)
                 {
                     return NGX_AGAIN;
                 }
                 ngx_del_timer(c->read);
                 ctx->state = XRD_ST_REQ_HEADER;
-                xrootd_pending_remove(streamid, ngx_pid);
+                brix_pending_remove(streamid, ngx_pid);
             }
         }
         /* Registry + CMS miss: fall through to the local resolve (404). */
     }
 
-    xrootd_beneath_full_path(conf->common.root_canon, pathbuf,
+    brix_beneath_full_path(conf->common.root_canon, pathbuf,
                               full_path, sizeof(full_path));
 
-    if (xrootd_auth_gate(ctx, c, XROOTD_OP_QUERY_CKSUM, "QUERY",
+    if (brix_auth_gate(ctx, c, BRIX_OP_QUERY_CKSUM, "QUERY",
                          pathbuf, full_path, conf,
-                         XROOTD_AUTH_READ, 0) != NGX_OK) {
+                         BRIX_AUTH_READ, 0) != NGX_OK) {
         return ctx->write_rc;
     }
 
     {
         /* Confined read-open through the VFS seam (impersonation-aware, metered).
          * The fd backs the backend-agnostic checksum kernel; the handle is closed
-         * via xrootd_vfs_close on every exit (sync below, or the aio done cb). */
-        xrootd_vfs_ctx_t vctx;
+         * via brix_vfs_close on every exit (sync below, or the aio done cb). */
+        brix_vfs_ctx_t vctx;
         int              vfs_err = 0;
 
-        xrootd_vfs_ctx_init(&vctx, c->pool, c->log, XROOTD_PROTO_ROOT,
+        brix_vfs_ctx_init(&vctx, c->pool, c->log, BRIX_PROTO_ROOT,
             conf->common.root_canon, NULL, conf->common.allow_write,
             0 /* is_tls */, NULL, full_path);
-        fh = xrootd_vfs_open(&vctx, XROOTD_VFS_O_READ, &vfs_err);
+        fh = brix_vfs_open(&vctx, BRIX_VFS_O_READ, &vfs_err);
         errno = vfs_err;
     }
     if (fh == NULL) {
@@ -274,26 +274,26 @@ xrootd_query_cksum_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
             ngx_memcpy(origin_host, conf->cache_origin_host.data, hlen);
             origin_host[hlen] = '\0';
-            XROOTD_RETURN_REDIR(ctx, c, XROOTD_OP_QUERY_CKSUM, "QUERY",
+            BRIX_RETURN_REDIR(ctx, c, BRIX_OP_QUERY_CKSUM, "QUERY",
                                 pathbuf, "cache-origin", origin_host,
                                 conf->cache_origin_port);
         }
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_QUERY_CKSUM, "QUERY",
-                          full_path, "cksum", xrootd_kxr_from_errno(errno),
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_QUERY_CKSUM, "QUERY",
+                          full_path, "cksum", brix_kxr_from_errno(errno),
                           strerror(errno));
     }
-    fd = xrootd_vfs_file_fd(fh);
+    fd = brix_vfs_file_fd(fh);
 
     if (conf->common.thread_pool != NULL) {
-        xrootd_cksum_aio_t *t;
+        brix_cksum_aio_t *t;
         ngx_thread_task_t  *task;
         ngx_flag_t          posted;
 
-        task = ngx_thread_task_alloc(c->pool, sizeof(xrootd_cksum_aio_t));
+        task = ngx_thread_task_alloc(c->pool, sizeof(brix_cksum_aio_t));
         if (task == NULL) {
-            xrootd_vfs_close(fh, c->log);
-            XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_CKSUM);
-            return xrootd_send_error(ctx, c, kXR_NoMemory, "out of memory");
+            brix_vfs_close(fh, c->log);
+            BRIX_OP_ERR(ctx, BRIX_OP_QUERY_CKSUM);
+            return brix_send_error(ctx, c, kXR_NoMemory, "out of memory");
         }
 
         t = task->ctx;
@@ -303,21 +303,21 @@ xrootd_query_cksum_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
         t->fd       = fd;
         t->fh       = fh;        /* done cb releases the VFS handle */
         t->close_fd = 1;
-        xrootd_vfs_file_sd_obj(fh, &t->obj); /* Layer 3: whole-object checksum */
+        brix_vfs_file_sd_obj(fh, &t->obj); /* Layer 3: whole-object checksum */
         ngx_memcpy(t->streamid, ctx->cur_streamid, 2);
         ngx_cpystrn((u_char *) t->algo, (u_char *) algo, sizeof(t->algo));
         ngx_cpystrn((u_char *) t->resolved, (u_char *) full_path,
                     sizeof(t->resolved));
         t->error_code = 0;
 
-        xrootd_task_bind(task, xrootd_cksum_aio_thread, xrootd_cksum_aio_done);
+        brix_task_bind(task, brix_cksum_aio_thread, brix_cksum_aio_done);
         task->ctx           = t;
 
-        if (xrootd_aio_post_task(ctx, c, conf->common.thread_pool, task,
+        if (brix_aio_post_task(ctx, c, conf->common.thread_pool, task,
                                  "cksum thread pool queue full, using sync",
                                  &posted) != NGX_OK)
         {
-            xrootd_vfs_close(fh, c->log);
+            brix_vfs_close(fh, c->log);
             return NGX_ERROR;
         }
 
@@ -328,13 +328,13 @@ xrootd_query_cksum_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
 
     {
-        xrootd_sd_obj_t cobj;
+        brix_sd_obj_t cobj;
 
-        xrootd_vfs_file_sd_obj(fh, &cobj);
-        rc = xrootd_query_build_checksum(ctx, c, fd, &cobj, full_path, algo,
+        brix_vfs_file_sd_obj(fh, &cobj);
+        rc = brix_query_build_checksum(ctx, c, fd, &cobj, full_path, algo,
                                          resp, sizeof(resp));
     }
-    xrootd_vfs_close(fh, c->log);
+    brix_vfs_close(fh, c->log);
     if (rc == NGX_DONE) {
         return NGX_OK;
     }
@@ -342,20 +342,20 @@ xrootd_query_cksum_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
         return rc;
     }
 
-    xrootd_log_access(ctx, c, "QUERY", full_path, "cksum", 1, 0, NULL, 0);
-    XROOTD_OP_OK(ctx, XROOTD_OP_QUERY_CKSUM);
-    return xrootd_send_ok(ctx, c, resp, (uint32_t) (strlen(resp) + 1));
+    brix_log_access(ctx, c, "QUERY", full_path, "cksum", 1, 0, NULL, 0);
+    BRIX_OP_OK(ctx, BRIX_OP_QUERY_CKSUM);
+    return brix_send_ok(ctx, c, resp, (uint32_t) (strlen(resp) + 1));
 }
 
 /* WHAT: Computes checksum on an already-open file using its stored fhandle index. Extracts optional algo from payload (prefix byte=0),
- *      validates the handle index, and delegates to xrootd_query_build_checksum(). Returns hex-formatted result.
+ *      validates the handle index, and delegates to brix_query_build_checksum(). Returns hex-formatted result.
  * WHY: kXR_Qcksum can query either open-file handles or arbitrary paths; this handler implements the handle-based variant where
  *      the file is already opened (lower overhead than re-opening). Clients use handles for repeated checksum queries on same file.
  * HOW: 1) Extract optional algo from payload if prefix byte = 0. 2) Validate fhandle index range and fd validity. 3) Build checksum + send result. */
 
 static ngx_int_t
-xrootd_query_cksum_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf, const xrdw_query_req_t *req,
+brix_query_cksum_handle(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const xrdw_query_req_t *req,
     char *algo, size_t algo_sz)
 {
     char      resolved[PATH_MAX];
@@ -369,14 +369,14 @@ xrootd_query_cksum_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
         alen = strnlen((const char *) ap, (size_t) (ctx->cur_dlen - 1));
         if (alen > 0) {
-            (void) xrootd_query_parse_algorithm(ap, alen, algo, algo_sz);
+            (void) brix_query_parse_algorithm(ap, alen, algo, algo_sz);
         }
     }
 
     idx = (int) (unsigned char) req->fhandle[0];
-    if (idx < 0 || idx >= XROOTD_MAX_FILES || ctx->files[idx].fd < 0) {
-        XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_CKSUM);
-        return xrootd_send_error(ctx, c, kXR_FileNotOpen,
+    if (idx < 0 || idx >= BRIX_MAX_FILES || ctx->files[idx].fd < 0) {
+        BRIX_OP_ERR(ctx, BRIX_OP_QUERY_CKSUM);
+        return brix_send_error(ctx, c, kXR_FileNotOpen,
                                  "invalid file handle");
     }
 
@@ -386,14 +386,14 @@ xrootd_query_cksum_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
                 sizeof(resolved));
 
     if (conf->common.thread_pool != NULL) {
-        xrootd_cksum_aio_t *t;
+        brix_cksum_aio_t *t;
         ngx_thread_task_t  *task;
         ngx_flag_t          posted;
 
-        task = ngx_thread_task_alloc(c->pool, sizeof(xrootd_cksum_aio_t));
+        task = ngx_thread_task_alloc(c->pool, sizeof(brix_cksum_aio_t));
         if (task == NULL) {
-            XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_CKSUM);
-            return xrootd_send_error(ctx, c, kXR_NoMemory, "out of memory");
+            BRIX_OP_ERR(ctx, BRIX_OP_QUERY_CKSUM);
+            return brix_send_error(ctx, c, kXR_NoMemory, "out of memory");
         }
 
         t = task->ctx;
@@ -409,10 +409,10 @@ xrootd_query_cksum_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
                     sizeof(t->resolved));
         t->error_code = 0;
 
-        xrootd_task_bind(task, xrootd_cksum_aio_thread, xrootd_cksum_aio_done);
+        brix_task_bind(task, brix_cksum_aio_thread, brix_cksum_aio_done);
         task->ctx           = t;
 
-        if (xrootd_aio_post_task(ctx, c, conf->common.thread_pool, task,
+        if (brix_aio_post_task(ctx, c, conf->common.thread_pool, task,
                                  "cksum thread pool queue full, using sync",
                                  &posted) != NGX_OK)
         {
@@ -424,7 +424,7 @@ xrootd_query_cksum_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
         }
     }
 
-    rc = xrootd_query_build_checksum(ctx, c, ctx->files[idx].fd,
+    rc = brix_query_build_checksum(ctx, c, ctx->files[idx].fd,
                                      &ctx->files[idx].sd_obj, resolved,
                                      algo, resp, sizeof(resp));
     if (rc == NGX_DONE) {
@@ -434,16 +434,16 @@ xrootd_query_cksum_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
         return rc;
     }
 
-    XROOTD_OP_OK(ctx, XROOTD_OP_QUERY_CKSUM);
-    xrootd_log_access(ctx, c, "QUERY", resolved, "cksum", 1, 0, NULL, 0);
-    return xrootd_send_ok(ctx, c, resp, (uint32_t) (strlen(resp) + 1));
+    BRIX_OP_OK(ctx, BRIX_OP_QUERY_CKSUM);
+    brix_log_access(ctx, c, "QUERY", resolved, "cksum", 1, 0, NULL, 0);
+    return brix_send_ok(ctx, c, resp, (uint32_t) (strlen(resp) + 1));
 }
 
-/* public API: xrootd_query_cksum() — kXR_Qcksum dispatch entry point * WHAT: Main dispatcher for Qcksum requests. Routes by payload prefix byte: non-zero → path-based handler (cksum_path with full security chain); zero or empty → handle-based handler (cksum_handle with already-open fd). Default algo is adler32. Both paths support async thread pool execution and synchronous fallback. */
+/* public API: brix_query_cksum() — kXR_Qcksum dispatch entry point * WHAT: Main dispatcher for Qcksum requests. Routes by payload prefix byte: non-zero → path-based handler (cksum_path with full security chain); zero or empty → handle-based handler (cksum_handle with already-open fd). Default algo is adler32. Both paths support async thread pool execution and synchronous fallback. */
 
 ngx_int_t
-xrootd_query_cksum(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf, const xrdw_query_req_t *req)
+brix_query_cksum(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const xrdw_query_req_t *req)
 {
     char algo[32];
 
@@ -459,8 +459,8 @@ xrootd_query_cksum(xrootd_ctx_t *ctx, ngx_connection_t *c,
      * leading "algo:" prefix in the path payload overrides it downstream.
      */
     if (ctx->cur_dlen > 0 && ctx->payload != NULL && ctx->payload[0] != 0) {
-        return xrootd_query_cksum_path(ctx, c, conf, algo, sizeof(algo));
+        return brix_query_cksum_path(ctx, c, conf, algo, sizeof(algo));
     }
 
-    return xrootd_query_cksum_handle(ctx, c, conf, req, algo, sizeof(algo));
+    return brix_query_cksum_handle(ctx, c, conf, req, algo, sizeof(algo));
 }

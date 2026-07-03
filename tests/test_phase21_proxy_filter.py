@@ -56,7 +56,7 @@ def _read(rel):
 
 def test_multi_backend_wiring_present():
     pinternal = _read("src/protocols/webdav/proxy_internal.h")
-    assert "xrootd_webdav_backend_t" in pinternal
+    assert "brix_webdav_backend_t" in pinternal
     assert "webdav_proxy_pick_backend" in pinternal
     proxy = _read("src/protocols/webdav/proxy.c")
     assert "webdav_proxy_pick_backend" in proxy
@@ -102,21 +102,21 @@ def _http_block(body, tmp_path):
 # --------------------------------------------------------------------------- #
 
 @pytest.mark.skip(reason="multi-backend WebDAV reverse-proxy directives "
-                  "(xrootd_webdav_proxy/_upstream) retired in legacy-proxy cleanup")
+                  "(brix_webdav_proxy/_upstream) retired in legacy-proxy cleanup")
 def test_multi_url_proxy_directive_parses(tmp_path):
     (tmp_path / "t").mkdir(exist_ok=True)
     conf = _http_block(f"""
         server {{
             listen {BIND_HOST}:{_CFG_LISTEN_1};
             location / {{
-                xrootd_webdav on;
-                xrootd_webdav_storage_backend posix:{DATA_DIR};
-                xrootd_webdav_auth none;
-                xrootd_webdav_proxy on;
-                xrootd_webdav_proxy_upstream http://{HOST}:{_CFG_UPSTREAM_1}
+                brix_webdav on;
+                brix_webdav_storage_backend posix:{DATA_DIR};
+                brix_webdav_auth none;
+                brix_webdav_proxy on;
+                brix_webdav_proxy_upstream http://{HOST}:{_CFG_UPSTREAM_1}
                                              http://{HOST}:{_CFG_UPSTREAM_2};
-                xrootd_webdav_proxy_max_fails 2;
-                xrootd_webdav_proxy_fail_timeout 5s;
+                brix_webdav_proxy_max_fails 2;
+                brix_webdav_proxy_fail_timeout 5s;
             }}
         }}
     """, tmp_path)
@@ -125,18 +125,18 @@ def test_multi_url_proxy_directive_parses(tmp_path):
 
 
 @pytest.mark.skip(reason="multi-backend WebDAV reverse-proxy directives "
-                  "(xrootd_webdav_proxy/_upstream) retired in legacy-proxy cleanup")
+                  "(brix_webdav_proxy/_upstream) retired in legacy-proxy cleanup")
 def test_bad_scheme_rejected(tmp_path):
     (tmp_path / "t").mkdir(exist_ok=True)
     conf = _http_block(f"""
         server {{
             listen {BIND_HOST}:{_CFG_LISTEN_2};
             location / {{
-                xrootd_webdav on;
-                xrootd_webdav_storage_backend posix:{DATA_DIR};
-                xrootd_webdav_auth none;
-                xrootd_webdav_proxy on;
-                xrootd_webdav_proxy_upstream ftp://{HOST}:{_CFG_UPSTREAM_1};
+                brix_webdav on;
+                brix_webdav_storage_backend posix:{DATA_DIR};
+                brix_webdav_auth none;
+                brix_webdav_proxy on;
+                brix_webdav_proxy_upstream ftp://{HOST}:{_CFG_UPSTREAM_1};
             }}
         }}
     """, tmp_path)
@@ -209,7 +209,7 @@ def _get_body(port, path="/x"):
 
 @pytest.fixture
 def proxy_with_two_origins(tmp_path):
-    pytest.skip("multi-backend WebDAV reverse-proxy (xrootd_webdav_proxy) retired "
+    pytest.skip("multi-backend WebDAV reverse-proxy (brix_webdav_proxy) retired "
                 "in legacy-proxy cleanup")
     be1_port, be2_port, proxy_port = _free_port(), _free_port(), _free_port()
     o1 = _start_origin(be1_port, b"BE1")
@@ -220,12 +220,12 @@ def proxy_with_two_origins(tmp_path):
         server {{
             listen {BIND_HOST}:{proxy_port};
             location / {{
-                xrootd_webdav on;
-                xrootd_webdav_storage_backend posix:{DATA_DIR};
-                xrootd_webdav_auth none;
-                xrootd_webdav_proxy on;
-                xrootd_webdav_proxy_auth anonymous;
-                xrootd_webdav_proxy_upstream http://{HOST}:{be1_port}
+                brix_webdav on;
+                brix_webdav_storage_backend posix:{DATA_DIR};
+                brix_webdav_auth none;
+                brix_webdav_proxy on;
+                brix_webdav_proxy_auth anonymous;
+                brix_webdav_proxy_upstream http://{HOST}:{be1_port}
                                              http://{HOST}:{be2_port};
             }}
         }}
@@ -267,7 +267,7 @@ def test_aux_filter_module_registered():
     assert (ROOT / "src/protocols/webdav/xrdhttp_filter.c").exists()
     cfg = _read("config")
     assert "ngx_module_type=HTTP_AUX_FILTER" in cfg
-    assert "ngx_http_xrootd_xrdhttp_filter_module" in cfg
+    assert "ngx_http_brix_xrdhttp_filter_module" in cfg
     # The body filter / Want-Digest wiring is present.
     xh = _read("src/protocols/webdav/xrdhttp.c")
     assert "xrdhttp_digest_body_filter" in xh
@@ -308,9 +308,9 @@ def webdav_server(tmp_path):
             listen {BIND_HOST}:{port};
             location / {{
                 root {data};
-                xrootd_webdav on;
-                xrootd_webdav_storage_backend posix:{data};
-                xrootd_webdav_auth none;
+                brix_webdav on;
+                brix_webdav_storage_backend posix:{data};
+                brix_webdav_auth none;
             }}
         }}
     """, tmp_path)
@@ -417,11 +417,11 @@ def introspect_server(tmp_path):
             }}
             location / {{
                 root {data};
-                xrootd_webdav on;
-                xrootd_webdav_storage_backend posix:{data};
-                xrootd_webdav_auth none;
-                xrootd_webdav_token_introspect_loc /_introspect;
-                xrootd_webdav_token_introspect_fail_open off;
+                brix_webdav on;
+                brix_webdav_storage_backend posix:{data};
+                brix_webdav_auth none;
+                brix_webdav_token_introspect_loc /_introspect;
+                brix_webdav_token_introspect_fail_open off;
             }}
         }}
     """, tmp_path)

@@ -16,21 +16,21 @@ mkdir -p "$PFX/o/root" "$PFX/o/logs" "$PFX/b/export" "$PFX/b/logs" "$PFX/w/expor
 cat > "$PFX/o/nginx.conf" <<EOF
 daemon on; error_log $PFX/o/logs/e.log info; pid $PFX/o/nginx.pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${OPORT}; xrootd on; xrootd_root $PFX/o/root; xrootd_auth none; xrootd_allow_write on; xrootd_upload_resume off; } }
+stream { server { listen 127.0.0.1:${OPORT}; xrootd on; brix_root $PFX/o/root; brix_auth none; brix_allow_write on; brix_upload_resume off; } }
 EOF
 cat > "$PFX/b/nginx.conf" <<EOF
 daemon on; error_log $PFX/b/logs/e.log info; pid $PFX/b/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${BPORT}; xrootd on; xrootd_root $PFX/b/export; xrootd_auth none; xrootd_allow_write on; xrootd_upload_resume off; xrootd_storage_backend root://127.0.0.1:${OPORT}; } }
+stream { server { listen 127.0.0.1:${BPORT}; xrootd on; brix_root $PFX/b/export; brix_auth none; brix_allow_write on; brix_upload_resume off; brix_storage_backend root://127.0.0.1:${OPORT}; } }
 EOF
 cat > "$PFX/w/nginx.conf" <<EOF
 daemon on; error_log $PFX/w/logs/e.log info; pid $PFX/w/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 http { client_max_body_size 20m; server { listen 127.0.0.1:${WPORT}; location / {
-  xrootd_webdav on; xrootd_webdav_root $PFX/w/export; xrootd_webdav_auth none; xrootd_webdav_allow_write on;
-  xrootd_webdav_storage_backend root://127.0.0.1:${OPORT}; } } }
+  brix_webdav on; brix_webdav_root $PFX/w/export; brix_webdav_auth none; brix_webdav_allow_write on;
+  brix_webdav_storage_backend root://127.0.0.1:${OPORT}; } } }
 EOF
 "$NGINX" -p "$PFX/o" -c "$PFX/o/nginx.conf" 2>"$PFX/o/err" || { echo "O fail"; cat "$PFX/o/err"; exit 2; }
 "$NGINX" -p "$PFX/b" -c "$PFX/b/nginx.conf" 2>"$PFX/b/err" || { echo "B fail"; cat "$PFX/b/err"; exit 2; }

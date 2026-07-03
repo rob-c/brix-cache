@@ -20,7 +20,7 @@
  *   case and the XML body.
  *
  * HOW: Precondition evaluation delegates to the shared RFC 9110 §13.2.2
- *   evaluator xrootd_http_eval_preconditions() (core/http/http_conditionals.c)
+ *   evaluator brix_http_eval_preconditions() (core/http/http_conditionals.c)
  *   — GET/HEAD in READ|TIME mode (If-None-Match match ⇒ 304, S3 `before`
  *   If-Modified-Since semantics), conditional PUT in ETag-only write mode
  *   (match ⇒ 412).  This file owns only the S3 protocol edge: the XML 412
@@ -46,8 +46,8 @@
 
 /* response-* override values: decode, + → space, reject NUL, allow empty. */
 #define S3_OVERRIDE_QUERY_FLAGS \
-    (XROOTD_HTTP_QUERY_DECODE_VALUE | XROOTD_HTTP_QUERY_PLUS_TO_SPACE \
-     | XROOTD_HTTP_QUERY_REJECT_NUL | XROOTD_HTTP_QUERY_ALLOW_EMPTY)
+    (BRIX_HTTP_QUERY_DECODE_VALUE | BRIX_HTTP_QUERY_PLUS_TO_SPACE \
+     | BRIX_HTTP_QUERY_REJECT_NUL | BRIX_HTTP_QUERY_ALLOW_EMPTY)
 
 /*
  * Sending the conditional outcomes
@@ -96,10 +96,10 @@ s3_handle_conditional(ngx_http_request_t *r, time_t mtime, off_t size)
         return NGX_DECLINED;   /* no conditional headers — common fast path */
     }
 
-    xrootd_http_etag_str(etag, sizeof(etag), mtime, size, 0);
-    verdict = xrootd_http_eval_preconditions(r, 1 /* exists */, mtime, size,
-        0, XROOTD_HTTP_COND_READ | XROOTD_HTTP_COND_TIME
-           | XROOTD_HTTP_COND_WEAK_EQUIV);
+    brix_http_etag_str(etag, sizeof(etag), mtime, size, 0);
+    verdict = brix_http_eval_preconditions(r, 1 /* exists */, mtime, size,
+        0, BRIX_HTTP_COND_READ | BRIX_HTTP_COND_TIME
+           | BRIX_HTTP_COND_WEAK_EQUIV);
 
     if (verdict == NGX_HTTP_NOT_MODIFIED) {
         return s3_send_not_modified(r, etag, mtime);
@@ -147,11 +147,11 @@ s3_put_precondition(ngx_http_request_t *r, const char *root_canon,
     ngx_table_elt_t  *if_none = r->headers_in.if_none_match;
     ngx_table_elt_t  *if_match = r->headers_in.if_match;
     int               exists = 0;
-    xrootd_vfs_ctx_t  vctx;
-    xrootd_vfs_stat_t vst;
+    brix_vfs_ctx_t  vctx;
+    brix_vfs_stat_t vst;
     ngx_http_s3_req_ctx_t *s3ctx;
     ngx_http_s3_loc_conf_t *cf =
-        ngx_http_get_module_loc_conf(r, ngx_http_xrootd_s3_module);
+        ngx_http_get_module_loc_conf(r, ngx_http_brix_s3_module);
     int               is_tls = 0;
 
     if (if_none == NULL && if_match == NULL) {
@@ -165,21 +165,21 @@ s3_put_precondition(ngx_http_request_t *r, const char *root_canon,
      * a symlink at the key reports as non-regular and is treated as absent,
      * matching the S3 object model (the lister never emits symlinks).
      */
-    s3ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+    s3ctx = ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
 #if (NGX_HTTP_SSL)
     is_tls = (r->connection->ssl != NULL) ? 1 : 0;
 #endif
-    xrootd_vfs_ctx_init(&vctx, r->pool, r->connection->log, XROOTD_PROTO_S3,
+    brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_S3,
         root_canon, cf->cache_root_canon, cf->common.allow_write, is_tls,
         (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
 
-    if (xrootd_vfs_stat(&vctx, &vst) == NGX_OK && vst.is_regular) {
+    if (brix_vfs_stat(&vctx, &vst) == NGX_OK && vst.is_regular) {
         exists = 1;
     }
 
-    if (xrootd_http_eval_preconditions(r, exists,
+    if (brix_http_eval_preconditions(r, exists,
             exists ? vst.mtime : 0, exists ? vst.size : 0,
-            0, XROOTD_HTTP_COND_WEAK_EQUIV) != NGX_OK)
+            0, BRIX_HTTP_COND_WEAK_EQUIV) != NGX_OK)
     {
         return s3_send_precondition_failed(r);
     }
@@ -217,16 +217,16 @@ s3_override_header(ngx_http_request_t *r, const char *param, const char *header)
 
     /* query_get returns 1 on success and NUL-terminates val; the decoded
      * length is strlen(val), NOT the return value. */
-    if (xrootd_http_query_get(r->args, param, val, sizeof(val),
+    if (brix_http_query_get(r->args, param, val, sizeof(val),
                               S3_OVERRIDE_QUERY_FLAGS) <= 0)
     {
         return;
     }
     len = ngx_strlen(val);
-    if (len == 0 || xrootd_http_str_has_ctl((u_char *) val, len)) {
+    if (len == 0 || brix_http_str_has_ctl((u_char *) val, len)) {
         return;
     }
-    (void) xrootd_http_set_header(r, header, val, NULL);
+    (void) brix_http_set_header(r, header, val, NULL);
 }
 
 void
@@ -240,10 +240,10 @@ s3_apply_response_overrides(ngx_http_request_t *r)
     }
 
     /* response-content-type overrides the computed Content-Type in-place. */
-    if (xrootd_http_query_get(r->args, "response-content-type", ct, sizeof(ct),
+    if (brix_http_query_get(r->args, "response-content-type", ct, sizeof(ct),
                               S3_OVERRIDE_QUERY_FLAGS) > 0
         && (len = ngx_strlen(ct)) > 0
-        && !xrootd_http_str_has_ctl((u_char *) ct, len))
+        && !brix_http_str_has_ctl((u_char *) ct, len))
     {
         u_char *p = ngx_pnalloc(r->pool, len);
         if (p != NULL) {
@@ -263,7 +263,7 @@ s3_apply_response_overrides(ngx_http_request_t *r)
 }
 
 /*
- * s3_get_pre_header — serve-pipeline pre-header hook (xrootd_http_pre_header_fn).
+ * s3_get_pre_header — serve-pipeline pre-header hook (brix_http_pre_header_fn).
  * Applies any response-* overrides after set_file_headers but before the
  * response headers are sent.
  */

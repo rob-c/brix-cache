@@ -4,7 +4,7 @@
  * WHAT: The storage-neutral byte-I/O verbs (full read, single read, full write,
  *       sync, truncate, fstat) that both the nginx server data plane and the
  *       userland clients run. They operate on an already-opened backend object
- *       (xrootd_sd_obj_t) — the OPEN, with its per-side policy (server: export-
+ *       (brix_sd_obj_t) — the OPEN, with its per-side policy (server: export-
  *       confined RESOLVE_BENEATH; client: unconfined URL path), stays in the
  *       caller's layer (vfs_server / client adapter). These verbs own only the
  *       EINTR / short-I/O loop policy; the raw syscalls live in the backend.
@@ -18,10 +18,10 @@
  *
  * See docs/superpowers/specs/2026-06-27-unified-vfs-layering-design.md.
  */
-#ifndef XROOTD_VFS_CORE_H
-#define XROOTD_VFS_CORE_H
+#ifndef BRIX_VFS_CORE_H
+#define BRIX_VFS_CORE_H
 
-#include "fs/backend/sd.h"   /* xrootd_sd_obj_t + driver vtable (ngx-free fallback) */
+#include "fs/backend/sd.h"   /* brix_sd_obj_t + driver vtable (ngx-free fallback) */
 
 #include <stddef.h>
 #include <sys/types.h>   /* ssize_t, off_t */
@@ -36,27 +36,27 @@
  * read at EOF is success with *nread < len. *nread (if non-NULL) reports the
  * byte count even on error. Returns 0 / -1 (errno).
  */
-int xvfs_pread_full(xrootd_sd_obj_t *obj, void *buf, size_t len, off_t off,
+int xvfs_pread_full(brix_sd_obj_t *obj, void *buf, size_t len, off_t off,
                     size_t *nread);
 
 /*
  * Single read with EINTR retry: returns the byte count (>= 0, may be short,
  * 0 = EOF) or -1 (errno). The caller owns any short-read loop (transfer pump).
  */
-ssize_t xvfs_pread_once(xrootd_sd_obj_t *obj, void *buf, size_t len, off_t off);
+ssize_t xvfs_pread_once(brix_sd_obj_t *obj, void *buf, size_t len, off_t off);
 
 /*
  * Full write: loop (EINTR-retried) until all `len` bytes are written. *written
  * (if non-NULL) reports bytes written; *short_io (if non-NULL) is set when a
  * 0-byte write or a partial-then-error truncates the write. Returns 0 / -1.
  */
-int xvfs_pwrite_full(xrootd_sd_obj_t *obj, const void *buf, size_t len,
+int xvfs_pwrite_full(brix_sd_obj_t *obj, const void *buf, size_t len,
                      off_t off, size_t *written, int *short_io);
 
 /* Durability / metadata verbs (single backend op). Return 0 / -1 (errno). */
-int xvfs_fsync(xrootd_sd_obj_t *obj);
-int xvfs_ftruncate(xrootd_sd_obj_t *obj, off_t len);
-int xvfs_fstat(xrootd_sd_obj_t *obj, xrootd_sd_stat_t *out);
+int xvfs_fsync(brix_sd_obj_t *obj);
+int xvfs_ftruncate(brix_sd_obj_t *obj, off_t len);
+int xvfs_fstat(brix_sd_obj_t *obj, brix_sd_stat_t *out);
 
 /*
  * Drain: copy the whole of `src` into `dst` through the driver, chunked via the
@@ -66,7 +66,7 @@ int xvfs_fstat(xrootd_sd_obj_t *obj, xrootd_sd_stat_t *out);
  * The single primitive every auxiliary-storage scratch copy shares (serve
  * offload, xvfs_stage_fd). Returns 0 / -1 (errno; EINVAL on a NULL/zero buffer).
  */
-int xvfs_drain(xrootd_sd_obj_t *src, xrootd_sd_obj_t *dst, void *buf,
+int xvfs_drain(brix_sd_obj_t *src, brix_sd_obj_t *dst, void *buf,
                size_t bufsz, off_t *total);
 
 /*
@@ -79,4 +79,4 @@ int xvfs_drain(xrootd_sd_obj_t *src, xrootd_sd_obj_t *dst, void *buf,
  */
 int xvfs_stage_fd(int src_fd, const char *stage_dir);
 
-#endif /* XROOTD_VFS_CORE_H */
+#endif /* BRIX_VFS_CORE_H */

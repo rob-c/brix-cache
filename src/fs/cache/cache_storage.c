@@ -3,36 +3,36 @@
  */
 
 #include "cache_storage.h"
-#include "cache_internal.h"               /* xrootd_cache_build_origin (shared read-origin map) */
+#include "cache_internal.h"               /* brix_cache_build_origin (shared read-origin map) */
 #include "cstore.h"                       /* policy-layer cstore adapter */
-#include "fs/vfs/vfs_backend_registry.h"   /* xrootd_vfs_backend_resolve */
-#include "fs/backend/xroot/sd_xroot.h" /* xrootd_sd_xroot_create_origin (§6.5) */
-#include "fs/backend/cache/sd_cache.h" /* xrootd_sd_cache_create (slice decorator) */
-#include "fs/backend/stage/sd_stage.h" /* xrootd_sd_stage_create (write-through) */
-#include "fs/tier/tier.h"              /* xrootd_cache_policy_t */
+#include "fs/vfs/vfs_backend_registry.h"   /* brix_vfs_backend_resolve */
+#include "fs/backend/xroot/sd_xroot.h" /* brix_sd_xroot_create_origin (§6.5) */
+#include "fs/backend/cache/sd_cache.h" /* brix_sd_cache_create (slice decorator) */
+#include "fs/backend/stage/sd_stage.h" /* brix_sd_stage_create (write-through) */
+#include "fs/tier/tier.h"              /* brix_cache_policy_t */
 
 #include <fcntl.h>
 #include <string.h>
 #include <unistd.h>
 
-/* xrootd_cache_key_from lives in cache_key.c (pure, libc-only) so it links into
+/* brix_cache_key_from lives in cache_key.c (pure, libc-only) so it links into
  * the standalone unit test without dragging the nginx-dependent code here. */
 
 int
-xrootd_cache_key(const ngx_stream_xrootd_srv_conf_t *conf, const char *resolved,
+brix_cache_key(const ngx_stream_brix_srv_conf_t *conf, const char *resolved,
                  char *dst, size_t dstsz)
 {
     if (conf->cache_root.len == 0) {
         return -1;
     }
-    return xrootd_cache_key_from((const char *) conf->cache_root.data,
+    return brix_cache_key_from((const char *) conf->cache_root.data,
                                  conf->common.root_canon, resolved, dst, dstsz);
 }
 
 /* The export-relative key (leading '/') under cache_root for an absolute
  * cache_path, or NULL when cache_path is not under cache_root. */
 const char *
-xrootd_cache_key_under_root(const ngx_stream_xrootd_srv_conf_t *conf,
+brix_cache_key_under_root(const ngx_stream_brix_srv_conf_t *conf,
     const char *cache_path)
 {
     const char *key;
@@ -47,36 +47,36 @@ xrootd_cache_key_under_root(const ngx_stream_xrootd_srv_conf_t *conf,
     return (key[0] == '/') ? key : NULL;
 }
 
-/* Cache readiness for an `xrootd_cache on` POSIX cache: is the cached file
+/* Cache readiness for an `brix_cache on` POSIX cache: is the cached file
  * fully present? (§14: the driver-backed cache_storage_backend variant is
  * retired — a driver cache store is the tier grammar's composed sd_cache.) */
 int
-xrootd_cache_ready(const ngx_stream_xrootd_srv_conf_t *conf,
+brix_cache_ready(const ngx_stream_brix_srv_conf_t *conf,
     const char *cache_path)
 {
     (void) conf;
-    return xrootd_cache_file_ready(cache_path);
+    return brix_cache_file_ready(cache_path);
 }
 
 /* ---- per-worker cache_root → instance table ----------------------------
  * The VFS cache-open hook (open.c) receives a VFS ctx carrying cache_root_canon
  * but not the server conf, so it cannot read conf->cache_storage_inst directly.
- * This small process-local table (populated by xrootd_cache_storage_init) maps a
+ * This small process-local table (populated by brix_cache_storage_init) maps a
  * cache root to its read + state instances for that lookup. */
-#define XROOTD_CACHE_STORAGE_MAX 64
+#define BRIX_CACHE_STORAGE_MAX 64
 typedef struct {
     char                  root[PATH_MAX];
     char                  state_root[PATH_MAX];   /* POSIX sidecar tree */
-    xrootd_sd_instance_t *read_inst;
-    xrootd_sd_instance_t *state_inst;
+    brix_sd_instance_t *read_inst;
+    brix_sd_instance_t *state_inst;
 } cs_root_entry_t;
-static cs_root_entry_t cs_root_table[XROOTD_CACHE_STORAGE_MAX];
+static cs_root_entry_t cs_root_table[BRIX_CACHE_STORAGE_MAX];
 static ngx_uint_t      cs_root_count;
 static cs_root_entry_t *cs_root_find(const char *root);
 
 static void
 cs_root_register(const char *root, const char *state_root,
-    xrootd_sd_instance_t *read_inst, xrootd_sd_instance_t *state_inst)
+    brix_sd_instance_t *read_inst, brix_sd_instance_t *state_inst)
 {
     cs_root_entry_t *e = NULL;
     ngx_uint_t       i;
@@ -91,7 +91,7 @@ cs_root_register(const char *root, const char *state_root,
         }
     }
     if (e == NULL) {
-        if (cs_root_count >= XROOTD_CACHE_STORAGE_MAX) {
+        if (cs_root_count >= BRIX_CACHE_STORAGE_MAX) {
             return;
         }
         e = &cs_root_table[cs_root_count++];
@@ -106,7 +106,7 @@ cs_root_register(const char *root, const char *state_root,
 /* The state (sidecar) root for a cache root — the cache_state_root if distinct,
  * else the cache root (co-located). NULL if the cache root is unknown. */
 const char *
-xrootd_cache_state_root_by_root(const char *cache_root_canon)
+brix_cache_state_root_by_root(const char *cache_root_canon)
 {
     cs_root_entry_t *e = cs_root_find(cache_root_canon);
     return e ? e->state_root : NULL;
@@ -116,7 +116,7 @@ xrootd_cache_state_root_by_root(const char *cache_root_canon)
  * For a co-located cache (state_root == cache_root) this returns cache_path
  * unchanged. 0 / -1 (not under cache_root, or overflow). */
 int
-xrootd_cache_sidecar_path(const char *cache_root, const char *state_root,
+brix_cache_sidecar_path(const char *cache_root, const char *state_root,
     const char *cache_path, char *dst, size_t dstsz)
 {
     size_t crlen = strlen(cache_root);
@@ -149,17 +149,17 @@ cs_root_find(const char *root)
 }
 
 /* Lazily register a POSIX co-located instance for a cache root that was not set up
- * by xrootd_cache_storage_init — namely an HTTP-module cache (xrootd_webdav_cache_root),
+ * by brix_cache_storage_init — namely an HTTP-module cache (brix_webdav_cache_root),
  * whose server conf the stream-only worker-init loop never visits. A driver-backed
  * cache is always pre-registered at config time, so this fallback only ever builds
  * the default POSIX driver (state co-located), matching the cache's POSIX default.
  * Event-loop only (single-threaded per worker); the borrowed O_PATH fd lives for the
  * worker's lifetime. NULL if the root cannot be opened. */
-static xrootd_sd_instance_t *
+static brix_sd_instance_t *
 cs_root_lazy_posix(const char *root)
 {
     int                   fd;
-    xrootd_sd_instance_t *inst;
+    brix_sd_instance_t *inst;
 
     if (root == NULL || root[0] == '\0' || ngx_cycle == NULL) {
         return NULL;
@@ -168,7 +168,7 @@ cs_root_lazy_posix(const char *root)
     if (fd < 0) {
         return NULL;
     }
-    inst = xrootd_sd_posix_borrow_instance(ngx_cycle->pool, ngx_cycle->log, fd,
+    inst = brix_sd_posix_borrow_instance(ngx_cycle->pool, ngx_cycle->log, fd,
                                            root);
     if (inst == NULL) {
         close(fd);
@@ -178,15 +178,15 @@ cs_root_lazy_posix(const char *root)
     return inst;
 }
 
-xrootd_sd_instance_t *
-xrootd_cache_storage_by_root(const char *cache_root_canon)
+brix_sd_instance_t *
+brix_cache_storage_by_root(const char *cache_root_canon)
 {
     cs_root_entry_t *e = cs_root_find(cache_root_canon);
     return e ? e->read_inst : cs_root_lazy_posix(cache_root_canon);
 }
 
-xrootd_sd_instance_t *
-xrootd_cache_state_by_root(const char *cache_root_canon)
+brix_sd_instance_t *
+brix_cache_state_by_root(const char *cache_root_canon)
 {
     cs_root_entry_t *e = cs_root_find(cache_root_canon);
     return e ? e->state_inst : NULL;
@@ -199,52 +199,52 @@ xrootd_cache_state_by_root(const char *cache_root_canon)
  * (cache_store) is the registry's composed sd_cache — its own store + cstore hold
  * the objects the read path fills, so the reaper must evict through THOSE (not the
  * legacy cache_storage_inst, which a pure-tier cache never builds). */
-xrootd_sd_instance_t *
-xrootd_cache_storage(const ngx_stream_xrootd_srv_conf_t *conf)
+brix_sd_instance_t *
+brix_cache_storage(const ngx_stream_brix_srv_conf_t *conf)
 {
     if (conf->common.cache_store.len > 0) {
-        xrootd_sd_instance_t *c =
-            xrootd_vfs_backend_resolve(conf->common.root_canon, ngx_cycle->log);
-        if (c != NULL && xrootd_sd_cache_instance_is(c)) {
-            return xrootd_sd_cache_store_instance(c);
+        brix_sd_instance_t *c =
+            brix_vfs_backend_resolve(conf->common.root_canon, ngx_cycle->log);
+        if (c != NULL && brix_sd_cache_instance_is(c)) {
+            return brix_sd_cache_store_instance(c);
         }
     }
     return conf->cache_storage_inst;
 }
 
-xrootd_cstore_t *
-xrootd_cache_storage_cstore(const ngx_stream_xrootd_srv_conf_t *conf)
+brix_cstore_t *
+brix_cache_storage_cstore(const ngx_stream_brix_srv_conf_t *conf)
 {
     if (conf->common.cache_store.len > 0) {
-        xrootd_sd_instance_t *c =
-            xrootd_vfs_backend_resolve(conf->common.root_canon, ngx_cycle->log);
-        if (c != NULL && xrootd_sd_cache_instance_is(c)) {
-            return (xrootd_cstore_t *) xrootd_sd_cache_cstore(c);
+        brix_sd_instance_t *c =
+            brix_vfs_backend_resolve(conf->common.root_canon, ngx_cycle->log);
+        if (c != NULL && brix_sd_cache_instance_is(c)) {
+            return (brix_cstore_t *) brix_sd_cache_cstore(c);
         }
     }
-    return (xrootd_cstore_t *) conf->cache_storage_cstore;
+    return (brix_cstore_t *) conf->cache_storage_cstore;
 }
 
-xrootd_sd_instance_t *
-xrootd_cache_source_inst(const ngx_stream_xrootd_srv_conf_t *conf)
+brix_sd_instance_t *
+brix_cache_source_inst(const ngx_stream_brix_srv_conf_t *conf)
 {
-    return (xrootd_sd_instance_t *) conf->cache_source_inst;
+    return (brix_sd_instance_t *) conf->cache_source_inst;
 }
 
-xrootd_sd_instance_t *
-xrootd_cache_wt_stage_sd_inst(const ngx_stream_xrootd_srv_conf_t *conf)
+brix_sd_instance_t *
+brix_cache_wt_stage_sd_inst(const ngx_stream_brix_srv_conf_t *conf)
 {
-    return (xrootd_sd_instance_t *) conf->cache_wt_stage_sd_inst;
+    return (brix_sd_instance_t *) conf->cache_wt_stage_sd_inst;
 }
 
-xrootd_sd_instance_t *
-xrootd_cache_state_storage(const ngx_stream_xrootd_srv_conf_t *conf)
+brix_sd_instance_t *
+brix_cache_state_storage(const ngx_stream_brix_srv_conf_t *conf)
 {
     return conf->cache_state_inst;
 }
 
-xrootd_sd_instance_t *
-xrootd_cache_wt_stage(const ngx_stream_xrootd_srv_conf_t *conf)
+brix_sd_instance_t *
+brix_cache_wt_stage(const ngx_stream_brix_srv_conf_t *conf)
 {
     return conf->cache_wt_stage_inst;
 }
@@ -272,18 +272,18 @@ cache_open_rootfd(const ngx_str_t *root, ngx_log_t *log)
 /* Build a role's SD instance: the configured backend (via the registry) when
  * `backend` is named, else the POSIX driver borrowing `rootfd`. NULL if neither
  * a backend nor a usable rootfd is available. */
-static xrootd_sd_instance_t *
+static brix_sd_instance_t *
 cache_build_instance(ngx_pool_t *pool, ngx_log_t *log, const ngx_str_t *root,
     const ngx_str_t *backend, int rootfd)
 {
     if (backend != NULL && backend->len > 0) {
         /* Registered at config time (Tasks 6/7) keyed on the role's root. */
-        return xrootd_vfs_backend_resolve((const char *) root->data, log);
+        return brix_vfs_backend_resolve((const char *) root->data, log);
     }
     if (rootfd < 0) {
         return NULL;
     }
-    return xrootd_sd_posix_borrow_instance(pool, log, rootfd,
+    return brix_sd_posix_borrow_instance(pool, log, rootfd,
                                            (const char *) root->data);
 }
 
@@ -295,10 +295,10 @@ cache_build_instance(ngx_pool_t *pool, ngx_log_t *log, const ngx_str_t *root,
  * when write-through is off or no origin/store is available. */
 static void
 cache_build_wt_stage(ngx_pool_t *pool, ngx_log_t *log,
-                     ngx_stream_xrootd_srv_conf_t *conf)
+                     ngx_stream_brix_srv_conf_t *conf)
 {
-    xrootd_sd_instance_t *store;
-    xrootd_sd_instance_t *origin;
+    brix_sd_instance_t *store;
+    brix_sd_instance_t *origin;
 
     if (!conf->wt_enable
         || (conf->wt_origin_host.len == 0 && conf->cache_origin_host.len == 0))
@@ -306,37 +306,37 @@ cache_build_wt_stage(ngx_pool_t *pool, ngx_log_t *log,
         return;
     }
 
-    store  = xrootd_vfs_backend_resolve(conf->common.root_canon, log);
-    origin = xrootd_cache_build_wt_origin(conf, log);
+    store  = brix_vfs_backend_resolve(conf->common.root_canon, log);
+    origin = brix_cache_build_wt_origin(conf, log);
 
     if (store == NULL) {
         conf->cache_wt_store_rootfd =
             open((const char *) conf->common.root_canon,
                  O_PATH | O_DIRECTORY | O_CLOEXEC);
         if (conf->cache_wt_store_rootfd >= 0) {
-            store = xrootd_sd_posix_borrow_instance(pool, log,
+            store = brix_sd_posix_borrow_instance(pool, log,
                         conf->cache_wt_store_rootfd,
                         (const char *) conf->common.root_canon);
         }
     }
 
     if (store != NULL && origin != NULL) {
-        xrootd_stage_policy_t pol;
+        brix_stage_policy_t pol;
 
         ngx_memzero(&pol, sizeof(pol));
-        pol.flush_mode = (conf->wt_mode == XROOTD_WT_MODE_ASYNC)
-                         ? XROOTD_WT_MODE_ASYNC : XROOTD_WT_MODE_SYNC;
-        conf->cache_wt_stage_sd_inst = xrootd_sd_stage_create(origin, store, &pol,
+        pol.flush_mode = (conf->wt_mode == BRIX_WT_MODE_ASYNC)
+                         ? BRIX_WT_MODE_ASYNC : BRIX_WT_MODE_SYNC;
+        conf->cache_wt_stage_sd_inst = brix_sd_stage_create(origin, store, &pol,
             (const char *) conf->common.root_canon, log);
     }
     if (conf->cache_wt_stage_sd_inst == NULL && origin != NULL) {
-        xrootd_sd_xroot_destroy(origin);
+        brix_sd_xroot_destroy(origin);
     }
 }
 
 
 ngx_int_t
-xrootd_cache_storage_init(ngx_stream_xrootd_srv_conf_t *conf, ngx_cycle_t *cycle)
+brix_cache_storage_init(ngx_stream_brix_srv_conf_t *conf, ngx_cycle_t *cycle)
 {
     ngx_pool_t *pool = cycle->pool;
     ngx_log_t  *log = cycle->log;
@@ -364,7 +364,7 @@ xrootd_cache_storage_init(ngx_stream_xrootd_srv_conf_t *conf, ngx_cycle_t *cycle
     /* Read cache (cache_root). */
     conf->cache_rootfd = cache_open_rootfd(&conf->cache_root, log);
     {
-        /* §14: cache_storage_backend is retired — an `xrootd_cache on` read cache
+        /* §14: cache_storage_backend is retired — an `brix_cache on` read cache
          * is always the POSIX driver on cache_root (driver stores = cache_store). */
         ngx_str_t no_backend = ngx_null_string;
         conf->cache_storage_inst = cache_build_instance(pool, log,
@@ -376,16 +376,16 @@ xrootd_cache_storage_init(ngx_stream_xrootd_srv_conf_t *conf, ngx_cycle_t *cycle
      * bare driver. AUTO resolves to LOCAL for the co-located posix cache_root
      * (byte-identical sidecars); batch_cinfo=0 keeps the old per-op behaviour. */
     if (conf->cache_storage_inst != NULL) {
-        xrootd_cstore_t *cs = ngx_pcalloc(pool, sizeof(*cs));
+        brix_cstore_t *cs = ngx_pcalloc(pool, sizeof(*cs));
         size_t           l1 = (conf->common.cache_index_cache > 0)
                               ? (size_t) conf->common.cache_index_cache : 0;
 
         if (cs == NULL) {
             return NGX_ERROR;
         }
-        if (xrootd_cstore_init(cs, conf->cache_storage_inst,
+        if (brix_cstore_init(cs, conf->cache_storage_inst,
                                (const char *) conf->cache_root.data,
-                               XROOTD_CMETA_AUTO, l1, 0, log) != NGX_OK) {
+                               BRIX_CMETA_AUTO, l1, 0, log) != NGX_OK) {
             ngx_log_error(NGX_LOG_EMERG, log, ngx_errno,
                 "xrootd: cache policy cstore init failed for \"%V\"",
                 &conf->cache_root);
@@ -396,10 +396,10 @@ xrootd_cache_storage_init(ngx_stream_xrootd_srv_conf_t *conf, ngx_cycle_t *cycle
 
     /* §14 (phase-64): the legacy cache_slice_inst decorator (built over the
      * retired cache_origin config) is DELETED — slice/partial caching is the
-     * tier grammar's composed sd_cache (xrootd_cache_store +
-     * xrootd_cache_slice_size), resolved via xrootd_vfs_backend_resolve. */
+     * tier grammar's composed sd_cache (brix_cache_store +
+     * brix_cache_slice_size), resolved via brix_vfs_backend_resolve. */
 
-    /* §14: no legacy cache_origin — an `xrootd_cache on` cache fills from the
+    /* §14: no legacy cache_origin — an `brix_cache on` cache fills from the
      * export's REGISTERED storage backend (the C-1 spine resolves it per fill). */
     conf->cache_source_inst = NULL;
 
@@ -433,7 +433,7 @@ xrootd_cache_storage_init(ngx_stream_xrootd_srv_conf_t *conf, ngx_cycle_t *cycle
 }
 
 void
-xrootd_cache_storage_cleanup(ngx_stream_xrootd_srv_conf_t *conf)
+brix_cache_storage_cleanup(ngx_stream_brix_srv_conf_t *conf)
 {
     if (conf->cache_rootfd >= 0) {
         close(conf->cache_rootfd);
@@ -448,18 +448,18 @@ xrootd_cache_storage_cleanup(ngx_stream_xrootd_srv_conf_t *conf)
         close(conf->cache_wt_stage_rootfd);
     }
     if (conf->cache_storage_cstore != NULL) {
-        xrootd_cstore_cleanup((xrootd_cstore_t *) conf->cache_storage_cstore);
+        brix_cstore_cleanup((brix_cstore_t *) conf->cache_storage_cstore);
         conf->cache_storage_cstore = NULL;
     }
     if (conf->cache_wt_stage_sd_inst != NULL) {
         /* Free the decorator then the origin SOURCE we own (the store is the export
          * backend, freed on its own path — the decorator borrows it). */
-        xrootd_sd_instance_t *dec = conf->cache_wt_stage_sd_inst;
-        xrootd_sd_instance_t *origin = xrootd_sd_stage_source_instance(dec);
+        brix_sd_instance_t *dec = conf->cache_wt_stage_sd_inst;
+        brix_sd_instance_t *origin = brix_sd_stage_source_instance(dec);
 
-        xrootd_sd_stage_destroy(dec);
+        brix_sd_stage_destroy(dec);
         if (origin != NULL) {
-            xrootd_sd_xroot_destroy(origin);
+            brix_sd_xroot_destroy(origin);
         }
         conf->cache_wt_stage_sd_inst = NULL;
     }

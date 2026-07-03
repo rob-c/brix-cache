@@ -24,7 +24,7 @@
 
 /* WHAT: Auth path selection/dispatch — parse server login/authmore params for ztn/gsi, check have_ztn_cred+have_cert config → prefer JWT if want_ztn && have_ztn_cred (fall through to GSI on failure), else delegate tpc_outbound_gsi(t, fd). Returns 0 or -1 with t->xrd_error set. Caller: thread.c auth path dispatch after bootstrap. */
 int
-tpc_outbound_finish_login(xrootd_tpc_pull_t *t, int fd,
+tpc_outbound_finish_login(brix_tpc_pull_t *t, int fd,
     u_char *login_body, uint32_t login_dlen)
 {
     char              *parms;
@@ -33,20 +33,20 @@ tpc_outbound_finish_login(xrootd_tpc_pull_t *t, int fd,
     ngx_flag_t         have_ztn_cred;
     ngx_flag_t         have_cert;
 
-    if (login_dlen <= XROOTD_SESSION_ID_LEN + 1) {
+    if (login_dlen <= BRIX_SESSION_ID_LEN + 1) {
         snprintf(t->err_msg, sizeof(t->err_msg),
                  "TPC login authmore body too short");
         t->xrd_error = kXR_ArgInvalid;
         return -1;
     }
 
-    parms = (char *) login_body + XROOTD_SESSION_ID_LEN;
+    parms = (char *) login_body + BRIX_SESSION_ID_LEN;
 
     /* Anchored "&P=<name>" match (shared with the native client), not a bare
      * substring scan: a protocol name inside another entry's args or a trailing
      * host must not select the wrong outbound credential. */
-    want_ztn = xrootd_sec_proto_advertised(parms, "ztn", NULL, 0);
-    want_gsi = xrootd_sec_proto_advertised(parms, "gsi", NULL, 0);
+    want_ztn = brix_sec_proto_advertised(parms, "ztn", NULL, 0);
+    want_gsi = brix_sec_proto_advertised(parms, "gsi", NULL, 0);
 
     have_ztn_cred = (t->delegated_token[0] != '\0'
                      || t->conf->tpc_outbound_bearer_file.len > 0) ? 1 : 0;
@@ -76,8 +76,8 @@ tpc_outbound_finish_login(xrootd_tpc_pull_t *t, int fd,
 
     snprintf(t->err_msg, sizeof(t->err_msg),
              "TPC source %s requires authentication. Configure "
-             "xrootd_tpc_outbound_bearer_file (token) and/or "
-             "xrootd_certificate + xrootd_certificate_key + xrootd_trusted_ca "
+             "brix_tpc_outbound_bearer_file (token) and/or "
+             "brix_certificate + brix_certificate_key + brix_trusted_ca "
              "(GSI) on this destination.",
              t->src_host);
     t->xrd_error = kXR_AuthFailed;

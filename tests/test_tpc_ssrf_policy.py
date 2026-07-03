@@ -1,15 +1,15 @@
 """
 tests/test_tpc_ssrf_policy.py
 
-Tests for the xrootd_tpc_allow_local and xrootd_tpc_allow_private
+Tests for the brix_tpc_allow_local and brix_tpc_allow_private
 SSRF-guard directives on the XRootD stream module.
 
 The SSRF guard lives in src/tpc/outbound/connect.c: tpc_addr_is_prohibited().
 These tests verify that the per-server directives control which
 destination addresses are allowed for TPC pulls:
 
-  xrootd_tpc_allow_local   on|off  — loopback + link-local (default: off)
-  xrootd_tpc_allow_private on|off  — RFC-1918 ranges (default: on)
+  brix_tpc_allow_local   on|off  — loopback + link-local (default: off)
+  brix_tpc_allow_private on|off  — RFC-1918 ranges (default: on)
 
 Run:
     pytest tests/test_tpc_ssrf_policy.py -v
@@ -245,7 +245,7 @@ class TestSSRFDefaultPolicy:
 
 
 # ---------------------------------------------------------------------------
-# Tests: xrootd_tpc_allow_local on
+# Tests: brix_tpc_allow_local on
 # ---------------------------------------------------------------------------
 
 class TestSSRFAllowLocalPolicy:
@@ -274,7 +274,7 @@ class TestSSRFAllowLocalPolicy:
 
 
 # ---------------------------------------------------------------------------
-# Tests: xrootd_tpc_allow_private off
+# Tests: brix_tpc_allow_private off
 # ---------------------------------------------------------------------------
 
 class TestSSRFDenyPrivatePolicy:

@@ -5,8 +5,8 @@
  * declaration — without it gcc assumes int and TRUNCATES the 64-bit pointer.
  * The definitions live in sd_ceph_live_test.c (calloc/malloc, pool ignored).
  */
-#ifndef XROOTD_TEST_NGX_SHIM_H
-#define XROOTD_TEST_NGX_SHIM_H
+#ifndef BRIX_TEST_NGX_SHIM_H
+#define BRIX_TEST_NGX_SHIM_H
 
 #include <stddef.h>
 #include <string.h>
@@ -19,4 +19,4 @@ void *ngx_pnalloc(ngx_pool_t *pool, size_t size);
 #define ngx_memcpy(dst, src, n)  memcpy(dst, src, (n))
 #endif
 
-#endif /* XROOTD_TEST_NGX_SHIM_H */
+#endif /* BRIX_TEST_NGX_SHIM_H */

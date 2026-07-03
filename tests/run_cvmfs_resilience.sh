@@ -32,20 +32,20 @@ http {
     server {
         listen 127.0.0.1:$CPORT;
         location /cvmfs/ {
-            xrootd_cvmfs_storage_backend http://127.0.0.1:$MPORT;
-            xrootd_cvmfs_cache_store posix:$PFX/cache;
-            xrootd_cvmfs on;
-            xrootd_cvmfs_manifest_ttl 1;
+            brix_cvmfs_storage_backend http://127.0.0.1:$MPORT;
+            brix_cvmfs_cache_store posix:$PFX/cache;
+            brix_cvmfs on;
+            brix_cvmfs_manifest_ttl 1;
             # Part A: fast-fail a stuck origin, force the primary through.
-            xrootd_cvmfs_origin_connect_timeout 1;
-            xrootd_cvmfs_origin_stall_timeout   2;
-            xrootd_cvmfs_origin_stall_bytes     1;
-            xrootd_cvmfs_fill_retry_policy       force-primary;
-            xrootd_cvmfs_client_hold             20;
+            brix_cvmfs_origin_connect_timeout 1;
+            brix_cvmfs_origin_stall_timeout   2;
+            brix_cvmfs_origin_stall_bytes     1;
+            brix_cvmfs_fill_retry_policy       force-primary;
+            brix_cvmfs_client_hold             20;
             # Part B: answer the geo API locally, RTT-ranked.
-            xrootd_cvmfs_geo_answer      rtt;
-            xrootd_cvmfs_geo_cache_ttl   60;
-            xrootd_cvmfs_geo_max_servers 8;
+            brix_cvmfs_geo_answer      rtt;
+            brix_cvmfs_geo_cache_ttl   60;
+            brix_cvmfs_geo_max_servers 8;
         }
         location / { return 403; }
     }

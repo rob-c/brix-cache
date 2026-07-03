@@ -3,7 +3,7 @@
  *
  * WHAT: the public surface of src/acc/ — a faithful re-implementation of
  *   XRootD's XrdAcc authorization framework, selectable at runtime via
- *   `xrootd_authdb_format xrdacc;`.  This header re-exports the pure privilege
+ *   `brix_authdb_format xrdacc;`.  This header re-exports the pure privilege
  *   algebra (privs.h) and will declare the entity, tables, and Access() engine
  *   as the milestones land.
  *
@@ -15,12 +15,12 @@
  *
  * HOW: leaf algebra in privs.h (no nginx deps, unit-testable); the nginx-coupled
  *   engine (entity/tables/access/groups/audit/config/refresh) builds on top and
- *   is reached through xrootd_acc_access(tables, entity, path, op) from the
+ *   is reached through brix_acc_access(tables, entity, path, op) from the
  *   root://, WebDAV, and S3 authorization call sites.
  */
 
-#ifndef NGX_XROOTD_ACC_H
-#define NGX_XROOTD_ACC_H
+#ifndef NGX_BRIX_ACC_H
+#define NGX_BRIX_ACC_H
 
 #include <ngx_config.h>
 #include <ngx_core.h>
@@ -33,7 +33,7 @@
 /* ------------------------------------------------------------------ */
 
 /*
- * xrootd_acc_cap_t — one path/template capability (XrdAccCapability).
+ * brix_acc_cap_t — one path/template capability (XrdAccCapability).
  *
  * A capability either references a named template (`tmpl` set, path fields
  * unused) or carries a concrete path prefix + the privilege caps it grants.
@@ -41,36 +41,36 @@
  * applies the FIRST prefix match in the list (not longest), so order matters.
  * `pins`/`prem` describe a `@=` template-substitution point inside `path`.
  */
-typedef struct xrootd_acc_cap_s {
-    struct xrootd_acc_cap_s  *next;   /* next capability in this list */
-    struct xrootd_acc_cap_s  *tmpl;   /* template indirection (a T-list caplist) */
+typedef struct brix_acc_cap_s {
+    struct brix_acc_cap_s  *next;   /* next capability in this list */
+    struct brix_acc_cap_s  *tmpl;   /* template indirection (a T-list caplist) */
     char                     *path;   /* prefix path, NUL-terminated (pool-owned) */
     int                       plen;   /* strlen(path) */
     int                       pins;   /* index of "@=" in path, 0 if none */
     int                       prem;   /* bytes after "@=" */
-    xrootd_acc_priv_caps_t    caps;
-} xrootd_acc_cap_t;
+    brix_acc_priv_caps_t    caps;
+} brix_acc_cap_t;
 
 /*
- * xrootd_acc_named_t — a name -> capability-list binding.  One per entry in the
+ * brix_acc_named_t — a name -> capability-list binding.  One per entry in the
  * user/group/host/netgroup/org/role/template categories (XrdAcc's per-category
  * hashes).  Also used for the domain (.suffix) list (name = ".cern.ch").
  */
-typedef struct xrootd_acc_named_s {
-    struct xrootd_acc_named_s *next;
+typedef struct brix_acc_named_s {
+    struct brix_acc_named_s *next;
     char                      *name;
     int                        nlen;
-    xrootd_acc_cap_t          *caps;
-} xrootd_acc_named_t;
+    brix_acc_cap_t          *caps;
+} brix_acc_named_t;
 
 /*
- * xrootd_acc_idrule_t — a compound-identity rule (from a `=` definition plus an
+ * brix_acc_idrule_t — a compound-identity rule (from a `=` definition plus an
  * `x` exclusive or `s` inclusive reference).  Selectors are AND-ed; a NULL
  * selector is unconstrained.  `host` beginning with '.' is a domain suffix.
  * `rule` >= 0 orders exclusive rules; -1 marks inclusive.
  */
-typedef struct xrootd_acc_idrule_s {
-    struct xrootd_acc_idrule_s *next;
+typedef struct brix_acc_idrule_s {
+    struct brix_acc_idrule_s *next;
     char                       *name;
     char                       *user;
     char                       *host;
@@ -79,36 +79,36 @@ typedef struct xrootd_acc_idrule_s {
     char                       *grp;
     int                         hlen;   /* strlen(host) for domain suffix match */
     int                         rule;   /* exclusive order, or -1 = inclusive */
-    xrootd_acc_cap_t           *caps;
-} xrootd_acc_idrule_t;
+    brix_acc_cap_t           *caps;
+} brix_acc_idrule_t;
 
 /*
- * xrootd_acc_tables_t — the full table set built from one authdb file.  All
+ * brix_acc_tables_t — the full table set built from one authdb file.  All
  * nodes are allocated from `pool`, so a refresh frees the whole generation with
  * one ngx_destroy_pool() and swaps in a new pointer atomically.
  */
-typedef struct xrootd_acc_tables_s {
+typedef struct brix_acc_tables_s {
     ngx_pool_t          *pool;       /* owns every allocation below */
-    xrootd_acc_named_t  *g_list;     /* groups       (g) */
-    xrootd_acc_named_t  *h_list;     /* hosts exact  (h <name>) */
-    xrootd_acc_named_t  *n_list;     /* netgroups    (n) */
-    xrootd_acc_named_t  *o_list;     /* orgs         (o) */
-    xrootd_acc_named_t  *r_list;     /* roles        (r) */
-    xrootd_acc_named_t  *t_list;     /* templates    (t) */
-    xrootd_acc_named_t  *u_list;     /* users        (u <name>) */
-    xrootd_acc_named_t  *d_list;     /* domains      (h .suffix) */
-    xrootd_acc_cap_t    *z_list;     /* default      (u *) */
-    xrootd_acc_cap_t    *x_list;     /* fungible      (u =) */
-    xrootd_acc_idrule_t *id_defs;    /* all `=` definitions, by name */
-    xrootd_acc_idrule_t *sx_list;    /* exclusive rules (x), ordered */
-    xrootd_acc_idrule_t *sy_list;    /* inclusive rules (s) */
+    brix_acc_named_t  *g_list;     /* groups       (g) */
+    brix_acc_named_t  *h_list;     /* hosts exact  (h <name>) */
+    brix_acc_named_t  *n_list;     /* netgroups    (n) */
+    brix_acc_named_t  *o_list;     /* orgs         (o) */
+    brix_acc_named_t  *r_list;     /* roles        (r) */
+    brix_acc_named_t  *t_list;     /* templates    (t) */
+    brix_acc_named_t  *u_list;     /* users        (u <name>) */
+    brix_acc_named_t  *d_list;     /* domains      (h .suffix) */
+    brix_acc_cap_t    *z_list;     /* default      (u *) */
+    brix_acc_cap_t    *x_list;     /* fungible      (u =) */
+    brix_acc_idrule_t *id_defs;    /* all `=` definitions, by name */
+    brix_acc_idrule_t *sx_list;    /* exclusive rules (x), ordered */
+    brix_acc_idrule_t *sy_list;    /* inclusive rules (s) */
     ngx_uint_t           rule_count; /* parsed identity/path rules (diagnostics) */
     time_t               mtime;      /* source mtime, for hot-reload */
     /* Parse-time inputs (legacy XrdAcc tunables; transient, consulted only
-     * while this generation is being built — see xrootd_acc_authfile_parse). */
+     * while this generation is being built — see brix_acc_authfile_parse). */
     char                 parse_spacechar; /* spacechar: 0=off else ->' ' in ids */
     ngx_flag_t           parse_uridecode; /* encoding pct path: URI-decode paths */
-} xrootd_acc_tables_t;
+} brix_acc_tables_t;
 
 /* ------------------------------------------------------------------ */
 /* Entity — the authenticated identity, expanded to attribute tuples  */
@@ -119,20 +119,20 @@ typedef struct {
     const char *vorg;
     const char *role;
     const char *grup;
-} xrootd_acc_attr_t;
+} brix_acc_attr_t;
 
 /*
- * xrootd_acc_entity_t — the request identity.  `name`/`host` are scalar;
+ * brix_acc_entity_t — the request identity.  `name`/`host` are scalar;
  * `tuples` is the positional expansion of the multi-valued VO/role/group
- * attributes (built by entity.c from xrootd_identity_t).
+ * attributes (built by entity.c from brix_identity_t).
  */
 typedef struct {
     const char         *name;     /* user name (DN / subject) or "*" */
     const char         *host;     /* peer host or "?" */
     int                 isuser;   /* name is a concrete user (not "*") */
-    ngx_array_t        *tuples;   /* of xrootd_acc_attr_t (>= 1 entry) */
+    ngx_array_t        *tuples;   /* of brix_acc_attr_t (>= 1 entry) */
     ngx_pool_t         *pool;     /* scratch pool (for the netgroup resolver) */
-} xrootd_acc_entity_t;
+} brix_acc_entity_t;
 
 /*
  * OS/NIS group hooks — installed by groups.c (M4).  When unset, `n` (netgroup)
@@ -144,20 +144,20 @@ typedef struct {
  *   - netgrp:  test NIS netgroup membership for (netgroup, user, host) — the
  *     innetgr() predicate; the engine probes each `n` record with it.
  */
-typedef ngx_array_t *(*xrootd_acc_unixgrp_fn)(ngx_pool_t *pool, const char *user);
-typedef int          (*xrootd_acc_netgrp_fn)(const char *netgroup,
+typedef ngx_array_t *(*brix_acc_unixgrp_fn)(ngx_pool_t *pool, const char *user);
+typedef int          (*brix_acc_netgrp_fn)(const char *netgroup,
                                              const char *user, const char *host);
-void xrootd_acc_set_group_resolvers(xrootd_acc_unixgrp_fn ug,
-                                    xrootd_acc_netgrp_fn ng);
+void brix_acc_set_group_resolvers(brix_acc_unixgrp_fn ug,
+                                    brix_acc_netgrp_fn ng);
 
 /* groups.c (M4) — install the real OS/NIS resolvers + their tunables. */
-void xrootd_acc_groups_init(void);
-void xrootd_acc_groups_set_gidlifetime(time_t secs);
-void xrootd_acc_groups_set_primary_only(ngx_int_t on);
-void xrootd_acc_groups_set_nisdomain(const char *domain);
+void brix_acc_groups_init(void);
+void brix_acc_groups_set_gidlifetime(time_t secs);
+void brix_acc_groups_set_primary_only(ngx_int_t on);
+void brix_acc_groups_set_nisdomain(const char *domain);
 /* gidretran <gids>: space-separated gids whose group name is ambiguous (shared)
  * and must be skipped during Unix-group resolution (XrdAccGroups::Dotran). */
-void xrootd_acc_groups_set_gidretran(const char *gidlist);
+void brix_acc_groups_set_gidretran(const char *gidlist);
 
 /*
  * config.c (M5/RB2) — parse `authdb_path` into a fresh table generation and
@@ -165,25 +165,25 @@ void xrootd_acc_groups_set_gidretran(const char *gidlist);
  * skip list; `spacechar` (0=off) substitutes a char for spaces in identity
  * names; `encoding` URI-decodes path tokens.  Returns NULL on a fatal error.
  */
-xrootd_acc_tables_t *xrootd_acc_build(const char *authdb_path,
+brix_acc_tables_t *brix_acc_build(const char *authdb_path,
     ngx_int_t gidlifetime, ngx_int_t pgo, const char *nisdomain,
     const char *gidretran, char spacechar, ngx_int_t encoding, ngx_log_t *log);
 
 /* audit.c (M5) — emit a grant/deny audit line (level: 1=deny, 2=grant). */
-void xrootd_acc_audit(ngx_log_t *log, ngx_uint_t level, int granted,
+void brix_acc_audit(ngx_log_t *log, ngx_uint_t level, int granted,
     const char *op, const char *id, const char *host, const char *path);
 
 /*
  * resolve.c — reverse-DNS the peer for `h <host>`/`h .domain` rule matching
  * (XrdAccAccess::Resolve).  Returns `buf` (the FQDN) on success, NULL on
  * failure (no PTR record / bad address) so the caller falls back to the IP.
- * Opt-in via xrootd_acc_resolve_hosts; the caller caches per connection.
+ * Opt-in via brix_acc_resolve_hosts; the caller caches per connection.
  */
-const char *xrootd_acc_resolve_peer(struct sockaddr *sa, socklen_t salen,
+const char *brix_acc_resolve_peer(struct sockaddr *sa, socklen_t salen,
     char *buf, size_t buflen);
 
 /*
- * xrootd_acc_http_t — the XrdAcc engine settings + per-worker state shared by
+ * brix_acc_http_t — the XrdAcc engine settings + per-worker state shared by
  * the WebDAV and S3 HTTP loc-confs.  Both embed it as a member named `acc`, so
  * the shared directive setters, the lazy table build, the hot-reload timer and
  * the authorize helper all operate on ONE type regardless of which HTTP module
@@ -196,21 +196,21 @@ const char *xrootd_acc_resolve_peer(struct sockaddr *sa, socklen_t salen,
  * locking, exactly like the stream srv conf.
  */
 typedef struct {
-    ngx_uint_t   format;        /* [xrootd_authdb_format] native|xrdacc */
-    ngx_uint_t   audit;         /* [xrootd_authdb_audit] */
-    ngx_str_t    authdb;        /* [xrootd_authdb <path>] */
-    ngx_int_t    refresh;       /* [xrootd_authdb_refresh] secs; 0=off */
-    ngx_int_t    gidlifetime;   /* [xrootd_acc_gidlifetime] */
-    ngx_flag_t   pgo;           /* [xrootd_acc_pgo] primary group only */
-    ngx_str_t    nisdomain;     /* [xrootd_acc_nisdomain] */
-    ngx_flag_t   resolve_hosts; /* [xrootd_acc_resolve_hosts] reverse DNS */
-    ngx_str_t    spacechar;     /* [xrootd_acc_spacechar] legacy id space char */
-    ngx_flag_t   encoding;      /* [xrootd_acc_encoding] legacy URI-decode paths */
-    ngx_str_t    gidretran;     /* [xrootd_acc_gidretran] legacy shared-gid skip */
-    struct xrootd_acc_tables_s *tables;  /* per-worker, built lazily */
+    ngx_uint_t   format;        /* [brix_authdb_format] native|xrdacc */
+    ngx_uint_t   audit;         /* [brix_authdb_audit] */
+    ngx_str_t    authdb;        /* [brix_authdb <path>] */
+    ngx_int_t    refresh;       /* [brix_authdb_refresh] secs; 0=off */
+    ngx_int_t    gidlifetime;   /* [brix_acc_gidlifetime] */
+    ngx_flag_t   pgo;           /* [brix_acc_pgo] primary group only */
+    ngx_str_t    nisdomain;     /* [brix_acc_nisdomain] */
+    ngx_flag_t   resolve_hosts; /* [brix_acc_resolve_hosts] reverse DNS */
+    ngx_str_t    spacechar;     /* [brix_acc_spacechar] legacy id space char */
+    ngx_flag_t   encoding;      /* [brix_acc_encoding] legacy URI-decode paths */
+    ngx_str_t    gidretran;     /* [brix_acc_gidretran] legacy shared-gid skip */
+    struct brix_acc_tables_s *tables;  /* per-worker, built lazily */
     ngx_event_t  timer;         /* per-worker refresh timer (embedded) */
     unsigned     timer_armed:1; /* this worker has armed `timer` */
-} xrootd_acc_http_t;
+} brix_acc_http_t;
 
 /*
  * config.c (M7/RB1) — shared WebDAV/S3 authorization helper.  Lazily builds the
@@ -220,39 +220,39 @@ typedef struct {
  * (deny), or NGX_DECLINED when the engine is not selected (format != xrdacc),
  * so the caller keeps its own token-scope/write-gate checks.
  */
-ngx_int_t xrootd_acc_http_authorize(ngx_pool_t *pool, ngx_log_t *log,
-    xrootd_acc_http_t *acc, const char *name, const char *host,
+ngx_int_t brix_acc_http_authorize(ngx_pool_t *pool, ngx_log_t *log,
+    brix_acc_http_t *acc, const char *name, const char *host,
     const char *vorg, const char *role, const char *grp,
-    xrootd_acc_op_t op, const char *path);
+    brix_acc_op_t op, const char *path);
 
 /* config.c (RB1) — default-init / merge an HTTP acc block (loc-conf helpers). */
-void xrootd_acc_http_init_conf(xrootd_acc_http_t *acc);
-void xrootd_acc_http_merge_conf(xrootd_acc_http_t *conf, xrootd_acc_http_t *prev);
+void brix_acc_http_init_conf(brix_acc_http_t *acc);
+void brix_acc_http_merge_conf(brix_acc_http_t *conf, brix_acc_http_t *prev);
 
-/* Shared directive enum tables for `xrootd_authdb_format` / `_audit`. */
-extern ngx_conf_enum_t  xrootd_acc_format_modes[];
-extern ngx_conf_enum_t  xrootd_acc_audit_modes[];
+/* Shared directive enum tables for `brix_authdb_format` / `_audit`. */
+extern ngx_conf_enum_t  brix_acc_format_modes[];
+extern ngx_conf_enum_t  brix_acc_audit_modes[];
 
 /* ------------------------------------------------------------------ */
 /* API                                                                 */
 /* ------------------------------------------------------------------ */
 
 /* capability.c */
-int  xrootd_acc_cap_privs(xrootd_acc_cap_t *cap, xrootd_acc_priv_caps_t *out,
+int  brix_acc_cap_privs(brix_acc_cap_t *cap, brix_acc_priv_caps_t *out,
                           const char *path, int plen, const char *pathsub);
 
 /* tables.c — name lookups (linked-list, strcmp; authdb files are small) */
-xrootd_acc_cap_t *xrootd_acc_named_find(xrootd_acc_named_t *list, const char *name);
-xrootd_acc_cap_t *xrootd_acc_domain_find(xrootd_acc_named_t *dlist, const char *host);
+brix_acc_cap_t *brix_acc_named_find(brix_acc_named_t *list, const char *name);
+brix_acc_cap_t *brix_acc_domain_find(brix_acc_named_t *dlist, const char *host);
 
 /* authfile.c — parse an authdb file into a fresh table generation (own pool).
  * Returns NULL on a fatal parse/IO error (already logged). */
-xrootd_acc_tables_t *xrootd_acc_authfile_parse(ngx_log_t *log, const char *file,
+brix_acc_tables_t *brix_acc_authfile_parse(ngx_log_t *log, const char *file,
     char spacechar, ngx_int_t uri_decode);
-void                 xrootd_acc_tables_free(xrootd_acc_tables_t *tabs);
+void                 brix_acc_tables_free(brix_acc_tables_t *tabs);
 
 /* entity.c (M2) */
-xrootd_acc_entity_t *xrootd_acc_entity_build(ngx_pool_t *pool,
+brix_acc_entity_t *brix_acc_entity_build(ngx_pool_t *pool,
                                              const char *name, const char *host,
                                              int isuser,
                                              const char *vorg_csv,
@@ -260,9 +260,9 @@ xrootd_acc_entity_t *xrootd_acc_entity_build(ngx_pool_t *pool,
                                              const char *grp_csv);
 
 /* access.c (M2) — the decision engine.  Returns granted privileges (0 = deny);
- * for op == XROOTD_AOP_ANY returns the effective privilege set. */
-xrootd_acc_privs_t xrootd_acc_access(xrootd_acc_tables_t *tabs,
-                                     const xrootd_acc_entity_t *ent,
-                                     const char *path, xrootd_acc_op_t op);
+ * for op == BRIX_AOP_ANY returns the effective privilege set. */
+brix_acc_privs_t brix_acc_access(brix_acc_tables_t *tabs,
+                                     const brix_acc_entity_t *ent,
+                                     const char *path, brix_acc_op_t op);
 
-#endif /* NGX_XROOTD_ACC_H */
+#endif /* NGX_BRIX_ACC_H */

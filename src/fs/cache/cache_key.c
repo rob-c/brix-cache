@@ -13,7 +13,7 @@
 #include <string.h>
 
 int
-xrootd_cache_key_from(const char *cache_root_canon, const char *root_canon,
+brix_cache_key_from(const char *cache_root_canon, const char *root_canon,
                       const char *resolved, char *dst, size_t dstsz)
 {
     size_t rlen;

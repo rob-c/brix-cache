@@ -37,9 +37,9 @@
 
 ngx_int_t
 webdav_tpc_cred_metric_increment(ngx_http_request_t *r,
-                                 xrootd_tpc_cred_metrics_e idx)
+                                 brix_tpc_cred_metrics_e idx)
 {
-    XROOTD_WEBDAV_METRIC_INC(tpc_cred_total[idx]);
+    BRIX_WEBDAV_METRIC_INC(tpc_cred_total[idx]);
     (void) r;
     return NGX_OK;
 }
@@ -47,20 +47,20 @@ webdav_tpc_cred_metric_increment(ngx_http_request_t *r,
 static ngx_int_t
 webdav_tpc_cred_validate_token(ngx_http_request_t *r, ngx_str_t *token)
 {
-    xrootd_tpc_credential_t cred;
+    brix_tpc_credential_t cred;
 
     if (token == NULL || token->data == NULL || token->len == 0) {
         return NGX_ERROR;
     }
 
-    if (xrootd_tpc_credential_parse(token, XROOTD_TPC_CREDENTIAL_TOKEN,
+    if (brix_tpc_credential_parse(token, BRIX_TPC_CREDENTIAL_TOKEN,
                                     &cred, r->pool, r->connection->log)
         != NGX_OK)
     {
         return NGX_ERROR;
     }
 
-    return xrootd_tpc_credential_validate(&cred, r->connection->log);
+    return brix_tpc_credential_validate(&cred, r->connection->log);
 }
 
 /* Path to the dedicated oidc-agent helper binary. */
@@ -71,7 +71,7 @@ webdav_tpc_cred_validate_token(ngx_http_request_t *r, ngx_str_t *token)
  *       explicit override env var, then probes standard install locations.
  * WHY:  The fallback exec path must not be subject to $PATH substitution in the
  *       daemon's environment (a compromised PATH entry could shadow the real binary).
- * HOW:  secure_getenv("XROOTD_OIDC_TOKEN_BIN") if access(X_OK) passes; else
+ * HOW:  secure_getenv("BRIX_OIDC_TOKEN_BIN") if access(X_OK) passes; else
  *       walk a fixed candidate list; return NULL if none executable.
  */
 static const char *
@@ -81,7 +81,7 @@ resolve_oidc_token_binary(void)
         "/usr/bin/oidc-token", "/usr/local/bin/oidc-token", NULL
     };
     const char *const *p;
-    const char *override = secure_getenv("XROOTD_OIDC_TOKEN_BIN");
+    const char *override = secure_getenv("BRIX_OIDC_TOKEN_BIN");
 
     if (override != NULL && access(override, X_OK) == 0) {
         return override;
@@ -414,7 +414,7 @@ tpc_cred_rfc8693_exchange(ngx_http_request_t *r,
     {
         int ec = -1;
 
-        if (xrootd_subprocess_capture(curl_argv, buf, sizeof(buf), NULL, &ec)
+        if (brix_subprocess_capture(curl_argv, buf, sizeof(buf), NULL, &ec)
             != 0)
         {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, errno,
@@ -439,36 +439,36 @@ tpc_cred_rfc8693_exchange(ngx_http_request_t *r,
 }
 
 
-xrootd_tpc_cred_mode_e
+brix_tpc_cred_mode_e
 webdav_tpc_cred_parse_mode(const char *value, size_t len)
 {
     if (len == 4 && ngx_strncmp((u_char *) value,
                                 (u_char *) "none", 4) == 0)
-        return XROOTD_TPC_CRED_NONE;
+        return BRIX_TPC_CRED_NONE;
 
     if (len == 10 && ngx_strncmp((u_char *) value,
                                  (u_char *) "oidc-agent", 10) == 0)
-        return XROOTD_TPC_CRED_OIDC_AGENT;
+        return BRIX_TPC_CRED_OIDC_AGENT;
 
     if (len == 14 && ngx_strncmp((u_char *) value,
                                  (u_char *) "token-exchange", 14) == 0)
-        return XROOTD_TPC_CRED_TOKEN_EXCHANGE;
+        return BRIX_TPC_CRED_TOKEN_EXCHANGE;
 
-    return XROOTD_TPC_CRED_UNKNOWN;
+    return BRIX_TPC_CRED_UNKNOWN;
 }
 
 ngx_int_t
 webdav_tpc_cred_obtain_token(ngx_http_request_t *r,
-                             xrootd_tpc_cred_mode_e mode,
+                             brix_tpc_cred_mode_e mode,
                              const char *source_url,
                              const char *subject_token,
                              const char *scope,
                              ngx_str_t *token_out)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *wconf;
+    ngx_http_brix_webdav_loc_conf_t *wconf;
     ngx_int_t rc;
 
-    wconf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
+    wconf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
     if (wconf == NULL) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                       "tpc_cred: no WebDAV location config");
@@ -476,39 +476,39 @@ webdav_tpc_cred_obtain_token(ngx_http_request_t *r,
     }
 
     /* Increment started counter. */
-    rc = webdav_tpc_cred_metric_increment(r, XROOTD_TPC_CRED_NSTARTED);
+    rc = webdav_tpc_cred_metric_increment(r, BRIX_TPC_CRED_NSTARTED);
     (void) rc;
 
     switch (mode) {
-    case XROOTD_TPC_CRED_OIDC_AGENT:
+    case BRIX_TPC_CRED_OIDC_AGENT:
         rc = tpc_cred_oidc_agent_fetch(r, source_url, scope, token_out);
         if (rc == NGX_OK) {
             rc = webdav_tpc_cred_validate_token(r, token_out);
         }
         if (rc == NGX_OK) {
-            webdav_tpc_cred_metric_increment(r, XROOTD_TPC_CRED_NSUCCESS);
+            webdav_tpc_cred_metric_increment(r, BRIX_TPC_CRED_NSUCCESS);
         } else {
-            webdav_tpc_cred_metric_increment(r, XROOTD_TPC_CRED_NERROR);
+            webdav_tpc_cred_metric_increment(r, BRIX_TPC_CRED_NERROR);
         }
         return rc;
 
-    case XROOTD_TPC_CRED_TOKEN_EXCHANGE:
+    case BRIX_TPC_CRED_TOKEN_EXCHANGE:
         if (wconf->tpc_cred.token_endpoint.len == 0
             || wconf->tpc_cred.token_endpoint.data == NULL) {
-            XROOTD_DIAG_ERR(r->connection->log, 0,
+            BRIX_DIAG_ERR(r->connection->log, 0,
                 "tpc_cred: token-exchange is selected but no token endpoint "
                 "is configured",
                 "third-party-copy credential mode is token-exchange, but "
-                "xrootd_webdav_tpc_token_endpoint is unset",
+                "brix_webdav_tpc_token_endpoint is unset",
                 "set the OAuth token endpoint for your IdP, or switch the TPC "
                 "credential mode away from token-exchange");
-            webdav_tpc_cred_metric_increment(r, XROOTD_TPC_CRED_NERROR);
+            webdav_tpc_cred_metric_increment(r, BRIX_TPC_CRED_NERROR);
             return NGX_ERROR;
         }
         if (subject_token == NULL || *subject_token == '\0') {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                           "tpc_cred: no subject token for token-exchange");
-            webdav_tpc_cred_metric_increment(r, XROOTD_TPC_CRED_NERROR);
+            webdav_tpc_cred_metric_increment(r, BRIX_TPC_CRED_NERROR);
             return NGX_ERROR;
         }
         rc = tpc_cred_rfc8693_exchange(
@@ -523,29 +523,29 @@ webdav_tpc_cred_obtain_token(ngx_http_request_t *r,
             rc = webdav_tpc_cred_validate_token(r, token_out);
         }
         if (rc == NGX_OK) {
-            webdav_tpc_cred_metric_increment(r, XROOTD_TPC_CRED_NSUCCESS);
+            webdav_tpc_cred_metric_increment(r, BRIX_TPC_CRED_NSUCCESS);
         } else {
-            webdav_tpc_cred_metric_increment(r, XROOTD_TPC_CRED_NERROR);
+            webdav_tpc_cred_metric_increment(r, BRIX_TPC_CRED_NERROR);
         }
         return rc;
 
     default:
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                       "tpc_cred: unknown delegation mode %d", (int) mode);
-        webdav_tpc_cred_metric_increment(r, XROOTD_TPC_CRED_NUNKNOWN_MODE);
+        webdav_tpc_cred_metric_increment(r, BRIX_TPC_CRED_NUNKNOWN_MODE);
         return NGX_ERROR;
     }
 }
 
 const char *
-webdav_tpc_cred_metric_name(xrootd_tpc_cred_metrics_e idx)
+webdav_tpc_cred_metric_name(brix_tpc_cred_metrics_e idx)
 {
     switch (idx) {
-    case XROOTD_TPC_CRED_NSTARTED:    return "tpc_cred_started";
-    case XROOTD_TPC_CRED_NSUCCESS:    return "tpc_cred_success";
-    case XROOTD_TPC_CRED_NERROR:      return "tpc_cred_error";
-    case XROOTD_TPC_CRED_NUNKNOWN_MODE: return "tpc_cred_unknown_mode";
-    case XROOTD_TPC_CRED_NPARSE_ERROR: return "tpc_cred_parse_error";
+    case BRIX_TPC_CRED_NSTARTED:    return "tpc_cred_started";
+    case BRIX_TPC_CRED_NSUCCESS:    return "tpc_cred_success";
+    case BRIX_TPC_CRED_NERROR:      return "tpc_cred_error";
+    case BRIX_TPC_CRED_NUNKNOWN_MODE: return "tpc_cred_unknown_mode";
+    case BRIX_TPC_CRED_NPARSE_ERROR: return "tpc_cred_parse_error";
     default:                          return "tpc_cred_unknown";
     }
 }

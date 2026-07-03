@@ -1,15 +1,15 @@
 """
 tests/test_compression_write_adversarial.py — Phase-42 W5 adversarial coverage of
 root:// INLINE WRITE decompression, driven over the RAW root:// wire against the
-shared anon server (port 11094), which has `xrootd_write_compress on` and
+shared anon server (port 11094), which has `brix_write_compress on` and
 advertises `cmpwrite=...,zstd,...`.
 
 W5 (src/protocols/root/write/write_compress.c) is the write-direction counterpart of W4: a handle
 opened for write with the opaque "?xrootd.compress=<codec>" makes the server treat
 each kXR_write payload as ONE self-contained codec frame, decompress it under a
 decompression-bomb guard, and pwrite() the recovered PLAINTEXT to disk.  It is
-deliberately isolated from the proven write path — xrootd_handle_write() routes to
-xrootd_write_compressed() only when files[idx].write_codec != IDENTITY, so the
+deliberately isolated from the proven write path — brix_handle_write() routes to
+brix_write_compressed() only when files[idx].write_codec != IDENTITY, so the
 default (uncompressed) write keeps its AIO fast path and write-recovery journal
 byte-identical.  Critically, pgwrite/writev have their OWN handlers that never
 consult write_codec, so their plaintext + per-page-CRC32c invariant is preserved
@@ -77,7 +77,7 @@ kXR_new       = 0x0008   # create; fail kXR_ItExists if it already exists
 kXR_mkpath    = 0x0100   # create parent directories
 
 # Phase-42 open-reply inline-compression signalling
-# (ServerResponseBody_Open.cpsize == XROOTD_INLINE_CMP_MAGIC ('Z'=0x5A),
+# (ServerResponseBody_Open.cpsize == BRIX_INLINE_CMP_MAGIC ('Z'=0x5A),
 #  cptype[0] == codec ordinal).  zstd is ordinal 3 (src/core/compat/codec_core.h).
 INLINE_CMP_MAGIC = 0x5A
 CODEC_ZSTD       = 3
@@ -95,7 +95,7 @@ XRD_PGWRITE_PAGESZ = 4096
 
 
 # ---------------------------------------------------------------------------
-# CRC32c (Castagnoli) — pure-Python, matches xrootd_crc32c_copy()
+# CRC32c (Castagnoli) — pure-Python, matches brix_crc32c_copy()
 # (mirrors tests/test_compression_root_invariant.py / test_readv_security.py)
 # ---------------------------------------------------------------------------
 
@@ -239,7 +239,7 @@ def _open_write_compressed(sock, remote, codec="zstd"):
     cptype = body[8:12]
     assert cpsize == INLINE_CMP_MAGIC, (
         f"write compression not negotiated: cpsize={cpsize:#x} "
-        f"(expected {INLINE_CMP_MAGIC:#x}); is xrootd_write_compress on?")
+        f"(expected {INLINE_CMP_MAGIC:#x}); is brix_write_compress on?")
     assert cptype[0] == CODEC_ZSTD, (
         f"unexpected codec ordinal {cptype[0]} (expected zstd={CODEC_ZSTD})")
     return fhandle
@@ -296,7 +296,7 @@ def _require_server():
 @pytest.fixture(scope="module", autouse=True)
 def _require_write_compress():
     """Skip if the server does not actually negotiate write compression (i.e.
-    xrootd_write_compress is off or zstd is unavailable).  We probe by opening a
+    brix_write_compress is off or zstd is unavailable).  We probe by opening a
     throwaway path for compressed write and checking the open reply; if it doesn't
     carry the inline-compression magic, the adversarial assertions would be moot."""
     remote = f"/wcmp_probe_{uuid.uuid4().hex}.bin"
@@ -311,7 +311,7 @@ def _require_write_compress():
         _close(sock, fh, streamid=b"\x00\x0e")
         if cpsize != INLINE_CMP_MAGIC:
             pytest.skip("server did not negotiate write compression "
-                        "(xrootd_write_compress off?); skipping W5 adversarial suite")
+                        "(brix_write_compress off?); skipping W5 adversarial suite")
     finally:
         sock.close()
     _rm(remote)

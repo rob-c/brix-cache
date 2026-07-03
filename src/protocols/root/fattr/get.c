@@ -1,4 +1,4 @@
-#include "ngx_xrootd_fattr.h"
+#include "ngx_brix_fattr.h"
 #include <errno.h>
 #include <sys/types.h>
 #include <arpa/inet.h>
@@ -7,8 +7,8 @@
 /*
  *
  * WHAT: Queries the size of an extended attribute's stored value (NULL buffer)
- *       through the VFS xattr seam — path mode (xrootd_vfs_getxattr on the vctx's
- *       resolved path) or open-handle mode (xrootd_vfs_fgetxattr on fd) selected
+ *       through the VFS xattr seam — path mode (brix_vfs_getxattr on the vctx's
+ *       resolved path) or open-handle mode (brix_vfs_fgetxattr on fd) selected
  *       by `path != NULL`. Returns ssize_t: positive = value length in bytes,
  *       -1 = error (errno set). First step before fattr_read_value() reads data.
  *
@@ -17,11 +17,11 @@
  *       correctly. Routing through the VFS keeps every xattr touch confined and
  *       observed (OP_XATTR metric) rather than hitting getxattr(2) directly. */
 static ssize_t
-fattr_read_value_size(xrootd_vfs_ctx_t *vctx, const char *path, int fd,
+fattr_read_value_size(brix_vfs_ctx_t *vctx, const char *path, int fd,
     const char *xkey)
 {
-    return path != NULL ? xrootd_vfs_getxattr(vctx, xkey, NULL, 0)
-                        : xrootd_vfs_fgetxattr(vctx, fd, xkey, NULL, 0);
+    return path != NULL ? brix_vfs_getxattr(vctx, xkey, NULL, 0)
+                        : brix_vfs_fgetxattr(vctx, fd, xkey, NULL, 0);
 }
 
 /*
@@ -36,11 +36,11 @@ fattr_read_value_size(xrootd_vfs_ctx_t *vctx, const char *path, int fd,
  *       bytes; caller responsible for null-termination if needed (fattr_get
  *       adds +1 byte padding at allocation). */
 static ssize_t
-fattr_read_value(xrootd_vfs_ctx_t *vctx, const char *path, int fd,
+fattr_read_value(brix_vfs_ctx_t *vctx, const char *path, int fd,
     const char *xkey, u_char *value, size_t value_len)
 {
-    return path != NULL ? xrootd_vfs_getxattr(vctx, xkey, value, value_len)
-                        : xrootd_vfs_fgetxattr(vctx, fd, xkey, value,
+    return path != NULL ? brix_vfs_getxattr(vctx, xkey, value, value_len)
+                        : brix_vfs_fgetxattr(vctx, fd, xkey, value,
                                                value_len);
 }
 
@@ -52,7 +52,7 @@ fattr_read_value(xrootd_vfs_ctx_t *vctx, const char *path, int fd,
  *       zero-length attribute) returns 0. Used during response-size estimation
  *       phase to calculate total buffer allocation before building wire format. */
 static size_t
-fattr_value_len_for_response(const xrootd_fattr_entry_t *attr)
+fattr_value_len_for_response(const brix_fattr_entry_t *attr)
 {
     return attr->vlen > 0 ? (size_t) attr->vlen : 0;
 }
@@ -78,9 +78,9 @@ fattr_value_len_for_response(const xrootd_fattr_entry_t *attr)
  *       correctly. Value length capped at kXR_faMaxVlen to prevent oversized
  *       responses from a single attribute. */
 ngx_int_t
-fattr_get(xrootd_ctx_t *ctx, ngx_connection_t *c, xrootd_vfs_ctx_t *vctx,
+fattr_get(brix_ctx_t *ctx, ngx_connection_t *c, brix_vfs_ctx_t *vctx,
     const char *path, int fd, u_char *nvec_copy, size_t nvec_len, int numattr,
-    xrootd_fattr_entry_t *attrs)
+    brix_fattr_entry_t *attrs)
 {
     ngx_pool_t *pool;
     u_char     *response;
@@ -92,7 +92,7 @@ fattr_get(xrootd_ctx_t *ctx, ngx_connection_t *c, xrootd_vfs_ctx_t *vctx,
     response_size = 2 + nvec_len;
 
     for (int attr_index = 0; attr_index < numattr; attr_index++) {
-        xrootd_fattr_entry_t *attr;
+        brix_fattr_entry_t *attr;
         ssize_t              value_size;
         ssize_t              bytes_read;
 
@@ -127,7 +127,7 @@ fattr_get(xrootd_ctx_t *ctx, ngx_connection_t *c, xrootd_vfs_ctx_t *vctx,
         response_size += 4 + fattr_value_len_for_response(attr);
     }
 
-    XROOTD_PALLOC_OR_RETURN(response, pool, response_size, xrootd_send_error(ctx, c, kXR_NoMemory, "out of memory"));
+    BRIX_PALLOC_OR_RETURN(response, pool, response_size, brix_send_error(ctx, c, kXR_NoMemory, "out of memory"));
 
     error_count = 0;
     for (int attr_index = 0; attr_index < numattr; attr_index++) {
@@ -159,6 +159,6 @@ fattr_get(xrootd_ctx_t *ctx, ngx_connection_t *c, xrootd_vfs_ctx_t *vctx,
         }
     }
 
-    XROOTD_OP_OK(ctx, XROOTD_OP_FATTR);
-    return xrootd_send_ok(ctx, c, response, (uint32_t) response_size);
+    BRIX_OP_OK(ctx, BRIX_OP_FATTR);
+    return brix_send_ok(ctx, c, response, (uint32_t) response_size);
 }

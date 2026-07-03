@@ -2,7 +2,7 @@
  * pki_build.c — shared X509_STORE construction for CA/CRL verification.
  *
  * Centralises the X509_STORE build logic used by two independent protocols:
- *   - XRootD stream (GSI): src/gsi/config.c::xrootd_rebuild_gsi_store()
+ *   - XRootD stream (GSI): src/gsi/config.c::brix_rebuild_gsi_store()
  *   - WebDAV HTTP:         src/webdav/auth_store.c::webdav_build_ca_store()
  *
  * Previously each protocol had its own inline CRL file/directory scanner
@@ -85,7 +85,7 @@ pki_load_crls_from_file(X509_STORE *store, const char *path, ngx_log_t *log)
     fp = fopen(path, "r");
     if (fp == NULL) {
         ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
-                      "xrootd_pki: cannot open CRL file \"%s\"", path);
+                      "brix_pki: cannot open CRL file \"%s\"", path);
         return -1;
     }
     fcntl(fileno(fp), F_SETFD, FD_CLOEXEC);
@@ -96,7 +96,7 @@ pki_load_crls_from_file(X509_STORE *store, const char *path, ngx_log_t *log)
             count++;
         } else {
             ngx_log_error(NGX_LOG_WARN, log, 0,
-                          "xrootd_pki: failed to add CRL from \"%s\"", path);
+                          "brix_pki: failed to add CRL from \"%s\"", path);
         }
         X509_CRL_free(crl);
     }
@@ -121,7 +121,7 @@ pki_load_crls(X509_STORE *store, const char *path, ngx_log_t *log)
 
     if (stat(path, &st) != 0) {
         ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
-                      "xrootd_pki: cannot stat CRL path \"%s\"", path);
+                      "brix_pki: cannot stat CRL path \"%s\"", path);
         return -1;
     }
 
@@ -131,7 +131,7 @@ pki_load_crls(X509_STORE *store, const char *path, ngx_log_t *log)
 
     if (!S_ISDIR(st.st_mode)) {
         ngx_log_error(NGX_LOG_ERR, log, 0,
-                      "xrootd_pki: CRL path \"%s\" is neither a file nor a "
+                      "brix_pki: CRL path \"%s\" is neither a file nor a "
                       "directory", path);
         return -1;
     }
@@ -139,7 +139,7 @@ pki_load_crls(X509_STORE *store, const char *path, ngx_log_t *log)
     dir = opendir(path);
     if (dir == NULL) {
         ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
-                      "xrootd_pki: cannot open CRL directory \"%s\"", path);
+                      "brix_pki: cannot open CRL directory \"%s\"", path);
         return -1;
     }
 
@@ -183,7 +183,7 @@ pki_load_crls(X509_STORE *store, const char *path, ngx_log_t *log)
 }
 
 X509_STORE *
-xrootd_build_ca_store(ngx_log_t *log,
+brix_build_ca_store(ngx_log_t *log,
                        const char *cadir,
                        const char *cafile,
                        const char *crl_path,
@@ -199,7 +199,7 @@ xrootd_build_ca_store(ngx_log_t *log,
     store = X509_STORE_new();
     if (store == NULL) {
         ngx_log_error(NGX_LOG_ERR, log, 0,
-                      "xrootd_pki: X509_STORE_new() failed");
+                      "brix_pki: X509_STORE_new() failed");
         return NULL;
     }
 
@@ -221,7 +221,7 @@ xrootd_build_ca_store(ngx_log_t *log,
     if (cadir != NULL) {
         if (!X509_STORE_load_path(store, cadir)) {
             ngx_log_error(NGX_LOG_WARN, log, 0,
-                          "xrootd_pki: failed to load CA directory \"%s\"",
+                          "brix_pki: failed to load CA directory \"%s\"",
                           cadir);
         }
     }
@@ -229,7 +229,7 @@ xrootd_build_ca_store(ngx_log_t *log,
     if (cafile != NULL) {
         if (!X509_STORE_load_file(store, cafile)) {
             ngx_log_error(NGX_LOG_WARN, log, 0,
-                          "xrootd_pki: failed to load CA file \"%s\"", cafile);
+                          "brix_pki: failed to load CA file \"%s\"", cafile);
         }
     }
 

@@ -1,10 +1,10 @@
-#ifndef XROOTD_TOKEN_FILE_H
-#define XROOTD_TOKEN_FILE_H
+#ifndef BRIX_TOKEN_FILE_H
+#define BRIX_TOKEN_FILE_H
 
 #include <ngx_config.h>
 #include <ngx_core.h>
 
-ngx_int_t xrootd_token_read_file(const ngx_str_t *path, u_char *buf,
+ngx_int_t brix_token_read_file(const ngx_str_t *path, u_char *buf,
 /* Reads a bearer token from a file with bounded size limit. Strips trailing
  * whitespace and NUL-terminates the result.
  * path:   ngx_str_t containing the file path to read
@@ -17,4 +17,4 @@ ngx_int_t xrootd_token_read_file(const ngx_str_t *path, u_char *buf,
  *          open/read error, empty file). */
     size_t buf_sz, size_t *out_len, ngx_log_t *log, const char *label);
 
-#endif /* XROOTD_TOKEN_FILE_H */
+#endif /* BRIX_TOKEN_FILE_H */

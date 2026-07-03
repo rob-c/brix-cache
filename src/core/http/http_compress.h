@@ -12,8 +12,8 @@
  *       ranges, tiny files, and already-compressed MIME types); send_compressed()
  *       sets chunked headers and streams read -> codec compress -> output filter.
  */
-#ifndef XROOTD_COMPAT_HTTP_COMPRESS_H
-#define XROOTD_COMPAT_HTTP_COMPRESS_H
+#ifndef BRIX_COMPAT_HTTP_COMPRESS_H
+#define BRIX_COMPAT_HTTP_COMPRESS_H
 
 #include <ngx_config.h>
 #include <ngx_core.h>
@@ -22,21 +22,21 @@
 #include "core/compat/codec_core.h"
 
 /* Don't bother compressing objects smaller than this (overhead dominates). */
-#define XROOTD_COMPRESS_MIN_SIZE  256
+#define BRIX_COMPRESS_MIN_SIZE  256
 
 /*
- * xrootd_http_compress_negotiate - choose an outbound codec for this GET.
+ * brix_http_compress_negotiate - choose an outbound codec for this GET.
  *
- * Returns the codec id to use, or XROOTD_CODEC_IDENTITY (= do not compress) when
+ * Returns the codec id to use, or BRIX_CODEC_IDENTITY (= do not compress) when
  * compression is disabled, the request is a Range/HEAD request, the file is too
  * small, the content-type is already-compressed, or the client's Accept-Encoding
  * names no codec we have. The chosen codec is always one that is available.
  */
-xrootd_codec_id_t xrootd_http_compress_negotiate(ngx_http_request_t *r,
+brix_codec_id_t brix_http_compress_negotiate(ngx_http_request_t *r,
     off_t file_size, ngx_flag_t is_range);
 
 /*
- * xrootd_http_send_file_compressed - send a file body compressed with `codec`.
+ * brix_http_send_file_compressed - send a file body compressed with `codec`.
  *
  * Sets status 200 + ETag/Last-Modified (via set_file_headers), forces chunked
  * transfer (Content-Length unknown), adds Content-Encoding + Vary, sends the
@@ -44,9 +44,9 @@ xrootd_codec_id_t xrootd_http_compress_negotiate(ngx_http_request_t *r,
  * filter (last buffer flagged last_buf). Takes ownership of send_fd (closes it).
  * Returns NGX_OK / NGX_ERROR / NGX_HTTP_INTERNAL_SERVER_ERROR.
  */
-ngx_int_t xrootd_http_send_file_compressed(ngx_http_request_t *r,
+ngx_int_t brix_http_send_file_compressed(ngx_http_request_t *r,
     ngx_fd_t send_fd, const char *fs_path, off_t size,
-    xrootd_codec_id_t codec, time_t mtime, unsigned etag_flags,
+    brix_codec_id_t codec, time_t mtime, unsigned etag_flags,
     off_t *bytes_in_out);
 
-#endif /* XROOTD_COMPAT_HTTP_COMPRESS_H */
+#endif /* BRIX_COMPAT_HTTP_COMPRESS_H */

@@ -5,7 +5,7 @@
  *       userconfig INI matcher that together reproduce the upstream `throttle.*`
  *       behavior on top of the existing SHM leaky-bucket engine. WHY: gives the
  *       XrdThrottle config/admin contract natively. HOW: per-user SHM nodes
- *       reuse xrootd_rl_lookup/create_locked under the spin+yield zone mutex
+ *       reuse brix_rl_lookup/create_locked under the spin+yield zone mutex
  *       (INVARIANT 10); the userconfig parser reuses the shared INI reader.
  */
 
@@ -19,16 +19,16 @@
 static int
 uc_kv(void *u, const char *section, const char *key, const char *val)
 {
-    xrootd_throttle_uc_t *uc = u;
+    brix_throttle_uc_t *uc = u;
     (void) section;                     /* each [name] section is one rule */
 
     if (strcasecmp(key, "name") == 0) {
-        if (uc->count < XROOTD_THROTTLE_MAX_UC_RULES) {
+        if (uc->count < BRIX_THROTTLE_MAX_UC_RULES) {
             snprintf(uc->rules[uc->count].pat,
                      sizeof(uc->rules[uc->count].pat), "%s", val);
         }
     } else if (strcasecmp(key, "maxconn") == 0) {
-        if (uc->count < XROOTD_THROTTLE_MAX_UC_RULES) {
+        if (uc->count < BRIX_THROTTLE_MAX_UC_RULES) {
             uc->rules[uc->count].maxconn = (ngx_uint_t) atoi(val);
             if (strcmp(uc->rules[uc->count].pat, "*") == 0) {
                 uc->global = uc->rules[uc->count].maxconn;
@@ -40,15 +40,15 @@ uc_kv(void *u, const char *section, const char *key, const char *val)
 }
 
 int
-xrootd_throttle_userconfig_load(const char *path, xrootd_throttle_uc_t *uc,
+brix_throttle_userconfig_load(const char *path, brix_throttle_uc_t *uc,
     char *errbuf, size_t errlen)
 {
     memset(uc, 0, sizeof(*uc));
-    return xrootd_ini_parse_file(path, uc_kv, uc, errbuf, errlen);
+    return brix_ini_parse_file(path, uc_kv, uc, errbuf, errlen);
 }
 
 ngx_uint_t
-xrootd_throttle_userconfig_match(const xrootd_throttle_uc_t *uc,
+brix_throttle_userconfig_match(const brix_throttle_uc_t *uc,
     const char *user)
 {
     int    exact = -1;
@@ -81,23 +81,23 @@ xrootd_throttle_userconfig_match(const xrootd_throttle_uc_t *uc,
 }
 
 /* SHM-backed IO-load + open-file counters */
-static xrootd_rl_node_t *
-throttle_node_locked(xrootd_rl_zone_t *zone, const char *user)
+static brix_rl_node_t *
+throttle_node_locked(brix_rl_zone_t *zone, const char *user)
 {
-    uint32_t          h = xrootd_rl_hash(user, strlen(user));
-    xrootd_rl_node_t *n = xrootd_rl_lookup_locked(zone, h, user, strlen(user));
+    uint32_t          h = brix_rl_hash(user, strlen(user));
+    brix_rl_node_t *n = brix_rl_lookup_locked(zone, h, user, strlen(user));
 
     if (n == NULL) {
-        n = xrootd_rl_create_locked(zone, h, user, strlen(user));
+        n = brix_rl_create_locked(zone, h, user, strlen(user));
     }
     return n;
 }
 
 void
-xrootd_throttle_charge_io(xrootd_rl_zone_t *zone, ngx_msec_t interval_ms,
+brix_throttle_charge_io(brix_rl_zone_t *zone, ngx_msec_t interval_ms,
     const char *user, uint64_t service_us)
 {
-    xrootd_rl_node_t *n;
+    brix_rl_node_t *n;
 
     if (zone == NULL || zone->sh == NULL) {
         return;
@@ -117,10 +117,10 @@ xrootd_throttle_charge_io(xrootd_rl_zone_t *zone, ngx_msec_t interval_ms,
 }
 
 int
-xrootd_throttle_ioload_over(xrootd_rl_zone_t *zone, ngx_msec_t interval_ms,
+brix_throttle_ioload_over(brix_rl_zone_t *zone, ngx_msec_t interval_ms,
     const char *user, double concurrency)
 {
-    xrootd_rl_node_t *n;
+    brix_rl_node_t *n;
     int               over = 0;
 
     if (zone == NULL || zone->sh == NULL || concurrency <= 0.0
@@ -129,7 +129,7 @@ xrootd_throttle_ioload_over(xrootd_rl_zone_t *zone, ngx_msec_t interval_ms,
         return 0;
     }
     ngx_shmtx_lock(&zone->shpool->mutex);
-    n = xrootd_rl_lookup_locked(zone, xrootd_rl_hash(user, strlen(user)),
+    n = brix_rl_lookup_locked(zone, brix_rl_hash(user, strlen(user)),
                                 user, strlen(user));
     if (n != NULL) {
         double load = (double) n->io_time_us
@@ -141,10 +141,10 @@ xrootd_throttle_ioload_over(xrootd_rl_zone_t *zone, ngx_msec_t interval_ms,
 }
 
 int
-xrootd_throttle_open_inc(xrootd_rl_zone_t *zone, const char *user,
+brix_throttle_open_inc(brix_rl_zone_t *zone, const char *user,
     ngx_uint_t cap)
 {
-    xrootd_rl_node_t *n;
+    brix_rl_node_t *n;
     int               ok = 1;
 
     if (zone == NULL || zone->sh == NULL || cap == 0) {
@@ -165,15 +165,15 @@ xrootd_throttle_open_inc(xrootd_rl_zone_t *zone, const char *user,
 }
 
 void
-xrootd_throttle_open_dec(xrootd_rl_zone_t *zone, const char *user)
+brix_throttle_open_dec(brix_rl_zone_t *zone, const char *user)
 {
-    xrootd_rl_node_t *n;
+    brix_rl_node_t *n;
 
     if (zone == NULL || zone->sh == NULL) {
         return;
     }
     ngx_shmtx_lock(&zone->shpool->mutex);
-    n = xrootd_rl_lookup_locked(zone, xrootd_rl_hash(user, strlen(user)),
+    n = brix_rl_lookup_locked(zone, brix_rl_hash(user, strlen(user)),
                                 user, strlen(user));
     if (n != NULL && n->open_files > 0) {
         n->open_files--;

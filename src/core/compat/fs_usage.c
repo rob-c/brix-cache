@@ -17,7 +17,7 @@
 #include "fs_usage.h"
 
 /*
- * xrootd_fs_usage_from_statvfs - convert struct statvfs fields into computed usage bytes.
+ * brix_fs_usage_from_statvfs - convert struct statvfs fields into computed usage bytes.
  *
  * WHAT: Takes a populated struct statvfs and computes total_bytes, free_bytes,
  *       available_bytes, used_bytes, occupancy_bytes, and occupancy_ppm into out.
@@ -32,7 +32,7 @@
  */
 
 ngx_int_t
-xrootd_fs_usage_from_statvfs(const struct statvfs *vfs, xrootd_fs_usage_t *out)
+brix_fs_usage_from_statvfs(const struct statvfs *vfs, brix_fs_usage_t *out)
 {
     uint64_t block_size;
 
@@ -56,20 +56,20 @@ xrootd_fs_usage_from_statvfs(const struct statvfs *vfs, xrootd_fs_usage_t *out)
 }
 
 /*
- * xrootd_fs_usage_stat - statvfs a path and convert to usage bytes.
+ * brix_fs_usage_stat - statvfs a path and convert to usage bytes.
  *
  * WHAT: Calls statvfs(path) on the given filesystem path, then delegates to
- *       xrootd_fs_usage_from_statvfs() to compute usage values into out.
+ *       brix_fs_usage_from_statvfs() to compute usage values into out.
  *
  * WHY: Convenience wrapper for callers that have a path string but not a populated
  *      struct statvfs. Used by metrics exporters and WebDAV property handlers.
  *
  * HOW: Validates path non-empty, calls statvfs(path, &vfs), then delegates to
- *      xrootd_fs_usage_from_statvfs(&vfs, out). Returns NGX_OK or NGX_ERROR.
+ *      brix_fs_usage_from_statvfs(&vfs, out). Returns NGX_OK or NGX_ERROR.
  */
 
 ngx_int_t
-xrootd_fs_usage_stat(const char *path, xrootd_fs_usage_t *out)
+brix_fs_usage_stat(const char *path, brix_fs_usage_t *out)
 {
     struct statvfs vfs;
 
@@ -81,5 +81,5 @@ xrootd_fs_usage_stat(const char *path, xrootd_fs_usage_t *out)
         return NGX_ERROR;
     }
 
-    return xrootd_fs_usage_from_statvfs(&vfs, out);
+    return brix_fs_usage_from_statvfs(&vfs, out);
 }

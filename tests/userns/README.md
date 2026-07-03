@@ -51,8 +51,8 @@ Override the nginx source tree if needed: `TEST_NGINX_SRC=/path/to/nginx pytest 
 ## What it asserts
 
 `c/userns_broker_test.c` forks the **real** privileged broker
-(`xrootd_imp_broker_run`) on an `AF_UNIX` socket and drives the **real** worker
-client (`xrootd_imp_*`) through the wire protocol — including `SCM_RIGHTS` fd
+(`brix_imp_broker_run`) on an `AF_UNIX` socket and drives the **real** worker
+client (`brix_imp_*`) through the wire protocol — including `SCM_RIGHTS` fd
 passing — covering:
 
 - **Ownership** — a file created via the broker as `alice` is owned `alice:alice`,
@@ -78,7 +78,7 @@ passing — covering:
 ## Full-stack red-team (`test_e2e_redteam.py`)
 
 The micro test above forks the broker directly. The **red-team** test boots the
-**real nginx binary** with `xrootd_impersonation map` inside the namespace — real
+**real nginx binary** with `brix_impersonation map` inside the namespace — real
 master/worker/broker processes, real `init_module` broker spawn, real svc-uid
 workers, real **token-authenticated WebDAV** traffic — and tries to break the
 permissions model end-to-end. It is the pseudo-production check for *module

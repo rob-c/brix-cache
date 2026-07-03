@@ -13,10 +13,10 @@
  *   the flag after every tap feed and tears the connection down.
  */
 
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 #include "relay_guard.h"
 #include "protocols/root/protocol/opcodes.h"
-#include "fs/path/path.h"           /* xrootd_sanitize_log_string */
+#include "fs/path/path.h"           /* brix_sanitize_log_string */
 
 /* ---- kXR_* request opcode -> guard op-class ----
  *
@@ -111,7 +111,7 @@ errnum_to_outcome(uint16_t status, uint32_t errnum)
  *      2. guard_audit_format; log only complete lines.
  */
 static void
-relay_guard_audit(xrootd_relay_guard_t *g, const guard_request_t *req,
+relay_guard_audit(brix_relay_guard_t *g, const guard_request_t *req,
     guard_reason_t reason)
 {
     char    line[1280];
@@ -143,7 +143,7 @@ relay_guard_audit(xrootd_relay_guard_t *g, const guard_request_t *req,
  *      3. NUL-terminate the client addr_text copy (audit line ip= field).
  */
 void
-xrootd_relay_guard_init(xrootd_relay_guard_t *g, int enable,
+brix_relay_guard_init(brix_relay_guard_t *g, int enable,
     const ngx_str_t *client_addr, ngx_log_t *log)
 {
     size_t ip_len;
@@ -176,20 +176,20 @@ xrootd_relay_guard_init(xrootd_relay_guard_t *g, int enable,
  *
  * HOW: 1. No-op when disabled.
  *      2. NUL-terminate + sanitize the wire path (INVARIANT: every logged
- *         wire string passes xrootd_sanitize_log_string).
+ *         wire string passes brix_sanitize_log_string).
  *      3. Requests: opcode->op, classify_pre, set drop + status=0 audit.
  *      4. Responses: errnum->outcome, classify_post.
  *      5. Log the audit line when a reason fired.
  */
 void
-xrootd_relay_guard_sink(void *ctx, const xrootd_tap_frame_t *f,
-    xrootd_tap_dir_t dir, const uint8_t *payload, size_t payload_len)
+brix_relay_guard_sink(void *ctx, const brix_tap_frame_t *f,
+    brix_tap_dir_t dir, const uint8_t *payload, size_t payload_len)
 {
-    xrootd_relay_guard_t *g = ctx;
+    brix_relay_guard_t *g = ctx;
     guard_request_t       req;
     guard_reason_t        why = GUARD_R_NONE;
-    char                  raw_path[XROOTD_TAP_PATH_CAP + 1];
-    char                  san_path[XROOTD_TAP_PATH_CAP + 1];
+    char                  raw_path[BRIX_TAP_PATH_CAP + 1];
+    char                  san_path[BRIX_TAP_PATH_CAP + 1];
     size_t                raw_len = 0;
 
     (void) payload;
@@ -200,27 +200,27 @@ xrootd_relay_guard_sink(void *ctx, const xrootd_tap_frame_t *f,
     }
 
     if (f->path != NULL && f->path_len > 0) {
-        raw_len = f->path_len < XROOTD_TAP_PATH_CAP
-                ? f->path_len : XROOTD_TAP_PATH_CAP;
+        raw_len = f->path_len < BRIX_TAP_PATH_CAP
+                ? f->path_len : BRIX_TAP_PATH_CAP;
         ngx_memcpy(raw_path, f->path, raw_len);
     }
     raw_path[raw_len] = '\0';
 
     req.ip           = g->ip;
     req.proto        = "root";
-    req.path_len     = xrootd_sanitize_log_string(raw_path, san_path,
+    req.path_len     = brix_sanitize_log_string(raw_path, san_path,
                                                   sizeof(san_path));
     req.path         = san_path;
     req.cred_present = 0;      /* the relay never sees the credential */
     req.status_code  = 0;
 
-    if (dir == XROOTD_TAP_C2U && f->is_request) {
+    if (dir == BRIX_TAP_C2U && f->is_request) {
         req.op      = opcode_to_op(f->opcode);
         req.outcome = OUTCOME_PENDING;
         if (guard_classify_pre(&g->rules, &req, &why) == GUARD_BOUNCE) {
             g->drop = 1;          /* the pump tears the relay down */
         }
-    } else if (dir == XROOTD_TAP_U2C && !f->is_request) {
+    } else if (dir == BRIX_TAP_U2C && !f->is_request) {
         req.op          = GUARD_OP_UNKNOWN;
         req.status_code = (int) f->status;
         req.outcome     = errnum_to_outcome(f->status, f->errnum);
@@ -242,7 +242,7 @@ xrootd_relay_guard_sink(void *ctx, const xrootd_tap_frame_t *f,
  * HOW: 1. Read the flag.
  */
 int
-xrootd_relay_guard_should_drop(const xrootd_relay_guard_t *g)
+brix_relay_guard_should_drop(const brix_relay_guard_t *g)
 {
     return g->drop;
 }

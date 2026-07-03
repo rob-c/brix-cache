@@ -17,8 +17,8 @@ important fact about its layout. The data producers run inside the **stream**
 module: stream workers (and HTTP method handlers, via `http_tracking.c`) write
 into three shared-memory zones — the active-transfer table, the event ring
 buffer, and the history ring. The consumers run inside a dedicated **HTTP**
-module (`ngx_http_xrootd_dashboard_module`): when a request hits a location
-that has `xrootd_dashboard on`, the content handler renders the HTML page,
+module (`ngx_http_brix_dashboard_module`): when a request hits a location
+that has `brix_dashboard on`, the content handler renders the HTML page,
 serves JSON snapshots, handles login, or dispatches admin writes. The two sides
 never share a request context — they communicate only through SHM — so the
 headers are deliberately split: stream-visible types live in `dashboard.h`,
@@ -26,9 +26,9 @@ HTTP-only declarations in `dashboard_http.h`.
 
 In the request lifecycle, dashboard tracking is a *side effect* of the four
 data lifecycles, not part of any of them. A `root://` open calls
-`xrootd_transfer_slot_alloc()`, each read/write calls
-`xrootd_transfer_slot_update()`, close/disconnect frees the slot; a WebDAV or S3
-request does the equivalent through the `xrootd_dashboard_http_*` helpers in
+`brix_transfer_slot_alloc()`, each read/write calls
+`brix_transfer_slot_update()`, close/disconnect frees the slot; a WebDAV or S3
+request does the equivalent through the `brix_dashboard_http_*` helpers in
 `http_tracking.c`, which attach a pool-cleanup so the slot is always freed when
 the request ends. Tracking failures are silent (table full → transfer proceeds
 untracked): the dashboard is display-only and must never affect data movement.
@@ -49,15 +49,15 @@ the SHM zones; the **HTTP** group (`module.c`, `auth.c`, `api.c`,
 
 | File | Responsibility |
 |---|---|
-| `dashboard.h` | Stream-visible public API + all SHM struct/enum/constant definitions (`xrootd_transfer_slot_t`, `_table_t`, event table, history ring); slot-operation and event/history prototypes. Included via the umbrella `ngx_xrootd_module.h`. Must compile in stream context (no `ngx_http_request_t`). |
-| `dashboard_http.h` | HTTP-only declarations: the `ngx_module_t`, the per-location config `ngx_http_xrootd_dashboard_loc_conf_t`, the API-endpoint enum, and the four content-handler + `check_auth` prototypes. Included only by `module.c`/`auth.c`/`api.c`/`page.c`. |
-| `dashboard_tracking.h` | HTTP-side tracking helpers (`xrootd_dashboard_http_start[_identity]`, `_add`, `_state`, `_error`, `_tpc_remote`, `_finish`) that other HTTP handlers (WebDAV/S3/TPC) call to populate a transfer slot. |
-| `api_admin.h` | Phase 23 admin write API surface: `xrootd_admin_dispatch()` plus the three directive setters. |
-| `config.c` | **(stream)** Registers the three SHM zones (`xrootd_dashboard_v2`, `_events`, `_history`) during stream postconfiguration; sets the `(void*)1` first-startup sentinel; owns the global `ngx_shm_zone_t *` pointers. |
+| `dashboard.h` | Stream-visible public API + all SHM struct/enum/constant definitions (`brix_transfer_slot_t`, `_table_t`, event table, history ring); slot-operation and event/history prototypes. Included via the umbrella `ngx_brix_module.h`. Must compile in stream context (no `ngx_http_request_t`). |
+| `dashboard_http.h` | HTTP-only declarations: the `ngx_module_t`, the per-location config `ngx_http_brix_dashboard_loc_conf_t`, the API-endpoint enum, and the four content-handler + `check_auth` prototypes. Included only by `module.c`/`auth.c`/`api.c`/`page.c`. |
+| `dashboard_tracking.h` | HTTP-side tracking helpers (`brix_dashboard_http_start[_identity]`, `_add`, `_state`, `_error`, `_tpc_remote`, `_finish`) that other HTTP handlers (WebDAV/S3/TPC) call to populate a transfer slot. |
+| `api_admin.h` | Phase 23 admin write API surface: `brix_admin_dispatch()` plus the three directive setters. |
+| `config.c` | **(stream)** Registers the three SHM zones (`brix_dashboard_v2`, `_events`, `_history`) during stream postconfiguration; sets the `(void*)1` first-startup sentinel; owns the global `ngx_shm_zone_t *` pointers. |
 | `transfer_table.c` | **(stream)** Owns the active-transfer table: the slot-alloc mutex, the SHM init callback, and all slot operations (alloc/update/state/error/tpc/count-op/free/free-all-for-session). Stale-slot GC contract documented here. |
-| `events.c` | **(stream)** Event ring buffer: `xrootd_dashboard_event_add()` (sequenced, mutex-guarded, control-char-sanitised) and `xrootd_dashboard_events_snapshot()`. |
-| `history.c` | **(stream)** Rolling history ring: `xrootd_dashboard_history_sample()` aggregates current transfer counts + cumulative metrics into the current 5 s bucket; `xrootd_dashboard_history_snapshot()` reads them back oldest→newest. |
-| `module.c` | **(http)** Module definition, directives (`xrootd_dashboard`, `_password`, `_session_ttl`, `_cookie_path`, `_users`, `_idle/_stalled/_cluster_stale` thresholds, plus the Phase 23 `xrootd_admin_*`), loc-conf create/merge, and the URI dispatcher `…_main_handler` that routes `/xrootd/*` to page/login/api/admin handlers. |
+| `events.c` | **(stream)** Event ring buffer: `brix_dashboard_event_add()` (sequenced, mutex-guarded, control-char-sanitised) and `brix_dashboard_events_snapshot()`. |
+| `history.c` | **(stream)** Rolling history ring: `brix_dashboard_history_sample()` aggregates current transfer counts + cumulative metrics into the current 5 s bucket; `brix_dashboard_history_snapshot()` reads them back oldest→newest. |
+| `module.c` | **(http)** Module definition, directives (`brix_dashboard`, `_password`, `_session_ttl`, `_cookie_path`, `_users`, `_idle/_stalled/_cluster_stale` thresholds, plus the Phase 23 `brix_admin_*`), loc-conf create/merge, and the URI dispatcher `…_main_handler` that routes `/xrootd/*` to page/login/api/admin handlers. |
 | `auth.c` | **(http)** Single-admin-or-user-file cookie auth (`xrd_dashboard=<hmac>.<ts>[.<user>]`, HMAC-SHA256, constant-time compare, TTL), the login form (GET) + verify (async POST body), bcrypt/`crypt()` and plaintext password support, and `Set-Cookie` issuance. |
 | `api.c` | **(http)** Endpoint routing + name/format helpers (`dashboard_*_name`, `avg_bps`, `session_hash`), `send_json`, anon-allow gate, and the `…_api_handler` dispatcher. *(Phase 38: split.)* |
 | `api_transfers.c` | **(http)** Live-transfer model: `build_transfer_object`/`_rows`, TPC registry, and the v1 transfers + per-id detail builders. *(Phase 38 split of `api.c`.)* |
@@ -80,50 +80,50 @@ All live in `dashboard.h` and reside in shared memory; `ngx_shmtx_sh_t lock`
 is always the first field of each root table (an `ngx_shmtx_create()`
 requirement, identical to the session/metrics registries).
 
-- **`xrootd_transfer_slot_t`** — one active transfer. Mixes lock-written fields
+- **`brix_transfer_slot_t`** — one active transfer. Mixes lock-written fields
   (`in_use`, identity/path/op strings, `serial`, `sessid`, `start_ms`) with
   lock-free atomics updated during I/O (`bytes`, `last_ms`, `state_since_ms`,
   `read/write/sync/close_ops`, `instant_bps`). Carries protocol/direction/state
-  tags (`XROOTD_XFER_PROTO_*`, `_DIR_*`, `_STATE_*`) and TPC remote-endpoint
+  tags (`BRIX_XFER_PROTO_*`, `_DIR_*`, `_STATE_*`) and TPC remote-endpoint
   fields. `serial` is a monotonic ID so the JS can detect row churn and address
   a transfer at `/api/v1/transfers/{id}`.
-- **`xrootd_transfer_table_t`** — the active-transfer table: `lock`,
-  `next_serial`, and a fixed `slots[XROOTD_DASHBOARD_MAX_TRANSFERS]` (512).
-- **`xrootd_dashboard_event_t` / `_event_table_t`** — a sequenced event
-  (`class_id` ∈ `xrootd_dashboard_event_class_e`, proto, status, message,
+- **`brix_transfer_table_t`** — the active-transfer table: `lock`,
+  `next_serial`, and a fixed `slots[BRIX_DASHBOARD_MAX_TRANSFERS]` (512).
+- **`brix_dashboard_event_t` / `_event_table_t`** — a sequenced event
+  (`class_id` ∈ `brix_dashboard_event_class_e`, proto, status, message,
   redacted `path_hint`) in a 512-entry ring indexed by `(seq-1) % MAX_EVENTS`.
-- **`xrootd_dashboard_history_bucket_t` / `_history_t`** — 360 buckets of 5 s
+- **`brix_dashboard_history_bucket_t` / `_history_t`** — 360 buckets of 5 s
   each (30 min). Each bucket holds active counts per protocol and cumulative
   byte/error/auth-failure snapshots; `last_bucket_start_ms` drives rollover.
-- **`ngx_http_xrootd_dashboard_loc_conf_t`** (`dashboard_http.h`) — per-location
+- **`ngx_http_brix_dashboard_loc_conf_t`** (`dashboard_http.h`) — per-location
   config: enable flag, page password / `users` array, session TTL, cookie path,
   idle/stalled/cluster-stale thresholds, and the Phase 23 admin fields
   (`admin_allow` CIDR list, `admin_secret`, `admin_require_both`,
   `admin_proxy_allow`).
-- **`xrootd_dashboard_api_endpoint_e`** (`dashboard_http.h`) — the routed
+- **`brix_dashboard_api_endpoint_e`** (`dashboard_http.h`) — the routed
   endpoint, set by `module.c`'s dispatcher and consumed by the `api.c` switch.
 
 ## Control & data flow
 
 **Producer side (writes into SHM):**
-`../config/postconfiguration.c` calls `xrootd_configure_dashboard()`
-(`config.c`) to register the three zones against `ngx_stream_xrootd_module`.
+`../config/postconfiguration.c` calls `brix_configure_dashboard()`
+(`config.c`) to register the three zones against `ngx_stream_brix_module`.
 At runtime, stream op handlers in `../read/` and `../write/` call the
-`xrootd_transfer_slot_*` functions in `transfer_table.c`; HTTP handlers in
-`../webdav/` and `../s3/` call the `xrootd_dashboard_http_*` wrappers in
+`brix_transfer_slot_*` functions in `transfer_table.c`; HTTP handlers in
+`../webdav/` and `../s3/` call the `brix_dashboard_http_*` wrappers in
 `http_tracking.c`, which in turn call the same slot functions. Errors and
-notable actions anywhere call `xrootd_dashboard_event_add()` (`events.c`).
+notable actions anywhere call `brix_dashboard_event_add()` (`events.c`).
 `history.c` reads both the transfer table and the metrics SHM
 (`../metrics/`) to fill the current bucket — it is driven lazily from the API
-handler (`xrootd_dashboard_history_sample()` is called on each API hit).
+handler (`brix_dashboard_history_sample()` is called on each API hit).
 
 **Consumer side (reads SHM, serves HTTP):** a request to a
-`xrootd_dashboard on` location enters `ngx_http_xrootd_dashboard_main_handler`
+`brix_dashboard on` location enters `ngx_http_brix_dashboard_main_handler`
 (`module.c`), which routes by URI. Page → `page.c` (auth-gated, else 302 to
 login). Login → `auth.c`. JSON → `api.c` (`check_auth` → GET/HEAD →
 `history.sample` → collect totals → build the requested endpoint with jansson →
 `json_dumpb` into a pool buffer → memory-backed `b->memory=1` chain). Admin →
-`xrootd_admin_dispatch` (`api_admin.c`).
+`brix_admin_dispatch` (`api_admin.c`).
 
 **Outbound dependencies** beyond siblings already named: `api.c` reads the
 TPC SHM registry (`../tpc/`), the manager/CMS server registry (`../manager/`),
@@ -171,13 +171,13 @@ via `../compat/http_headers.h`. Auth uses OpenSSL HMAC/`CRYPTO_memcmp` directly
   clock-skew bound are enforced (`auth.c:488`). No page password configured ⇒
   open access (`auth.c:314`) — intentional, documented as firewall-gated.
 - **Admin API is separately, strictly guarded.** Disabled (403) unless
-  `xrootd_admin_allow` or `xrootd_admin_secret` is set
+  `brix_admin_allow` or `brix_admin_secret` is set
   (`api_admin.c:175`); `require_both` ANDs CIDR + bearer. Inputs are
   **whitelist-validated and rejected, never sanitised** (`admin_validate_hostname`
   /`_paths`/`_url`). Secrets are read from file at config time, must be
   ≥ 16 bytes (`ADMIN_SECRET_MIN`), and the transient stack copy is
   `OPENSSL_cleanse`d. Dynamic proxy backends are SSRF-guarded by
-  `xrootd_admin_proxy_allow` (`admin_url_host_allowed`). Every write is
+  `brix_admin_proxy_allow` (`admin_url_host_allowed`). Every write is
   audit-logged via `admin_audit()` (a structured `ngx_log` line, distinct from
   the dashboard event ring).
 - **Low-cardinality / redaction.** Event `path_hint` and TPC remote URLs are
@@ -189,29 +189,29 @@ via `../compat/http_headers.h`. Auth uses OpenSSL HMAC/`CRYPTO_memcmp` directly
   `r->connection->addr_text` into a bounded buffer before handing it to the
   `ngx_cpystrn`-based slot copier (Phase 27 / Valgrind finding,
   `http_tracking.c:31-57`).
-- **Login POST is async.** `ngx_http_xrootd_dashboard_login_handler` returns
+- **Login POST is async.** `ngx_http_brix_dashboard_login_handler` returns
   `NGX_DONE` and finalizes inside the body callback; it issues a 302 via
   `headers_out.location` rather than `send_header` alone, because a bare
   `send_header` in a body callback leaves headers unflushed (`auth.c:682-710`).
 
 ## Entry points / extending
 
-- **Add a read JSON endpoint:** add a value to `xrootd_dashboard_api_endpoint_e`
+- **Add a read JSON endpoint:** add a value to `brix_dashboard_api_endpoint_e`
   (`dashboard_http.h`) → route its URI in `…_main_handler` (`module.c`) → add a
   `dashboard_build_v1_*` builder and a `case` in
-  `ngx_http_xrootd_dashboard_api_handler` (`api.c`). Build the body with jansson
+  `ngx_http_brix_dashboard_api_handler` (`api.c`). Build the body with jansson
   leaf builders; return through `dashboard_send_json` (it owns/decrefs `root`).
-- **Add a tracked field:** add the field to `xrootd_transfer_slot_t`
+- **Add a tracked field:** add the field to `brix_transfer_slot_t`
   (`dashboard.h`), set it under the alloc mutex in
-  `xrootd_transfer_slot_alloc_ex` or via a new lock-free setter in
+  `brix_transfer_slot_alloc_ex` or via a new lock-free setter in
   `transfer_table.c`, and emit it in `dashboard_build_transfer_object`
   (`api.c`). Keep `noop.c` in sync if you add a new public function.
 - **Add an admin write op:** add a handler in `api_admin.c`, route it in
-  `xrootd_admin_dispatch` (gated on method), whitelist-validate every input,
+  `brix_admin_dispatch` (gated on method), whitelist-validate every input,
   call `admin_audit()`, and (for body-bearing ops) go through
-  `xrootd_admin_read_body`.
+  `brix_admin_read_body`.
 - **Add a directive:** declare the field in
-  `ngx_http_xrootd_dashboard_loc_conf_t` (`dashboard_http.h`), add an
+  `ngx_http_brix_dashboard_loc_conf_t` (`dashboard_http.h`), add an
   `ngx_command_t` + setter in `module.c`, and merge it in
   `…_merge_loc_conf` — no `./configure` needed (no new source file).
 
@@ -227,11 +227,11 @@ via `../compat/http_headers.h`. Auth uses OpenSSL HMAC/`CRYPTO_memcmp` directly
 - `../config/README.md` — postconfiguration that registers the SHM zones.
 - `../README.md` — master subsystem index.
 
-## VFS export browser (`xrootd_dashboard_vfs_browse on`)
+## VFS export browser (`brix_dashboard_vfs_browse on`)
 
 Admin-auth-only, read-only, **off by default** (it exposes stored user
 data through the dashboard). Three endpoints, every operation routed
-through `xrootd_vfs_*` — so the listing is the export's LOGICAL
+through `brix_vfs_*` — so the listing is the export's LOGICAL
 namespace for ANY backend the registry composed (a pblock export shows
 its files, not `catalog.db` + packed blobs; posix/ceph/xroot the same):
 
@@ -241,9 +241,9 @@ its files, not `catalog.db` + packed blobs; posix/ceph/xroot the same):
                                                   ranges, pblock sendfile gate, TLS buffer rule)
 
 The Files tab in the UI grows a Source selector: the host tree
-(`xrootd_dashboard_browse_root`, raw-POSIX — logs/spool) plus one entry
+(`brix_dashboard_browse_root`, raw-POSIX — logs/spool) plus one entry
 per registered export. NOTE: an export registers by NAMING its backend
-(`xrootd_*_storage_backend posix|pblock|…`); a location that relies on
+(`brix_*_storage_backend posix|pblock|…`); a location that relies on
 the implicit posix default is served as before but does not appear in
 the census. The vctx binds with allow_write=0 — the browser cannot
 write; ?path= must be absolute and ".."-free, and the VFS re-confines

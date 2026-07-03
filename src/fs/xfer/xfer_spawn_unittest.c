@@ -34,42 +34,42 @@ main(void)
 {
     {
         const char *argv[] = { "/bin/sh", "-c", "exit 0", NULL };
-        check("exit 0", xrootd_xfer_run_reparented(argv, NULL), 0);
+        check("exit 0", brix_xfer_run_reparented(argv, NULL), 0);
     }
     {
         const char *argv[] = { "/bin/sh", "-c", "exit 7", NULL };
-        check("exit 7", xrootd_xfer_run_reparented(argv, NULL), 7);
+        check("exit 7", brix_xfer_run_reparented(argv, NULL), 7);
     }
     {
         const char *argv[] = { "/bin/sh", "-c", "exit 42", NULL };
-        check("exit 42", xrootd_xfer_run_reparented(argv, NULL), 42);
+        check("exit 42", brix_xfer_run_reparented(argv, NULL), 42);
     }
     {
         const char *argv[] = { "/no/such/binary/xyzzy", NULL };
-        check("exec failure -> 127", xrootd_xfer_run_reparented(argv, NULL), 127);
+        check("exec failure -> 127", brix_xfer_run_reparented(argv, NULL), 127);
     }
     {
         const char *argv[] = { "/bin/sh", "-c", "kill -TERM $$", NULL };
-        check("killed -> 128", xrootd_xfer_run_reparented(argv, NULL), 128);
+        check("killed -> 128", brix_xfer_run_reparented(argv, NULL), 128);
     }
     {
         char *envp[] = { (char *) "XFER_UT=yes", NULL };
         const char *argv[] = { "/bin/sh", "-c",
                                "test \"$XFER_UT\" = yes", NULL };
-        check("env passthrough", xrootd_xfer_run_reparented(argv, envp), 0);
+        check("env passthrough", brix_xfer_run_reparented(argv, envp), 0);
     }
     {
         /* bare name → PATH search (execvpe), matching the prior posix_spawnp. */
         const char *argv[] = { "sh", "-c", "exit 0", NULL };
         check("PATH search (bare name)",
-              xrootd_xfer_run_reparented(argv, NULL), 0);
+              brix_xfer_run_reparented(argv, NULL), 0);
     }
 
     /* Reparent invariant: after a run, this process must have NO reapable child
      * (the agent + command reparented to init). waitpid → -1/ECHILD. */
     {
         const char *argv[] = { "/bin/sh", "-c", "exit 0", NULL };
-        (void) xrootd_xfer_run_reparented(argv, NULL);
+        (void) brix_xfer_run_reparented(argv, NULL);
         errno = 0;
         pid_t w = waitpid(-1, NULL, WNOHANG);
         if (!(w == -1 && errno == ECHILD)) {

@@ -5,11 +5,11 @@ What this pins (per the maintainer's "3 tests per change: success + error +
 security-neg" rule, applied to the reload feature as a whole):
 
   * SUCCESS — a reload bumps the /healthz `config_generation` counter and the
-    Prometheus `xrootd_config_generation` gauge; a NEW connection honours a
+    Prometheus `brix_config_generation` gauge; a NEW connection honours a
     changed directive (we flip the /metrics location on→off and watch the HTTP
     status change); editing the config changes `config_version` while a no-op
     reload leaves it stable.
-  * ROBUSTNESS — changing a slot-count directive (`xrootd_session_slots`) across
+  * ROBUSTNESS — changing a slot-count directive (`brix_session_slots`) across
     a reload logs the SHM-resize WARN (live table reset is not silent); and the
     nginx-managed access log is recreated by `-s reopen` after a rotation (the
     log-fd is owned by nginx, not a leaked raw fd).
@@ -84,7 +84,7 @@ class Instance:
         self.conf = os.path.join(self.prefix, "nginx.conf")
         self.data = os.path.join(base, "data")
         self.logs = os.path.join(self.prefix, "logs")
-        self.access_log = os.path.join(self.logs, "xrootd_access.log")
+        self.access_log = os.path.join(self.logs, "brix_access.log")
         for d in (self.prefix, self.data, self.logs,
                   os.path.join(self.prefix, "tmp")):
             os.makedirs(d, exist_ok=True)
@@ -112,11 +112,11 @@ stream {{
     server {{
         listen {self.stream_port};
         xrootd on;
-        xrootd_storage_backend posix:{self.data};
-        xrootd_auth none;
-        xrootd_allow_write {allow_write};
-        xrootd_session_slots {session_slots};
-        xrootd_access_log {self.access_log};
+        brix_storage_backend posix:{self.data};
+        brix_auth none;
+        brix_allow_write {allow_write};
+        brix_session_slots {session_slots};
+        brix_access_log {self.access_log};
     }}
 }}
 http {{
@@ -128,8 +128,8 @@ http {{
     scgi_temp_path {tmp}/scgi;
     server {{
         listen {self.http_port};
-        location = /healthz {{ xrootd_health on; }}
-        location /metrics  {{ xrootd_metrics {metrics}; }}
+        location = /healthz {{ brix_health on; }}
+        location /metrics  {{ brix_metrics {metrics}; }}
     }}
 }}
 """
@@ -225,7 +225,7 @@ def test_reload_bumps_generation_and_keeps_version_stable(inst):
     # Prometheus gauge mirrors the healthz counter.
     status, body = _http_get(inst.http_port, "/metrics")
     assert status == 200
-    assert "xrootd_config_generation 3" in body
+    assert "brix_config_generation 3" in body
 
 
 def test_reload_changes_version_when_config_edited(inst):
@@ -258,7 +258,7 @@ def test_shm_slot_resize_logs_warning(inst):
     # zone, so the module must WARN that the table was reset.
     inst.reload(session_slots=1024)
     log = inst.error_log()
-    assert "xrootd_session_slots changed across reload" in log, \
+    assert "brix_session_slots changed across reload" in log, \
         "expected SHM-resize WARN in error log:\n%s" % log[-2000:]
 
 

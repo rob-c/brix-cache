@@ -7,12 +7,12 @@ clients read, write, delete, and enumerate *extended attributes* (xattrs) on
 exported files. XRootD attributes map directly onto the POSIX `user.` xattr
 namespace: a client-visible name such as `mykey` is stored on disk under the
 kernel key `user.U.mykey` and reported back to the client as `U.mykey`. The
-`user.U.` prefix (`XROOTD_FATTR_XKEY_PFX`) namespaces our managed attributes so
+`user.U.` prefix (`BRIX_FATTR_XKEY_PFX`) namespaces our managed attributes so
 listing never leaks unrelated `user.*` xattrs written by other tools.
 
 `kXR_fattr` is a single wire opcode carrying one of four sub-codes — `Get`,
 `Set`, `Del`, `List`. Since phase-62 **every xattr syscall here goes through the
-VFS xattr seam** (`xrootd_vfs_*xattr`, `src/fs/vfs/vfs_xattr.c`), never a raw
+VFS xattr seam** (`brix_vfs_*xattr`, `src/fs/vfs/vfs_xattr.c`), never a raw
 `getxattr(2)` — so each touch is confined, impersonation-aware, and metered
 (`OP_XATTR`). The subsystem is reached only from the **stream** (`root://`) path;
 WebDAV and S3 do not expose `kXR_fattr` (they have their own VFS-routed
@@ -22,36 +22,36 @@ response frame is built and sent.
 
 A request can target a file two ways: by an **open file handle** (the 1-byte
 `fhandle` index into `ctx->files[]`, routed through the **fd-based** VFS xattr
-variants `xrootd_vfs_f{get,set,list,remove}xattr` — the fd was already opened
+variants `brix_vfs_f{get,set,list,remove}xattr` — the fd was already opened
 confined, so confinement travels with the descriptor) or by **path** (routed
 through the **ctx-based** VFS xattr ops, confined to `ctx->resolved`). The
-dispatcher builds one `xrootd_vfs_ctx_t` and selects the mode from the wire
+dispatcher builds one `brix_vfs_ctx_t` and selects the mode from the wire
 framing (see Control & data flow). Path-targeted requests are confined under the
 export root before any op runs, and a list-recurse local extension lets a
 directory target enumerate attributes across its whole subtree via
-`xrootd_vfs_opendir_quiet`/`readdir`.
+`brix_vfs_opendir_quiet`/`readdir`.
 
 Where it sits in the lifecycle: `handshake/dispatch_read.c` routes `kXR_fattr`
-to `xrootd_handle_fattr()` (this subsystem) after login/auth has completed. The
+to `brix_handle_fattr()` (this subsystem) after login/auth has completed. The
 dispatcher validates parameters, resolves the target, runs the auth gate for
 path requests, and fans out to the per-sub-code handlers. Each handler reports
-per-attribute results and increments the `XROOTD_OP_FATTR` metric slot.
+per-attribute results and increments the `BRIX_OP_FATTR` metric slot.
 
 ## Files
 
 | File | Responsibility |
 |------|----------------|
-| `ngx_xrootd_fattr.h` | Internal API: the `xrootd_fattr_entry_t` parsed-attribute struct, key-prefix constants (`XROOTD_FATTR_XKEY_PFX`, `XROOTD_FATTR_RESP_PFX`), and prototypes for every handler/helper below. |
-| `dispatch.c` | `xrootd_handle_fattr()` — the single entry point. Validates `subcode`/`numattr`/write-permission, resolves file-handle vs path target, builds one function-scope `xrootd_vfs_ctx_t` (a confined `xrootd_vfs_stat` verifies a path target; fd targets carry proto/log only), auth-gates path targets, copies and parses the name vector, then routes the ctx + path/fd to `fattr_get`/`fattr_set`/`fattr_del`/`fattr_list`. |
+| `ngx_brix_fattr.h` | Internal API: the `brix_fattr_entry_t` parsed-attribute struct, key-prefix constants (`BRIX_FATTR_XKEY_PFX`, `BRIX_FATTR_RESP_PFX`), and prototypes for every handler/helper below. |
+| `dispatch.c` | `brix_handle_fattr()` — the single entry point. Validates `subcode`/`numattr`/write-permission, resolves file-handle vs path target, builds one function-scope `brix_vfs_ctx_t` (a confined `brix_vfs_stat` verifies a path target; fd targets carry proto/log only), auth-gates path targets, copies and parses the name vector, then routes the ctx + path/fd to `fattr_get`/`fattr_set`/`fattr_del`/`fattr_list`. |
 | `helpers.c` | Shared plumbing: `fattr_errno_to_xrd()` (errno→kXR), `fattr_set_rc()` (write per-attribute status in place, big-endian), `fattr_parse_nvec()` (parse the request name vector into `attrs[]`), `fattr_send_vector_status()` (build/send the Set/Del status frame). |
-| `get.c` | `fattr_get()` — `kXR_fattrGet`. Two-phase read (size query then buffered read) of each named attribute via the VFS xattr seam — `xrootd_vfs_getxattr` (path mode) / `xrootd_vfs_fgetxattr` (fd mode); builds the value-vector (`vvec`) response: per-attr 4-byte big-endian length + raw bytes. |
-| `set.c` | `fattr_set()` — `kXR_fattrSet`. Parses the value vector (4-byte BE length + bytes per attribute) with signed-length safety checks, applies each via `xrootd_vfs_setxattr`/`xrootd_vfs_fsetxattr`, honoring `kXR_fa_isNew` → `XATTR_CREATE`. |
-| `del.c` | `fattr_del()` — `kXR_fattrDel`. Removes each named attribute via `xrootd_vfs_removexattr`/`xrootd_vfs_fremovexattr`, recording per-attribute status; partial success is valid. |
-| `list.c` | `fattr_list()` — `kXR_fattrList`. Enumerates `user.U.*` names via `xrootd_vfs_listxattr`/`xrootd_vfs_flistxattr`, strips the `user.` prefix; with `kXR_fa_aData` also appends values (via `xrootd_vfs_getxattr`/`fgetxattr`); with the `kXR_fa_recurse` local extension on a directory target, walks the subtree via `xrootd_vfs_opendir_quiet`/`readdir` + a per-file confined ctx, emitting `relpath:U.name\0` entries. |
+| `get.c` | `fattr_get()` — `kXR_fattrGet`. Two-phase read (size query then buffered read) of each named attribute via the VFS xattr seam — `brix_vfs_getxattr` (path mode) / `brix_vfs_fgetxattr` (fd mode); builds the value-vector (`vvec`) response: per-attr 4-byte big-endian length + raw bytes. |
+| `set.c` | `fattr_set()` — `kXR_fattrSet`. Parses the value vector (4-byte BE length + bytes per attribute) with signed-length safety checks, applies each via `brix_vfs_setxattr`/`brix_vfs_fsetxattr`, honoring `kXR_fa_isNew` → `XATTR_CREATE`. |
+| `del.c` | `fattr_del()` — `kXR_fattrDel`. Removes each named attribute via `brix_vfs_removexattr`/`brix_vfs_fremovexattr`, recording per-attribute status; partial success is valid. |
+| `list.c` | `fattr_list()` — `kXR_fattrList`. Enumerates `user.U.*` names via `brix_vfs_listxattr`/`brix_vfs_flistxattr`, strips the `user.` prefix; with `kXR_fa_aData` also appends values (via `brix_vfs_getxattr`/`fgetxattr`); with the `kXR_fa_recurse` local extension on a directory target, walks the subtree via `brix_vfs_opendir_quiet`/`readdir` + a per-file confined ctx, emitting `relpath:U.name\0` entries. |
 
 ## Key types & data structures
 
-- **`xrootd_fattr_entry_t`** (`ngx_xrootd_fattr.h`) — the parsed view of one
+- **`brix_fattr_entry_t`** (`ngx_brix_fattr.h`) — the parsed view of one
   name-vector entry, one per requested attribute (stack array sized
   `kXR_faMaxVars` = 16). Fields:
   - `rc_ptr` — pointer **back into the request copy** (`nvec_copy`) where this
@@ -77,7 +77,7 @@ per-attribute results and increments the `XROOTD_OP_FATTR` metric slot.
 ## Control & data flow
 
 **Entry.** `handshake/dispatch_read.c` maps `kXR_fattr` to
-`xrootd_handle_fattr(ctx, c, conf)`. The wire header is read as a
+`brix_handle_fattr(ctx, c, conf)`. The wire header is read as a
 `ClientFattrRequest` from `ctx->hdr_buf`; the post-header payload is `ctx->payload`
 with length `ctx->cur_dlen`.
 
@@ -91,11 +91,11 @@ with length `ctx->cur_dlen`.
      `fhandle[0]` index into `ctx->files[]` (must be open).
    - **Payload begins with `0x00`**: file-handle form — `fhandle[0]` selects the
      fd, any trailing bytes are the argument vector.
-   - **Otherwise**: path form — `xrootd_extract_path()` extracts the request
-     path, `xrootd_beneath_full_path()` (see [../path/README.md](../path/README.md))
-     joins it under `conf->common.root_canon`, `xrootd_auth_gate()`
-     (`XROOTD_AUTH_UPDATE` for Set/Del else `XROOTD_AUTH_READ`) authorizes it,
-     and a probe `xrootd_open_beneath()` confirms the path is confined before any
+   - **Otherwise**: path form — `brix_extract_path()` extracts the request
+     path, `brix_beneath_full_path()` (see [../path/README.md](../path/README.md))
+     joins it under `conf->common.root_canon`, `brix_auth_gate()`
+     (`BRIX_AUTH_UPDATE` for Set/Del else `BRIX_AUTH_READ`) authorizes it,
+     and a probe `brix_open_beneath()` confirms the path is confined before any
      xattr syscall.
 4. The argument vector is copied into a pool buffer (`nvec_copy`) and parsed by
    `fattr_parse_nvec()`; the value vector (`vvec`) for Set is whatever follows
@@ -105,14 +105,14 @@ with length `ctx->cur_dlen`.
 `fattr_get`/`fattr_set`/`fattr_del`. Each handler records per-attribute results
 in `attrs[]`, then:
 - Get builds its own response (header + name vector + per-attr value vector) and
-  calls `xrootd_send_ok()`.
+  calls `brix_send_ok()`.
 - Set/Del call `fattr_send_vector_status()` (header byte = error count, then the
   in-place-updated name vector).
 - List builds a NUL-separated name (and optional value) buffer.
 
 **Calls out to:** `../path/` (path extraction, confinement, auth gate),
-`../metrics/` (`XROOTD_OP_OK`/`XROOTD_OP_ERR` on slot `XROOTD_OP_FATTR`), the
-shared response framer `xrootd_send_ok()`/`xrootd_send_error()`, and the kernel
+`../metrics/` (`BRIX_OP_OK`/`BRIX_OP_ERR` on slot `BRIX_OP_FATTR`), the
+shared response framer `brix_send_ok()`/`brix_send_error()`, and the kernel
 `<sys/xattr.h>` syscalls directly. It reads file descriptors from
 `ctx->files[]` (see [../connection/README.md](../connection/README.md) /
 `fd_table.c`). It does **not** use [../aio/README.md](../aio/README.md) — xattr
@@ -121,9 +121,9 @@ ops run inline.
 ## Invariants, security & gotchas
 
 - **Path confinement is mandatory and explicit.** Path-form requests never call
-  raw `*xattr` on the client path until `xrootd_open_beneath()` has succeeded
+  raw `*xattr` on the client path until `brix_open_beneath()` has succeeded
   against `conf->rootfd` (RESOLVE_BENEATH); the canonical full path from
-  `xrootd_beneath_full_path()` is what the syscalls use (`dispatch.c:101-126`).
+  `brix_beneath_full_path()` is what the syscalls use (`dispatch.c:101-126`).
   The recurse walk (`list.c`) operates only inside the already-confined target
   directory.
 - **Write gate is fail-closed and runs first.** `kXR_fattrSet`/`kXR_fattrDel`
@@ -143,7 +143,7 @@ ops run inline.
   failed attribute; each gets its own kXR status and the response header carries
   an error count. `fattr_errno_to_xrd()` maps `ENODATA → kXR_AttrNotFound` and
   `ERANGE → kXR_ArgTooLong`, delegating everything else to the shared
-  `xrootd_kxr_from_errno()`.
+  `brix_kxr_from_errno()`.
 - **xattr-unsupported filesystems degrade, not error.** `fattr_list()` treats
   `ENOTSUP`/`EOPNOTSUPP` as an empty result (`list.c:219-223`) rather than a
   protocol error.
@@ -166,9 +166,9 @@ ops run inline.
 ## Entry points / extending
 
 - **Add a new sub-code:** define it in `src/protocols/root/protocol/opcodes.h`, bump
-  `kXR_fattrMaxSC`, add a `case` in the `switch` in `xrootd_handle_fattr()`
+  `kXR_fattrMaxSC`, add a `case` in the `switch` in `brix_handle_fattr()`
   (`dispatch.c`), implement the handler in a new `.c` file plus a prototype in
-  `ngx_xrootd_fattr.h`, register the file in the top-level `config` script (the
+  `ngx_brix_fattr.h`, register the file in the top-level `config` script (the
   module's `ngx_module_srcs` / `NGX_ADDON_SRCS` list), then `./configure` + `make`.
 - **Add a new option flag:** define it in `src/protocols/root/protocol/flags.h` and branch on
   `options &` your flag in the relevant handler (mirror how
@@ -179,9 +179,9 @@ ops run inline.
 
 ## See also
 
-- [../path/README.md](../path/README.md) — path extraction, `xrootd_beneath_full_path`, `xrootd_open_beneath`, and `xrootd_auth_gate` confinement/authorization.
+- [../path/README.md](../path/README.md) — path extraction, `brix_beneath_full_path`, `brix_open_beneath`, and `brix_auth_gate` confinement/authorization.
 - [../handshake/README.md](../handshake/README.md) — opcode dispatch that routes `kXR_fattr` here.
 - [../connection/README.md](../connection/README.md) — `ctx->files[]` fd table backing handle-form requests.
-- [../metrics/README.md](../metrics/README.md) — the `XROOTD_OP_FATTR` counter slot.
+- [../metrics/README.md](../metrics/README.md) — the `BRIX_OP_FATTR` counter slot.
 - [../protocol/README.md](../protocol/README.md) — `ClientFattrRequest`, sub-code and flag constants.
 - [../README.md](../README.md) — master subsystem index.

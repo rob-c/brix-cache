@@ -1,9 +1,9 @@
 /*
  * config.c — xrdacc engine lifecycle: per-worker build + hot-reload timer.
  *
- * WHAT: xrootd_acc_build() parses an authdb file into a fresh table generation
- *   and installs the OS/NIS group tunables + resolvers.  xrootd_acc_init_server()
- *   builds the per-worker tables for a server running `xrootd_authdb_format
+ * WHAT: brix_acc_build() parses an authdb file into a fresh table generation
+ *   and installs the OS/NIS group tunables + resolvers.  brix_acc_init_server()
+ *   builds the per-worker tables for a server running `brix_authdb_format
  *   xrdacc` and, when a refresh interval is set, arms a timer that re-reads the
  *   file on mtime change and atomically swaps the live tables.
  *
@@ -15,48 +15,48 @@
  *   worker pool, point it at the refresh handler, and re-arm after each fire.
  */
 
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 #include "acc.h"
 #include "core/compat/log_diag.h"
 
 #include <sys/stat.h>
 
 /* Shared directive enum tables (used by the stream, WebDAV and S3 modules). */
-ngx_conf_enum_t  xrootd_acc_format_modes[] = {
-    { ngx_string("native"), XROOTD_AUTHDB_FORMAT_NATIVE },
-    { ngx_string("xrdacc"), XROOTD_AUTHDB_FORMAT_XRDACC },
+ngx_conf_enum_t  brix_acc_format_modes[] = {
+    { ngx_string("native"), BRIX_AUTHDB_FORMAT_NATIVE },
+    { ngx_string("xrdacc"), BRIX_AUTHDB_FORMAT_XRDACC },
     { ngx_null_string,      0                            }
 };
 
-ngx_conf_enum_t  xrootd_acc_audit_modes[] = {
-    { ngx_string("none"),  XROOTD_AUTHDB_AUDIT_NONE  },
-    { ngx_string("deny"),  XROOTD_AUTHDB_AUDIT_DENY  },
-    { ngx_string("grant"), XROOTD_AUTHDB_AUDIT_GRANT },
-    { ngx_string("all"),   XROOTD_AUTHDB_AUDIT_ALL   },
+ngx_conf_enum_t  brix_acc_audit_modes[] = {
+    { ngx_string("none"),  BRIX_AUTHDB_AUDIT_NONE  },
+    { ngx_string("deny"),  BRIX_AUTHDB_AUDIT_DENY  },
+    { ngx_string("grant"), BRIX_AUTHDB_AUDIT_GRANT },
+    { ngx_string("all"),   BRIX_AUTHDB_AUDIT_ALL   },
     { ngx_null_string,     0                         }
 };
 
-xrootd_acc_tables_t *
-xrootd_acc_build(const char *authdb_path, ngx_int_t gidlifetime, ngx_int_t pgo,
+brix_acc_tables_t *
+brix_acc_build(const char *authdb_path, ngx_int_t gidlifetime, ngx_int_t pgo,
                  const char *nisdomain, const char *gidretran, char spacechar,
                  ngx_int_t encoding, ngx_log_t *log)
 {
     if (gidlifetime > 0) {
-        xrootd_acc_groups_set_gidlifetime((time_t) gidlifetime);
+        brix_acc_groups_set_gidlifetime((time_t) gidlifetime);
     }
-    xrootd_acc_groups_set_primary_only(pgo);
-    xrootd_acc_groups_set_nisdomain(nisdomain);
-    xrootd_acc_groups_set_gidretran(gidretran);
-    xrootd_acc_groups_init();   /* install OS resolvers (idempotent) */
+    brix_acc_groups_set_primary_only(pgo);
+    brix_acc_groups_set_nisdomain(nisdomain);
+    brix_acc_groups_set_gidretran(gidretran);
+    brix_acc_groups_init();   /* install OS resolvers (idempotent) */
 
-    return xrootd_acc_authfile_parse(log, authdb_path, spacechar, encoding);
+    return brix_acc_authfile_parse(log, authdb_path, spacechar, encoding);
 }
 
 /* Re-read the authdb when its mtime changes; swap the live tables atomically. */
 static void
-xrootd_acc_refresh_handler(ngx_event_t *ev)
+brix_acc_refresh_handler(ngx_event_t *ev)
 {
-    ngx_stream_xrootd_srv_conf_t  *xcf = ev->data;
+    ngx_stream_brix_srv_conf_t  *xcf = ev->data;
     ngx_file_info_t                fi;
 
     if (xcf->authdb.len > 0
@@ -66,8 +66,8 @@ xrootd_acc_refresh_handler(ngx_event_t *ev)
         time_t cur = (xcf->acc_tables != NULL) ? xcf->acc_tables->mtime : 0;
 
         if (mt != cur) {
-            xrootd_acc_tables_t *nt =
-                xrootd_acc_build((const char *) xcf->authdb.data,
+            brix_acc_tables_t *nt =
+                brix_acc_build((const char *) xcf->authdb.data,
                                  xcf->acc_gidlifetime, xcf->acc_pgo,
                                  (xcf->acc_nisdomain.len > 0)
                                      ? (const char *) xcf->acc_nisdomain.data
@@ -80,9 +80,9 @@ xrootd_acc_refresh_handler(ngx_event_t *ev)
                                  xcf->acc_encoding,
                                  ev->log);
             if (nt != NULL) {
-                xrootd_acc_tables_t *old = xcf->acc_tables;
+                brix_acc_tables_t *old = xcf->acc_tables;
                 xcf->acc_tables = nt;          /* single-threaded: safe swap */
-                xrootd_acc_tables_free(old);
+                brix_acc_tables_free(old);
                 ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
                               "xrootd authdb reloaded: %s", xcf->authdb.data);
             }
@@ -95,10 +95,10 @@ xrootd_acc_refresh_handler(ngx_event_t *ev)
 }
 
 /* Build a fresh table generation for an HTTP acc block (honours the tunables). */
-static xrootd_acc_tables_t *
-xrootd_acc_http_build(xrootd_acc_http_t *acc, ngx_log_t *log)
+static brix_acc_tables_t *
+brix_acc_http_build(brix_acc_http_t *acc, ngx_log_t *log)
 {
-    return xrootd_acc_build((const char *) acc->authdb.data,
+    return brix_acc_build((const char *) acc->authdb.data,
                             acc->gidlifetime, acc->pgo,
                             (acc->nisdomain.len > 0)
                                 ? (const char *) acc->nisdomain.data : NULL,
@@ -111,14 +111,14 @@ xrootd_acc_http_build(xrootd_acc_http_t *acc, ngx_log_t *log)
 }
 
 /*
- * HTTP hot-reload timer — the loc-conf analogue of xrootd_acc_refresh_handler.
- * ev->data is the xrootd_acc_http_t (embedded in the loc-conf, so it outlives
+ * HTTP hot-reload timer — the loc-conf analogue of brix_acc_refresh_handler.
+ * ev->data is the brix_acc_http_t (embedded in the loc-conf, so it outlives
  * every request); on mtime change it rebuilds and atomically swaps acc->tables.
  */
 static void
-xrootd_acc_http_refresh_handler(ngx_event_t *ev)
+brix_acc_http_refresh_handler(ngx_event_t *ev)
 {
-    xrootd_acc_http_t  *acc = ev->data;
+    brix_acc_http_t  *acc = ev->data;
     ngx_file_info_t     fi;
 
     if (acc->authdb.len > 0
@@ -128,11 +128,11 @@ xrootd_acc_http_refresh_handler(ngx_event_t *ev)
         time_t cur = (acc->tables != NULL) ? acc->tables->mtime : 0;
 
         if (mt != cur) {
-            xrootd_acc_tables_t *nt = xrootd_acc_http_build(acc, ev->log);
+            brix_acc_tables_t *nt = brix_acc_http_build(acc, ev->log);
             if (nt != NULL) {
-                xrootd_acc_tables_t *old = acc->tables;
+                brix_acc_tables_t *old = acc->tables;
                 acc->tables = nt;              /* single-threaded: safe swap */
-                xrootd_acc_tables_free(old);
+                brix_acc_tables_free(old);
                 ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
                               "xrootd authdb reloaded: %s", acc->authdb.data);
             }
@@ -147,20 +147,20 @@ xrootd_acc_http_refresh_handler(ngx_event_t *ev)
 /* Arm this worker's refresh timer on first use (no HTTP per-location init hook,
  * so the lazy build is the natural place — see XrdAcc acc.authrefresh). */
 static void
-xrootd_acc_http_arm_timer(xrootd_acc_http_t *acc)
+brix_acc_http_arm_timer(brix_acc_http_t *acc)
 {
     if (acc->timer_armed || acc->refresh <= 0) {
         return;
     }
     acc->timer_armed   = 1;
-    acc->timer.handler = xrootd_acc_http_refresh_handler;
+    acc->timer.handler = brix_acc_http_refresh_handler;
     acc->timer.data    = acc;
     acc->timer.log     = ngx_cycle->log;
     ngx_add_timer(&acc->timer, (ngx_msec_t) acc->refresh * 1000);
 }
 
 void
-xrootd_acc_http_init_conf(xrootd_acc_http_t *acc)
+brix_acc_http_init_conf(brix_acc_http_t *acc)
 {
     acc->format        = NGX_CONF_UNSET_UINT;
     acc->audit         = NGX_CONF_UNSET_UINT;
@@ -174,12 +174,12 @@ xrootd_acc_http_init_conf(xrootd_acc_http_t *acc)
 }
 
 void
-xrootd_acc_http_merge_conf(xrootd_acc_http_t *conf, xrootd_acc_http_t *prev)
+brix_acc_http_merge_conf(brix_acc_http_t *conf, brix_acc_http_t *prev)
 {
     ngx_conf_merge_uint_value(conf->format, prev->format,
-                              XROOTD_AUTHDB_FORMAT_NATIVE);
+                              BRIX_AUTHDB_FORMAT_NATIVE);
     ngx_conf_merge_uint_value(conf->audit, prev->audit,
-                              XROOTD_AUTHDB_AUDIT_NONE);
+                              BRIX_AUTHDB_AUDIT_NONE);
     ngx_conf_merge_str_value(conf->authdb, prev->authdb, "");
     ngx_conf_merge_value(conf->refresh, prev->refresh, 0);
     ngx_conf_merge_value(conf->gidlifetime, prev->gidlifetime, 43200);
@@ -192,15 +192,15 @@ xrootd_acc_http_merge_conf(xrootd_acc_http_t *conf, xrootd_acc_http_t *prev)
 }
 
 ngx_int_t
-xrootd_acc_http_authorize(ngx_pool_t *pool, ngx_log_t *log,
-    xrootd_acc_http_t *acc, const char *name, const char *host,
+brix_acc_http_authorize(ngx_pool_t *pool, ngx_log_t *log,
+    brix_acc_http_t *acc, const char *name, const char *host,
     const char *vorg, const char *role, const char *grp,
-    xrootd_acc_op_t op, const char *path)
+    brix_acc_op_t op, const char *path)
 {
-    xrootd_acc_entity_t  *ent;
-    xrootd_acc_privs_t    privs;
+    brix_acc_entity_t  *ent;
+    brix_acc_privs_t    privs;
 
-    if (acc->format != XROOTD_AUTHDB_FORMAT_XRDACC) {
+    if (acc->format != BRIX_AUTHDB_FORMAT_XRDACC) {
         return NGX_DECLINED;    /* engine not selected — caller's checks stand */
     }
 
@@ -210,40 +210,40 @@ xrootd_acc_http_authorize(ngx_pool_t *pool, ngx_log_t *log,
         if (acc->authdb.len == 0) {
             return NGX_ERROR;   /* xrdacc selected without an authdb -> deny */
         }
-        acc->tables = xrootd_acc_http_build(acc, log);
+        acc->tables = brix_acc_http_build(acc, log);
         if (acc->tables == NULL) {
             return NGX_ERROR;
         }
     }
-    xrootd_acc_http_arm_timer(acc);   /* hot-reload, once per worker */
+    brix_acc_http_arm_timer(acc);   /* hot-reload, once per worker */
 
     if (name == NULL) { name = ""; }
     if (host == NULL || *host == '\0') { host = "?"; }
     if (path == NULL) { path = "/"; }
 
-    ent = xrootd_acc_entity_build(pool, name, host, (name[0] != '\0'),
+    ent = brix_acc_entity_build(pool, name, host, (name[0] != '\0'),
                                   vorg ? vorg : "", role ? role : "",
                                   grp ? grp : "");
     if (ent == NULL) {
         return NGX_ERROR;
     }
 
-    privs = xrootd_acc_access(acc->tables, ent, path, op);
-    xrootd_acc_audit(log, acc->audit, privs != XROOTD_ACC_PRIV_NONE,
-                     xrootd_acc_op_name(op), name, host, path);
+    privs = brix_acc_access(acc->tables, ent, path, op);
+    brix_acc_audit(log, acc->audit, privs != BRIX_ACC_PRIV_NONE,
+                     brix_acc_op_name(op), name, host, path);
 
-    return (privs != XROOTD_ACC_PRIV_NONE) ? NGX_OK : NGX_ERROR;
+    return (privs != BRIX_ACC_PRIV_NONE) ? NGX_OK : NGX_ERROR;
 }
 
 ngx_int_t
-xrootd_acc_init_server(ngx_stream_xrootd_srv_conf_t *xcf, ngx_cycle_t *cycle)
+brix_acc_init_server(ngx_stream_brix_srv_conf_t *xcf, ngx_cycle_t *cycle)
 {
     /* Only servers using the xrdacc engine with an authdb file. */
-    if (xcf->acc_format != XROOTD_AUTHDB_FORMAT_XRDACC || xcf->authdb.len == 0) {
+    if (xcf->acc_format != BRIX_AUTHDB_FORMAT_XRDACC || xcf->authdb.len == 0) {
         return NGX_OK;
     }
 
-    xcf->acc_tables = xrootd_acc_build(
+    xcf->acc_tables = brix_acc_build(
         (const char *) xcf->authdb.data, xcf->acc_gidlifetime, xcf->acc_pgo,
         (xcf->acc_nisdomain.len > 0) ? (const char *) xcf->acc_nisdomain.data
                                      : NULL,
@@ -253,7 +253,7 @@ xrootd_acc_init_server(ngx_stream_xrootd_srv_conf_t *xcf, ngx_cycle_t *cycle)
         xcf->acc_encoding,
         cycle->log);
     if (xcf->acc_tables == NULL) {
-        XROOTD_DIAG_EMERG(cycle->log, 0,
+        BRIX_DIAG_EMERG(cycle->log, 0,
             "xrootd: failed to load authorization database \"%V\"",
             "the authdb could not be opened or parsed",
             "see the specific \"xrootd authdb:\" error logged just above for "
@@ -267,7 +267,7 @@ xrootd_acc_init_server(ngx_stream_xrootd_srv_conf_t *xcf, ngx_cycle_t *cycle)
         if (xcf->acc_timer == NULL) {
             return NGX_ERROR;
         }
-        xcf->acc_timer->handler = xrootd_acc_refresh_handler;
+        xcf->acc_timer->handler = brix_acc_refresh_handler;
         xcf->acc_timer->data    = xcf;
         xcf->acc_timer->log     = cycle->log;
         ngx_add_timer(xcf->acc_timer, (ngx_msec_t) xcf->acc_refresh * 1000);

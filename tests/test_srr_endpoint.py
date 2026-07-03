@@ -76,15 +76,15 @@ http {{
     server {{
         listen {BIND_HOST}:{PORT};
         location = {SRR_PATH} {{
-            xrootd_srr on;
-            xrootd_srr_name "TEST-SE";
-            xrootd_srr_quality production;
-            xrootd_srr_version "3.5";
-            xrootd_srr_share atlasdata {data} atlas,cms;
-            xrootd_srr_endpoint webdav davs https://{HOST}:8443/;
-            xrootd_srr_endpoint root xroot root://{HOST}:1094/;
+            brix_srr on;
+            brix_srr_name "TEST-SE";
+            brix_srr_quality production;
+            brix_srr_version "3.5";
+            brix_srr_share atlasdata {data} atlas,cms;
+            brix_srr_endpoint webdav davs https://{HOST}:8443/;
+            brix_srr_endpoint root xroot root://{HOST}:1094/;
         }}
-        # A location with no xrootd_srr — must NOT serve the document.
+        # A location with no brix_srr — must NOT serve the document.
         location = /not-srr {{
             return 204;
         }}
@@ -206,7 +206,7 @@ def test_srr_ignores_request_input(srr_server):
 
 
 def test_srr_only_served_where_enabled(srr_server):
-    # A location without xrootd_srr must not emit the document.
+    # A location without brix_srr must not emit the document.
     r = requests.get(f"http://{HOST}:{PORT}/not-srr", timeout=10)
     assert r.status_code == 204
     assert "storageservice" not in r.text

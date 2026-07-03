@@ -19,17 +19,17 @@
  *
  * Clean-room: sentinel from XProtocol dirlist dstat docs (DirectoryList::dStatPrefix).
  */
-#ifndef XROOTD_PROTOCOL_DIRLIST_FMT_H
-#define XROOTD_PROTOCOL_DIRLIST_FMT_H
+#ifndef BRIX_PROTOCOL_DIRLIST_FMT_H
+#define BRIX_PROTOCOL_DIRLIST_FMT_H
 
 #include <stddef.h>
 
 /* What the server prepends to a dstat/dcksm listing (10 bytes incl. trailing \n). */
-#define XROOTD_DSTAT_LEADIN      ".\n0 0 0 0\n"
-#define XROOTD_DSTAT_LEADIN_LEN  (sizeof(XROOTD_DSTAT_LEADIN) - 1)
+#define BRIX_DSTAT_LEADIN      ".\n0 0 0 0\n"
+#define BRIX_DSTAT_LEADIN_LEN  (sizeof(BRIX_DSTAT_LEADIN) - 1)
 
 /* What the client matches at the head of the body to detect stat-pairing mode:
  * the lead-in without its trailing newline (9 bytes). Derived, never re-spelled. */
-#define XROOTD_DSTAT_PREFIX_LEN  (XROOTD_DSTAT_LEADIN_LEN - 1)
+#define BRIX_DSTAT_PREFIX_LEN  (BRIX_DSTAT_LEADIN_LEN - 1)
 
-#endif /* XROOTD_PROTOCOL_DIRLIST_FMT_H */
+#endif /* BRIX_PROTOCOL_DIRLIST_FMT_H */

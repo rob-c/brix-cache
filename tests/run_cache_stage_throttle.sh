@@ -50,15 +50,15 @@ daemon on; error_log $d/logs/e.log info; pid $d/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:${port}; xrootd on; xrootd_auth none;
-    xrootd_storage_backend posix:$d/root;
-    xrootd_allow_write on; xrootd_upload_resume off;
-    xrootd_write_through on; xrootd_wt_mode sync; xrootd_wt_origin 127.0.0.1:1;
-    xrootd_cache_wt_stage_root $d/stage;
-    xrootd_wt_stage_high_watermark ${high}%;
-    xrootd_wt_stage_low_watermark  ${low}%;
+    listen 127.0.0.1:${port}; xrootd on; brix_auth none;
+    brix_storage_backend posix:$d/root;
+    brix_allow_write on; brix_upload_resume off;
+    brix_write_through on; brix_wt_mode sync; brix_wt_origin 127.0.0.1:1;
+    brix_cache_wt_stage_root $d/stage;
+    brix_wt_stage_high_watermark ${high}%;
+    brix_wt_stage_low_watermark  ${low}%;
 } }
-http { server { listen 127.0.0.1:${mport}; location /metrics { xrootd_metrics on; } } }
+http { server { listen 127.0.0.1:${mport}; location /metrics { brix_metrics on; } } }
 EOF
     "$NGINX" -p "$d" -c "$d/nginx.conf" 2>"$d/logs/start.err" || { echo "start failed ($name)"; cat "$d/logs/start.err"; return 2; }
 }
@@ -75,9 +75,9 @@ if [ $? -ne 0 ]; then ok "reject: root:// write failed (staging full)"; else bad
 got="$("$XRDFS" root://127.0.0.1:11616 cat /readme.txt 2>/dev/null)"
 [ "$got" = "readable-content-reject" ] && ok "reject: READ still works (reads never throttled)" || bad "reject: read was wrongly blocked (got '$got')"
 MR="$(curl -s --max-time 5 http://127.0.0.1:11618/metrics 2>/dev/null)"
-echo "$MR" | awk '/^xrootd_wt_stage_throttled_total\{action="reject"\}/{exit ($2>0)?0:1}' \
+echo "$MR" | awk '/^brix_wt_stage_throttled_total\{action="reject"\}/{exit ($2>0)?0:1}' \
     && ok "reject: throttled_total{reject} > 0" || bad "reject: reject counter not incremented"
-echo "$MR" | grep -q '^xrootd_wt_stage_usage_ratio ' && ok "reject: wt_stage_usage_ratio gauge present" || bad "reject: no usage_ratio gauge"
+echo "$MR" | grep -q '^brix_wt_stage_usage_ratio ' && ok "reject: wt_stage_usage_ratio gauge present" || bad "reject: no usage_ratio gauge"
 
 echo "== wait instance: write delayed (kXR_wait) =="
 # A write in the soft band gets kXR_wait; the client sleeps + retries. Run it in
@@ -87,7 +87,7 @@ wpid=$!
 deadline=$((SECONDS + 6)); waited=0
 while [ $SECONDS -lt $deadline ]; do
     MW="$(curl -s --max-time 3 http://127.0.0.1:11619/metrics 2>/dev/null)"
-    if echo "$MW" | awk '/^xrootd_wt_stage_throttled_total\{action="wait"\}/{exit ($2>0)?0:1}'; then waited=1; break; fi
+    if echo "$MW" | awk '/^brix_wt_stage_throttled_total\{action="wait"\}/{exit ($2>0)?0:1}'; then waited=1; break; fi
     sleep 1
 done
 kill "$wpid" 2>/dev/null; wait "$wpid" 2>/dev/null

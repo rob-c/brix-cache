@@ -1,12 +1,12 @@
-#ifndef XROOTD_CACHE_REAP_H
-#define XROOTD_CACHE_REAP_H
+#ifndef BRIX_CACHE_REAP_H
+#define BRIX_CACHE_REAP_H
 
 #include "cache_internal.h"
 
 /*
  * cache_reap.h — the stale-dirty reaper for the unified cache-state engine.
  *
- * WHAT: xrootd_cache_reap_dirty() scans a server's cache/state tree and removes,
+ * WHAT: brix_cache_reap_dirty() scans a server's cache/state tree and removes,
  *       unconditionally, any cached file whose unified record (.cinfo) has been
  *       DIRTY for longer than conf->cache_dirty_max_age — the cached/staging data
  *       file plus its .cinfo/.meta sidecars — and returns the count reaped.
@@ -24,7 +24,7 @@
  *       no state root resolves. Runs on a per-worker maintenance timer
  *       (src/config/process.c), independent of occupancy.
  */
-ngx_uint_t xrootd_cache_reap_dirty(const ngx_stream_xrootd_srv_conf_t *conf,
+ngx_uint_t brix_cache_reap_dirty(const ngx_stream_brix_srv_conf_t *conf,
     ngx_log_t *log);
 
-#endif /* XROOTD_CACHE_REAP_H */
+#endif /* BRIX_CACHE_REAP_H */

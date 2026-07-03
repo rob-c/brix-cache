@@ -3,11 +3,11 @@ tests/test_readv_variable_blocks.py
 
 Verify THIS PROJECT'S native client (libxrdc, xrdc_file_readv) correctly handles
 variably-sized kXR_readv response blocks — in particular blocks the server makes
-SHORTER than requested by capping each element to xrootd_readv_segment_size. The
+SHORTER than requested by capping each element to brix_readv_segment_size. The
 client must read each segment's actual returned length from the response (not
 assume it equals the request) and deliver byte-exact data per segment.
 
-A dedicated anonymous nginx is started with xrootd_readv_segment_size 1m over a
+A dedicated anonymous nginx is started with brix_readv_segment_size 1m over a
 5 MiB random file, then a compiled libxrdc consumer (examples/xrdc_readv_demo.c)
 issues one readv mixing tiny, mid, exactly-cap and over-cap (-> capped/short)
 elements. The test checks each segment's reported `got` and its bytes.
@@ -39,7 +39,7 @@ NGINX_BIN = os.environ.get("RESIL_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 CC = os.environ.get("CC", "cc")
 
 FILE_BYTES = 5 * 1024 * 1024
-CAP = 1024 * 1024                 # xrootd_readv_segment_size 1m
+CAP = 1024 * 1024                 # brix_readv_segment_size 1m
 
 _CONF = """\
 worker_processes 1;
@@ -51,9 +51,9 @@ stream {{
     server {{
         listen 127.0.0.1:{port};
         xrootd on;
-        xrootd_storage_backend posix:{data};
-        xrootd_readv_segment_size 1m;
-        xrootd_access_log {logs}/access.log;
+        brix_storage_backend posix:{data};
+        brix_readv_segment_size 1m;
+        brix_access_log {logs}/access.log;
     }}
 }}
 """

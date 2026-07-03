@@ -13,56 +13,56 @@
 #include <ngx_shmtx.h>
 #include <string.h>
 
-ngx_shm_zone_t *xrootd_session_shm_zone;
-ngx_shm_zone_t *xrootd_handle_shm_zone;
+ngx_shm_zone_t *brix_session_shm_zone;
+ngx_shm_zone_t *brix_handle_shm_zone;
 
-static ngx_shmtx_t  xrootd_session_mutex;
+static ngx_shmtx_t  brix_session_mutex;
 
-/* Runtime slot count for the session registry (xrootd_session_slots);
+/* Runtime slot count for the session registry (brix_session_slots);
  * defaults to the compile-time capacity. */
-static ngx_uint_t   xrootd_session_registry_nslots =
-    XROOTD_SESSION_REGISTRY_SLOTS;
+static ngx_uint_t   brix_session_registry_nslots =
+    BRIX_SESSION_REGISTRY_SLOTS;
 
 /* Per-process pointer to the SHM session table (NULL until the zone is set up). */
-static xrootd_session_table_t *
+static brix_session_table_t *
 session_table(void)
 {
-    if (xrootd_session_shm_zone == NULL
-        || xrootd_session_shm_zone->data == NULL
-        || xrootd_session_shm_zone->data == (void *) 1)
+    if (brix_session_shm_zone == NULL
+        || brix_session_shm_zone->data == NULL
+        || brix_session_shm_zone->data == (void *) 1)
     {
         return NULL;
     }
-    return (xrootd_session_table_t *) xrootd_session_shm_zone->data;
+    return (brix_session_table_t *) brix_session_shm_zone->data;
 }
 
 /* Shared-memory zone init callback: lay the session table out in the zone and
  * create its spin+yield mutex.  Returns NGX_OK / NGX_ERROR. */
 ngx_int_t
-xrootd_session_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
+brix_session_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
 {
     ngx_flag_t               fresh;
-    xrootd_session_table_t  *tbl;
+    brix_session_table_t  *tbl;
 
     /*
      * Allocate the table FROM the slab pool (never lay it over shm.addr) so
      * nginx's ngx_unlock_mutexes() — which treats every zone's shm.addr as an
      * ngx_slab_pool_t header on every child death — does not get clobbered and
      * SIGSEGV the master. The helper handles fresh-alloc, reload (data != NULL),
-     * and re-attach, creates xrootd_session_mutex from the table's leading
+     * and re-attach, creates brix_session_mutex from the table's leading
      * ngx_shmtx_sh_t lock, and publishes the table via shm_zone->data.
      */
-    tbl = xrootd_shm_table_alloc(shm_zone, data,
-                                 sizeof(xrootd_session_table_t)
-                                 + (size_t) xrootd_session_registry_nslots
-                                   * sizeof(xrootd_session_entry_t),
-                                 &xrootd_session_mutex, &fresh);
+    tbl = brix_shm_table_alloc(shm_zone, data,
+                                 sizeof(brix_session_table_t)
+                                 + (size_t) brix_session_registry_nslots
+                                   * sizeof(brix_session_entry_t),
+                                 &brix_session_mutex, &fresh);
     if (tbl == NULL) {
         return NGX_ERROR;
     }
 
     if (fresh) {
-        tbl->capacity = xrootd_session_registry_nslots;
+        tbl->capacity = brix_session_registry_nslots;
     }
 
     return NGX_OK;
@@ -71,42 +71,42 @@ xrootd_session_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
 /* Config-time setup of the session-registry SHM zone sized for `slots` entries.
  * Returns NGX_OK / NGX_ERROR. */
 ngx_int_t
-xrootd_configure_session_registry(ngx_conf_t *cf, ngx_uint_t slots)
+brix_configure_session_registry(ngx_conf_t *cf, ngx_uint_t slots)
 {
-    ngx_str_t  zone_name = ngx_string("xrootd_sessions");
-    ngx_str_t  handle_zone_name = ngx_string("xrootd_session_handles");
+    ngx_str_t  zone_name = ngx_string("brix_sessions");
+    ngx_str_t  handle_zone_name = ngx_string("brix_session_handles");
     size_t     zone_size;
 
     if (slots == 0) {
-        slots = XROOTD_SESSION_REGISTRY_SLOTS;
+        slots = BRIX_SESSION_REGISTRY_SLOTS;
     }
-    xrootd_session_registry_nslots = slots;
+    brix_session_registry_nslots = slots;
 
-    zone_size = xrootd_shm_zone_size(sizeof(xrootd_session_table_t)
-                + (size_t) slots * sizeof(xrootd_session_entry_t));
-    xrootd_session_shm_zone = ngx_shared_memory_add(cf, &zone_name,
+    zone_size = brix_shm_zone_size(sizeof(brix_session_table_t)
+                + (size_t) slots * sizeof(brix_session_entry_t));
+    brix_session_shm_zone = ngx_shared_memory_add(cf, &zone_name,
                                                      zone_size,
-                                                     &ngx_stream_xrootd_module);
-    if (xrootd_session_shm_zone == NULL) {
+                                                     &ngx_stream_brix_module);
+    if (brix_session_shm_zone == NULL) {
         return NGX_ERROR;
     }
 
-    xrootd_shm_zone_warn_on_resize(cf, xrootd_session_shm_zone,
-                                   "xrootd_session_slots");
+    brix_shm_zone_warn_on_resize(cf, brix_session_shm_zone,
+                                   "brix_session_slots");
 
-    xrootd_session_shm_zone->init = xrootd_session_shm_init_zone;
-    xrootd_session_shm_zone->data = (void *) 1;
+    brix_session_shm_zone->init = brix_session_shm_init_zone;
+    brix_session_shm_zone->data = (void *) 1;
 
-    zone_size = xrootd_shm_zone_size(sizeof(xrootd_shared_handle_table_t));
-    xrootd_handle_shm_zone = ngx_shared_memory_add(cf, &handle_zone_name,
+    zone_size = brix_shm_zone_size(sizeof(brix_shared_handle_table_t));
+    brix_handle_shm_zone = ngx_shared_memory_add(cf, &handle_zone_name,
                                                    zone_size,
-                                                   &ngx_stream_xrootd_module);
-    if (xrootd_handle_shm_zone == NULL) {
+                                                   &ngx_stream_brix_module);
+    if (brix_handle_shm_zone == NULL) {
         return NGX_ERROR;
     }
 
-    xrootd_handle_shm_zone->init = xrootd_handle_shm_init_zone;
-    xrootd_handle_shm_zone->data = (void *) 1;
+    brix_handle_shm_zone->init = brix_handle_shm_init_zone;
+    brix_handle_shm_zone->data = (void *) 1;
 
     return NGX_OK;
 }
@@ -115,15 +115,15 @@ xrootd_configure_session_registry(ngx_conf_t *cf, ngx_uint_t slots)
  * SHM slot at login completion; a no-op if the sessid is already present.
  * Mutex-protected (cross-worker). */
 void
-xrootd_session_register(const u_char sessid[XROOTD_SESSION_ID_LEN],
+brix_session_register(const u_char sessid[BRIX_SESSION_ID_LEN],
     const char *dn, const char *vo_list, ngx_uint_t token_auth)
 {
-    xrootd_session_table_t *tbl;
-    xrootd_session_entry_t *e;
+    brix_session_table_t *tbl;
+    brix_session_entry_t *e;
     ngx_uint_t              i, free_slot, lru_slot;
     ngx_msec_t              now, lru_seen = 0;
     int                     found, reaped = 0;
-    u_char                  victim[XROOTD_SESSION_ID_LEN];
+    u_char                  victim[BRIX_SESSION_ID_LEN];
 
     tbl = session_table();
     if (tbl == NULL) {
@@ -132,7 +132,7 @@ xrootd_session_register(const u_char sessid[XROOTD_SESSION_ID_LEN],
 
     now = ngx_current_msec;
 
-    ngx_shmtx_lock(&xrootd_session_mutex);
+    ngx_shmtx_lock(&brix_session_mutex);
 
     free_slot = tbl->capacity;
     lru_slot  = tbl->capacity;
@@ -146,7 +146,7 @@ xrootd_session_register(const u_char sessid[XROOTD_SESSION_ID_LEN],
             }
             continue;
         }
-        if (ngx_memcmp(e->sessid, sessid, XROOTD_SESSION_ID_LEN) == 0) {
+        if (ngx_memcmp(e->sessid, sessid, BRIX_SESSION_ID_LEN) == 0) {
             e->last_seen = now;        /* refresh activity on re-register */
             found = 1;
             break;
@@ -163,15 +163,15 @@ xrootd_session_register(const u_char sessid[XROOTD_SESSION_ID_LEN],
      * cannot permanently deny new logins.  Otherwise reject (and count it). */
     if (!found && free_slot == tbl->capacity) {
         if (lru_slot < tbl->capacity
-            && (now - lru_seen) >= XROOTD_SESSION_REAP_MIN_AGE_MS)
+            && (now - lru_seen) >= BRIX_SESSION_REAP_MIN_AGE_MS)
         {
             ngx_memcpy(victim, tbl->slots[lru_slot].sessid,
-                       XROOTD_SESSION_ID_LEN);
+                       BRIX_SESSION_ID_LEN);
             ngx_memzero(&tbl->slots[lru_slot], sizeof(tbl->slots[lru_slot]));
             free_slot = lru_slot;
             reaped = 1;
         } else {
-            ngx_xrootd_metrics_t *m = xrootd_metrics_shared();
+            ngx_brix_metrics_t *m = brix_metrics_shared();
             if (m != NULL) {
                 (void) ngx_atomic_fetch_add(&m->session_registry_full_total, 1);
             }
@@ -180,7 +180,7 @@ xrootd_session_register(const u_char sessid[XROOTD_SESSION_ID_LEN],
 
     if (!found && free_slot < tbl->capacity) {
         e = &tbl->slots[free_slot];
-        ngx_memcpy(e->sessid, sessid, XROOTD_SESSION_ID_LEN);
+        ngx_memcpy(e->sessid, sessid, BRIX_SESSION_ID_LEN);
         ngx_cpystrn((u_char *) e->dn, (u_char *) (dn ? dn : ""),
                     sizeof(e->dn));
         ngx_cpystrn((u_char *) e->vo_list,
@@ -191,16 +191,16 @@ xrootd_session_register(const u_char sessid[XROOTD_SESSION_ID_LEN],
         e->in_use     = 1;
     }
 
-    ngx_shmtx_unlock(&xrootd_session_mutex);
+    ngx_shmtx_unlock(&brix_session_mutex);
 
     /* Unpublish the reaped victim's handles AFTER releasing the session mutex
-     * (mirrors xrootd_session_unregister's lock order: session then handle). */
+     * (mirrors brix_session_unregister's lock order: session then handle). */
     if (reaped) {
-        ngx_xrootd_metrics_t *m = xrootd_metrics_shared();
+        ngx_brix_metrics_t *m = brix_metrics_shared();
         if (m != NULL) {
             (void) ngx_atomic_fetch_add(&m->session_evict_total, 1);
         }
-        xrootd_session_handle_unpublish_all(victim);
+        brix_session_handle_unpublish_all(victim);
     }
 }
 
@@ -208,13 +208,13 @@ xrootd_session_register(const u_char sessid[XROOTD_SESSION_ID_LEN],
  * by kXR_bind secondaries and proxy mode).  Returns 1 on hit, 0 on miss.
  * Mutex-protected. */
 int
-xrootd_session_lookup(const u_char sessid[XROOTD_SESSION_ID_LEN],
+brix_session_lookup(const u_char sessid[BRIX_SESSION_ID_LEN],
     char *dn_out, size_t dn_size,
     char *vo_out, size_t vo_size,
     ngx_uint_t *token_auth_out)
 {
-    xrootd_session_table_t *tbl;
-    xrootd_session_entry_t *e;
+    brix_session_table_t *tbl;
+    brix_session_entry_t *e;
     ngx_uint_t              i;
     int                     found = 0;
 
@@ -223,14 +223,14 @@ xrootd_session_lookup(const u_char sessid[XROOTD_SESSION_ID_LEN],
         return 0;
     }
 
-    ngx_shmtx_lock(&xrootd_session_mutex);
+    ngx_shmtx_lock(&brix_session_mutex);
 
     for (i = 0; i < tbl->capacity; i++) {
         e = &tbl->slots[i];
         if (!e->in_use) {
             continue;
         }
-        if (ngx_memcmp(e->sessid, sessid, XROOTD_SESSION_ID_LEN) == 0) {
+        if (ngx_memcmp(e->sessid, sessid, BRIX_SESSION_ID_LEN) == 0) {
             ngx_cpystrn((u_char *) dn_out, (u_char *) e->dn, dn_size);
             ngx_cpystrn((u_char *) vo_out, (u_char *) e->vo_list, vo_size);
             *token_auth_out = e->token_auth;
@@ -240,17 +240,17 @@ xrootd_session_lookup(const u_char sessid[XROOTD_SESSION_ID_LEN],
         }
     }
 
-    ngx_shmtx_unlock(&xrootd_session_mutex);
+    ngx_shmtx_unlock(&brix_session_mutex);
     return found;
 }
 
 /* Clear a session's SHM slot at kXR_endsess / disconnect and unpublish all of
  * its handles.  Mutex-protected. */
 void
-xrootd_session_unregister(const u_char sessid[XROOTD_SESSION_ID_LEN])
+brix_session_unregister(const u_char sessid[BRIX_SESSION_ID_LEN])
 {
-    xrootd_session_table_t *tbl;
-    xrootd_session_entry_t *e;
+    brix_session_table_t *tbl;
+    brix_session_entry_t *e;
     ngx_uint_t              i;
 
     tbl = session_table();
@@ -258,18 +258,18 @@ xrootd_session_unregister(const u_char sessid[XROOTD_SESSION_ID_LEN])
         return;
     }
 
-    ngx_shmtx_lock(&xrootd_session_mutex);
+    ngx_shmtx_lock(&brix_session_mutex);
 
     for (i = 0; i < tbl->capacity; i++) {
         e = &tbl->slots[i];
         if (e->in_use
-            && ngx_memcmp(e->sessid, sessid, XROOTD_SESSION_ID_LEN) == 0)
+            && ngx_memcmp(e->sessid, sessid, BRIX_SESSION_ID_LEN) == 0)
         {
             ngx_memzero(e, sizeof(*e));
             break;
         }
     }
 
-    ngx_shmtx_unlock(&xrootd_session_mutex);
-    xrootd_session_handle_unpublish_all(sessid);
+    ngx_shmtx_unlock(&brix_session_mutex);
+    brix_session_handle_unpublish_all(sessid);
 }

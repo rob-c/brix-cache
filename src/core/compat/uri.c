@@ -11,29 +11,29 @@
 #include <string.h>
 
 int
-xrootd_http_urldecode(const unsigned char *src, size_t src_len,
+brix_http_urldecode(const unsigned char *src, size_t src_len,
     char *dst, size_t dst_sz, unsigned flags)
 {
     size_t si = 0, di = 0;
     int    hi, lo;
 
     if (dst == NULL || dst_sz < 2) {
-        return XROOTD_URLDECODE_BADARG;
+        return BRIX_URLDECODE_BADARG;
     }
 
     while (si < src_len) {
         if (di + 1 >= dst_sz) {
-            return XROOTD_URLDECODE_OVERFLOW;
+            return BRIX_URLDECODE_OVERFLOW;
         }
 
         if (src[si] == '%' && si + 2 < src_len
-            && (hi = xrootd_hex_from_char(src[si + 1])) >= 0
-            && (lo = xrootd_hex_from_char(src[si + 2])) >= 0)
+            && (hi = brix_hex_from_char(src[si + 1])) >= 0
+            && (lo = brix_hex_from_char(src[si + 2])) >= 0)
         {
             unsigned char decoded = (unsigned char) ((hi << 4) | lo);
 
-            if (decoded == '\0' && (flags & XROOTD_URLDECODE_REJECT_NUL)) {
-                return XROOTD_URLDECODE_NUL_BYTE;
+            if (decoded == '\0' && (flags & BRIX_URLDECODE_REJECT_NUL)) {
+                return BRIX_URLDECODE_NUL_BYTE;
             }
 
             dst[di++] = (char)decoded;
@@ -41,7 +41,7 @@ xrootd_http_urldecode(const unsigned char *src, size_t src_len,
             continue;
         }
 
-        if (src[si] == '+' && (flags & XROOTD_URLDECODE_PLUS_TO_SPACE)) {
+        if (src[si] == '+' && (flags & BRIX_URLDECODE_PLUS_TO_SPACE)) {
             dst[di++] = ' ';
             si++;
             continue;
@@ -51,7 +51,7 @@ xrootd_http_urldecode(const unsigned char *src, size_t src_len,
     }
 
     dst[di] = '\0';
-    return XROOTD_URLDECODE_OK;
+    return BRIX_URLDECODE_OK;
 }
 /*
  * WHAT: Encode a plain text string into HTTP percent-encoded form (RFC 3986).
@@ -72,7 +72,7 @@ xrootd_http_urldecode(const unsigned char *src, size_t src_len,
  * Returns: number of bytes written (excluding null terminator), or -1 on overflow/badarg.
  */
 ssize_t
-xrootd_http_urlencode(const unsigned char *src, size_t srclen,
+brix_http_urlencode(const unsigned char *src, size_t srclen,
                       char *dst, size_t dstsz,
                       const char *safe_extra)
 {

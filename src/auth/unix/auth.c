@@ -1,4 +1,4 @@
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 #include "observability/metrics/unified.h"
 #include "protocols/root/session/registry.h"
 
@@ -10,7 +10,7 @@
  * WHAT: Implements the kXR_auth handler for the XRootD `unix` security
  *       protocol. The client merely *declares* a user name (and optional
  *       group) in the credential blob; there is no cryptographic proof.
- *       xrootd_handle_unix_auth() parses and character-validates those names,
+ *       brix_handle_unix_auth() parses and character-validates those names,
  *       populates the per-connection identity (ctx->dn, ctx->vo_list,
  *       ctx->primary_vo, and the canonical ctx->identity), registers the
  *       session, emits auth metrics, writes a sanitised audit line, and
@@ -21,23 +21,23 @@
  *       cert or token. Because `unix` is unverified, this handler is
  *       deliberately fail-closed: by default it is honoured only for loopback
  *       peers (unless conf->unix_trust_remote is set), and it must be
- *       explicitly selected (conf->auth == XROOTD_AUTH_UNIX) before the GSI
+ *       explicitly selected (conf->auth == BRIX_AUTH_UNIX) before the GSI
  *       auth dispatcher (../gsi/auth.c) will ever route a "unix" credtype here.
  *       Isolating it in one file keeps the "the client names itself" attack
  *       surface auditable in a single place.
  *
  * HOW:  This is the stream / root:// path, downstream of kXR_login and inside
- *       the kXR_auth dispatcher. xrootd_handle_unix_auth() first gates on
- *       xrootd_unix_peer_is_loopback() (over the connection sockaddr), then
+ *       the kXR_auth dispatcher. brix_handle_unix_auth() first gates on
+ *       brix_unix_peer_is_loopback() (over the connection sockaddr), then
  *       validates the leading "unix\0" tag in ctx->payload, splits the
  *       remaining space/NUL-delimited bytes into user and optional group, runs
- *       each through xrootd_unix_copy_name() (which enforces an allow-list of
- *       safe bytes via xrootd_unix_name_byte_ok() and a bounded destination).
+ *       each through brix_unix_copy_name() (which enforces an allow-list of
+ *       safe bytes via brix_unix_name_byte_ok() and a bounded destination).
  *       Validated names are copied into the identity fields, the session is
  *       registered, and VO/unique-user metrics are bumped via
- *       xrootd_unix_track_identity(). Every exit path increments the
- *       XROOTD_AUTHN_UNIX auth metric (fail=0 / ok=1) and returns through the
- *       XROOTD_RETURN_ERR / XROOTD_RETURN_OK framing macros.
+ *       brix_unix_track_identity(). Every exit path increments the
+ *       BRIX_AUTHN_UNIX auth metric (fail=0 / ok=1) and returns through the
+ *       BRIX_RETURN_ERR / BRIX_RETURN_OK framing macros.
  */
 
 /*
@@ -48,7 +48,7 @@
  * as untrusted (returns 0).
  */
 static ngx_flag_t
-xrootd_unix_peer_is_loopback(ngx_connection_t *c)
+brix_unix_peer_is_loopback(ngx_connection_t *c)
 {
     if (c == NULL || c->sockaddr == NULL) {
         return 0;
@@ -75,7 +75,7 @@ xrootd_unix_peer_is_loopback(ngx_connection_t *c)
  * downstream ACL comparisons as anything other than plain printable text.
  */
 static ngx_flag_t
-xrootd_unix_name_byte_ok(u_char ch)
+brix_unix_name_byte_ok(u_char ch)
 {
     return ((ch >= 'A' && ch <= 'Z')
             || (ch >= 'a' && ch <= 'z')
@@ -87,12 +87,12 @@ xrootd_unix_name_byte_ok(u_char ch)
  * Validate and NUL-terminate one wire name into a fixed-size buffer.
  * Rejects (NGX_ERROR) an empty source, a length that would not leave room for
  * the terminator (len >= dst_len), or any byte failing
- * xrootd_unix_name_byte_ok(); otherwise copies `len` bytes and appends '\0',
+ * brix_unix_name_byte_ok(); otherwise copies `len` bytes and appends '\0',
  * returning NGX_OK. This is the single choke point that bounds and sanitises
  * both the user and the optional group strings.
  */
 static ngx_int_t
-xrootd_unix_copy_name(char *dst, size_t dst_len, const u_char *src,
+brix_unix_copy_name(char *dst, size_t dst_len, const u_char *src,
     size_t len)
 {
     size_t i;
@@ -104,7 +104,7 @@ xrootd_unix_copy_name(char *dst, size_t dst_len, const u_char *src,
     }
 
     for (i = 0; i < len; i++) {
-        if (!xrootd_unix_name_byte_ok(src[i])) {
+        if (!brix_unix_name_byte_ok(src[i])) {
             return NGX_ERROR;
         }
     }
@@ -121,52 +121,52 @@ xrootd_unix_copy_name(char *dst, size_t dst_len, const u_char *src,
  * identity field is empty, so it is safe to call unconditionally on success.
  */
 static void
-xrootd_unix_track_identity(xrootd_ctx_t *ctx)
+brix_unix_track_identity(brix_ctx_t *ctx)
 {
-    ngx_xrootd_metrics_t *shm;
+    ngx_brix_metrics_t *shm;
 
-    shm = xrootd_metrics_shared();
+    shm = brix_metrics_shared();
     if (shm == NULL) {
         return;
     }
 
     if (ctx->primary_vo[0] != '\0') {
-        xrootd_track_vo_activity(shm, ctx->primary_vo, 0, 0);
+        brix_track_vo_activity(shm, ctx->primary_vo, 0, 0);
     }
     if (ctx->dn[0] != '\0') {
-        xrootd_track_unique_user(shm, ctx->dn, strlen(ctx->dn));
+        brix_track_unique_user(shm, ctx->dn, strlen(ctx->dn));
     }
 }
 
 /*
  * Public entry point for the XRootD `unix` auth scheme, called from the GSI
  * auth dispatcher (../gsi/auth.c) once it has matched the "unix" credtype and
- * confirmed conf->auth == XROOTD_AUTH_UNIX.
+ * confirmed conf->auth == BRIX_AUTH_UNIX.
  *
  * Enforces the loopback trust gate (unless conf->unix_trust_remote), validates
  * the "unix\0" tag, parses the space/NUL-delimited user and optional group out
- * of ctx->payload, and character-validates both via xrootd_unix_copy_name().
+ * of ctx->payload, and character-validates both via brix_unix_copy_name().
  * On success it marks the session authenticated (ctx->auth_done = 1,
  * token_auth = 0), fills ctx->dn / ctx->vo_list / ctx->primary_vo and the
  * canonical ctx->identity, registers the session, bumps metrics, logs a
- * sanitised audit line, and returns kXR_ok via XROOTD_RETURN_OK. Any failure
+ * sanitised audit line, and returns kXR_ok via BRIX_RETURN_OK. Any failure
  * increments the failed-auth metric and returns kXR_NotAuthorized (bad peer,
  * malformed credential, invalid user/group) or kXR_NoMemory (identity alloc).
  */
 ngx_int_t
-xrootd_handle_unix_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf)
+brix_handle_unix_auth(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf)
 {
     const u_char *p, *end, *user_start, *group_start;
     size_t        user_len, group_len;
-    char          user[XROOTD_SSS_USER_MAX];
-    char          group[XROOTD_SSS_GROUP_MAX];
-    char          safe_user[XROOTD_SSS_USER_MAX * 4];
-    char          safe_group[XROOTD_SSS_GROUP_MAX * 4];
+    char          user[BRIX_SSS_USER_MAX];
+    char          group[BRIX_SSS_GROUP_MAX];
+    char          safe_user[BRIX_SSS_USER_MAX * 4];
+    char          safe_group[BRIX_SSS_GROUP_MAX * 4];
 
-    if (!conf->unix_trust_remote && !xrootd_unix_peer_is_loopback(c)) {
-        xrootd_metric_auth(XROOTD_PROTO_ROOT, XROOTD_AUTHN_UNIX, 0);
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "unix",
+    if (!conf->unix_trust_remote && !brix_unix_peer_is_loopback(c)) {
+        brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_UNIX, 0);
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_AUTH, "AUTH", "-", "unix",
                           kXR_NotAuthorized,
                           "unix auth is restricted to loopback peers");
     }
@@ -175,8 +175,8 @@ xrootd_handle_unix_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
         || ngx_strncmp(ctx->payload, "unix", 4) != 0
         || ctx->payload[4] != '\0')
     {
-        xrootd_metric_auth(XROOTD_PROTO_ROOT, XROOTD_AUTHN_UNIX, 0);
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "unix",
+        brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_UNIX, 0);
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_AUTH, "AUTH", "-", "unix",
                           kXR_NotAuthorized, "malformed unix credential");
     }
 
@@ -202,20 +202,20 @@ xrootd_handle_unix_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
         }
         group_len = (size_t) (p - group_start);
         if (group_len > 0
-            && xrootd_unix_copy_name(group, sizeof(group), group_start,
+            && brix_unix_copy_name(group, sizeof(group), group_start,
                                      group_len) != NGX_OK)
         {
-            xrootd_metric_auth(XROOTD_PROTO_ROOT, XROOTD_AUTHN_UNIX, 0);
-            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "unix",
+            brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_UNIX, 0);
+            BRIX_RETURN_ERR(ctx, c, BRIX_OP_AUTH, "AUTH", "-", "unix",
                               kXR_NotAuthorized, "invalid unix group");
         }
     }
 
-    if (xrootd_unix_copy_name(user, sizeof(user), user_start, user_len)
+    if (brix_unix_copy_name(user, sizeof(user), user_start, user_len)
         != NGX_OK)
     {
-        xrootd_metric_auth(XROOTD_PROTO_ROOT, XROOTD_AUTHN_UNIX, 0);
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "unix",
+        brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_UNIX, 0);
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_AUTH, "AUTH", "-", "unix",
                           kXR_NotAuthorized, "invalid unix user");
     }
 
@@ -230,26 +230,26 @@ xrootd_handle_unix_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
 
     if (ctx->identity != NULL) {
-        if (xrootd_identity_set_dn(ctx->identity, c->pool, ctx->dn,
-                                   XROOTD_AUTHN_UNIX) != NGX_OK
-            || xrootd_identity_set_vos_csv(ctx->identity, c->pool,
+        if (brix_identity_set_dn(ctx->identity, c->pool, ctx->dn,
+                                   BRIX_AUTHN_UNIX) != NGX_OK
+            || brix_identity_set_vos_csv(ctx->identity, c->pool,
                                            ctx->vo_list) != NGX_OK)
         {
-            return xrootd_send_error(ctx, c, kXR_NoMemory,
+            return brix_send_error(ctx, c, kXR_NoMemory,
                                      "identity allocation failed");
         }
     }
 
-    xrootd_session_register(ctx->sessid, ctx->dn, ctx->vo_list, 0);
-    xrootd_unix_track_identity(ctx);
+    brix_session_register(ctx->sessid, ctx->dn, ctx->vo_list, 0);
+    brix_unix_track_identity(ctx);
 
-    xrootd_sanitize_log_string(user, safe_user, sizeof(safe_user));
-    xrootd_sanitize_log_string(group[0] ? group : "-", safe_group,
+    brix_sanitize_log_string(user, safe_user, sizeof(safe_user));
+    brix_sanitize_log_string(group[0] ? group : "-", safe_group,
                                sizeof(safe_group));
     ngx_log_error(NGX_LOG_INFO, c->log, 0,
                   "xrootd: unix auth OK user=\"%s\" group=\"%s\"",
                   safe_user, safe_group);
 
-    xrootd_metric_auth(XROOTD_PROTO_ROOT, XROOTD_AUTHN_UNIX, 1);
-    XROOTD_RETURN_OK(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "unix", 0);
+    brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_UNIX, 1);
+    BRIX_RETURN_OK(ctx, c, BRIX_OP_AUTH, "AUTH", "-", "unix", 0);
 }

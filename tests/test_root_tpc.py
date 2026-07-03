@@ -10,8 +10,8 @@ thread-pool worker.  The source server validates inbound read-opens that carry
 a tpc.key= opaque.
 
 The destination write-open previously failed with kXR_IOError "No such file or
-directory": the Phase 8 beneath-API migration left xrootd_tpc_prepare_pull()
-passing the root_canon-prefixed ABSOLUTE path to xrootd_open_beneath(), which
+directory": the Phase 8 beneath-API migration left brix_tpc_prepare_pull()
+passing the root_canon-prefixed ABSOLUTE path to brix_open_beneath(), which
 re-strips the root and so doubled the prefix (openat2 → ENOENT).  Fixed in
 src/tpc/engine/launch.c by passing the logical export path to the beneath open; these
 tests now exercise the full source→destination rendezvous end to end.
@@ -280,7 +280,7 @@ class TestNginxRootTPC:
 
 
 class TestReferenceXrootdToNginxRootTPC:
-    def test_tpc_only_xrootd_source_to_nginx_destination(
+    def test_tpc_only_brix_source_to_nginx_destination(
         self, nginx_root, reference_root_tpc
     ):
         content = b"reference xrootd source to nginx root tpc dest\n"
@@ -304,7 +304,7 @@ class TestReferenceXrootdToNginxRootTPC:
             _unlink(src_path)
             _unlink(dst_path)
 
-    def test_tpc_only_nginx_source_to_xrootd_destination(
+    def test_tpc_only_nginx_source_to_brix_destination(
         self, nginx_root, reference_root_tpc
     ):
         content = b"nginx root source to reference xrootd tpc dest\n"
@@ -328,7 +328,7 @@ class TestReferenceXrootdToNginxRootTPC:
             _unlink(src_path)
             _unlink(dst_path)
 
-    def test_tpc_first_xrootd_to_nginx(
+    def test_tpc_first_brix_to_nginx(
         self, nginx_root, reference_root_tpc
     ):
         content = b"reference xrootd to nginx root tpc succeeds\n"
@@ -400,19 +400,19 @@ class TestNativeClientRootTPC:
         self._roundtrip(nginx_root, nginx_root,
                         b"native client tpc nginx to nginx\n", "ntpc_nn")
 
-    def test_native_tpc_xrootd_to_xrootd(self, reference_root_tpc):
+    def test_native_tpc_brix_to_xrootd(self, reference_root_tpc):
         """The reported gap: stock source AND stock destination."""
         self._roundtrip(reference_root_tpc, reference_root_tpc,
                         b"native client tpc stock to stock\n", "ntpc_xx")
 
-    def test_native_tpc_nginx_source_to_xrootd_destination(
+    def test_native_tpc_nginx_source_to_brix_destination(
         self, nginx_root, reference_root_tpc
     ):
         """Stock destination must understand our destination-open CGI."""
         self._roundtrip(nginx_root, reference_root_tpc,
                         b"native client tpc nginx to stock\n", "ntpc_nx")
 
-    def test_native_tpc_xrootd_source_to_nginx_destination(
+    def test_native_tpc_brix_source_to_nginx_destination(
         self, nginx_root, reference_root_tpc
     ):
         """Stock source must match Key+Org+Lfn+Dst from our source-open CGI."""

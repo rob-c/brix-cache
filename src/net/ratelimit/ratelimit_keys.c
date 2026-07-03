@@ -12,14 +12,14 @@
  * rules array via cmd->offset so one implementation serves both planes.
  */
 #include "ratelimit.h"
-#include "protocols/webdav/webdav.h"      /* ngx_http_xrootd_webdav_req_ctx_t */
+#include "protocols/webdav/webdav.h"      /* ngx_http_brix_webdav_req_ctx_t */
 
 
 /* key extraction */
 /*
  * Emit a "dn:<hash>" key for a (potentially long, PII-bearing) GSI subject DN.
  * WHY hash rather than embed the DN verbatim: the key string is bounded by
- * XROOTD_RL_KEY_LEN and is exposed in dashboard/metrics snapshots, so we never
+ * BRIX_RL_KEY_LEN and is exposed in dashboard/metrics snapshots, so we never
  * want the raw DN there.  The FNV-1a32 hash is rendered as fixed 8 hex digits
  * (%08xD = zero-padded uppercase 32-bit), giving a stable, short, collision-
  * tolerable bucket id for the same principal.
@@ -27,13 +27,13 @@
 static void
 rl_key_dn_hash(const u_char *dn, size_t dn_len, char *out, size_t out_sz)
 {
-    uint32_t h = xrootd_rl_hash((const char *) dn, dn_len);
+    uint32_t h = brix_rl_hash((const char *) dn, dn_len);
     ngx_snprintf((u_char *) out, out_sz, "dn:%08xD%Z", h);
 }
 
 /*
  * Stream-plane key builder: derive the "<type>:<value>" rbtree key for `rule`
- * from the connection's xrootd_ctx_t identity.  Each branch implements the
+ * from the connection's brix_ctx_t identity.  Each branch implements the
  * Phase 25 invariant-5 fallback: when the principal lacks the requested
  * dimension (anonymous VO/issuer/DN), fall back to keying on the client IP so
  * an unauthenticated bulk client is still subject to *some* bucket rather than
@@ -41,12 +41,12 @@ rl_key_dn_hash(const u_char *dn, size_t dn_len, char *out, size_t out_sz)
  * prefix does not match `path` (rule simply does not apply here).
  */
 ngx_int_t
-xrootd_rl_key_stream(xrootd_rl_rule_t *rule, xrootd_ctx_t *ctx,
+brix_rl_key_stream(brix_rl_rule_t *rule, brix_ctx_t *ctx,
     const char *path, char *out, size_t out_sz)
 {
     switch (rule->key_type) {
 
-    case XROOTD_RL_KEY_VO:
+    case BRIX_RL_KEY_VO:
         if (ctx->primary_vo[0] == '\0') {
             ngx_snprintf((u_char *) out, out_sz, "ip:%s%Z", ctx->peer_ip);
         } else {
@@ -54,7 +54,7 @@ xrootd_rl_key_stream(xrootd_rl_rule_t *rule, xrootd_ctx_t *ctx,
         }
         break;
 
-    case XROOTD_RL_KEY_ISSUER:
+    case BRIX_RL_KEY_ISSUER:
         if (ctx->identity == NULL || ctx->identity->issuer.len == 0) {
             ngx_snprintf((u_char *) out, out_sz, "ip:%s%Z", ctx->peer_ip);
         } else {
@@ -63,11 +63,11 @@ xrootd_rl_key_stream(xrootd_rl_rule_t *rule, xrootd_ctx_t *ctx,
         }
         break;
 
-    case XROOTD_RL_KEY_IP:
+    case BRIX_RL_KEY_IP:
         ngx_snprintf((u_char *) out, out_sz, "ip:%s%Z", ctx->peer_ip);
         break;
 
-    case XROOTD_RL_KEY_DN:
+    case BRIX_RL_KEY_DN:
         if (ctx->dn[0] == '\0') {
             ngx_snprintf((u_char *) out, out_sz, "ip:%s%Z", ctx->peer_ip);
         } else {
@@ -76,7 +76,7 @@ xrootd_rl_key_stream(xrootd_rl_rule_t *rule, xrootd_ctx_t *ctx,
         }
         break;
 
-    case XROOTD_RL_KEY_VOLUME:
+    case BRIX_RL_KEY_VOLUME:
         /* Prefix match: the rule limits aggregate traffic under one storage
          * path (e.g. "/store/tape").  All requests below the prefix share the
          * single "vol:<prefix>" bucket; non-matching paths decline the rule. */
@@ -100,23 +100,23 @@ xrootd_rl_key_stream(xrootd_rl_rule_t *rule, xrootd_ctx_t *ctx,
 
 /*
  * HTTP/WebDAV-plane key builder — the same dimension-and-fallback logic as
- * xrootd_rl_key_stream(), but reading identity from the WebDAV request ctx and
+ * brix_rl_key_stream(), but reading identity from the WebDAV request ctx and
  * the nginx connection.  DN keying has an extra fallback step: prefer the
  * structured identity DN, then the cert-derived wctx->dn string, then IP.
- * wctx_v is an opaque ngx_http_xrootd_webdav_req_ctx_t* (header avoids the
+ * wctx_v is an opaque ngx_http_brix_webdav_req_ctx_t* (header avoids the
  * webdav.h include in ratelimit.h) and may be NULL on early-phase requests.
  */
 ngx_int_t
-xrootd_rl_key_http(xrootd_rl_rule_t *rule, ngx_http_request_t *r,
+brix_rl_key_http(brix_rl_rule_t *rule, ngx_http_request_t *r,
     void *wctx_v, const char *path, char *out, size_t out_sz)
 {
-    ngx_http_xrootd_webdav_req_ctx_t *wctx = wctx_v;
-    xrootd_identity_t                *id = wctx ? wctx->identity : NULL;
+    ngx_http_brix_webdav_req_ctx_t *wctx = wctx_v;
+    brix_identity_t                *id = wctx ? wctx->identity : NULL;
     ngx_str_t                        *ip = &r->connection->addr_text;
 
     switch (rule->key_type) {
 
-    case XROOTD_RL_KEY_VO:
+    case BRIX_RL_KEY_VO:
         if (id == NULL || id->vo_csv.len == 0) {
             ngx_snprintf((u_char *) out, out_sz, "ip:%V%Z", ip);
         } else {
@@ -124,7 +124,7 @@ xrootd_rl_key_http(xrootd_rl_rule_t *rule, ngx_http_request_t *r,
         }
         break;
 
-    case XROOTD_RL_KEY_ISSUER:
+    case BRIX_RL_KEY_ISSUER:
         if (id == NULL || id->issuer.len == 0) {
             ngx_snprintf((u_char *) out, out_sz, "ip:%V%Z", ip);
         } else {
@@ -132,11 +132,11 @@ xrootd_rl_key_http(xrootd_rl_rule_t *rule, ngx_http_request_t *r,
         }
         break;
 
-    case XROOTD_RL_KEY_IP:
+    case BRIX_RL_KEY_IP:
         ngx_snprintf((u_char *) out, out_sz, "ip:%V%Z", ip);
         break;
 
-    case XROOTD_RL_KEY_DN:
+    case BRIX_RL_KEY_DN:
         /* Two DN sources can carry the subject: the unified identity (token/SSS
          * bridged) and the raw client-cert DN cached on wctx.  Prefer identity,
          * fall back to the cert string, then to IP if the request is anon. */
@@ -150,7 +150,7 @@ xrootd_rl_key_http(xrootd_rl_rule_t *rule, ngx_http_request_t *r,
         }
         break;
 
-    case XROOTD_RL_KEY_VOLUME:
+    case BRIX_RL_KEY_VOLUME:
         if (path == NULL || rule->key_match.len == 0
             || ngx_strncmp(path, rule->key_match.data, rule->key_match.len) != 0)
         {
@@ -173,7 +173,7 @@ xrootd_rl_key_http(xrootd_rl_rule_t *rule, ngx_http_request_t *r,
  * sizeof("key=")-1 == 4 strips the literal prefix; the value tail is then split
  * on the first ':' into <type> and an optional <prefix> (used only by VOLUME). */
 static ngx_int_t
-rl_parse_key(ngx_conf_t *cf, ngx_str_t *v, xrootd_rl_rule_t *rule)
+rl_parse_key(ngx_conf_t *cf, ngx_str_t *v, brix_rl_rule_t *rule)
 {
     ngx_str_t  val = { v->len - (sizeof("key=") - 1),
                        v->data + sizeof("key=") - 1 };
@@ -190,15 +190,15 @@ rl_parse_key(ngx_conf_t *cf, ngx_str_t *v, xrootd_rl_rule_t *rule)
     }
 
     if (type.len == 2 && ngx_strncmp(type.data, "vo", 2) == 0) {
-        rule->key_type = XROOTD_RL_KEY_VO;
+        rule->key_type = BRIX_RL_KEY_VO;
     } else if (type.len == 6 && ngx_strncmp(type.data, "issuer", 6) == 0) {
-        rule->key_type = XROOTD_RL_KEY_ISSUER;
+        rule->key_type = BRIX_RL_KEY_ISSUER;
     } else if (type.len == 2 && ngx_strncmp(type.data, "ip", 2) == 0) {
-        rule->key_type = XROOTD_RL_KEY_IP;
+        rule->key_type = BRIX_RL_KEY_IP;
     } else if (type.len == 2 && ngx_strncmp(type.data, "dn", 2) == 0) {
-        rule->key_type = XROOTD_RL_KEY_DN;
+        rule->key_type = BRIX_RL_KEY_DN;
     } else if (type.len == 6 && ngx_strncmp(type.data, "volume", 6) == 0) {
-        rule->key_type  = XROOTD_RL_KEY_VOLUME;
+        rule->key_type  = BRIX_RL_KEY_VOLUME;
         rule->key_match = prefix;        /* points into cf->args memory (persists) */
     } else {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
@@ -253,9 +253,9 @@ rl_parse_size(ngx_str_t *v)
 }
 
 
-/* zone directive: xrootd_rate_limit_zone zone=NAME:SIZE */
+/* zone directive: brix_rate_limit_zone zone=NAME:SIZE */
 char *
-xrootd_rl_zone_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+brix_rl_zone_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     ngx_str_t  *value = cf->args->elts;
     ngx_str_t   spec, name, sizestr;
@@ -277,7 +277,7 @@ xrootd_rl_zone_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             colon = ngx_strlchr(spec.data, spec.data + spec.len, ':');
             if (colon == NULL) {
                 ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                    "xrootd_rate_limit_zone: expected zone=NAME:SIZE");
+                    "brix_rate_limit_zone: expected zone=NAME:SIZE");
                 return NGX_CONF_ERROR;
             }
             name.data = spec.data;
@@ -289,17 +289,17 @@ xrootd_rl_zone_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     if (name.len == 0 || sizestr.len == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_rate_limit_zone: missing zone=NAME:SIZE");
+            "brix_rate_limit_zone: missing zone=NAME:SIZE");
         return NGX_CONF_ERROR;
     }
     size = rl_parse_size(&sizestr);
     if (size == NGX_ERROR || size <= 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_rate_limit_zone: bad size \"%V\"", &sizestr);
+            "brix_rate_limit_zone: bad size \"%V\"", &sizestr);
         return NGX_CONF_ERROR;
     }
 
-    if (xrootd_rl_zone_add(cf, &name, (size_t) size, NULL) != NGX_OK) {
+    if (brix_rl_zone_add(cf, &name, (size_t) size, NULL) != NGX_OK) {
         return NGX_CONF_ERROR;
     }
     return NGX_CONF_OK;
@@ -308,8 +308,8 @@ xrootd_rl_zone_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
 /* shared rule builder */
 /*
- * Shared setter behind both xrootd_rate_limit_rule (is_bw=0) and
- * xrootd_bandwidth_limit (is_bw=1).  Pushes one xrootd_rl_rule_t onto the rules
+ * Shared setter behind both brix_rate_limit_rule (is_bw=0) and
+ * brix_bandwidth_limit (is_bw=1).  Pushes one brix_rl_rule_t onto the rules
  * array, parses the zone=/key=/rate=/burst=/nodelay= tokens, applies defaults,
  * and resolves the named zone handle.  is_bw selects whether rate=/burst= are
  * interpreted as bytes/s + byte burst or req/s + request burst.  Using
@@ -321,7 +321,7 @@ rl_add_rule(ngx_conf_t *cf, ngx_command_t *cmd, void *conf, int is_bw)
 {
     ngx_str_t        *value = cf->args->elts;
     ngx_array_t     **rulesp;
-    xrootd_rl_rule_t *rule;
+    brix_rl_rule_t *rule;
     ngx_str_t         zone_name = { 0, NULL };
     ngx_uint_t        i;
     int               have_key = 0, have_rate = 0;
@@ -330,7 +330,7 @@ rl_add_rule(ngx_conf_t *cf, ngx_command_t *cmd, void *conf, int is_bw)
      * create it lazily on the first rule for this conf. */
     rulesp = (ngx_array_t **) ((char *) conf + cmd->offset);
     if (*rulesp == NULL) {
-        *rulesp = ngx_array_create(cf->pool, 4, sizeof(xrootd_rl_rule_t));
+        *rulesp = ngx_array_create(cf->pool, 4, sizeof(brix_rl_rule_t));
         if (*rulesp == NULL) { return NGX_CONF_ERROR; }
     }
     rule = ngx_array_push(*rulesp);
@@ -354,7 +354,7 @@ rl_add_rule(ngx_conf_t *cf, ngx_command_t *cmd, void *conf, int is_bw)
                 ssize_t bps = rl_parse_bw_rate(&r);
                 if (bps == NGX_ERROR) {
                     ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                        "xrootd_bandwidth_limit: bad rate \"%V\""
+                        "brix_bandwidth_limit: bad rate \"%V\""
                         " (expected <N>[k|m|g]/s)", &r);
                     return NGX_CONF_ERROR;
                 }
@@ -363,7 +363,7 @@ rl_add_rule(ngx_conf_t *cf, ngx_command_t *cmd, void *conf, int is_bw)
                 ngx_int_t rps = rl_parse_req_rate(&r);
                 if (rps == NGX_ERROR || rps <= 0) {
                     ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                        "xrootd_rate_limit_rule: bad rate \"%V\""
+                        "brix_rate_limit_rule: bad rate \"%V\""
                         " (expected <N>r/s)", &r);
                     return NGX_CONF_ERROR;
                 }
@@ -380,7 +380,7 @@ rl_add_rule(ngx_conf_t *cf, ngx_command_t *cmd, void *conf, int is_bw)
                 ssize_t sz = rl_parse_size(&b);
                 if (sz == NGX_ERROR) {
                     ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                        "xrootd_bandwidth_limit: bad burst \"%V\"", &b);
+                        "brix_bandwidth_limit: bad burst \"%V\"", &b);
                     return NGX_CONF_ERROR;
                 }
                 rule->bw_burst = (ngx_uint_t) sz;
@@ -388,7 +388,7 @@ rl_add_rule(ngx_conf_t *cf, ngx_command_t *cmd, void *conf, int is_bw)
                 ngx_int_t n = ngx_atoi(b.data, b.len);
                 if (n == NGX_ERROR) {
                     ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                        "xrootd_rate_limit_rule: bad burst \"%V\"", &b);
+                        "brix_rate_limit_rule: bad burst \"%V\"", &b);
                     return NGX_CONF_ERROR;
                 }
                 rule->req_burst = (ngx_uint_t) n;
@@ -419,51 +419,51 @@ rl_add_rule(ngx_conf_t *cf, ngx_command_t *cmd, void *conf, int is_bw)
         rule->req_burst = 1;
     }
 
-    /* Bind to a zone declared earlier by xrootd_rate_limit_zone; resolution is
+    /* Bind to a zone declared earlier by brix_rate_limit_zone; resolution is
      * by name so http{} and stream{} rules can share one SHM zone. */
-    rule->zone = xrootd_rl_zone_get(&zone_name);
+    rule->zone = brix_rl_zone_get(&zone_name);
     if (rule->zone == NULL) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "xrootd rate limit: unknown zone \"%V\" (declare it with"
-            " xrootd_rate_limit_zone first)", &zone_name);
+            " brix_rate_limit_zone first)", &zone_name);
         return NGX_CONF_ERROR;
     }
     return NGX_CONF_OK;
 }
 
 char *
-xrootd_rl_rule_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+brix_rl_rule_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     return rl_add_rule(cf, cmd, conf, 0);
 }
 
 char *
-xrootd_rl_bw_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+brix_rl_bw_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     return rl_add_rule(cf, cmd, conf, 1);
 }
 
-/* xrootd_concurrency_limit zone=NAME key=<type> limit=N (W7) */
+/* brix_concurrency_limit zone=NAME key=<type> limit=N (W7) */
 /*
- * Setter for xrootd_concurrency_limit — a non-leaky cap on the number of
+ * Setter for brix_concurrency_limit — a non-leaky cap on the number of
  * simultaneously in-flight requests per principal (rule->req_conc), distinct
  * from the rate/bandwidth leaky buckets above.  Same cmd->offset/lazy-array and
  * zone-resolution pattern as rl_add_rule(); only the parsed parameters differ
  * (limit= instead of rate=/burst=).
  */
 char *
-xrootd_rl_conc_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+brix_rl_conc_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     ngx_str_t        *value = cf->args->elts;
     ngx_array_t     **rulesp;
-    xrootd_rl_rule_t *rule;
+    brix_rl_rule_t *rule;
     ngx_str_t         zone_name = { 0, NULL };
     ngx_uint_t        i;
     int               have_key = 0, have_limit = 0;
 
     rulesp = (ngx_array_t **) ((char *) conf + cmd->offset);
     if (*rulesp == NULL) {
-        *rulesp = ngx_array_create(cf->pool, 4, sizeof(xrootd_rl_rule_t));
+        *rulesp = ngx_array_create(cf->pool, 4, sizeof(brix_rl_rule_t));
         if (*rulesp == NULL) { return NGX_CONF_ERROR; }
     }
     rule = ngx_array_push(*rulesp);
@@ -485,7 +485,7 @@ xrootd_rl_conc_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             ngx_int_t n = ngx_atoi(a->data + 6, a->len - 6);
             if (n == NGX_ERROR || n <= 0) {
                 ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                    "xrootd_concurrency_limit: bad limit \"%V\"", a);
+                    "brix_concurrency_limit: bad limit \"%V\"", a);
                 return NGX_CONF_ERROR;
             }
             rule->req_conc = (ngx_uint_t) n;
@@ -493,22 +493,22 @@ xrootd_rl_conc_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
         } else {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd_concurrency_limit: unknown parameter \"%V\"", a);
+                "brix_concurrency_limit: unknown parameter \"%V\"", a);
             return NGX_CONF_ERROR;
         }
     }
 
     if (!have_key || !have_limit || zone_name.len == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_concurrency_limit: zone=, key= and limit= are required");
+            "brix_concurrency_limit: zone=, key= and limit= are required");
         return NGX_CONF_ERROR;
     }
 
-    rule->zone = xrootd_rl_zone_get(&zone_name);
+    rule->zone = brix_rl_zone_get(&zone_name);
     if (rule->zone == NULL) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_concurrency_limit: unknown zone \"%V\" (declare it with"
-            " xrootd_rate_limit_zone first)", &zone_name);
+            "brix_concurrency_limit: unknown zone \"%V\" (declare it with"
+            " brix_rate_limit_zone first)", &zone_name);
         return NGX_CONF_ERROR;
     }
     return NGX_CONF_OK;

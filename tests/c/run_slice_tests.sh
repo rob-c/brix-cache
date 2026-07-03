@@ -4,7 +4,7 @@
 #
 # Links the test against the real compiled slice.o + meta.o objects from the
 # nginx build tree (no running server needed).  Tiny stubs for the two cache
-# externals (xrootd_cache_file_ready, xrootd_cache_meta_path) and the nginx log
+# externals (brix_cache_file_ready, brix_cache_meta_path) and the nginx log
 # core live in test_slice.c itself.
 #
 # Usage:  tests/c/run_slice_tests.sh [path-to-nginx-objs-dir]

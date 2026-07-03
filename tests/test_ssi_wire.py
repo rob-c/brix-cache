@@ -136,7 +136,7 @@ def _parse_ssi_reply(body):
 
 
 # ---------------------------------------------------------------------------
-# fixture: a dedicated nginx with xrootd_ssi on
+# fixture: a dedicated nginx with brix_ssi on
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(scope="module")
@@ -157,10 +157,10 @@ def ssi_server():
             f"stream {{\n"
             f"    server {{\n"
             f"        listen 0.0.0.0:{SSI_PORT};\n"
-            f"        xrootd on; xrootd_storage_backend posix:{data}; xrootd_auth none;\n"
-            f"        xrootd_allow_write on;\n"
-            f"        xrootd_ssi on;\n"
-            f"        xrootd_ssi_service cta;\n"
+            f"        xrootd on; brix_storage_backend posix:{data}; brix_auth none;\n"
+            f"        brix_allow_write on;\n"
+            f"        brix_ssi on;\n"
+            f"        brix_ssi_service cta;\n"
             f"    }}\n"
             f"}}\n")
     subprocess.run([NGINX_BIN, "-c", conf, "-s", "stop"], capture_output=True)
@@ -244,19 +244,19 @@ class TestSsiUnary:
 
 import shutil
 
-_XROOTD_SRC = "/tmp/xrootd-src/src"
+_BRIX_SRC = "/tmp/xrootd-src/src"
 _SSI_CLIENT_SRC = os.path.join(os.path.dirname(__file__), "ssi_client.cc")
 
 
 def _build_ssi_client():
     """Compile the real libXrdSsi C++ client; return its path or None."""
-    if not os.path.isdir(os.path.join(_XROOTD_SRC, "XrdSsi")):
+    if not os.path.isdir(os.path.join(_BRIX_SRC, "XrdSsi")):
         return None
     if shutil.which("g++") is None:
         return None
     out = os.path.join(os.environ["TMPDIR"], "ssi_client_bin")
     r = subprocess.run(
-        ["g++", "-std=c++17", "-I", _XROOTD_SRC, "-o", out, _SSI_CLIENT_SRC,
+        ["g++", "-std=c++17", "-I", _BRIX_SRC, "-o", out, _SSI_CLIENT_SRC,
          "-lXrdSsiLib", "-lXrdCl", "-lXrdUtils"],
         capture_output=True, text=True)
     return out if r.returncode == 0 else None

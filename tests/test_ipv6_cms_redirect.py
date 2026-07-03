@@ -13,8 +13,8 @@ emission sites are exercised here:
   * dashboard/api_admin.c:admin_parse_server_uri — the admin REST URI carries the
     host segment bracketed ("[::1]"); the parser must strip the brackets before
     the host can match a registry entry.  Driven by HTTP over http://[::1]:HTTP.
-  * response/control.c:xrootd_send_redirect (+ manager/registry.c via
-    xrootd_format_host[_port]) — a manager-mode kXR_locate / kXR_open for a path
+  * response/control.c:brix_send_redirect (+ manager/registry.c via
+    brix_format_host[_port]) — a manager-mode kXR_locate / kXR_open for a path
     served by an IPv6-registered data server returns a kXR_redirect whose host
     field is bracketed "[::1]", never bare "::1".  Driven over a RAW socket to
     ("::1", IPV6_MGR_PORT) because the PyXRootD client mishandles root://[::1].
@@ -402,10 +402,10 @@ class TestDashboardClusterRoundTrip:
 # ===========================================================================
 
 class TestManagerRedirectBracketing:
-    """response/control.c:xrootd_send_redirect must bracket an IPv6 redirect host:
+    """response/control.c:brix_send_redirect must bracket an IPv6 redirect host:
     the kXR_redirect body is [port:4B][host]; the host for an IPv6 data server is
     "[::1]", never bare "::1".  Manager-mode locate/open over a raw ::1 socket
-    drives xrootd_srv_select -> xrootd_send_redirect after the DS is registered."""
+    drives brix_srv_select -> brix_send_redirect after the DS is registered."""
 
     def _register_and_locate(self, opfn):
         """Register [::1]:DS for "/" then run opfn(sock, path); return the

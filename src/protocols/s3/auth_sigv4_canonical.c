@@ -67,7 +67,7 @@ qparam_cmp(const void *a, const void *b)
 static size_t
 uriencode_param(const u_char *src, size_t slen, u_char *out, size_t outsz)
 {
-    ssize_t n = xrootd_http_urlencode(src, slen, (char *) out, outsz, "");
+    ssize_t n = brix_http_urlencode(src, slen, (char *) out, outsz, "");
     return n < 0 ? 0 : (size_t) n;
 }
 
@@ -95,10 +95,10 @@ sigv4_store_param(qparam_t *p, const u_char *segment_start,
     raw_value     = equals ? equals + 1 : (u_char *) "";
     raw_value_len = equals ? (size_t) (segment_end - equals - 1) : 0;
 
-    if (xrootd_http_urldecode(segment_start, raw_name_len,
+    if (brix_http_urldecode(segment_start, raw_name_len,
             (char *) p->name, sizeof(p->name),
-            XROOTD_URLDECODE_PLUS_TO_SPACE |
-            XROOTD_URLDECODE_REJECT_NUL) != XROOTD_URLDECODE_OK)
+            BRIX_URLDECODE_PLUS_TO_SPACE |
+            BRIX_URLDECODE_REJECT_NUL) != BRIX_URLDECODE_OK)
     {
         return 0;
     }
@@ -111,10 +111,10 @@ sigv4_store_param(qparam_t *p, const u_char *segment_start,
         return 0;
     }
 
-    if (xrootd_http_urldecode(raw_value, raw_value_len,
+    if (brix_http_urldecode(raw_value, raw_value_len,
             (char *) p->value, sizeof(p->value),
-            XROOTD_URLDECODE_PLUS_TO_SPACE |
-            XROOTD_URLDECODE_REJECT_NUL) != XROOTD_URLDECODE_OK)
+            BRIX_URLDECODE_PLUS_TO_SPACE |
+            BRIX_URLDECODE_REJECT_NUL) != BRIX_URLDECODE_OK)
     {
         return 0;
     }

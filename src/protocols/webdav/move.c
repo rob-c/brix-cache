@@ -4,7 +4,7 @@
 
 #include "webdav.h"
 #include "core/compat/namespace_ops.h"
-#include "fs/vfs/vfs.h"   /* xrootd_vfs_rename_path + xrootd_vfs_probe */
+#include "fs/vfs/vfs.h"   /* brix_vfs_rename_path + brix_vfs_probe */
 #include "core/http/http_conditionals.h"
 #include "auth/impersonate/impersonate.h"
 #include "fs/path/path.h"
@@ -17,7 +17,7 @@
 typedef struct {
     ngx_http_request_t   *r;
     ngx_log_t            *log;
-    xrootd_sd_instance_t *sd;   /* selected storage backend (NULL = POSIX) */
+    brix_sd_instance_t *sd;   /* selected storage backend (NULL = POSIX) */
     char               root_canon[WEBDAV_MAX_PATH];
     char               src_path[WEBDAV_MAX_PATH];
     char               dst_path[WEBDAV_MAX_PATH];
@@ -36,22 +36,22 @@ typedef struct {
 static ngx_int_t
 webdav_move_probe(ngx_http_request_t *r, const char *path, struct stat *sb)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *conf =
-        ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
-    ngx_http_xrootd_webdav_req_ctx_t  *rx =
-        ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
-    xrootd_vfs_ctx_t   vctx;
-    xrootd_vfs_stat_t  vst;
+    ngx_http_brix_webdav_loc_conf_t *conf =
+        ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
+    ngx_http_brix_webdav_req_ctx_t  *rx =
+        ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
+    brix_vfs_ctx_t   vctx;
+    brix_vfs_stat_t  vst;
     int                is_tls = 0;
 
 #if (NGX_HTTP_SSL)
     is_tls = (r->connection->ssl != NULL) ? 1 : 0;
 #endif
 
-    xrootd_vfs_ctx_init(&vctx, r->pool, r->connection->log, XROOTD_PROTO_WEBDAV,
+    brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_WEBDAV,
         conf->common.root_canon, conf->cache_root_canon, conf->common.allow_write,
         is_tls, (rx != NULL) ? rx->identity : NULL, path);
-    if (xrootd_vfs_probe(&vctx, 0 /* follow */, &vst) != NGX_OK) {
+    if (brix_vfs_probe(&vctx, 0 /* follow */, &vst) != NGX_OK) {
         return NGX_DECLINED;
     }
     ngx_memzero(sb, sizeof(*sb));
@@ -71,15 +71,15 @@ webdav_move_probe(ngx_http_request_t *r, const char *path, struct stat *sb)
  * worker thread, so it touches only its parameters and thread-safe FS helpers.
  */
 static ngx_int_t
-webdav_move_execute(xrootd_sd_instance_t *sd, ngx_log_t *log,
+webdav_move_execute(brix_sd_instance_t *sd, ngx_log_t *log,
     const char *root_canon, const char *src_path, const char *dst_path,
     ngx_flag_t overwrite, ngx_flag_t dst_existed, int *sys_errno)
 {
     /* Rename through the thread-safe VFS surface (a collection MOVE runs this on
      * a thread-pool worker). The namespace status arrives as errno, 1:1 with the
-     * old xrootd_ns_status_t, so the HTTP mapping below is unchanged. `sd` routes
+     * old brix_ns_status_t, so the HTTP mapping below is unchanged. `sd` routes
      * a non-POSIX backend; NULL ⇒ the default POSIX namespace. */
-    if (xrootd_vfs_rename_path(sd, log, root_canon, src_path, dst_path, overwrite,
+    if (brix_vfs_rename_path(sd, log, root_canon, src_path, dst_path, overwrite,
                                NULL) == NGX_OK)
     {
         if (sys_errno != NULL) {
@@ -137,8 +137,8 @@ webdav_move_collection_done(ngx_event_t *ev)
     }
 
     if (status == NGX_HTTP_INTERNAL_SERVER_ERROR) {
-        xrootd_log_safe_path(r->connection->log, NGX_LOG_ERR, t->sys_errno,
-                             "xrootd_webdav MOVE: rename() failed for: \"%s\"",
+        brix_log_safe_path(r->connection->log, NGX_LOG_ERR, t->sys_errno,
+                             "brix_webdav MOVE: rename() failed for: \"%s\"",
                              t->src_path);
     }
 
@@ -152,7 +152,7 @@ webdav_move_collection_done(ngx_event_t *ev)
  */
 static ngx_int_t
 webdav_move_collection_post_task(ngx_http_request_t *r,
-    ngx_http_xrootd_webdav_loc_conf_t *conf, const char *src_path,
+    ngx_http_brix_webdav_loc_conf_t *conf, const char *src_path,
     const char *dst_path, ngx_flag_t overwrite, ngx_flag_t dst_existed)
 {
     ngx_thread_task_t             *task;
@@ -165,7 +165,7 @@ webdav_move_collection_post_task(ngx_http_request_t *r,
      * it and corrupt the broker framing (and lacks the per-worker principal).
      * Force the synchronous rename path (NGX_DECLINED).  See copy.c for detail.
      */
-    if (xrootd_imp_enabled()) {
+    if (brix_imp_enabled()) {
         return NGX_DECLINED;
     }
 
@@ -197,8 +197,8 @@ webdav_move_collection_post_task(ngx_http_request_t *r,
     t->overwrite = overwrite;
     t->http_status = NGX_HTTP_INTERNAL_SERVER_ERROR;
     t->sys_errno = 0;
-    t->sd = (xrootd_sd_instance_t *)
-        xrootd_webdav_backend_instance(conf, r->connection->log);
+    t->sd = (brix_sd_instance_t *)
+        brix_webdav_backend_instance(conf, r->connection->log);
 
     ngx_cpystrn((u_char *) t->root_canon, (u_char *) conf->common.root_canon,
                 sizeof(t->root_canon));
@@ -207,7 +207,7 @@ webdav_move_collection_post_task(ngx_http_request_t *r,
     ngx_cpystrn((u_char *) t->dst_path, (u_char *) dst_path,
                 sizeof(t->dst_path));
 
-    xrootd_task_bind(task, webdav_move_collection_thread, webdav_move_collection_done);
+    brix_task_bind(task, webdav_move_collection_thread, webdav_move_collection_done);
     task->event.log = r->connection->log;
 
     if (ngx_thread_task_post(pool, task) != NGX_OK) {
@@ -215,7 +215,7 @@ webdav_move_collection_post_task(ngx_http_request_t *r,
     }
 
     ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
-                  "xrootd_webdav: offloaded collection MOVE to thread pool");
+                  "brix_webdav: offloaded collection MOVE to thread pool");
 
     r->main->count++;
     return NGX_DONE;
@@ -240,7 +240,7 @@ webdav_move_collection_post_task(ngx_http_request_t *r,
 ngx_int_t
 webdav_handle_move(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *conf;
+    ngx_http_brix_webdav_loc_conf_t *conf;
     ngx_table_elt_t    *dest_hdr;
     char                src_path[WEBDAV_MAX_PATH];
     char                dst_path[WEBDAV_MAX_PATH];
@@ -253,7 +253,7 @@ webdav_handle_move(ngx_http_request_t *r)
     struct stat         src_sb;
     struct stat         dst_sb;
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
 
     /* Require Destination header (RFC 4918 §9.9.4 — missing → 400) */
     dest_hdr = webdav_tpc_find_header(r, "Destination",
@@ -262,7 +262,7 @@ webdav_handle_move(ngx_http_request_t *r)
         return NGX_HTTP_BAD_REQUEST;
     }
 
-    overwrite = !xrootd_http_overwrite_forbidden(r);
+    overwrite = !brix_http_overwrite_forbidden(r);
 
     /* Extract path component from Destination URL, stripping scheme://authority. */
     dest_path_start = dest_hdr->value.data;
@@ -281,7 +281,7 @@ webdav_handle_move(ngx_http_request_t *r)
     }
 
     /* Resolve source */
-    rc = ngx_http_xrootd_webdav_resolve_path(r, conf->common.root_canon,
+    rc = ngx_http_brix_webdav_resolve_path(r, conf->common.root_canon,
                                               src_path, sizeof(src_path));
     if (rc != NGX_OK) {
         return rc;
@@ -343,8 +343,8 @@ webdav_handle_move(ngx_http_request_t *r)
         int sys_errno = 0;
 
         rc = webdav_move_execute(
-                (xrootd_sd_instance_t *)
-                    xrootd_webdav_backend_instance(conf, r->connection->log),
+                (brix_sd_instance_t *)
+                    brix_webdav_backend_instance(conf, r->connection->log),
                 r->connection->log, conf->common.root_canon,
                 src_path, dst_path, overwrite, dst_existed, &sys_errno);
 
@@ -353,8 +353,8 @@ webdav_handle_move(ngx_http_request_t *r)
         }
 
         if (rc == NGX_HTTP_INTERNAL_SERVER_ERROR) {
-            xrootd_log_safe_path(r->connection->log, NGX_LOG_ERR, sys_errno,
-                                 "xrootd_webdav MOVE: rename() failed for: \"%s\"",
+            brix_log_safe_path(r->connection->log, NGX_LOG_ERR, sys_errno,
+                                 "brix_webdav MOVE: rename() failed for: \"%s\"",
                                  src_path);
         }
 

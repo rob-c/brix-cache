@@ -3,7 +3,7 @@
 /*
  * auth.c — authorization gate for third-party-copy initiation.
  *
- * WHAT: Implements xrootd_tpc_check_authz(), which decides whether a given
+ * WHAT: Implements brix_tpc_check_authz(), which decides whether a given
  *       identity may launch a TPC for a (src_path, dst_path) pair: read access
  *       to the source, write access to the destination.
  *
@@ -14,11 +14,11 @@
  *      identities are blocked outright because their request-signed model does
  *      not carry a delegable scope suitable for third-party transfers.
  *
- * HOW: The static xrootd_tpc_check_scope_path() copies each ngx_str_t path into
+ * HOW: The static brix_tpc_check_scope_path() copies each ngx_str_t path into
  *      a NUL-terminated PATH_MAX buffer (rejecting over-long paths) and defers
- *      to xrootd_identity_check_token_scope() with the required read/write bit.
+ *      to brix_identity_check_token_scope() with the required read/write bit.
  *      A NULL/empty path is treated as "no constraint" (NGX_OK). The public
- *      entry point first rejects XROOTD_AUTHN_S3KEY identities, then checks the
+ *      entry point first rejects BRIX_AUTHN_S3KEY identities, then checks the
  *      source for read and the destination for write, returning NGX_OK only when
  *      both pass and NGX_DECLINED otherwise.
  */
@@ -26,7 +26,7 @@
 #include <limits.h>
 
 static ngx_int_t
-xrootd_tpc_check_scope_path(const xrootd_identity_t *identity,
+brix_tpc_check_scope_path(const brix_identity_t *identity,
     const ngx_str_t *path, int need_write, ngx_log_t *log)
 {
     char local_path[PATH_MAX];
@@ -37,18 +37,18 @@ xrootd_tpc_check_scope_path(const xrootd_identity_t *identity,
 
     if (path->len >= sizeof(local_path)) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_tpc: authorization path is too long");
+                      "brix_tpc: authorization path is too long");
         return NGX_DECLINED;
     }
 
     ngx_memcpy(local_path, path->data, path->len);
     local_path[path->len] = '\0';
 
-    if (xrootd_identity_check_token_scope(identity, local_path, need_write)
+    if (brix_identity_check_token_scope(identity, local_path, need_write)
         != NGX_OK)
     {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_tpc: token scope denied %s access to \"%s\"",
+                      "brix_tpc: token scope denied %s access to \"%s\"",
                       need_write ? "write" : "read", local_path);
         return NGX_DECLINED;
     }
@@ -63,20 +63,20 @@ xrootd_tpc_check_scope_path(const xrootd_identity_t *identity,
  * NGX_DECLINED.
  */
 ngx_int_t
-xrootd_tpc_check_authz(const xrootd_identity_t *identity,
+brix_tpc_check_authz(const brix_identity_t *identity,
     const ngx_str_t *src_path, const ngx_str_t *dst_path, ngx_log_t *log)
 {
-    if (identity != NULL && (identity->auth_method & XROOTD_AUTHN_S3KEY)) {
+    if (identity != NULL && (identity->auth_method & BRIX_AUTHN_S3KEY)) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_tpc: S3 SigV4 identities cannot initiate TPC");
+                      "brix_tpc: S3 SigV4 identities cannot initiate TPC");
         return NGX_DECLINED;
     }
 
-    if (xrootd_tpc_check_scope_path(identity, src_path, 0, log) != NGX_OK) {
+    if (brix_tpc_check_scope_path(identity, src_path, 0, log) != NGX_OK) {
         return NGX_DECLINED;
     }
 
-    if (xrootd_tpc_check_scope_path(identity, dst_path, 1, log) != NGX_OK) {
+    if (brix_tpc_check_scope_path(identity, dst_path, 1, log) != NGX_OK) {
         return NGX_DECLINED;
     }
 

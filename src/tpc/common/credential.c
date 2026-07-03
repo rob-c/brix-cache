@@ -3,11 +3,11 @@
 /*
  * credential.c — parse and validate TPC delegated credentials.
  *
- * WHAT: Implements the xrootd_tpc_credential.h interface: sniff a raw
- *       credential string into a typed xrootd_tpc_credential_t
- *       (xrootd_tpc_credential_parse), reject empty/expired credentials
- *       (xrootd_tpc_credential_validate), and name a credential type for logs
- *       (xrootd_tpc_credential_type_name).
+ * WHAT: Implements the brix_tpc_credential.h interface: sniff a raw
+ *       credential string into a typed brix_tpc_credential_t
+ *       (brix_tpc_credential_parse), reject empty/expired credentials
+ *       (brix_tpc_credential_validate), and name a credential type for logs
+ *       (brix_tpc_credential_type_name).
  *
  * WHY: The shared TPC core accepts a credential from either transport in a free
  *      form (a bearer token, optionally "Bearer "-prefixed, or a GSI proxy PEM)
@@ -16,9 +16,9 @@
  *      the expiry check in one auditable place.
  *
  * HOW: parse() trims surrounding whitespace/CRLF, treats empty or "none" as
- *      XROOTD_TPC_CREDENTIAL_NONE, then routes on the caller hint or on the
+ *      BRIX_TPC_CREDENTIAL_NONE, then routes on the caller hint or on the
  *      "Bearer " / "-----BEGIN" markers, stripping the "Bearer " prefix for
- *      tokens. The static xrootd_tpc_copy_credential_str() duplicates the value
+ *      tokens. The static brix_tpc_copy_credential_str() duplicates the value
  *      into the pool (NUL-terminated) when a pool is supplied, or aliases the
  *      caller's bytes when pool is NULL. validate() enforces non-empty bodies
  *      per type and compares expires_at against ngx_time().
@@ -27,7 +27,7 @@
 #include <string.h>
 
 static ngx_int_t
-xrootd_tpc_copy_credential_str(ngx_str_t *dst, const u_char *data,
+brix_tpc_copy_credential_str(ngx_str_t *dst, const u_char *data,
     size_t len, ngx_pool_t *pool)
 {
     if (dst == NULL) {
@@ -60,7 +60,7 @@ xrootd_tpc_copy_credential_str(ngx_str_t *dst, const u_char *data,
 }
 
 static ngx_flag_t
-xrootd_tpc_str_equals(const u_char *data, size_t len, const char *literal)
+brix_tpc_str_equals(const u_char *data, size_t len, const char *literal)
 {
     size_t literal_len;
 
@@ -75,7 +75,7 @@ xrootd_tpc_str_equals(const u_char *data, size_t len, const char *literal)
 }
 
 static ngx_flag_t
-xrootd_tpc_starts_with(const u_char *data, size_t len, const char *prefix)
+brix_tpc_starts_with(const u_char *data, size_t len, const char *prefix)
 {
     size_t prefix_len;
 
@@ -91,14 +91,14 @@ xrootd_tpc_starts_with(const u_char *data, size_t len, const char *prefix)
 
 /* Map a credential type enum to a stable lowercase string for logs/metrics. */
 const char *
-xrootd_tpc_credential_type_name(xrootd_tpc_credential_type_t type)
+brix_tpc_credential_type_name(brix_tpc_credential_type_t type)
 {
     switch (type) {
-    case XROOTD_TPC_CREDENTIAL_NONE:
+    case BRIX_TPC_CREDENTIAL_NONE:
         return "none";
-    case XROOTD_TPC_CREDENTIAL_PROXY:
+    case BRIX_TPC_CREDENTIAL_PROXY:
         return "proxy";
-    case XROOTD_TPC_CREDENTIAL_TOKEN:
+    case BRIX_TPC_CREDENTIAL_TOKEN:
         return "token";
     default:
         return "unknown";
@@ -108,14 +108,14 @@ xrootd_tpc_credential_type_name(xrootd_tpc_credential_type_t type)
 /*
  * Sniff raw_credential into a typed *cred. Honours an optional type hint and
  * the "Bearer "/"-----BEGIN" markers; trims surrounding whitespace and CRLF.
- * Empty or "none" yields XROOTD_TPC_CREDENTIAL_NONE. When pool is non-NULL the
+ * Empty or "none" yields BRIX_TPC_CREDENTIAL_NONE. When pool is non-NULL the
  * value is copied (NUL-terminated) into it, otherwise *cred aliases the input.
  * Returns NGX_OK, NGX_DECLINED for an unrecognised format, or NGX_ERROR on a
  * NULL cred / allocation failure.
  */
 ngx_int_t
-xrootd_tpc_credential_parse(const ngx_str_t *raw_credential,
-    xrootd_tpc_credential_type_t hint, xrootd_tpc_credential_t *cred,
+brix_tpc_credential_parse(const ngx_str_t *raw_credential,
+    brix_tpc_credential_type_t hint, brix_tpc_credential_t *cred,
     ngx_pool_t *pool, ngx_log_t *log)
 {
     const u_char *data;
@@ -126,7 +126,7 @@ xrootd_tpc_credential_parse(const ngx_str_t *raw_credential,
     }
 
     ngx_memzero(cred, sizeof(*cred));
-    cred->type = XROOTD_TPC_CREDENTIAL_NONE;
+    cred->type = BRIX_TPC_CREDENTIAL_NONE;
 
     if (raw_credential == NULL || raw_credential->data == NULL
         || raw_credential->len == 0)
@@ -146,21 +146,21 @@ xrootd_tpc_credential_parse(const ngx_str_t *raw_credential,
         len--;
     }
 
-    if (len == 0 || xrootd_tpc_str_equals(data, len, "none")) {
-        cred->type = XROOTD_TPC_CREDENTIAL_NONE;
+    if (len == 0 || brix_tpc_str_equals(data, len, "none")) {
+        cred->type = BRIX_TPC_CREDENTIAL_NONE;
         return NGX_OK;
     }
 
-    if (hint == XROOTD_TPC_CREDENTIAL_TOKEN
-        || xrootd_tpc_starts_with(data, len, "Bearer "))
+    if (hint == BRIX_TPC_CREDENTIAL_TOKEN
+        || brix_tpc_starts_with(data, len, "Bearer "))
     {
-        if (xrootd_tpc_starts_with(data, len, "Bearer ")) {
+        if (brix_tpc_starts_with(data, len, "Bearer ")) {
             data += sizeof("Bearer ") - 1;
             len -= sizeof("Bearer ") - 1;
         }
 
-        cred->type = XROOTD_TPC_CREDENTIAL_TOKEN;
-        if (xrootd_tpc_copy_credential_str(&cred->bearer, data, len, pool)
+        cred->type = BRIX_TPC_CREDENTIAL_TOKEN;
+        if (brix_tpc_copy_credential_str(&cred->bearer, data, len, pool)
             != NGX_OK)
         {
             return NGX_ERROR;
@@ -168,11 +168,11 @@ xrootd_tpc_credential_parse(const ngx_str_t *raw_credential,
         return NGX_OK;
     }
 
-    if (hint == XROOTD_TPC_CREDENTIAL_PROXY
-        || xrootd_tpc_starts_with(data, len, "-----BEGIN"))
+    if (hint == BRIX_TPC_CREDENTIAL_PROXY
+        || brix_tpc_starts_with(data, len, "-----BEGIN"))
     {
-        cred->type = XROOTD_TPC_CREDENTIAL_PROXY;
-        if (xrootd_tpc_copy_credential_str(&cred->proxy_pem, data, len, pool)
+        cred->type = BRIX_TPC_CREDENTIAL_PROXY;
+        if (brix_tpc_copy_credential_str(&cred->proxy_pem, data, len, pool)
             != NGX_OK)
         {
             return NGX_ERROR;
@@ -181,7 +181,7 @@ xrootd_tpc_credential_parse(const ngx_str_t *raw_credential,
     }
 
     ngx_log_error(NGX_LOG_WARN, log, 0,
-                  "xrootd_tpc: unsupported credential format");
+                  "brix_tpc: unsupported credential format");
     return NGX_DECLINED;
 }
 
@@ -192,7 +192,7 @@ xrootd_tpc_credential_parse(const ngx_str_t *raw_credential,
  * NGX_ERROR on a NULL cred.
  */
 ngx_int_t
-xrootd_tpc_credential_validate(const xrootd_tpc_credential_t *cred,
+brix_tpc_credential_validate(const brix_tpc_credential_t *cred,
     ngx_log_t *log)
 {
     time_t now;
@@ -202,28 +202,28 @@ xrootd_tpc_credential_validate(const xrootd_tpc_credential_t *cred,
     }
 
     switch (cred->type) {
-    case XROOTD_TPC_CREDENTIAL_NONE:
+    case BRIX_TPC_CREDENTIAL_NONE:
         return NGX_OK;
 
-    case XROOTD_TPC_CREDENTIAL_PROXY:
+    case BRIX_TPC_CREDENTIAL_PROXY:
         if (cred->proxy_pem.data == NULL || cred->proxy_pem.len == 0) {
             ngx_log_error(NGX_LOG_WARN, log, 0,
-                          "xrootd_tpc: empty proxy credential");
+                          "brix_tpc: empty proxy credential");
             return NGX_DECLINED;
         }
         break;
 
-    case XROOTD_TPC_CREDENTIAL_TOKEN:
+    case BRIX_TPC_CREDENTIAL_TOKEN:
         if (cred->bearer.data == NULL || cred->bearer.len == 0) {
             ngx_log_error(NGX_LOG_WARN, log, 0,
-                          "xrootd_tpc: empty bearer credential");
+                          "brix_tpc: empty bearer credential");
             return NGX_DECLINED;
         }
         break;
 
     default:
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_tpc: invalid credential type %d",
+                      "brix_tpc: invalid credential type %d",
                       (int) cred->type);
         return NGX_DECLINED;
     }
@@ -232,8 +232,8 @@ xrootd_tpc_credential_validate(const xrootd_tpc_credential_t *cred,
         now = ngx_time();
         if (cred->expires_at <= now) {
             ngx_log_error(NGX_LOG_WARN, log, 0,
-                          "xrootd_tpc: %s credential expired",
-                          xrootd_tpc_credential_type_name(cred->type));
+                          "brix_tpc: %s credential expired",
+                          brix_tpc_credential_type_name(cred->type));
             return NGX_DECLINED;
         }
     }

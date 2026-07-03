@@ -105,16 +105,16 @@ stream {
     server {
         listen 127.0.0.1:${PORT};
         xrootd on;
-        xrootd_root            $PFX/root;
-        xrootd_auth            gsi;
-        xrootd_certificate     $SERVER_CERT;
-        xrootd_certificate_key $SERVER_KEY;
-        xrootd_trusted_ca      $CA_CERT;
-        xrootd_allow_write     on;
-        xrootd_upload_resume   off;
-        xrootd_storage_backend pblock;
-        xrootd_pblock_block_size ${BS};
-        xrootd_access_log $PFX/logs/access.log;
+        brix_root            $PFX/root;
+        brix_auth            gsi;
+        brix_certificate     $SERVER_CERT;
+        brix_certificate_key $SERVER_KEY;
+        brix_trusted_ca      $CA_CERT;
+        brix_allow_write     on;
+        brix_upload_resume   off;
+        brix_storage_backend pblock;
+        brix_pblock_block_size ${BS};
+        brix_access_log $PFX/logs/access.log;
     }
 }
 EOF

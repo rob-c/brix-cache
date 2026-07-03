@@ -1,5 +1,5 @@
-#ifndef XROOTD_PROTOCOL_FLAGS_H
-#define XROOTD_PROTOCOL_FLAGS_H
+#ifndef BRIX_PROTOCOL_FLAGS_H
+#define BRIX_PROTOCOL_FLAGS_H
 
 /* ------------------------------------------------------------------ */
 /* Open option flags (ClientOpenRequest.options, uint16)               */
@@ -104,25 +104,25 @@
 #define kXR_isServer      0x00000001u  /* we are a data server (can serve files) */
 #define kXR_isManager     0x00000002u  /* we are a manager / redirector */
 #define kXR_attrCache     0x00000080u  /* this node is a read-through cache (XCache);
-                                          set when xrootd_cache_root is configured.
+                                          set when brix_cache_root is configured.
                                           Distinct from kXR_statAttrCache (stat hint). */
 #define kXR_attrMeta      0x00000100u  /* metadata-only: namespace ops only, no file
                                           data; kXR_open redirected or rejected.
-                                          Set when xrootd_metadata_only is on. */
+                                          Set when brix_metadata_only is on. */
 #define kXR_attrProxy     0x00000200u  /* this node is a proxy; all file I/O is
                                           forwarded to a backend XRootD server.
-                                          Set when xrootd_proxy is on. */
+                                          Set when brix_proxy is on. */
 #define kXR_attrSuper     0x00000400u  /* supervisor role: top-tier manager in a
                                           three-level CMS hierarchy; implies
-                                          kXR_isManager. Set when xrootd_supervisor. */
+                                          kXR_isManager. Set when brix_supervisor. */
 #define kXR_attrVirtRdr   0x00000800u  /* virtual redirector: translates logical paths
                                           via static map, not CMS protocol.
-                                          Set when xrootd_virtual_redirector is on. */
+                                          Set when brix_virtual_redirector is on. */
 #define kXR_recoverWrts   0x00001000u  /* server can recover partial writes; requires
                                           kXR_attn async notification (Phase 3). */
 #define kXR_collapseRedir 0x00002000u  /* server caches recent redirect targets;
                                           subsequent identical requests skip CMS.
-                                          Set when xrootd_collapse_redir is on. */
+                                          Set when brix_collapse_redir is on. */
 #define kXR_ecRedir       0x00004000u  /* redirect to erasure-coded storage shards;
                                           out of scope — requires EC storage backend;
                                           defined for completeness, never set. */
@@ -213,15 +213,15 @@
 /* ------------------------------------------------------------------ */
 
 #define kXR_wv_doSync       0x01  /* fsync the file after all segments written */
-#define XROOTD_WRITEV_SEGSIZE   16    /* bytes per write_list struct */
-#define XROOTD_WRITEV_MAXSEGS   1024  /* max segments per kXR_writev request */
+#define BRIX_WRITEV_SEGSIZE   16    /* bytes per write_list struct */
+#define BRIX_WRITEV_MAXSEGS   1024  /* max segments per kXR_writev request */
 
 /* ------------------------------------------------------------------ */
 /* kXR_readv — vector read sizing                                      */
 /* ------------------------------------------------------------------ */
 
-#define XROOTD_READV_SEGSIZE  16    /* bytes per readahead_list struct */
-#define XROOTD_READV_MAXSEGS  1024  /* max segments per kXR_readv request */
+#define BRIX_READV_SEGSIZE  16    /* bytes per readahead_list struct */
+#define BRIX_READV_MAXSEGS  1024  /* max segments per kXR_readv request */
 
 /* ------------------------------------------------------------------ */
 /* kXR_pgwrite — paged write with CRC32 integrity                      */
@@ -322,4 +322,4 @@
                                    subdirectories; response entries are
                                    "<relpath>:<U.name>\0" pairs */
 
-#endif /* XROOTD_PROTOCOL_FLAGS_H */
+#endif /* BRIX_PROTOCOL_FLAGS_H */

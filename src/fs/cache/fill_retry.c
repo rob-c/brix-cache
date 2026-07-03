@@ -11,7 +11,7 @@
 #define FILL_BACKOFF_CAP_MS   8000
 
 void
-xrootd_fill_retry_init(xrootd_fill_retry_t *rs, time_t client_hold,
+brix_fill_retry_init(brix_fill_retry_t *rs, time_t client_hold,
     time_t max_life, _Atomic int *waiters, unsigned n_endpoints)
 {
     rs->backoff_ms = FILL_BACKOFF_START_MS;
@@ -22,14 +22,14 @@ xrootd_fill_retry_init(xrootd_fill_retry_t *rs, time_t client_hold,
     rs->verify_budget = (n_endpoints > 0) ? n_endpoints : 1;
 }
 
-xrootd_fill_class_e
-xrootd_fill_classify(ngx_int_t fill_rc, int err, xrootd_fill_retry_t *rs)
+brix_fill_class_e
+brix_fill_classify(ngx_int_t fill_rc, int err, brix_fill_retry_t *rs)
 {
     if (fill_rc == NGX_OK || fill_rc == NGX_DECLINED) {
-        return XROOTD_FILL_OK;
+        return BRIX_FILL_OK;
     }
     if (err == ENOENT || err == ENOTDIR || err == EACCES || err == EPERM) {
-        return XROOTD_FILL_DEFINITIVE;     /* 404/403: the origin's answer  */
+        return BRIX_FILL_DEFINITIVE;     /* 404/403: the origin's answer  */
     }
     if (err == EBADMSG) {
         /* digest MISMATCH: corruption is often path-local — try each
@@ -37,15 +37,15 @@ xrootd_fill_classify(ngx_int_t fill_rc, int err, xrootd_fill_retry_t *rs)
          * data is proven bad, not "come back later"). */
         if (rs->verify_budget > 0) {
             rs->verify_budget--;
-            return XROOTD_FILL_RETRY;
+            return BRIX_FILL_RETRY;
         }
-        return XROOTD_FILL_DEFINITIVE;
+        return BRIX_FILL_DEFINITIVE;
     }
-    return XROOTD_FILL_RETRY;              /* refused/unreach/timeout/5xx   */
+    return BRIX_FILL_RETRY;              /* refused/unreach/timeout/5xx   */
 }
 
 int
-xrootd_fill_retry_wait(xrootd_fill_retry_t *rs)
+brix_fill_retry_wait(brix_fill_retry_t *rs)
 {
     time_t      now = time(NULL);
     time_t      window;

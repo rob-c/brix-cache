@@ -1,7 +1,7 @@
 /*
  * scan_engine.c — VFS-driven walk + per-object action (see scan_engine.h).
  *
- * Mirrors the proven xrootd_ckscan_run() shape: a confined xrootd_vfs_walk fires
+ * Mirrors the proven brix_ckscan_run() shape: a confined brix_vfs_walk fires
  * a per-file callback that runs the mode action and appends one NDJSON record to
  * a growing heap buffer. Runs on a thread-pool worker (heap, not pool).
  */
@@ -35,21 +35,21 @@ scan_display_path(const char *logical, char *out, size_t outsz)
 }
 
 ngx_int_t
-xrootd_scan_mode_parse(const char *name, xrootd_scan_mode_t *out)
+brix_scan_mode_parse(const char *name, brix_scan_mode_t *out)
 {
-    if (strcmp(name, "dump") == 0)    { *out = XROOTD_SCAN_DUMP;    return NGX_OK; }
-    if (strcmp(name, "verify") == 0)  { *out = XROOTD_SCAN_VERIFY;  return NGX_OK; }
-    if (strcmp(name, "fill") == 0)    { *out = XROOTD_SCAN_FILL;    return NGX_OK; }
-    if (strcmp(name, "compare") == 0) { *out = XROOTD_SCAN_COMPARE; return NGX_OK; }
-    if (strcmp(name, "inspect") == 0) { *out = XROOTD_SCAN_INSPECT; return NGX_OK; }
-    if (strcmp(name, "inventory") == 0) { *out = XROOTD_SCAN_INVENTORY; return NGX_OK; }
-    if (strcmp(name, "drift") == 0)   { *out = XROOTD_SCAN_DRIFT;   return NGX_OK; }
+    if (strcmp(name, "dump") == 0)    { *out = BRIX_SCAN_DUMP;    return NGX_OK; }
+    if (strcmp(name, "verify") == 0)  { *out = BRIX_SCAN_VERIFY;  return NGX_OK; }
+    if (strcmp(name, "fill") == 0)    { *out = BRIX_SCAN_FILL;    return NGX_OK; }
+    if (strcmp(name, "compare") == 0) { *out = BRIX_SCAN_COMPARE; return NGX_OK; }
+    if (strcmp(name, "inspect") == 0) { *out = BRIX_SCAN_INSPECT; return NGX_OK; }
+    if (strcmp(name, "inventory") == 0) { *out = BRIX_SCAN_INVENTORY; return NGX_OK; }
+    if (strcmp(name, "drift") == 0)   { *out = BRIX_SCAN_DRIFT;   return NGX_OK; }
     return NGX_ERROR;
 }
 
 /* Append a ready NDJSON line (llen bytes) plus a newline to the growing heap
  * buffer. Returns 1 ok, -1 OOM (caller owns *buf on failure). Mirrors
- * xrootd_ckscan_append's exponential growth. */
+ * brix_ckscan_append's exponential growth. */
 static int
 scan_append(u_char **buf, size_t *cap, size_t *used, const char *line, size_t llen)
 {
@@ -75,11 +75,11 @@ scan_append(u_char **buf, size_t *cap, size_t *used, const char *line, size_t ll
 
 typedef struct {
     ngx_log_t                  *log;
-    const xrootd_scan_opts_t   *opts;
+    const brix_scan_opts_t   *opts;
     u_char                    **buf;
     size_t                     *cap;
     size_t                     *used;
-    xrootd_scan_summary_t      *sum;
+    brix_scan_summary_t      *sum;
     int                         oom;
 } scan_walk_ctx_t;
 
@@ -87,14 +87,14 @@ typedef struct {
  * cache hit (into `info`), or NULL on miss. */
 static const char *
 scan_stored(scan_walk_ctx_t *cc, int fd, const char *logical,
-            xrootd_integrity_info_t *info)
+            brix_integrity_info_t *info)
 {
-    xrootd_integrity_opts_t io;
+    brix_integrity_opts_t io;
 
     ngx_memzero(&io, sizeof(io));
     io.allow_xattr_cache = 1;
     io.no_compute = 1;
-    if (xrootd_integrity_get_fd(cc->log, fd, NULL, logical, cc->opts->alg,
+    if (brix_integrity_get_fd(cc->log, fd, NULL, logical, cc->opts->alg,
                                 &io, info) == NGX_OK)
     {
         return info->hex;
@@ -107,11 +107,11 @@ static int
 scan_action_dump(scan_walk_ctx_t *cc, const char *logical, off_t size,
                  time_t mtime, int fd, char *line, size_t linesz)
 {
-    xrootd_integrity_info_t info;
+    brix_integrity_info_t info;
     const char             *stored = scan_stored(cc, fd, logical, &info);
     int                     n;
 
-    n = xrootd_scan_record_file(line, linesz, logical, (int64_t) size,
+    n = brix_scan_record_file(line, linesz, logical, (int64_t) size,
                                 (int64_t) mtime, cc->opts->alg, stored, NULL, "ok");
     cc->sum->ok++;
     return n;
@@ -122,9 +122,9 @@ static int
 scan_action_verify(scan_walk_ctx_t *cc, const char *logical, off_t size,
                    time_t mtime, int fd, char *line, size_t linesz)
 {
-    xrootd_integrity_info_t stored_info, comp_info;
+    brix_integrity_info_t stored_info, comp_info;
     const char             *stored;
-    xrootd_integrity_opts_t io;
+    brix_integrity_opts_t io;
     const char             *status;
     const char             *computed = NULL;
     char                    stored_copy[129];
@@ -138,7 +138,7 @@ scan_action_verify(scan_walk_ctx_t *cc, const char *logical, off_t size,
     ngx_memzero(&io, sizeof(io));
     io.allow_xattr_cache = 0;   /* force a fresh compute over the bytes */
     io.no_compute = 0;
-    if (xrootd_integrity_get_fd(cc->log, fd, NULL, logical, cc->opts->alg,
+    if (brix_integrity_get_fd(cc->log, fd, NULL, logical, cc->opts->alg,
                                 &io, &comp_info) != NGX_OK)
     {
         status = "unreadable";
@@ -157,7 +157,7 @@ scan_action_verify(scan_walk_ctx_t *cc, const char *logical, off_t size,
             cc->sum->mismatch++;
         }
     }
-    return xrootd_scan_record_file(line, linesz, logical, (int64_t) size,
+    return brix_scan_record_file(line, linesz, logical, (int64_t) size,
                                    (int64_t) mtime, cc->opts->alg, stored,
                                    computed, status);
 }
@@ -167,8 +167,8 @@ static int
 scan_action_fill(scan_walk_ctx_t *cc, const char *logical, off_t size,
                  time_t mtime, int fd, char *line, size_t linesz)
 {
-    xrootd_integrity_info_t info;
-    xrootd_integrity_opts_t io;
+    brix_integrity_info_t info;
+    brix_integrity_opts_t io;
     const char             *status;
     const char             *stored;
 
@@ -176,7 +176,7 @@ scan_action_fill(scan_walk_ctx_t *cc, const char *logical, off_t size,
     if (stored != NULL) {
         status = "already";
         cc->sum->already++;
-        return xrootd_scan_record_file(line, linesz, logical, (int64_t) size,
+        return brix_scan_record_file(line, linesz, logical, (int64_t) size,
                                        (int64_t) mtime, cc->opts->alg, stored,
                                        NULL, status);
     }
@@ -185,7 +185,7 @@ scan_action_fill(scan_walk_ctx_t *cc, const char *logical, off_t size,
     io.allow_xattr_cache = 1;   /* required alongside update for the persist path */
     io.update_xattr_cache = 1;
     io.no_compute = 0;
-    if (xrootd_integrity_get_fd(cc->log, fd, NULL, logical, cc->opts->alg,
+    if (brix_integrity_get_fd(cc->log, fd, NULL, logical, cc->opts->alg,
                                 &io, &info) != NGX_OK)
     {
         status = "unreadable";
@@ -197,7 +197,7 @@ scan_action_fill(scan_walk_ctx_t *cc, const char *logical, off_t size,
         cc->sum->filled++;
         cc->sum->bytes += (uint64_t) size;
     }
-    return xrootd_scan_record_file(line, linesz, logical, (int64_t) size,
+    return brix_scan_record_file(line, linesz, logical, (int64_t) size,
                                    (int64_t) mtime, cc->opts->alg, stored,
                                    NULL, status);
 }
@@ -210,11 +210,11 @@ static int
 scan_action_inspect(scan_walk_ctx_t *cc, const char *logical, off_t size,
                     time_t mtime, int fd, char *line, size_t linesz)
 {
-    xrootd_integrity_info_t info;
+    brix_integrity_info_t info;
     const char             *stored = scan_stored(cc, fd, logical, &info);
 
     cc->sum->ok++;
-    return xrootd_scan_record_inspect(line, linesz, logical, "posix",
+    return brix_scan_record_inspect(line, linesz, logical, "posix",
                                       (int64_t) size, (int64_t) mtime,
                                       stored != NULL ? "xattr" : "none",
                                       1 /* posix: namespace == backend */);
@@ -223,7 +223,7 @@ scan_action_inspect(scan_walk_ctx_t *cc, const char *logical, off_t size,
 /* inventory (E1): one "object" record per stored object. The scan endpoint walks
  * the export via POSIX (namespace == catalog), so the logical path IS the backend
  * key and every entry is backed (orphan=false). A catalog-native backend's
- * inventory runs through xrootd_vfs_enumerate_catalog (the SD enumerate verb)
+ * inventory runs through brix_vfs_enumerate_catalog (the SD enumerate verb)
  * instead — the seam is in place; threading a bound instance into the endpoint is
  * the Ceph follow-on. */
 static int
@@ -231,13 +231,13 @@ scan_action_inventory(scan_walk_ctx_t *cc, const char *logical, off_t size,
                       time_t mtime, char *line, size_t linesz)
 {
     cc->sum->ok++;
-    return xrootd_scan_record_object(line, linesz, logical, logical,
+    return brix_scan_record_object(line, linesz, logical, logical,
                                      (int64_t) size, (int64_t) mtime, 0);
 }
 
 /* drift (D2): one "drift" record per entry. Over a namespace walk the catalog and
  * namespace coincide, so every entry is "in_both"; orphan_object / namespace_only
- * arise only when a native catalog verb (xrootd_vfs_enumerate_catalog) supplies a
+ * arise only when a native catalog verb (brix_vfs_enumerate_catalog) supplies a
  * backend-object set to reconcile against (scan_drift) — the Ceph follow-on. */
 static int
 scan_action_drift(scan_walk_ctx_t *cc, const char *logical, off_t size,
@@ -245,12 +245,12 @@ scan_action_drift(scan_walk_ctx_t *cc, const char *logical, off_t size,
 {
     (void) mtime;
     cc->sum->ok++;
-    return xrootd_scan_record_drift(line, linesz, logical, logical, "in_both",
+    return brix_scan_record_drift(line, linesz, logical, logical, "in_both",
                                     (int64_t) size);
 }
 
 static ngx_int_t
-scan_walk_file(void *cookie, const char *logical, const xrootd_vfs_stat_t *st,
+scan_walk_file(void *cookie, const char *logical, const brix_vfs_stat_t *st,
                int fd)
 {
     scan_walk_ctx_t *cc = cookie;
@@ -261,28 +261,28 @@ scan_walk_file(void *cookie, const char *logical, const xrootd_vfs_stat_t *st,
     scan_display_path(logical, disp, sizeof(disp));
 
     switch (cc->opts->mode) {
-    case XROOTD_SCAN_VERIFY:
+    case BRIX_SCAN_VERIFY:
         n = scan_action_verify(cc, disp, st->size, st->mtime, fd, line,
                                sizeof(line));
         break;
-    case XROOTD_SCAN_FILL:
+    case BRIX_SCAN_FILL:
         n = scan_action_fill(cc, disp, st->size, st->mtime, fd, line,
                              sizeof(line));
         break;
-    case XROOTD_SCAN_INSPECT:
+    case BRIX_SCAN_INSPECT:
         n = scan_action_inspect(cc, disp, st->size, st->mtime, fd, line,
                                 sizeof(line));
         break;
-    case XROOTD_SCAN_INVENTORY:
+    case BRIX_SCAN_INVENTORY:
         n = scan_action_inventory(cc, disp, st->size, st->mtime, line,
                                   sizeof(line));
         break;
-    case XROOTD_SCAN_DRIFT:
+    case BRIX_SCAN_DRIFT:
         n = scan_action_drift(cc, disp, st->size, st->mtime, line,
                               sizeof(line));
         break;
-    case XROOTD_SCAN_DUMP:
-    case XROOTD_SCAN_COMPARE:
+    case BRIX_SCAN_DUMP:
+    case BRIX_SCAN_COMPARE:
     default:
         n = scan_action_dump(cc, disp, st->size, st->mtime, fd, line,
                              sizeof(line));
@@ -301,14 +301,14 @@ scan_walk_file(void *cookie, const char *logical, const xrootd_vfs_stat_t *st,
 }
 
 ngx_int_t
-xrootd_scan_run(ngx_log_t *log, int rootfd, const char *logical,
-    const xrootd_scan_opts_t *opts, u_char **buf, size_t *cap, size_t *used,
-    xrootd_scan_summary_t *summary, uint16_t *err_code, char *err_msg,
+brix_scan_run(ngx_log_t *log, int rootfd, const char *logical,
+    const brix_scan_opts_t *opts, u_char **buf, size_t *cap, size_t *used,
+    brix_scan_summary_t *summary, uint16_t *err_code, char *err_msg,
     size_t err_sz)
 {
     scan_walk_ctx_t          cc;
-    xrootd_vfs_walk_opts_t   wopts;
-    xrootd_vfs_walk_target_t target = XROOTD_VFS_WALK_NONE;
+    brix_vfs_walk_opts_t   wopts;
+    brix_vfs_walk_target_t target = BRIX_VFS_WALK_NONE;
     char                     walkmsg[128] = "";
     ngx_int_t                rc;
 
@@ -325,7 +325,7 @@ xrootd_scan_run(ngx_log_t *log, int rootfd, const char *logical,
     wopts.max_files = opts->max_files;
     wopts.open_files = 1;   /* the walk hands each regular file a read-only fd */
 
-    rc = xrootd_vfs_walk(log, rootfd, logical, &wopts, scan_walk_file, &cc,
+    rc = brix_vfs_walk(log, rootfd, logical, &wopts, scan_walk_file, &cc,
                          &target, walkmsg, sizeof(walkmsg));
 
     if (rc == NGX_DECLINED) {
@@ -343,7 +343,7 @@ xrootd_scan_run(ngx_log_t *log, int rootfd, const char *logical,
         }
         return NGX_ERROR;
     }
-    if (target == XROOTD_VFS_WALK_OTHER) {
+    if (target == BRIX_VFS_WALK_OTHER) {
         *err_code = kXR_ArgInvalid;
         snprintf(err_msg, err_sz, "not a file or directory");
         return NGX_ERROR;
@@ -357,7 +357,7 @@ typedef struct {
     u_char                **buf;
     size_t                 *cap;
     size_t                 *used;
-    xrootd_scan_summary_t  *sum;
+    brix_scan_summary_t  *sum;
     int                     oom;
 } scan_catalog_ctx_t;
 
@@ -365,13 +365,13 @@ typedef struct {
  * logical path of NULL marks an orphan (a stored object with no namespace entry).
  * Returns 0 to continue the enumeration, 1 to abort (only on OOM). */
 static int
-scan_catalog_emit_object(void *ctx, const xrootd_sd_catalog_ent_t *ent)
+scan_catalog_emit_object(void *ctx, const brix_sd_catalog_ent_t *ent)
 {
     scan_catalog_ctx_t *cc = ctx;
     char                line[SCAN_LINE_MAX];
     int                 n;
 
-    n = xrootd_scan_record_object(line, sizeof(line), ent->key, ent->path,
+    n = brix_scan_record_object(line, sizeof(line), ent->key, ent->path,
                                   ent->have_stat ? (int64_t) ent->size : 0,
                                   ent->have_stat ? (int64_t) ent->mtime : 0,
                                   ent->path == NULL ? 1 : 0);
@@ -388,9 +388,9 @@ scan_catalog_emit_object(void *ctx, const xrootd_sd_catalog_ent_t *ent)
 }
 
 ngx_int_t
-xrootd_scan_run_inventory(ngx_log_t *log, xrootd_sd_instance_t *sd,
-    const xrootd_scan_opts_t *opts, u_char **buf, size_t *cap, size_t *used,
-    xrootd_scan_summary_t *summary, uint16_t *err_code, char *err_msg,
+brix_scan_run_inventory(ngx_log_t *log, brix_sd_instance_t *sd,
+    const brix_scan_opts_t *opts, u_char **buf, size_t *cap, size_t *used,
+    brix_scan_summary_t *summary, uint16_t *err_code, char *err_msg,
     size_t err_sz)
 {
     scan_catalog_ctx_t cc;
@@ -405,7 +405,7 @@ xrootd_scan_run_inventory(ngx_log_t *log, xrootd_sd_instance_t *sd,
     cc.used = used;
     cc.sum = summary;
 
-    rc = xrootd_vfs_enumerate_catalog(sd, 1 /* want_stat */,
+    rc = brix_vfs_enumerate_catalog(sd, 1 /* want_stat */,
                                       scan_catalog_emit_object, &cc);
 
     if (rc == NGX_DECLINED) {
@@ -426,12 +426,12 @@ xrootd_scan_run_inventory(ngx_log_t *log, xrootd_sd_instance_t *sd,
  * the growing heap buffer / summary the records land in. */
 typedef struct {
     ngx_log_t              *log;
-    xrootd_sd_instance_t   *sd;
+    brix_sd_instance_t   *sd;
     const char             *alg;
     u_char                **buf;
     size_t                 *cap;
     size_t                 *used;
-    xrootd_scan_summary_t  *sum;
+    brix_scan_summary_t  *sum;
     int                     oom;
 } scan_verify_ctx_t;
 
@@ -443,11 +443,11 @@ typedef struct {
  * the libradosstriper layout → byte-identical to stock XrdCeph). */
 static int
 scan_verify_obj_record(scan_verify_ctx_t *cc, const char *logical,
-    const xrootd_sd_catalog_ent_t *ent, xrootd_sd_obj_t *obj,
+    const brix_sd_catalog_ent_t *ent, brix_sd_obj_t *obj,
     char *line, size_t linesz)
 {
-    xrootd_integrity_info_t stored_info, comp_info;
-    xrootd_integrity_opts_t io;
+    brix_integrity_info_t stored_info, comp_info;
+    brix_integrity_opts_t io;
     const char             *stored = NULL;
     const char             *computed = NULL;
     const char             *status;
@@ -458,7 +458,7 @@ scan_verify_obj_record(scan_verify_ctx_t *cc, const char *logical,
     ngx_memzero(&io, sizeof(io));
     io.allow_xattr_cache = 1;
     io.no_compute = 1;                    /* stored value only — no byte read */
-    if (xrootd_integrity_get_fd(cc->log, -1, obj, logical, cc->alg, &io,
+    if (brix_integrity_get_fd(cc->log, -1, obj, logical, cc->alg, &io,
                                 &stored_info) == NGX_OK)
     {
         ngx_memcpy(stored_copy, stored_info.hex, ngx_strlen(stored_info.hex) + 1);
@@ -468,7 +468,7 @@ scan_verify_obj_record(scan_verify_ctx_t *cc, const char *logical,
     ngx_memzero(&io, sizeof(io));
     io.allow_xattr_cache = 0;             /* force a fresh compute over the bytes */
     io.no_compute = 0;
-    if (xrootd_integrity_get_fd(cc->log, -1, obj, logical, cc->alg, &io,
+    if (brix_integrity_get_fd(cc->log, -1, obj, logical, cc->alg, &io,
                                 &comp_info) != NGX_OK)
     {
         status = "unreadable";
@@ -487,7 +487,7 @@ scan_verify_obj_record(scan_verify_ctx_t *cc, const char *logical,
             cc->sum->mismatch++;
         }
     }
-    return xrootd_scan_record_file(line, linesz, logical, size, mtime,
+    return brix_scan_record_file(line, linesz, logical, size, mtime,
                                    cc->alg, stored, computed, status);
 }
 
@@ -495,19 +495,19 @@ scan_verify_obj_record(scan_verify_ctx_t *cc, const char *logical,
  * the record, close. An open failure is reported as "unreadable" (the scan keeps
  * going). Returns 0 to continue the enumeration, 1 to abort (OOM only). */
 static int
-scan_catalog_verify_one(void *ctx, const xrootd_sd_catalog_ent_t *ent)
+scan_catalog_verify_one(void *ctx, const brix_sd_catalog_ent_t *ent)
 {
     scan_verify_ctx_t *cc = ctx;
     const char        *logical = ent->path ? ent->path : ent->key;
-    xrootd_sd_obj_t   *obj;
+    brix_sd_obj_t   *obj;
     char               line[SCAN_LINE_MAX];
     int                err = 0;
     int                n;
 
-    obj = cc->sd->driver->open(cc->sd, logical, XROOTD_SD_O_READ, 0, &err);
+    obj = cc->sd->driver->open(cc->sd, logical, BRIX_SD_O_READ, 0, &err);
     if (obj == NULL) {
         cc->sum->unreadable++;
-        n = xrootd_scan_record_file(line, sizeof(line), logical,
+        n = brix_scan_record_file(line, sizeof(line), logical,
                                     ent->have_stat ? (int64_t) ent->size : 0,
                                     ent->have_stat ? (int64_t) ent->mtime : 0,
                                     cc->alg, NULL, NULL, "unreadable");
@@ -528,9 +528,9 @@ scan_catalog_verify_one(void *ctx, const xrootd_sd_catalog_ent_t *ent)
 }
 
 ngx_int_t
-xrootd_scan_run_verify_catalog(ngx_log_t *log, xrootd_sd_instance_t *sd,
-    const xrootd_scan_opts_t *opts, u_char **buf, size_t *cap, size_t *used,
-    xrootd_scan_summary_t *summary, uint16_t *err_code, char *err_msg,
+brix_scan_run_verify_catalog(ngx_log_t *log, brix_sd_instance_t *sd,
+    const brix_scan_opts_t *opts, u_char **buf, size_t *cap, size_t *used,
+    brix_scan_summary_t *summary, uint16_t *err_code, char *err_msg,
     size_t err_sz)
 {
     scan_verify_ctx_t cc;
@@ -545,7 +545,7 @@ xrootd_scan_run_verify_catalog(ngx_log_t *log, xrootd_sd_instance_t *sd,
     cc.used = used;
     cc.sum = summary;
 
-    rc = xrootd_vfs_enumerate_catalog(sd, 1 /* want_stat */,
+    rc = brix_vfs_enumerate_catalog(sd, 1 /* want_stat */,
                                       scan_catalog_verify_one, &cc);
 
     if (rc == NGX_DECLINED) {

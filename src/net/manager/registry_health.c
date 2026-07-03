@@ -7,11 +7,11 @@
 
 /* Phase 22: active health-check registry helpers */
 int
-xrootd_srv_hc_claim(char *host_out, size_t host_size, uint16_t *port_out,
+brix_srv_hc_claim(char *host_out, size_t host_size, uint16_t *port_out,
     ngx_msec_t interval_ms, ngx_msec_t *next_due_ms)
 {
-    xrootd_srv_table_t *tbl;
-    xrootd_srv_entry_t *e;
+    brix_srv_table_t *tbl;
+    brix_srv_entry_t *e;
     ngx_uint_t          i;
     ngx_msec_t          now;
     ngx_msec_t          soonest = interval_ms;   /* idle cap when none are due */
@@ -26,7 +26,7 @@ xrootd_srv_hc_claim(char *host_out, size_t host_size, uint16_t *port_out,
     }
     now = ngx_current_msec;
 
-    ngx_shmtx_lock(&xrootd_srv_mutex);
+    ngx_shmtx_lock(&brix_srv_mutex);
 
     for (i = 0; i < tbl->capacity; i++) {
         e = &tbl->slots[i];
@@ -49,11 +49,11 @@ xrootd_srv_hc_claim(char *host_out, size_t host_size, uint16_t *port_out,
         ngx_cpystrn((u_char *) host_out, (u_char *) e->host, host_size);
         *port_out = e->port;
 
-        ngx_shmtx_unlock(&xrootd_srv_mutex);
+        ngx_shmtx_unlock(&brix_srv_mutex);
         return 1;                            /* claimed; caller spreads the rest */
     }
 
-    ngx_shmtx_unlock(&xrootd_srv_mutex);
+    ngx_shmtx_unlock(&brix_srv_mutex);
 
     if (next_due_ms != NULL) {
         *next_due_ms = soonest;              /* nothing due: sleep until soonest */
@@ -63,10 +63,10 @@ xrootd_srv_hc_claim(char *host_out, size_t host_size, uint16_t *port_out,
 
 
 void
-xrootd_srv_hc_pass(const char *host, uint16_t port)
+brix_srv_hc_pass(const char *host, uint16_t port)
 {
-    xrootd_srv_table_t *tbl;
-    xrootd_srv_entry_t *e;
+    brix_srv_table_t *tbl;
+    brix_srv_entry_t *e;
     ngx_uint_t          i;
 
     tbl = srv_table();
@@ -74,7 +74,7 @@ xrootd_srv_hc_pass(const char *host, uint16_t port)
         return;
     }
 
-    ngx_shmtx_lock(&xrootd_srv_mutex);
+    ngx_shmtx_lock(&brix_srv_mutex);
 
     for (i = 0; i < tbl->capacity; i++) {
         e = &tbl->slots[i];
@@ -94,16 +94,16 @@ xrootd_srv_hc_pass(const char *host, uint16_t port)
         break;
     }
 
-    ngx_shmtx_unlock(&xrootd_srv_mutex);
+    ngx_shmtx_unlock(&brix_srv_mutex);
 }
 
 
 int
-xrootd_srv_hc_fail(const char *host, uint16_t port, uint32_t threshold,
+brix_srv_hc_fail(const char *host, uint16_t port, uint32_t threshold,
     ngx_msec_t blacklist_ms)
 {
-    xrootd_srv_table_t *tbl;
-    xrootd_srv_entry_t *e;
+    brix_srv_table_t *tbl;
+    brix_srv_entry_t *e;
     ngx_uint_t          i;
     int                 newly_blacklisted = 0;
 
@@ -112,7 +112,7 @@ xrootd_srv_hc_fail(const char *host, uint16_t port, uint32_t threshold,
         return 0;
     }
 
-    ngx_shmtx_lock(&xrootd_srv_mutex);
+    ngx_shmtx_lock(&brix_srv_mutex);
 
     for (i = 0; i < tbl->capacity; i++) {
         e = &tbl->slots[i];
@@ -133,7 +133,7 @@ xrootd_srv_hc_fail(const char *host, uint16_t port, uint32_t threshold,
         break;
     }
 
-    ngx_shmtx_unlock(&xrootd_srv_mutex);
+    ngx_shmtx_unlock(&brix_srv_mutex);
     return newly_blacklisted;
 }
 
@@ -157,11 +157,11 @@ xrootd_srv_hc_fail(const char *host, uint16_t port, uint32_t threshold,
  * (not counting NUL); 0 if no servers match.
  */
 int
-xrootd_srv_locate_all(const char *path, int for_write,
+brix_srv_locate_all(const char *path, int for_write,
     char *buf, size_t bufsz)
 {
-    xrootd_srv_table_t *tbl;
-    xrootd_srv_entry_t *e;
+    brix_srv_table_t *tbl;
+    brix_srv_entry_t *e;
     ngx_uint_t          i;
     int                 written, entry_len, first;
     ngx_msec_t          now;
@@ -177,7 +177,7 @@ xrootd_srv_locate_all(const char *path, int for_write,
     written = 0;
     first   = 1;
 
-    ngx_shmtx_lock(&xrootd_srv_mutex);
+    ngx_shmtx_lock(&brix_srv_mutex);
 
     for (i = 0; i < tbl->capacity; i++) {
         e = &tbl->slots[i];
@@ -194,7 +194,7 @@ xrootd_srv_locate_all(const char *path, int for_write,
 
         /* Bracket IPv6 literals so "Sr[::1]:1094" (not the unparseable
          * "Sr::1:1094") — the host is stored canonically bare; bracket on emit. */
-        xrootd_format_host_port(e->host, e->port, hostport, sizeof(hostport));
+        brix_format_host_port(e->host, e->port, hostport, sizeof(hostport));
         entry_len = snprintf(entry, sizeof(entry), "%sS%c%s",
                              first ? "" : " ",
                              for_write ? 'w' : 'r',
@@ -208,7 +208,7 @@ xrootd_srv_locate_all(const char *path, int for_write,
         first = 0;
     }
 
-    ngx_shmtx_unlock(&xrootd_srv_mutex);
+    ngx_shmtx_unlock(&brix_srv_mutex);
 
     if (written > 0) {
         buf[written] = '\0';
@@ -233,10 +233,10 @@ xrootd_srv_locate_all(const char *path, int for_write,
  * dst <= p always (copy forward direction). Null-terminates result.
  */
 void
-xrootd_srv_unregister_path(const char *host, uint16_t port, const char *path)
+brix_srv_unregister_path(const char *host, uint16_t port, const char *path)
 {
-    xrootd_srv_table_t *tbl;
-    xrootd_srv_entry_t *e;
+    brix_srv_table_t *tbl;
+    brix_srv_entry_t *e;
     ngx_uint_t          i;
     const char         *p, *end;
     char               *dst;
@@ -250,7 +250,7 @@ xrootd_srv_unregister_path(const char *host, uint16_t port, const char *path)
 
     path_len = strlen(path);
 
-    ngx_shmtx_lock(&xrootd_srv_mutex);
+    ngx_shmtx_lock(&brix_srv_mutex);
 
     for (i = 0; i < tbl->capacity; i++) {
         e = &tbl->slots[i];
@@ -290,7 +290,7 @@ xrootd_srv_unregister_path(const char *host, uint16_t port, const char *path)
         break;
     }
 
-    ngx_shmtx_unlock(&xrootd_srv_mutex);
+    ngx_shmtx_unlock(&brix_srv_mutex);
 }
 
 
@@ -308,10 +308,10 @@ xrootd_srv_unregister_path(const char *host, uint16_t port, const char *path)
  * entries. Unlocks → computes average = sum_util / count (0 if no servers).
  */
 void
-xrootd_srv_aggregate_space(uint32_t *total_free_mb, uint32_t *avg_util_pct)
+brix_srv_aggregate_space(uint32_t *total_free_mb, uint32_t *avg_util_pct)
 {
-    xrootd_srv_table_t *tbl;
-    xrootd_srv_entry_t *e;
+    brix_srv_table_t *tbl;
+    brix_srv_entry_t *e;
     ngx_uint_t          i;
     uint32_t            sum_free;
     uint64_t            sum_util;
@@ -329,7 +329,7 @@ xrootd_srv_aggregate_space(uint32_t *total_free_mb, uint32_t *avg_util_pct)
     sum_util = 0;
     count    = 0;
 
-    ngx_shmtx_lock(&xrootd_srv_mutex);
+    ngx_shmtx_lock(&brix_srv_mutex);
 
     for (i = 0; i < tbl->capacity; i++) {
         e = &tbl->slots[i];
@@ -341,7 +341,7 @@ xrootd_srv_aggregate_space(uint32_t *total_free_mb, uint32_t *avg_util_pct)
         count++;
     }
 
-    ngx_shmtx_unlock(&xrootd_srv_mutex);
+    ngx_shmtx_unlock(&brix_srv_mutex);
 
     *total_free_mb = sum_free;
     *avg_util_pct  = count > 0 ? (uint32_t) (sum_util / count) : 0;
@@ -349,11 +349,11 @@ xrootd_srv_aggregate_space(uint32_t *total_free_mb, uint32_t *avg_util_pct)
 
 
 ngx_uint_t
-xrootd_srv_snapshot(xrootd_srv_snapshot_entry_t *out, ngx_uint_t max_entries,
+brix_srv_snapshot(brix_srv_snapshot_entry_t *out, ngx_uint_t max_entries,
     ngx_msec_t now)
 {
-    xrootd_srv_table_t *tbl;
-    xrootd_srv_entry_t *e;
+    brix_srv_table_t *tbl;
+    brix_srv_entry_t *e;
     ngx_uint_t          i;
     ngx_uint_t          n;
 
@@ -369,7 +369,7 @@ xrootd_srv_snapshot(xrootd_srv_snapshot_entry_t *out, ngx_uint_t max_entries,
     }
 
     n = 0;
-    ngx_shmtx_lock(&xrootd_srv_mutex);
+    ngx_shmtx_lock(&brix_srv_mutex);
 
     for (i = 0; i < tbl->capacity && n < max_entries; i++) {
         e = &tbl->slots[i];
@@ -392,6 +392,6 @@ xrootd_srv_snapshot(xrootd_srv_snapshot_entry_t *out, ngx_uint_t max_entries,
         n++;
     }
 
-    ngx_shmtx_unlock(&xrootd_srv_mutex);
+    ngx_shmtx_unlock(&brix_srv_mutex);
     return n;
 }

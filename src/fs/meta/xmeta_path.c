@@ -17,9 +17,9 @@
 #include <unistd.h>
 
 int
-xrootd_xmeta_sidecar_path(char *dst, size_t cap, const char *path)
+brix_xmeta_sidecar_path(char *dst, size_t cap, const char *path)
 {
-    int n = snprintf(dst, cap, "%s%s", path, XROOTD_XMETA_PATH_SIDECAR);
+    int n = snprintf(dst, cap, "%s%s", path, BRIX_XMETA_PATH_SIDECAR);
 
     return (n < 0 || (size_t) n >= cap) ? -1 : 0;
 }
@@ -37,7 +37,7 @@ xmeta_path_xattr_unfit(int err)
 }
 
 int
-xrootd_xmeta_path_load(const char *path, xrootd_xmeta_t *xm)
+brix_xmeta_path_load(const char *path, brix_xmeta_t *xm)
 {
     char     sc[PATH_MAX];
     uint8_t *buf;
@@ -46,30 +46,30 @@ xrootd_xmeta_path_load(const char *path, xrootd_xmeta_t *xm)
 
     if (path == NULL || xm == NULL) {
         errno = EINVAL;
-        return XROOTD_XMETA_ERR;
+        return BRIX_XMETA_ERR;
     }
 
-    buf = malloc(XROOTD_XMETA_PATH_XATTR_MAX);
+    buf = malloc(BRIX_XMETA_PATH_XATTR_MAX);
     if (buf == NULL) {
         errno = ENOMEM;
-        return XROOTD_XMETA_ERR;
+        return BRIX_XMETA_ERR;
     }
-    n = getxattr(path, XROOTD_XMETA_PATH_XATTR, buf,
-                 XROOTD_XMETA_PATH_XATTR_MAX);
+    n = getxattr(path, BRIX_XMETA_PATH_XATTR, buf,
+                 BRIX_XMETA_PATH_XATTR_MAX);
     if (n > 0) {
-        drc = xrootd_xmeta_decode(buf, (size_t) n, xm);
+        drc = brix_xmeta_decode(buf, (size_t) n, xm);
         free(buf);
         return drc;
     }
     free(buf);
 
-    if (xrootd_xmeta_sidecar_path(sc, sizeof(sc), path) != 0) {
+    if (brix_xmeta_sidecar_path(sc, sizeof(sc), path) != 0) {
         errno = ENAMETOOLONG;
-        return XROOTD_XMETA_ERR;
+        return BRIX_XMETA_ERR;
     }
     fd = open(sc, O_RDONLY | O_NOCTTY | O_CLOEXEC | O_NOFOLLOW);
     if (fd < 0) {
-        return (errno == ENOENT) ? XROOTD_XMETA_FOREIGN : XROOTD_XMETA_ERR;
+        return (errno == ENOENT) ? BRIX_XMETA_FOREIGN : BRIX_XMETA_ERR;
     }
     {
         struct stat stb;
@@ -77,17 +77,17 @@ xrootd_xmeta_path_load(const char *path, xrootd_xmeta_t *xm)
         size_t      flen, got = 0;
 
         if (fstat(fd, &stb) != 0 || stb.st_size <= 0
-            || (uint64_t) stb.st_size > XROOTD_XMETA_MAX_SECTION)
+            || (uint64_t) stb.st_size > BRIX_XMETA_MAX_SECTION)
         {
             close(fd);
-            return XROOTD_XMETA_FOREIGN;
+            return BRIX_XMETA_FOREIGN;
         }
         flen = (size_t) stb.st_size;
         fbuf = malloc(flen);
         if (fbuf == NULL) {
             close(fd);
             errno = ENOMEM;
-            return XROOTD_XMETA_ERR;
+            return BRIX_XMETA_ERR;
         }
         while (got < flen) {
             ssize_t r = pread(fd, fbuf + got, flen - got, (off_t) got);
@@ -103,16 +103,16 @@ xrootd_xmeta_path_load(const char *path, xrootd_xmeta_t *xm)
         close(fd);
         if (got != flen) {
             free(fbuf);
-            return XROOTD_XMETA_FOREIGN;
+            return BRIX_XMETA_FOREIGN;
         }
-        drc = xrootd_xmeta_decode(fbuf, flen, xm);
+        drc = brix_xmeta_decode(fbuf, flen, xm);
         free(fbuf);
     }
     return drc;
 }
 
 int
-xrootd_xmeta_path_save(const char *path, const xrootd_xmeta_t *xm)
+brix_xmeta_path_save(const char *path, const brix_xmeta_t *xm)
 {
     char     sc[PATH_MAX];
     uint8_t *buf = NULL;
@@ -121,34 +121,34 @@ xrootd_xmeta_path_save(const char *path, const xrootd_xmeta_t *xm)
 
     if (path == NULL || xm == NULL) {
         errno = EINVAL;
-        return XROOTD_XMETA_ERR;
+        return BRIX_XMETA_ERR;
     }
-    if (xrootd_xmeta_encode(xm, &buf, &len) != XROOTD_XMETA_OK) {
-        return XROOTD_XMETA_ERR;
+    if (brix_xmeta_encode(xm, &buf, &len) != BRIX_XMETA_OK) {
+        return BRIX_XMETA_ERR;
     }
-    if (xrootd_xmeta_sidecar_path(sc, sizeof(sc), path) != 0) {
+    if (brix_xmeta_sidecar_path(sc, sizeof(sc), path) != 0) {
         free(buf);
         errno = ENAMETOOLONG;
-        return XROOTD_XMETA_ERR;
+        return BRIX_XMETA_ERR;
     }
 
-    if (len <= XROOTD_XMETA_PATH_XATTR_MAX
-        && setxattr(path, XROOTD_XMETA_PATH_XATTR, buf, len, 0) == 0)
+    if (len <= BRIX_XMETA_PATH_XATTR_MAX
+        && setxattr(path, BRIX_XMETA_PATH_XATTR, buf, len, 0) == 0)
     {
         free(buf);
         (void) unlink(sc);             /* one carrier: drop a stale sidecar */
-        return XROOTD_XMETA_OK;
+        return BRIX_XMETA_OK;
     }
-    if (len <= XROOTD_XMETA_PATH_XATTR_MAX && !xmeta_path_xattr_unfit(errno)) {
+    if (len <= BRIX_XMETA_PATH_XATTR_MAX && !xmeta_path_xattr_unfit(errno)) {
         free(buf);
-        return XROOTD_XMETA_ERR;
+        return BRIX_XMETA_ERR;
     }
 
     fd = open(sc, O_WRONLY | O_CREAT | O_NOCTTY | O_CLOEXEC | O_NOFOLLOW,
               0644);
     if (fd < 0) {
         free(buf);
-        return XROOTD_XMETA_ERR;
+        return BRIX_XMETA_ERR;
     }
     while (put < len) {
         ssize_t w = pwrite(fd, buf + put, len - put, (off_t) put);
@@ -159,39 +159,39 @@ xrootd_xmeta_path_save(const char *path, const xrootd_xmeta_t *xm)
         if (w <= 0) {
             free(buf);
             close(fd);
-            return XROOTD_XMETA_ERR;
+            return BRIX_XMETA_ERR;
         }
         put += (size_t) w;
     }
     free(buf);
     if (ftruncate(fd, (off_t) len) != 0 || fdatasync(fd) != 0) {
         close(fd);
-        return XROOTD_XMETA_ERR;
+        return BRIX_XMETA_ERR;
     }
     if (close(fd) != 0) {
-        return XROOTD_XMETA_ERR;
+        return BRIX_XMETA_ERR;
     }
-    (void) removexattr(path, XROOTD_XMETA_PATH_XATTR);  /* one carrier */
-    return XROOTD_XMETA_OK;
+    (void) removexattr(path, BRIX_XMETA_PATH_XATTR);  /* one carrier */
+    return BRIX_XMETA_OK;
 }
 
 int
-xrootd_xmeta_path_remove(const char *path)
+brix_xmeta_path_remove(const char *path)
 {
     char sc[PATH_MAX];
 
     if (path == NULL) {
-        return XROOTD_XMETA_OK;
+        return BRIX_XMETA_OK;
     }
-    (void) removexattr(path, XROOTD_XMETA_PATH_XATTR);
-    if (xrootd_xmeta_sidecar_path(sc, sizeof(sc), path) == 0) {
+    (void) removexattr(path, BRIX_XMETA_PATH_XATTR);
+    if (brix_xmeta_sidecar_path(sc, sizeof(sc), path) == 0) {
         (void) unlink(sc);
     }
-    return XROOTD_XMETA_OK;
+    return BRIX_XMETA_OK;
 }
 
 int
-xrootd_xmeta_path_lock(const char *path)
+brix_xmeta_path_lock(const char *path)
 {
     char sc[PATH_MAX];
     int  fd;
@@ -199,7 +199,7 @@ xrootd_xmeta_path_lock(const char *path)
     fd = open(path, O_RDONLY | O_NOCTTY | O_CLOEXEC | O_NOFOLLOW);
     if (fd < 0) {
         if (errno != ENOENT
-            || xrootd_xmeta_sidecar_path(sc, sizeof(sc), path) != 0)
+            || brix_xmeta_sidecar_path(sc, sizeof(sc), path) != 0)
         {
             return -1;
         }
@@ -219,7 +219,7 @@ xrootd_xmeta_path_lock(const char *path)
 }
 
 void
-xrootd_xmeta_path_unlock(int lockfd)
+brix_xmeta_path_unlock(int lockfd)
 {
     if (lockfd >= 0) {
         (void) flock(lockfd, LOCK_UN);

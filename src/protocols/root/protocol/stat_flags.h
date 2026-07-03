@@ -4,8 +4,8 @@
  * WHAT: the meaning of the bits in the `flags` field of a kXR_stat reply
  *       (kXR_isDir / kXR_other / kXR_readable / kXR_xset / ...), expressed once
  *       for both halves of the boundary:
- *         - xrootd_stat_flags_from_mode: struct-stat mode -> kXR flags (server encode)
- *         - xrootd_stat_mode_from_flags: kXR flags -> POSIX file-type+perm bits (client decode)
+ *         - brix_stat_flags_from_mode: struct-stat mode -> kXR flags (server encode)
+ *         - brix_stat_mode_from_flags: kXR flags -> POSIX file-type+perm bits (client decode)
  * WHY:  this is the companion to stat_line.h — that header owns the LINE shape
  *       ("<id> <size> <flags> <mtime>"); this one owns what the `flags` integer in
  *       that line MEANS. The server set the bits (src/path/stat_body.c) and the
@@ -25,8 +25,8 @@
  *
  * Clean-room: bit meanings from src/protocol/flags.h (vs XProtocol stat flags).
  */
-#ifndef XROOTD_PROTOCOL_STAT_FLAGS_H
-#define XROOTD_PROTOCOL_STAT_FLAGS_H
+#ifndef BRIX_PROTOCOL_STAT_FLAGS_H
+#define BRIX_PROTOCOL_STAT_FLAGS_H
 
 #include <sys/stat.h>
 
@@ -39,7 +39,7 @@
  * non-dir -> kXR_other; any read permission bit -> kXR_readable.
  */
 static inline int
-xrootd_stat_flags_from_mode(mode_t st_mode, int extra_flags)
+brix_stat_flags_from_mode(mode_t st_mode, int extra_flags)
 {
     int flags = extra_flags;
 
@@ -70,7 +70,7 @@ xrootd_stat_flags_from_mode(mode_t st_mode, int extra_flags)
  *   directory -> kXR_isDir ; non-dir non-regular -> kXR_other
  */
 static inline int
-xrootd_stat_flags_from_stat(const struct stat *st, uid_t myuid, gid_t mygid,
+brix_stat_flags_from_stat(const struct stat *st, uid_t myuid, gid_t mygid,
                             int extra_flags)
 {
     int    flags = extra_flags;
@@ -114,7 +114,7 @@ xrootd_stat_flags_from_stat(const struct stat *st, uid_t myuid, gid_t mygid,
  *   otherwise              -> S_IFREG | (kXR_xset ? 0755 : 0644)
  */
 static inline mode_t
-xrootd_stat_mode_from_flags(int flags, int allow_symlink)
+brix_stat_mode_from_flags(int flags, int allow_symlink)
 {
     if (flags & kXR_isDir) {
         return (mode_t) (S_IFDIR | 0755);
@@ -125,4 +125,4 @@ xrootd_stat_mode_from_flags(int flags, int allow_symlink)
     return (mode_t) (S_IFREG | ((flags & kXR_xset) ? 0755 : 0644));
 }
 
-#endif /* XROOTD_PROTOCOL_STAT_FLAGS_H */
+#endif /* BRIX_PROTOCOL_STAT_FLAGS_H */

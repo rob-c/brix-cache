@@ -69,7 +69,7 @@ webdav_proxy_rewrite_destination(ngx_pool_t *pool,
 ngx_int_t
 webdav_proxy_create_request(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *conf;
+    ngx_http_brix_webdav_loc_conf_t *conf;
     ngx_http_upstream_t               *u;
     ngx_buf_t                         *b;
     ngx_chain_t                       *cl;
@@ -80,7 +80,7 @@ webdav_proxy_create_request(ngx_http_request_t *r)
     u_char                            *p;
     int                                skip_auth;
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
     u    = r->upstream;
 
     /* Use the round-robin-selected backend's Host / URL base (falls back to
@@ -89,7 +89,7 @@ webdav_proxy_create_request(ngx_http_request_t *r)
     ngx_str_t  url_base = conf->upstream_url_base;
     {
         webdav_proxy_ctx_t *pctx =
-            ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+            ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
         if (pctx != NULL && pctx->selected_backend != NULL) {
             host     = pctx->selected_backend->host;
             url_base = pctx->selected_backend->url_base;

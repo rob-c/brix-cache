@@ -218,7 +218,7 @@ start_all_dedicated() {
 
     # CMS heartbeat tests: a real nginx CMS manager (cms-test-mgr) listens on
     # CMS_TEST_CMS_PORT (12400) for data server registrations.  The cms-test nginx
-    # (12500) connects to it with xrootd_cms_interval 2, reconnecting every 2s.
+    # (12500) connects to it with brix_cms_interval 2, reconnecting every 2s.
     CMS_PORT="${CMS_TEST_CMS_PORT:-12400}" \
         start_dedicated_nginx "cms-test-mgr" "nginx_cluster_redir.conf" "${CMS_TEST_REDIR_PORT:-12399}"
     CMS_PORT="${CMS_TEST_CMS_PORT:-12400}" \
@@ -259,7 +259,7 @@ start_all_dedicated() {
 
     # Proxy interoperability matrix — Scenarios 2 and 3 (test_e2e_proxy_matrix.py)
     # Scenario 2: xrootd PSS bridge → nginx proxy → xrootd data (PROXY_DATA_ROOT)
-    start_pss_bridge_ref "${PROXY_BRIDGE_XROOTD_PORT:-11214}" "${PROXY_NGINX_PORT:-11193}"
+    start_pss_bridge_ref "${PROXY_BRIDGE_BRIX_PORT:-11214}" "${PROXY_NGINX_PORT:-11193}"
     # Scenario 3: pure nginx→nginx stack; proxy chains to the existing data nginx
     UPSTREAM_PORT="${PROXY_NGINX_PORT:-11193}" \
         start_dedicated_nginx "pure-nginx-proxy" "nginx_pure_nginx_proxy.conf" \
@@ -364,17 +364,17 @@ start_all_dedicated() {
         "${WT_ASYNC_PORT:-11202}"
 
     # kXR_prepare staging-command test pair.
-    # prepare-command: xrootd_prepare_command configured to a fixed hook script
+    # prepare-command: brix_prepare_command configured to a fixed hook script
     #   that appends staged paths to a log file tests can read.
-    # prepare-nocmd:   same stream server without xrootd_prepare_command.
+    # prepare-nocmd:   same stream server without brix_prepare_command.
     local prep_hook="${TEST_ROOT}/dedicated/prepare-command/stage_hook.sh"
     local prep_log="${TEST_ROOT}/data-prepare-command/staged.log"
     mkdir -p "${TEST_ROOT}/dedicated/prepare-command"
     cat > "$prep_hook" <<EOF
 #!/bin/sh
-# Log XROOTD_PREPARE_COLOC env var if set (for test verification).
-if [ -n "\$XROOTD_PREPARE_COLOC" ]; then
-    printf 'COLOC=%s\n' "\$XROOTD_PREPARE_COLOC" >> ${prep_log}
+# Log BRIX_PREPARE_COLOC env var if set (for test verification).
+if [ -n "\$BRIX_PREPARE_COLOC" ]; then
+    printf 'COLOC=%s\n' "\$BRIX_PREPARE_COLOC" >> ${prep_log}
 fi
 printf '%s\n' "\$@" >> ${prep_log}
 EOF
@@ -408,7 +408,7 @@ EOF
     # virtual-redir: static manager_map pointing at the anon data server; no CMS.
     start_dedicated_nginx "virtual-redir" "nginx_virtual_redir.conf" \
         "${VIRTUAL_REDIR_PORT:-11208}" "${NGINX_ANON_PORT:-11094}"
-    # Phase 3: collapse-redir cache (xrootd_collapse_redir on).
+    # Phase 3: collapse-redir cache (brix_collapse_redir on).
     start_dedicated_nginx "collapse-redir" "nginx_collapse_redir.conf" \
         "${COLLAPSE_REDIR_PORT:-11209}" "${NGINX_ANON_PORT:-11094}"
 

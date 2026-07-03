@@ -21,7 +21,7 @@ typedef struct {
     char                  host[128];
     in_port_t             port;
     char                  up_root[256];        /* synthetic registry key    */
-    xrootd_sd_instance_t *inst;
+    brix_sd_instance_t *inst;
 } cvmfs_upstream_slot;
 
 /* Per-worker registry (deliberately worker-local: the entry table it feeds
@@ -30,15 +30,15 @@ typedef struct {
 static cvmfs_upstream_slot  cvmfs_ups[CVMFS_UP_MAX];
 static ngx_uint_t           cvmfs_ups_n;
 
-xrootd_sd_instance_t *
-xrootd_cvmfs_upstream_get(ngx_http_request_t *r,
-    ngx_http_xrootd_cvmfs_loc_conf_t *lcf, const ngx_str_t *host,
+brix_sd_instance_t *
+brix_cvmfs_upstream_get(ngx_http_request_t *r,
+    ngx_http_brix_cvmfs_loc_conf_t *lcf, const ngx_str_t *host,
     in_port_t port, const char **up_root_out, ngx_uint_t *status)
 {
     ngx_uint_t            i, cap;
     cvmfs_upstream_slot  *s;
     char                  suffix[160];
-    xrootd_sd_instance_t *inst;
+    brix_sd_instance_t *inst;
     int                   n;
 
     for (i = 0; i < cvmfs_ups_n; i++) {
@@ -56,9 +56,9 @@ xrootd_cvmfs_upstream_get(ngx_http_request_t *r,
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
             "cvmfs: upstream registry full (%ui slots)\n"
             "  cause: more distinct Stratum-1 authorities than "
-            "xrootd_cvmfs_upstream_max\n"
-            "  fix:   raise xrootd_cvmfs_upstream_max or trim "
-            "xrootd_cvmfs_upstream_allow", cap);
+            "brix_cvmfs_upstream_max\n"
+            "  fix:   raise brix_cvmfs_upstream_max or trim "
+            "brix_cvmfs_upstream_allow", cap);
         *status = NGX_HTTP_SERVICE_UNAVAILABLE;
         return NULL;
     }
@@ -85,7 +85,7 @@ xrootd_cvmfs_upstream_get(ngx_http_request_t *r,
      * "/cvmfs/<repo>/..." path (upstream-independent) and CAS objects are
      * content-addressed (byte-identical across replicas); manifests are the same
      * signed metadata. It collapses the client's cross-server failover storm
-     * into one fill. verify-on-fill (xrootd_cache_verify cvmfs-cas) keeps a
+     * into one fill. verify-on-fill (brix_cache_verify cvmfs-cas) keeps a
      * mis-serving origin from poisoning the shared entry. */
     if (lcf->cvmfs.shared_cache) {
         suffix[0] = '\0';
@@ -94,14 +94,14 @@ xrootd_cvmfs_upstream_get(ngx_http_request_t *r,
                         (unsigned) port);
     }
 
-    if (xrootd_vfs_backend_register_http_upstream(s->up_root,
+    if (brix_vfs_backend_register_http_upstream(s->up_root,
             lcf->common.root_canon, s->host, (int) port, /* tls */ 0,
             suffix) != NGX_OK)
     {
         *status = NGX_HTTP_INTERNAL_SERVER_ERROR;
         return NULL;
     }
-    inst = xrootd_vfs_backend_resolve(s->up_root, r->connection->log);
+    inst = brix_vfs_backend_resolve(s->up_root, r->connection->log);
     if (inst == NULL) {
         *status = NGX_HTTP_INTERNAL_SERVER_ERROR;
         return NULL;

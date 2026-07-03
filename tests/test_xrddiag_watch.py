@@ -66,8 +66,8 @@ stream {{
     server {{
         listen {BIND_HOST}:{rport};
         xrootd on;
-        xrootd_storage_backend posix:{data};
-        xrootd_auth none;
+        brix_storage_backend posix:{data};
+        brix_auth none;
     }}
 }}
 """)
@@ -93,9 +93,9 @@ def test_watch_prometheus_up(server):
     r = subprocess.run([XRDDIAG, "watch", url, "--count", "2", "--interval", "1",
                         "--prometheus"], capture_output=True, text=True, timeout=30)
     assert r.returncode == 0, f"{r.stdout}\n{r.stderr}"
-    assert "# TYPE xrootd_probe_up gauge" in r.stdout
-    assert "xrootd_probe_connect_seconds" in r.stdout
-    up_lines = [ln for ln in r.stdout.splitlines() if ln.startswith("xrootd_probe_up{")]
+    assert "# TYPE brix_probe_up gauge" in r.stdout
+    assert "brix_probe_connect_seconds" in r.stdout
+    up_lines = [ln for ln in r.stdout.splitlines() if ln.startswith("brix_probe_up{")]
     assert len(up_lines) == 2, f"expected 2 cycles, got: {up_lines}"
     assert all(ln.strip().endswith(" 1") for ln in up_lines), up_lines
     # PII-free: the label is host:port, never the probe path
@@ -111,7 +111,7 @@ def test_watch_down_endpoint_bounded(server):
                        capture_output=True, text=True, timeout=15)
     elapsed = time.time() - t0
     assert r.returncode == 0, f"{r.stdout}\n{r.stderr}"
-    up_lines = [ln for ln in r.stdout.splitlines() if ln.startswith("xrootd_probe_up{")]
+    up_lines = [ln for ln in r.stdout.splitlines() if ln.startswith("brix_probe_up{")]
     assert len(up_lines) == 1 and up_lines[0].strip().endswith(" 0"), up_lines
     assert elapsed < 10, f"down probe should be bounded, took {elapsed:.1f}s"
 
@@ -143,6 +143,6 @@ def test_watch_prometheus_atomic_file(server, tmp_path):
     assert r.returncode == 0, f"{r.stdout}\n{r.stderr}"
     assert out.exists(), "prometheus file not written"
     body = out.read_text()
-    assert "xrootd_probe_up{" in body and "} 1" in body
+    assert "brix_probe_up{" in body and "} 1" in body
     # no leftover temp files next to the target
     assert list(tmp_path.glob("xrootd.prom.*")) == [], "atomic temp leaked"

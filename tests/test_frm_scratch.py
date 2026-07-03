@@ -7,7 +7,7 @@ Covers the Pillar-F follow-ups:
   * #1 LFN threading: the copycmd is exported $FRM_LFN, so a REAL recall script
     (frm_fake_mss.sh) fetches the right object even though it writes to a scratch
     path that does not encode the object;
-  * #2 control-dir: with XROOTD_FRM_CONTROL_DIR set, the residency marker lives in
+  * #2 control-dir: with BRIX_FRM_CONTROL_DIR set, the residency marker lives in
     a local POSIX control mount (a flat hashed stub), not on the export object.
 
 Self-provisioned; skips cleanly without xattrs/xrdcp.
@@ -87,12 +87,12 @@ def _start_frm(d, *, force_scratch=False, control_dir=False, real_mss=False,
 
     scratch_dirs = ""
     if force_scratch:
-        scratch_dirs += (f"        xrootd_frm_stage_dir {scratch};\n"
-                         "        xrootd_frm_force_scratch on;\n")
+        scratch_dirs += (f"        brix_frm_stage_dir {scratch};\n"
+                         "        brix_frm_force_scratch on;\n")
     if control_dir:
-        scratch_dirs += f"        xrootd_frm_control_dir {control};\n"
+        scratch_dirs += f"        brix_frm_control_dir {control};\n"
     if oracle:
-        scratch_dirs += f"        xrootd_frm_residency_cmd {oracle_cmd};\n"
+        scratch_dirs += f"        brix_frm_residency_cmd {oracle_cmd};\n"
 
     conf = f"""
 worker_processes 1;
@@ -108,14 +108,14 @@ stream {{
     server {{
         listen {BIND_HOST}:{port};
         xrootd on;
-        xrootd_storage_backend posix:{data};
-        xrootd_auth none;
-        xrootd_thread_pool frmpool;
-        xrootd_frm on;
-        xrootd_frm_queue_path {queue};
-        xrootd_frm_copycmd {copycmd};
-        xrootd_frm_copymax 4;
-        xrootd_frm_stage_wait 1;
+        brix_storage_backend posix:{data};
+        brix_auth none;
+        brix_thread_pool frmpool;
+        brix_frm on;
+        brix_frm_queue_path {queue};
+        brix_frm_copycmd {copycmd};
+        brix_frm_copymax 4;
+        brix_frm_stage_wait 1;
 {scratch_dirs}    }}
 }}
 daemon off;

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # run_s3_storage_backend.sh — phase-63: an S3 export backed by a COMPOSABLE source
-# backend (xrootd_s3_storage_backend). S3 GetObject goes through xrootd_vfs_open, so
+# backend (brix_s3_storage_backend). S3 GetObject goes through brix_vfs_open, so
 # with a remote root:// source the object is served from the origin via sd_xroot —
 # the same composable stack the stream/WebDAV exports use, now reaching S3. Also
 # proves the §14 credential at S3 scope against a token-auth origin.
@@ -18,16 +18,16 @@ head -c 400000 /dev/urandom > "$PFX/o/root/obj.bin"
 cat > "$PFX/o/nginx.conf" <<EOF
 daemon on; error_log $PFX/o/logs/e.log info; pid $PFX/o/nginx.pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${OPORT}; xrootd on; xrootd_root $PFX/o/root; xrootd_auth none; } }
+stream { server { listen 127.0.0.1:${OPORT}; xrootd on; brix_root $PFX/o/root; brix_auth none; } }
 EOF
 cat > "$PFX/s/nginx.conf" <<EOF
 daemon on; error_log $PFX/s/logs/e.log info; pid $PFX/s/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 http { server { listen 127.0.0.1:${SPORT}; location / {
-    xrootd_s3 on; xrootd_s3_root $PFX/s/root; xrootd_s3_bucket testbucket;
-    xrootd_s3_storage_backend root://127.0.0.1:${OPORT};
-    xrootd_s3_cache_root $PFX/s/cache;
+    brix_s3 on; brix_s3_root $PFX/s/root; brix_s3_bucket testbucket;
+    brix_s3_storage_backend root://127.0.0.1:${OPORT};
+    brix_s3_cache_root $PFX/s/cache;
 } } }
 EOF
 mkdir -p "$PFX/s/cache"
@@ -62,21 +62,21 @@ if python3 "$HERE/utils/make_token.py" init "$PFX/tok" >/dev/null 2>&1 \
     cat > "$PFX/t/nginx.conf" <<EOF
 daemon on; error_log $PFX/t/logs/e.log info; pid $PFX/t/nginx.pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${TPORT}; xrootd on; xrootd_root $PFX/t/root;
-    xrootd_auth token; xrootd_token_jwks $PFX/tok/jwks.json;
-    xrootd_token_issuer https://test.example.com; xrootd_token_audience nginx-xrootd; } }
+stream { server { listen 127.0.0.1:${TPORT}; xrootd on; brix_root $PFX/t/root;
+    brix_auth token; brix_token_jwks $PFX/tok/jwks.json;
+    brix_token_issuer https://test.example.com; brix_token_audience nginx-xrootd; } }
 EOF
     cat > "$PFX/c/nginx.conf" <<EOF
 daemon on; error_log $PFX/c/logs/e.log info; pid $PFX/c/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 http {
-    xrootd_credential origin { token_file $PFX/token.jwt; }
+    brix_credential origin { token_file $PFX/token.jwt; }
     server { listen 127.0.0.1:${CPORT}; location / {
-        xrootd_s3 on; xrootd_s3_root $PFX/c/root; xrootd_s3_bucket testbucket;
-        xrootd_s3_storage_backend    root://127.0.0.1:${TPORT};
-        xrootd_s3_storage_credential origin;
-        xrootd_s3_cache_root $PFX/c/cache;
+        brix_s3 on; brix_s3_root $PFX/c/root; brix_s3_bucket testbucket;
+        brix_s3_storage_backend    root://127.0.0.1:${TPORT};
+        brix_s3_storage_credential origin;
+        brix_s3_cache_root $PFX/c/cache;
     } }
 }
 EOF

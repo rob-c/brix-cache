@@ -10,33 +10,33 @@
  * key=dn   limits per authenticated DN (stream/GSI, post-auth)
  * key=ip   limits per client IP (used before identity is known, e.g. HTTP)
  */
-#ifndef XROOTD_SHM_RATE_LIMIT_H
-#define XROOTD_SHM_RATE_LIMIT_H
+#ifndef BRIX_SHM_RATE_LIMIT_H
+#define BRIX_SHM_RATE_LIMIT_H
 
 #include "kv.h"
 
-/* Per-conf settings, filled by xrootd_rate_limit_directive(). */
+/* Per-conf settings, filled by brix_rate_limit_directive(). */
 typedef struct {
-    xrootd_kv_t *kv;        /* NULL = disabled */
+    brix_kv_t *kv;        /* NULL = disabled */
     ngx_uint_t   rate;      /* sustained requests per second */
     ngx_uint_t   burst;     /* bucket capacity */
     ngx_uint_t   key_ip;    /* 0 = key by DN, 1 = key by client IP */
-} xrootd_rate_limit_conf_t;
+} brix_rate_limit_conf_t;
 
 /*
- * xrootd_rate_limit_check() — token-bucket admission test for identity
+ * brix_rate_limit_check() — token-bucket admission test for identity
  * bytes id[0..id_len).  Returns NGX_OK to admit, NGX_DECLINED when the bucket
  * is empty.  A NULL/disabled rl always admits (NGX_OK).
  */
-ngx_int_t xrootd_rate_limit_check(const xrootd_rate_limit_conf_t *rl,
+ngx_int_t brix_rate_limit_check(const brix_rate_limit_conf_t *rl,
     const char *id, size_t id_len);
 
 /*
- * xrootd_rate_limit_directive() — setter for
- *   xrootd_rate_limit zone=<name> rate=<N>r/s burst=<N> [key=dn|ip];
- * Writes the xrootd_rate_limit_conf_t at cmd->offset.
+ * brix_rate_limit_directive() — setter for
+ *   brix_rate_limit zone=<name> rate=<N>r/s burst=<N> [key=dn|ip];
+ * Writes the brix_rate_limit_conf_t at cmd->offset.
  */
-char *xrootd_rate_limit_directive(ngx_conf_t *cf, ngx_command_t *cmd,
+char *brix_rate_limit_directive(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
 
-#endif /* XROOTD_SHM_RATE_LIMIT_H */
+#endif /* BRIX_SHM_RATE_LIMIT_H */

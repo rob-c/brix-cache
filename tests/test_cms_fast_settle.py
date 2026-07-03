@@ -19,7 +19,7 @@ Covered:
   * the happy path (manager already up) registers near-instantly;
   * a dead manager is bounded: fast-retry is confined to the window, then falls back
     to sparse exponential backoff — it never busy-spins (no 0ms-timer footgun);
-  * the tunables (xrootd_cms_initial_delay / _connect_retry) are accepted.
+  * the tunables (brix_cms_initial_delay / _connect_retry) are accepted.
 
 Real mesh interop/correctness is covered by test_cms_mesh_interop.py /
 test_conformance_topologies.py against the cmsd fleet.
@@ -112,9 +112,9 @@ stream {{
     server {{
         listen {self.listen};
         xrootd on;
-        xrootd_storage_backend posix:{prefix}/data;
-        xrootd_auth none;
-        xrootd_cms_manager 127.0.0.1:{mgr_port};
+        brix_storage_backend posix:{prefix}/data;
+        brix_auth none;
+        brix_cms_manager 127.0.0.1:{mgr_port};
 {extra}    }}
 }}
 """)
@@ -236,11 +236,11 @@ def test_dead_manager_is_bounded_then_backs_off(node_factory):
 
 
 def test_tunables_accepted(node_factory):
-    """xrootd_cms_initial_delay / _connect_retry are accepted and the node settles."""
+    """brix_cms_initial_delay / _connect_retry are accepted and the node settles."""
     node, _, _ = node_factory(
         start_manager=True,
-        extra="        xrootd_cms_initial_delay 0;\n"
-              "        xrootd_cms_connect_retry 25;\n")
+        extra="        brix_cms_initial_delay 0;\n"
+              "        brix_cms_connect_retry 25;\n")
     node.start()
     res = node.wait_registered()
     assert res is not None, "node never registered with custom tunables\n" + node.read_log()

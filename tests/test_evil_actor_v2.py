@@ -269,7 +269,7 @@ class _Srv:
             if any(m in txt for m in ("/src/core/aio/", "/src/protocols/root/read/", "/src/protocols/root/write/",
                                       "/src/fs/cache/", "/src/protocols/root/session/", "/src/protocols/root/connection/",
                                       "_aio_thread", "_aio_done", "read_scratch",
-                                      "payload_to_free", "ctx->destroyed", "xrootd_")):
+                                      "payload_to_free", "ctx->destroyed", "brix_")):
                 hits.append(fn)
         return ",".join(hits)
 
@@ -345,8 +345,8 @@ events { worker_connections 1024; }
 stream {
     server {
         listen %s:%d;
-        xrootd on; xrootd_storage_backend posix:%s; xrootd_auth none; xrootd_allow_write on;
-        xrootd_thread_pool aiopool; xrootd_memory_budget 6m;
+        xrootd on; brix_storage_backend posix:%s; brix_auth none; brix_allow_write on;
+        brix_thread_pool aiopool; brix_memory_budget 6m;
     }
 }
 http {
@@ -355,11 +355,11 @@ http {
     fastcgi_temp_path %s/logs/ft; uwsgi_temp_path %s/logs/ut; scgi_temp_path %s/logs/st;
     server {
         listen %s:%d;
-        location = /metrics { xrootd_metrics on; }
-        location /s3b/ { xrootd_s3 on; xrootd_s3_storage_backend posix:%s; xrootd_s3_bucket s3b;
-                         xrootd_s3_region us-east-1; }
-        location / { xrootd_webdav on; xrootd_webdav_storage_backend posix:%s; xrootd_webdav_auth none;
-                     xrootd_webdav_allow_write on; }
+        location = /metrics { brix_metrics on; }
+        location /s3b/ { brix_s3 on; brix_s3_storage_backend posix:%s; brix_s3_bucket s3b;
+                         brix_s3_region us-east-1; }
+        location / { brix_webdav on; brix_webdav_storage_backend posix:%s; brix_webdav_auth none;
+                     brix_webdav_allow_write on; }
     }
 }
 """ % (prefix, prefix, BIND_HOST, root_port, datadir,
@@ -393,7 +393,7 @@ http {
     if SHIM_SAN == "thread":
         supp = os.path.join(prefix, "tsan.supp")
         open(supp, "w").write(
-            "race:ngx_atomic_\nrace:^xrootd_metrics_\nrace:ngx_thread_pool_cycle\n"
+            "race:ngx_atomic_\nrace:^brix_metrics_\nrace:ngx_thread_pool_cycle\n"
             "race:ngx_time_update\nrace:ngx_event_\ncalled_from_lib:libssl\n"
             "called_from_lib:libcrypto\ncalled_from_lib:libjansson\n")
         env["TSAN_OPTIONS"] = ("suppressions=%s:halt_on_error=0:exitcode=0:"

@@ -3,7 +3,7 @@
  *
  * WHAT: after kXR_login the server advertises the auth methods it accepts as a
  *       parameter block of "&P=<name>,<args>" entries (e.g.
- *       "&P=gsi,v:10300,c:ssl&P=ztn,..."). xrootd_sec_proto_advertised tells a
+ *       "&P=gsi,v:10300,c:ssl&P=ztn,..."). brix_sec_proto_advertised tells a
  *       client whether a given protocol is offered and, optionally, returns that
  *       entry's argument string.
  * WHY:  TWO XRootD-client implementations parse this same list to choose which
@@ -21,8 +21,8 @@
  *
  * Clean-room: "&P=<proto>,<args>" grammar from the XRootD login security list.
  */
-#ifndef XROOTD_PROTOCOL_SEC_PROTOCOL_H
-#define XROOTD_PROTOCOL_SEC_PROTOCOL_H
+#ifndef BRIX_PROTOCOL_SEC_PROTOCOL_H
+#define BRIX_PROTOCOL_SEC_PROTOCOL_H
 
 #include <stddef.h>
 #include <string.h>
@@ -36,7 +36,7 @@
  * protocol is advertised, else 0.
  */
 static inline int
-xrootd_sec_proto_advertised(const char *seclist, const char *name,
+brix_sec_proto_advertised(const char *seclist, const char *name,
                             char *parms, size_t psz)
 {
     size_t      nlen;
@@ -72,4 +72,4 @@ xrootd_sec_proto_advertised(const char *seclist, const char *name,
     return 0;
 }
 
-#endif /* XROOTD_PROTOCOL_SEC_PROTOCOL_H */
+#endif /* BRIX_PROTOCOL_SEC_PROTOCOL_H */

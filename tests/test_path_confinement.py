@@ -9,7 +9,7 @@ The threat model covers BOTH classes of caller the export root must contain:
 
   * Anonymous users — no credentials at all.
   * Authorized writers — the anon stream endpoint (port 11094) has
-    ``xrootd_allow_write on``, so a legitimate *in-root* mkdir/open-create
+    ``brix_allow_write on``, so a legitimate *in-root* mkdir/open-create
     SUCCEEDS (proving the client is genuinely authorized to mutate the
     namespace).  Every traversal/symlink escape must therefore be blocked by
     *confinement*, not merely by an auth failure — which the positive controls

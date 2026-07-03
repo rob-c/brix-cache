@@ -2,7 +2,7 @@
 
 
 /*
- * xrootd_configure_thread_pools — resolve thread-pool names to concrete pool
+ * brix_configure_thread_pools — resolve thread-pool names to concrete pool
  * objects for all XRootD-enabled stream server blocks.
  *
  * Called during postconfiguration.  Iterates every stream server block and, if
@@ -16,12 +16,12 @@
  * Returns NGX_OK on success, NGX_ERROR on missing required pool.
  */
 ngx_int_t
-xrootd_configure_thread_pools(ngx_conf_t *cf,
+brix_configure_thread_pools(ngx_conf_t *cf,
     ngx_stream_core_main_conf_t *cmcf)
 {
     static ngx_str_t              default_pool_name = ngx_string("default");
     ngx_stream_core_srv_conf_t  **cscfp;
-    ngx_stream_xrootd_srv_conf_t *xcf;
+    ngx_stream_brix_srv_conf_t *xcf;
     ngx_uint_t                    i;
 
     cscfp = cmcf->servers.elts;
@@ -34,7 +34,7 @@ xrootd_configure_thread_pools(ngx_conf_t *cf,
         ngx_str_t *pool_name;
 
         xcf = ngx_stream_conf_get_module_srv_conf(cscfp[i],
-                                                   ngx_stream_xrootd_module);
+                                                   ngx_stream_brix_module);
         if (!xcf->common.enable) {
             continue;
         }
@@ -48,8 +48,8 @@ xrootd_configure_thread_pools(ngx_conf_t *cf,
         if (xcf->common.thread_pool == NULL) {
             if (xcf->cache) {
                 ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                    "xrootd_cache requires a working thread pool "
-                    "(configure xrootd_thread_pool or nginx's default "
+                    "brix_cache requires a working thread pool "
+                    "(configure brix_thread_pool or nginx's default "
                     "thread_pool)");
                 return NGX_ERROR;
             }

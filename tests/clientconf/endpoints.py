@@ -33,7 +33,7 @@ from settings import (
     NGINX_GSI_TLS_PORT,
     NGINX_TOKEN_PORT,
     PROXY_STD,
-    REF_XROOTD_PORT,
+    REF_BRIX_PORT,
     TOKENS_DIR,
     url_host,
 )
@@ -139,7 +139,7 @@ ANON = Endpoint("anon", HOST, NGINX_ANON_PORT)
 GSI = Endpoint("gsi", HOST, NGINX_GSI_PORT, caps=("proxy",), auth=_GSI_ENV)
 TLS = Endpoint("tls", HOST, NGINX_GSI_TLS_PORT, caps=("proxy", "tls"), auth=_GSI_ENV)
 TOKEN = Endpoint("token", HOST, NGINX_TOKEN_PORT, caps=("token",), auth=_TOKEN_ENV)
-REF = Endpoint("ref", HOST, REF_XROOTD_PORT)
+REF = Endpoint("ref", HOST, REF_BRIX_PORT)
 
 ENDPOINTS = [ANON, GSI, TLS, TOKEN, REF]
 BY_KEY = {e.key: e for e in ENDPOINTS}

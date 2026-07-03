@@ -23,32 +23,32 @@ daemon off; error_log $PFX/logs/e.log info; pid $PFX/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:11620; xrootd on; xrootd_auth none;
-    xrootd_storage_backend root://127.0.0.1:1;
-    xrootd_cache on; xrootd_cache_root $PFX/cache; ${3:-}
+    listen 127.0.0.1:11620; xrootd on; brix_auth none;
+    brix_storage_backend root://127.0.0.1:1;
+    brix_cache on; brix_cache_root $PFX/cache; ${3:-}
     $1 $2
 } }
 EOF
 }
 
 # 1. valid pair passes
-emit "xrootd_cache_high_watermark 90%;" "xrootd_cache_low_watermark 80%;"
+emit "brix_cache_high_watermark 90%;" "brix_cache_low_watermark 80%;"
 "$NGINX" -t -c "$PFX/nginx.conf" >"$PFX/o1" 2>&1
 grep -q 'syntax is ok' "$PFX/o1" && ok "valid 90/80 pair accepted" || { bad "valid pair rejected"; grep emerg "$PFX/o1"; }
 
 # 2. inverted pair (low >= high) rejected with the watermark message
-emit "xrootd_cache_high_watermark 70%;" "xrootd_cache_low_watermark 80%;"
+emit "brix_cache_high_watermark 70%;" "brix_cache_low_watermark 80%;"
 "$NGINX" -t -c "$PFX/nginx.conf" >"$PFX/o2" 2>&1
 grep -qi 'low_watermark must be greater than 0 and less than' "$PFX/o2" \
     && ok "inverted pair rejected with EMERG" || { bad "inverted pair not rejected"; tail -2 "$PFX/o2"; }
 
 # 3. back-compat: bare eviction_threshold still loads (watermarks derive)
-emit "xrootd_cache_eviction_threshold 0.85;" ""
+emit "brix_cache_eviction_threshold 0.85;" ""
 "$NGINX" -t -c "$PFX/nginx.conf" >"$PFX/o3" 2>&1
 grep -q 'syntax is ok' "$PFX/o3" && ok "back-compat eviction_threshold loads" || { bad "back-compat broken"; grep emerg "$PFX/o3"; }
 
 # 4. decimal form of the watermark parser accepted
-emit "xrootd_cache_high_watermark 0.95;" "xrootd_cache_low_watermark 0.90;"
+emit "brix_cache_high_watermark 0.95;" "brix_cache_low_watermark 0.90;"
 "$NGINX" -t -c "$PFX/nginx.conf" >"$PFX/o4" 2>&1
 grep -q 'syntax is ok' "$PFX/o4" && ok "decimal watermark form accepted" || bad "decimal form rejected"
 
@@ -59,28 +59,28 @@ daemon off; error_log $PFX/logs/e.log info; pid $PFX/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:11621; xrootd on; xrootd_auth none;
-    xrootd_storage_backend posix:$PFX/root;
-    xrootd_allow_write on; xrootd_write_through on; xrootd_wt_origin 127.0.0.1:1;
+    listen 127.0.0.1:11621; xrootd on; brix_auth none;
+    brix_storage_backend posix:$PFX/root;
+    brix_allow_write on; brix_write_through on; brix_wt_origin 127.0.0.1:1;
     $1
 } }
 EOF
 }
 
 # 5. staging high watermark without a stage root → rejected
-emit_stage "xrootd_wt_stage_high_watermark 90%; xrootd_wt_stage_low_watermark 80%;"
+emit_stage "brix_wt_stage_high_watermark 90%; brix_wt_stage_low_watermark 80%;"
 "$NGINX" -t -c "$PFX/nginx.conf" >"$PFX/o5" 2>&1
 grep -qi 'wt_stage_high_watermark requires .*wt_stage_root' "$PFX/o5" \
     && ok "staging watermark without stage_root rejected" || { bad "missing stage_root not rejected"; tail -2 "$PFX/o5"; }
 
 # 6. staging valid pair with a stage root → accepted
 mkdir -p "$PFX/stage"
-emit_stage "xrootd_cache_wt_stage_root $PFX/stage; xrootd_wt_stage_high_watermark 90%; xrootd_wt_stage_low_watermark 80%;"
+emit_stage "brix_cache_wt_stage_root $PFX/stage; brix_wt_stage_high_watermark 90%; brix_wt_stage_low_watermark 80%;"
 "$NGINX" -t -c "$PFX/nginx.conf" >"$PFX/o6" 2>&1
 grep -q 'syntax is ok' "$PFX/o6" && ok "staging valid pair accepted" || { bad "staging valid pair rejected"; grep emerg "$PFX/o6"; }
 
 # 7. staging inverted pair (low >= high) → rejected
-emit_stage "xrootd_cache_wt_stage_root $PFX/stage; xrootd_wt_stage_high_watermark 70%; xrootd_wt_stage_low_watermark 80%;"
+emit_stage "brix_cache_wt_stage_root $PFX/stage; brix_wt_stage_high_watermark 70%; brix_wt_stage_low_watermark 80%;"
 "$NGINX" -t -c "$PFX/nginx.conf" >"$PFX/o7" 2>&1
 grep -qi 'wt_stage_low_watermark must be greater than 0' "$PFX/o7" \
     && ok "staging inverted pair rejected" || { bad "staging inverted pair not rejected"; tail -2 "$PFX/o7"; }

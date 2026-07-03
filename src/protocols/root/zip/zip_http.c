@@ -39,7 +39,7 @@ zip_http_name_ok(const char *out, size_t n)
 }
 
 int
-xrootd_zip_http_member_arg(ngx_http_request_t *r, char *out, size_t outsz)
+brix_zip_http_member_arg(ngx_http_request_t *r, char *out, size_t outsz)
 {
     ngx_str_t  raw;
     u_char    *d, *s;
@@ -76,19 +76,19 @@ zip_http_close_fd(void *data)
 }
 
 ngx_int_t
-xrootd_zip_http_serve(ngx_http_request_t *r, const char *root_canon,
+brix_zip_http_serve(ngx_http_request_t *r, const char *root_canon,
     size_t cd_max, const char *archive_full, const char *member)
 {
     int                  fd, send_fd, zrc;
     struct stat          ast;
-    xrootd_zip_member_t  m;
+    brix_zip_member_t  m;
     off_t                total, start, len;
     ngx_table_elt_t     *range;
     ngx_buf_t           *b;
     ngx_chain_t          out;
     ngx_int_t            rc;
-    xrootd_vfs_ctx_t     vctx;
-    xrootd_vfs_file_t   *fh;
+    brix_vfs_ctx_t     vctx;
+    brix_vfs_file_t   *fh;
     int                  vfs_err = 0;
     int                  is_tls  = 0;
 
@@ -97,29 +97,29 @@ xrootd_zip_http_serve(ngx_http_request_t *r, const char *root_canon,
 #if (NGX_HTTP_SSL)
     is_tls = (r->connection->ssl != NULL) ? 1 : 0;
 #endif
-    xrootd_vfs_ctx_init(&vctx, r->pool, r->connection->log, XROOTD_PROTO_WEBDAV,
+    brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_WEBDAV,
         root_canon, NULL, 0 /* allow_write */, is_tls, NULL, archive_full);
-    fh = xrootd_vfs_open(&vctx, XROOTD_VFS_O_READ, &vfs_err);
+    fh = brix_vfs_open(&vctx, BRIX_VFS_O_READ, &vfs_err);
     if (fh == NULL) {
         errno = vfs_err;
         if (errno == ENOENT || errno == ENOTDIR) return NGX_HTTP_NOT_FOUND;
         if (errno == EACCES || errno == EPERM) return NGX_HTTP_FORBIDDEN;
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
-    fd = xrootd_vfs_file_fd(fh);
+    fd = brix_vfs_file_fd(fh);
     if (fstat(fd, &ast) != 0 || !S_ISREG(ast.st_mode)) {
-        (void) xrootd_vfs_close(fh, r->connection->log);
+        (void) brix_vfs_close(fh, r->connection->log);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
     if (cd_max == 0) {
         cd_max = 16 * 1024 * 1024;
     }
-    zrc = xrootd_zip_find_member(fd, (off_t) ast.st_size, member, cd_max, &m);
-    if (zrc != XROOTD_ZIP_OK) {
-        (void) xrootd_vfs_close(fh, r->connection->log);
-        if (zrc == XROOTD_ZIP_NOMEMBER) return NGX_HTTP_NOT_FOUND;
-        return (zrc == XROOTD_ZIP_EIO) ? NGX_HTTP_INTERNAL_SERVER_ERROR
+    zrc = brix_zip_find_member(fd, (off_t) ast.st_size, member, cd_max, &m);
+    if (zrc != BRIX_ZIP_OK) {
+        (void) brix_vfs_close(fh, r->connection->log);
+        if (zrc == BRIX_ZIP_NOMEMBER) return NGX_HTTP_NOT_FOUND;
+        return (zrc == BRIX_ZIP_EIO) ? NGX_HTTP_INTERNAL_SERVER_ERROR
                                        : NGX_HTTP_NOT_IMPLEMENTED;
     }
 
@@ -146,7 +146,7 @@ xrootd_zip_http_serve(ngx_http_request_t *r, const char *root_canon,
                 len = total - start;
             }
             if (start >= total) {
-                (void) xrootd_vfs_close(fh, r->connection->log);
+                (void) brix_vfs_close(fh, r->connection->log);
                 r->headers_out.status = NGX_HTTP_RANGE_NOT_SATISFIABLE;
                 r->headers_out.content_length_n = 0;
                 ngx_http_send_header(r);
@@ -160,17 +160,17 @@ xrootd_zip_http_serve(ngx_http_request_t *r, const char *root_canon,
 
     b = ngx_pcalloc(r->pool, sizeof(ngx_buf_t));
     if (b == NULL) {
-        (void) xrootd_vfs_close(fh, r->connection->log);
+        (void) brix_vfs_close(fh, r->connection->log);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    if (m.method == XROOTD_ZIP_METHOD_STORE) {
+    if (m.method == BRIX_ZIP_METHOD_STORE) {
         /* Zero-copy sendfile over the member's byte range; keep the fd alive
          * (async send) via a pool cleanup. */
         ngx_file_t        *f = ngx_pcalloc(r->pool, sizeof(ngx_file_t));
         ngx_pool_cleanup_t *cln = ngx_pool_cleanup_add(r->pool, sizeof(ngx_fd_t));
         send_fd = dup(fd);
-        (void) xrootd_vfs_close(fh, r->connection->log);
+        (void) brix_vfs_close(fh, r->connection->log);
         if (f == NULL || cln == NULL || send_fd == (ngx_fd_t) -1) {
             if (send_fd != (ngx_fd_t) -1) (void) close(send_fd);
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
@@ -186,17 +186,17 @@ xrootd_zip_http_serve(ngx_http_request_t *r, const char *root_canon,
     } else {
         u_char *mem;
         if (m.uncomp_size > ZIP_HTTP_MEM_MAX) {
-            (void) xrootd_vfs_close(fh, r->connection->log);
+            (void) brix_vfs_close(fh, r->connection->log);
             return NGX_HTTP_REQUEST_ENTITY_TOO_LARGE;
         }
         mem = ngx_palloc(r->pool, m.uncomp_size ? m.uncomp_size : 1);
         if (mem == NULL
-            || xrootd_zip_extract_full(fd, &m, mem, m.uncomp_size) < 0)
+            || brix_zip_extract_full(fd, &m, mem, m.uncomp_size) < 0)
         {
-            (void) xrootd_vfs_close(fh, r->connection->log);
+            (void) brix_vfs_close(fh, r->connection->log);
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
-        (void) xrootd_vfs_close(fh, r->connection->log);
+        (void) brix_vfs_close(fh, r->connection->log);
         b->memory = 1;
         b->pos    = mem + start;
         b->last   = mem + start + len;

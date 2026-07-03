@@ -90,9 +90,9 @@ read_int(const unsigned char **p, const unsigned char *end, uint32_t *v)
 }
 
 int
-xrootd_cms_rrdata_parse(unsigned char code,
+brix_cms_rrdata_parse(unsigned char code,
                         const unsigned char *payload, size_t len,
-                        xrootd_cms_rrdata_t *out)
+                        brix_cms_rrdata_t *out)
 {
     const unsigned char *p   = payload;
     const unsigned char *end = payload + len;
@@ -191,7 +191,7 @@ enc_str(unsigned char **p, unsigned char *end, const char *s)
 }
 
 int
-xrootd_cms_rrdata_encode(unsigned char code, const char *ident,
+brix_cms_rrdata_encode(unsigned char code, const char *ident,
                          const char *path, const char *path2,
                          const char *mode, const char *opaque,
                          unsigned char *buf, size_t buflen)
@@ -235,7 +235,7 @@ xrootd_cms_rrdata_encode(unsigned char code, const char *ident,
 }
 
 int
-xrootd_cms_statfs_encode(uint32_t w_num, uint32_t w_free, uint32_t w_util,
+brix_cms_statfs_encode(uint32_t w_num, uint32_t w_free, uint32_t w_util,
                          uint32_t s_num, uint32_t s_free, uint32_t s_util,
                          unsigned char *buf, size_t buflen)
 {

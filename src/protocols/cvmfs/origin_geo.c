@@ -14,7 +14,7 @@
 #define CVMFS_EARTH_RADIUS_KM 6371.0
 
 double
-xrootd_cvmfs_haversine_km(double lat1, double lon1, double lat2, double lon2)
+brix_cvmfs_haversine_km(double lat1, double lon1, double lat2, double lon2)
 {
     double rl1 = lat1 * M_PI / 180.0, rl2 = lat2 * M_PI / 180.0;
     double dla = (lat2 - lat1) * M_PI / 180.0;
@@ -26,7 +26,7 @@ xrootd_cvmfs_haversine_km(double lat1, double lon1, double lat2, double lon2)
 }
 
 void
-xrootd_cvmfs_rank_by_metric(const double *metric, int n, int *ranks)
+brix_cvmfs_rank_by_metric(const double *metric, int n, int *ranks)
 {
     int i, j, better;
 

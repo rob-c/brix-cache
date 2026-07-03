@@ -19,7 +19,7 @@
 ngx_str_t
 get_header(ngx_http_request_t *r, const char *name)
 {
-    return xrootd_http_get_header(r, name);
+    return brix_http_get_header(r, name);
 }
 
 /*
@@ -189,7 +189,7 @@ sigv4_parse_credential_scope(const char *credential,
  * WHY:  Presigned-URL fields (X-Amz-Credential, X-Amz-Date, ...) arrive percent-
  *       encoded in the query string. We decode '+' as space and reject embedded
  *       NUL so callers receive a clean, trusted C string. HOW: ngx_http_arg
- *       gets the raw value; xrootd_http_urldecode does the bounded decode.
+ *       gets the raw value; brix_http_urldecode does the bounded decode.
  * Returns 1 on success, 0 if the arg is missing/empty or decode fails/overflows.
  */
 static int
@@ -204,9 +204,9 @@ sigv4_copy_arg_decoded(ngx_http_request_t *r, const char *name,
         return 0;
     }
 
-    return xrootd_http_urldecode(raw.data, raw.len, dst, dst_size,
-        XROOTD_URLDECODE_PLUS_TO_SPACE |
-        XROOTD_URLDECODE_REJECT_NUL) == XROOTD_URLDECODE_OK;
+    return brix_http_urldecode(raw.data, raw.len, dst, dst_size,
+        BRIX_URLDECODE_PLUS_TO_SPACE |
+        BRIX_URLDECODE_REJECT_NUL) == BRIX_URLDECODE_OK;
 }
 
 /*

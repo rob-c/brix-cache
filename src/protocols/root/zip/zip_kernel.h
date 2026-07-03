@@ -21,8 +21,8 @@
  *       is issued; a hostile or truncated archive yields a clean error code,
  *       never an out-of-bounds access.
  */
-#ifndef XROOTD_ZIP_KERNEL_H
-#define XROOTD_ZIP_KERNEL_H
+#ifndef BRIX_ZIP_KERNEL_H
+#define BRIX_ZIP_KERNEL_H
 
 #include <stdint.h>
 #include <stddef.h>
@@ -87,4 +87,4 @@ int zip_resolve_data_off(zip_pread_fn pread, void *ctx, uint64_t archive_size,
                          uint64_t lhdr_off, uint64_t comp_size,
                          uint64_t *data_off);
 
-#endif /* XROOTD_ZIP_KERNEL_H */
+#endif /* BRIX_ZIP_KERNEL_H */

@@ -182,8 +182,8 @@ stream {{
     server {{
         listen {BIND_HOST}:{port};
         xrootd on;
-        xrootd_storage_backend posix:{data};
-        xrootd_auth none;
+        brix_storage_backend posix:{data};
+        brix_auth none;
     }}
 }}
 """)

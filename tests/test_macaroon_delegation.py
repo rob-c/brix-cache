@@ -4,7 +4,7 @@ Tests the POST /.oauth2/token issuance endpoint and
 GET /.well-known/oauth-authorization-server discovery endpoint.
 
 Run against the plain HTTP WebDAV server (port 8080, anonymous+write) which
-is configured with xrootd_webdav_macaroon_secret so the issuance path is active.
+is configured with brix_webdav_macaroon_secret so the issuance path is active.
 
 Success path:
   - Discovery returns a JSON document with token_endpoint pointing at /.oauth2/token
@@ -104,7 +104,7 @@ def parse_iso8601(s: str) -> float:
 
 MACAROON_SECRET_HEX = "deadbeef" * 8
 MACAROON_SECRET     = bytes.fromhex(MACAROON_SECRET_HEX)
-# Must match xrootd_webdav_token_issuer in the test config: the server pins a
+# Must match brix_webdav_token_issuer in the test config: the server pins a
 # macaroon's "location" to the configured issuer (issuer-pinning, fail-closed),
 # so a macaroon presented for auth must carry this exact location.
 TOKEN_ISSUER        = "https://test.example.com"

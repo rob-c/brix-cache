@@ -1,5 +1,5 @@
 /* File: proxy_req.c — RFC-3820 GSI proxy-request crypto (phase-57 §F6)
- * WHAT: xrootd_gsi_build_pxyreq() generates the proxy-certificate REQUEST a GSI
+ * WHAT: brix_gsi_build_pxyreq() generates the proxy-certificate REQUEST a GSI
  *   server sends to a delegating client (the kXGS_pxyreq main payload): a fresh
  *   RSA keypair + a self-signed X509_REQ whose subject is the parent's plus a
  *   random /CN=<serial> and which carries a critical proxyCertInfo extension.
@@ -36,17 +36,17 @@
 
 #include "proxy_req.h"
 
-/* Overflow-checked size arithmetic (wire-length guard in xrootd_gsi_assemble_proxy).
+/* Overflow-checked size arithmetic (wire-length guard in brix_gsi_assemble_proxy).
  * Two builds compile this file without nginx headers: the standalone unit test
- * (proxy_req_unittest.c, which defines XROOTD_SAFE_SIZE_STANDALONE) and the
+ * (proxy_req_unittest.c, which defines BRIX_SAFE_SIZE_STANDALONE) and the
  * libxrdproto client core (built with XRDPROTO_NO_NGX). Both must make
  * safe_size.h skip its <ngx_config.h>/<ngx_core.h> includes AND supply the
  * minimal shims its inline helpers need — so the ngx-free client build implies
  * the standalone path. */
-#if defined(XRDPROTO_NO_NGX) && !defined(XROOTD_SAFE_SIZE_STANDALONE)
-#  define XROOTD_SAFE_SIZE_STANDALONE 1
+#if defined(XRDPROTO_NO_NGX) && !defined(BRIX_SAFE_SIZE_STANDALONE)
+#  define BRIX_SAFE_SIZE_STANDALONE 1
 #endif
-#ifdef XROOTD_SAFE_SIZE_STANDALONE
+#ifdef BRIX_SAFE_SIZE_STANDALONE
 typedef long              ngx_int_t;
 typedef struct ngx_pool_s ngx_pool_t;
 typedef struct ngx_log_s  ngx_log_t;
@@ -250,7 +250,7 @@ pxr_make_pci_ext(int parent_pathlen)
 }
 
 int
-xrootd_gsi_build_pxyreq(const uint8_t *parent_pem, size_t parent_pem_len,
+brix_gsi_build_pxyreq(const uint8_t *parent_pem, size_t parent_pem_len,
                         EVP_PKEY **newkey, uint8_t **req_der, size_t *req_len,
                         char *err, size_t errcap)
 {
@@ -445,7 +445,7 @@ sgn_copy_signer_exts(X509 *signer, X509 *proxy, int *indepth, int *haskeyusage)
 }
 
 int
-xrootd_gsi_sign_pxyreq(const uint8_t *signer_pem, size_t signer_pem_len,
+brix_gsi_sign_pxyreq(const uint8_t *signer_pem, size_t signer_pem_len,
                        EVP_PKEY *signer_key,
                        const uint8_t *req_der, size_t req_len,
                        uint8_t **proxy_pem, size_t *proxy_len,
@@ -567,7 +567,7 @@ xrootd_gsi_sign_pxyreq(const uint8_t *signer_pem, size_t signer_pem_len,
 
 
 int
-xrootd_gsi_assemble_proxy(const uint8_t *proxy_pem, size_t proxy_pem_len,
+brix_gsi_assemble_proxy(const uint8_t *proxy_pem, size_t proxy_pem_len,
                           EVP_PKEY *reqkey,
                           const uint8_t *chain_pem, size_t chain_pem_len,
                           uint8_t **out_pem, size_t *out_len,
@@ -610,8 +610,8 @@ xrootd_gsi_assemble_proxy(const uint8_t *proxy_pem, size_t proxy_pem_len,
      * proxy_pem_len is wire-supplied (client-sent kXGC_sigpxy); guard the addition. */
     {
         size_t need;
-        if (xrootd_size_add(proxy_pem_len, chain_pem_len, &total) != NGX_OK
-            || xrootd_size_add(total, 1, &need) != NGX_OK) {
+        if (brix_size_add(proxy_pem_len, chain_pem_len, &total) != NGX_OK
+            || brix_size_add(total, 1, &need) != NGX_OK) {
             if (err) snprintf(err, errcap, "gsi assemble: PEM length overflow");
             return -1;
         }

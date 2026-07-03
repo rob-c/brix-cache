@@ -11,16 +11,16 @@
  *      then transition into bootstrap phase for protocol negotiation. Subsequent write events flush the buffer.
  * HOW: Extract uconn and proxy ctx from wev->data; check client destruction/timeout; delegate TLS to SSL layer;
  *      on CONNECTING state: getsockopt SO_ERROR for connect validation + optional ngx_ssl_create_connection for TLS;
- *      transition to XRD_PX_BOOTSTRAP then flush wbuf via xrootd_proxy_flush(); arm upstream read event after write done.
+ *      transition to XRD_PX_BOOTSTRAP then flush wbuf via brix_proxy_flush(); arm upstream read event after write done.
  */
 
 /* write event handler */
 void
-xrootd_proxy_write_handler(ngx_event_t *wev)
+brix_proxy_write_handler(ngx_event_t *wev)
 {
     ngx_connection_t   *uconn = wev->data;
-    xrootd_proxy_ctx_t *proxy = uconn->data;
-    xrootd_ctx_t       *ctx;
+    brix_proxy_ctx_t *proxy = uconn->data;
+    brix_ctx_t       *ctx;
 
     if (proxy == NULL) {
         return;
@@ -28,12 +28,12 @@ xrootd_proxy_write_handler(ngx_event_t *wev)
     ctx = proxy->client_ctx;
 
     if (ctx == NULL || ctx->destroyed) {
-        xrootd_proxy_cleanup(proxy);
+        brix_proxy_cleanup(proxy);
         return;
     }
 
     if (wev->timedout) {
-        xrootd_proxy_abort(proxy, "proxy: upstream write timeout");
+        brix_proxy_abort(proxy, "proxy: upstream write timeout");
         return;
     }
 
@@ -50,16 +50,16 @@ xrootd_proxy_write_handler(ngx_event_t *wev)
         if (getsockopt(uconn->fd, SOL_SOCKET, SO_ERROR,
                        (char *) &err, &len) == -1 || err)
         {
-            XROOTD_DIAG_ERR(proxy->client_conn->log,
+            BRIX_DIAG_ERR(proxy->client_conn->log,
                 err ? err : ngx_socket_errno,
                 "xrootd proxy: cannot connect to the backend",
                 "the proxied backend is down, unreachable, or refusing "
                 "connections (wrong host/port, or a firewall)",
-                "confirm the backend in xrootd_proxy_pass is up and reachable "
+                "confirm the backend in brix_proxy_pass is up and reachable "
                 "from this host; the OS reason is appended below");
-            XROOTD_PROXY_METRIC_INC(ctx, upstream_connect_errors);
-            XROOTD_PROXY_UP_INC(proxy, upstream_connect_errors);
-            xrootd_proxy_abort(proxy, "proxy: TCP connect failed");
+            BRIX_PROXY_METRIC_INC(ctx, upstream_connect_errors);
+            BRIX_PROXY_UP_INC(proxy, upstream_connect_errors);
+            brix_proxy_abort(proxy, "proxy: TCP connect failed");
             return;
         }
 
@@ -80,9 +80,9 @@ xrootd_proxy_write_handler(ngx_event_t *wev)
                                           NGX_SSL_BUFFER | NGX_SSL_CLIENT)
                 != NGX_OK)
             {
-                XROOTD_PROXY_METRIC_INC(ctx, upstream_connect_errors);
-                XROOTD_PROXY_UP_INC(proxy, upstream_connect_errors);
-                xrootd_proxy_abort(proxy, "proxy: TLS setup failed");
+                BRIX_PROXY_METRIC_INC(ctx, upstream_connect_errors);
+                BRIX_PROXY_UP_INC(proxy, upstream_connect_errors);
+                brix_proxy_abort(proxy, "proxy: TLS setup failed");
                 return;
             }
             /* SNI: prefer explicit name directive, fall back to configured host */
@@ -93,10 +93,10 @@ xrootd_proxy_write_handler(ngx_event_t *wev)
                     : (const char *) proxy->conf->proxy_host.data;
                 SSL_set_tlsext_host_name(uconn->ssl->connection, sni);
             }
-            uconn->ssl->handler = xrootd_proxy_tls_handshake_done;
+            uconn->ssl->handler = brix_proxy_tls_handshake_done;
             proxy->state = XRD_PX_TLS_HANDSHAKE;
             if (ngx_ssl_handshake(uconn) != NGX_AGAIN) {
-                xrootd_proxy_tls_handshake_done(uconn);
+                brix_proxy_tls_handshake_done(uconn);
             }
             return;
         }
@@ -108,9 +108,9 @@ xrootd_proxy_write_handler(ngx_event_t *wev)
     }
 
     if (proxy->wbuf_pos < proxy->wbuf_len) {
-        ngx_int_t rc = xrootd_proxy_flush(proxy);
+        ngx_int_t rc = brix_proxy_flush(proxy);
         if (rc == NGX_ERROR) {
-            xrootd_proxy_abort(proxy, "proxy: upstream write error");
+            brix_proxy_abort(proxy, "proxy: upstream write error");
             return;
         }
         if (rc == NGX_AGAIN) {
@@ -134,14 +134,14 @@ xrootd_proxy_write_handler(ngx_event_t *wev)
      * buffer here exactly as the immediate-completion path in forward_request.c
      * does.  Without this a backpressured (slow-consumer) request leaked its raw
      * heap buffer on EVERY request.  No-op / pool-detach for bootstrap frames. */
-    xrootd_proxy_wbuf_release(proxy);
+    brix_proxy_wbuf_release(proxy);
 
     /* Write complete — arm upstream read */
     ngx_log_debug(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log, 0,
                   "xrootd proxy: write done, arming read (state=%d)",
                   (int) proxy->state);
     if (ngx_handle_read_event(uconn->read, 0) != NGX_OK) {
-        xrootd_proxy_abort(proxy, "proxy: read arm failed after write");
+        brix_proxy_abort(proxy, "proxy: read arm failed after write");
     }
 }
 

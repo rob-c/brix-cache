@@ -1,6 +1,6 @@
 #include "dashboard_http.h"
-#include "api_admin.h"   /* Phase 23: xrootd_admin_dispatch + admin directives */
-#include "core/http/http_headers.h"   /* xrootd_http_source_offer (AGPL sec.13) */
+#include "api_admin.h"   /* Phase 23: brix_admin_dispatch + admin directives */
+#include "core/http/http_headers.h"   /* brix_http_source_offer (AGPL sec.13) */
 
 #include <limits.h>
 #include <stdio.h>
@@ -10,10 +10,10 @@
 /*
  * dashboard/module.c - nginx HTTP module definition for the live transfer monitor.
  *
- * WHAT: Defines the ngx_http_xrootd_dashboard_module nginx HTTP module.
+ * WHAT: Defines the ngx_http_brix_dashboard_module nginx HTTP module.
  *       Provides two location-level directives:
- *         xrootd_dashboard on|off   - enable the dashboard at this location
- *         xrootd_dashboard_password "secret" - set the admin password
+ *         brix_dashboard on|off   - enable the dashboard at this location
+ *         brix_dashboard_password "secret" - set the admin password
  *       When enabled, the content handler is installed and dispatches all
  *       requests under the location to the appropriate handler.
  *
@@ -32,18 +32,18 @@
  */
 
 /* Forward declarations implemented in this file */
-static void *ngx_http_xrootd_dashboard_create_loc_conf(ngx_conf_t *cf);
-static char *ngx_http_xrootd_dashboard_merge_loc_conf(ngx_conf_t *cf,
+static void *ngx_http_brix_dashboard_create_loc_conf(ngx_conf_t *cf);
+static char *ngx_http_brix_dashboard_merge_loc_conf(ngx_conf_t *cf,
     void *parent, void *child);
-static char *ngx_http_xrootd_dashboard_set(ngx_conf_t *cf,
+static char *ngx_http_brix_dashboard_set(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf);
-static char *ngx_http_xrootd_dashboard_set_password(ngx_conf_t *cf,
+static char *ngx_http_brix_dashboard_set_password(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf);
-static char *ngx_http_xrootd_dashboard_set_session_ttl(ngx_conf_t *cf,
+static char *ngx_http_brix_dashboard_set_session_ttl(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf);
-static char *ngx_http_xrootd_dashboard_set_cookie_path(ngx_conf_t *cf,
+static char *ngx_http_brix_dashboard_set_cookie_path(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf);
-static char *ngx_http_xrootd_dashboard_set_users(ngx_conf_t *cf,
+static char *ngx_http_brix_dashboard_set_users(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf);
 
 /* Exact URI match (length and bytes). */
@@ -68,9 +68,9 @@ dashboard_uri_prefix(ngx_str_t uri, const char *literal)
 }
 
 static void *
-ngx_http_xrootd_dashboard_create_loc_conf(ngx_conf_t *cf)
+ngx_http_brix_dashboard_create_loc_conf(ngx_conf_t *cf)
 {
-    ngx_http_xrootd_dashboard_loc_conf_t *conf;
+    ngx_http_brix_dashboard_loc_conf_t *conf;
 
     conf = ngx_pcalloc(cf->pool, sizeof(*conf));
     if (conf == NULL) { return NULL; }
@@ -88,11 +88,11 @@ ngx_http_xrootd_dashboard_create_loc_conf(ngx_conf_t *cf)
 }
 
 static char *
-ngx_http_xrootd_dashboard_merge_loc_conf(ngx_conf_t *cf,
+ngx_http_brix_dashboard_merge_loc_conf(ngx_conf_t *cf,
     void *parent, void *child)
 {
-    ngx_http_xrootd_dashboard_loc_conf_t *prev = parent;
-    ngx_http_xrootd_dashboard_loc_conf_t *conf = child;
+    ngx_http_brix_dashboard_loc_conf_t *prev = parent;
+    ngx_http_brix_dashboard_loc_conf_t *conf = child;
 
     ngx_conf_merge_value(conf->enable, prev->enable, 0);
     ngx_conf_merge_value(conf->anonymous, prev->anonymous, 0);
@@ -122,13 +122,13 @@ ngx_http_xrootd_dashboard_merge_loc_conf(ngx_conf_t *cf,
     if (conf->browse_root_canon[0] == '\0' && conf->browse_root.len > 0) {
         char tmp[PATH_MAX];
         if (conf->browse_root.len >= sizeof(tmp)) {
-            return "xrootd_dashboard_browse_root path too long";
+            return "brix_dashboard_browse_root path too long";
         }
         ngx_memcpy(tmp, conf->browse_root.data, conf->browse_root.len);
         tmp[conf->browse_root.len] = '\0';
         if (realpath(tmp, conf->browse_root_canon) == NULL) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
-                "xrootd_dashboard_browse_root \"%V\" is not accessible",
+                "brix_dashboard_browse_root \"%V\" is not accessible",
                 &conf->browse_root);
             return NGX_CONF_ERROR;
         }
@@ -146,13 +146,13 @@ ngx_http_xrootd_dashboard_merge_loc_conf(ngx_conf_t *cf,
     if (conf->scan_root_canon[0] == '\0' && conf->scan_root.len > 0) {
         char tmp[PATH_MAX];
         if (conf->scan_root.len >= sizeof(tmp)) {
-            return "xrootd_scan_root path too long";
+            return "brix_scan_root path too long";
         }
         ngx_memcpy(tmp, conf->scan_root.data, conf->scan_root.len);
         tmp[conf->scan_root.len] = '\0';
         if (realpath(tmp, conf->scan_root_canon) == NULL) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
-                "xrootd_scan_root \"%V\" is not accessible", &conf->scan_root);
+                "brix_scan_root \"%V\" is not accessible", &conf->scan_root);
             return NGX_CONF_ERROR;
         }
     } else if (conf->scan_root_canon[0] == '\0'
@@ -163,17 +163,17 @@ ngx_http_xrootd_dashboard_merge_loc_conf(ngx_conf_t *cf,
     /* Cross-field invariant: a transfer cannot become "stalled" before it is
      * even "idle", so reject a config that inverts the two thresholds. */
     if (conf->stalled_threshold_ms < conf->idle_threshold_ms) {
-        return "xrootd_dashboard_stalled_threshold must be greater than or equal to xrootd_dashboard_idle_threshold";
+        return "brix_dashboard_stalled_threshold must be greater than or equal to brix_dashboard_idle_threshold";
     }
     return NGX_CONF_OK;
 }
 
 /*
- * Handler for the `xrootd_dashboard on|off` directive.
+ * Handler for the `brix_dashboard on|off` directive.
  * Parses the boolean and installs the content handler when enabled.
  */
 static char *
-ngx_http_xrootd_dashboard_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+ngx_http_brix_dashboard_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     ngx_http_core_loc_conf_t *clcf;
     char                     *rv;
@@ -182,19 +182,19 @@ ngx_http_xrootd_dashboard_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     if (rv != NGX_CONF_OK) { return rv; }
 
     clcf = ngx_http_conf_get_module_loc_conf(cf, ngx_http_core_module);
-    clcf->handler = ngx_http_xrootd_dashboard_main_handler;
+    clcf->handler = ngx_http_brix_dashboard_main_handler;
     return NGX_CONF_OK;
 }
 
 /*
- * Handler for the `xrootd_dashboard_password "value"` directive.
+ * Handler for the `brix_dashboard_password "value"` directive.
  * Just a string setter - the module.c does not need to know the password content.
  */
 static char *
-ngx_http_xrootd_dashboard_set_password(ngx_conf_t *cf,
+ngx_http_brix_dashboard_set_password(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf)
 {
-    ngx_http_xrootd_dashboard_loc_conf_t *lcf = conf;
+    ngx_http_brix_dashboard_loc_conf_t *lcf = conf;
     ngx_str_t                            *value;
 
     /* Single-user (password) and multi-user (users file) modes are mutually
@@ -203,7 +203,7 @@ ngx_http_xrootd_dashboard_set_password(ngx_conf_t *cf,
         return "is duplicate";
     }
     if (lcf->users != NULL) {
-        return "cannot be used with xrootd_dashboard_users";
+        return "cannot be used with brix_dashboard_users";
     }
 
     value = cf->args->elts;
@@ -212,10 +212,10 @@ ngx_http_xrootd_dashboard_set_password(ngx_conf_t *cf,
 }
 
 static char *
-ngx_http_xrootd_dashboard_set_session_ttl(ngx_conf_t *cf,
+ngx_http_brix_dashboard_set_session_ttl(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf)
 {
-    ngx_http_xrootd_dashboard_loc_conf_t *lcf = conf;
+    ngx_http_brix_dashboard_loc_conf_t *lcf = conf;
     ngx_str_t                            *value;
     time_t                                seconds;
 
@@ -253,10 +253,10 @@ dashboard_cookie_path_valid(ngx_str_t *path)
 }
 
 static char *
-ngx_http_xrootd_dashboard_set_cookie_path(ngx_conf_t *cf,
+ngx_http_brix_dashboard_set_cookie_path(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf)
 {
-    ngx_http_xrootd_dashboard_loc_conf_t *lcf = conf;
+    ngx_http_brix_dashboard_loc_conf_t *lcf = conf;
     ngx_str_t                            *value;
 
     value = cf->args->elts;
@@ -269,7 +269,7 @@ ngx_http_xrootd_dashboard_set_cookie_path(ngx_conf_t *cf,
 }
 
 /*
- * WHAT: Directive setter for `xrootd_dashboard_users <file>` — load an
+ * WHAT: Directive setter for `brix_dashboard_users <file>` — load an
  *       htpasswd-style "username:hash" file into the loc-conf users array.
  * HOW:  Parse line by line at config time: strip trailing CR/LF in place, skip
  *       blank and '#'-comment lines, split on the first ':' (username before,
@@ -278,17 +278,17 @@ ngx_http_xrootd_dashboard_set_cookie_path(ngx_conf_t *cf,
  * NOTE: Every early return after fopen() closes fp to avoid leaking the FILE*.
  */
 static char *
-ngx_http_xrootd_dashboard_set_users(ngx_conf_t *cf,
+ngx_http_brix_dashboard_set_users(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf)
 {
-    ngx_http_xrootd_dashboard_loc_conf_t *lcf = conf;
+    ngx_http_brix_dashboard_loc_conf_t *lcf = conf;
     ngx_str_t                            *value;
     FILE                                 *fp;
     char                                  line[2048];
 
     /* Mutually exclusive with single-user password mode (see auth.c). */
     if (lcf->password.len != 0) {
-        return "cannot be used with xrootd_dashboard_password";
+        return "cannot be used with brix_dashboard_password";
     }
     if (lcf->users != NULL) {
         return "is duplicate";
@@ -298,13 +298,13 @@ ngx_http_xrootd_dashboard_set_users(ngx_conf_t *cf,
     fp = fopen((const char *) value[1].data, "r");
     if (fp == NULL) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
-                           "xrootd_dashboard_users \"%V\" is not readable",
+                           "brix_dashboard_users \"%V\" is not readable",
                            &value[1]);
         return NGX_CONF_ERROR;
     }
 
     lcf->users = ngx_array_create(cf->pool, 4,
-        sizeof(ngx_http_xrootd_dashboard_user_t));
+        sizeof(ngx_http_brix_dashboard_user_t));
     if (lcf->users == NULL) {
         fclose(fp);
         return NGX_CONF_ERROR;
@@ -312,7 +312,7 @@ ngx_http_xrootd_dashboard_set_users(ngx_conf_t *cf,
 
     while (fgets(line, sizeof(line), fp) != NULL) {
         char *colon, *end;
-        ngx_http_xrootd_dashboard_user_t *user;
+        ngx_http_brix_dashboard_user_t *user;
         size_t name_len, hash_len;
 
         /* Trim trailing CR/LF in place. */
@@ -359,130 +359,130 @@ ngx_http_xrootd_dashboard_set_users(ngx_conf_t *cf,
     return NGX_CONF_OK;
 }
 
-static ngx_command_t ngx_http_xrootd_dashboard_commands[] = {
+static ngx_command_t ngx_http_brix_dashboard_commands[] = {
 
-    { ngx_string("xrootd_dashboard"),
+    { ngx_string("brix_dashboard"),
       NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
-      ngx_http_xrootd_dashboard_set,
+      ngx_http_brix_dashboard_set,
       NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_xrootd_dashboard_loc_conf_t, enable),
+      offsetof(ngx_http_brix_dashboard_loc_conf_t, enable),
       NULL },
 
     /* Anonymous (no-login) read-only tier: stats with PII/secrets redacted. */
-    { ngx_string("xrootd_dashboard_anonymous"),
+    { ngx_string("brix_dashboard_anonymous"),
       NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_xrootd_dashboard_loc_conf_t, anonymous),
+      offsetof(ngx_http_brix_dashboard_loc_conf_t, anonymous),
       NULL },
 
-    { ngx_string("xrootd_dashboard_password"),
+    { ngx_string("brix_dashboard_password"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_http_xrootd_dashboard_set_password,
+      ngx_http_brix_dashboard_set_password,
       NGX_HTTP_LOC_CONF_OFFSET,
       0,
       NULL },
 
-    { ngx_string("xrootd_dashboard_session_ttl"),
+    { ngx_string("brix_dashboard_session_ttl"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_http_xrootd_dashboard_set_session_ttl,
+      ngx_http_brix_dashboard_set_session_ttl,
       NGX_HTTP_LOC_CONF_OFFSET,
       0,
       NULL },
 
-    { ngx_string("xrootd_dashboard_cookie_path"),
+    { ngx_string("brix_dashboard_cookie_path"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_http_xrootd_dashboard_set_cookie_path,
+      ngx_http_brix_dashboard_set_cookie_path,
       NGX_HTTP_LOC_CONF_OFFSET,
       0,
       NULL },
 
-    { ngx_string("xrootd_dashboard_idle_threshold"),
+    { ngx_string("brix_dashboard_idle_threshold"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_msec_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_xrootd_dashboard_loc_conf_t, idle_threshold_ms),
+      offsetof(ngx_http_brix_dashboard_loc_conf_t, idle_threshold_ms),
       NULL },
 
-    { ngx_string("xrootd_dashboard_stalled_threshold"),
+    { ngx_string("brix_dashboard_stalled_threshold"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_msec_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_xrootd_dashboard_loc_conf_t, stalled_threshold_ms),
+      offsetof(ngx_http_brix_dashboard_loc_conf_t, stalled_threshold_ms),
       NULL },
 
-    { ngx_string("xrootd_dashboard_cluster_stale_after"),
+    { ngx_string("brix_dashboard_cluster_stale_after"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_msec_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_xrootd_dashboard_loc_conf_t, cluster_stale_after_ms),
+      offsetof(ngx_http_brix_dashboard_loc_conf_t, cluster_stale_after_ms),
       NULL },
 
-    { ngx_string("xrootd_dashboard_users"),
+    { ngx_string("brix_dashboard_users"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_http_xrootd_dashboard_set_users,
+      ngx_http_brix_dashboard_set_users,
       NGX_HTTP_LOC_CONF_OFFSET,
       0,
       NULL },
 
     /* Admin file browser root — empty (default) disables the file viewer. */
-    { ngx_string("xrootd_dashboard_browse_root"),
+    { ngx_string("brix_dashboard_browse_root"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_xrootd_dashboard_loc_conf_t, browse_root),
+      offsetof(ngx_http_brix_dashboard_loc_conf_t, browse_root),
       NULL },
 
     /* Storage-scan root — empty (default) disables the /scan endpoint. */
-    { ngx_string("xrootd_scan_root"),
+    { ngx_string("brix_scan_root"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_xrootd_dashboard_loc_conf_t, scan_root),
+      offsetof(ngx_http_brix_dashboard_loc_conf_t, scan_root),
       NULL },
 
     /* VFS export browser endpoints (/api/v1/vfs*): admin-auth, read-only,
      * OFF by default — turning it on exposes stored user data through the
      * dashboard, so the operator must opt in. */
-    { ngx_string("xrootd_dashboard_vfs_browse"),
+    { ngx_string("brix_dashboard_vfs_browse"),
       NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_xrootd_dashboard_loc_conf_t, vfs_browse),
+      offsetof(ngx_http_brix_dashboard_loc_conf_t, vfs_browse),
       NULL },
 
     /* Operator cap on files visited per scan request (default 100000). */
-    { ngx_string("xrootd_scan_max_files"),
+    { ngx_string("brix_scan_max_files"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_num_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_xrootd_dashboard_loc_conf_t, scan_max_files),
+      offsetof(ngx_http_brix_dashboard_loc_conf_t, scan_max_files),
       NULL },
 
-    /* Phase 23: admin write API auth */    { ngx_string("xrootd_admin_allow"),       /* CIDR allowlist */
+    /* Phase 23: admin write API auth */    { ngx_string("brix_admin_allow"),       /* CIDR allowlist */
       NGX_HTTP_LOC_CONF | NGX_CONF_1MORE,
-      xrootd_admin_set_allow,
+      brix_admin_set_allow,
       NGX_HTTP_LOC_CONF_OFFSET,
       0,
       NULL },
 
-    { ngx_string("xrootd_admin_secret"),      /* bearer secret file path */
+    { ngx_string("brix_admin_secret"),      /* bearer secret file path */
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      xrootd_admin_set_secret,
+      brix_admin_set_secret,
       NGX_HTTP_LOC_CONF_OFFSET,
       0,
       NULL },
 
-    { ngx_string("xrootd_admin_require_both"),
+    { ngx_string("brix_admin_require_both"),
       NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_xrootd_dashboard_loc_conf_t, admin_require_both),
+      offsetof(ngx_http_brix_dashboard_loc_conf_t, admin_require_both),
       NULL },
 
-    { ngx_string("xrootd_admin_proxy_allow"), /* W6: dynamic-backend host allowlist */
+    { ngx_string("brix_admin_proxy_allow"), /* W6: dynamic-backend host allowlist */
       NGX_HTTP_LOC_CONF | NGX_CONF_1MORE,
-      xrootd_admin_set_proxy_allow,
+      brix_admin_set_proxy_allow,
       NGX_HTTP_LOC_CONF_OFFSET,
       0,
       NULL },
@@ -490,21 +490,21 @@ static ngx_command_t ngx_http_xrootd_dashboard_commands[] = {
     ngx_null_command
 };
 
-static ngx_http_module_t ngx_http_xrootd_dashboard_module_ctx = {
+static ngx_http_module_t ngx_http_brix_dashboard_module_ctx = {
     NULL,                                        /* preconfiguration    */
     NULL,                                        /* postconfiguration   */
     NULL,                                        /* create main conf    */
     NULL,                                        /* init main conf      */
     NULL,                                        /* create srv conf     */
     NULL,                                        /* merge srv conf      */
-    ngx_http_xrootd_dashboard_create_loc_conf,   /* create loc conf     */
-    ngx_http_xrootd_dashboard_merge_loc_conf     /* merge loc conf      */
+    ngx_http_brix_dashboard_create_loc_conf,   /* create loc conf     */
+    ngx_http_brix_dashboard_merge_loc_conf     /* merge loc conf      */
 };
 
-ngx_module_t ngx_http_xrootd_dashboard_module = {
+ngx_module_t ngx_http_brix_dashboard_module = {
     NGX_MODULE_V1,
-    &ngx_http_xrootd_dashboard_module_ctx,
-    ngx_http_xrootd_dashboard_commands,
+    &ngx_http_brix_dashboard_module_ctx,
+    ngx_http_brix_dashboard_commands,
     NGX_HTTP_MODULE,
     NULL, NULL, NULL, NULL, NULL, NULL, NULL,
     NGX_MODULE_V1_PADDING
@@ -520,103 +520,103 @@ ngx_module_t ngx_http_xrootd_dashboard_module = {
  *       auth lives inside the called handlers, not here. Unmatched -> 404.
  */
 ngx_int_t
-ngx_http_xrootd_dashboard_main_handler(ngx_http_request_t *r)
+ngx_http_brix_dashboard_main_handler(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_dashboard_loc_conf_t *conf;
+    ngx_http_brix_dashboard_loc_conf_t *conf;
     ngx_str_t                             uri;
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_dashboard_module);
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_dashboard_module);
     if (!conf->enable) {
         return NGX_HTTP_NOT_FOUND;
     }
 
     /* AGPL-3.0 sec.13: offer remote users the source (X-Source header). */
-    xrootd_http_source_offer(r);
+    brix_http_source_offer(r);
 
     uri = r->uri;
 
     if (dashboard_uri_eq(uri, "/xrootd/transfers")) {
-        return ngx_http_xrootd_dashboard_api_handler(r,
-            XROOTD_DASHBOARD_API_COMPAT_TRANSFERS);
+        return ngx_http_brix_dashboard_api_handler(r,
+            BRIX_DASHBOARD_API_COMPAT_TRANSFERS);
     }
 
     if (dashboard_uri_eq(uri, "/xrootd/api/v1/transfers")) {
-        return ngx_http_xrootd_dashboard_api_handler(r,
-            XROOTD_DASHBOARD_API_V1_TRANSFERS);
+        return ngx_http_brix_dashboard_api_handler(r,
+            BRIX_DASHBOARD_API_V1_TRANSFERS);
     }
 
     if (dashboard_uri_prefix(uri, "/xrootd/api/v1/transfers/")) {
-        return ngx_http_xrootd_dashboard_api_handler(r,
-            XROOTD_DASHBOARD_API_V1_TRANSFER_DETAIL);
+        return ngx_http_brix_dashboard_api_handler(r,
+            BRIX_DASHBOARD_API_V1_TRANSFER_DETAIL);
     }
 
     if (dashboard_uri_eq(uri, "/xrootd/api/v1/snapshot")) {
-        return ngx_http_xrootd_dashboard_api_handler(r,
-            XROOTD_DASHBOARD_API_V1_SNAPSHOT);
+        return ngx_http_brix_dashboard_api_handler(r,
+            BRIX_DASHBOARD_API_V1_SNAPSHOT);
     }
 
     if (dashboard_uri_eq(uri, "/xrootd/api/v1/events")) {
-        return ngx_http_xrootd_dashboard_api_handler(r,
-            XROOTD_DASHBOARD_API_V1_EVENTS);
+        return ngx_http_brix_dashboard_api_handler(r,
+            BRIX_DASHBOARD_API_V1_EVENTS);
     }
 
     if (dashboard_uri_eq(uri, "/xrootd/api/v1/history")) {
-        return ngx_http_xrootd_dashboard_api_handler(r,
-            XROOTD_DASHBOARD_API_V1_HISTORY);
+        return ngx_http_brix_dashboard_api_handler(r,
+            BRIX_DASHBOARD_API_V1_HISTORY);
     }
 
     if (dashboard_uri_eq(uri, "/xrootd/api/v1/cluster")) {
-        return ngx_http_xrootd_dashboard_api_handler(r,
-            XROOTD_DASHBOARD_API_V1_CLUSTER);
+        return ngx_http_brix_dashboard_api_handler(r,
+            BRIX_DASHBOARD_API_V1_CLUSTER);
     }
 
     if (dashboard_uri_eq(uri, "/xrootd/api/v1/cache")) {
-        return ngx_http_xrootd_dashboard_api_handler(r,
-            XROOTD_DASHBOARD_API_V1_CACHE);
+        return ngx_http_brix_dashboard_api_handler(r,
+            BRIX_DASHBOARD_API_V1_CACHE);
     }
 
     if (dashboard_uri_eq(uri, "/xrootd/api/v1/ratelimit")) {   /* Phase 25 */
-        return ngx_http_xrootd_dashboard_api_handler(r,
-            XROOTD_DASHBOARD_API_V1_RATELIMIT);
+        return ngx_http_brix_dashboard_api_handler(r,
+            BRIX_DASHBOARD_API_V1_RATELIMIT);
     }
 
     if (dashboard_uri_eq(uri, "/xrootd/api/v1/cvmfs")) {   /* phase-68 */
-        return ngx_http_xrootd_dashboard_api_handler(r,
-            XROOTD_DASHBOARD_API_V1_CVMFS);
+        return ngx_http_brix_dashboard_api_handler(r,
+            BRIX_DASHBOARD_API_V1_CVMFS);
     }
 
     /* Config download — own handler (text/plain attachment); ALWAYS auth-only,
      * never anonymous.  Must precede the generic /api/v1/ catch-all below. */
     if (dashboard_uri_eq(uri, "/xrootd/api/v1/config")) {
-        return ngx_http_xrootd_dashboard_config_download_handler(r);
+        return ngx_http_brix_dashboard_config_download_handler(r);
     }
 
     /* Admin file browser (list + download); ALWAYS auth-only, confined to
-     * xrootd_dashboard_browse_root.  404 when the feature is not configured. */
+     * brix_dashboard_browse_root.  404 when the feature is not configured. */
     if (dashboard_uri_eq(uri, "/xrootd/api/v1/files")) {
-        return ngx_http_xrootd_dashboard_files_handler(r);
+        return ngx_http_brix_dashboard_files_handler(r);
     }
     if (dashboard_uri_eq(uri, "/xrootd/api/v1/download")) {
-        return ngx_http_xrootd_dashboard_download_handler(r);
+        return ngx_http_brix_dashboard_download_handler(r);
     }
 
     /* VFS export browser (census + listing + download); ALWAYS auth-only,
-     * every op routed through xrootd_vfs_* (logical namespace of ANY
-     * backend, pblock/ceph included). 404 unless xrootd_dashboard_vfs_browse. */
+     * every op routed through brix_vfs_* (logical namespace of ANY
+     * backend, pblock/ceph included). 404 unless brix_dashboard_vfs_browse. */
     if (dashboard_uri_eq(uri, "/xrootd/api/v1/vfs")) {
-        return ngx_http_xrootd_dashboard_vfs_exports_handler(r);
+        return ngx_http_brix_dashboard_vfs_exports_handler(r);
     }
     if (dashboard_uri_eq(uri, "/xrootd/api/v1/vfs/files")) {
-        return ngx_http_xrootd_dashboard_vfs_files_handler(r);
+        return ngx_http_brix_dashboard_vfs_files_handler(r);
     }
     if (dashboard_uri_eq(uri, "/xrootd/api/v1/vfs/download")) {
-        return ngx_http_xrootd_dashboard_vfs_download_handler(r);
+        return ngx_http_brix_dashboard_vfs_download_handler(r);
     }
 
     /* Storage scan/verify/fill engine; ALWAYS auth-only, confined to
-     * xrootd_scan_root.  404 when the feature is not configured. */
+     * brix_scan_root.  404 when the feature is not configured. */
     if (dashboard_uri_eq(uri, "/xrootd/api/v1/scan")) {
-        return ngx_http_xrootd_dashboard_scan_handler(r);
+        return ngx_http_brix_dashboard_scan_handler(r);
     }
 
     /* Phase 23: admin write API (auth + method routing inside dispatch). */
@@ -624,7 +624,7 @@ ngx_http_xrootd_dashboard_main_handler(ngx_http_request_t *r)
         && ngx_memcmp(uri.data, "/xrootd/api/v1/admin/",
                       sizeof("/xrootd/api/v1/admin/") - 1) == 0)
     {
-        return xrootd_admin_dispatch(r);
+        return brix_admin_dispatch(r);
     }
 
     /* Catch-all for unknown /api/v1/ paths: return the API's structured 404
@@ -633,17 +633,17 @@ ngx_http_xrootd_dashboard_main_handler(ngx_http_request_t *r)
         && ngx_memcmp(uri.data, "/xrootd/api/v1/",
                       sizeof("/xrootd/api/v1/") - 1) == 0)
     {
-        return ngx_http_xrootd_dashboard_api_handler(r,
-            XROOTD_DASHBOARD_API_V1_NOT_FOUND);
+        return ngx_http_brix_dashboard_api_handler(r,
+            BRIX_DASHBOARD_API_V1_NOT_FOUND);
     }
 
     if (dashboard_uri_eq(uri, "/xrootd/login"))
     {
-        return ngx_http_xrootd_dashboard_login_handler(r);
+        return ngx_http_brix_dashboard_login_handler(r);
     }
 
     if (dashboard_uri_eq(uri, "/xrootd") || dashboard_uri_eq(uri, "/xrootd/")) {
-        return ngx_http_xrootd_dashboard_page_handler(r);
+        return ngx_http_brix_dashboard_page_handler(r);
     }
 
     return NGX_HTTP_NOT_FOUND;

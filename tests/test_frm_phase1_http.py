@@ -4,13 +4,13 @@ tests/test_frm_phase1_http.py
 Phase 35 / Phase 1 remainder — HTTP residency reporting + Prometheus metrics.
 
 Self-contained nginx exposing, in one instance:
-  * a stream root:// server with FRM enabled (creates the xrootd_frm_* metrics),
+  * a stream root:// server with FRM enabled (creates the brix_frm_* metrics),
   * an http /metrics endpoint,
   * an http WebDAV location (auth none) for PROPFIND <xrd:locality>,
   * an http S3 location for HEAD/GET storage-class behaviour.
 
 Asserts:
-  S  /metrics exposes the xrootd_frm_* families (exporter wired, SHM struct sane).
+  S  /metrics exposes the brix_frm_* families (exporter wired, SHM struct sane).
   S  PROPFIND <xrd:locality/> of a nearline file → NEARLINE, of a resident → ONLINE.
   E  S3 GET of a nearline object → 403 InvalidObjectState; HEAD → GLACIER class.
 
@@ -82,11 +82,11 @@ stream {{
     server {{
         listen {BIND_HOST}:{STREAM_PORT};
         xrootd on;
-        xrootd_storage_backend posix:{data};
-        xrootd_auth none;
-        xrootd_frm on;
-        xrootd_frm_queue_path {queue};
-        xrootd_frm_stagecmd /bin/true;
+        brix_storage_backend posix:{data};
+        brix_auth none;
+        brix_frm on;
+        brix_frm_queue_path {queue};
+        brix_frm_stagecmd /bin/true;
     }}
 }}
 http {{
@@ -98,17 +98,17 @@ http {{
     scgi_temp_path {d}/logs/st;
     server {{
         listen {BIND_HOST}:{HTTP_PORT};
-        location = /metrics {{ xrootd_metrics on; }}
+        location = /metrics {{ brix_metrics on; }}
         location /tapebucket/ {{
-            xrootd_s3 on;
-            xrootd_s3_storage_backend posix:{data};
-            xrootd_s3_bucket tapebucket;
-            xrootd_s3_region us-east-1;
+            brix_s3 on;
+            brix_s3_storage_backend posix:{data};
+            brix_s3_bucket tapebucket;
+            brix_s3_region us-east-1;
         }}
         location / {{
-            xrootd_webdav on;
-            xrootd_webdav_storage_backend posix:{data};
-            xrootd_webdav_auth none;
+            brix_webdav on;
+            brix_webdav_storage_backend posix:{data};
+            brix_webdav_auth none;
         }}
     }}
 }}
@@ -155,11 +155,11 @@ def test_metrics_exposes_frm_families(srv):
     st, _h, body = _http("GET", "/metrics")
     assert st == 200, "metrics endpoint not serving (status %r)" % st
     text = body.decode(errors="replace")
-    for fam in ("xrootd_frm_requests_total",
-                "xrootd_frm_stage_success_total",
-                "xrootd_frm_stage_fail_total",
-                "xrootd_frm_in_flight",
-                "xrootd_frm_stage_latency_seconds_bucket"):
+    for fam in ("brix_frm_requests_total",
+                "brix_frm_stage_success_total",
+                "brix_frm_stage_fail_total",
+                "brix_frm_in_flight",
+                "brix_frm_stage_latency_seconds_bucket"):
         assert fam in text, "missing FRM metric family %s in /metrics" % fam
     # fail-reason label is present and low-cardinality
     assert 'reason="copycmd"' in text
@@ -177,7 +177,7 @@ def _propfind_locality(path):
 
 def test_propfind_locality_xattr_not_a_signal(srv):
     """Phase-64 P6: PROPFIND xrd:locality comes from the storage BACKEND's residency
-    model (the xrootd_vfs_residency seam), NOT the legacy user.frm.residency xattr.
+    model (the brix_vfs_residency seam), NOT the legacy user.frm.residency xattr.
     An xattr-marked file on a plain POSIX export (no nearline tier) is therefore
     reported ONLINE. The tape:// locality UX (NEARLINE for an offline object) is
     covered against a real nearline backend in tests/run_tape_exec_adapter.sh."""
@@ -201,7 +201,7 @@ def test_propfind_locality_online(srv):
 
 def test_s3_residency_from_backend_not_frm_xattr(srv):
     """Phase-64 P6: s3 residency now comes from the storage BACKEND's residency
-    model (the xrootd_vfs_residency seam), NOT the legacy user.frm.residency xattr.
+    model (the brix_vfs_residency seam), NOT the legacy user.frm.residency xattr.
     An xattr-marked object on a plain POSIX s3 export (no nearline tier) is therefore
     classified ONLINE and served normally — no GLACIER class, no InvalidObjectState.
     The tape:// residency UX (HEAD→GLACIER, GET→403 InvalidObjectState) is covered

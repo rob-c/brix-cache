@@ -78,8 +78,8 @@ pid {root}/nginx.pid;
 error_log {root}/error.log info;
 events {{ worker_connections 64; }}
 stream {{
-    server {{ listen {BIND_HOST}:{port}; xrootd on; xrootd_storage_backend posix:{data};
-             xrootd_auth none; xrootd_allow_write on; }}
+    server {{ listen {BIND_HOST}:{port}; xrootd on; brix_storage_backend posix:{data};
+             brix_auth none; brix_allow_write on; }}
 }}
 """)
     if subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
@@ -191,11 +191,11 @@ http {{
     server {{
         listen {BIND_HOST}:{port};
         location = /.well-known/wlcg-storage-resource-reporting {{
-            xrootd_srr on;
-            xrootd_srr_name "TEST-SE";
-            xrootd_srr_quality production;
-            xrootd_srr_version "3.5";
-            xrootd_srr_share atlasdata {data} atlas,cms;
+            brix_srr on;
+            brix_srr_name "TEST-SE";
+            brix_srr_quality production;
+            brix_srr_version "3.5";
+            brix_srr_share atlasdata {data} atlas,cms;
         }}
     }}
 }}

@@ -41,7 +41,7 @@ CLIENT_DIR = os.path.join(REPO, "client")
 XROOTDFS = os.path.join(CLIENT_DIR, "bin", "xrootdfs")
 FAULT_PROXY_SRC = os.path.join(REPO, "tests", "c", "fault_proxy.c")
 FAULT_PROXY = os.path.join(CLIENT_DIR, "bin", "fault_proxy")
-ANON_ACCESS_LOG = os.path.join(LOG_DIR, "xrootd_access_anon.log")
+ANON_ACCESS_LOG = os.path.join(LOG_DIR, "brix_access_anon.log")
 
 SIZE = 8 * 1024 * 1024
 _FUSE_OK = os.path.exists("/dev/fuse") and shutil.which("fusermount3") is not None

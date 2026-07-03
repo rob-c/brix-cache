@@ -24,8 +24,8 @@
  *
  * Clean-room: layouts from src/protocol/wire_core_requests.h (vs XProtocol.hh).
  */
-#ifndef XROOTD_PROTOCOL_BOOTSTRAP_PACK_H
-#define XROOTD_PROTOCOL_BOOTSTRAP_PACK_H
+#ifndef BRIX_PROTOCOL_BOOTSTRAP_PACK_H
+#define BRIX_PROTOCOL_BOOTSTRAP_PACK_H
 
 #include <stdint.h>
 #include <string.h>
@@ -102,4 +102,4 @@ xrd_pack_login_request(ClientLoginRequest *lr, const uint8_t streamid[2],
     lr->dlen        = 0;
 }
 
-#endif /* XROOTD_PROTOCOL_BOOTSTRAP_PACK_H */
+#endif /* BRIX_PROTOCOL_BOOTSTRAP_PACK_H */

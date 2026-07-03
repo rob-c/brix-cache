@@ -330,7 +330,7 @@ class TestSetOpcode:
     def test_set_before_login_rejected(self, pre_login):
         """kXR_set before kXR_login must be rejected with NotAuthorized, not ok.
 
-        The dispatcher runs xrootd_dispatch_require_login() for kXR_set before
+        The dispatcher runs brix_dispatch_require_login() for kXR_set before
         the handler ever sees the request (dispatch_session.c case kXR_set).
         """
         sock = pre_login
@@ -373,7 +373,7 @@ class TestSetOpcode:
 class TestEndsessOpcode:
     """kXR_endsess always returns ok. It terminates the session named in the
     request body; only the current session id clears this connection's
-    logged_in/auth_done state (src/protocols/root/session/lifecycle.c xrootd_handle_endsess)."""
+    logged_in/auth_done state (src/protocols/root/session/lifecycle.c brix_handle_endsess)."""
 
     def test_endsess_without_login_ok(self, pre_login):
         """kXR_endsess on a never-logged-in connection is a harmless no-op ok.
@@ -446,7 +446,7 @@ class TestEndsessOpcode:
 class TestBindOpcode:
     """kXR_bind attaches a secondary connection to an existing session and is
     only honoured for a sessid present in the shared registry; everything else
-    is NotAuthorized (src/protocols/root/session/bind.c xrootd_handle_bind)."""
+    is NotAuthorized (src/protocols/root/session/bind.c brix_handle_bind)."""
 
     def test_bind_random_sessid_rejected(self, pre_login):
         """A random/unknown 16-byte sessid is not in the registry -> rejected."""
@@ -473,7 +473,7 @@ class TestBindOpcode:
         """kXR_bind from a SECOND connection naming the primary's real sessid.
 
         On the anon endpoint the primary registers its session at login
-        (src/protocols/root/session/login.c calls xrootd_session_register), so a secondary that
+        (src/protocols/root/session/login.c calls brix_session_register), so a secondary that
         presents that sessid should bind (ok + 1-byte pathid in 1..253).  If
         this deployment does not register anon sessions in the cross-process
         registry, the documented fallback is NotAuthorized — both are valid
@@ -490,7 +490,7 @@ class TestBindOpcode:
             _, status, body = _bind(secondary, sessid=sessid)
             if status == kXR_ok:
                 # Pathid 0 is reserved for the primary; secondaries get 1..253
-                # (src/protocols/root/session/bind.c xrootd_next_pathid).  Body byte 0 is the
+                # (src/protocols/root/session/bind.c brix_next_pathid).  Body byte 0 is the
                 # pathid (it follows the 8-byte response header stripped by
                 # _read_response).
                 assert len(body) >= 1, "successful bind must carry a pathid byte"
@@ -618,7 +618,7 @@ class TestPingAndUnknownOpcodes:
     def test_ping_before_login_rejected(self, pre_login):
         """kXR_ping before login is rejected with kXR_error, matching stock
         xrootd (src/protocols/root/handshake/dispatch_session.c routes kXR_ping through
-        xrootd_dispatch_require_login).  A pre-login ping is NOT a liveness
+        brix_dispatch_require_login).  A pre-login ping is NOT a liveness
         probe a stock server answers ok."""
         sock = pre_login
         _sid, status, _ = _ping(sock)
@@ -628,7 +628,7 @@ class TestPingAndUnknownOpcodes:
         """An opcode the server does not implement (e.g. 3999, well above the
         defined range) is rejected with kXR_InvalidRequest, and the connection
         remains usable for a subsequent ping (src/protocols/root/handshake/dispatch.c default
-        falls through to xrootd_send_error(kXR_InvalidRequest), matching stock
+        falls through to brix_send_error(kXR_InvalidRequest), matching stock
         xrootd's "Invalid request code" reply for an unrecognised opcode)."""
         sock = pre_login
         try:

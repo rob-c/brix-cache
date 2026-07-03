@@ -1,9 +1,9 @@
 /* File: gsi_outbound_common.c — Credentialed XRootD login for native TPC pulls
- * WHAT: After kXR_login returns kXR_authmore, completes the authentication handshake using either WLCG JWT (ztn) from xrootd_tpc_outbound_bearer_file or GSI cert chain when the server advertises &P=ztn / &P=gsi in the login parameter block. Provides wire helpers (tpc_put_u32 for big-endian encoding, tpc_send_kxr_auth for ClientRequestHdr construction + send_all) and public auth path functions (tpc_outbound_ztn for JWT bearer, tpc_read_bearer_token for file read delegation).
+ * WHAT: After kXR_login returns kXR_authmore, completes the authentication handshake using either WLCG JWT (ztn) from brix_tpc_outbound_bearer_file or GSI cert chain when the server advertises &P=ztn / &P=gsi in the login parameter block. Provides wire helpers (tpc_put_u32 for big-endian encoding, tpc_send_kxr_auth for ClientRequestHdr construction + send_all) and public auth path functions (tpc_outbound_ztn for JWT bearer, tpc_read_bearer_token for file read delegation).
  *
  * WHY: Native TPC pull connects directly to a remote xrootd server; after anonymous handshake (bootstrap.c), authenticated fetch requires sending credentials on the outbound socket. The server's kXR_login response parameter block advertises which auth method it accepts (&P=ztn for JWT, &P=gsi for GSI). This file provides both wire-level helpers and the credential assembly + send logic for each path — ztn reads token from config file or delegated_token buffer, builds "ztn\x00" + token payload, sends kXR_auth ClientRequestHdr. GSI path (certreq chain) lives in gsi_outbound_certreq.c and gsi_outbound_exchange.c.
  *
- * HOW: tpc_put_u32 — htonl(v) → ngx_memcpy to output buffer for big-endian wire encoding; tpc_send_kxr_auth — zero ClientRequestHdr, set streamid[1] = seq + requestid = kXR_auth, memcpy ctype from cred_payload into hdr body offset 12, set dlen via htonl, send_all(hdr) then send_all(cred_payload); tpc_read_bearer_token — read path from t->conf->tpc_outbound_bearer_file, delegate to xrootd_token_read_file with "TPC outbound" label; tpc_outbound_ztn — check delegated_token[0] != '\0' (OAuth2/OIDC exchange result) → strlen → malloc(4+token_len) → memcpy("ztn\x00") + token → tpc_send_kxr_auth → recv_response checking status == kXR_ok → free(cred/body). Caller: tpc/thread.c (auth path dispatch based on login parameter block).
+ * HOW: tpc_put_u32 — htonl(v) → ngx_memcpy to output buffer for big-endian wire encoding; tpc_send_kxr_auth — zero ClientRequestHdr, set streamid[1] = seq + requestid = kXR_auth, memcpy ctype from cred_payload into hdr body offset 12, set dlen via htonl, send_all(hdr) then send_all(cred_payload); tpc_read_bearer_token — read path from t->conf->tpc_outbound_bearer_file, delegate to brix_token_read_file with "TPC outbound" label; tpc_outbound_ztn — check delegated_token[0] != '\0' (OAuth2/OIDC exchange result) → strlen → malloc(4+token_len) → memcpy("ztn\x00") + token → tpc_send_kxr_auth → recv_response checking status == kXR_ok → free(cred/body). Caller: tpc/thread.c (auth path dispatch based on login parameter block).
  * */
 
 #include "tpc/engine/tpc_internal.h"
@@ -49,7 +49,7 @@ tpc_put_u32(u_char *p, uint32_t v)
 /* WHAT: Construct kXR_auth ClientRequestHdr (streamid + requestid + ctype from cred_payload + dlen via htonl), send_all(hdr) then send_all(cred_payload). Returns 0 or -1 with error code. */
 
 int
-tpc_send_kxr_auth(xrootd_tpc_pull_t *t, int fd, u_char stream_seq,
+tpc_send_kxr_auth(brix_tpc_pull_t *t, int fd, u_char stream_seq,
     const u_char *cred_payload, uint32_t cred_len)
 {
     ClientRequestHdr  hdr;
@@ -97,17 +97,17 @@ tpc_send_kxr_auth(xrootd_tpc_pull_t *t, int fd, u_char stream_seq,
     return 0;
 }
 
-/* WHAT: Read JWT bearer token from xrootd_tpc_outbound_bearer_file config path — delegate to xrootd_token_read_file with 'TPC outbound' label, store result in buf. Returns 0 or -1 with error code (kXR_ArgInvalid for invalid/missing/empty file, kXR_IOError for read failure). Caller: tpc_outbound_ztn. */
+/* WHAT: Read JWT bearer token from brix_tpc_outbound_bearer_file config path — delegate to brix_token_read_file with 'TPC outbound' label, store result in buf. Returns 0 or -1 with error code (kXR_ArgInvalid for invalid/missing/empty file, kXR_IOError for read failure). Caller: tpc_outbound_ztn. */
 
 static int
-tpc_read_bearer_token(xrootd_tpc_pull_t *t, u_char *buf, size_t buf_sz,
+tpc_read_bearer_token(brix_tpc_pull_t *t, u_char *buf, size_t buf_sz,
     size_t *out_len)
 {
     ngx_str_t     *path;
 
     path = &t->conf->tpc_outbound_bearer_file;
 
-    if (xrootd_token_read_file(path, buf, buf_sz, out_len, NULL,
+    if (brix_token_read_file(path, buf, buf_sz, out_len, NULL,
                                "TPC outbound") != NGX_OK)
     {
         if (errno == EINVAL) {
@@ -116,7 +116,7 @@ tpc_read_bearer_token(xrootd_tpc_pull_t *t, u_char *buf, size_t buf_sz,
             t->xrd_error = kXR_ArgInvalid;
         } else {
             snprintf(t->err_msg, sizeof(t->err_msg),
-                     "TPC cannot read xrootd_tpc_outbound_bearer_file: %s",
+                     "TPC cannot read brix_tpc_outbound_bearer_file: %s",
                      strerror(errno));
             t->xrd_error = kXR_IOError;
         }
@@ -129,7 +129,7 @@ tpc_read_bearer_token(xrootd_tpc_pull_t *t, u_char *buf, size_t buf_sz,
 /* WHAT: JWT bearer auth path — check delegated_token[0] != '\0' (OAuth2/OIDC exchange result) → strlen → malloc(4+token_len) → memcpy("ztn\x00") + token → tpc_send_kxr_auth(kXR_auth, seq=3) → recv_response checking status == kXR_ok → free(cred/body). Returns 0 or -1 with error code. Caller: tpc/thread.c (auth path dispatch based on login parameter block &P=ztn). */
 
 int
-tpc_outbound_ztn(xrootd_tpc_pull_t *t, int fd)
+tpc_outbound_ztn(brix_tpc_pull_t *t, int fd)
 {
     u_char         *cred;
     uint32_t        cred_len;

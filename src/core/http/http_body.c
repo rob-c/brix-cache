@@ -10,7 +10,7 @@
  *      need to write, read, or summarise this chain without knowing buffer layout.
  *
  * HOW: summary walks chain counting file_last-file_pos + last-pos bytes;
- *      write_buf delegates xrootd_copy_range() for file-backed, pwrite_full loop
+ *      write_buf delegates brix_copy_range() for file-backed, pwrite_full loop
  *      for memory-backed; read_all allocates ngx_pnalloc(r->pool) and reads via
  *      pread/ngx_memcpy with EINTR retry.
 */
@@ -18,17 +18,17 @@
 #include "http_body.h"
 #include "core/compat/copy_range.h"
 #include "core/compat/codec_core.h"
-#include "fs/vfs/vfs.h"   /* xrootd_vfs_pread_full / pwrite_full (storage seam) */
+#include "fs/vfs/vfs.h"   /* brix_vfs_pread_full / pwrite_full (storage seam) */
 
 #include <errno.h>
 #include <unistd.h>
 #include "core/compat/alloc_guard.h"
 
-#define XROOTD_INFLATE_OUT_BUFSZ  (64 * 1024)
-#define XROOTD_INFLATE_IN_BUFSZ   (64 * 1024)
+#define BRIX_INFLATE_OUT_BUFSZ  (64 * 1024)
+#define BRIX_INFLATE_IN_BUFSZ   (64 * 1024)
 
 /*
- * xrootd_http_body_pwrite_full - loop pwrite to drain memory buffer into fd.
+ * brix_http_body_pwrite_full - loop pwrite to drain memory buffer into fd.
  *
  * WHAT: Writes data[0..len] into fd at position *off via repeated pwrite calls,
  *       advancing off and shrinking len until all bytes written. Retries on EINTR,
@@ -43,15 +43,15 @@
  */
 
 static ngx_int_t
-xrootd_http_body_pwrite_full(ngx_log_t *log, ngx_fd_t fd, const u_char *data,
+brix_http_body_pwrite_full(ngx_log_t *log, ngx_fd_t fd, const u_char *data,
     size_t len, off_t *off, const char *path)
 {
     /* Delegate the EINTR/short-write loop to the VFS primitive (routes the byte
      * syscall through the storage seam); keep the path-tagged error log and the
      * caller's running offset. */
-    if (xrootd_vfs_pwrite_full(fd, data, len, *off) != NGX_OK) {
+    if (brix_vfs_pwrite_full(fd, data, len, *off) != NGX_OK) {
         ngx_log_error(NGX_LOG_ERR, log, errno,
-                      "xrootd_http_body: pwrite failed for %s",
+                      "brix_http_body: pwrite failed for %s",
                       path ? path : "-");
         return NGX_ERROR;
     }
@@ -60,7 +60,7 @@ xrootd_http_body_pwrite_full(ngx_log_t *log, ngx_fd_t fd, const u_char *data,
 }
 
 /*
- * xrootd_http_body_summary - measure the request body without copying it.
+ * brix_http_body_summary - measure the request body without copying it.
  *
  * WHAT: walks request_body->bufs once, summing payload bytes and flagging
  *       whether memory-backed and/or spooled-to-file buffers are present.
@@ -72,8 +72,8 @@ xrootd_http_body_pwrite_full(ngx_log_t *log, ngx_fd_t fd, const u_char *data,
  *       NGX_ERROR rather than a silent skip.
  */
 ngx_int_t
-xrootd_http_body_summary(ngx_http_request_t *r,
-    xrootd_http_body_summary_t *out)
+brix_http_body_summary(ngx_http_request_t *r,
+    brix_http_body_summary_t *out)
 {
     ngx_chain_t *cl;
 
@@ -113,19 +113,19 @@ xrootd_http_body_summary(ngx_http_request_t *r,
 }
 
 /*
- * xrootd_http_body_write_buf - write one body buffer to dst_fd at *dst_off.
+ * brix_http_body_write_buf - write one body buffer to dst_fd at *dst_off.
  *
  * WHAT: appends a single ngx_buf_t's payload at *dst_off and advances *dst_off
  *       by the number of bytes written.
  * WHY:  the two buffer kinds need different syscalls — a spooled buffer is
  *       fd-to-fd so it can use the zero-copy copy_range path, while a memory
  *       buffer must be pushed out with pwrite.
- * HOW:  in_file -> xrootd_copy_range(src fd@file_pos -> dst_fd@*dst_off);
+ * HOW:  in_file -> brix_copy_range(src fd@file_pos -> dst_fd@*dst_off);
  *       memory -> pwrite_full(pos..last). Empty buffers are a no-op success.
  *       errno is set on the EINVAL guard paths so callers can map it.
  */
 ngx_int_t
-xrootd_http_body_write_buf(ngx_http_request_t *r, ngx_fd_t dst_fd,
+brix_http_body_write_buf(ngx_http_request_t *r, ngx_fd_t dst_fd,
     ngx_buf_t *buf, off_t *dst_off, const char *log_path)
 {
     size_t len;
@@ -148,7 +148,7 @@ xrootd_http_body_write_buf(ngx_http_request_t *r, ngx_fd_t dst_fd,
             return NGX_OK;
         }
 
-        if (xrootd_copy_range(r->connection->log, buf->file->fd,
+        if (brix_copy_range(r->connection->log, buf->file->fd,
                               buf->file_pos, dst_fd, *dst_off, len,
                               log_path, log_path) != NGX_OK)
         {
@@ -163,13 +163,13 @@ xrootd_http_body_write_buf(ngx_http_request_t *r, ngx_fd_t dst_fd,
         return NGX_OK;
     }
 
-    return xrootd_http_body_pwrite_full(r->connection->log, dst_fd, buf->pos,
+    return brix_http_body_pwrite_full(r->connection->log, dst_fd, buf->pos,
                                         (size_t) (buf->last - buf->pos),
                                         dst_off, log_path);
 }
 
 /*
- * xrootd_http_body_write_to_fd - write the whole request body to dst_fd.
+ * brix_http_body_write_to_fd - write the whole request body to dst_fd.
  *
  * WHAT: streams every body buffer into dst_fd starting at offset 0, optionally
  *       returning the body summary to the caller.
@@ -180,18 +180,18 @@ xrootd_http_body_write_buf(ngx_http_request_t *r, ngx_fd_t dst_fd,
  *       contiguously. summary_out may be NULL — a local is used in that case.
  */
 ngx_int_t
-xrootd_http_body_write_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
-    const char *log_path, xrootd_http_body_summary_t *summary_out)
+brix_http_body_write_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
+    const char *log_path, brix_http_body_summary_t *summary_out)
 {
     ngx_chain_t                *cl;
     off_t                       off;
-    xrootd_http_body_summary_t  summary;
+    brix_http_body_summary_t  summary;
 
     if (summary_out == NULL) {
         summary_out = &summary;
     }
 
-    if (xrootd_http_body_summary(r, summary_out) != NGX_OK) {
+    if (brix_http_body_summary(r, summary_out) != NGX_OK) {
         return NGX_ERROR;
     }
 
@@ -201,7 +201,7 @@ xrootd_http_body_write_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
 
     off = 0;
     for (cl = r->request_body->bufs; cl != NULL; cl = cl->next) {
-        if (xrootd_http_body_write_buf(r, dst_fd, cl->buf, &off, log_path)
+        if (brix_http_body_write_buf(r, dst_fd, cl->buf, &off, log_path)
             != NGX_OK)
         {
             return NGX_ERROR;
@@ -212,22 +212,22 @@ xrootd_http_body_write_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
 }
 
 /*
- * xrootd_http_body_write_to_fd_at — like xrootd_http_body_write_to_fd, but the
+ * brix_http_body_write_to_fd_at — like brix_http_body_write_to_fd, but the
  * body lands starting at absolute offset base_off (via pwrite/copy_range), for
  * resumable Content-Range PUT where a chunk fills [base_off, base_off+len).
  */
 ngx_int_t
-xrootd_http_body_write_to_fd_at(ngx_http_request_t *r, ngx_fd_t dst_fd,
-    const char *log_path, xrootd_http_body_summary_t *summary_out, off_t base_off)
+brix_http_body_write_to_fd_at(ngx_http_request_t *r, ngx_fd_t dst_fd,
+    const char *log_path, brix_http_body_summary_t *summary_out, off_t base_off)
 {
     ngx_chain_t                *cl;
     off_t                       off;
-    xrootd_http_body_summary_t  summary;
+    brix_http_body_summary_t  summary;
 
     if (summary_out == NULL) {
         summary_out = &summary;
     }
-    if (xrootd_http_body_summary(r, summary_out) != NGX_OK) {
+    if (brix_http_body_summary(r, summary_out) != NGX_OK) {
         return NGX_ERROR;
     }
     if (r == NULL || r->request_body == NULL) {
@@ -236,7 +236,7 @@ xrootd_http_body_write_to_fd_at(ngx_http_request_t *r, ngx_fd_t dst_fd,
 
     off = base_off;
     for (cl = r->request_body->bufs; cl != NULL; cl = cl->next) {
-        if (xrootd_http_body_write_buf(r, dst_fd, cl->buf, &off, log_path)
+        if (brix_http_body_write_buf(r, dst_fd, cl->buf, &off, log_path)
             != NGX_OK)
         {
             return NGX_ERROR;
@@ -246,15 +246,15 @@ xrootd_http_body_write_to_fd_at(ngx_http_request_t *r, ngx_fd_t dst_fd,
 }
 
 /*
- * xrootd_http_body_write_to_staged — stream the whole request body into a staged
- * object via xrootd_vfs_staged_write (a driver-backed/object export has no kernel
+ * brix_http_body_write_to_staged — stream the whole request body into a staged
+ * object via brix_vfs_staged_write (a driver-backed/object export has no kernel
  * fd, so write_to_fd does not apply). Memory buffers are forwarded directly;
  * spooled (in_file) buffers are read from their temp fd in 64 KiB chunks. The
  * destination offset runs from 0 so the body lands contiguously.
  */
 ngx_int_t
-xrootd_http_body_write_to_staged(ngx_http_request_t *r,
-    xrootd_vfs_staged_t *st)
+brix_http_body_write_to_staged(ngx_http_request_t *r,
+    brix_vfs_staged_t *st)
 {
     ngx_chain_t *cl;
     off_t        off = 0;
@@ -302,7 +302,7 @@ xrootd_http_body_write_to_staged(ngx_http_request_t *r,
                     errno = EIO;
                     return NGX_ERROR;
                 }
-                if (xrootd_vfs_staged_write(st, chunk, (size_t) n, off)
+                if (brix_vfs_staged_write(st, chunk, (size_t) n, off)
                     != NGX_OK)
                 {
                     return NGX_ERROR;
@@ -314,7 +314,7 @@ xrootd_http_body_write_to_staged(ngx_http_request_t *r,
         } else if (b->pos < b->last) {
             size_t len = (size_t) (b->last - b->pos);
 
-            if (xrootd_vfs_staged_write(st, b->pos, len, off) != NGX_OK) {
+            if (brix_vfs_staged_write(st, b->pos, len, off) != NGX_OK) {
                 return NGX_ERROR;
             }
             off += (off_t) len;
@@ -325,7 +325,7 @@ xrootd_http_body_write_to_staged(ngx_http_request_t *r,
 }
 
 /*
- * xrootd_http_body_read_all - copy the entire body into one pool buffer.
+ * brix_http_body_read_all - copy the entire body into one pool buffer.
  *
  * WHAT: allocates a single NUL-terminated buffer from r->pool and fills it
  *       with the whole body; returns it via *out / *out_len.
@@ -338,11 +338,11 @@ xrootd_http_body_write_to_staged(ngx_http_request_t *r,
  *       the extra +1 byte holds the trailing '\0' (out_len excludes it).
  */
 ngx_int_t
-xrootd_http_body_read_all(ngx_http_request_t *r, size_t max_bytes,
+brix_http_body_read_all(ngx_http_request_t *r, size_t max_bytes,
     u_char **out, size_t *out_len)
 {
     ngx_chain_t                *cl;
-    xrootd_http_body_summary_t  summary;
+    brix_http_body_summary_t  summary;
     u_char                     *buf;
     size_t                      pos;
 
@@ -353,7 +353,7 @@ xrootd_http_body_read_all(ngx_http_request_t *r, size_t max_bytes,
     *out = NULL;
     *out_len = 0;
 
-    if (xrootd_http_body_summary(r, &summary) != NGX_OK) {
+    if (brix_http_body_summary(r, &summary) != NGX_OK) {
         return NGX_ERROR;
     }
 
@@ -361,7 +361,7 @@ xrootd_http_body_read_all(ngx_http_request_t *r, size_t max_bytes,
         return NGX_DECLINED;
     }
 
-    XROOTD_PNALLOC_OR_RETURN(buf, r->pool, summary.bytes + 1, NGX_ERROR);
+    BRIX_PNALLOC_OR_RETURN(buf, r->pool, summary.bytes + 1, NGX_ERROR);
 
     pos = 0;
     if (r->request_body != NULL) {
@@ -378,7 +378,7 @@ xrootd_http_body_read_all(ngx_http_request_t *r, size_t max_bytes,
 
                 /* One full read through the storage seam (EINTR/short-read handled
                  * by the primitive); a short fill is a premature EOF. */
-                if (xrootd_vfs_pread_full(b->file->fd, buf + pos, want,
+                if (brix_vfs_pread_full(b->file->fd, buf + pos, want,
                                           b->file_pos, &got) != NGX_OK) {
                     return NGX_ERROR;
                 }
@@ -404,7 +404,7 @@ xrootd_http_body_read_all(ngx_http_request_t *r, size_t max_bytes,
 }
 
 /*
- * xrootd_http_read_body - kick off async body reading and normalise the rc.
+ * brix_http_read_body - kick off async body reading and normalise the rc.
  *
  * WHAT: thin wrapper over ngx_http_read_client_request_body that maps nginx's
  *       return convention onto this module's.
@@ -416,7 +416,7 @@ xrootd_http_body_read_all(ngx_http_request_t *r, size_t max_bytes,
  *       open and re-enters via handler when the body is ready.
  */
 ngx_int_t
-xrootd_http_read_body(ngx_http_request_t *r,
+brix_http_read_body(ngx_http_request_t *r,
     ngx_http_client_body_handler_pt handler)
 {
     ngx_int_t  rc;
@@ -433,39 +433,39 @@ xrootd_http_read_body(ngx_http_request_t *r,
  * end-of-stream. *worst_rc captures the first negative codec rc (for the caller's
  * HTTP-status mapping: ERR_BOMB -> 413, ERR_DATA -> 400). Returns NGX_OK/ERROR. */
 static ngx_int_t
-codec_feed(xrootd_codec_stream_t *s, ngx_log_t *log, ngx_fd_t dst_fd,
+codec_feed(brix_codec_stream_t *s, ngx_log_t *log, ngx_fd_t dst_fd,
     const char *log_path, off_t *dst_off, u_char *outbuf,
     const u_char *in, size_t in_len, int finish, int *ended,
-    xrootd_codec_rc_t *worst_rc)
+    brix_codec_rc_t *worst_rc)
 {
     size_t  ip = 0;
 
     for (;;) {
         size_t             op = 0;
-        xrootd_codec_rc_t  rc;
+        brix_codec_rc_t  rc;
 
-        rc = xrootd_codec_step(s, (const uint8_t *) in, in_len, &ip,
-                               (uint8_t *) outbuf, XROOTD_INFLATE_OUT_BUFSZ,
+        rc = brix_codec_step(s, (const uint8_t *) in, in_len, &ip,
+                               (uint8_t *) outbuf, BRIX_INFLATE_OUT_BUFSZ,
                                &op, finish);
         if (rc < 0) {
             *worst_rc = rc;
             ngx_log_error(NGX_LOG_ERR, log, 0,
-                          "xrootd_http_body: decode error %d for %s",
+                          "brix_http_body: decode error %d for %s",
                           (int) rc, log_path ? log_path : "-");
             return NGX_ERROR;
         }
         if (op > 0) {
-            if (xrootd_http_body_pwrite_full(log, dst_fd, outbuf, op,
+            if (brix_http_body_pwrite_full(log, dst_fd, outbuf, op,
                                              dst_off, log_path) != NGX_OK)
             {
                 return NGX_ERROR;
             }
         }
-        if (rc == XROOTD_CODEC_END) {
+        if (rc == BRIX_CODEC_END) {
             *ended = 1;
             return NGX_OK;
         }
-        if (op == XROOTD_INFLATE_OUT_BUFSZ) {
+        if (op == BRIX_INFLATE_OUT_BUFSZ) {
             continue;                 /* output buffer was full: drain more */
         }
         if (ip < in_len) {
@@ -480,15 +480,15 @@ codec_feed(xrootd_codec_stream_t *s, ngx_log_t *log, ngx_fd_t dst_fd,
  * stream, writing decompressed bytes to dst_fd, then finalise.
  *
  * In-memory buffers feed directly; spooled buffers are pread in
- * XROOTD_INFLATE_IN_BUFSZ chunks into inbuf first. After the last buffer a final
+ * BRIX_INFLATE_IN_BUFSZ chunks into inbuf first. After the last buffer a final
  * flush (empty input, finish=1) drains any tail; if the codec never reports
  * end-of-stream the input was truncated/corrupt (ERR_DATA -> caller maps 400).
  * Flat, early-return cleanup; the stream + buffers are owned by the caller.
  */
 static ngx_int_t
-codec_decode_bufs(xrootd_codec_stream_t *s, ngx_http_request_t *r,
+codec_decode_bufs(brix_codec_stream_t *s, ngx_http_request_t *r,
     ngx_fd_t dst_fd, const char *log_path, u_char *outbuf, u_char *inbuf,
-    ngx_log_t *log, xrootd_codec_rc_t *worst_rc)
+    ngx_log_t *log, brix_codec_rc_t *worst_rc)
 {
     ngx_chain_t *cl;
     off_t        dst_off = 0;
@@ -508,16 +508,16 @@ codec_decode_bufs(xrootd_codec_stream_t *s, ngx_http_request_t *r,
                 size_t want = (size_t) (b->file_last - file_off);
                 size_t got  = 0;
 
-                if (want > XROOTD_INFLATE_IN_BUFSZ) {
-                    want = XROOTD_INFLATE_IN_BUFSZ;
+                if (want > BRIX_INFLATE_IN_BUFSZ) {
+                    want = BRIX_INFLATE_IN_BUFSZ;
                 }
                 /* One chunk through the storage seam; EOF before file_last (a
                  * short fill) is an error, matching the old n<=0 check. */
-                if (xrootd_vfs_pread_full(b->file->fd, inbuf, want, file_off,
+                if (brix_vfs_pread_full(b->file->fd, inbuf, want, file_off,
                                           &got) != NGX_OK || got < want)
                 {
                     ngx_log_error(NGX_LOG_ERR, log, errno,
-                                  "xrootd_http_body: decode pread failed for %s",
+                                  "brix_http_body: decode pread failed for %s",
                                   log_path ? log_path : "-");
                     return NGX_ERROR;
                 }
@@ -549,9 +549,9 @@ codec_decode_bufs(xrootd_codec_stream_t *s, ngx_http_request_t *r,
     }
     if (!ended) {
         /* All input consumed + finish, but no end-of-stream: truncated input. */
-        *worst_rc = XROOTD_CODEC_ERR_DATA;
+        *worst_rc = BRIX_CODEC_ERR_DATA;
         ngx_log_error(NGX_LOG_ERR, log, 0,
-                      "xrootd_http_body: truncated compressed body for %s",
+                      "brix_http_body: truncated compressed body for %s",
                       log_path ? log_path : "-");
         return NGX_ERROR;
     }
@@ -559,7 +559,7 @@ codec_decode_bufs(xrootd_codec_stream_t *s, ngx_http_request_t *r,
 }
 
 /*
- * xrootd_http_body_decode_ratio - choose the untrusted decode ratio ceiling.
+ * brix_http_body_decode_ratio - choose the untrusted decode ratio ceiling.
  *
  * WHAT: Returns the maximum permitted output:input expansion ratio for the given
  *       Content-Encoding codec on HTTP request-body decode.
@@ -570,43 +570,43 @@ codec_decode_bufs(xrootd_codec_stream_t *s, ngx_http_request_t *r,
  *       default consumed by the central codec guard.
  */
 static uint32_t
-xrootd_http_body_decode_ratio(xrootd_codec_id_t codec)
+brix_http_body_decode_ratio(brix_codec_id_t codec)
 {
-    if (codec == XROOTD_CODEC_LZ4) {
-        return XROOTD_DECODE_LZ4_MAX_RATIO;
+    if (codec == BRIX_CODEC_LZ4) {
+        return BRIX_DECODE_LZ4_MAX_RATIO;
     }
-    return XROOTD_DECODE_MAX_RATIO;
+    return BRIX_DECODE_MAX_RATIO;
 }
 
 /*
- * xrootd_http_body_decode_to_fd - decompress the request body to dst_fd.
+ * brix_http_body_decode_to_fd - decompress the request body to dst_fd.
  *
  * WHAT: streams the Content-Encoding-selected codec over the request body chain,
  *       writing plaintext to dst_fd. Bounds output via the bomb guard (out_cap =
  *       max_output, ratio default) so a hostile highly-compressible upload cannot
  *       exhaust disk; on any failure sets *http_status_out (413 bomb / 400 bad
  *       data / 500 I-O) and returns NGX_ERROR. On success returns NGX_OK.
- * HOW:  open one xrootd_codec stream, hand the per-buffer feed loop to
+ * HOW:  open one brix_codec stream, hand the per-buffer feed loop to
  *       codec_decode_bufs, close once on return. Buffers freed here on all paths.
  */
 ngx_int_t
-xrootd_http_body_decode_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
-    const char *log_path, xrootd_codec_id_t codec, uint64_t max_output,
-    xrootd_http_body_summary_t *summary_out, ngx_int_t *http_status_out)
+brix_http_body_decode_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
+    const char *log_path, brix_codec_id_t codec, uint64_t max_output,
+    brix_http_body_summary_t *summary_out, ngx_int_t *http_status_out)
 {
-    xrootd_codec_stream_t      *s;
-    xrootd_codec_guard_t        guard;
-    xrootd_codec_rc_t           worst_rc = XROOTD_CODEC_OK;
+    brix_codec_stream_t      *s;
+    brix_codec_guard_t        guard;
+    brix_codec_rc_t           worst_rc = BRIX_CODEC_OK;
     ngx_int_t                   rc;
     u_char                     *outbuf = NULL;
     u_char                     *inbuf = NULL;
     ngx_log_t                  *log;
-    xrootd_http_body_summary_t  summary;
+    brix_http_body_summary_t  summary;
 
     if (summary_out == NULL) {
         summary_out = &summary;
     }
-    if (xrootd_http_body_summary(r, summary_out) != NGX_OK) {
+    if (brix_http_body_summary(r, summary_out) != NGX_OK) {
         if (http_status_out) { *http_status_out = NGX_HTTP_INTERNAL_SERVER_ERROR; }
         return NGX_ERROR;
     }
@@ -620,30 +620,30 @@ xrootd_http_body_decode_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
 
     ngx_memzero(&guard, sizeof(guard));
     guard.out_cap   = max_output;          /* 0 = unbounded */
-    guard.max_ratio = xrootd_http_body_decode_ratio(codec);
+    guard.max_ratio = brix_http_body_decode_ratio(codec);
 
-    s = xrootd_codec_open(codec, XROOTD_CODEC_DIR_DECOMPRESS, -1, &guard);
+    s = brix_codec_open(codec, BRIX_CODEC_DIR_DECOMPRESS, -1, &guard);
     if (s == NULL) {
         if (http_status_out) {
             *http_status_out = NGX_HTTP_UNSUPPORTED_MEDIA_TYPE;
         }
         ngx_log_error(NGX_LOG_ERR, log, 0,
-                      "xrootd_http_body: codec %d unavailable for %s",
+                      "brix_http_body: codec %d unavailable for %s",
                       (int) codec, log_path ? log_path : "-");
         return NGX_ERROR;
     }
 
-    outbuf = ngx_alloc(XROOTD_INFLATE_OUT_BUFSZ, log);
+    outbuf = ngx_alloc(BRIX_INFLATE_OUT_BUFSZ, log);
     if (outbuf == NULL) {
-        xrootd_codec_close(s);
+        brix_codec_close(s);
         if (http_status_out) { *http_status_out = NGX_HTTP_INTERNAL_SERVER_ERROR; }
         return NGX_ERROR;
     }
     if (summary_out->has_spooled) {
-        inbuf = ngx_alloc(XROOTD_INFLATE_IN_BUFSZ, log);
+        inbuf = ngx_alloc(BRIX_INFLATE_IN_BUFSZ, log);
         if (inbuf == NULL) {
             ngx_free(outbuf);
-            xrootd_codec_close(s);
+            brix_codec_close(s);
             if (http_status_out) { *http_status_out = NGX_HTTP_INTERNAL_SERVER_ERROR; }
             return NGX_ERROR;
         }
@@ -653,12 +653,12 @@ xrootd_http_body_decode_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
 
     ngx_free(inbuf);
     ngx_free(outbuf);
-    xrootd_codec_close(s);
+    brix_codec_close(s);
 
     if (rc != NGX_OK && http_status_out) {
-        if (worst_rc == XROOTD_CODEC_ERR_BOMB) {
+        if (worst_rc == BRIX_CODEC_ERR_BOMB) {
             *http_status_out = NGX_HTTP_REQUEST_ENTITY_TOO_LARGE;   /* 413 */
-        } else if (worst_rc == XROOTD_CODEC_ERR_DATA) {
+        } else if (worst_rc == BRIX_CODEC_ERR_DATA) {
             *http_status_out = NGX_HTTP_BAD_REQUEST;                /* 400 */
         } else {
             *http_status_out = NGX_HTTP_INTERNAL_SERVER_ERROR;      /* 500 */
@@ -668,21 +668,21 @@ xrootd_http_body_decode_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
 }
 
 /*
- * xrootd_http_body_inflate_to_fd - compatibility wrapper (zlib window_bits).
+ * brix_http_body_inflate_to_fd - compatibility wrapper (zlib window_bits).
  *
  * Maps the legacy window_bits selector (15+16 = gzip, 15 = deflate) onto the
- * codec abstraction and delegates to xrootd_http_body_decode_to_fd with no output
+ * codec abstraction and delegates to brix_http_body_decode_to_fd with no output
  * cap. Retained so existing callers keep working; new code should call
- * xrootd_http_body_decode_to_fd directly with a codec id + bomb cap.
+ * brix_http_body_decode_to_fd directly with a codec id + bomb cap.
  */
 ngx_int_t
-xrootd_http_body_inflate_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
+brix_http_body_inflate_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
     const char *log_path, int window_bits,
-    xrootd_http_body_summary_t *summary_out)
+    brix_http_body_summary_t *summary_out)
 {
-    xrootd_codec_id_t codec = (window_bits >= 16)
-                              ? XROOTD_CODEC_GZIP : XROOTD_CODEC_DEFLATE;
+    brix_codec_id_t codec = (window_bits >= 16)
+                              ? BRIX_CODEC_GZIP : BRIX_CODEC_DEFLATE;
 
-    return xrootd_http_body_decode_to_fd(r, dst_fd, log_path, codec, 0,
+    return brix_http_body_decode_to_fd(r, dst_fd, log_path, codec, 0,
                                          summary_out, NULL);
 }

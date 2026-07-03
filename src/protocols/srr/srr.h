@@ -1,5 +1,5 @@
-#ifndef NGX_HTTP_XROOTD_SRR_H
-#define NGX_HTTP_XROOTD_SRR_H
+#ifndef NGX_HTTP_BRIX_SRR_H
+#define NGX_HTTP_BRIX_SRR_H
 
 /*
  * srr.h — WLCG Storage Resource Reporting (SRR) HTTP/JSON endpoint.
@@ -18,10 +18,10 @@
  *   binary UDP monitoring stack would.  Transfer/operation counters remain
  *   available on the Prometheus /metrics endpoint (see src/metrics/).
  *
- * HOW: A location with `xrootd_srr on;` binds ngx_http_xrootd_srr_handler.  The
+ * HOW: A location with `brix_srr on;` binds ngx_http_brix_srr_handler.  The
  *   document is built on each request (builder.c): per-share filesystem space
- *   comes from statvfs(2) via xrootd_fs_usage_stat(); identity/share/endpoint
- *   metadata comes from the xrootd_srr_* directives.  Mirrors the /metrics
+ *   comes from statvfs(2) via brix_fs_usage_stat(); identity/share/endpoint
+ *   metadata comes from the brix_srr_* directives.  Mirrors the /metrics
  *   module pattern (src/metrics/module.c + handler.c).
  */
 
@@ -30,7 +30,7 @@
 #include <ngx_http.h>
 
 /*
- * One `xrootd_srr_share <name> <path> [vos]` entry.  <path> is BOTH the local
+ * One `brix_srr_share <name> <path> [vos]` entry.  <path> is BOTH the local
  * filesystem path that is statvfs(2)'d for space AND the namespace path
  * reported in storageshares[].path[].  <vos> is an optional comma-separated VO
  * list ("atlas,cms") emitted as the required storageshares[].vos array.
@@ -39,10 +39,10 @@ typedef struct {
     ngx_str_t  name;   /* storageshares[].name                      */
     ngx_str_t  path;   /* statvfs target + storageshares[].path[0]  */
     ngx_str_t  vos;    /* comma-separated VOs (may be empty)        */
-} xrootd_srr_share_t;
+} brix_srr_share_t;
 
 /*
- * One `xrootd_srr_endpoint <name> <interfacetype> <url>` entry — a protocol
+ * One `brix_srr_endpoint <name> <interfacetype> <url>` entry — a protocol
  * door the site exposes, emitted as a storageendpoints[] item.  interfacetype
  * is a free string by schema (e.g. "https", "davs", "xroot", "s3").
  */
@@ -50,23 +50,23 @@ typedef struct {
     ngx_str_t  name;           /* storageendpoints[].name          */
     ngx_str_t  interfacetype;  /* storageendpoints[].interfacetype */
     ngx_str_t  url;            /* storageendpoints[].endpointurl   */
-} xrootd_srr_endpoint_t;
+} brix_srr_endpoint_t;
 
 /* Per-location configuration for the SRR endpoint. */
 typedef struct {
-    ngx_flag_t    enable;     /* xrootd_srr on|off                          */
-    ngx_str_t     name;       /* xrootd_srr_name    — storageservice.name   */
-    ngx_str_t     id;         /* xrootd_srr_id      — .id (default = name)   */
-    ngx_str_t     quality;    /* xrootd_srr_quality — .qualitylevel          */
-    ngx_str_t     version;    /* xrootd_srr_version — .implementationversion */
-    ngx_array_t  *shares;     /* of xrootd_srr_share_t                       */
-    ngx_array_t  *endpoints;  /* of xrootd_srr_endpoint_t                    */
-} ngx_http_xrootd_srr_loc_conf_t;
+    ngx_flag_t    enable;     /* brix_srr on|off                          */
+    ngx_str_t     name;       /* brix_srr_name    — storageservice.name   */
+    ngx_str_t     id;         /* brix_srr_id      — .id (default = name)   */
+    ngx_str_t     quality;    /* brix_srr_quality — .qualitylevel          */
+    ngx_str_t     version;    /* brix_srr_version — .implementationversion */
+    ngx_array_t  *shares;     /* of brix_srr_share_t                       */
+    ngx_array_t  *endpoints;  /* of brix_srr_endpoint_t                    */
+} ngx_http_brix_srr_loc_conf_t;
 
-extern ngx_module_t ngx_http_xrootd_srr_module;
+extern ngx_module_t ngx_http_brix_srr_module;
 
-/* Content handler bound by the `xrootd_srr` directive. */
-ngx_int_t ngx_http_xrootd_srr_handler(ngx_http_request_t *r);
+/* Content handler bound by the `brix_srr` directive. */
+ngx_int_t ngx_http_brix_srr_handler(ngx_http_request_t *r);
 
 /*
  * Build the SRR JSON document into a request-pool buffer.  On success returns
@@ -74,7 +74,7 @@ ngx_int_t ngx_http_xrootd_srr_handler(ngx_http_request_t *r);
  * on allocation/serialisation failure.  Never reads request input — the document
  * is a pure function of the location config + current filesystem usage.
  */
-ngx_int_t ngx_http_xrootd_srr_build_json(ngx_http_request_t *r,
-    ngx_http_xrootd_srr_loc_conf_t *lcf, u_char **out, size_t *len);
+ngx_int_t ngx_http_brix_srr_build_json(ngx_http_request_t *r,
+    ngx_http_brix_srr_loc_conf_t *lcf, u_char **out, size_t *len);
 
-#endif /* NGX_HTTP_XROOTD_SRR_H */
+#endif /* NGX_HTTP_BRIX_SRR_H */

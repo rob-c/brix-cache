@@ -3,7 +3,7 @@ tests/test_token_macaroon.py — Macaroon-based authentication tests.
 
 Tests macaroon token generation and validation for WebDAV authentication.
 Note: This test file requires nginx to be configured with
-xrootd_macaroon_secret for the macaroon auth path to be active.
+brix_macaroon_secret for the macaroon auth path to be active.
 """
 
 import pytest
@@ -105,7 +105,7 @@ def test_macaroon_no_location_produces_valid_token(macaroon_secret):
 # path: caveat logic tests
 #
 # These test the path: caveat narrowing rules as implemented in
-# xrootd_macaroon_validate().  They use the make_macaroon() helper to
+# brix_macaroon_validate().  They use the make_macaroon() helper to
 # produce tokens, then decode and inspect the caveat presence — the actual
 # enforcement is in C code, so here we verify the token structure is correct
 # so that valid tokens carry the expected caveats.
@@ -182,7 +182,7 @@ def test_multiple_path_caveats_produce_distinct_tokens(macaroon_secret):
 # old-secret / grace-period fallback tests
 #
 # The C module accepts a token signed with either the current
-# xrootd_macaroon_secret or the grace-period xrootd_macaroon_secret_old.
+# brix_macaroon_secret or the grace-period brix_macaroon_secret_old.
 # We cannot call the C validator from Python, so these tests verify:
 #   1. The helper correctly produces a different HMAC when a different key is
 #      used (i.e. tokens from different keys are distinguishable).
@@ -217,7 +217,7 @@ def test_old_key_token_is_structurally_valid(old_macaroon_secret):
     """
     A macaroon produced with the old secret must have valid packet structure
     (identifier, activity caveat, and signature packets present).  The C
-    module's grace-period path accepts such tokens when xrootd_macaroon_secret_old
+    module's grace-period path accepts such tokens when brix_macaroon_secret_old
     is configured.
     """
     token = make_macaroon(

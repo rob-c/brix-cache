@@ -50,26 +50,26 @@ def test_phase20_kv_store_is_wired_into_consumers():
     # Token cache short-circuits signature verification in both protocols.
     for relpath in ("src/auth/gsi/token.c", "src/protocols/webdav/auth_token.c"):
         text = _read(relpath)
-        assert "xrootd_token_cache_lookup(" in text, relpath
-        assert "xrootd_token_cache_store(" in text, relpath
+        assert "brix_token_cache_lookup(" in text, relpath
+        assert "brix_token_cache_store(" in text, relpath
 
     # Auth-result cache lives in the stream auth gate.
     auth_gate = _read("src/auth/authz/auth_gate.c")
     assert "auth_cache.kv" in auth_gate
-    assert "xrootd_kv_get(" in auth_gate
+    assert "brix_kv_get(" in auth_gate
 
     # Rate limiting hooks both protocols.
-    assert "xrootd_rate_limit_check(" in _read("src/auth/gsi/auth.c")
-    assert "xrootd_rate_limit_check(" in _read("src/protocols/webdav/access.c")
+    assert "brix_rate_limit_check(" in _read("src/auth/gsi/auth.c")
+    assert "brix_rate_limit_check(" in _read("src/protocols/webdav/access.c")
 
     # Prometheus export iterates the zone registry.
-    assert "xrootd_kv_metrics_emit(" in _read("src/observability/metrics/handler.c")
+    assert "brix_kv_metrics_emit(" in _read("src/observability/metrics/handler.c")
 
 
 def test_phase20_session_registry_is_runtime_sized():
     reg = _read("src/protocols/root/session/registry.c")
     assert "tbl->capacity" in reg, "session scans must use runtime capacity"
-    assert "xrootd_session_registry_nslots" in reg
+    assert "brix_session_registry_nslots" in reg
 
 
 # --------------------------------------------------------------------------- #
@@ -109,18 +109,18 @@ def _require_binary():
 def test_kv_directives_parse(tmp_path):
     conf = HEADER.format(logs=tmp_path / "logs") + f"""
     stream {{
-        xrootd_kv_zone tkn 16m key=32  val=5120;
-        xrootd_kv_zone ac   4m key=32  val=8;
-        xrootd_kv_zone rl   2m key=256 val=16;
+        brix_kv_zone tkn 16m key=32  val=5120;
+        brix_kv_zone ac   4m key=32  val=8;
+        brix_kv_zone rl   2m key=256 val=16;
         server {{
             listen {BIND_HOST}:{free_port()};
             xrootd on;
-            xrootd_storage_backend posix:{DATA_DIR};
-            xrootd_auth none;
-            xrootd_session_slots 4096;
-            xrootd_token_cache zone=tkn;
-            xrootd_auth_cache  zone=ac ttl=15;
-            xrootd_rate_limit  zone=rl rate=200r/s burst=500 key=dn;
+            brix_storage_backend posix:{DATA_DIR};
+            brix_auth none;
+            brix_session_slots 4096;
+            brix_token_cache zone=tkn;
+            brix_auth_cache  zone=ac ttl=15;
+            brix_rate_limit  zone=rl rate=200r/s burst=500 key=dn;
         }}
     }}
     """
@@ -129,16 +129,16 @@ def test_kv_directives_parse(tmp_path):
 
 
 def test_token_cache_rejects_undersized_zone(tmp_path):
-    # val too small for xrootd_token_claims_t -> must be rejected.
+    # val too small for brix_token_claims_t -> must be rejected.
     conf = HEADER.format(logs=tmp_path / "logs") + f"""
     stream {{
-        xrootd_kv_zone tkn 1m key=32 val=16;
+        brix_kv_zone tkn 1m key=32 val=16;
         server {{
             listen {BIND_HOST}:{free_port()};
             xrootd on;
-            xrootd_storage_backend posix:{DATA_DIR};
-            xrootd_auth none;
-            xrootd_token_cache zone=tkn;
+            brix_storage_backend posix:{DATA_DIR};
+            brix_auth none;
+            brix_token_cache zone=tkn;
         }}
     }}
     """
@@ -153,9 +153,9 @@ def test_unknown_zone_is_rejected(tmp_path):
         server {{
             listen {BIND_HOST}:{free_port()};
             xrootd on;
-            xrootd_storage_backend posix:{DATA_DIR};
-            xrootd_auth none;
-            xrootd_auth_cache zone=does_not_exist;
+            brix_storage_backend posix:{DATA_DIR};
+            brix_auth none;
+            brix_auth_cache zone=does_not_exist;
         }}
     }}
     """
@@ -167,13 +167,13 @@ def test_unknown_zone_is_rejected(tmp_path):
 def test_rate_limit_requires_rate_and_burst(tmp_path):
     conf = HEADER.format(logs=tmp_path / "logs") + f"""
     stream {{
-        xrootd_kv_zone rl 2m key=256 val=16;
+        brix_kv_zone rl 2m key=256 val=16;
         server {{
             listen {BIND_HOST}:{free_port()};
             xrootd on;
-            xrootd_storage_backend posix:{DATA_DIR};
-            xrootd_auth none;
-            xrootd_rate_limit zone=rl;
+            brix_storage_backend posix:{DATA_DIR};
+            brix_auth none;
+            brix_rate_limit zone=rl;
         }}
     }}
     """
@@ -220,20 +220,20 @@ def rate_limited_server(tmp_path):
         scgi_temp_path         {tmp_path}/tmp;
         access_log off;
 
-        xrootd_kv_zone h_rl 2m key=256 val=16;
+        brix_kv_zone h_rl 2m key=256 val=16;
 
         server {{
             listen {BIND_HOST}:{WEBDAV_PORT};
             location / {{
-                xrootd_webdav      on;
-                xrootd_webdav_storage_backend posix:{DATA_DIR};
-                xrootd_webdav_auth none;
-                xrootd_rate_limit  zone=h_rl rate=1r/s burst=2 key=ip;
+                brix_webdav      on;
+                brix_webdav_storage_backend posix:{DATA_DIR};
+                brix_webdav_auth none;
+                brix_rate_limit  zone=h_rl rate=1r/s burst=2 key=ip;
             }}
         }}
         server {{
             listen {BIND_HOST}:{METRICS_PORT};
-            location /metrics {{ xrootd_metrics on; }}
+            location /metrics {{ brix_metrics on; }}
         }}
     }}
     """
@@ -291,8 +291,8 @@ def test_kv_metrics_exported(rate_limited_server):
     body_status = _http_get_body(METRICS_PORT, "/metrics")
     body = body_status[1]
     assert body_status[0] == 200, body[:200]
-    assert "xrootd_kv_hits_total" in body
-    assert "xrootd_kv_capacity" in body
+    assert "brix_kv_hits_total" in body
+    assert "brix_kv_capacity" in body
     assert 'zone="h_rl"' in body
 
 

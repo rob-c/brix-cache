@@ -4,11 +4,11 @@
 #include <stdlib.h>
 
 /* Crypto helper declarations — defined in parse_crypto_helpers.c */
-extern BIGNUM *xrootd_gsi_parse_client_dh_public_key(ngx_connection_t *c, ngx_log_t *log,
+extern BIGNUM *brix_gsi_parse_client_dh_public_key(ngx_connection_t *c, ngx_log_t *log,
     const u_char *public_key_blob, size_t public_key_blob_len);
-extern void xrootd_gsi_select_cipher_name(const u_char *payload, size_t payload_len,
+extern void brix_gsi_select_cipher_name(const u_char *payload, size_t payload_len,
     char *cipher_name, size_t cipher_name_size);
-extern EVP_PKEY *xrootd_gsi_build_peer_dh_key(ngx_log_t *log, EVP_PKEY *server_dh_key,
+extern EVP_PKEY *brix_gsi_build_peer_dh_key(ngx_log_t *log, EVP_PKEY *server_dh_key,
     BIGNUM *client_public_bn);
 
 /*
@@ -16,11 +16,11 @@ extern EVP_PKEY *xrootd_gsi_build_peer_dh_key(ngx_log_t *log, EVP_PKEY *server_d
  * connection so a later kXGS_pxyreq/kXGC_sigpxy delegation round (phase-57 §F6)
  * can encrypt/decrypt its main with the same key. Purely additive: the key is
  * already derived for the kXGC_cert decrypt; this copies it (≤32 bytes) + the
- * cipher name + the IV flag. Inert unless xrootd_tpc_delegate consumes it. The
+ * cipher name + the IV flag. Inert unless brix_tpc_delegate consumes it. The
  * key is cleansed once delegation completes (auth.c) or at disconnect.
  */
 static void
-gsi_persist_session_cipher(xrootd_ctx_t *ctx, const char *name,
+gsi_persist_session_cipher(brix_ctx_t *ctx, const char *name,
                            const u_char *key, int keylen, int use_iv)
 {
     int n = (keylen > 32) ? 32 : (keylen < 0 ? 0 : keylen);
@@ -42,12 +42,12 @@ gsi_persist_session_cipher(xrootd_ctx_t *ctx, const char *name,
  * client's CheckRtag accepts the delegation round. Inert unless delegation runs.
  */
 static void
-gsi_capture_client_rtag(xrootd_ctx_t *ctx, const u_char *plain, size_t plain_len)
+gsi_capture_client_rtag(brix_ctx_t *ctx, const u_char *plain, size_t plain_len)
 {
     const uint8_t *rt = NULL;
     size_t         rtl = 0;
 
-    if (xrootd_gsi_find_bucket(plain, plain_len, (uint32_t) kXRS_rtag, &rt, &rtl)
+    if (brix_gsi_find_bucket(plain, plain_len, (uint32_t) kXRS_rtag, &rt, &rtl)
         == 0 && rtl > 0 && rtl <= sizeof(ctx->gsi_deleg_client_rtag)) {
         ngx_memcpy(ctx->gsi_deleg_client_rtag, rt, rtl);
         ctx->gsi_deleg_client_rtag_len = (int) rtl;
@@ -141,7 +141,7 @@ gsi_recover_peer_signed(const u_char *payload, size_t plen, ngx_log_t *log)
 
     bloblen = cipherlen + 2 * (size_t) EVP_PKEY_size(proxy_pub) + 64;
     blob = malloc(bloblen);
-    bloblen = blob ? xrootd_gsi_rsa_decrypt_public(proxy_pub, cipher, cipherlen,
+    bloblen = blob ? brix_gsi_rsa_decrypt_public(proxy_pub, cipher, cipherlen,
                                                    blob, bloblen) : 0;
     EVP_PKEY_free(proxy_pub);
     if (bloblen == 0) {
@@ -150,13 +150,13 @@ gsi_recover_peer_signed(const u_char *payload, size_t plen, ngx_log_t *log)
                       "xrootd: GSI signed-DH: signature verification failed");
         return NULL;
     }
-    peer = xrootd_gsi_cipher_parse_peer(blob, bloblen);
+    peer = brix_gsi_cipher_parse_peer(blob, bloblen);
     free(blob);
     return peer;
 }
 
 /*
- * xrootd_gsi_parse_x509_signed — round-2 handler for the signed-DH variant
+ * brix_gsi_parse_x509_signed — round-2 handler for the signed-DH variant
  * (mirrors the client's signed path in client/lib/sec/sec_gsi.c).  Recovers the
  * peer DH public from the RSA-signed kXRS_cipher, agrees the padded (HasPad=1)
  * DH secret, decrypts the IV-prepended kXRS_main, and returns the proxy chain.
@@ -164,7 +164,7 @@ gsi_recover_peer_signed(const u_char *payload, size_t plen, ngx_log_t *log)
  * the unsigned path.  Returns STACK_OF(X509) * or NULL.
  */
 static STACK_OF(X509) *
-xrootd_gsi_parse_x509_signed(xrootd_ctx_t *ctx, ngx_connection_t *c)
+brix_gsi_parse_x509_signed(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     const u_char   *payload = ctx->payload;
     size_t          plen = ctx->cur_dlen;
@@ -175,9 +175,9 @@ xrootd_gsi_parse_x509_signed(xrootd_ctx_t *ctx, ngx_connection_t *c)
     EVP_PKEY_CTX   *pkctx;
     unsigned char  *secret = NULL;
     size_t          secret_len = 0;
-    uint8_t         aeskey[XROOTD_GSI_MAX_KEY];
+    uint8_t         aeskey[BRIX_GSI_MAX_KEY];
     char            cipher_name[64];
-    xrootd_gsi_cipher_t cipher;
+    brix_gsi_cipher_t cipher;
     uint8_t        *plain;
     size_t          plain_len = 0;
     STACK_OF(X509) *chain;
@@ -220,9 +220,9 @@ xrootd_gsi_parse_x509_signed(xrootd_ctx_t *ctx, ngx_connection_t *c)
 
     /* Phase 52 (WS-A): honour the cipher the client selected (kXRS_cipher_alg);
      * fall back to aes-128-cbc, the default every conformant client offers. */
-    xrootd_gsi_select_cipher_name(payload, plen, cipher_name, sizeof(cipher_name));
-    if (!xrootd_gsi_cipher_lookup(cipher_name, &cipher)) {
-        (void) xrootd_gsi_cipher_lookup("aes-128-cbc", &cipher);
+    brix_gsi_select_cipher_name(payload, plen, cipher_name, sizeof(cipher_name));
+    if (!brix_gsi_cipher_lookup(cipher_name, &cipher)) {
+        (void) brix_gsi_cipher_lookup("aes-128-cbc", &cipher);
     }
 
     if (secret_len < (size_t) cipher.key_len) {
@@ -263,7 +263,7 @@ xrootd_gsi_parse_x509_signed(xrootd_ctx_t *ctx, ngx_connection_t *c)
      * NOT signalled by a name suffix — the cipher name on the wire is bare, and
      * select_cipher_name() resolves it.  Default aes-128-cbc; the client's cipher
      * choice is honoured. */
-    plain = xrootd_gsi_cipher_decrypt(&cipher, aeskey, main_data, main_len,
+    plain = brix_gsi_cipher_decrypt(&cipher, aeskey, main_data, main_len,
                                       1, &plain_len);
     OPENSSL_cleanse(aeskey, sizeof(aeskey));
     if (plain == NULL) {
@@ -282,7 +282,7 @@ xrootd_gsi_parse_x509_signed(xrootd_ctx_t *ctx, ngx_connection_t *c)
 }
 
 /*
- * xrootd_gsi_parse_x509 — top-level kXGC_cert handler.
+ * brix_gsi_parse_x509 — top-level kXGC_cert handler.
  *
  * Preconditions:
  *   - ctx->gsi_dh_key is set (populated by the preceding kXGC_certreq exchange).
@@ -297,7 +297,7 @@ xrootd_gsi_parse_x509_signed(xrootd_ctx_t *ctx, ngx_connection_t *c)
  * Returns: STACK_OF(X509) * on success, NULL on any error.
  */
 STACK_OF(X509) *
-xrootd_gsi_parse_x509(xrootd_ctx_t *ctx, ngx_connection_t *c)
+brix_gsi_parse_x509(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     const u_char      *payload = ctx->payload;
     size_t             plen = ctx->cur_dlen;
@@ -325,7 +325,7 @@ xrootd_gsi_parse_x509(xrootd_ctx_t *ctx, ngx_connection_t *c)
     /* Signed-DH (>=10400) was selected in round 1 — take the signed path that
      * verifies the RSA-signed kXRS_cipher and decrypts the IV-prepended main. */
     if (ctx->gsi_signed_dh) {
-        return xrootd_gsi_parse_x509_signed(ctx, c);
+        return brix_gsi_parse_x509_signed(ctx, c);
     }
 
     if (gsi_find_bucket(payload, plen, (uint32_t) kXRS_puk,
@@ -335,13 +335,13 @@ xrootd_gsi_parse_x509(xrootd_ctx_t *ctx, ngx_connection_t *c)
         return NULL;
     }
 
-    bnpub = xrootd_gsi_parse_client_dh_public_key(c, log, cpub_data,
+    bnpub = brix_gsi_parse_client_dh_public_key(c, log, cpub_data,
                                                   cpub_len);
     if (bnpub == NULL) {
         return NULL;
     }
 
-    xrootd_gsi_select_cipher_name(payload, plen, cipher_name,
+    brix_gsi_select_cipher_name(payload, plen, cipher_name,
                                   sizeof(cipher_name));
 
     if (gsi_find_bucket(payload, plen, (uint32_t) kXRS_main,
@@ -352,7 +352,7 @@ xrootd_gsi_parse_x509(xrootd_ctx_t *ctx, ngx_connection_t *c)
         return NULL;
     }
 
-    peer = xrootd_gsi_build_peer_dh_key(log, ctx->gsi_dh_key, bnpub);
+    peer = brix_gsi_build_peer_dh_key(log, ctx->gsi_dh_key, bnpub);
     BN_free(bnpub);
     bnpub = NULL;
 
@@ -427,13 +427,13 @@ xrootd_gsi_parse_x509(xrootd_ctx_t *ctx, ngx_connection_t *c)
     ngx_log_debug2(NGX_LOG_DEBUG_STREAM, log, 0,
                    "xrootd: GSI DH shared secret %uz bytes, cipher='%s'",
                    secret_len,
-                   (xrootd_sanitize_log_string(cipher_name, cipher_log,
+                   (brix_sanitize_log_string(cipher_name, cipher_log,
                                                sizeof(cipher_log)),
                     cipher_log));
 
     evp_cipher = EVP_get_cipherbyname(cipher_name);
     if (!evp_cipher) {
-        xrootd_sanitize_log_string(cipher_name, cipher_log, sizeof(cipher_log));
+        brix_sanitize_log_string(cipher_name, cipher_log, sizeof(cipher_log));
         ngx_log_error(NGX_LOG_WARN, log, 0,
                       "xrootd: GSI kXGC_cert: unknown cipher '%s'", cipher_log);
         OPENSSL_cleanse(secret, secret_len);

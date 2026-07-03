@@ -31,10 +31,10 @@
  *   1. Extract ctx (fs_path from r->ctx, cf from loc_conf), get method_slot for metrics.
  *   2. Parse uploadId query param → s3_get_query_param() → InvalidArgument 400 if missing/invalid.
  *   3. Build mpu_dir = fs_path + "/" + upload_id via s3_get_mpu_dir(). lstat(mpu_dir) → NoSuchUpload 404 if ENOENT.
- *   4. final_tmp = fs_path.mputmp (snprintf). Open WRITE|CREATE|TRUNC, mode 0644 via xrootd_vfs_open_fd() (thread-safe confined open).
+ *   4. final_tmp = fs_path.mputmp (snprintf). Open WRITE|CREATE|TRUNC, mode 0644 via brix_vfs_open_fd() (thread-safe confined open).
  *   5. Loop part_num=1..MPU_MAX_PART_NUMBER: snprintf(part_path = mpu_dir/part.%d), open O_RDONLY confined → ENOENT skip,
  *      read/write loop with copy_buf[65536] — write errors close both fds, unlink temp, metric_internal_error, return 500.
- *   6. fstat(final_fd) for ETag generation. Close fd. xrootd_rename_confined_canon(temp→fs_path) → rename error: unlink temp, 500.
+ *   6. fstat(final_fd) for ETag generation. Close fd. brix_rename_confined_canon(temp→fs_path) → rename error: unlink temp, 500.
  *   7. mpu_rmdir_recursive(mpu_dir) best-effort (WARN on failure, object already committed).
  *   8. s3_etag(&st, etag) → snprintf XML response with Bucket/Key(derived from strrchr(fs_path,'/')+1)/ETag into xml_buf[512].
  *      ngx_create_temp_buf(xml_len) → copy into buf → build ngx_chain_t → HTTP 200 + content_length_n = xml_len.
@@ -56,11 +56,11 @@ void
 s3_multipart_complete_body_handler(ngx_http_request_t *r)
 {
     ngx_http_s3_req_ctx_t *rx =
-        ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+        ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
 
-    xrootd_imp_request_begin(rx != NULL ? rx->identity : NULL);
+    brix_imp_request_begin(rx != NULL ? rx->identity : NULL);
     s3_multipart_complete_body_handler_inner(r);
-    xrootd_imp_request_end();
+    brix_imp_request_end();
 }
 
 /*
@@ -90,10 +90,10 @@ s3_mpu_assemble(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
     *http_status_out = NGX_HTTP_INTERNAL_SERVER_ERROR;
     crc64_b64_out[0] = '\0';
 
-    final_fd = xrootd_vfs_open_fd(log, root_canon, final_tmp,
+    final_fd = brix_vfs_open_fd(log, root_canon, final_tmp,
                                  O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (final_fd < 0) {
-        xrootd_log_safe_path(log, NGX_LOG_ERR, errno,
+        brix_log_safe_path(log, NGX_LOG_ERR, errno,
                              "s3 complete_mpu: open(\"%s\") failed", final_tmp);
         return NGX_ERROR;
     }
@@ -104,7 +104,7 @@ s3_mpu_assemble(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
                          "%s/part.%d", mpu_dir, part_num);
         *p = '\0';
 
-        part_fd = xrootd_vfs_open_fd(log, root_canon, part_path,
+        part_fd = brix_vfs_open_fd(log, root_canon, part_path,
                                     O_RDONLY, 0);
         if (part_fd < 0) {
             if (errno == ENOENT) {
@@ -113,7 +113,7 @@ s3_mpu_assemble(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
             ngx_log_error(NGX_LOG_ERR, log, errno,
                           "s3 complete_mpu: open part %d failed", part_num);
             close(final_fd);
-            xrootd_vfs_unlink_path(log, root_canon, final_tmp);
+            brix_vfs_unlink_path(log, root_canon, final_tmp);
             return NGX_ERROR;
         }
 
@@ -122,12 +122,12 @@ s3_mpu_assemble(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
                           "s3 complete_mpu: fstat part %d failed", part_num);
             close(part_fd);
             close(final_fd);
-            xrootd_vfs_unlink_path(log, root_canon, final_tmp);
+            brix_vfs_unlink_path(log, root_canon, final_tmp);
             return NGX_ERROR;
         }
 
         if (pst.st_size > 0
-            && xrootd_copy_range(log, part_fd, 0, final_fd, dst_off,
+            && brix_copy_range(log, part_fd, 0, final_fd, dst_off,
                                  (size_t) pst.st_size, part_path,
                                  final_tmp) != NGX_OK)
         {
@@ -135,7 +135,7 @@ s3_mpu_assemble(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
                           "s3 complete_mpu: copy part %d failed", part_num);
             close(part_fd);
             close(final_fd);
-            xrootd_vfs_unlink_path(log, root_canon, final_tmp);
+            brix_vfs_unlink_path(log, root_canon, final_tmp);
             return NGX_ERROR;
         }
         dst_off += pst.st_size;
@@ -146,21 +146,21 @@ s3_mpu_assemble(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
         ngx_log_error(NGX_LOG_ERR, log, errno,
                       "s3 complete_mpu: fstat temp file failed");
         close(final_fd);
-        xrootd_vfs_unlink_path(log, root_canon, final_tmp);
+        brix_vfs_unlink_path(log, root_canon, final_tmp);
         return NGX_ERROR;
     }
     close(final_fd);
 
-    if (xrootd_rename_confined_canon(log, root_canon, final_tmp, fs_path) != 0) {
-        xrootd_log_safe_path(log, NGX_LOG_ERR, errno,
+    if (brix_rename_confined_canon(log, root_canon, final_tmp, fs_path) != 0) {
+        brix_log_safe_path(log, NGX_LOG_ERR, errno,
                              "s3 complete_mpu: rename to \"%s\" failed", fs_path);
-        xrootd_vfs_unlink_path(log, root_canon, final_tmp);
+        brix_vfs_unlink_path(log, root_canon, final_tmp);
         return NGX_ERROR;
     }
 
     /* Best-effort staging cleanup — the object is already visible. */
     if (mpu_rmdir_recursive(log, root_canon, mpu_dir) != 0) {
-        xrootd_log_safe_path(log, NGX_LOG_WARN, 0,
+        brix_log_safe_path(log, NGX_LOG_WARN, 0,
                              "s3 complete_mpu: cleanup of staging dir \"%s\" failed"
                              " (object committed successfully)", mpu_dir);
     }
@@ -168,7 +168,7 @@ s3_mpu_assemble(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
     /* Full-object CRC-64/NVME computed directly on the reassembled object (the
      * exact FULL_OBJECT value — no per-part combine), cached in the xattr. */
     {
-        int cfd = xrootd_vfs_open_fd(log, root_canon, fs_path,
+        int cfd = brix_vfs_open_fd(log, root_canon, fs_path,
                                     O_RDONLY, 0);
         if (cfd >= 0) {
             (void) s3_object_crc64nvme_b64(r, cfd, fs_path, 0, crc64_b64_out,
@@ -220,7 +220,7 @@ s3_mpu_send_result(ngx_http_request_t *r, ngx_uint_t method_slot,
         etag, crc64_xml);
 
     if (xml_len >= sizeof(xml_buf)) {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
         s3_metrics_finalize_request_method(r, method_slot,
                                            NGX_HTTP_INTERNAL_SERVER_ERROR);
         return;
@@ -228,7 +228,7 @@ s3_mpu_send_result(ngx_http_request_t *r, ngx_uint_t method_slot,
 
     b = ngx_create_temp_buf(r->pool, xml_len);
     if (b == NULL) {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
         s3_metrics_finalize_request_method(r, method_slot,
                                            NGX_HTTP_INTERNAL_SERVER_ERROR);
         return;
@@ -237,7 +237,7 @@ s3_mpu_send_result(ngx_http_request_t *r, ngx_uint_t method_slot,
     b->last = b->pos + xml_len;
 
     s3_metrics_finalize_request_method(r, method_slot,
-        xrootd_http_send_xml_buffer(r, NGX_HTTP_OK,
+        brix_http_send_xml_buffer(r, NGX_HTTP_OK,
             (ngx_str_t) ngx_string("application/xml"), b));
 }
 
@@ -274,7 +274,7 @@ s3_mpu_aio_done(ngx_event_t *ev)
     ngx_http_request_t *r = t->r;
 
     if (t->rc != NGX_OK) {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
         s3_metrics_finalize_request_method(r, t->method_slot, t->http_status);
         return;
     }
@@ -294,9 +294,9 @@ s3_multipart_complete_body_handler_inner(ngx_http_request_t *r)
     ngx_uint_t              method_slot;
     u_char                 *p;
 
-    s3ctx       = ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+    s3ctx       = ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
     fs_path     = s3ctx != NULL ? s3ctx->fs_path : NULL;
-    cf          = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_s3_module);
+    cf          = ngx_http_get_module_loc_conf(r, ngx_http_brix_s3_module);
     method_slot = s3_metrics_method_slot(r);
 
     if (fs_path == NULL || fs_path[0] == '\0') {
@@ -327,15 +327,15 @@ s3_multipart_complete_body_handler_inner(ngx_http_request_t *r)
      * MAP-mode impersonation the staging dir (and its parent) are owned 0700 by
      * the mapped user, so a raw worker lstat() EACCESes on the parent's search
      * bit and the legitimate owner's Complete spuriously 404s NoSuchUpload.  Route
-     * through the VFS probe (xrootd_vfs_probe, no-follow) so the stat runs as the
+     * through the VFS probe (brix_vfs_probe, no-follow) so the stat runs as the
      * mapped user via the broker (off impersonation it is a plain lstat).
      */
     {
-        xrootd_vfs_ctx_t  mctx;
-        xrootd_vfs_stat_t mst;
+        brix_vfs_ctx_t  mctx;
+        brix_vfs_stat_t mst;
 
         s3_build_vfs_ctx(r, mpu_dir, cf, &mctx);
-        if (xrootd_vfs_probe(&mctx, 1 /* no-follow */, &mst) != NGX_OK
+        if (brix_vfs_probe(&mctx, 1 /* no-follow */, &mst) != NGX_OK
             || !mst.is_directory)
         {
             s3_metrics_finalize_request_method(r, method_slot,
@@ -366,7 +366,7 @@ s3_multipart_complete_body_handler_inner(ngx_http_request_t *r)
             s3_mpu_aio_t *t;
 
             if (task == NULL) {
-                XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+                BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
                 s3_metrics_finalize_request_method(r, method_slot,
                                                    NGX_HTTP_INTERNAL_SERVER_ERROR);
                 return;
@@ -383,10 +383,10 @@ s3_multipart_complete_body_handler_inner(ngx_http_request_t *r)
                         sizeof(t->fs_path));
             ngx_cpystrn((u_char *) t->root_canon,
                         (u_char *) cf->common.root_canon, sizeof(t->root_canon));
-            xrootd_task_bind(task, s3_mpu_aio_thread, s3_mpu_aio_done);
+            brix_task_bind(task, s3_mpu_aio_thread, s3_mpu_aio_done);
 
             if (ngx_thread_task_post(pool, task) != NGX_OK) {
-                XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+                BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
                 s3_metrics_finalize_request_method(r, method_slot,
                                                    NGX_HTTP_INTERNAL_SERVER_ERROR);
                 return;
@@ -405,7 +405,7 @@ s3_multipart_complete_body_handler_inner(ngx_http_request_t *r)
                                 mpu_dir, final_tmp, fs_path, &st2, crc,
                                 sizeof(crc), &status) != NGX_OK)
             {
-                XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+                BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
                 s3_metrics_finalize_request_method(r, method_slot, status);
                 return;
             }

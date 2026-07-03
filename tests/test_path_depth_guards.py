@@ -1,7 +1,7 @@
 """
 Recursive walk guards — prevention of CPU exhaustion from excessive path depth.
 
-These tests verify that paths exceeding XROOTD_MAX_WALK_DEPTH (32 components) are
+These tests verify that paths exceeding BRIX_MAX_WALK_DEPTH (32 components) are
 rejected before expensive realpath(3) / lstat() operations begin, preventing denial-
 of-service conditions from malicious symlink traversal chains or deep nesting attacks.
 
@@ -141,7 +141,7 @@ def _make_deep_path(count):
 
 def test_normal_path_passes_depth_check():
     """A typical 5-component path must pass the depth guard and resolve successfully."""
-    # Create a 5-level directory hierarchy (well within XROOTD_MAX_WALK_DEPTH=32).
+    # Create a 5-level directory hierarchy (well within BRIX_MAX_WALK_DEPTH=32).
     deep_dir = _make_deep_path(5).lstrip("/")
     os.makedirs(os.path.join(DATA_DIR, deep_dir), exist_ok=True)
 

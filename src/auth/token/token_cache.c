@@ -1,23 +1,23 @@
 /*
  * token_cache.c — cross-worker JWT validation cache (see token_cache.h).
  *
- * The cache value is the whole xrootd_token_claims_t struct, copied verbatim;
+ * The cache value is the whole brix_token_claims_t struct, copied verbatim;
  * the key is the 32-byte SHA-256 of the raw token bytes.  A configured zone
- * must therefore have key>=32 and val>=sizeof(xrootd_token_claims_t), which
+ * must therefore have key>=32 and val>=sizeof(brix_token_claims_t), which
  * the directive setter enforces.
  */
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 #include "token_cache.h"
 #include "core/compat/crypto.h"
 
 #include <time.h>
 
 /* Never serve a cached token for longer than this regardless of `exp`. */
-#define XROOTD_TOKEN_CACHE_MAX_TTL_MS  (5 * 60 * 1000)
+#define BRIX_TOKEN_CACHE_MAX_TTL_MS  (5 * 60 * 1000)
 
 int
-xrootd_token_cache_lookup(xrootd_kv_t *kv, const char *token,
-    size_t token_len, xrootd_token_claims_t *claims)
+brix_token_cache_lookup(brix_kv_t *kv, const char *token,
+    size_t token_len, brix_token_claims_t *claims)
 {
     u_char  fp[32];
     size_t  vlen = sizeof(*claims);
@@ -25,10 +25,10 @@ xrootd_token_cache_lookup(xrootd_kv_t *kv, const char *token,
     if (kv == NULL || token == NULL || token_len == 0) {
         return 0;
     }
-    if (xrootd_sha256((const u_char *) token, token_len, fp) != 1) {
+    if (brix_sha256((const u_char *) token, token_len, fp) != 1) {
         return 0;
     }
-    if (xrootd_kv_get(kv, fp, sizeof(fp), claims, &vlen) != 1) {
+    if (brix_kv_get(kv, fp, sizeof(fp), claims, &vlen) != 1) {
         return 0;
     }
     if (vlen != sizeof(*claims)) {
@@ -42,8 +42,8 @@ xrootd_token_cache_lookup(xrootd_kv_t *kv, const char *token,
 }
 
 void
-xrootd_token_cache_store(xrootd_kv_t *kv, const char *token,
-    size_t token_len, const xrootd_token_claims_t *claims)
+brix_token_cache_store(brix_kv_t *kv, const char *token,
+    size_t token_len, const brix_token_claims_t *claims)
 {
     u_char      fp[32];
     int64_t     now, remaining;
@@ -52,36 +52,36 @@ xrootd_token_cache_store(xrootd_kv_t *kv, const char *token,
     if (kv == NULL || token == NULL || token_len == 0) {
         return;
     }
-    if (xrootd_sha256((const u_char *) token, token_len, fp) != 1) {
+    if (brix_sha256((const u_char *) token, token_len, fp) != 1) {
         return;
     }
 
     if (claims->exp <= 0) {
-        ttl = XROOTD_TOKEN_CACHE_MAX_TTL_MS;
+        ttl = BRIX_TOKEN_CACHE_MAX_TTL_MS;
     } else {
         now       = (int64_t) time(NULL);
         remaining = claims->exp - now;
         if (remaining <= 0) {
             return;                        /* already expired — don't cache */
         }
-        if (remaining > XROOTD_TOKEN_CACHE_MAX_TTL_MS / 1000) {
-            ttl = XROOTD_TOKEN_CACHE_MAX_TTL_MS;
+        if (remaining > BRIX_TOKEN_CACHE_MAX_TTL_MS / 1000) {
+            ttl = BRIX_TOKEN_CACHE_MAX_TTL_MS;
         } else {
             ttl = (ngx_msec_t) (remaining * 1000);
         }
     }
 
-    (void) xrootd_kv_set(kv, fp, sizeof(fp), claims, sizeof(*claims), ttl);
+    (void) brix_kv_set(kv, fp, sizeof(fp), claims, sizeof(*claims), ttl);
 }
 
 char *
-xrootd_token_cache_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+brix_token_cache_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    xrootd_kv_t **slot  = (xrootd_kv_t **) ((char *) conf + cmd->offset);
+    brix_kv_t **slot  = (brix_kv_t **) ((char *) conf + cmd->offset);
     ngx_str_t    *value = cf->args->elts;
     ngx_str_t     zone  = ngx_null_string;
     ngx_uint_t    i;
-    xrootd_kv_t  *kv;
+    brix_kv_t  *kv;
 
     for (i = 1; i < cf->args->nelts; i++) {
         if (ngx_strncmp(value[i].data, "zone=", 5) == 0) {
@@ -89,28 +89,28 @@ xrootd_token_cache_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             zone.len  = value[i].len - 5;
         } else {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "invalid xrootd_token_cache parameter \"%V\"", &value[i]);
+                "invalid brix_token_cache parameter \"%V\"", &value[i]);
             return NGX_CONF_ERROR;
         }
     }
 
     if (zone.len == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_token_cache requires zone=<name>");
+            "brix_token_cache requires zone=<name>");
         return NGX_CONF_ERROR;
     }
 
-    kv = xrootd_kv_find(&zone);
+    kv = brix_kv_find(&zone);
     if (kv == NULL) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_token_cache: unknown zone \"%V\" "
-            "(declare it with xrootd_kv_zone first)", &zone);
+            "brix_token_cache: unknown zone \"%V\" "
+            "(declare it with brix_kv_zone first)", &zone);
         return NGX_CONF_ERROR;
     }
-    if (kv->key_max < 32 || kv->val_max < sizeof(xrootd_token_claims_t)) {
+    if (kv->key_max < 32 || kv->val_max < sizeof(brix_token_claims_t)) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_token_cache zone \"%V\" too small: need key>=32 val>=%uz",
-            &zone, sizeof(xrootd_token_claims_t));
+            "brix_token_cache zone \"%V\" too small: need key>=32 val>=%uz",
+            &zone, sizeof(brix_token_claims_t));
         return NGX_CONF_ERROR;
     }
 

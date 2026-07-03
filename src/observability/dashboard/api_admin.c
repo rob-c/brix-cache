@@ -60,7 +60,7 @@ admin_validate_hostname(const char *host)
 
 
 /* Whitelist-validate a comma/colon-separated namespace path list (1=ok,
- * 0=reject). Bounded by XROOTD_SRV_MAX_PATHS, the registry's storage cap. */
+ * 0=reject). Bounded by BRIX_SRV_MAX_PATHS, the registry's storage cap. */
 int
 admin_validate_paths(const char *paths)
 {
@@ -70,7 +70,7 @@ admin_validate_paths(const char *paths)
         return 0;
     }
     n = ngx_strlen(paths);
-    if (n == 0 || n >= XROOTD_SRV_MAX_PATHS) {
+    if (n == 0 || n >= BRIX_SRV_MAX_PATHS) {
         return 0;
     }
     for (i = 0; i < n; i++) {
@@ -99,9 +99,9 @@ admin_validate_paths(const char *paths)
  *         require_both ON  -> every CONFIGURED factor must pass (AND);
  *         require_both OFF -> either configured factor passing is enough (OR).
  */
-xrootd_admin_auth_result_t
-xrootd_admin_check_auth(ngx_http_request_t *r,
-    const ngx_http_xrootd_dashboard_loc_conf_t *conf)
+brix_admin_auth_result_t
+brix_admin_check_auth(ngx_http_request_t *r,
+    const ngx_http_brix_dashboard_loc_conf_t *conf)
 {
     int has_allow  = (conf->admin_allow != NULL && conf->admin_allow->nelts > 0);
     int has_secret = (conf->admin_secret.len > 0);
@@ -109,7 +109,7 @@ xrootd_admin_check_auth(ngx_http_request_t *r,
     int secret_ok  = 0;
 
     if (!has_allow && !has_secret) {
-        return XROOTD_ADMIN_AUTH_DENIED;   /* admin API not configured */
+        return BRIX_ADMIN_AUTH_DENIED;   /* admin API not configured */
     }
 
     if (has_allow && r->connection->sockaddr != NULL
@@ -123,7 +123,7 @@ xrootd_admin_check_auth(ngx_http_request_t *r,
     if (has_secret && r->headers_in.authorization != NULL) {
         ngx_str_t bearer;
         ngx_str_t hdr = r->headers_in.authorization->value;
-        if (xrootd_http_extract_bearer(&hdr, &bearer) == NGX_OK
+        if (brix_http_extract_bearer(&hdr, &bearer) == NGX_OK
             && bearer.len == conf->admin_secret.len
             && bearer.len > 0
             && CRYPTO_memcmp(bearer.data, conf->admin_secret.data,
@@ -136,13 +136,13 @@ xrootd_admin_check_auth(ngx_http_request_t *r,
     /* AND mode: a configured factor that fails is fatal; an unconfigured factor
      * is simply not required. */
     if (conf->admin_require_both) {
-        if (has_allow && !cidr_ok)   return XROOTD_ADMIN_AUTH_DENIED;
-        if (has_secret && !secret_ok) return XROOTD_ADMIN_AUTH_DENIED;
-        return XROOTD_ADMIN_AUTH_OK;
+        if (has_allow && !cidr_ok)   return BRIX_ADMIN_AUTH_DENIED;
+        if (has_secret && !secret_ok) return BRIX_ADMIN_AUTH_DENIED;
+        return BRIX_ADMIN_AUTH_OK;
     }
     /* OR mode: any single configured factor passing grants access. */
     return (cidr_ok || secret_ok)
-           ? XROOTD_ADMIN_AUTH_OK : XROOTD_ADMIN_AUTH_DENIED;
+           ? BRIX_ADMIN_AUTH_OK : BRIX_ADMIN_AUTH_DENIED;
 }
 
 
@@ -165,7 +165,7 @@ admin_audit(ngx_http_request_t *r, const char *action, const char *target,
  *       buffered. Reassembles the body, parses it as a JSON object, and invokes
  *       the per-route handler stashed in the request ctx.
  * WHY:  Body reading is async; this is the re-entry point after
- *       xrootd_admin_read_body returned NGX_DONE. It owns finalizing the request
+ *       brix_admin_read_body returned NGX_DONE. It owns finalizing the request
  *       on every path (success or error) via ngx_http_finalize_request.
  * HOW:  Sum buffer sizes; if the body spilled to a temp file (not in memory) it
  *       exceeded client_body_buffer_size and is rejected as too large. Enforce
@@ -173,9 +173,9 @@ admin_audit(ngx_http_request_t *r, const char *action, const char *target,
  *       rejected so handlers can assume json_object_get works.
  */
 void
-xrootd_admin_body_callback(ngx_http_request_t *r)
+brix_admin_body_callback(ngx_http_request_t *r)
 {
-    xrootd_admin_body_ctx_t *bctx;
+    brix_admin_body_ctx_t *bctx;
     ngx_chain_t             *cl;
     u_char                  *buf;
     size_t                   total = 0, off = 0;
@@ -183,7 +183,7 @@ xrootd_admin_body_callback(ngx_http_request_t *r)
     json_error_t             jerr;
     ngx_int_t                rc;
 
-    bctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_dashboard_module);
+    bctx = ngx_http_get_module_ctx(r, ngx_http_brix_dashboard_module);
 
     if (r->request_body == NULL || r->request_body->bufs == NULL) {
         ngx_http_finalize_request(r,
@@ -242,10 +242,10 @@ xrootd_admin_body_callback(ngx_http_request_t *r)
  * will finalize), or an error status if nginx failed to start the read.
  */
 ngx_int_t
-xrootd_admin_read_body(ngx_http_request_t *r,
-    xrootd_admin_body_handler_t handler)
+brix_admin_read_body(ngx_http_request_t *r,
+    brix_admin_body_handler_t handler)
 {
-    xrootd_admin_body_ctx_t *bctx;
+    brix_admin_body_ctx_t *bctx;
     ngx_int_t                rc;
 
     bctx = ngx_palloc(r->pool, sizeof(*bctx));
@@ -253,9 +253,9 @@ xrootd_admin_read_body(ngx_http_request_t *r,
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
     bctx->handler = handler;
-    ngx_http_set_ctx(r, bctx, ngx_http_xrootd_dashboard_module);
+    ngx_http_set_ctx(r, bctx, ngx_http_brix_dashboard_module);
 
-    rc = ngx_http_read_client_request_body(r, xrootd_admin_body_callback);
+    rc = ngx_http_read_client_request_body(r, brix_admin_body_callback);
     if (rc >= NGX_HTTP_SPECIAL_RESPONSE) {
         return rc;
     }
@@ -325,23 +325,23 @@ admin_uri_has_action(ngx_http_request_t *r, const char *action)
 
 
 ngx_int_t
-xrootd_admin_dispatch(ngx_http_request_t *r)
+brix_admin_dispatch(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_dashboard_loc_conf_t *conf;
+    ngx_http_brix_dashboard_loc_conf_t *conf;
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_dashboard_module);
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_dashboard_module);
 
-    if (xrootd_admin_check_auth(r, conf) != XROOTD_ADMIN_AUTH_OK) {
+    if (brix_admin_check_auth(r, conf) != BRIX_ADMIN_AUTH_OK) {
         admin_audit(r, "auth", NULL, "forbidden");
         return admin_send_error(r, NGX_HTTP_FORBIDDEN, "forbidden");
     }
 
     /* Phase 44: io_uring runtime kill switch (only when enabled) */    if (admin_uri_eq(r, ADMIN_PREFIX "io_uring")) {
-        if (!xrootd_uring_admin_enabled()) {
+        if (!brix_uring_admin_enabled()) {
             return admin_send_error(r, NGX_HTTP_NOT_FOUND, "not_found");
         }
         if (r->method == NGX_HTTP_POST) {
-            return xrootd_admin_read_body(r, admin_io_uring_set);
+            return brix_admin_read_body(r, admin_io_uring_set);
         }
         if (r->method == NGX_HTTP_GET) {
             return admin_io_uring_get(r);
@@ -351,7 +351,7 @@ xrootd_admin_dispatch(ngx_http_request_t *r)
 
     /* cluster registry */    if (admin_uri_eq(r, ADMIN_PREFIX "cluster/servers")) {
         if (r->method == NGX_HTTP_POST) {
-            return xrootd_admin_read_body(r, admin_cluster_register);
+            return brix_admin_read_body(r, admin_cluster_register);
         }
         return admin_send_error(r, NGX_HTTP_NOT_ALLOWED, "method_not_allowed");
     }
@@ -363,7 +363,7 @@ xrootd_admin_dispatch(ngx_http_request_t *r)
             if (r->method != NGX_HTTP_POST) {
                 return admin_send_error(r, NGX_HTTP_NOT_ALLOWED, "method_not_allowed");
             }
-            return xrootd_admin_read_body(r, admin_cluster_drain);
+            return brix_admin_read_body(r, admin_cluster_drain);
         }
         if (admin_uri_has_action(r, "/undrain")) {
             if (r->method != NGX_HTTP_POST) {
@@ -375,16 +375,16 @@ xrootd_admin_dispatch(ngx_http_request_t *r)
             return admin_cluster_delete(r);
         }
         /* PUT to a specific server path is an upsert — same body handler as
-         * POST to the collection; xrootd_srv_register replaces if it exists. */
+         * POST to the collection; brix_srv_register replaces if it exists. */
         if (r->method == NGX_HTTP_PUT) {
-            return xrootd_admin_read_body(r, admin_cluster_register);  /* upsert */
+            return brix_admin_read_body(r, admin_cluster_register);  /* upsert */
         }
         return admin_send_error(r, NGX_HTTP_NOT_ALLOWED, "method_not_allowed");
     }
 
     /* dynamic proxy pool */    if (admin_uri_eq(r, ADMIN_PREFIX "proxy/backends")) {
         if (r->method == NGX_HTTP_POST) {
-            return xrootd_admin_read_body(r, admin_proxy_add);
+            return brix_admin_read_body(r, admin_proxy_add);
         }
         if (r->method == NGX_HTTP_GET) {
             return admin_proxy_list(r);

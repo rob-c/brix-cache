@@ -4,7 +4,7 @@ read compression.
 
 W4 lets a read handle opened with the opaque "?xrootd.compress=<codec>" (the
 native xrdcp `--compress <codec>` flag) ask the server (which has
-`xrootd_read_compress on`) to compress each kXR_read response as ONE
+`brix_read_compress on`) to compress each kXR_read response as ONE
 self-contained codec frame of the requested plaintext range.  test_compression_
 root.py proves the byte-exact round trip on highly-compressible data and the
 graceful-degrade path; test_compression_root_invariant.py proves pgread/readv
@@ -13,7 +13,7 @@ stay plaintext.  This file fills the EDGE gaps:
  (1) INCOMPRESSIBLE — os.urandom(2 MiB) downloaded WITH --compress for several
      codecs is still byte-exact.  Random data is the codec worst case: every
      window's frame is >= its plaintext input, so this exercises the server's
-     worst-case expansion bound (xrootd_codec_max_out) and cmp_scratch sizing.
+     worst-case expansion bound (brix_codec_max_out) and cmp_scratch sizing.
      If the bound under-allocated or the frame were truncated/corrupted, the
      download would not match.
 
@@ -33,7 +33,7 @@ stay plaintext.  This file fills the EDGE gaps:
 
 The byte-exact download tests use the native clean-room xrdcp against the shared
 anon root:// server (port 11094), which the harness has configured with
-`xrootd_read_compress on`.  The wire tests speak raw root:// framing (mirroring
+`brix_read_compress on`.  The wire tests speak raw root:// framing (mirroring
 test_compression_root_invariant.py) so we observe the exact bytes before any
 client-side inflation can hide a distinction.
 
@@ -81,7 +81,7 @@ kXR_error = 4003
 kXR_open_read = 0x0010
 
 # Phase-42 W4 open-reply signalling (src/core/compat/codec_core.h):
-# ServerResponseBody_Open.cpsize = XROOTD_INLINE_CMP_MAGIC ('Z' = 0x5A) and
+# ServerResponseBody_Open.cpsize = BRIX_INLINE_CMP_MAGIC ('Z' = 0x5A) and
 # cptype[0] = <codec id ordinal>.  GZIP ordinal = 1 (zlib is mandatory).
 INLINE_CMP_MAGIC = 0x5A
 CODEC_GZIP       = 1
@@ -288,7 +288,7 @@ class TestIncompressible:
     """Random 2 MiB data downloaded WITH --compress for several codecs must stay
     byte-exact even though every codec frame is >= its plaintext input.  Proves
     the server never corrupts or truncates incompressible data when the frame
-    expands past the plaintext size (xrootd_codec_max_out bound + cmp_scratch)."""
+    expands past the plaintext size (brix_codec_max_out bound + cmp_scratch)."""
 
     @pytest.mark.parametrize("codec", INCOMPRESSIBLE_CODECS)
     def test_random_download_byte_exact(self, random_uploaded, tmp_path, codec):
@@ -363,7 +363,7 @@ class TestEofEmpty:
             assert status == kXR_ok, f"compressed open failed (status={status})"
             fh, cpsize, cptype = _parse_open_body(body)
             assert cpsize == INLINE_CMP_MAGIC and cptype[0] == CODEC_GZIP, (
-                "compression not negotiated; is xrootd_read_compress on?")
+                "compression not negotiated; is brix_read_compress on?")
             # Read AT EOF: offset == filesize.
             _, rstatus, rbody = _read(sock, fh, len(payload), 65536)
             assert rstatus == kXR_ok, f"read-at-EOF failed (status={rstatus})"
@@ -397,7 +397,7 @@ class TestOffsetResume:
             assert status == kXR_ok, f"compressed open failed (status={status})"
             fh, cpsize, cptype = _parse_open_body(body)
             assert cpsize == INLINE_CMP_MAGIC and cptype[0] == CODEC_GZIP, (
-                "compression not negotiated; is xrootd_read_compress on?")
+                "compression not negotiated; is brix_read_compress on?")
 
             _, rstatus, rbody = _read(sock, fh, offset, want)
             assert rstatus == kXR_ok, f"offset read failed (status={rstatus})"
@@ -527,7 +527,7 @@ class TestInvisibilityWire:
 
             assert cpsize_p == 0 and cptype_p[0] == 0, "plain open leaked signal"
             assert cpsize_c == INLINE_CMP_MAGIC and cptype_c[0] == CODEC_GZIP, (
-                "compressed open did not negotiate; is xrootd_read_compress on?")
+                "compressed open did not negotiate; is brix_read_compress on?")
         finally:
             for s, fhh in ((sock_p, fh_p), (sock_c, fh_c)):
                 try:

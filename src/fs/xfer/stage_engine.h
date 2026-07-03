@@ -1,10 +1,10 @@
-#ifndef XROOTD_FS_XFER_STAGE_ENGINE_H
-#define XROOTD_FS_XFER_STAGE_ENGINE_H
+#ifndef BRIX_FS_XFER_STAGE_ENGINE_H
+#define BRIX_FS_XFER_STAGE_ENGINE_H
 
 /*
  * stage_engine.h - the one async-staging engine (phase-64 P4/P5/P6, section 11).
  *
- * WHAT: A single durable-transfer front door, xrootd_stage_submit(), shared by
+ * WHAT: A single durable-transfer front door, brix_stage_submit(), shared by
  *       every async data-movement path in the storage stack: a cache miss-fill of
  *       a nearline (tape) backend (RECALL), a write-stage flush / tape migrate
  *       (FLUSH), a client-body upload into the stage store (UPLOAD), and an S3
@@ -19,9 +19,9 @@
  *       same engine moves bytes between any two tiers. The sd_stage / sd_cache
  *       decorators and the (future) frm nearline driver are its only callers.
  *
- * HOW:  xrootd_stage_submit(kind, src, src_key, dst, dst_key, opts) runs the
+ * HOW:  brix_stage_submit(kind, src, src_key, dst, dst_key, opts) runs the
  *       generic promote loop - open `src` for read, staged_open `dst`, pread ->
- *       staged_write -> staged_commit - and books one xrootd_xfer_finish() audit
+ *       staged_write -> staged_commit - and books one brix_xfer_finish() audit
  *       line on the terminal state. A synchronous submit runs the mover inline and
  *       returns ""; an async submit parks the open on a durable request id.
  *
@@ -36,28 +36,28 @@
 
 #include <ngx_core.h>
 
-#include "fs/backend/sd.h"   /* xrootd_sd_instance_t */
+#include "fs/backend/sd.h"   /* brix_sd_instance_t */
 
 /* The four async-staging kinds (Appendix I). Values are stable wire identities so
  * a durable request record (SP4) survives a restart; they line up 1:1 with the
  * legacy frm_xfer_kind_t the engine subsumes. */
 typedef enum {
-    XROOTD_STAGE_RECALL    = 0,   /* nearline backend -> cache store   (data in)  */
-    XROOTD_STAGE_FLUSH     = 1,   /* stage store -> backend            (data out) */
-    XROOTD_STAGE_UPLOAD    = 2,   /* client body -> stage store        (data in)  */
-    XROOTD_STAGE_MULTIPART = 3    /* S3 part(s) -> stage store         (data in)  */
-} xrootd_stage_kind_t;
+    BRIX_STAGE_RECALL    = 0,   /* nearline backend -> cache store   (data in)  */
+    BRIX_STAGE_FLUSH     = 1,   /* stage store -> backend            (data out) */
+    BRIX_STAGE_UPLOAD    = 2,   /* client body -> stage store        (data in)  */
+    BRIX_STAGE_MULTIPART = 3    /* S3 part(s) -> stage store         (data in)  */
+} brix_stage_kind_t;
 
 /* Durable request lifecycle (Appendix I). SP1 only ever transits QUEUED->DONE /
  * FAILED inline; the persisted INFLIGHT/EXPIRED transitions arrive with the SP4
  * durable queue. */
 typedef enum {
-    XROOTD_SREQ_QUEUED   = 0,
-    XROOTD_SREQ_INFLIGHT = 1,
-    XROOTD_SREQ_DONE     = 2,
-    XROOTD_SREQ_FAILED   = 3,
-    XROOTD_SREQ_EXPIRED  = 4
-} xrootd_sreq_state_t;
+    BRIX_SREQ_QUEUED   = 0,
+    BRIX_SREQ_INFLIGHT = 1,
+    BRIX_SREQ_DONE     = 2,
+    BRIX_SREQ_FAILED   = 3,
+    BRIX_SREQ_EXPIRED  = 4
+} brix_sreq_state_t;
 
 /* The durable on-disk request record (Appendix I; persisted by the SP4 queue).
  * Carried in the header now so the seam vocabulary is stable - exactly the
@@ -65,8 +65,8 @@ typedef enum {
  * transfer; the instance is rebuilt from {driver,key} on replay. */
 typedef struct {
     char                 reqid[40];        /* minted request id (NUL-terminated)     */
-    xrootd_stage_kind_t  kind;
-    xrootd_sreq_state_t  state;
+    brix_stage_kind_t  kind;
+    brix_sreq_state_t  state;
     char                 src_driver[16];
     char                 src_key[1024];
     char                 dst_driver[16];
@@ -80,7 +80,7 @@ typedef struct {
     int64_t              finished_at;
     uint32_t             attempts;
     int32_t              last_errno;
-} xrootd_sreq_t;
+} brix_sreq_t;
 
 /* Per-submit options. `async` requests park-and-defer (SP4); `conn` is the client
  * connection a parked open is woken on; `open_options` is echoed back to it;
@@ -92,10 +92,10 @@ typedef struct {
     ngx_connection_t *conn;
     ngx_msec_t        ttl_ms;
     const char       *export_root;   /* anchor to rebuild both tiers on reconcile */
-} xrootd_stage_opts_t;
+} brix_stage_opts_t;
 
 /* The durable queue handle (per export; SP4 owns its storage). Opaque here. */
-typedef struct xrootd_stage_queue_s xrootd_stage_queue_t;
+typedef struct brix_stage_queue_s brix_stage_queue_t;
 
 /*
  * Enqueue a durable transfer of the whole object `src_key` on instance `src` to
@@ -109,36 +109,36 @@ typedef struct xrootd_stage_queue_s xrootd_stage_queue_t;
  * and returns "". The contract - "" means done, non-empty means park - is already
  * the stable one callers code against.
  */
-const char *xrootd_stage_submit(xrootd_stage_kind_t kind,
-    xrootd_sd_instance_t *src, const char *src_key,
-    xrootd_sd_instance_t *dst, const char *dst_key,
-    const xrootd_stage_opts_t *opts);
+const char *brix_stage_submit(brix_stage_kind_t kind,
+    brix_sd_instance_t *src, const char *src_key,
+    brix_sd_instance_t *dst, const char *dst_key,
+    const brix_stage_opts_t *opts);
 
 /*
  * Run a transfer INLINE and return its terminal result - the synchronous path a
  * caller uses when it must know the outcome now (e.g. a sync stage-flush commit).
- * Same generic mover and audit line as xrootd_stage_submit; the difference is the
+ * Same generic mover and audit line as brix_stage_submit; the difference is the
  * return convention: NGX_OK when the object is durably published on `dst`, else
- * NGX_ERROR (errno set). The async/park path (xrootd_stage_submit) is for when the
+ * NGX_ERROR (errno set). The async/park path (brix_stage_submit) is for when the
  * caller can defer and be woken (SP4).
  */
-ngx_int_t xrootd_stage_run_inline(xrootd_stage_kind_t kind,
-    xrootd_sd_instance_t *src, const char *src_key,
-    xrootd_sd_instance_t *dst, const char *dst_key);
+ngx_int_t brix_stage_run_inline(brix_stage_kind_t kind,
+    brix_sd_instance_t *src, const char *src_key,
+    brix_sd_instance_t *dst, const char *dst_key);
 
 /* Initialise the engine's durable journal directory for this worker (SP4). A
  * NULL/empty dir keeps the async queue in-memory only (no crash recovery). */
-void xrootd_stage_engine_init(const char *journal_dir);
+void brix_stage_engine_init(const char *journal_dir);
 
 /* Per-worker timer hook: drain the deferred (async) queue, running each mover and
  * dropping a completed FLUSH's stage copy (SP4). Bounded per tick. */
-void xrootd_stage_scheduler_tick(void);
+void brix_stage_scheduler_tick(void);
 
 /* Restart replay: re-submit every in-flight durable request so no transfer is
  * lost across a crash (SP4). SP1 no-op. */
-void xrootd_stage_reconcile(xrootd_stage_queue_t *queue);
+void brix_stage_reconcile(brix_stage_queue_t *queue);
 
 /* Human string for a kind (audit line + tests). */
-const char *xrootd_stage_kind_str(xrootd_stage_kind_t kind);
+const char *brix_stage_kind_str(brix_stage_kind_t kind);
 
-#endif /* XROOTD_FS_XFER_STAGE_ENGINE_H */
+#endif /* BRIX_FS_XFER_STAGE_ENGINE_H */

@@ -46,18 +46,18 @@ head -c 400000 /dev/urandom > "$PFX/src/root/f.bin"
 cat > "$PFX/src.conf" <<EOF
 daemon on; error_log $PFX/src/logs/e.log info; pid $PFX/src.pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:$SRCP; xrootd on; xrootd_root $PFX/src/root;
-  xrootd_auth gsi; xrootd_certificate $SC; xrootd_certificate_key $SK; xrootd_trusted_ca $CA; } }
+stream { server { listen 127.0.0.1:$SRCP; xrootd on; brix_root $PFX/src/root;
+  brix_auth gsi; brix_certificate $SC; brix_certificate_key $SK; brix_trusted_ca $CA; } }
 EOF
 # nginx DEST — GSI fileserver + delegation-capturing TPC pull
 cat > "$PFX/dst.conf" <<EOF
 daemon on; error_log $PFX/dst/logs/e.log info; pid $PFX/dst.pid;
 thread_pool default threads=4;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:$DSTP; xrootd on; xrootd_root $PFX/dst/root;
-  xrootd_auth gsi; xrootd_gsi_signed_dh require; xrootd_allow_write on;
-  xrootd_tpc_allow_local on; xrootd_tpc_allow_private on; xrootd_tpc_delegate on;
-  xrootd_certificate $SC; xrootd_certificate_key $SK; xrootd_trusted_ca $CA; } }
+stream { server { listen 127.0.0.1:$DSTP; xrootd on; brix_root $PFX/dst/root;
+  brix_auth gsi; brix_gsi_signed_dh require; brix_allow_write on;
+  brix_tpc_allow_local on; brix_tpc_allow_private on; brix_tpc_delegate on;
+  brix_certificate $SC; brix_certificate_key $SK; brix_trusted_ca $CA; } }
 EOF
 fuser -k ${SRCP}/tcp ${DSTP}/tcp 2>/dev/null; sleep 0.3
 "$NGINX" -p "$PFX/src" -c "$PFX/src.conf" 2>"$PFX/src.err" || { echo src-fail; cat "$PFX/src.err"; exit 2; }

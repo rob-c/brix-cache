@@ -61,7 +61,7 @@ kXR_secreqs = 0x01                 # ask the server to return its security requi
 kXR_ableTLS = 0x02                 # client is TLS capable
 kXR_wantTLS = 0x04                 # client DEMANDS the connection switch to TLS
 
-XROOTD_SESSION_ID_LEN = 16         # opaque session id returned by kXR_login
+BRIX_SESSION_ID_LEN = 16         # opaque session id returned by kXR_login
 
 
 # ---------------------------------------------------------------------------
@@ -179,7 +179,7 @@ def _session():
 def _expect_closed(sock):
     """Return True if the peer has closed / no further response is readable.
 
-    Used after a rejected handshake: xrootd_process_handshake() returns
+    Used after a rejected handshake: brix_process_handshake() returns
     NGX_ERROR which breaks the recv loop and finalises the session, so the
     server sends NOTHING and drops the connection."""
     try:
@@ -349,7 +349,7 @@ class TestProtocol:
         """kXR_wantTLS demands the connection switch to TLS.  The anon listener
         has no TLS configured, so the handler MUST answer kXR_error/kXR_TLSRequired
         rather than silently proceeding in plaintext.  The error response is
-        queued (xrootd_send_error returns NGX_OK), so the session survives."""
+        queued (brix_send_error returns NGX_OK), so the session survives."""
         sock = _connect()
         try:
             _handshake(sock)
@@ -396,7 +396,7 @@ class TestLogin:
             _handshake(sock)
             sid, status, body = _login(sock)
             assert status == kXR_ok, _error_code(body)
-            assert len(body) == XROOTD_SESSION_ID_LEN, \
+            assert len(body) == BRIX_SESSION_ID_LEN, \
                 "anon login body must be exactly the 16-byte session id"
             assert _ping(sock)[1] == kXR_ok
         finally:
@@ -415,7 +415,7 @@ class TestLogin:
             sid, status, body = _login(sock, username=b"a\x00evil12")
             assert status == kXR_ok, \
                 "NUL-truncated printable username must be accepted as user 'a'"
-            assert len(body) == XROOTD_SESSION_ID_LEN
+            assert len(body) == BRIX_SESSION_ID_LEN
             assert _ping(sock)[1] == kXR_ok
         finally:
             sock.close()
@@ -450,7 +450,7 @@ class TestLogin:
             _handshake(sock)
             sid, status, body = _login(sock, username=b"\x00" * 8)
             assert status == kXR_ok, "all-NUL (empty) username must be accepted"
-            assert len(body) == XROOTD_SESSION_ID_LEN
+            assert len(body) == BRIX_SESSION_ID_LEN
             assert _ping(sock)[1] == kXR_ok
         finally:
             sock.close()
@@ -462,7 +462,7 @@ class TestLogin:
             _handshake(sock)
             sid, status, body = _login(sock, pid=0)
             assert status == kXR_ok, "pid=0 must be accepted"
-            assert len(body) == XROOTD_SESSION_ID_LEN
+            assert len(body) == BRIX_SESSION_ID_LEN
             assert _ping(sock)[1] == kXR_ok
         finally:
             sock.close()
@@ -475,7 +475,7 @@ class TestLogin:
             _handshake(sock)
             sid, status, body = _login(sock, pid=0xFFFFFFFF)
             assert status == kXR_ok, "pid=0xffffffff must be accepted"
-            assert len(body) == XROOTD_SESSION_ID_LEN
+            assert len(body) == BRIX_SESSION_ID_LEN
             assert _ping(sock)[1] == kXR_ok
         finally:
             sock.close()
@@ -491,7 +491,7 @@ class TestLogin:
         try:
             _handshake(sock)
             _, s1, b1 = _login(sock, streamid=b"\x00\x02")
-            assert s1 == kXR_ok and len(b1) == XROOTD_SESSION_ID_LEN
+            assert s1 == kXR_ok and len(b1) == BRIX_SESSION_ID_LEN
             _, s2, _b2 = _login(sock, streamid=b"\x00\x03", username=b"second12")
             assert s2 == kXR_error, "a duplicate login must be rejected (stock parity)"
             # The first session is untouched by the rejected duplicate.

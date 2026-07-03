@@ -25,9 +25,9 @@ HOW
 import os
 import re
 
-XROOTD_SRC = os.environ.get("XROOTD_SRC_DIR", "/tmp/xrootd-src")
-_CPCONFIG = os.path.join(XROOTD_SRC, "src", "XrdApps", "XrdCpConfig.cc")
-_FS = os.path.join(XROOTD_SRC, "src", "XrdCl", "XrdClFS.cc")
+BRIX_SRC = os.environ.get("BRIX_SRC_DIR", "/tmp/xrootd-src")
+_CPCONFIG = os.path.join(BRIX_SRC, "src", "XrdApps", "XrdCpConfig.cc")
+_FS = os.path.join(BRIX_SRC, "src", "XrdCl", "XrdClFS.cc")
 
 # Pinned fallbacks (kept in sync with the sources above) for hosts without the
 # upstream checkout.  ``source_available()`` lets a test note when it is using

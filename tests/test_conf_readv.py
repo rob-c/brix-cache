@@ -113,7 +113,7 @@ def _local(ctx, name):
 
 # --------------------------------------------------------------------------- #
 # Minimal raw-wire client (login + open + read + readv + close).             #
-# Modelled on tests/test_readv_security.py / test_xrootd_conformance.py.      #
+# Modelled on tests/test_readv_security.py / test_brix_conformance.py.      #
 # --------------------------------------------------------------------------- #
 def _recv_exact(sock, nbytes):
     data = bytearray()

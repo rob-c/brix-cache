@@ -67,7 +67,7 @@ def _resolve_large_file_md5() -> str:
 
 LARGE_FILE_MD5 = _resolve_large_file_md5()
 
-READ_CHUNK = 4 * 1024 * 1024   # 4 MiB — matches XROOTD_READ_MAX in module
+READ_CHUNK = 4 * 1024 * 1024   # 4 MiB — matches BRIX_READ_MAX in module
 
 
 # ---------------------------------------------------------------------------

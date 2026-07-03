@@ -22,7 +22,7 @@
  * walk r->headers_in and the raw r->args query string; they write NUL-terminated results
  * into fixed-size fields (no dynamic allocation) and silently truncate over-length values
  * so that untrusted client data cannot cause unbounded memory use.  All values written to
- * logs pass through xrootd_sanitize_log_string().
+ * logs pass through brix_sanitize_log_string().
  */
 
 #include "xrdhttp.h"
@@ -44,15 +44,15 @@
 #include "core/compat/alloc_guard.h"
 
 /* Our nginx module context tag for the XrdHttp per-request context. */
-extern ngx_module_t ngx_http_xrootd_webdav_module;
+extern ngx_module_t ngx_http_brix_webdav_module;
 
 /* context management */
 xrdhttp_req_ctx_t *
 xrdhttp_get_ctx(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_webdav_req_ctx_t *webdav_ctx;
+    ngx_http_brix_webdav_req_ctx_t *webdav_ctx;
 
-    webdav_ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    webdav_ctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     if (webdav_ctx != NULL) {
         /* xrdhttp is the first member — cast is well-defined by C11 §6.7.2.1p15. */
         return &webdav_ctx->xrdhttp;
@@ -61,8 +61,8 @@ xrdhttp_get_ctx(ngx_http_request_t *r)
     /* Allocate the full webdav context (xrdhttp fields zero-initialised by pcalloc).
      * This path is hit on unauthenticated requests where auth_cert.c / auth_token.c
      * never allocated the context themselves. */
-    XROOTD_PCALLOC_OR_RETURN(webdav_ctx, r->pool, sizeof(ngx_http_xrootd_webdav_req_ctx_t), NULL);
-    ngx_http_set_ctx(r, webdav_ctx, ngx_http_xrootd_webdav_module);
+    BRIX_PCALLOC_OR_RETURN(webdav_ctx, r->pool, sizeof(ngx_http_brix_webdav_req_ctx_t), NULL);
+    ngx_http_set_ctx(r, webdav_ctx, ngx_http_brix_webdav_module);
     return &webdav_ctx->xrdhttp;
 }
 
@@ -79,13 +79,13 @@ xrdhttp_args_get(const ngx_str_t *args, const char *key, size_t key_len,
 {
     (void) key_len;
 
-    return xrootd_http_query_get(*args, key, dst, dstsz,
-                                 XROOTD_HTTP_QUERY_CASE_INSENSITIVE
-                                 | XROOTD_HTTP_QUERY_DECODE_VALUE
-                                 | XROOTD_HTTP_QUERY_PLUS_TO_SPACE
-                                 | XROOTD_HTTP_QUERY_REJECT_NUL
-                                 | XROOTD_HTTP_QUERY_ALLOW_EMPTY
-                                 | XROOTD_HTTP_QUERY_TRUNCATE) > 0;
+    return brix_http_query_get(*args, key, dst, dstsz,
+                                 BRIX_HTTP_QUERY_CASE_INSENSITIVE
+                                 | BRIX_HTTP_QUERY_DECODE_VALUE
+                                 | BRIX_HTTP_QUERY_PLUS_TO_SPACE
+                                 | BRIX_HTTP_QUERY_REJECT_NUL
+                                 | BRIX_HTTP_QUERY_ALLOW_EMPTY
+                                 | BRIX_HTTP_QUERY_TRUNCATE) > 0;
 }
 
 /*
@@ -97,14 +97,14 @@ xrdhttp_args_has_key(const ngx_str_t *args, const char *key, size_t key_len)
 {
     (void) key_len;
 
-    return xrootd_http_query_has(*args, key,
-                                 XROOTD_HTTP_QUERY_CASE_INSENSITIVE
-                                 | XROOTD_HTTP_QUERY_HAS_VALUE_OK);
+    return brix_http_query_has(*args, key,
+                                 BRIX_HTTP_QUERY_CASE_INSENSITIVE
+                                 | BRIX_HTTP_QUERY_HAS_VALUE_OK);
 }
 
 /*
  * Normalize an RFC 3230 algorithm token to the internal name used by
- * xrootd_checksum_parse().  Extracts the first token from a comma-separated
+ * brix_checksum_parse().  Extracts the first token from a comma-separated
  * list (ignoring q-value suffixes), lowercases it, and strips hyphens so that
  * "SHA-256" → "sha256", "SHA-1" → "sha1", "CRC32c" → "crc32c".  The bare
  * RFC 3230 name "SHA" (meaning SHA-1) is mapped to "sha1" as a special case.
@@ -242,9 +242,9 @@ xrdhttp_parse_request(ngx_http_request_t *r)
     if (ctx->clnt_app[0] || ctx->clnt_uuid[0]) {
         char safe_app[sizeof(ctx->clnt_app) * 4];
         char safe_uuid[sizeof(ctx->clnt_uuid) * 4];
-        xrootd_sanitize_log_string(ctx->clnt_app,
+        brix_sanitize_log_string(ctx->clnt_app,
                                    safe_app, sizeof(safe_app));
-        xrootd_sanitize_log_string(ctx->clnt_uuid,
+        brix_sanitize_log_string(ctx->clnt_uuid,
                                    safe_uuid, sizeof(safe_uuid));
         ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                        "xrdhttp: client app=\"%s\" uuid=\"%s\"",
@@ -253,7 +253,7 @@ xrdhttp_parse_request(ngx_http_request_t *r)
 
     if (ctx->want_cksum[0]) {
         char safe_alg[sizeof(ctx->want_cksum) * 4];
-        xrootd_sanitize_log_string(ctx->want_cksum,
+        brix_sanitize_log_string(ctx->want_cksum,
                                    safe_alg, sizeof(safe_alg));
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                        "xrdhttp: client requests checksum alg=\"%s\"",
@@ -303,7 +303,7 @@ xrdhttp_add_response_headers(ngx_http_request_t *r, ngx_int_t http_status)
     int                xrd_code;
 
     ctx = (xrdhttp_req_ctx_t *)
-          ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+          ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     if (ctx == NULL || !ctx->is_xrdhttp) {
         return NGX_OK;
     }
@@ -316,7 +316,7 @@ xrdhttp_add_response_headers(ngx_http_request_t *r, ngx_int_t http_status)
 
     /* X-Xrootd-Requuid — echo the request UUID back to the client. */
     if (ctx->requuid[0]) {
-        if (xrootd_http_set_header(r, "X-Xrootd-Requuid", ctx->requuid,
+        if (brix_http_set_header(r, "X-Xrootd-Requuid", ctx->requuid,
                                    NULL) != NGX_OK)
         {
             return NGX_ERROR;
@@ -325,7 +325,7 @@ xrdhttp_add_response_headers(ngx_http_request_t *r, ngx_int_t http_status)
 
     /* X-Xrootd-Status — always emit per XrdHttp spec: 0 = success, non-zero = error. */
     xrd_code = xrdhttp_http_to_xrd_status(http_status);
-    if (xrootd_http_set_header_num(r, "X-Xrootd-Status",
+    if (brix_http_set_header_num(r, "X-Xrootd-Status",
                                    (long) xrd_code) != NGX_OK)
     {
         return NGX_ERROR;
@@ -333,7 +333,7 @@ xrdhttp_add_response_headers(ngx_http_request_t *r, ngx_int_t http_status)
 
     /* X-Xrootd-Wait — back-pressure for async/tape-recall scenarios. */
     if (ctx->wait_seconds > 0) {
-        if (xrootd_http_set_header_num(r, "X-Xrootd-Wait",
+        if (brix_http_set_header_num(r, "X-Xrootd-Wait",
                                        (long) ctx->wait_seconds) != NGX_OK)
         {
             return NGX_ERROR;
@@ -342,7 +342,7 @@ xrdhttp_add_response_headers(ngx_http_request_t *r, ngx_int_t http_status)
 
     /* X-Xrootd-Retry — hint for client retry interval. */
     if (ctx->retry_seconds > 0) {
-        if (xrootd_http_set_header_num(r, "X-Xrootd-Retry",
+        if (brix_http_set_header_num(r, "X-Xrootd-Retry",
                                        (long) ctx->retry_seconds) != NGX_OK)
         {
             return NGX_ERROR;
@@ -366,7 +366,7 @@ xrdhttp_send_redirect(ngx_http_request_t *r,
     const char        *sep;
 
     ctx = (xrdhttp_req_ctx_t *)
-          ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+          ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
 
     /* Build Location URL: append tpc.key and xrd.opaque as query params. */
     sep = (ngx_strchr(location_url, '?') != NULL) ? "&" : "?";
@@ -414,14 +414,14 @@ xrdhttp_send_redirect(ngx_http_request_t *r,
 
     /* X-Xrootd-Redir-Host / Port for hierarchical cluster topologies. */
     if (redir_host != NULL && redir_host[0]) {
-        if (xrootd_http_set_header(r, "X-Xrootd-Redir-Host", redir_host,
+        if (brix_http_set_header(r, "X-Xrootd-Redir-Host", redir_host,
                                    NULL) != NGX_OK)
         {
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
     }
     if (redir_port > 0) {
-        if (xrootd_http_set_header_num(r, "X-Xrootd-Redir-Port",
+        if (brix_http_set_header_num(r, "X-Xrootd-Redir-Port",
                                        (long) redir_port) != NGX_OK)
         {
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
@@ -478,7 +478,7 @@ xrdhttp_inject_tpc_headers(ngx_http_request_t *r)
     ngx_table_elt_t   *h;
 
     ctx = (xrdhttp_req_ctx_t *)
-          ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+          ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     if (ctx == NULL) {
         return NGX_OK;
     }
@@ -490,14 +490,14 @@ xrdhttp_inject_tpc_headers(ngx_http_request_t *r)
     if (ctx->tpc_src[0]
         && webdav_tpc_find_header(r, "Source", sizeof("Source") - 1) == NULL)
     {
-        xrootd_net_target_t target;
+        brix_net_target_t target;
         ngx_str_t           url;
         char                err[256];
 
         url.data = (u_char *) ctx->tpc_src;
         url.len  = ngx_strlen(ctx->tpc_src);
 
-        if (xrootd_net_target_parse(NULL, &url, &target, err, sizeof(err))
+        if (brix_net_target_parse(NULL, &url, &target, err, sizeof(err))
             != NGX_OK)
         {
             ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
@@ -506,7 +506,7 @@ xrdhttp_inject_tpc_headers(ngx_http_request_t *r)
             ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
                           "xrdhttp: tpc.src must be https://; ignored");
         } else {
-            if (xrootd_http_request_header_add(r, "Source", ctx->tpc_src,
+            if (brix_http_request_header_add(r, "Source", ctx->tpc_src,
                                                NULL) != NGX_OK)
             {
                 return NGX_ERROR;
@@ -521,14 +521,14 @@ xrdhttp_inject_tpc_headers(ngx_http_request_t *r)
         && webdav_tpc_find_header(r, "Destination",
                                   sizeof("Destination") - 1) == NULL)
     {
-        xrootd_net_target_t target;
+        brix_net_target_t target;
         ngx_str_t           url;
         char                err[256];
 
         url.data = (u_char *) ctx->tpc_dst;
         url.len  = ngx_strlen(ctx->tpc_dst);
 
-        if (xrootd_net_target_parse(NULL, &url, &target, err, sizeof(err))
+        if (brix_net_target_parse(NULL, &url, &target, err, sizeof(err))
             != NGX_OK)
         {
             ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
@@ -537,7 +537,7 @@ xrdhttp_inject_tpc_headers(ngx_http_request_t *r)
             ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
                           "xrdhttp: tpc.dst must be https://; ignored");
         } else {
-            if (xrootd_http_request_header_add(r, "Destination",
+            if (brix_http_request_header_add(r, "Destination",
                                                ctx->tpc_dst,
                                                NULL) != NGX_OK)
             {
@@ -556,7 +556,7 @@ xrdhttp_inject_tpc_headers(ngx_http_request_t *r)
         char bearer_buf[sizeof("Bearer ") + XRDHTTP_TPC_KEY_MAX];
         snprintf(bearer_buf, sizeof(bearer_buf), "Bearer %s", ctx->tpc_token);
 
-        if (xrootd_http_request_header_add(r, "Authorization", bearer_buf,
+        if (brix_http_request_header_add(r, "Authorization", bearer_buf,
                                            &h) != NGX_OK)
         {
             return NGX_ERROR;
@@ -578,10 +578,10 @@ xrdhttp_add_checksum_header(ngx_http_request_t *r,
     /* algo (32) + '=' + sha256 hex (64) + NUL = 98; round up generously */
     char               hdr_value[256];
     char               algo[32];
-    xrootd_checksum_alg_t alg;
+    brix_checksum_alg_t alg;
 
     ctx = (xrdhttp_req_ctx_t *)
-          ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+          ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     if (ctx == NULL || !ctx->want_cksum[0] || fd == NGX_INVALID_FILE) {
         return NGX_OK;
     }
@@ -593,26 +593,26 @@ xrdhttp_add_checksum_header(ngx_http_request_t *r,
         return NGX_OK;
     }
 
-    if (xrootd_checksum_parse(ctx->want_cksum, strlen(ctx->want_cksum),
+    if (brix_checksum_parse(ctx->want_cksum, strlen(ctx->want_cksum),
                               &alg, algo, sizeof(algo)) == NGX_OK)
     {
-        xrootd_integrity_info_t  info;
-        xrootd_integrity_opts_t  iopts;
+        brix_integrity_info_t  info;
+        brix_integrity_opts_t  iopts;
 
         ngx_memzero(&iopts, sizeof(iopts));
         iopts.allow_xattr_cache  = 1;
         iopts.update_xattr_cache = 1;
 
-        if (xrootd_integrity_get_fd(r->connection->log, fd, NULL, "<xrdhttp>",
+        if (brix_integrity_get_fd(r->connection->log, fd, NULL, "<xrdhttp>",
                                     algo, &iopts, &info) != NGX_OK
-            || xrootd_integrity_format_http_digest(&info, hdr_value,
+            || brix_integrity_format_http_digest(&info, hdr_value,
                                                    sizeof(hdr_value)) != NGX_OK)
         {
             return NGX_OK;
         }
     } else {
         char safe_alg[sizeof(ctx->want_cksum) * 4];
-        xrootd_sanitize_log_string(ctx->want_cksum,
+        brix_sanitize_log_string(ctx->want_cksum,
                                    safe_alg, sizeof(safe_alg));
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                        "xrdhttp: unsupported checksum algorithm \"%s\"",
@@ -620,7 +620,7 @@ xrdhttp_add_checksum_header(ngx_http_request_t *r,
         return NGX_OK;
     }
 
-    return xrootd_http_set_header(r, "Digest", hdr_value, NULL);
+    return brix_http_set_header(r, "Digest", hdr_value, NULL);
 }
 
 /* streaming Digest body filter (Phase 21 Step B) */
@@ -633,7 +633,7 @@ xrdhttp_digest_body_filter(ngx_http_request_t *r, ngx_chain_t *in,
     ngx_uint_t         saw_last = 0;
 
     ctx = (xrdhttp_req_ctx_t *)
-          ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+          ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
 
     if (ctx == NULL || !ctx->is_xrdhttp || !ctx->compute_digest) {
         return next(r, in);          /* pass-through */

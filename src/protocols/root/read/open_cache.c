@@ -8,8 +8,8 @@
  * whole-file cache hit directly, or delegates to a background origin fill on
  * miss.  Returns kXR_NotAuthorized on ACL failure, kXR_ArgInvalid on a bad path. */
 ngx_int_t
-xrootd_open_cached_read(xrootd_ctx_t *ctx, ngx_connection_t *c,
-                        ngx_stream_xrootd_srv_conf_t *conf,
+brix_open_cached_read(brix_ctx_t *ctx, ngx_connection_t *c,
+                        ngx_stream_brix_srv_conf_t *conf,
                         const char *clean_path,
                         uint16_t options, uint16_t mode_bits)
 {
@@ -18,21 +18,21 @@ xrootd_open_cached_read(xrootd_ctx_t *ctx, ngx_connection_t *c,
     struct stat cst;
     int         n;
 
-    xrootd_beneath_full_path(conf->common.root_canon, clean_path,
+    brix_beneath_full_path(conf->common.root_canon, clean_path,
                              acl_path, sizeof(acl_path));
 
-    if (xrootd_check_vo_acl_identity(c->log, acl_path, conf->vo_rules,
+    if (brix_check_vo_acl_identity(c->log, acl_path, conf->vo_rules,
                                      ctx->identity) != NGX_OK) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN",
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN",
                           clean_path, "cache", kXR_NotAuthorized, "VO not authorized");
     }
 
     /* Build the absolute cache path: cache_root + "/" + rel_clean_path */
     n = snprintf(resolved, sizeof(resolved), "%s/%s",
                  (char *) conf->cache_root.data,
-                 xrootd_beneath_rel(clean_path));
+                 brix_beneath_rel(clean_path));
     if (n < 0 || (size_t) n >= sizeof(resolved)) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN",
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN",
                           clean_path, "cache", kXR_ArgInvalid, "path too long");
     }
 
@@ -43,10 +43,10 @@ xrootd_open_cached_read(xrootd_ctx_t *ctx, ngx_connection_t *c,
     if (stat(resolved, &cst) == 0) {  /* vfs-seam-allow: separate server-managed cache-root domain */
         /* Cache-served reads stay plaintext (read_codec=0); inline read
          * compression (phase-42 W4) is only negotiated on the direct path. */
-        return xrootd_open_resolved_file(ctx, c, conf, resolved,
+        return brix_open_resolved_file(ctx, c, conf, resolved,
                                          options, mode_bits, 0, 0);
     }
 
-    return xrootd_cache_open_or_fill(ctx, c, conf, clean_path,
+    return brix_cache_open_or_fill(ctx, c, conf, clean_path,
                                      resolved, options, mode_bits);
 }

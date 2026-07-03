@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # run_cache_http_source.sh — C-4 (phase-63): a read cache whose SOURCE is a plain
-# read-only HTTP(S) origin (xrootd_storage_backend http://H/base), served through
+# read-only HTTP(S) origin (brix_storage_backend http://H/base), served through
 # the sd_http driver over the shared libcurl transport — NO separate cache_origin.
 # A miss HEADs for the size then Range-GETs to fill (driver pread → staged sink),
 # stores locally, serves byte-exact; a warm read is a cache hit. The HTTP origin is
@@ -37,9 +37,9 @@ daemon on; error_log $PFX/b/logs/e.log info; pid $PFX/b/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:${BPORT}; xrootd on; xrootd_auth none;
-    xrootd_storage_backend http://127.0.0.1:${HPORT};
-    xrootd_cache_store posix:$PFX/b/cache; xrootd_cache_root /;
+    listen 127.0.0.1:${BPORT}; xrootd on; brix_auth none;
+    brix_storage_backend http://127.0.0.1:${HPORT};
+    brix_cache_store posix:$PFX/b/cache; brix_cache_root /;
 } }
 EOF
 

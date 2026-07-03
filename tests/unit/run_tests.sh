@@ -8,7 +8,7 @@ CFLAGS="-Wall -Wextra -I$SRC -I$SRC/token -I$SRC/crypto -I$SRC/compat -g"
 LDFLAGS="-lssl -lcrypto"
 
 if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists libxml-2.0; then
-    CFLAGS="$CFLAGS $(pkg-config --cflags libxml-2.0) -DXROOTD_HAVE_LIBXML2=1"
+    CFLAGS="$CFLAGS $(pkg-config --cflags libxml-2.0) -DBRIX_HAVE_LIBXML2=1"
     LDFLAGS="$LDFLAGS $(pkg-config --libs libxml-2.0)"
 fi
 

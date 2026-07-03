@@ -1,5 +1,5 @@
-#ifndef XROOTD_GSI_KEYPOOL_H
-#define XROOTD_GSI_KEYPOOL_H
+#ifndef BRIX_GSI_KEYPOOL_H
+#define BRIX_GSI_KEYPOOL_H
 
 /*
  * Phase 33 — per-worker pool of pre-generated ephemeral ffdhe2048 DH keys.
@@ -26,26 +26,26 @@
  * forward secrecy (each key is handed out to exactly one session, then freed).
  */
 
-#include "gsi_internal.h"   /* ngx + OpenSSL EVP types via ngx_xrootd_module.h */
+#include "gsi_internal.h"   /* ngx + OpenSSL EVP types via ngx_brix_module.h */
 
 /* Generate one standalone ephemeral ffdhe2048 EVP_PKEY (caller owns and frees it).
  * Returns NULL on failure.  Shared by warm-init, refill, and the inline fallback. */
-EVP_PKEY *xrootd_gsi_dh_keygen(void);
+EVP_PKEY *brix_gsi_dh_keygen(void);
 
 /* Warm the per-worker pool at process start.  Call once from init_process when a
  * GSI/BOTH server is configured (caller gates).  `seed` keys are generated
  * synchronously (fast boot); the rest up to `target` fill off `pool` (the thread
  * pool of a GSI server) so the worker is not blocked on ~target keygens at start.
  * If `pool` is NULL there is nowhere to offload, so the full `target` is warmed
- * synchronously (old behaviour).  `target` is clamped to XROOTD_GSI_KEYPOOL_CAP. */
-void xrootd_gsi_keypool_init(ngx_cycle_t *cycle, ngx_thread_pool_t *pool,
+ * synchronously (old behaviour).  `target` is clamped to BRIX_GSI_KEYPOOL_CAP. */
+void brix_gsi_keypool_init(ngx_cycle_t *cycle, ngx_thread_pool_t *pool,
                              ngx_uint_t target, ngx_uint_t seed);
 
 /* Pop one ready ephemeral key (ownership transferred to *out).  Returns 1 on a
  * pool hit, 0 if the pool is empty (caller should inline-generate via
- * xrootd_gsi_dh_keygen()).  When the pool runs low and `pool` is non-NULL, an
+ * brix_gsi_dh_keygen()).  When the pool runs low and `pool` is non-NULL, an
  * off-thread refill is scheduled. */
-ngx_int_t xrootd_gsi_keypool_pop(ngx_thread_pool_t *pool, ngx_log_t *log,
+ngx_int_t brix_gsi_keypool_pop(ngx_thread_pool_t *pool, ngx_log_t *log,
     EVP_PKEY **out);
 
-#endif /* XROOTD_GSI_KEYPOOL_H */
+#endif /* BRIX_GSI_KEYPOOL_H */

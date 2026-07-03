@@ -29,20 +29,20 @@ extern int parse_presigned_authorization(ngx_http_request_t *r,
 static void
 s3_record_auth_result(ngx_uint_t result)
 {
-    XROOTD_S3_METRIC_INC(auth_total[result]);
+    BRIX_S3_METRIC_INC(auth_total[result]);
 
     switch (result) {
-    case XROOTD_S3_AUTH_ANONYMOUS:
-        xrootd_metric_auth(XROOTD_PROTO_S3, XROOTD_AUTHN_NONE, 1);
+    case BRIX_S3_AUTH_ANONYMOUS:
+        brix_metric_auth(BRIX_PROTO_S3, BRIX_AUTHN_NONE, 1);
         break;
-    case XROOTD_S3_AUTH_SIGV4_OK:
-        xrootd_metric_auth(XROOTD_PROTO_S3, XROOTD_AUTHN_S3KEY, 1);
+    case BRIX_S3_AUTH_SIGV4_OK:
+        brix_metric_auth(BRIX_PROTO_S3, BRIX_AUTHN_S3KEY, 1);
         break;
-    case XROOTD_S3_AUTH_MISSING:
-        xrootd_metric_auth(XROOTD_PROTO_S3, XROOTD_AUTHN_NONE, 0);
+    case BRIX_S3_AUTH_MISSING:
+        brix_metric_auth(BRIX_PROTO_S3, BRIX_AUTHN_NONE, 0);
         break;
     default:
-        xrootd_metric_auth(XROOTD_PROTO_S3, XROOTD_AUTHN_S3KEY, 0);
+        brix_metric_auth(BRIX_PROTO_S3, BRIX_AUTHN_S3KEY, 0);
         break;
     }
 }
@@ -176,7 +176,7 @@ s3_parse_amz_datetime(const char *s, time_t *out)
 static ngx_int_t
 s3_reject_bad_amz_date(ngx_http_request_t *r, const char *message)
 {
-    s3_record_auth_result(XROOTD_S3_AUTH_BAD_DATE);
+    s3_record_auth_result(BRIX_S3_AUTH_BAD_DATE);
     return s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
                              "InvalidRequest", message);
 }
@@ -184,7 +184,7 @@ s3_reject_bad_amz_date(ngx_http_request_t *r, const char *message)
 static ngx_int_t
 s3_reject_clock_skew(ngx_http_request_t *r)
 {
-    s3_record_auth_result(XROOTD_S3_AUTH_BAD_DATE);
+    s3_record_auth_result(BRIX_S3_AUTH_BAD_DATE);
     return s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
                              "RequestTimeTooSkewed",
                              "The difference between the request time and "
@@ -254,7 +254,7 @@ s3_sigv4_derive_signing_key_cached(const ngx_str_t *secret_key,
 
     /* Shared 4-round HMAC chain (libxrdproto) — byte-identical to the client's
      * sign path so client-signs == server-verifies by construction. */
-    if (!xrootd_sigv4_signing_key((const uint8_t *) secret_key->data,
+    if (!brix_sigv4_signing_key((const uint8_t *) secret_key->data,
                                   secret_key->len, date, region, "s3", out)) {
         return 0;
     }
@@ -356,7 +356,7 @@ build_canonical_headers(ngx_http_request_t *r,
  */
 ngx_int_t
 s3_verify_sigv4(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
-    xrootd_identity_t *identity)
+    brix_identity_t *identity)
 {
     sigv4_components_t comp;
     u_char             canonical[8192];
@@ -381,9 +381,9 @@ s3_verify_sigv4(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     /* Anonymous mode */
     if (cf->access_key.len == 0) {
         if (identity != NULL) {
-            identity->auth_method = XROOTD_AUTHN_NONE;
+            identity->auth_method = BRIX_AUTHN_NONE;
         }
-        s3_record_auth_result(XROOTD_S3_AUTH_ANONYMOUS);
+        s3_record_auth_result(BRIX_S3_AUTH_ANONYMOUS);
         return NGX_OK;
     }
 
@@ -393,20 +393,20 @@ s3_verify_sigv4(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     if (parse_rc == NGX_DECLINED) {
         auth = get_header(r, "authorization");
         if (auth.len == 0) {
-            s3_record_auth_result(XROOTD_S3_AUTH_MISSING);
+            s3_record_auth_result(BRIX_S3_AUTH_MISSING);
             return s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
                                      "InvalidRequest",
                                      "Missing Authorization header");
         }
 
         if (!parse_authorization(&auth, &comp)) {
-            s3_record_auth_result(XROOTD_S3_AUTH_MALFORMED);
+            s3_record_auth_result(BRIX_S3_AUTH_MALFORMED);
             return s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
                                      "InvalidRequest",
                                      "Malformed Authorization header");
         }
     } else if (parse_rc != NGX_OK) {
-        s3_record_auth_result(XROOTD_S3_AUTH_MALFORMED);
+        s3_record_auth_result(BRIX_S3_AUTH_MALFORMED);
         return s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
                                  "InvalidRequest",
                                  "Malformed presigned URL");
@@ -434,7 +434,7 @@ s3_verify_sigv4(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
 
     if (s3_request_has_session_token(r, comp.presigned)) {
         if (!cf->allow_unsigned_session_token) {
-            s3_record_auth_result(XROOTD_S3_AUTH_MALFORMED);
+            s3_record_auth_result(BRIX_S3_AUTH_MALFORMED);
             return s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
                                      "AccessDenied",
                                      "STS session tokens are not enabled");
@@ -444,7 +444,7 @@ s3_verify_sigv4(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
             && !s3_signed_headers_contains(comp.signed_hdrs,
                                            "x-amz-security-token"))
         {
-            s3_record_auth_result(XROOTD_S3_AUTH_MALFORMED);
+            s3_record_auth_result(BRIX_S3_AUTH_MALFORMED);
             return s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
                                      "InvalidRequest",
                                      "X-Amz-Security-Token must be signed");
@@ -468,7 +468,7 @@ s3_verify_sigv4(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         if (ngx_time() >= request_time
             && ngx_time() - request_time > (time_t) comp.amz_expires)
         {
-            s3_record_auth_result(XROOTD_S3_AUTH_BAD_DATE);
+            s3_record_auth_result(BRIX_S3_AUTH_BAD_DATE);
             return s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
                                      "AccessDenied",
                                      "Request has expired");
@@ -510,7 +510,7 @@ s3_verify_sigv4(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
 /*
      * 1. Canonical URI
      * */
-    xrootd_http_urlencode(r->uri.data, r->uri.len,
+    brix_http_urlencode(r->uri.data, r->uri.len,
                           (char *) canon_uri, sizeof(canon_uri), "/");
 
 /*
@@ -541,8 +541,8 @@ s3_verify_sigv4(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         (char *) canon_hdrs,
         comp.signed_hdrs);
 
-    xrootd_sha256(canonical, n, cr_hash);
-    xrootd_hex_encode(cr_hash, 32, (char *) hash_hex);
+    brix_sha256(canonical, n, cr_hash);
+    brix_hex_encode(cr_hash, 32, (char *) hash_hex);
 
 /*
      * 5. String to sign
@@ -562,24 +562,24 @@ s3_verify_sigv4(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
      * */
     if (!s3_sigv4_derive_signing_key_cached(&cf->secret_key,
                                              comp.date, comp.region, k4)) {
-        s3_record_auth_result(XROOTD_S3_AUTH_INTERNAL_ERROR);
+        s3_record_auth_result(BRIX_S3_AUTH_INTERNAL_ERROR);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
 /*
      * 7. Compute and compare signatures
      * */
-    if (!xrootd_hmac_sha256(k4, 32, string_to_sign, n, computed)) {
-        s3_record_auth_result(XROOTD_S3_AUTH_INTERNAL_ERROR);
+    if (!brix_hmac_sha256(k4, 32, string_to_sign, n, computed)) {
+        s3_record_auth_result(BRIX_S3_AUTH_INTERNAL_ERROR);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    xrootd_hex_encode(computed, 32, computed_hex);
+    brix_hex_encode(computed, 32, computed_hex);
 
     /* Reject signatures that are not exactly 64 hex chars — prevents a short
      * client string from causing CRYPTO_memcmp to compare against pad bytes. */
     if (strlen(comp.signature) != 64) {
-        s3_record_auth_result(XROOTD_S3_AUTH_MALFORMED);
+        s3_record_auth_result(BRIX_S3_AUTH_MALFORMED);
         return s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
                                  "InvalidRequest",
                                  "Signature must be 64 hex characters");
@@ -593,22 +593,22 @@ s3_verify_sigv4(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
      */
     if (!key_ok || CRYPTO_memcmp(computed_hex, comp.signature, 64) != 0) {
         ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-                      "xrootd_s3: SigV4 auth failed for key=%s (key_ok=%d)",
+                      "brix_s3: SigV4 auth failed for key=%s (key_ok=%d)",
                       comp.akid, key_ok);
-        s3_record_auth_result(key_ok ? XROOTD_S3_AUTH_SIG_MISMATCH
-                                     : XROOTD_S3_AUTH_BAD_KEY);
+        s3_record_auth_result(key_ok ? BRIX_S3_AUTH_SIG_MISMATCH
+                                     : BRIX_S3_AUTH_BAD_KEY);
         return s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
                                  "SignatureDoesNotMatch",
                                  "The request signature we calculated does "
                                  "not match the signature you provided");
     }
 
-    s3_record_auth_result(XROOTD_S3_AUTH_SIGV4_OK);
+    s3_record_auth_result(BRIX_S3_AUTH_SIGV4_OK);
     if (identity != NULL
-        && xrootd_identity_set_subject(identity, r->pool, comp.akid,
-                                       XROOTD_AUTHN_S3KEY) != NGX_OK)
+        && brix_identity_set_subject(identity, r->pool, comp.akid,
+                                       BRIX_AUTHN_S3KEY) != NGX_OK)
     {
-        s3_record_auth_result(XROOTD_S3_AUTH_INTERNAL_ERROR);
+        s3_record_auth_result(BRIX_S3_AUTH_INTERNAL_ERROR);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
@@ -621,7 +621,7 @@ s3_verify_sigv4(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
      */
     if (cf->verify_chunk_signatures && !comp.presigned) {
         ngx_http_s3_req_ctx_t *rx =
-            ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+            ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
         if (rx != NULL) {
             u_char *e;
             ngx_memcpy(rx->sigv4_signing_key, k4, 32);

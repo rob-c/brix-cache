@@ -67,7 +67,7 @@ write_packet(u_char **buf, size_t *rem,
 }
 
 ngx_int_t
-xrootd_macaroon_issue(ngx_log_t *log,
+brix_macaroon_issue(ngx_log_t *log,
     const u_char *root_key, size_t root_key_len,
     const char *location,
     const char *identifier,
@@ -87,7 +87,7 @@ xrootd_macaroon_issue(ngx_log_t *log,
                       "macaroon_issue: missing identifier or root key");
         return NGX_ERROR;
     }
-    if (out_b64sz < XROOTD_MACAROON_ISSUE_OUT_MAX) {
+    if (out_b64sz < BRIX_MACAROON_ISSUE_OUT_MAX) {
         ngx_log_error(NGX_LOG_ERR, log, 0,
                       "macaroon_issue: output buffer too small");
         return NGX_ERROR;

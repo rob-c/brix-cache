@@ -4,8 +4,8 @@ tests/test_webdav_delete_lock_security.py
 Protocol-conformance + security tests for the WebDAV namespace/lock surface
 (DELETE, LOCK/UNLOCK, MKCOL) and for HTTP header-injection hardening (CRLF in
 the Destination header and in custom headers).  The suite runs against a
-dedicated, write-enabled HTTP WebDAV nginx (xrootd_webdav on +
-xrootd_webdav_allow_write on + xrootd_webdav_auth none) pre-started by
+dedicated, write-enabled HTTP WebDAV nginx (brix_webdav on +
+brix_webdav_allow_write on + brix_webdav_auth none) pre-started by
 manage_test_servers.sh start-all (the "webdav-dellock" instance, serving
 WEBDAV_DELLOCK_DATA_ROOT), so it never touches the shared test fleet and skips
 cleanly when that instance is down.  The server and this test share the local
@@ -68,7 +68,7 @@ def _reachable(host, port, timeout=3.0):
 def webdav_server():
     """Connect to the dedicated WRITABLE HTTP WebDAV nginx pre-started by
     manage_test_servers.sh start-all (the "webdav-dellock" instance,
-    xrootd_webdav_allow_write on + xrootd_webdav_auth none, serving
+    brix_webdav_allow_write on + brix_webdav_auth none, serving
     WEBDAV_DELLOCK_DATA_ROOT).  Skips cleanly if that instance is not running.
     The server and this test share the local filesystem, so files seeded into
     the data root are visible to the server and the server's writes are visible
@@ -208,7 +208,7 @@ class TestDeleteNonEmptyCollection:
 
     def test_delete_nonempty_collection_returns_409(self):
         """src/protocols/webdav/namespace.c sets opts.require_empty_dir = 1, so DELETE of
-        a non-empty collection maps XROOTD_NS_NOT_EMPTY -> 409 Conflict."""
+        a non-empty collection maps BRIX_NS_NOT_EMPTY -> 409 Conflict."""
         coll = f"/del_nonempty_{uuid.uuid4().hex}"
         assert _mkcol(coll)[0] == 201
         assert _put(f"{coll}/child.txt", b"keep")[0] in (200, 201, 204)
@@ -460,7 +460,7 @@ class TestMkcol:
     def test_mkcol_missing_intermediate_returns_409(self):
         """RFC 4918 §9.3.1: MKCOL where an intermediate collection is absent
         MUST fail with 409 Conflict.  namespace.c maps both a NOT_FOUND path
-        resolution and XROOTD_NS_NOT_FOUND mkdir result to 409."""
+        resolution and BRIX_NS_NOT_FOUND mkdir result to 409."""
         parent = f"noparent_{uuid.uuid4().hex}"
         child = f"/{parent}/leaf"
         assert not os.path.exists(os.path.join(_DATA, parent))

@@ -4,18 +4,18 @@
 
 #include "config.h"
 #include "root_prepare.h"
-#include "credential_block.h"             /* §14 xrootd_credential lookup/bearer */
+#include "credential_block.h"             /* §14 brix_credential lookup/bearer */
 #include "core/compat/staged_file.h"
 #include "core/compat/tmp_path.h"          /* SP4 orphan direct-write temp reaper */
 #include "fs/vfs/vfs_backend_registry.h"   /* per-export backend registration */
-#include "fs/path/path.h"                 /* xrootd_mkdir_recursive (pblock:// init) */
+#include "fs/path/path.h"                 /* brix_mkdir_recursive (pblock:// init) */
 #include "fs/tier/tier.h"              /* phase-64 tier parse + cache/stage register */
 
 /* Directive setter for a tier store-URL directive: arg[1] = the store URL (into the
  * ngx_str_t at cmd->offset); args[2..] = trailing credential=/block_size= params
  * (into the ngx_array_t* at the field offset carried in cmd->post). See header. */
 char *
-xrootd_conf_set_store_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+brix_conf_set_store_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     char         *p = conf;
     ngx_str_t    *url  = (ngx_str_t *) (p + cmd->offset);
@@ -46,7 +46,7 @@ xrootd_conf_set_store_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 }
 
 /* A LOCAL storage backend NAMES THE EXPORT TREE — the fully composable replacement
- * for xrootd_root. Rewrites common->root from the backend URL and anchors root_canon
+ * for brix_root. Rewrites common->root from the backend URL and anchors root_canon
  * there. No-op for a remote/non-local backend (root://, tape://, http://, a cache
  * origin, or none). Shared by all three protocol finalisers; called BEFORE the
  * export-root prep. Two forms:
@@ -55,7 +55,7 @@ xrootd_conf_set_store_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
  *                       "/x", "pblock:///abs"→"//abs"→/abs); KEEP the "pblock"
  *                       driver; create the block-store directory on init if needed. */
 void
-xrootd_storage_backend_posix_root(ngx_http_xrootd_shared_conf_t *common)
+brix_storage_backend_posix_root(ngx_http_brix_shared_conf_t *common)
 {
     ngx_str_t *sb = &common->storage_backend;
 
@@ -95,7 +95,7 @@ xrootd_storage_backend_posix_root(ngx_http_xrootd_shared_conf_t *common)
             common->root.len  = sb->len  - base + 1;
         }
         sb->len = sizeof("pblock") - 1;              /* the bare "pblock" driver */
-        (void) xrootd_mkdir_recursive((const char *) common->root.data, 0755);
+        (void) brix_mkdir_recursive((const char *) common->root.data, 0755);
     }
 }
 
@@ -104,10 +104,10 @@ xrootd_storage_backend_posix_root(ngx_http_xrootd_shared_conf_t *common)
  * is only a namespace anchor — never written — so its export-root prep must not
  * demand W_OK (a pure remote-backed node defaults root_canon to "/", which is not
  * writable). Local backends (posix/pblock, or none) return 0 and keep the W_OK
- * check. Called after xrootd_storage_backend_posix_root (posix:/pblock:// already
+ * check. Called after brix_storage_backend_posix_root (posix:/pblock:// already
  * rewritten away). */
 int
-xrootd_storage_backend_is_remote(const ngx_http_xrootd_shared_conf_t *common)
+brix_storage_backend_is_remote(const ngx_http_brix_shared_conf_t *common)
 {
     static const char *const schemes[] = {
         "root://", "roots://", "http://", "https://", "s3://",
@@ -132,7 +132,7 @@ xrootd_storage_backend_is_remote(const ngx_http_xrootd_shared_conf_t *common)
  * registry, which composes the sd_cache / sd_stage decorators per worker. Shared by
  * all three protocol finalisers (§4.4) - it reads only the common preamble. */
 ngx_int_t
-xrootd_tier_register_stores(ngx_conf_t *cf, ngx_http_xrootd_shared_conf_t *common)
+brix_tier_register_stores(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *common)
 {
     char                           err[256];
 
@@ -149,17 +149,17 @@ xrootd_tier_register_stores(ngx_conf_t *cf, ngx_http_xrootd_shared_conf_t *commo
         if (is_nearline && common->cache_store.len == 0) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                 "xrootd: a \"tape://\"/\"frm://\" backend is nearline and requires "
-                "xrootd_cache_store (the recall target); add a cache tier");
+                "brix_cache_store (the recall target); add a cache tier");
             return NGX_ERROR;
         }
     }
 
     if (common->cache_store.len > 0) {
-        xrootd_tier_cfg_t     cfg;
-        xrootd_cache_policy_t pol;
+        brix_tier_cfg_t     cfg;
+        brix_cache_policy_t pol;
 
-        if (xrootd_tier_parse_store(cf, &common->cache_store,
-                common->cache_store_args, XROOTD_TIER_CACHE, &cfg, err,
+        if (brix_tier_parse_store(cf, &common->cache_store,
+                common->cache_store_args, BRIX_TIER_CACHE, &cfg, err,
                 sizeof(err)) != NGX_OK)
         {
             return NGX_ERROR;                  /* [emerg] already logged */
@@ -178,13 +178,13 @@ xrootd_tier_register_stores(ngx_conf_t *cf, ngx_http_xrootd_shared_conf_t *commo
          * runs on the staged temp BEFORE commit, which needs the store's
          * staged_path — a local posix store; reject other stores loudly. */
         pol.verify = (common->cache_verify_mode == NGX_CONF_UNSET_UINT)
-                   ? XROOTD_CACHE_VERIFY_OFF
-                   : (xrootd_cache_verify_mode_e) common->cache_verify_mode;
-        if (pol.verify == XROOTD_CACHE_VERIFY_CVMFS_CAS
+                   ? BRIX_CACHE_VERIFY_OFF
+                   : (brix_cache_verify_mode_e) common->cache_verify_mode;
+        if (pol.verify == BRIX_CACHE_VERIFY_CVMFS_CAS
             && ngx_strcmp(cfg.driver, "posix") != 0)
         {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd_cache_verify cvmfs-cas requires a local posix "
+                "brix_cache_verify cvmfs-cas requires a local posix "
                 "cache store (got \"%s\")", cfg.driver);
             return NGX_ERROR;
         }
@@ -195,29 +195,29 @@ xrootd_tier_register_stores(ngx_conf_t *cf, ngx_http_xrootd_shared_conf_t *commo
                         ngx_min(common->cache_quarantine_dir.len + 1,
                                 sizeof(pol.quarantine_dir)));
         }
-        xrootd_vfs_backend_config_cache_store(common->root_canon, &cfg, &pol);
+        brix_vfs_backend_config_cache_store(common->root_canon, &cfg, &pol);
     }
 
     if (common->stage_enable == 1) {
-        xrootd_tier_cfg_t     cfg;
-        xrootd_stage_policy_t spol;
+        brix_tier_cfg_t     cfg;
+        brix_stage_policy_t spol;
 
         if (common->stage_store.len == 0) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd_stage on requires xrootd_stage_store");
+                "brix_stage on requires brix_stage_store");
             return NGX_ERROR;
         }
-        if (xrootd_tier_parse_store(cf, &common->stage_store,
-                common->stage_store_args, XROOTD_TIER_STAGE, &cfg, err,
+        if (brix_tier_parse_store(cf, &common->stage_store,
+                common->stage_store_args, BRIX_TIER_STAGE, &cfg, err,
                 sizeof(err)) != NGX_OK)
         {
             return NGX_ERROR;
         }
         ngx_memzero(&spol, sizeof(spol));
         spol.enabled    = 1;
-        spol.flush_mode = common->stage_flush_async ? XROOTD_WT_MODE_ASYNC
-                                                     : XROOTD_WT_MODE_SYNC;
-        xrootd_vfs_backend_config_stage_store(common->root_canon, &cfg, &spol);
+        spol.flush_mode = common->stage_flush_async ? BRIX_WT_MODE_ASYNC
+                                                     : BRIX_WT_MODE_SYNC;
+        brix_vfs_backend_config_stage_store(common->root_canon, &cfg, &spol);
     }
 
     return NGX_OK;
@@ -228,57 +228,57 @@ xrootd_tier_register_stores(ngx_conf_t *cf, ngx_http_xrootd_shared_conf_t *commo
  * and check the cache configuration, before the block accepts connections.
  * Returns NGX_OK, or NGX_ERROR (emerg-logged) on any invalid resource. */
 ngx_int_t
-xrootd_config_prepare_server(ngx_conf_t *cf,
-    ngx_stream_xrootd_srv_conf_t *xcf)
+brix_config_prepare_server(ngx_conf_t *cf,
+    ngx_stream_brix_srv_conf_t *xcf)
 {
     /* Hard read-only switch: force allow_write off before any allow_write-dependent
      * setup, so every write gate rejects (root:// require_write, write-open, ...). */
-    xrootd_shared_apply_read_only(&xcf->common, cf->log);
+    brix_shared_apply_read_only(&xcf->common, cf->log);
 
     /* Phase-4b: a GSI tap proxy must capture the client's delegated proxy to
      * present it upstream — auto-enable delegation receipt if the admin didn't. */
-    if (xcf->proxy_enable && xcf->proxy_auth == XROOTD_PROXY_AUTH_GSI
+    if (xcf->proxy_enable && xcf->proxy_auth == BRIX_PROXY_AUTH_GSI
         && !xcf->tpc_delegate)
     {
         xcf->tpc_delegate = 1;
         ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-            "xrootd_tap_proxy_auth gsi: enabling GSI proxy delegation capture");
+            "brix_tap_proxy_auth gsi: enabling GSI proxy delegation capture");
     }
 
     if (!xcf->manager_mode && !xcf->supervisor
         && xcf->manager_map == NULL && !xcf->proxy_enable) {
-        xrootd_export_root_opts_t root_opts;
+        brix_export_root_opts_t root_opts;
 
         /* A "posix:<path>" storage backend NAMES THE LOCAL EXPORT TREE — the fully
-         * composable replacement for xrootd_root. Anchor the export root at <path>
+         * composable replacement for brix_root. Anchor the export root at <path>
          * and clear the backend so the default POSIX driver serves it directly. */
-        xrootd_storage_backend_posix_root(&xcf->common);
+        brix_storage_backend_posix_root(&xcf->common);
 
-        root_opts.directive_name = "xrootd_root";
+        root_opts.directive_name = "brix_root";
         root_opts.allow_write    = xcf->common.allow_write
-                                 && !xrootd_storage_backend_is_remote(&xcf->common);
-        /* A pure cache node needs no local export tree: xrootd_cache_store is the
-         * physical FSAL and xrootd_cache_root the advertised root. xrootd_root then
+                                 && !brix_storage_backend_is_remote(&xcf->common);
+        /* A pure cache node needs no local export tree: brix_cache_store is the
+         * physical FSAL and brix_cache_root the advertised root. brix_root then
          * defaults to "/" (server_conf.c) — the cache serves the "/" namespace,
          * filling from the backend into the store. */
         root_opts.required       = 1;
         root_opts.canon_size     = sizeof(xcf->common.root_canon);
-        if (xrootd_prepare_export_root(cf, &xcf->common.root, &root_opts,
+        if (brix_prepare_export_root(cf, &xcf->common.root, &root_opts,
                                        xcf->common.root_canon) != NGX_CONF_OK)
         {
             return NGX_ERROR;
         }
         /* SP4: reap interrupted NON-staged direct-write temps under a real export
-         * tree (xrootd_tmp_reap_register itself refuses "/" — a pure cache node,
+         * tree (brix_tmp_reap_register itself refuses "/" — a pure cache node,
          * whose root_canon is "/", keeps its in-flight temps in the store tier). */
-        xrootd_tmp_reap_register(xcf->common.root_canon);
+        brix_tmp_reap_register(xcf->common.root_canon);
 
         /* Register the export's selected storage backend for VFS resolution at
          * request time. A "root://host:port" value makes the export's PRIMARY
          * storage a REMOTE XRootD server (read + write-through via sd_xroot); a
          * driver name (e.g. "pblock") selects a local backend; default POSIX is a
          * no-op. */
-        if (xrootd_vfs_backend_config_str(cf, xcf->common.root_canon,
+        if (brix_vfs_backend_config_str(cf, xcf->common.root_canon,
                 &xcf->common.storage_backend, xcf->common.pblock_block_size,
                 (int) xcf->cache_origin_family)
             != NGX_OK)
@@ -286,32 +286,32 @@ xrootd_config_prepare_server(ngx_conf_t *cf,
             return NGX_ERROR;
         }
 
-        /* §14: attach the named xrootd_credential's bearer token to the source
+        /* §14: attach the named brix_credential's bearer token to the source
          * backend (today consumed by sd_http as Authorization: Bearer). Resolved at
          * config time so a missing credential fails loudly; an empty token_file is
-         * an error too. No xrootd_storage_credential ⇒ anonymous. */
+         * an error too. No brix_storage_credential ⇒ anonymous. */
         if (xcf->common.storage_credential.len > 0) {
             char                       cred_z[256];
             char                       bearer[4096];
-            const xrootd_credential_t *cred;
+            const brix_credential_t *cred;
 
             ngx_cpystrn((u_char *) cred_z, xcf->common.storage_credential.data,
                         ngx_min(xcf->common.storage_credential.len + 1,
                                 sizeof(cred_z)));
-            cred = xrootd_credential_lookup(cred_z);
+            cred = brix_credential_lookup(cred_z);
             if (cred == NULL) {
                 ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                    "xrootd_storage_credential: no xrootd_credential \"%V\"",
+                    "brix_storage_credential: no brix_credential \"%V\"",
                     &xcf->common.storage_credential);
                 return NGX_ERROR;
             }
-            if (xrootd_credential_bearer(cred, bearer, sizeof(bearer), cf->log)
+            if (brix_credential_bearer(cred, bearer, sizeof(bearer), cf->log)
                 != NGX_OK)
             {
                 return NGX_ERROR;
             }
             {
-                xrootd_vfs_backend_cred_t bcred;
+                brix_vfs_backend_cred_t bcred;
 
                 ngx_memzero(&bcred, sizeof(bcred));
                 bcred.bearer = (bearer[0] != '\0') ? bearer : NULL;
@@ -327,7 +327,7 @@ xrootd_config_prepare_server(ngx_conf_t *cf,
                     ? (const char *) cred->s3_region.data : NULL;
                 bcred.sss_keytab = (cred->sss_keytab.len > 0)
                     ? (const char *) cred->sss_keytab.data : NULL;
-                xrootd_vfs_backend_set_credential(xcf->common.root_canon, &bcred);
+                brix_vfs_backend_set_credential(xcf->common.root_canon, &bcred);
             }
         }
 
@@ -337,18 +337,18 @@ xrootd_config_prepare_server(ngx_conf_t *cf,
         if (xcf->wt_credential.len > 0) {
             char                       cred_z[256];
             char                       bearer[4096];
-            const xrootd_credential_t *cred;
+            const brix_credential_t *cred;
 
             ngx_cpystrn((u_char *) cred_z, xcf->wt_credential.data,
                         ngx_min(xcf->wt_credential.len + 1, sizeof(cred_z)));
-            cred = xrootd_credential_lookup(cred_z);
+            cred = brix_credential_lookup(cred_z);
             if (cred == NULL) {
                 ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                    "xrootd_wt_credential: no xrootd_credential \"%V\"",
+                    "brix_wt_credential: no brix_credential \"%V\"",
                     &xcf->wt_credential);
                 return NGX_ERROR;
             }
-            if (xrootd_credential_bearer(cred, bearer, sizeof(bearer), cf->log)
+            if (brix_credential_bearer(cred, bearer, sizeof(bearer), cf->log)
                 != NGX_OK)
             {
                 return NGX_ERROR;
@@ -377,24 +377,24 @@ xrootd_config_prepare_server(ngx_conf_t *cf,
          * unset/empty value leaves upload_stage_dir_canon empty (stage adjacent
          * to the destination).  A configured-but-bad path fails config loudly. */
         if (xcf->upload_stage_dir.len > 0) {
-            xrootd_export_root_opts_t stage_opts;
-            stage_opts.directive_name = "xrootd_stage_dir";
+            brix_export_root_opts_t stage_opts;
+            stage_opts.directive_name = "brix_stage_dir";
             stage_opts.allow_write    = 1;
             stage_opts.required       = 0;
             stage_opts.canon_size     = sizeof(xcf->upload_stage_dir_canon);
-            if (xrootd_prepare_export_root(cf, &xcf->upload_stage_dir,
+            if (brix_prepare_export_root(cf, &xcf->upload_stage_dir,
                     &stage_opts, xcf->upload_stage_dir_canon) != NGX_CONF_OK)
             {
                 return NGX_ERROR;
             }
             /* Track for the stage-out reaper (finishes interrupted cache->storage
              * commits across restarts). */
-            xrootd_stage_dir_register(xcf->upload_stage_dir_canon);
+            brix_stage_dir_register(xcf->upload_stage_dir_canon);
         }
 
         /* Phase-64: register the composable cache/stage tiers (sd_cache / sd_stage
          * decorators composed over the backend, per worker). */
-        if (xrootd_tier_register_stores(cf, &xcf->common) != NGX_OK) {
+        if (brix_tier_register_stores(cf, &xcf->common) != NGX_OK) {
             return NGX_ERROR;
         }
     }
@@ -405,36 +405,36 @@ xrootd_config_prepare_server(ngx_conf_t *cf,
          * at kXR_sync/kXR_close (see src/cache/writethrough_flush.c). */
         if (xcf->common.allow_write && !xcf->wt_enable) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd_cache is read-only and requires "
-                "xrootd_allow_write off (or enable xrootd_write_through)");
+                "brix_cache is read-only and requires "
+                "brix_allow_write off (or enable brix_write_through)");
             return NGX_ERROR;
         }
 
-        /* §14: xrootd_cache_storage_backend is retired — a driver-backed cache
-         * is the tier grammar's xrootd_cache_store. */
+        /* §14: brix_cache_storage_backend is retired — a driver-backed cache
+         * is the tier grammar's brix_cache_store. */
 
         /* Write-back staging cache backend (its own root). Same sidecar rule. */
         if (xcf->cache_wt_stage_backend.len > 0) {
             if (xcf->cache_wt_stage_root.len == 0) {
                 ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                    "xrootd_cache_wt_stage_backend requires "
-                    "xrootd_cache_wt_stage_root");
+                    "brix_cache_wt_stage_backend requires "
+                    "brix_cache_wt_stage_root");
                 return NGX_ERROR;
             }
             if (xcf->cache_state_root.len == 0) {
                 ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                    "xrootd_cache_wt_stage_backend requires a POSIX "
-                    "xrootd_cache_state_root for its sidecars");
+                    "brix_cache_wt_stage_backend requires a POSIX "
+                    "brix_cache_state_root for its sidecars");
                 return NGX_ERROR;
             }
-            xrootd_vfs_backend_config((const char *) xcf->cache_wt_stage_root.data,
+            brix_vfs_backend_config((const char *) xcf->cache_wt_stage_root.data,
                                       &xcf->cache_wt_stage_backend,
                                       xcf->cache_wt_stage_block_size);
         }
 
         {
-            /* C-1 (phase-63): the cache source may be a remote xrootd_storage_backend
-             * (root://...) instead of a separate xrootd_cache_origin — the cache then
+            /* C-1 (phase-63): the cache source may be a remote brix_storage_backend
+             * (root://...) instead of a separate brix_cache_origin — the cache then
              * fills from the registered backend (open_or_fill resolves it). */
             ngx_str_t *sb = &xcf->common.storage_backend;
             int remote_source =
@@ -450,21 +450,21 @@ xrootd_config_prepare_server(ngx_conf_t *cf,
                     && ngx_strncmp(sb->data, "https://",
                                    sizeof("https://") - 1) == 0);
 
-            /* §14: the legacy xrootd_cache_origin is retired — an `xrootd_cache
+            /* §14: the legacy brix_cache_origin is retired — an `brix_cache
              * on` cache fills from the export's REMOTE storage backend. */
             if (xcf->cache_root.len == 0 || !remote_source) {
                 ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                    "xrootd_cache on requires xrootd_cache_root and a remote "
-                    "xrootd_storage_backend (root://host:port); the retired "
-                    "xrootd_cache_origin model is the tier grammar now "
-                    "(xrootd_storage_backend + xrootd_cache_store)");
+                    "brix_cache on requires brix_cache_root and a remote "
+                    "brix_storage_backend (root://host:port); the retired "
+                    "brix_cache_origin model is the tier grammar now "
+                    "(brix_storage_backend + brix_cache_store)");
                 return NGX_ERROR;
             }
         }
 
-        if (xrootd_validate_path(cf, "xrootd_cache_root",
+        if (brix_validate_path(cf, "brix_cache_root",
                                  &xcf->cache_root,
-                                 XROOTD_PATH_DIRECTORY,
+                                 BRIX_PATH_DIRECTORY,
                                  R_OK | W_OK | X_OK)
             != NGX_OK)
         {
@@ -473,7 +473,7 @@ xrootd_config_prepare_server(ngx_conf_t *cf,
 
         if (xcf->cache_lock_timeout <= 0) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd_cache_lock_timeout must be greater than zero");
+                "brix_cache_lock_timeout must be greater than zero");
             return NGX_ERROR;
         }
 
@@ -481,7 +481,7 @@ xrootd_config_prepare_server(ngx_conf_t *cf,
             || xcf->cache_eviction_threshold >= 1000000)
         {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd_cache_eviction_threshold must be greater than 0 "
+                "brix_cache_eviction_threshold must be greater than 0 "
                 "and less than 1.0");
             return NGX_ERROR;
         }
@@ -494,8 +494,8 @@ xrootd_config_prepare_server(ngx_conf_t *cf,
             || xcf->cache_low_watermark >= xcf->cache_high_watermark)
         {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd_cache_low_watermark must be greater than 0 and less "
-                "than xrootd_cache_high_watermark (which must be < 1.0)");
+                "brix_cache_low_watermark must be greater than 0 and less "
+                "than brix_cache_high_watermark (which must be < 1.0)");
             return NGX_ERROR;
         }
 
@@ -509,14 +509,14 @@ xrootd_config_prepare_server(ngx_conf_t *cf,
     }
 
     /* Write-back-staging backpressure validation. Independent of the read cache —
-     * write-through staging exists whenever xrootd_write_through is on, so this
+     * write-through staging exists whenever brix_write_through is on, so this
      * runs at the server level. When a HIGH watermark is set it needs a staging
      * root to measure, and the pair must satisfy 0 < low < high < 1.0. */
     if (xcf->cache_wt_stage_high_watermark > 0) {
         if (xcf->cache_wt_stage_root.len == 0) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd_wt_stage_high_watermark requires "
-                "xrootd_cache_wt_stage_root");
+                "brix_wt_stage_high_watermark requires "
+                "brix_cache_wt_stage_root");
             return NGX_ERROR;
         }
         if (xcf->cache_wt_stage_high_watermark >= 1000000
@@ -525,8 +525,8 @@ xrootd_config_prepare_server(ngx_conf_t *cf,
                    >= xcf->cache_wt_stage_high_watermark)
         {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd_wt_stage_low_watermark must be greater than 0 and "
-                "less than xrootd_wt_stage_high_watermark (which must be < 1.0)");
+                "brix_wt_stage_low_watermark must be greater than 0 and "
+                "less than brix_wt_stage_high_watermark (which must be < 1.0)");
             return NGX_ERROR;
         }
     }

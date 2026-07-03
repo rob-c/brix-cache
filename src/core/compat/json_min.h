@@ -18,8 +18,8 @@
  * This is a DIAGNOSTIC helper, not a validating parser: it does not reject every
  * malformed document, only enough to extract a well-formed member safely.
  */
-#ifndef XROOTD_JSON_MIN_H
-#define XROOTD_JSON_MIN_H
+#ifndef BRIX_JSON_MIN_H
+#define BRIX_JSON_MIN_H
 
 #include <stddef.h>
 
@@ -34,7 +34,7 @@
  * Returns 1 if the key was found and a string/scalar value copied, 0 otherwise
  * (not found, value is object/array, malformed input, or out too small).
  */
-int xrootd_json_get_str(const char *json, size_t len, const char *key,
+int brix_json_get_str(const char *json, size_t len, const char *key,
     char *out, size_t outsz);
 
-#endif /* XROOTD_JSON_MIN_H */
+#endif /* BRIX_JSON_MIN_H */

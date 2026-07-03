@@ -7,7 +7,7 @@
  * SECURITY MODEL (fail-closed — the whole point of this feature):
  *   The on-disk config is read verbatim, then passed through a line redactor
  *   that masks the VALUE of every directive UNLESS the directive name is
- *   recognised as safe. "Recognised safe" = a project xrootd_* directive that is
+ *   recognised as safe. "Recognised safe" = a project brix_* directive that is
  *   not itself a secret, OR a name on a curated stock-nginx allowlist. Anything
  *   else - unknown directives, stock directives that may carry credentials
  *   (proxy_set_header, set, auth_basic_user_file, ...), `include`, secret
@@ -17,7 +17,7 @@
  *
  *   On top of that fail-closed core:
  *     - an explicit secret denylist + a secret-name substring net always win
- *       (so even a future xrootd_*_secret is masked before the xrootd_* "safe"
+ *       (so even a future brix_*_secret is masked before the brix_* "safe"
  *       rule can pass it through);
  *     - `include` targets are never inlined (separate files are not read), so a
  *       secret living in an included file is never reachable here;
@@ -34,7 +34,7 @@
  */
 
 #include "dashboard_http.h"
-#include "core/http/http_headers.h"   /* xrootd_http_source_offer (AGPL sec.13) */
+#include "core/http/http_headers.h"   /* brix_http_source_offer (AGPL sec.13) */
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -45,39 +45,39 @@
 
 /*
  * Secret directives whose value MUST always be masked, even though some begin
- * with "xrootd_" (which the fail-closed core would otherwise pass through). This
+ * with "brix_" (which the fail-closed core would otherwise pass through). This
  * is belt-and-suspenders: the secret-name net below also catches all of these
- * except xrootd_webdav_proxy_auth (whose name carries no secret keyword), so
+ * except brix_webdav_proxy_auth (whose name carries no secret keyword), so
  * that one in particular relies on this list.
  */
 static const char *const dashboard_secret_directives[] = {
-    "xrootd_dashboard_password",
-    "xrootd_dashboard_users",
-    "xrootd_admin_secret",
-    "xrootd_macaroon_secret",
-    "xrootd_macaroon_secret_old",
-    "xrootd_webdav_macaroon_secret",
-    "xrootd_webdav_macaroon_secret_old",
-    "xrootd_s3_access_key",
-    "xrootd_s3_secret_key",
-    "xrootd_tpc_outbound_client_secret",
-    "xrootd_tpc_outbound_bearer_file",
-    "xrootd_webdav_tpc_token_client_secret",
-    "xrootd_webdav_proxy_auth",
-    /* xrootd_mirror_token is an inline bearer credential whose name carries no
+    "brix_dashboard_password",
+    "brix_dashboard_users",
+    "brix_admin_secret",
+    "brix_macaroon_secret",
+    "brix_macaroon_secret_old",
+    "brix_webdav_macaroon_secret",
+    "brix_webdav_macaroon_secret_old",
+    "brix_s3_access_key",
+    "brix_s3_secret_key",
+    "brix_tpc_outbound_client_secret",
+    "brix_tpc_outbound_bearer_file",
+    "brix_webdav_tpc_token_client_secret",
+    "brix_webdav_proxy_auth",
+    /* brix_mirror_token is an inline bearer credential whose name carries no
      * secret keyword the substring net catches ("token" is excluded there so
      * the non-secret token_issuer/audience/endpoint stay visible) — list it
-     * explicitly, like xrootd_webdav_proxy_auth above. */
-    "xrootd_mirror_token",
-    "xrootd_upstream_token_file",
-    "xrootd_certificate_key",
-    "xrootd_webdav_tpc_key",
-    "xrootd_webdav_tpc_cert",
-    "xrootd_sss_keytab",
-    "xrootd_cms_server_sss_keytab",
-    "xrootd_krb5_keytab",
-    "xrootd_token_jwks",
-    "xrootd_webdav_token_jwks",
+     * explicitly, like brix_webdav_proxy_auth above. */
+    "brix_mirror_token",
+    "brix_upstream_token_file",
+    "brix_certificate_key",
+    "brix_webdav_tpc_key",
+    "brix_webdav_tpc_cert",
+    "brix_sss_keytab",
+    "brix_cms_server_sss_keytab",
+    "brix_krb5_keytab",
+    "brix_token_jwks",
+    "brix_webdav_token_jwks",
     /* stock nginx secret-bearing directives that may share the same file */
     "ssl_certificate_key",
     "ssl_password_file",
@@ -107,22 +107,22 @@ static const char *const dashboard_secret_name_substrings[] = {
  * un-masked here.
  */
 static const char *const dashboard_secret_exceptions[] = {
-    "xrootd_token_issuer",
-    "xrootd_token_audience",
-    "xrootd_token_jwks_refresh_interval",
-    "xrootd_token_cache",
-    "xrootd_webdav_token_issuer",
-    "xrootd_webdav_token_audience",
-    "xrootd_webdav_token_introspect_ttl",
-    "xrootd_webdav_token_introspect_loc",
-    "xrootd_webdav_token_introspect_fail_open",
+    "brix_token_issuer",
+    "brix_token_audience",
+    "brix_token_jwks_refresh_interval",
+    "brix_token_cache",
+    "brix_webdav_token_issuer",
+    "brix_webdav_token_audience",
+    "brix_webdav_token_introspect_ttl",
+    "brix_webdav_token_introspect_loc",
+    "brix_webdav_token_introspect_fail_open",
     NULL
 };
 
 /*
  * Stock (non-xrootd) nginx directives whose values are safe to show. Structural
  * keywords and common operational settings only - deliberately conservative.
- * Anything not here (and not an xrootd_* non-secret directive) is redacted.
+ * Anything not here (and not an brix_* non-secret directive) is redacted.
  */
 static const char *const dashboard_safe_stock_directives[] = {
     "user", "worker_processes", "worker_connections", "worker_rlimit_nofile",
@@ -235,7 +235,7 @@ dashboard_name_is_secret(const u_char *name, size_t len)
 
 /*
  * Fail-closed value-keep decision for a directive name.
- * Keep (show value) ONLY when: not secret AND (a project xrootd_* directive OR a
+ * Keep (show value) ONLY when: not secret AND (a project brix_* directive OR a
  * safe stock directive). Everything else -> redact the value.
  */
 static ngx_uint_t
@@ -244,7 +244,7 @@ dashboard_keep_value(const u_char *name, size_t len)
     if (dashboard_name_is_secret(name, len)) {
         return 0;
     }
-    if (len >= 7 && dashboard_name_eq(name, 7, "xrootd_")) {
+    if (len >= 5 && dashboard_name_eq(name, 5, "brix_")) {
         return 1;
     }
     if (dashboard_name_in(name, len, dashboard_safe_stock_directives)) {
@@ -258,7 +258,7 @@ dashboard_keep_value(const u_char *name, size_t len)
  *   scheme://user:pass@host          -> scheme://[redacted]@host
  *   ...?token=v / &secret=v / &sig=v -> ...?token=[redacted]&...
  * Returns the new end pointer (the region may shrink). Defence-in-depth for the
- * xrootd_*_url / upstream / origin directives that pass the keep test.
+ * brix_*_url / upstream / origin directives that pass the keep test.
  */
 static u_char *
 dashboard_scrub_value_creds(u_char *p, u_char *end)
@@ -574,19 +574,19 @@ dashboard_send_config(ngx_http_request_t *r, u_char *body, size_t len)
 }
 
 ngx_int_t
-ngx_http_xrootd_dashboard_config_download_handler(ngx_http_request_t *r)
+ngx_http_brix_dashboard_config_download_handler(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_dashboard_loc_conf_t *conf;
+    ngx_http_brix_dashboard_loc_conf_t *conf;
     ngx_int_t  rc;
     u_char    *raw, *red;
     size_t     raw_len, red_len;
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_dashboard_module);
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_dashboard_module);
 
     /* ALWAYS auth — never anonymous (do NOT consult conf->anonymous). Pass
      * suppress_missing_cookie=0 so every unauthenticated config-download attempt
      * is audited, even when the read API is anonymous. */
-    rc = ngx_http_xrootd_dashboard_check_auth(r, conf, 0);
+    rc = ngx_http_brix_dashboard_check_auth(r, conf, 0);
     if (rc != NGX_OK) {
         return rc;
     }
@@ -595,7 +595,7 @@ ngx_http_xrootd_dashboard_config_download_handler(ngx_http_request_t *r)
     }
 
     /* AGPL-3.0 sec.13: offer remote users the source. */
-    xrootd_http_source_offer(r);
+    brix_http_source_offer(r);
 
     rc = dashboard_read_config_file(r, &raw, &raw_len);
     if (rc != NGX_OK) {

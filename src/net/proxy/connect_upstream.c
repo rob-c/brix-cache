@@ -12,7 +12,7 @@
  *      periods of low traffic and lets per-request auth decisions determine
  *      whether a backend connection is worth keeping.
  *
- * HOW: xrootd_proxy_connect() selects an endpoint from pool/rr/single,
+ * HOW: brix_proxy_connect() selects an endpoint from pool/rr/single,
  *      resolves via getaddrinfo(), creates non-blocking socket, arms write-event
  *      for async connect, optionally performs TLS, builds bootstrap buffer,
  *      then sets state to XRD_PX_BOOTSTRAP so read_handler parses responses.
@@ -46,7 +46,7 @@ static ngx_atomic_t  proxy_upstream_rr;
  *           NULL or empty → default "xrd".
  */
 static size_t
-xrootd_proxy_build_bootstrap(u_char *buf, const char *username)
+brix_proxy_build_bootstrap(u_char *buf, const char *username)
 {
     u_char *cursor = buf;
 
@@ -117,50 +117,50 @@ xrootd_proxy_build_bootstrap(u_char *buf, const char *username)
 /* TLS handshake callback */
 #if (NGX_SSL)
 void
-xrootd_proxy_tls_handshake_done(ngx_connection_t *uconn)
+brix_proxy_tls_handshake_done(ngx_connection_t *uconn)
 {
-    xrootd_proxy_ctx_t *proxy = uconn->data;
-    xrootd_ctx_t       *ctx   = proxy->client_ctx;
+    brix_proxy_ctx_t *proxy = uconn->data;
+    brix_ctx_t       *ctx   = proxy->client_ctx;
 
     if (ctx == NULL || ctx->destroyed) {
-        xrootd_proxy_cleanup(proxy);
+        brix_proxy_cleanup(proxy);
         return;
     }
 
     if (!uconn->ssl->handshaked) {
-        XROOTD_PROXY_METRIC_INC(ctx, upstream_connect_errors);
-        XROOTD_PROXY_UP_INC(proxy, upstream_connect_errors);
-        xrootd_proxy_abort(proxy, "proxy: upstream TLS handshake failed");
+        BRIX_PROXY_METRIC_INC(ctx, upstream_connect_errors);
+        BRIX_PROXY_UP_INC(proxy, upstream_connect_errors);
+        brix_proxy_abort(proxy, "proxy: upstream TLS handshake failed");
         return;
     }
 
     /* Restore normal event handlers and transition to bootstrap */
-    uconn->read->handler  = xrootd_proxy_read_handler;
-    uconn->write->handler = xrootd_proxy_write_handler;
+    uconn->read->handler  = brix_proxy_read_handler;
+    uconn->write->handler = brix_proxy_write_handler;
     proxy->state    = XRD_PX_BOOTSTRAP;
     proxy->bs_phase = XRD_PX_BS_HANDSHAKE;
     proxy->rhdr_pos = 0;
 
-    if (xrootd_proxy_flush(proxy) == NGX_ERROR) {
-        XROOTD_PROXY_METRIC_INC(ctx, upstream_connect_errors);
-        XROOTD_PROXY_UP_INC(proxy, upstream_connect_errors);
-        xrootd_proxy_abort(proxy, "proxy: upstream write after TLS failed");
+    if (brix_proxy_flush(proxy) == NGX_ERROR) {
+        BRIX_PROXY_METRIC_INC(ctx, upstream_connect_errors);
+        BRIX_PROXY_UP_INC(proxy, upstream_connect_errors);
+        brix_proxy_abort(proxy, "proxy: upstream write after TLS failed");
         return;
     }
 
     if (proxy->wbuf_pos < proxy->wbuf_len) {
         if (ngx_handle_write_event(uconn->write, 0) != NGX_OK) {
-            XROOTD_PROXY_METRIC_INC(ctx, upstream_connect_errors);
-            XROOTD_PROXY_UP_INC(proxy, upstream_connect_errors);
-            xrootd_proxy_abort(proxy, "proxy: write arm after TLS failed");
+            BRIX_PROXY_METRIC_INC(ctx, upstream_connect_errors);
+            BRIX_PROXY_UP_INC(proxy, upstream_connect_errors);
+            brix_proxy_abort(proxy, "proxy: write arm after TLS failed");
         }
         return;
     }
 
     if (ngx_handle_read_event(uconn->read, 0) != NGX_OK) {
-        XROOTD_PROXY_METRIC_INC(ctx, upstream_connect_errors);
-        XROOTD_PROXY_UP_INC(proxy, upstream_connect_errors);
-        xrootd_proxy_abort(proxy, "proxy: read arm after TLS failed");
+        BRIX_PROXY_METRIC_INC(ctx, upstream_connect_errors);
+        BRIX_PROXY_UP_INC(proxy, upstream_connect_errors);
+        brix_proxy_abort(proxy, "proxy: read arm after TLS failed");
     }
 }
 /*
@@ -169,13 +169,13 @@ xrootd_proxy_tls_handshake_done(ngx_connection_t *uconn)
  *       flushes the bootstrap buffer, and arms both read and write events.
  *
  * WHY: TLS handshake runs asynchronously; when it finishes we must switch back
- *      from the SSL handler to xrootd_proxy_read_handler so the bootstrap
+ *      from the SSL handler to brix_proxy_read_handler so the bootstrap
  *      response can be parsed. If the client session was destroyed during
  *      handshake we clean up immediately.
  *
  * HOW: Checks ctx validity and uconn->ssl->handshaked, increments error metrics
  *      on failure, restores read/write handlers, sets state to XRD_PX_BOOTSTRAP,
- *      calls xrootd_proxy_flush() to send bootstrap data, then arms write event
+ *      calls brix_proxy_flush() to send bootstrap data, then arms write event
  *      if unsent bytes remain and read event for upstream response parsing.
  */
 
@@ -183,9 +183,9 @@ xrootd_proxy_tls_handshake_done(ngx_connection_t *uconn)
 
 /* public: connect and start bootstrap */
 ngx_int_t
-xrootd_proxy_connect(xrootd_proxy_ctx_t *proxy,
+brix_proxy_connect(brix_proxy_ctx_t *proxy,
                      ngx_connection_t   *client_conn,
-                     ngx_stream_xrootd_srv_conf_t *conf)
+                     ngx_stream_brix_srv_conf_t *conf)
 {
     struct sockaddr_storage  chosen_addr;
     socklen_t                chosen_addrlen;
@@ -206,8 +206,8 @@ xrootd_proxy_connect(xrootd_proxy_ctx_t *proxy,
     } else {
         /* GSI-as-user connections are per-user authenticated — never reuse a
          * pooled connection (it carries a different identity). */
-        uconn = (conf->proxy_auth == XROOTD_PROXY_AUTH_GSI)
-                ? NULL : xrootd_proxy_pool_get(proxy, conf, &pooled_idx);
+        uconn = (conf->proxy_auth == BRIX_PROXY_AUTH_GSI)
+                ? NULL : brix_proxy_pool_get(proxy, conf, &pooled_idx);
         if (uconn != NULL) {
             proxy->conn         = uconn;
             proxy->upstream_idx = pooled_idx;
@@ -219,16 +219,16 @@ xrootd_proxy_connect(xrootd_proxy_ctx_t *proxy,
             uconn->write->log   = client_conn->log;
 
             if (proxy->saved_req != NULL) {
-                xrootd_proxy_dispatch_pending(proxy);
+                brix_proxy_dispatch_pending(proxy);
             } else {
                 proxy->client_ctx->state = XRD_ST_REQ_HEADER;
-                xrootd_schedule_read_resume(client_conn);
+                brix_schedule_read_resume(client_conn);
             }
             return NGX_OK;
         }
 
         if (conf->proxy_upstreams != NULL && conf->proxy_upstreams->nelts > 0) {
-            xrootd_proxy_upstream_t *ups = conf->proxy_upstreams->elts;
+            brix_proxy_upstream_t *ups = conf->proxy_upstreams->elts;
             ngx_atomic_uint_t        idx, i;
 
             /* Select a healthy upstream.  If EVERY upstream is currently marked
@@ -246,7 +246,7 @@ xrootd_proxy_connect(xrootd_proxy_ctx_t *proxy,
                         && i < conf->proxy_upstreams->nelts; i++) {
                 ngx_uint_t cur = (idx + i) % conf->proxy_upstreams->nelts;
                 if (!proxy_up_status[cur].down ||
-                    ngx_time() - proxy_up_status[cur].checked >= XROOTD_PROXY_FAIL_TIMEOUT)
+                    ngx_time() - proxy_up_status[cur].checked >= BRIX_PROXY_FAIL_TIMEOUT)
                 {
                     idx = cur;
                     found = 1;
@@ -277,21 +277,21 @@ xrootd_proxy_connect(xrootd_proxy_ctx_t *proxy,
 
     /* GSI delegation: log in to the upstream AS THE USER in a thread (the blocking
      * in-process GSI client), then hand the authenticated fd to the relay. */
-    if (conf->proxy_auth == XROOTD_PROXY_AUTH_GSI) {
-        return xrootd_proxy_gsi_connect_async(proxy, conf, use_host,
+    if (conf->proxy_auth == BRIX_PROXY_AUTH_GSI) {
+        return brix_proxy_gsi_connect_async(proxy, conf, use_host,
                                               (uint16_t) use_port);
     }
 
     {
-        xrootd_resolve_status_t rstatus;
+        brix_resolve_status_t rstatus;
 
-        fd = xrootd_resolve_connect_socket((const char *) use_host->data,
+        fd = brix_resolve_connect_socket((const char *) use_host->data,
                                            (unsigned) use_port,
-                                           XROOTD_AF_AUTO,
+                                           BRIX_AF_AUTO,
                                            &chosen_addr, &chosen_addrlen,
                                            &rstatus);
         if (fd == (int) NGX_INVALID_FILE) {
-            if (rstatus == XROOTD_RESOLVE_ERR_DNS) {
+            if (rstatus == BRIX_RESOLVE_ERR_DNS) {
                 ngx_log_error(NGX_LOG_ERR, client_conn->log, 0,
                               "xrootd proxy: cannot resolve \"%s\"",
                               use_host->data);
@@ -300,8 +300,8 @@ xrootd_proxy_connect(xrootd_proxy_ctx_t *proxy,
             ngx_log_error(NGX_LOG_ERR, client_conn->log, 0,
                           "xrootd proxy: no usable address for \"%s\"",
                           use_host->data);
-            XROOTD_PROXY_METRIC_INC(proxy->client_ctx, upstream_connect_errors);
-            XROOTD_PROXY_UP_INC(proxy, upstream_connect_errors);
+            BRIX_PROXY_METRIC_INC(proxy->client_ctx, upstream_connect_errors);
+            BRIX_PROXY_UP_INC(proxy, upstream_connect_errors);
             return NGX_ERROR;
         }
     }
@@ -335,7 +335,7 @@ xrootd_proxy_connect(xrootd_proxy_ctx_t *proxy,
         char upstream_user[9];
 
         switch (conf->proxy_login_user) {
-        case XROOTD_PROXY_LOGIN_PASSTHROUGH:
+        case BRIX_PROXY_LOGIN_PASSTHROUGH:
             if (proxy->client_ctx != NULL
                 && proxy->client_ctx->login_user[0] != '\0')
             {
@@ -346,17 +346,17 @@ xrootd_proxy_connect(xrootd_proxy_ctx_t *proxy,
                 upstream_user[0] = '\0'; /* no client username → fall back to "xrd" */
             }
             break;
-        case XROOTD_PROXY_LOGIN_FIXED:
+        case BRIX_PROXY_LOGIN_FIXED:
             ngx_cpystrn((u_char *) upstream_user,
                         (u_char *) conf->proxy_login_user_name,
                         sizeof(upstream_user));
             break;
-        default: /* XROOTD_PROXY_LOGIN_ANONYMOUS */
+        default: /* BRIX_PROXY_LOGIN_ANONYMOUS */
             upstream_user[0] = '\0';
             break;
         }
 
-        bslen = xrootd_proxy_build_bootstrap(bsbuf, upstream_user);
+        bslen = brix_proxy_build_bootstrap(bsbuf, upstream_user);
     }
 
     uconn->data                = proxy;
@@ -365,8 +365,8 @@ xrootd_proxy_connect(xrootd_proxy_ctx_t *proxy,
     uconn->recv_chain          = ngx_recv_chain;
     uconn->send_chain          = ngx_send_chain;
     uconn->log                 = client_conn->log;
-    uconn->read->handler       = xrootd_proxy_read_handler;
-    uconn->write->handler      = xrootd_proxy_write_handler;
+    uconn->read->handler       = brix_proxy_read_handler;
+    uconn->write->handler      = brix_proxy_write_handler;
     uconn->read->log           = client_conn->log;
     uconn->write->log          = client_conn->log;
 
@@ -387,16 +387,16 @@ xrootd_proxy_connect(xrootd_proxy_ctx_t *proxy,
         ngx_log_error(NGX_LOG_ERR, client_conn->log, ngx_socket_errno,
                       "xrootd proxy: connect to %s:%d failed",
                       use_host->data, (int) use_port);
-        XROOTD_PROXY_METRIC_INC(proxy->client_ctx, upstream_connect_errors);
-        XROOTD_PROXY_UP_INC(proxy, upstream_connect_errors);
-        xrootd_proxy_cleanup(proxy);
+        BRIX_PROXY_METRIC_INC(proxy->client_ctx, upstream_connect_errors);
+        BRIX_PROXY_UP_INC(proxy, upstream_connect_errors);
+        brix_proxy_cleanup(proxy);
         return NGX_ERROR;
     }
 
     if (ngx_handle_write_event(uconn->write, 0) != NGX_OK) {
-        XROOTD_PROXY_METRIC_INC(proxy->client_ctx, upstream_connect_errors);
-        XROOTD_PROXY_UP_INC(proxy, upstream_connect_errors);
-        xrootd_proxy_cleanup(proxy);
+        BRIX_PROXY_METRIC_INC(proxy->client_ctx, upstream_connect_errors);
+        BRIX_PROXY_UP_INC(proxy, upstream_connect_errors);
+        brix_proxy_cleanup(proxy);
         return NGX_ERROR;
     }
 
@@ -413,9 +413,9 @@ xrootd_proxy_connect(xrootd_proxy_ctx_t *proxy,
                                           NGX_SSL_BUFFER | NGX_SSL_CLIENT)
                 != NGX_OK)
             {
-                XROOTD_PROXY_METRIC_INC(proxy->client_ctx, upstream_connect_errors);
-                XROOTD_PROXY_UP_INC(proxy, upstream_connect_errors);
-                xrootd_proxy_cleanup(proxy);
+                BRIX_PROXY_METRIC_INC(proxy->client_ctx, upstream_connect_errors);
+                BRIX_PROXY_UP_INC(proxy, upstream_connect_errors);
+                brix_proxy_cleanup(proxy);
                 return NGX_ERROR;
             }
             /* SNI: prefer explicit name directive, fall back to configured host */
@@ -425,12 +425,12 @@ xrootd_proxy_connect(xrootd_proxy_ctx_t *proxy,
                                   : (const char *) conf->proxy_host.data;
                 SSL_set_tlsext_host_name(uconn->ssl->connection, sni);
             }
-            uconn->ssl->handler = xrootd_proxy_tls_handshake_done;
+            uconn->ssl->handler = brix_proxy_tls_handshake_done;
             proxy->state = XRD_PX_TLS_HANDSHAKE;
             if (ngx_ssl_handshake(uconn) == NGX_AGAIN) {
                 return NGX_OK; /* TLS callback will continue */
             }
-            xrootd_proxy_tls_handshake_done(uconn);
+            brix_proxy_tls_handshake_done(uconn);
             return NGX_OK;
         }
 #endif
@@ -438,10 +438,10 @@ xrootd_proxy_connect(xrootd_proxy_ctx_t *proxy,
         proxy->bs_phase = XRD_PX_BS_HANDSHAKE;
         proxy->rhdr_pos = 0;
 
-        if (xrootd_proxy_flush(proxy) == NGX_ERROR) {
-            XROOTD_PROXY_METRIC_INC(proxy->client_ctx, upstream_connect_errors);
-            XROOTD_PROXY_UP_INC(proxy, upstream_connect_errors);
-            xrootd_proxy_cleanup(proxy);
+        if (brix_proxy_flush(proxy) == NGX_ERROR) {
+            BRIX_PROXY_METRIC_INC(proxy->client_ctx, upstream_connect_errors);
+            BRIX_PROXY_UP_INC(proxy, upstream_connect_errors);
+            brix_proxy_cleanup(proxy);
             return NGX_ERROR;
         }
     }

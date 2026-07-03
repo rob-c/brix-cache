@@ -7,7 +7,7 @@
  * confined (no `..` escapes the export's key prefix). They need no librados and
  * no nginx, so they are tested here with plain gcc and no running cluster.
  *
- * Build & run (XROOTD_HAVE_CEPH intentionally OFF so only the pure helpers
+ * Build & run (BRIX_HAVE_CEPH intentionally OFF so only the pure helpers
  * compile — no librados needed):
  *   cc -Wall -Wextra -I. sd_ceph_unittest.c sd_ceph.c sd_ceph_compat.c \
  *      -o /tmp/sd_ceph_ut && /tmp/sd_ceph_ut

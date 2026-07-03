@@ -1,5 +1,5 @@
-#ifndef NGX_XROOTD_CONNECTION_NETOPT_H
-#define NGX_XROOTD_CONNECTION_NETOPT_H
+#ifndef NGX_BRIX_CONNECTION_NETOPT_H
+#define NGX_BRIX_CONNECTION_NETOPT_H
 
 /*
  * netopt.h — shared OS-level dead-peer reaping socket options.
@@ -36,7 +36,7 @@
  * Failures are swallowed (best-effort hardening, never a hard error).
  */
 static ngx_inline void
-xrootd_apply_tcp_deadpeer_opts(ngx_socket_t fd, ngx_flag_t keepalive,
+brix_apply_tcp_deadpeer_opts(ngx_socket_t fd, ngx_flag_t keepalive,
     ngx_msec_t user_timeout_ms)
 {
     if (keepalive) {
@@ -80,7 +80,7 @@ xrootd_apply_tcp_deadpeer_opts(ngx_socket_t fd, ngx_flag_t keepalive,
  * any client change (the sender's behaviour governs a download).
  */
 static ngx_inline void
-xrootd_apply_tcp_congestion(ngx_socket_t fd, ngx_str_t algo)
+brix_apply_tcp_congestion(ngx_socket_t fd, ngx_str_t algo)
 {
 #if defined(TCP_CONGESTION)
     if (algo.len > 0 && algo.len < 64) {
@@ -93,4 +93,4 @@ xrootd_apply_tcp_congestion(ngx_socket_t fd, ngx_str_t algo)
 #endif
 }
 
-#endif /* NGX_XROOTD_CONNECTION_NETOPT_H */
+#endif /* NGX_BRIX_CONNECTION_NETOPT_H */

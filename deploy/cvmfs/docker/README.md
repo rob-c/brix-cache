@@ -19,7 +19,7 @@ docker run … -v "$PWD/cvmfs-cache:/var/cache/cvmfs" nginx-xrootd-cvmfs
 ```
 
 The same directory is browsable in the dashboard's **Files** tab (sign in on
-3129 first — it is admin-only): `xrootd_dashboard_browse_root` points it at
+3129 first — it is admin-only): `brix_dashboard_browse_root` points it at
 `/var/cache/cvmfs`, so you can watch the content-addressed store fill without a
 shell. Entries are hash-sharded (`/ab/cdef…`), not `/cvmfs` logical paths.
 
@@ -93,13 +93,13 @@ Then watch it work:
   live transfers, per-protocol counters (`cvmfs` identity), events.
 - **Prometheus:** `curl http://<docker-host>:3130/metrics | grep cvmfs_` —
   request classes, fills, verify failures, origin failovers, the
-  hit/fill byte split (`xrootd_cvmfs_bytes_served_total`) vs WAN-in
-  (`xrootd_cvmfs_origin_bytes_total`).
+  hit/fill byte split (`brix_cvmfs_bytes_served_total`) vs WAN-in
+  (`brix_cvmfs_origin_bytes_total`).
 - **Per-upstream (which Stratum-1):** `... | grep cvmfs_upstream_` — fills,
   WAN bytes, failovers and a fill-duration histogram labelled
   `upstream="host:port"`, e.g. how much you pull from RAL vs CERN:
-  `xrootd_cvmfs_upstream_origin_bytes_total{upstream="cernvmfs.gridpp.rl.ac.uk:80"}`.
-- **Trace a request end-to-end:** add `xrootd_cvmfs_trace on;` to the cache
+  `brix_cvmfs_upstream_origin_bytes_total{upstream="cernvmfs.gridpp.rl.ac.uk:80"}`.
+- **Trace a request end-to-end:** add `brix_cvmfs_trace on;` to the cache
   location (or `error_log … debug`) and watch `cvmfs-trace: client …` (the
   file queried) paired with `cvmfs-trace: upstream …` (each Stratum-1 request
   it caused) in `error.log`.
@@ -118,7 +118,7 @@ Then watch it work:
 - The cache store is a volume (`/var/cache/cvmfs`) — the demo config keeps
   CAS verify-on-fill but omits an explicit quarantine dir (a corrupt fill is
   discarded and retried rather than preserved for forensics); set
-  `xrootd_cvmfs_quarantine_dir` if you want the evidence kept.
+  `brix_cvmfs_quarantine_dir` if you want the evidence kept.
 - Logs: `docker exec cvmfs-demo ls /var/log/nginx-xrootd/` —
   `cvmfs_access.log` uses the `$cvmfs_class`/`$cvmfs_cache`/`$cvmfs_origin`
   identity format, `error.log` carries `cvmfs-reject:` lines,

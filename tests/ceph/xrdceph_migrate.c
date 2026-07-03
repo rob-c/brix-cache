@@ -19,7 +19,7 @@
  * local folder; pointing it at a CephFS mount is what makes it a migration.
  *
  * BUILD (in the librados build container):
- *   gcc -DXRDPROTO_NO_NGX -DXROOTD_HAVE_CEPH -I src/fs/backend -I src/fs/backend/rados \
+ *   gcc -DXRDPROTO_NO_NGX -DBRIX_HAVE_CEPH -I src/fs/backend -I src/fs/backend/rados \
  *     -include tests/ceph/ngx_shim.h tests/ceph/xrdceph_migrate.c \
  *     src/fs/backend/rados/sd_ceph.c src/fs/backend/rados/sd_ceph_compat.c \
  *     -lrados -o xrdceph_migrate
@@ -107,7 +107,7 @@ stream_object(sd_ceph_conn_t *c, const char *oid, int fd)
 int
 main(int argc, char **argv)
 {
-    xrootd_sd_ceph_conf_t conf;
+    brix_sd_ceph_conf_t conf;
     sd_ceph_conn_t       *c;
     rados_ioctx_t         ioctx;
     rados_list_ctx_t      lc;

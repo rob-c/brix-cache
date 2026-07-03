@@ -1,7 +1,7 @@
 /* Standalone unit suite for the GSI proxy-delegation crypto (phase-57 §F6):
- *   xrootd_gsi_build_pxyreq   (request a proxy)
- *   xrootd_gsi_sign_pxyreq    (issue/sign a proxy from a request)
- *   xrootd_gsi_assemble_proxy (assemble the delegated credential)
+ *   brix_gsi_build_pxyreq   (request a proxy)
+ *   brix_gsi_sign_pxyreq    (issue/sign a proxy from a request)
+ *   brix_gsi_assemble_proxy (assemble the delegated credential)
  *
  * No nginx, no network, no stock interop — pure OpenSSL. Exercises every stage
  * plus the full create->sign->assemble round-trip, RFC-3820 chain verification
@@ -141,7 +141,7 @@ int main(void)
     printf("[build_pxyreq]\n");
     EVP_PKEY *reqkey = NULL;
     uint8_t  *reqder = NULL; size_t reqlen = 0;
-    int rc = xrootd_gsi_build_pxyreq(eec_pem, eec_len, &reqkey, &reqder, &reqlen,
+    int rc = brix_gsi_build_pxyreq(eec_pem, eec_len, &reqkey, &reqder, &reqlen,
                                      err, sizeof(err));
     CHECK(rc == 0, "build_pxyreq succeeds");
     CHECK(reqkey && reqder && reqlen, "request outputs populated");
@@ -153,7 +153,7 @@ int main(void)
     /* ============ 2. sign_pxyreq (issue) ============ */
     printf("[sign_pxyreq]\n");
     uint8_t *pxy_pem = NULL; size_t pxy_len = 0;
-    rc = xrootd_gsi_sign_pxyreq(eec_pem, eec_len, eeckey, reqder, reqlen,
+    rc = brix_gsi_sign_pxyreq(eec_pem, eec_len, eeckey, reqder, reqlen,
                                 &pxy_pem, &pxy_len, err, sizeof(err));
     CHECK(rc == 0, "sign_pxyreq issues a proxy");
     if (rc) printf("    err: %s\n", err);
@@ -185,7 +185,7 @@ int main(void)
     /* ============ 3. assemble_proxy ============ */
     printf("[assemble_proxy]\n");
     uint8_t *cred = NULL; size_t cred_len = 0;
-    rc = xrootd_gsi_assemble_proxy(pxy_pem, pxy_len, reqkey, eec_pem, eec_len,
+    rc = brix_gsi_assemble_proxy(pxy_pem, pxy_len, reqkey, eec_pem, eec_len,
                                    &cred, &cred_len, err, sizeof(err));
     CHECK(rc == 0, "assemble_proxy succeeds with matching key");
     CHECK(cred && cred_len == pxy_len + eec_len, "credential = proxy + chain");
@@ -201,7 +201,7 @@ int main(void)
     /* key mismatch must fail */
     EVP_PKEY *wrong = genkey();
     uint8_t *bad = NULL; size_t badn = 0;
-    rc = xrootd_gsi_assemble_proxy(pxy_pem, pxy_len, wrong, eec_pem, eec_len,
+    rc = brix_gsi_assemble_proxy(pxy_pem, pxy_len, wrong, eec_pem, eec_len,
                                    &bad, &badn, err, sizeof(err));
     CHECK(rc == -1 && bad == NULL, "assemble rejects a mismatched key");
     EVP_PKEY_free(wrong);
@@ -218,11 +218,11 @@ int main(void)
     printf("[two-level delegation]\n");
     {
         EVP_PKEY *rk2 = NULL; uint8_t *rd2 = NULL; size_t rl2 = 0;
-        int r = xrootd_gsi_build_pxyreq(pxy_pem, pxy_len, &rk2, &rd2, &rl2,
+        int r = brix_gsi_build_pxyreq(pxy_pem, pxy_len, &rk2, &rd2, &rl2,
                                         err, sizeof(err));
         CHECK(r == 0, "build_pxyreq from a proxy (level 2)");
         uint8_t *pxy2_pem = NULL; size_t pxy2_len = 0;
-        r = xrootd_gsi_sign_pxyreq(pxy_pem, pxy_len, reqkey, rd2, rl2,
+        r = brix_gsi_sign_pxyreq(pxy_pem, pxy_len, reqkey, rd2, rl2,
                                    &pxy2_pem, &pxy2_len, err, sizeof(err));
         CHECK(r == 0, "sign level-2 request with the level-1 proxy");
         if (r) printf("    err: %s\n", err);
@@ -248,23 +248,23 @@ int main(void)
         X509 *eec2 = mkcert("Other", 0, ca, cakey, &ek2);
         size_t e2len; uint8_t *e2pem = pem_of(eec2, &e2len);
         uint8_t *op = NULL; size_t ol = 0;
-        int r = xrootd_gsi_sign_pxyreq(e2pem, e2len, ek2, reqder, reqlen,
+        int r = brix_gsi_sign_pxyreq(e2pem, e2len, ek2, reqder, reqlen,
                                        &op, &ol, err, sizeof(err));
         CHECK(r == -1 && op == NULL, "sign rejects request whose subject != signer");
 
         /* garbage parent / request */
         EVP_PKEY *k = NULL; uint8_t *d = NULL; size_t l = 0;
-        r = xrootd_gsi_build_pxyreq((const uint8_t *) "not a pem", 9, &k, &d, &l,
+        r = brix_gsi_build_pxyreq((const uint8_t *) "not a pem", 9, &k, &d, &l,
                                     err, sizeof(err));
         CHECK(r == -1, "build_pxyreq rejects garbage parent PEM");
         uint8_t bogus[8] = {1,2,3,4,5,6,7,8};
         uint8_t *op2 = NULL; size_t ol2 = 0;
-        r = xrootd_gsi_sign_pxyreq(eec_pem, eec_len, eeckey, bogus, sizeof(bogus),
+        r = brix_gsi_sign_pxyreq(eec_pem, eec_len, eeckey, bogus, sizeof(bogus),
                                    &op2, &ol2, err, sizeof(err));
         CHECK(r == -1, "sign rejects garbage request DER");
 
         /* NULL args */
-        r = xrootd_gsi_build_pxyreq(NULL, 0, &k, &d, &l, err, sizeof(err));
+        r = brix_gsi_build_pxyreq(NULL, 0, &k, &d, &l, err, sizeof(err));
         CHECK(r == -1, "build_pxyreq rejects NULL parent");
 
         free(e2pem); EVP_PKEY_free(ek2); X509_free(eec2);

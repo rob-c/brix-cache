@@ -30,7 +30,7 @@ static void  rec_alert(void *ctx, const char *msg)
     }
 }
 
-static cta_req_t *submit(xrootd_cta_queue_t *q, cta_op_t op)
+static cta_req_t *submit(brix_cta_queue_t *q, cta_op_t op)
 {
     cta_request_t r;
     memset(&r, 0, sizeof(r));
@@ -40,7 +40,7 @@ static cta_req_t *submit(xrootd_cta_queue_t *q, cta_op_t op)
 
 static void test_archive_completes_with_alerts(void)
 {
-    xrootd_cta_queue_t *q = cta_queue_create();
+    brix_cta_queue_t *q = cta_queue_create();
     cta_req_t *e = submit(q, CTA_OP_ARCHIVE);
     cta_progress_t prog = { rec_alert, NULL };
     g_nalerts = 0;
@@ -52,7 +52,7 @@ static void test_archive_completes_with_alerts(void)
 
 static void test_retrieve_completes(void)
 {
-    xrootd_cta_queue_t *q = cta_queue_create();
+    brix_cta_queue_t *q = cta_queue_create();
     cta_req_t *e = submit(q, CTA_OP_RETRIEVE);
     cta_progress_t prog = { rec_alert, NULL };
     g_nalerts = 0;
@@ -63,7 +63,7 @@ static void test_retrieve_completes(void)
 
 static void test_cancel_transitions(void)
 {
-    xrootd_cta_queue_t *q = cta_queue_create();
+    brix_cta_queue_t *q = cta_queue_create();
     cta_req_t *e = submit(q, CTA_OP_CANCEL);
     cta_progress_t prog = { rec_alert, NULL };
     CHECK(cta_exec_run(cta_exec_test_vtbl(), e, &prog) == 0);
@@ -73,7 +73,7 @@ static void test_cancel_transitions(void)
 
 static void test_query_not_an_exec_op(void)
 {
-    xrootd_cta_queue_t *q = cta_queue_create();
+    brix_cta_queue_t *q = cta_queue_create();
     cta_req_t *e = submit(q, CTA_OP_QUERY);
     cta_progress_t prog = { rec_alert, NULL };
     CHECK(cta_exec_run(cta_exec_test_vtbl(), e, &prog) == -1);
@@ -82,7 +82,7 @@ static void test_query_not_an_exec_op(void)
 
 static void test_prod_archive_fails_without_backend(void)
 {
-    xrootd_cta_queue_t *q = cta_queue_create();
+    brix_cta_queue_t *q = cta_queue_create();
     cta_req_t *e = submit(q, CTA_OP_ARCHIVE);
     cta_progress_t prog = { rec_alert, NULL };
     /* no nearline backend in this build → prod executor reports failure */

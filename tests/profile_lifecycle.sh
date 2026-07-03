@@ -136,17 +136,17 @@ stream {
     server {
         listen $PORT_ANON;
         xrootd on;
-        xrootd_storage_backend posix:$PREFIX/data;
-        xrootd_auth none;
+        brix_storage_backend posix:$PREFIX/data;
+        brix_auth none;
     }
     server {
         listen $PORT_GSI;
         xrootd on;
-        xrootd_storage_backend posix:$PREFIX/data;
-        xrootd_auth gsi;
-        xrootd_certificate     $PREFIX/conf/host.crt;
-        xrootd_certificate_key $PREFIX/conf/host.key;
-        xrootd_trusted_ca      $PREFIX/conf/host.crt;
+        brix_storage_backend posix:$PREFIX/data;
+        brix_auth gsi;
+        brix_certificate     $PREFIX/conf/host.crt;
+        brix_certificate_key $PREFIX/conf/host.key;
+        brix_trusted_ca      $PREFIX/conf/host.crt;
     }
 }
 EOF

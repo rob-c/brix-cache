@@ -94,20 +94,20 @@ class TestMetricsEndpoint:
     def test_help_and_type_headers_present(self):
         text = fetch_metrics()
         expected = [
-            "# HELP xrootd_connections_total",
-            "# TYPE xrootd_connections_total counter",
-            "# HELP xrootd_connections_active",
-            "# TYPE xrootd_connections_active gauge",
-            "# HELP xrootd_bytes_rx_total",
-            "# TYPE xrootd_bytes_rx_total counter",
-            "# HELP xrootd_bytes_tx_total",
-            "# TYPE xrootd_bytes_tx_total counter",
-            "# HELP xrootd_requests_total",
-            "# TYPE xrootd_requests_total counter",
-            "# HELP xrootd_s3_requests_total",
-            "# TYPE xrootd_s3_requests_total counter",
-            "# HELP xrootd_s3_responses_total",
-            "# TYPE xrootd_s3_responses_total counter",
+            "# HELP brix_connections_total",
+            "# TYPE brix_connections_total counter",
+            "# HELP brix_connections_active",
+            "# TYPE brix_connections_active gauge",
+            "# HELP brix_bytes_rx_total",
+            "# TYPE brix_bytes_rx_total counter",
+            "# HELP brix_bytes_tx_total",
+            "# TYPE brix_bytes_tx_total counter",
+            "# HELP brix_requests_total",
+            "# TYPE brix_requests_total counter",
+            "# HELP brix_s3_requests_total",
+            "# TYPE brix_s3_requests_total counter",
+            "# HELP brix_s3_responses_total",
+            "# TYPE brix_s3_responses_total counter",
         ]
         for line in expected:
             assert line in text, f"Missing: {line!r}"
@@ -151,7 +151,7 @@ class TestAnonCounters:
             f.flush()
             rc = xrdcp_put(f.name, f"root://{HOST}:{ANON_PORT}//metrics_write_test.txt")
         assert rc == 0
-        delta = self._delta("xrootd_connections_total", {"port": ANON_PORT, "auth": "anon"})
+        delta = self._delta("brix_connections_total", {"port": ANON_PORT, "auth": "anon"})
         assert delta >= 1
 
     def test_write_increments_bytes_rx(self):
@@ -161,7 +161,7 @@ class TestAnonCounters:
             f.flush()
             rc = xrdcp_put(f.name, f"root://{HOST}:{ANON_PORT}//metrics_bytes_rx.bin")
         assert rc == 0
-        delta = self._delta("xrootd_bytes_rx_total", {"port": ANON_PORT, "auth": "anon"})
+        delta = self._delta("brix_bytes_rx_total", {"port": ANON_PORT, "auth": "anon"})
         assert delta >= len(payload)
 
     def test_read_increments_bytes_tx(self):
@@ -175,7 +175,7 @@ class TestAnonCounters:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".bin") as out:
             rc = xrdcp_get(f"root://{HOST}:{ANON_PORT}//metrics_bytes_tx.bin", out.name)
         assert rc == 0
-        delta = self._delta("xrootd_bytes_tx_total", {"port": ANON_PORT, "auth": "anon"})
+        delta = self._delta("brix_bytes_tx_total", {"port": ANON_PORT, "auth": "anon"})
         assert delta >= len(payload)
 
     def test_open_wr_counter(self):
@@ -185,7 +185,7 @@ class TestAnonCounters:
             rc = xrdcp_put(f.name, f"root://{HOST}:{ANON_PORT}//metrics_open_wr.txt")
         assert rc == 0
         delta = self._delta(
-            "xrootd_requests_total",
+            "brix_requests_total",
             {"port": ANON_PORT, "auth": "anon", "op": "open_wr", "status": "ok"},
         )
         assert delta >= 1
@@ -201,7 +201,7 @@ class TestAnonCounters:
             rc = xrdcp_get(f"root://{HOST}:{ANON_PORT}//metrics_open_rd.txt", out.name)
         assert rc == 0
         delta = self._delta(
-            "xrootd_requests_total",
+            "brix_requests_total",
             {"port": ANON_PORT, "auth": "anon", "op": "open_rd", "status": "ok"},
         )
         assert delta >= 1
@@ -218,9 +218,9 @@ class TestAnonCounters:
             f.flush()
             xrdcp_put(f.name, f"root://{HOST}:{ANON_PORT}//metrics_login2.txt")
         after_text = fetch_metrics()
-        v_before = parse_metric(before_text, "xrootd_requests_total",
+        v_before = parse_metric(before_text, "brix_requests_total",
                                 {"port": ANON_PORT, "auth": "anon", "op": "login", "status": "ok"})
-        v_after  = parse_metric(after_text,  "xrootd_requests_total",
+        v_after  = parse_metric(after_text,  "brix_requests_total",
                                 {"port": ANON_PORT, "auth": "anon", "op": "login", "status": "ok"})
         if v_before == -1:
             v_before = 0
@@ -231,7 +231,7 @@ class TestAnonCounters:
         # proving that the gauge is correctly decremented on disconnect.
         # (Other tests may leave connections open, so we cannot assert == 0.)
         before_text = fetch_metrics()
-        before = parse_metric(before_text, "xrootd_connections_active",
+        before = parse_metric(before_text, "brix_connections_active",
                               {"port": ANON_PORT, "auth": "anon"})
         if before == -1:
             before = 0
@@ -242,9 +242,9 @@ class TestAnonCounters:
         assert rc == 0
         time.sleep(0.2)   # let the connection fully close
         after_text = fetch_metrics()
-        after = parse_metric(after_text, "xrootd_connections_active",
+        after = parse_metric(after_text, "brix_connections_active",
                              {"port": ANON_PORT, "auth": "anon"})
-        assert after != -1, "xrootd_connections_active metric missing after activity"
+        assert after != -1, "brix_connections_active metric missing after activity"
         assert after <= before, (
             f"connections_active rose from {before} to {after} after xrdcp closed — gauge is leaking"
         )
@@ -290,9 +290,9 @@ class TestGSICounters:
             )
         assert rc == 0
         after = fetch_metrics()
-        v_before = parse_metric(before, "xrootd_connections_total",
+        v_before = parse_metric(before, "brix_connections_total",
                                 {"port": GSI_PORT, "auth": "gsi"})
-        v_after  = parse_metric(after,  "xrootd_connections_total",
+        v_after  = parse_metric(after,  "brix_connections_total",
                                 {"port": GSI_PORT, "auth": "gsi"})
         if v_before == -1:
             v_before = 0
@@ -310,9 +310,9 @@ class TestGSICounters:
             )
         assert rc == 0
         after = fetch_metrics()
-        v_before = parse_metric(before, "xrootd_requests_total",
+        v_before = parse_metric(before, "brix_requests_total",
                                 {"port": GSI_PORT, "auth": "gsi", "op": "login", "status": "ok"})
-        v_after  = parse_metric(after,  "xrootd_requests_total",
+        v_after  = parse_metric(after,  "brix_requests_total",
                                 {"port": GSI_PORT, "auth": "gsi", "op": "login", "status": "ok"})
         if v_before == -1:
             v_before = 0

@@ -2,7 +2,7 @@
  * test_cache_admit.c — standalone unit tests for the shared admission filter
  * (src/fs/cache/cache_admit.c). Links against the compiled cache_admit.o.
  *
- * cache_admit.o reads ngx_array_t (elts/nelts) of xrootd_wt_prefix_entry_t
+ * cache_admit.o reads ngx_array_t (elts/nelts) of brix_wt_prefix_entry_t
  * (ngx_str_t prefix). We mirror those layouts byte-compatibly and build the
  * prefix arrays by hand — no nginx runtime, no pool.
  *
@@ -31,19 +31,19 @@ typedef struct {
     void      *pool;
 } ngx_array_t;
 
-/* Mirror of xrootd_wt_prefix_entry_t. */
-typedef struct { ngx_str_t prefix; } xrootd_wt_prefix_entry_t;
+/* Mirror of brix_wt_prefix_entry_t. */
+typedef struct { ngx_str_t prefix; } brix_wt_prefix_entry_t;
 
-typedef enum { XROOTD_CACHE_ADMIT = 0, XROOTD_CACHE_DECLINE = 1 } xrootd_cache_admit_e;
+typedef enum { BRIX_CACHE_ADMIT = 0, BRIX_CACHE_DECLINE = 1 } brix_cache_admit_e;
 
 typedef struct {
     ngx_array_t *deny_prefixes;
     ngx_array_t *allow_prefixes;
     off_t        size_limit;
     regex_t     *include_regex;
-} xrootd_cache_admit_cfg_t;
+} brix_cache_admit_cfg_t;
 
-xrootd_cache_admit_e xrootd_cache_admit(const xrootd_cache_admit_cfg_t *cfg,
+brix_cache_admit_e brix_cache_admit(const brix_cache_admit_cfg_t *cfg,
     const char *path, off_t size, int is_new);
 
 /* ---- harness ---- */
@@ -58,7 +58,7 @@ static ngx_array_t *
 prefix_array(const char *p)
 {
     ngx_array_t              *a = calloc(1, sizeof(*a));
-    xrootd_wt_prefix_entry_t *e = calloc(1, sizeof(*e));
+    brix_wt_prefix_entry_t *e = calloc(1, sizeof(*e));
     e->prefix.len  = strlen(p);
     e->prefix.data = (u_char *) strdup(p);
     a->elts = e; a->nelts = 1; a->size = sizeof(*e); a->nalloc = 1;
@@ -68,52 +68,52 @@ prefix_array(const char *p)
 static void
 test_deny_beats_allow(void)
 {
-    xrootd_cache_admit_cfg_t c;
+    brix_cache_admit_cfg_t c;
     memset(&c, 0, sizeof(c));
     c.deny_prefixes  = prefix_array("/a/");
     c.allow_prefixes = prefix_array("/a/b/");
-    CHECK(xrootd_cache_admit(&c, "/a/b/x", 10, 0) == XROOTD_CACHE_DECLINE,
+    CHECK(brix_cache_admit(&c, "/a/b/x", 10, 0) == BRIX_CACHE_DECLINE,
           "deny precedence over allow");
 }
 
 static void
 test_whitelist(void)
 {
-    xrootd_cache_admit_cfg_t c;
+    brix_cache_admit_cfg_t c;
     memset(&c, 0, sizeof(c));
     c.allow_prefixes = prefix_array("/keep/");
-    CHECK(xrootd_cache_admit(&c, "/keep/f", 10, 0) == XROOTD_CACHE_ADMIT,
+    CHECK(brix_cache_admit(&c, "/keep/f", 10, 0) == BRIX_CACHE_ADMIT,
           "whitelisted path admitted");
-    CHECK(xrootd_cache_admit(&c, "/other/f", 10, 0) == XROOTD_CACHE_DECLINE,
+    CHECK(brix_cache_admit(&c, "/other/f", 10, 0) == BRIX_CACHE_DECLINE,
           "non-whitelisted path declined");
 }
 
 static void
 test_size_and_new(void)
 {
-    xrootd_cache_admit_cfg_t c;
+    brix_cache_admit_cfg_t c;
     memset(&c, 0, sizeof(c));
     c.size_limit = 100;
-    CHECK(xrootd_cache_admit(&c, "/f", 200, 0) == XROOTD_CACHE_DECLINE,
+    CHECK(brix_cache_admit(&c, "/f", 200, 0) == BRIX_CACHE_DECLINE,
           "over-limit existing file declined");
-    CHECK(xrootd_cache_admit(&c, "/f", 200, 1) == XROOTD_CACHE_ADMIT,
+    CHECK(brix_cache_admit(&c, "/f", 200, 1) == BRIX_CACHE_ADMIT,
           "new file (size unknown) admitted");
-    CHECK(xrootd_cache_admit(&c, "/f", 50, 0) == XROOTD_CACHE_ADMIT,
+    CHECK(brix_cache_admit(&c, "/f", 50, 0) == BRIX_CACHE_ADMIT,
           "under-limit file admitted");
 }
 
 static void
 test_regex_bypasses_size(void)
 {
-    xrootd_cache_admit_cfg_t c;
+    brix_cache_admit_cfg_t c;
     regex_t                  re;
     memset(&c, 0, sizeof(c));
     c.size_limit = 100;
     regcomp(&re, "\\.root$", REG_EXTENDED);
     c.include_regex = &re;
-    CHECK(xrootd_cache_admit(&c, "/big.root", 9999, 0) == XROOTD_CACHE_ADMIT,
+    CHECK(brix_cache_admit(&c, "/big.root", 9999, 0) == BRIX_CACHE_ADMIT,
           "regex match bypasses size cap");
-    CHECK(xrootd_cache_admit(&c, "/big.txt", 9999, 0) == XROOTD_CACHE_DECLINE,
+    CHECK(brix_cache_admit(&c, "/big.txt", 9999, 0) == BRIX_CACHE_DECLINE,
           "regex non-match still size-capped");
     regfree(&re);
 }
@@ -121,11 +121,11 @@ test_regex_bypasses_size(void)
 static void
 test_null_failclosed(void)
 {
-    xrootd_cache_admit_cfg_t c;
+    brix_cache_admit_cfg_t c;
     memset(&c, 0, sizeof(c));
-    CHECK(xrootd_cache_admit(NULL, "/f", 10, 0) == XROOTD_CACHE_DECLINE, "NULL cfg declines");
-    CHECK(xrootd_cache_admit(&c, NULL, 10, 0) == XROOTD_CACHE_DECLINE, "NULL path declines");
-    CHECK(xrootd_cache_admit(&c, "/f", 10, 0) == XROOTD_CACHE_ADMIT, "empty cfg admits");
+    CHECK(brix_cache_admit(NULL, "/f", 10, 0) == BRIX_CACHE_DECLINE, "NULL cfg declines");
+    CHECK(brix_cache_admit(&c, NULL, 10, 0) == BRIX_CACHE_DECLINE, "NULL path declines");
+    CHECK(brix_cache_admit(&c, "/f", 10, 0) == BRIX_CACHE_ADMIT, "empty cfg admits");
 }
 
 int

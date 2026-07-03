@@ -28,7 +28,7 @@ refuses a label degrades to "not marked" and never blocks/slows/fails a transfer
 
 | File | Responsibility |
 |---|---|
-| `pmark.h` | Public types (`xrootd_pmark_conf_t`, `xrootd_pmark_flow_t`, runtime), flow-id encode/decode/validate inlines, and the whole API. |
+| `pmark.h` | Public types (`brix_pmark_conf_t`, `brix_pmark_flow_t`, runtime), flow-id encode/decode/validate inlines, and the whole API. |
 | `config.c` | Directive setters + per-server config init/merge (defaults: opt-in off; firefly + flowlabel + scitag-cgi on; domain remote; port 10514). |
 | `scitag.c` | Defensive `scitag.flow=<N>` parser (out-of-range / malformed rejected, never coerced; client bytes never reach the firefly JSON). |
 | `defsfile.c` | Parse the scitags experiment/activity registry JSON (jansson) → name↔id maps. |
@@ -44,14 +44,14 @@ so the same set works in the stream `server {}`, WebDAV, and S3 location blocks)
 See doc §4 for the full list and the XRootD `pmark` equivalence table. Common case:
 
 ```nginx
-xrootd_pmark            on;
-xrootd_pmark_firefly_dest flowd.example.org:10514;
-xrootd_pmark_defsfile   /etc/xrootd/scitags.json;
-xrootd_pmark_map_experiment vo atlas atlas;
-xrootd_pmark_map_experiment default        dteam;
-xrootd_pmark_map_activity   atlas default   default;
-# xrootd_pmark_flowlabel on;   # default on (IPv6 only)
-# xrootd_pmark_http_plain on;  # also mark plain WebDAV/S3 GET/PUT (default: TPC only)
+brix_pmark            on;
+brix_pmark_firefly_dest flowd.example.org:10514;
+brix_pmark_defsfile   /etc/xrootd/scitags.json;
+brix_pmark_map_experiment vo atlas atlas;
+brix_pmark_map_experiment default        dteam;
+brix_pmark_map_activity   atlas default   default;
+# brix_pmark_flowlabel on;   # default on (IPv6 only)
+# brix_pmark_http_plain on;  # also mark plain WebDAV/S3 GET/PUT (default: TPC only)
 ```
 
 ## Control & data flow
@@ -61,10 +61,10 @@ teardown (firefly `end` reads the final TCP_INFO before the fd closes):
 
 - **root://** (stream): begun in [`../read/open_request.c`](../read/README.md) on
   the first local data open; ended in [`../connection/disconnect.c`](../connection/README.md).
-  Handle stored on `xrootd_ctx_t.pmark_flow`.
+  Handle stored on `brix_ctx_t.pmark_flow`.
 - **WebDAV / S3** (HTTP): begun in [`../webdav/dispatch.c`](../webdav/README.md) /
   [`../s3/handler.c`](../s3/README.md) post-auth; ended via an `ngx_pool_cleanup`.
-  TPC (COPY) always marked; plain GET/PUT only with `xrootd_pmark_http_plain`.
+  TPC (COPY) always marked; plain GET/PUT only with `brix_pmark_http_plain`.
 
 ## Invariants, security & gotchas
 
@@ -78,7 +78,7 @@ teardown (firefly `end` reads the final TCP_INFO before the fd closes):
 - The flow-label **bit layout** is the WLCG SciTags spec
   (`draft-cc-v6ops-wlcg-flow-label-marking`): activity at bits 2–7, community
   (experiment) at bits 9–17 **in reversed bit order**, 5 random entropy bits at
-  0,1,8,18,19. It is pinned in the single `xrootd_pmark_flowlabel_encode()` (+ the
+  0,1,8,18,19. It is pinned in the single `brix_pmark_flowlabel_encode()` (+ the
   entropy OR in `flowlabel.c`). A CMS client's `scitag.flow=206` (exp 3, act 14)
   therefore appears on the wire as flow label `196664` — the value cms-sw/cmssw
   `c2797da` reads back. Match this layout to the deployed spec version before

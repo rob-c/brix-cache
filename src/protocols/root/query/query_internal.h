@@ -1,34 +1,34 @@
-#ifndef XROOTD_QUERY_INTERNAL_H
-#define XROOTD_QUERY_INTERNAL_H
+#ifndef BRIX_QUERY_INTERNAL_H
+#define BRIX_QUERY_INTERNAL_H
 
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 #include "core/compat/checksum.h"
 #include "fs/vfs/vfs.h"   /* VFS stat + xattr seam for kXR_Qxattr */
 
-#define XROOTD_CKSCAN_INIT_CAP  (256 * 1024)
+#define BRIX_CKSCAN_INIT_CAP  (256 * 1024)
 
 /* Maximum number of file paths collected per kXR_prepare staging request and
- * forwarded to xrootd_prepare_command.  Caps pool allocation in
- * xrootd_handle_prepare() and argv length in xrootd_prepare_invoke_command(). */
-#define XROOTD_PREPARE_CMD_MAX_PATHS  512
+ * forwarded to brix_prepare_command.  Caps pool allocation in
+ * brix_handle_prepare() and argv length in brix_prepare_invoke_command(). */
+#define BRIX_PREPARE_CMD_MAX_PATHS  512
 
 /* Adler-32 of an already-open O_RDONLY fd. `path` is for log context only.
  * Returns the checksum, or the sentinel 0xFFFFFFFF on I/O error. */
-uint32_t xrootd_query_adler32_fd(int fd, const char *path, ngx_log_t *log);
+uint32_t brix_query_adler32_fd(int fd, const char *path, ngx_log_t *log);
 /* ISO-3309/IEEE-802.3 CRC-32 (not CRC32c) of an open fd. `path` for logs only.
  * Returns the checksum, or 0xFFFFFFFF on I/O error. */
-uint32_t xrootd_query_crc32_fd(int fd, const char *path, ngx_log_t *log);
+uint32_t brix_query_crc32_fd(int fd, const char *path, ngx_log_t *log);
 /* CRC-32 by path: confined-open under `root`, compute, close. Borrows root/path.
  * Returns the checksum, or 0xFFFFFFFF on open or I/O failure. */
-uint32_t xrootd_query_crc32_file(const ngx_str_t *root, const char *path,
+uint32_t brix_query_crc32_file(const ngx_str_t *root, const char *path,
     ngx_log_t *log);
 
 typedef struct {
-    xrootd_ctx_t                  *ctx;
+    brix_ctx_t                  *ctx;
     ngx_connection_t              *c;
-    ngx_stream_xrootd_srv_conf_t  *conf;
+    ngx_stream_brix_srv_conf_t  *conf;
     int                            rootfd;             /* persistent O_PATH rootfd */
-    char                           scan_logical[XROOTD_MAX_PATH + 1];
+    char                           scan_logical[BRIX_MAX_PATH + 1];
     char                           algo[32];
     ngx_uint_t                     max_depth;
     ngx_uint_t                     max_files;
@@ -38,10 +38,10 @@ typedef struct {
     size_t                         resp_len;
     int                            error_code;
     char                           error_msg[128];
-} xrootd_ckscan_aio_t;
+} brix_ckscan_aio_t;
 
 /*
- * xrootd_cksum_aio_t — async kXR_Qcksum context.
+ * brix_cksum_aio_t — async kXR_Qcksum context.
  *
  * For path-based requests, fd is opened on the main thread after all auth
  * checks pass and close_fd=1 so the done callback closes it.
@@ -49,31 +49,31 @@ typedef struct {
  * close_fd=0 (the session keeps ownership).
  */
 typedef struct {
-    xrootd_ctx_t                  *ctx;
+    brix_ctx_t                  *ctx;
     ngx_connection_t              *c;
-    ngx_stream_xrootd_srv_conf_t  *conf;
+    ngx_stream_brix_srv_conf_t  *conf;
     u_char  streamid[2];
     int     fd;
     int     close_fd;        /* 1 = we opened fd (path-based); must close in done */
-    struct xrootd_vfs_file_s *fh; /* VFS handle backing fd (path-based); vfs-closed */
-    xrootd_sd_obj_t obj;     /* Layer 3: storage-driver object (whole-object read);
+    struct brix_vfs_file_s *fh; /* VFS handle backing fd (path-based); vfs-closed */
+    brix_sd_obj_t obj;     /* Layer 3: storage-driver object (whole-object read);
                               * driver==NULL ⇒ checksum the bare fd (POSIX) */
     char    algo[32];
     char    resolved[PATH_MAX];  /* for logging */
     char    resp[256];           /* filled by thread on success */
     int     error_code;          /* 0 = success, else kXR_* error code */
     char    error_msg[128];
-} xrootd_cksum_aio_t;
+} brix_cksum_aio_t;
 
 /* kXR_Qcksum async functions — defined in checksum_qcksum_async.c */
 /* Thread-pool worker: computes the checksum of t->fd into t->resp, or sets
- * t->error_code (kXR_*) + t->error_msg on failure. `data` is xrootd_cksum_aio_t.
+ * t->error_code (kXR_*) + t->error_msg on failure. `data` is brix_cksum_aio_t.
  * Runs off the event loop — must NOT touch ctx/c/ngx_pool. */
-void xrootd_cksum_aio_thread(void *data, ngx_log_t *log);
+void brix_cksum_aio_thread(void *data, ngx_log_t *log);
 /* Main-thread completion callback for the above task. Closes the fd if
  * t->close_fd (path-based), restores the request streamid, sends the response
  * (or error) and resumes the connection. No-op if the client already gone. */
-void xrootd_cksum_aio_done(ngx_event_t *ev);
+void brix_cksum_aio_done(ngx_event_t *ev);
 
 /* Checksum scan helpers shared across checksum_ckscan_*.c fragments. */
 /* Append one "algo hex  logical\n" line to the heap buffer *buf, growing it
@@ -83,92 +83,92 @@ void xrootd_cksum_aio_done(ngx_event_t *ev);
  * is carried in the string so the line format stays algorithm-agnostic. Returns 1
  * on success, 0 if the line is too long to format (skipped), -1 on OOM (caller
  * still owns and must free *buf). */
-int xrootd_ckscan_append(u_char **buf, size_t *cap, size_t *used,
+int brix_ckscan_append(u_char **buf, size_t *cap, size_t *used,
     const char *algo, const char *hex, const char *logical);
 /* Run a kXR_Qckscan over `logical` (a regular file OR a directory tree) through
- * the confined VFS walk (xrootd_vfs_walk), appending one "algo hex logical" line
+ * the confined VFS walk (brix_vfs_walk), appending one "algo hex logical" line
  * per regular file into the growing buf/cap/used triple. Thread-safe (no pool,
  * no metric) — usable on the aio worker and the event loop alike. On failure sets
  * *err_code (kXR_*) + writes *err_msg (err_sz) and returns NGX_ERROR; NGX_OK on
  * success (the buffer holds the result; an empty directory yields an empty body). */
-ngx_int_t xrootd_ckscan_run(ngx_log_t *log, int rootfd, const char *logical,
+ngx_int_t brix_ckscan_run(ngx_log_t *log, int rootfd, const char *logical,
     const char *algo, u_char **buf, size_t *cap, size_t *used,
     ngx_uint_t max_depth, ngx_uint_t max_files,
     uint16_t *err_code, char *err_msg, size_t err_sz);
 /* Adler-32 by path: confined-open under `root`, compute, close. Borrows args.
  * Returns the checksum, or 0xFFFFFFFF on open or I/O failure. */
-uint32_t xrootd_query_adler32_file(const ngx_str_t *root,
+uint32_t brix_query_adler32_file(const ngx_str_t *root,
     const char *path, ngx_log_t *log);
 /* OpenSSL EVP digest (md5/sha1/sha256 via `alg`) of an open fd; writes bytes to
  * out[] (>= EVP_MAX_MD_SIZE) and length to *outlen. Returns 1 on success, 0 on
  * error. `path` is for logs only. */
-ngx_flag_t xrootd_query_digest_fd(int fd, const char *path,
-    xrootd_checksum_alg_t alg,
+ngx_flag_t brix_query_digest_fd(int fd, const char *path,
+    brix_checksum_alg_t alg,
     unsigned char *out, unsigned int *outlen, ngx_log_t *log);
 /* EVP digest by path: confined-open under `root`, compute, close. Same out[]/
- * outlen contract as xrootd_query_digest_fd. Returns 1 on success, 0 on error
+ * outlen contract as brix_query_digest_fd. Returns 1 on success, 0 on error
  * (open or compute). */
-ngx_flag_t xrootd_query_digest_file(const ngx_str_t *root,
-    const char *path, xrootd_checksum_alg_t alg,
+ngx_flag_t brix_query_digest_file(const ngx_str_t *root,
+    const char *path, brix_checksum_alg_t alg,
     unsigned char *out, unsigned int *outlen, ngx_log_t *log);
 
 /* kXR_Qcksum: single-file checksum by path (full auth chain + confined open) or
  * by open fhandle, chosen on the payload's first byte; default algo adler32, a
  * leading "algo:" overrides. May run async (thread pool) or sync. Sends the wire
  * response itself; returns NGX_OK/NGX_DONE on completion or NGX_ERROR. */
-ngx_int_t xrootd_query_cksum(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf, const xrdw_query_req_t *req);
+ngx_int_t brix_query_cksum(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const xrdw_query_req_t *req);
 /* kXR_Qckscan: recursive directory checksum scan after auth (READ) on the path.
  * Posts a thread-pool task when configured (returns NGX_OK), else runs sync.
  * Sends the wire response itself. */
-ngx_int_t xrootd_query_ckscan(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf);
+ngx_int_t brix_query_ckscan(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf);
 /* kXR_Qspace (3015): filesystem capacity as "oss.*" key-value text from statvfs
  * on conf root. Sends response (kXR_IOError on statvfs failure); returns NGX_OK. */
-ngx_int_t xrootd_query_space(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf);
+ngx_int_t brix_query_space(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf);
 /* kXR_QFSinfo (3017): capacity in the compact "wVal freeMB util sVal freeMB util"
  * locate/redirect format (always writable=1, staging=1). Sends response; NGX_OK. */
-ngx_int_t xrootd_query_fsinfo(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf);
+ngx_int_t brix_query_fsinfo(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf);
 /* kXR_Qconfig: best-effort capability report; answers only the whitespace-
  * separated keys present in the payload (chksum/readv/tpc/tpcdlg, else "key=0").
  * Empty query sends an empty OK. Sends response; returns NGX_OK/NGX_ERROR. */
-ngx_int_t xrootd_query_config(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf);
+ngx_int_t brix_query_config(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf);
 /* kXR_QStats: XML server statistics (connections, bytes, uptime, port) from the
  * metrics struct. Sends response; returns NGX_OK. */
-ngx_int_t xrootd_query_stats(xrootd_ctx_t *ctx, ngx_connection_t *c);
+ngx_int_t brix_query_stats(brix_ctx_t *ctx, ngx_connection_t *c);
 /* kXR_Qxattr: extended attributes of a path after auth (READ); returns oss.*
  * stat fields plus user.U.* xattrs. Sends response (kXR_* on stat/arg error). */
-ngx_int_t xrootd_query_xattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf);
+ngx_int_t brix_query_xattr(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf);
 /* kXR_QFinfo: placeholder — always sends "0" (XrdOfs plugin not embedded);
  * returns NGX_OK. */
-ngx_int_t xrootd_query_finfo(xrootd_ctx_t *ctx, ngx_connection_t *c);
+ngx_int_t brix_query_finfo(brix_ctx_t *ctx, ngx_connection_t *c);
 /* kXR_Qvisa: validates req->fhandle index then replies kXR_Unsupported (fctl not
  * supported). Sends response; returns NGX_OK or the validation error code. */
-ngx_int_t xrootd_query_visa(xrootd_ctx_t *ctx, ngx_connection_t *c,
+ngx_int_t brix_query_visa(brix_ctx_t *ctx, ngx_connection_t *c,
     const xrdw_query_req_t *req);
 /* kXR_Qopaque: requires payload, then replies kXR_Unsupported (FSctl). Sends
  * response; returns NGX_OK (kXR_ArgMissing if payload absent). */
-ngx_int_t xrootd_query_opaque(xrootd_ctx_t *ctx, ngx_connection_t *c);
+ngx_int_t brix_query_opaque(brix_ctx_t *ctx, ngx_connection_t *c);
 /* kXR_Qopaquf: extracts+auths (READ) a path then replies kXR_Unsupported (FSctl).
  * Sends response; returns NGX_OK or the auth/arg error. */
-ngx_int_t xrootd_query_opaquf(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf);
+ngx_int_t brix_query_opaquf(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf);
 /* kXR_Qopaqug: validates req->fhandle; payload "ofs.tpc cancel" yields kXR_FSError
  * (no such TPC), otherwise kXR_Unsupported (fctl). Sends response; returns NGX_OK
  * or the validation error code. */
-ngx_int_t xrootd_query_opaqug(xrootd_ctx_t *ctx, ngx_connection_t *c,
+ngx_int_t brix_query_opaqug(brix_ctx_t *ctx, ngx_connection_t *c,
     const xrdw_query_req_t *req);
 /* kXR_QPrep status: per-path staging status ("A <path>" available / "M <path>"
  * missing) from inline paths or the ctx-stored prepare list. Empty input sends
  * an empty OK. Sends response; returns NGX_OK (kXR_NoMemory on alloc failure). */
-ngx_int_t xrootd_query_prep_status(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf);
+ngx_int_t brix_query_prep_status(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf);
 
-#endif /* XROOTD_QUERY_INTERNAL_H */
+#endif /* BRIX_QUERY_INTERNAL_H */
 
 /*
  * query_internal.h — Internal prototypes and shared types for the XRootD
@@ -182,8 +182,8 @@ ngx_int_t xrootd_query_prep_status(xrootd_ctx_t *ctx, ngx_connection_t *c,
  * WHY: query.opcodes span many sub-types; a single internal header avoids
  *       each .c file including multiple separate headers.
  *
- * HOW: Constants defined here (XROOTD_CKSCAN_INIT_CAP,
- *       XROOTD_PREPARE_CMD_MAX_PATHS). AIO structs carry ctx, c, conf,
+ * HOW: Constants defined here (BRIX_CKSCAN_INIT_CAP,
+ *       BRIX_PREPARE_CMD_MAX_PATHS). AIO structs carry ctx, c, conf,
  *       streamid, and per-op result/error fields. All prototypes match
  *       dispatch.c routing signatures.
  */

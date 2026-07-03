@@ -12,7 +12,7 @@
 
 /* echo: return the request verbatim as a single final response chunk. */
 static int
-svc_echo(const unsigned char *req, size_t req_len, xrootd_ssi_responder_t *r)
+svc_echo(const unsigned char *req, size_t req_len, brix_ssi_responder_t *r)
 {
     r->set_response(r, req, req_len, 1);
     return 0;
@@ -20,7 +20,7 @@ svc_echo(const unsigned char *req, size_t req_len, xrootd_ssi_responder_t *r)
 
 /* meta: echo with a fixed metadata blob, exercising the metadata path. */
 static int
-svc_meta(const unsigned char *req, size_t req_len, xrootd_ssi_responder_t *r)
+svc_meta(const unsigned char *req, size_t req_len, brix_ssi_responder_t *r)
 {
     static const unsigned char md[] = "ssi-meta";
     r->set_metadata(r, md, sizeof(md) - 1);
@@ -31,7 +31,7 @@ svc_meta(const unsigned char *req, size_t req_len, xrootd_ssi_responder_t *r)
 /* stream: deliver the request back in three chunks (last=0,0,1), exercising the
  * read-pull streaming path. */
 static int
-svc_stream(const unsigned char *req, size_t req_len, xrootd_ssi_responder_t *r)
+svc_stream(const unsigned char *req, size_t req_len, brix_ssi_responder_t *r)
 {
     (void) req;
     (void) req_len;
@@ -43,7 +43,7 @@ svc_stream(const unsigned char *req, size_t req_len, xrootd_ssi_responder_t *r)
 
 /* err: always fail with an SSI error, exercising the error-reply path. */
 static int
-svc_err(const unsigned char *req, size_t req_len, xrootd_ssi_responder_t *r)
+svc_err(const unsigned char *req, size_t req_len, brix_ssi_responder_t *r)
 {
     (void) req;
     (void) req_len;
@@ -56,7 +56,7 @@ svc_err(const unsigned char *req, size_t req_len, xrootd_ssi_responder_t *r)
  * completion (defer unavailable) it echoes the request inline. The defer-or-respond
  * shape is the template every async service follows. */
 static int
-svc_echo_async(const unsigned char *req, size_t req_len, xrootd_ssi_responder_t *r)
+svc_echo_async(const unsigned char *req, size_t req_len, brix_ssi_responder_t *r)
 {
     if (r->defer != NULL && r->defer(r) == 0) {
         return 0;   /* submit phase: deferred, completed later */
@@ -69,7 +69,7 @@ svc_echo_async(const unsigned char *req, size_t req_len, xrootd_ssi_responder_t 
  * completion it emits the response as three chunks (last=0,0,1), so the framework
  * signals the client pendResp and the client drains the buffer via kXR_read. */
 static int
-svc_stream_async(const unsigned char *req, size_t req_len, xrootd_ssi_responder_t *r)
+svc_stream_async(const unsigned char *req, size_t req_len, brix_ssi_responder_t *r)
 {
     (void) req;
     (void) req_len;
@@ -85,7 +85,7 @@ svc_stream_async(const unsigned char *req, size_t req_len, xrootd_ssi_responder_
 /* alert-async: defers, then pushes two progress alerts before the final response,
  * exercising out-of-band alert delivery interleaved with the response push. */
 static int
-svc_alert_async(const unsigned char *req, size_t req_len, xrootd_ssi_responder_t *r)
+svc_alert_async(const unsigned char *req, size_t req_len, brix_ssi_responder_t *r)
 {
     (void) req;
     (void) req_len;
@@ -100,7 +100,7 @@ svc_alert_async(const unsigned char *req, size_t req_len, xrootd_ssi_responder_t
 
 static const struct {
     const char            *name;
-    xrootd_ssi_process_fn  fn;
+    brix_ssi_process_fn  fn;
 } services[] = {
     { "echo",         svc_echo },
     { "meta",         svc_meta },
@@ -111,8 +111,8 @@ static const struct {
     { "alert-async",  svc_alert_async },
 };
 
-xrootd_ssi_process_fn
-xrootd_ssi_service_lookup(const char *name)
+brix_ssi_process_fn
+brix_ssi_service_lookup(const char *name)
 {
     size_t i;
 
@@ -128,7 +128,7 @@ xrootd_ssi_service_lookup(const char *name)
 }
 
 const char *
-xrootd_ssi_service_canon_name(const char *name)
+brix_ssi_service_canon_name(const char *name)
 {
     size_t i;
 

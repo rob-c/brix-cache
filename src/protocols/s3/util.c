@@ -25,18 +25,18 @@
  */
 void
 s3_build_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
-    ngx_http_s3_loc_conf_t *cf, xrootd_vfs_ctx_t *vctx)
+    ngx_http_s3_loc_conf_t *cf, brix_vfs_ctx_t *vctx)
 {
     ngx_http_s3_req_ctx_t *s3ctx;
     int                    is_tls = 0;
 
-    s3ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+    s3ctx = ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
 
 #if (NGX_HTTP_SSL)
     is_tls = (r->connection->ssl != NULL) ? 1 : 0;
 #endif
 
-    xrootd_vfs_ctx_init(vctx, r->pool, r->connection->log, XROOTD_PROTO_S3,
+    brix_vfs_ctx_init(vctx, r->pool, r->connection->log, BRIX_PROTO_S3,
         cf->common.root_canon, cf->cache_root_canon, cf->common.allow_write,
         is_tls, (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
 }
@@ -48,13 +48,13 @@ s3_build_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
 /*
  * s3_set_header — allocate and set an HTTP response header.
  *
- * Thin wrapper around xrootd_http_set_header(). key must be a string
+ * Thin wrapper around brix_http_set_header(). key must be a string
  * literal (hash=1 optimization). val is copied into the request pool.
  */
 ngx_int_t
 s3_set_header(ngx_http_request_t *r, const char *key, const char *val)
 {
-    return xrootd_http_set_header(r, key, val, NULL);
+    return brix_http_set_header(r, key, val, NULL);
 }
 
 /*
@@ -68,7 +68,7 @@ int
  * Steps:
  *   1. Strip leading slashes from the key (S3 URLs have /bucket/key).
  *   2. Prepend exactly one slash so decoded_path starts with /.
- *   3. Call xrootd_http_resolve_path() which canonicalizes, URL-decodes,
+ *   3. Call brix_http_resolve_path() which canonicalizes, URL-decodes,
  *      and confines the path to root.
  *
  * Returns: 1 on success (path is confined), 0 if escape detected or
@@ -87,7 +87,7 @@ s3_resolve_key(const char *root, const char *key, char *out, size_t outsz)
     if (n < 0 || (size_t) n >= sizeof(key_path))
         return 0;
 
-    return xrootd_http_resolve_path(root, key_path, out, outsz) == 0 ? 1 : 0;
+    return brix_http_resolve_path(root, key_path, out, outsz) == 0 ? 1 : 0;
 }
 
 /*
@@ -105,7 +105,7 @@ void
  */
 s3_etag(const struct stat *st, char *buf, size_t bufsz)
 {
-    xrootd_http_etag_str(buf, bufsz, st->st_mtime, st->st_size, 0);
+    brix_http_etag_str(buf, bufsz, st->st_mtime, st->st_size, 0);
 }
 
 /*
@@ -114,7 +114,7 @@ s3_etag(const struct stat *st, char *buf, size_t bufsz)
 
 ngx_int_t
 /*
- * s3_send_xml_error — S3 wrapper around xrootd_http_send_xml_error.
+ * s3_send_xml_error — S3 wrapper around brix_http_send_xml_error.
  *
  * Delegates XML building and sending to the compat-layer helper; increments the
  * S3 internal-error metric on OOM so S3 callers don't need to track that case.
@@ -126,9 +126,9 @@ s3_send_xml_error(ngx_http_request_t *r,
 {
     ngx_int_t  rc;
 
-    rc = xrootd_http_send_xml_error(r, status, code, message);
+    rc = brix_http_send_xml_error(r, status, code, message);
     if (rc == NGX_HTTP_INTERNAL_SERVER_ERROR) {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
     }
     return rc;
 }
@@ -142,7 +142,7 @@ ngx_int_t
 s3_fail(ngx_http_request_t *r, ngx_uint_t status, const char *code,
         const char *message, int event)
 {
-    XROOTD_S3_METRIC_INC(events_total[event]);
+    BRIX_S3_METRIC_INC(events_total[event]);
     return s3_send_xml_error(r, status, code, message);
 }
 
@@ -159,7 +159,7 @@ s3_fail(ngx_http_request_t *r, ngx_uint_t status, const char *code,
  *       the value computed at upload time is reused on later reads.
  * WHY:  AWS S3 clients (SDK/CLI default integrity) send and expect this checksum;
  *       it is base64-of-bytes, NOT hex like the root:///WebDAV digest forms.
- * HOW:  xrootd_integrity_get_fd("crc64nvme") returns the 16-hex value (from cache
+ * HOW:  brix_integrity_get_fd("crc64nvme") returns the 16-hex value (from cache
  *       or freshly computed); strtoull → uint64 → 8 big-endian bytes →
  *       ngx_encode_base64. cache_only=1 declines (NGX_DECLINED) on a cache miss
  *       instead of paying a full-file read — used on the GET/HEAD echo path.
@@ -169,8 +169,8 @@ ngx_int_t
 s3_object_crc64nvme_b64(ngx_http_request_t *r, int fd, const char *path,
     ngx_flag_t cache_only, char *out, size_t outsz)
 {
-    xrootd_integrity_info_t info;
-    xrootd_integrity_opts_t iopts;
+    brix_integrity_info_t info;
+    brix_integrity_opts_t iopts;
     uint64_t                crc;
     unsigned char           be[8];
     ngx_str_t               src, dst;
@@ -187,7 +187,7 @@ s3_object_crc64nvme_b64(ngx_http_request_t *r, int fd, const char *path,
     iopts.require_regular_file = 1;
     iopts.no_compute           = cache_only ? 1 : 0;
 
-    rc = xrootd_integrity_get_fd(r->connection->log, fd, NULL, path, "crc64nvme",
+    rc = brix_integrity_get_fd(r->connection->log, fd, NULL, path, "crc64nvme",
                                  &iopts, &info);
     if (rc != NGX_OK) {
         return rc;   /* NGX_DECLINED (cache-only miss) or NGX_ERROR */

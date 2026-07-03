@@ -6,7 +6,7 @@
  * authorization, then dispatches to the specific handler based on sub-code.
  */
 
-#include "ngx_xrootd_fattr.h"
+#include "ngx_brix_fattr.h"
 #include "fs/vfs/vfs.h"   /* confinement check via the VFS seam */
 
 #include <string.h>
@@ -31,8 +31,8 @@
  *       confined-open verified. The args region is then parsed into attrs[]: nvec
  *       first, vvec is whatever follows it. close_fd guards any fd we own. */
 ngx_int_t
-xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
-                    ngx_stream_xrootd_srv_conf_t *conf)
+brix_handle_fattr(brix_ctx_t *ctx, ngx_connection_t *c,
+                    ngx_stream_brix_srv_conf_t *conf)
 {
     /* hdr_buf aliases the fixed request header; payload/cur_dlen hold the body. */
     xrdw_fattr_req_t    req;
@@ -40,7 +40,7 @@ xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
     int                 numattr;
     int                 options;
     char                full_path[PATH_MAX];
-    char                pathbuf[XROOTD_MAX_PATH + 1];
+    char                pathbuf[BRIX_MAX_PATH + 1];
     const char         *path = NULL;
     int                 fd = -1;
     int                 close_fd = 0;
@@ -50,7 +50,7 @@ xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
      * confined path the xattr ops act on; in fd mode it carries only proto/log
      * for metric attribution (the fd is the target). Lives for the handler
      * calls below. */
-    xrootd_vfs_ctx_t    vctx;
+    brix_vfs_ctx_t    vctx;
 
     xrdw_fattr_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
     subcode = req.subcode;
@@ -58,18 +58,18 @@ xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
     options = req.options;
 
     if (subcode > kXR_fattrMaxSC) {
-        return xrootd_send_error(ctx, c, kXR_ArgInvalid,
+        return brix_send_error(ctx, c, kXR_ArgInvalid,
                                  "fattr: invalid subcode");
     }
     /* numattr rules differ by sub-code: list enumerates everything (must be 0);
      * get/set/del operate on an explicit name vector (1..kXR_faMaxVars). */
     if (subcode == kXR_fattrList) {
         if (numattr != 0) {
-            return xrootd_send_error(ctx, c, kXR_ArgInvalid,
+            return brix_send_error(ctx, c, kXR_ArgInvalid,
                                      "fattr list: numattr must be 0");
         }
     } else if (numattr == 0 || numattr > kXR_faMaxVars) {
-        return xrootd_send_error(ctx, c, kXR_ArgInvalid,
+        return brix_send_error(ctx, c, kXR_ArgInvalid,
                                  "fattr: invalid numattr");
     }
 
@@ -78,8 +78,8 @@ xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
     if ((subcode == kXR_fattrSet || subcode == kXR_fattrDel) &&
         !conf->common.allow_write)
     {
-        XROOTD_OP_ERR(ctx, XROOTD_OP_FATTR);
-        return xrootd_send_error(ctx, c, kXR_fsReadOnly,
+        BRIX_OP_ERR(ctx, BRIX_OP_FATTR);
+        return brix_send_error(ctx, c, kXR_fsReadOnly,
                                  "fattr: server is read-only");
     }
 
@@ -96,7 +96,7 @@ xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
     if (ctx->cur_dlen == 0) {
         /* (a) Empty body is only meaningful for list; others need an nvec. */
         if (subcode != kXR_fattrList) {
-            return xrootd_send_error(ctx, c, kXR_ArgMissing,
+            return brix_send_error(ctx, c, kXR_ArgMissing,
                                      "fattr: missing arguments");
         }
 
@@ -104,9 +104,9 @@ xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
             /* fhandle index is one wire byte; bounds + open-state checked. */
             int idx = (int) (unsigned char) req.fhandle[0];
 
-            if (idx < 0 || idx >= XROOTD_MAX_FILES || ctx->files[idx].fd < 0) {
-                XROOTD_OP_ERR(ctx, XROOTD_OP_FATTR);
-                return xrootd_send_error(ctx, c, kXR_FileNotOpen,
+            if (idx < 0 || idx >= BRIX_MAX_FILES || ctx->files[idx].fd < 0) {
+                BRIX_OP_ERR(ctx, BRIX_OP_FATTR);
+                return brix_send_error(ctx, c, kXR_FileNotOpen,
                                          "fattr: invalid file handle");
             }
             fd = ctx->files[idx].fd;
@@ -122,7 +122,7 @@ xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
         }
         /* fd target: vctx carries proto/log only (path NULL → fd mode); a driver-
          * backed handle set its resolved path above → driver path mode. */
-        xrootd_vfs_ctx_init(&vctx, c->pool, c->log, XROOTD_PROTO_ROOT,
+        brix_vfs_ctx_init(&vctx, c->pool, c->log, BRIX_PROTO_ROOT,
             conf->common.root_canon, NULL, conf->common.allow_write,
             0 /* is_tls */, NULL, path);
 
@@ -130,9 +130,9 @@ xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
         /* (b) fhandle-targeted request with a leading 0 marker byte. */
         int idx = (int) (unsigned char) req.fhandle[0];
 
-        if (idx < 0 || idx >= XROOTD_MAX_FILES || ctx->files[idx].fd < 0) {
-            XROOTD_OP_ERR(ctx, XROOTD_OP_FATTR);
-            return xrootd_send_error(ctx, c, kXR_FileNotOpen,
+        if (idx < 0 || idx >= BRIX_MAX_FILES || ctx->files[idx].fd < 0) {
+            BRIX_OP_ERR(ctx, BRIX_OP_FATTR);
+            return brix_send_error(ctx, c, kXR_FileNotOpen,
                                      "fattr: invalid file handle");
         }
 
@@ -146,7 +146,7 @@ xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
         }
         /* fd target: vctx carries proto/log only (path NULL → fd mode); a driver-
          * backed handle set its resolved path above → driver path mode. */
-        xrootd_vfs_ctx_init(&vctx, c->pool, c->log, XROOTD_PROTO_ROOT,
+        brix_vfs_ctx_init(&vctx, c->pool, c->log, BRIX_PROTO_ROOT,
             conf->common.root_canon, NULL, conf->common.allow_write,
             0 /* is_tls */, NULL, path);
         /* Everything after the marker byte is the nvec/vvec args region. */
@@ -161,7 +161,7 @@ xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
         size_t path_payload_len;
 
         if (ctx->payload == NULL || ctx->cur_dlen == 0) {
-            return xrootd_send_error(ctx, c, kXR_ArgMissing,
+            return brix_send_error(ctx, c, kXR_ArgMissing,
                                      "fattr: missing path");
         }
 
@@ -170,22 +170,22 @@ xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
         path_wire_len = strnlen((char *) ctx->payload, ctx->cur_dlen);
         path_payload_len = path_wire_len + 1;
 
-        if (!xrootd_extract_path(c->log, ctx->payload, path_payload_len,
+        if (!brix_extract_path(c->log, ctx->payload, path_payload_len,
                                  pathbuf, sizeof(pathbuf), 1)) {
-            XROOTD_OP_ERR(ctx, XROOTD_OP_FATTR);
-            return xrootd_send_error(ctx, c, kXR_ArgInvalid,
+            BRIX_OP_ERR(ctx, BRIX_OP_FATTR);
+            return brix_send_error(ctx, c, kXR_ArgInvalid,
                                      "fattr: invalid path");
         }
         /* Resolve the client path beneath the export root → full_path. */
-        xrootd_beneath_full_path(conf->common.root_canon, pathbuf,
+        brix_beneath_full_path(conf->common.root_canon, pathbuf,
                                   full_path, sizeof(full_path));
         {
             /* set/del need UPDATE rights; get/list need only READ. */
             int need_write = (subcode == kXR_fattrSet
                               || subcode == kXR_fattrDel) ? 1 : 0;
-            uint32_t auth_level = need_write ? XROOTD_AUTH_UPDATE
-                                             : XROOTD_AUTH_READ;
-            if (xrootd_auth_gate(ctx, c, XROOTD_OP_FATTR, "FATTR",
+            uint32_t auth_level = need_write ? BRIX_AUTH_UPDATE
+                                             : BRIX_AUTH_READ;
+            if (brix_auth_gate(ctx, c, BRIX_OP_FATTR, "FATTR",
                                  pathbuf, full_path, conf,
                                  auth_level, need_write) != NGX_OK) {
                 /* auth_gate already queued the error; ctx->write_rc is its rc. */
@@ -198,14 +198,14 @@ xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
              * the path is within the export root (and exists) without a raw
              * open_beneath. The fattr ops then operate by path (through the same
              * vctx) so a directory list can recurse. */
-            xrootd_vfs_stat_t vst;
+            brix_vfs_stat_t vst;
 
-            xrootd_vfs_ctx_init(&vctx, c->pool, c->log, XROOTD_PROTO_ROOT,
+            brix_vfs_ctx_init(&vctx, c->pool, c->log, BRIX_PROTO_ROOT,
                 conf->common.root_canon, NULL, conf->common.allow_write,
                 0 /* is_tls */, NULL, full_path);
-            if (xrootd_vfs_stat(&vctx, &vst) != NGX_OK) {
-                XROOTD_OP_ERR(ctx, XROOTD_OP_FATTR);
-                return xrootd_send_error(ctx, c, xrootd_kxr_from_errno(errno),
+            if (brix_vfs_stat(&vctx, &vst) != NGX_OK) {
+                BRIX_OP_ERR(ctx, BRIX_OP_FATTR);
+                return brix_send_error(ctx, c, brix_kxr_from_errno(errno),
                                          "fattr: cannot open path");
             }
             path = full_path;
@@ -226,13 +226,13 @@ xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
     /* get/set/del all require a name vector. */
     if (args_buf == NULL || args_len == 0) {
-        return xrootd_send_error(ctx, c, kXR_ArgMissing,
+        return brix_send_error(ctx, c, kXR_ArgMissing,
                                  "fattr: missing nvec");
     }
 
     {
         u_char              *nvec_copy;
-        xrootd_fattr_entry_t attrs[kXR_faMaxVars];
+        brix_fattr_entry_t attrs[kXR_faMaxVars];
         ssize_t              nvec_used;
         size_t               nvec_len;
         u_char              *vvec_buf;
@@ -241,14 +241,14 @@ xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
         /* Copy the args region so fattr_parse_nvec can record rc_ptr slots that
          * point into a buffer we own (the wire payload is overwritten in place
          * with status codes when building the response). */
-        XROOTD_PALLOC_OR_RETURN(nvec_copy, c->pool, args_len, xrootd_send_error(ctx, c, kXR_NoMemory, "out of memory"));
+        BRIX_PALLOC_OR_RETURN(nvec_copy, c->pool, args_len, brix_send_error(ctx, c, kXR_NoMemory, "out of memory"));
         ngx_memcpy(nvec_copy, args_buf, args_len);
 
         /* Parse the name vector; returns the byte count it consumed. */
         nvec_used = fattr_parse_nvec(c->log, nvec_copy, args_len,
                                      numattr, attrs);
         if (nvec_used < 0) {
-            return xrootd_send_error(ctx, c, kXR_ArgInvalid,
+            return brix_send_error(ctx, c, kXR_ArgInvalid,
                                      "fattr: malformed nvec");
         }
 
@@ -274,7 +274,7 @@ xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
                                         nvec_copy, nvec_len, numattr, attrs);
                 break;
             default:
-                dispatch_rc = xrootd_send_error(ctx, c, kXR_Unsupported,
+                dispatch_rc = brix_send_error(ctx, c, kXR_Unsupported,
                                                 "fattr: unknown subcode");
                 break;
             }
@@ -283,6 +283,6 @@ xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
         }
     }
 
-    return xrootd_send_error(ctx, c, kXR_Unsupported,
+    return brix_send_error(ctx, c, kXR_Unsupported,
                              "fattr: unknown subcode");
 }

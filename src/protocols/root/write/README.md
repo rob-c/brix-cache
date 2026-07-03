@@ -13,8 +13,8 @@ after authentication and confinement.
 
 Execution enters here exclusively from
 [`../handshake/dispatch_write.c`](../handshake/README.md):
-`xrootd_dispatch_write_opcode()` switches on `ctx->cur_reqid` and, for **every**
-write opcode, first calls `xrootd_dispatch_require_write()` — a gate stricter
+`brix_dispatch_write_opcode()` switches on `ctx->cur_reqid` and, for **every**
+write opcode, first calls `brix_dispatch_require_write()` — a gate stricter
 than the read path's `require_auth` because it demands both authentication *and*
 the configured `conf->common.allow_write` permission before any handler runs.
 Only then does it `DISPATCH_WR(handler)` into one of the functions declared in
@@ -29,7 +29,7 @@ fork: when a thread pool is configured they detach the received payload from
 header while disk I/O proceeds. With no thread pool, or if the task queue is
 full, they fall back to an inline synchronous `pwrite(2)` that rebuilds the same
 response. Either way, since phase-54 the `pwrite`/writev/pgwrite byte movement runs
-through the VFS-owned thread-safe core `xrootd_vfs_io_execute()`
+through the VFS-owned thread-safe core `brix_vfs_io_execute()`
 ([`../fs/vfs_io_core.c`](../fs/README.md)) rather than a syscall reimplemented here, so
 short-write and error handling are shared with the rest of the VFS. Namespace opcodes are
 path-based: they resolve the client path beneath
@@ -47,49 +47,49 @@ origin flush by [`../cache`](../cache/README.md)).
 
 | File | Responsibility |
 |------|----------------|
-| `write.h` | Public prototypes for all handlers plus `xrootd_pgwrite_decode_payload()` and `xrootd_try_post_write_aio()`. |
+| `write.h` | Public prototypes for all handlers plus `brix_pgwrite_decode_payload()` and `brix_try_post_write_aio()`. |
 | `write.c` | `kXR_write` — validate writable handle, replay-skip check, AIO-or-sync `pwrite(2)` at offset; updates byte/dashboard/rate-limit counters, marks `wt_` dirty state, records the write in the recovery journal. |
-| `pgwrite.c` | `kXR_pgwrite` (xrdcp v5+) — defines `xrootd_pgwrite_decode_payload()` which verifies the interleaved per-page CRC32c and copies into a flat buffer in one pass (`xrootd_crc32c_copy`); CRC mismatch → `kXR_ChkSumErr`. Response is a `kXR_status` packet carrying the next expected offset, not `kXR_ok`. |
+| `pgwrite.c` | `kXR_pgwrite` (xrdcp v5+) — defines `brix_pgwrite_decode_payload()` which verifies the interleaved per-page CRC32c and copies into a flat buffer in one pass (`brix_crc32c_copy`); CRC mismatch → `kXR_ChkSumErr`. Response is a `kXR_status` packet carrying the next expected offset, not `kXR_ok`. |
 | `writev.c` | `kXR_writev` — scatter-gather write. Discovers segment count `N` by scanning until `N*SEGSIZE + Σwlen == dlen`, validates **all** `fhandle`s before any `pwrite`, then AIO-or-sync writes each segment; optional `kXR_wv_doSync` fsyncs every touched handle. |
-| `sync.c` | `kXR_sync` — `fsync(2)` the handle, flush the recovery journal, trigger close-time write-through flush; also drives native-TPC destination arm/flush (first sync arms, second triggers `xrootd_tpc_start_pull`). |
+| `sync.c` | `kXR_sync` — `fsync(2)` the handle, flush the recovery journal, trigger close-time write-through flush; also drives native-TPC destination arm/flush (first sync arms, second triggers `brix_tpc_start_pull`). |
 | `truncate.c` | `kXR_truncate` — two modes: handle-based (`dlen==0`, `ftruncate` the open fd) and path-based (`dlen>0`, resolve + auth-gate + `O_WRONLY` open + `ftruncate` + close). |
-| `mkdir.c` | `kXR_mkdir` — single-level or recursive (`kXR_mkdirpath`) via `xrootd_ns_mkdir`; mode masked to `0777` (default `0755`); `EEXIST`/`XROOTD_NS_EXISTS` is success (idempotent); applies parent group policy on fresh single-level create. |
-| `mv.c` | `kXR_mv` — atomic rename. Parses the `src ' ' dst` payload (`arg1len` + mandatory space separator), resolves both halves independently beneath the root, auth-gates each, then `xrootd_ns_rename` (confined `renameat`, closing the realpath/rename TOCTOU). |
-| `chmod.c` / `rm.c` / `rmdir.c` | Thin handlers that delegate to the op-descriptor interpreter: `xrootd_dispatch_op(ctx, c, conf, kXR_<op>)`. |
-| `op_table.h` | Declares `xrootd_op_desc_t` (declarative descriptor: opcode, log verb, metric slot, auth level, write-required, path mode, `exec` callback), `xrootd_op_exec_t`, and `xrootd_dispatch_op()`. |
-| `op_table.c` | The descriptor table + interpreter for "resolve → auth → one syscall → ok/err" ops. Holds `exec_chmod` (`chmod`), `exec_rm` (`xrootd_ns_delete`, retries as recursive dir-delete on `EISDIR`), `exec_rmdir` (`xrootd_ns_delete` with `require_directory`). |
-| `common.c` | `xrootd_try_post_write_aio()` — the shared thread-pool dispatch for `write`/`pgwrite`: allocates an `xrootd_write_aio_t` task, binds `xrootd_write_aio_thread`/`xrootd_write_aio_done` (defined in `../aio/write.c`), posts it; sets `*posted` so callers know whether to fall back to sync. |
-| `chkpoint.h` / `chkpoint.c` | `kXR_chkpoint` dispatcher and the begin/commit/rollback/query sub-handlers, plus `xrootd_chkpoint_recover_root()` — startup scan that rolls back abandoned `<path>.ckp` snapshots left by a crash. |
+| `mkdir.c` | `kXR_mkdir` — single-level or recursive (`kXR_mkdirpath`) via `brix_ns_mkdir`; mode masked to `0777` (default `0755`); `EEXIST`/`BRIX_NS_EXISTS` is success (idempotent); applies parent group policy on fresh single-level create. |
+| `mv.c` | `kXR_mv` — atomic rename. Parses the `src ' ' dst` payload (`arg1len` + mandatory space separator), resolves both halves independently beneath the root, auth-gates each, then `brix_ns_rename` (confined `renameat`, closing the realpath/rename TOCTOU). |
+| `chmod.c` / `rm.c` / `rmdir.c` | Thin handlers that delegate to the op-descriptor interpreter: `brix_dispatch_op(ctx, c, conf, kXR_<op>)`. |
+| `op_table.h` | Declares `brix_op_desc_t` (declarative descriptor: opcode, log verb, metric slot, auth level, write-required, path mode, `exec` callback), `brix_op_exec_t`, and `brix_dispatch_op()`. |
+| `op_table.c` | The descriptor table + interpreter for "resolve → auth → one syscall → ok/err" ops. Holds `exec_chmod` (`chmod`), `exec_rm` (`brix_ns_delete`, retries as recursive dir-delete on `EISDIR`), `exec_rmdir` (`brix_ns_delete` with `require_directory`). |
+| `common.c` | `brix_try_post_write_aio()` — the shared thread-pool dispatch for `write`/`pgwrite`: allocates an `brix_write_aio_t` task, binds `brix_write_aio_thread`/`brix_write_aio_done` (defined in `../aio/write.c`), posts it; sets `*posted` so callers know whether to fall back to sync. |
+| `chkpoint.h` / `chkpoint.c` | `kXR_chkpoint` dispatcher and the begin/commit/rollback/query sub-handlers, plus `brix_chkpoint_recover_root()` — startup scan that rolls back abandoned `<path>.ckp` snapshots left by a crash. |
 | `chkpoint_xeq.h` / `chkpoint_xeq.c` | `ckp_xeq()` — parses the inner 24-byte sub-request header and executes a `write`/`pgwrite`/`truncate`/`writev` **under an active checkpoint** (all segments must target the checkpointed handle). |
 | `wrts_journal.h` / `wrts_journal.c` | Per-handle fixed-size ring journal for `kXR_recoverWrts`: `open` (arm), `record` (append committed write), `is_replay` (exact offset+length match → skip), `flush` (clear on sync/close). |
 
 ## Key types & data structures
 
-- **`xrootd_op_desc_t`** (`op_table.h`) — declarative row describing a "simple"
+- **`brix_op_desc_t`** (`op_table.h`) — declarative row describing a "simple"
   namespace op. Fields: `opcode`, log `name`, `op_id` (metric slot),
-  `auth_level` (`XROOTD_AUTH_*`), `need_write`, `path_mode`
-  (`XROOTD_PATH_EXISTING/WRITE/NOEXIST/EITHER`), and an `exec()` syscall
+  `auth_level` (`BRIX_AUTH_*`), `need_write`, `path_mode`
+  (`BRIX_PATH_EXISTING/WRITE/NOEXIST/EITHER`), and an `exec()` syscall
   callback. The static `_ops[]` table in `op_table.c` is the single source of
-  truth for `chmod`/`rm`/`rmdir`; `xrootd_dispatch_op()` is the interpreter that
+  truth for `chmod`/`rm`/`rmdir`; `brix_dispatch_op()` is the interpreter that
   runs the shared resolve→auth→exec→reply boilerplate.
-- **`xrootd_op_exec_t`** (`op_table.h`) — per-call context handed to each
+- **`brix_op_exec_t`** (`op_table.h`) — per-call context handed to each
   `exec()`: `ctx`, `c`, `conf`, the extracted `reqpath`, and the canonical
   `resolved` path.
-- **`xrootd_write_aio_t`** (defined under `../aio`) — write AIO task: target
+- **`brix_write_aio_t`** (defined under `../aio`) — write AIO task: target
   `fd`, `handle_idx`, `offset`, `data`/`len`, `req_offset`, `is_pgwrite`,
   result `nwritten`/`io_errno`, copied `streamid`/`path`, and `payload_to_free`
   (heap buffer the done callback releases, or `NULL` when the data is a
   pool-managed scratch buffer).
-- **`xrootd_writev_aio_t` / `xrootd_writev_seg_desc_t`** (`writev.c` builds
+- **`brix_writev_aio_t` / `brix_writev_seg_desc_t`** (`writev.c` builds
   them) — the segment-descriptor array plus task carrying `payload_buf`
   ownership and the `do_sync` flag.
-- **Recovery-journal state on `xrootd_file_t`** (`../types/file.h`):
-  `wrts_enabled`, `wrts_journal[XROOTD_WRTS_JOURNAL_SLOTS]`, `wrts_head`,
-  `wrts_count`, `wrts_gen`, each entry an `xrootd_wrts_entry_t {offset, length,
+- **Recovery-journal state on `brix_file_t`** (`../types/file.h`):
+  `wrts_enabled`, `wrts_journal[BRIX_WRTS_JOURNAL_SLOTS]`, `wrts_head`,
+  `wrts_count`, `wrts_gen`, each entry an `brix_wrts_entry_t {offset, length,
   gen}`.
-- **Checkpoint state on `xrootd_file_t`**: `ckp_path` (non-NULL ⇒ active
+- **Checkpoint state on `brix_file_t`**: `ckp_path` (non-NULL ⇒ active
   checkpoint; the heap-allocated `<open-path>.ckp` sibling) and `ckp_size`
-  (snapshot length, the rollback target). Freed by `xrootd_free_fhandle` on
+  (snapshot length, the rollback target). Freed by `brix_free_fhandle` on
   close/disconnect.
 - **`ServerResponseBody_ChkPoint`** — the `kXR_ckpQuery` reply body
   (`maxCkpSize` = `kXR_ckpMinMax`, `useCkpSize` = current `.ckp` size).
@@ -97,61 +97,61 @@ origin flush by [`../cache`](../cache/README.md)).
 ## Control & data flow
 
 ```
-../handshake/dispatch_write.c : xrootd_dispatch_write_opcode()
-    └─ DISPATCH_WR macro → xrootd_dispatch_require_write()   [auth + allow_write]
+../handshake/dispatch_write.c : brix_dispatch_write_opcode()
+    └─ DISPATCH_WR macro → brix_dispatch_require_write()   [auth + allow_write]
        │
-       ├ kXR_write    → write.c   : xrootd_handle_write()
-       ├ kXR_pgwrite  → pgwrite.c : xrootd_handle_pgwrite()  → decode+CRC → kXR_status
-       ├ kXR_writev   → writev.c  : xrootd_handle_writev()
-       │     (data ops) → common.c:xrootd_try_post_write_aio()
+       ├ kXR_write    → write.c   : brix_handle_write()
+       ├ kXR_pgwrite  → pgwrite.c : brix_handle_pgwrite()  → decode+CRC → kXR_status
+       ├ kXR_writev   → writev.c  : brix_handle_writev()
+       │     (data ops) → common.c:brix_try_post_write_aio()
        │                    ├ thread pool → ../aio/write.c worker pwrite → done cb sends reply
        │                    └ no pool/queue full → inline pwrite, build reply here
        ├ kXR_sync     → sync.c    : fsync + journal flush + wt-flush / TPC arm→pull
        ├ kXR_truncate → truncate.c: handle- or path-based ftruncate
        ├ kXR_mkdir/mv → mkdir.c/mv.c : resolve→auth_gate→ ../compat namespace_ops
-       ├ kXR_chmod/rm/rmdir → op_table.c : xrootd_dispatch_op() interpreter
+       ├ kXR_chmod/rm/rmdir → op_table.c : brix_dispatch_op() interpreter
        └ kXR_chkpoint → chkpoint.c : begin/commit/rollback/query
                               └ ckpXeq → chkpoint_xeq.c : ckp_xeq()
 ```
 
 Calls outward to sibling subsystems:
 
-- **[`../path`](../path/README.md)** — `xrootd_resolve_op_path()`,
-  `xrootd_path_resolve_beneath()`, `xrootd_extract_path()` for confinement, and
-  `xrootd_auth_gate()` for the three-tier (VO ACL / authdb / token-scope) write
+- **[`../path`](../path/README.md)** — `brix_resolve_op_path()`,
+  `brix_path_resolve_beneath()`, `brix_extract_path()` for confinement, and
+  `brix_auth_gate()` for the three-tier (VO ACL / authdb / token-scope) write
   authorization that the gate enforces for path-based ops.
 - **[`../aio`](../aio/README.md)** — thread-pool task plumbing
-  (`xrootd_aio_post_task`, `xrootd_task_bind`, `XROOTD_GET_SCRATCH`); the
+  (`brix_aio_post_task`, `brix_task_bind`, `BRIX_GET_SCRATCH`); the
   `*_aio_thread`/`*_aio_done` callbacks for both `write` and `writev` live in
   `../aio/write.c`.
-- **[`../compat`](../compat/README.md)** — `xrootd_ns_mkdir` / `xrootd_ns_rename`
-  / `xrootd_ns_delete` (confined namespace syscalls), `xrootd_crc32c_copy`,
-  `xrootd_copy_range`, `xrootd_staged_*`, and the `xrootd_kxr_*` errno→kXR
+- **[`../compat`](../compat/README.md)** — `brix_ns_mkdir` / `brix_ns_rename`
+  / `brix_ns_delete` (confined namespace syscalls), `brix_crc32c_copy`,
+  `brix_copy_range`, `brix_staged_*`, and the `brix_kxr_*` errno→kXR
   mappers.
-- **[`../cache`](../cache/README.md)** — `xrootd_wt_mark_dirty` /
-  `xrootd_wt_flush_sync_handle` for write-through origin propagation.
-- **[`../tpc`](../tpc/README.md)** — `xrootd_tpc_start_pull` driven by the
+- **[`../cache`](../cache/README.md)** — `brix_wt_mark_dirty` /
+  `brix_wt_flush_sync_handle` for write-through origin propagation.
+- **[`../tpc`](../tpc/README.md)** — `brix_tpc_start_pull` driven by the
   second `kXR_sync` on a native-TPC destination handle.
-- **`../read`** validation helpers — `xrootd_validate_write_handle` /
-  `xrootd_validate_file_handle` (defined in `../connection/fd_table.c`,
+- **`../read`** validation helpers — `brix_validate_write_handle` /
+  `brix_validate_file_handle` (defined in `../connection/fd_table.c`,
   also used by `../read/clone.c`).
-- **`../response` / `../metrics`** — `xrootd_send_ok`,
-  `xrootd_send_pgwrite_status`, `xrootd_send_error`, the `XROOTD_RETURN_OK/ERR`
-  + `XROOTD_OP_OK/ERR` macros, and `xrootd_log_access`.
+- **`../response` / `../metrics`** — `brix_send_ok`,
+  `brix_send_pgwrite_status`, `brix_send_error`, the `BRIX_RETURN_OK/ERR`
+  + `BRIX_OP_OK/ERR` macros, and `brix_log_access`.
 
 ## Invariants, security & gotchas
 
 - **Fail-closed write authority.** The dispatcher's
-  `xrootd_dispatch_require_write()` runs before *every* handler and rejects with
+  `brix_dispatch_require_write()` runs before *every* handler and rejects with
   `kXR_NotAuthorized` unless authenticated **and** `conf->common.allow_write` is
   set — checked globally, ahead of per-path token scope (invariant #5).
 - **Kernel confinement is mandatory.** Path-based ops never call a raw
   `open`/`rename`/`mkdir` on a client path: they go through
-  `xrootd_resolve_op_path` / `xrootd_path_resolve_beneath` (RESOLVE_BENEATH) and
-  the `../compat` `xrootd_ns_*` confined-syscall helpers (invariant #1).
+  `brix_resolve_op_path` / `brix_path_resolve_beneath` (RESOLVE_BENEATH) and
+  the `../compat` `brix_ns_*` confined-syscall helpers (invariant #1).
   `mv.c` deliberately resolves only for the historical "source not found" 404;
   the *authoritative* confinement is the kernel `renameat` inside
-  `xrootd_ns_rename`, which also closes the realpath→rename TOCTOU
+  `brix_ns_rename`, which also closes the realpath→rename TOCTOU
   (`mv.c:110-117`, `141-148`).
 - **`mv` wire format is space-separated, length-prefixed.** Payload is
   `src + 0x20 + dst`; `arg1len` (big-endian) gives the source length and the
@@ -163,7 +163,7 @@ Calls outward to sibling subsystems:
   unaligned offsets. Decode verifies every CRC before any `pwrite` — mismatch →
   `kXR_ChkSumErr`, malformed → `kXR_ArgInvalid` (`pgwrite.c:98-167`). The
   success reply is `kXR_status` with the next expected offset
-  (`xrootd_send_pgwrite_status`), **not** `kXR_ok` (invariant #2 framing).
+  (`brix_send_pgwrite_status`), **not** `kXR_ok` (invariant #2 framing).
 - **Replay idempotency is exact-match, not range-coverage.** `wrts_is_replay`
   only skips a write whose offset *and* length exactly equal a journalled entry;
   range coverage was rejected on purpose so a legitimate sub-range overwrite is
@@ -173,7 +173,7 @@ Calls outward to sibling subsystems:
   and `writev` set `ctx->payload = ctx->payload_buf = NULL` and
   `payload_buf_size = 0` so the next request cannot reuse the in-flight buffer;
   the done callback frees it. `pgwrite` instead writes from the pool-managed
-  `write_scratch` scratch buffer (`XROOTD_GET_SCRATCH`) and passes
+  `write_scratch` scratch buffer (`BRIX_GET_SCRATCH`) and passes
   `payload_to_free = NULL` so the callback must **not** free it
   (`pgwrite.c:265-267`). Note: `ctx->write_scratch` is freed explicitly during
   connection teardown in `disconnect.c`.
@@ -187,29 +187,29 @@ Calls outward to sibling subsystems:
   over `kXR_ckpMinMax` (`kXR_overQuota`) and creates the snapshot with
   `O_CREAT|O_EXCL|O_NOFOLLOW`; `ckpXeq` requires `ckp_path != NULL` and that
   *every* sub-write target the checkpointed handle (cross-handle →
-  `kXR_InvalidRequest`). `xrootd_chkpoint_recover_root()` runs under an
+  `kXR_InvalidRequest`). `brix_chkpoint_recover_root()` runs under an
   exclusive `flock` on a per-root lockfile, scans (depth-limited, symlink-safe
   `O_NOFOLLOW`) for stale `*.ckp`, and restores via the atomic
-  `xrootd_staged_*` rename so uncommitted writes never survive a restart
+  `brix_staged_*` rename so uncommitted writes never survive a restart
   (`chkpoint.c:306-518`).
 - **Metric/telemetry consistency.** Error paths must go through
-  `XROOTD_RETURN_ERR` (not bare `xrootd_log_access`) so `XROOTD_OP_*` counters
+  `BRIX_RETURN_ERR` (not bare `brix_log_access`) so `BRIX_OP_*` counters
   stay correct — a class of bug previously fixed in `chkpoint_xeq.c`. Keep
   metric labels low-cardinality (no paths/UUIDs) per invariant #5.
 
 ## Entry points / extending
 
 **Add a "simple" namespace op (resolve → auth → one syscall → ok/err):**
-1. Write an `exec_<op>(const xrootd_op_exec_t *e, int *out_errno)` in
+1. Write an `exec_<op>(const brix_op_exec_t *e, int *out_errno)` in
    `op_table.c` that performs the single (confined) syscall.
-2. Add a row to the static `_ops[]` table (opcode, log verb, `XROOTD_OP_*`
-   metric slot, `XROOTD_AUTH_*` level, `need_write`, `xrootd_path_mode_t`).
-3. Add a thin `xrootd_handle_<op>()` (like `chmod.c`) that calls
-   `xrootd_dispatch_op(ctx, c, conf, kXR_<op>)`, declare it in `write.h`, and
+2. Add a row to the static `_ops[]` table (opcode, log verb, `BRIX_OP_*`
+   metric slot, `BRIX_AUTH_*` level, `need_write`, `brix_path_mode_t`).
+3. Add a thin `brix_handle_<op>()` (like `chmod.c`) that calls
+   `brix_dispatch_op(ctx, c, conf, kXR_<op>)`, declare it in `write.h`, and
    register the case in `../handshake/dispatch_write.c`.
 
 **Add a complex mutating opcode** (non-trivial exec — two-mode, atomic,
-streaming, custom response): write a dedicated `xrootd_handle_<op>()` here
+streaming, custom response): write a dedicated `brix_handle_<op>()` here
 (model on `truncate.c`/`mv.c`), declare it in `write.h`, register it under the
 `DISPATCH_WR` switch in `../handshake/dispatch_write.c`, and add a new metric
 slot per the project's "New metric" recipe. Always provide 3 tests
@@ -227,5 +227,5 @@ and a `case` in `ckp_xeq()`'s `switch (sub_reqid)`.
 - [`../compat/README.md`](../compat/README.md) — confined namespace syscalls, CRC32c, errno→kXR mapping.
 - [`../cache/README.md`](../cache/README.md) — write-through dirty tracking and origin flush.
 - [`../tpc/README.md`](../tpc/README.md) — native third-party copy (sync-driven pull).
-- [`../types/README.md`](../types/README.md) — `xrootd_file_t` (journal + checkpoint state).
+- [`../types/README.md`](../types/README.md) — `brix_file_t` (journal + checkpoint state).
 - [`../README.md`](../README.md) — subsystem master index.

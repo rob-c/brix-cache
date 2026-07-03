@@ -10,7 +10,7 @@
 #include <stdlib.h>
 
 int
-xrootd_split_host_port(const char *in, char *host, size_t hsz, int *port,
+brix_split_host_port(const char *in, char *host, size_t hsz, int *port,
                        int default_port)
 {
     if (in == NULL || host == NULL || hsz == 0 || port == NULL) {

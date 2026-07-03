@@ -1,6 +1,6 @@
 """S3-compatible object storage tests.
 
-Tests the nginx xrootd_s3 module against the S3 REST API subset used by
+Tests the nginx brix_s3 module against the S3 REST API subset used by
 XrdClS3: GetObject, HeadObject, PutObject, DeleteObject, ListObjectsV2.
 
 Uses the pre-started nginx_shared instance (port 9001), anonymous mode.

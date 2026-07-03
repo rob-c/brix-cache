@@ -153,7 +153,7 @@ class TestSigverExpectRidMismatch:
         kXR_NotAuthorized with "signed request opcode mismatch".
 
         Flow: send valid sigver (expecting ping) → follow with read → expectrid check
-        in xrootd_verify_pending_sigver() rejects the read.
+        in brix_verify_pending_sigver() rejects the read.
         """
         sock, streamid = _establish_gsi_session(gsi_tls_port)
 
@@ -162,7 +162,7 @@ class TestSigverExpectRidMismatch:
         # silent no-op (no pending state armed, expectrid never checked).  We
         # therefore assert the no-op behaviour and that it does not desync the
         # session.  Active-path expectrid enforcement (kXR_InvalidRequest in
-        # xrootd_verify_pending_sigver) requires a live DH key — covered by the
+        # brix_verify_pending_sigver) requires a live DH key — covered by the
         # signing-active suite in test_sigver_wire_conformance.
         sigver_body = struct.pack(">H", 3011) + b"\x00\x00" + struct.pack(">Q", 50) + b"\x00\x00\x00\x00"
         _send_sigver(sock, streamid, body=sigver_body, payload=os.urandom(32))

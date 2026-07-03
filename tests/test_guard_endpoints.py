@@ -4,7 +4,7 @@ Phase-65 bad-actor guard — coverage across every protocol front door.
 One nginx instance exposes the module's own NATIVE endpoints and this suite
 knocks on each with scanner traffic:
 
-- webdav://  native WebDAV location with `xrootd_guard on` (junk bounced
+- webdav://  native WebDAV location with `brix_guard on` (junk bounced
   pre-handler, clean ops untouched, 404 -> notfound audit);
 - s3://      native S3 location with the guard (junk bounced before the S3
   handler, unsigned-but-clean requests still reach S3 auth -> authfail audit);
@@ -114,44 +114,44 @@ http {{
     server {{
         listen {BIND_HOST}:{ports['dav']};
         location / {{
-            xrootd_guard on;
-            xrootd_guard_profile xrdhttp;
-            xrootd_guard_audit_log {audits['dav']};
-            xrootd_webdav on;
-            xrootd_webdav_storage_backend posix:{dav_root};
-            xrootd_webdav_auth none;
-            xrootd_webdav_allow_write on;
+            brix_guard on;
+            brix_guard_profile xrdhttp;
+            brix_guard_audit_log {audits['dav']};
+            brix_webdav on;
+            brix_webdav_storage_backend posix:{dav_root};
+            brix_webdav_auth none;
+            brix_webdav_allow_write on;
         }}
     }}
     server {{
         listen {BIND_HOST}:{ports['s3']};
         location / {{
-            xrootd_guard on;
-            xrootd_guard_profile xrdhttp;
-            xrootd_guard_audit_log {audits['s3']};
-            xrootd_s3 on;
-            xrootd_s3_storage_backend posix:{s3_root};
-            xrootd_s3_access_key GUARDTESTKEY;
-            xrootd_s3_secret_key guard-test-secret;
+            brix_guard on;
+            brix_guard_profile xrdhttp;
+            brix_guard_audit_log {audits['s3']};
+            brix_s3 on;
+            brix_s3_storage_backend posix:{s3_root};
+            brix_s3_access_key GUARDTESTKEY;
+            brix_s3_secret_key guard-test-secret;
         }}
     }}
     server {{
         listen {BIND_HOST}:{ports['ops']};
-        xrootd_guard on;
-        xrootd_guard_audit_log {audits['ops']};
-        location = /metrics {{ xrootd_metrics on; }}
+        brix_guard on;
+        brix_guard_audit_log {audits['ops']};
+        location = /metrics {{ brix_metrics on; }}
     }}
 }}
 stream {{
     server {{
         listen {BIND_HOST}:{ports['xrd']};
         xrootd on;
-        xrootd_root {xrd_root};
-        xrootd_auth none;
+        brix_root {xrd_root};
+        brix_auth none;
     }}
     server {{
         listen {BIND_HOST}:{ports['cms']};
-        xrootd_cms_server on;
+        brix_cms_server on;
     }}
 }}
 """)

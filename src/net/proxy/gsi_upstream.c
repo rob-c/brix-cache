@@ -18,7 +18,7 @@
 #include <sys/stat.h>
 
 int
-xrootd_proxy_gsi_write_pem_temp(const unsigned char *pem, size_t len,
+brix_proxy_gsi_write_pem_temp(const unsigned char *pem, size_t len,
     char *out, size_t cap)
 {
     char    tmpl[] = "/tmp/xrd-deleg-XXXXXX";

@@ -12,7 +12,7 @@
 
 
 void
-xrootd_frm_conf_init(xrootd_frm_conf_t *frm)
+brix_frm_conf_init(brix_frm_conf_t *frm)
 {
     frm->enable             = NGX_CONF_UNSET;
     frm->queue_path.len     = 0;  frm->queue_path.data     = NULL;
@@ -39,8 +39,8 @@ xrootd_frm_conf_init(xrootd_frm_conf_t *frm)
 }
 
 char *
-xrootd_frm_conf_merge(ngx_conf_t *cf, xrootd_frm_conf_t *conf,
-                      xrootd_frm_conf_t *prev, const ngx_str_t *prepare_command)
+brix_frm_conf_merge(ngx_conf_t *cf, brix_frm_conf_t *conf,
+                      brix_frm_conf_t *prev, const ngx_str_t *prepare_command)
 {
     ngx_conf_merge_value(conf->enable,       prev->enable,       0);
     ngx_conf_merge_str_value(conf->queue_path, prev->queue_path, "");
@@ -67,7 +67,7 @@ xrootd_frm_conf_merge(ngx_conf_t *cf, xrootd_frm_conf_t *conf,
                               300000);
 
     /* The stage command falls back to the legacy prepare_command when unset, so
-     * an existing xrootd_prepare_command keeps working under xrootd_frm. */
+     * an existing brix_prepare_command keeps working under brix_frm. */
     if (conf->stagecmd.len == 0 && prepare_command != NULL
         && prepare_command->len)
     {
@@ -77,12 +77,12 @@ xrootd_frm_conf_merge(ngx_conf_t *cf, xrootd_frm_conf_t *conf,
     if (conf->enable) {
         if (conf->queue_path.len == 0) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd_frm on requires xrootd_frm_queue_path");
+                "brix_frm on requires brix_frm_queue_path");
             return NGX_CONF_ERROR;
         }
         if (conf->queue_path.data[0] != '/') {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd_frm_queue_path \"%V\" must be an absolute path",
+                "brix_frm_queue_path \"%V\" must be an absolute path",
                 &conf->queue_path);
             return NGX_CONF_ERROR;
         }
@@ -114,9 +114,9 @@ frm_ratio_to_ppm(const ngx_str_t *s)
 }
 
 char *
-xrootd_frm_set_purge_watermark(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+brix_frm_set_purge_watermark(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    xrootd_frm_conf_t *frm = (xrootd_frm_conf_t *)
+    brix_frm_conf_t *frm = (brix_frm_conf_t *)
                              ((char *) conf + cmd->offset);
     ngx_str_t         *value = cf->args->elts;
 
@@ -125,7 +125,7 @@ xrootd_frm_set_purge_watermark(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     if (frm->purge_lo_ppm > frm->purge_hi_ppm) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_frm_purge_watermark: low (%ui) must not exceed high (%ui)",
+            "brix_frm_purge_watermark: low (%ui) must not exceed high (%ui)",
             frm->purge_lo_ppm, frm->purge_hi_ppm);
         return NGX_CONF_ERROR;
     }

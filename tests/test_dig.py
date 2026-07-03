@@ -76,9 +76,9 @@ def _start(tmp_path_factory, dig_on):
     allow.write_text("# principal export\ndiguser conf\n")
 
     port = free_port()
-    dig = (f"xrootd_webdav_dig on;\n"
-           f"            xrootd_webdav_dig_export conf {exp};\n"
-           f"            xrootd_webdav_dig_auth {allow};") if dig_on else ""
+    dig = (f"brix_webdav_dig on;\n"
+           f"            brix_webdav_dig_export conf {exp};\n"
+           f"            brix_webdav_dig_auth {allow};") if dig_on else ""
     conf = f"""
 error_log {d}/logs/error.log info;
 pid {d}/logs/nginx.pid;
@@ -89,14 +89,14 @@ http {{
     server {{
         listen {BIND_HOST}:{port};
         location / {{
-            xrootd_webdav on;
-            xrootd_webdav_storage_backend posix:{d}/data;
-            xrootd_webdav_auth optional;
-            xrootd_webdav_cadir {d}/cadir;
-            xrootd_webdav_allow_write on;
-            xrootd_webdav_token_jwks {iss.jwks_path};
-            xrootd_webdav_token_issuer {iss.issuer};
-            xrootd_webdav_token_audience {iss.audience};
+            brix_webdav on;
+            brix_webdav_storage_backend posix:{d}/data;
+            brix_webdav_auth optional;
+            brix_webdav_cadir {d}/cadir;
+            brix_webdav_allow_write on;
+            brix_webdav_token_jwks {iss.jwks_path};
+            brix_webdav_token_issuer {iss.issuer};
+            brix_webdav_token_audience {iss.audience};
             {dig}
         }}
     }}

@@ -1,5 +1,5 @@
-#ifndef XROOTD_COMPAT_HTTP_BODY_H
-#define XROOTD_COMPAT_HTTP_BODY_H
+#ifndef BRIX_COMPAT_HTTP_BODY_H
+#define BRIX_COMPAT_HTTP_BODY_H
 
 #include <ngx_config.h>
 #include <ngx_core.h>
@@ -10,13 +10,13 @@
 /* Default decompression-bomb expansion-ratio ceiling for inbound (PUT) decode of
  * untrusted bodies: reject once output/input exceeds this (engages after 64 KiB
  * output). 1000:1 is well past any legitimate payload but short of a zip-bomb. */
-#define XROOTD_DECODE_MAX_RATIO  1000
+#define BRIX_DECODE_MAX_RATIO  1000
 
 /* LZ4 frames do not reach the generic 1000:1 bomb threshold on zero-heavy
  * payloads, so untrusted HTTP decode uses a codec-specific ceiling that still
  * leaves ample room for ordinary compressible objects while rejecting compact
  * LZ4 bombs before they are stored. */
-#define XROOTD_DECODE_LZ4_MAX_RATIO  200
+#define BRIX_DECODE_LZ4_MAX_RATIO  200
 
 /* Absolute output ceiling for inbound (PUT) decode, complementing the ratio
  * guard.  The ratio guard catches the classic tiny-input/huge-output bomb, but a
@@ -26,10 +26,10 @@
  * any realistic single compressed PUT object (large objects are streamed/multipart
  * or stored uncompressed) yet caps the staged temp a hostile upload can produce.
  * A tripped cap maps to 413, exactly like the ratio guard. */
-#define XROOTD_DECODE_MAX_OUTPUT  (16ULL * 1024 * 1024 * 1024)
+#define BRIX_DECODE_MAX_OUTPUT  (16ULL * 1024 * 1024 * 1024)
 
 /*
- * xrootd_http_body_summary_t — summary of nginx request body chain layout.
+ * brix_http_body_summary_t — summary of nginx request body chain layout.
  *
  * WHAT: Struct holding total byte count + flags indicating whether the body contains
  *      memory-backed buffers (has_memory) or spooled-to-file buffers (has_spooled). WHY:
@@ -39,10 +39,10 @@ typedef struct {
     size_t      bytes;
     ngx_flag_t has_memory;
     ngx_flag_t has_spooled;
-} xrootd_http_body_summary_t;
+} brix_http_body_summary_t;
 
 /*
- * xrootd_http_body_summary - scan request body chain and compute byte count + layout info.
+ * brix_http_body_summary - scan request body chain and compute byte count + layout info.
  *
  * WHAT: Iterates over r->request_body->bufs, counts total bytes from both memory-backed
  *       and file-backed buffers, and sets has_memory/has_spooled flags.
@@ -54,11 +54,11 @@ typedef struct {
  * HOW: Walks ngx_chain_t of ngx_buf_t. For file-backed buffers uses (file_last - file_pos);
  *      for memory-backed buffers uses (last - pos). Returns NGX_OK or NGX_ERROR on invalid fd.
  */
-ngx_int_t xrootd_http_body_summary(ngx_http_request_t *r,
-    xrootd_http_body_summary_t *out);
+ngx_int_t brix_http_body_summary(ngx_http_request_t *r,
+    brix_http_body_summary_t *out);
 
 /*
- * xrootd_http_body_write_buf - write a single request-body buffer to an fd.
+ * brix_http_body_write_buf - write a single request-body buffer to an fd.
  *
  * WHAT: Takes one ngx_buf_t from the request body chain and writes its contents to
  *       dst_fd at position *dst_off. Uses copy_file_range for file-backed buffers,
@@ -67,48 +67,48 @@ ngx_int_t xrootd_http_body_summary(ngx_http_request_t *r,
  * WHY: WebDAV PUT and S3 PUT write the request body to a local file in chunks (one
  *      buffer at a time). This function handles both buffer types uniformly.
  *
- * HOW: For file-backed buf: xrootd_copy_range() from buf->file->fd to dst_fd.
- *      For memory-backed buf: xrootd_http_body_pwrite_full() loop pwrite with EINTR retry.
+ * HOW: For file-backed buf: brix_copy_range() from buf->file->fd to dst_fd.
+ *      For memory-backed buf: brix_http_body_pwrite_full() loop pwrite with EINTR retry.
  */
-ngx_int_t xrootd_http_body_write_buf(ngx_http_request_t *r, ngx_fd_t dst_fd,
+ngx_int_t brix_http_body_write_buf(ngx_http_request_t *r, ngx_fd_t dst_fd,
     ngx_buf_t *buf, off_t *dst_off, const char *log_path);
 
 /*
- * xrootd_http_body_write_to_fd - write entire request body to an fd.
+ * brix_http_body_write_to_fd - write entire request body to an fd.
  *
  * WHAT: Summarizes the request body, then iterates over all buffers writing each one
- *       to dst_fd via xrootd_http_body_write_buf(). Optionally returns summary stats.
+ *       to dst_fd via brix_http_body_write_buf(). Optionally returns summary stats.
  *
  * WHY: WebDAV PUT and S3 PUT need to write the full request body to a local file.
  *      This is the top-level entry point that handles the complete chain.
  *
- * HOW: Calls xrootd_http_body_summary() first, then loops over r->request_body->bufs
- *      calling xrootd_http_body_write_buf() for each buffer. Accumulates offset.
+ * HOW: Calls brix_http_body_summary() first, then loops over r->request_body->bufs
+ *      calling brix_http_body_write_buf() for each buffer. Accumulates offset.
  */
-ngx_int_t xrootd_http_body_write_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
-    const char *log_path, xrootd_http_body_summary_t *summary_out);
+ngx_int_t brix_http_body_write_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
+    const char *log_path, brix_http_body_summary_t *summary_out);
 
 /*
- * xrootd_http_body_write_to_fd_at - write the request body starting at absolute
+ * brix_http_body_write_to_fd_at - write the request body starting at absolute
  * offset base_off (for resumable Content-Range PUT).  Same as the _to_fd form
  * but seeds the running destination offset with base_off.
  */
-ngx_int_t xrootd_http_body_write_to_fd_at(ngx_http_request_t *r, ngx_fd_t dst_fd,
-    const char *log_path, xrootd_http_body_summary_t *summary_out, off_t base_off);
+ngx_int_t brix_http_body_write_to_fd_at(ngx_http_request_t *r, ngx_fd_t dst_fd,
+    const char *log_path, brix_http_body_summary_t *summary_out, off_t base_off);
 
 /*
- * xrootd_http_body_write_to_staged - write the whole request body into a staged
- * object through the backend-neutral xrootd_vfs_staged_write primitive, for a
+ * brix_http_body_write_to_staged - write the whole request body into a staged
+ * object through the backend-neutral brix_vfs_staged_write primitive, for a
  * driver-backed (non-POSIX) export that exposes no kernel fd. Memory buffers are
  * forwarded directly; spooled (in_file) buffers are read from their temp fd in
  * chunks. Threads a running offset from 0 so the body lands contiguously.
  */
-struct xrootd_vfs_staged_s;
-ngx_int_t xrootd_http_body_write_to_staged(ngx_http_request_t *r,
-    struct xrootd_vfs_staged_s *st);
+struct brix_vfs_staged_s;
+ngx_int_t brix_http_body_write_to_staged(ngx_http_request_t *r,
+    struct brix_vfs_staged_s *st);
 
 /*
- * xrootd_http_body_read_all - read entire request body into a single allocated buffer.
+ * brix_http_body_read_all - read entire request body into a single allocated buffer.
  *
  * WHAT: Summarizes the request body, allocates a pool buffer of summary.bytes + 1,
  *       then reads all content (from both file-backed and memory buffers) into it
@@ -117,15 +117,15 @@ ngx_int_t xrootd_http_body_write_to_staged(ngx_http_request_t *r,
  * WHY: S3 signature verification needs the raw request body bytes. WebDAV operations
  *      that read body content need a contiguous buffer for processing.
  *
- * HOW: Calls xrootd_http_body_summary() to get byte count; rejects if > max_bytes.
+ * HOW: Calls brix_http_body_summary() to get byte count; rejects if > max_bytes.
  *      Allocates ngx_pnalloc(r->pool, summary.bytes+1). For file-backed buffers uses
  *      pread loop; for memory-backed buffers uses ngx_memcpy. Null-terminates result.
  */
-ngx_int_t xrootd_http_body_read_all(ngx_http_request_t *r, size_t max_bytes,
+ngx_int_t brix_http_body_read_all(ngx_http_request_t *r, size_t max_bytes,
     u_char **out, size_t *out_len);
 
 /*
- * xrootd_http_read_body - dispatch async request-body reading.
+ * brix_http_read_body - dispatch async request-body reading.
  *
  * Wraps ngx_http_read_client_request_body() and normalises the return value:
  * returns NGX_DONE when body reading has started (handler will be called on
@@ -140,11 +140,11 @@ ngx_int_t xrootd_http_body_read_all(ngx_http_request_t *r, size_t max_bytes,
  * internals detail from protocol handlers and makes each dispatch site a
  * single expression.
  */
-ngx_int_t xrootd_http_read_body(ngx_http_request_t *r,
+ngx_int_t brix_http_read_body(ngx_http_request_t *r,
     ngx_http_client_body_handler_pt handler);
 
 /*
- * xrootd_http_body_inflate_to_fd - decompress and write request body to an fd.
+ * brix_http_body_inflate_to_fd - decompress and write request body to an fd.
  *
  * WHAT: Decompress the nginx request body chain using zlib inflate and write the
  *       decompressed bytes to dst_fd. Handles both memory-backed and file-backed
@@ -161,20 +161,20 @@ ngx_int_t xrootd_http_read_body(ngx_http_request_t *r,
  *   window_bits — 31 (15+16) for gzip, 15 for deflate; passed to inflateInit2
  *   summary_out — optional; filled with compressed body byte count if non-NULL
  */
-ngx_int_t xrootd_http_body_inflate_to_fd(ngx_http_request_t *r,
+ngx_int_t brix_http_body_inflate_to_fd(ngx_http_request_t *r,
     ngx_fd_t dst_fd, const char *log_path, int window_bits,
-    xrootd_http_body_summary_t *summary_out);
+    brix_http_body_summary_t *summary_out);
 
 /*
- * xrootd_http_body_decode_to_fd - decompress a request body with any codec.
+ * brix_http_body_decode_to_fd - decompress a request body with any codec.
  *
- * WHAT: Streams the given codec (xrootd_codec_id_t — gzip/deflate/zstd/xz/brotli/
+ * WHAT: Streams the given codec (brix_codec_id_t — gzip/deflate/zstd/xz/brotli/
  *       bzip2) over the request body chain, writing plaintext to dst_fd, bounded
  *       by the decompression-bomb guard.
  * WHY:  WebDAV/S3 PUT may carry any supported Content-Encoding; the stored object
  *       must be the decoded bytes, streamed so a large/hostile body never lands
  *       fully in RAM or fills the disk.
- * HOW:  opens one xrootd_codec stream (DECOMPRESS) with guard{out_cap=max_output,
+ * HOW:  opens one brix_codec stream (DECOMPRESS) with guard{out_cap=max_output,
  *       max_ratio selected for codec}, feeds every body buffer, finalises.
  *
  * Parameters:
@@ -185,8 +185,8 @@ ngx_int_t xrootd_http_body_inflate_to_fd(ngx_http_request_t *r,
  *                    (415 codec unavailable / 413 bomb / 400 corrupt / 500 I-O).
  * Returns NGX_OK or NGX_ERROR.
  */
-ngx_int_t xrootd_http_body_decode_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
-    const char *log_path, xrootd_codec_id_t codec, uint64_t max_output,
-    xrootd_http_body_summary_t *summary_out, ngx_int_t *http_status_out);
+ngx_int_t brix_http_body_decode_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
+    const char *log_path, brix_codec_id_t codec, uint64_t max_output,
+    brix_http_body_summary_t *summary_out, ngx_int_t *http_status_out);
 
-#endif /* XROOTD_COMPAT_HTTP_BODY_H */
+#endif /* BRIX_COMPAT_HTTP_BODY_H */

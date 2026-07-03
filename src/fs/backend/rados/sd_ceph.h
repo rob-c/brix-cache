@@ -4,7 +4,7 @@
  * WHAT: Declares (a) the always-available, dependency-free LFN->object-key
  *       helpers (lexical path normalization + key composition + a stable inode
  *       hash) that map a confined logical path to a flat RADOS object id, and
- *       (b) — only when the build found librados (XROOTD_HAVE_CEPH) — the
+ *       (b) — only when the build found librados (BRIX_HAVE_CEPH) — the
  *       per-export config struct the config layer fills and the driver vtable
  *       symbol the registry registers.
  *
@@ -17,12 +17,12 @@
  *       live cluster.
  *
  * HOW:  The helpers are plain C (libc only). The driver body (sd_ceph.c, under
- *       #if XROOTD_HAVE_CEPH) implements the worker-safe raw byte ops and the
+ *       #if BRIX_HAVE_CEPH) implements the worker-safe raw byte ops and the
  *       minimal namespace ops against raw librados (rados_read/write/trunc/stat/
  *       remove). libradosstriper interop with stock XrdCeph (ADR-3) is a follow-on.
  */
-#ifndef XROOTD_SD_CEPH_H
-#define XROOTD_SD_CEPH_H
+#ifndef BRIX_SD_CEPH_H
+#define BRIX_SD_CEPH_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -55,7 +55,7 @@ int sd_ceph_key(const char *key_prefix, const char *lfn, char *out, size_t cap);
  */
 uint64_t sd_ceph_ino(const char *oid);
 
-#if XROOTD_HAVE_CEPH
+#if BRIX_HAVE_CEPH
 #include "fs/backend/sd.h"
 #include <rados/librados.h>   /* rados_ioctx_t in the shared oid-level API */
 
@@ -71,10 +71,10 @@ typedef struct {
     const char *user;         /* ceph user (default client.admin)        */
     const char *keyring;      /* optional keyring path override           */
     const char *key_prefix;   /* object-key prefix (default "")           */
-} xrootd_sd_ceph_conf_t;
+} brix_sd_ceph_conf_t;
 
 /* The Ceph driver descriptor (defined in sd_ceph.c, registered by sd_registry.c). */
-extern const xrootd_sd_driver_t xrootd_sd_ceph_driver;
+extern const brix_sd_driver_t brix_sd_ceph_driver;
 
 /* ---- shared oid-level layer ------------------------------------------------
  * A bare cluster connection + ioctx, plus byte/xattr operations keyed by an
@@ -85,7 +85,7 @@ extern const xrootd_sd_driver_t xrootd_sd_ceph_driver;
  * count) on failure, mirroring the flat driver's conventions. */
 typedef struct sd_ceph_conn_s sd_ceph_conn_t;
 
-sd_ceph_conn_t *sd_ceph_conn_create(const xrootd_sd_ceph_conf_t *conf,
+sd_ceph_conn_t *sd_ceph_conn_create(const brix_sd_ceph_conf_t *conf,
                                     ngx_pool_t *pool, int *err);
 void            sd_ceph_conn_destroy(sd_ceph_conn_t *c);
 rados_ioctx_t   sd_ceph_conn_ioctx(sd_ceph_conn_t *c);
@@ -127,10 +127,10 @@ typedef struct {
                                   * best-effort eventually-consistent reads with
                                   * optimistic revalidation + retry. One of
                                   * assume_quiesced / live MUST be set.        */
-} xrootd_sd_cephfs_ro_conf_t;
+} brix_sd_cephfs_ro_conf_t;
 
-extern const xrootd_sd_driver_t xrootd_sd_cephfs_ro_driver;
+extern const brix_sd_driver_t brix_sd_cephfs_ro_driver;
 
-#endif /* XROOTD_HAVE_CEPH */
+#endif /* BRIX_HAVE_CEPH */
 
-#endif /* XROOTD_SD_CEPH_H */
+#endif /* BRIX_SD_CEPH_H */

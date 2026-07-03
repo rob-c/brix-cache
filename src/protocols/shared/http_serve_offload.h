@@ -1,12 +1,12 @@
-#ifndef XROOTD_HTTP_SERVE_OFFLOAD_H
-#define XROOTD_HTTP_SERVE_OFFLOAD_H
+#ifndef BRIX_HTTP_SERVE_OFFLOAD_H
+#define BRIX_HTTP_SERVE_OFFLOAD_H
 
 /*
  * http_serve_offload.h - off-event-loop serve of a remote (socket-wire) object
  * (phase-64 SP3: the serve-readback complement to the off-loop cache FILL).
  *
- * WHAT: One helper, xrootd_http_serve_offload_remote(), that the WebDAV GET and S3
- *       GetObject handlers call BEFORE the inline xrootd_vfs_open when the export's
+ * WHAT: One helper, brix_http_serve_offload_remote(), that the WebDAV GET and S3
+ *       GetObject handlers call BEFORE the inline brix_vfs_open when the export's
  *       serve path reads from a socket-wire backend (xroot) - a primary root://
  *       backend, or a cache_store / stage_store served from one. It runs the WHOLE
  *       read - driver open (eager connect), cinfo load, miss fill, and the byte
@@ -25,7 +25,7 @@
  * HOW:  A single thread task opens the composed instance for `key` (a cache open
  *       runs cinfo/fill/serve; a bare backend just opens), copies the object into an
  *       O_TMPFILE temp, and closes it. The completion adopts the temp fd as a POSIX
- *       VFS handle and calls xrootd_http_serve_file_ranged on it (zero-copy
+ *       VFS handle and calls brix_http_serve_file_ranged on it (zero-copy
  *       sendfile, owning range/headers/backpressure/lifecycle), runs the caller's
  *       protocol metrics callback, and finalises. A non-socket serve, a HEAD, or no
  *       thread pool returns NGX_DECLINED so the caller serves inline as before.
@@ -35,20 +35,20 @@
 #include <ngx_core.h>
 #include <ngx_http.h>
 
-#include "file_serve.h"                 /* xrootd_http_serve_opts_t/_result_t */
-#include "core/config/shared_conf.h"      /* ngx_http_xrootd_shared_conf_t */
-#include "fs/backend/sd.h"           /* xrootd_sd_instance_t */
+#include "file_serve.h"                 /* brix_http_serve_opts_t/_result_t */
+#include "core/config/shared_conf.h"      /* ngx_http_brix_shared_conf_t */
+#include "fs/backend/sd.h"           /* brix_sd_instance_t */
 
 /* Protocol metrics callback: run on the event loop after the materialised object is
  * served, with the same result the inline serve would report. WebDAV and S3 pass
  * their own (range_total / bytes_tx_total increments). */
-typedef void (*xrootd_http_serve_metrics_pt)(ngx_http_request_t *r,
-    const xrootd_http_serve_result_t *result);
+typedef void (*brix_http_serve_metrics_pt)(ngx_http_request_t *r,
+    const brix_http_serve_result_t *result);
 
 /*
  * Serve `key` on the composed instance `inst` off the event loop when its serve
  * path reads from a socket-wire backend; otherwise decline so the caller serves
- * inline (its own xrootd_vfs_open + xrootd_http_serve_file_ranged).
+ * inline (its own brix_vfs_open + brix_http_serve_file_ranged).
  *
  * Returns:
  *   NGX_DECLINED - not a socket-wire serve (local / in-process / curl / HEAD / no
@@ -57,10 +57,10 @@ typedef void (*xrootd_http_serve_metrics_pt)(ngx_http_request_t *r,
  *                  NGX_DONE without opening the object itself.
  *   NGX_ERROR    - setup failed; the caller should return 500.
  */
-ngx_int_t xrootd_http_serve_offload_remote(ngx_http_request_t *r,
-    xrootd_sd_instance_t *inst, const char *key, const char *fs_path,
-    const xrootd_http_serve_opts_t *opts,
-    ngx_http_xrootd_shared_conf_t *common,
-    xrootd_http_serve_metrics_pt metrics_cb);
+ngx_int_t brix_http_serve_offload_remote(ngx_http_request_t *r,
+    brix_sd_instance_t *inst, const char *key, const char *fs_path,
+    const brix_http_serve_opts_t *opts,
+    ngx_http_brix_shared_conf_t *common,
+    brix_http_serve_metrics_pt metrics_cb);
 
-#endif /* XROOTD_HTTP_SERVE_OFFLOAD_H */
+#endif /* BRIX_HTTP_SERVE_OFFLOAD_H */

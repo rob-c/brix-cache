@@ -5,7 +5,7 @@
  *
  *  1. Per-connection accumulation.  A write-open's bytes are gathered into a
  *     bounded per-file buffer hanging off the client connection context
- *     (xrootd_ctx_t.wmirror).  Only sequential kXR_write data is captured; a
+ *     (brix_ctx_t.wmirror).  Only sequential kXR_write data is captured; a
  *     kXR_pgwrite (CRC-interleaved payload), a non-sequential offset, or a buffer
  *     that exceeds the per-file / per-connection cap aborts that file's mirror
  *     (counted) — never blocking the client.
@@ -19,7 +19,7 @@
  *     and start/finish lifecycle deliberately mirror stream_mirror.c.
  *
  * The shadow MUST be an isolated namespace — replaying writes onto the primary's
- * backing store would corrupt it (see xrootd_mirror_writes).
+ * backing store would corrupt it (see brix_mirror_writes).
  */
 #include "stream_wmirror.h"
 #include "mirror.h"
@@ -30,15 +30,15 @@
 #include <sys/socket.h>
 #include <endian.h>
 
-extern void xrootd_upstream_build_bootstrap(u_char *buf);
+extern void brix_upstream_build_bootstrap(u_char *buf);
 
 /* Caps: data-write mirroring is best-effort validation, not a data path. */
-#define XROOTD_WMIRROR_FILE_CAP  (4u * 1024u * 1024u)   /* 4 MiB per file        */
-#define XROOTD_WMIRROR_CONN_CAP  (16u * 1024u * 1024u)  /* 16 MiB per connection */
+#define BRIX_WMIRROR_FILE_CAP  (4u * 1024u * 1024u)   /* 4 MiB per file        */
+#define BRIX_WMIRROR_CONN_CAP  (16u * 1024u * 1024u)  /* 16 MiB per connection */
 
-#define XROOTD_WMIR_METRIC_INC(field)                                        \
+#define BRIX_WMIR_METRIC_INC(field)                                        \
     do {                                                                     \
-        ngx_xrootd_metrics_t *_m = xrootd_metrics_shared();                  \
+        ngx_brix_metrics_t *_m = brix_metrics_shared();                  \
         if (_m != NULL) { (void) ngx_atomic_fetch_add(&_m->field, 1); }      \
     } while (0)
 
@@ -52,12 +52,12 @@ typedef struct {
     u_char    *data;            /* malloc/realloc: accumulated bytes     */
     size_t     data_len;
     off_t      next_off;        /* expected next contiguous write offset */
-} xrootd_wmirror_file_t;
+} brix_wmirror_file_t;
 
 typedef struct {
     size_t                 total_buffered;
-    xrootd_wmirror_file_t  files[XROOTD_MAX_FILES];
-} xrootd_wmirror_conn_t;
+    brix_wmirror_file_t  files[BRIX_MAX_FILES];
+} brix_wmirror_conn_t;
 
 
 /*
@@ -106,28 +106,28 @@ typedef struct {
     u_char   *data;             /* malloc: file bytes                      */
     size_t    data_len;
     u_char    shadow_fhandle[4];
-} xrootd_wmirror_replay_t;
+} brix_wmirror_replay_t;
 
 static void wmir_read_handler(ngx_event_t *rev);
 static void wmir_write_handler(ngx_event_t *wev);
 static void wmir_timeout_handler(ngx_event_t *ev);
-static void wmir_finish(xrootd_wmirror_replay_t *r, int ok);
+static void wmir_finish(brix_wmirror_replay_t *r, int ok);
 
 /* send */
 /* Drain the pending write buffer to the shadow socket; see
- * xrootd_mirror_io_flush(). Caller treats only NGX_ERROR as terminal —
+ * brix_mirror_io_flush(). Caller treats only NGX_ERROR as terminal —
  * NGX_AGAIN is a normal yield to the event loop (wmir_write_handler resumes). */
 static ngx_int_t
-wmir_flush(xrootd_wmirror_replay_t *r)
+wmir_flush(brix_wmirror_replay_t *r)
 {
-    return xrootd_mirror_io_flush(r->conn, r->wbuf, r->wbuf_len, &r->wbuf_pos);
+    return brix_mirror_io_flush(r->conn, r->wbuf, r->wbuf_len, &r->wbuf_pos);
 }
 
 /* Clear the response accumulator before awaiting the next frame: zero the
  * header read cursor and the parsed status/dlen/body so a stale value from the
  * previous phase cannot leak into the next response. */
 static void
-wmir_reset_frame(xrootd_wmirror_replay_t *r)
+wmir_reset_frame(brix_wmirror_replay_t *r)
 {
     r->rhdr_pos = 0;
     r->resp_status = 0;
@@ -145,7 +145,7 @@ wmir_reset_frame(xrootd_wmirror_replay_t *r)
  * then flush.  The original open's create/truncate flags are preserved as-is.
  */
 static void
-wmir_send_open(xrootd_wmirror_replay_t *r)
+wmir_send_open(brix_wmirror_replay_t *r)
 {
     u_char *p = ngx_palloc(r->pool, r->open_frame_len);
 
@@ -174,7 +174,7 @@ wmir_send_open(xrootd_wmirror_replay_t *r)
  * followed by data_len payload bytes.  All multi-byte fields are network order.
  */
 static void
-wmir_send_write(xrootd_wmirror_replay_t *r)
+wmir_send_write(brix_wmirror_replay_t *r)
 {
     size_t   total = (size_t) 24 + r->data_len;
     u_char  *p = ngx_palloc(r->pool, total);
@@ -202,7 +202,7 @@ wmir_send_write(xrootd_wmirror_replay_t *r)
  * [2..3], the shadow fhandle at [4..7]; all other fields stay zero.
  */
 static void
-wmir_send_close(xrootd_wmirror_replay_t *r)
+wmir_send_close(brix_wmirror_replay_t *r)
 {
     u_char *p = ngx_palloc(r->pool, 24);
 
@@ -219,11 +219,11 @@ wmir_send_close(xrootd_wmirror_replay_t *r)
 
 /* receive */
 /* Read one shadow response frame (header + bounded body), incremental and
- * resumable; see xrootd_mirror_io_recv_frame(). */
+ * resumable; see brix_mirror_io_recv_frame(). */
 static ngx_int_t
-wmir_recv_frame(xrootd_wmirror_replay_t *r)
+wmir_recv_frame(brix_wmirror_replay_t *r)
 {
-    return xrootd_mirror_io_recv_frame(r->conn, r->rhdr, &r->rhdr_pos,
+    return brix_mirror_io_recv_frame(r->conn, r->rhdr, &r->rhdr_pos,
                                        &r->resp_status, &r->resp_dlen,
                                        &r->resp_body, &r->resp_body_pos);
 }
@@ -239,7 +239,7 @@ wmir_status_ok(uint16_t st)
 /* Advance one phase; bootstrap phases re-post the read so pipelined frames are
  * processed; request phases send the next frame (which arms the read itself). */
 static void
-wmir_dispatch(xrootd_wmirror_replay_t *r)
+wmir_dispatch(brix_wmirror_replay_t *r)
 {
     switch (r->phase) {
 
@@ -316,7 +316,7 @@ static void
 wmir_read_handler(ngx_event_t *rev)
 {
     ngx_connection_t        *c = rev->data;
-    xrootd_wmirror_replay_t *r = c->data;
+    brix_wmirror_replay_t *r = c->data;
     ngx_int_t                rc;
 
     if (rev->timedout) { wmir_finish(r, 0); return; }
@@ -341,7 +341,7 @@ static void
 wmir_write_handler(ngx_event_t *wev)
 {
     ngx_connection_t        *c = wev->data;
-    xrootd_wmirror_replay_t *r = c->data;
+    brix_wmirror_replay_t *r = c->data;
 
     if (wev->timedout) { wmir_finish(r, 0); return; }
 
@@ -367,7 +367,7 @@ wmir_write_handler(ngx_event_t *wev)
 static void
 wmir_timeout_handler(ngx_event_t *ev)
 {
-    wmir_finish((xrootd_wmirror_replay_t *) ev->data, 0);
+    wmir_finish((brix_wmirror_replay_t *) ev->data, 0);
 }
 
 /*
@@ -381,7 +381,7 @@ wmir_timeout_handler(ngx_event_t *ev)
  * cached first precisely because r becomes invalid after ngx_destroy_pool().
  */
 static void
-wmir_finish(xrootd_wmirror_replay_t *r, int ok)
+wmir_finish(brix_wmirror_replay_t *r, int ok)
 {
     ngx_pool_t *pool = r->pool;
 
@@ -389,9 +389,9 @@ wmir_finish(xrootd_wmirror_replay_t *r, int ok)
     if (r->conn != NULL) { ngx_close_connection(r->conn); r->conn = NULL; }
 
     if (ok) {
-        XROOTD_WMIR_METRIC_INC(mirror_stream_total);
+        BRIX_WMIR_METRIC_INC(mirror_stream_total);
     } else {
-        XROOTD_WMIR_METRIC_INC(mirror_stream_errors_total);
+        BRIX_WMIR_METRIC_INC(mirror_stream_errors_total);
         if (r->log_diverge) {
             ngx_log_error(NGX_LOG_NOTICE, r->log, 0,
                 "xrootd write-mirror: shadow write replay failed/diverged");
@@ -414,7 +414,7 @@ wmir_finish(xrootd_wmirror_replay_t *r, int ok)
  * failure routes through wmir_finish so the pool is always reclaimed.
  */
 static void
-wmir_start(xrootd_wmirror_replay_t *r, ngx_msec_t timeout_ms)
+wmir_start(brix_wmirror_replay_t *r, ngx_msec_t timeout_ms)
 {
     ngx_connection_t *c;
     ngx_socket_t      fd;
@@ -444,7 +444,7 @@ wmir_start(xrootd_wmirror_replay_t *r, ngx_msec_t timeout_ms)
           + sizeof(ClientLoginRequest);
     r->wbuf = ngx_palloc(r->pool, bslen);
     if (r->wbuf == NULL) { wmir_finish(r, 0); return; }
-    xrootd_upstream_build_bootstrap(r->wbuf);
+    brix_upstream_build_bootstrap(r->wbuf);
     r->wbuf_len = bslen;
     r->wbuf_pos = 0;
     r->phase    = WMIR_HANDSHAKE;
@@ -476,17 +476,17 @@ wmir_start(xrootd_wmirror_replay_t *r, ngx_msec_t timeout_ms)
 /* Launch a detached replay for a fully-buffered file.  Ownership of the data
  * buffer transfers to the replay (freed in wmir_finish). */
 static void
-wmir_launch(ngx_stream_xrootd_srv_conf_t *conf, xrootd_wmirror_file_t *f)
+wmir_launch(ngx_stream_brix_srv_conf_t *conf, brix_wmirror_file_t *f)
 {
-    xrootd_mirror_target_t  *t;
+    brix_mirror_target_t  *t;
     ngx_pool_t              *pool;
-    xrootd_wmirror_replay_t *r;
+    brix_wmirror_replay_t *r;
     u_char                  *frame;
 
     if (conf->mirror.targets == NULL || conf->mirror.targets->nelts == 0) {
         return;
     }
-    t = (xrootd_mirror_target_t *) conf->mirror.targets->elts;   /* first target */
+    t = (brix_mirror_target_t *) conf->mirror.targets->elts;   /* first target */
     if (t->socklen == 0) { return; }
 
     pool = ngx_create_pool(2048, ngx_cycle->log);
@@ -534,7 +534,7 @@ wmir_launch(ngx_stream_xrootd_srv_conf_t *conf, xrootd_wmirror_file_t *f)
  * stolen f->data (set to NULL).
  */
 static void
-wmir_file_reset(xrootd_wmirror_conn_t *wm, xrootd_wmirror_file_t *f)
+wmir_file_reset(brix_wmirror_conn_t *wm, brix_wmirror_file_t *f)
 {
     if (f->data != NULL)         { ngx_free(f->data); }
     if (f->open_payload != NULL) { ngx_free(f->open_payload); }
@@ -552,12 +552,12 @@ wmir_file_reset(xrootd_wmirror_conn_t *wm, xrootd_wmirror_file_t *f)
  * point re-checks this so config can disable the feature mid-connection.
  */
 static int
-wmir_gate(ngx_stream_xrootd_srv_conf_t *conf)
+wmir_gate(ngx_stream_brix_srv_conf_t *conf)
 {
     if (!conf->mirror.enabled || conf->mirror.targets == NULL) { return 0; }
     if (!conf->mirror.mirror_writes) { return 0; }
-    if ((conf->mirror.opcode_mask & XROOTD_MIRROR_OP_WRITE) == 0) { return 0; }
-    if ((conf->mirror.opcode_exclude_mask & XROOTD_MIRROR_OP_WRITE) != 0) {
+    if ((conf->mirror.opcode_mask & BRIX_MIRROR_OP_WRITE) == 0) { return 0; }
+    if ((conf->mirror.opcode_exclude_mask & BRIX_MIRROR_OP_WRITE) != 0) {
         return 0;
     }
     return 1;
@@ -577,14 +577,14 @@ wmir_gate(ngx_stream_xrootd_srv_conf_t *conf)
  * open payload or OOM marks the slot aborted so it is never replayed.
  */
 void
-xrootd_stream_wmirror_on_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf, int client_idx, int is_write)
+brix_stream_wmirror_on_open(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, int client_idx, int is_write)
 {
-    xrootd_wmirror_conn_t *wm;
-    xrootd_wmirror_file_t *f;
+    brix_wmirror_conn_t *wm;
+    brix_wmirror_file_t *f;
 
     if (!is_write || !wmir_gate(conf)) { return; }
-    if (client_idx < 0 || client_idx >= XROOTD_MAX_FILES) { return; }
+    if (client_idx < 0 || client_idx >= BRIX_MAX_FILES) { return; }
 
     wm = ctx->wmirror;
     if (wm == NULL) {
@@ -598,7 +598,7 @@ xrootd_stream_wmirror_on_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
     ngx_memcpy(f->open_hdr, ctx->hdr_buf, 24);
     if (ctx->cur_dlen > 0 && ctx->payload != NULL
-        && ctx->cur_dlen <= XROOTD_WMIRROR_FILE_CAP)
+        && ctx->cur_dlen <= BRIX_WMIRROR_FILE_CAP)
     {
         f->open_payload = ngx_alloc(ctx->cur_dlen, ngx_cycle->log);
         if (f->open_payload == NULL) { f->aborted = 1; }
@@ -626,11 +626,11 @@ xrootd_stream_wmirror_on_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
  * cap, an OOM on grow, or the primary itself failing the write.
  */
 void
-xrootd_stream_wmirror_observe(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf, ngx_int_t primary_rc)
+brix_stream_wmirror_observe(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, ngx_int_t primary_rc)
 {
-    xrootd_wmirror_conn_t *wm;
-    xrootd_wmirror_file_t *f;
+    brix_wmirror_conn_t *wm;
+    brix_wmirror_file_t *f;
     int                    idx;
 
     (void) c;
@@ -638,7 +638,7 @@ xrootd_stream_wmirror_observe(xrootd_ctx_t *ctx, ngx_connection_t *c,
     if (wm == NULL || !wmir_gate(conf)) { return; }
 
     idx = (int) (unsigned char) ctx->hdr_buf[4];   /* fhandle byte 0 */
-    if (idx < 0 || idx >= XROOTD_MAX_FILES) { return; }
+    if (idx < 0 || idx >= BRIX_MAX_FILES) { return; }
     f = &wm->files[idx];
     if (!f->active) { return; }
 
@@ -667,11 +667,11 @@ xrootd_stream_wmirror_observe(xrootd_ctx_t *ctx, ngx_connection_t *c,
         /* Bounded buffering: enforce both the per-file and the connection-wide
          * caps before growing, so a large or many-file upload can't balloon
          * memory.  Hitting a cap is counted (dropped metric), not an error. */
-        if (f->data_len + len > XROOTD_WMIRROR_FILE_CAP
-            || wm->total_buffered + len > XROOTD_WMIRROR_CONN_CAP)
+        if (f->data_len + len > BRIX_WMIRROR_FILE_CAP
+            || wm->total_buffered + len > BRIX_WMIRROR_CONN_CAP)
         {
             f->aborted = 1;
-            XROOTD_WMIR_METRIC_INC(mirror_stream_dropped_total);
+            BRIX_WMIR_METRIC_INC(mirror_stream_dropped_total);
             return;
         }
         /* Grow-by-copy append: allocate old+new, copy the existing prefix, free
@@ -718,13 +718,13 @@ xrootd_stream_wmirror_observe(xrootd_ctx_t *ctx, ngx_connection_t *c,
  * (it owns its own copy of the data).
  */
 void
-xrootd_stream_wmirror_cleanup(xrootd_ctx_t *ctx)
+brix_stream_wmirror_cleanup(brix_ctx_t *ctx)
 {
-    xrootd_wmirror_conn_t *wm = ctx->wmirror;
+    brix_wmirror_conn_t *wm = ctx->wmirror;
     int                    i;
 
     if (wm == NULL) { return; }
-    for (i = 0; i < XROOTD_MAX_FILES; i++) {
+    for (i = 0; i < BRIX_MAX_FILES; i++) {
         wmir_file_reset(wm, &wm->files[i]);
     }
     ctx->wmirror = NULL;   /* wm itself is connection-pool memory */

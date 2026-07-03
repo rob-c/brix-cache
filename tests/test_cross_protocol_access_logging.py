@@ -1,6 +1,6 @@
 """Protocol-labelled HTTP access logging.
 
-The module exposes $xrootd_protocol so nginx's native access_log can write a
+The module exposes $brix_protocol so nginx's native access_log can write a
 single HTTP access log tagged with webdav/s3 without duplicate module-side log
 lines.
 """

@@ -1,5 +1,5 @@
-#ifndef XROOTD_SD_CACHE_H
-#define XROOTD_SD_CACHE_H
+#ifndef BRIX_SD_CACHE_H
+#define BRIX_SD_CACHE_H
 
 /*
  * sd_cache.h - the generic read-cache decorator (phase-64 section 12.1).
@@ -39,52 +39,52 @@
 #include <ngx_core.h>
 
 #include "fs/backend/sd.h"
-#include "fs/tier/tier.h"          /* xrootd_cache_policy_t */
+#include "fs/tier/tier.h"          /* brix_cache_policy_t */
 
 /* Wrap `source` in a read-cache decorator backed by the `store` instance (the
  * cache_store tier). `store_local_root` is the store's absolute directory for
  * LOCAL cinfo mode (NULL for a remote store, SP2). `policy` is copied. Returns a
  * malloc-owned instance (worker-safe, no nginx pool), or NULL (errno set).
- * `source` and `store` are BORROWED - not freed by xrootd_sd_cache_destroy (the
+ * `source` and `store` are BORROWED - not freed by brix_sd_cache_destroy (the
  * registry owns them). NULL source/store -> NULL. */
-xrootd_sd_instance_t *xrootd_sd_cache_create(xrootd_sd_instance_t *source,
-    xrootd_sd_instance_t *store, const xrootd_cache_policy_t *policy,
+brix_sd_instance_t *brix_sd_cache_create(brix_sd_instance_t *source,
+    brix_sd_instance_t *store, const brix_cache_policy_t *policy,
     const char *store_local_root, ngx_log_t *log);
 
-/* Free a decorator built by xrootd_sd_cache_create (NOT the wrapped source/store;
+/* Free a decorator built by brix_sd_cache_create (NOT the wrapped source/store;
  * it does release the decorator's cstore L1). NULL-safe. */
-void xrootd_sd_cache_destroy(xrootd_sd_instance_t *inst);
+void brix_sd_cache_destroy(brix_sd_instance_t *inst);
 
 /* ---- async-fill seam (SP2 "shell -> full"): see sd_cache.c. The HTTP read
  * plane uses these to run a remote cache miss-fill on a worker thread instead of
  * blocking the event loop in the inline open() fill. ---- */
 
-/* 1 iff `inst` is a cache decorator built by xrootd_sd_cache_create. */
-int xrootd_sd_cache_instance_is(const xrootd_sd_instance_t *inst);
+/* 1 iff `inst` is a cache decorator built by brix_sd_cache_create. */
+int brix_sd_cache_instance_is(const brix_sd_instance_t *inst);
 
 /* 1 iff a read-open of `key` would block on slow (remote) I/O and should be
  * offloaded; 0 to serve inline (hit / local / slice / non-cache). Non-blocking. */
-int xrootd_sd_cache_fill_needs_offload(xrootd_sd_instance_t *inst,
+int brix_sd_cache_fill_needs_offload(brix_sd_instance_t *inst,
     const char *key);
 
 /* Fill `key` (source -> store + cinfo) on the calling (worker) thread. NGX_OK /
  * NGX_DECLINED (admission) / NGX_ERROR. */
-ngx_int_t xrootd_sd_cache_fill_key(xrootd_sd_instance_t *inst, const char *key);
+ngx_int_t brix_sd_cache_fill_key(brix_sd_instance_t *inst, const char *key);
 
 /* The cache STORE instance (served objects live there), or NULL if `inst` is not a
  * cache decorator. Used by the serve-locality predicate. */
-xrootd_sd_instance_t *xrootd_sd_cache_store_instance(
-    const xrootd_sd_instance_t *inst);
+brix_sd_instance_t *brix_sd_cache_store_instance(
+    const brix_sd_instance_t *inst);
 
 /* The cache SOURCE instance (the tier below the cache), or NULL if not a cache.
  * Used to unwrap the composed stack to the stage decorator (SP4 reconcile). */
-xrootd_sd_instance_t *xrootd_sd_cache_source_instance(
-    const xrootd_sd_instance_t *inst);
+brix_sd_instance_t *brix_sd_cache_source_instance(
+    const brix_sd_instance_t *inst);
 
-/* The decorator's internal cstore (an (xrootd_cstore_t *); returned void* to keep
+/* The decorator's internal cstore (an (brix_cstore_t *); returned void* to keep
  * this header free of cstore.h), or NULL if `inst` is not a cache decorator. Lets
  * the eviction/reaper enumerate a composed tier cache through its own store adapter
  * (§14a — the same cstore the read path fills into). */
-void *xrootd_sd_cache_cstore(const xrootd_sd_instance_t *inst);
+void *brix_sd_cache_cstore(const brix_sd_instance_t *inst);
 
-#endif /* XROOTD_SD_CACHE_H */
+#endif /* BRIX_SD_CACHE_H */

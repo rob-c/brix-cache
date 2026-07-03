@@ -12,10 +12,10 @@ consume the x509 proxy credential:
   * ``root://``  — the XrdSecgsi stream handshake (protocol advertisement,
     certreq, server cert + DH agreement, proof-of-possession, proxy-chain
     verification, identity/DN extraction, the session cipher in BOTH data
-    directions via read *and* write), for every ``xrootd_gsi_signed_dh`` policy
+    directions via read *and* write), for every ``brix_gsi_signed_dh`` policy
     (``off`` = unsigned DH, ``auto``/``require`` = RSA-signed DH ≥ 10400).
   * ``https://`` — WebDAV with x509 proxy client-cert auth
-    (``xrootd_webdav_proxy_certs``): PROPFIND/GET/PUT with a proxy, and the
+    (``brix_webdav_proxy_certs``): PROPFIND/GET/PUT with a proxy, and the
     matching rejections.
 
 Negative coverage (the credential must be *refused*): a proxy from an untrusted
@@ -56,7 +56,7 @@ P_ROOT_NEG = 21134          # a dedicated "off" server for negative/identity tes
 P_TLS = 21135               # GSI + in-protocol TLS upgrade
 P_SIGVER = 21136            # GSI + kXR_sigver request signing (security_level)
 P_RSA4096 = 21137           # GSI with RSA-4096 host + proxy keys
-P_BOTH = 21138              # xrootd_auth both (ztn + gsi advertised)
+P_BOTH = 21138              # brix_auth both (ztn + gsi advertised)
 P_VOMS = 21139              # GSI + VOMS VO ACL enforcement
 P_WEBDAV = 21140
 P_CIPHER = 21145            # GSI server advertising ONLY aes-256-cbc (WS-A)
@@ -424,7 +424,7 @@ def _env_with(pki, proxy):
 # Server launchers
 # --------------------------------------------------------------------------- #
 def _nginx_root_conf(pki, port, policy, logpath):
-    sdh = f"    xrootd_gsi_signed_dh {policy};\n" if policy != "off" else ""
+    sdh = f"    brix_gsi_signed_dh {policy};\n" if policy != "off" else ""
     return (
         "daemon off;\n"
         f"error_log {logpath} info;\n"
@@ -432,13 +432,13 @@ def _nginx_root_conf(pki, port, policy, logpath):
         "stream {\n  server {\n"
         f"    listen {port};\n"
         "    xrootd on;\n"
-        f"    xrootd_storage_backend posix:{pki['data']};\n"
-        "    xrootd_auth gsi;\n"
-        "    xrootd_allow_write on;\n"
+        f"    brix_storage_backend posix:{pki['data']};\n"
+        "    brix_auth gsi;\n"
+        "    brix_allow_write on;\n"
         + sdh +
-        f"    xrootd_certificate     {pki['hostcert']};\n"
-        f"    xrootd_certificate_key {pki['hostkey']};\n"
-        f"    xrootd_trusted_ca      {pki['ca']};\n"
+        f"    brix_certificate     {pki['hostcert']};\n"
+        f"    brix_certificate_key {pki['hostkey']};\n"
+        f"    brix_trusted_ca      {pki['ca']};\n"
         "  }\n}\n")
 
 
@@ -482,7 +482,7 @@ def nginx_root_off(pki):
 
 @pytest.fixture(scope="module")
 def nginx_root_both(pki):
-    """A server advertising BOTH token and GSI (`xrootd_auth both`).  The GSI
+    """A server advertising BOTH token and GSI (`brix_auth both`).  The GSI
     client must still pick gsi from the multi-protocol `&P=ztn…&P=gsi…` block and
     authenticate."""
     log = os.path.join(pki["base"], "logs", "root_both.log")
@@ -496,15 +496,15 @@ def nginx_root_both(pki):
         "stream {\n  server {\n"
         f"    listen {P_BOTH};\n"
         "    xrootd on;\n"
-        f"    xrootd_storage_backend posix:{pki['data']};\n"
-        "    xrootd_auth both;\n"
-        "    xrootd_allow_write on;\n"
-        f"    xrootd_token_jwks     {jwks};\n"
-        '    xrootd_token_issuer   "https://test.example.com";\n'
-        '    xrootd_token_audience "nginx-xrootd";\n'
-        f"    xrootd_certificate     {pki['hostcert']};\n"
-        f"    xrootd_certificate_key {pki['hostkey']};\n"
-        f"    xrootd_trusted_ca      {pki['ca']};\n"
+        f"    brix_storage_backend posix:{pki['data']};\n"
+        "    brix_auth both;\n"
+        "    brix_allow_write on;\n"
+        f"    brix_token_jwks     {jwks};\n"
+        '    brix_token_issuer   "https://test.example.com";\n'
+        '    brix_token_audience "nginx-xrootd";\n'
+        f"    brix_certificate     {pki['hostcert']};\n"
+        f"    brix_certificate_key {pki['hostkey']};\n"
+        f"    brix_trusted_ca      {pki['ca']};\n"
         "  }\n}\n")
     proc = _spawn_nginx(conf, pki["base"], P_BOTH, "root_both")
     yield {"url": f"root://{pki['fqdn']}:{P_BOTH}", "log": log}
@@ -513,14 +513,14 @@ def nginx_root_both(pki):
 
 @pytest.fixture(scope="module")
 def nginx_root_aes256(pki):
-    """A GSI server advertising ONLY aes-256-cbc (xrootd_gsi_ciphers).  A
+    """A GSI server advertising ONLY aes-256-cbc (brix_gsi_ciphers).  A
     successful handshake against it proves the client negotiated a NON-default
     session cipher (WS-A) — aes-128-cbc is not on offer, so the proven default
     path cannot be the one exercised."""
     log = os.path.join(pki["base"], "logs", "root_aes256.log")
     conf = _nginx_root_conf(pki, P_CIPHER, "off", log).replace(
-        "    xrootd_auth gsi;\n",
-        '    xrootd_auth gsi;\n    xrootd_gsi_ciphers "aes-256-cbc";\n')
+        "    brix_auth gsi;\n",
+        '    brix_auth gsi;\n    brix_gsi_ciphers "aes-256-cbc";\n')
     proc = _spawn_nginx(conf, pki["base"], P_CIPHER, "root_aes256")
     yield {"url": f"root://{pki['fqdn']}:{P_CIPHER}", "log": log}
     _terminate(proc)
@@ -565,14 +565,14 @@ def nginx_voms(pki, voms):
         "stream {\n  server {\n"
         f"    listen {P_VOMS};\n"
         "    xrootd on;\n"
-        f"    xrootd_storage_backend posix:{vdata};\n"
-        "    xrootd_auth gsi;\n"
-        f"    xrootd_vomsdir       {voms['vomsdir']};\n"
-        f"    xrootd_voms_cert_dir {pki['certs']};\n"
-        "    xrootd_require_vo /vodata testvo;\n"
-        f"    xrootd_certificate     {pki['hostcert']};\n"
-        f"    xrootd_certificate_key {pki['hostkey']};\n"
-        f"    xrootd_trusted_ca      {pki['ca']};\n"
+        f"    brix_storage_backend posix:{vdata};\n"
+        "    brix_auth gsi;\n"
+        f"    brix_vomsdir       {voms['vomsdir']};\n"
+        f"    brix_voms_cert_dir {pki['certs']};\n"
+        "    brix_require_vo /vodata testvo;\n"
+        f"    brix_certificate     {pki['hostcert']};\n"
+        f"    brix_certificate_key {pki['hostkey']};\n"
+        f"    brix_trusted_ca      {pki['ca']};\n"
         "  }\n}\n")
     proc = _spawn_nginx(conf, pki["base"], P_VOMS, "voms")
     yield {"url": f"root://{pki['fqdn']}:{P_VOMS}"}
@@ -591,13 +591,13 @@ def nginx_root_tls(pki):
         "stream {\n  server {\n"
         f"    listen {P_TLS};\n"
         "    xrootd on;\n"
-        f"    xrootd_storage_backend posix:{pki['data']};\n"
-        "    xrootd_auth gsi;\n"
-        "    xrootd_allow_write on;\n"
-        "    xrootd_tls on;\n"
-        f"    xrootd_certificate     {pki['hostcert']};\n"
-        f"    xrootd_certificate_key {pki['hostkey']};\n"
-        f"    xrootd_trusted_ca      {pki['ca']};\n"
+        f"    brix_storage_backend posix:{pki['data']};\n"
+        "    brix_auth gsi;\n"
+        "    brix_allow_write on;\n"
+        "    brix_tls on;\n"
+        f"    brix_certificate     {pki['hostcert']};\n"
+        f"    brix_certificate_key {pki['hostkey']};\n"
+        f"    brix_trusted_ca      {pki['ca']};\n"
         "  }\n}\n")
     proc = _spawn_nginx(conf, pki["base"], P_TLS, "root_tls")
     # roots:// forces the TLS upgrade after the GSI login.
@@ -619,13 +619,13 @@ def nginx_root_sigver(pki):
         "stream {\n  server {\n"
         f"    listen {P_SIGVER};\n"
         "    xrootd on;\n"
-        f"    xrootd_storage_backend posix:{pki['data']};\n"
-        "    xrootd_auth gsi;\n"
-        "    xrootd_allow_write on;\n"
-        "    xrootd_security_level intense;\n"
-        f"    xrootd_certificate     {pki['hostcert']};\n"
-        f"    xrootd_certificate_key {pki['hostkey']};\n"
-        f"    xrootd_trusted_ca      {pki['ca']};\n"
+        f"    brix_storage_backend posix:{pki['data']};\n"
+        "    brix_auth gsi;\n"
+        "    brix_allow_write on;\n"
+        "    brix_security_level intense;\n"
+        f"    brix_certificate     {pki['hostcert']};\n"
+        f"    brix_certificate_key {pki['hostkey']};\n"
+        f"    brix_trusted_ca      {pki['ca']};\n"
         "  }\n}\n")
     proc = _spawn_nginx(conf, pki["base"], P_SIGVER, "root_sigver")
     yield {"url": f"root://{pki['fqdn']}:{P_SIGVER}", "log": log}
@@ -673,13 +673,13 @@ def nginx_rsa4096(pki, rsa4096):
         "stream {\n  server {\n"
         f"    listen {P_RSA4096};\n"
         "    xrootd on;\n"
-        f"    xrootd_storage_backend posix:{pki['data']};\n"
-        "    xrootd_auth gsi;\n"
-        "    xrootd_allow_write on;\n"
-        "    xrootd_gsi_signed_dh require;\n"
-        f"    xrootd_certificate     {rsa4096['hostcert']};\n"
-        f"    xrootd_certificate_key {rsa4096['hostkey']};\n"
-        f"    xrootd_trusted_ca      {rsa4096['ca']};\n"
+        f"    brix_storage_backend posix:{pki['data']};\n"
+        "    brix_auth gsi;\n"
+        "    brix_allow_write on;\n"
+        "    brix_gsi_signed_dh require;\n"
+        f"    brix_certificate     {rsa4096['hostcert']};\n"
+        f"    brix_certificate_key {rsa4096['hostkey']};\n"
+        f"    brix_trusted_ca      {rsa4096['ca']};\n"
         "  }\n}\n")
     proc = _spawn_nginx(conf, pki["base"], P_RSA4096, "rsa4096")
     yield {"url": f"root://{pki['fqdn']}:{P_RSA4096}", "env": rsa4096["env"]}
@@ -735,15 +735,15 @@ def nginx_webdav(pki):
         f"    ssl_certificate_key {pki['hostkey']};\n"
         "    ssl_verify_client   optional_no_ca;\n"
         "    ssl_verify_depth    10;\n"
-        "    xrootd_webdav_proxy_certs on;\n"
+        "    brix_webdav_proxy_certs on;\n"
         "    client_max_body_size 64m;\n"
         "    location / {\n"
         f"      root               {wdata};\n"
-        "      xrootd_webdav      on;\n"
-        f"      xrootd_webdav_storage_backend posix:{wdata};\n"
-        f"      xrootd_webdav_cadir {pki['certs']};\n"
-        "      xrootd_webdav_auth required;\n"
-        "      xrootd_webdav_allow_write on;\n"
+        "      brix_webdav      on;\n"
+        f"      brix_webdav_storage_backend posix:{wdata};\n"
+        f"      brix_webdav_cadir {pki['certs']};\n"
+        "      brix_webdav_auth required;\n"
+        "      brix_webdav_allow_write on;\n"
         "    }\n  }\n}\n")
     proc = _spawn_nginx(conf, base, P_WEBDAV, "webdav")
     yield {"url": f"https://{pki['fqdn']}:{P_WEBDAV}", "data": wdata, "log": log}

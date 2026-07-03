@@ -19,23 +19,23 @@ static int g_fail;
 
 static void test_known_service(void)
 {
-    xrootd_ssi_provider_t p;
-    CHECK(xrootd_ssi_provider_lookup("echo", &p) == 1);
+    brix_ssi_provider_t p;
+    CHECK(brix_ssi_provider_lookup("echo", &p) == 1);
     CHECK(p.process != NULL);
     CHECK(strcmp(p.name, "echo") == 0);
 }
 
 static void test_unknown_service(void)
 {
-    xrootd_ssi_provider_t p;
+    brix_ssi_provider_t p;
     memset(&p, 0xff, sizeof(p));
-    CHECK(xrootd_ssi_provider_lookup("nope", &p) == 0);
+    CHECK(brix_ssi_provider_lookup("nope", &p) == 0);
 }
 
 static void test_null_name(void)
 {
-    xrootd_ssi_provider_t p;
-    CHECK(xrootd_ssi_provider_lookup(NULL, &p) == 0);
+    brix_ssi_provider_t p;
+    CHECK(brix_ssi_provider_lookup(NULL, &p) == 0);
 }
 
 int main(void)

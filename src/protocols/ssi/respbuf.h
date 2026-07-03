@@ -1,5 +1,5 @@
-#ifndef XROOTD_SSI_RESPBUF_H
-#define XROOTD_SSI_RESPBUF_H
+#ifndef BRIX_SSI_RESPBUF_H
+#define BRIX_SSI_RESPBUF_H
 
 /*
  * respbuf.h — a grow-on-append response byte buffer.
@@ -27,14 +27,14 @@ typedef struct {
     size_t         len;
     size_t         cap;
     ngx_pool_t    *pool;   /* set before the first append (NULL in unit tests) */
-} xrootd_ssi_respbuf_t;
+} brix_ssi_respbuf_t;
 
 /*
  * Append n bytes; grows the backing block as needed. Returns 0 on success, -1 if
  * appending would exceed cap_max or allocation fails (the buffer is unchanged on
  * failure).
  */
-int xrootd_ssi_respbuf_append(xrootd_ssi_respbuf_t *b, const unsigned char *p,
+int brix_ssi_respbuf_append(brix_ssi_respbuf_t *b, const unsigned char *p,
                               size_t n, size_t cap_max);
 
-#endif /* XROOTD_SSI_RESPBUF_H */
+#endif /* BRIX_SSI_RESPBUF_H */

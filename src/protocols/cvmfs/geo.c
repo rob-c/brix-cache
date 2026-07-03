@@ -10,7 +10,7 @@
  * HOW:  responses are tiny (a comma-separated index list; manifests are a
  *       few hundred bytes), so one bounded in-memory transport request on a
  *       thread-pool task is appropriate — the same aio posting idiom the
- *       tier fills use (xrootd_task_bind, r->main->count++, finalize in the
+ *       tier fills use (brix_task_bind, r->main->count++, finalize in the
  *       done handler). The response buffer is pool-allocated BEFORE the
  *       post: the request pool is never touched off the event loop.
  */
@@ -38,8 +38,8 @@ static void
 cvmfs_pt_thread(void *data, ngx_log_t *log)
 {
     cvmfs_pt_task_t              *t = data;
-    const xrootd_s3_transport_t  *tr = &xrootd_s3_origin_curl_transport;
-    xrootd_s3_resp_t              resp;
+    const brix_s3_transport_t  *tr = &brix_s3_origin_curl_transport;
+    brix_s3_resp_t              resp;
     const void                   *body;
     size_t                        blen = 0;
     char                          errbuf[256];
@@ -108,11 +108,11 @@ cvmfs_pt_done(ngx_event_t *ev)
 /* Route a classified request to the origin, uncached. Returns NGX_DONE
  * (async completion via cvmfs_pt_done) or an HTTP error status. */
 ngx_int_t
-xrootd_cvmfs_geo_passthrough(ngx_http_request_t *r,
-    ngx_http_xrootd_cvmfs_loc_conf_t *lcf)
+brix_cvmfs_geo_passthrough(ngx_http_request_t *r,
+    ngx_http_brix_cvmfs_loc_conf_t *lcf)
 {
-    ngx_http_xrootd_cvmfs_ctx_t *ctx =
-        ngx_http_get_module_ctx(r, ngx_http_xrootd_cvmfs_module);
+    ngx_http_brix_cvmfs_ctx_t *ctx =
+        ngx_http_get_module_ctx(r, ngx_http_brix_cvmfs_module);
     cvmfs_pt_task_t    *t;
     const char         *host, *base, *root;
     int                 port, tls, n;
@@ -122,7 +122,7 @@ xrootd_cvmfs_geo_passthrough(ngx_http_request_t *r,
     /* proxy mode (T14) resolves against the per-upstream registry root */
     root = (ctx != NULL && ctx->up_root != NULL) ? ctx->up_root
                                                  : lcf->common.root_canon;
-    if (xrootd_vfs_backend_http_endpoint(root, &host, &port, &tls, &base)
+    if (brix_vfs_backend_http_endpoint(root, &host, &port, &tls, &base)
         != 0)
     {
         /* passthrough requires an http(s) backend */
@@ -173,7 +173,7 @@ xrootd_cvmfs_geo_passthrough(ngx_http_request_t *r,
         return NGX_HTTP_REQUEST_URI_TOO_LARGE;
     }
 
-    xrootd_task_bind(task, cvmfs_pt_thread, cvmfs_pt_done);
+    brix_task_bind(task, cvmfs_pt_thread, cvmfs_pt_done);
     task->event.log = r->connection->log;
 
     if (ngx_thread_task_post(pool, task) != NGX_OK) {

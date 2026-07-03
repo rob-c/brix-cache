@@ -1,7 +1,7 @@
 """
 test_health_endpoint.py — phase-47 W2: the /healthz liveness/readiness probe.
 
-The metrics server block carries `xrootd_health on;` at `location = /healthz`
+The metrics server block carries `brix_health on;` at `location = /healthz`
 (see tests/configs/nginx_shared.conf). These tests assert the contract an LB or
 Kubernetes probe relies on:
 
@@ -32,7 +32,7 @@ def test_healthz_liveness_ok(test_env):
     body = json.loads(r.text)
     assert body["status"] == "ok"
     assert body["service"] == "BriX-Cache"
-    assert body["version"] == "v1.0.5"
+    assert body["version"] == "v1.0.8"
 
 
 def test_healthz_verbose_readiness(test_env):

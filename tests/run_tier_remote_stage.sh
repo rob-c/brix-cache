@@ -35,14 +35,14 @@ mkdir -p "$PFX/o/root" "$PFX/o/logs" "$PFX/s/root" "$PFX/s/logs" \
 cat > "$PFX/o/nginx.conf" <<EOF
 daemon on; error_log $PFX/o/logs/e.log error; pid $PFX/o/nginx.pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${OPORT}; xrootd on; xrootd_root $PFX/o/root; xrootd_auth none; xrootd_allow_write on; } }
+stream { server { listen 127.0.0.1:${OPORT}; xrootd on; brix_root $PFX/o/root; brix_auth none; brix_allow_write on; } }
 EOF
 
 # S — writable REMOTE stage store (holds the in-progress staged upload).
 cat > "$PFX/s/nginx.conf" <<EOF
 daemon on; error_log $PFX/s/logs/e.log info; pid $PFX/s/nginx.pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${SPORT}; xrootd on; xrootd_root $PFX/s/root; xrootd_auth none; xrootd_allow_write on; } }
+stream { server { listen 127.0.0.1:${SPORT}; xrootd on; brix_root $PFX/s/root; brix_auth none; brix_allow_write on; } }
 EOF
 
 # B — WebDAV node: remote backend + REMOTE stage store, sync flush.
@@ -56,14 +56,14 @@ http {
         listen 127.0.0.1:${BPORT};
         location / {
             dav_methods PUT DELETE;
-            xrootd_webdav on;
-            xrootd_webdav_root $PFX/b/export;
-            xrootd_webdav_auth none;
-            xrootd_webdav_allow_write on;
-            xrootd_webdav_storage_backend root://127.0.0.1:${OPORT};
-            xrootd_webdav_stage on;
-            xrootd_webdav_stage_store root://127.0.0.1:${SPORT};
-            xrootd_webdav_stage_flush sync;
+            brix_webdav on;
+            brix_webdav_root $PFX/b/export;
+            brix_webdav_auth none;
+            brix_webdav_allow_write on;
+            brix_webdav_storage_backend root://127.0.0.1:${OPORT};
+            brix_webdav_stage on;
+            brix_webdav_stage_store root://127.0.0.1:${SPORT};
+            brix_webdav_stage_flush sync;
         }
     }
 }

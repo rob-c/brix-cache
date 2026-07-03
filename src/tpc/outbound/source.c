@@ -57,7 +57,7 @@ tpc_set_rcvtimeo(int fd, int secs)
  * here block only this transfer's thread, never the nginx event loop.
  */
 static int
-tpc_open_resolve(xrootd_tpc_pull_t *t, int fd,
+tpc_open_resolve(brix_tpc_pull_t *t, int fd,
                  const u_char *open_buf, size_t send_len,
                  uint16_t *status, u_char **body, uint32_t *dlen)
 {
@@ -190,7 +190,7 @@ tpc_open_resolve(xrootd_tpc_pull_t *t, int fd,
  * failure the caller has no origin handle to close.
  */
 static int
-tpc_open_source(xrootd_tpc_pull_t *t, int fd, u_char fhandle[XRD_FHANDLE_LEN])
+tpc_open_source(brix_tpc_pull_t *t, int fd, u_char fhandle[XRD_FHANDLE_LEN])
 {
     u_char            open_buf[sizeof(ClientOpenRequest) + PATH_MAX + 512];
     ClientOpenRequest *opreq;
@@ -329,7 +329,7 @@ tpc_open_source(xrootd_tpc_pull_t *t, int fd, u_char fhandle[XRD_FHANDLE_LEN])
  * best-effort remote close on either outcome.
  */
 static int
-tpc_stream_to_dst(xrootd_tpc_pull_t *t, int fd, const u_char *fhandle)
+tpc_stream_to_dst(brix_tpc_pull_t *t, int fd, const u_char *fhandle)
 {
     ClientReadRequest  rdreq;
     uint64_t           offset;
@@ -368,7 +368,7 @@ tpc_stream_to_dst(xrootd_tpc_pull_t *t, int fd, const u_char *fhandle)
 
         if (pull_max > 0 && (time(NULL) - pull_start) > pull_max) {
             snprintf(t->err_msg, sizeof(t->err_msg),
-                     "TPC pull exceeded xrootd_tpc_max_transfer_secs (%lds) "
+                     "TPC pull exceeded brix_tpc_max_transfer_secs (%lds) "
                      "at offset %llu", (long) pull_max,
                      (unsigned long long) offset);
             t->xrd_error = kXR_IOError;
@@ -440,7 +440,7 @@ tpc_stream_to_dst(xrootd_tpc_pull_t *t, int fd, const u_char *fhandle)
             }
 
             if (dlen > 0 && body != NULL) {
-                xrootd_vfs_job_t job;
+                brix_vfs_job_t job;
                 off_t            dst_offset;
 
                 if (offset > (uint64_t) LLONG_MAX - (uint64_t) got_this_req) {
@@ -453,9 +453,9 @@ tpc_stream_to_dst(xrootd_tpc_pull_t *t, int fd, const u_char *fhandle)
                 }
 
                 dst_offset = (off_t) (offset + (uint64_t) got_this_req);
-                xrootd_vfs_job_write_init(&job, t->dst_fd, dst_offset, body,
+                brix_vfs_job_write_init(&job, t->dst_fd, dst_offset, body,
                                            (size_t) dlen);
-                xrootd_vfs_io_execute(&job);
+                brix_vfs_io_execute(&job);
                 if (job.io_errno != 0 || job.nio < 0
                     || (uint32_t) job.nio != dlen)
                 {
@@ -471,9 +471,9 @@ tpc_stream_to_dst(xrootd_tpc_pull_t *t, int fd, const u_char *fhandle)
 
                 got_this_req += (size_t) job.nio;
                 t->bytes_written += (size_t) job.nio;
-                (void) xrootd_tpc_progress_emit(
+                (void) brix_tpc_progress_emit(
                     t->transfer_id, (off_t) t->bytes_written, 0,
-                    XROOTD_TPC_STATE_ACTIVE,
+                    BRIX_TPC_STATE_ACTIVE,
                     t->c != NULL ? t->c->log : NULL);
             }
 
@@ -508,10 +508,10 @@ tpc_stream_to_dst(xrootd_tpc_pull_t *t, int fd, const u_char *fhandle)
     }
 
     {
-        xrootd_vfs_job_t job;
+        brix_vfs_job_t job;
 
-        xrootd_vfs_job_sync_init(&job, t->dst_fd);
-        xrootd_vfs_io_execute(&job);
+        brix_vfs_job_sync_init(&job, t->dst_fd);
+        brix_vfs_io_execute(&job);
         if (job.io_errno != 0) {
             /* Sync before declaring success: TPC durability guarantee — the
              * client's kXR_open/sync reply must not be sent until bytes are on
@@ -537,7 +537,7 @@ tpc_stream_to_dst(xrootd_tpc_pull_t *t, int fd, const u_char *fhandle)
  * streamid[1]=2 reuses the open tag.
  */
 static void
-tpc_close_source(xrootd_tpc_pull_t *t, int fd, const u_char *fhandle)
+tpc_close_source(brix_tpc_pull_t *t, int fd, const u_char *fhandle)
 {
     ClientCloseRequest clreq;
     uint16_t           s;
@@ -562,7 +562,7 @@ tpc_close_source(xrootd_tpc_pull_t *t, int fd, const u_char *fhandle)
  * -1 on failure (t->err_msg / t->xrd_error set). See the per-phase helpers above.
  */
 int
-tpc_pull_from_source(xrootd_tpc_pull_t *t, int fd)
+tpc_pull_from_source(brix_tpc_pull_t *t, int fd)
 {
     u_char fhandle[XRD_FHANDLE_LEN];
     int    rc;

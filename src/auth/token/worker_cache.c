@@ -8,7 +8,7 @@
  */
 
 #include "worker_cache.h"
-#include "core/compat/crypto.h"   /* xrootd_sha256 */
+#include "core/compat/crypto.h"   /* brix_sha256 */
 
 #include <time.h>
 
@@ -18,23 +18,23 @@
  * revocation / key rotation is picked up within this window.  Kept in seconds
  * here (the L1 expiry is an absolute unix time).
  */
-#define XROOTD_TOKEN_L1_MAX_TTL_SECS  (5 * 60)
+#define BRIX_TOKEN_L1_MAX_TTL_SECS  (5 * 60)
 
 typedef struct {
     u_char                 fp[32];     /* SHA-256(token); all-zero = empty slot */
     int64_t                expire_at;  /* unix secs; entry invalid once now >= */
-    xrootd_token_claims_t  claims;     /* the cached, already-validated claims  */
-} xrootd_token_l1_slot_t;
+    brix_token_claims_t  claims;     /* the cached, already-validated claims  */
+} brix_token_l1_slot_t;
 
-struct xrootd_token_l1_s {
+struct brix_token_l1_s {
     ngx_uint_t               nslots;
-    xrootd_token_l1_slot_t  *slots;
+    brix_token_l1_slot_t  *slots;
 };
 
-xrootd_token_l1_t *
-xrootd_token_l1_create(ngx_pool_t *pool, ngx_uint_t slots)
+brix_token_l1_t *
+brix_token_l1_create(ngx_pool_t *pool, ngx_uint_t slots)
 {
-    xrootd_token_l1_t  *cache;
+    brix_token_l1_t  *cache;
 
     if (slots < 64) {
         slots = 64;
@@ -45,7 +45,7 @@ xrootd_token_l1_create(ngx_pool_t *pool, ngx_uint_t slots)
         return NULL;
     }
 
-    cache->slots = ngx_pcalloc(pool, slots * sizeof(xrootd_token_l1_slot_t));
+    cache->slots = ngx_pcalloc(pool, slots * sizeof(brix_token_l1_slot_t));
     if (cache->slots == NULL) {
         return NULL;
     }
@@ -59,12 +59,12 @@ xrootd_token_l1_create(ngx_pool_t *pool, ngx_uint_t slots)
  * fingerprint bytes — uniformly distributed for SHA-256 output.
  */
 static int
-xrootd_token_l1_locate(xrootd_token_l1_t *cache, const char *token,
+brix_token_l1_locate(brix_token_l1_t *cache, const char *token,
     size_t token_len, u_char fp[32], ngx_uint_t *idx)
 {
     uint32_t  h;
 
-    if (xrootd_sha256((const u_char *) token, token_len, fp) != 1) {
+    if (brix_sha256((const u_char *) token, token_len, fp) != 1) {
         return 0;
     }
     h = ((uint32_t) fp[0] << 24) | ((uint32_t) fp[1] << 16)
@@ -74,17 +74,17 @@ xrootd_token_l1_locate(xrootd_token_l1_t *cache, const char *token,
 }
 
 int
-xrootd_token_l1_lookup(xrootd_token_l1_t *cache, const char *token,
-    size_t token_len, xrootd_token_claims_t *claims)
+brix_token_l1_lookup(brix_token_l1_t *cache, const char *token,
+    size_t token_len, brix_token_claims_t *claims)
 {
-    xrootd_token_l1_slot_t  *slot;
+    brix_token_l1_slot_t  *slot;
     u_char                   fp[32];
     ngx_uint_t               idx;
 
     if (cache == NULL || token == NULL || token_len == 0) {
         return 0;
     }
-    if (!xrootd_token_l1_locate(cache, token, token_len, fp, &idx)) {
+    if (!brix_token_l1_locate(cache, token, token_len, fp, &idx)) {
         return 0;
     }
 
@@ -103,10 +103,10 @@ xrootd_token_l1_lookup(xrootd_token_l1_t *cache, const char *token,
 }
 
 void
-xrootd_token_l1_store(xrootd_token_l1_t *cache, const char *token,
-    size_t token_len, const xrootd_token_claims_t *claims)
+brix_token_l1_store(brix_token_l1_t *cache, const char *token,
+    size_t token_len, const brix_token_claims_t *claims)
 {
-    xrootd_token_l1_slot_t  *slot;
+    brix_token_l1_slot_t  *slot;
     u_char                   fp[32];
     ngx_uint_t               idx;
     int64_t                  now, expire_at;
@@ -114,20 +114,20 @@ xrootd_token_l1_store(xrootd_token_l1_t *cache, const char *token,
     if (cache == NULL || token == NULL || token_len == 0) {
         return;
     }
-    if (!xrootd_token_l1_locate(cache, token, token_len, fp, &idx)) {
+    if (!brix_token_l1_locate(cache, token, token_len, fp, &idx)) {
         return;
     }
 
     now = (int64_t) time(NULL);
     if (claims->exp <= 0) {
-        expire_at = now + XROOTD_TOKEN_L1_MAX_TTL_SECS;
+        expire_at = now + BRIX_TOKEN_L1_MAX_TTL_SECS;
     } else {
         if (claims->exp <= now) {
             return;                        /* already expired — don't cache */
         }
         expire_at = claims->exp;
-        if (expire_at > now + XROOTD_TOKEN_L1_MAX_TTL_SECS) {
-            expire_at = now + XROOTD_TOKEN_L1_MAX_TTL_SECS;
+        if (expire_at > now + BRIX_TOKEN_L1_MAX_TTL_SECS) {
+            expire_at = now + BRIX_TOKEN_L1_MAX_TTL_SECS;
         }
     }
 

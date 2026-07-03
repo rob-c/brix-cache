@@ -1,4 +1,4 @@
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 
 /*
  *
@@ -7,7 +7,7 @@
  * WHY: Config merging across nginx hierarchy (main→srv→loc) requires combining parent-level and child-level array entries — ACL rules, policy entries, and other list-based configurations must be inherited while preserving local overrides. This helper provides a reusable merge pattern that handles NULL inputs gracefully without requiring callers to implement the concatenation logic themselves. Consistency invariant: all config merge operations in path/acl.c, handshake/policy.c, etc. must use this same function to ensure uniform array merging behavior across the codebase. Thread safety: pure function with no shared state — operates only on provided arrays and local stack variables during config setup phase. */
 
 ngx_array_t *
-xrootd_merge_arrays(ngx_conf_t *cf, ngx_array_t *parent, ngx_array_t *child,
+brix_merge_arrays(ngx_conf_t *cf, ngx_array_t *parent, ngx_array_t *child,
                     size_t element_size)
 {
     ngx_array_t *merged;

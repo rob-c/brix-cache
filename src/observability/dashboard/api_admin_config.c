@@ -11,7 +11,7 @@
  *       every mutating handler below assumes the caller is already authorized.
  * HOW:  Auth first (403 + audit on failure), then match the resource (cluster
  *       registry vs dynamic proxy pool) and dispatch by HTTP method. Body-bearing
- *       routes go through xrootd_admin_read_body (async); the rest run inline.
+ *       routes go through brix_admin_read_body (async); the rest run inline.
  *       Unknown resource -> 404, wrong method on a known resource -> 405.
  */
 /* POST body handler: flip the io_uring runtime kill switch.  Body {"enabled":
@@ -30,7 +30,7 @@ admin_io_uring_set(ngx_http_request_t *r, json_t *body)
     }
     enabled = json_is_true(en);
 
-    if (xrootd_uring_killswitch_set(enabled ? 0 : 1) != NGX_OK) {
+    if (brix_uring_killswitch_set(enabled ? 0 : 1) != NGX_OK) {
         admin_audit(r, "io_uring", NULL, "not_enabled");
         return admin_send_error(r, NGX_HTTP_NOT_FOUND, "io_uring_not_enabled");
     }
@@ -60,18 +60,18 @@ admin_io_uring_get(ngx_http_request_t *r)
     }
     dashboard_json_set_schema(root);
     json_object_set_new(root, "disabled",
-                        json_boolean(xrootd_uring_killswitch_get() != 0));
+                        json_boolean(brix_uring_killswitch_get() != 0));
     return dashboard_json_send(r, NGX_HTTP_OK, root);
 }
 
 
-/* Directive setter for `xrootd_admin_allow <cidr>...`: append each CIDR arg to
+/* Directive setter for `brix_admin_allow <cidr>...`: append each CIDR arg to
  * the loc-conf allowlist array (created lazily). NGX_DONE from ngx_ptocidr means
  * the address had non-zero host bits, which is a warning, not an error. */
 char *
-xrootd_admin_set_allow(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+brix_admin_set_allow(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    ngx_http_xrootd_dashboard_loc_conf_t *lcf = conf;
+    ngx_http_brix_dashboard_loc_conf_t *lcf = conf;
     ngx_str_t  *value = cf->args->elts;
     ngx_uint_t  i;
 
@@ -94,13 +94,13 @@ xrootd_admin_set_allow(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         rc = ngx_ptocidr(&value[i], cidr);
         if (rc == NGX_ERROR) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                               "invalid CIDR \"%V\" in xrootd_admin_allow",
+                               "invalid CIDR \"%V\" in brix_admin_allow",
                                &value[i]);
             return NGX_CONF_ERROR;
         }
         if (rc == NGX_DONE) {
             ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
-                "low address bits of \"%V\" in xrootd_admin_allow were ignored",
+                "low address bits of \"%V\" in brix_admin_allow were ignored",
                 &value[i]);
         }
     }
@@ -109,7 +109,7 @@ xrootd_admin_set_allow(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
 
 /*
- * WHAT: Directive setter for `xrootd_admin_secret <file>`: load the bearer token
+ * WHAT: Directive setter for `brix_admin_secret <file>`: load the bearer token
  *       from a file at config time.
  * WHY:  Keeping the secret in a file (not inline in nginx.conf) limits exposure;
  *       the transient stack copy is OPENSSL_cleanse'd on every exit path so it
@@ -119,9 +119,9 @@ xrootd_admin_set_allow(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
  *       trimmed token into the pool.
  */
 char *
-xrootd_admin_set_secret(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+brix_admin_set_secret(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    ngx_http_xrootd_dashboard_loc_conf_t *lcf = conf;
+    ngx_http_brix_dashboard_loc_conf_t *lcf = conf;
     ngx_str_t   *value = cf->args->elts;
     ngx_str_t    path = value[1];
     ngx_file_t   file;
@@ -144,7 +144,7 @@ xrootd_admin_set_secret(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     file.fd   = ngx_open_file(path.data, NGX_FILE_RDONLY, NGX_FILE_OPEN, 0);
     if (file.fd == NGX_INVALID_FILE) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
-                           "xrootd_admin_secret: cannot open \"%V\"", &path);
+                           "brix_admin_secret: cannot open \"%V\"", &path);
         return NGX_CONF_ERROR;
     }
 
@@ -152,7 +152,7 @@ xrootd_admin_set_secret(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     ngx_close_file(file.fd);
     if (n <= 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "xrootd_admin_secret: \"%V\" is empty or unreadable",
+                           "brix_admin_secret: \"%V\" is empty or unreadable",
                            &path);
         return NGX_CONF_ERROR;
     }
@@ -166,7 +166,7 @@ xrootd_admin_set_secret(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     if (len == 0) {
         OPENSSL_cleanse(rbuf, sizeof(rbuf));
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "xrootd_admin_secret: \"%V\" contains no token",
+                           "brix_admin_secret: \"%V\" contains no token",
                            &path);
         return NGX_CONF_ERROR;
     }
@@ -174,7 +174,7 @@ xrootd_admin_set_secret(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     if (len < ADMIN_SECRET_MIN) {
         OPENSSL_cleanse(rbuf, sizeof(rbuf));
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "xrootd_admin_secret: \"%V\" token is too short "
+                           "brix_admin_secret: \"%V\" token is too short "
                            "(%uz bytes; need >= %d)", &path, len,
                            (int) ADMIN_SECRET_MIN);
         return NGX_CONF_ERROR;

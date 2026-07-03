@@ -51,18 +51,18 @@
  */
 static void
 s3_tag_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
-    ngx_http_s3_loc_conf_t *cf, xrootd_vfs_ctx_t *vctx)
+    ngx_http_s3_loc_conf_t *cf, brix_vfs_ctx_t *vctx)
 {
     ngx_http_s3_req_ctx_t *s3ctx;
     int                    is_tls = 0;
 
-    s3ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+    s3ctx = ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
 
 #if (NGX_HTTP_SSL)
     is_tls = (r->connection->ssl != NULL) ? 1 : 0;
 #endif
 
-    xrootd_vfs_ctx_init(vctx, r->pool, r->connection->log, XROOTD_PROTO_S3,
+    brix_vfs_ctx_init(vctx, r->pool, r->connection->log, BRIX_PROTO_S3,
         cf->common.root_canon, cf->cache_root_canon, cf->common.allow_write,
         is_tls, (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
 }
@@ -73,7 +73,7 @@ static ssize_t
 s3_tag_load(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     const char *fs_path, char *out, size_t outsz)
 {
-    xrootd_vfs_ctx_t vctx;
+    brix_vfs_ctx_t vctx;
     ssize_t          n;
 
     /*
@@ -85,7 +85,7 @@ s3_tag_load(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
      * is a plain path-based getxattr.
      */
     s3_tag_vfs_ctx(r, fs_path, cf, &vctx);
-    n = xrootd_vfs_getxattr(&vctx, S3_TAG_XATTR, out, outsz - 1);
+    n = brix_vfs_getxattr(&vctx, S3_TAG_XATTR, out, outsz - 1);
     if (n < 0) {
         if (errno == ENODATA || errno == ENOTSUP || errno == EOPNOTSUPP) {
             return 0;   /* object readable, just carries no tags */
@@ -101,7 +101,7 @@ static ngx_int_t
 s3_tag_store(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     const char *fs_path, const char *blob, size_t blob_len, int remove_it)
 {
-    xrootd_vfs_ctx_t vctx;
+    brix_vfs_ctx_t vctx;
 
     /*
      * Impersonation (the bug this fixes): the old path opened O_RDONLY via the
@@ -120,13 +120,13 @@ s3_tag_store(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     s3_tag_vfs_ctx(r, fs_path, cf, &vctx);
 
     if (remove_it) {
-        if (xrootd_vfs_removexattr(&vctx, S3_TAG_XATTR) == NGX_OK) {
+        if (brix_vfs_removexattr(&vctx, S3_TAG_XATTR) == NGX_OK) {
             return NGX_OK;
         }
         return (errno == ENODATA) ? NGX_OK : NGX_ERROR;
     }
 
-    return xrootd_vfs_setxattr(&vctx, S3_TAG_XATTR, blob, blob_len, 0) == NGX_OK
+    return brix_vfs_setxattr(&vctx, S3_TAG_XATTR, blob, blob_len, 0) == NGX_OK
            ? NGX_OK : NGX_ERROR;
 }
 
@@ -166,12 +166,12 @@ s3_handle_get_object_tagging(ngx_http_request_t *r, const char *fs_path,
     if (blen < 0) {
         return s3_fail(r, NGX_HTTP_NOT_FOUND, "NoSuchKey",
                        "The specified key does not exist.",
-                       XROOTD_S3_EVENT_NO_SUCH_KEY);
+                       BRIX_S3_EVENT_NO_SUCH_KEY);
     }
 
     xml = ngx_palloc(r->pool, xml_capacity);
     if (xml == NULL) {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
@@ -193,13 +193,13 @@ s3_handle_get_object_tagging(ngx_http_request_t *r, const char *fs_path,
         eq = strchr(p, '=');
         if (eq != NULL) {
             *eq = '\0';
-            klen = xrootd_http_urldecode((u_char *) p, ngx_strlen(p),
-                       kbuf, sizeof(kbuf), XROOTD_URLDECODE_PLUS_TO_SPACE)
-                   == XROOTD_URLDECODE_OK ? ngx_strlen(kbuf) : 0;
-            vlen = xrootd_http_urldecode((u_char *) (eq + 1),
+            klen = brix_http_urldecode((u_char *) p, ngx_strlen(p),
+                       kbuf, sizeof(kbuf), BRIX_URLDECODE_PLUS_TO_SPACE)
+                   == BRIX_URLDECODE_OK ? ngx_strlen(kbuf) : 0;
+            vlen = brix_http_urldecode((u_char *) (eq + 1),
                        ngx_strlen(eq + 1), vbuf, sizeof(vbuf),
-                       XROOTD_URLDECODE_PLUS_TO_SPACE)
-                   == XROOTD_URLDECODE_OK ? ngx_strlen(vbuf) : 0;
+                       BRIX_URLDECODE_PLUS_TO_SPACE)
+                   == BRIX_URLDECODE_OK ? ngx_strlen(vbuf) : 0;
             XML_APPEND("<Tag>");
             XML_APPEND_ELEM("Key", kbuf, klen);
             XML_APPEND_ELEM("Value", vbuf, vlen);
@@ -215,12 +215,12 @@ s3_handle_get_object_tagging(ngx_http_request_t *r, const char *fs_path,
 
     buf = ngx_create_temp_buf(r->pool, xml_len + 4);
     if (buf == NULL) {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
     buf->last = ngx_cpymem(buf->last, xml, xml_len);
     buf->last_buf = 1;
-    return xrootd_http_send_xml_buffer(r, NGX_HTTP_OK,
+    return brix_http_send_xml_buffer(r, NGX_HTTP_OK,
         (ngx_str_t) ngx_string("application/xml"), buf);
 }
 
@@ -232,7 +232,7 @@ s3_handle_delete_object_tagging(ngx_http_request_t *r, const char *fs_path,
     if (s3_tag_store(r, cf, fs_path, NULL, 0, 1 /* remove */) != NGX_OK) {
         return s3_fail(r, NGX_HTTP_NOT_FOUND, "NoSuchKey",
                        "The specified key does not exist.",
-                       XROOTD_S3_EVENT_NO_SUCH_KEY);
+                       BRIX_S3_EVENT_NO_SUCH_KEY);
     }
     r->headers_out.status           = NGX_HTTP_NO_CONTENT;
     r->headers_out.content_length_n = 0;
@@ -247,9 +247,9 @@ s3_apply_put_tagging_header(ngx_http_request_t *r, const char *fs_path,
 {
     ngx_table_elt_t        *h;
     ngx_http_s3_loc_conf_t *cf =
-        ngx_http_get_module_loc_conf(r, ngx_http_xrootd_s3_module);
+        ngx_http_get_module_loc_conf(r, ngx_http_brix_s3_module);
 
-    h = xrootd_http_find_header(r, "x-amz-tagging",
+    h = brix_http_find_header(r, "x-amz-tagging",
                                 sizeof("x-amz-tagging") - 1);
     if (h == NULL || h->value.len == 0) {
         return NGX_OK;
@@ -319,12 +319,12 @@ s3_tag_blob_from_xml(ngx_http_request_t *r, const u_char *body, size_t len,
                 if (pos != 0 && pos < outsz) {
                     out[pos++] = '&';
                 }
-                xrootd_http_urlencode(key, ngx_strlen((char *) key),
+                brix_http_urlencode(key, ngx_strlen((char *) key),
                                       enc, sizeof(enc), "");
                 n = ngx_strlen(enc);
                 if (pos + n < outsz) { ngx_memcpy(out + pos, enc, n); pos += n; }
                 if (pos < outsz) { out[pos++] = '='; }
-                xrootd_http_urlencode(val, ngx_strlen((char *) val),
+                brix_http_urlencode(val, ngx_strlen((char *) val),
                                       enc, sizeof(enc), "");
                 n = ngx_strlen(enc);
                 if (pos + n < outsz) { ngx_memcpy(out + pos, enc, n); pos += n; }
@@ -354,14 +354,14 @@ s3_put_object_tagging_body_handler(ngx_http_request_t *r)
     size_t                  blob_len = 0;
     ngx_int_t               rc;
 
-    cf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_s3_module);
-    rx = ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+    cf = ngx_http_get_module_loc_conf(r, ngx_http_brix_s3_module);
+    rx = ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
     if (rx == NULL || rx->fs_path[0] == '\0') {
         ngx_http_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
         return;
     }
 
-    if (xrootd_http_body_read_all(r, S3_TAG_XML_MAX, &body, &body_len) != NGX_OK
+    if (brix_http_body_read_all(r, S3_TAG_XML_MAX, &body, &body_len) != NGX_OK
         || body == NULL || body_len == 0)
     {
         (void) s3_send_xml_error(r, NGX_HTTP_BAD_REQUEST, "MalformedXML",
@@ -406,7 +406,7 @@ s3_send_xml_literal(ngx_http_request_t *r, const char *xml)
     }
     buf->last = ngx_cpymem(buf->last, xml, len);
     buf->last_buf = 1;
-    return xrootd_http_send_xml_buffer(r, NGX_HTTP_OK,
+    return brix_http_send_xml_buffer(r, NGX_HTTP_OK,
         (ngx_str_t) ngx_string("application/xml"), buf);
 }
 
@@ -442,7 +442,7 @@ s3_handle_get_acl(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
     }
     owner[n] = '\0';
 
-    XROOTD_PALLOC_OR_RETURN(xml, r->pool, xml_capacity, NGX_HTTP_INTERNAL_SERVER_ERROR);
+    BRIX_PALLOC_OR_RETURN(xml, r->pool, xml_capacity, NGX_HTTP_INTERNAL_SERVER_ERROR);
     XML_APPEND("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
     XML_APPEND("<AccessControlPolicy "
                "xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"><Owner>");
@@ -462,7 +462,7 @@ s3_handle_get_acl(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
     }
     buf->last = ngx_cpymem(buf->last, xml, xml_len);
     buf->last_buf = 1;
-    return xrootd_http_send_xml_buffer(r, NGX_HTTP_OK,
+    return brix_http_send_xml_buffer(r, NGX_HTTP_OK,
         (ngx_str_t) ngx_string("application/xml"), buf);
 }
 

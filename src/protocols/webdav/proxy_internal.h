@@ -1,10 +1,10 @@
-#ifndef XROOTD_WEBDAV_PROXY_INTERNAL_H
-#define XROOTD_WEBDAV_PROXY_INTERNAL_H
+#ifndef BRIX_WEBDAV_PROXY_INTERNAL_H
+#define BRIX_WEBDAV_PROXY_INTERNAL_H
 
 /*
  * WHAT: Internal header for WebDAV upstream proxy mode — declares the per-request context struct (webdav_proxy_ctx_t) and six nginx upstream lifecycle callbacks that handle request creation, status line parsing, header forwarding, error abort, and completion cleanup. These functions are registered as u->create_request/u->reinit_request/u->process_header/u->abort_request/u->finalize_request hooks in proxy.c's webdav_proxy_handler().
  *
- * WHY: nginx upstream API requires lifecycle callbacks to manage the proxy request flow — create_request generates the backend HTTP request body, process_header parses status line and headers from backend response, abort_request cleans up on error, finalize_request handles completion. The per-request context struct (webdav_proxy_ctx_t) carries state across these callbacks via ngx_http_set_ctx(r, ctx, module). This header is internal (not webdav.h) because proxy mode only activates when xrootd_webdav_proxy=on in location config.
+ * WHY: nginx upstream API requires lifecycle callbacks to manage the proxy request flow — create_request generates the backend HTTP request body, process_header parses status line and headers from backend response, abort_request cleans up on error, finalize_request handles completion. The per-request context struct (webdav_proxy_ctx_t) carries state across these callbacks via ngx_http_set_ctx(r, ctx, module). This header is internal (not webdav.h) because proxy mode only activates when brix_webdav_proxy=on in location config.
  *
  * HOW: Declares webdav_proxy_ctx_t with status field tracking backend HTTP response status; declares six callback prototypes matching nginx upstream API signatures — create_request/reinit_request return ngx_int_t for success/error, process_status_line/process_header return ngx_int_t, abort_request/finalize_request are void cleanup functions. */
 #include "webdav.h"
@@ -28,11 +28,11 @@ typedef struct {
 #endif
     ngx_uint_t                    fail_count;  /* consecutive failures */
     ngx_msec_t                    fail_time;   /* ngx_current_msec of last fail */
-} xrootd_webdav_backend_t;
+} brix_webdav_backend_t;
 
 typedef struct {
     ngx_http_status_t        status;
-    xrootd_webdav_backend_t *selected_backend;  /* chosen for this request */
+    brix_webdav_backend_t *selected_backend;  /* chosen for this request */
     uint32_t                 proxy_be_id;       /* Phase 23: dynamic-pool id (0 = none) */
 } webdav_proxy_ctx_t;
 
@@ -40,17 +40,17 @@ typedef struct {
  * Round-robin select a healthy backend; returns NULL only when no backends are
  * configured.  When all are marked down it returns backend[0] (fail-through).
  */
-xrootd_webdav_backend_t *webdav_proxy_pick_backend(ngx_http_request_t *r,
-    ngx_http_xrootd_webdav_loc_conf_t *conf);
+brix_webdav_backend_t *webdav_proxy_pick_backend(ngx_http_request_t *r,
+    ngx_http_brix_webdav_loc_conf_t *conf);
 
 /* Parse the configured proxy URL list into conf->upstream_backends. */
 ngx_int_t webdav_proxy_build_backends(ngx_conf_t *cf,
-    ngx_http_xrootd_webdav_loc_conf_t *conf);
+    ngx_http_brix_webdav_loc_conf_t *conf);
 
 /* Phase 23 — configure proxy mode for the dynamic SHM pool (no static URL). */
 ngx_int_t webdav_proxy_pool_setup(ngx_conf_t *cf,
-    ngx_http_xrootd_webdav_loc_conf_t *conf,
-    ngx_http_xrootd_webdav_loc_conf_t *prev);
+    ngx_http_brix_webdav_loc_conf_t *conf,
+    ngx_http_brix_webdav_loc_conf_t *prev);
 
 /*
  * u->create_request hook.  Builds the full HTTP/1.1 request (line + headers +
@@ -101,4 +101,4 @@ void webdav_proxy_abort_request(ngx_http_request_t *r);
  */
 void webdav_proxy_finalize_request(ngx_http_request_t *r, ngx_int_t rc);
 
-#endif /* XROOTD_WEBDAV_PROXY_INTERNAL_H */
+#endif /* BRIX_WEBDAV_PROXY_INTERNAL_H */

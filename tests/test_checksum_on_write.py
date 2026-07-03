@@ -1,7 +1,7 @@
 """
 tests/test_checksum_on_write.py — §8.3 checksum-on-ingest (WebDAV PUT).
 
-With xrootd_webdav_checksum_on_write naming algorithms, a successful PUT proactively
+With brix_webdav_checksum_on_write naming algorithms, a successful PUT proactively
 persists each digest on the committed file (xattr, or .cks sidecar on no-xattr fs).
 Verified by reading the user.XrdCks.<alg> xattr off the committed file and checking
 the stored hex equals the algorithm over the content. A control server WITHOUT the
@@ -52,9 +52,9 @@ def _start(tmp_path_factory, on_write, xattr_format=None):
     data = d / "data"
     data.mkdir()
     port = free_port()
-    extra = (f"xrootd_webdav_checksum_on_write {on_write};" if on_write else "")
+    extra = (f"brix_webdav_checksum_on_write {on_write};" if on_write else "")
     if xattr_format:
-        extra += f"\n            xrootd_webdav_checksum_xattr_format {xattr_format};"
+        extra += f"\n            brix_webdav_checksum_xattr_format {xattr_format};"
     conf = f"""
 error_log {d}/logs/error.log info;
 pid {d}/logs/nginx.pid;
@@ -65,10 +65,10 @@ http {{
     server {{
         listen {BIND_HOST}:{port};
         location / {{
-            xrootd_webdav on;
-            xrootd_webdav_storage_backend posix:{data};
-            xrootd_webdav_auth none;
-            xrootd_webdav_allow_write on;
+            brix_webdav on;
+            brix_webdav_storage_backend posix:{data};
+            brix_webdav_auth none;
+            brix_webdav_allow_write on;
             {extra}
         }}
     }}

@@ -31,9 +31,9 @@ s3_dashboard_identity(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         return;
     }
 
-    s3ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+    s3ctx = ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
     subject = s3ctx != NULL
-              ? xrootd_identity_subject_cstr(s3ctx->identity) : "";
+              ? brix_identity_subject_cstr(s3ctx->identity) : "";
     if (subject[0] != '\0') {
         ngx_cpystrn((u_char *) out, (u_char *) subject, outsz);
         return;
@@ -57,22 +57,22 @@ s3_dashboard_identity(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
  * WHY this classification:
  *   Prometheus metrics track put operations by body mode so we can see
  *   how much traffic is in-memory vs spooled. The enum values are used
- *   as indices into XROOTD_S3_METRIC_INC(put_body_total[...]).
+ *   as indices into BRIX_S3_METRIC_INC(put_body_total[...]).
  */
 
 ngx_uint_t
-s3_put_body_mode(const xrootd_http_body_summary_t *summary)
+s3_put_body_mode(const brix_http_body_summary_t *summary)
 {
     if (summary->has_spooled && summary->has_memory) {
-        return XROOTD_S3_PUT_MIXED;
+        return BRIX_S3_PUT_MIXED;
     }
     if (summary->has_spooled) {
-        return XROOTD_S3_PUT_SPOOLED;
+        return BRIX_S3_PUT_SPOOLED;
     }
     if (summary->has_memory) {
-        return XROOTD_S3_PUT_MEMORY;
+        return BRIX_S3_PUT_MEMORY;
     }
-    return XROOTD_S3_PUT_EMPTY;
+    return BRIX_S3_PUT_EMPTY;
 }
 
 
@@ -86,7 +86,7 @@ s3_put_body_mode(const xrootd_http_body_summary_t *summary)
  */
 void
 s3_put_streaming(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
-    xrootd_vfs_staged_t *staged, const char *fs_path, ngx_uint_t body_mode)
+    brix_vfs_staged_t *staged, const char *fs_path, ngx_uint_t body_mode)
 {
     const char        *root_canon = cf->common.root_canon;
     ngx_table_elt_t   *dcl;
@@ -94,10 +94,10 @@ s3_put_streaming(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     ngx_thread_pool_t *pool;
     size_t             i;
 
-    dcl = xrootd_http_find_header(r, "x-amz-decoded-content-length",
+    dcl = brix_http_find_header(r, "x-amz-decoded-content-length",
                                   sizeof("x-amz-decoded-content-length") - 1);
     if (dcl == NULL || dcl->value.len == 0) {
-        xrootd_vfs_staged_abort(staged, 1);
+        brix_vfs_staged_abort(staged, 1);
         s3_put_finalize_client_error(r, NGX_HTTP_BAD_REQUEST,
             "MissingContentLength",
             "Streaming upload is missing x-amz-decoded-content-length.");
@@ -106,7 +106,7 @@ s3_put_streaming(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     for (i = 0; i < dcl->value.len; i++) {
         u_char d = dcl->value.data[i];
         if (d < '0' || d > '9') {
-            xrootd_vfs_staged_abort(staged, 1);
+            brix_vfs_staged_abort(staged, 1);
             s3_put_finalize_client_error(r, NGX_HTTP_BAD_REQUEST,
                 "InvalidArgument",
                 "x-amz-decoded-content-length is not a valid length.");
@@ -122,7 +122,7 @@ s3_put_streaming(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         s3_chunk_aio_t    *t;
 
         if (task == NULL) {
-            xrootd_vfs_staged_abort(staged, 1);
+            brix_vfs_staged_abort(staged, 1);
             s3_put_finalize_error(r);
             return;
         }
@@ -136,10 +136,10 @@ s3_put_streaming(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
                     sizeof(t->fs_path));
         ngx_cpystrn((u_char *) t->root_canon, (u_char *) root_canon,
                     sizeof(t->root_canon));
-        xrootd_task_bind(task, s3_chunk_aio_thread, s3_chunk_aio_done);
+        brix_task_bind(task, s3_chunk_aio_thread, s3_chunk_aio_done);
 
         if (ngx_thread_task_post(pool, task) != NGX_OK) {
-            xrootd_vfs_staged_abort(staged, 1);
+            brix_vfs_staged_abort(staged, 1);
             s3_put_finalize_error(r);
             return;
         }
@@ -154,7 +154,7 @@ s3_put_streaming(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         int                status = NGX_HTTP_INTERNAL_SERVER_ERROR;
 
         s3_build_chunk_verify(r, cf, &verify);   /* W6a */
-        if (s3_aws_chunked_decode_to_fd(r, xrootd_vfs_staged_fd(staged), fs_path, expected,
+        if (s3_aws_chunked_decode_to_fd(r, brix_vfs_staged_fd(staged), fs_path, expected,
                                         &trailer, &status, NULL, &verify)
             != NGX_OK)
         {
@@ -178,11 +178,11 @@ void
 s3_put_body_handler(ngx_http_request_t *r)
 {
     ngx_http_s3_req_ctx_t *rx =
-        ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+        ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
 
-    xrootd_imp_request_begin(rx != NULL ? rx->identity : NULL);
+    brix_imp_request_begin(rx != NULL ? rx->identity : NULL);
     s3_put_body_inner(r);
-    xrootd_imp_request_end();
+    brix_imp_request_end();
 }
 
 
@@ -219,14 +219,14 @@ s3_put_try_sentinel(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         *slash = '\0';
     }
     {
-        xrootd_vfs_ctx_t pctx;
+        brix_vfs_ctx_t pctx;
 
         s3_build_vfs_ctx(r, parent, cf, &pctx);
-        if (xrootd_vfs_mkdir(&pctx, 0755, 0 /* no parents */) != NGX_OK
+        if (brix_vfs_mkdir(&pctx, 0755, 0 /* no parents */) != NGX_OK
             && errno != EEXIST)
         {
             int mk_errno = errno;  /* capture before logging clobbers it */
-            xrootd_log_safe_path(r->connection->log, NGX_LOG_ERR, mk_errno,
+            brix_log_safe_path(r->connection->log, NGX_LOG_ERR, mk_errno,
                                  "s3: mkdir(\"%s\") failed", parent);
             s3_put_finalize_fs_error(r, mk_errno);
             return 1;
@@ -234,12 +234,12 @@ s3_put_try_sentinel(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     }
 
     /* Write the zero-byte sentinel (confined create via the VFS seam). */
-    fd = xrootd_vfs_open_fd(r->connection->log, cf->common.root_canon,
+    fd = brix_vfs_open_fd(r->connection->log, cf->common.root_canon,
                             (const char *) fs_path,
                             O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd < 0) {
         int open_errno = errno;  /* capture before logging clobbers it */
-        xrootd_log_safe_path(r->connection->log, NGX_LOG_ERR, open_errno,
+        brix_log_safe_path(r->connection->log, NGX_LOG_ERR, open_errno,
                              "s3: open(\"%s\") for sentinel failed",
                              (const char *) fs_path);
         s3_put_finalize_fs_error(r, open_errno);
@@ -248,11 +248,11 @@ s3_put_try_sentinel(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     close(fd);
 
     s3_dashboard_identity(r, cf, identity, sizeof(identity));
-    (void) xrootd_dashboard_http_start_identity(r, (const char *) fs_path,
-        identity, "", XROOTD_XFER_PROTO_S3, XROOTD_XFER_DIR_WRITE,
+    (void) brix_dashboard_http_start_identity(r, (const char *) fs_path,
+        identity, "", BRIX_XFER_PROTO_S3, BRIX_XFER_DIR_WRITE,
         "PutObjectSentinel", 0);
-    XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_DIR_SENTINEL]);
-    XROOTD_S3_METRIC_INC(put_body_total[XROOTD_S3_PUT_EMPTY]);
+    BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_DIR_SENTINEL]);
+    BRIX_S3_METRIC_INC(put_body_total[BRIX_S3_PUT_EMPTY]);
     s3_put_finalize_empty_ok(r);
     return 1;
 }
@@ -264,17 +264,17 @@ s3_put_body_inner(ngx_http_request_t *r)
     u_char              *fs_path;
     ngx_http_s3_loc_conf_t *cf;
     ngx_http_s3_req_ctx_t  *s3ctx;
-    xrootd_codec_id_t    put_codec = XROOTD_CODEC_IDENTITY;
+    brix_codec_id_t    put_codec = BRIX_CODEC_IDENTITY;
     size_t               body_bytes = 0;
-    ngx_uint_t           body_mode = XROOTD_S3_PUT_EMPTY;
-    xrootd_vfs_staged_t *staged = NULL;
-    xrootd_vfs_ctx_t     svctx;
+    ngx_uint_t           body_mode = BRIX_S3_PUT_EMPTY;
+    brix_vfs_staged_t *staged = NULL;
+    brix_vfs_ctx_t     svctx;
     int                  staged_err = 0;
-    xrootd_http_body_summary_t body_summary;
+    brix_http_body_summary_t body_summary;
     char                 identity[128];
 
-    cf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_s3_module);
-    s3ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+    cf = ngx_http_get_module_loc_conf(r, ngx_http_brix_s3_module);
+    s3ctx = ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
     fs_path = s3ctx != NULL ? (u_char *) s3ctx->fs_path : NULL;
 
     if (fs_path == NULL) {
@@ -297,8 +297,8 @@ s3_put_body_inner(ngx_http_request_t *r)
             memcpy(parent, fs_path, flen + 1);
             last_slash = strrchr(parent, '/');
             if (last_slash && last_slash != parent) {
-                xrootd_vfs_ctx_t  pctx;
-                xrootd_vfs_stat_t pst;
+                brix_vfs_ctx_t  pctx;
+                brix_vfs_stat_t pst;
 
                 *last_slash = '\0';
 
@@ -311,18 +311,18 @@ s3_put_body_inner(ngx_http_request_t *r)
                  * confinement.
                  */
                 s3_build_vfs_ctx(r, parent, cf, &pctx);
-                if (xrootd_vfs_probe(&pctx, 1 /* no-follow */, &pst) == NGX_OK
+                if (brix_vfs_probe(&pctx, 1 /* no-follow */, &pst) == NGX_OK
                     && pst.is_directory)
                 {
                     /* parent prefix already exists — nothing to create */
                 } else {
-                    xrootd_vfs_ctx_t pvctx;
+                    brix_vfs_ctx_t pvctx;
 
                     s3_build_vfs_ctx(r, parent, cf, &pvctx);
-                    if (xrootd_vfs_mkdir(&pvctx, 0755, 1 /* parents */) != NGX_OK
+                    if (brix_vfs_mkdir(&pvctx, 0755, 1 /* parents */) != NGX_OK
                         && errno != EEXIST) {
                         int mk_errno = errno;  /* capture before logging clobbers it */
-                        xrootd_log_safe_path(r->connection->log, NGX_LOG_ERR,
+                        brix_log_safe_path(r->connection->log, NGX_LOG_ERR,
                                              mk_errno,
                                              "s3: mkdirs_for(\"%s\") failed",
                                              (const char *) fs_path);
@@ -335,15 +335,15 @@ s3_put_body_inner(ngx_http_request_t *r)
         }
     }
 
-    /* A transient stack ctx is fine: xrootd_vfs_staged_open deep-copies the ctx
+    /* A transient stack ctx is fine: brix_vfs_staged_open deep-copies the ctx
      * (and the strings it points at) onto r->pool, so the handle survives the async
      * body-write completion (put_aio/put_chunk commit after this function returns). */
     s3_build_vfs_ctx(r, (const char *) fs_path, cf, &svctx);
-    staged = xrootd_vfs_staged_open(&svctx, 0600, 16, &staged_err);
+    staged = brix_vfs_staged_open(&svctx, 0600, 16, &staged_err);
     if (staged == NULL)
     {
         int open_errno = staged_err;   /* the VFS open captured errno */
-        xrootd_log_safe_path(r->connection->log, NGX_LOG_ERR, open_errno,
+        brix_log_safe_path(r->connection->log, NGX_LOG_ERR, open_errno,
                              "s3: staged open for \"%s\" failed",
                              (const char *) fs_path);
         /* A DAC-denied / confinement-blocked create is a 403, not a 500. */
@@ -351,8 +351,8 @@ s3_put_body_inner(ngx_http_request_t *r)
         return;
     }
 
-    if (xrootd_http_body_summary(r, &body_summary) != NGX_OK) {
-        xrootd_vfs_staged_abort(staged, 1);
+    if (brix_http_body_summary(r, &body_summary) != NGX_OK) {
+        brix_vfs_staged_abort(staged, 1);
         s3_put_finalize_error(r);
         return;
     }
@@ -360,8 +360,8 @@ s3_put_body_inner(ngx_http_request_t *r)
     body_bytes = body_summary.bytes;
     body_mode = s3_put_body_mode(&body_summary);
     s3_dashboard_identity(r, cf, identity, sizeof(identity));
-    (void) xrootd_dashboard_http_start_identity(r, (const char *) fs_path,
-        identity, "", XROOTD_XFER_PROTO_S3, XROOTD_XFER_DIR_WRITE,
+    (void) brix_dashboard_http_start_identity(r, (const char *) fs_path,
+        identity, "", BRIX_XFER_PROTO_S3, BRIX_XFER_DIR_WRITE,
         s3_dashboard_put_op(r), (int64_t) body_bytes);
 
     /*
@@ -378,7 +378,7 @@ s3_put_body_inner(ngx_http_request_t *r)
          * undecoded bytes — the same invariant the non-chunked path enforces with
          * 400 below.  Plain aws-chunked (no inner coding) continues normally. */
         if (s3_aws_chunked_has_inner_coding(r)) {
-            xrootd_vfs_staged_abort(staged, 1);
+            brix_vfs_staged_abort(staged, 1);
             s3_put_finalize_codec_error(r, NGX_HTTP_BAD_REQUEST);
             return;
         }
@@ -387,15 +387,15 @@ s3_put_body_inner(ngx_http_request_t *r)
     }
 
     {
-        ngx_table_elt_t  *ce = xrootd_http_find_header(
+        ngx_table_elt_t  *ce = brix_http_find_header(
             r, "Content-Encoding", sizeof("Content-Encoding") - 1);
         if (ce != NULL && ce->value.len > 0) {
-            const xrootd_codec_desc_t *d = xrootd_codec_by_http_token(
+            const brix_codec_desc_t *d = brix_codec_by_http_token(
                 (const char *) ce->value.data, ce->value.len);
             if (d == NULL || !d->available) {
                 /* Unknown / not-compiled-in Content-Encoding: never store the
                  * undecoded bytes — reject as a client error (400), not 500. */
-                xrootd_vfs_staged_abort(staged, 1);
+                brix_vfs_staged_abort(staged, 1);
                 s3_put_finalize_codec_error(r, NGX_HTTP_BAD_REQUEST);
                 return;
             }
@@ -407,21 +407,21 @@ s3_put_body_inner(ngx_http_request_t *r)
      * phase-46 W1a: offload the body write to the thread pool for ALL plain
      * (identity-encoded) bodies — including spooled and mixed ones, not just
      * in-memory.  The worker fn (s3_put_aio_thread) already streams every buf,
-     * memory and file-backed, via xrootd_http_body_write_to_fd (kernel
+     * memory and file-backed, via brix_http_body_write_to_fd (kernel
      * copy_file_range for the spooled nginx temp file), so large uploads — the
      * ones nginx spools to disk — stop blocking the event loop.  Content-Encoding
      * decode (put_codec != IDENTITY) and aws-chunked (handled above) still run
      * synchronously.
      */
     if (body_summary.bytes > 0
-        && put_codec == XROOTD_CODEC_IDENTITY && s3_thread_pool(cf) != NULL)
+        && put_codec == BRIX_CODEC_IDENTITY && s3_thread_pool(cf) != NULL)
     {
         ngx_thread_task_t *task;
         s3_put_aio_t      *t;
 
         task = ngx_thread_task_alloc(r->pool, sizeof(s3_put_aio_t));
         if (task == NULL) {
-            xrootd_vfs_staged_abort(staged, 1);
+            brix_vfs_staged_abort(staged, 1);
             s3_put_finalize_error(r);
             return;
         }
@@ -441,10 +441,10 @@ s3_put_body_inner(ngx_http_request_t *r)
          * in-memory body bufs straight to the staged fd (s3_put_aio_thread).
          */
 
-        xrootd_task_bind(task, s3_put_aio_thread, s3_put_aio_done);
+        brix_task_bind(task, s3_put_aio_thread, s3_put_aio_done);
 
         if (ngx_thread_task_post(cf->common.thread_pool, task) != NGX_OK) {
-            xrootd_vfs_staged_abort(staged, 1);
+            brix_vfs_staged_abort(staged, 1);
             s3_put_finalize_error(r);
             return;
         }
@@ -457,20 +457,20 @@ s3_put_body_inner(ngx_http_request_t *r)
         ngx_int_t  wrc;
         ngx_int_t  decode_status = 0;
 
-        if (put_codec != XROOTD_CODEC_IDENTITY) {
-            wrc = xrootd_http_body_decode_to_fd(r, xrootd_vfs_staged_fd(staged),
+        if (put_codec != BRIX_CODEC_IDENTITY) {
+            wrc = brix_http_body_decode_to_fd(r, brix_vfs_staged_fd(staged),
                                                 (const char *) fs_path,
                                                 put_codec,
-                                                XROOTD_DECODE_MAX_OUTPUT,
+                                                BRIX_DECODE_MAX_OUTPUT,
                                                 &body_summary,
                                                 &decode_status);
         } else {
-            wrc = xrootd_http_body_write_to_fd(r, xrootd_vfs_staged_fd(staged),
+            wrc = brix_http_body_write_to_fd(r, brix_vfs_staged_fd(staged),
                                                 (const char *) fs_path,
                                                 &body_summary);
         }
         if (wrc != NGX_OK) {
-            xrootd_vfs_staged_abort(staged, 1);
+            brix_vfs_staged_abort(staged, 1);
             /* Map a decode failure to a clean S3 client error (413 bomb / 400
              * malformed); a genuine I/O failure (decode_status 0 or 5xx) stays
              * a 500. */
@@ -495,7 +495,7 @@ s3_put_body_inner(ngx_http_request_t *r)
         if (s3_put_commit_conflict(r)) {
             return;
         }
-        xrootd_log_safe_path(r->connection->log, NGX_LOG_ERR, ngx_errno,
+        brix_log_safe_path(r->connection->log, NGX_LOG_ERR, ngx_errno,
                              "s3: staged commit to \"%s\" failed",
                              (const char *) fs_path);
         s3_put_finalize_error(r);
@@ -504,12 +504,12 @@ s3_put_body_inner(ngx_http_request_t *r)
 
     /* S3 API requires ETag on PutObject 200 response */
     {
-        xrootd_vfs_ctx_t  fctx;
-        xrootd_vfs_stat_t fst;
+        brix_vfs_ctx_t  fctx;
+        brix_vfs_stat_t fst;
         char              etag_buf[48];
 
         s3_build_vfs_ctx(r, (const char *) fs_path, cf, &fctx);
-        if (xrootd_vfs_probe(&fctx, 1 /* no-follow */, &fst) == NGX_OK) {
+        if (brix_vfs_probe(&fctx, 1 /* no-follow */, &fst) == NGX_OK) {
             struct stat final_sb;
 
             ngx_memzero(&final_sb, sizeof(final_sb));

@@ -2,7 +2,7 @@
  * protocol.c — kXR_protocol opcode handler (capability negotiation).
  */
 
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 #include "core/compat/alloc_guard.h"
 
 /*
@@ -16,8 +16,8 @@
  * 8-byte ServerProtocolBody response (protocol version, flags, and the security
  * requirement advertised to the client). */
 ngx_int_t
-xrootd_handle_protocol(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf)
+brix_handle_protocol(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf)
 {
     ServerProtocolBody  body;
     u_char             *buf;
@@ -35,15 +35,15 @@ xrootd_handle_protocol(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
     /* kXR_protocol packs client capability flags into the fifth byte of body[]. */
     client_flags = ctx->cur_body[4];
-    want_gsi = (conf->auth == XROOTD_AUTH_GSI
-                || conf->auth == XROOTD_AUTH_BOTH);
-    want_token = (conf->auth == XROOTD_AUTH_TOKEN
-                  || conf->auth == XROOTD_AUTH_BOTH);
-    want_sss = (conf->auth == XROOTD_AUTH_SSS);
-    want_unix = (conf->auth == XROOTD_AUTH_UNIX);
-    want_krb5 = (conf->auth == XROOTD_AUTH_KRB5);
-    want_host = (conf->auth == XROOTD_AUTH_HOST);
-    want_pwd = (conf->auth == XROOTD_AUTH_PWD);
+    want_gsi = (conf->auth == BRIX_AUTH_GSI
+                || conf->auth == BRIX_AUTH_BOTH);
+    want_token = (conf->auth == BRIX_AUTH_TOKEN
+                  || conf->auth == BRIX_AUTH_BOTH);
+    want_sss = (conf->auth == BRIX_AUTH_SSS);
+    want_unix = (conf->auth == BRIX_AUTH_UNIX);
+    want_krb5 = (conf->auth == BRIX_AUTH_KRB5);
+    want_host = (conf->auth == BRIX_AUTH_HOST);
+    want_pwd = (conf->auth == BRIX_AUTH_PWD);
 
     /* kXR_wantTLS: client requires TLS; kXR_ableTLS: client is TLS-capable. */
     client_wants_tls = (client_flags & kXR_wantTLS) ? 1 : 0;
@@ -52,7 +52,7 @@ xrootd_handle_protocol(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
     /* Reject if the client demands TLS but this listener has none configured. */
     if (client_wants_tls && (!conf->tls || conf->tls_ctx == NULL)) {
-        return xrootd_send_error(ctx, c, kXR_TLSRequired,
+        return brix_send_error(ctx, c, kXR_TLSRequired,
                                  "TLS required by client but not configured on this server");
     }
 
@@ -73,9 +73,9 @@ xrootd_handle_protocol(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
 
     total = XRD_RESPONSE_HDR_LEN + bodylen;
-    XROOTD_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
+    BRIX_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
 
-    xrootd_build_resp_hdr(ctx->cur_streamid, kXR_ok,
+    brix_build_resp_hdr(ctx->cur_streamid, kXR_ok,
                           (uint32_t) bodylen,
                           (ServerResponseHdr *) buf);
 
@@ -188,5 +188,5 @@ xrootd_handle_protocol(xrootd_ctx_t *ctx, ngx_connection_t *c,
         ctx->tls_pending = 1;
     }
 
-    return xrootd_queue_response(ctx, c, buf, total);
+    return brix_queue_response(ctx, c, buf, total);
 }

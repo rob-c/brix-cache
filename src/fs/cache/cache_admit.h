@@ -1,5 +1,5 @@
-#ifndef XROOTD_CACHE_ADMIT_H
-#define XROOTD_CACHE_ADMIT_H
+#ifndef BRIX_CACHE_ADMIT_H
+#define BRIX_CACHE_ADMIT_H
 
 /*
  * cache_admit.h — the shared admission filter for the cache subsystem.
@@ -18,7 +18,7 @@
  *       whitelist; a size over the limit DECLINEs unless an include regex matches;
  *       is_new=1 (a not-yet-existing file, size unknown) skips the size cap. NULL
  *       cfg/path → DECLINE (fail-closed). The prefix arrays hold
- *       xrootd_wt_prefix_entry_t, the element type the config already parses.
+ *       brix_wt_prefix_entry_t, the element type the config already parses.
  */
 
 #include <ngx_config.h>
@@ -27,24 +27,24 @@
 #include <regex.h>
 #include <sys/types.h>
 
-#include "writethrough_decision.h"   /* xrootd_wt_prefix_entry_t */
+#include "writethrough_decision.h"   /* brix_wt_prefix_entry_t */
 
 typedef enum {
-    XROOTD_CACHE_ADMIT   = 0,
-    XROOTD_CACHE_DECLINE = 1
-} xrootd_cache_admit_e;
+    BRIX_CACHE_ADMIT   = 0,
+    BRIX_CACHE_DECLINE = 1
+} brix_cache_admit_e;
 
 typedef struct {
-    ngx_array_t *deny_prefixes;   /* xrootd_wt_prefix_entry_t[] — precedence */
-    ngx_array_t *allow_prefixes;  /* xrootd_wt_prefix_entry_t[] — whitelist if non-empty */
+    ngx_array_t *deny_prefixes;   /* brix_wt_prefix_entry_t[] — precedence */
+    ngx_array_t *allow_prefixes;  /* brix_wt_prefix_entry_t[] — whitelist if non-empty */
     off_t        size_limit;      /* 0 = no limit */
     regex_t     *include_regex;   /* NULL = none; a match bypasses the size cap */
-} xrootd_cache_admit_cfg_t;
+} brix_cache_admit_cfg_t;
 
 /* Shared admission filter (read-caching AND write-through). is_new=1 ⇒ the file
  * does not exist yet (size unknown) so the size cap is skipped. Deny beats allow;
  * a non-empty allow list is a whitelist. NULL cfg/path → DECLINE. */
-xrootd_cache_admit_e xrootd_cache_admit(const xrootd_cache_admit_cfg_t *cfg,
+brix_cache_admit_e brix_cache_admit(const brix_cache_admit_cfg_t *cfg,
     const char *path, off_t size, int is_new);
 
-#endif /* XROOTD_CACHE_ADMIT_H */
+#endif /* BRIX_CACHE_ADMIT_H */

@@ -1,7 +1,7 @@
 """Phase 6 housekeeping — TTL sweep of abandoned upload-resume partials.
 
 The worker-0 sweeper removes `*.xrdresume.part` files in the configured stage dir
-once they are older than $XROOTD_UPLOAD_RESUME_TTL, while preserving fresh ones
+once they are older than $BRIX_UPLOAD_RESUME_TTL, while preserving fresh ones
 (an in-progress / recently-interrupted upload must never be disturbed) and
 ignoring non-resume files.
 """
@@ -44,16 +44,16 @@ def sweep_server(tmp_path_factory):
 worker_processes 1;
 error_log {d}/logs/error.log info;
 pid {d}/logs/nginx.pid;
-env XROOTD_UPLOAD_RESUME_TTL;
+env BRIX_UPLOAD_RESUME_TTL;
 events {{ worker_connections 64; }}
 stream {{
     server {{
         listen {BIND_HOST}:{PORT};
         xrootd on;
-        xrootd_root {d}/data;
-        xrootd_auth none;
-        xrootd_allow_write on;
-        xrootd_stage_dir {stage};
+        brix_root {d}/data;
+        brix_auth none;
+        brix_allow_write on;
+        brix_stage_dir {stage};
     }}
 }}
 daemon off;
@@ -61,7 +61,7 @@ master_process off;
 """
     cp = d / "nginx.conf"
     cp.write_text(conf)
-    env = dict(os.environ, XROOTD_UPLOAD_RESUME_TTL="600")
+    env = dict(os.environ, BRIX_UPLOAD_RESUME_TTL="600")
     proc = subprocess.Popen([NGINX_BIN, "-p", str(d), "-c", str(cp)],
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
     deadline = time.time() + 10

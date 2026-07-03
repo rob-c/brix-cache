@@ -271,7 +271,7 @@ def _gsi_session():
 # ===========================================================================
 # Scenario tests — anonymous/token no-op paths (signing_active = 0)
 #
-# On these sessions xrootd_handle_sigver() takes the `else` branch: it logs,
+# On these sessions brix_handle_sigver() takes the `else` branch: it logs,
 # returns kXR_ok, and arms NO pending state.  Therefore the seqno boundary,
 # replay, large-jump, expectrid and HMAC checks are all no-ops here — the
 # DOCUMENTED behaviour is "accepted but not verified".  Each test proves the
@@ -426,7 +426,7 @@ class TestSigverSigningActive:
 
     def test_hmac_mismatch_specific_error(self):
         """A correct expectrid but a deliberately-wrong HMAC must be rejected
-        by xrootd_verify_sigver_hmac() with kXR_NotAuthorized
+        by brix_verify_sigver_hmac() with kXR_NotAuthorized
         ("signature verification failed")."""
         sock = _gsi_session()
         try:

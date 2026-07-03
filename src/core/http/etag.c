@@ -9,7 +9,7 @@
  *      responses include ETag headers. All modules share this generator.
  *
  * HOW: snprintf("W/""%lx-%llx"" or ""%lx-%llx"" where %lx=mtime, %llx=size. Weak flag
- *      XROOTD_ETAG_WEAK controls W/ prefix inclusion. Format matches xrootd XrdHttp
+ *      BRIX_ETAG_WEAK controls W/ prefix inclusion. Format matches xrootd XrdHttp
  *      convention for interoperability.
 */
 
@@ -18,7 +18,7 @@
 #include <stdio.h>
 
 /*
- * xrootd_http_etag_str - generate RFC 7232-compliant ETag string from mtime and size.
+ * brix_http_etag_str - generate RFC 7232-compliant ETag string from mtime and size.
  *
  * WHAT: Writes an ETag string into buf[0..bufsz-1] formatted as "mtime-size" (strong)
  *       or W/"mtime-size" (weak), using unsigned long for mtime, unsigned long long
@@ -28,14 +28,14 @@
  *      a resource version. This format (mtime + size) is the standard convention used
  *      by xrootd XrdHttp and nginx-xrootd for consistency across backends.
  *
- * HOW: snprintf with conditional W/ prefix based on flags & XROOTD_ETAG_WEAK.
+ * HOW: snprintf with conditional W/ prefix based on flags & BRIX_ETAG_WEAK.
  */
 
 void
-xrootd_http_etag_str(char *buf, size_t bufsz,
+brix_http_etag_str(char *buf, size_t bufsz,
     time_t mtime, off_t size, unsigned flags)
 {
-    if (flags & XROOTD_ETAG_WEAK) {
+    if (flags & BRIX_ETAG_WEAK) {
         snprintf(buf, bufsz, "W/\"%lx-%llx\"",
                  (unsigned long) mtime, (unsigned long long) size);
     } else {

@@ -4,7 +4,7 @@ Phase 23 — dynamic upstreams: REST admin write API + dynamic WebDAV proxy pool
 Coverage:
   1. Source-marker checks: the admin API module, the SHM proxy pool, registry
      helpers, directives, and build registration are wired.
-  2. Config validation: the admin directives + xrootd_webdav_proxy_dynamic
+  2. Config validation: the admin directives + brix_webdav_proxy_dynamic
      parse, and the admin API is disabled (403) unless explicitly configured.
   3. Functional admin auth: bearer-secret gate — missing/wrong token → 403,
      correct token → 200; the admin API is read from a file, never nginx.conf.
@@ -76,34 +76,34 @@ def test_admin_auth_and_validation_present():
     assert "admin_validate_hostname" in c
     assert "admin_validate_url" in c
     assert "admin_audit" in c
-    assert "XROOTD_ADMIN_AUTH_DENIED" in c
+    assert "BRIX_ADMIN_AUTH_DENIED" in c
 
 
 def test_registry_undrain_helper_present():
-    assert "xrootd_srv_undrain" in _read("src/net/manager/registry_select.c")  # split out
-    assert "xrootd_srv_undrain" in _read("src/net/manager/registry.h")
+    assert "brix_srv_undrain" in _read("src/net/manager/registry_select.c")  # split out
+    assert "brix_srv_undrain" in _read("src/net/manager/registry.h")
 
 
 def test_proxy_pool_api_present():
     p = _read("src/protocols/webdav/proxy_pool.c")
-    for fn in ("xrootd_proxy_pool_configure", "xrootd_proxy_pool_add",
-               "xrootd_proxy_pool_select", "xrootd_proxy_pool_drain",
-               "xrootd_proxy_pool_remove", "xrootd_proxy_pool_snapshot",
-               "xrootd_proxy_pool_dec_in_flight"):
+    for fn in ("brix_proxy_pool_configure", "brix_proxy_pool_add",
+               "brix_proxy_pool_select", "brix_proxy_pool_drain",
+               "brix_proxy_pool_remove", "brix_proxy_pool_snapshot",
+               "brix_proxy_pool_dec_in_flight"):
         assert fn in p, fn
     # proxy.c branches on the dynamic pool; finalize releases in_flight.
-    assert "xrootd_proxy_pool_select" in _read("src/protocols/webdav/proxy.c")
-    assert "xrootd_proxy_pool_dec_in_flight" in _read("src/protocols/webdav/proxy_response.c")
+    assert "brix_proxy_pool_select" in _read("src/protocols/webdav/proxy.c")
+    assert "brix_proxy_pool_dec_in_flight" in _read("src/protocols/webdav/proxy_response.c")
 
 
 def test_directives_registered():
     d = _read("src/observability/dashboard/module.c")
-    for name in ("xrootd_admin_allow", "xrootd_admin_secret",
-                 "xrootd_admin_require_both"):
+    for name in ("brix_admin_allow", "brix_admin_secret",
+                 "brix_admin_require_both"):
         assert name in d, name
-    # NOTE: the WebDAV reverse-proxy directives (xrootd_webdav_proxy /
+    # NOTE: the WebDAV reverse-proxy directives (brix_webdav_proxy /
     # _dynamic) were retired in the legacy-proxy cleanup; only
-    # xrootd_webdav_proxy_certs (GSI client auth) survives.
+    # brix_webdav_proxy_certs (GSI client auth) survives.
 
 
 # --------------------------------------------------------------------------- #
@@ -147,11 +147,11 @@ def test_admin_directives_parse(tmp_path):
         server {{
             listen {BIND_HOST}:{_P_PARSE};
             location /xrootd/ {{
-                xrootd_dashboard on;
-                xrootd_dashboard_password "pw";
-                xrootd_admin_allow 127.0.0.1/32 10.0.0.0/8;
-                xrootd_admin_secret {secret};
-                xrootd_admin_require_both on;
+                brix_dashboard on;
+                brix_dashboard_password "pw";
+                brix_admin_allow 127.0.0.1/32 10.0.0.0/8;
+                brix_admin_secret {secret};
+                brix_admin_require_both on;
             }}
         }}
     """, tmp_path)
@@ -159,9 +159,9 @@ def test_admin_directives_parse(tmp_path):
     assert rc == 0, out
 
 
-@pytest.mark.skip(reason="WebDAV reverse-proxy directives (xrootd_webdav_proxy/"
+@pytest.mark.skip(reason="WebDAV reverse-proxy directives (brix_webdav_proxy/"
                   "_dynamic) retired in the legacy-proxy cleanup; only "
-                  "xrootd_webdav_proxy_certs survives")
+                  "brix_webdav_proxy_certs survives")
 def test_proxy_dynamic_directive_parses(tmp_path):
     data = tmp_path / "data"
     data.mkdir()
@@ -169,12 +169,12 @@ def test_proxy_dynamic_directive_parses(tmp_path):
         server {{
             listen {BIND_HOST}:{_P_DYNAMIC};
             location / {{
-                xrootd_webdav on;
-                xrootd_webdav_storage_backend posix:{data};
-                xrootd_webdav_auth none;
-                xrootd_webdav_proxy on;
-                xrootd_webdav_proxy_dynamic on;
-                xrootd_webdav_proxy_auth anonymous;
+                brix_webdav on;
+                brix_webdav_storage_backend posix:{data};
+                brix_webdav_auth none;
+                brix_webdav_proxy on;
+                brix_webdav_proxy_dynamic on;
+                brix_webdav_proxy_auth anonymous;
             }}
         }}
     """, tmp_path)
@@ -187,15 +187,15 @@ def test_bad_admin_secret_path_rejected(tmp_path):
         server {{
             listen {BIND_HOST}:{_P_BADSECRET};
             location /xrootd/ {{
-                xrootd_dashboard on;
-                xrootd_dashboard_password "pw";
-                xrootd_admin_secret {tmp_path}/does-not-exist.secret;
+                brix_dashboard on;
+                brix_dashboard_password "pw";
+                brix_admin_secret {tmp_path}/does-not-exist.secret;
             }}
         }}
     """, tmp_path)
     rc, out = _nginx_check(conf, tmp_path)
     assert rc != 0
-    assert "xrootd_admin_secret" in out
+    assert "brix_admin_secret" in out
 
 
 # --------------------------------------------------------------------------- #
@@ -269,14 +269,14 @@ def admin_server(tmp_path):
         server {{
             listen {BIND_HOST}:{port};
             location /dav/ {{
-                xrootd_webdav on;
-                xrootd_webdav_storage_backend posix:{data};
-                xrootd_webdav_auth none;
+                brix_webdav on;
+                brix_webdav_storage_backend posix:{data};
+                brix_webdav_auth none;
             }}
             location /xrootd/ {{
-                xrootd_dashboard on;
-                xrootd_dashboard_password "pw";
-                xrootd_admin_secret {secret};
+                brix_dashboard on;
+                brix_dashboard_password "pw";
+                brix_admin_secret {secret};
             }}
         }}
     """, tmp_path)
@@ -350,7 +350,7 @@ def test_cluster_register_and_invalid_host(admin_server):
 # --------------------------------------------------------------------------- #
 
 @pytest.mark.skip(reason="admin proxy-pool backs the dynamic WebDAV proxy, whose "
-                  "enabler (xrootd_webdav_proxy_dynamic) was retired in the "
+                  "enabler (brix_webdav_proxy_dynamic) was retired in the "
                   "legacy-proxy cleanup — the pool SHM zone is never created")
 def test_proxy_pool_lifecycle(admin_server):
     port, be_port = admin_server

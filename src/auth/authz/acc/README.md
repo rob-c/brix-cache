@@ -1,12 +1,12 @@
 # src/auth/authz/acc — XrdAcc-compatible authorization engine
 
 A faithful in-C re-implementation of XRootD's **XrdAcc** authorization framework,
-selectable at runtime with `xrootd_authdb_format xrdacc;`. It runs **alongside**
+selectable at runtime with `brix_authdb_format xrdacc;`. It runs **alongside**
 the original 6-bit, root://-only `native` engine (`src/auth/authz/authdb.c`), which
 stays the default so existing deployments are unaffected.
 
 When enabled, `xrdacc` authorizes **all three protocols** (root://, WebDAV, S3)
-through one `xrootd_acc_access(tables, entity, path, op)` call, reproducing stock
+through one `brix_acc_access(tables, entity, path, op)` call, reproducing stock
 XRootD `authdb` semantics bit-for-bit.
 
 ## What it adds over `native`
@@ -38,7 +38,7 @@ XRootD `authdb` semantics bit-for-bit.
 | `resolve.c` | `XrdAccAccess::Resolve` | reverse-DNS peer for `h <host>`/`.domain` rules |
 | `config.c` | `XrdAccConfig.cc` | directives + per-worker build (stream + HTTP hot-reload) |
 | `refresh.c` | authrefresh thread | mtime hot-reload timer |
-| `opmap.c` | — | operation → `xrootd_acc_op_t` maps (stream/WebDAV/S3) |
+| `opmap.c` | — | operation → `brix_acc_op_t` maps (stream/WebDAV/S3) |
 
 ## Reference
 

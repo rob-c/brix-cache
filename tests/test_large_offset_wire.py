@@ -84,7 +84,7 @@ ANON_PORT = NGINX_ANON_PORT
 
 
 # ---------------------------------------------------------------------------
-# CRC32c (Castagnoli) — pure-Python, matches xrootd_crc32c_copy()
+# CRC32c (Castagnoli) — pure-Python, matches brix_crc32c_copy()
 # ---------------------------------------------------------------------------
 
 _CRC32C_POLY = 0x82F63B78  # reflected 0x1EDC6F41
@@ -458,7 +458,7 @@ class TestFourGiBBoundary:
             if status != kXR_ok:
                 pytest.skip(f"anon server is read-only "
                             f"(open updt -> {_error_code(body)}); "
-                            f"need xrootd_allow_write on")
+                            f"need brix_allow_write on")
             fh = body[:4]
             marker = b"BOUNDARY64!!" + b"\x11" * 4
             off = FOUR_GIB + 1024
@@ -613,7 +613,7 @@ class TestOffsetLengthOverflow:
         rlen would wrap negative.
 
         The kXR_read handler (src/protocols/root/read/read.c) caps rlen to
-        XROOTD_READ_REQUEST_MAX *before* any offset+rlen arithmetic, then
+        BRIX_READ_REQUEST_MAX *before* any offset+rlen arithmetic, then
         short-circuits to an empty response because offset >= file_size — so
         the documented, secure outcome is a clean past-EOF short read (kXR_ok
         with ZERO bytes), NOT a wrapped in-bounds read that would leak data.
@@ -714,7 +714,7 @@ class TestLargeTruncate:
             if status != kXR_ok:
                 pytest.skip(f"anon server read-only "
                             f"(open updt -> {_error_code(body)}); "
-                            f"need xrootd_allow_write on")
+                            f"need brix_allow_write on")
             fh = body[:4]
             target = FOUR_GIB + 12345
             _, tst, tbody = _truncate(sock, fh, target)

@@ -1,18 +1,18 @@
-#ifndef XROOTD_VOMS_HTTP_H
-#define XROOTD_VOMS_HTTP_H
+#ifndef BRIX_VOMS_HTTP_H
+#define BRIX_VOMS_HTTP_H
 
 /*
  * voms_http.h — lightweight VOMS extraction declaration for HTTP handlers.
  *
- * WHAT: Declares xrootd_extract_voms_info() without pulling in the full
- *       stream-module umbrella header (ngx_xrootd_module.h), which drags in
+ * WHAT: Declares brix_extract_voms_info() without pulling in the full
+ *       stream-module umbrella header (ngx_brix_module.h), which drags in
  *       ngx_stream.h and stream-specific types incompatible with HTTP modules.
  *
  * WHY: WebDAV auth_cert.c needs to call VOMS extraction after X.509 proxy
- *      chain verification, but including ngx_xrootd_module.h from HTTP code
+ *      chain verification, but including ngx_brix_module.h from HTTP code
  *      causes type redefinition conflicts with nginx's HTTP layer.
  *
- * HOW: This thin header re-declares only xrootd_extract_voms_info() using
+ * HOW: This thin header re-declares only brix_extract_voms_info() using
  *      types already available in every HTTP module (ngx_core.h + OpenSSL).
  *      The implementation lives in src/voms/extract.c, which is compiled into
  *      NGX_ADDON_SRCS and linked into the module regardless of which header
@@ -20,15 +20,15 @@
  *
  * Usage:
  *   - Include this header in HTTP handler code that calls VOMS extraction.
- *   - Do NOT include ngx_xrootd_module.h alongside this header — they both
- *     declare xrootd_extract_voms_info() and will conflict.
+ *   - Do NOT include ngx_brix_module.h alongside this header — they both
+ *     declare brix_extract_voms_info() and will conflict.
  */
 
 #include <ngx_core.h>
 #include <openssl/x509.h>
 
 /*
- * xrootd_extract_voms_info — extract VOMS VO/FQAN attributes from an X.509
+ * brix_extract_voms_info — extract VOMS VO/FQAN attributes from an X.509
  * proxy certificate after the GSI chain has been verified.
  *
  * Parameters:
@@ -47,9 +47,9 @@
  *   NGX_DECLINED — no VOMS extensions found (cert has no VO attributes)
  *   NGX_ERROR    — VOMS library error or invalid parameters
  */
-ngx_int_t xrootd_extract_voms_info(ngx_log_t *log, X509 *leaf,
+ngx_int_t brix_extract_voms_info(ngx_log_t *log, X509 *leaf,
     STACK_OF(X509) *chain, const ngx_str_t *vomsdir, const ngx_str_t *cert_dir,
     char *primary_vo, size_t primary_vo_sz,
     char *vo_list, size_t vo_list_sz);
 
-#endif /* XROOTD_VOMS_HTTP_H */
+#endif /* BRIX_VOMS_HTTP_H */

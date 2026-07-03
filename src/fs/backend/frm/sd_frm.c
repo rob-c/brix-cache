@@ -141,16 +141,16 @@ stub_residency(void *mss, const char *key, off_t *size_out, time_t *mtime_out)
     {
         if (size_out)  { *size_out = sb.st_size; }
         if (mtime_out) { *mtime_out = sb.st_mtime; }
-        return XROOTD_RESIDENCY_ONLINE;
+        return BRIX_RESIDENCY_ONLINE;
     }
     if (stub_path(c, key, 0 /* tape */, path, sizeof(path)) == 0
         && stat(path, &sb) == 0)
     {
         if (size_out)  { *size_out = sb.st_size; }
         if (mtime_out) { *mtime_out = sb.st_mtime; }
-        return XROOTD_RESIDENCY_OFFLINE;
+        return BRIX_RESIDENCY_OFFLINE;
     }
-    return XROOTD_RESIDENCY_ABSENT;
+    return BRIX_RESIDENCY_ABSENT;
 }
 
 static int
@@ -293,7 +293,7 @@ stub_destroy(void *mss)
     free(mss);
 }
 
-static const xrootd_mss_adapter_t xrootd_mss_stub_adapter = {
+static const brix_mss_adapter_t brix_mss_stub_adapter = {
     .name          = "stub",
     .residency     = stub_residency,
     .recall_begin  = stub_recall_begin,
@@ -309,7 +309,7 @@ static const xrootd_mss_adapter_t xrootd_mss_stub_adapter = {
  * The classic FRM model: an operator-supplied stage command drives the real MSS
  * (HPSS, CTA, dCache, an Enstore wrapper, ...). The local online buffer lives at
  * <base>/.online/<key>; the recall/migrate/exists verbs shell out to:
- *     $XROOTD_FRM_STAGECMD <verb> <key> <online-path>
+ *     $BRIX_FRM_STAGECMD <verb> <key> <online-path>
  * recall is expected to be ASYNC-SUBMIT (start the MSS recall and return promptly,
  * not block until online); the driver then parks the open and polls until the
  * online buffer appears. A `recall_poll` is the cheap local-buffer existence check,
@@ -317,7 +317,7 @@ static const xrootd_mss_adapter_t xrootd_mss_stub_adapter = {
 
 typedef struct {
     char       base[PATH_MAX];      /* local online-buffer root          */
-    char       stagecmd[PATH_MAX];  /* $XROOTD_FRM_STAGECMD              */
+    char       stagecmd[PATH_MAX];  /* $BRIX_FRM_STAGECMD              */
     ngx_log_t *log;
 } exec_ctx_t;
 
@@ -369,16 +369,16 @@ exec_residency(void *mss, const char *key, off_t *size_out, time_t *mtime_out)
     {
         if (size_out)  { *size_out = sb.st_size; }
         if (mtime_out) { *mtime_out = sb.st_mtime; }
-        return XROOTD_RESIDENCY_ONLINE;
+        return BRIX_RESIDENCY_ONLINE;
     }
     /* Ask the MSS: exit 0 = on tape (offline), non-zero = absent. The size is
      * unknown until recalled; the cache fill restats the online buffer. */
     if (exec_run(c, "exists", key, "") == 0) {
         if (size_out)  { *size_out = 0; }
         if (mtime_out) { *mtime_out = time(NULL); }
-        return XROOTD_RESIDENCY_OFFLINE;
+        return BRIX_RESIDENCY_OFFLINE;
     }
-    return XROOTD_RESIDENCY_ABSENT;
+    return BRIX_RESIDENCY_ABSENT;
 }
 
 static int
@@ -467,7 +467,7 @@ exec_destroy(void *mss)
     free(mss);
 }
 
-static const xrootd_mss_adapter_t xrootd_mss_exec_adapter = {
+static const brix_mss_adapter_t brix_mss_exec_adapter = {
     .name          = "exec",
     .residency     = exec_residency,
     .recall_begin  = exec_recall_begin,
@@ -482,7 +482,7 @@ static const xrootd_mss_adapter_t xrootd_mss_exec_adapter = {
 /* ===================== the sd_frm driver ===================== */
 
 typedef struct {
-    const xrootd_mss_adapter_t *mss;
+    const brix_mss_adapter_t *mss;
     void                       *mss_ctx;
     ngx_log_t                  *log;
 } sd_frm_state;
@@ -506,10 +506,10 @@ frm_ensure_online(sd_frm_state *st, const char *key)
     time_t mt = 0;
     int    res = st->mss->residency(st->mss_ctx, key, &sz, &mt);
 
-    if (res == XROOTD_RESIDENCY_ONLINE) {
+    if (res == BRIX_RESIDENCY_ONLINE) {
         return 0;
     }
-    if (res == XROOTD_RESIDENCY_ABSENT) {
+    if (res == BRIX_RESIDENCY_ABSENT) {
         errno = ENOENT;
         return -1;
     }
@@ -535,16 +535,16 @@ frm_ensure_online(sd_frm_state *st, const char *key)
     return -1;
 }
 
-static xrootd_sd_obj_t *
-sd_frm_open(xrootd_sd_instance_t *inst, const char *path, int sd_flags,
+static brix_sd_obj_t *
+sd_frm_open(brix_sd_instance_t *inst, const char *path, int sd_flags,
     mode_t mode, int *err_out)
 {
     sd_frm_state    *st = SD_FRM_ST(inst);
-    xrootd_sd_obj_t *o;
+    brix_sd_obj_t *o;
     int              fd;
 
     (void) mode;
-    if ((sd_flags & XROOTD_SD_O_WRITE) != 0) {
+    if ((sd_flags & BRIX_SD_O_WRITE) != 0) {
         /* writes go through the staged path (migrate); a direct write-open is not
          * supported on a nearline backend. */
         if (err_out) { *err_out = EROFS; }
@@ -582,7 +582,7 @@ sd_frm_open(xrootd_sd_instance_t *inst, const char *path, int sd_flags,
 }
 
 static ngx_int_t
-sd_frm_close(xrootd_sd_obj_t *obj)
+sd_frm_close(brix_sd_obj_t *obj)
 {
     if (obj == NULL) {
         return NGX_OK;
@@ -598,13 +598,13 @@ sd_frm_close(xrootd_sd_obj_t *obj)
 }
 
 static ssize_t
-sd_frm_pread(xrootd_sd_obj_t *obj, void *buf, size_t len, off_t off)
+sd_frm_pread(brix_sd_obj_t *obj, void *buf, size_t len, off_t off)
 {
     return pread(obj->fd, buf, len, off);
 }
 
 static ngx_int_t
-sd_frm_fstat(xrootd_sd_obj_t *obj, xrootd_sd_stat_t *out)
+sd_frm_fstat(brix_sd_obj_t *obj, brix_sd_stat_t *out)
 {
     struct stat sb;
 
@@ -622,14 +622,14 @@ sd_frm_fstat(xrootd_sd_obj_t *obj, xrootd_sd_stat_t *out)
 }
 
 static ngx_int_t
-sd_frm_stat(xrootd_sd_instance_t *inst, const char *path, xrootd_sd_stat_t *out)
+sd_frm_stat(brix_sd_instance_t *inst, const char *path, brix_sd_stat_t *out)
 {
     sd_frm_state *st = SD_FRM_ST(inst);
     off_t         sz = 0;
     time_t        mt = 0;
     int           res = st->mss->residency(st->mss_ctx, path, &sz, &mt);
 
-    if (res == XROOTD_RESIDENCY_ABSENT) {
+    if (res == BRIX_RESIDENCY_ABSENT) {
         return NGX_ERROR;            /* ENOENT - errno set by the caller's mapping */
     }
     ngx_memzero(out, sizeof(*out));
@@ -645,8 +645,8 @@ sd_frm_stat(xrootd_sd_instance_t *inst, const char *path, xrootd_sd_stat_t *out)
  * the SD residency enum the protocol handlers consume. ABSENT ⇒ LOST (errno ENOENT
  * so the seam can surface a missing object); ONLINE/NEARLINE/OFFLINE pass through. */
 static ngx_int_t
-sd_frm_residency(xrootd_sd_instance_t *inst, const char *key,
-                 xrootd_sd_residency_t *out)
+sd_frm_residency(brix_sd_instance_t *inst, const char *key,
+                 brix_sd_residency_t *out)
 {
     sd_frm_state *st = SD_FRM_ST(inst);
     off_t         sz = 0;
@@ -654,16 +654,16 @@ sd_frm_residency(xrootd_sd_instance_t *inst, const char *key,
     int           res = st->mss->residency(st->mss_ctx, key, &sz, &mt);
 
     switch (res) {
-    case XROOTD_RESIDENCY_ONLINE:   *out = XROOTD_SD_RES_ONLINE;   break;
-    case XROOTD_RESIDENCY_NEARLINE: *out = XROOTD_SD_RES_NEARLINE; break;
-    case XROOTD_RESIDENCY_OFFLINE:  *out = XROOTD_SD_RES_OFFLINE;  break;
+    case BRIX_RESIDENCY_ONLINE:   *out = BRIX_SD_RES_ONLINE;   break;
+    case BRIX_RESIDENCY_NEARLINE: *out = BRIX_SD_RES_NEARLINE; break;
+    case BRIX_RESIDENCY_OFFLINE:  *out = BRIX_SD_RES_OFFLINE;  break;
     default:                        errno = ENOENT; return NGX_ERROR;  /* ABSENT */
     }
     return NGX_OK;
 }
 
 static ngx_int_t
-sd_frm_recall(xrootd_sd_instance_t *inst, const char *key, char reqid_out[40])
+sd_frm_recall(brix_sd_instance_t *inst, const char *key, char reqid_out[40])
 {
     sd_frm_state *st = SD_FRM_ST(inst);
 
@@ -678,13 +678,13 @@ sd_frm_recall(xrootd_sd_instance_t *inst, const char *key, char reqid_out[40])
 
 /* ---- migrate via the staged-write path (online buffer -> tape on commit) ---- */
 
-static xrootd_sd_staged_t *
-sd_frm_staged_open(xrootd_sd_instance_t *inst, const char *final_path,
+static brix_sd_staged_t *
+sd_frm_staged_open(brix_sd_instance_t *inst, const char *final_path,
     mode_t mode, int *err_out)
 {
     sd_frm_state        *st = SD_FRM_ST(inst);
     sd_frm_staged_state *ss;
-    xrootd_sd_staged_t  *h;
+    brix_sd_staged_t  *h;
     int                  fd;
 
     fd = st->mss->create_online(st->mss_ctx, final_path, mode);
@@ -710,7 +710,7 @@ sd_frm_staged_open(xrootd_sd_instance_t *inst, const char *final_path,
 }
 
 static ssize_t
-sd_frm_staged_write(xrootd_sd_staged_t *st, const void *buf, size_t len, off_t off)
+sd_frm_staged_write(brix_sd_staged_t *st, const void *buf, size_t len, off_t off)
 {
     sd_frm_staged_state *ss = st->state;
 
@@ -718,7 +718,7 @@ sd_frm_staged_write(xrootd_sd_staged_t *st, const void *buf, size_t len, off_t o
 }
 
 static ngx_int_t
-sd_frm_staged_commit(xrootd_sd_staged_t *st, int noreplace)
+sd_frm_staged_commit(brix_sd_staged_t *st, int noreplace)
 {
     sd_frm_staged_state *ss = st->state;
     int                  rc;
@@ -736,7 +736,7 @@ sd_frm_staged_commit(xrootd_sd_staged_t *st, int noreplace)
 }
 
 static void
-sd_frm_staged_abort(xrootd_sd_staged_t *st)
+sd_frm_staged_abort(brix_sd_staged_t *st)
 {
     sd_frm_staged_state *ss = st->state;
 
@@ -749,10 +749,10 @@ sd_frm_staged_abort(xrootd_sd_staged_t *st)
     free(st);
 }
 
-static const xrootd_sd_driver_t xrootd_sd_frm_driver = {
+static const brix_sd_driver_t brix_sd_frm_driver = {
     .name = "frm",
-    .caps = XROOTD_SD_CAP_NEARLINE | XROOTD_SD_CAP_RANGE_READ
-          | XROOTD_SD_CAP_RANDOM_WRITE | XROOTD_SD_CAP_FD,
+    .caps = BRIX_SD_CAP_NEARLINE | BRIX_SD_CAP_RANGE_READ
+          | BRIX_SD_CAP_RANDOM_WRITE | BRIX_SD_CAP_FD,
     .open          = sd_frm_open,
     .close         = sd_frm_close,
     .pread         = sd_frm_pread,
@@ -766,10 +766,10 @@ static const xrootd_sd_driver_t xrootd_sd_frm_driver = {
     .staged_abort  = sd_frm_staged_abort,
 };
 
-xrootd_sd_instance_t *
-xrootd_sd_frm_create(const char *adapter, const char *location, ngx_log_t *log)
+brix_sd_instance_t *
+brix_sd_frm_create(const char *adapter, const char *location, ngx_log_t *log)
 {
-    xrootd_sd_instance_t *inst;
+    brix_sd_instance_t *inst;
     sd_frm_state         *st;
     stub_ctx_t           *sc;
 
@@ -787,13 +787,13 @@ xrootd_sd_frm_create(const char *adapter, const char *location, ngx_log_t *log)
     }
     st->log = log;
 
-    /* "exec" drives a real HSM via $XROOTD_FRM_STAGECMD (the classic FRM model). */
+    /* "exec" drives a real HSM via $BRIX_FRM_STAGECMD (the classic FRM model). */
     if (adapter != NULL && ngx_strcmp(adapter, "exec") == 0) {
-        const char *cmd = getenv("XROOTD_FRM_STAGECMD");
+        const char *cmd = getenv("BRIX_FRM_STAGECMD");
 
         if (cmd == NULL || cmd[0] == '\0') {
             ngx_log_error(NGX_LOG_WARN, log, 0,
-                "xrootd frm: the \"exec\" MSS adapter needs $XROOTD_FRM_STAGECMD "
+                "xrootd frm: the \"exec\" MSS adapter needs $BRIX_FRM_STAGECMD "
                 "(the stage command); falling back to the built-in stub");
         } else {
             exec_ctx_t *ec = calloc(1, sizeof(*ec));
@@ -808,7 +808,7 @@ xrootd_sd_frm_create(const char *adapter, const char *location, ngx_log_t *log)
             ngx_cpystrn((u_char *) ec->stagecmd, (u_char *) cmd,
                         sizeof(ec->stagecmd));
             ec->log     = log;
-            st->mss     = &xrootd_mss_exec_adapter;
+            st->mss     = &brix_mss_exec_adapter;
             st->mss_ctx = ec;
             ngx_log_error(NGX_LOG_NOTICE, log, 0,
                 "xrootd frm: exec MSS adapter (stagecmd=%s, online buffer=%s)",
@@ -839,17 +839,17 @@ xrootd_sd_frm_create(const char *adapter, const char *location, ngx_log_t *log)
         sc->log = log;
         /* Test/dev knob: simulate MSS recall latency so the async park (202) path
          * is exercisable with the stub. 0 (default) = synchronous recall. */
-        d = getenv("XROOTD_FRM_STUB_RECALL_DELAY_MS");
+        d = getenv("BRIX_FRM_STUB_RECALL_DELAY_MS");
         sc->recall_delay_ms = (d != NULL && d[0] != '\0')
             ? (int) ngx_atoi((u_char *) d, ngx_strlen(d)) : 0;
         if (sc->recall_delay_ms < 0) {
             sc->recall_delay_ms = 0;
         }
-        st->mss     = &xrootd_mss_stub_adapter;
+        st->mss     = &brix_mss_stub_adapter;
         st->mss_ctx = sc;
     }
 
-    inst->driver = &xrootd_sd_frm_driver;
+    inst->driver = &brix_sd_frm_driver;
     inst->log    = log;
     inst->pool   = NULL;
     inst->state  = st;
@@ -857,7 +857,7 @@ xrootd_sd_frm_create(const char *adapter, const char *location, ngx_log_t *log)
 }
 
 void
-xrootd_sd_frm_destroy(xrootd_sd_instance_t *inst)
+brix_sd_frm_destroy(brix_sd_instance_t *inst)
 {
     sd_frm_state *st;
 

@@ -4,8 +4,8 @@ Phase 31 — memory-budget streaming regression tests.
 These cover W1 (bound & reclaim per-connection scratch buffers).  The module
 grows its reusable scratch buffers (read_scratch for memory-backed/TLS reads,
 write_scratch for pgwrite decode) to the largest request a session has served,
-then trims them back to XROOTD_READ_WINDOW between requests once they exceed
-XROOTD_SCRATCH_TRIM_THRESHOLD (see xrootd_trim_scratch / the recv loop).
+then trims them back to BRIX_READ_WINDOW between requests once they exceed
+BRIX_SCRATCH_TRIM_THRESHOLD (see brix_trim_scratch / the recv loop).
 
 The Python client cannot observe worker heap directly, so these tests assert the
 property that a grow -> trim -> regrow cycle MUST preserve: byte-exact data and a
@@ -41,7 +41,7 @@ pytestmark = pytest.mark.timeout(240)
 ANON_URL    = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
 GSI_TLS_URL = f"roots://{SERVER_HOST}:{NGINX_GSI_TLS_PORT}"
 
-# Bigger than XROOTD_SCRATCH_TRIM_THRESHOLD (2 * XROOTD_READ_WINDOW = 4 MiB) so a
+# Bigger than BRIX_SCRATCH_TRIM_THRESHOLD (2 * BRIX_READ_WINDOW = 4 MiB) so a
 # single read/write grows the scratch past the trim high-water mark.
 BIG_CHUNK = 8 * 1024 * 1024
 
@@ -252,9 +252,9 @@ def test_budget_gauges_exported_and_release():
 
     body = scrape()
     # All three W4 series must be present.
-    for name in ("xrootd_xfer_heap_bytes",
-                 "xrootd_xfer_heap_high_water_bytes",
-                 "xrootd_budget_waits_total"):
+    for name in ("brix_xfer_heap_bytes",
+                 "brix_xfer_heap_high_water_bytes",
+                 "brix_budget_waits_total"):
         assert name in body, f"missing budget metric {name}"
 
     # Drive a memory-backed read (readv is served from read_scratch even on the
@@ -287,8 +287,8 @@ def test_budget_gauges_exported_and_release():
         return None
 
     after = scrape()
-    hw = gauge(after, "xrootd_xfer_heap_high_water_bytes", str(NGINX_ANON_PORT))
-    in_use = gauge(after, "xrootd_xfer_heap_bytes", str(NGINX_ANON_PORT))
+    hw = gauge(after, "brix_xfer_heap_high_water_bytes", str(NGINX_ANON_PORT))
+    in_use = gauge(after, "brix_xfer_heap_bytes", str(NGINX_ANON_PORT))
     # Charge happened: high-water rose above zero.
     assert hw is not None and hw > 0, "high-water never rose (charge not wired)"
     # Accounting is sane: live usage never exceeds the peak and never underflows
@@ -299,7 +299,7 @@ def test_budget_gauges_exported_and_release():
 
 @anon_only
 def test_oversize_request_guard_preserved():
-    """A read beyond XROOTD_READ_REQUEST_MAX (64 MiB) is still rejected/clamped.
+    """A read beyond BRIX_READ_REQUEST_MAX (64 MiB) is still rejected/clamped.
 
     The trim work must not weaken the existing per-request size guard.  XRootD
     clients clamp client-side, so we assert the server neither over-returns nor

@@ -24,7 +24,7 @@
 #include <string.h>
 
 /*
- * xrootd_http_chain_vappendf - append formatted string to an existing chain via va_list.
+ * brix_http_chain_vappendf - append formatted string to an existing chain via va_list.
  *
  * WHAT: Formats args into a buffer (stack tmp[2048] or pool-allocated heap on overflow),
  *       creates an ngx_buf_t + ngx_chain_t link, and appends it to the chain pointed
@@ -42,7 +42,7 @@
  */
 
 ngx_buf_t *
-xrootd_http_chain_vappendf(ngx_pool_t *pool, ngx_chain_t **head,
+brix_http_chain_vappendf(ngx_pool_t *pool, ngx_chain_t **head,
     ngx_chain_t **tail, const char *fmt, va_list ap)
 {
     va_list      ap_copy;
@@ -101,9 +101,9 @@ xrootd_http_chain_vappendf(ngx_pool_t *pool, ngx_chain_t **head,
 }
 
 /*
- * xrootd_http_chain_appendf - convenience wrapper: append formatted string via variadic args.
+ * brix_http_chain_appendf - convenience wrapper: append formatted string via variadic args.
  *
- * WHAT: Wraps xrootd_http_chain_vappendf() with va_start/va_end so callers pass a
+ * WHAT: Wraps brix_http_chain_vappendf() with va_start/va_end so callers pass a
  *       printf-style fmt+args directly without constructing a va_list manually. Appends the
  *       resulting buffer to head/tail chain pointers. Returns buf pointer.
  *
@@ -114,21 +114,21 @@ xrootd_http_chain_vappendf(ngx_pool_t *pool, ngx_chain_t **head,
  */
 
 ngx_buf_t *
-xrootd_http_chain_appendf(ngx_pool_t *pool, ngx_chain_t **head,
+brix_http_chain_appendf(ngx_pool_t *pool, ngx_chain_t **head,
     ngx_chain_t **tail, const char *fmt, ...)
 {
     va_list    ap;
     ngx_buf_t *b;
 
     va_start(ap, fmt);
-    b = xrootd_http_chain_vappendf(pool, head, tail, fmt, ap);
+    b = brix_http_chain_vappendf(pool, head, tail, fmt, ap);
     va_end(ap);
 
     return b;
 }
 
 /*
- * xrootd_http_send_xml_buffer - send a single ngx_buf_t as an HTTP XML response.
+ * brix_http_send_xml_buffer - send a single ngx_buf_t as an HTTP XML response.
  *
  * WHAT: Sets r->headers_out.status, content_type, and content_length_n from the buffer size,
  *       then sends headers via ngx_http_send_header() followed by the buffer as a last_buf
@@ -143,7 +143,7 @@ xrootd_http_chain_appendf(ngx_pool_t *pool, ngx_chain_t **head,
  */
 
 ngx_int_t
-xrootd_http_send_xml_buffer(ngx_http_request_t *r, ngx_uint_t status,
+brix_http_send_xml_buffer(ngx_http_request_t *r, ngx_uint_t status,
     ngx_str_t content_type, ngx_buf_t *b)
 {
     ngx_chain_t out;
@@ -165,7 +165,7 @@ xrootd_http_send_xml_buffer(ngx_http_request_t *r, ngx_uint_t status,
 }
 
 /*
- * xrootd_http_send_xml_error - build and send a protocol-agnostic XML error response.
+ * brix_http_send_xml_error - build and send a protocol-agnostic XML error response.
  *
  * WHAT: Formats an <Error><Code>...</Code><Message>...</Message></Error> body with
  *       XML-escaped Code and Message, then sends it with application/xml content-type.
@@ -174,13 +174,13 @@ xrootd_http_send_xml_buffer(ngx_http_request_t *r, ngx_uint_t status,
  *      for machine-readable errors. Centralising the builder prevents each protocol from
  *      duplicating the XML escaping + buffer assembly + header setup pattern.
  *
- * HOW: Pre-sizes buffer with xrootd_xml_text_element_len(), allocates from r->pool,
+ * HOW: Pre-sizes buffer with brix_xml_text_element_len(), allocates from r->pool,
  *      writes prefix + Code element + Message element + suffix, sends via
- *      xrootd_http_send_xml_buffer(). Returns NGX_HTTP_INTERNAL_SERVER_ERROR on OOM.
+ *      brix_http_send_xml_buffer(). Returns NGX_HTTP_INTERNAL_SERVER_ERROR on OOM.
  */
 
 ngx_int_t
-xrootd_http_send_xml_error(ngx_http_request_t *r, ngx_uint_t status,
+brix_http_send_xml_error(ngx_http_request_t *r, ngx_uint_t status,
     const char *code, const char *message)
 {
     static const char  prefix[] =
@@ -193,12 +193,12 @@ xrootd_http_send_xml_error(ngx_http_request_t *r, ngx_uint_t status,
     ngx_buf_t  *b;
 
     total = sizeof(prefix) - 1
-          + xrootd_xml_text_element_len("Code",
+          + brix_xml_text_element_len("Code",
                 (const u_char *) code, codelen,
-                XROOTD_XML_ESCAPE_APOS_ENTITY)
-          + xrootd_xml_text_element_len("Message",
+                BRIX_XML_ESCAPE_APOS_ENTITY)
+          + brix_xml_text_element_len("Message",
                 (const u_char *) message, msglen,
-                XROOTD_XML_ESCAPE_APOS_ENTITY)
+                BRIX_XML_ESCAPE_APOS_ENTITY)
           + sizeof(suffix) - 1;
 
     b = ngx_create_temp_buf(r->pool, total + 4);
@@ -208,8 +208,8 @@ xrootd_http_send_xml_error(ngx_http_request_t *r, ngx_uint_t status,
 
     b->last = ngx_cpymem(b->last, prefix, sizeof(prefix) - 1);
 
-    if (xrootd_xml_write_text_element("Code", (const u_char *) code, codelen,
-                                      XROOTD_XML_ESCAPE_APOS_ENTITY,
+    if (brix_xml_write_text_element("Code", (const u_char *) code, codelen,
+                                      BRIX_XML_ESCAPE_APOS_ENTITY,
                                       b->last, (size_t) (b->end - b->last),
                                       &codelen) != 0)
     {
@@ -217,8 +217,8 @@ xrootd_http_send_xml_error(ngx_http_request_t *r, ngx_uint_t status,
     }
     b->last += codelen;
 
-    if (xrootd_xml_write_text_element("Message", (const u_char *) message, msglen,
-                                      XROOTD_XML_ESCAPE_APOS_ENTITY,
+    if (brix_xml_write_text_element("Message", (const u_char *) message, msglen,
+                                      BRIX_XML_ESCAPE_APOS_ENTITY,
                                       b->last, (size_t) (b->end - b->last),
                                       &msglen) != 0)
     {
@@ -227,6 +227,6 @@ xrootd_http_send_xml_error(ngx_http_request_t *r, ngx_uint_t status,
     b->last += msglen;
     b->last  = ngx_cpymem(b->last, suffix, sizeof(suffix) - 1);
 
-    return xrootd_http_send_xml_buffer(r, status,
+    return brix_http_send_xml_buffer(r, status,
         (ngx_str_t) ngx_string("application/xml"), b);
 }

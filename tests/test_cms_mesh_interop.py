@@ -379,7 +379,7 @@ class TestRealXrootdHttpInMesh:
 
 class TestCmsSssAuth:
     """The nginx manager's CMS port requires an sss credential
-    (xrootd_cms_server_sss_keytab).  A data node that does not complete the
+    (brix_cms_server_sss_keytab).  A data node that does not complete the
     kYR_xauth sss handshake must be refused registration — so the manager has
     no server for the node's path and a locate returns no redirect.
 

@@ -10,12 +10,12 @@
  * NOTE: this is CRC-32/IEEE (zlib's crc32), DISTINCT from CRC-32C/Castagnoli in
  *       crc32c.h — different polynomial, NOT interchangeable.
  */
-#ifndef XROOTD_COMPAT_CRC32_IEEE_H
-#define XROOTD_COMPAT_CRC32_IEEE_H
+#ifndef BRIX_COMPAT_CRC32_IEEE_H
+#define BRIX_COMPAT_CRC32_IEEE_H
 
 #include <stddef.h>
 #include <stdint.h>
 
-uint32_t xrootd_crc32_ieee(const uint8_t *buf, size_t len);
+uint32_t brix_crc32_ieee(const uint8_t *buf, size_t len);
 
-#endif /* XROOTD_COMPAT_CRC32_IEEE_H */
+#endif /* BRIX_COMPAT_CRC32_IEEE_H */

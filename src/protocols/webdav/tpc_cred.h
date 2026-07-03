@@ -27,24 +27,24 @@
 /* ------------------------------------------------------------------ */
 
 typedef enum {
-    XROOTD_TPC_CRED_NONE = 0,     /* Credential: none  (default) */
-    XROOTD_TPC_CRED_OIDC_AGENT,   /* Credential: oidc-agent */
-    XROOTD_TPC_CRED_TOKEN_EXCHANGE, /* Credential: token-exchange */
-    XROOTD_TPC_CRED_UNKNOWN       /* Unrecognised value */
-} xrootd_tpc_cred_mode_e;
+    BRIX_TPC_CRED_NONE = 0,     /* Credential: none  (default) */
+    BRIX_TPC_CRED_OIDC_AGENT,   /* Credential: oidc-agent */
+    BRIX_TPC_CRED_TOKEN_EXCHANGE, /* Credential: token-exchange */
+    BRIX_TPC_CRED_UNKNOWN       /* Unrecognised value */
+} brix_tpc_cred_mode_e;
 
 /* ------------------------------------------------------------------ */
 /*  Metrics counters (see metrics/webdav.c)                           */
 /* ------------------------------------------------------------------ */
 
 typedef enum {
-    XROOTD_TPC_CRED_NSTARTED = 0,
-    XROOTD_TPC_CRED_NSUCCESS,
-    XROOTD_TPC_CRED_NERROR,
-    XROOTD_TPC_CRED_NUNKNOWN_MODE,
-    XROOTD_TPC_CRED_NPARSE_ERROR,
-    XROOTD_TPC_CRED_NMAX
-} xrootd_tpc_cred_metrics_e;
+    BRIX_TPC_CRED_NSTARTED = 0,
+    BRIX_TPC_CRED_NSUCCESS,
+    BRIX_TPC_CRED_NERROR,
+    BRIX_TPC_CRED_NUNKNOWN_MODE,
+    BRIX_TPC_CRED_NPARSE_ERROR,
+    BRIX_TPC_CRED_NMAX
+} brix_tpc_cred_metrics_e;
 
 /* ------------------------------------------------------------------ */
 /*  Public API                                                        */
@@ -53,9 +53,9 @@ typedef enum {
 /**
  * Parse a Credential: header value into a mode enum.
  *
- * Returns XROOTD_TPC_CRED_UNKNOWN for unrecognised values.
+ * Returns BRIX_TPC_CRED_UNKNOWN for unrecognised values.
  */
-xrootd_tpc_cred_mode_e
+brix_tpc_cred_mode_e
 webdav_tpc_cred_parse_mode(const char *value, size_t len);
 
 /**
@@ -73,7 +73,7 @@ webdav_tpc_cred_parse_mode(const char *value, size_t len);
  */
 ngx_int_t
 webdav_tpc_cred_obtain_token(ngx_http_request_t *r,
-                             xrootd_tpc_cred_mode_e mode,
+                             brix_tpc_cred_mode_e mode,
                              const char *source_url,
                              const char *subject_token,
                              const char *scope,
@@ -83,13 +83,13 @@ webdav_tpc_cred_obtain_token(ngx_http_request_t *r,
  * Return the name string for a cred-metrics counter index.
  */
 const char *
-webdav_tpc_cred_metric_name(xrootd_tpc_cred_metrics_e idx);
+webdav_tpc_cred_metric_name(brix_tpc_cred_metrics_e idx);
 
 /**
  * Increment a TPC credential metrics counter in shared memory.
  */
 ngx_int_t
 webdav_tpc_cred_metric_increment(ngx_http_request_t *r,
-                                 xrootd_tpc_cred_metrics_e idx);
+                                 brix_tpc_cred_metrics_e idx);
 
 #endif /* _TPC_CRED_H */

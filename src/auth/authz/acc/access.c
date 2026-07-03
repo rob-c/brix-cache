@@ -1,7 +1,7 @@
 /*
  * access.c — the authorization decision engine (XrdAccAccess::Access).
  *
- * WHAT: xrootd_acc_access() computes the privileges an entity holds for a path
+ * WHAT: brix_acc_access() computes the privileges an entity holds for a path
  *   and tests them against the requested operation.  It walks the identity
  *   tables in XRootD's exact precedence order, OR-ing every matching rule's
  *   positive and negative privileges, then grants iff (pprivs & ~nprivs)
@@ -22,11 +22,11 @@
 #include "acc.h"
 
 /* OS/NIS group hooks — installed by groups.c (M4); NULL = OS layer absent. */
-static xrootd_acc_unixgrp_fn  acc_unixgrp_resolver = NULL;
-static xrootd_acc_netgrp_fn   acc_netgrp_member    = NULL;
+static brix_acc_unixgrp_fn  acc_unixgrp_resolver = NULL;
+static brix_acc_netgrp_fn   acc_netgrp_member    = NULL;
 
 void
-xrootd_acc_set_group_resolvers(xrootd_acc_unixgrp_fn ug, xrootd_acc_netgrp_fn ng)
+brix_acc_set_group_resolvers(brix_acc_unixgrp_fn ug, brix_acc_netgrp_fn ng)
 {
     acc_unixgrp_resolver = ug;
     acc_netgrp_member    = ng;
@@ -38,7 +38,7 @@ xrootd_acc_set_group_resolvers(xrootd_acc_unixgrp_fn ug, xrootd_acc_netgrp_fn ng
  * suffix.  Ports XrdAccAccess_ID::Applies().
  */
 static int
-acc_applies(const xrootd_acc_idrule_t *r, const xrootd_acc_attr_t *attr,
+acc_applies(const brix_acc_idrule_t *r, const brix_acc_attr_t *attr,
             const char *name, const char *host)
 {
     if (r->org  && (attr->vorg == NULL || ngx_strcmp(r->org,  attr->vorg))) {
@@ -72,40 +72,40 @@ acc_applies(const xrootd_acc_idrule_t *r, const xrootd_acc_attr_t *attr,
 }
 
 /* Final composite + operation test (XrdAccAccess::Access2). */
-static xrootd_acc_privs_t
-acc_access2(const xrootd_acc_priv_caps_t *caps, xrootd_acc_op_t op)
+static brix_acc_privs_t
+acc_access2(const brix_acc_priv_caps_t *caps, brix_acc_op_t op)
 {
-    xrootd_acc_privs_t  eff = (xrootd_acc_privs_t) (caps->pprivs & ~caps->nprivs);
+    brix_acc_privs_t  eff = (brix_acc_privs_t) (caps->pprivs & ~caps->nprivs);
 
-    if (op == XROOTD_AOP_ANY) {
+    if (op == BRIX_AOP_ANY) {
         return eff;
     }
-    return xrootd_acc_test(eff, op) ? eff : XROOTD_ACC_PRIV_NONE;
+    return brix_acc_test(eff, op) ? eff : BRIX_ACC_PRIV_NONE;
 }
 
-xrootd_acc_privs_t
-xrootd_acc_access(xrootd_acc_tables_t *tabs, const xrootd_acc_entity_t *ent,
-                  const char *path, xrootd_acc_op_t op)
+brix_acc_privs_t
+brix_acc_access(brix_acc_tables_t *tabs, const brix_acc_entity_t *ent,
+                  const char *path, brix_acc_op_t op)
 {
-    xrootd_acc_priv_caps_t  caps = { XROOTD_ACC_PRIV_NONE, XROOTD_ACC_PRIV_NONE };
-    xrootd_acc_cap_t       *cp;
+    brix_acc_priv_caps_t  caps = { BRIX_ACC_PRIV_NONE, BRIX_ACC_PRIV_NONE };
+    brix_acc_cap_t       *cp;
     int                     plen = (int) ngx_strlen(path);
     const char             *vorg_prev = NULL, *role_prev = NULL;
     ngx_uint_t              i;
-    xrootd_acc_attr_t      *tuples;
+    brix_acc_attr_t      *tuples;
 
     if (tabs == NULL || ent == NULL) {
-        return XROOTD_ACC_PRIV_NONE;
+        return BRIX_ACC_PRIV_NONE;
     }
     tuples = ent->tuples->elts;
 
     /* (1) Exclusive rules — only the first applicable rule applies. */
     {
-        xrootd_acc_idrule_t *r;
+        brix_acc_idrule_t *r;
         for (r = tabs->sx_list; r != NULL; r = r->next) {
             for (i = 0; i < ent->tuples->nelts; i++) {
                 if (acc_applies(r, &tuples[i], ent->name, ent->host)) {
-                    xrootd_acc_cap_privs(r->caps, &caps, path, plen, NULL);
+                    brix_acc_cap_privs(r->caps, &caps, path, plen, NULL);
                     return acc_access2(&caps, op);
                 }
             }
@@ -114,27 +114,27 @@ xrootd_acc_access(xrootd_acc_tables_t *tabs, const xrootd_acc_entity_t *ent,
 
     /* (2) Default privileges (u *). */
     if (tabs->z_list) {
-        xrootd_acc_cap_privs(tabs->z_list, &caps, path, plen, NULL);
+        brix_acc_cap_privs(tabs->z_list, &caps, path, plen, NULL);
     }
 
     /* (3) Host domain (h .suffix). */
-    if ((cp = xrootd_acc_domain_find(tabs->d_list, ent->host))) {
-        xrootd_acc_cap_privs(cp, &caps, path, plen, NULL);
+    if ((cp = brix_acc_domain_find(tabs->d_list, ent->host))) {
+        brix_acc_cap_privs(cp, &caps, path, plen, NULL);
     }
 
     /* (4) Host exact (h <name>). */
-    if ((cp = xrootd_acc_named_find(tabs->h_list, ent->host))) {
-        xrootd_acc_cap_privs(cp, &caps, path, plen, NULL);
+    if ((cp = brix_acc_named_find(tabs->h_list, ent->host))) {
+        brix_acc_cap_privs(cp, &caps, path, plen, NULL);
     }
 
     /* (5) Netgroups (n) — probe each record for (user, host) membership. */
     if (tabs->n_list && acc_netgrp_member != NULL
         && ent->host && ent->host[0] != '?')
     {
-        xrootd_acc_named_t *nn;
+        brix_acc_named_t *nn;
         for (nn = tabs->n_list; nn != NULL; nn = nn->next) {
             if (acc_netgrp_member(nn->name, ent->name, ent->host)) {
-                xrootd_acc_cap_privs(nn->caps, &caps, path, plen, NULL);
+                brix_acc_cap_privs(nn->caps, &caps, path, plen, NULL);
             }
         }
     }
@@ -146,8 +146,8 @@ xrootd_acc_access(xrootd_acc_tables_t *tabs, const xrootd_acc_entity_t *ent,
         if (ugs != NULL) {
             char **gn = ugs->elts;
             for (i = 0; i < ugs->nelts; i++) {
-                if ((cp = xrootd_acc_named_find(tabs->g_list, gn[i]))) {
-                    xrootd_acc_cap_privs(cp, &caps, path, plen, NULL);
+                if ((cp = brix_acc_named_find(tabs->g_list, gn[i]))) {
+                    brix_acc_cap_privs(cp, &caps, path, plen, NULL);
                 }
             }
         }
@@ -155,37 +155,37 @@ xrootd_acc_access(xrootd_acc_tables_t *tabs, const xrootd_acc_entity_t *ent,
 
     /* (6) Fungible user (u =), with the user name substituted into @=. */
     if (ent->isuser && tabs->x_list) {
-        xrootd_acc_cap_privs(tabs->x_list, &caps, path, plen, ent->name);
+        brix_acc_cap_privs(tabs->x_list, &caps, path, plen, ent->name);
     }
 
     /* (7) Specific user (u <name>). */
-    if (ent->isuser && (cp = xrootd_acc_named_find(tabs->u_list, ent->name))) {
-        xrootd_acc_cap_privs(cp, &caps, path, plen, NULL);
+    if (ent->isuser && (cp = brix_acc_named_find(tabs->u_list, ent->name))) {
+        brix_acc_cap_privs(cp, &caps, path, plen, NULL);
     }
 
     /* (8) Per attribute tuple: group, org, role, then inclusive rules. */
     for (i = 0; i < ent->tuples->nelts; i++) {
-        xrootd_acc_attr_t   *a = &tuples[i];
-        xrootd_acc_idrule_t *r;
+        brix_acc_attr_t   *a = &tuples[i];
+        brix_acc_idrule_t *r;
 
-        if (a->grup && (cp = xrootd_acc_named_find(tabs->g_list, a->grup))) {
-            xrootd_acc_cap_privs(cp, &caps, path, plen, NULL);
+        if (a->grup && (cp = brix_acc_named_find(tabs->g_list, a->grup))) {
+            brix_acc_cap_privs(cp, &caps, path, plen, NULL);
         }
         if (a->vorg && a->vorg != vorg_prev) {
             vorg_prev = a->vorg;
-            if ((cp = xrootd_acc_named_find(tabs->o_list, a->vorg))) {
-                xrootd_acc_cap_privs(cp, &caps, path, plen, NULL);
+            if ((cp = brix_acc_named_find(tabs->o_list, a->vorg))) {
+                brix_acc_cap_privs(cp, &caps, path, plen, NULL);
             }
         }
         if (a->role && a->role != role_prev) {
             role_prev = a->role;
-            if ((cp = xrootd_acc_named_find(tabs->r_list, a->role))) {
-                xrootd_acc_cap_privs(cp, &caps, path, plen, NULL);
+            if ((cp = brix_acc_named_find(tabs->r_list, a->role))) {
+                brix_acc_cap_privs(cp, &caps, path, plen, NULL);
             }
         }
         for (r = tabs->sy_list; r != NULL; r = r->next) {
             if (acc_applies(r, a, ent->name, ent->host)) {
-                xrootd_acc_cap_privs(r->caps, &caps, path, plen, NULL);
+                brix_acc_cap_privs(r->caps, &caps, path, plen, NULL);
             }
         }
     }

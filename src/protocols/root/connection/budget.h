@@ -1,14 +1,14 @@
-#ifndef XROOTD_BUDGET_H
-#define XROOTD_BUDGET_H
+#ifndef BRIX_BUDGET_H
+#define BRIX_BUDGET_H
 
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 
 /*
  * Phase 31 W4 — transfer-heap memory budget (SHM-global pool).
  *
  * WHAT: a single shared atomic (metrics->xfer_heap_in_use) tracks, across all
  * worker processes, the bytes currently held in per-connection transfer scratch
- * buffers (read/write scratch + recv payload).  xrootd_memory_budget caps that
+ * buffers (read/write scratch + recv payload).  brix_memory_budget caps that
  * sum; when a read would push it over, the read is deferred with kXR_wait and
  * the client re-issues it — no server-side suspend/resume needed.
  *
@@ -17,13 +17,13 @@
  * graceful backpressure — the enforcement that makes the 1 GB target a guarantee.
  *
  * HOW: charging is done by idempotent reconciliation, not paired inc/dec, so it
- * can never drift negative or double-count: xrootd_budget_sync() compares the
+ * can never drift negative or double-count: brix_budget_sync() compares the
  * connection's *current* scratch footprint to what it has already charged and
- * applies only the delta.  xrootd_budget_release() (disconnect) zeroes it.
+ * applies only the delta.  brix_budget_release() (disconnect) zeroes it.
  */
 
 static ngx_inline size_t
-xrootd_budget_ctx_footprint(xrootd_ctx_t *ctx)
+brix_budget_ctx_footprint(brix_ctx_t *ctx)
 {
     size_t      total;
     ngx_uint_t  i;
@@ -46,16 +46,16 @@ xrootd_budget_ctx_footprint(xrootd_ctx_t *ctx)
  * Idempotent — safe to call as often as wanted (after any scratch grow/trim).
  */
 static ngx_inline void
-xrootd_budget_sync(xrootd_ctx_t *ctx)
+brix_budget_sync(brix_ctx_t *ctx)
 {
-    ngx_xrootd_srv_metrics_t *m = ctx->metrics;
+    ngx_brix_srv_metrics_t *m = ctx->metrics;
     size_t                cur;
 
     if (m == NULL) {
         return;
     }
 
-    cur = xrootd_budget_ctx_footprint(ctx);
+    cur = brix_budget_ctx_footprint(ctx);
     if (cur == ctx->budget_charged) {
         return;
     }
@@ -79,9 +79,9 @@ xrootd_budget_sync(xrootd_ctx_t *ctx)
 
 /* Release all charged bytes — call once on disconnect. */
 static ngx_inline void
-xrootd_budget_release(xrootd_ctx_t *ctx)
+brix_budget_release(brix_ctx_t *ctx)
 {
-    ngx_xrootd_srv_metrics_t *m = ctx->metrics;
+    ngx_brix_srv_metrics_t *m = ctx->metrics;
 
     if (m != NULL && ctx->budget_charged > 0) {
         (void) ngx_atomic_fetch_add(&m->xfer_heap_in_use,
@@ -99,9 +99,9 @@ xrootd_budget_release(xrootd_ctx_t *ctx)
  * pool is otherwise empty.  On deferral, budget_waits_total is incremented.
  */
 static ngx_inline ngx_int_t
-xrootd_budget_admit(xrootd_ctx_t *ctx, off_t budget, size_t want)
+brix_budget_admit(brix_ctx_t *ctx, off_t budget, size_t want)
 {
-    ngx_xrootd_srv_metrics_t *m = ctx->metrics;
+    ngx_brix_srv_metrics_t *m = ctx->metrics;
     ngx_atomic_uint_t     in_use, others;
 
     if (m == NULL || budget <= 0) {
@@ -120,4 +120,4 @@ xrootd_budget_admit(xrootd_ctx_t *ctx, off_t budget, size_t want)
     return 0;
 }
 
-#endif /* XROOTD_BUDGET_H */
+#endif /* BRIX_BUDGET_H */

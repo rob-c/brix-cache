@@ -31,6 +31,6 @@ gsi_find_bucket(const u_char *payload, size_t plen, uint32_t target_type,
 {
     /* The scan now lives in the shared gsi_core.c (single source for both the
      * module and the native client). u_char and uint8_t are the same type. */
-    return xrootd_gsi_find_bucket(payload, plen, target_type,
+    return brix_gsi_find_bucket(payload, plen, target_type,
                                   data_out, len_out);
 }

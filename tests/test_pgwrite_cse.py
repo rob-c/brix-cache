@@ -65,7 +65,7 @@ kXR_pgMaxEpr  = 128     # max bad pages reportable per request (server cap)
 
 _HOST = SERVER_HOST
 _PORT = NGINX_ANON_PORT
-# Stock direct-to-disk endpoint (xrootd_upload_resume off).  pgwrite
+# Stock direct-to-disk endpoint (brix_upload_resume off).  pgwrite
 # accept-then-correct lands bytes on the FINAL object immediately here, so the
 # tests that inspect on-disk state out-of-band MID-write must target this port;
 # on the resume-ON _PORT those bytes are staged in a .xrdresume.*.part until

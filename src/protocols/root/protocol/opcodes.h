@@ -1,11 +1,11 @@
-#ifndef XROOTD_PROTOCOL_OPCODES_H
-#define XROOTD_PROTOCOL_OPCODES_H
+#ifndef BRIX_PROTOCOL_OPCODES_H
+#define BRIX_PROTOCOL_OPCODES_H
 
 /* ------------------------------------------------------------------ */
 /* Protocol version and server identity                                 */
 /* ------------------------------------------------------------------ */
 
-#define XROOTD_DEFAULT_PORT     1094
+#define BRIX_DEFAULT_PORT     1094
 #define kXR_PROTOCOLVERSION     0x00000520u  /* current (5.2.0) */
 #define kXR_PROTOCOLVERSION_3   0x00000300u  /* stable v3 */
 
@@ -27,7 +27,7 @@
 #define XRD_REQUEST_HDR_LEN    24  /* all requests: 2B streamid + 2B reqid + 16B body + 4B dlen */
 #define XRD_RESPONSE_HDR_LEN   8   /* all responses: 2B streamid + 2B status + 4B dlen */
 #define XRD_FHANDLE_LEN        4   /* opaque file handle from kXR_open */
-#define XROOTD_SESSION_ID_LEN  16  /* opaque session ID from kXR_login response */
+#define BRIX_SESSION_ID_LEN  16  /* opaque session ID from kXR_login response */
 
 /* ---- Request IDs (kXR_*) — all client-opcode constants ----
  *
@@ -37,7 +37,7 @@
  * WHY: Standardizes opcode lookup — all dispatch logic uses these constants from opcodes.h.
  *      Values start at 3000 (legacy ROOTD < 3000 unsupported). Gap at 3026/3031 intentional in spec history.
  *
- * HOW: All opcodes implemented; unrecognised ones get kXR_Unsupported error. Dispatch via xrootd_dispatch_opcode(). */
+ * HOW: All opcodes implemented; unrecognised ones get kXR_Unsupported error. Dispatch via brix_dispatch_opcode(). */
 
 /* ------------------------------------------------------------------ */
 /* Request IDs (kXR_*)                                                  */
@@ -222,4 +222,4 @@
 #define kXR_fattrSet   3  /* create or overwrite named attributes */
 #define kXR_fattrMaxSC 3  /* highest valid subcode (use for bounds checks) */
 
-#endif /* XROOTD_PROTOCOL_OPCODES_H */
+#endif /* BRIX_PROTOCOL_OPCODES_H */

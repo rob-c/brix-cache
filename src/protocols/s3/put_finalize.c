@@ -19,10 +19,10 @@
  */
 ngx_int_t
 s3_commit_put(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
-    xrootd_vfs_staged_t *staged, const char *final_path)
+    brix_vfs_staged_t *staged, const char *final_path)
 {
     ngx_http_s3_req_ctx_t *rx =
-        ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+        ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
     size_t      bytes;
     ngx_int_t   rc;
     int         e;
@@ -30,7 +30,7 @@ s3_commit_put(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
     (void) root_canon;   /* the staged handle carries its own final/tmp paths */
     /* Publish through the VFS staged surface (routes through sd_stage when a stage
      * store is composed; a local temp+rename otherwise) — §6.5/G9 unified staging. */
-    rc = xrootd_vfs_staged_commit(staged,
+    rc = brix_vfs_staged_commit(staged,
              (rx != NULL && rx->exclusive_create) ? 1 : 0);
 
     /* Unified ledger: S3 PutObject (chunked / aio path) is a STAGE publish — the
@@ -38,19 +38,19 @@ s3_commit_put(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
      * is already closed by the body handler before commit, so the committed
      * object's size comes from a confined stat of the published path. */
     if (rc == NGX_OK) {
-        xrootd_vfs_ctx_t  fctx;
-        xrootd_vfs_stat_t fst;
+        brix_vfs_ctx_t  fctx;
+        brix_vfs_stat_t fst;
 
-        xrootd_vfs_ctx_init(&fctx, r->pool, log, XROOTD_PROTO_S3, root_canon,
+        brix_vfs_ctx_init(&fctx, r->pool, log, BRIX_PROTO_S3, root_canon,
             NULL, 0 /* allow_write */, 0 /* is_tls */, NULL, final_path);
-        bytes = (xrootd_vfs_probe(&fctx, 1 /* no-follow */, &fst) == NGX_OK
+        bytes = (brix_vfs_probe(&fctx, 1 /* no-follow */, &fst) == NGX_OK
                  && fst.is_regular) ? (size_t) fst.size : 0;
-        xrootd_xfer_finish(XROOTD_XFER_STAGE, "in", final_path, NULL, bytes,
-                           XROOTD_XFER_OK, 0, log);
+        brix_xfer_finish(BRIX_XFER_STAGE, "in", final_path, NULL, bytes,
+                           BRIX_XFER_OK, 0, log);
     } else {
         e = errno;
-        xrootd_xfer_finish(XROOTD_XFER_STAGE, "in", final_path, NULL, 0,
-                           XROOTD_XFER_COMMIT_ERR, e, log);
+        brix_xfer_finish(BRIX_XFER_STAGE, "in", final_path, NULL, 0,
+                           BRIX_XFER_COMMIT_ERR, e, log);
         errno = e;   /* preserve EEXIST → 412 for the caller */
     }
     return rc;
@@ -86,10 +86,10 @@ s3_put_commit_conflict(ngx_http_request_t *r)
 void
 s3_put_finalize_error(ngx_http_request_t *r)
 {
-    xrootd_dashboard_http_error(r, "s3 write failed");
-    xrootd_dashboard_http_finish(r);
-    XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
-    s3_metrics_finalize_request_method(r, XROOTD_S3_METHOD_PUT,
+    brix_dashboard_http_error(r, "s3 write failed");
+    brix_dashboard_http_finish(r);
+    BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
+    s3_metrics_finalize_request_method(r, BRIX_S3_METHOD_PUT,
                                        NGX_HTTP_INTERNAL_SERVER_ERROR);
 }
 
@@ -100,7 +100,7 @@ s3_put_finalize_error(ngx_http_request_t *r)
  *
  * WHAT: A cross-tenant / DAC-denied create (e.g. alice PUT into bob's 0755 dir →
  *       EACCES on the staged temp create) is a forbidden request, not a server
- *       fault.  Route the captured errno through xrootd_http_errno_to_status()
+ *       fault.  Route the captured errno through brix_http_errno_to_status()
  *       (the same map S3 GET/CopyObject already use): EACCES/EPERM/EXDEV/ELOOP →
  *       403 AccessDenied, ENOENT/ENOTDIR → 404 NoSuchKey, ENOSPC → 507, etc.
  *       Any errno that maps to 5xx falls back to the existing internal-error path.
@@ -117,7 +117,7 @@ s3_put_finalize_fs_error(ngx_http_request_t *r, int saved_errno)
     const char *code;
     const char *message;
 
-    status = (int) xrootd_http_errno_to_status(saved_errno);
+    status = (int) brix_http_errno_to_status(saved_errno);
 
     /* errno that has no clean 4xx contract (e.g. EIO) keeps the 500 path. */
     if (status >= 500) {
@@ -129,12 +129,12 @@ s3_put_finalize_fs_error(ngx_http_request_t *r, int saved_errno)
     case 403:
         code = "AccessDenied";
         message = "Access Denied.";
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_ACCESS_DENIED]);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_ACCESS_DENIED]);
         break;
     case 404:
         code = "NoSuchKey";
         message = "The specified key does not exist.";
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_NO_SUCH_KEY]);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_NO_SUCH_KEY]);
         break;
     case 409:
         code = "BucketAlreadyExists";
@@ -150,10 +150,10 @@ s3_put_finalize_fs_error(ngx_http_request_t *r, int saved_errno)
         break;
     }
 
-    xrootd_dashboard_http_error(r, message);
-    xrootd_dashboard_http_finish(r);
+    brix_dashboard_http_error(r, message);
+    brix_dashboard_http_finish(r);
     (void) s3_send_xml_error(r, (ngx_uint_t) status, code, message);
-    s3_metrics_finalize_request_method(r, XROOTD_S3_METHOD_PUT,
+    s3_metrics_finalize_request_method(r, BRIX_S3_METHOD_PUT,
                                        (ngx_int_t) status);
 }
 
@@ -178,8 +178,8 @@ s3_put_finalize_empty_ok(ngx_http_request_t *r)
     ngx_http_send_header(r);
 
     rc = ngx_http_send_special(r, NGX_HTTP_LAST);
-    xrootd_dashboard_http_finish(r);
-    s3_metrics_finalize_request_method(r, XROOTD_S3_METHOD_PUT, rc);
+    brix_dashboard_http_finish(r);
+    s3_metrics_finalize_request_method(r, BRIX_S3_METHOD_PUT, rc);
 }
 
 
@@ -187,15 +187,15 @@ void
 s3_put_finalize_ok(ngx_http_request_t *r, size_t body_bytes,
     ngx_uint_t body_mode)
 {
-    xrootd_dashboard_http_add(r, (ngx_atomic_int_t) body_bytes);
-    XROOTD_S3_METRIC_ADD(bytes_rx_total, body_bytes);
+    brix_dashboard_http_add(r, (ngx_atomic_int_t) body_bytes);
+    BRIX_S3_METRIC_ADD(bytes_rx_total, body_bytes);
     if (r->connection && r->connection->sockaddr
         && r->connection->sockaddr->sa_family == AF_INET6) {
-        XROOTD_S3_METRIC_ADD(bytes_rx_ipv6_total, body_bytes);
+        BRIX_S3_METRIC_ADD(bytes_rx_ipv6_total, body_bytes);
     } else {
-        XROOTD_S3_METRIC_ADD(bytes_rx_ipv4_total, body_bytes);
+        BRIX_S3_METRIC_ADD(bytes_rx_ipv4_total, body_bytes);
     }
-    XROOTD_S3_METRIC_INC(put_body_total[body_mode]);
+    BRIX_S3_METRIC_INC(put_body_total[body_mode]);
     s3_put_finalize_empty_ok(r);
 }
 
@@ -208,11 +208,11 @@ s3_put_finalize_ok(ngx_http_request_t *r, size_t body_bytes,
 void
 s3_put_finalize_bad_digest(ngx_http_request_t *r)
 {
-    xrootd_dashboard_http_error(r, "s3 checksum mismatch");
-    xrootd_dashboard_http_finish(r);
+    brix_dashboard_http_error(r, "s3 checksum mismatch");
+    brix_dashboard_http_finish(r);
     (void) s3_send_xml_error(r, NGX_HTTP_BAD_REQUEST, "BadDigest",
         "The checksum you specified did not match what was received.");
-    s3_metrics_finalize_request_method(r, XROOTD_S3_METHOD_PUT,
+    s3_metrics_finalize_request_method(r, BRIX_S3_METHOD_PUT,
                                        NGX_HTTP_BAD_REQUEST);
 }
 
@@ -225,11 +225,11 @@ s3_put_finalize_bad_digest(ngx_http_request_t *r)
 void
 s3_put_finalize_invalid_request(ngx_http_request_t *r)
 {
-    xrootd_dashboard_http_error(r, "s3 invalid checksum request");
-    xrootd_dashboard_http_finish(r);
+    brix_dashboard_http_error(r, "s3 invalid checksum request");
+    brix_dashboard_http_finish(r);
     (void) s3_send_xml_error(r, NGX_HTTP_BAD_REQUEST, "InvalidRequest",
         "The checksum algorithm selection is invalid or ambiguous.");
-    s3_metrics_finalize_request_method(r, XROOTD_S3_METHOD_PUT,
+    s3_metrics_finalize_request_method(r, BRIX_S3_METHOD_PUT,
                                        NGX_HTTP_BAD_REQUEST);
 }
 
@@ -254,10 +254,10 @@ s3_put_finalize_codec_error(ngx_http_request_t *r, ngx_int_t status)
         code = "EntityTooLarge";
         msg  = "The decompressed body exceeds the maximum allowed size.";
     }
-    xrootd_dashboard_http_error(r, "s3 content-encoding decode failed");
-    xrootd_dashboard_http_finish(r);
+    brix_dashboard_http_error(r, "s3 content-encoding decode failed");
+    brix_dashboard_http_finish(r);
     (void) s3_send_xml_error(r, status, code, msg);
-    s3_metrics_finalize_request_method(r, XROOTD_S3_METHOD_PUT, status);
+    s3_metrics_finalize_request_method(r, BRIX_S3_METHOD_PUT, status);
 }
 
 
@@ -291,7 +291,7 @@ s3_put_checksum_failed(ngx_http_request_t *r, const char *fs_path,
  *
  * Parameters:
  *   body_bytes   — total bytes written from the client request body
- *   body_mode    — classification enum (XROOTD_S3_PUT_*), used as metric index
+ *   body_mode    — classification enum (BRIX_S3_PUT_*), used as metric index
  *
  * Flow:
  *   1. Increment bytes_rx_total by body_bytes
@@ -327,9 +327,9 @@ void
 s3_put_finalize_client_error(ngx_http_request_t *r, int status,
     const char *code, const char *message)
 {
-    xrootd_dashboard_http_error(r, message);
-    xrootd_dashboard_http_finish(r);
+    brix_dashboard_http_error(r, message);
+    brix_dashboard_http_finish(r);
     (void) s3_send_xml_error(r, (ngx_uint_t) status, code, message);
-    s3_metrics_finalize_request_method(r, XROOTD_S3_METHOD_PUT,
+    s3_metrics_finalize_request_method(r, BRIX_S3_METHOD_PUT,
                                        (ngx_int_t) status);
 }

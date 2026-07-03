@@ -2,19 +2,19 @@
  * tier_config.c - parse a store URL into a tier cfg, and report a tier's
  * readiness against its role contract (phase-64 section 4.2 / 2.2, Appendix L/F).
  *
- * xrootd_tier_parse_store turns "<scheme>:<location> [credential=][block_size=]"
- * into an xrootd_tier_cfg_t: scheme -> driver (root[s]->xroot, http[s]->http),
- * a local path confined via xrootd_prepare_export_root, or a remote //host[:port]
+ * brix_tier_parse_store turns "<scheme>:<location> [credential=][block_size=]"
+ * into an brix_tier_cfg_t: scheme -> driver (root[s]->xroot, http[s]->http),
+ * a local path confined via brix_prepare_export_root, or a remote //host[:port]
  * authority with a scheme default port. An unknown scheme / unknown credential /
  * missing port is an OPERATOR error ([emerg], fails nginx -t, Appendix F).
  *
- * xrootd_tier_status checks the built driver against the per-role slot+cap
+ * brix_tier_status checks the built driver against the per-role slot+cap
  * contract (section 2.2): a missing slot/cap is a tracked "needs development"
  * (NEEDS_DEV + the closing sub-project), never a hard failure (P1).
  */
 #include "tier.h"
 #include "core/types/fs_list.h"
-#include "core/config/root_prepare.h"   /* xrootd_prepare_export_root */
+#include "core/config/root_prepare.h"   /* brix_prepare_export_root */
 
 #include <limits.h>
 #include <stdarg.h>
@@ -29,9 +29,9 @@ static const struct {
     int         nearline;
 } tier_schemes[] = {
     /* GENERATED from the central filesystem declaration
-     * (core/types/fs_list.h XROOTD_FS_SCHEME_LIST) — add schemes there. */
+     * (core/types/fs_list.h BRIX_FS_SCHEME_LIST) — add schemes there. */
 #define S(scheme, driver, tls, nearline) { scheme, driver, tls, nearline },
-    XROOTD_FS_SCHEME_LIST(S)
+    BRIX_FS_SCHEME_LIST(S)
 #undef S
 };
 
@@ -66,14 +66,14 @@ tier_fail(ngx_conf_t *cf, int log_emerg, char *err, size_t errcap,
 
 /* The consuming directive name for a role (used in path-validation errors). */
 static const char *
-tier_role_directive(xrootd_tier_role_t role)
+tier_role_directive(brix_tier_role_t role)
 {
     switch (role) {
-    case XROOTD_TIER_BACKEND: return "xrootd_storage_backend";
-    case XROOTD_TIER_CACHE:   return "xrootd_cache_store";
-    case XROOTD_TIER_STAGE:   return "xrootd_stage_store";
+    case BRIX_TIER_BACKEND: return "brix_storage_backend";
+    case BRIX_TIER_CACHE:   return "brix_cache_store";
+    case BRIX_TIER_STAGE:   return "brix_stage_store";
     }
-    return "xrootd_store";
+    return "brix_store";
 }
 
 /* Default TCP port for a remote scheme (0 = the driver/adapter decides, e.g.
@@ -89,7 +89,7 @@ tier_default_port(const char *driver, int tls)
 
 /* The sub-project that closes a gap for (driver, role) - the §3 status matrix. */
 static const char *
-tier_sp_for(const char *driver, xrootd_tier_role_t role)
+tier_sp_for(const char *driver, brix_tier_role_t role)
 {
     (void) role;
     if (ngx_strcmp(driver, "pblock") == 0 || ngx_strcmp(driver, "xroot") == 0) {
@@ -104,7 +104,7 @@ tier_sp_for(const char *driver, xrootd_tier_role_t role)
 /* Parse a remote "//host[:port][/path]" authority (IPv6-bracket aware) into out. */
 static ngx_int_t
 tier_parse_authority(ngx_conf_t *cf, u_char *loc, size_t loclen,
-    xrootd_tier_cfg_t *out, char *err, size_t errcap)
+    brix_tier_cfg_t *out, char *err, size_t errcap)
 {
     u_char    *authority;
     u_char    *path;
@@ -193,7 +193,7 @@ tier_parse_authority(ngx_conf_t *cf, u_char *loc, size_t loclen,
 
 /* Parse the trailing "credential=<n>" / "block_size=<n>" params. */
 static ngx_int_t
-tier_parse_args(ngx_conf_t *cf, ngx_array_t *args, xrootd_tier_cfg_t *out,
+tier_parse_args(ngx_conf_t *cf, ngx_array_t *args, brix_tier_cfg_t *out,
     char *err, size_t errcap)
 {
     ngx_str_t  *a;
@@ -210,7 +210,7 @@ tier_parse_args(ngx_conf_t *cf, ngx_array_t *args, xrootd_tier_cfg_t *out,
         if (a[i].len > sizeof(cred) - 1
             && ngx_strncmp(a[i].data, cred, sizeof(cred) - 1) == 0)
         {
-            const xrootd_credential_t *c;
+            const brix_credential_t *c;
             char   name[256];
             size_t nl = a[i].len - (sizeof(cred) - 1);
 
@@ -219,10 +219,10 @@ tier_parse_args(ngx_conf_t *cf, ngx_array_t *args, xrootd_tier_cfg_t *out,
             }
             ngx_memcpy(name, a[i].data + sizeof(cred) - 1, nl);
             name[nl] = '\0';
-            c = xrootd_credential_lookup(name);
+            c = brix_credential_lookup(name);
             if (c == NULL) {
                 return tier_fail(cf, 1, err, errcap,
-                    "no xrootd_credential \"%s\"", name);
+                    "no brix_credential \"%s\"", name);
             }
             out->credential = c;
         } else if (a[i].len > sizeof(blk) - 1
@@ -249,8 +249,8 @@ tier_parse_args(ngx_conf_t *cf, ngx_array_t *args, xrootd_tier_cfg_t *out,
 /* ---- public: parse a store URL -------------------------------------------- */
 
 ngx_int_t
-xrootd_tier_parse_store(ngx_conf_t *cf, ngx_str_t *url, ngx_array_t *args,
-    xrootd_tier_role_t role, xrootd_tier_cfg_t *out, char *err, size_t errcap)
+brix_tier_parse_store(ngx_conf_t *cf, ngx_str_t *url, ngx_array_t *args,
+    brix_tier_role_t role, brix_tier_cfg_t *out, char *err, size_t errcap)
 {
     const char *driver = NULL;
     u_char     *loc;
@@ -300,7 +300,7 @@ xrootd_tier_parse_store(ngx_conf_t *cf, ngx_str_t *url, ngx_array_t *args,
                 || ngx_strcmp(driver, "pblock") == 0);
 
     if (is_local) {
-        xrootd_export_root_opts_t opts;
+        brix_export_root_opts_t opts;
         ngx_str_t                 loc_str;
         char                      canon[PATH_MAX];
 
@@ -308,11 +308,11 @@ xrootd_tier_parse_store(ngx_conf_t *cf, ngx_str_t *url, ngx_array_t *args,
         loc_str.data = loc;
         ngx_memzero(&opts, sizeof(opts));
         opts.directive_name = tier_role_directive(role);
-        opts.allow_write    = (role != XROOTD_TIER_BACKEND) ? 1 : 0;
+        opts.allow_write    = (role != BRIX_TIER_BACKEND) ? 1 : 0;
         opts.required       = 1;
         opts.canon_size     = sizeof(canon);
 
-        if (xrootd_prepare_export_root(cf, &loc_str, &opts, canon) != NGX_CONF_OK) {
+        if (brix_prepare_export_root(cf, &loc_str, &opts, canon) != NGX_CONF_OK) {
             /* prepare_export_root already emitted an [emerg]. */
             return tier_fail(cf, 0, err, errcap,
                 "invalid local store path for %s", opts.directive_name);
@@ -349,13 +349,13 @@ xrootd_tier_parse_store(ngx_conf_t *cf, ngx_str_t *url, ngx_array_t *args,
 
 /* ---- public: report a tier's readiness ------------------------------------ */
 
-xrootd_tier_status_t
-xrootd_tier_status(const xrootd_tier_cfg_t *t, xrootd_sd_instance_t *probe,
-    xrootd_tier_gap_t *gap_out)
+brix_tier_status_t
+brix_tier_status(const brix_tier_cfg_t *t, brix_sd_instance_t *probe,
+    brix_tier_gap_t *gap_out)
 {
-    const xrootd_sd_driver_t *d;
+    const brix_sd_driver_t *d;
     uint32_t                  caps;
-    xrootd_tier_gap_t         g;
+    brix_tier_gap_t         g;
 
     ngx_memzero(&g, sizeof(g));
 
@@ -363,7 +363,7 @@ xrootd_tier_status(const xrootd_tier_cfg_t *t, xrootd_sd_instance_t *probe,
         ngx_cpystrn((u_char *) g.slot, (u_char *) "open", sizeof(g.slot));
         ngx_cpystrn((u_char *) g.sp_item, (u_char *) "SP1", sizeof(g.sp_item));
         if (gap_out != NULL) { *gap_out = g; }
-        return XROOTD_TIER_NEEDS_DEV;
+        return BRIX_TIER_NEEDS_DEV;
     }
     d    = probe->driver;
     caps = d->caps;
@@ -375,7 +375,7 @@ xrootd_tier_status(const xrootd_tier_cfg_t *t, xrootd_sd_instance_t *probe,
         if (d->field == NULL) {                                                \
             ngx_cpystrn((u_char *) g.slot, (u_char *) (nm), sizeof(g.slot));    \
             if (gap_out != NULL) { *gap_out = g; }                             \
-            return XROOTD_TIER_NEEDS_DEV;                                       \
+            return BRIX_TIER_NEEDS_DEV;                                       \
         }                                                                      \
     } while (0)
 
@@ -384,24 +384,24 @@ xrootd_tier_status(const xrootd_tier_cfg_t *t, xrootd_sd_instance_t *probe,
         if ((caps & (bit)) == 0) {                                             \
             ngx_cpystrn((u_char *) g.cap, (u_char *) (nm), sizeof(g.cap));      \
             if (gap_out != NULL) { *gap_out = g; }                             \
-            return XROOTD_TIER_NEEDS_DEV;                                       \
+            return BRIX_TIER_NEEDS_DEV;                                       \
         }                                                                      \
     } while (0)
 
     switch (t->role) {
-    case XROOTD_TIER_BACKEND:
+    case BRIX_TIER_BACKEND:
         MISS_SLOT(open, "open");
         MISS_SLOT(pread, "pread");
         MISS_SLOT(stat, "stat");
         MISS_SLOT(fstat, "fstat");
-        MISS_CAP(XROOTD_SD_CAP_RANGE_READ, "RANGE_READ");
+        MISS_CAP(BRIX_SD_CAP_RANGE_READ, "RANGE_READ");
         if (t->nearline) {
             MISS_SLOT(recall, "recall");
-            MISS_CAP(XROOTD_SD_CAP_NEARLINE, "NEARLINE");
+            MISS_CAP(BRIX_SD_CAP_NEARLINE, "NEARLINE");
         }
         break;
 
-    case XROOTD_TIER_CACHE:
+    case BRIX_TIER_CACHE:
         MISS_SLOT(open, "open");
         MISS_SLOT(pread, "pread");
         MISS_SLOT(stat, "stat");
@@ -415,13 +415,13 @@ xrootd_tier_status(const xrootd_tier_cfg_t *t, xrootd_sd_instance_t *probe,
         MISS_SLOT(closedir, "closedir");
         MISS_SLOT(getxattr, "getxattr");
         MISS_SLOT(setxattr, "setxattr");
-        MISS_CAP(XROOTD_SD_CAP_RANGE_READ, "RANGE_READ");
-        MISS_CAP(XROOTD_SD_CAP_RANDOM_WRITE, "RANDOM_WRITE");
-        MISS_CAP(XROOTD_SD_CAP_DIRS, "DIRS");
-        MISS_CAP(XROOTD_SD_CAP_XATTR, "XATTR");
+        MISS_CAP(BRIX_SD_CAP_RANGE_READ, "RANGE_READ");
+        MISS_CAP(BRIX_SD_CAP_RANDOM_WRITE, "RANDOM_WRITE");
+        MISS_CAP(BRIX_SD_CAP_DIRS, "DIRS");
+        MISS_CAP(BRIX_SD_CAP_XATTR, "XATTR");
         break;
 
-    case XROOTD_TIER_STAGE:
+    case BRIX_TIER_STAGE:
         MISS_SLOT(staged_open, "staged_open");
         MISS_SLOT(staged_write, "staged_write");
         MISS_SLOT(staged_commit, "staged_commit");
@@ -431,8 +431,8 @@ xrootd_tier_status(const xrootd_tier_cfg_t *t, xrootd_sd_instance_t *probe,
         MISS_SLOT(unlink, "unlink");
         MISS_SLOT(getxattr, "getxattr");
         MISS_SLOT(setxattr, "setxattr");
-        MISS_CAP(XROOTD_SD_CAP_RANDOM_WRITE, "RANDOM_WRITE");
-        MISS_CAP(XROOTD_SD_CAP_XATTR, "XATTR");
+        MISS_CAP(BRIX_SD_CAP_RANDOM_WRITE, "RANDOM_WRITE");
+        MISS_CAP(BRIX_SD_CAP_XATTR, "XATTR");
         break;
     }
 
@@ -442,5 +442,5 @@ xrootd_tier_status(const xrootd_tier_cfg_t *t, xrootd_sd_instance_t *probe,
     if (gap_out != NULL) {
         ngx_memzero(gap_out, sizeof(*gap_out));   /* READY: no gap */
     }
-    return XROOTD_TIER_READY;
+    return BRIX_TIER_READY;
 }

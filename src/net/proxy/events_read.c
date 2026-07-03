@@ -15,11 +15,11 @@
 
 /* read event handler */
 void
-xrootd_proxy_read_handler(ngx_event_t *rev)
+brix_proxy_read_handler(ngx_event_t *rev)
 {
     ngx_connection_t   *uconn = rev->data;
-    xrootd_proxy_ctx_t *proxy = uconn->data;
-    xrootd_ctx_t       *ctx;
+    brix_proxy_ctx_t *proxy = uconn->data;
+    brix_ctx_t       *ctx;
     ssize_t             n;
 
     /* Guard against use-after-free: if the client pool was freed while a
@@ -30,12 +30,12 @@ xrootd_proxy_read_handler(ngx_event_t *rev)
     ctx = proxy->client_ctx;
 
     if (ctx == NULL || ctx->destroyed) {
-        xrootd_proxy_cleanup(proxy);
+        brix_proxy_cleanup(proxy);
         return;
     }
 
     if (rev->timedout) {
-        xrootd_proxy_abort(proxy, "proxy: upstream read timeout");
+        brix_proxy_abort(proxy, "proxy: upstream read timeout");
         return;
     }
 
@@ -43,7 +43,7 @@ xrootd_proxy_read_handler(ngx_event_t *rev)
         /*
          * Teardown guard (UAF + busy-loop): a handler invoked in a previous
          * iteration (handle_bootstrap, relay_to_client, …) may have called
-         * xrootd_proxy_abort(), which tears the proxy down and clears
+         * brix_proxy_abort(), which tears the proxy down and clears
          * ctx->proxy *without* changing proxy->state.  The per-state branches
          * below key off proxy->state, so without this check the loop would
          * `continue` straight back into the same handler and re-process the
@@ -62,7 +62,7 @@ xrootd_proxy_read_handler(ngx_event_t *rev)
             n = uconn->recv(uconn, proxy->rhdr + proxy->rhdr_pos, need);
             if (n == NGX_AGAIN) {
                 if (ngx_handle_read_event(rev, 0) != NGX_OK) {
-                    xrootd_proxy_abort(proxy, "proxy: read arm failed (hdr)");
+                    brix_proxy_abort(proxy, "proxy: read arm failed (hdr)");
                     return;
                 }
                 if (proxy->conf != NULL && proxy->conf->proxy_read_timeout > 0) {
@@ -71,7 +71,7 @@ xrootd_proxy_read_handler(ngx_event_t *rev)
                 return;
             }
             if (n <= 0) {
-                xrootd_proxy_abort(proxy, "proxy: upstream closed (hdr)");
+                brix_proxy_abort(proxy, "proxy: upstream closed (hdr)");
                 return;
             }
 
@@ -96,7 +96,7 @@ xrootd_proxy_read_handler(ngx_event_t *rev)
 #ifdef __linux__
                 /* Attempt zero-copy splice for plain-text read responses. */
                 if (proxy->state == XRD_PX_FORWARDING) {
-                    ngx_int_t srt = xrootd_proxy_try_splice(proxy);
+                    ngx_int_t srt = brix_proxy_try_splice(proxy);
                     if (srt == NGX_OK) {
                         ngx_log_debug(NGX_LOG_DEBUG_STREAM, uconn->log, 0,
                                       "xrootd proxy: splice started dlen=%uz",
@@ -112,13 +112,13 @@ xrootd_proxy_read_handler(ngx_event_t *rev)
                     /* NGX_DECLINED — fall through to the buffered body path. */
                 }
 #endif
-                if (proxy->resp_dlen > XROOTD_PROXY_MAX_BODY) {
-                    xrootd_proxy_abort(proxy, "proxy: upstream response body too large");
+                if (proxy->resp_dlen > BRIX_PROXY_MAX_BODY) {
+                    brix_proxy_abort(proxy, "proxy: upstream response body too large");
                     return;
                 }
                 proxy->resp_body = ngx_alloc(proxy->resp_dlen + 1, uconn->log);
                 if (proxy->resp_body == NULL) {
-                    xrootd_proxy_abort(proxy, "proxy: body alloc failed");
+                    brix_proxy_abort(proxy, "proxy: body alloc failed");
                     return;
                 }
                 ngx_log_debug(NGX_LOG_DEBUG_STREAM, uconn->log, 0,
@@ -132,7 +132,7 @@ xrootd_proxy_read_handler(ngx_event_t *rev)
         /* accumulate response body */#ifdef __linux__
         /* If splice is active, upstream readable means more data to pump. */
         if (proxy->splice_active) {
-            xrootd_proxy_splice_pump(proxy);
+            brix_proxy_splice_pump(proxy);
             return;
         }
 #endif
@@ -147,7 +147,7 @@ xrootd_proxy_read_handler(ngx_event_t *rev)
                               (size_t) proxy->resp_body_pos,
                               (size_t) proxy->resp_dlen);
                 if (ngx_handle_read_event(rev, 0) != NGX_OK) {
-                    xrootd_proxy_abort(proxy, "proxy: read arm failed (body)");
+                    brix_proxy_abort(proxy, "proxy: read arm failed (body)");
                     return;
                 }
                 if (proxy->conf != NULL && proxy->conf->proxy_read_timeout > 0) {
@@ -156,7 +156,7 @@ xrootd_proxy_read_handler(ngx_event_t *rev)
                 return;
             }
             if (n <= 0) {
-                xrootd_proxy_abort(proxy, "proxy: upstream closed (body)");
+                brix_proxy_abort(proxy, "proxy: upstream closed (body)");
                 return;
             }
 
@@ -187,15 +187,15 @@ xrootd_proxy_read_handler(ngx_event_t *rev)
                           (size_t) extra,
                           (int)(unsigned char) proxy->resp_body[7]);
 
-            if (extra > XROOTD_PROXY_MAX_BODY) {
-                xrootd_proxy_abort(proxy,
+            if (extra > BRIX_PROXY_MAX_BODY) {
+                brix_proxy_abort(proxy,
                                    "proxy: kXR_status extra data too large");
                 return;
             }
             if (extra > 0) {
                 new_body = ngx_alloc(24 + extra + 1, uconn->log);
                 if (new_body == NULL) {
-                    xrootd_proxy_abort(proxy,
+                    brix_proxy_abort(proxy,
                                        "proxy: kXR_status extra body alloc failed");
                     return;
                 }
@@ -231,7 +231,7 @@ xrootd_proxy_read_handler(ngx_event_t *rev)
                         ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, proxy->resp_body,
                                    proxy->resp_dlen);
                     }
-                    xrootd_queue_response(proxy->client_ctx, proxy->client_conn,
+                    brix_queue_response(proxy->client_ctx, proxy->client_conn,
                                           buf, total);
                 }
             }
@@ -247,7 +247,7 @@ xrootd_proxy_read_handler(ngx_event_t *rev)
         }
 
         if (proxy->state == XRD_PX_BOOTSTRAP) {
-            xrootd_proxy_handle_bootstrap(proxy);
+            brix_proxy_handle_bootstrap(proxy);
             /*
              * Don't return here — the upstream may have already delivered
              * subsequent bootstrap responses (protocol + login) in the same
@@ -256,8 +256,8 @@ xrootd_proxy_read_handler(ngx_event_t *rev)
              * the loop; if there is no more data recv() will return NGX_AGAIN
              * and we arm the read event there.
              *
-             * xrootd_proxy_handle_bootstrap transitions state to XRD_PX_IDLE
-             * (and may call xrootd_proxy_flush / arm the read itself) when
+             * brix_proxy_handle_bootstrap transitions state to XRD_PX_IDLE
+             * (and may call brix_proxy_flush / arm the read itself) when
              * bootstrap completes, so check before looping.
              */
             if (proxy->state != XRD_PX_BOOTSTRAP) {
@@ -271,14 +271,14 @@ xrootd_proxy_read_handler(ngx_event_t *rev)
              * RAW remainder of a spliced read (header already sent) — relay it
              * verbatim and finish, never through the header-building relay. */
             if (proxy->splice_fallback) {
-                xrootd_proxy_splice_fallback_finish(proxy);
+                brix_proxy_splice_fallback_finish(proxy);
                 return;
             }
             ngx_log_debug(NGX_LOG_DEBUG_STREAM, uconn->log, 0,
                           "xrootd proxy: relay_to_client status=%d dlen=%uz",
                           (int) proxy->resp_status,
                           (size_t) proxy->resp_dlen);
-            xrootd_proxy_relay_to_client(proxy);
+            brix_proxy_relay_to_client(proxy);
             /* relay_to_client resets rhdr_pos and resp_body for the
              * next frame if status was kXR_oksofar; otherwise it
              * resets ctx->state and returns, ending the loop. */
@@ -296,7 +296,7 @@ xrootd_proxy_read_handler(ngx_event_t *rev)
             return;
         }
 
-        xrootd_proxy_abort(proxy, "proxy: unexpected state in read handler");
+        brix_proxy_abort(proxy, "proxy: unexpected state in read handler");
         return;
     }
 }

@@ -14,8 +14,8 @@
  * implementation.  Pure C (no nginx types) so it is trivially unit-testable.
  */
 
-#ifndef XROOTD_HOST_FORMAT_H
-#define XROOTD_HOST_FORMAT_H
+#ifndef BRIX_HOST_FORMAT_H
+#define BRIX_HOST_FORMAT_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -27,7 +27,7 @@
  * a sufficient discriminator for a host-only string (it also catches zone-id
  * link-local forms like "fe80::1%eth0" that inet_pton would reject).
  */
-int xrootd_host_is_ipv6_literal(const char *host);
+int brix_host_is_ipv6_literal(const char *host);
 
 /*
  * Write "[host]" for an IPv6 literal, else "host", into out[sz] (NUL-terminated).
@@ -35,14 +35,14 @@ int xrootd_host_is_ipv6_literal(const char *host);
  * Returns bytes written (excluding the NUL), or 0 on NULL/overflow (out is left
  * as a valid empty string when sz > 0).
  */
-size_t xrootd_format_host(const char *host, char *out, size_t sz);
+size_t brix_format_host(const char *host, char *out, size_t sz);
 
 /*
  * Write "[host]:port" for an IPv6 literal, else "host:port", into out[sz]
  * (NUL-terminated).  Returns bytes written (excluding the NUL), or 0 on
  * NULL/overflow.
  */
-size_t xrootd_format_host_port(const char *host, uint16_t port,
+size_t brix_format_host_port(const char *host, uint16_t port,
                                char *out, size_t sz);
 
-#endif /* XROOTD_HOST_FORMAT_H */
+#endif /* BRIX_HOST_FORMAT_H */

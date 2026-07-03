@@ -29,10 +29,10 @@ static int g_fail;
 
 /* Build an rrdata with C-string fields (lengths excluding NUL, as the real
  * decoder produces). */
-static xrootd_cms_rrdata_t
+static brix_cms_rrdata_t
 rr(const char *path, const char *path2, const char *mode)
 {
-    xrootd_cms_rrdata_t d;
+    brix_cms_rrdata_t d;
     memset(&d, 0, sizeof(d));
     if (path)  { d.path  = (const unsigned char *) path;  d.path_len  = strlen(path); }
     if (path2) { d.path2 = (const unsigned char *) path2; d.path2_len = strlen(path2); }
@@ -43,9 +43,9 @@ rr(const char *path, const char *path2, const char *mode)
 static void
 test_mkdir_mode(void)
 {
-    xrootd_cms_rrdata_t d = rr("/atlas/d", NULL, "750");
-    xrootd_cms_node_plan_t p;
-    CHECK(xrootd_cms_node_plan(K_MKDIR, &d, &p) == 0);
+    brix_cms_rrdata_t d = rr("/atlas/d", NULL, "750");
+    brix_cms_node_plan_t p;
+    CHECK(brix_cms_node_plan(K_MKDIR, &d, &p) == 0);
     CHECK(p.action == XRDCMS_NACT_MKDIR);
     CHECK(p.path && strcmp(p.path, "/atlas/d") == 0);
     CHECK(p.mode == 0750);
@@ -54,27 +54,27 @@ test_mkdir_mode(void)
 static void
 test_mkdir_default_mode(void)
 {
-    xrootd_cms_rrdata_t d = rr("/d", NULL, NULL);   /* no mode field */
-    xrootd_cms_node_plan_t p;
-    CHECK(xrootd_cms_node_plan(K_MKDIR, &d, &p) == 0);
+    brix_cms_rrdata_t d = rr("/d", NULL, NULL);   /* no mode field */
+    brix_cms_node_plan_t p;
+    CHECK(brix_cms_node_plan(K_MKDIR, &d, &p) == 0);
     CHECK(p.mode == XRDCMS_NODE_DEFAULT_DIR_MODE);
 }
 
 static void
 test_mkpath(void)
 {
-    xrootd_cms_rrdata_t d = rr("/a/b/c", NULL, "755");
-    xrootd_cms_node_plan_t p;
-    CHECK(xrootd_cms_node_plan(K_MKPATH, &d, &p) == 0);
+    brix_cms_rrdata_t d = rr("/a/b/c", NULL, "755");
+    brix_cms_node_plan_t p;
+    CHECK(brix_cms_node_plan(K_MKPATH, &d, &p) == 0);
     CHECK(p.action == XRDCMS_NACT_MKPATH);
 }
 
 static void
 test_chmod(void)
 {
-    xrootd_cms_rrdata_t d = rr("/f", NULL, "640");
-    xrootd_cms_node_plan_t p;
-    CHECK(xrootd_cms_node_plan(K_CHMOD, &d, &p) == 0);
+    brix_cms_rrdata_t d = rr("/f", NULL, "640");
+    brix_cms_node_plan_t p;
+    CHECK(brix_cms_node_plan(K_CHMOD, &d, &p) == 0);
     CHECK(p.action == XRDCMS_NACT_CHMOD);
     CHECK(p.mode == 0640);
 }
@@ -82,17 +82,17 @@ test_chmod(void)
 static void
 test_chmod_requires_mode(void)
 {
-    xrootd_cms_rrdata_t d = rr("/f", NULL, NULL);
-    xrootd_cms_node_plan_t p;
-    CHECK(xrootd_cms_node_plan(K_CHMOD, &d, &p) == -1);
+    brix_cms_rrdata_t d = rr("/f", NULL, NULL);
+    brix_cms_node_plan_t p;
+    CHECK(brix_cms_node_plan(K_CHMOD, &d, &p) == -1);
 }
 
 static void
 test_trunc_size(void)
 {
-    xrootd_cms_rrdata_t d = rr("/big", NULL, "1048576");  /* size in Mode field */
-    xrootd_cms_node_plan_t p;
-    CHECK(xrootd_cms_node_plan(K_TRUNC, &d, &p) == 0);
+    brix_cms_rrdata_t d = rr("/big", NULL, "1048576");  /* size in Mode field */
+    brix_cms_node_plan_t p;
+    CHECK(brix_cms_node_plan(K_TRUNC, &d, &p) == 0);
     CHECK(p.action == XRDCMS_NACT_TRUNC);
     CHECK(p.size == 1048576);
 }
@@ -100,9 +100,9 @@ test_trunc_size(void)
 static void
 test_mv(void)
 {
-    xrootd_cms_rrdata_t d = rr("/src", "/dst", NULL);
-    xrootd_cms_node_plan_t p;
-    CHECK(xrootd_cms_node_plan(K_MV, &d, &p) == 0);
+    brix_cms_rrdata_t d = rr("/src", "/dst", NULL);
+    brix_cms_node_plan_t p;
+    CHECK(brix_cms_node_plan(K_MV, &d, &p) == 0);
     CHECK(p.action == XRDCMS_NACT_MV);
     CHECK(p.path && strcmp(p.path, "/src") == 0);
     CHECK(p.path2 && strcmp(p.path2, "/dst") == 0);
@@ -111,35 +111,35 @@ test_mv(void)
 static void
 test_mv_requires_two_paths(void)
 {
-    xrootd_cms_rrdata_t d = rr("/src", NULL, NULL);
-    xrootd_cms_node_plan_t p;
-    CHECK(xrootd_cms_node_plan(K_MV, &d, &p) == -1);
+    brix_cms_rrdata_t d = rr("/src", NULL, NULL);
+    brix_cms_node_plan_t p;
+    CHECK(brix_cms_node_plan(K_MV, &d, &p) == -1);
 }
 
 static void
 test_rm_and_rmdir(void)
 {
-    xrootd_cms_rrdata_t d = rr("/x", NULL, NULL);
-    xrootd_cms_node_plan_t p;
-    CHECK(xrootd_cms_node_plan(K_RM, &d, &p) == 0 && p.action == XRDCMS_NACT_RM);
-    CHECK(xrootd_cms_node_plan(K_RMDIR, &d, &p) == 0 && p.action == XRDCMS_NACT_RMDIR);
+    brix_cms_rrdata_t d = rr("/x", NULL, NULL);
+    brix_cms_node_plan_t p;
+    CHECK(brix_cms_node_plan(K_RM, &d, &p) == 0 && p.action == XRDCMS_NACT_RM);
+    CHECK(brix_cms_node_plan(K_RMDIR, &d, &p) == 0 && p.action == XRDCMS_NACT_RMDIR);
 }
 
 static void
 test_missing_path_rejected(void)
 {
-    xrootd_cms_rrdata_t d = rr(NULL, NULL, "755");
-    xrootd_cms_node_plan_t p;
-    CHECK(xrootd_cms_node_plan(K_MKDIR, &d, &p) == -1);
+    brix_cms_rrdata_t d = rr(NULL, NULL, "755");
+    brix_cms_node_plan_t p;
+    CHECK(brix_cms_node_plan(K_MKDIR, &d, &p) == -1);
 }
 
 static void
 test_non_executed_opcode(void)
 {
     /* prepadd is staging, not a confined namespace op handled here */
-    xrootd_cms_rrdata_t d = rr("/x", NULL, "0");
-    xrootd_cms_node_plan_t p;
-    CHECK(xrootd_cms_node_plan(K_PREPADD, &d, &p) == -1);
+    brix_cms_rrdata_t d = rr("/x", NULL, "0");
+    brix_cms_node_plan_t p;
+    CHECK(brix_cms_node_plan(K_PREPADD, &d, &p) == -1);
 }
 
 int

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# run_credential_xroot_ztn.sh — C-3 (token half, phase-63): the §14 xrootd_credential
+# run_credential_xroot_ztn.sh — C-3 (token half, phase-63): the §14 brix_credential
 # threads a WLCG/SciToken bearer into the sd_xroot source driver, which presents it to
 # a token-auth root:// origin via XrdSecztn (kXR_login → kXR_authmore → ztn kXR_auth).
-# Origin O REQUIRES token auth (xrootd_auth token); node B caches over root://O with a
+# Origin O REQUIRES token auth (brix_auth token); node B caches over root://O with a
 # token_file credential. A read miss fills only when the token authenticates the
 # origin session. Negative control: a node without the credential is rejected.
 set -u
@@ -28,12 +28,12 @@ cat > "$PFX/o/nginx.conf" <<EOF
 daemon on; error_log $PFX/o/logs/e.log info; pid $PFX/o/nginx.pid;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:${OPORT}; xrootd on; xrootd_root $PFX/o/root;
-    xrootd_auth token;
-    xrootd_token_jwks     $PFX/tok/jwks.json;
-    xrootd_token_issuer   https://test.example.com;
-    xrootd_token_audience nginx-xrootd;
-    xrootd_allow_write on;
+    listen 127.0.0.1:${OPORT}; xrootd on; brix_root $PFX/o/root;
+    brix_auth token;
+    brix_token_jwks     $PFX/tok/jwks.json;
+    brix_token_issuer   https://test.example.com;
+    brix_token_audience nginx-xrootd;
+    brix_allow_write on;
 } }
 EOF
 # Node B — cache over root://O, authenticating with the token (sd_xroot ztn).
@@ -42,12 +42,12 @@ daemon on; error_log $PFX/b/logs/e.log info; pid $PFX/b/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 stream {
-    xrootd_credential origin { token_file $PFX/token.jwt; }
+    brix_credential origin { token_file $PFX/token.jwt; }
     server {
-        listen 127.0.0.1:${BPORT}; xrootd on; xrootd_root $PFX/b/export; xrootd_auth none;
-        xrootd_storage_backend root://127.0.0.1:${OPORT};
-        xrootd_storage_credential origin;
-        xrootd_cache on; xrootd_cache_root $PFX/b/cache;
+        listen 127.0.0.1:${BPORT}; xrootd on; brix_root $PFX/b/export; brix_auth none;
+        brix_storage_backend root://127.0.0.1:${OPORT};
+        brix_storage_credential origin;
+        brix_cache on; brix_cache_root $PFX/b/cache;
     }
 }
 EOF
@@ -57,9 +57,9 @@ daemon on; error_log $PFX/n/logs/e.log info; pid $PFX/n/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:${NPORT}; xrootd on; xrootd_root $PFX/n/export; xrootd_auth none;
-    xrootd_storage_backend root://127.0.0.1:${OPORT};
-    xrootd_cache on; xrootd_cache_root $PFX/n/cache;
+    listen 127.0.0.1:${NPORT}; xrootd on; brix_root $PFX/n/export; brix_auth none;
+    brix_storage_backend root://127.0.0.1:${OPORT};
+    brix_cache on; brix_cache_root $PFX/n/cache;
 } }
 EOF
 

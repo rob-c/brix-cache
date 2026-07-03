@@ -7,18 +7,18 @@
  * Phase 8: resolution no longer calls realpath(3).  Confinement is enforced by
  * the kernel at the actual filesystem operation (openat2 RESOLVE_BENEATH via the
  * beneath API), so this layer only has to (1) reject obviously-bad paths the same
- * way the old xrootd_validate_components_cstr() did — length, depth, and the
+ * way the old brix_validate_components_cstr() did — length, depth, and the
  * forbidden "."/".." components — and (2) reproduce the per-mode existence
  * semantics the old resolve_path* variants provided (EXISTING needs the target,
- * WRITE needs the parent directory) through the VFS seam (xrootd_vfs_probe, a
+ * WRITE needs the parent directory) through the VFS seam (brix_vfs_probe, a
  * non-observing confined existence/type check) rather than a realpath() that
  * would have failed.  `resolved` is filled with the lexical
- * root_canon + reqpath join (xrootd_beneath_full_path); it is used downstream for
+ * root_canon + reqpath join (brix_beneath_full_path); it is used downstream for
  * ACL prefix matching and access logging, NOT as a confinement boundary — the
  * boundary is RESOLVE_BENEATH at the op.  A path that escapes the export root is
  * rejected by the kernel (EXDEV) when the operation runs.
  */
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 #include "op_path.h"
 #include "fs/path/beneath.h"
 #include "fs/path/path_internal.h"
@@ -29,13 +29,13 @@
 
 /*
  * Validate each path component the way the retired realpath resolver's
- * xrootd_validate_components_cstr() did: reject "." and ".." segments outright.
+ * brix_validate_components_cstr() did: reject "." and ".." segments outright.
  * RESOLVE_BENEATH would block a "../" that escapes the root, but a within-root
  * "/a/../b" was historically rejected here too — keep that behaviour so the
  * resolver's contract is unchanged.  Returns 1 if any component is forbidden.
  */
 int
-xrootd_op_path_forbidden_component(const char *reqpath)
+brix_op_path_forbidden_component(const char *reqpath)
 {
     const char *p = reqpath;
     const char *seg;
@@ -51,7 +51,7 @@ xrootd_op_path_forbidden_component(const char *reqpath)
         while (*p != '\0' && *p != '/') {
             p++;
         }
-        if (xrootd_path_component_forbidden(seg, (size_t) (p - seg))) {
+        if (brix_path_component_forbidden(seg, (size_t) (p - seg))) {
             return 1;
         }
     }
@@ -68,25 +68,25 @@ xrootd_op_path_forbidden_component(const char *reqpath)
 /* Build a probe VFS ctx for `reqpath` (joined beneath the export root) and run a
  * non-observing confined existence/type check (no phantom OP_STAT metric). */
 static ngx_int_t
-op_path_probe(ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log,
-              const char *reqpath, int nofollow, xrootd_vfs_stat_t *vst)
+op_path_probe(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log,
+              const char *reqpath, int nofollow, brix_vfs_stat_t *vst)
 {
-    xrootd_vfs_ctx_t vctx;
+    brix_vfs_ctx_t vctx;
     char             full[PATH_MAX];
 
-    xrootd_beneath_full_path(conf->common.root_canon, reqpath,
+    brix_beneath_full_path(conf->common.root_canon, reqpath,
                              full, sizeof(full));
-    xrootd_vfs_ctx_init(&vctx, NULL /* no alloc in a probe */, log,
-        XROOTD_PROTO_ROOT, conf->common.root_canon, NULL,
+    brix_vfs_ctx_init(&vctx, NULL /* no alloc in a probe */, log,
+        BRIX_PROTO_ROOT, conf->common.root_canon, NULL,
         conf->common.allow_write, 0 /* is_tls */, NULL, full);
-    return xrootd_vfs_probe(&vctx, nofollow, vst);
+    return brix_vfs_probe(&vctx, nofollow, vst);
 }
 
 static ngx_int_t
-op_path_existence_gate(ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log,
+op_path_existence_gate(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log,
                        const char *reqpath, int want_dir)
 {
-    xrootd_vfs_stat_t vst;
+    brix_vfs_stat_t vst;
 
     if (want_dir < 0) {
         return NGX_OK;                  /* NOEXIST: nothing to verify */
@@ -98,7 +98,7 @@ op_path_existence_gate(ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log,
          * catalog lookup — skip it (the driver is the single existence check). The
          * default POSIX export keeps the probe below: its confined lstat is cheap
          * and preserves the existing existence-before-auth ordering exactly. */
-        if (xrootd_vfs_backend_resolve(conf->common.root_canon, log) != NULL) {
+        if (brix_vfs_backend_resolve(conf->common.root_canon, log) != NULL) {
             return NGX_OK;
         }
         /* EXISTING: the target name must resolve, confined, to something present.
@@ -115,7 +115,7 @@ op_path_existence_gate(ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log,
     /* WRITE: the parent directory must already exist (target may not). Derive
      * the parent by trimming the last '/'-separated component. */
     {
-        char        parent[XROOTD_MAX_PATH + 1];
+        char        parent[BRIX_MAX_PATH + 1];
         size_t      len = ngx_strlen(reqpath);
         const char *slash;
 
@@ -157,9 +157,9 @@ op_path_existence_gate(ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log,
 }
 
 /*
- * xrootd_path_resolve_beneath — validate reqpath and apply the per-mode
+ * brix_path_resolve_beneath — validate reqpath and apply the per-mode
  * existence gate without realpath(), filling `resolved` with the confined
- * lexical join.  Shared by xrootd_resolve_op_path() and direct multi-path
+ * lexical join.  Shared by brix_resolve_op_path() and direct multi-path
  * callers (kXR_mv).  reqpath must already be extracted from the wire.
  *
  * Returns:
@@ -170,26 +170,26 @@ op_path_existence_gate(ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log,
  *                  the join overflowed resolved_sz) → 4xx ArgInvalid.
  */
 ngx_int_t
-xrootd_path_resolve_beneath(ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log,
-                            const char *reqpath, xrootd_path_mode_t mode,
+brix_path_resolve_beneath(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log,
+                            const char *reqpath, brix_path_mode_t mode,
                             char *resolved, size_t resolved_sz)
 {
     int  want_dir;
     int  strip_trailing_slash;
     int  ok;
-    char norm[XROOTD_MAX_PATH + 1];
+    char norm[BRIX_MAX_PATH + 1];
 
-    if (xrootd_count_path_depth(reqpath) != NGX_OK
-        || xrootd_op_path_forbidden_component(reqpath))
+    if (brix_count_path_depth(reqpath) != NGX_OK
+        || brix_op_path_forbidden_component(reqpath))
     {
         return NGX_ERROR;
     }
 
     switch (mode) {
-    case XROOTD_PATH_EXISTING: want_dir = 0;  strip_trailing_slash = 0; break;
-    case XROOTD_PATH_WRITE:    want_dir = 1;  strip_trailing_slash = 1; break;
-    case XROOTD_PATH_NOEXIST:  want_dir = -1; strip_trailing_slash = 0; break;
-    case XROOTD_PATH_EITHER:   want_dir = 1;  strip_trailing_slash = 0; break;
+    case BRIX_PATH_EXISTING: want_dir = 0;  strip_trailing_slash = 0; break;
+    case BRIX_PATH_WRITE:    want_dir = 1;  strip_trailing_slash = 1; break;
+    case BRIX_PATH_NOEXIST:  want_dir = -1; strip_trailing_slash = 0; break;
+    case BRIX_PATH_EITHER:   want_dir = 1;  strip_trailing_slash = 0; break;
     default:                   want_dir = 0;  strip_trailing_slash = 0; break;
     }
 
@@ -213,14 +213,14 @@ xrootd_path_resolve_beneath(ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log,
     }
 
     ok = (op_path_existence_gate(conf, log, reqpath, want_dir) == NGX_OK);
-    if (!ok && mode == XROOTD_PATH_EITHER) {
+    if (!ok && mode == BRIX_PATH_EITHER) {
         ok = (op_path_existence_gate(conf, log, reqpath, 0) == NGX_OK);
     }
     if (!ok) {
         return NGX_DECLINED;
     }
 
-    if (xrootd_beneath_full_path(conf->common.root_canon, reqpath,
+    if (brix_beneath_full_path(conf->common.root_canon, reqpath,
                                  resolved, resolved_sz) >= (int) resolved_sz)
     {
         return NGX_ERROR;
@@ -230,76 +230,76 @@ xrootd_path_resolve_beneath(ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log,
 }
 
 int
-xrootd_reject_dotdot_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
+brix_reject_dotdot_path(brix_ctx_t *ctx, ngx_connection_t *c,
                           ngx_uint_t op_id, const char *op_name,
                           const char *reqpath)
 {
-    if (!xrootd_path_has_dotdot(reqpath)) {
+    if (!brix_path_has_dotdot(reqpath)) {
         return 0;
     }
-    xrootd_log_path_warning(c->log, "xrootd: path traversal attempt", reqpath);
-    xrootd_log_access(ctx, c, op_name, reqpath, "-",
+    brix_log_path_warning(c->log, "xrootd: path traversal attempt", reqpath);
+    brix_log_access(ctx, c, op_name, reqpath, "-",
                       0, kXR_ArgInvalid, "invalid path", 0);
-    XROOTD_OP_ERR(ctx, op_id);
-    ctx->write_rc = xrootd_send_error(ctx, c, kXR_ArgInvalid, "invalid path");
+    BRIX_OP_ERR(ctx, op_id);
+    ctx->write_rc = brix_send_error(ctx, c, kXR_ArgInvalid, "invalid path");
     return 1;
 }
 
 ngx_int_t
-xrootd_resolve_op_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
+brix_resolve_op_path(brix_ctx_t *ctx, ngx_connection_t *c,
                         ngx_uint_t op_id, const char *op_name,
-                        ngx_stream_xrootd_srv_conf_t *conf,
-                        xrootd_path_mode_t mode,
+                        ngx_stream_brix_srv_conf_t *conf,
+                        brix_path_mode_t mode,
                         char *reqpath, size_t reqpath_sz,
                         char *resolved, size_t resolved_sz)
 {
     ngx_int_t rc;
 
     if (ctx->payload == NULL || ctx->cur_dlen == 0) {
-        xrootd_log_access(ctx, c, op_name, "-", "-",
+        brix_log_access(ctx, c, op_name, "-", "-",
                           0, kXR_ArgMissing, "no path given", 0);
-        XROOTD_OP_ERR(ctx, op_id);
-        ctx->write_rc = xrootd_send_error(ctx, c, kXR_ArgMissing,
+        BRIX_OP_ERR(ctx, op_id);
+        ctx->write_rc = brix_send_error(ctx, c, kXR_ArgMissing,
                                           "no path given");
         return NGX_DONE;
     }
 
-    if (!xrootd_extract_path(c->log, ctx->payload, ctx->cur_dlen,
+    if (!brix_extract_path(c->log, ctx->payload, ctx->cur_dlen,
                              reqpath, reqpath_sz, 1)) {
-        xrootd_log_access(ctx, c, op_name, "-", "-",
+        brix_log_access(ctx, c, op_name, "-", "-",
                           0, kXR_ArgInvalid, "invalid path payload", 0);
-        XROOTD_OP_ERR(ctx, op_id);
-        ctx->write_rc = xrootd_send_error(ctx, c, kXR_ArgInvalid,
+        BRIX_OP_ERR(ctx, op_id);
+        ctx->write_rc = brix_send_error(ctx, c, kXR_ArgInvalid,
                                           "invalid path payload");
         return NGX_DONE;
     }
 
-    rc = xrootd_path_resolve_beneath(conf, c->log, reqpath, mode,
+    rc = brix_path_resolve_beneath(conf, c->log, reqpath, mode,
                                      resolved, resolved_sz);
     if (rc == NGX_ERROR) {
         /*
          * Restore the error-log diagnostic the retired realpath resolver
-         * (xrootd_validate_components_cstr) emitted: a rejected "."/".."
+         * (brix_validate_components_cstr) emitted: a rejected "."/".."
          * traversal is recorded in the error log with control bytes escaped,
          * so operators retain visibility into traversal attempts.  Depth and
          * join-overflow rejections fall through to the access log only.
          */
-        if (xrootd_op_path_forbidden_component(reqpath)) {
-            xrootd_log_path_warning(c->log, "xrootd: path traversal attempt",
+        if (brix_op_path_forbidden_component(reqpath)) {
+            brix_log_path_warning(c->log, "xrootd: path traversal attempt",
                                     reqpath);
         }
-        xrootd_log_access(ctx, c, op_name, reqpath, "-",
+        brix_log_access(ctx, c, op_name, reqpath, "-",
                           0, kXR_ArgInvalid, "invalid path", 0);
-        XROOTD_OP_ERR(ctx, op_id);
-        ctx->write_rc = xrootd_send_error(ctx, c, kXR_ArgInvalid,
+        BRIX_OP_ERR(ctx, op_id);
+        ctx->write_rc = brix_send_error(ctx, c, kXR_ArgInvalid,
                                           "invalid path");
         return NGX_DONE;
     }
     if (rc == NGX_DECLINED) {
-        xrootd_log_access(ctx, c, op_name, reqpath, "-",
+        brix_log_access(ctx, c, op_name, reqpath, "-",
                           0, kXR_NotFound, "no such file or directory", 0);
-        XROOTD_OP_ERR(ctx, op_id);
-        ctx->write_rc = xrootd_send_error(ctx, c, kXR_NotFound,
+        BRIX_OP_ERR(ctx, op_id);
+        ctx->write_rc = brix_send_error(ctx, c, kXR_NotFound,
                                           "no such file or directory");
         return NGX_DONE;
     }

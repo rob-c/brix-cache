@@ -1,5 +1,5 @@
-#ifndef XROOTD_TOKEN_TOKEN_H
-#define XROOTD_TOKEN_TOKEN_H
+#ifndef BRIX_TOKEN_TOKEN_H
+#define BRIX_TOKEN_TOKEN_H
 
 /*
  * token/token.h
@@ -17,24 +17,24 @@
 /* Tunables                                                             */
 /* ------------------------------------------------------------------ */
 
-#define XROOTD_MAX_JWKS_KEYS      8
+#define BRIX_MAX_JWKS_KEYS      8
 
 /*
  * Maximum number of scope entries parsed from a single JWT "scope" claim.
  * Real WLCG/SciTokens carry 1-4 scopes; 8 is ample for all known issuers.
- * Reduced from 32 to cut ~6 KB from every xrootd_ctx_t and every on-stack
- * xrootd_token_claims_t during validation.
+ * Reduced from 32 to cut ~6 KB from every brix_ctx_t and every on-stack
+ * brix_token_claims_t during validation.
  */
-#define XROOTD_MAX_TOKEN_SCOPES   8
+#define BRIX_MAX_TOKEN_SCOPES   8
 
 /*
  * Maximum length of a path component within a WLCG/SciToken scope claim,
  * e.g. the "/data/cms" part of "storage.read:/data/cms".
  * WLCG scope paths are logical namespace prefixes, not filesystem paths;
  * 256 bytes is sufficient for all practical deployments and keeps the
- * xrootd_token_scope_t struct (and xrootd_ctx_t) small.
+ * brix_token_scope_t struct (and brix_ctx_t) small.
  */
-#define XROOTD_SCOPE_PATH_MAX  256
+#define BRIX_SCOPE_PATH_MAX  256
 
 /* ------------------------------------------------------------------ */
 /* Types                                                                */
@@ -44,18 +44,18 @@
 typedef struct {
     char       kid[128];        /* Key ID ("kid" claim) */
     EVP_PKEY  *pkey;            /* RSA or EC public key */
-} xrootd_jwks_key_t;
+} brix_jwks_key_t;
 
 /* A parsed scope entry from the "scope" claim. */
-#ifndef XROOTD_TOKEN_SCOPE_T_DEFINED
-#define XROOTD_TOKEN_SCOPE_T_DEFINED
+#ifndef BRIX_TOKEN_SCOPE_T_DEFINED
+#define BRIX_TOKEN_SCOPE_T_DEFINED
 typedef struct {
-    char          path[XROOTD_SCOPE_PATH_MAX]; /* Scope path (e.g., "/" or "/data") */
+    char          path[BRIX_SCOPE_PATH_MAX]; /* Scope path (e.g., "/" or "/data") */
     unsigned int  read   : 1;                  /* storage.read */
     unsigned int  write  : 1;                  /* storage.write */
     unsigned int  create : 1;                  /* storage.create */
     unsigned int  modify : 1;                  /* storage.modify */
-} xrootd_token_scope_t;
+} brix_token_scope_t;
 #endif
 
 /* Extracted claims from a validated JWT. */
@@ -69,8 +69,8 @@ typedef struct {
     char    scope_raw[1024];    /* Raw "scope" claim */
     char    groups[512];        /* Comma-separated groups (from wlcg.groups) */
     int                   scope_count;
-    xrootd_token_scope_t  scopes[XROOTD_MAX_TOKEN_SCOPES];
-} xrootd_token_claims_t;
+    brix_token_scope_t  scopes[BRIX_MAX_TOKEN_SCOPES];
+} brix_token_claims_t;
 
 /* ------------------------------------------------------------------ */
 /* JWKS loading (called once at startup / config load)                  */
@@ -81,13 +81,13 @@ typedef struct {
  * Fills keys[] up to max_keys entries.
  * Returns ≥ 0 (count) on success, -1 on error.
  */
-int xrootd_jwks_load(ngx_log_t *log, const char *path,
-                     xrootd_jwks_key_t *keys, int max_keys);
+int brix_jwks_load(ngx_log_t *log, const char *path,
+                     brix_jwks_key_t *keys, int max_keys);
 
 /*
  * Free all loaded JWKS keys.
  */
-void xrootd_jwks_free(xrootd_jwks_key_t *keys, int count);
+void brix_jwks_free(brix_jwks_key_t *keys, int count);
 
 /*
  * Register a pool cleanup that frees the EVP_PKEY handles in keys[] when the
@@ -97,16 +97,16 @@ void xrootd_jwks_free(xrootd_jwks_key_t *keys, int count);
  * (the array lives in the conf pool, but EVP_PKEY_free is never called for it).
  * Returns NGX_OK or NGX_ERROR.
  */
-ngx_int_t xrootd_jwks_register_cleanup(ngx_pool_t *pool,
-                                       xrootd_jwks_key_t *keys, int *count);
+ngx_int_t brix_jwks_register_cleanup(ngx_pool_t *pool,
+                                       brix_jwks_key_t *keys, int *count);
 
 /* Operation class for registry authorization — selects the scope/path
  * direction the strategy ladder enforces. */
 typedef enum {
-    XROOTD_TOKEN_OP_READ  = 0,
-    XROOTD_TOKEN_OP_WRITE = 1,
-    XROOTD_TOKEN_OP_OTHER = 2
-} xrootd_token_op_e;
+    BRIX_TOKEN_OP_READ  = 0,
+    BRIX_TOKEN_OP_WRITE = 1,
+    BRIX_TOKEN_OP_OTHER = 2
+} brix_token_op_e;
 
 /* ------------------------------------------------------------------ */
 /* Token validation                                                     */
@@ -117,7 +117,7 @@ typedef enum {
  * which registry issuer's keys to verify against (the value is re-read from the
  * verified claims afterwards).  Returns 0 + out on success, -1 otherwise.
  */
-int xrootd_token_peek_iss(const char *token, size_t token_len,
+int brix_token_peek_iss(const char *token, size_t token_len,
                           char *out, size_t outsz);
 
 /*
@@ -129,13 +129,13 @@ int xrootd_token_peek_iss(const char *token, size_t token_len,
  *
  * Returns 0 on success, -1 on error.
  */
-int xrootd_token_validate(ngx_log_t *log,
+int brix_token_validate(ngx_log_t *log,
                           const char *token, size_t token_len,
-                          const xrootd_jwks_key_t *keys, int key_count,
+                          const brix_jwks_key_t *keys, int key_count,
                           const char *expected_issuer,
                           const char *expected_audience,
                           const u_char *macaroon_secret, size_t secret_len,
-                          xrootd_token_claims_t *claims);
+                          brix_token_claims_t *claims);
 
 /* ------------------------------------------------------------------ */
 /* Scope checking                                                       */
@@ -145,8 +145,8 @@ int xrootd_token_validate(ngx_log_t *log,
  * Parse the "scope" claim string into structured scope entries.
  * Returns the number of entries parsed (≥ 0).
  */
-int xrootd_token_parse_scopes(const char *scope_str,
-                              xrootd_token_scope_t *scopes, int max_scopes);
+int brix_token_parse_scopes(const char *scope_str,
+                              brix_token_scope_t *scopes, int max_scopes);
 
 /*
  * Boundary-checked prefix match: does `scope_path` cover `request_path`?
@@ -155,22 +155,22 @@ int xrootd_token_parse_scopes(const char *scope_str,
  * issuer registry reuses the exact same logic for base_path/restricted_path
  * scoping (phase-59 W1).  Returns 1 if covered, 0 otherwise.
  */
-int xrootd_token_scope_path_matches(const char *scope_path,
+int brix_token_scope_path_matches(const char *scope_path,
                                     const char *request_path);
 
 /*
  * Check if scopes authorise read access to `path`.
- * `path` is relative to the xrootd_root (e.g. "/data/file.txt").
+ * `path` is relative to the brix_root (e.g. "/data/file.txt").
  * Returns 1 if allowed, 0 if denied.
  */
-int xrootd_token_check_read(const xrootd_token_scope_t *scopes,
+int brix_token_check_read(const brix_token_scope_t *scopes,
                             int scope_count, const char *path);
 
 /*
  * Check if scopes authorise write access to `path`.
  * Returns 1 if allowed, 0 if denied.
  */
-int xrootd_token_check_write(const xrootd_token_scope_t *scopes,
+int brix_token_check_write(const brix_token_scope_t *scopes,
                              int scope_count, const char *path);
 
-#endif /* XROOTD_TOKEN_TOKEN_H */
+#endif /* BRIX_TOKEN_TOKEN_H */

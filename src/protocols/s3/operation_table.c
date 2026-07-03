@@ -14,23 +14,23 @@
 #include "core/compat/protocol_caps.h"
 #include "observability/metrics/metrics.h"
 
-const xrootd_http_operation_t xrootd_s3_operations[] = {
+const brix_http_operation_t brix_s3_operations[] = {
     /* name      http_method      metric_slot           access_op  flags */
-    { "GET",    NGX_HTTP_GET,    XROOTD_S3_METHOD_GET,    0,
-      XROOTD_PROTO_OP_READ },
-    { "HEAD",   NGX_HTTP_HEAD,   XROOTD_S3_METHOD_HEAD,   0,
-      XROOTD_PROTO_OP_READ },
-    { "PUT",    NGX_HTTP_PUT,    XROOTD_S3_METHOD_PUT,    0,
-      XROOTD_PROTO_OP_WRITE | XROOTD_PROTO_OP_ASYNC_BODY },
-    { "DELETE", NGX_HTTP_DELETE, XROOTD_S3_METHOD_DELETE, 0,
-      XROOTD_PROTO_OP_WRITE },
-    { "POST",   NGX_HTTP_POST,   XROOTD_S3_METHOD_POST,   0,
-      XROOTD_PROTO_OP_WRITE | XROOTD_PROTO_OP_ASYNC_BODY },
-    { "OPTIONS", NGX_HTTP_OPTIONS, XROOTD_S3_METHOD_OPTIONS, 0,
-      XROOTD_PROTO_OP_READ },
+    { "GET",    NGX_HTTP_GET,    BRIX_S3_METHOD_GET,    0,
+      BRIX_PROTO_OP_READ },
+    { "HEAD",   NGX_HTTP_HEAD,   BRIX_S3_METHOD_HEAD,   0,
+      BRIX_PROTO_OP_READ },
+    { "PUT",    NGX_HTTP_PUT,    BRIX_S3_METHOD_PUT,    0,
+      BRIX_PROTO_OP_WRITE | BRIX_PROTO_OP_ASYNC_BODY },
+    { "DELETE", NGX_HTTP_DELETE, BRIX_S3_METHOD_DELETE, 0,
+      BRIX_PROTO_OP_WRITE },
+    { "POST",   NGX_HTTP_POST,   BRIX_S3_METHOD_POST,   0,
+      BRIX_PROTO_OP_WRITE | BRIX_PROTO_OP_ASYNC_BODY },
+    { "OPTIONS", NGX_HTTP_OPTIONS, BRIX_S3_METHOD_OPTIONS, 0,
+      BRIX_PROTO_OP_READ },
     /* ListObjectsV2 is a GET with ?list-type=2 query param; the handler
-     * overrides the metric slot to XROOTD_S3_METHOD_LIST at runtime. */
+     * overrides the metric slot to BRIX_S3_METHOD_LIST at runtime. */
 };
 
-const ngx_uint_t xrootd_s3_operations_count =
-    sizeof(xrootd_s3_operations) / sizeof(xrootd_s3_operations[0]);
+const ngx_uint_t brix_s3_operations_count =
+    sizeof(brix_s3_operations) / sizeof(brix_s3_operations[0]);

@@ -1,7 +1,7 @@
 """
 tests/test_readv_segment_size.py
 
-Verifies the xrootd_readv_segment_size directive (the per-kXR_readv-element cap,
+Verifies the brix_readv_segment_size directive (the per-kXR_readv-element cap,
 the official "maxReadv_ior") end-to-end against the OFFICIAL XRootD client:
 
   1. the server advertises the configured value via kXR_Qconfig "readv_ior_max"
@@ -41,16 +41,16 @@ stream {{
     server {{
         listen 127.0.0.1:{port};
         xrootd on;
-        xrootd_storage_backend posix:{data};
-        xrootd_readv_segment_size 16m;
-        xrootd_access_log {logs}/access.log;
+        brix_storage_backend posix:{data};
+        brix_readv_segment_size 16m;
+        brix_access_log {logs}/access.log;
     }}
 }}
 """
 
 FILE_BYTES = 20 * 1024 * 1024
-SEG_CAP = 16 * 1024 * 1024          # the configured xrootd_readv_segment_size
-MAXSEGS = 1024                       # XROOTD_READV_MAXSEGS
+SEG_CAP = 16 * 1024 * 1024          # the configured brix_readv_segment_size
+MAXSEGS = 1024                       # BRIX_READV_MAXSEGS
 
 
 def _free_port():
@@ -63,7 +63,7 @@ def _free_port():
 
 @pytest.fixture(scope="module")
 def server16m():
-    """A dedicated anon nginx with xrootd_readv_segment_size 16m + a 20 MiB file."""
+    """A dedicated anon nginx with brix_readv_segment_size 16m + a 20 MiB file."""
     if not os.path.isfile(NGINX_BIN):
         pytest.skip(f"nginx binary not found: {NGINX_BIN}")
     prefix = tempfile.mkdtemp(prefix="readv_seg_")

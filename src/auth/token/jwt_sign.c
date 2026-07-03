@@ -1,7 +1,7 @@
 /*
  * jwt_sign.c — ES256 JWT minting (see jwt_sign.h for the contract).
  *
- * The signature path is the exact inverse of xrootd_token_verify_es256()
+ * The signature path is the exact inverse of brix_token_verify_es256()
  * (signature.c): sign with EVP_DigestSign to get a DER ECDSA signature, then
  * convert DER → IEEE P1363 raw r||s (32+32 bytes) as JWT requires. All buffers
  * are local; the only heap object is the DER signature, freed on every path.
@@ -19,7 +19,7 @@
 
 
 EVP_PKEY *
-xrootd_jwt_load_ec_key(const char *pem_path)
+brix_jwt_load_ec_key(const char *pem_path)
 {
     BIO      *bio;
     EVP_PKEY *pkey;
@@ -42,9 +42,9 @@ xrootd_jwt_load_ec_key(const char *pem_path)
 }
 
 
-/* xrootd_jwt_der_to_p1363 — DER ECDSA sig → fixed 64-byte r||s * Returns 0 on success (raw[0..63] populated), -1 on failure. */
+/* brix_jwt_der_to_p1363 — DER ECDSA sig → fixed 64-byte r||s * Returns 0 on success (raw[0..63] populated), -1 on failure. */
 static int
-xrootd_jwt_der_to_p1363(const unsigned char *der, size_t der_len,
+brix_jwt_der_to_p1363(const unsigned char *der, size_t der_len,
     unsigned char raw[64])
 {
     const unsigned char *p = der;
@@ -68,7 +68,7 @@ xrootd_jwt_der_to_p1363(const unsigned char *der, size_t der_len,
 
 
 ngx_int_t
-xrootd_jwt_sign_es256(EVP_PKEY *eckey, const char *header_json,
+brix_jwt_sign_es256(EVP_PKEY *eckey, const char *header_json,
     const char *payload_json, char *out, size_t outsz)
 {
     EVP_MD_CTX    *mdctx;
@@ -127,7 +127,7 @@ xrootd_jwt_sign_es256(EVP_PKEY *eckey, const char *header_json,
     EVP_MD_CTX_free(mdctx);
 
     /* DER → raw r||s → base64url. */
-    if (xrootd_jwt_der_to_p1363(der, der_len, raw) != 0) {
+    if (brix_jwt_der_to_p1363(der, der_len, raw) != 0) {
         OPENSSL_free(der);
         return NGX_ERROR;
     }

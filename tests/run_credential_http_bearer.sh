@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# run_credential_http_bearer.sh — §14 (phase-63): the xrootd_credential block +
-# xrootd_storage_credential reference thread a BEARER token into the sd_http source
+# run_credential_http_bearer.sh — §14 (phase-63): the brix_credential block +
+# brix_storage_credential reference thread a BEARER token into the sd_http source
 # driver. The HTTP origin REQUIRES `Authorization: Bearer <tok>` (401 otherwise), so
 # the cache can only fill when the credential is wired. Proves: (1) with the right
 # credential the fill succeeds byte-exact; (2) a token_file is read the same way;
@@ -38,12 +38,12 @@ daemon on; error_log $PFX/b/logs/e.log info; pid $PFX/b/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 stream {
-    xrootd_credential web { token ${TOK}; }
+    brix_credential web { token ${TOK}; }
     server {
-        listen 127.0.0.1:${BPORT}; xrootd on; xrootd_root $PFX/b/export; xrootd_auth none;
-        xrootd_storage_backend http://127.0.0.1:${HPORT};
-        xrootd_storage_credential web;
-        xrootd_cache on; xrootd_cache_root $PFX/b/cache;
+        listen 127.0.0.1:${BPORT}; xrootd on; brix_root $PFX/b/export; brix_auth none;
+        brix_storage_backend http://127.0.0.1:${HPORT};
+        brix_storage_credential web;
+        brix_cache on; brix_cache_root $PFX/b/cache;
     }
 }
 EOF
@@ -53,9 +53,9 @@ daemon on; error_log $PFX/n/logs/e.log info; pid $PFX/n/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:${NPORT}; xrootd on; xrootd_root $PFX/n/export; xrootd_auth none;
-    xrootd_storage_backend http://127.0.0.1:${HPORT};
-    xrootd_cache on; xrootd_cache_root $PFX/n/cache;
+    listen 127.0.0.1:${NPORT}; xrootd on; brix_root $PFX/n/export; brix_auth none;
+    brix_storage_backend http://127.0.0.1:${HPORT};
+    brix_cache on; brix_cache_root $PFX/n/cache;
 } }
 EOF
 

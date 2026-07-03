@@ -24,9 +24,9 @@
 #include <unistd.h>
 
 typedef struct {
-    xrootd_sd_instance_t  *source;         /* the tier below (stage | backend)    */
-    xrootd_cstore_t        cstore;
-    xrootd_cache_policy_t  policy;
+    brix_sd_instance_t  *source;         /* the tier below (stage | backend)    */
+    brix_cstore_t        cstore;
+    brix_cache_policy_t  policy;
     ngx_log_t             *log;
 } sd_cache_inst_state;
 
@@ -62,7 +62,7 @@ sd_cache_has_prefix(const char *path, ngx_array_t *prefixes)
  * under the policy: deny-prefix wins; a non-empty allow list must match; an
  * include regex must match; an over-size object is not cached. */
 static int
-sd_cache_admit(const xrootd_cache_policy_t *pol, const char *path, off_t size)
+sd_cache_admit(const brix_cache_policy_t *pol, const char *path, off_t size)
 {
     if (sd_cache_has_prefix(path, pol->deny_prefixes)) {
         return 0;
@@ -88,13 +88,13 @@ sd_cache_admit(const xrootd_cache_policy_t *pol, const char *path, off_t size)
 static int
 sd_cache_is_cvmfs(const sd_cache_inst_state *st)
 {
-    return st->policy.verify == XROOTD_CACHE_VERIFY_CVMFS_CAS
+    return st->policy.verify == BRIX_CACHE_VERIFY_CVMFS_CAS
         || st->policy.cvmfs_manifest_ttl > 0;
 }
 
 /* Per-fqrn SHM counters for `key`, or NULL (non-cvmfs export / no repo /
  * SHM unmapped). Runs on fill worker threads — the slot table is lock-free. */
-static ngx_xrootd_cvmfs_repo_metrics_t *
+static ngx_brix_cvmfs_repo_metrics_t *
 sd_cache_repo_metrics(const sd_cache_inst_state *st, const char *key)
 {
     cvmfs_url_info_t info;
@@ -105,7 +105,7 @@ sd_cache_repo_metrics(const sd_cache_inst_state *st, const char *key)
     {
         return NULL;
     }
-    return xrootd_cvmfs_repo_slot(info.repo, info.repo_len);
+    return brix_cvmfs_repo_slot(info.repo, info.repo_len);
 }
 
 /* phase-68 T16: WAN-in byte accounting, gated on the cvmfs personality. */
@@ -113,15 +113,15 @@ static void
 sd_cache_note_origin_bytes(const sd_cache_inst_state *st, const char *key,
     off_t bytes)
 {
-    ngx_xrootd_cvmfs_repo_metrics_t *rm;
+    ngx_brix_cvmfs_repo_metrics_t *rm;
 
     if (bytes <= 0 || !sd_cache_is_cvmfs(st)) {
         return;
     }
-    XROOTD_CVMFS_METRIC_ADD(origin_bytes_total, (ngx_atomic_uint_t) bytes);
+    BRIX_CVMFS_METRIC_ADD(origin_bytes_total, (ngx_atomic_uint_t) bytes);
     rm = sd_cache_repo_metrics(st, key);
     if (rm != NULL) {
-        XROOTD_ATOMIC_ADD(&rm->origin_bytes_total, (ngx_atomic_uint_t) bytes);
+        BRIX_ATOMIC_ADD(&rm->origin_bytes_total, (ngx_atomic_uint_t) bytes);
     }
 }
 
@@ -134,8 +134,8 @@ static void
 sd_cache_note_upstream(const sd_cache_inst_state *st, int ok, off_t bytes,
     long dur_ms)
 {
-    xrootd_sd_instance_t *h = st->source;
-    char                  host[XROOTD_CVMFS_UPSTREAM_NAME_MAX];
+    brix_sd_instance_t *h = st->source;
+    char                  host[BRIX_CVMFS_UPSTREAM_NAME_MAX];
     int                   guard = 0;
 
     if (!sd_cache_is_cvmfs(st)) {
@@ -146,12 +146,12 @@ sd_cache_note_upstream(const sd_cache_inst_state *st, int ok, off_t bytes,
                          || strcmp(h->driver->name, "http") != 0)
            && guard++ < 8)
     {
-        h = xrootd_sd_cache_source_instance(h);
+        h = brix_sd_cache_source_instance(h);
     }
     if (h == NULL || sd_http_last_origin(h, host, sizeof(host)) != 0) {
         return;
     }
-    xrootd_cvmfs_upstream_record(host, ok, bytes, dur_ms,
+    brix_cvmfs_upstream_record(host, ok, bytes, dur_ms,
                                  sd_http_last_was_failover(h));
 }
 
@@ -190,16 +190,16 @@ sd_cache_is_manifest_key(const char *key)
 static int
 sd_cache_stale_serve_ok(sd_cache_inst_state *st, const char *key)
 {
-    xrootd_cache_cinfo_t  ci;
+    brix_cache_cinfo_t  ci;
     time_t                now = time(NULL);
     time_t                ttl = st->policy.cvmfs_manifest_ttl;
 
     if (ttl <= 0) {
         return 0;
     }
-    if (xrootd_cstore_cinfo_load(&st->cstore, key, &ci) != NGX_OK
-        || (ci.flags & XROOTD_CINFO_F_COMPLETE) == 0
-        || xrootd_cache_cinfo_expired(&ci, now) != 1)
+    if (brix_cstore_cinfo_load(&st->cstore, key, &ci) != NGX_OK
+        || (ci.flags & BRIX_CINFO_F_COMPLETE) == 0
+        || brix_cache_cinfo_expired(&ci, now) != 1)
     {
         return 0;
     }
@@ -215,8 +215,8 @@ sd_cache_stale_serve_ok(sd_cache_inst_state *st, const char *key)
         "  fix:   check Stratum-1 reachability; stale serving stops at 10x "
         "manifest_ttl", key,
         (uint64_t) ((uint64_t) now - ci.expires_at));
-    xrootd_cache_cinfo_set_expires(&ci, now + ttl);   /* next retry in one TTL */
-    (void) xrootd_cstore_cinfo_store(&st->cstore, key, &ci);
+    brix_cache_cinfo_set_expires(&ci, now + ttl);   /* next retry in one TTL */
+    (void) brix_cstore_cinfo_store(&st->cstore, key, &ci);
     return 1;
 }
 
@@ -228,16 +228,16 @@ sd_cache_stale_serve_ok(sd_cache_inst_state *st, const char *key)
 static ngx_int_t
 sd_cache_fill(sd_cache_inst_state *st, const char *key)
 {
-    xrootd_sd_instance_t *src = st->source;
-    xrootd_sd_obj_t      *so;
-    xrootd_sd_staged_t   *staged;
-    xrootd_sd_stat_t      snap;
+    brix_sd_instance_t *src = st->source;
+    brix_sd_obj_t      *so;
+    brix_sd_staged_t   *staged;
+    brix_sd_stat_t      snap;
     u_char               *buf;
     off_t                 off = 0;
     int                   err = 0;
     int                   verified;
     mode_t                fmode;
-    xrootd_cache_cinfo_t  ci;
+    brix_cache_cinfo_t  ci;
     struct timespec       fill_t0;       /* T16: per-upstream fill duration    */
 
     (void) clock_gettime(CLOCK_MONOTONIC, &fill_t0);
@@ -246,7 +246,7 @@ sd_cache_fill(sd_cache_inst_state *st, const char *key)
         errno = ENOSYS;
         return NGX_ERROR;
     }
-    so = src->driver->open(src, key, XROOTD_SD_O_READ, 0, &err);
+    so = src->driver->open(src, key, BRIX_SD_O_READ, 0, &err);
     if (so == NULL) {
         if (sd_cache_stale_serve_ok(st, key)) {
             return NGX_OK;              /* bounded stale-if-error (phase-68) */
@@ -289,7 +289,7 @@ sd_cache_fill(sd_cache_inst_state *st, const char *key)
         return NGX_DECLINED;            /* too big / filtered - do not cache */
     }
 
-    staged = xrootd_cstore_fill_open(&st->cstore, key, fmode);
+    staged = brix_cstore_fill_open(&st->cstore, key, fmode);
     if (staged == NULL) {
         ngx_log_error(NGX_LOG_WARN, st->log, errno,
             "sd_cache: fill_open on the cache store failed for \"%s\" - not cached",
@@ -299,7 +299,7 @@ sd_cache_fill(sd_cache_inst_state *st, const char *key)
     }
     buf = malloc(SD_CACHE_CHUNK);
     if (buf == NULL) {
-        xrootd_cstore_fill_abort(staged);
+        brix_cstore_fill_abort(staged);
         so->driver->close(so);
         errno = ENOMEM;
         return NGX_ERROR;
@@ -315,7 +315,7 @@ sd_cache_fill(sd_cache_inst_state *st, const char *key)
                 continue;
             }
             free(buf);
-            xrootd_cstore_fill_abort(staged);
+            brix_cstore_fill_abort(staged);
             so->driver->close(so);
             if (sd_cache_stale_serve_ok(st, key)) {
                 return NGX_OK;          /* bounded stale-if-error (phase-68) */
@@ -332,9 +332,9 @@ sd_cache_fill(sd_cache_inst_state *st, const char *key)
         if (r == 0) {
             break;
         }
-        if (xrootd_cstore_fill_write(staged, buf, (size_t) r, off) < 0) {
+        if (brix_cstore_fill_write(staged, buf, (size_t) r, off) < 0) {
             free(buf);
-            xrootd_cstore_fill_abort(staged);
+            brix_cstore_fill_abort(staged);
             so->driver->close(so);
             return NGX_ERROR;
         }
@@ -352,72 +352,72 @@ sd_cache_fill(sd_cache_inst_state *st, const char *key)
      * sees a gateway error and retries); an ERROR fails closed. Non-CAS keys
      * (manifests) come back UNVERIFIED and commit as before. */
     verified = 0;
-    if (st->policy.verify == XROOTD_CACHE_VERIFY_CVMFS_CAS) {
+    if (st->policy.verify == BRIX_CACHE_VERIFY_CVMFS_CAS) {
         const char *pp = (staged->inst->driver->staged_path != NULL)
                        ? staged->inst->driver->staged_path(staged) : NULL;
-        xrootd_cache_verify_result_e vr;
+        brix_cache_verify_result_e vr;
 
         vr = (pp != NULL)
-           ? xrootd_cache_verify_cvmfs_cas(pp, key, st->log, NULL, NULL)
-           : XROOTD_CACHE_VERIFY_ERROR;
-        if (vr == XROOTD_CACHE_VERIFY_MISMATCH) {
-            ngx_xrootd_cvmfs_repo_metrics_t *rm = sd_cache_repo_metrics(st,
+           ? brix_cache_verify_cvmfs_cas(pp, key, st->log, NULL, NULL)
+           : BRIX_CACHE_VERIFY_ERROR;
+        if (vr == BRIX_CACHE_VERIFY_MISMATCH) {
+            ngx_brix_cvmfs_repo_metrics_t *rm = sd_cache_repo_metrics(st,
                                                                         key);
 
-            XROOTD_CVMFS_METRIC_INC(verify_failures_total);
+            BRIX_CVMFS_METRIC_INC(verify_failures_total);
             if (rm != NULL) {
-                XROOTD_ATOMIC_INC(&rm->verify_failures_total);
+                BRIX_ATOMIC_INC(&rm->verify_failures_total);
             }
             sd_cache_note_origin_bytes(st, key, off); /* WAN cost is WAN cost */
             /* a verify mismatch IS an upstream fill failure — the bytes came
              * from the origin but did not publish. */
             sd_cache_note_upstream(st, 0, off, sd_cache_ms_since(&fill_t0));
-            xrootd_cache_quarantine_part(pp, st->policy.quarantine_dir,
+            brix_cache_quarantine_part(pp, st->policy.quarantine_dir,
                                          st->log);
-            xrootd_cstore_fill_abort(staged);   /* part already renamed away */
+            brix_cstore_fill_abort(staged);   /* part already renamed away */
             errno = EBADMSG;        /* digest mismatch — T20 budgets retries */
             return NGX_ERROR;
         }
-        if (vr == XROOTD_CACHE_VERIFY_ERROR) {
+        if (vr == BRIX_CACHE_VERIFY_ERROR) {
             ngx_log_error(NGX_LOG_ERR, st->log, errno,
                 "sd_cache: cvmfs-cas verify could not run for \"%s\" - "
                 "failing the fill closed", key);
-            xrootd_cstore_fill_abort(staged);
+            brix_cstore_fill_abort(staged);
             errno = EIO;
             return NGX_ERROR;
         }
-        verified = (vr == XROOTD_CACHE_VERIFY_VERIFIED);
+        verified = (vr == BRIX_CACHE_VERIFY_VERIFIED);
     }
 
     sd_cache_note_origin_bytes(st, key, off);  /* WAN in, this attempt */
     sd_cache_note_upstream(st, 1, off, sd_cache_ms_since(&fill_t0));
 
-    if (xrootd_cstore_fill_commit(staged) != NGX_OK) {
+    if (brix_cstore_fill_commit(staged) != NGX_OK) {
         return NGX_ERROR;
     }
 
     /* Whole-file COMPLETE cinfo (the 1 MiB granule keys validity; the present
      * bitmap is all-set). A partial/slice fill is section 6.5 / SP2. */
     ngx_memzero(&ci, sizeof(ci));
-    ci.magic      = XROOTD_CACHE_CINFO_MAGIC;
-    ci.version    = XROOTD_CACHE_CINFO_VERSION;
-    ci.block_size = XROOTD_CACHE_DIRTY_BLOCK;
+    ci.magic      = BRIX_CACHE_CINFO_MAGIC;
+    ci.version    = BRIX_CACHE_CINFO_VERSION;
+    ci.block_size = BRIX_CACHE_DIRTY_BLOCK;
     ci.size       = (uint64_t) off;
     ci.mtime      = (uint64_t) snap.mtime;
     ci.mode       = (uint32_t) (snap.mode & 0777);   /* origin perms — served back
                                                       * so a read-only source is not
                                                       * masked by the owner-writable
                                                       * physical store object. */
-    ci.nblocks    = xrootd_cache_cinfo_nblocks((uint64_t) off, ci.block_size);
-    ci.flags      = XROOTD_CINFO_F_COMPLETE
-                  | (verified ? XROOTD_CINFO_F_VERIFIED : 0);
+    ci.nblocks    = brix_cache_cinfo_nblocks((uint64_t) off, ci.block_size);
+    ci.flags      = BRIX_CINFO_F_COMPLETE
+                  | (verified ? BRIX_CINFO_F_VERIFIED : 0);
     ci.filled_at  = (uint64_t) time(NULL);
     if (st->policy.cvmfs_manifest_ttl > 0 && sd_cache_is_manifest_key(key)) {
-        xrootd_cache_cinfo_set_expires(&ci,
+        brix_cache_cinfo_set_expires(&ci,
             (time_t) ci.filled_at + st->policy.cvmfs_manifest_ttl);
     }
 
-    if (xrootd_cstore_cinfo_store(&st->cstore, key, &ci) != NGX_OK) {
+    if (brix_cstore_cinfo_store(&st->cstore, key, &ci) != NGX_OK) {
         /* The object is cached but unrecorded - a safe miss (refill) next time. */
         ngx_log_error(NGX_LOG_WARN, st->log, errno,
             "sd_cache: cinfo store failed for \"%s\" - will refill on next read",
@@ -435,8 +435,8 @@ sd_cache_fill(sd_cache_inst_state *st, const char *key)
  * cinfo becomes COMPLETE and subsequent opens take the whole-file hit fast path. */
 
 typedef struct {
-    xrootd_sd_instance_t *source;
-    xrootd_sd_obj_t      *src_obj;          /* lazily opened on the first miss   */
+    brix_sd_instance_t *source;
+    brix_sd_obj_t      *src_obj;          /* lazily opened on the first miss   */
     int                   cache_fd;         /* the RW (sparse) cache object      */
     off_t                 size;
     uint32_t              block_size;
@@ -471,7 +471,7 @@ sd_cache_fill_block(sd_cache_partial_t *p, uint64_t blk)
             errno = ENOSYS;
             return -1;
         }
-        p->src_obj = p->source->driver->open(p->source, p->key, XROOTD_SD_O_READ,
+        p->src_obj = p->source->driver->open(p->source, p->key, BRIX_SD_O_READ,
                                              0, &e);
         if (p->src_obj == NULL) {
             errno = e ? e : EIO;
@@ -518,24 +518,24 @@ sd_cache_fill_block(sd_cache_partial_t *p, uint64_t blk)
     }
     free(bbuf);
 
-    (void) xrootd_cache_cinfo_record_block(p->cache_path, (uint64_t) p->size,
+    (void) brix_cache_cinfo_record_block(p->cache_path, (uint64_t) p->size,
                                            p->block_size, p->mtime, p->mode, blk,
                                            p->log);
     if (p->bitmap != NULL && blk < p->nblocks) {
-        xrootd_cache_cinfo_mark_block(p->bitmap, blk);
+        brix_cache_cinfo_mark_block(p->bitmap, blk);
     }
     return 0;
 }
 
 /* Open a partial-serve object for `key` (slice mode). NULL + *err_out on failure. */
-static xrootd_sd_obj_t *
-sd_cache_partial_open(xrootd_sd_instance_t *inst, sd_cache_inst_state *st,
+static brix_sd_obj_t *
+sd_cache_partial_open(brix_sd_instance_t *inst, sd_cache_inst_state *st,
     const char *key, int *err_out)
 {
-    xrootd_sd_instance_t *src = st->source;
-    xrootd_sd_stat_t      snap;
+    brix_sd_instance_t *src = st->source;
+    brix_sd_stat_t      snap;
     sd_cache_partial_t   *p;
-    xrootd_sd_obj_t      *o;
+    brix_sd_obj_t      *o;
     char                  cpath[PATH_MAX];
     uint32_t              bs;
     int                   fd;
@@ -551,7 +551,7 @@ sd_cache_partial_open(xrootd_sd_instance_t *inst, sd_cache_inst_state *st,
      * block fill, so a read-only (0444) source mode would make the SECOND open fail
      * EACCES and silently fall back to a whole-file fill (§6.5 sparse lost). The
      * origin perms are carried in the cinfo and served back (see the READ hit). */
-    fd = xrootd_cstore_partial_open(&st->cstore, key,
+    fd = brix_cstore_partial_open(&st->cstore, key,
                                    ((mode_t) (snap.mode & 0777)) | S_IRUSR | S_IWUSR,
                                    snap.size, cpath, sizeof(cpath));
     if (fd < 0) {
@@ -573,8 +573,8 @@ sd_cache_partial_open(xrootd_sd_instance_t *inst, sd_cache_inst_state *st,
     p->block_size = bs;
     p->mode       = (uint32_t) (snap.mode & 0777);   /* origin perms → cinfo */
     p->mtime      = (uint64_t) snap.mtime;
-    p->nblocks    = xrootd_cache_cinfo_nblocks((uint64_t) snap.size, bs);
-    p->bitmap_len = xrootd_cache_cinfo_bitmap_len(p->nblocks);
+    p->nblocks    = brix_cache_cinfo_nblocks((uint64_t) snap.size, bs);
+    p->bitmap_len = brix_cache_cinfo_bitmap_len(p->nblocks);
     p->log        = st->log;
     ngx_cpystrn((u_char *) p->key, (u_char *) key, sizeof(p->key));
     ngx_cpystrn((u_char *) p->cache_path, (u_char *) cpath, sizeof(p->cache_path));
@@ -582,11 +582,11 @@ sd_cache_partial_open(xrootd_sd_instance_t *inst, sd_cache_inst_state *st,
     /* Adopt a previously-recorded present bitmap (an earlier partial fill) when it
      * matches this object's geometry; otherwise start all-absent. */
     {
-        xrootd_cache_cinfo_t  hdr;
+        brix_cache_cinfo_t  hdr;
         uint8_t              *bm = NULL;
         size_t                bl = 0;
 
-        if (xrootd_cache_cinfo_load(cpath, &hdr, &bm, &bl) == NGX_OK
+        if (brix_cache_cinfo_load(cpath, &hdr, &bm, &bl) == NGX_OK
             && bl == p->bitmap_len && hdr.size == (uint64_t) snap.size
             && hdr.block_size == bs)
         {
@@ -608,30 +608,30 @@ sd_cache_partial_open(xrootd_sd_instance_t *inst, sd_cache_inst_state *st,
 
 /* ---- the interposed read/write open --------------------------------------- */
 
-static xrootd_sd_obj_t *
-sd_cache_open(xrootd_sd_instance_t *inst, const char *path, int sd_flags,
+static brix_sd_obj_t *
+sd_cache_open(brix_sd_instance_t *inst, const char *path, int sd_flags,
     mode_t mode, int *err_out)
 {
     sd_cache_inst_state  *st = SD_CACHE_ST(inst);
-    xrootd_sd_instance_t *src = st->source;
-    xrootd_cache_cinfo_t  ci;
-    xrootd_sd_obj_t      *obj;
+    brix_sd_instance_t *src = st->source;
+    brix_cache_cinfo_t  ci;
+    brix_sd_obj_t      *obj;
 
     /* WRITE / CREATE / TRUNC: pass through and invalidate the cached copy. */
-    if (sd_flags & (XROOTD_SD_O_WRITE | XROOTD_SD_O_CREATE | XROOTD_SD_O_TRUNC)) {
+    if (sd_flags & (BRIX_SD_O_WRITE | BRIX_SD_O_CREATE | BRIX_SD_O_TRUNC)) {
         obj = src->driver->open(src, path, sd_flags, mode, err_out);
         if (obj != NULL) {
-            (void) xrootd_cstore_evict(&st->cstore, path);
+            (void) brix_cstore_evict(&st->cstore, path);
         }
         return obj;
     }
 
     /* READ: a COMPLETE cinfo is an authoritative hit (freshness is checked at fill
      * time via verify, not on every read - section 6.4). */
-    if (xrootd_cstore_cinfo_load(&st->cstore, path, &ci) == NGX_OK
-        && (ci.flags & XROOTD_CINFO_F_COMPLETE))
+    if (brix_cstore_cinfo_load(&st->cstore, path, &ci) == NGX_OK
+        && (ci.flags & BRIX_CINFO_F_COMPLETE))
     {
-        obj = xrootd_cstore_serve_open(&st->cstore, path, err_out);
+        obj = brix_cstore_serve_open(&st->cstore, path, err_out);
         if (obj != NULL) {
             /* Present the ORIGIN perms recorded in the cinfo, not the physical
              * store object's bits (which are forced owner-writable so the cinfo
@@ -656,7 +656,7 @@ sd_cache_open(xrootd_sd_instance_t *inst, const char *path, int sd_flags,
      * (section 9.2). The waiter that parks/wakes the open lands with the frm
      * driver (SP4/SP5); until then a NEARLINE source cannot be served here, so
      * fail soft with EAGAIN rather than block. */
-    if ((xrootd_sd_caps(src) & XROOTD_SD_CAP_NEARLINE) != 0
+    if ((brix_sd_caps(src) & BRIX_SD_CAP_NEARLINE) != 0
         && src->driver->recall != NULL)
     {
         char      reqid[40];
@@ -681,7 +681,7 @@ sd_cache_open(xrootd_sd_instance_t *inst, const char *path, int sd_flags,
      * on demand (section 6.5) instead of pulling the whole object. A miss or a
      * PARTIAL cinfo both take this path; a COMPLETE object was already served above. */
     if (st->policy.slice_size > 0
-        && st->cstore.meta_mode == XROOTD_CMETA_LOCAL)
+        && st->cstore.meta_mode == BRIX_CMETA_LOCAL)
     {
         obj = sd_cache_partial_open(inst, st, path, err_out);
         if (obj != NULL) {
@@ -694,7 +694,7 @@ sd_cache_open(xrootd_sd_instance_t *inst, const char *path, int sd_flags,
 
     /* MISS: fill from the source, then serve the cached copy. */
     if (sd_cache_fill(st, path) == NGX_OK) {
-        obj = xrootd_cstore_serve_open(&st->cstore, path, err_out);
+        obj = brix_cstore_serve_open(&st->cstore, path, err_out);
         if (obj != NULL) {
             ngx_log_debug1(NGX_LOG_DEBUG_CORE, st->log, 0,
                 "sd_cache: filled \"%s\"", path);
@@ -710,20 +710,20 @@ sd_cache_open(xrootd_sd_instance_t *inst, const char *path, int sd_flags,
 /* ---- namespace / xattr / dir forwarders (delegate to the source) ---------- */
 
 static ngx_int_t
-sd_cache_stat(xrootd_sd_instance_t *inst, const char *path,
-    xrootd_sd_stat_t *out)
+sd_cache_stat(brix_sd_instance_t *inst, const char *path,
+    brix_sd_stat_t *out)
 {
     sd_cache_inst_state  *st = SD_CACHE_ST(inst);
-    xrootd_sd_instance_t *s  = SD_CACHE_SRC(inst);
-    xrootd_cache_cinfo_t  ci;
+    brix_sd_instance_t *s  = SD_CACHE_SRC(inst);
+    brix_cache_cinfo_t  ci;
 
     /* A COMPLETE cached object answers stat from its cinfo — the same
      * authoritative-hit doctrine as open() (section 6.4), and it keeps a stat of
      * a warm object off the source (a remote source would otherwise take a
      * blocking wire round-trip on the caller's thread — the event loop for the
      * kXR_open pre-flight probe). A miss/partial falls through to the source. */
-    if (xrootd_cstore_cinfo_load(&st->cstore, path, &ci) == NGX_OK
-        && (ci.flags & XROOTD_CINFO_F_COMPLETE))
+    if (brix_cstore_cinfo_load(&st->cstore, path, &ci) == NGX_OK
+        && (ci.flags & BRIX_CINFO_F_COMPLETE))
     {
         ngx_memzero(out, sizeof(*out));
         out->size   = (off_t) ci.size;
@@ -739,64 +739,64 @@ sd_cache_stat(xrootd_sd_instance_t *inst, const char *path,
 }
 
 static ngx_int_t
-sd_cache_unlink(xrootd_sd_instance_t *inst, const char *path, int is_dir)
+sd_cache_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)
 {
     sd_cache_inst_state  *st = SD_CACHE_ST(inst);
-    xrootd_sd_instance_t *s = st->source;
+    brix_sd_instance_t *s = st->source;
     ngx_int_t             rc;
 
     rc = s->driver->unlink ? s->driver->unlink(s, path, is_dir) : NGX_ERROR;
     if (rc == NGX_OK) {
-        (void) xrootd_cstore_evict(&st->cstore, path);
+        (void) brix_cstore_evict(&st->cstore, path);
     }
     return rc;
 }
 
 static ngx_int_t
-sd_cache_mkdir(xrootd_sd_instance_t *inst, const char *path, mode_t mode)
+sd_cache_mkdir(brix_sd_instance_t *inst, const char *path, mode_t mode)
 {
-    xrootd_sd_instance_t *s = SD_CACHE_SRC(inst);
+    brix_sd_instance_t *s = SD_CACHE_SRC(inst);
     return s->driver->mkdir ? s->driver->mkdir(s, path, mode) : NGX_ERROR;
 }
 
 static ngx_int_t
-sd_cache_rename(xrootd_sd_instance_t *inst, const char *src, const char *dst,
+sd_cache_rename(brix_sd_instance_t *inst, const char *src, const char *dst,
     int noreplace)
 {
     sd_cache_inst_state  *st = SD_CACHE_ST(inst);
-    xrootd_sd_instance_t *s = st->source;
+    brix_sd_instance_t *s = st->source;
     ngx_int_t             rc;
 
     rc = s->driver->rename ? s->driver->rename(s, src, dst, noreplace)
                            : NGX_ERROR;
     if (rc == NGX_OK) {
-        (void) xrootd_cstore_evict(&st->cstore, src);
-        (void) xrootd_cstore_evict(&st->cstore, dst);
+        (void) brix_cstore_evict(&st->cstore, src);
+        (void) brix_cstore_evict(&st->cstore, dst);
     }
     return rc;
 }
 
 static ngx_int_t
-sd_cache_server_copy(xrootd_sd_instance_t *inst, const char *src,
+sd_cache_server_copy(brix_sd_instance_t *inst, const char *src,
     const char *dst, off_t *bytes_out)
 {
-    xrootd_sd_instance_t *s = SD_CACHE_SRC(inst);
+    brix_sd_instance_t *s = SD_CACHE_SRC(inst);
     return s->driver->server_copy ? s->driver->server_copy(s, src, dst, bytes_out)
                                   : NGX_ERROR;
 }
 
 static ngx_int_t
-sd_cache_setattr(xrootd_sd_instance_t *inst, const char *path,
-    const xrootd_sd_setattr_t *attr)
+sd_cache_setattr(brix_sd_instance_t *inst, const char *path,
+    const brix_sd_setattr_t *attr)
 {
-    xrootd_sd_instance_t *s = SD_CACHE_SRC(inst);
+    brix_sd_instance_t *s = SD_CACHE_SRC(inst);
     return s->driver->setattr ? s->driver->setattr(s, path, attr) : NGX_OK;
 }
 
-static xrootd_sd_dir_t *
-sd_cache_opendir(xrootd_sd_instance_t *inst, const char *path, int *err_out)
+static brix_sd_dir_t *
+sd_cache_opendir(brix_sd_instance_t *inst, const char *path, int *err_out)
 {
-    xrootd_sd_instance_t *s = SD_CACHE_SRC(inst);
+    brix_sd_instance_t *s = SD_CACHE_SRC(inst);
 
     if (s->driver->opendir == NULL) {
         if (err_out != NULL) {
@@ -808,7 +808,7 @@ sd_cache_opendir(xrootd_sd_instance_t *inst, const char *path, int *err_out)
 }
 
 static ngx_int_t
-sd_cache_readdir(xrootd_sd_dir_t *d, xrootd_sd_dirent_t *out)
+sd_cache_readdir(brix_sd_dir_t *d, brix_sd_dirent_t *out)
 {
     /* The dir handle carries its owning (source) instance; dispatch through it. */
     return d->inst->driver->readdir ? d->inst->driver->readdir(d, out)
@@ -816,16 +816,16 @@ sd_cache_readdir(xrootd_sd_dir_t *d, xrootd_sd_dirent_t *out)
 }
 
 static ngx_int_t
-sd_cache_closedir(xrootd_sd_dir_t *d)
+sd_cache_closedir(brix_sd_dir_t *d)
 {
     return d->inst->driver->closedir ? d->inst->driver->closedir(d) : NGX_ERROR;
 }
 
 static ssize_t
-sd_cache_getxattr(xrootd_sd_instance_t *inst, const char *path, const char *name,
+sd_cache_getxattr(brix_sd_instance_t *inst, const char *path, const char *name,
     void *buf, size_t cap)
 {
-    xrootd_sd_instance_t *s = SD_CACHE_SRC(inst);
+    brix_sd_instance_t *s = SD_CACHE_SRC(inst);
 
     if (s->driver->getxattr == NULL) {
         errno = ENOTSUP;
@@ -835,10 +835,10 @@ sd_cache_getxattr(xrootd_sd_instance_t *inst, const char *path, const char *name
 }
 
 static ssize_t
-sd_cache_listxattr(xrootd_sd_instance_t *inst, const char *path, void *buf,
+sd_cache_listxattr(brix_sd_instance_t *inst, const char *path, void *buf,
     size_t cap)
 {
-    xrootd_sd_instance_t *s = SD_CACHE_SRC(inst);
+    brix_sd_instance_t *s = SD_CACHE_SRC(inst);
 
     if (s->driver->listxattr == NULL) {
         errno = ENOTSUP;
@@ -848,10 +848,10 @@ sd_cache_listxattr(xrootd_sd_instance_t *inst, const char *path, void *buf,
 }
 
 static ngx_int_t
-sd_cache_setxattr(xrootd_sd_instance_t *inst, const char *path, const char *name,
+sd_cache_setxattr(brix_sd_instance_t *inst, const char *path, const char *name,
     const void *val, size_t len, int flags)
 {
-    xrootd_sd_instance_t *s = SD_CACHE_SRC(inst);
+    brix_sd_instance_t *s = SD_CACHE_SRC(inst);
 
     if (s->driver->setxattr == NULL) {
         errno = ENOTSUP;
@@ -861,10 +861,10 @@ sd_cache_setxattr(xrootd_sd_instance_t *inst, const char *path, const char *name
 }
 
 static ngx_int_t
-sd_cache_removexattr(xrootd_sd_instance_t *inst, const char *path,
+sd_cache_removexattr(brix_sd_instance_t *inst, const char *path,
     const char *name)
 {
-    xrootd_sd_instance_t *s = SD_CACHE_SRC(inst);
+    brix_sd_instance_t *s = SD_CACHE_SRC(inst);
 
     if (s->driver->removexattr == NULL) {
         errno = ENOTSUP;
@@ -875,12 +875,12 @@ sd_cache_removexattr(xrootd_sd_instance_t *inst, const char *path,
 
 /* ---- staged write forwarders (the write path runs through the source) ----- */
 
-static xrootd_sd_staged_t *
-sd_cache_staged_open(xrootd_sd_instance_t *inst, const char *final_path,
+static brix_sd_staged_t *
+sd_cache_staged_open(brix_sd_instance_t *inst, const char *final_path,
     mode_t mode, int *err_out)
 {
     sd_cache_inst_state  *st = SD_CACHE_ST(inst);
-    xrootd_sd_instance_t *s = st->source;
+    brix_sd_instance_t *s = st->source;
 
     if (s->driver->staged_open == NULL) {
         if (err_out != NULL) {
@@ -889,12 +889,12 @@ sd_cache_staged_open(xrootd_sd_instance_t *inst, const char *final_path,
         return NULL;
     }
     /* A staged publish replaces the object; drop any cached copy now. */
-    (void) xrootd_cstore_evict(&st->cstore, final_path);
+    (void) brix_cstore_evict(&st->cstore, final_path);
     return s->driver->staged_open(s, final_path, mode, err_out);
 }
 
 static ssize_t
-sd_cache_staged_write(xrootd_sd_staged_t *st, const void *buf, size_t len,
+sd_cache_staged_write(brix_sd_staged_t *st, const void *buf, size_t len,
     off_t off)
 {
     return st->inst->driver->staged_write
@@ -902,14 +902,14 @@ sd_cache_staged_write(xrootd_sd_staged_t *st, const void *buf, size_t len,
 }
 
 static ngx_int_t
-sd_cache_staged_commit(xrootd_sd_staged_t *st, int noreplace)
+sd_cache_staged_commit(brix_sd_staged_t *st, int noreplace)
 {
     return st->inst->driver->staged_commit
          ? st->inst->driver->staged_commit(st, noreplace) : NGX_ERROR;
 }
 
 static void
-sd_cache_staged_abort(xrootd_sd_staged_t *st)
+sd_cache_staged_abort(brix_sd_staged_t *st)
 {
     if (st->inst->driver->staged_abort != NULL) {
         st->inst->driver->staged_abort(st);
@@ -929,7 +929,7 @@ sd_cache_fill_block_cb(void *ctx, uint64_t blk)
 }
 
 static ssize_t
-sd_cache_pread(xrootd_sd_obj_t *obj, void *buf, size_t len, off_t off)
+sd_cache_pread(brix_sd_obj_t *obj, void *buf, size_t len, off_t off)
 {
     sd_cache_partial_t *p = obj->state;
 
@@ -939,12 +939,12 @@ sd_cache_pread(xrootd_sd_obj_t *obj, void *buf, size_t len, off_t off)
     }
     /* The bitmap-consult + range-serve loop lives in cstore (section 6.5); this
      * decorator only supplies the source-fill callback for a missing block. */
-    return xrootd_cstore_serve_pread(p->cache_fd, p->bitmap, p->nblocks,
+    return brix_cstore_serve_pread(p->cache_fd, p->bitmap, p->nblocks,
         p->block_size, (off_t) p->size, buf, len, off, sd_cache_fill_block_cb, p);
 }
 
 static ngx_int_t
-sd_cache_close(xrootd_sd_obj_t *obj)
+sd_cache_close(brix_sd_obj_t *obj)
 {
     sd_cache_partial_t *p = (obj != NULL) ? obj->state : NULL;
 
@@ -965,7 +965,7 @@ sd_cache_close(xrootd_sd_obj_t *obj)
 }
 
 static ngx_int_t
-sd_cache_fstat(xrootd_sd_obj_t *obj, xrootd_sd_stat_t *out)
+sd_cache_fstat(brix_sd_obj_t *obj, brix_sd_stat_t *out)
 {
     sd_cache_partial_t *p = obj->state;
 
@@ -981,7 +981,7 @@ sd_cache_fstat(xrootd_sd_obj_t *obj, xrootd_sd_stat_t *out)
 }
 
 static ngx_fd_t
-sd_cache_read_sendfile_fd(xrootd_sd_obj_t *obj, off_t off, size_t len,
+sd_cache_read_sendfile_fd(brix_sd_obj_t *obj, off_t off, size_t len,
     unsigned want_zerocopy)
 {
     (void) obj;
@@ -994,12 +994,12 @@ sd_cache_read_sendfile_fd(xrootd_sd_obj_t *obj, off_t off, size_t len,
 /* The decorator advertises the namespace/write cap set; the served read object
  * carries the cache store's own byte caps (sendfile/fd), and write/namespace ops
  * forward to the source - so the cache is transport-transparent above the seam. */
-static const xrootd_sd_driver_t xrootd_sd_cache_driver = {
+static const brix_sd_driver_t brix_sd_cache_driver = {
     .name        = "cache",
-    .caps        = XROOTD_SD_CAP_RANGE_READ | XROOTD_SD_CAP_RANDOM_WRITE
-                 | XROOTD_SD_CAP_TRUNCATE | XROOTD_SD_CAP_XATTR
-                 | XROOTD_SD_CAP_HARD_RENAME | XROOTD_SD_CAP_SERVER_COPY
-                 | XROOTD_SD_CAP_DIRS,
+    .caps        = BRIX_SD_CAP_RANGE_READ | BRIX_SD_CAP_RANDOM_WRITE
+                 | BRIX_SD_CAP_TRUNCATE | BRIX_SD_CAP_XATTR
+                 | BRIX_SD_CAP_HARD_RENAME | BRIX_SD_CAP_SERVER_COPY
+                 | BRIX_SD_CAP_DIRS,
     .open             = sd_cache_open,
     .close            = sd_cache_close,
     .pread            = sd_cache_pread,
@@ -1024,12 +1024,12 @@ static const xrootd_sd_driver_t xrootd_sd_cache_driver = {
     .staged_abort  = sd_cache_staged_abort,
 };
 
-xrootd_sd_instance_t *
-xrootd_sd_cache_create(xrootd_sd_instance_t *source, xrootd_sd_instance_t *store,
-    const xrootd_cache_policy_t *policy, const char *store_local_root,
+brix_sd_instance_t *
+brix_sd_cache_create(brix_sd_instance_t *source, brix_sd_instance_t *store,
+    const brix_cache_policy_t *policy, const char *store_local_root,
     ngx_log_t *log)
 {
-    xrootd_sd_instance_t *inst;
+    brix_sd_instance_t *inst;
     sd_cache_inst_state  *st;
 
     if (source == NULL || store == NULL || policy == NULL) {
@@ -1048,7 +1048,7 @@ xrootd_sd_cache_create(xrootd_sd_instance_t *source, xrootd_sd_instance_t *store
     st->policy = *policy;
     st->log    = log;
 
-    if (xrootd_cstore_init(&st->cstore, store, store_local_root,
+    if (brix_cstore_init(&st->cstore, store, store_local_root,
                            policy->meta_mode, policy->l1_entries,
                            policy->batch_cinfo, log) != NGX_OK)
     {
@@ -1059,7 +1059,7 @@ xrootd_sd_cache_create(xrootd_sd_instance_t *source, xrootd_sd_instance_t *store
         return NULL;
     }
 
-    inst->driver = &xrootd_sd_cache_driver;
+    inst->driver = &brix_sd_cache_driver;
     inst->log    = log;
     inst->pool   = NULL;
     inst->state  = st;
@@ -1067,7 +1067,7 @@ xrootd_sd_cache_create(xrootd_sd_instance_t *source, xrootd_sd_instance_t *store
 }
 
 void
-xrootd_sd_cache_destroy(xrootd_sd_instance_t *inst)
+brix_sd_cache_destroy(brix_sd_instance_t *inst)
 {
     sd_cache_inst_state *st;
 
@@ -1076,7 +1076,7 @@ xrootd_sd_cache_destroy(xrootd_sd_instance_t *inst)
     }
     st = inst->state;
     if (st != NULL) {
-        xrootd_cstore_cleanup(&st->cstore);
+        brix_cstore_cleanup(&st->cstore);
         free(st);
     }
     free(inst);
@@ -1093,9 +1093,9 @@ xrootd_sd_cache_destroy(xrootd_sd_instance_t *inst)
  * SD open() contract asynchronous. See src/shared/http_cache_fill.c. */
 
 int
-xrootd_sd_cache_instance_is(const xrootd_sd_instance_t *inst)
+brix_sd_cache_instance_is(const brix_sd_instance_t *inst)
 {
-    return (inst != NULL && inst->driver == &xrootd_sd_cache_driver) ? 1 : 0;
+    return (inst != NULL && inst->driver == &brix_sd_cache_driver) ? 1 : 0;
 }
 
 /* Would a read-open of `key` block the calling thread on slow (remote) I/O? 1
@@ -1106,14 +1106,14 @@ xrootd_sd_cache_instance_is(const xrootd_sd_instance_t *inst)
  * or a non-cache instance all return 0 (serve inline). No blocking call - the
  * cinfo probe hits the per-worker L1 / a local sidecar. */
 int
-xrootd_sd_cache_fill_needs_offload(xrootd_sd_instance_t *inst, const char *key)
+brix_sd_cache_fill_needs_offload(brix_sd_instance_t *inst, const char *key)
 {
     sd_cache_inst_state  *st;
-    xrootd_cache_cinfo_t  ci;
+    brix_cache_cinfo_t  ci;
     int                   src_slow;
     int                   store_slow;
 
-    if (!xrootd_sd_cache_instance_is(inst) || key == NULL) {
+    if (!brix_sd_cache_instance_is(inst) || key == NULL) {
         return 0;
     }
     st = SD_CACHE_ST(inst);
@@ -1121,11 +1121,11 @@ xrootd_sd_cache_fill_needs_offload(xrootd_sd_instance_t *inst, const char *key)
     /* A COMPLETE cached object is served from the store with no fill —
      * unless its phase-68 TTL has passed (an expired manifest refills; the
      * failed-refill path serves it stale within the 10x-TTL bound). */
-    if (xrootd_cstore_cinfo_load(&st->cstore, key, &ci) == NGX_OK
-        && (ci.flags & XROOTD_CINFO_F_COMPLETE))
+    if (brix_cstore_cinfo_load(&st->cstore, key, &ci) == NGX_OK
+        && (ci.flags & BRIX_CINFO_F_COMPLETE))
     {
         if (!(st->policy.cvmfs_manifest_ttl > 0
-              && xrootd_cache_cinfo_expired(&ci, time(NULL)) == 1))
+              && brix_cache_cinfo_expired(&ci, time(NULL)) == 1))
         {
             return 0;
         }
@@ -1134,14 +1134,14 @@ xrootd_sd_cache_fill_needs_offload(xrootd_sd_instance_t *inst, const char *key)
     /* Slice/partial mode (LOCAL store): open() returns a partial object without a
      * whole-file fill, so the open call itself does not block. */
     if (st->policy.slice_size > 0
-        && st->cstore.meta_mode == XROOTD_CMETA_LOCAL)
+        && st->cstore.meta_mode == BRIX_CMETA_LOCAL)
     {
         return 0;
     }
     /* A miss: the inline open would run the whole-file fill. Offload iff a slow
      * tier is involved - a remote source read or a remote store write. */
-    src_slow   = (xrootd_sd_caps(st->source) & XROOTD_SD_CAP_FD) == 0;
-    store_slow = (st->cstore.meta_mode != XROOTD_CMETA_LOCAL);
+    src_slow   = (brix_sd_caps(st->source) & BRIX_SD_CAP_FD) == 0;
+    store_slow = (st->cstore.meta_mode != BRIX_CMETA_LOCAL);
     return (src_slow || store_slow) ? 1 : 0;
 }
 
@@ -1150,9 +1150,9 @@ xrootd_sd_cache_fill_needs_offload(xrootd_sd_instance_t *inst, const char *key)
  * NGX_DECLINED (admission declined - not cached), NGX_ERROR (fill failure).
  * Safe off the event loop: pure driver pread/pwrite + cstore ops, no nginx pool. */
 ngx_int_t
-xrootd_sd_cache_fill_key(xrootd_sd_instance_t *inst, const char *key)
+brix_sd_cache_fill_key(brix_sd_instance_t *inst, const char *key)
 {
-    if (!xrootd_sd_cache_instance_is(inst) || key == NULL) {
+    if (!brix_sd_cache_instance_is(inst) || key == NULL) {
         errno = EINVAL;
         return NGX_ERROR;
     }
@@ -1162,27 +1162,27 @@ xrootd_sd_cache_fill_key(xrootd_sd_instance_t *inst, const char *key)
 /* The cache STORE instance (where served objects live), or NULL for a non-cache
  * instance. A read SERVE reads from the store, so the serve-locality predicate
  * (http_serve_offload.c) recurses into it. */
-xrootd_sd_instance_t *
-xrootd_sd_cache_store_instance(const xrootd_sd_instance_t *inst)
+brix_sd_instance_t *
+brix_sd_cache_store_instance(const brix_sd_instance_t *inst)
 {
-    return xrootd_sd_cache_instance_is(inst) ? SD_CACHE_ST(inst)->cstore.store
+    return brix_sd_cache_instance_is(inst) ? SD_CACHE_ST(inst)->cstore.store
                                              : NULL;
 }
 
 /* The cache SOURCE instance (the tier BELOW the cache - a stage decorator or the
  * backend), or NULL for a non-cache instance. Lets a caller unwrap the composed
  * stack to reach the stage decorator (SP4 reconcile). */
-xrootd_sd_instance_t *
-xrootd_sd_cache_source_instance(const xrootd_sd_instance_t *inst)
+brix_sd_instance_t *
+brix_sd_cache_source_instance(const brix_sd_instance_t *inst)
 {
-    return xrootd_sd_cache_instance_is(inst) ? SD_CACHE_SRC(inst) : NULL;
+    return brix_sd_cache_instance_is(inst) ? SD_CACHE_SRC(inst) : NULL;
 }
 
 /* The decorator's own cstore — the eviction/reaper enumerates + removes cached
  * objects through the SAME store adapter the read path fills into (§14a). Returned
- * void* (cast to xrootd_cstore_t* by the caller) to keep sd_cache.h off cstore.h. */
+ * void* (cast to brix_cstore_t* by the caller) to keep sd_cache.h off cstore.h. */
 void *
-xrootd_sd_cache_cstore(const xrootd_sd_instance_t *inst)
+brix_sd_cache_cstore(const brix_sd_instance_t *inst)
 {
-    return xrootd_sd_cache_instance_is(inst) ? &SD_CACHE_ST(inst)->cstore : NULL;
+    return brix_sd_cache_instance_is(inst) ? &SD_CACHE_ST(inst)->cstore : NULL;
 }

@@ -18,11 +18,11 @@
  * destination offsets without multiple individual requests, reducing latency and network bandwidth.
  *
  * HOW: Parse clone_item array from payload (32 bytes each), validate dst_fhandle for write access and each
- * src_fhandle for read access via xrootd_validate_write_handle/xrootd_validate_read_handle, decode big-endian
- * uint64 fields (src_offset, src_len, dst_offset) with be64toh, iterate items calling xrootd_copy_range() for
+ * src_fhandle for read access via brix_validate_write_handle/brix_validate_read_handle, decode big-endian
+ * uint64 fields (src_offset, src_len, dst_offset) with be64toh, iterate items calling brix_copy_range() for
  * each (which uses copy_file_range when same filesystem or pread/pwrite fallback otherwise), skip zero-length
  * items silently, accumulate total_bytes into file.bytes_written and session_bytes counters, return kXR_OK with
- * byte count via XROOTD_RETURN_OK.
+ * byte count via BRIX_RETURN_OK.
  */
 
 #include "clone.h"
@@ -36,7 +36,7 @@
 #define CLONE_MAX_ITEMS  1024u    /* maxClonesz from XProtocol.hh */
 
 ngx_int_t
-xrootd_handle_clone(xrootd_ctx_t *ctx, ngx_connection_t *c)
+brix_handle_clone(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     xrdw_clone_req_t    req;
     int                 dst_idx;
@@ -50,26 +50,26 @@ xrootd_handle_clone(xrootd_ctx_t *ctx, ngx_connection_t *c)
     xrdw_clone_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
     dst_idx = (int)(unsigned char) req.dst_fhandle[0];
 
-    if (!xrootd_validate_write_handle(ctx, c, dst_idx, "CLONE",
-                                      XROOTD_OP_CLONE, &rc)) {
+    if (!brix_validate_write_handle(ctx, c, dst_idx, "CLONE",
+                                      BRIX_OP_CLONE, &rc)) {
         return rc;
     }
 
     if (ctx->payload == NULL || ctx->cur_dlen == 0) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_CLONE, "CLONE",
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_CLONE, "CLONE",
                           ctx->files[dst_idx].path, "-",
                           kXR_ArgMissing, "clone list is missing");
     }
 
     if (ctx->cur_dlen % CLONE_ITEM_LEN != 0) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_CLONE, "CLONE",
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_CLONE, "CLONE",
                           ctx->files[dst_idx].path, "-",
                           kXR_ArgInvalid, "malformed clone list");
     }
 
     n_items = ctx->cur_dlen / CLONE_ITEM_LEN;
     if (n_items > CLONE_MAX_ITEMS) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_CLONE, "CLONE",
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_CLONE, "CLONE",
                           ctx->files[dst_idx].path, "-",
                           kXR_ArgTooLong, "too many clone items");
     }
@@ -88,8 +88,8 @@ xrootd_handle_clone(xrootd_ctx_t *ctx, ngx_connection_t *c)
 
         src_idx = (int)(unsigned char) item->src_fhandle[0];
 
-        if (!xrootd_validate_read_handle(ctx, c, src_idx, "CLONE",
-                                         XROOTD_OP_CLONE, &rc)) {
+        if (!brix_validate_read_handle(ctx, c, src_idx, "CLONE",
+                                         BRIX_OP_CLONE, &rc)) {
             return rc;
         }
 
@@ -111,12 +111,12 @@ xrootd_handle_clone(xrootd_ctx_t *ctx, ngx_connection_t *c)
             continue;
         }
 
-        if (xrootd_copy_range(c->log, ctx->files[src_idx].fd, src_off,
+        if (brix_copy_range(c->log, ctx->files[src_idx].fd, src_off,
                               dst_fd, dst_off, copy_len,
                               ctx->files[src_idx].path,
                               ctx->files[dst_idx].path) != NGX_OK)
         {
-            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_CLONE, "CLONE",
+            BRIX_RETURN_ERR(ctx, c, BRIX_OP_CLONE, "CLONE",
                               ctx->files[src_idx].path,
                               ctx->files[dst_idx].path,
                               kXR_IOError, "clone copy failed");
@@ -129,6 +129,6 @@ xrootd_handle_clone(xrootd_ctx_t *ctx, ngx_connection_t *c)
         p += CLONE_ITEM_LEN;
     }
 
-    XROOTD_RETURN_OK(ctx, c, XROOTD_OP_CLONE, "CLONE",
+    BRIX_RETURN_OK(ctx, c, BRIX_OP_CLONE, "CLONE",
                      ctx->files[dst_idx].path, "-", (size_t) total_bytes);
 }

@@ -31,9 +31,9 @@ events { worker_connections 128; }
 http { access_log off; server {
     listen 127.0.0.1:$CPORT;
     location /cvmfs/ {
-        xrootd_cvmfs_storage_backend http://127.0.0.1:$MPORT;
-        xrootd_cvmfs_cache_store posix:$PFX/cache;
-        xrootd_cvmfs on;
+        brix_cvmfs_storage_backend http://127.0.0.1:$MPORT;
+        brix_cvmfs_cache_store posix:$PFX/cache;
+        brix_cvmfs on;
     }
 } }
 EOF

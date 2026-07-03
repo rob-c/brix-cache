@@ -3,7 +3,7 @@ tests/test_token_jwks_refresh.py
 
 Integration tests for JWKS mtime-poll hot refresh (Feature 3).
 
-Verifies that the xrootd_token_jwks_refresh_interval directive causes
+Verifies that the brix_token_jwks_refresh_interval directive causes
 nginx-xrootd to detect JWKS file changes at runtime and swap in new keys
 without a restart, while preserving old keys on parse failure.
 

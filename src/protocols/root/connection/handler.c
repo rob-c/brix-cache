@@ -1,17 +1,17 @@
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 #include <netinet/tcp.h>   /* Phase 39: TCP_USER_TIMEOUT / TCP_KEEPIDLE etc. */
 #include "netopt.h"        /* Phase 50: shared dead-peer setsockopt helper */
 #include "protocols/root/relay/relay.h"   /* transparent pass-through relay engage */
 
 void
-ngx_stream_xrootd_handler(ngx_stream_session_t *s)
+ngx_stream_brix_handler(ngx_stream_session_t *s)
 {
     ngx_connection_t  *c = s->connection;
-    xrootd_ctx_t      *ctx;
+    brix_ctx_t      *ctx;
     int                i;
 
     /* Pool allocation: ctx lives for the duration of the TCP connection. */
-    ctx = ngx_pcalloc(c->pool, sizeof(xrootd_ctx_t));
+    ctx = ngx_pcalloc(c->pool, sizeof(brix_ctx_t));
     if (ctx == NULL) {
         ngx_stream_finalize_session(s, NGX_STREAM_INTERNAL_SERVER_ERROR);
         return;
@@ -20,7 +20,7 @@ ngx_stream_xrootd_handler(ngx_stream_session_t *s)
     ctx->session = s;
     ctx->state = XRD_ST_HANDSHAKE;
     ctx->hdr_pos = 0;
-    ctx->identity = xrootd_identity_alloc(c->pool);
+    ctx->identity = brix_identity_alloc(c->pool);
     if (ctx->identity == NULL) {
         ngx_stream_finalize_session(s, NGX_STREAM_INTERNAL_SERVER_ERROR);
         return;
@@ -50,7 +50,7 @@ ngx_stream_xrootd_handler(ngx_stream_session_t *s)
     }
 
     /* Sentinel value: fd < 0 means the slot is free. */
-    for (i = 0; i < XROOTD_MAX_FILES; i++) {
+    for (i = 0; i < BRIX_MAX_FILES; i++) {
         ctx->files[i].fd = -1;
         ctx->files[i].shared_handle_slot_hint = -1;  /* Phase 33 C2: no cache yet */
     }
@@ -64,15 +64,15 @@ ngx_stream_xrootd_handler(ngx_stream_session_t *s)
         parts[1] = (uint32_t) ngx_pid;
         parts[2] = (uint32_t) (uintptr_t) c;
         parts[3] = (uint32_t) ngx_random();
-        ngx_memcpy(ctx->sessid, parts, XROOTD_SESSION_ID_LEN);
+        ngx_memcpy(ctx->sessid, parts, BRIX_SESSION_ID_LEN);
     }
 
-    ngx_stream_set_ctx(s, ctx, ngx_stream_xrootd_module);
+    ngx_stream_set_ctx(s, ctx, ngx_stream_brix_module);
 
     {
-        ngx_stream_xrootd_srv_conf_t *mconf;
+        ngx_stream_brix_srv_conf_t *mconf;
 
-        mconf = ngx_stream_get_module_srv_conf(s, ngx_stream_xrootd_module);
+        mconf = ngx_stream_get_module_srv_conf(s, ngx_stream_brix_module);
 
         /* Phase 39: cache the merged network-fault deadlines so the hot
          * recv/park paths never do a srv_conf lookup.  All default 0 = off. */
@@ -82,7 +82,7 @@ ngx_stream_xrootd_handler(ngx_stream_session_t *s)
 
         /*
          * Allocate the per-connection pipeline rings sized to the configured
-         * depth (xrootd_pipeline_depth; merge-clamped to [MIN,MAX]).  A deeper
+         * depth (brix_pipeline_depth; merge-clamped to [MIN,MAX]).  A deeper
          * window absorbs more wire latency/jitter — a momentarily-slow drain no
          * longer empties the in-flight window and stalls the recv->send loop.
          * ctx->pipeline_depth is set LAST, so it stays 0 (and the teardown loops
@@ -92,9 +92,9 @@ ngx_stream_xrootd_handler(ngx_stream_session_t *s)
             ngx_uint_t depth = mconf->pipeline_depth;
 
             ctx->out_ring = ngx_pcalloc(c->pool,
-                                        depth * sizeof(xrootd_resp_slot_t));
+                                        depth * sizeof(brix_resp_slot_t));
             ctx->rd_pool  = ngx_pcalloc(c->pool,
-                                        depth * sizeof(xrootd_read_slot_t));
+                                        depth * sizeof(brix_read_slot_t));
             if (ctx->out_ring == NULL || ctx->rd_pool == NULL) {
                 ngx_stream_finalize_session(s,
                     NGX_STREAM_INTERNAL_SERVER_ERROR);
@@ -109,19 +109,19 @@ ngx_stream_xrootd_handler(ngx_stream_session_t *s)
          * stock deployment is byte-for-byte unchanged.  setsockopt failures are
          * deliberately non-fatal — a missing option must never abort a connection.
          */
-        xrootd_apply_tcp_deadpeer_opts(c->fd, mconf->tcp_keepalive,
+        brix_apply_tcp_deadpeer_opts(c->fd, mconf->tcp_keepalive,
                                        mconf->tcp_user_timeout);
 
         /* Per-socket congestion control (e.g. "bbr"); empty = kernel default.
          * Best-effort — a missing algorithm leaves the default, never aborts. */
-        xrootd_apply_tcp_congestion(c->fd, mconf->tcp_congestion);
+        brix_apply_tcp_congestion(c->fd, mconf->tcp_congestion);
 
-        if (mconf->metrics_slot >= 0 && ngx_xrootd_shm_zone != NULL
-            && ngx_xrootd_shm_zone->data != NULL
-            && ngx_xrootd_shm_zone->data != (void *) 1)
+        if (mconf->metrics_slot >= 0 && ngx_brix_shm_zone != NULL
+            && ngx_brix_shm_zone->data != NULL
+            && ngx_brix_shm_zone->data != (void *) 1)
         {
-            ngx_xrootd_metrics_t     *shm = ngx_xrootd_shm_zone->data;
-            ngx_xrootd_srv_metrics_t *srv = &shm->servers[mconf->metrics_slot];
+            ngx_brix_metrics_t     *shm = ngx_brix_shm_zone->data;
+            ngx_brix_srv_metrics_t *srv = &shm->servers[mconf->metrics_slot];
 
             ctx->metrics = srv;
 
@@ -138,15 +138,15 @@ ngx_stream_xrootd_handler(ngx_stream_session_t *s)
             if (!srv->in_use) {
                 srv->in_use = 1;
                 ngx_cpystrn((u_char *) srv->auth,
-                            (u_char *) (mconf->auth == XROOTD_AUTH_GSI
+                            (u_char *) (mconf->auth == BRIX_AUTH_GSI
                                         ? "gsi"
-                                        : mconf->auth == XROOTD_AUTH_TOKEN
+                                        : mconf->auth == BRIX_AUTH_TOKEN
                                           ? "token"
-                                          : mconf->auth == XROOTD_AUTH_SSS
+                                          : mconf->auth == BRIX_AUTH_SSS
                                             ? "sss"
-                                            : mconf->auth == XROOTD_AUTH_UNIX
+                                            : mconf->auth == BRIX_AUTH_UNIX
                                               ? "unix"
-                                              : mconf->auth == XROOTD_AUTH_KRB5
+                                              : mconf->auth == BRIX_AUTH_KRB5
                                                 ? "krb5" : "anon"),
                             sizeof(srv->auth));
 
@@ -167,17 +167,17 @@ ngx_stream_xrootd_handler(ngx_stream_session_t *s)
 
                 /* Write per-upstream labels once (idempotent at first use). */
                 if (mconf->proxy_upstreams != NULL) {
-                    xrootd_proxy_upstream_t *ups = mconf->proxy_upstreams->elts;
+                    brix_proxy_upstream_t *ups = mconf->proxy_upstreams->elts;
                     ngx_uint_t               nu  = mconf->proxy_upstreams->nelts;
                     ngx_uint_t               ui;
 
-                    if (nu > XROOTD_PROXY_MAX_UPSTREAMS) {
-                        nu = XROOTD_PROXY_MAX_UPSTREAMS;
+                    if (nu > BRIX_PROXY_MAX_UPSTREAMS) {
+                        nu = BRIX_PROXY_MAX_UPSTREAMS;
                     }
                     for (ui = 0; ui < nu; ui++) {
                         ngx_snprintf(
                             (u_char *) srv->proxy.upstreams[ui].label,
-                            XROOTD_PROXY_UPSTREAM_LABEL_LEN - 1,
+                            BRIX_PROXY_UPSTREAM_LABEL_LEN - 1,
                             "%V:%ui%Z",
                             &ups[ui].host, (ngx_uint_t) ups[ui].port);
                     }
@@ -186,9 +186,9 @@ ngx_stream_xrootd_handler(ngx_stream_session_t *s)
 
             /*
              * Phase 39 (WS9): pre-identity admission cap.  Once the listener's
-             * active-connection gauge is at xrootd_max_connections, refuse with a
+             * active-connection gauge is at brix_max_connections, refuse with a
              * plain TCP close — there is no streamid pre-login for a framed
-             * kXR_wait, and combined with xrootd_handshake_timeout this bounds a
+             * kXR_wait, and combined with brix_handshake_timeout this bounds a
              * half-open / reconnect-storm flood.  Checked BEFORE the active++ so
              * a refused connection never perturbs the gauge.  0 = unlimited.
              */
@@ -199,7 +199,7 @@ ngx_stream_xrootd_handler(ngx_stream_session_t *s)
                 ngx_atomic_fetch_add(&srv->connections_rejected_total, 1);
                 ngx_log_error(NGX_LOG_INFO, c->log, 0,
                               "xrootd: connection refused — listener at "
-                              "xrootd_max_connections (%ui)",
+                              "brix_max_connections (%ui)",
                               mconf->max_connections);
                 ngx_stream_finalize_session(s, NGX_STREAM_OK);
                 return;
@@ -211,17 +211,17 @@ ngx_stream_xrootd_handler(ngx_stream_session_t *s)
     }
 
     /*
-     * Transparent relay: if xrootd_transparent_proxy is configured, this port
+     * Transparent relay: if brix_transparent_proxy is configured, this port
      * relays verbatim to an upstream XRootD server (tapping the cleartext frames)
      * instead of terminating the protocol locally. Engages before any frame is
      * read; the relay owns the connection from here.
      */
     {
-        ngx_stream_xrootd_srv_conf_t *rconf =
-            ngx_stream_get_module_srv_conf(s, ngx_stream_xrootd_module);
+        ngx_stream_brix_srv_conf_t *rconf =
+            ngx_stream_get_module_srv_conf(s, ngx_stream_brix_module);
 
         if (rconf->relay_addr != NULL) {
-            if (xrootd_relay_start(s, c, rconf) != NGX_OK) {
+            if (brix_relay_start(s, c, rconf) != NGX_OK) {
                 ngx_stream_finalize_session(s,
                                             NGX_STREAM_INTERNAL_SERVER_ERROR);
             }
@@ -229,8 +229,8 @@ ngx_stream_xrootd_handler(ngx_stream_session_t *s)
         }
     }
 
-    c->read->handler = ngx_stream_xrootd_recv;
-    c->write->handler = ngx_stream_xrootd_send;
+    c->read->handler = ngx_stream_brix_recv;
+    c->write->handler = ngx_stream_brix_send;
 
-    ngx_stream_xrootd_recv(c->read);
+    ngx_stream_brix_recv(c->read);
 }

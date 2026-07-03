@@ -1,15 +1,15 @@
 /* ---- File: tpc_internal.h — Native TPC source-side pull API and shared types ----
  *
- * WHAT: Defines all shared types, constants, and function declarations for native XRootD third-party-copy (TPC) destination-side pull. Wire constants → TPC_IO_TIMEOUT_SEC(60s), TPC_CONNECT_TIMEOUT_SEC(5s), TPC_CHUNK_SIZE(1MB per kXR_read), TPC_RESP_MAX_BODY(1MB+256 malloc cap); typedef xrootd_tpc_params_t — parsed tpc.* opaque fields (key/src/src_host/src_path/dst/lfn/org/stage/token_mode + has_* flags + src_port); typedef xrootd_tpc_pull_t — per-pull heap-allocated task context containing connection/ctx/conf refs, streamid/options/mode_bits, src info, key/org/delegated_token/token_scope, dst_path/dst_fd/fhandle_idx/reply_kind/result/xrd_error/bytes_written/err_msg; API declarations → xrootd_tpc_parse_opaque(opaque,out) parses opaque into params struct (parse.c); tpc_send_all(fd,buf,len)/tpc_recv_response(fd,status,body,dlen) low-level socket helpers (io.c); tpc_connect(t) DNS+TCP connect with timeout (connect.c); xrootd_tpc_check_src_policy(src_host,port,allow_local,allow_private,err_msg,sz) SSRF preflight; tpc_bootstrap(t,fd) anonymous session setup kXR_protocol+kXR_login (bootstrap.c); tpc_outbound_finish_login/tpc_outbound_gsi/tpc_outbound_ztn/GSI DH helpers for source auth; tpc_pull_from_source(t,fd) remote open+read loop+fsync+close (source.c); xrootd_tpc_pull_thread(data,log) thread-pool orchestrator connect→bootstrap→pull (thread.c); tpc_fetch_delegated_token(t) OAuth2/OIDC token fetch (tpc_token.c); xrootd_tpc_pull_done(ev) main-thread completion callback sends kXR_open response/error (done.c); xrootd_tpc_prepare_pull/launch_pull/start_pull event-thread entry points validate+allocate+post to thread pool (launch.c).
+ * WHAT: Defines all shared types, constants, and function declarations for native XRootD third-party-copy (TPC) destination-side pull. Wire constants → TPC_IO_TIMEOUT_SEC(60s), TPC_CONNECT_TIMEOUT_SEC(5s), TPC_CHUNK_SIZE(1MB per kXR_read), TPC_RESP_MAX_BODY(1MB+256 malloc cap); typedef brix_tpc_params_t — parsed tpc.* opaque fields (key/src/src_host/src_path/dst/lfn/org/stage/token_mode + has_* flags + src_port); typedef brix_tpc_pull_t — per-pull heap-allocated task context containing connection/ctx/conf refs, streamid/options/mode_bits, src info, key/org/delegated_token/token_scope, dst_path/dst_fd/fhandle_idx/reply_kind/result/xrd_error/bytes_written/err_msg; API declarations → brix_tpc_parse_opaque(opaque,out) parses opaque into params struct (parse.c); tpc_send_all(fd,buf,len)/tpc_recv_response(fd,status,body,dlen) low-level socket helpers (io.c); tpc_connect(t) DNS+TCP connect with timeout (connect.c); brix_tpc_check_src_policy(src_host,port,allow_local,allow_private,err_msg,sz) SSRF preflight; tpc_bootstrap(t,fd) anonymous session setup kXR_protocol+kXR_login (bootstrap.c); tpc_outbound_finish_login/tpc_outbound_gsi/tpc_outbound_ztn/GSI DH helpers for source auth; tpc_pull_from_source(t,fd) remote open+read loop+fsync+close (source.c); brix_tpc_pull_thread(data,log) thread-pool orchestrator connect→bootstrap→pull (thread.c); tpc_fetch_delegated_token(t) OAuth2/OIDC token fetch (tpc_token.c); brix_tpc_pull_done(ev) main-thread completion callback sends kXR_open response/error (done.c); brix_tpc_prepare_pull/launch_pull/start_pull event-thread entry points validate+allocate+post to thread pool (launch.c).
  *
  * WHY: TPC destination-side pull requires a coordinated sequence across multiple files — parsing opaque params, connecting to remote origin, bootstrapping session, streaming reads, completion callback. This header centralizes all shared types so launch.c/thread.c/source.c/connect.c/bootstrap.c/io.c/done.c/tpc_token.c can reference the same structs and function signatures without duplication. Heap-allocated pull_t struct enables ngx_thread_task_post() lifecycle (allocate in event thread → post to pool → free in done callback). Wire constants ensure consistent timeout/chunk sizes across all TPC files.
  *
- * HOW: Constants at top → typedef xrootd_tpc_params_t with opaque field comments → API declaration for parse_opaque → typedef xrootd_tpc_pull_t with heap/lifecycle comments → grouped function declarations by file (io.c helpers, connect.c, bootstrap.c auth helpers, source.c pull, thread.c worker, tpc_token.c fetch, done.c callback, launch.c entry points). Each declaration includes brief WHAT describing behavior and return value. */
+ * HOW: Constants at top → typedef brix_tpc_params_t with opaque field comments → API declaration for parse_opaque → typedef brix_tpc_pull_t with heap/lifecycle comments → grouped function declarations by file (io.c helpers, connect.c, bootstrap.c auth helpers, source.c pull, thread.c worker, tpc_token.c fetch, done.c callback, launch.c entry points). Each declaration includes brief WHAT describing behavior and return value. */
 
-#ifndef XROOTD_TPC_TPC_INTERNAL_H
-#define XROOTD_TPC_TPC_INTERNAL_H
+#ifndef BRIX_TPC_TPC_INTERNAL_H
+#define BRIX_TPC_TPC_INTERNAL_H
 
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 #include "key_registry.h"
 #include "tpc/common/auth.h"
 #include "tpc/common/credential.h"
@@ -37,8 +37,8 @@
                                          * for the client's --tpc fallback to run */
 #define TPC_OPEN_RESOLVE_MAX_ITERS  16  /* max wait/waitresp/attn rounds */
 
-#define XROOTD_TPC_REPLY_OPEN  1
-#define XROOTD_TPC_REPLY_SYNC  2
+#define BRIX_TPC_REPLY_OPEN  1
+#define BRIX_TPC_REPLY_SYNC  2
 
 /* ------------------------------------------------------------------ */
 /* TPC opaque parameter extraction                                       */
@@ -72,7 +72,7 @@ typedef struct {
     int      has_stage;         /* 1 = tpc.stage was present */
     int      has_token_mode;    /* 1 = tpc.token_mode was present */
     uint16_t src_port;          /* TCP port from tpc.src (0 → use 1094) */
-} xrootd_tpc_params_t;
+} brix_tpc_params_t;
 
 /*
  * Parse tpc.* parameters from a raw opaque string (everything after '?' in
@@ -80,7 +80,7 @@ typedef struct {
  * Returns 0 if at least one tpc.* parameter was found and parsed; -1 if the
  * opaque string is empty or contains no tpc.* parameters.
  */
-int xrootd_tpc_parse_opaque(const char *opaque, xrootd_tpc_params_t *out);
+int brix_tpc_parse_opaque(const char *opaque, brix_tpc_params_t *out);
 
 
 /* ------------------------------------------------------------------ */
@@ -89,16 +89,16 @@ int xrootd_tpc_parse_opaque(const char *opaque, xrootd_tpc_params_t *out);
 
 /*
  * Per-TPC-pull task context, heap-allocated before ngx_thread_task_post()
- * and freed in xrootd_tpc_pull_done() after the result is consumed.
+ * and freed in brix_tpc_pull_done() after the result is consumed.
  *
- * The thread function (xrootd_tpc_pull_thread) connects to the XRootD source
+ * The thread function (brix_tpc_pull_thread) connects to the XRootD source
  * server, bootstraps a session (handshake+protocol+login), opens src_path,
  * streams the file content into dst_fd, and closes the source connection.
  */
 typedef struct {
     ngx_connection_t              *c;
-    xrootd_ctx_t                  *ctx;
-    ngx_stream_xrootd_srv_conf_t  *conf;
+    brix_ctx_t                  *ctx;
+    ngx_stream_brix_srv_conf_t  *conf;
     u_char    streamid[2];
     uint16_t  options;      /* kXR_retstat etc., from the client's kXR_open */
     uint16_t  mode_bits;    /* permission bits, from the client's kXR_open */
@@ -114,7 +114,7 @@ typedef struct {
     char      dst_path[PATH_MAX]; /* local path being written */
     int       dst_fd;       /* open O_RDWR fd on dst_path; caller must close */
     int       fhandle_idx;  /* ctx->files[] slot pre-allocated by launcher */
-    int       reply_kind;   /* XROOTD_TPC_REPLY_* controls done callback */
+    int       reply_kind;   /* BRIX_TPC_REPLY_* controls done callback */
     int       result;       /* NGX_OK on success, NGX_ERROR on failure */
     int       xrd_error;    /* kXR_* error code when result == NGX_ERROR */
     uint64_t  transfer_id;  /* shared TPC registry entry, 0 if unavailable */
@@ -134,7 +134,7 @@ typedef struct {
                                * NULL = use the gateway cert. malloc'd; freed in
                                * thread.c. */
     size_t     deleg_cred_len;
-} xrootd_tpc_pull_t;
+} brix_tpc_pull_t;
 
 /*
  * io.c — low-level socket helpers.
@@ -146,7 +146,7 @@ typedef struct {
  * on EINTR). buf is borrowed. Returns 0 once all len bytes are sent, -1 on any
  * other send() error; a -1 leaves the socket mid-message (caller must abort).
  */
-int tpc_send_all(xrootd_tpc_pull_t *t, int fd, const void *buf, size_t len);
+int tpc_send_all(brix_tpc_pull_t *t, int fd, const void *buf, size_t len);
 /*
  * Read one XRootD ServerResponseHdr frame plus its payload from fd.
  * On success returns 0 and sets *status (host order kXR_* code) and *dlen; *body
@@ -154,7 +154,7 @@ int tpc_send_all(xrootd_tpc_pull_t *t, int fd, const void *buf, size_t len);
  * (NULL when *dlen == 0). dlen is rejected if it exceeds TPC_RESP_MAX_BODY.
  * Returns -1 on I/O, framing, oversize, or allocation failure (nothing to free).
  */
-int tpc_recv_response(xrootd_tpc_pull_t *t, int fd, uint16_t *status,
+int tpc_recv_response(brix_tpc_pull_t *t, int fd, uint16_t *status,
                       u_char **body, uint32_t *dlen);
 
 /*
@@ -163,24 +163,24 @@ int tpc_recv_response(xrootd_tpc_pull_t *t, int fd, uint16_t *status,
  * storing the SSL on t->tls so the I/O helpers route through it; tpc_tls_teardown
  * frees the SSL + per-pull SSL_CTX. (phase-57 §F5)
  */
-int  tpc_start_tls(xrootd_tpc_pull_t *t, int fd);
-void tpc_tls_teardown(xrootd_tpc_pull_t *t);
+int  tpc_start_tls(brix_tpc_pull_t *t, int fd);
+void tpc_tls_teardown(brix_tpc_pull_t *t);
 
 /*
  * connect.c — DNS resolution and TCP connect.
  * Returns an open, timeout-configured fd on success, or -1 with
  * t->err_msg and t->xrd_error set on failure.
  */
-int tpc_connect(xrootd_tpc_pull_t *t);
+int tpc_connect(brix_tpc_pull_t *t);
 
 /*
  * connect.c — optional SSRF preflight before opening the local TPC destination.
- * Thin host+port wrapper over xrootd_net_target_check_dns(); port 0 defaults to
+ * Thin host+port wrapper over brix_net_target_check_dns(); port 0 defaults to
  * 1094. allow_local/allow_private widen the policy to loopback/RFC1918 targets.
  * Returns 0 if the source is permitted, -1 (with err_msg filled, up to
  * err_msg_sz) if the host is missing or the resolved address is blocked.
  */
-int xrootd_tpc_check_src_policy(const char *src_host, uint16_t src_port,
+int brix_tpc_check_src_policy(const char *src_host, uint16_t src_port,
     ngx_flag_t allow_local, ngx_flag_t allow_private,
     char *err_msg, size_t err_msg_sz);
 
@@ -189,7 +189,7 @@ int xrootd_tpc_check_src_policy(const char *src_host, uint16_t src_port,
  * Sends client hello → kXR_protocol → kXR_login on fd.
  * Returns 0 on success, -1 with t->err_msg set on failure.
  */
-int tpc_bootstrap(xrootd_tpc_pull_t *t, int fd);
+int tpc_bootstrap(brix_tpc_pull_t *t, int fd);
 
 /* Store v as a big-endian uint32 at p; ngx_memcpy-based, so p may be unaligned
  * (used to fill packed XRootD security-bucket length/tag fields). */
@@ -201,19 +201,19 @@ void tpc_put_u32(u_char *p, uint32_t v);
  * the header credtype slot. Returns 0, or -1 with t->err_msg and t->xrd_error
  * set; a -1 leaves the socket mid-message (callers treat it as fatal).
  */
-int tpc_send_kxr_auth(xrootd_tpc_pull_t *t, int fd, u_char seq,
+int tpc_send_kxr_auth(brix_tpc_pull_t *t, int fd, u_char seq,
     const u_char *cred, uint32_t len);
 
 /*
  * Complete a kXR_login kXR_authmore using ztn and/or GSI credentials from
- * ngx_stream_xrootd_srv_conf_t (bearer file, certificate paths). login_body is
+ * ngx_stream_brix_srv_conf_t (bearer file, certificate paths). login_body is
  * the borrowed authmore payload (login_dlen bytes); the auth-method list is read
  * from it after the session id. When the server offers both, ZTN is tried first
  * and falls through to GSI only if the server also lists gsi and a cert is
  * configured (so an expired token recovers instead of failing silently).
  * Returns 0 once authenticated, -1 with t->err_msg/t->xrd_error set on failure.
  */
-int tpc_outbound_finish_login(xrootd_tpc_pull_t *t, int fd,
+int tpc_outbound_finish_login(brix_tpc_pull_t *t, int fd,
     u_char *login_body, uint32_t login_dlen);
 
 /*
@@ -223,7 +223,7 @@ int tpc_outbound_finish_login(xrootd_tpc_pull_t *t, int fd,
  * server is mid-handshake (caller proceeds to tpc_outbound_gsi_exchange), or -1
  * with t->err_msg and t->xrd_error set (kXR_AuthFailed on a wrong/short reply).
  */
-int tpc_outbound_gsi(xrootd_tpc_pull_t *t, int fd,
+int tpc_outbound_gsi(brix_tpc_pull_t *t, int fd,
     const u_char *login_body, uint32_t login_dlen);
 /*
  * GSI handshake round 2: perform the DH key exchange, optionally verify the
@@ -233,7 +233,7 @@ int tpc_outbound_gsi(xrootd_tpc_pull_t *t, int fd,
  * certreq/cbio/kbio are the round-1 cert material it reuses. Returns 0 on
  * success, -1 with t->err_msg and t->xrd_error set on failure.
  */
-int tpc_outbound_gsi_exchange(xrootd_tpc_pull_t *t, int fd,
+int tpc_outbound_gsi_exchange(brix_tpc_pull_t *t, int fd,
     u_char *body, uint32_t dlen,
     X509 *x, STACK_OF(X509) *chain, EVP_PKEY *pkey,
     u_char *certreq, BIO *cbio, BIO *kbio);
@@ -245,7 +245,7 @@ int tpc_outbound_gsi_exchange(xrootd_tpc_pull_t *t, int fd,
  * requires a kXR_ok reply. Returns 0 on success, -1 with t->err_msg/t->xrd_error
  * set (e.g. no token available, send/recv failure, non-ok server status).
  */
-int tpc_outbound_ztn(xrootd_tpc_pull_t *t, int fd);
+int tpc_outbound_ztn(brix_tpc_pull_t *t, int fd);
 
 /* (The former gsi_outbound_dh_helpers.c — raw-OpenSSL DH/cipher helpers
  * tpc_gsi_select_cipher / tpc_parse_hex_pub / tpc_dh_peer_from — was removed when
@@ -258,20 +258,20 @@ int tpc_outbound_ztn(xrootd_tpc_pull_t *t, int fd);
  * remote handle.  Sets t->result and t->xrd_error.
  * Returns 0 on success, -1 on failure.
  */
-int tpc_pull_from_source(xrootd_tpc_pull_t *t, int fd);
+int tpc_pull_from_source(brix_tpc_pull_t *t, int fd);
 
 /* thread.c — thread-pool worker (ngx_thread_task) orchestrating connect →
- * bootstrap → pull → close. data is the xrootd_tpc_pull_t (borrowed; not freed
+ * bootstrap → pull → close. data is the brix_tpc_pull_t (borrowed; not freed
  * here). Runs off the event loop and may block. Communicates only via the task
  * struct: sets t->result/t->xrd_error/t->bytes_written and advances the shared
  * TPC registry state (ACTIVE→DONE/ERROR); always closes its own source fd. */
-void xrootd_tpc_pull_thread(void *data, ngx_log_t *log);
+void brix_tpc_pull_thread(void *data, ngx_log_t *log);
 
 /* tpc_token.c — fetch an OAuth2/OIDC delegated token per t->token_mode and store
  * it in t->delegated_token. "none"/empty is a no-op. Returns 0 on success (or
  * no-op), -1 with t->err_msg/t->xrd_error set (unknown mode, token_endpoint
  * unconfigured for token-exchange, or backend fetch/validation failure). */
-int tpc_fetch_delegated_token(xrootd_tpc_pull_t *t);
+int tpc_fetch_delegated_token(brix_tpc_pull_t *t);
 
 /* done.c — main-thread completion callback posted by the thread pool (ev->data
  * is the ngx_thread_task_t; pull state is task->ctx). Restores the deferred
@@ -280,7 +280,7 @@ int tpc_fetch_delegated_token(xrootd_tpc_pull_t *t);
  * releases everything (source fd, dst fd, partial file via unlink, fhandle slot,
  * registry entry). The pull task itself is c->pool-allocated, so it is reclaimed
  * with the connection rather than freed here; runs no blocking I/O. */
-void xrootd_tpc_pull_done(ngx_event_t *ev);
+void brix_tpc_pull_done(ngx_event_t *ev);
 
 /*
  * launch.c — nginx event-thread entry points.
@@ -294,24 +294,24 @@ void xrootd_tpc_pull_done(ngx_event_t *ev);
  * response. options/mode_bits come from the client's kXR_open. Returns NGX_OK,
  * or the result of the error response it sends (open is deferred until kXR_sync).
  */
-ngx_int_t xrootd_tpc_prepare_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf, const xrootd_tpc_params_t *tpc,
+ngx_int_t brix_tpc_prepare_pull(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const brix_tpc_params_t *tpc,
     const char *dst_path, uint16_t options, uint16_t mode_bits);
 
 /*
  * Handle the kXR_sync leg: snapshot the prepared fhandle into a heap task and
- * post xrootd_tpc_pull_thread to the thread pool, parking the connection in
- * XRD_ST_AIO until xrootd_tpc_pull_done resumes it. Idempotent — a sync arriving
+ * post brix_tpc_pull_thread to the thread pool, parking the connection in
+ * XRD_ST_AIO until brix_tpc_pull_done resumes it. Idempotent — a sync arriving
  * while the worker runs returns a kXR_wait instead of posting again. Returns
  * NGX_OK on a committed hand-off, NGX_ERROR, or a sent error (bad handle, full
  * transfer registry, or thread-post failure).
  */
-ngx_int_t xrootd_tpc_start_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf, int fhandle_idx);
+ngx_int_t brix_tpc_start_pull(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, int fhandle_idx);
 
-/* Thin wrapper that forwards to xrootd_tpc_prepare_pull unchanged. */
-ngx_int_t xrootd_tpc_launch_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf, const xrootd_tpc_params_t *tpc,
+/* Thin wrapper that forwards to brix_tpc_prepare_pull unchanged. */
+ngx_int_t brix_tpc_launch_pull(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const brix_tpc_params_t *tpc,
     const char *dst_path, uint16_t options, uint16_t mode_bits);
 
-#endif /* XROOTD_TPC_TPC_INTERNAL_H */
+#endif /* BRIX_TPC_TPC_INTERNAL_H */

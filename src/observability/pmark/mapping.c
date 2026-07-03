@@ -1,11 +1,11 @@
 /*
  * mapping.c — resolve (experiment, activity) for a transfer + first-use runtime.
  *
- * WHAT: Two things.  (1) xrootd_pmark_runtime_ensure() lazily builds a pmark
+ * WHAT: Two things.  (1) brix_pmark_runtime_ensure() lazily builds a pmark
  *   config's runtime data the first time a flow needs it (per worker): load the
  *   defsfile, resolve every map_experiment/map_activity NAME to its numeric id,
  *   and resolve every firefly_dest "host[:port]" string to a sockaddr.  (2)
- *   xrootd_pmark_map_codes() picks the (experiment, activity) for one flow.
+ *   brix_pmark_map_codes() picks the (experiment, activity) for one flow.
  *
  * WHY: This is the nginx analogue of XRootD's XrdNetPMarkCfg::getCodes
  *   (XrdNetPMarkCfg.cc:774-843).  Resolution is deferred to first use so it works
@@ -105,7 +105,7 @@ pmark_extract_role(const char *vo_csv, char *out, size_t outlen)
 
 /* Resolve a "host[:port]" string to a sockaddr (default port 10514). */
 static ngx_int_t
-pmark_resolve_dest(ngx_str_t *spec, xrootd_pmark_dest_t *dst, ngx_log_t *log)
+pmark_resolve_dest(ngx_str_t *spec, brix_pmark_dest_t *dst, ngx_log_t *log)
 {
     char             host[256];
     char             port[16];
@@ -141,7 +141,7 @@ pmark_resolve_dest(ngx_str_t *spec, xrootd_pmark_dest_t *dst, ngx_log_t *log)
         ngx_memcpy(port, colon + 1, plen);
         port[plen] = '\0';
     } else {
-        ngx_snprintf((u_char *) port, sizeof(port), "%d%Z", XROOTD_PMARK_FF_PORT);
+        ngx_snprintf((u_char *) port, sizeof(port), "%d%Z", BRIX_PMARK_FF_PORT);
     }
 
     ngx_memzero(&hints, sizeof(hints));
@@ -166,7 +166,7 @@ pmark_resolve_dest(ngx_str_t *spec, xrootd_pmark_dest_t *dst, ngx_log_t *log)
 
 
 ngx_int_t
-xrootd_pmark_runtime_ensure(xrootd_pmark_conf_t *pm, ngx_pool_t *pool,
+brix_pmark_runtime_ensure(brix_pmark_conf_t *pm, ngx_pool_t *pool,
     ngx_log_t *log)
 {
     ngx_array_t *defs = NULL;
@@ -188,7 +188,7 @@ xrootd_pmark_runtime_ensure(xrootd_pmark_conf_t *pm, ngx_pool_t *pool,
         if (pm->defsfile.len < sizeof(path)) {
             ngx_memcpy(path, pm->defsfile.data, pm->defsfile.len);
             path[pm->defsfile.len] = '\0';
-            if (xrootd_pmark_defsfile_load(path, pool, &defs, log) == NGX_ERROR) {
+            if (brix_pmark_defsfile_load(path, pool, &defs, log) == NGX_ERROR) {
                 ngx_log_error(NGX_LOG_WARN, log, 0,
                     "pmark: defsfile load failed; named mappings disabled");
             }
@@ -197,15 +197,15 @@ xrootd_pmark_runtime_ensure(xrootd_pmark_conf_t *pm, ngx_pool_t *pool,
 
     /* Resolve experiment rules: name → id (rules that don't resolve are dropped). */
     if (pm->exp_rules && pm->exp_rules->nelts) {
-        xrootd_pmark_exp_rule_t *src = pm->exp_rules->elts;
+        brix_pmark_exp_rule_t *src = pm->exp_rules->elts;
         pm->exp_rules_r = ngx_array_create(pool, pm->exp_rules->nelts,
-                                           sizeof(xrootd_pmark_exp_rule_r_t));
+                                           sizeof(brix_pmark_exp_rule_r_t));
         if (pm->exp_rules_r == NULL) {
             return NGX_DECLINED;
         }
         for (i = 0; i < pm->exp_rules->nelts; i++) {
-            ngx_uint_t id = xrootd_pmark_defs_exp_id(defs, &src[i].exp_name);
-            xrootd_pmark_exp_rule_r_t *r;
+            ngx_uint_t id = brix_pmark_defs_exp_id(defs, &src[i].exp_name);
+            brix_pmark_exp_rule_r_t *r;
             if (id == 0) {
                 ngx_log_error(NGX_LOG_WARN, log, 0,
                     "pmark: experiment \"%V\" not in defsfile; rule ignored",
@@ -224,16 +224,16 @@ xrootd_pmark_runtime_ensure(xrootd_pmark_conf_t *pm, ngx_pool_t *pool,
 
     /* Resolve activity rules: (exp,act) names → ids. */
     if (pm->act_rules && pm->act_rules->nelts) {
-        xrootd_pmark_act_rule_t *src = pm->act_rules->elts;
+        brix_pmark_act_rule_t *src = pm->act_rules->elts;
         pm->act_rules_r = ngx_array_create(pool, pm->act_rules->nelts,
-                                           sizeof(xrootd_pmark_act_rule_r_t));
+                                           sizeof(brix_pmark_act_rule_r_t));
         if (pm->act_rules_r == NULL) {
             return NGX_DECLINED;
         }
         for (i = 0; i < pm->act_rules->nelts; i++) {
-            ngx_uint_t eid = xrootd_pmark_defs_exp_id(defs, &src[i].exp_name);
-            ngx_uint_t aid = xrootd_pmark_defs_act_id(defs, eid, &src[i].act_name);
-            xrootd_pmark_act_rule_r_t *r;
+            ngx_uint_t eid = brix_pmark_defs_exp_id(defs, &src[i].exp_name);
+            ngx_uint_t aid = brix_pmark_defs_act_id(defs, eid, &src[i].act_name);
+            brix_pmark_act_rule_r_t *r;
             if (eid == 0 || aid == 0) {
                 ngx_log_error(NGX_LOG_WARN, log, 0,
                     "pmark: activity \"%V/%V\" not in defsfile; rule ignored",
@@ -255,12 +255,12 @@ xrootd_pmark_runtime_ensure(xrootd_pmark_conf_t *pm, ngx_pool_t *pool,
     if (pm->firefly && pm->firefly_dest && pm->firefly_dest->nelts) {
         ngx_str_t *spec = pm->firefly_dest->elts;
         pm->dest_sa = ngx_array_create(pool, pm->firefly_dest->nelts,
-                                       sizeof(xrootd_pmark_dest_t));
+                                       sizeof(brix_pmark_dest_t));
         if (pm->dest_sa == NULL) {
             return NGX_DECLINED;
         }
         for (i = 0; i < pm->firefly_dest->nelts; i++) {
-            xrootd_pmark_dest_t d;
+            brix_pmark_dest_t d;
             /* "origin" is handled per-flow against the client peer, not here. */
             if (spec[i].len == 6
                 && ngx_strncmp(spec[i].data, "origin", 6) == 0)
@@ -268,7 +268,7 @@ xrootd_pmark_runtime_ensure(xrootd_pmark_conf_t *pm, ngx_pool_t *pool,
                 continue;
             }
             if (pmark_resolve_dest(&spec[i], &d, log) == NGX_OK) {
-                xrootd_pmark_dest_t *dst = ngx_array_push(pm->dest_sa);
+                brix_pmark_dest_t *dst = ngx_array_push(pm->dest_sa);
                 if (dst == NULL) {
                     return NGX_DECLINED;
                 }
@@ -283,7 +283,7 @@ xrootd_pmark_runtime_ensure(xrootd_pmark_conf_t *pm, ngx_pool_t *pool,
 
 
 ngx_int_t
-xrootd_pmark_map_codes(xrootd_pmark_conf_t *pm, const char *vo_csv,
+brix_pmark_map_codes(brix_pmark_conf_t *pm, const char *vo_csv,
     const char *user, const char *path, const char *cgi,
     ngx_uint_t *exp, ngx_uint_t *act)
 {
@@ -297,27 +297,27 @@ xrootd_pmark_map_codes(xrootd_pmark_conf_t *pm, const char *vo_csv,
 
     /* 1) client scitag.flow override (provides BOTH codes). */
     if (pm->scitag_cgi && cgi
-        && xrootd_pmark_parse_scitag(cgi, exp, act) == NGX_OK)
+        && brix_pmark_parse_scitag(cgi, exp, act) == NGX_OK)
     {
         return NGX_OK;
     }
 
     /* 2) experiment: path glob > VO > default. */
     if (pm->exp_rules_r) {
-        xrootd_pmark_exp_rule_r_t *r = pm->exp_rules_r->elts;
+        brix_pmark_exp_rule_r_t *r = pm->exp_rules_r->elts;
         for (i = 0; i < pm->exp_rules_r->nelts; i++) {
             switch (r[i].kind) {
-            case XROOTD_PMARK_EXP_PATH:
+            case BRIX_PMARK_EXP_PATH:
                 if (!e_path && pmark_path_match(path, &r[i].match)) {
                     e_path = r[i].exp_id;
                 }
                 break;
-            case XROOTD_PMARK_EXP_VO:
+            case BRIX_PMARK_EXP_VO:
                 if (!e_vo && pmark_csv_has(vo_csv, &r[i].match)) {
                     e_vo = r[i].exp_id;
                 }
                 break;
-            case XROOTD_PMARK_EXP_DEFAULT:
+            case BRIX_PMARK_EXP_DEFAULT:
                 if (!e_def) {
                     e_def = r[i].exp_id;
                 }
@@ -333,14 +333,14 @@ xrootd_pmark_map_codes(xrootd_pmark_conf_t *pm, const char *vo_csv,
     /* 3) activity: user > role > per-experiment default; fallback 1. */
     have_role = pmark_extract_role(vo_csv, role, sizeof(role));
     if (pm->act_rules_r) {
-        xrootd_pmark_act_rule_r_t *r = pm->act_rules_r->elts;
+        brix_pmark_act_rule_r_t *r = pm->act_rules_r->elts;
         ngx_uint_t a_user = 0, a_role = 0, a_def = 0;
         for (i = 0; i < pm->act_rules_r->nelts; i++) {
             if (r[i].exp_id != e) {
                 continue;
             }
             switch (r[i].kind) {
-            case XROOTD_PMARK_ACTR_USER:
+            case BRIX_PMARK_ACTR_USER:
                 if (!a_user && user && r[i].match.len
                     && ngx_strlen(user) == r[i].match.len
                     && ngx_strncmp(user, r[i].match.data, r[i].match.len) == 0)
@@ -348,7 +348,7 @@ xrootd_pmark_map_codes(xrootd_pmark_conf_t *pm, const char *vo_csv,
                     a_user = r[i].act_id;
                 }
                 break;
-            case XROOTD_PMARK_ACTR_ROLE:
+            case BRIX_PMARK_ACTR_ROLE:
                 if (!a_role && have_role && r[i].match.len
                     && ngx_strlen(role) == r[i].match.len
                     && ngx_strncmp(role, r[i].match.data, r[i].match.len) == 0)
@@ -356,7 +356,7 @@ xrootd_pmark_map_codes(xrootd_pmark_conf_t *pm, const char *vo_csv,
                     a_role = r[i].act_id;
                 }
                 break;
-            case XROOTD_PMARK_ACTR_DEFAULT:
+            case BRIX_PMARK_ACTR_DEFAULT:
                 if (!a_def) {
                     a_def = r[i].act_id;
                 }
@@ -369,7 +369,7 @@ xrootd_pmark_map_codes(xrootd_pmark_conf_t *pm, const char *vo_csv,
         a = 1;                          /* XRootD default activity */
     }
 
-    if (xrootd_pmark_codes_valid(e, a) != NGX_OK) {
+    if (brix_pmark_codes_valid(e, a) != NGX_OK) {
         return NGX_DECLINED;
     }
     *exp = e;

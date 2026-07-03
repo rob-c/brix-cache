@@ -295,7 +295,7 @@ class TestMalformedDlen:
         sock.close()
 
     def test_dlen_exactly_at_path_limit_accepted(self):
-        # XROOTD_MAX_PATH + 64 = 4224 for stat — at limit should be accepted
+        # BRIX_MAX_PATH + 64 = 4224 for stat — at limit should be accepted
         sock = _full_session()
         payload = b"/test.txt\x00" + b"\x00" * (4224 - 10)
         req = struct.pack("!2sH16sI", b"\x00\x01", kXR_stat, b"\x00"*16, len(payload))
@@ -308,7 +308,7 @@ class TestMalformedDlen:
         sock.close()
 
     def test_dlen_one_over_path_limit_rejected(self):
-        # XROOTD_MAX_PATH + 65 — one over the limit for non-write opcodes
+        # BRIX_MAX_PATH + 65 — one over the limit for non-write opcodes
         sock = _full_session()
         payload = b"/" + b"a" * 4224
         req = struct.pack("!2sH16sI", b"\x00\x01", kXR_stat, b"\x00"*16, len(payload))
@@ -367,7 +367,7 @@ class TestMalformedDlen:
         assert status in (kXR_ok, kXR_error)
 
     def test_dlen_large_write_payload_allowed(self):
-        # Write opcodes may have large payloads (up to XROOTD_MAX_WRITE_PAYLOAD)
+        # Write opcodes may have large payloads (up to BRIX_MAX_WRITE_PAYLOAD)
         path = "/wire_test_large_write.txt"
         fullpath = os.path.join(DATA_DIR, path.lstrip("/"))
         payload = b"A" * 65536  # 64 KiB — well within 16 MiB limit

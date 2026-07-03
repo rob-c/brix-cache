@@ -1,8 +1,8 @@
 #include "cache_internal.h"
 #include "meta.h"
-#include "open.h"          /* xrootd_cache_path_for_resolved */
-#include "cstore.h"          /* xrootd_cstore_local_root (driver-truthful reap root) */
-#include "cache_storage.h"  /* xrootd_cache_storage_cstore (resolve the tier cstore) */
+#include "open.h"          /* brix_cache_path_for_resolved */
+#include "cstore.h"          /* brix_cstore_local_root (driver-truthful reap root) */
+#include "cache_storage.h"  /* brix_cache_storage_cstore (resolve the tier cstore) */
 
 
 #include <errno.h>
@@ -16,12 +16,12 @@
  * logic. Each does one path op with bounds checking and errno translation.
  */
 
-/* xrootd_cache_append_suffix — snprintf base + suffix into dst (e.g. "data" →
+/* brix_cache_append_suffix — snprintf base + suffix into dst (e.g. "data" →
  * "data.part") with bounds checking, so atomic .part → final renames can't collide;
  * NGX_OK, or -1 on truncation/snprintf failure. */
 
 int
-xrootd_cache_append_suffix(char *dst, size_t dstsz, const char *path,
+brix_cache_append_suffix(char *dst, size_t dstsz, const char *path,
     const char *suffix)
 {
     int n;
@@ -31,17 +31,17 @@ xrootd_cache_append_suffix(char *dst, size_t dstsz, const char *path,
 }
 
 int
-xrootd_cache_meta_path(char *dst, size_t dstsz, const char *cache_path)
+brix_cache_meta_path(char *dst, size_t dstsz, const char *cache_path)
 {
-    return xrootd_cache_append_suffix(dst, dstsz, cache_path, ".meta");
+    return brix_cache_append_suffix(dst, dstsz, cache_path, ".meta");
 }
 
-/* xrootd_cache_ensure_parent — extract path's dirname and create it recursively
- * (xrootd_mkdir_recursive, 0755) so a fill worker writing a newly-discovered origin
+/* brix_cache_ensure_parent — extract path's dirname and create it recursively
+ * (brix_mkdir_recursive, 0755) so a fill worker writing a newly-discovered origin
  * file doesn't ENOENT; NGX_OK if it exists or was created, -1 on ENAMETOOLONG. */
 
 int
-xrootd_cache_ensure_parent(const char *path)
+brix_cache_ensure_parent(const char *path)
 {
     char  parent[PATH_MAX];
     char *slash;
@@ -59,15 +59,15 @@ xrootd_cache_ensure_parent(const char *path)
     }
 
     *slash = '\0';
-    return xrootd_mkdir_recursive(parent, 0755);
+    return brix_mkdir_recursive(parent, 0755);
 }
 
-/* xrootd_cache_file_ready — three-state readiness for the open-or-fill decision:
+/* brix_cache_file_ready — three-state readiness for the open-or-fill decision:
  * 1 = an existing regular file (cache hit), 0 = ENOENT (cache miss → schedule fill),
  * -1 = stat failure or non-regular type (S_ISREG rejects dirs/symlinks, errno set). */
 
 int
-xrootd_cache_file_ready(const char *path)
+brix_cache_file_ready(const char *path)
 {
     struct stat st;
 
@@ -83,11 +83,11 @@ xrootd_cache_file_ready(const char *path)
     return 1;
 }
 
-/* xrootd_cache_state_root — the directory the unified .cinfo persistence records
- * live under: the explicit xrootd_cache_state_root if set, else cache_root, else
+/* brix_cache_state_root — the directory the unified .cinfo persistence records
+ * live under: the explicit brix_cache_state_root if set, else cache_root, else
  * NULL (no state tree ⇒ the persistent dirty record is skipped, in-memory only). */
 const char *
-xrootd_cache_state_root(const ngx_stream_xrootd_srv_conf_t *conf)
+brix_cache_state_root(const ngx_stream_brix_srv_conf_t *conf)
 {
     if (conf == NULL) {
         return NULL;
@@ -104,7 +104,7 @@ xrootd_cache_state_root(const ngx_stream_xrootd_srv_conf_t *conf)
      * rather than fall back to cache_root and reap the wrong tree. cache_root is the
      * physical root ONLY in the legacy (no-cache_store) config below. */
     if (conf->common.cache_store.len > 0) {
-        return xrootd_cstore_local_root(xrootd_cache_storage_cstore(conf));
+        return brix_cstore_local_root(brix_cache_storage_cstore(conf));
     }
     if (conf->cache_root.len > 0) {
         return (const char *) conf->cache_root.data;
@@ -112,21 +112,21 @@ xrootd_cache_state_root(const ngx_stream_xrootd_srv_conf_t *conf)
     return NULL;
 }
 
-/* xrootd_cache_state_path — map a resolved export path to the cache/state-tree
+/* brix_cache_state_path — map a resolved export path to the cache/state-tree
  * path whose ".cinfo" sidecar holds this file's unified persistence record. A
  * pure lexical re-root (export root_canon → the state root); same construction
  * used by mark_dirty / mark_clean / the reaper so they always agree. Returns
  * NGX_OK / NGX_ERROR (no state root, or overflow). */
 ngx_int_t
-xrootd_cache_state_path(const ngx_stream_xrootd_srv_conf_t *conf,
+brix_cache_state_path(const ngx_stream_brix_srv_conf_t *conf,
     const char *resolved, char *dst, size_t dstsz)
 {
-    const char *root = xrootd_cache_state_root(conf);
+    const char *root = brix_cache_state_root(conf);
 
     if (root == NULL || conf->common.root_canon[0] == '\0') {
         errno = EINVAL;
         return NGX_ERROR;
     }
-    return xrootd_cache_path_for_resolved(root, conf->common.root_canon,
+    return brix_cache_path_for_resolved(root, conf->common.root_canon,
                                           resolved, dst, dstsz);
 }

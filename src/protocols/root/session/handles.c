@@ -17,37 +17,37 @@
 #include <ngx_shmtx.h>
 #include <string.h>
 
-static ngx_shmtx_t  xrootd_handle_mutex;
+static ngx_shmtx_t  brix_handle_mutex;
 
-static xrootd_shared_handle_table_t *
+static brix_shared_handle_table_t *
 handle_table(void)
 {
-    if (xrootd_handle_shm_zone == NULL
-        || xrootd_handle_shm_zone->data == NULL
-        || xrootd_handle_shm_zone->data == (void *) 1)
+    if (brix_handle_shm_zone == NULL
+        || brix_handle_shm_zone->data == NULL
+        || brix_handle_shm_zone->data == (void *) 1)
     {
         return NULL;
     }
-    return (xrootd_shared_handle_table_t *) xrootd_handle_shm_zone->data;
+    return (brix_shared_handle_table_t *) brix_handle_shm_zone->data;
 }
 
 ngx_int_t
-xrootd_handle_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
+brix_handle_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
 {
     ngx_flag_t                    fresh;
-    xrootd_shared_handle_table_t *tbl;
+    brix_shared_handle_table_t *tbl;
 
     /*
      * Allocate the table FROM the slab pool (not over shm.addr) so nginx's
      * ngx_unlock_mutexes() — which treats shm.addr as an ngx_slab_pool_t and
      * force-unlocks its mutex on every child death — finds an intact slab
-     * header instead of our clobbered struct. xrootd_shm_table_alloc() also
+     * header instead of our clobbered struct. brix_shm_table_alloc() also
      * zeroes the table and creates the process-local mutex from the table's
      * first member (the ngx_shmtx_sh_t lock).
      */
-    tbl = xrootd_shm_table_alloc(shm_zone, data,
-                                 sizeof(xrootd_shared_handle_table_t),
-                                 &xrootd_handle_mutex, &fresh);
+    tbl = brix_shm_table_alloc(shm_zone, data,
+                                 sizeof(brix_shared_handle_table_t),
+                                 &brix_handle_mutex, &fresh);
     if (tbl == NULL) {
         return NGX_ERROR;
     }
@@ -62,12 +62,12 @@ xrootd_handle_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
 }
 
 static ngx_flag_t
-xrootd_shared_handle_same_key(const xrootd_shared_handle_entry_t *entry,
-    const u_char sessid[XROOTD_SESSION_ID_LEN], int handle_index)
+brix_shared_handle_same_key(const brix_shared_handle_entry_t *entry,
+    const u_char sessid[BRIX_SESSION_ID_LEN], int handle_index)
 {
     return entry->in_use
            && entry->handle_index == (uint8_t) handle_index
-           && ngx_memcmp(entry->sessid, sessid, XROOTD_SESSION_ID_LEN) == 0;
+           && ngx_memcmp(entry->sessid, sessid, BRIX_SESSION_ID_LEN) == 0;
 }
 
 /*
@@ -81,15 +81,15 @@ xrootd_shared_handle_same_key(const xrootd_shared_handle_entry_t *entry,
  * the secondary verify the reopened path still refers to the original file.
  */
 void
-xrootd_session_handle_publish(const u_char sessid[XROOTD_SESSION_ID_LEN],
-    int handle_index, const xrootd_file_t *file)
+brix_session_handle_publish(const u_char sessid[BRIX_SESSION_ID_LEN],
+    int handle_index, const brix_file_t *file)
 {
-    xrootd_shared_handle_table_t *tbl;
-    xrootd_shared_handle_entry_t *entry;
+    brix_shared_handle_table_t *tbl;
+    brix_shared_handle_entry_t *entry;
     ngx_uint_t                    i, free_slot;
     size_t                        path_len;
 
-    if (handle_index < 0 || handle_index >= XROOTD_MAX_FILES
+    if (handle_index < 0 || handle_index >= BRIX_MAX_FILES
         || file == NULL || file->fd < 0)
     {
         return;
@@ -100,13 +100,13 @@ xrootd_session_handle_publish(const u_char sessid[XROOTD_SESSION_ID_LEN],
         return;
     }
 
-    ngx_shmtx_lock(&xrootd_handle_mutex);
+    ngx_shmtx_lock(&brix_handle_mutex);
 
-    free_slot = XROOTD_SESSION_HANDLE_SLOTS;
+    free_slot = BRIX_SESSION_HANDLE_SLOTS;
     entry = NULL;
 
-    for (i = 0; i < XROOTD_SESSION_HANDLE_SLOTS; i++) {
-        if (xrootd_shared_handle_same_key(&tbl->slots[i], sessid,
+    for (i = 0; i < BRIX_SESSION_HANDLE_SLOTS; i++) {
+        if (brix_shared_handle_same_key(&tbl->slots[i], sessid,
                                           handle_index))
         {
             entry = &tbl->slots[i];
@@ -114,7 +114,7 @@ xrootd_session_handle_publish(const u_char sessid[XROOTD_SESSION_ID_LEN],
         }
 
         if (!tbl->slots[i].in_use
-            && free_slot == XROOTD_SESSION_HANDLE_SLOTS)
+            && free_slot == BRIX_SESSION_HANDLE_SLOTS)
         {
             free_slot = i;
         }
@@ -129,29 +129,29 @@ xrootd_session_handle_publish(const u_char sessid[XROOTD_SESSION_ID_LEN],
         if (entry != NULL) {
             ngx_memzero(entry, sizeof(*entry));
         }
-        ngx_shmtx_unlock(&xrootd_handle_mutex);
+        ngx_shmtx_unlock(&brix_handle_mutex);
         return;
     }
 
     path_len = ngx_strlen(file->path);
-    if (path_len > XROOTD_MAX_PATH) {
+    if (path_len > BRIX_MAX_PATH) {
         if (entry != NULL) {
             ngx_memzero(entry, sizeof(*entry));
         }
-        ngx_shmtx_unlock(&xrootd_handle_mutex);
+        ngx_shmtx_unlock(&brix_handle_mutex);
         return;
     }
 
     if (entry == NULL) {
-        if (free_slot == XROOTD_SESSION_HANDLE_SLOTS) {
-            ngx_shmtx_unlock(&xrootd_handle_mutex);
+        if (free_slot == BRIX_SESSION_HANDLE_SLOTS) {
+            ngx_shmtx_unlock(&brix_handle_mutex);
             return;
         }
         entry = &tbl->slots[free_slot];
     }
 
     ngx_memzero(entry, sizeof(*entry));
-    ngx_memcpy(entry->sessid, sessid, XROOTD_SESSION_ID_LEN);
+    ngx_memcpy(entry->sessid, sessid, BRIX_SESSION_ID_LEN);
     entry->handle_index = (uint8_t) handle_index;
     entry->readable = file->readable ? 1 : 0;
     entry->writable = file->writable ? 1 : 0;
@@ -164,7 +164,7 @@ xrootd_session_handle_publish(const u_char sessid[XROOTD_SESSION_ID_LEN],
                 sizeof(entry->path));
     entry->in_use = 1;
 
-    ngx_shmtx_unlock(&xrootd_handle_mutex);
+    ngx_shmtx_unlock(&brix_handle_mutex);
 }
 
 /*
@@ -176,7 +176,7 @@ xrootd_session_handle_publish(const u_char sessid[XROOTD_SESSION_ID_LEN],
  */
 /*
  *
- * WHAT: Same as xrootd_session_handle_lookup() but with a caller-owned slot
+ * WHAT: Same as brix_session_handle_lookup() but with a caller-owned slot
  * hint (Phase 33 C2).  A bound secondary re-validates its published handle on
  * EVERY read; *inout_slot remembers the slot matched last time so the common
  * case becomes an O(1) direct check instead of a full table scan.
@@ -189,14 +189,14 @@ xrootd_session_handle_publish(const u_char sessid[XROOTD_SESSION_ID_LEN],
  * reset to -1 on a miss (and may be NULL for callers that don't cache).
  */
 int
-xrootd_session_handle_lookup_hint(const u_char sessid[XROOTD_SESSION_ID_LEN],
-    int handle_index, int *inout_slot, xrootd_shared_handle_entry_t *out)
+brix_session_handle_lookup_hint(const u_char sessid[BRIX_SESSION_ID_LEN],
+    int handle_index, int *inout_slot, brix_shared_handle_entry_t *out)
 {
-    xrootd_shared_handle_table_t *tbl;
+    brix_shared_handle_table_t *tbl;
     ngx_uint_t                    i;
     int                           found = 0;
 
-    if (handle_index < 0 || handle_index >= XROOTD_MAX_FILES || out == NULL) {
+    if (handle_index < 0 || handle_index >= BRIX_MAX_FILES || out == NULL) {
         return 0;
     }
 
@@ -205,7 +205,7 @@ xrootd_session_handle_lookup_hint(const u_char sessid[XROOTD_SESSION_ID_LEN],
         return 0;
     }
 
-    ngx_shmtx_lock(&xrootd_handle_mutex);
+    ngx_shmtx_lock(&brix_handle_mutex);
 
     /*
      * Fast path: re-check the slot matched on the previous read directly.  Still
@@ -213,22 +213,22 @@ xrootd_session_handle_lookup_hint(const u_char sessid[XROOTD_SESSION_ID_LEN],
      * elimination — never a weaker check.
      */
     if (inout_slot != NULL && *inout_slot >= 0
-        && (ngx_uint_t) *inout_slot < XROOTD_SESSION_HANDLE_SLOTS
-        && xrootd_shared_handle_same_key(&tbl->slots[*inout_slot], sessid,
+        && (ngx_uint_t) *inout_slot < BRIX_SESSION_HANDLE_SLOTS
+        && brix_shared_handle_same_key(&tbl->slots[*inout_slot], sessid,
                                          handle_index))
     {
         ngx_memcpy(out, &tbl->slots[*inout_slot], sizeof(*out));
-        out->path[XROOTD_MAX_PATH] = '\0';
-        ngx_shmtx_unlock(&xrootd_handle_mutex);
+        out->path[BRIX_MAX_PATH] = '\0';
+        ngx_shmtx_unlock(&brix_handle_mutex);
         return 1;
     }
 
-    for (i = 0; i < XROOTD_SESSION_HANDLE_SLOTS; i++) {
-        if (xrootd_shared_handle_same_key(&tbl->slots[i], sessid,
+    for (i = 0; i < BRIX_SESSION_HANDLE_SLOTS; i++) {
+        if (brix_shared_handle_same_key(&tbl->slots[i], sessid,
                                           handle_index))
         {
             ngx_memcpy(out, &tbl->slots[i], sizeof(*out));
-            out->path[XROOTD_MAX_PATH] = '\0';
+            out->path[BRIX_MAX_PATH] = '\0';
             if (inout_slot != NULL) {
                 *inout_slot = (int) i;   /* refresh the hint for next read */
             }
@@ -241,15 +241,15 @@ xrootd_session_handle_lookup_hint(const u_char sessid[XROOTD_SESSION_ID_LEN],
         *inout_slot = -1;   /* drop a now-stale hint so the next read rescans */
     }
 
-    ngx_shmtx_unlock(&xrootd_handle_mutex);
+    ngx_shmtx_unlock(&brix_handle_mutex);
     return found;
 }
 
 int
-xrootd_session_handle_lookup(const u_char sessid[XROOTD_SESSION_ID_LEN],
-    int handle_index, xrootd_shared_handle_entry_t *out)
+brix_session_handle_lookup(const u_char sessid[BRIX_SESSION_ID_LEN],
+    int handle_index, brix_shared_handle_entry_t *out)
 {
-    return xrootd_session_handle_lookup_hint(sessid, handle_index, NULL, out);
+    return brix_session_handle_lookup_hint(sessid, handle_index, NULL, out);
 }
 
 /*
@@ -260,13 +260,13 @@ xrootd_session_handle_lookup(const u_char sessid[XROOTD_SESSION_ID_LEN],
  * that handle has been closed or reused.
  */
 void
-xrootd_session_handle_unpublish(const u_char sessid[XROOTD_SESSION_ID_LEN],
+brix_session_handle_unpublish(const u_char sessid[BRIX_SESSION_ID_LEN],
     int handle_index)
 {
-    xrootd_shared_handle_table_t *tbl;
+    brix_shared_handle_table_t *tbl;
     ngx_uint_t                    i;
 
-    if (handle_index < 0 || handle_index >= XROOTD_MAX_FILES) {
+    if (handle_index < 0 || handle_index >= BRIX_MAX_FILES) {
         return;
     }
 
@@ -275,10 +275,10 @@ xrootd_session_handle_unpublish(const u_char sessid[XROOTD_SESSION_ID_LEN],
         return;
     }
 
-    ngx_shmtx_lock(&xrootd_handle_mutex);
+    ngx_shmtx_lock(&brix_handle_mutex);
 
-    for (i = 0; i < XROOTD_SESSION_HANDLE_SLOTS; i++) {
-        if (xrootd_shared_handle_same_key(&tbl->slots[i], sessid,
+    for (i = 0; i < BRIX_SESSION_HANDLE_SLOTS; i++) {
+        if (brix_shared_handle_same_key(&tbl->slots[i], sessid,
                                           handle_index))
         {
             ngx_memzero(&tbl->slots[i], sizeof(tbl->slots[i]));
@@ -286,7 +286,7 @@ xrootd_session_handle_unpublish(const u_char sessid[XROOTD_SESSION_ID_LEN],
         }
     }
 
-    ngx_shmtx_unlock(&xrootd_handle_mutex);
+    ngx_shmtx_unlock(&brix_handle_mutex);
 }
 
 /*
@@ -297,10 +297,10 @@ xrootd_session_handle_unpublish(const u_char sessid[XROOTD_SESSION_ID_LEN],
  * handle regardless of which worker originally published it.
  */
 void
-xrootd_session_handle_unpublish_all(
-    const u_char sessid[XROOTD_SESSION_ID_LEN])
+brix_session_handle_unpublish_all(
+    const u_char sessid[BRIX_SESSION_ID_LEN])
 {
-    xrootd_shared_handle_table_t *tbl;
+    brix_shared_handle_table_t *tbl;
     ngx_uint_t                    i;
 
     tbl = handle_table();
@@ -308,16 +308,16 @@ xrootd_session_handle_unpublish_all(
         return;
     }
 
-    ngx_shmtx_lock(&xrootd_handle_mutex);
+    ngx_shmtx_lock(&brix_handle_mutex);
 
-    for (i = 0; i < XROOTD_SESSION_HANDLE_SLOTS; i++) {
+    for (i = 0; i < BRIX_SESSION_HANDLE_SLOTS; i++) {
         if (tbl->slots[i].in_use
             && ngx_memcmp(tbl->slots[i].sessid, sessid,
-                          XROOTD_SESSION_ID_LEN) == 0)
+                          BRIX_SESSION_ID_LEN) == 0)
         {
             ngx_memzero(&tbl->slots[i], sizeof(tbl->slots[i]));
         }
     }
 
-    ngx_shmtx_unlock(&xrootd_handle_mutex);
+    ngx_shmtx_unlock(&brix_handle_mutex);
 }

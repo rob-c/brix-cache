@@ -21,16 +21,16 @@
  * HOW: Escaping functions iterate src byte-by-byte; special chars are replaced
  *      with entity strings (& → &amp;, < → &lt>, etc.). Control bytes (<0x20,
  *      0x7f) are encoded as %XX when the CONTROL_PERCENT flag is set. The
- *      lockinfo parser uses libxml2 when available (XROOTD_HAVE_LIBXML2),
+ *      lockinfo parser uses libxml2 when available (BRIX_HAVE_LIBXML2),
  *      falling back to a hand-written strnstr-based scanner otherwise.
  */
 
-#define XROOTD_XML_MAX_LOCKINFO_BODY 65536u
+#define BRIX_XML_MAX_LOCKINFO_BODY 65536u
 
 /*
- * xrootd_xml_escaped_len - exact escaped length of src (excluding NUL).
+ * brix_xml_escaped_len - exact escaped length of src (excluding NUL).
  *
- * WHAT: returns how many bytes xrootd_xml_escape() will emit for the same
+ * WHAT: returns how many bytes brix_xml_escape() will emit for the same
  *       (src, len, flags), so callers can size the destination first.
  * WHY:  the two functions are a sizing/writing pair; if their per-byte costs
  *       ever disagree, escape() either truncates or overruns. Keep the switch
@@ -40,7 +40,7 @@
  *       costs 1. APOS flag selects &apos; vs &#39; — same choice as escape().
  */
 size_t
-xrootd_xml_escaped_len(const unsigned char *src, size_t len, unsigned flags)
+brix_xml_escaped_len(const unsigned char *src, size_t len, unsigned flags)
 {
     size_t i, out;
 
@@ -64,11 +64,11 @@ xrootd_xml_escaped_len(const unsigned char *src, size_t len, unsigned flags)
             out += sizeof("&quot;") - 1;
             break;
         case '\'':
-            out += (flags & XROOTD_XML_ESCAPE_APOS_ENTITY)
+            out += (flags & BRIX_XML_ESCAPE_APOS_ENTITY)
                    ? sizeof("&apos;") - 1 : sizeof("&#39;") - 1;
             break;
         default:
-            if ((flags & XROOTD_XML_ESCAPE_CONTROL_PERCENT)
+            if ((flags & BRIX_XML_ESCAPE_CONTROL_PERCENT)
                 && (src[i] < 0x20 || src[i] == 0x7f))
             {
                 out += 3;
@@ -83,7 +83,7 @@ xrootd_xml_escaped_len(const unsigned char *src, size_t len, unsigned flags)
 }
 
 /*
- * xrootd_xml_escape - write src into dst with XML-special chars entity-encoded.
+ * brix_xml_escape - write src into dst with XML-special chars entity-encoded.
  *
  * WHAT: produces an escaped, NUL-terminated copy of src in dst; *written (if
  *       non-NULL) receives the length excluding the NUL. Returns 0 / -1.
@@ -96,7 +96,7 @@ xrootd_xml_escaped_len(const unsigned char *src, size_t len, unsigned flags)
  *       literal length. The arms must mirror escaped_len() exactly.
  */
 int
-xrootd_xml_escape(const unsigned char *src, size_t len, unsigned flags,
+brix_xml_escape(const unsigned char *src, size_t len, unsigned flags,
     unsigned char *dst, size_t dst_size, size_t *written)
 {
     unsigned char *out, *end;
@@ -107,7 +107,7 @@ xrootd_xml_escape(const unsigned char *src, size_t len, unsigned flags,
     }
 
     /* Size-check up front so the loop below can write unconditionally. */
-    need = xrootd_xml_escaped_len(src, len, flags);
+    need = brix_xml_escaped_len(src, len, flags);
     if (need + 1 > dst_size) {
         return -1;
     }
@@ -130,7 +130,7 @@ xrootd_xml_escape(const unsigned char *src, size_t len, unsigned flags,
             out = (unsigned char *) memcpy(out, "&quot;", 6) + 6;
             break;
         case '\'':
-            if (flags & XROOTD_XML_ESCAPE_APOS_ENTITY) {
+            if (flags & BRIX_XML_ESCAPE_APOS_ENTITY) {
                 out = (unsigned char *) memcpy(out, "&apos;", 6) + 6;
             } else {
                 out = (unsigned char *) memcpy(out, "&#39;", 5) + 5;
@@ -140,12 +140,12 @@ xrootd_xml_escape(const unsigned char *src, size_t len, unsigned flags,
             /* Control bytes (< 0x20, plus DEL 0x7f) become "%XX" — high
              * nibble then low nibble — when the flag is set; this keeps raw
              * control chars out of the body. Otherwise emit the byte as-is. */
-            if ((flags & XROOTD_XML_ESCAPE_CONTROL_PERCENT)
+            if ((flags & BRIX_XML_ESCAPE_CONTROL_PERCENT)
                 && (src[i] < 0x20 || src[i] == 0x7f))
             {
                 *out++ = '%';
-                *out++ = xrootd_hex_nibble((unsigned char) (src[i] >> 4));
-                *out++ = xrootd_hex_nibble((unsigned char) (src[i] & 0x0f));
+                *out++ = brix_hex_nibble((unsigned char) (src[i] >> 4));
+                *out++ = brix_hex_nibble((unsigned char) (src[i] & 0x0f));
             } else {
                 *out++ = src[i];
             }
@@ -168,13 +168,13 @@ xrootd_xml_escape(const unsigned char *src, size_t len, unsigned flags,
 }
 
 /*
- * xrootd_xml_element_name_valid - reject element names that aren't safe to
+ * brix_xml_element_name_valid - reject element names that aren't safe to
  * emit unescaped. WHY: the tag name is written verbatim (not escaped) by
  * write_text_element, so it is restricted to an allowlist of name chars to
  * prevent any '<', '>', or whitespace from forging markup.
  */
 static int
-xrootd_xml_element_name_valid(const char *name)
+brix_xml_element_name_valid(const char *name)
 {
     const unsigned char *p;
 
@@ -197,18 +197,18 @@ xrootd_xml_element_name_valid(const char *name)
 }
 
 /*
- * xrootd_xml_text_element_len - byte length of "<name>escaped(text)</name>"
+ * brix_xml_text_element_len - byte length of "<name>escaped(text)</name>"
  * (excluding NUL), or 0 if the name is invalid. Sizing partner of
  * write_text_element: 2*name (open + close tag) + the 5 punctuation bytes of
  * "<></>" + the escaped text length.
  */
 size_t
-xrootd_xml_text_element_len(const char *name, const unsigned char *text,
+brix_xml_text_element_len(const char *name, const unsigned char *text,
     size_t text_len, unsigned flags)
 {
     size_t name_len;
 
-    if (!xrootd_xml_element_name_valid(name)
+    if (!brix_xml_element_name_valid(name)
         || (text == NULL && text_len != 0))
     {
         return 0;
@@ -216,11 +216,11 @@ xrootd_xml_text_element_len(const char *name, const unsigned char *text,
 
     name_len = strlen(name);
     return 2 * name_len + sizeof("<></>") - 1
-           + xrootd_xml_escaped_len(text, text_len, flags);
+           + brix_xml_escaped_len(text, text_len, flags);
 }
 
 /*
- * xrootd_xml_write_text_element - emit "<name>escaped(text)</name>\0" to dst.
+ * brix_xml_write_text_element - emit "<name>escaped(text)</name>\0" to dst.
  *
  * WHAT: writes a complete text element; *written (if non-NULL) gets the length
  *       excluding the NUL. Returns 0 / -1.
@@ -229,25 +229,25 @@ xrootd_xml_text_element_len(const char *name, const unsigned char *text,
  *       it can't break the element.
  * HOW:  pre-size with the same formula as text_element_len and bail if dst is
  *       too small. Then write '<', name, '>', the escaped body (delegated to
- *       xrootd_xml_escape, which also NUL-terminates into the remaining
+ *       brix_xml_escape, which also NUL-terminates into the remaining
  *       space), advance past it, then "</", name, ">", and the final NUL.
  */
 int
-xrootd_xml_write_text_element(const char *name, const unsigned char *text,
+brix_xml_write_text_element(const char *name, const unsigned char *text,
     size_t text_len, unsigned flags, unsigned char *dst, size_t dst_size,
     size_t *written)
 {
     unsigned char *out;
     size_t         name_len, escaped_len, escaped_written, need;
 
-    if (!xrootd_xml_element_name_valid(name) || dst == NULL || dst_size == 0
+    if (!brix_xml_element_name_valid(name) || dst == NULL || dst_size == 0
         || (text == NULL && text_len != 0))
     {
         return -1;
     }
 
     name_len = strlen(name);
-    escaped_len = xrootd_xml_escaped_len(text, text_len, flags);
+    escaped_len = brix_xml_escaped_len(text, text_len, flags);
     need = 2 * name_len + sizeof("<></>") - 1 + escaped_len;
     if (need + 1 > dst_size) {
         return -1;
@@ -258,7 +258,7 @@ xrootd_xml_write_text_element(const char *name, const unsigned char *text,
     out = (unsigned char *) memcpy(out, name, name_len) + name_len;
     *out++ = '>';
 
-    if (xrootd_xml_escape(text, text_len, flags, out,
+    if (brix_xml_escape(text, text_len, flags, out,
                           dst_size - (size_t) (out - dst),
                           &escaped_written) != 0)
     {
@@ -280,7 +280,7 @@ xrootd_xml_write_text_element(const char *name, const unsigned char *text,
 }
 
 static int
-xrootd_xml_name_is(const char *name, const char *want)
+brix_xml_name_is(const char *name, const char *want)
 {
     return name != NULL && strcmp(name, want) == 0;
 }
@@ -288,13 +288,13 @@ xrootd_xml_name_is(const char *name, const char *want)
 /* find_child: first DIRECT element child of node whose local name matches
  * (one level only — namespace prefix is ignored, libxml strips it from name). */
 static xmlNodePtr
-xrootd_xml_find_child(xmlNodePtr node, const char *name)
+brix_xml_find_child(xmlNodePtr node, const char *name)
 {
     xmlNodePtr cur;
 
     for (cur = node == NULL ? NULL : node->children; cur != NULL; cur = cur->next) {
         if (cur->type == XML_ELEMENT_NODE
-            && xrootd_xml_name_is((const char *) cur->name, name))
+            && brix_xml_name_is((const char *) cur->name, name))
         {
             return cur;
         }
@@ -307,7 +307,7 @@ xrootd_xml_find_child(xmlNodePtr node, const char *name)
  * the first matching element name, at any depth (used to locate <href> wherever
  * the client nested it inside <owner>). */
 static xmlNodePtr
-xrootd_xml_find_descendant(xmlNodePtr node, const char *name)
+brix_xml_find_descendant(xmlNodePtr node, const char *name)
 {
     xmlNodePtr cur, found;
 
@@ -317,12 +317,12 @@ xrootd_xml_find_descendant(xmlNodePtr node, const char *name)
 
     for (cur = node; cur != NULL; cur = cur->next) {
         if (cur->type == XML_ELEMENT_NODE
-            && xrootd_xml_name_is((const char *) cur->name, name))
+            && brix_xml_name_is((const char *) cur->name, name))
         {
             return cur;
         }
 
-        found = xrootd_xml_find_descendant(cur->children, name);
+        found = brix_xml_find_descendant(cur->children, name);
         if (found != NULL) {
             return found;
         }
@@ -336,7 +336,7 @@ xrootd_xml_find_descendant(xmlNodePtr node, const char *name)
  * string. WHY ownership matters: xmlNodeGetContent allocates, so the xmlFree
  * here is required to avoid leaking on every lockinfo parse. */
 static void
-xrootd_xml_copy_content(xmlNodePtr node, char *dst, size_t dst_len)
+brix_xml_copy_content(xmlNodePtr node, char *dst, size_t dst_len)
 {
     xmlChar *content;
     size_t   len;
@@ -361,7 +361,7 @@ xrootd_xml_copy_content(xmlNodePtr node, char *dst, size_t dst_len)
 }
 
 /*
- * xrootd_xml_parse_lockinfo - extract owner + scope from a WebDAV LOCK body.
+ * brix_xml_parse_lockinfo - extract owner + scope from a WebDAV LOCK body.
  *
  * WHAT: parses a <D:lockinfo> document, writing the lock owner (from
  *       <owner><href> if present, else <owner>) into owner[], and setting
@@ -372,13 +372,13 @@ xrootd_xml_copy_content(xmlNodePtr node, char *dst, size_t dst_len)
  *   - Outputs are initialised to SAFE DEFAULTS up front (empty owner,
  *     *exclusive=1) so any early-return / parse failure denies, never grants,
  *     a shared lock.
- *   - The body is size-capped (XROOTD_XML_MAX_LOCKINFO_BODY) before parsing.
+ *   - The body is size-capped (BRIX_XML_MAX_LOCKINFO_BODY) before parsing.
  *   - libxml flags disable network access and external-entity expansion
  *     (NONET, and NO_XXE where available) — XXE/SSRF hardening for untrusted
  *     client XML. NOERROR/NOWARNING keep libxml from logging to stderr.
  */
 int
-xrootd_xml_parse_lockinfo(const char *xml, size_t xml_len,
+brix_xml_parse_lockinfo(const char *xml, size_t xml_len,
     char *owner, size_t owner_len, int *exclusive)
 {
     /* Default-deny: empty owner and exclusive=1 hold on every failure path. */
@@ -391,7 +391,7 @@ xrootd_xml_parse_lockinfo(const char *xml, size_t xml_len,
 
     /* Reject null outputs and oversized bodies before touching the parser. */
     if (xml == NULL || owner == NULL || owner_len == 0 || exclusive == NULL
-        || xml_len > XROOTD_XML_MAX_LOCKINFO_BODY)
+        || xml_len > BRIX_XML_MAX_LOCKINFO_BODY)
     {
         return -1;
     }
@@ -415,7 +415,7 @@ xrootd_xml_parse_lockinfo(const char *xml, size_t xml_len,
         /* Require the document root to actually be <lockinfo>. */
         root = xmlDocGetRootElement(doc);
         if (root == NULL
-            || !xrootd_xml_name_is((const char *) root->name, "lockinfo"))
+            || !brix_xml_name_is((const char *) root->name, "lockinfo"))
         {
             xmlFreeDoc(doc);
             return -1;
@@ -423,19 +423,19 @@ xrootd_xml_parse_lockinfo(const char *xml, size_t xml_len,
 
         /* Owner: prefer the <href> nested inside <owner> (RFC 4918's typical
          * form); fall back to the raw text of <owner> if there's no href. */
-        owner_node = xrootd_xml_find_child(root, "owner");
-        href_node = xrootd_xml_find_descendant(owner_node == NULL
+        owner_node = brix_xml_find_child(root, "owner");
+        href_node = brix_xml_find_descendant(owner_node == NULL
                                                ? NULL : owner_node->children,
                                                "href");
         if (href_node != NULL) {
-            xrootd_xml_copy_content(href_node, owner, owner_len);
+            brix_xml_copy_content(href_node, owner, owner_len);
         } else if (owner_node != NULL) {
-            xrootd_xml_copy_content(owner_node, owner, owner_len);
+            brix_xml_copy_content(owner_node, owner, owner_len);
         }
 
         /* Scope is exclusive unless <lockscope><shared> is explicitly given. */
-        scope_node = xrootd_xml_find_child(root, "lockscope");
-        if (xrootd_xml_find_child(scope_node, "shared") != NULL) {
+        scope_node = brix_xml_find_child(root, "lockscope");
+        if (brix_xml_find_child(scope_node, "shared") != NULL) {
             *exclusive = 0;
         }
 
@@ -445,7 +445,7 @@ xrootd_xml_parse_lockinfo(const char *xml, size_t xml_len,
 }
 
 const char *
-xrootd_xml_backend_name(void)
+brix_xml_backend_name(void)
 {
     return "libxml2";
 }

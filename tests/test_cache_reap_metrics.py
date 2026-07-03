@@ -1,9 +1,9 @@
 """
 Integration test for the cache stale-dirty reaper's per-reason Prometheus
-counter — xrootd_cache_dirty_reaped_total{reason="abandoned|incomplete|completed"}.
+counter — brix_cache_dirty_reaped_total{reason="abandoned|incomplete|completed"}.
 
 It stands up its own stream-only xrootd (cache state root + a 1-second
-xrootd_cache_dirty_max_age, which arms the per-worker reaper) plus an HTTP
+brix_cache_dirty_max_age, which arms the per-worker reaper) plus an HTTP
 /metrics endpoint, plants one cached file in each reap class via the REAL
 .cinfo write-back API (linked against the built cinfo.o), waits for the reaper's
 5s first tick, and asserts:
@@ -13,7 +13,7 @@ xrootd_cache_dirty_max_age, which arms the per-worker reaper) plus an HTTP
   * /metrics reports exactly one reap per reason.
 
 The three classes are constructed from the cinfo write-back state the reaper
-classifies on (see xrootd_cache_reap_reason_t):
+classifies on (see brix_cache_reap_reason_t):
 
   abandoned  — mark_dirty only            → DIRTY, flush_gen==0 (never flushed)
   incomplete — dirty → clean → dirty      → DIRTY, flush_gen>0  (re-dirtied)
@@ -53,18 +53,18 @@ _PLANTER_SRC = r"""
 #include <stddef.h>
 #include <string.h>
 typedef intptr_t ngx_int_t;
-ngx_int_t xrootd_cache_cinfo_mark_dirty(const char *p, uint64_t size,
+ngx_int_t brix_cache_cinfo_mark_dirty(const char *p, uint64_t size,
     uint32_t bs, uint64_t mtime, uint64_t off, uint64_t len, void *log);
-ngx_int_t xrootd_cache_cinfo_mark_clean(const char *p, uint64_t bytes, void *log);
+ngx_int_t brix_cache_cinfo_mark_clean(const char *p, uint64_t bytes, void *log);
 /* argv: <dirty|clean> <cache_path> */
 int main(int argc, char **argv) {
     if (argc < 3) { return 2; }
     if (strcmp(argv[1], "dirty") == 0) {
-        return xrootd_cache_cinfo_mark_dirty(argv[2], 4096, 1048576, 1000,
+        return brix_cache_cinfo_mark_dirty(argv[2], 4096, 1048576, 1000,
                                              0, 4096, NULL) == 0 ? 0 : 1;
     }
     if (strcmp(argv[1], "clean") == 0) {
-        return xrootd_cache_cinfo_mark_clean(argv[2], 4096, NULL) == 0 ? 0 : 1;
+        return brix_cache_cinfo_mark_clean(argv[2], 4096, NULL) == 0 ? 0 : 1;
     }
     return 2;
 }
@@ -80,10 +80,10 @@ stream {{
     server {{
         listen 127.0.0.1:{sport};
         xrootd on;
-        xrootd_root {root};
-        xrootd_auth none;
-        xrootd_cache_state_root {state};
-        xrootd_cache_dirty_max_age 1;
+        brix_root {root};
+        brix_auth none;
+        brix_cache_state_root {state};
+        brix_cache_dirty_max_age 1;
     }}
 }}
 http {{
@@ -95,7 +95,7 @@ http {{
     scgi_temp_path {prefix}/st;
     server {{
         listen 127.0.0.1:{mport};
-        location /metrics {{ xrootd_metrics on; }}
+        location /metrics {{ brix_metrics on; }}
     }}
 }}
 """
@@ -109,7 +109,7 @@ def _free_port():
     return port
 
 
-def _xrootd_handshake(port):
+def _brix_handshake(port):
     """Open + handshake a root:// connection so the server marks its metrics slot
     in_use (a metric row is only exported for an in_use server)."""
     s = socket.create_connection(("127.0.0.1", port), timeout=5)
@@ -123,10 +123,10 @@ def _xrootd_handshake(port):
 
 
 def _reaped_by_reason(metrics_text):
-    """Sum xrootd_cache_dirty_reaped_total per reason across all exported rows."""
+    """Sum brix_cache_dirty_reaped_total per reason across all exported rows."""
     out = {}
     pat = re.compile(
-        r'xrootd_cache_dirty_reaped_total\{[^}]*reason="([a-z]+)"[^}]*\}\s+(\d+)')
+        r'brix_cache_dirty_reaped_total\{[^}]*reason="([a-z]+)"[^}]*\}\s+(\d+)')
     for reason, value in pat.findall(metrics_text):
         out[reason] = out.get(reason, 0) + int(value)
     return out
@@ -190,7 +190,7 @@ def test_cache_reap_reason_metrics(tmp_path):
     try:
         # Mark the stream server's metrics slot in_use so the rows export.
         time.sleep(0.3)
-        _xrootd_handshake(sport)
+        _brix_handshake(sport)
 
         # 4. Wait for the reaper's first tick (5s) to remove the aged files
         #    (the data file AND its sidecar — the reaper unlinks them back to

@@ -27,14 +27,14 @@ conditional-request or ETag behaviour needs to change, it changes here once.
 
 | File | Responsibility |
 |---|---|
-| `http_headers.c` / `http_headers.h` | Case-insensitive `headers_in` lookup, `Authorization: Bearer` extraction, control-char validation, whitespace-trimmed value compare, response/request header insertion (`set_header`/`_str`/`_num`), and the canonical handler-rc→HTTP-status mapper `xrootd_http_effective_status` (keeps WebDAV/S3 metric buckets aligned). |
+| `http_headers.c` / `http_headers.h` | Case-insensitive `headers_in` lookup, `Authorization: Bearer` extraction, control-char validation, whitespace-trimmed value compare, response/request header insertion (`set_header`/`_str`/`_num`), and the canonical handler-rc→HTTP-status mapper `brix_http_effective_status` (keeps WebDAV/S3 metric buckets aligned). |
 | `http_body.c` / `http_body.h` | nginx request-body chain (`request_body->bufs`, mixed memory + spooled-to-file): summarise byte count/layout, write whole body to an fd (`copy_file_range` for file bufs, `pwrite` for memory), read all into one pool buffer, gzip/deflate **inflate**-to-fd, and the `ngx_http_read_client_request_body` dispatch wrapper. |
 | `http_file_response.c` / `http_file_response.h` | File-backed serving for WebDAV GET & S3 GET/HEAD: ETag/Content-Range header construction, the standard status+length+type+ETag block (`set_file_headers`), single-range send (`send_file_range`, sets `last_buf`, optional fd pool-cleanup), and multi-range chain append (`chain_append_file_range`). Uses nginx sendfile — see gotcha below. |
-| `http_conditionals.c` / `http_conditionals.h` | RFC 7232/9110 conditionals. `xrootd_http_eval_preconditions` is the full §13.2.2 evaluator (If-Match → If-Unmodified-Since → If-None-Match → If-Modified-Since precedence; `XROOTD_HTTP_COND_READ` selects 304-for-GET vs 412-for-write outcomes, `_TIME` enables the date headers) — S3 GET/HEAD and conditional PUT route through it. `xrootd_http_check_etag_preconditions` is the ETag-only WebDAV-write subset; plus If-Modified-Since and WebDAV `Overwrite: F`. |
-| `http_query.c` / `http_query.h` | Bounded `?key=value` scanner over `r->args` (one `ngx_str_t`): case policy, percent-decode, `+`→space, NUL-reject, truncation, bare-flag detection. `xrootd_http_query_get`/`_has`. Drives S3 ListObjectsV2 / multipart query parsing and the S3 `response-*` header overrides. |
+| `http_conditionals.c` / `http_conditionals.h` | RFC 7232/9110 conditionals. `brix_http_eval_preconditions` is the full §13.2.2 evaluator (If-Match → If-Unmodified-Since → If-None-Match → If-Modified-Since precedence; `BRIX_HTTP_COND_READ` selects 304-for-GET vs 412-for-write outcomes, `_TIME` enables the date headers) — S3 GET/HEAD and conditional PUT route through it. `brix_http_check_etag_preconditions` is the ETag-only WebDAV-write subset; plus If-Modified-Since and WebDAV `Overwrite: F`. |
+| `http_query.c` / `http_query.h` | Bounded `?key=value` scanner over `r->args` (one `ngx_str_t`): case policy, percent-decode, `+`→space, NUL-reject, truncation, bare-flag detection. `brix_http_query_get`/`_has`. Drives S3 ListObjectsV2 / multipart query parsing and the S3 `response-*` header overrides. |
 | `http_xml.c` / `http_xml.h` | Incremental XML response chain builder (`chain_appendf`/`vappendf`, stack tmp[2048] → pool overflow), single-buffer XML send, and a protocol-agnostic `<Error><Code><Message>` sender (S3 + REST). |
 | `http_compress.c` / `http_compress.h` | Negotiated response compression over the codec seam (`../compat/codec_core.h`): Accept-Encoding parse + encode-to-chain for compressible GET responses. |
-| `etag.c` / `etag.h` | RFC 7232 ETag string from mtime+size, strong or `W/`-weak (`XROOTD_ETAG_WEAK`), matching XrdHttp's `"%lx-%llx"` convention. Every synthetic validator in the module comes from here. |
+| `etag.c` / `etag.h` | RFC 7232 ETag string from mtime+size, strong or `W/`-weak (`BRIX_ETAG_WEAK`), matching XrdHttp's `"%lx-%llx"` convention. Every synthetic validator in the module comes from here. |
 
 ## Boundary — what stays in `../compat`
 
@@ -53,7 +53,7 @@ Callers are the HTTP front-ends and HTTP-facing subsystems only:
   PROPFIND → `http_xml.c` + `etag.c`; COPY/MOVE preconditions →
   `http_conditionals.c`.
 - **S3** (`protocols/s3/`): GET/HEAD conditionals + conditional PUT →
-  `xrootd_http_eval_preconditions`; list/error XML → `http_xml.c`; put/copy →
+  `brix_http_eval_preconditions`; list/error XML → `http_xml.c`; put/copy →
   `http_body.c`; query overrides → `http_query.c`.
 - **Observability & other HTTP surfaces** (`observability/dashboard/`,
   `metrics/`, `srr`, `net/ratelimit/ratelimit_http.c`,
@@ -62,7 +62,7 @@ Callers are the HTTP front-ends and HTTP-facing subsystems only:
 
 The stream (`root://`) plane has no `ngx_http_request_t` and takes nothing
 from here except protocol-neutral constants (`etag.h`'s string builder;
-`write_compress.c` borrows `XROOTD_DECODE_MAX_RATIO` from `http_body.h`).
+`write_compress.c` borrows `BRIX_DECODE_MAX_RATIO` from `http_body.h`).
 
 ## Invariants, security & gotchas
 
@@ -71,12 +71,12 @@ from here except protocol-neutral constants (`etag.h`'s string builder;
   present; `If-Match` with an absent resource is 412.
 - **One precondition evaluator.** Protocol handlers must not read
   `r->headers_in.if_match`/`if_none_match` and decide for themselves — they
-  call `xrootd_http_eval_preconditions` (or the WebDAV subset) so RFC 9110
+  call `brix_http_eval_preconditions` (or the WebDAV subset) so RFC 9110
   precedence and the 304/412 split stay uniform. Guarded by
   `tests/test_cross_protocol_shared_helpers.py` and
   `tools/ci/check_http_helper_reimpl.sh`.
 - **Header values are attacker input.** Anything copied into a response
-  header goes through the control-byte check (`xrootd_http_str_has_ctl`) —
+  header goes through the control-byte check (`brix_http_str_has_ctl`) —
   that is the response-splitting defence (see S3 `response-*` overrides).
 - **TLS vs cleartext buffers.** `http_file_response.c` builds file-backed
   buffers for the sendfile path; TLS responses must be memory-backed
@@ -94,7 +94,7 @@ from here except protocol-neutral constants (`etag.h`'s string builder;
   without protocol knowledge. New `.c` files register in the top-level
   `config` and require re-running `./configure`.
 - **New conditional-request behaviour:** extend
-  `xrootd_http_eval_preconditions` (flags), never a protocol-local evaluator.
+  `brix_http_eval_preconditions` (flags), never a protocol-local evaluator.
 
 ## See also
 

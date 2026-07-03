@@ -1,5 +1,5 @@
-#ifndef XROOTD_CMS_NODE_OPS_H
-#define XROOTD_CMS_NODE_OPS_H
+#ifndef BRIX_CMS_NODE_OPS_H
+#define BRIX_CMS_NODE_OPS_H
 
 /*
  * node_ops.h — data-node execution of namespace ops forwarded by the manager.
@@ -12,7 +12,7 @@
  * WHY:  Plane B write-cluster parity. The headline security property: a hostile
  *       or compromised manager cannot make a node mutate anything outside its
  *       export root — every path is resolved beneath the export rootfd.
- * HOW:  xrootd_cms_node_plan() is a PURE mapping (opcode+rrdata -> action) so the
+ * HOW:  brix_cms_node_plan() is a PURE mapping (opcode+rrdata -> action) so the
  *       arg handling (mode/size parsing, mv needs two paths) is unit-testable;
  *       the executor applies the plan via the src/path/beneath.h confined helpers.
  */
@@ -29,15 +29,15 @@ typedef enum {
     XRDCMS_NACT_MV,
     XRDCMS_NACT_CHMOD,
     XRDCMS_NACT_TRUNC
-} xrootd_cms_node_action_t;
+} brix_cms_node_action_t;
 
 typedef struct {
-    xrootd_cms_node_action_t action;
+    brix_cms_node_action_t action;
     const char *path;    /* primary path (borrows rrdata, NUL-terminated) */
     const char *path2;   /* mv destination */
     mode_t      mode;    /* mkdir/mkpath/chmod permission bits */
     long long   size;    /* trunc target size */
-} xrootd_cms_node_plan_t;
+} brix_cms_node_plan_t;
 
 #define XRDCMS_NODE_DEFAULT_DIR_MODE 0755
 
@@ -47,7 +47,7 @@ typedef struct {
  * path, mv without a second path, chmod/trunc without a mode/size, or an opcode
  * this node does not execute) — the caller then replies kYR_error.
  */
-int xrootd_cms_node_plan(unsigned char code, const xrootd_cms_rrdata_t *d,
-                         xrootd_cms_node_plan_t *plan);
+int brix_cms_node_plan(unsigned char code, const brix_cms_rrdata_t *d,
+                         brix_cms_node_plan_t *plan);
 
-#endif /* XROOTD_CMS_NODE_OPS_H */
+#endif /* BRIX_CMS_NODE_OPS_H */

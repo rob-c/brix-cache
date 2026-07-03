@@ -1,13 +1,13 @@
 /*
  * zcrc32_test.c — standalone unit test for the zcrc32 checksum kernel
- * (src/core/compat/checksum_core.h XROOTD_CK_ZCRC32 via xrootd_cksum_u32_fd).
+ * (src/core/compat/checksum_core.h BRIX_CK_ZCRC32 via brix_cksum_u32_fd).
  * Builds ngx-free; links against libxrdproto + zlib.
  *
  * WHAT: For several payloads (empty, 1 byte, ~1 MiB pseudo-random, all-zeros)
  *       written to a temp fd, assert that
- *         xrootd_cksum_u32_fd(XROOTD_CK_ZCRC32, fd, &out)
+ *         brix_cksum_u32_fd(BRIX_CK_ZCRC32, fd, &out)
  *       equals (a) the value zlib's crc32() produces over the same bytes in
- *       process (the oracle) and (b) the kernel's own XROOTD_CK_CRC32 result —
+ *       process (the oracle) and (b) the kernel's own BRIX_CK_CRC32 result —
  *       i.e. zcrc32 IS the zlib CRC-32 (XRootD's registered name for it).
  * WHY:  Pins the contract documented in checksum_core.h that the "zcrc32" name
  *       folds onto the CRC32/ISO-HDLC kernel path, so the server's `z=` READ
@@ -107,10 +107,10 @@ test_payload(const char *name, const uint8_t *data, size_t len)
         return;
     }
 
-    rc = xrootd_cksum_u32_fd(XROOTD_CK_ZCRC32, fd, &z_out);
+    rc = brix_cksum_u32_fd(BRIX_CK_ZCRC32, fd, &z_out);
     CHECK(rc == 0, "%s: zcrc32 rc=%d (want 0)", name, rc);
 
-    rc = xrootd_cksum_u32_fd(XROOTD_CK_CRC32, fd, &c_out);
+    rc = brix_cksum_u32_fd(BRIX_CK_CRC32, fd, &c_out);
     CHECK(rc == 0, "%s: crc32 rc=%d (want 0)", name, rc);
 
     /* zcrc32 == zlib crc32 oracle */

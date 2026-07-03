@@ -5,8 +5,8 @@
  * cache origin slots, etc.). Pure nginx-core dependency; no protocol-specific logic.
  */
 
-#ifndef XROOTD_COMPAT_SHM_SLOTS_H
-#define XROOTD_COMPAT_SHM_SLOTS_H
+#ifndef BRIX_COMPAT_SHM_SLOTS_H
+#define BRIX_COMPAT_SHM_SLOTS_H
 
 #include <ngx_config.h>
 #include <ngx_core.h>
@@ -22,7 +22,7 @@
  * HOW: Simple comparison — returns 1 (true) when expires <= now, 0 otherwise.
  */
 static ngx_inline ngx_flag_t
-xrootd_shm_slot_expired(ngx_msec_t now, ngx_msec_t expires)
+brix_shm_slot_expired(ngx_msec_t now, ngx_msec_t expires)
 {
     return expires <= now;
 }
@@ -38,7 +38,7 @@ xrootd_shm_slot_expired(ngx_msec_t now, ngx_msec_t expires)
  *      This prevents a late-arriving worker from clobbering an earlier discovery.
  */
 static ngx_inline void
-xrootd_shm_remember_free_slot(ngx_uint_t *free_slot, ngx_uint_t none,
+brix_shm_remember_free_slot(ngx_uint_t *free_slot, ngx_uint_t none,
     ngx_uint_t candidate)
 {
     if (*free_slot == none) {
@@ -64,22 +64,22 @@ xrootd_shm_remember_free_slot(ngx_uint_t *free_slot, ngx_uint_t none,
  * counters). The lock is NOT taken from the table data, so the table needs no
  * embedded lock member.
  *
- * xrootd_shm_table_alloc(): handles fresh alloc, reload (data != NULL), and
+ * brix_shm_table_alloc(): handles fresh alloc, reload (data != NULL), and
  *   re-attach (shm.exists). Publishes the table via shm_zone->data AND the slab
  *   pool's ->data (so a reload re-attaches). *fresh is set to 1 only when a brand
  *   new table was allocated (the caller must then initialise its non-lock fields;
  *   on reuse it must NOT, to preserve live state).
  *
- * xrootd_shm_zone_size(): the zone size to request from ngx_shared_memory_add so
+ * brix_shm_zone_size(): the zone size to request from ngx_shared_memory_add so
  *   ngx_slab_alloc(table_bytes) always fits alongside the slab overhead.
  */
-void  *xrootd_shm_table_alloc(ngx_shm_zone_t *shm_zone, void *data,
+void  *brix_shm_table_alloc(ngx_shm_zone_t *shm_zone, void *data,
                               size_t table_bytes, ngx_shmtx_t *mtx,
                               ngx_flag_t *fresh);
-size_t xrootd_shm_zone_size(size_t table_bytes);
+size_t brix_shm_zone_size(size_t table_bytes);
 
 /*
- * xrootd_shm_zone_warn_on_resize(): emit a config-time WARN when `zn` is being
+ * brix_shm_zone_warn_on_resize(): emit a config-time WARN when `zn` is being
  * declared at a different size than the same-named zone in the currently running
  * cycle (i.e. an operator changed a slot-count directive and reloaded). nginx
  * cannot resize a live zone, so it allocates a fresh one and the table's contents
@@ -87,7 +87,7 @@ size_t xrootd_shm_zone_size(size_t table_bytes);
  * the message. A no-op on first start (no prior cycle). Call right after the
  * matching ngx_shared_memory_add().
  */
-void   xrootd_shm_zone_warn_on_resize(ngx_conf_t *cf, ngx_shm_zone_t *zn,
+void   brix_shm_zone_warn_on_resize(ngx_conf_t *cf, ngx_shm_zone_t *zn,
                                       const char *directive);
 
-#endif /* XROOTD_COMPAT_SHM_SLOTS_H */
+#endif /* BRIX_COMPAT_SHM_SLOTS_H */

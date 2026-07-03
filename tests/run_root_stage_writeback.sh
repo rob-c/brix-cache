@@ -19,8 +19,8 @@ cat > "$PFX/o/nginx.conf" <<EOF
 daemon on; error_log $PFX/o/logs/e.log info; pid $PFX/o/nginx.pid;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:${OPORT}; xrootd on; xrootd_root $PFX/o/root;
-    xrootd_auth none; xrootd_allow_write on;
+    listen 127.0.0.1:${OPORT}; xrootd on; brix_root $PFX/o/root;
+    brix_auth none; brix_allow_write on;
 } }
 EOF
 # Cache node B — backend = O, LOCAL stage store, sync flush. root:// write → sd_stage write-back.
@@ -29,12 +29,12 @@ daemon on; error_log $PFX/b/logs/e.log info; pid $PFX/b/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:${BPORT}; xrootd on; xrootd_root $PFX/b/export;
-    xrootd_auth none; xrootd_allow_write on; xrootd_upload_resume off;
-    xrootd_storage_backend root://127.0.0.1:${OPORT};
-    xrootd_stage on;
-    xrootd_stage_store posix:$PFX/b/stage;
-    xrootd_stage_flush sync;
+    listen 127.0.0.1:${BPORT}; xrootd on; brix_root $PFX/b/export;
+    brix_auth none; brix_allow_write on; brix_upload_resume off;
+    brix_storage_backend root://127.0.0.1:${OPORT};
+    brix_stage on;
+    brix_stage_store posix:$PFX/b/stage;
+    brix_stage_flush sync;
 } }
 EOF
 

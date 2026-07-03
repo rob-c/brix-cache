@@ -1,33 +1,33 @@
-#ifndef XROOTD_CACHE_INTERNAL_H
-#define XROOTD_CACHE_INTERNAL_H
+#ifndef BRIX_CACHE_INTERNAL_H
+#define BRIX_CACHE_INTERNAL_H
 
-#include "core/ngx_xrootd_module.h"
-#include "fs/backend/sd.h"   /* xrootd_sd_obj_t — driver-backed flush read-back */
-#include "stage_admit.h"        /* xrootd_wt_admit_t + pure band logic */
+#include "core/ngx_brix_module.h"
+#include "fs/backend/sd.h"   /* brix_sd_obj_t — driver-backed flush read-back */
+#include "stage_admit.h"        /* brix_wt_admit_t + pure band logic */
 
 /*
  * Two-tier write-back-staging backpressure: sample the staging filesystem and
  * return ALLOW / WAIT / REJECT for a new write. Defined in stage_admit.c; the
- * pure band decision (xrootd_wt_stage_decide) is in stage_admit.h. Reads must
+ * pure band decision (brix_wt_stage_decide) is in stage_admit.h. Reads must
  * never call this — staging fullness gates writes only.
  */
-xrootd_wt_admit_t xrootd_wt_stage_admit(
-    const ngx_stream_xrootd_srv_conf_t *conf);
+brix_wt_admit_t brix_wt_stage_admit(
+    const ngx_stream_brix_srv_conf_t *conf);
 
 /*
  * Unified cache-state engine path helpers (src/cache/paths.c). Stream-only (they
- * take ngx_stream_xrootd_srv_conf_t); the HTTP plane uses cache_http.h instead.
+ * take ngx_stream_brix_srv_conf_t); the HTTP plane uses cache_http.h instead.
  *
- * xrootd_cache_state_root: the directory the per-file ".cinfo" persistence
- * records live under — the explicit xrootd_cache_state_root, else cache_root,
+ * brix_cache_state_root: the directory the per-file ".cinfo" persistence
+ * records live under — the explicit brix_cache_state_root, else cache_root,
  * else NULL (no state tree ⇒ persistent dirty-tracking is skipped).
  *
- * xrootd_cache_state_path: map a resolved export path to the cache/state-tree
+ * brix_cache_state_path: map a resolved export path to the cache/state-tree
  * path whose ".cinfo" sidecar carries that file's unified record. NGX_OK /
  * NGX_ERROR (no state root, or overflow).
  */
-const char *xrootd_cache_state_root(const ngx_stream_xrootd_srv_conf_t *conf);
-ngx_int_t   xrootd_cache_state_path(const ngx_stream_xrootd_srv_conf_t *conf,
+const char *brix_cache_state_root(const ngx_stream_brix_srv_conf_t *conf);
+ngx_int_t   brix_cache_state_path(const ngx_stream_brix_srv_conf_t *conf,
     const char *resolved, char *dst, size_t dstsz);
 
 
@@ -43,32 +43,32 @@ ngx_int_t   xrootd_cache_state_path(const ngx_stream_xrootd_srv_conf_t *conf,
  *                     file that serialises concurrent fetches of the same file.
  *   EVICT_LOCK_NAME — name of the directory-level eviction lock file.
  */
-#define XROOTD_CACHE_FETCH_CHUNK      (1024 * 1024)
-#define XROOTD_CACHE_IO_TIMEOUT       30
-#define XROOTD_CACHE_LOCK_POLL_USEC   200000
-#define XROOTD_CACHE_PART_SUFFIX      ".ngx-xrootd-part"
-#define XROOTD_CACHE_LOCK_SUFFIX      ".ngx-xrootd-lock"
-#define XROOTD_CACHE_EVICT_LOCK_NAME  ".ngx-xrootd-evict-lock"
+#define BRIX_CACHE_FETCH_CHUNK      (1024 * 1024)
+#define BRIX_CACHE_IO_TIMEOUT       30
+#define BRIX_CACHE_LOCK_POLL_USEC   200000
+#define BRIX_CACHE_PART_SUFFIX      ".ngx-xrootd-part"
+#define BRIX_CACHE_LOCK_SUFFIX      ".ngx-xrootd-lock"
+#define BRIX_CACHE_EVICT_LOCK_NAME  ".ngx-xrootd-evict-lock"
 
 /*
- * xrootd_cache_origin_conn_t — TCP/TLS connection to the origin XRootD server
+ * brix_cache_origin_conn_t — TCP/TLS connection to the origin XRootD server
  * for the cache-fill path.
  *
- * Lifetime: stack-allocated in xrootd_cache_fetch_origin(); closed with
- * xrootd_cache_origin_close() before the fill thread exits.  The SSL context
+ * Lifetime: stack-allocated in brix_cache_fetch_origin(); closed with
+ * brix_cache_origin_close() before the fill thread exits.  The SSL context
  * (ssl_ctx) is borrowed from conf->cache_ssl_ctx — do NOT free it here.
  */
 typedef struct {
     int      fd;          /* connected socket fd; -1 when not connected */
     SSL_CTX *ssl_ctx;     /* borrowed TLS context; owned by srv_conf (not freed here) */
-    SSL     *ssl;         /* per-connection TLS state; freed by xrootd_cache_origin_close */
-} xrootd_cache_origin_conn_t;
+    SSL     *ssl;         /* per-connection TLS state; freed by brix_cache_origin_close */
+} brix_cache_origin_conn_t;
 
 /*
- * xrootd_cache_fill_t — per-request cache-fill task context.
+ * brix_cache_fill_t — per-request cache-fill task context.
  *
  * Heap-allocated before ngx_thread_task_post() and freed in
- * xrootd_cache_fill_done() after the result is consumed on the main thread.
+ * brix_cache_fill_done() after the result is consumed on the main thread.
  *
  * Path fields:
  *   clean_path — canonicalised client path (no leading slash ambiguity)
@@ -84,8 +84,8 @@ typedef struct {
  */
 typedef struct {
     ngx_connection_t              *c;          /* client connection */
-    xrootd_ctx_t                  *ctx;        /* per-connection XRootD context */
-    ngx_stream_xrootd_srv_conf_t  *conf;       /* server config block */
+    brix_ctx_t                  *ctx;        /* per-connection XRootD context */
+    ngx_stream_brix_srv_conf_t  *conf;       /* server config block */
     u_char    streamid[2];                     /* echoed back in the response */
     uint16_t  options;                         /* kXR_open options from the client */
     uint16_t  mode_bits;                       /* kXR_open mode bits */
@@ -105,15 +105,15 @@ typedef struct {
     int       sys_errno;   /* errno on failure */
     char      err_msg[256]; /* human-readable error description */
     /* C-1 (phase-63): when the export's PRIMARY storage is a remote SOURCE backend
-     * (e.g. xroot://) and no separate xrootd_cache_origin is configured, the cache
+     * (e.g. xroot://) and no separate brix_cache_origin is configured, the cache
      * fills FROM that registered backend instead of the bespoke origin wire client.
      * Resolved on the MAIN thread in open_or_fill (race-free) and used by the fill
      * worker via source_inst->driver->open/pread. NULL ⇒ the legacy origin paths. */
-    xrootd_sd_instance_t *source_inst;
-} xrootd_cache_fill_t;
+    brix_sd_instance_t *source_inst;
+} brix_cache_fill_t;
 
 /*
- * xrootd_wt_flush_t — write-through close/sync task context.
+ * brix_wt_flush_t — write-through close/sync task context.
  *
  * The flush worker mirrors one local file to an XRootD origin by replacing the
  * origin copy with the current local contents, then issuing truncate, sync, and
@@ -121,9 +121,9 @@ typedef struct {
  * nginx thread task; sync close uses it on the stack.
  */
 typedef struct {
-    ngx_stream_xrootd_srv_conf_t  *conf;
+    ngx_stream_brix_srv_conf_t  *conf;
     ngx_log_t                    *log;
-    ngx_xrootd_srv_metrics_t      *metrics;
+    ngx_brix_srv_metrics_t      *metrics;
     char                          local_path[PATH_MAX];
     char                          origin_path[PATH_MAX];
     size_t                        bytes_flushed;
@@ -143,149 +143,149 @@ typedef struct {
      * pblock SQLite catalog lookup never runs on the async worker), read via
      * sd_obj.driver->pread in the worker, closed after the flush. sd_has_obj == 0
      * ⇒ the default POSIX read-back path (raw confined open). */
-    xrootd_sd_obj_t               sd_obj;
+    brix_sd_obj_t               sd_obj;
     off_t                         sd_size;   /* live size from the write handle */
     unsigned                      sd_has_obj:1;
     /* Write-back staging (the "3rd location"): when a staging role is configured,
      * the flush mirrors FROM a durable staged copy (keyed by the logical path) so
      * a replay after restart reads immutable bytes, not the live primary. The FRM
      * journal stays the write-back state engine; the stage is just the bytes. */
-    xrootd_sd_obj_t               stage_obj;
+    brix_sd_obj_t               stage_obj;
     unsigned                      has_stage_obj:1;
-} xrootd_wt_flush_t;
+} brix_wt_flush_t;
 
 /* Record a fill failure into t: sets t->result=NGX_ERROR, stores xrd_error
  * (kXR_* sent to client) and sys_errno (logged only); msg is copied into
  * t->err_msg (truncated to 255 chars), defaulting to "cache fill failed" when
  * NULL/empty. msg is borrowed (copied), not retained. */
-void xrootd_cache_set_error(xrootd_cache_fill_t *t, int xrd_error,
+void brix_cache_set_error(brix_cache_fill_t *t, int xrd_error,
     int sys_errno, const char *msg);
-/* Like xrootd_cache_set_error but captures the current errno: formats
+/* Like brix_cache_set_error but captures the current errno: formats
  * "<prefix>: <strerror(errno)>" as the message and records errno as sys_errno.
  * Call immediately after the failing syscall; errno is read at entry. */
-void xrootd_cache_set_syserror(xrootd_cache_fill_t *t, int xrd_error,
+void brix_cache_set_syserror(brix_cache_fill_t *t, int xrd_error,
     const char *prefix);
 
 /* Blocking send of exactly len bytes to the origin (TLS via oc->ssl when set,
  * else plain TCP). Loops over partial writes / SSL_WANT_*, retries EINTR.
  * Thread-pool context only (never the event loop). Returns 0 on success, -1
  * on error with errno set (EIO on SSL fault, EPIPE on 0-byte TCP write). */
-int xrootd_cache_io_send(xrootd_cache_origin_conn_t *oc, const void *buf,
+int brix_cache_io_send(brix_cache_origin_conn_t *oc, const void *buf,
     size_t len);
 /* Blocking receive of EXACTLY len bytes from the origin into buf (loops until
  * full; partial reads accumulate). Returns 0 on success, -1 on error with errno
  * set (EIO on SSL fault, ECONNRESET on peer EOF before len). Thread-pool only. */
-int xrootd_cache_io_recv_exact(xrootd_cache_origin_conn_t *oc, void *buf,
+int brix_cache_io_recv_exact(brix_cache_origin_conn_t *oc, void *buf,
     size_t len);
 /* Write all len bytes to a local fd, looping over short writes and retrying
  * EINTR. Returns 0 on success, -1 on error (errno set; a 0-byte write is -1). */
-int xrootd_cache_fd_write_all(int fd, const void *buf, size_t len, off_t offset);
+int brix_cache_fd_write_all(int fd, const void *buf, size_t len, off_t offset);
 
 /* Build "<path><suffix>" into dst (size dstsz). Returns 0 on success, -1 on
  * truncation/encoding error (dst contents then unspecified). */
-int xrootd_cache_append_suffix(char *dst, size_t dstsz, const char *path,
+int brix_cache_append_suffix(char *dst, size_t dstsz, const char *path,
     const char *suffix);
 /* Recursively create the parent directory of path (mode 0755). No-op when the
  * parent is "/" or has no slash. Returns 0 on success or if it already exists,
  * -1 on error (errno set; ENAMETOOLONG if path exceeds PATH_MAX). */
-int xrootd_cache_ensure_parent(const char *path);
+int brix_cache_ensure_parent(const char *path);
 /* Three-state probe of a cache path: 1 = exists and is a regular file (hit),
  * 0 = does not exist (ENOENT — treat as miss), -1 = stat error or exists but
  * is not a regular file (errno set: EISDIR for a dir, else EINVAL/syscall errno). */
-int xrootd_cache_file_ready(const char *path);
+int brix_cache_file_ready(const char *path);
 
 /* Either wait for another worker's fill to land or claim ownership of this one.
  * Returns 0 with *owned=0 when t->cache_path appeared (someone else filled it),
  * or 0 with *owned=1 when this caller won the O_EXCL lock at t->lock_path (caller
  * must fetch then unlink the lock). Returns -1 on error or after
  * conf->cache_lock_timeout seconds (sets t error: kXR_FileLocked on timeout).
- * Blocks the thread, polling every XROOTD_CACHE_LOCK_POLL_USEC us. */
-int xrootd_cache_wait_or_lock(xrootd_cache_fill_t *t, int *owned);
+ * Blocks the thread, polling every BRIX_CACHE_LOCK_POLL_USEC us. */
+int brix_cache_wait_or_lock(brix_cache_fill_t *t, int *owned);
 
 /* Tear down an origin connection: SSL_shutdown+free, free ssl_ctx, close fd,
  * and reset all three fields. Idempotent (skips NULL/-1 members); safe to call
  * on a partially-constructed oc and on every error path. */
-void xrootd_cache_origin_close(xrootd_cache_origin_conn_t *oc);
+void brix_cache_origin_close(brix_cache_origin_conn_t *oc);
 /* Connect to the configured origin (t->conf->cache_origin_host/port); thin
- * wrapper over xrootd_cache_origin_connect_addr. Returns 0 (connected, TLS done
+ * wrapper over brix_cache_origin_connect_addr. Returns 0 (connected, TLS done
  * if cache_origin_tls), -1 on error (t error set). */
-int xrootd_cache_origin_connect(xrootd_cache_fill_t *t,
-    xrootd_cache_origin_conn_t *oc);
-/* DNS-resolve host/port, connect (non-blocking with XROOTD_CACHE_IO_TIMEOUT-s
+int brix_cache_origin_connect(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc);
+/* DNS-resolve host/port, connect (non-blocking with BRIX_CACHE_IO_TIMEOUT-s
  * poll timeout, trying every addrinfo), set SO_RCV/SNDTIMEO, then handshake TLS
  * with peer verification when cache_origin_tls is set (trusted_ca or system CAs;
  * SNI = host). On success oc is fully populated; on failure (returns -1, t error
- * set) oc may hold a live fd/ssl — caller must xrootd_cache_origin_close it. */
-int xrootd_cache_origin_connect_addr(xrootd_cache_fill_t *t,
-    xrootd_cache_origin_conn_t *oc, const ngx_str_t *host, uint16_t port);
+ * set) oc may hold a live fd/ssl — caller must brix_cache_origin_close it. */
+int brix_cache_origin_connect_addr(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, const ngx_str_t *host, uint16_t port);
 
 /* Read one XRootD ServerResponseHdr plus its body. On success returns 0 and
  * sets *status, *dlen, and *body: *body is malloc'd (dlen+1, NUL-terminated)
  * and OWNED BY THE CALLER (free() it) when dlen>0, else NULL. Rejects dlen>
  * max_body (anti-OOM). Returns -1 on wire/alloc error (t error set, *body NULL). */
-int xrootd_cache_read_response(xrootd_cache_fill_t *t,
-    xrootd_cache_origin_conn_t *oc, uint16_t *status, u_char **body,
+int brix_cache_read_response(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, uint16_t *status, u_char **body,
     uint32_t *dlen, uint32_t max_body);
 /* Translate a kXR_error response body into t's error fields, preserving the
  * origin's own kXR code (first 4 bytes, big-endian) and message (rest, capped at
  * 255 chars). Falls back to kXR_ServerError + the fallback string when body is
  * NULL or shorter than 4 bytes. body is borrowed (not freed). */
-void xrootd_cache_set_origin_error(xrootd_cache_fill_t *t, u_char *body,
+void brix_cache_set_origin_error(brix_cache_fill_t *t, u_char *body,
     uint32_t dlen, const char *fallback);
 
 /* Drive the full session bootstrap on a connected oc: handshake → kXR_protocol
  * negotiation → anonymous kXR_login (user "xrd"). Fails with kXR_TLSRequired if
  * the origin demands TLS but cache_origin_tls is off, kXR_AuthFailed if it
  * requires credentials. Returns 0 ready-for-requests, -1 on failure (t error set). */
-int xrootd_cache_origin_bootstrap(xrootd_cache_fill_t *t,
-    xrootd_cache_origin_conn_t *oc);
+int brix_cache_origin_bootstrap(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc);
 /* kXR_open (read|retstat) on t->clean_path. Copies the file handle into fhandle
  * (XRD_FHANDLE_LEN bytes, caller-provided) and parses the retstat string to set
  * t->file_size when present. A redirect response is rejected as kXR_Unsupported
  * (origin must be a data server). Returns 0 on success, -1 on error (t error set). */
-int xrootd_cache_origin_open(xrootd_cache_fill_t *t,
-    xrootd_cache_origin_conn_t *oc, u_char fhandle[XRD_FHANDLE_LEN]);
+int brix_cache_origin_open(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, u_char fhandle[XRD_FHANDLE_LEN]);
 /* kXR_query/kXR_Qcksum on t->clean_path (path-based). Writes the origin's
  * advertised "<algo> <hexvalue>" digest into alg_out[alg_sz]/hex_out[hex_sz]
  * (both emptied when the origin has no checksum). BEST-EFFORT: any wire/parse
  * failure or kXR_error leaves the outputs empty, restores t's error triple, and
  * returns 0 — a checksum query must never fail an already-complete fill. Used by
  * checksum-on-fill verification (verify.c). */
-int xrootd_cache_origin_query_checksum(xrootd_cache_fill_t *t,
-    xrootd_cache_origin_conn_t *oc, char *alg_out, size_t alg_sz,
+int brix_cache_origin_query_checksum(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, char *alg_out, size_t alg_sz,
     char *hex_out, size_t hex_sz);
 /* Namespace/metadata ops on the origin (path-based; used by the sd_xroot driver
  * when a remote root:// is the export's PRIMARY backend). Each returns 0 / -1
  * with errno set (get/list return the byte count, or -1). */
-int     xrootd_cache_origin_rename(xrootd_cache_fill_t *t,
-            xrootd_cache_origin_conn_t *oc, const char *src, const char *dst);
-int     xrootd_cache_origin_rm(xrootd_cache_fill_t *t,
-            xrootd_cache_origin_conn_t *oc, const char *path);
-ssize_t xrootd_cache_origin_getfattr(xrootd_cache_fill_t *t,
-            xrootd_cache_origin_conn_t *oc, const char *path, const char *name,
+int     brix_cache_origin_rename(brix_cache_fill_t *t,
+            brix_cache_origin_conn_t *oc, const char *src, const char *dst);
+int     brix_cache_origin_rm(brix_cache_fill_t *t,
+            brix_cache_origin_conn_t *oc, const char *path);
+ssize_t brix_cache_origin_getfattr(brix_cache_fill_t *t,
+            brix_cache_origin_conn_t *oc, const char *path, const char *name,
             void *buf, size_t cap);
-ssize_t xrootd_cache_origin_listfattr(xrootd_cache_fill_t *t,
-            xrootd_cache_origin_conn_t *oc, const char *path,
+ssize_t brix_cache_origin_listfattr(brix_cache_fill_t *t,
+            brix_cache_origin_conn_t *oc, const char *path,
             void *buf, size_t cap);
-int     xrootd_cache_origin_setfattr(xrootd_cache_fill_t *t,
-            xrootd_cache_origin_conn_t *oc, const char *path, const char *name,
+int     brix_cache_origin_setfattr(brix_cache_fill_t *t,
+            brix_cache_origin_conn_t *oc, const char *path, const char *name,
             const void *val, size_t vlen);
-int     xrootd_cache_origin_delfattr(xrootd_cache_fill_t *t,
-            xrootd_cache_origin_conn_t *oc, const char *path, const char *name);
+int     brix_cache_origin_delfattr(brix_cache_fill_t *t,
+            brix_cache_origin_conn_t *oc, const char *path, const char *name);
 /* kXR_open (update|delete|mkpath) on the borrowed absolute origin path for
  * write-through: truncates the destination and creates missing parents. mode_bits
  * applies to a newly created file (0644 when 0). Fills fhandle (caller-provided).
  * Returns 0 on success, -1 on error/redirect (t error set; kXR_ArgInvalid if path
  * is NULL/empty). */
-int xrootd_cache_origin_open_write(xrootd_cache_fill_t *t,
-    xrootd_cache_origin_conn_t *oc, const char *path, uint16_t mode_bits,
+int brix_cache_origin_open_write(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, const char *path, uint16_t mode_bits,
     u_char fhandle[XRD_FHANDLE_LEN]);
 /* kXR_close for fhandle; best-effort — send/response errors are ignored (the
  * fetched data is already on disk). No return value, no t error set. */
-void xrootd_cache_origin_close_file(xrootd_cache_origin_conn_t *oc,
+void brix_cache_origin_close_file(brix_cache_origin_conn_t *oc,
     const u_char fhandle[XRD_FHANDLE_LEN]);
 /* kXR_read of up to `want` bytes at `offset`, streaming each kXR_ok/kXR_oksofar
- * payload straight to outfd via xrootd_cache_fd_write_all; loops until the final
+ * payload straight to outfd via brix_cache_fd_write_all; loops until the final
  * kXR_ok. Sets *got to bytes written (may be < want at EOF; never > want — over-
  * reads are rejected as kXR_ServerError). Returns 0 on success, -1 on error
  * (t error set). */
@@ -294,38 +294,38 @@ void xrootd_cache_origin_close_file(xrootd_cache_origin_conn_t *oc,
  * passes dst_off==read_off (absolute), while a slice fill reads at an absolute
  * origin offset but writes into a 0-relative per-slice file (dst_off==0-based). */
 /* A fill write target: a raw POSIX fd (POSIX cache) OR a driver staged-write
- * handle (driver-backed cache). xrootd_cache_sink_pwrite routes a positional
+ * handle (driver-backed cache). brix_cache_sink_pwrite routes a positional
  * write to whichever is set — so the origin read loop is not duplicated. */
 typedef struct {
     int                  fd;       /* >=0 ⇒ POSIX pwrite; -1 when staged/mem used */
-    xrootd_sd_staged_t  *staged;   /* non-NULL ⇒ driver staged_write             */
+    brix_sd_staged_t  *staged;   /* non-NULL ⇒ driver staged_write             */
     u_char              *mem;      /* non-NULL ⇒ copy into this buffer at off     */
     size_t               mem_cap;  /* capacity of mem (bounds the positional copy) */
-} xrootd_cache_sink_t;
+} brix_cache_sink_t;
 
 /* Positional write of len bytes at off into the sink. 0 / -1 (errno set). */
-int xrootd_cache_sink_pwrite(xrootd_cache_sink_t *sink, const void *buf,
+int brix_cache_sink_pwrite(brix_cache_sink_t *sink, const void *buf,
     size_t len, off_t off);
 
-int xrootd_cache_origin_read_chunk(xrootd_cache_fill_t *t,
-    xrootd_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN],
-    xrootd_cache_sink_t *sink, uint64_t read_off, uint64_t dst_off,
+int brix_cache_origin_read_chunk(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN],
+    brix_cache_sink_t *sink, uint64_t read_off, uint64_t dst_off,
     size_t want, size_t *got);
 /* kXR_write of len bytes from data at offset (write-through). Requires a kXR_ok
  * reply with zero data length. len>INT32_MAX is rejected (kXR_ArgTooLong).
  * Returns 0 on success, -1 on error (t error set). */
-int xrootd_cache_origin_write_chunk(xrootd_cache_fill_t *t,
-    xrootd_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN],
+int brix_cache_origin_write_chunk(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN],
     uint64_t offset, const u_char *data, size_t len);
 /* kXR_truncate the origin file to `length` bytes. Returns 0 on success, -1 on
  * error (t error set). */
-int xrootd_cache_origin_truncate(xrootd_cache_fill_t *t,
-    xrootd_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN],
+int brix_cache_origin_truncate(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN],
     uint64_t length);
 /* kXR_sync to flush origin buffers to stable storage (write-through, before
  * close). Returns 0 on success, -1 on error (t error set). */
-int xrootd_cache_origin_sync(xrootd_cache_fill_t *t,
-    xrootd_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN]);
+int brix_cache_origin_sync(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN]);
 
 /* The write-through flush is now part of the storage path (Option A): a write-open
  * routes through the wt sd_stage decorator (cache_storage.c: cache_build_wt_stage),
@@ -338,30 +338,30 @@ int xrootd_cache_origin_sync(xrootd_cache_fill_t *t,
  * filter (cache_max_file_size vs cache_include_regex). Returns 0 on success,
  * -1 on error (t error set), 1 when admission declined (sets t->result=NGX_DECLINED
  * so the caller redirects the client to the origin). */
-int xrootd_cache_fetch_origin(xrootd_cache_fill_t *t);
+int brix_cache_fetch_origin(brix_cache_fill_t *t);
 
 
 
 /* Build the WRITE-BACK origin (flush target) from wt_origin/cache_origin with the
- * write-back credential precedence. Distinct from xrootd_cache_build_origin (READ).
- * Caller owns it (xrootd_sd_xroot_destroy). NULL if no origin configured. */
-xrootd_sd_instance_t *xrootd_cache_build_wt_origin(
-    const ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log);
+ * write-back credential precedence. Distinct from brix_cache_build_origin (READ).
+ * Caller owns it (brix_sd_xroot_destroy). NULL if no origin configured. */
+brix_sd_instance_t *brix_cache_build_wt_origin(
+    const ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log);
 /* Two-pass LRU eviction when cache filesystem occupancy exceeds
  * conf->cache_eviction_threshold (ppm); no-op if cache disabled or threshold 0.
  * protect_path (the file being filled) is never evicted. Takes a directory-level
  * evict lock. Thread-pool context only. No return value (errors counted in metrics). */
-void xrootd_cache_evict_if_needed(xrootd_cache_fill_t *t,
+void brix_cache_evict_if_needed(brix_cache_fill_t *t,
     const char *protect_path, ngx_log_t *log);
 /* Thread-pool worker for a whole-file fill: ensure parent dir → evict → wait/lock
  * → skip if already present → fetch origin → evict → release lock. Records the
- * outcome (incl. NGX_DECLINED) in the xrootd_cache_fill_t at `data` for the done
+ * outcome (incl. NGX_DECLINED) in the brix_cache_fill_t at `data` for the done
  * callback; never sends a client response itself. */
-void xrootd_cache_fill_thread(void *data, ngx_log_t *log);
+void brix_cache_fill_thread(void *data, ngx_log_t *log);
 /* Event-loop completion callback after a whole-file fill: restores the suspended
  * request, then redirects (NGX_DECLINED), sends a kXR_error (failure), or opens
  * the freshly cached file and resumes the client's AIO read (success). */
-void xrootd_cache_fill_done(ngx_event_t *ev);
+void brix_cache_fill_done(ngx_event_t *ev);
 
 
-#endif /* XROOTD_CACHE_INTERNAL_H */
+#endif /* BRIX_CACHE_INTERNAL_H */

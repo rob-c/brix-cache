@@ -1,8 +1,8 @@
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 #include "aio.h"
 #include "uring.h"
 
-#if (XROOTD_HAVE_LIBURING)
+#if (BRIX_HAVE_LIBURING)
 #include <sys/eventfd.h>
 #include <unistd.h>
 #endif
@@ -19,22 +19,22 @@
  *       startup when it cannot be provided — caught at config time so even a
  *       stub build flags it under `nginx -t` with no kernel needed.
  *
- * HOW:  All liburing-specific code is under #if (XROOTD_HAVE_LIBURING).  When
+ * HOW:  All liburing-specific code is under #if (BRIX_HAVE_LIBURING).  When
  *       the macro is undefined the file compiles to inert stubs that report the
- *       backend as unavailable and hard-fail any `xrootd_io_uring on` block. */
+ *       backend as unavailable and hard-fail any `brix_io_uring on` block. */
 
 /*
- * xrootd_uring_any_block_on — scan all stream server blocks for a block whose
+ * brix_uring_any_block_on — scan all stream server blocks for a block whose
  * merged io_uring mode is ON.
  *
  * Returns 1 if at least one enabled block requires io_uring, 0 otherwise.
  */
 static ngx_int_t
-xrootd_uring_any_block_on(ngx_conf_t *cf)
+brix_uring_any_block_on(ngx_conf_t *cf)
 {
     ngx_stream_core_main_conf_t   *cmcf;
     ngx_stream_core_srv_conf_t   **cscfp;
-    ngx_stream_xrootd_srv_conf_t  *xcf;
+    ngx_stream_brix_srv_conf_t  *xcf;
     ngx_uint_t                     i;
 
     cmcf  = ngx_stream_conf_get_module_main_conf(cf, ngx_stream_core_module);
@@ -45,8 +45,8 @@ xrootd_uring_any_block_on(ngx_conf_t *cf)
     cscfp = cmcf->servers.elts;
     for (i = 0; i < cmcf->servers.nelts; i++) {
         xcf = ngx_stream_conf_get_module_srv_conf(cscfp[i],
-                                                  ngx_stream_xrootd_module);
-        if (xcf->common.enable && xcf->io_uring == XROOTD_IO_URING_ON) {
+                                                  ngx_stream_brix_module);
+        if (xcf->common.enable && xcf->io_uring == BRIX_IO_URING_ON) {
             return 1;
         }
     }
@@ -54,21 +54,21 @@ xrootd_uring_any_block_on(ngx_conf_t *cf)
     return 0;
 }
 
-#if (XROOTD_HAVE_LIBURING)
+#if (BRIX_HAVE_LIBURING)
 
 /* The per-worker ring singleton.  File-static — reached only via the accessor
  * below, never as an exported global.  Zeroed at process start; .enabled stays
- * 0 until xrootd_uring_init_worker() brings the ring up (SB-W2). */
-static xrootd_uring_t  xrootd_uring_worker_ring;
+ * 0 until brix_uring_init_worker() brings the ring up (SB-W2). */
+static brix_uring_t  brix_uring_worker_ring;
 
-xrootd_uring_t *
-xrootd_uring_worker(void)
+brix_uring_t *
+brix_uring_worker(void)
 {
-    return xrootd_uring_worker_ring.enabled ? &xrootd_uring_worker_ring : NULL;
+    return brix_uring_worker_ring.enabled ? &brix_uring_worker_ring : NULL;
 }
 
 /*
- * xrootd_uring_runtime_available — authoritative, memoized opcode probe.
+ * brix_uring_runtime_available — authoritative, memoized opcode probe.
  *
  * Stands up a throwaway 8-entry ring, asks io_uring_get_probe whether every
  * required server data opcode (READ/WRITE/READV/WRITEV/FSYNC) is supported,
@@ -79,7 +79,7 @@ xrootd_uring_worker(void)
  * Returns 1 iff a ring can be created and all required opcodes are supported.
  */
 ngx_int_t
-xrootd_uring_runtime_available(void)
+brix_uring_runtime_available(void)
 {
     static const int required[] = {
         IORING_OP_READ, IORING_OP_WRITE, IORING_OP_READV,
@@ -125,31 +125,31 @@ xrootd_uring_runtime_available(void)
  * on IORING_SETUP_R_DISABLED — a real #define that arrived alongside the
  * restrictions API (kernel 5.10 / matching liburing). */
 #if defined(IORING_SETUP_R_DISABLED)
-#define XROOTD_URING_HAVE_RESTRICTIONS 1
+#define BRIX_URING_HAVE_RESTRICTIONS 1
 #else
-#define XROOTD_URING_HAVE_RESTRICTIONS 0
+#define BRIX_URING_HAVE_RESTRICTIONS 0
 #endif
 
 /* Self-test sentinel — never collides with a real slot cookie (those carry a
  * slot index < queue_depth in the low 32 bits). */
-#define XROOTD_URING_NOP_COOKIE  0xffffffffffffffffULL
+#define BRIX_URING_NOP_COOKIE  0xffffffffffffffffULL
 
 /* completion-slot table (UAF-safe task mapping) */
-/* xrootd_uring_slot_at — bounds-checked slot lookup; NULL if idx is out of
+/* brix_uring_slot_at — bounds-checked slot lookup; NULL if idx is out of
  * range (a corrupt/forged user_data). */
-static xrootd_uring_slot_t *
-xrootd_uring_slot_at(xrootd_uring_t *u, uint32_t idx)
+static brix_uring_slot_t *
+brix_uring_slot_at(brix_uring_t *u, uint32_t idx)
 {
     return idx < u->queue_depth ? &u->slots[idx] : NULL;
 }
 
-/* xrootd_uring_slot_acquire — claim the first free slot.  The selector checks
+/* brix_uring_slot_acquire — claim the first free slot.  The selector checks
  * inflight < queue_depth before calling, so a free slot always exists; the
  * linear scan over <=4096 entries is negligible.  Returns NULL only if the
  * table is unexpectedly full (caller then falls back to the thread pool).
  * Non-static: also called from uring_submit.c. */
-xrootd_uring_slot_t *
-xrootd_uring_slot_acquire(xrootd_uring_t *u, uint32_t *idx_out)
+brix_uring_slot_t *
+brix_uring_slot_acquire(brix_uring_t *u, uint32_t *idx_out)
 {
     uint32_t i;
 
@@ -164,13 +164,13 @@ xrootd_uring_slot_acquire(xrootd_uring_t *u, uint32_t *idx_out)
     return NULL;
 }
 
-/* xrootd_uring_slot_release — free a slot and bump its generation so any later
+/* brix_uring_slot_release — free a slot and bump its generation so any later
  * CQE carrying the old generation is recognised as stale and dropped.
  * Non-static: also called from uring_submit.c. */
 void
-xrootd_uring_slot_release(xrootd_uring_t *u, uint32_t idx)
+brix_uring_slot_release(brix_uring_t *u, uint32_t idx)
 {
-    xrootd_uring_slot_t *s = &u->slots[idx];
+    brix_uring_slot_t *s = &u->slots[idx];
 
     s->in_use     = 0;
     s->task       = NULL;
@@ -180,7 +180,7 @@ xrootd_uring_slot_release(xrootd_uring_t *u, uint32_t idx)
 }
 
 /*
- * xrootd_uring_apply_cqe — translate cqe->res into the task's OUT fields, the
+ * brix_uring_apply_cqe — translate cqe->res into the task's OUT fields, the
  * same fields the worker-thread fn would have set.  io_uring reports failures
  * as a negative -errno in cqe->res (it does NOT set errno).
  *
@@ -190,7 +190,7 @@ xrootd_uring_slot_release(xrootd_uring_t *u, uint32_t idx)
  * READ/WRITE are handled here so the reaper is complete for the hot path.
  */
 static ngx_int_t
-xrootd_uring_apply_cqe(xrootd_uring_slot_t *slot, struct io_uring_cqe *cqe)
+brix_uring_apply_cqe(brix_uring_slot_t *slot, struct io_uring_cqe *cqe)
 {
     ngx_thread_task_t *task = slot->task;
     int32_t            res  = cqe->res;
@@ -198,27 +198,27 @@ xrootd_uring_apply_cqe(xrootd_uring_slot_t *slot, struct io_uring_cqe *cqe)
     switch (slot->op_kind) {
 
     case XRD_URING_OP_READ: {
-        xrootd_read_aio_t *t = task->ctx;
+        brix_read_aio_t *t = task->ctx;
         if (res < 0) { t->nread = -1;  t->io_errno = -res; }
         else         { t->nread = res; t->io_errno = 0;    }
         return 1;
     }
 
     case XRD_URING_OP_WRITE: {
-        xrootd_write_aio_t *t = task->ctx;
+        brix_write_aio_t *t = task->ctx;
         if (res < 0) { t->nwritten = -1;  t->io_errno = -res; }
         else         { t->nwritten = res; t->io_errno = 0;    }
         return 1;
     }
 
     case XRD_URING_OP_READV: {
-        xrootd_readv_aio_t *t = task->ctx;
+        brix_readv_aio_t *t = task->ctx;
         size_t              total = 0, i;
 
         /* Single contiguous group (op_for gated it): one IORING_OP_READV
          * scattered into the per-segment payload pointers.  The wire segment
          * headers were already written at plan-build, so nothing to fix up here
-         * — only the totals + error state, matching xrootd_readv_aio_thread. */
+         * — only the totals + error state, matching brix_readv_aio_thread. */
         for (i = 0; i < t->segment_count; i++) {
             total += t->segments[i].read_length;
         }
@@ -232,19 +232,19 @@ xrootd_uring_apply_cqe(xrootd_uring_slot_t *slot, struct io_uring_cqe *cqe)
         } else {
             t->io_error = 0;
             t->bytes_read_total = (size_t) res;
-            t->response_bytes   = t->segment_count * XROOTD_READV_SEGSIZE
+            t->response_bytes   = t->segment_count * BRIX_READV_SEGSIZE
                                   + (size_t) res;
         }
         return 1;
     }
 
     case XRD_URING_OP_WRITEV: {
-        xrootd_writev_aio_t *t = task->ctx;
+        brix_writev_aio_t *t = task->ctx;
         size_t               total = 0, i;
 
         /* Single contiguous same-fd group: one IORING_OP_WRITEV gathering the
          * segment buffers.  io_error encodes the failure kind exactly as
-         * xrootd_writev_write_aio_thread (1 = hard error, 2 = short write).  A
+         * brix_writev_write_aio_thread (1 = hard error, 2 = short write).  A
          * trailing FSYNC (when do_sync) is a separate linked SQE whose CQE the
          * reaper drops — best-effort, matching the pool path's ignored return. */
         for (i = 0; i < t->n_segs; i++) {
@@ -270,7 +270,7 @@ xrootd_uring_apply_cqe(xrootd_uring_slot_t *slot, struct io_uring_cqe *cqe)
 }
 
 /*
- * xrootd_uring_eventfd_handler — the completion reaper.
+ * brix_uring_eventfd_handler — the completion reaper.
  *
  * Wired into the worker's epoll as the read handler of the fake connection that
  * wraps the ring's registered eventfd.  This is the public-API analogue of
@@ -283,10 +283,10 @@ xrootd_uring_apply_cqe(xrootd_uring_slot_t *slot, struct io_uring_cqe *cqe)
  * loop (re-entrancy-safe).
  */
 static void
-xrootd_uring_eventfd_handler(ngx_event_t *ev)
+brix_uring_eventfd_handler(ngx_event_t *ev)
 {
     ngx_connection_t    *evc = ev->data;
-    xrootd_uring_t      *u   = evc->data;
+    brix_uring_t      *u   = evc->data;
     struct io_uring_cqe *cqe;
     uint64_t             counter;
     ssize_t              n;
@@ -307,12 +307,12 @@ xrootd_uring_eventfd_handler(ngx_event_t *ev)
         uint64_t             ud   = io_uring_cqe_get_data64(cqe);
         uint32_t             idx;
         uint32_t             gen;
-        xrootd_uring_slot_t *slot;
+        brix_uring_slot_t *slot;
 
         /* 2-pre. trailing FSYNC of a linked writev+fsync chain: carries no slot;
          * fsync is best-effort (the pool path ignores its return), so drop the
          * CQE and just balance inflight. */
-        if (ud == XROOTD_URING_FSYNC_COOKIE) {
+        if (ud == BRIX_URING_FSYNC_COOKIE) {
             io_uring_cqe_seen(&u->ring, cqe);
             if (u->inflight > 0) { u->inflight--; }
             continue;
@@ -320,7 +320,7 @@ xrootd_uring_eventfd_handler(ngx_event_t *ev)
 
         idx  = (uint32_t) (ud & 0xffffffffULL);
         gen  = (uint32_t) (ud >> 32);
-        slot = xrootd_uring_slot_at(u, idx);
+        slot = brix_uring_slot_at(u, idx);
 
         /* 2a. generation guard: a stale CQE for a recycled/dead slot is dropped
          * safely.  (The done-callback's own ctx->destroyed check remains the
@@ -332,13 +332,13 @@ xrootd_uring_eventfd_handler(ngx_event_t *ev)
         }
 
         /* 2b. translate + post (the done-callback is task->event.handler, set
-         * at xrootd_task_bind time). */
-        if (xrootd_uring_apply_cqe(slot, cqe)) {
+         * at brix_task_bind time). */
+        if (brix_uring_apply_cqe(slot, cqe)) {
             ngx_thread_task_t *task = slot->task;
 
             task->event.complete = 1;
             ngx_post_event(&task->event, &ngx_posted_events);
-            xrootd_uring_slot_release(u, idx);
+            brix_uring_slot_release(u, idx);
         }
 
         io_uring_cqe_seen(&u->ring, cqe);
@@ -347,9 +347,9 @@ xrootd_uring_eventfd_handler(ngx_event_t *ev)
 }
 
 /* bring-up helpers */
-#if (XROOTD_URING_HAVE_RESTRICTIONS)
+#if (BRIX_URING_HAVE_RESTRICTIONS)
 /*
- * xrootd_uring_apply_restrictions — lock the ring to the fd-only data opcodes
+ * brix_uring_apply_restrictions — lock the ring to the fd-only data opcodes
  * the backend actually submits (NOP for the self-test + READ/WRITE/READV/
  * WRITEV/FSYNC).  With no OPENAT/STATX/UNLINKAT allowed, the ring can neither
  * open nor traverse a path — which is what makes the unprivileged-worker
@@ -357,7 +357,7 @@ xrootd_uring_eventfd_handler(ngx_event_t *ev)
  * caller enables it afterwards.  Returns NGX_OK iff restrictions were applied.
  */
 static ngx_int_t
-xrootd_uring_apply_restrictions(struct io_uring *ring)
+brix_uring_apply_restrictions(struct io_uring *ring)
 {
     struct io_uring_restriction res[6];
 
@@ -375,13 +375,13 @@ xrootd_uring_apply_restrictions(struct io_uring *ring)
 #endif
 
 /*
- * xrootd_uring_teardown — release every ring resource that has been brought up,
+ * brix_uring_teardown — release every ring resource that has been brought up,
  * in reverse order, idempotently (driven by which fields are set).  Mirrors
  * nginx core's eventfd cleanup: ngx_free_connection + close(fd) rather than
  * ngx_close_connection, to avoid double-closing the eventfd.  No goto.
  */
 static void
-xrootd_uring_teardown(xrootd_uring_t *u)
+brix_uring_teardown(brix_uring_t *u)
 {
     if (u->ring_active && u->eventfd >= 0) {
         io_uring_unregister_eventfd(&u->ring);
@@ -411,13 +411,13 @@ xrootd_uring_teardown(xrootd_uring_t *u)
 }
 
 /*
- * xrootd_uring_init_fail — log the bring-up failure, tear down whatever was set
+ * brix_uring_init_fail — log the bring-up failure, tear down whatever was set
  * up, and return the right verdict: NGX_ERROR under `on` (the worker refuses to
  * run on the thread pool — master respawns; the §32.7 backstop) or NGX_OK under
  * `auto` (silent degrade to the thread pool).
  */
 static ngx_int_t
-xrootd_uring_init_fail(xrootd_uring_t *u, ngx_cycle_t *cycle, ngx_uint_t mode_on,
+brix_uring_init_fail(brix_uring_t *u, ngx_cycle_t *cycle, ngx_uint_t mode_on,
     const char *what)
 {
     /* Hoist the level into a variable: the ngx_log_error macro does not
@@ -427,38 +427,38 @@ xrootd_uring_init_fail(xrootd_uring_t *u, ngx_cycle_t *cycle, ngx_uint_t mode_on
     ngx_log_error(level, cycle->log, ngx_errno,
         "xrootd: io_uring bring-up failed at %s%s", what,
         mode_on
-            ? " — \"xrootd_io_uring on\" requires it; this worker refuses to run"
+            ? " — \"brix_io_uring on\" requires it; this worker refuses to run"
             : "; falling back to the thread pool");
 
-    xrootd_uring_teardown(u);
+    brix_uring_teardown(u);
     return mode_on ? NGX_ERROR : NGX_OK;
 }
 
 /*
- * xrootd_uring_init_worker — create this worker's ring after fork.
+ * brix_uring_init_worker — create this worker's ring after fork.
  *
  * Scans every enabled server block: the ring is created if any block wants
  * io_uring (mode on/auto); queue depth is the max requested; restrictions are
  * applied unless any wanting block turned them off.  Bring-up sequence:
  * queue_init [R_DISABLED if restricting] -> register restrictions + enable ->
  * NOP self-test -> eventfd + register_eventfd -> fake-connection epoll bridge ->
- * slot table.  Any failure routes through xrootd_uring_init_fail (NGX_OK under
+ * slot table.  Any failure routes through brix_uring_init_fail (NGX_OK under
  * auto, NGX_ERROR under on).  When no block wants io_uring this is a no-op.
  */
 ngx_int_t
-xrootd_uring_init_worker(ngx_cycle_t *cycle)
+brix_uring_init_worker(ngx_cycle_t *cycle)
 {
     ngx_stream_core_main_conf_t   *cmcf;
     ngx_stream_core_srv_conf_t   **cscfp;
-    ngx_stream_xrootd_srv_conf_t  *xcf;
-    xrootd_uring_t                *u = &xrootd_uring_worker_ring;
+    ngx_stream_brix_srv_conf_t  *xcf;
+    brix_uring_t                *u = &brix_uring_worker_ring;
     struct io_uring_params         params;
     struct io_uring_sqe           *sqe;
     struct io_uring_cqe           *cqe;
     ngx_connection_t              *evc;
     ngx_uint_t                     i;
     ngx_uint_t                     want = 0, mode_on = 0, want_restrict = 1;
-    ngx_int_t                      depth = XROOTD_IO_URING_QUEUE_DEPTH;
+    ngx_int_t                      depth = BRIX_IO_URING_QUEUE_DEPTH;
     ngx_str_t                      panic_file = ngx_null_string;
 
     cmcf = ngx_stream_cycle_get_module_main_conf(cycle, ngx_stream_core_module);
@@ -469,12 +469,12 @@ xrootd_uring_init_worker(ngx_cycle_t *cycle)
     cscfp = cmcf->servers.elts;
     for (i = 0; i < cmcf->servers.nelts; i++) {
         xcf = ngx_stream_conf_get_module_srv_conf(cscfp[i],
-                                                  ngx_stream_xrootd_module);
-        if (!xcf->common.enable || xcf->io_uring == XROOTD_IO_URING_OFF) {
+                                                  ngx_stream_brix_module);
+        if (!xcf->common.enable || xcf->io_uring == BRIX_IO_URING_OFF) {
             continue;
         }
         want = 1;
-        if (xcf->io_uring == XROOTD_IO_URING_ON) {
+        if (xcf->io_uring == BRIX_IO_URING_ON) {
             mode_on = 1;
         }
         if (xcf->io_uring_queue_depth > depth) {
@@ -492,13 +492,13 @@ xrootd_uring_init_worker(ngx_cycle_t *cycle)
         return NGX_OK;   /* every enabled block has io_uring off */
     }
 
-#if !(XROOTD_URING_HAVE_RESTRICTIONS)
+#if !(BRIX_URING_HAVE_RESTRICTIONS)
     (void) want_restrict;   /* no restrictions API in this liburing/kernel */
 #endif
 
     /* AUTO blocks need the per-process probe (seccomp-accurate); ON blocks
      * already passed it at config time but re-checking is cheap + memoized. */
-    if (!mode_on && !xrootd_uring_runtime_available()) {
+    if (!mode_on && !brix_uring_runtime_available()) {
         ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
             "xrootd: io_uring unavailable on this host; using the thread pool");
         return NGX_OK;
@@ -519,13 +519,13 @@ xrootd_uring_init_worker(ngx_cycle_t *cycle)
 
     /* 1. create the ring (R_DISABLED first when we will register restrictions). */
     ngx_memzero(&params, sizeof(params));
-#if (XROOTD_URING_HAVE_RESTRICTIONS)
+#if (BRIX_URING_HAVE_RESTRICTIONS)
     if (want_restrict) {
         params.flags |= IORING_SETUP_R_DISABLED;
     }
 #endif
     if (io_uring_queue_init_params((unsigned) depth, &u->ring, &params) < 0) {
-        return xrootd_uring_init_fail(u, cycle, mode_on,
+        return brix_uring_init_fail(u, cycle, mode_on,
                    "io_uring_queue_init_params");
     }
     u->ring_active = 1;
@@ -539,17 +539,17 @@ xrootd_uring_init_worker(ngx_cycle_t *cycle)
      */
     u->eventfd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
     if (u->eventfd < 0) {
-        return xrootd_uring_init_fail(u, cycle, mode_on, "eventfd");
+        return brix_uring_init_fail(u, cycle, mode_on, "eventfd");
     }
     if (io_uring_register_eventfd(&u->ring, u->eventfd) < 0) {
-        return xrootd_uring_init_fail(u, cycle, mode_on,
+        return brix_uring_init_fail(u, cycle, mode_on,
                    "io_uring_register_eventfd");
     }
 
     /* 3. restrictions (best-effort) then enable the ring. */
-#if (XROOTD_URING_HAVE_RESTRICTIONS)
+#if (BRIX_URING_HAVE_RESTRICTIONS)
     if (want_restrict) {
-        if (xrootd_uring_apply_restrictions(&u->ring) == NGX_OK) {
+        if (brix_uring_apply_restrictions(&u->ring) == NGX_OK) {
             u->restrict_ops = 1;
         } else {
             ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
@@ -558,7 +558,7 @@ xrootd_uring_init_worker(ngx_cycle_t *cycle)
                 "holds via the unprivileged worker + confined fd");
         }
         if (io_uring_enable_rings(&u->ring) < 0) {
-            return xrootd_uring_init_fail(u, cycle, mode_on,
+            return brix_uring_init_fail(u, cycle, mode_on,
                        "io_uring_enable_rings");
         }
     }
@@ -569,20 +569,20 @@ xrootd_uring_init_worker(ngx_cycle_t *cycle)
      * loop starts drains it and finds no CQE — harmless.) */
     sqe = io_uring_get_sqe(&u->ring);
     if (sqe == NULL) {
-        return xrootd_uring_init_fail(u, cycle, mode_on, "io_uring_get_sqe(NOP)");
+        return brix_uring_init_fail(u, cycle, mode_on, "io_uring_get_sqe(NOP)");
     }
     io_uring_prep_nop(sqe);
-    io_uring_sqe_set_data64(sqe, XROOTD_URING_NOP_COOKIE);
+    io_uring_sqe_set_data64(sqe, BRIX_URING_NOP_COOKIE);
     if (io_uring_submit(&u->ring) < 0
         || io_uring_wait_cqe(&u->ring, &cqe) < 0)
     {
-        return xrootd_uring_init_fail(u, cycle, mode_on, "io_uring NOP self-test");
+        return brix_uring_init_fail(u, cycle, mode_on, "io_uring NOP self-test");
     }
-    if (io_uring_cqe_get_data64(cqe) != XROOTD_URING_NOP_COOKIE
+    if (io_uring_cqe_get_data64(cqe) != BRIX_URING_NOP_COOKIE
         || cqe->res != 0)
     {
         io_uring_cqe_seen(&u->ring, cqe);
-        return xrootd_uring_init_fail(u, cycle, mode_on,
+        return brix_uring_init_fail(u, cycle, mode_on,
                    "io_uring NOP self-test (unexpected CQE)");
     }
     io_uring_cqe_seen(&u->ring, cqe);
@@ -590,28 +590,28 @@ xrootd_uring_init_worker(ngx_cycle_t *cycle)
     /* 5. wire the eventfd into the worker's epoll via a fake connection. */
     evc = ngx_get_connection(u->eventfd, cycle->log);
     if (evc == NULL) {
-        return xrootd_uring_init_fail(u, cycle, mode_on, "ngx_get_connection");
+        return brix_uring_init_fail(u, cycle, mode_on, "ngx_get_connection");
     }
-    evc->read->handler = xrootd_uring_eventfd_handler;
+    evc->read->handler = brix_uring_eventfd_handler;
     evc->read->log     = cycle->log;
     evc->data          = u;
     u->evc             = evc;
     if (ngx_add_event(evc->read, NGX_READ_EVENT, 0) != NGX_OK) {
-        return xrootd_uring_init_fail(u, cycle, mode_on, "ngx_add_event");
+        return brix_uring_init_fail(u, cycle, mode_on, "ngx_add_event");
     }
 
     /* 6. completion-slot table (pool-owned; freed with the cycle). */
     u->slots = ngx_pcalloc(cycle->pool,
-                           u->queue_depth * sizeof(xrootd_uring_slot_t));
+                           u->queue_depth * sizeof(brix_uring_slot_t));
     if (u->slots == NULL) {
-        return xrootd_uring_init_fail(u, cycle, mode_on, "slot table alloc");
+        return brix_uring_init_fail(u, cycle, mode_on, "slot table alloc");
     }
 
     /* SB-W5b: attach the cross-worker kill-switch flag (NULL if the zone was
      * not registered — the selector then reads "enabled") and arm the
      * panic-file poll timer if a path was configured. */
-    u->disabled_flag = xrootd_uring_killswitch_ptr();
-    (void) xrootd_uring_panicfile_arm(cycle, &panic_file);
+    u->disabled_flag = brix_uring_killswitch_ptr();
+    (void) brix_uring_panicfile_arm(cycle, &panic_file);
 
     u->enabled = 1;
     ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
@@ -623,26 +623,26 @@ xrootd_uring_init_worker(ngx_cycle_t *cycle)
 }
 
 /*
- * xrootd_uring_exit_worker — tear the ring down at worker shutdown.  Safe to
+ * brix_uring_exit_worker — tear the ring down at worker shutdown.  Safe to
  * call when the ring was never brought up (no-op).
  */
 void
-xrootd_uring_exit_worker(ngx_cycle_t *cycle)
+brix_uring_exit_worker(ngx_cycle_t *cycle)
 {
-    xrootd_uring_t *u = &xrootd_uring_worker_ring;
+    brix_uring_t *u = &brix_uring_worker_ring;
 
     (void) cycle;
 
     if (!u->ring_active && u->eventfd < 0 && u->evc == NULL) {
         return;
     }
-    xrootd_uring_teardown(u);
+    brix_uring_teardown(u);
 }
 
-#else  /* !XROOTD_HAVE_LIBURING */
+#else  /* !BRIX_HAVE_LIBURING */
 
 ngx_int_t
-xrootd_uring_runtime_available(void)
+brix_uring_runtime_available(void)
 {
     return 0;
 }
@@ -650,24 +650,24 @@ xrootd_uring_runtime_available(void)
 /* No ring in a stub build — the selector accessor isn't even declared, so the
  * thread-pool tier is the only path.  Lifecycle is a no-op. */
 ngx_int_t
-xrootd_uring_init_worker(ngx_cycle_t *cycle)
+brix_uring_init_worker(ngx_cycle_t *cycle)
 {
     (void) cycle;
     return NGX_OK;
 }
 
 void
-xrootd_uring_exit_worker(ngx_cycle_t *cycle)
+brix_uring_exit_worker(ngx_cycle_t *cycle)
 {
     (void) cycle;
 }
 
-#endif /* XROOTD_HAVE_LIBURING */
+#endif /* BRIX_HAVE_LIBURING */
 
 /*
- * xrootd_uring_validate_conf — §32 startup fail-fast (ADR-16).
+ * brix_uring_validate_conf — §32 startup fail-fast (ADR-16).
  *
- * If any enabled server block requests `xrootd_io_uring on`, io_uring MUST be
+ * If any enabled server block requests `brix_io_uring on`, io_uring MUST be
  * provided or startup fails (NGX_ERROR -> nginx -t exits non-zero, master
  * refuses to start).  Two independent gates:
  *   (1) compile-time: a stub build can never satisfy `on` — caught with no
@@ -678,29 +678,29 @@ xrootd_uring_exit_worker(ngx_cycle_t *cycle)
  * Returns NGX_OK to allow startup, NGX_ERROR to abort it.
  */
 ngx_int_t
-xrootd_uring_validate_conf(ngx_conf_t *cf)
+brix_uring_validate_conf(ngx_conf_t *cf)
 {
-    if (!xrootd_uring_any_block_on(cf)) {
+    if (!brix_uring_any_block_on(cf)) {
         return NGX_OK;
     }
 
-#if !(XROOTD_HAVE_LIBURING)
+#if !(BRIX_HAVE_LIBURING)
     ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-        "\"xrootd_io_uring on\" requires a build with liburing, but this binary "
-        "was compiled WITHOUT it. Rebuild with XROOTD_ENABLE_IO_URING=1 and "
-        "liburing-devel installed, or set \"xrootd_io_uring auto\" to allow "
+        "\"brix_io_uring on\" requires a build with liburing, but this binary "
+        "was compiled WITHOUT it. Rebuild with BRIX_ENABLE_IO_URING=1 and "
+        "liburing-devel installed, or set \"brix_io_uring auto\" to allow "
         "silent fallback to the thread pool.");
     return NGX_ERROR;
 #else
-    if (!xrootd_uring_runtime_available()) {
+    if (!brix_uring_runtime_available()) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "\"xrootd_io_uring on\" requested but io_uring is unavailable on "
+            "\"brix_io_uring on\" requested but io_uring is unavailable on "
             "this host (io_uring_setup/opcode probe failed). This is typically a "
             "seccomp policy (Docker/containerd default profiles block io_uring) "
-            "or a kernel older than %d.%d. Set \"xrootd_io_uring auto\" to fall "
+            "or a kernel older than %d.%d. Set \"brix_io_uring auto\" to fall "
             "back to the thread pool, or enable io_uring at the host/container "
             "level.",
-            XROOTD_IO_URING_MIN_KERNEL_MAJOR, XROOTD_IO_URING_MIN_KERNEL_MINOR);
+            BRIX_IO_URING_MIN_KERNEL_MAJOR, BRIX_IO_URING_MIN_KERNEL_MINOR);
         return NGX_ERROR;
     }
     return NGX_OK;

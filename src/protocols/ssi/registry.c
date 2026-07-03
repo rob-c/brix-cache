@@ -13,19 +13,19 @@
 static struct {
     uintptr_t              conn_id;
     uint64_t               generation;
-    xrootd_ssi_session_t  *s;
+    brix_ssi_session_t  *s;
     int                    in_use;
-} ssi_reg[XROOTD_SSI_REGISTRY_SLOTS];
+} ssi_reg[BRIX_SSI_REGISTRY_SLOTS];
 
 void
-xrootd_ssi_registry_add(uintptr_t conn_id, xrootd_ssi_session_t *s)
+brix_ssi_registry_add(uintptr_t conn_id, brix_ssi_session_t *s)
 {
     int i, free_slot = -1;
 
     if (s == NULL) {
         return;
     }
-    for (i = 0; i < XROOTD_SSI_REGISTRY_SLOTS; i++) {
+    for (i = 0; i < BRIX_SSI_REGISTRY_SLOTS; i++) {
         if (ssi_reg[i].in_use && ssi_reg[i].conn_id == conn_id) {
             ssi_reg[i].generation = s->generation;   /* refresh a recycled id */
             ssi_reg[i].s = s;
@@ -45,11 +45,11 @@ xrootd_ssi_registry_add(uintptr_t conn_id, xrootd_ssi_session_t *s)
 }
 
 void
-xrootd_ssi_registry_remove(uintptr_t conn_id)
+brix_ssi_registry_remove(uintptr_t conn_id)
 {
     int i;
 
-    for (i = 0; i < XROOTD_SSI_REGISTRY_SLOTS; i++) {
+    for (i = 0; i < BRIX_SSI_REGISTRY_SLOTS; i++) {
         if (ssi_reg[i].in_use && ssi_reg[i].conn_id == conn_id) {
             ssi_reg[i].in_use = 0;
             ssi_reg[i].s = NULL;
@@ -58,12 +58,12 @@ xrootd_ssi_registry_remove(uintptr_t conn_id)
     }
 }
 
-xrootd_ssi_session_t *
-xrootd_ssi_registry_find(uintptr_t conn_id, uint64_t generation)
+brix_ssi_session_t *
+brix_ssi_registry_find(uintptr_t conn_id, uint64_t generation)
 {
     int i;
 
-    for (i = 0; i < XROOTD_SSI_REGISTRY_SLOTS; i++) {
+    for (i = 0; i < BRIX_SSI_REGISTRY_SLOTS; i++) {
         if (ssi_reg[i].in_use && ssi_reg[i].conn_id == conn_id) {
             return ssi_reg[i].generation == generation ? ssi_reg[i].s : NULL;
         }

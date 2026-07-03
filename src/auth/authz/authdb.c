@@ -1,4 +1,4 @@
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 
 #include <stddef.h>
 #include <string.h>
@@ -12,35 +12,35 @@
 /* Postconfig finalization of the authdb rule array: resolve/validate each rule's
  * path against the export root. */
 ngx_int_t
-xrootd_finalize_authdb_rules(ngx_log_t *log, const ngx_str_t *root,
+brix_finalize_authdb_rules(ngx_log_t *log, const ngx_str_t *root,
                              ngx_array_t *rules)
 {
-    return xrootd_finalize_path_rules(log, root, rules,
-                                      sizeof(xrootd_authdb_rule_t),
-                                      offsetof(xrootd_authdb_rule_t, path),
-                                      offsetof(xrootd_authdb_rule_t, resolved),
-                                      sizeof(((xrootd_authdb_rule_t *) 0)->resolved));
+    return brix_finalize_path_rules(log, root, rules,
+                                      sizeof(brix_authdb_rule_t),
+                                      offsetof(brix_authdb_rule_t, path),
+                                      offsetof(brix_authdb_rule_t, resolved),
+                                      sizeof(((brix_authdb_rule_t *) 0)->resolved));
 }
-/* Parse an XrdAcc privilege string (e.g. "rwld") into an XROOTD_PRIV_* bitmask. */
+/* Parse an XrdAcc privilege string (e.g. "rwld") into an BRIX_PRIV_* bitmask. */
 static uint32_t
-xrootd_parse_privs(const char *p, size_t len)
+brix_parse_privs(const char *p, size_t len)
 {
     uint32_t privs = 0;
     size_t   i;
 
-    /* Each privilege char maps to one or more XROOTD_AUTH_* bits; OR-accumulate
+    /* Each privilege char maps to one or more BRIX_AUTH_* bits; OR-accumulate
      * across the whole string. 'r' implies 'l' (you cannot read what you cannot
      * look up), and 'a' (append) is folded into UPDATE since the FS-level write
      * permission is identical. Unknown chars are silently ignored. */
     for (i = 0; i < len; i++) {
         switch (p[i]) {
-        case 'r': privs |= XROOTD_AUTH_READ | XROOTD_AUTH_LOOKUP;   break;
-        case 'l': privs |= XROOTD_AUTH_LOOKUP; break;
-        case 'w': privs |= XROOTD_AUTH_UPDATE; break;
-        case 'a': privs |= XROOTD_AUTH_UPDATE; break; /* append is update */
-        case 'd': privs |= XROOTD_AUTH_DELETE; break;
-        case 'm': privs |= XROOTD_AUTH_MKDIR;  break;
-        case 'k': privs |= XROOTD_AUTH_ADMIN;  break;
+        case 'r': privs |= BRIX_AUTH_READ | BRIX_AUTH_LOOKUP;   break;
+        case 'l': privs |= BRIX_AUTH_LOOKUP; break;
+        case 'w': privs |= BRIX_AUTH_UPDATE; break;
+        case 'a': privs |= BRIX_AUTH_UPDATE; break; /* append is update */
+        case 'd': privs |= BRIX_AUTH_DELETE; break;
+        case 'm': privs |= BRIX_AUTH_MKDIR;  break;
+        case 'k': privs |= BRIX_AUTH_ADMIN;  break;
         default: break;
         }
     }
@@ -50,7 +50,7 @@ xrootd_parse_privs(const char *p, size_t len)
 /* Parse the authdb file into `rules`: one rule per line (path + identity matcher
  * + privileges).  Returns NGX_CONF_OK / NGX_CONF_ERROR. */
 ngx_int_t
-xrootd_parse_authdb(ngx_conf_t *cf, ngx_str_t *filename, ngx_array_t *rules)
+brix_parse_authdb(ngx_conf_t *cf, ngx_str_t *filename, ngx_array_t *rules)
 {
     ngx_fd_t              fd;
     ngx_file_t            file;
@@ -58,7 +58,7 @@ xrootd_parse_authdb(ngx_conf_t *cf, ngx_str_t *filename, ngx_array_t *rules)
     u_char               *buf, *p, *end, *line_start, *line_end;
     ssize_t               n;
     size_t                buf_size;
-    (void) ngx_stream_conf_get_module_srv_conf(cf, ngx_stream_xrootd_module);
+    (void) ngx_stream_conf_get_module_srv_conf(cf, ngx_stream_brix_module);
 
     fd = ngx_open_file(filename->data, NGX_FILE_RDONLY, NGX_FILE_OPEN, 0);
     if (fd == NGX_INVALID_FILE) {
@@ -86,7 +86,7 @@ xrootd_parse_authdb(ngx_conf_t *cf, ngx_str_t *filename, ngx_array_t *rules)
     }
     if (buf_size > 1024 * 1024) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "xrootd_authdb \"%s\" exceeds 1 MiB limit",
+                           "brix_authdb \"%s\" exceeds 1 MiB limit",
                            filename->data);
         ngx_close_file(fd);
         return NGX_ERROR;
@@ -179,7 +179,7 @@ xrootd_parse_authdb(ngx_conf_t *cf, ngx_str_t *filename, ngx_array_t *rules)
         while (p < line_end && !isspace(*p)) p++;
         privs_end = p;
 
-        xrootd_authdb_rule_t *rule = ngx_array_push(rules);
+        brix_authdb_rule_t *rule = ngx_array_push(rules);
         if (rule == NULL) {
             ngx_free(buf);
             ngx_close_file(fd);
@@ -188,12 +188,12 @@ xrootd_parse_authdb(ngx_conf_t *cf, ngx_str_t *filename, ngx_array_t *rules)
 
         /* Rule type is the first byte of field 1 only (e.g. 'u','g','p','a');
          * a multi-char first token is effectively truncated to its lead char. */
-        rule->type = (xrootd_auth_type_t) type_p[0];
+        rule->type = (brix_auth_type_t) type_p[0];
 
         /* id and path are copied into the config pool (NUL-terminated) because
          * the source buf is freed at function exit — rules must own their
          * strings for the lifetime of the config. resolved[] is zeroed now and
-         * filled later by xrootd_finalize_authdb_rules() (deferred realpath). */
+         * filled later by brix_finalize_authdb_rules() (deferred realpath). */
 
         rule->id.len = id_end - id_p;
         rule->id.data = ngx_palloc(cf->pool, rule->id.len + 1);
@@ -205,7 +205,7 @@ xrootd_parse_authdb(ngx_conf_t *cf, ngx_str_t *filename, ngx_array_t *rules)
         ngx_memcpy(rule->path.data, path_p, rule->path.len);
         rule->path.data[rule->path.len] = '\0';
 
-        rule->privs = xrootd_parse_privs((const char *) privs_p,
+        rule->privs = brix_parse_privs((const char *) privs_p,
                                         privs_end - privs_p);
         
         ngx_memzero(rule->resolved, sizeof(rule->resolved));
@@ -217,7 +217,7 @@ xrootd_parse_authdb(ngx_conf_t *cf, ngx_str_t *filename, ngx_array_t *rules)
 }
 /* Return 1 if `path` is at or beneath `prefix` (component-aligned prefix match). */
 static ngx_flag_t
-xrootd_path_prefix_match(const char *prefix, const char *path)
+brix_path_prefix_match(const char *prefix, const char *path)
 {
     size_t prefix_len;
 
@@ -238,7 +238,7 @@ xrootd_path_prefix_match(const char *prefix, const char *path)
 }
 /* Compare the first `bits` of two packed addresses — the CIDR prefix-match core. */
 static ngx_flag_t
-xrootd_authdb_addr_prefix_match(const u_char *a, const u_char *b,
+brix_authdb_addr_prefix_match(const u_char *a, const u_char *b,
                                 ngx_uint_t bits)
 {
     ngx_uint_t full;
@@ -268,7 +268,7 @@ xrootd_authdb_addr_prefix_match(const u_char *a, const u_char *b,
 }
 /* Match a peer IP against a rule's host CIDR (rule_id is host/addr[/bits]). */
 static ngx_flag_t
-xrootd_authdb_host_cidr_match(const char *rule_id, const char *peer_ip)
+brix_authdb_host_cidr_match(const char *rule_id, const char *peer_ip)
 {
     char        cidr[128];
     char       *slash;
@@ -325,12 +325,12 @@ xrootd_authdb_host_cidr_match(const char *rule_id, const char *peer_ip)
         return 0;
     }
 
-    return xrootd_authdb_addr_prefix_match(rule_addr, peer_addr,
+    return brix_authdb_addr_prefix_match(rule_addr, peer_addr,
                                            (ngx_uint_t) bits);
 }
 /* Match a peer IP against an authdb rule's host id (exact, hostname, or CIDR). */
 static ngx_flag_t
-xrootd_authdb_host_match(const ngx_str_t *rule_id, const char *peer_ip)
+brix_authdb_host_match(const ngx_str_t *rule_id, const char *peer_ip)
 {
     if (rule_id == NULL || peer_ip == NULL || peer_ip[0] == '\0') {
         return 0;
@@ -340,18 +340,18 @@ xrootd_authdb_host_match(const ngx_str_t *rule_id, const char *peer_ip)
         return 1;
     }
 
-    return xrootd_authdb_host_cidr_match((const char *) rule_id->data,
+    return brix_authdb_host_cidr_match((const char *) rule_id->data,
                                          peer_ip);
 }
 /* Find the authdb rule granting `needed_privs` on resolved_path for `identity`;
  * returns the matching rule or NULL. */
-const xrootd_authdb_rule_t *
-xrootd_find_authdb_rule_identity(const char *resolved_path, ngx_array_t *rules,
-                        const xrootd_identity_t *identity,
+const brix_authdb_rule_t *
+brix_find_authdb_rule_identity(const char *resolved_path, ngx_array_t *rules,
+                        const brix_identity_t *identity,
                         const char *peer_ip, uint32_t needed_privs)
 {
-    const xrootd_authdb_rule_t *best = NULL;
-    xrootd_authdb_rule_t       *rule;
+    const brix_authdb_rule_t *best = NULL;
+    brix_authdb_rule_t       *rule;
     size_t                      best_len = 0;
     ngx_uint_t                  i;
     const char                 *dn;
@@ -361,41 +361,41 @@ xrootd_find_authdb_rule_identity(const char *resolved_path, ngx_array_t *rules,
         return NULL;
     }
 
-    dn = xrootd_identity_dn_cstr(identity);
-    vo_list = xrootd_identity_vo_csv_cstr(identity);
+    dn = brix_identity_dn_cstr(identity);
+    vo_list = brix_identity_vo_csv_cstr(identity);
 
     rule = rules->elts;
     for (i = 0; i < rules->nelts; i++) {
         size_t rule_len = strlen(rule[i].resolved);
 
-        if (!xrootd_path_prefix_match(rule[i].resolved, resolved_path)) {
+        if (!brix_path_prefix_match(rule[i].resolved, resolved_path)) {
             continue;
         }
 
         /* Check identity */
         ngx_flag_t match = 0;
         switch (rule[i].type) {
-        case XROOTD_AUTH_ALL:
+        case BRIX_AUTH_ALL:
             match = 1;
             break;
-        case XROOTD_AUTH_USER:
+        case BRIX_AUTH_USER:
             if (rule[i].id.len == 1 && rule[i].id.data[0] == '*') {
                 match = 1;
             } else if (ngx_strcmp(rule[i].id.data, dn) == 0) {
                 match = 1;
             }
             break;
-        case XROOTD_AUTH_GROUP:
+        case BRIX_AUTH_GROUP:
             if (rule[i].id.len == 1 && rule[i].id.data[0] == '*') {
                 match = 1;
-            } else if (xrootd_vo_list_contains(vo_list,
+            } else if (brix_vo_list_contains(vo_list,
                                                (const char *) rule[i].id.data))
             {
                 match = 1;
             }
             break;
-        case XROOTD_AUTHDB_HOST:
-            match = xrootd_authdb_host_match(&rule[i].id, peer_ip);
+        case BRIX_AUTHDB_HOST:
+            match = brix_authdb_host_match(&rule[i].id, peer_ip);
             break;
         default:
             break;
@@ -428,18 +428,18 @@ xrootd_find_authdb_rule_identity(const char *resolved_path, ngx_array_t *rules,
 
 /* Find the authdb rule granting needed_privs on resolved_path for ctx's identity
  * (wraps the _identity form). */
-const xrootd_authdb_rule_t *
-xrootd_find_authdb_rule(const char *resolved_path, ngx_array_t *rules,
-                        xrootd_ctx_t *ctx, uint32_t needed_privs)
+const brix_authdb_rule_t *
+brix_find_authdb_rule(const char *resolved_path, ngx_array_t *rules,
+                        brix_ctx_t *ctx, uint32_t needed_privs)
 {
-    xrootd_identity_t fallback;
+    brix_identity_t fallback;
 
     if (ctx == NULL) {
         return NULL;
     }
 
     if (ctx->identity != NULL) {
-        return xrootd_find_authdb_rule_identity(resolved_path, rules,
+        return brix_find_authdb_rule_identity(resolved_path, rules,
                                                 ctx->identity, ctx->peer_ip,
                                                 needed_privs);
     }
@@ -452,18 +452,18 @@ xrootd_find_authdb_rule(const char *resolved_path, ngx_array_t *rules,
     fallback.vo_csv.data = (u_char *) ctx->vo_list;
     fallback.vo_csv.len = strlen(ctx->vo_list);
 
-    return xrootd_find_authdb_rule_identity(resolved_path, rules,
+    return brix_find_authdb_rule_identity(resolved_path, rules,
                                             &fallback, ctx->peer_ip,
                                             needed_privs);
 }
 /* Authorize `identity` for needed_privs on resolved_path against the rules.
  * Returns NGX_OK (granted) or NGX_ERROR (denied). */
 ngx_int_t
-xrootd_check_authdb_identity(ngx_log_t *log, ngx_array_t *rules,
-                    const xrootd_identity_t *identity, const char *peer_ip,
+brix_check_authdb_identity(ngx_log_t *log, ngx_array_t *rules,
+                    const brix_identity_t *identity, const char *peer_ip,
                     const char *resolved_path, uint32_t needed_privs)
 {
-    const xrootd_authdb_rule_t   *rule;
+    const brix_authdb_rule_t   *rule;
     char                          safe_path[512];
     const char                   *dn;
     const char                   *vo_list;
@@ -473,15 +473,15 @@ xrootd_check_authdb_identity(ngx_log_t *log, ngx_array_t *rules,
         return NGX_OK;
     }
 
-    rule = xrootd_find_authdb_rule_identity(resolved_path, rules, identity,
+    rule = brix_find_authdb_rule_identity(resolved_path, rules, identity,
                                             peer_ip, needed_privs);
     if (rule != NULL) {
         return NGX_OK;
     }
 
-    dn = xrootd_identity_dn_cstr(identity);
-    vo_list = xrootd_identity_vo_csv_cstr(identity);
-    xrootd_sanitize_log_string(resolved_path, safe_path, sizeof(safe_path));
+    dn = brix_identity_dn_cstr(identity);
+    vo_list = brix_identity_vo_csv_cstr(identity);
+    brix_sanitize_log_string(resolved_path, safe_path, sizeof(safe_path));
 
     ngx_log_error(NGX_LOG_WARN, log, 0,
                   "xrootd: authdb denied path=\"%s\" privs=0x%02xd "
@@ -496,16 +496,16 @@ xrootd_check_authdb_identity(ngx_log_t *log, ngx_array_t *rules,
 /* Authorize ctx for needed_privs on resolved_path via the authdb (wraps the
  * _identity form). */
 ngx_int_t
-xrootd_check_authdb(xrootd_ctx_t *ctx, const char *resolved_path,
+brix_check_authdb(brix_ctx_t *ctx, const char *resolved_path,
                     uint32_t needed_privs)
 {
-    ngx_stream_xrootd_srv_conf_t *conf;
-    xrootd_identity_t            fallback;
+    ngx_stream_brix_srv_conf_t *conf;
+    brix_identity_t            fallback;
 
-    conf = ngx_stream_get_module_srv_conf(ctx->session, ngx_stream_xrootd_module);
+    conf = ngx_stream_get_module_srv_conf(ctx->session, ngx_stream_brix_module);
 
     if (ctx->identity != NULL) {
-        return xrootd_check_authdb_identity(ctx->session->connection->log,
+        return brix_check_authdb_identity(ctx->session->connection->log,
                                             conf->authdb_rules, ctx->identity,
                                             ctx->peer_ip, resolved_path,
                                             needed_privs);
@@ -517,7 +517,7 @@ xrootd_check_authdb(xrootd_ctx_t *ctx, const char *resolved_path,
     fallback.vo_csv.data = (u_char *) ctx->vo_list;
     fallback.vo_csv.len = strlen(ctx->vo_list);
 
-    return xrootd_check_authdb_identity(ctx->session->connection->log,
+    return brix_check_authdb_identity(ctx->session->connection->log,
                                         conf->authdb_rules, &fallback,
                                         ctx->peer_ip, resolved_path,
                                         needed_privs);

@@ -20,8 +20,8 @@
 #include <unistd.h>
 
 char *
-xrootd_prepare_export_root(ngx_conf_t *cf,
-    const ngx_str_t *root, const xrootd_export_root_opts_t *opts,
+brix_prepare_export_root(ngx_conf_t *cf,
+    const ngx_str_t *root, const brix_export_root_opts_t *opts,
     char *root_canon)
 {
     char       root_buf[PATH_MAX];
@@ -55,8 +55,8 @@ xrootd_prepare_export_root(ngx_conf_t *cf,
     root_str.len  = root->len;
     access_mode   = opts->allow_write ? (R_OK | W_OK | X_OK) : (R_OK | X_OK);
 
-    if (xrootd_validate_path(cf, opts->directive_name, &root_str,
-                             XROOTD_PATH_DIRECTORY, access_mode) != NGX_OK)
+    if (brix_validate_path(cf, opts->directive_name, &root_str,
+                             BRIX_PATH_DIRECTORY, access_mode) != NGX_OK)
     {
         return NGX_CONF_ERROR;
     }

@@ -1,5 +1,5 @@
-#ifndef XROOTD_PROTOCOL_PROTOCOL_H
-#define XROOTD_PROTOCOL_PROTOCOL_H
+#ifndef BRIX_PROTOCOL_PROTOCOL_H
+#define BRIX_PROTOCOL_PROTOCOL_H
 
 /*
  * protocol/protocol.h — XRootD root:// wire-format constants and structs.
@@ -26,4 +26,4 @@
 #include "protocols/root/protocol/codec/wire_codec.h"   /* shared per-opcode wire-body pack/unpack codec */
 #include "gsi.h"
 
-#endif /* XROOTD_PROTOCOL_PROTOCOL_H */
+#endif /* BRIX_PROTOCOL_PROTOCOL_H */

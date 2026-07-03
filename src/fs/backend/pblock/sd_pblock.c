@@ -2,7 +2,7 @@
  * sd_pblock.c — the pblock ("pseudo-block") Storage Driver: a full-capability,
  * block-based drop-in for POSIX.
  *
- * WHAT: Implements xrootd_sd_pblock_driver, a complete backend that stores each
+ * WHAT: Implements brix_sd_pblock_driver, a complete backend that stores each
  *       object's bytes striped across fixed-size POSIX "block" files and the
  *       entire logical namespace + metadata in a SQLite catalog
  *       (sd_pblock_catalog.c). It advertises the same capabilities as the POSIX
@@ -21,7 +21,7 @@
  *       writes update the cached size/mtime in memory and flush to the catalog
  *       on fsync/close. The whole file is ngx-free (libc + sqlite, malloc-owned
  *       state) so it is identical in the module and the standalone unit test.
- *       Compiled only when the build found libsqlite3 (XROOTD_HAVE_SQLITE).
+ *       Compiled only when the build found libsqlite3 (BRIX_HAVE_SQLITE).
  */
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE   /* preadv2(2) (the module build sets it) */
@@ -29,7 +29,7 @@
 
 #include "fs/backend/sd.h"
 
-#if XROOTD_HAVE_SQLITE
+#if BRIX_HAVE_SQLITE
 
 #include "sd_pblock_catalog.h"
 
@@ -84,7 +84,7 @@ typedef struct {
 } pblock_staged_t;
 
 /* Forward declaration: open's O_TRUNC path reuses the block-aware truncate. */
-static ngx_int_t sd_pblock_ftruncate(xrootd_sd_obj_t *obj, off_t len);
+static ngx_int_t sd_pblock_ftruncate(brix_sd_obj_t *obj, off_t len);
 
 /* ---- small helpers -------------------------------------------------------- */
 
@@ -228,7 +228,7 @@ pblock_ensure_obj_dir(const pblock_state_t *st, const char *blob_id)
  * VFS consumes, synthesizing the inode from the logical path. */
 static void
 pblock_fill_sd_stat(const pblock_meta *m, const char *path,
-    xrootd_sd_stat_t *out)
+    brix_sd_stat_t *out)
 {
     ngx_memzero(out, sizeof(*out));
     out->size   = m->size;
@@ -438,9 +438,9 @@ pblock_copy_one_block(const char *src_path, const char *dst_path)
 /* ---- instance lifecycle --------------------------------------------------- */
 
 static ngx_int_t
-sd_pblock_init(xrootd_sd_instance_t *inst, void *driver_conf)
+sd_pblock_init(brix_sd_instance_t *inst, void *driver_conf)
 {
-    const xrootd_sd_pblock_conf_t *conf = driver_conf;
+    const brix_sd_pblock_conf_t *conf = driver_conf;
     pblock_state_t                *st;
     char                           db[PATH_MAX];
 
@@ -495,7 +495,7 @@ sd_pblock_init(xrootd_sd_instance_t *inst, void *driver_conf)
 }
 
 static void
-sd_pblock_cleanup(xrootd_sd_instance_t *inst)
+sd_pblock_cleanup(brix_sd_instance_t *inst)
 {
     pblock_state_t *st = inst->state;
 
@@ -510,11 +510,11 @@ sd_pblock_cleanup(xrootd_sd_instance_t *inst)
 
 /* pblock_make_obj — wrap a block-0 fd + cached metadata in a heap object. On
  * failure the fd is closed and NULL/errno returned. */
-static xrootd_sd_obj_t *
-pblock_make_obj(xrootd_sd_instance_t *inst, const char *path, int fd,
+static brix_sd_obj_t *
+pblock_make_obj(brix_sd_instance_t *inst, const char *path, int fd,
     const pblock_meta *meta)
 {
-    xrootd_sd_obj_t *obj;
+    brix_sd_obj_t *obj;
     pblock_obj_t    *os;
 
     obj = calloc(1, sizeof(*obj));
@@ -557,13 +557,13 @@ pblock_make_obj(xrootd_sd_instance_t *inst, const char *path, int fd,
 
 /* pblock_open_create — create a brand-new file: a fresh per-object dir + block 0,
  * plus its catalog row. Returns the object or NULL/errno (*err_out set). */
-static xrootd_sd_obj_t *
-pblock_open_create(xrootd_sd_instance_t *inst, const char *path, mode_t mode,
+static brix_sd_obj_t *
+pblock_open_create(brix_sd_instance_t *inst, const char *path, mode_t mode,
     int *err_out)
 {
     pblock_state_t  *st = inst->state;
     pblock_meta      meta;
-    xrootd_sd_obj_t *obj;
+    brix_sd_obj_t *obj;
     char             block0[PATH_MAX];
     int              fd;
 
@@ -606,14 +606,14 @@ pblock_open_create(xrootd_sd_instance_t *inst, const char *path, mode_t mode,
 
 /* pblock_open_existing — open an existing file's block 0; honours O_TRUNC on
  * write via the block-aware truncate. Returns the object or NULL/errno. */
-static xrootd_sd_obj_t *
-pblock_open_existing(xrootd_sd_instance_t *inst, const char *path,
+static brix_sd_obj_t *
+pblock_open_existing(brix_sd_instance_t *inst, const char *path,
     pblock_meta *meta, int sd_flags, int *err_out)
 {
     pblock_state_t  *st = inst->state;
-    xrootd_sd_obj_t *obj;
+    brix_sd_obj_t *obj;
     char             block0[PATH_MAX];
-    int              want_write = sd_flags & XROOTD_SD_O_WRITE;
+    int              want_write = sd_flags & BRIX_SD_O_WRITE;
     int              fd;
 
     if (pblock_block_path(st, meta->blob_id, 0, block0, sizeof(block0)) != 0) {
@@ -632,7 +632,7 @@ pblock_open_existing(xrootd_sd_instance_t *inst, const char *path,
         return NULL;
     }
 
-    if (want_write && (sd_flags & XROOTD_SD_O_TRUNC) && meta->size > 0) {
+    if (want_write && (sd_flags & BRIX_SD_O_TRUNC) && meta->size > 0) {
         if (sd_pblock_ftruncate(obj, 0) != NGX_OK) {
             int err = errno;
 
@@ -645,8 +645,8 @@ pblock_open_existing(xrootd_sd_instance_t *inst, const char *path,
     return obj;
 }
 
-static xrootd_sd_obj_t *
-sd_pblock_open(xrootd_sd_instance_t *inst, const char *path, int sd_flags,
+static brix_sd_obj_t *
+sd_pblock_open(brix_sd_instance_t *inst, const char *path, int sd_flags,
     mode_t mode, int *err_out)
 {
     pblock_state_t *st = inst->state;
@@ -660,7 +660,7 @@ sd_pblock_open(xrootd_sd_instance_t *inst, const char *path, int sd_flags,
     }
 
     if (rc == 0 && meta.is_dir) {
-        if (sd_flags & XROOTD_SD_O_WRITE) {
+        if (sd_flags & BRIX_SD_O_WRITE) {
             if (err_out != NULL) { *err_out = EISDIR; }
             return NULL;
         }
@@ -668,7 +668,7 @@ sd_pblock_open(xrootd_sd_instance_t *inst, const char *path, int sd_flags,
     }
 
     if (rc == 0) {   /* existing file */
-        if ((sd_flags & XROOTD_SD_O_CREATE) && (sd_flags & XROOTD_SD_O_EXCL)) {
+        if ((sd_flags & BRIX_SD_O_CREATE) && (sd_flags & BRIX_SD_O_EXCL)) {
             if (err_out != NULL) { *err_out = EEXIST; }
             return NULL;
         }
@@ -676,7 +676,7 @@ sd_pblock_open(xrootd_sd_instance_t *inst, const char *path, int sd_flags,
     }
 
     /* absent */
-    if (!(sd_flags & XROOTD_SD_O_CREATE)) {
+    if (!(sd_flags & BRIX_SD_O_CREATE)) {
         if (err_out != NULL) { *err_out = ENOENT; }
         return NULL;
     }
@@ -684,7 +684,7 @@ sd_pblock_open(xrootd_sd_instance_t *inst, const char *path, int sd_flags,
 }
 
 static ngx_int_t
-sd_pblock_close(xrootd_sd_obj_t *obj)
+sd_pblock_close(brix_sd_obj_t *obj)
 {
     pblock_obj_t *os;
     ngx_int_t     rc = NGX_OK;
@@ -720,7 +720,7 @@ sd_pblock_close(xrootd_sd_obj_t *obj)
 /* ---- worker-safe raw byte I/O (block files; no SQLite on the hot path) ----- */
 
 static ssize_t
-sd_pblock_pread(xrootd_sd_obj_t *obj, void *buf, size_t len, off_t off)
+sd_pblock_pread(brix_sd_obj_t *obj, void *buf, size_t len, off_t off)
 {
     pblock_obj_t *os = obj->state;
     size_t        avail;
@@ -740,7 +740,7 @@ sd_pblock_pread(xrootd_sd_obj_t *obj, void *buf, size_t len, off_t off)
 }
 
 static ssize_t
-sd_pblock_pwrite(xrootd_sd_obj_t *obj, const void *buf, size_t len, off_t off)
+sd_pblock_pwrite(brix_sd_obj_t *obj, const void *buf, size_t len, off_t off)
 {
     pblock_obj_t *os = obj->state;
     ssize_t       n;
@@ -763,7 +763,7 @@ sd_pblock_pwrite(xrootd_sd_obj_t *obj, const void *buf, size_t len, off_t off)
 /* sd_pblock_preadv — vectored read as a loop of the block-aware pread (stops at
  * the first short/EOF segment); bytes read or -1. */
 static ssize_t
-sd_pblock_preadv(xrootd_sd_obj_t *obj, const struct iovec *iov, int iovcnt,
+sd_pblock_preadv(brix_sd_obj_t *obj, const struct iovec *iov, int iovcnt,
     off_t off)
 {
     ssize_t total = 0;
@@ -785,7 +785,7 @@ sd_pblock_preadv(xrootd_sd_obj_t *obj, const struct iovec *iov, int iovcnt,
 }
 
 static ssize_t
-sd_pblock_preadv2(xrootd_sd_obj_t *obj, const struct iovec *iov, int iovcnt,
+sd_pblock_preadv2(brix_sd_obj_t *obj, const struct iovec *iov, int iovcnt,
     off_t off, int flags)
 {
     (void) flags;   /* RWF_* flags not distinguished by this backend */
@@ -797,7 +797,7 @@ sd_pblock_preadv2(xrootd_sd_obj_t *obj, const struct iovec *iov, int iovcnt,
  * whole objects does not apply). The VFS owns the outer loop; one call copies up
  * to the buffer size. Returns bytes copied (0 = src EOF) or -1. */
 static ssize_t
-sd_pblock_copy_range(xrootd_sd_obj_t *src, off_t src_off, xrootd_sd_obj_t *dst,
+sd_pblock_copy_range(brix_sd_obj_t *src, off_t src_off, brix_sd_obj_t *dst,
     off_t dst_off, size_t len)
 {
     pblock_obj_t *sos = src->state;
@@ -838,7 +838,7 @@ sd_pblock_copy_range(xrootd_sd_obj_t *src, off_t src_off, xrootd_sd_obj_t *dst,
  * large ones. Multi-block ranges return NGX_INVALID_FILE (served memory-backed)
  * until the VFS read path is block-aware. */
 static ngx_fd_t
-sd_pblock_read_sendfile_fd(xrootd_sd_obj_t *obj, off_t off, size_t len,
+sd_pblock_read_sendfile_fd(brix_sd_obj_t *obj, off_t off, size_t len,
     unsigned want_zerocopy)
 {
     pblock_obj_t *os = obj->state;
@@ -853,7 +853,7 @@ sd_pblock_read_sendfile_fd(xrootd_sd_obj_t *obj, off_t off, size_t len,
 }
 
 static ngx_int_t
-sd_pblock_ftruncate(xrootd_sd_obj_t *obj, off_t len)
+sd_pblock_ftruncate(brix_sd_obj_t *obj, off_t len)
 {
     pblock_obj_t *os = obj->state;
     int64_t       bs = os->block_size;
@@ -906,7 +906,7 @@ sd_pblock_ftruncate(xrootd_sd_obj_t *obj, off_t len)
 /* sd_pblock_fsync — durability barrier: fsync every block file backing the
  * object, then flush dirty size/mtime to the catalog. */
 static ngx_int_t
-sd_pblock_fsync(xrootd_sd_obj_t *obj)
+sd_pblock_fsync(brix_sd_obj_t *obj)
 {
     pblock_obj_t *os = obj->state;
     int64_t       last = pblock_last_block(os->meta.size, os->block_size);
@@ -944,7 +944,7 @@ sd_pblock_fsync(xrootd_sd_obj_t *obj)
 }
 
 static ngx_int_t
-sd_pblock_fstat(xrootd_sd_obj_t *obj, xrootd_sd_stat_t *out)
+sd_pblock_fstat(brix_sd_obj_t *obj, brix_sd_stat_t *out)
 {
     pblock_obj_t *os = obj->state;
 
@@ -955,8 +955,8 @@ sd_pblock_fstat(xrootd_sd_obj_t *obj, xrootd_sd_stat_t *out)
 /* ---- namespace ------------------------------------------------------------ */
 
 static ngx_int_t
-sd_pblock_stat(xrootd_sd_instance_t *inst, const char *path,
-    xrootd_sd_stat_t *out)
+sd_pblock_stat(brix_sd_instance_t *inst, const char *path,
+    brix_sd_stat_t *out)
 {
     pblock_state_t *st = inst->state;
     pblock_meta     meta;
@@ -975,7 +975,7 @@ sd_pblock_stat(xrootd_sd_instance_t *inst, const char *path,
 }
 
 static ngx_int_t
-sd_pblock_unlink(xrootd_sd_instance_t *inst, const char *path, int is_dir)
+sd_pblock_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)
 {
     pblock_state_t *st = inst->state;
     pblock_meta     meta;
@@ -1017,7 +1017,7 @@ sd_pblock_unlink(xrootd_sd_instance_t *inst, const char *path, int is_dir)
 }
 
 static ngx_int_t
-sd_pblock_mkdir(xrootd_sd_instance_t *inst, const char *path, mode_t mode)
+sd_pblock_mkdir(brix_sd_instance_t *inst, const char *path, mode_t mode)
 {
     pblock_state_t *st = inst->state;
     pblock_meta     meta;
@@ -1038,8 +1038,8 @@ sd_pblock_mkdir(xrootd_sd_instance_t *inst, const char *path, mode_t mode)
  * an export cannot represent should not break the op. ctime is bumped on any
  * change, matching POSIX. lookup→modify→put reuses the upsert path. */
 static ngx_int_t
-sd_pblock_setattr(xrootd_sd_instance_t *inst, const char *path,
-    const xrootd_sd_setattr_t *attr)
+sd_pblock_setattr(brix_sd_instance_t *inst, const char *path,
+    const brix_sd_setattr_t *attr)
 {
     pblock_state_t *st = inst->state;
     int             set_mtime = 0;
@@ -1081,7 +1081,7 @@ sd_pblock_drop_dst(pblock_state_t *st, const char *dst,
 }
 
 static ngx_int_t
-sd_pblock_rename(xrootd_sd_instance_t *inst, const char *src, const char *dst,
+sd_pblock_rename(brix_sd_instance_t *inst, const char *src, const char *dst,
     int noreplace)
 {
     pblock_state_t *st = inst->state;
@@ -1117,7 +1117,7 @@ sd_pblock_rename(xrootd_sd_instance_t *inst, const char *src, const char *dst,
 }
 
 static ngx_int_t
-sd_pblock_server_copy(xrootd_sd_instance_t *inst, const char *src,
+sd_pblock_server_copy(brix_sd_instance_t *inst, const char *src,
     const char *dst, off_t *bytes_out)
 {
     pblock_state_t *st = inst->state;
@@ -1183,11 +1183,11 @@ sd_pblock_server_copy(xrootd_sd_instance_t *inst, const char *src,
 
 /* ---- directory iteration -------------------------------------------------- */
 
-static xrootd_sd_dir_t *
-sd_pblock_opendir(xrootd_sd_instance_t *inst, const char *path, int *err_out)
+static brix_sd_dir_t *
+sd_pblock_opendir(brix_sd_instance_t *inst, const char *path, int *err_out)
 {
     pblock_state_t  *st = inst->state;
-    xrootd_sd_dir_t *dir;
+    brix_sd_dir_t *dir;
     pblock_dir_t    *pd;
     pblock_meta      meta;
     int              rc;
@@ -1228,7 +1228,7 @@ sd_pblock_opendir(xrootd_sd_instance_t *inst, const char *path, int *err_out)
 }
 
 static ngx_int_t
-sd_pblock_readdir(xrootd_sd_dir_t *d, xrootd_sd_dirent_t *out)
+sd_pblock_readdir(brix_sd_dir_t *d, brix_sd_dirent_t *out)
 {
     pblock_dir_t *pd = d->state;
     int           rc = pblock_catalog_readdir(pd->it, out->name,
@@ -1241,7 +1241,7 @@ sd_pblock_readdir(xrootd_sd_dir_t *d, xrootd_sd_dirent_t *out)
 }
 
 static ngx_int_t
-sd_pblock_closedir(xrootd_sd_dir_t *d)
+sd_pblock_closedir(brix_sd_dir_t *d)
 {
     pblock_dir_t *pd = d->state;
 
@@ -1256,7 +1256,7 @@ sd_pblock_closedir(xrootd_sd_dir_t *d)
 /* ---- xattr ---------------------------------------------------------------- */
 
 static ssize_t
-sd_pblock_getxattr(xrootd_sd_instance_t *inst, const char *path,
+sd_pblock_getxattr(brix_sd_instance_t *inst, const char *path,
     const char *name, void *buf, size_t cap)
 {
     pblock_state_t *st = inst->state;
@@ -1265,7 +1265,7 @@ sd_pblock_getxattr(xrootd_sd_instance_t *inst, const char *path,
 }
 
 static ssize_t
-sd_pblock_listxattr(xrootd_sd_instance_t *inst, const char *path, void *buf,
+sd_pblock_listxattr(brix_sd_instance_t *inst, const char *path, void *buf,
     size_t cap)
 {
     pblock_state_t *st = inst->state;
@@ -1274,7 +1274,7 @@ sd_pblock_listxattr(xrootd_sd_instance_t *inst, const char *path, void *buf,
 }
 
 static ngx_int_t
-sd_pblock_setxattr(xrootd_sd_instance_t *inst, const char *path,
+sd_pblock_setxattr(brix_sd_instance_t *inst, const char *path,
     const char *name, const void *val, size_t len, int flags)
 {
     pblock_state_t *st = inst->state;
@@ -1285,7 +1285,7 @@ sd_pblock_setxattr(xrootd_sd_instance_t *inst, const char *path,
 }
 
 static ngx_int_t
-sd_pblock_removexattr(xrootd_sd_instance_t *inst, const char *path,
+sd_pblock_removexattr(brix_sd_instance_t *inst, const char *path,
     const char *name)
 {
     pblock_state_t *st = inst->state;
@@ -1296,12 +1296,12 @@ sd_pblock_removexattr(xrootd_sd_instance_t *inst, const char *path,
 
 /* ---- staged atomic publish ------------------------------------------------ */
 
-static xrootd_sd_staged_t *
-sd_pblock_staged_open(xrootd_sd_instance_t *inst, const char *final_path,
+static brix_sd_staged_t *
+sd_pblock_staged_open(brix_sd_instance_t *inst, const char *final_path,
     mode_t mode, int *err_out)
 {
     pblock_state_t     *st = inst->state;
-    xrootd_sd_staged_t *handle;
+    brix_sd_staged_t *handle;
     pblock_staged_t    *ps;
 
     /* POSIX parity with the posix driver's staged temp (O_EXCL in the final
@@ -1341,7 +1341,7 @@ sd_pblock_staged_open(xrootd_sd_instance_t *inst, const char *final_path,
 }
 
 static ssize_t
-sd_pblock_staged_write(xrootd_sd_staged_t *st, const void *buf, size_t len,
+sd_pblock_staged_write(brix_sd_staged_t *st, const void *buf, size_t len,
     off_t off)
 {
     pblock_staged_t *ps = st->state;
@@ -1360,7 +1360,7 @@ sd_pblock_staged_write(xrootd_sd_staged_t *st, const void *buf, size_t len,
  * the final object — no copy or rename). On success the handle is consumed; on
  * failure it stays valid and the caller must staged_abort to release it. */
 static ngx_int_t
-sd_pblock_staged_commit(xrootd_sd_staged_t *st, int noreplace)
+sd_pblock_staged_commit(brix_sd_staged_t *st, int noreplace)
 {
     pblock_staged_t *ps = st->state;
     pblock_state_t  *pst = ps->st;
@@ -1399,7 +1399,7 @@ sd_pblock_staged_commit(xrootd_sd_staged_t *st, int noreplace)
 }
 
 static void
-sd_pblock_staged_abort(xrootd_sd_staged_t *st)
+sd_pblock_staged_abort(brix_sd_staged_t *st)
 {
     pblock_staged_t *ps = st->state;
 
@@ -1415,14 +1415,14 @@ sd_pblock_staged_abort(xrootd_sd_staged_t *st)
 /* Full POSIX-parity capabilities: block 0 is a real kernel file, so the backend
  * is fd-backed, sendfile-able and io_uring-submittable; the catalog provides
  * atomic rename, real directories, server copy and object xattrs. */
-const xrootd_sd_driver_t xrootd_sd_pblock_driver = {
+const brix_sd_driver_t brix_sd_pblock_driver = {
     .name = "pblock",
-    .caps = XROOTD_SD_CAP_FD | XROOTD_SD_CAP_SENDFILE
-          | XROOTD_SD_CAP_RANDOM_WRITE | XROOTD_SD_CAP_RANGE_READ
-          | XROOTD_SD_CAP_TRUNCATE | XROOTD_SD_CAP_APPEND
-          | XROOTD_SD_CAP_IOURING | XROOTD_SD_CAP_SERVER_COPY
-          | XROOTD_SD_CAP_XATTR | XROOTD_SD_CAP_HARD_RENAME
-          | XROOTD_SD_CAP_DIRS,
+    .caps = BRIX_SD_CAP_FD | BRIX_SD_CAP_SENDFILE
+          | BRIX_SD_CAP_RANDOM_WRITE | BRIX_SD_CAP_RANGE_READ
+          | BRIX_SD_CAP_TRUNCATE | BRIX_SD_CAP_APPEND
+          | BRIX_SD_CAP_IOURING | BRIX_SD_CAP_SERVER_COPY
+          | BRIX_SD_CAP_XATTR | BRIX_SD_CAP_HARD_RENAME
+          | BRIX_SD_CAP_DIRS,
 
     .init    = sd_pblock_init,
     .cleanup = sd_pblock_cleanup,
@@ -1461,4 +1461,4 @@ const xrootd_sd_driver_t xrootd_sd_pblock_driver = {
     .staged_abort  = sd_pblock_staged_abort,
 };
 
-#endif /* XROOTD_HAVE_SQLITE */
+#endif /* BRIX_HAVE_SQLITE */

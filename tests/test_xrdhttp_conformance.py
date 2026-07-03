@@ -28,7 +28,7 @@ from settings import (
     SERVER_KEY,
     XRDHTTP_HTTP_PORT,
     XRDHTTP_ROOT_PORT,
-    XROOTD_BIN,
+    BRIX_BIN,
     url_host,
 )
 

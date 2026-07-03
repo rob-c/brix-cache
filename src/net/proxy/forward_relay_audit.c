@@ -9,13 +9,13 @@
 #include "protocols/root/session/registry.h"
 
 void
-proxy_write_path_audit(xrootd_proxy_ctx_t *proxy, uint16_t status)
+proxy_write_path_audit(brix_proxy_ctx_t *proxy, uint16_t status)
 {
-    ngx_stream_xrootd_srv_conf_t *conf = proxy->conf;
+    ngx_stream_brix_srv_conf_t *conf = proxy->conf;
     const char  *op_str;
     const char  *status_str = (status == kXR_ok) ? "ok" : "error";
     const char  *user = "";
-    u_char       buf[256 + XROOTD_PROXY_PATH_MAX * 2];
+    u_char       buf[256 + BRIX_PROXY_PATH_MAX * 2];
     u_char      *p;
 
     if (conf == NULL || conf->proxy_audit_log_fd == NGX_INVALID_FILE) {

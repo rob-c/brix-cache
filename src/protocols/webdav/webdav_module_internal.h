@@ -2,8 +2,8 @@
  * webdav_module_internal.h - private split contract for module.c and its Phase-38 siblings.
  * Not a public API: include only from src/webdav/.  See docs/refactor/phase-38-file-size-unix-modularity.md.
  */
-#ifndef XROOTD_WEBDAV_MODULE_INTERNAL_H
-#define XROOTD_WEBDAV_MODULE_INTERNAL_H
+#ifndef BRIX_WEBDAV_MODULE_INTERNAL_H
+#define BRIX_WEBDAV_MODULE_INTERNAL_H
 
 #include "webdav.h"
 #include "module_acc_directives.h" 
@@ -20,10 +20,10 @@
 #include <stdlib.h>
 #include <limits.h>
 extern ngx_conf_enum_t  webdav_auth_values[];
-extern ngx_conf_enum_t  xrootd_webdav_cks_xattr_formats[];
+extern ngx_conf_enum_t  brix_webdav_cks_xattr_formats[];
 
-extern ngx_command_t ngx_http_xrootd_webdav_commands[];
-extern ngx_http_module_t ngx_http_xrootd_webdav_module_ctx;
+extern ngx_command_t ngx_http_brix_webdav_commands[];
+extern ngx_http_module_t ngx_http_brix_webdav_module_ctx;
 
 
 /* module_directives.c */
@@ -34,10 +34,10 @@ ngx_int_t webdav_open_file_cache_arg(ngx_str_t *arg, ngx_int_t *max, time_t *ina
 char * webdav_conf_open_file_cache(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 
 /* module_init.c */
-ngx_int_t xrootd_http_protocol_variable(ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data);
-ngx_int_t xrootd_http_add_protocol_variables(ngx_conf_t *cf);
-ngx_int_t ngx_http_xrootd_webdav_preconfiguration(ngx_conf_t *cf);
-ngx_int_t ngx_http_xrootd_webdav_init_process(ngx_cycle_t *cycle);
-void ngx_http_xrootd_webdav_exit_process(ngx_cycle_t *cycle);
+ngx_int_t brix_http_protocol_variable(ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data);
+ngx_int_t brix_http_add_protocol_variables(ngx_conf_t *cf);
+ngx_int_t ngx_http_brix_webdav_preconfiguration(ngx_conf_t *cf);
+ngx_int_t ngx_http_brix_webdav_init_process(ngx_cycle_t *cycle);
+void ngx_http_brix_webdav_exit_process(ngx_cycle_t *cycle);
 
-#endif /* XROOTD_WEBDAV_MODULE_INTERNAL_H */
+#endif /* BRIX_WEBDAV_MODULE_INTERNAL_H */

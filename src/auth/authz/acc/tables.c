@@ -1,11 +1,11 @@
 /*
  * tables.c — identity-table lookups + table lifetime (XrdAccAccess_Tables).
  *
- * WHAT: xrootd_acc_named_find() resolves a name (user/group/host/org/role/
+ * WHAT: brix_acc_named_find() resolves a name (user/group/host/org/role/
  *   netgroup/template) to its capability list by exact match;
- *   xrootd_acc_domain_find() resolves a host to a domain capability list by
+ *   brix_acc_domain_find() resolves a host to a domain capability list by
  *   SUFFIX match (a `.cern.ch` record matches any host ending in `.cern.ch`).
- *   xrootd_acc_tables_free() releases an entire table generation.
+ *   brix_acc_tables_free() releases an entire table generation.
  *
  * WHY: faithful ports of XrdOucHash::Find (exact) and XrdAccCapName::Find
  *   (suffix).  The category tables are modelled as singly-linked name lists
@@ -19,8 +19,8 @@
 
 #include "acc.h"
 
-xrootd_acc_cap_t *
-xrootd_acc_named_find(xrootd_acc_named_t *list, const char *name)
+brix_acc_cap_t *
+brix_acc_named_find(brix_acc_named_t *list, const char *name)
 {
     if (name == NULL) {
         return NULL;
@@ -33,8 +33,8 @@ xrootd_acc_named_find(xrootd_acc_named_t *list, const char *name)
     return NULL;
 }
 
-xrootd_acc_cap_t *
-xrootd_acc_domain_find(xrootd_acc_named_t *dlist, const char *host)
+brix_acc_cap_t *
+brix_acc_domain_find(brix_acc_named_t *dlist, const char *host)
 {
     int  hlen;
 
@@ -56,7 +56,7 @@ xrootd_acc_domain_find(xrootd_acc_named_t *dlist, const char *host)
 }
 
 void
-xrootd_acc_tables_free(xrootd_acc_tables_t *tabs)
+brix_acc_tables_free(brix_acc_tables_t *tabs)
 {
     /* Every node (lists, names, caps, paths) was allocated from tabs->pool,
      * which itself was allocated from that pool's first block, so destroying

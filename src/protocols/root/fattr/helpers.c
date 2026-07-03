@@ -2,7 +2,7 @@
  * WHAT: This file provides shared helper functions for the XRootD fattr protocol handlers. Maps POSIX errno values to kXR error codes, encodes per-attribute result codes into wire-format response buffers, parses nvec request payloads (attribute name lists with embedded result slots), and builds vector status responses for set/del operations.
  *
  * WHY: Multiple fattr sub-code handlers (get, set, del) share common patterns — errno→kXR mapping, rc encoding in network byte order, nvec parsing. Centralizing these helpers avoids duplication and ensures consistent error code translation across all fattr operations. ---- */
-#include "ngx_xrootd_fattr.h"
+#include "ngx_brix_fattr.h"
 #include "core/compat/error_mapping.h"
 #include "core/compat/fattr_codec.h"   /* shared nvec entry parser (libxrdproto) */
 #include <errno.h>
@@ -19,15 +19,15 @@ fattr_errno_to_xrd(int err)
     switch (err) {
     case ENODATA:  return kXR_AttrNotFound;
     case ERANGE:   return kXR_ArgTooLong;
-    default:       return xrootd_kxr_from_errno(err);
+    default:       return brix_kxr_from_errno(err);
     }
 }
-/* WHAT: Maps POSIX errno values to XRootD kXR error codes. ENODATA → kXR_AttrNotFound (attribute not found), ERANGE → kXR_ArgTooLong (value too long for buffer). All other errnos delegate to xrootd_kxr_from_errno() which uses the standard errno→kXR mapping table. */
+/* WHAT: Maps POSIX errno values to XRootD kXR error codes. ENODATA → kXR_AttrNotFound (attribute not found), ERANGE → kXR_ArgTooLong (value too long for buffer). All other errnos delegate to brix_kxr_from_errno() which uses the standard errno→kXR mapping table. */
 /* WHY: POSIX filesystem xattr syscalls return ENODATA/ERANGE/etc but XRootD wire protocol expects kXR codes. This translation ensures error responses match the XRootD spec regardless of underlying filesystem behavior. The default case delegates to the shared errno→kXR converter for consistency across all modules. */
-/* HOW: switch(err) — ENODATA returns kXR_AttrNotFound; ERANGE returns kXR_ArgTooLong; any other value calls xrootd_kxr_from_errno(err). Returns uint16_t kXR code. Used by fattr_set_rc() and all fattr handlers when getxattr/fgetxattr/setxattr/removexattr return negative with errno set. */
+/* HOW: switch(err) — ENODATA returns kXR_AttrNotFound; ERANGE returns kXR_ArgTooLong; any other value calls brix_kxr_from_errno(err). Returns uint16_t kXR code. Used by fattr_set_rc() and all fattr handlers when getxattr/fgetxattr/setxattr/removexattr return negative with errno set. */
 
 void
-fattr_set_rc(xrootd_fattr_entry_t *attr, uint16_t rc)
+fattr_set_rc(brix_fattr_entry_t *attr, uint16_t rc)
 {
     uint16_t rc_be;
 
@@ -42,7 +42,7 @@ fattr_set_rc(xrootd_fattr_entry_t *attr, uint16_t rc)
 
 ssize_t
 fattr_parse_nvec(ngx_log_t *log, u_char *nvec_copy, size_t buflen,
-    int numattr, xrootd_fattr_entry_t *attrs)
+    int numattr, brix_fattr_entry_t *attrs)
 {
     u_char *cursor;
     int     attr_index;
@@ -55,7 +55,7 @@ fattr_parse_nvec(ngx_log_t *log, u_char *nvec_copy, size_t buflen,
      * back into nvec_copy.  Later operations overwrite only the result slot.
      */
 /* WHY: nvec is the XRootD request payload for set/del/fattrGet — it carries attribute names with embedded 2-byte result slots that handlers overwrite with per-attribute status codes. Parsing into attr[] entries enables subsequent operations to read names, compute xkey prefixes, and write rc values at fixed positions. */
-/* HOW: Initializes cursor = nvec_copy, end = nvec_copy + buflen. Loop over numattr entries: checks cursor+2 <= end (truncation guard), sets attrs[i].rc_ptr=cursor, errcode=0, value=NULL, vlen=0; advances cursor by 2. Scans for NUL terminator to find name length — if cursor >= end logs "name not null-terminated" and returns -1. Validates name_len > 0 && <= kXR_faMaxNlen — otherwise logs invalid length and returns -1. Sets attrs[i].name=name_start, nlen=name_len; snprintf xkey with XROOTD_FATTR_XKEY_PFX prefix + %.*s format. Advances cursor past NUL. Returns (ssize_t)(cursor - nvec_copy) = bytes consumed. */
+/* HOW: Initializes cursor = nvec_copy, end = nvec_copy + buflen. Loop over numattr entries: checks cursor+2 <= end (truncation guard), sets attrs[i].rc_ptr=cursor, errcode=0, value=NULL, vlen=0; advances cursor by 2. Scans for NUL terminator to find name length — if cursor >= end logs "name not null-terminated" and returns -1. Validates name_len > 0 && <= kXR_faMaxNlen — otherwise logs invalid length and returns -1. Sets attrs[i].name=name_start, nlen=name_len; snprintf xkey with BRIX_FATTR_XKEY_PFX prefix + %.*s format. Advances cursor past NUL. Returns (ssize_t)(cursor - nvec_copy) = bytes consumed. */
     cursor = nvec_copy;
 
     for (attr_index = 0; attr_index < numattr; attr_index++) {
@@ -90,7 +90,7 @@ fattr_parse_nvec(ngx_log_t *log, u_char *nvec_copy, size_t buflen,
         attrs[attr_index].name = (char *) name_p;
         attrs[attr_index].nlen = name_len;
         snprintf(attrs[attr_index].xkey, sizeof(attrs[attr_index].xkey),
-                 XROOTD_FATTR_XKEY_PFX "%.*s", (int) name_len, name_p);
+                 BRIX_FATTR_XKEY_PFX "%.*s", (int) name_len, name_p);
 
         cursor = nvec_copy + next;
     }
@@ -99,9 +99,9 @@ fattr_parse_nvec(ngx_log_t *log, u_char *nvec_copy, size_t buflen,
 }
 
 ngx_int_t
-fattr_send_vector_status(xrootd_ctx_t *ctx, ngx_connection_t *c,
+fattr_send_vector_status(brix_ctx_t *ctx, ngx_connection_t *c,
     u_char *nvec_copy, size_t nvec_len, int numattr,
-    xrootd_fattr_entry_t *attrs)
+    brix_fattr_entry_t *attrs)
 {
     ngx_pool_t *pool;
     u_char     *response;
@@ -119,15 +119,15 @@ fattr_send_vector_status(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
 
     response_size = 2 + nvec_len;
-    XROOTD_PALLOC_OR_RETURN(response, pool, response_size, xrootd_send_error(ctx, c, kXR_NoMemory, "out of memory"));
+    BRIX_PALLOC_OR_RETURN(response, pool, response_size, brix_send_error(ctx, c, kXR_NoMemory, "out of memory"));
 
     response[0] = (u_char) error_count;
     response[1] = (u_char) numattr;
     ngx_memcpy(response + 2, nvec_copy, nvec_len);
 
-    XROOTD_OP_OK(ctx, XROOTD_OP_FATTR);
-    return xrootd_send_ok(ctx, c, response, (uint32_t) response_size);
+    BRIX_OP_OK(ctx, BRIX_OP_FATTR);
+    return brix_send_ok(ctx, c, response, (uint32_t) response_size);
 }
-/* WHAT: Builds a vector status response for fattr set/del operations — encodes error_count + numattr header bytes, copies nvec payload, and sends via xrootd_send_ok(). Used by set.c and del.c to return per-attribute results in wire format. */
-/* WHY: After setxattr/removexattr operations complete, each attribute has an errcode set in attrs[]. This function counts errors for the response header byte (error_count), allocates a minimal 2 + nvec_len response buffer, and sends it with XROOTD_OP_OK marker. No per-attribute values are included — only status codes. */
-/* HOW: Counts error entries via loop over attrs[] checking errcode != 0. Allocates response = ngx_palloc(pool, 2 + nvec_len) — if OOM returns xrootd_send_error(kXR_NoMemory). Writes response[0]=error_count, response[1]=numattr; memcpy(nvec_copy) at offset 2. Calls XROOTD_OP_OK() then returns xrootd_send_ok(). */
+/* WHAT: Builds a vector status response for fattr set/del operations — encodes error_count + numattr header bytes, copies nvec payload, and sends via brix_send_ok(). Used by set.c and del.c to return per-attribute results in wire format. */
+/* WHY: After setxattr/removexattr operations complete, each attribute has an errcode set in attrs[]. This function counts errors for the response header byte (error_count), allocates a minimal 2 + nvec_len response buffer, and sends it with BRIX_OP_OK marker. No per-attribute values are included — only status codes. */
+/* HOW: Counts error entries via loop over attrs[] checking errcode != 0. Allocates response = ngx_palloc(pool, 2 + nvec_len) — if OOM returns brix_send_error(kXR_NoMemory). Writes response[0]=error_count, response[1]=numattr; memcpy(nvec_copy) at offset 2. Calls BRIX_OP_OK() then returns brix_send_ok(). */

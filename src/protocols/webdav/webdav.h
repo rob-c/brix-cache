@@ -1,13 +1,13 @@
-#ifndef XROOTD_WEBDAV_H
-#define XROOTD_WEBDAV_H
+#ifndef BRIX_WEBDAV_H
+#define BRIX_WEBDAV_H
 
 /*
  * webdav.h — Shared types, configuration structs, and function declarations for the
  * nginx HTTP WebDAV module (davs:// endpoint).
  *
  * WHAT: Declares all shared data structures used across WebDAV source files:
- *       location-level config (`ngx_http_xrootd_webdav_loc_conf_t`), per-request
- *       auth context (`ngx_http_xrootd_webdav_req_ctx_t`), lock table entry and
+ *       location-level config (`ngx_http_brix_webdav_loc_conf_t`), per-request
+ *       auth context (`ngx_http_brix_webdav_req_ctx_t`), lock table entry and
  *       shared-memory table, authentication enums, and constants. Also declares
  *       every public function across the WebDAV module — path resolution, URI
  *       utilities, XML escaping, metrics, authentication, HTTP method handlers,
@@ -36,7 +36,7 @@
  *       13. HTTP-TPC — header macros, curl pull/push, thread task posting, COPY handler
  *       14. Upstream proxy — handler, URL parsing
  *       15. Credential delegation — mode parse, token obtain, metric names
- *       16. Capability table macro — XROOTD_WEBDAV_ALLOW_FLAGS()
+ *       16. Capability table macro — BRIX_WEBDAV_ALLOW_FLAGS()
  *
  * INCLUDES: xrdhttp.h is included here so all webdav source files see both types in
  *           a single include. See src/webdav/xrdhttp.h for the XrdHttp extension API.
@@ -75,7 +75,7 @@
 
 typedef struct x509_store_st X509_STORE;
 
-#define WEBDAV_MAX_PATH          XROOTD_PATH_MAX
+#define WEBDAV_MAX_PATH          BRIX_PATH_MAX
 #define WEBDAV_FD_TABLE_SIZE     16
 #define WEBDAV_PUT_COPY_BUFSZ    (1024 * 1024)
 #define WEBDAV_PUT_COPY_CHUNK    (16 * 1024 * 1024)
@@ -128,19 +128,19 @@ typedef struct {
     ngx_str_t name;
     ngx_str_t dir;
     ngx_str_t canon;
-} xrootd_dig_export_t;
+} brix_dig_export_t;
 
 typedef struct {
-    ngx_http_xrootd_shared_conf_t common; /* enable, root, root_canon, allow_write,
+    ngx_http_brix_shared_conf_t common; /* enable, root, root_canon, allow_write,
                                              thread_pool_name, thread_pool */
 
     /* --- Optional read-through cache root --- */
-    ngx_str_t   cache_root;               /* [xrootd_webdav_cache_root /path] */
+    ngx_str_t   cache_root;               /* [brix_webdav_cache_root /path] */
     char        cache_root_canon[PATH_MAX]; /* realpath-resolved form; "" = disabled */
 
     /* --- VOMS VO extraction (optional; requires libvomsapi) --- */
-    ngx_str_t   vomsdir;       /* [xrootd_webdav_vomsdir /etc/grid-security/vomsdir] */
-    ngx_str_t   voms_cert_dir; /* [xrootd_webdav_voms_cert_dir /etc/grid-security/certificates] */
+    ngx_str_t   vomsdir;       /* [brix_webdav_vomsdir /etc/grid-security/vomsdir] */
+    ngx_str_t   voms_cert_dir; /* [brix_webdav_voms_cert_dir /etc/grid-security/certificates] */
 
     /* --- X.509 / GSI authentication --- */
     ngx_str_t      cadir;           /* directory of trusted CA PEM files */
@@ -156,14 +156,14 @@ typedef struct {
     /* --- Write permissions / TPC --- */
     ngx_flag_t     tpc;             /* 1 to allow HTTP-TPC (third-party copy) */
     ngx_flag_t     tape_rest;       /* 1 to serve the WLCG /api/v1 Tape REST API */
-    ngx_flag_t     upload_resume;   /* [xrootd_webdav_upload_resume on|off] default
+    ngx_flag_t     upload_resume;   /* [brix_webdav_upload_resume on|off] default
                                      * ON.  When on, a Content-Range PUT writes its
                                      * chunk to a persistent identity-keyed partial
                                      * at the given offset and commits only when the
                                      * upload is complete; a 409 reports X-Upload-
                                      * Offset.  Lets a davs:// upload resume across
                                      * an nginx restart.  See src/webdav/put.c. */
-    ngx_str_t      upload_stage_dir;      /* [xrootd_webdav_stage_dir <path>] optional
+    ngx_str_t      upload_stage_dir;      /* [brix_webdav_stage_dir <path>] optional
                                      * fast-cache staging device; empty = stage
                                      * adjacent to the destination. */
     char           upload_stage_dir_canon[PATH_MAX];
@@ -191,28 +191,28 @@ typedef struct {
     ngx_uint_t     tpc_max_streams;     /* max parallel streams per pull; 0 = single */
 
     /* --- HTTP-TPC OAuth2/OIDC credential delegation --- */
-    ngx_http_xrootd_tpc_conf_t tpc_cred;
+    ngx_http_brix_tpc_conf_t tpc_cred;
 
     /* --- Bearer token (WLCG/SciToken) settings --- */
     ngx_str_t      token_jwks;      /* path to JWKS file for RS256 validation */
     ngx_str_t      token_issuer;    /* required "iss" claim; "" to skip check */
     ngx_str_t      token_audience;  /* required "aud" claim; "" to skip check */
-    ngx_str_t      token_config;    /* [xrootd_webdav_token_config <scitokens.cfg>]
+    ngx_str_t      token_config;    /* [brix_webdav_token_config <scitokens.cfg>]
                                        multi-issuer registry (phase-59 W1) */
-    void          *token_registry;  /* xrootd_token_registry_t* or NULL */
-    ngx_str_t      token_macaroon_secret;     /* [xrootd_webdav_macaroon_secret <hex>] */
-    ngx_str_t      token_macaroon_secret_old; /* [xrootd_webdav_macaroon_secret_old <hex>]
+    void          *token_registry;  /* brix_token_registry_t* or NULL */
+    ngx_str_t      token_macaroon_secret;     /* [brix_webdav_macaroon_secret <hex>] */
+    ngx_str_t      token_macaroon_secret_old; /* [brix_webdav_macaroon_secret_old <hex>]
                                                  grace-period key accepted alongside the
                                                  primary secret during key rotation. */
-    xrootd_jwks_key_t  jwks_keys[XROOTD_MAX_JWKS_KEYS]; /* loaded RSA pub keys */
+    brix_jwks_key_t  jwks_keys[BRIX_MAX_JWKS_KEYS]; /* loaded RSA pub keys */
     int                 jwks_key_count;  /* number of valid entries in jwks_keys */
     ngx_flag_t          http_query_token; /* accept ?authz=<token> (default on) */
     ngx_int_t           macaroon_max_validity; /* seconds cap for macaroon-request */
     ngx_str_t           macaroon_location;      /* location: caveat (issuer URI) */
     ngx_str_t           checksum_on_write; /* §8.3 alg list to persist at PUT (off="") */
-    ngx_uint_t          checksum_xattr_format; /* §8.x XROOTD_CKS_FMT_TEXT|XRDCKS */
+    ngx_uint_t          checksum_xattr_format; /* §8.x BRIX_CKS_FMT_TEXT|XRDCKS */
     ngx_flag_t          dig_enable;        /* §3 XrdDig remote diagnostics (default off) */
-    ngx_array_t        *dig_exports;       /* §3 of xrootd_dig_export_t (name→canon dir) */
+    ngx_array_t        *dig_exports;       /* §3 of brix_dig_export_t (name→canon dir) */
     ngx_str_t           dig_auth_file;     /* §3 principal→export allow-file (fail-closed) */
 
     /* --- CORS settings --- */
@@ -221,7 +221,7 @@ typedef struct {
     ngx_uint_t          cors_max_age;     /* Access-Control-Max-Age in seconds */
 
     /* --- ZIP member access (phase-57 W2) ---
-     * [xrootd_webdav_zip_access on|off] — opt-in, off by default.  A GET whose
+     * [brix_webdav_zip_access on|off] — opt-in, off by default.  A GET whose
      * query carries "?xrdcl.unzip=<member>" serves that member of the archive
      * (stored + deflate).  Unlike root://, an HTTP client cannot self-inflate,
      * so the server must extract.  zip_cd_max_bytes caps the central-directory
@@ -245,8 +245,8 @@ typedef struct {
     ngx_flag_t              open_file_cache_events;
 
     /* --- Upstream HTTP(S) proxy --- */
-    ngx_flag_t                    upstream_proxy;      /* xrootd_webdav_proxy on/off */
-    ngx_str_t                     upstream_url;        /* xrootd_webdav_proxy_upstream URL */
+    ngx_flag_t                    upstream_proxy;      /* brix_webdav_proxy on/off */
+    ngx_str_t                     upstream_url;        /* brix_webdav_proxy_upstream URL */
     ngx_str_t                     upstream_host;       /* host[:port] for Host: header */
     ngx_str_t                     upstream_url_base;   /* scheme://host:port */
     ngx_uint_t                    upstream_auth;       /* webdav_proxy_auth_t */
@@ -260,21 +260,21 @@ typedef struct {
 
     /* ---- Phase 21 Step D: multi-backend proxy (round-robin + health) ---- */
     ngx_array_t                  *upstream_urls;       /* ngx_str_t[] from the directive */
-    ngx_array_t                  *upstream_backends;   /* xrootd_webdav_backend_t[] */
+    ngx_array_t                  *upstream_backends;   /* brix_webdav_backend_t[] */
     ngx_atomic_t                  upstream_rr;         /* per-worker round-robin cursor */
-    ngx_uint_t                    upstream_max_fails;  /* [xrootd_webdav_proxy_max_fails N] */
+    ngx_uint_t                    upstream_max_fails;  /* [brix_webdav_proxy_max_fails N] */
     ngx_msec_t                    upstream_fail_timeout; /* [..._proxy_fail_timeout Ns] */
 
     /* ---- Phase 23: dynamic SHM backend pool (runtime add/remove/drain) ---- */
-    ngx_flag_t                    proxy_pool_enabled;  /* [xrootd_webdav_proxy_dynamic on] */
+    ngx_flag_t                    proxy_pool_enabled;  /* [brix_webdav_proxy_dynamic on] */
 
     /* ---- Phase 20: shared-memory caches & rate limiting ---- */
-    xrootd_kv_t                  *token_cache_kv; /* [xrootd_token_cache zone=]
+    brix_kv_t                  *token_cache_kv; /* [brix_token_cache zone=]
                                                      JWT validation cache (L2/SHM); NULL = off */
     /* Phase 50: always-on per-worker L1 token-validation cache (lockless),
      * lazily created on first token auth — see token/worker_cache.h. */
-    struct xrootd_token_l1_s     *token_l1;
-    xrootd_rate_limit_conf_t      rate_limit;     /* [xrootd_rate_limit zone= rate= burst= key=]
+    struct brix_token_l1_s     *token_l1;
+    brix_rate_limit_conf_t      rate_limit;     /* [brix_rate_limit zone= rate= burst= key=]
                                                      per-IP request throttle; kv NULL = off */
 
     /* ---- Phase 21 Step C: OIDC token introspection (revocation) ---- */
@@ -282,35 +282,35 @@ typedef struct {
     ngx_str_t      introspect_loc;       /* [..._token_introspect_loc /internal] internal URI */
     ngx_uint_t     introspect_ttl;       /* [..._token_introspect_ttl N] revoke-cache TTL (s) */
     ngx_flag_t     introspect_fail_open; /* [..._token_introspect_fail_open on|off] */
-    xrootd_kv_t   *revoke_kv;            /* [..._revoke_cache zone=] revoked-token cache */
+    brix_kv_t   *revoke_kv;            /* [..._revoke_cache zone=] revoked-token cache */
 
     /* ---- Phase 24: traffic mirroring (off by default) ---- */
-    xrootd_mirror_conf_t      mirror;            /* [xrootd_mirror_url, _mirror_*] */
+    brix_mirror_conf_t      mirror;            /* [brix_mirror_url, _mirror_*] */
     ngx_http_upstream_conf_t  mirror_upstream_conf; /* shadow upstream defaults */
 #if (NGX_HTTP_SSL)
     ngx_ssl_t                *mirror_ssl_ctx;    /* TLS ctx for https shadow targets */
 #endif
 
     /* ---- Phase 25: advanced rate limiting (off by default) ---- */
-    ngx_array_t              *rl_rules;          /* xrootd_rl_rule_t[] from
-                                                  [xrootd_rate_limit_rule /
+    ngx_array_t              *rl_rules;          /* brix_rl_rule_t[] from
+                                                  [brix_rate_limit_rule /
                                                    _bandwidth_limit]; NULL = off */
 
     /* ---- XrdAcc authorization engine (off by default) ---- */
-    xrootd_acc_http_t         acc;               /* settings + per-worker state */
+    brix_acc_http_t         acc;               /* settings + per-worker state */
 
     /* Per-socket TCP congestion control (e.g. "bbr") applied to the HTTP
      * connection before the GET body is served; empty = kernel default.  The
      * sender's CC governs download throughput, and BBR ignores the spurious loss
-     * signals packet reordering induces. [xrootd_tcp_congestion] */
+     * signals packet reordering induces. [brix_tcp_congestion] */
     ngx_str_t                 tcp_congestion;
-} ngx_http_xrootd_webdav_loc_conf_t;
+} ngx_http_brix_webdav_loc_conf_t;
 
 /*
  * Per-request authentication context.  Lifetime: r->pool (request scope).
  *
  * Set by webdav_verify_proxy_cert() or webdav_verify_bearer_token() during
- * the auth gate in ngx_http_xrootd_webdav_handler().
+ * the auth gate in ngx_http_brix_webdav_handler().
  */
 typedef struct {
     /* XrdHttp per-request context — MUST be first member so that a pointer
@@ -319,14 +319,14 @@ typedef struct {
     xrdhttp_req_ctx_t  xrdhttp;
 
     int            verified;     /* 1 if auth was accepted, 0 if anonymous */
-    xrootd_identity_t *identity; /* canonical Phase 2 identity object */
+    brix_identity_t *identity; /* canonical Phase 2 identity object */
     char           dn[1024];     /* Distinguished Name from cert or token sub;
                                   * NUL-terminated; empty string if anonymous */
     const char    *auth_source;  /* "cert", "token", or "anonymous" — static
                                   * string; do not free() */
     int            token_auth;   /* 1 if auth came from a bearer token */
     int            token_scope_count;  /* number of valid entries in token_scopes */
-    xrootd_token_scope_t  token_scopes[XROOTD_MAX_TOKEN_SCOPES];
+    brix_token_scope_t  token_scopes[BRIX_MAX_TOKEN_SCOPES];
                                  /* parsed scope list from the bearer token */
     
     /* LOCK context */
@@ -345,28 +345,28 @@ typedef struct {
     ngx_http_status_t mirror_status;     /* scratch for the shadow response parser */
 
     /* Phase 25 — bandwidth charge target set by the rate-limit access handler;
-     * consumed by the body filter.  rl_bw_rule is an xrootd_rl_rule_t* (void to
+     * consumed by the body filter.  rl_bw_rule is an brix_rl_rule_t* (void to
      * avoid pulling ratelimit.h into this header). */
     void             *rl_bw_rule;
     char              rl_key_str[128];
 
     /* W7 — concurrency slot acquired by the rate-limit access handler and
      * released in the log phase (always runs → leak-free).  rl_conc_rule is an
-     * xrootd_rl_rule_t* (void here for the same header-isolation reason). */
+     * brix_rl_rule_t* (void here for the same header-isolation reason). */
     void             *rl_conc_rule;
     char              rl_conc_key[128];
-} ngx_http_xrootd_webdav_req_ctx_t;
+} ngx_http_brix_webdav_req_ctx_t;
 
-extern ngx_module_t ngx_http_xrootd_webdav_module;
+extern ngx_module_t ngx_http_brix_webdav_module;
 
 /* Escape control bytes/quotes/backslashes/non-ASCII in `in` to \xNN, writing a
  * NUL-terminated result into out[outsz] (truncated to fit).  Returns the number
  * of bytes written (excluding the NUL).  Use on any wire-derived string before
  * logging. */
-size_t xrootd_sanitize_log_string(const char *in, char *out, size_t outsz);
+size_t brix_sanitize_log_string(const char *in, char *out, size_t outsz);
 /*
  * Confined filesystem operations.  All take a pre-canonicalised root_canon
- * (from xrootd_get_canonical_root) and absolute `resolved` paths the caller has
+ * (from brix_get_canonical_root) and absolute `resolved` paths the caller has
  * already confirmed live under it; each enforces a second, kernel-level
  * confinement layer (openat2 RESOLVE_BENEATH, else O_NOFOLLOW fallback) so a
  * symlink swapped in after resolution still cannot escape the export root.
@@ -375,48 +375,48 @@ size_t xrootd_sanitize_log_string(const char *in, char *out, size_t outsz);
  * -1 with errno set on failure.  flags/mode follow open(2) (mode used only with
  * O_CREAT — do not pass permission bits in the flags slot).
  */
-int xrootd_open_confined_canon(ngx_log_t *log, const char *root_canon,
+int brix_open_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved, int flags, mode_t mode);
 /* unlinkat under confinement; is_dir != 0 adds AT_REMOVEDIR (rmdir). */
-int xrootd_unlink_confined_canon(ngx_log_t *log, const char *root_canon,
+int brix_unlink_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved, int is_dir);
 /* mkdirat under confinement (single level; parent must already exist). */
-int xrootd_mkdir_confined_canon(ngx_log_t *log, const char *root_canon,
+int brix_mkdir_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved, mode_t mode);
 /* renameat under confinement; BOTH src and dst parents are confined. */
-int xrootd_rename_confined_canon(ngx_log_t *log, const char *root_canon,
+int brix_rename_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *src_resolved, const char *dst_resolved);
 /* linkat (hard link) under confinement; BOTH src and dst parents are confined. */
-int xrootd_link_confined_canon(ngx_log_t *log, const char *root_canon,
+int brix_link_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *src_resolved, const char *dst_resolved);
 
 /* Resolve (lazily, per worker) the storage-driver instance for this export: a
  * "pblock" backend is created on first use and cached on the loc conf; "posix"/
  * unset returns NULL (the default POSIX path). Returned as void* (an
- * xrootd_sd_instance_t*) to keep the SD types out of this header; assign it to a
+ * brix_sd_instance_t*) to keep the SD types out of this header; assign it to a
  * VFS ctx's `sd`. The cache is per worker process (copy-on-write conf), so each
  * worker owns its own SQLite connection. */
-void *xrootd_webdav_backend_instance(
-    ngx_http_xrootd_webdav_loc_conf_t *conf, ngx_log_t *log);
+void *brix_webdav_backend_instance(
+    ngx_http_brix_webdav_loc_conf_t *conf, ngx_log_t *log);
 
 /* Module wiring */
 /* Allocate+default-init the loc conf (cf->pool); returns it, or NULL on OOM. */
-void *ngx_http_xrootd_webdav_create_loc_conf(ngx_conf_t *cf);
+void *ngx_http_brix_webdav_create_loc_conf(ngx_conf_t *cf);
 /* Inherit unset child fields from parent; returns NGX_CONF_OK or
  * NGX_CONF_ERROR (also where invalid combinations are diagnosed). */
-char *ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
+char *ngx_http_brix_webdav_merge_loc_conf(ngx_conf_t *cf,
     void *parent, void *child);
 /* Register the access/content handlers, init SSL ex_data indices, and build the
  * CA store.  Returns NGX_OK or NGX_ERROR (fails `nginx -t`). */
-ngx_int_t ngx_http_xrootd_webdav_postconfiguration(ngx_conf_t *cf);
+ngx_int_t ngx_http_brix_webdav_postconfiguration(ngx_conf_t *cf);
 /* ACCESS-phase gate: CORS, request metrics, rate limit, then the auth gate
  * (cert/token) + write-scope check.  NGX_DECLINED if module disabled, NGX_OK to
  * allow, an NGX_HTTP_* status to reject. */
-ngx_int_t ngx_http_xrootd_webdav_access_handler(ngx_http_request_t *r);
+ngx_int_t ngx_http_brix_webdav_access_handler(ngx_http_request_t *r);
 /* CONTENT-phase handler: routes the (already authorised) request to the
  * per-method handler.  NGX_DECLINED for unknown methods (-> 405); otherwise an
  * NGX_HTTP_* status, or NGX_DONE when a handler finalised the request itself. */
-ngx_int_t ngx_http_xrootd_webdav_handler(ngx_http_request_t *r);
+ngx_int_t ngx_http_brix_webdav_handler(ngx_http_request_t *r);
 
 /* Phase 21 Step C — OIDC token introspection (revocation). */
 /* Extra ACCESS-phase handler: checks the bearer token against the revocation
@@ -424,20 +424,20 @@ ngx_int_t ngx_http_xrootd_webdav_handler(ngx_http_request_t *r);
  * not configured), NGX_HTTP_FORBIDDEN (revoked), NGX_AGAIN (suspended until the
  * subrequest completes), or NGX_ERROR. */
 ngx_int_t webdav_introspect_access_handler(ngx_http_request_t *r);
-/* Directive setter for `xrootd_webdav_revoke_cache zone=<name>`; binds the
+/* Directive setter for `brix_webdav_revoke_cache zone=<name>`; binds the
  * named SHM kv zone into conf->revoke_kv. */
 char     *webdav_conf_revoke_cache(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
 
 /* Operation Registry (operation_table.c) */
-extern const xrootd_http_operation_t xrootd_webdav_operations[];
-extern const ngx_uint_t xrootd_webdav_operations_count;
+extern const brix_http_operation_t brix_webdav_operations[];
+extern const ngx_uint_t brix_webdav_operations_count;
 
 /* Path, URI, XML, and logging utilities */
 /* Canonical helper (see HELPERS): url-decode r->uri, strip trailing slashes,
  * and resolve+confine under root_canon into out[outsz].  NGX_OK, else an
  * NGX_HTTP_* status (404/403/414/500/400-on-NUL). */
-ngx_int_t ngx_http_xrootd_webdav_resolve_path(ngx_http_request_t *r,
+ngx_int_t ngx_http_brix_webdav_resolve_path(ngx_http_request_t *r,
     const char *root_canon, char *out, size_t outsz);
 /* Resolve an already-decoded Destination path (COPY/MOVE target) under
  * root_canon.  Same as above but maps a non-existent parent to
@@ -492,7 +492,7 @@ ngx_int_t webdav_lock_xattr_delete(ngx_http_request_t *r, const char *path);
 /*
  * webdav_lock_startup_sweep — recursively remove every persisted lock xattr
  * (WEBDAV_LOCK_XATTR_KEY) under root_canon.  Used at startup when
- * xrootd_webdav_lock_startup_sweep is on, to restore ephemeral lock semantics.
+ * brix_webdav_lock_startup_sweep is on, to restore ephemeral lock semantics.
  * Returns the number of lock xattrs removed.
  */
 ngx_uint_t webdav_lock_startup_sweep(ngx_pool_t *pool, ngx_log_t *log,
@@ -518,7 +518,7 @@ ngx_int_t webdav_lock_append_discovery(ngx_http_request_t *r, const char *path,
 ngx_int_t webdav_lock_append_supported(ngx_http_request_t *r,
     ngx_chain_t **head, ngx_chain_t **tail);
 /* Classify the request method into the WebDAV metric slot (the requests_total
- * index); XROOTD_WEBDAV_METHOD_OTHER for unrecognised verbs. */
+ * index); BRIX_WEBDAV_METHOD_OTHER for unrecognised verbs. */
 ngx_uint_t webdav_metrics_method(ngx_http_request_t *r);
 /* Count this request's arrival (requests_total[method]). */
 void webdav_metrics_request(ngx_http_request_t *r);
@@ -545,18 +545,18 @@ ngx_int_t webdav_auth_init_ssl_indices(ngx_log_t *log);
  * plain WebDAV x509).  Returns the store (caller/postconfig owns it) or NULL;
  * *crl_count_out receives the number of CRLs loaded. */
 X509_STORE *webdav_build_ca_store(ngx_log_t *log,
-    ngx_http_xrootd_webdav_loc_conf_t *conf, int *crl_count_out);
+    ngx_http_brix_webdav_loc_conf_t *conf, int *crl_count_out);
 /* Auth gate (see HELPERS): verify the peer's GSI/X.509 (proxy) cert against
  * conf->ca_store, allocating+caching the req ctx and identity.  Result is
  * memoised per TLS session.  NGX_OK; 403 (no/invalid cert or non-TLS); 500. */
 ngx_int_t webdav_verify_proxy_cert(ngx_http_request_t *r,
-    ngx_http_xrootd_webdav_loc_conf_t *conf);
+    ngx_http_brix_webdav_loc_conf_t *conf);
 /* Auth gate (see HELPERS): validate the Bearer token (JWKS JWT or macaroon,
  * with old-secret grace-period fallback) and stash claims/scopes in the req
  * ctx.  NGX_OK; NGX_DECLINED if no token/keys configured (try other auth);
  * 401 invalid; 500. */
 ngx_int_t webdav_verify_bearer_token(ngx_http_request_t *r,
-    ngx_http_xrootd_webdav_loc_conf_t *conf);
+    ngx_http_brix_webdav_loc_conf_t *conf);
 /* For token-authed mutating methods, require a write scope covering r->uri
  * (matched against the decoded URI path, not the filesystem path).  NGX_OK if
  * granted OR auth was not token-based; NGX_HTTP_FORBIDDEN otherwise. */
@@ -565,7 +565,7 @@ ngx_int_t webdav_check_token_write_scope(ngx_http_request_t *r,
 /* Postconfig-time validation of CA/CRL paths so misconfiguration fails
  * `nginx -t`.  NGX_OK / NGX_ERROR. */
 ngx_int_t webdav_check_pki_consistency(ngx_log_t *log,
-    ngx_http_xrootd_webdav_loc_conf_t *conf);
+    ngx_http_brix_webdav_loc_conf_t *conf);
 
 /* HTTP methods.  Unless noted, each fully handles its method and returns NGX_OK
  * or an NGX_HTTP_* status for the dispatcher to finalise; the `void` ones own
@@ -621,7 +621,7 @@ void webdav_handle_macaroon_request(ngx_http_request_t *r);
  * confined, allow-file-gated exposure of whitelisted server files. Returns an HTTP
  * status, or NGX_DECLINED when dig is disabled / the path is not a dig path (so
  * normal WebDAV handling proceeds). Defined in src/dig/dig.c. */
-ngx_int_t xrootd_dig_handle(ngx_http_request_t *r);
+ngx_int_t brix_dig_handle(ngx_http_request_t *r);
 
 /* Dead WebDAV properties persisted as filesystem extended attributes.
  * `xml` for set() must be already-escaped, well-formed XML — it is stored and
@@ -673,7 +673,7 @@ ngx_int_t webdav_copy_spooled_file(ngx_http_request_t *r, ngx_fd_t dst_fd,
     ngx_buf_t *buf, const char *path, u_char **scratch);
 
 /* Max parallel streams for HTTP-TPC multi-stream pull (X-Number-Of-Streams). */
-#define XROOTD_TPC_MAX_STREAMS  16
+#define BRIX_TPC_MAX_STREAMS  16
 
 /*
  * Progress counters shared between the curl background thread and the
@@ -682,7 +682,7 @@ ngx_int_t webdav_copy_spooled_file(ngx_http_request_t *r, ngx_fd_t dst_fd,
  * ngx_http_finalize_request is called.
  */
 typedef struct {
-    volatile ngx_atomic_t  bytes_per_stream[XROOTD_TPC_MAX_STREAMS];
+    volatile ngx_atomic_t  bytes_per_stream[BRIX_TPC_MAX_STREAMS];
     volatile ngx_atomic_t  completed;  /* 1 when thread is done */
     ngx_int_t              result;     /* HTTP status; set before completed=1 */
     ngx_uint_t             n_streams;
@@ -692,21 +692,21 @@ typedef struct {
 /* HTTP-TPC */
 /* Set the TPC-related loc-conf fields to NGX_CONF_UNSET[_UINT] (called from the
  * module's create_loc_conf). */
-void ngx_http_xrootd_webdav_tpc_create_loc_conf(
-    ngx_http_xrootd_webdav_loc_conf_t *conf);
+void ngx_http_brix_webdav_tpc_create_loc_conf(
+    ngx_http_brix_webdav_loc_conf_t *conf);
 /* Merge the TPC-related fields, inheriting unset values from `prev` and applying
  * defaults (called from the module's merge_loc_conf). */
-void ngx_http_xrootd_webdav_tpc_merge_loc_conf(
-    ngx_http_xrootd_webdav_loc_conf_t *conf,
-    ngx_http_xrootd_webdav_loc_conf_t *prev);
+void ngx_http_brix_webdav_tpc_merge_loc_conf(
+    ngx_http_brix_webdav_loc_conf_t *conf,
+    ngx_http_brix_webdav_loc_conf_t *prev);
 /* TPC header lookup, value comparison, and NUL-copy helpers.
  * Macro aliases to compat equivalents — call sites unchanged, no wrapper functions. */
 #define webdav_tpc_find_header(r, name, name_len) \
-    xrootd_http_find_header(r, name, name_len)
+    brix_http_find_header(r, name, name_len)
 #define webdav_tpc_str_has_ctl(data, len) \
-    xrootd_http_str_has_ctl(data, len)
+    brix_http_str_has_ctl(data, len)
 #define webdav_tpc_header_value_equals(value, literal) \
-    xrootd_http_header_value_equals(value, literal)
+    brix_http_header_value_equals(value, literal)
 
 /* Copy data[len] into a fresh NUL-terminated `pool` buffer; NULL on OOM. */
 static inline char *
@@ -729,13 +729,13 @@ ngx_int_t webdav_tpc_collect_transfer_headers(ngx_http_request_t *r,
  * not the event loop.  transfer_id keys the live-transfer registry; bumps the
  * TPC success/error metric.  NGX_OK / NGX_HTTP_* on failure. */
 ngx_int_t webdav_tpc_run_curl_pull(ngx_log_t *log,
-    ngx_http_xrootd_webdav_loc_conf_t *conf, const char *source_url,
+    ngx_http_brix_webdav_loc_conf_t *conf, const char *source_url,
     const char *tmp_path, ngx_array_t *transfer_headers,
     uint64_t transfer_id);
 /* Blocking curl push (local_path -> dest_url); thread-only, mirror of the pull
  * above.  NGX_OK / NGX_HTTP_* on failure. */
 ngx_int_t webdav_tpc_run_curl_push(ngx_log_t *log,
-    ngx_http_xrootd_webdav_loc_conf_t *conf, const char *dest_url,
+    ngx_http_brix_webdav_loc_conf_t *conf, const char *dest_url,
     const char *local_path, ngx_array_t *transfer_headers,
     uint64_t transfer_id);
 /* Post a curl pull/push to conf->common.thread_pool (the 201 non-marker path).
@@ -745,17 +745,17 @@ ngx_int_t webdav_tpc_run_curl_push(ngx_log_t *log,
  * thread pool (use the sync path); 503 if the transfer registry is full;
  * NGX_ERROR on alloc/post failure or bad args. */
 ngx_int_t webdav_tpc_post_thread_task(ngx_http_request_t *r,
-    ngx_http_xrootd_webdav_loc_conf_t *conf,
+    ngx_http_brix_webdav_loc_conf_t *conf,
     int is_push, ngx_flag_t existed, ngx_flag_t overwrite,
     const char *url, const char *local_path, const char *dest_path,
     ngx_array_t *transfer_headers, ngx_uint_t n_streams);
 /* Blocking parallel-range curl_multi pull into tmp_path: HEADs for size, splits
  * into n_streams disjoint ranges each pwrite-ing in place (no merge), capped at
- * XROOTD_TPC_MAX_STREAMS.  Falls back to single-stream when size is unknown or
+ * BRIX_TPC_MAX_STREAMS.  Falls back to single-stream when size is unknown or
  * n_streams <= 1.  progress may be NULL; when set, each stream atomically updates
  * bytes_per_stream[i] for the poll timer.  NGX_OK / NGX_HTTP_* on failure. */
 ngx_int_t webdav_tpc_run_curl_pull_multi(ngx_log_t *log,
-    ngx_http_xrootd_webdav_loc_conf_t *conf,
+    ngx_http_brix_webdav_loc_conf_t *conf,
     const char *source_url, const char *tmp_path,
     ngx_array_t *transfer_headers, ngx_uint_t n_streams,
     uint64_t transfer_id, tpc_ms_progress_t *progress);
@@ -763,7 +763,7 @@ ngx_int_t webdav_tpc_run_curl_pull_multi(ngx_log_t *log,
  * Returns NGX_DONE (202 sent, poll timer running) or NGX_DECLINED (no thread
  * pool configured; caller falls back to the 201 path). */
 ngx_int_t webdav_tpc_marker_start(ngx_http_request_t *r,
-    ngx_http_xrootd_webdav_loc_conf_t *conf, ngx_uint_t n_streams,
+    ngx_http_brix_webdav_loc_conf_t *conf, ngx_uint_t n_streams,
     const char *url, const char *tmp_path, const char *final_path,
     ngx_flag_t is_pull, ngx_flag_t overwrite, ngx_flag_t existed,
     ngx_array_t *transfer_headers, uint64_t transfer_id);
@@ -773,32 +773,32 @@ ngx_int_t webdav_tpc_marker_start(ngx_http_request_t *r,
  * failure), and tries marker -> thread-pool -> sync tiers.  NGX_OK (201/204 sent
  * via webdav_send_no_body), an NGX_HTTP_* status for the dispatcher to finalise,
  * or NGX_DONE when an async (202 marker / thread) path self-finalises. */
-ngx_int_t ngx_http_xrootd_webdav_tpc_handle_copy(ngx_http_request_t *r);
+ngx_int_t ngx_http_brix_webdav_tpc_handle_copy(ngx_http_request_t *r);
 
 /* Upstream HTTP(S) proxy */
 /* Content-phase handler (proxy mode): create the nginx upstream, pick a backend
  * (dynamic SHM pool or static round-robin array), set ssl per backend, and start
- * the request via xrootd_http_read_body.  Returns NGX_DONE on the async upstream
+ * the request via brix_http_read_body.  Returns NGX_DONE on the async upstream
  * path; an NGX_HTTP_* status (500 OOM, 503 no live backend) on setup failure. */
 ngx_int_t webdav_proxy_handler(ngx_http_request_t *r);
 /* Backward-compat single-URL config parser; thin wrapper over
  * webdav_proxy_build_backends.  NGX_OK / NGX_ERROR. */
 ngx_int_t webdav_proxy_parse_upstream_url(ngx_conf_t *cf,
-    ngx_http_xrootd_webdav_loc_conf_t *conf);
+    ngx_http_brix_webdav_loc_conf_t *conf);
 /* Postconfig: build conf->upstream_backends (cf->pool) from upstream_urls (or the
  * legacy single upstream_url), apply upstream_conf timeout/buffer defaults, wire
  * the TLS ctx, and point the legacy upstream_* aliases at backend[0].  NGX_ERROR
  * (fails nginx -t) when no usable backend; NGX_OK otherwise. */
 ngx_int_t webdav_proxy_build_backends(ngx_conf_t *cf,
-    ngx_http_xrootd_webdav_loc_conf_t *conf);
-/* Directive setter: xrootd_webdav_proxy_upstream <url> [<url> ...]; */
+    ngx_http_brix_webdav_loc_conf_t *conf);
+/* Directive setter: brix_webdav_proxy_upstream <url> [<url> ...]; */
 char *webdav_conf_proxy_upstream(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
 
 /* HTTP-TPC credential delegation */
 /* Map a Credential-mode token value[len] to the enum; "none"/"oidc-agent"/
- * "token-exchange" recognised, else XROOTD_TPC_CRED_UNKNOWN. */
-xrootd_tpc_cred_mode_e webdav_tpc_cred_parse_mode(const char *value, size_t len);
+ * "token-exchange" recognised, else BRIX_TPC_CRED_UNKNOWN. */
+brix_tpc_cred_mode_e webdav_tpc_cred_parse_mode(const char *value, size_t len);
 /* Obtain a delegated bearer token for the TPC transfer via the given mode
  * (oidc-agent fetch, or RFC 8693 token-exchange of subject_token at the
  * configured token_endpoint), validating the result.  On NGX_OK *token_out is
@@ -806,21 +806,21 @@ xrootd_tpc_cred_mode_e webdav_tpc_cred_parse_mode(const char *value, size_t len)
  * metrics.  NGX_ERROR on misconfig, missing subject token, fetch, or validation
  * failure. */
 ngx_int_t webdav_tpc_cred_obtain_token(ngx_http_request_t *r,
-    xrootd_tpc_cred_mode_e mode, const char *source_url,
+    brix_tpc_cred_mode_e mode, const char *source_url,
     const char *subject_token, const char *scope, ngx_str_t *token_out);
 /* Static metric-name string for a tpc_cred metric index (never NULL; do not
  * free). */
-const char *webdav_tpc_cred_metric_name(xrootd_tpc_cred_metrics_e idx);
+const char *webdav_tpc_cred_metric_name(brix_tpc_cred_metrics_e idx);
 
 /* Operation capability table (operation_table.c) */
 #include "core/compat/protocol_caps.h"
-extern const xrootd_http_operation_t xrootd_webdav_operations[];
-extern const ngx_uint_t              xrootd_webdav_operations_count;
-#define XROOTD_WEBDAV_ALLOW_FLAGS(conf)                                    \
-    (XROOTD_PROTO_OP_READ | XROOTD_PROTO_OP_LIST                           \
+extern const brix_http_operation_t brix_webdav_operations[];
+extern const ngx_uint_t              brix_webdav_operations_count;
+#define BRIX_WEBDAV_ALLOW_FLAGS(conf)                                    \
+    (BRIX_PROTO_OP_READ | BRIX_PROTO_OP_LIST                           \
      | ((conf)->common.allow_write                                          \
-            ? (XROOTD_PROTO_OP_WRITE | XROOTD_PROTO_OP_LOCK) : 0)         \
-     | ((conf)->tpc ? XROOTD_PROTO_OP_TPC : 0))
+            ? (BRIX_PROTO_OP_WRITE | BRIX_PROTO_OP_LOCK) : 0)         \
+     | ((conf)->tpc ? BRIX_PROTO_OP_TPC : 0))
 
 /*
  * webdav_send_no_body — send a complete response with no body.
@@ -837,4 +837,4 @@ webdav_send_no_body(ngx_http_request_t *r, ngx_uint_t status)
     return ngx_http_send_special(r, NGX_HTTP_LAST);
 }
 
-#endif /* XROOTD_WEBDAV_H */
+#endif /* BRIX_WEBDAV_H */

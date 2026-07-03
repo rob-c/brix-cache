@@ -1,4 +1,4 @@
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 
 #include <errno.h>
 #include <limits.h>
@@ -7,7 +7,7 @@
 /* Resolve `root` to its canonical absolute path (realpath) into the caller's
  * buffer.  Returns NGX_OK, or NGX_ERROR (emerg-logged) on failure. */
 int
-xrootd_get_canonical_root(ngx_log_t *log, const ngx_str_t *root,
+brix_get_canonical_root(ngx_log_t *log, const ngx_str_t *root,
                           char *root_canon, size_t root_canon_sz)
 {
     char root_buf[PATH_MAX];

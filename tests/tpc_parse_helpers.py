@@ -12,7 +12,7 @@ from typing import Optional
 
 @dataclass
 class TpcOpaqueResult:
-    """Parsed tpc.* opaque parameters (mirrors xrootd_tpc_params_t)."""
+    """Parsed tpc.* opaque parameters (mirrors brix_tpc_params_t)."""
     src: str = ""
     src_host: str = ""
     src_port: int = 0

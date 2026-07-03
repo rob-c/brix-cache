@@ -15,14 +15,14 @@
 #include <stdio.h>
 
 int
-xrootd_host_is_ipv6_literal(const char *host)
+brix_host_is_ipv6_literal(const char *host)
 {
     return host != NULL && host[0] != '\0' && host[0] != '[' &&
            strchr(host, ':') != NULL;
 }
 
 size_t
-xrootd_format_host(const char *host, char *out, size_t sz)
+brix_format_host(const char *host, char *out, size_t sz)
 {
     int n;
 
@@ -34,7 +34,7 @@ xrootd_format_host(const char *host, char *out, size_t sz)
         return 0;
     }
 
-    if (xrootd_host_is_ipv6_literal(host)) {
+    if (brix_host_is_ipv6_literal(host)) {
         n = snprintf(out, sz, "[%s]", host);
     } else {
         n = snprintf(out, sz, "%s", host);
@@ -50,7 +50,7 @@ xrootd_format_host(const char *host, char *out, size_t sz)
 }
 
 size_t
-xrootd_format_host_port(const char *host, uint16_t port, char *out, size_t sz)
+brix_format_host_port(const char *host, uint16_t port, char *out, size_t sz)
 {
     int n;
 
@@ -62,7 +62,7 @@ xrootd_format_host_port(const char *host, uint16_t port, char *out, size_t sz)
         return 0;
     }
 
-    if (xrootd_host_is_ipv6_literal(host)) {
+    if (brix_host_is_ipv6_literal(host)) {
         n = snprintf(out, sz, "[%s]:%u", host, (unsigned) port);
     } else {
         n = snprintf(out, sz, "%s:%u", host, (unsigned) port);

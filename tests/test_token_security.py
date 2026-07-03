@@ -464,7 +464,7 @@ class TestScopePathBoundary:
             f"write-only scope must block read (stat), got status={status}"
 
     # --- MUTUAL cross-identity isolation (token-scope model) ----------------
-    # The HTTP protocols do NOT use VO-ACL (xrootd_require_vo is stream-only); a
+    # The HTTP protocols do NOT use VO-ACL (brix_require_vo is stream-only); a
     # client's cross-identity path access is governed by its TOKEN SCOPE.  These
     # are the token-realm equivalent of test_vo_acl.py's mutual VO isolation: two
     # differently-scoped identities, each allowed ITS OWN path and denied the

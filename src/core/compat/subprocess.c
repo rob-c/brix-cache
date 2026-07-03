@@ -14,7 +14,7 @@
 #include <sys/types.h>
 
 int
-xrootd_subprocess_capture(char *const argv[], char *out, size_t outsz,
+brix_subprocess_capture(char *const argv[], char *out, size_t outsz,
                           size_t *out_len, int *exit_code)
 {
     int      pfd[2];
@@ -91,7 +91,7 @@ xrootd_subprocess_capture(char *const argv[], char *out, size_t outsz,
 }
 
 size_t
-xrootd_rstrip(char *s)
+brix_rstrip(char *s)
 {
     size_t n;
 

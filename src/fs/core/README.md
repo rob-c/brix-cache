@@ -30,7 +30,7 @@ userland clients run, over the shared Storage Driver (`../backend/sd.h`):
   shared verbs on the resulting fd. Confinement never mixes with unconfined opens.
 
 **Consumers**
-- Server: `../vfs_read.c` (`xrootd_vfs_pread_full` wrapper), `../vfs_io_core.c`
+- Server: `../vfs_read.c` (`brix_vfs_pread_full` wrapper), `../vfs_io_core.c`
   (write-counted / sync / truncate executors).
 - Client: `client/lib/vfs_posix.c`, `client/lib/vfs_block.c` (plain, non-io_uring
   paths; io_uring stays a client-only fast-path override).

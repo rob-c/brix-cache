@@ -47,18 +47,18 @@ proxy_build_auth_ztn(u_char *buf, const char *token, size_t token_len)
 
 /* upstream auth resolution * WHAT: Resolve the effective upstream auth policy and (for SSS) the key to use
  *       for THIS upstream: a per-upstream `auth`/`sss:<keyname>` override wins,
- *       else the global xrootd_proxy_auth + first configured key.
+ *       else the global brix_proxy_auth + first configured key.
  * WHY:  Both the kXR_authmore branch and the kXR_ok login-sec-hint branch need
  *       the same decision; factoring it keeps them in lock-step.
- * HOW:  Writes *eff_auth (XROOTD_PROXY_AUTH_*) and *eff_key (NULL unless an SSS
+ * HOW:  Writes *eff_auth (BRIX_PROXY_AUTH_*) and *eff_key (NULL unless an SSS
  *       key was selected). */
 static void
-proxy_resolve_upstream_auth(xrootd_proxy_ctx_t *proxy, ngx_uint_t *eff_auth,
-    const xrootd_sss_key_t **eff_key)
+proxy_resolve_upstream_auth(brix_proxy_ctx_t *proxy, ngx_uint_t *eff_auth,
+    const brix_sss_key_t **eff_key)
 {
-    ngx_stream_xrootd_srv_conf_t *conf = proxy->conf;
+    ngx_stream_brix_srv_conf_t *conf = proxy->conf;
 
-    *eff_auth = conf ? conf->proxy_auth : XROOTD_PROXY_AUTH_ANONYMOUS;
+    *eff_auth = conf ? conf->proxy_auth : BRIX_PROXY_AUTH_ANONYMOUS;
     *eff_key  = NULL;
 
     if (proxy->upstream_idx >= 0
@@ -66,18 +66,18 @@ proxy_resolve_upstream_auth(xrootd_proxy_ctx_t *proxy, ngx_uint_t *eff_auth,
         && conf->proxy_upstreams != NULL
         && proxy->upstream_idx < (int) conf->proxy_upstreams->nelts)
     {
-        xrootd_proxy_upstream_t *u =
-            (xrootd_proxy_upstream_t *) conf->proxy_upstreams->elts
+        brix_proxy_upstream_t *u =
+            (brix_proxy_upstream_t *) conf->proxy_upstreams->elts
             + proxy->upstream_idx;
 
         if (u->auth >= 0) {
             *eff_auth = (ngx_uint_t) u->auth;
         }
-        if (*eff_auth == XROOTD_PROXY_AUTH_SSS
+        if (*eff_auth == BRIX_PROXY_AUTH_SSS
             && conf->sss_keys != NULL
             && conf->sss_keys->nelts > 0)
         {
-            xrootd_sss_key_t *keys = conf->sss_keys->elts;
+            brix_sss_key_t *keys = conf->sss_keys->elts;
             ngx_uint_t        ki;
             if (u->sss_keyname[0] != '\0') {
                 for (ki = 0; ki < conf->sss_keys->nelts; ki++) {
@@ -101,28 +101,28 @@ proxy_resolve_upstream_auth(xrootd_proxy_ctx_t *proxy, ngx_uint_t *eff_auth,
  * HOW:  Returns NGX_OK once the frame is queued (caller must return), or
  *       NGX_ERROR after aborting the proxy on any failure. */
 static ngx_int_t
-proxy_send_sss_auth(xrootd_proxy_ctx_t *proxy, const xrootd_sss_key_t *key)
+proxy_send_sss_auth(brix_proxy_ctx_t *proxy, const brix_sss_key_t *key)
 {
     u_char  cred[512];
     size_t  cred_len;
     u_char *frame;
     size_t  frame_len;
 
-    if (xrootd_sss_build_proxy_credential(key, key->user,
+    if (brix_sss_build_proxy_credential(key, key->user,
             cred, sizeof(cred), &cred_len) != NGX_OK)
     {
-        XROOTD_PROXY_METRIC_INC(proxy->client_ctx, upstream_auth_errors);
-        XROOTD_PROXY_UP_INC(proxy, upstream_auth_errors);
-        xrootd_proxy_abort(proxy, "proxy: SSS credential build failed");
+        BRIX_PROXY_METRIC_INC(proxy->client_ctx, upstream_auth_errors);
+        BRIX_PROXY_UP_INC(proxy, upstream_auth_errors);
+        brix_proxy_abort(proxy, "proxy: SSS credential build failed");
         return NGX_ERROR;
     }
 
     frame_len = XRD_REQUEST_HDR_LEN + cred_len;
     frame = ngx_palloc(proxy->conn->pool, frame_len);
     if (frame == NULL) {
-        XROOTD_PROXY_METRIC_INC(proxy->client_ctx, upstream_auth_errors);
-        XROOTD_PROXY_UP_INC(proxy, upstream_auth_errors);
-        xrootd_proxy_abort(proxy, "proxy: OOM for SSS frame");
+        BRIX_PROXY_METRIC_INC(proxy->client_ctx, upstream_auth_errors);
+        BRIX_PROXY_UP_INC(proxy, upstream_auth_errors);
+        brix_proxy_abort(proxy, "proxy: OOM for SSS frame");
         return NGX_ERROR;
     }
 
@@ -152,17 +152,17 @@ proxy_send_sss_auth(xrootd_proxy_ctx_t *proxy, const xrootd_sss_key_t *key)
     proxy->wbuf_pos = 0;
     proxy->bs_phase = XRD_PX_BS_AUTH;
 
-    if (xrootd_proxy_flush(proxy) == NGX_ERROR) {
-        XROOTD_PROXY_METRIC_INC(proxy->client_ctx, upstream_auth_errors);
-        XROOTD_PROXY_UP_INC(proxy, upstream_auth_errors);
-        xrootd_proxy_abort(proxy, "proxy: SSS frame send failed");
+    if (brix_proxy_flush(proxy) == NGX_ERROR) {
+        BRIX_PROXY_METRIC_INC(proxy->client_ctx, upstream_auth_errors);
+        BRIX_PROXY_UP_INC(proxy, upstream_auth_errors);
+        brix_proxy_abort(proxy, "proxy: SSS frame send failed");
         return NGX_ERROR;
     }
     if (proxy->wbuf_pos < proxy->wbuf_len) {
         if (ngx_handle_write_event(proxy->conn->write, 0) != NGX_OK) {
-            XROOTD_PROXY_METRIC_INC(proxy->client_ctx, upstream_auth_errors);
-            XROOTD_PROXY_UP_INC(proxy, upstream_auth_errors);
-            xrootd_proxy_abort(proxy, "proxy: write arm for SSS failed");
+            BRIX_PROXY_METRIC_INC(proxy->client_ctx, upstream_auth_errors);
+            BRIX_PROXY_UP_INC(proxy, upstream_auth_errors);
+            brix_proxy_abort(proxy, "proxy: write arm for SSS failed");
             return NGX_ERROR;
         }
     }
@@ -188,7 +188,7 @@ proxy_send_sss_auth(xrootd_proxy_ctx_t *proxy, const xrootd_sss_key_t *key)
  *       accumulator; reaching XRD_PX_BS_DONE flips proxy->state to IDLE and
  *       releases any request queued during bootstrap.
  *
- * RE-ENTRY: this is called by xrootd_proxy_read_handler each time a complete
+ * RE-ENTRY: this is called by brix_proxy_read_handler each time a complete
  *       upstream frame arrives. Arms that send (AUTH legs) return early and are
  *       resumed by the next read event; non-sending arms fall through to the
  *       shared reset/finish tail. The four auth-send arms (FORWARD bearer, SSS,
@@ -204,20 +204,20 @@ proxy_send_sss_auth(xrootd_proxy_ctx_t *proxy, const xrootd_sss_key_t *key)
  * (bs_phase advanced to DONE) and the caller falls through to the shared
  * reset/finish tail. */
 static int
-xrootd_proxy_bs_login(xrootd_proxy_ctx_t *proxy)
+brix_proxy_bs_login(brix_proxy_ctx_t *proxy)
 {
     if (proxy->resp_status == kXR_authmore) {
         /* Upstream requests authentication — handle by configured policy.
          * Effective policy: per-upstream override if set, else global conf->proxy_auth. */
-        ngx_stream_xrootd_srv_conf_t  *conf      = proxy->conf;
+        ngx_stream_brix_srv_conf_t  *conf      = proxy->conf;
         ngx_uint_t                     eff_auth;
-        const xrootd_sss_key_t        *eff_key;
+        const brix_sss_key_t        *eff_key;
 
         proxy_resolve_upstream_auth(proxy, &eff_auth, &eff_key);
 
         /* auth-send arm 1 of 4: FORWARD using the client's bearer         * Preferred FORWARD path: the connecting client already presented a
          * WLCG bearer token, so re-present it verbatim to the upstream. */
-        if (eff_auth == XROOTD_PROXY_AUTH_FORWARD
+        if (eff_auth == BRIX_PROXY_AUTH_FORWARD
             && proxy->client_ctx != NULL
             && proxy->client_ctx->bearer_token[0] != '\0')
         {
@@ -229,10 +229,10 @@ xrootd_proxy_bs_login(xrootd_proxy_ctx_t *proxy)
 
             frame = ngx_palloc(proxy->conn->pool, frame_len);
             if (frame == NULL) {
-                XROOTD_PROXY_METRIC_INC(proxy->client_ctx,
+                BRIX_PROXY_METRIC_INC(proxy->client_ctx,
                                         upstream_auth_errors);
-                XROOTD_PROXY_UP_INC(proxy, upstream_auth_errors);
-                xrootd_proxy_abort(proxy, "proxy: OOM building auth frame");
+                BRIX_PROXY_UP_INC(proxy, upstream_auth_errors);
+                brix_proxy_abort(proxy, "proxy: OOM building auth frame");
                 return 1;
             }
 
@@ -257,36 +257,36 @@ xrootd_proxy_bs_login(xrootd_proxy_ctx_t *proxy)
             /* flush() may only partially write under backpressure; if so,
              * arm the write event so the rest goes out later. Either way we
              * return and wait for the BS_AUTH reply on the next read event. */
-            if (xrootd_proxy_flush(proxy) == NGX_ERROR) {
-                XROOTD_PROXY_METRIC_INC(proxy->client_ctx,
+            if (brix_proxy_flush(proxy) == NGX_ERROR) {
+                BRIX_PROXY_METRIC_INC(proxy->client_ctx,
                                         upstream_auth_errors);
-                XROOTD_PROXY_UP_INC(proxy, upstream_auth_errors);
-                xrootd_proxy_abort(proxy, "proxy: auth frame send failed");
+                BRIX_PROXY_UP_INC(proxy, upstream_auth_errors);
+                brix_proxy_abort(proxy, "proxy: auth frame send failed");
                 return 1;
             }
             if (proxy->wbuf_pos < proxy->wbuf_len) {
                 if (ngx_handle_write_event(proxy->conn->write, 0) != NGX_OK) {
-                    XROOTD_PROXY_METRIC_INC(proxy->client_ctx,
+                    BRIX_PROXY_METRIC_INC(proxy->client_ctx,
                                             upstream_auth_errors);
-                    XROOTD_PROXY_UP_INC(proxy, upstream_auth_errors);
-                    xrootd_proxy_abort(proxy,
+                    BRIX_PROXY_UP_INC(proxy, upstream_auth_errors);
+                    brix_proxy_abort(proxy,
                         "proxy: write arm for auth failed");
                 }
             }
             return 1;
         }
 
-        /* auth-send arm 2 of 4: SSS shared-secret credential */        if (eff_auth == XROOTD_PROXY_AUTH_SSS && eff_key != NULL) {
+        /* auth-send arm 2 of 4: SSS shared-secret credential */        if (eff_auth == BRIX_PROXY_AUTH_SSS && eff_key != NULL) {
             (void) proxy_send_sss_auth(proxy, eff_key);
             return 1;   /* frame queued, or proxy aborted on failure */
         }
 
         /* auth-send arm 3 of 4: FORWARD token-file fallback         * FORWARD fallback — client has no bearer token but
-         * xrootd_upstream_token_file is configured (credential bridge).
+         * brix_upstream_token_file is configured (credential bridge).
          * ftok is function-static (64 KiB) to keep it off the stack; safe
          * because nginx workers are single-threaded on the event loop and
          * the token is copied into the heap frame before any yield. */
-        if (eff_auth == XROOTD_PROXY_AUTH_FORWARD
+        if (eff_auth == BRIX_PROXY_AUTH_FORWARD
             && conf != NULL
             && conf->upstream_token_file.len > 0)
         {
@@ -295,25 +295,25 @@ xrootd_proxy_bs_login(xrootd_proxy_ctx_t *proxy)
             size_t         fframe_len;
             u_char        *fframe;
 
-            if (xrootd_token_read_file(&conf->upstream_token_file,
+            if (brix_token_read_file(&conf->upstream_token_file,
                                        ftok, sizeof(ftok), &flen,
                                        proxy->client_conn->log,
                                        "proxy authmore-file token") != NGX_OK
                 || flen == 0)
             {
-                XROOTD_PROXY_METRIC_INC(proxy->client_ctx,
+                BRIX_PROXY_METRIC_INC(proxy->client_ctx,
                                         upstream_auth_errors);
-                XROOTD_PROXY_UP_INC(proxy, upstream_auth_errors);
-                xrootd_proxy_abort(proxy,
-                    "upstream requires auth; set xrootd_upstream_token_file");
+                BRIX_PROXY_UP_INC(proxy, upstream_auth_errors);
+                brix_proxy_abort(proxy,
+                    "upstream requires auth; set brix_upstream_token_file");
                 return 1;
             }
             fframe_len = 28 + flen;
             fframe = ngx_palloc(proxy->conn->pool, fframe_len);
             if (fframe == NULL) {
-                XROOTD_PROXY_METRIC_INC(proxy->client_ctx,
+                BRIX_PROXY_METRIC_INC(proxy->client_ctx,
                                         upstream_auth_errors);
-                xrootd_proxy_abort(proxy, "proxy: OOM for file token frame");
+                brix_proxy_abort(proxy, "proxy: OOM for file token frame");
                 return 1;
             }
             proxy_build_auth_ztn(fframe, (const char *) ftok, flen);
@@ -328,35 +328,35 @@ xrootd_proxy_bs_login(xrootd_proxy_ctx_t *proxy)
             proxy->wbuf_len = fframe_len;
             proxy->wbuf_pos = 0;
             proxy->bs_phase = XRD_PX_BS_AUTH;
-            if (xrootd_proxy_flush(proxy) == NGX_ERROR) {
-                XROOTD_PROXY_METRIC_INC(proxy->client_ctx,
+            if (brix_proxy_flush(proxy) == NGX_ERROR) {
+                BRIX_PROXY_METRIC_INC(proxy->client_ctx,
                                         upstream_auth_errors);
-                xrootd_proxy_abort(proxy,
+                brix_proxy_abort(proxy,
                     "proxy: file token frame send failed");
                 return 1;
             }
             if (proxy->wbuf_pos < proxy->wbuf_len) {
                 if (ngx_handle_write_event(proxy->conn->write, 0) != NGX_OK) {
-                    XROOTD_PROXY_METRIC_INC(proxy->client_ctx,
+                    BRIX_PROXY_METRIC_INC(proxy->client_ctx,
                                             upstream_auth_errors);
-                    xrootd_proxy_abort(proxy,
+                    brix_proxy_abort(proxy,
                         "proxy: write arm for file token failed");
                 }
             }
             return 1;
         }
 
-        XROOTD_PROXY_METRIC_INC(proxy->client_ctx, upstream_auth_errors);
-        XROOTD_PROXY_UP_INC(proxy, upstream_auth_errors);
-        xrootd_proxy_abort(proxy,
+        BRIX_PROXY_METRIC_INC(proxy->client_ctx, upstream_auth_errors);
+        BRIX_PROXY_UP_INC(proxy, upstream_auth_errors);
+        brix_proxy_abort(proxy,
             "upstream requires authentication "
-            "(set xrootd_proxy_auth forward or sss)");
+            "(set brix_proxy_auth forward or sss)");
         return 1;
     }
     if (proxy->resp_status != kXR_ok) {
-        XROOTD_PROXY_METRIC_INC(proxy->client_ctx, upstream_auth_errors);
-        XROOTD_PROXY_UP_INC(proxy, upstream_auth_errors);
-        xrootd_proxy_abort(proxy, "upstream login failed");
+        BRIX_PROXY_METRIC_INC(proxy->client_ctx, upstream_auth_errors);
+        BRIX_PROXY_UP_INC(proxy, upstream_auth_errors);
+        brix_proxy_abort(proxy, "upstream login failed");
         return 1;
     }
 
@@ -369,11 +369,11 @@ xrootd_proxy_bs_login(xrootd_proxy_ctx_t *proxy)
     /* The security hint string follows the fixed 16-byte session id in the
      * login body, so step past it before scanning. resp_body was NUL-padded
      * by the read handler (alloc dlen+1), making strstr() safe here. */
-    if (proxy->resp_dlen > XROOTD_SESSION_ID_LEN
+    if (proxy->resp_dlen > BRIX_SESSION_ID_LEN
         && proxy->resp_body != NULL)
     {
         const char *parms =
-            (const char *)(proxy->resp_body + XROOTD_SESSION_ID_LEN);
+            (const char *)(proxy->resp_body + BRIX_SESSION_ID_LEN);
 
         /* auth-send arm 5 of 5: proactive SSS on login-sec hint         * The nginx-xrootd server (and stock xrootd) advertise SSS via the
          * kXR_ok login response sec hint ("&P=sss,..."), NOT via kXR_authmore.
@@ -382,10 +382,10 @@ xrootd_proxy_bs_login(xrootd_proxy_ctx_t *proxy)
          * never happens and the forwarded open is rejected NotAuthorized. */
         if (strstr(parms, "P=sss") != NULL) {
             ngx_uint_t              sss_auth;
-            const xrootd_sss_key_t *sss_key;
+            const brix_sss_key_t *sss_key;
 
             proxy_resolve_upstream_auth(proxy, &sss_auth, &sss_key);
-            if (sss_auth == XROOTD_PROXY_AUTH_SSS && sss_key != NULL) {
+            if (sss_auth == BRIX_PROXY_AUTH_SSS && sss_key != NULL) {
                 (void) proxy_send_sss_auth(proxy, sss_key);
                 return 1;   /* frame queued, or proxy aborted on failure */
             }
@@ -395,7 +395,7 @@ xrootd_proxy_bs_login(xrootd_proxy_ctx_t *proxy)
          * must send kXR_auth unprompted. Source the token from the client
          * bearer (FORWARD) first, else from the upstream token file. */
         if (strstr(parms, "P=ztn") != NULL) {
-            ngx_stream_xrootd_srv_conf_t *lconf = proxy->conf;
+            ngx_stream_brix_srv_conf_t *lconf = proxy->conf;
             const char *ltoken     = NULL;
             size_t      ltoken_len = 0;
             static u_char lftok[PROXY_UPSTREAM_BEARER_MAX];
@@ -412,7 +412,7 @@ xrootd_proxy_bs_login(xrootd_proxy_ctx_t *proxy)
                      && lconf->upstream_token_file.len > 0)
             {
                 size_t lflen = 0;
-                if (xrootd_token_read_file(&lconf->upstream_token_file,
+                if (brix_token_read_file(&lconf->upstream_token_file,
                                            lftok, sizeof(lftok), &lflen,
                                            proxy->client_conn->log,
                                            "proxy login-sec ztn") == NGX_OK
@@ -427,9 +427,9 @@ xrootd_proxy_bs_login(xrootd_proxy_ctx_t *proxy)
                 size_t  lframe_len = 28 + ltoken_len;
                 u_char *lframe = ngx_palloc(proxy->conn->pool, lframe_len);
                 if (lframe == NULL) {
-                    XROOTD_PROXY_METRIC_INC(proxy->client_ctx,
+                    BRIX_PROXY_METRIC_INC(proxy->client_ctx,
                                             upstream_auth_errors);
-                    xrootd_proxy_abort(proxy,
+                    brix_proxy_abort(proxy,
                         "proxy: OOM for login-sec token frame");
                     return 1;
                 }
@@ -445,10 +445,10 @@ xrootd_proxy_bs_login(xrootd_proxy_ctx_t *proxy)
                 proxy->wbuf_len = lframe_len;
                 proxy->wbuf_pos = 0;
                 proxy->bs_phase = XRD_PX_BS_AUTH;
-                if (xrootd_proxy_flush(proxy) == NGX_ERROR) {
-                    XROOTD_PROXY_METRIC_INC(proxy->client_ctx,
+                if (brix_proxy_flush(proxy) == NGX_ERROR) {
+                    BRIX_PROXY_METRIC_INC(proxy->client_ctx,
                                             upstream_auth_errors);
-                    xrootd_proxy_abort(proxy,
+                    brix_proxy_abort(proxy,
                         "proxy: login-sec token frame send failed");
                     return 1;
                 }
@@ -456,9 +456,9 @@ xrootd_proxy_bs_login(xrootd_proxy_ctx_t *proxy)
                     if (ngx_handle_write_event(proxy->conn->write, 0)
                         != NGX_OK)
                     {
-                        XROOTD_PROXY_METRIC_INC(proxy->client_ctx,
+                        BRIX_PROXY_METRIC_INC(proxy->client_ctx,
                                                 upstream_auth_errors);
-                        xrootd_proxy_abort(proxy,
+                        brix_proxy_abort(proxy,
                             "proxy: write arm for login-sec failed");
                     }
                 }
@@ -473,7 +473,7 @@ xrootd_proxy_bs_login(xrootd_proxy_ctx_t *proxy)
 }
 
 void
-xrootd_proxy_handle_bootstrap(xrootd_proxy_ctx_t *proxy)
+brix_proxy_handle_bootstrap(brix_proxy_ctx_t *proxy)
 {
     /* State machine over the upstream login conversation; see bs_phase enum. */
     switch (proxy->bs_phase) {
@@ -485,7 +485,7 @@ xrootd_proxy_handle_bootstrap(xrootd_proxy_ctx_t *proxy)
          * kXR_ok. A non-zero value here means the bytes did not line up as a
          * valid hello, i.e. this is not an XRootD server speaking. */
         if (proxy->resp_status != kXR_ok) {
-            xrootd_proxy_abort(proxy, "bad handshake from upstream");
+            brix_proxy_abort(proxy, "bad handshake from upstream");
             return;
         }
         proxy->bs_phase = XRD_PX_BS_PROTOCOL;
@@ -493,7 +493,7 @@ xrootd_proxy_handle_bootstrap(xrootd_proxy_ctx_t *proxy)
 
     case XRD_PX_BS_PROTOCOL:
         if (proxy->resp_status != kXR_ok) {
-            xrootd_proxy_abort(proxy, "upstream kXR_protocol failed");
+            brix_proxy_abort(proxy, "upstream kXR_protocol failed");
             return;
         }
         /* kXR_protocol reply body: [4 bytes pval][4 bytes flags][...]. The
@@ -510,9 +510,9 @@ xrootd_proxy_handle_bootstrap(xrootd_proxy_ctx_t *proxy)
                  * was NOT set (it's the upstream's choice to require TLS after
                  * the connection was made without TLS).  Not supported yet. */
 #endif
-                xrootd_proxy_abort(proxy,
+                brix_proxy_abort(proxy,
                     "upstream requires TLS upgrade after connect "
-                    "(use xrootd_proxy_upstream_tls on to start with TLS)");
+                    "(use brix_proxy_upstream_tls on to start with TLS)");
                 return;
             }
         }
@@ -520,23 +520,23 @@ xrootd_proxy_handle_bootstrap(xrootd_proxy_ctx_t *proxy)
         break;
 
     case XRD_PX_BS_LOGIN:
-        if (xrootd_proxy_bs_login(proxy)) {
+        if (brix_proxy_bs_login(proxy)) {
             return;
         }
         break;
 
     case XRD_PX_BS_AUTH:
         if (proxy->resp_status != kXR_ok) {
-            XROOTD_PROXY_METRIC_INC(proxy->client_ctx, upstream_auth_errors);
-            XROOTD_PROXY_UP_INC(proxy, upstream_auth_errors);
-            xrootd_proxy_abort(proxy, "upstream rejected forwarded token");
+            BRIX_PROXY_METRIC_INC(proxy->client_ctx, upstream_auth_errors);
+            BRIX_PROXY_UP_INC(proxy, upstream_auth_errors);
+            brix_proxy_abort(proxy, "upstream rejected forwarded token");
             return;
         }
         proxy->bs_phase = XRD_PX_BS_DONE;
         break;
 
     default:
-        xrootd_proxy_abort(proxy, "proxy: invalid bootstrap phase");
+        brix_proxy_abort(proxy, "proxy: invalid bootstrap phase");
         return;
     }
 
@@ -557,9 +557,9 @@ xrootd_proxy_handle_bootstrap(xrootd_proxy_ctx_t *proxy)
 
     /* Bootstrap complete — transition to IDLE */
     proxy->state = XRD_PX_IDLE;
-    xrootd_proxy_up_mark_ok(proxy);
-    XROOTD_PROXY_METRIC_INC(proxy->client_ctx, upstream_connects_total);
-    XROOTD_PROXY_UP_INC(proxy, upstream_connects_total);
+    brix_proxy_up_mark_ok(proxy);
+    BRIX_PROXY_METRIC_INC(proxy->client_ctx, upstream_connects_total);
+    BRIX_PROXY_UP_INC(proxy, upstream_connects_total);
 
     /* The upstream accepted the forwarded credential — this connection is
      * healthy again, so clear the consecutive-failure budget. */
@@ -576,17 +576,17 @@ xrootd_proxy_handle_bootstrap(xrootd_proxy_ctx_t *proxy)
                    "xrootd proxy: upstream bootstrap done");
 
     /* If a request was queued during bootstrap, forward it now.
-     * xrootd_proxy_dispatch_pending handles bound-secondary lazy-open. */
+     * brix_proxy_dispatch_pending handles bound-secondary lazy-open. */
     if (proxy->saved_req != NULL) {
-        xrootd_proxy_dispatch_pending(proxy);
+        brix_proxy_dispatch_pending(proxy);
         return;
     }
 
     /* No deferred request — just resume the client read loop */
     {
-        xrootd_ctx_t *ctx = proxy->client_ctx;
+        brix_ctx_t *ctx = proxy->client_ctx;
         ctx->state = XRD_ST_REQ_HEADER;
-        xrootd_schedule_read_resume(proxy->client_conn);
+        brix_schedule_read_resume(proxy->client_conn);
     }
 }
 

@@ -1,5 +1,5 @@
-#ifndef XROOTD_TOKEN_SUBJECT_MAP_H
-#define XROOTD_TOKEN_SUBJECT_MAP_H
+#ifndef BRIX_TOKEN_SUBJECT_MAP_H
+#define BRIX_TOKEN_SUBJECT_MAP_H
 
 #include <stddef.h>
 
@@ -16,7 +16,7 @@
  * username into out (bounded by outsz) and returns 0; on miss / parse error /
  * unreadable file returns -1. Pure (no nginx runtime) — unit-testable.
  */
-int xrootd_subject_mapfile_lookup(const char *path, const char *subject,
+int brix_subject_mapfile_lookup(const char *path, const char *subject,
     char *out, size_t outsz);
 
-#endif /* XROOTD_TOKEN_SUBJECT_MAP_H */
+#endif /* BRIX_TOKEN_SUBJECT_MAP_H */

@@ -2,8 +2,8 @@
  * multipart_internal.h — shared declarations for the S3 multipart upload
  * implementation split across multipart.c and the multipart_complete_*.c units.
  */
-#ifndef XROOTD_S3_MULTIPART_INTERNAL_H
-#define XROOTD_S3_MULTIPART_INTERNAL_H
+#ifndef BRIX_S3_MULTIPART_INTERNAL_H
+#define BRIX_S3_MULTIPART_INTERNAL_H
 
 /* Maximum valid S3 part number (AWS limit). */
 #define MPU_MAX_PART_NUMBER  10000
@@ -21,4 +21,4 @@ int mpu_rmdir_recursive(ngx_log_t *log, const char *root_canon,
 int s3_mpu_reap_stale(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     const char *final_path, time_t max_age_secs);
 
-#endif /* XROOTD_S3_MULTIPART_INTERNAL_H */
+#endif /* BRIX_S3_MULTIPART_INTERNAL_H */

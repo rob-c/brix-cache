@@ -42,7 +42,7 @@ from cms_mesh_lib import (
     CMSD_BIN,
     HOST,
     Mesh,
-    XROOTD_BIN,
+    BRIX_BIN,
     have_binaries,
     port_open,
     read_text,
@@ -99,7 +99,7 @@ PORTS = {
     # Plain-HTTP WebDAV origin used as the single-port handoff target: the stock
     # XrdHttp redirector g redirects HTTP to the data port over http:// (stock
     # multiplexes plain XrdHttp there), so f's data port splices to THIS plain
-    # listener (not the https one) — see xrootd_http_handoff.
+    # listener (not the https one) — see brix_http_handoff.
     "f_dav_http": _p("HYBRID_DS_F_DAV_HTTP_PORT", 11328),
 }
 
@@ -178,7 +178,7 @@ def _xrd_cfg(role, data_port, cms_port, manager, run, export,
 def launch_xrootd(m, label, cfg_text):
     """Write cfg_text and launch cmsd + xrootd for a stock node under mesh m.
 
-    Mirrors Mesh.xrootd_node's launch discipline (clear stale admin/pid dir,
+    Mirrors Mesh.brix_node's launch discipline (clear stale admin/pid dir,
     detach via -b/start_new_session, cwd under the mesh tree) but takes a fully
     custom config so we can express manager / pss-proxy / http roles."""
     run = os.path.join(m.root, "run", label)
@@ -189,7 +189,7 @@ def launch_xrootd(m, label, cfg_text):
     xlog = os.path.join(m.root, "logs", f"{label}-xrootd.log")
     subprocess.run([CMSD_BIN, "-c", cfg, "-n", label, "-l", clog, "-b"],
                    check=False, start_new_session=True, cwd=m.root)
-    subprocess.run([XROOTD_BIN, "-c", cfg, "-n", label, "-l", xlog, "-b"],
+    subprocess.run([BRIX_BIN, "-c", cfg, "-n", label, "-l", xlog, "-b"],
                    check=False, start_new_session=True, cwd=m.root)
 
 
@@ -235,9 +235,9 @@ def _s3_origin_server(listen_port, root, bucket):
         f"    server {{\n"
         f"        listen {BIND_HOST}:{listen_port};\n"
         f"        location / {{\n"
-        f"            xrootd_s3 on; xrootd_s3_storage_backend posix:{root};\n"
-        f"            xrootd_s3_bucket {bucket}; xrootd_s3_allow_write on;\n"
-        f"            xrootd_s3_max_keys 1000;\n"
+        f"            brix_s3 on; brix_s3_storage_backend posix:{root};\n"
+        f"            brix_s3_bucket {bucket}; brix_s3_allow_write on;\n"
+        f"            brix_s3_max_keys 1000;\n"
         f"        }}\n"
         f"    }}\n"
     )
@@ -259,8 +259,8 @@ def _webdav_origin_server(listen_port, root, cert, key, tls=True):
         f"        server_name localhost;\n"
         f"{ssl_lines}"
         f"        location / {{\n"
-        f"            xrootd_webdav on; xrootd_webdav_storage_backend posix:{root};\n"
-        f"            xrootd_webdav_auth none; xrootd_webdav_allow_write on;\n"
+        f"            brix_webdav on; brix_webdav_storage_backend posix:{root};\n"
+        f"            brix_webdav_auth none; brix_webdav_allow_write on;\n"
         f"        }}\n"
         f"    }}\n"
     )
@@ -269,9 +269,9 @@ def _webdav_origin_server(listen_port, root, cert, key, tls=True):
 def _webdav_proxy_server(listen_port, root, upstream_url, cert, key):
     """A direct https WebDAV data server.
 
-    NOTE: the WebDAV reverse-proxy directives (xrootd_webdav_proxy /
+    NOTE: the WebDAV reverse-proxy directives (brix_webdav_proxy /
     _upstream) that once relayed the upstream's 307 to the holding data server
-    were retired in the legacy-proxy cleanup; only xrootd_webdav_proxy_certs
+    were retired in the legacy-proxy cleanup; only brix_webdav_proxy_certs
     (GSI client auth) survives. This node now serves its own export directly
     (no relay hop) — `upstream_url` is retained in the signature for callers
     but is no longer wired into a proxy."""
@@ -282,8 +282,8 @@ def _webdav_proxy_server(listen_port, root, upstream_url, cert, key):
         f"        server_name localhost;\n"
         f"        ssl_certificate {cert};\n        ssl_certificate_key {key};\n"
         f"        location / {{\n"
-        f"            xrootd_webdav on; xrootd_webdav_storage_backend posix:{root};\n"
-        f"            xrootd_webdav_auth none; xrootd_webdav_allow_write on;\n"
+        f"            brix_webdav on; brix_webdav_storage_backend posix:{root};\n"
+        f"            brix_webdav_auth none; brix_webdav_allow_write on;\n"
         f"        }}\n"
         f"    }}\n"
     )
@@ -297,9 +297,9 @@ def cfg_node_a(data_port, cms_port, s3_front_upstream, tmpbase, cert, key,
         "worker_processes 1;\nerror_log {ERR} debug;\npid {PID};\n"
         "events { worker_connections 128; }\n"
         "stream {\n"
-        f"    server {{ listen {BIND_HOST}:{data_port}; xrootd on; xrootd_auth none;"
-        f" xrootd_manager_mode on; }}\n"
-        f"    server {{ listen {BIND_HOST}:{cms_port}; xrootd_cms_server on; }}\n"
+        f"    server {{ listen {BIND_HOST}:{data_port}; xrootd on; brix_auth none;"
+        f" brix_manager_mode on; }}\n"
+        f"    server {{ listen {BIND_HOST}:{cms_port}; brix_cms_server on; }}\n"
         "}\n"
         "http {\n    access_log off;\n"
         + _http_temp(tmpbase)
@@ -321,13 +321,13 @@ def cfg_node_b(data_port, cms_mgr, paths, upstream, s3_upstream, tmpbase,
         "stream {\n"
         f"    server {{\n"
         f"        listen {BIND_HOST}:{data_port};\n"
-        f"        xrootd on; xrootd_auth none;\n"
-        f"        xrootd_allow_write on;\n"
-        f"        xrootd_tap_proxy on;\n"
-        f"        xrootd_tap_proxy_upstream {BIND_HOST}:{upstream};\n"
-        f"        xrootd_tap_proxy_auth anonymous;\n"
-        f"        xrootd_cms_manager {cms_mgr}; xrootd_cms_paths {paths};\n"
-        f"        xrootd_cms_interval 2; xrootd_listen_port {data_port};\n"
+        f"        xrootd on; brix_auth none;\n"
+        f"        brix_allow_write on;\n"
+        f"        brix_tap_proxy on;\n"
+        f"        brix_tap_proxy_upstream {BIND_HOST}:{upstream};\n"
+        f"        brix_tap_proxy_auth anonymous;\n"
+        f"        brix_cms_manager {cms_mgr}; brix_cms_paths {paths};\n"
+        f"        brix_cms_interval 2; brix_listen_port {data_port};\n"
         f"    }}\n"
         "}\n"
         "http {\n    access_log off;\n"
@@ -345,7 +345,7 @@ def cfg_node_f(data_port, root, cms_mgr, paths, tmpbase, cert, key):
     S3 object-store origin over the same store (http).
 
     The S3 handler strips the (single) bucket name and writes keys directly under
-    xrootd_s3_root, so the S3 root is <store>/mesh (== the root:// export's
+    brix_s3_root, so the S3 root is <store>/mesh (== the root:// export's
     on-disk dir): an S3 PUT of key K -> <store>/mesh/K == root:// "/mesh/K"."""
     s3_root = root + EXPORT       # EXPORT begins with '/', root has no trailing /
     return (
@@ -354,13 +354,13 @@ def cfg_node_f(data_port, root, cms_mgr, paths, tmpbase, cert, key):
         "stream {\n"
         f"    server {{\n"
         f"        listen {BIND_HOST}:{data_port};\n"
-        f"        xrootd on; xrootd_storage_backend posix:{root}; xrootd_auth none;\n"
-        f"        xrootd_allow_write on;\n"
-        f"        xrootd_cms_manager {cms_mgr}; xrootd_cms_paths {paths};\n"
-        f"        xrootd_cms_interval 2; xrootd_listen_port {data_port};\n"
+        f"        xrootd on; brix_storage_backend posix:{root}; brix_auth none;\n"
+        f"        brix_allow_write on;\n"
+        f"        brix_cms_manager {cms_mgr}; brix_cms_paths {paths};\n"
+        f"        brix_cms_interval 2; brix_listen_port {data_port};\n"
         # Single-port mux: an HTTP client the stock redirector sent to this
         # data port is spliced to the local plain-http WebDAV listener.
-        f"        xrootd_http_handoff {BIND_HOST}:{PORTS['f_dav_http']};\n"
+        f"        brix_http_handoff {BIND_HOST}:{PORTS['f_dav_http']};\n"
         f"    }}\n"
         "}\n"
         "http {\n    access_log off;\n"

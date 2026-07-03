@@ -4,12 +4,12 @@
 
 /* WHY: JWT authentication requires cryptographic signature verification before trusting any claims extracted from the token payload. AGENTS.md INVARIANT #6 mandates "S3 SigV4 ≠ WLCG token — this function must not share logic with other authentication systems" — these functions are exclusively used by token validation path in src/token/validate.c and never shared with S3 auth handlers (src/s3/auth_sigv4_*.c). RS256 is the primary algorithm for most JWKS providers; ES256 support enables newer OIDC implementations using ECDSA keys. Three-step EVP verification chain (Init→Update→Final) provides constant-time comparison security against timing attacks. */
 
-/* HOW: Two distinct verification paths. RS256 path (xrootd_token_verify_rs256): EVP_MD_CTX_new() → EVP_DigestVerifyInit(mdctx, NULL, EVP_sha256(), NULL, pkey) with SHA-256 digest and RSA public key → EVP_DigestVerifyUpdate(mdctx, signed_data, signed_len) with JWT payload (header+body concatenated without separator) → EVP_DigestVerifyFinal(mdctx, sig, sig_len) with base64url-decoded signature bytes. Returns 0 on any step failure or ctx allocation failure. ES256 path (xrootd_token_verify_es256): validate sig_len==64 (P1363 format requires exactly 32+32 bytes) → BN_bin2bn() converts r and s components to BIGNUM objects → ECDSA_SIG_new() + ECDSA_SIG_set0() transfers ownership of r/s to signature struct → i2d_ECDSA_SIG() produces DER-encoded ASN.1 output → same three-step EVP verification chain as RS256 → OPENSSL_free(der) cleanup. Multiple allocation failure paths return 0 with appropriate BN/ECDSA_SIG cleanup. */
+/* HOW: Two distinct verification paths. RS256 path (brix_token_verify_rs256): EVP_MD_CTX_new() → EVP_DigestVerifyInit(mdctx, NULL, EVP_sha256(), NULL, pkey) with SHA-256 digest and RSA public key → EVP_DigestVerifyUpdate(mdctx, signed_data, signed_len) with JWT payload (header+body concatenated without separator) → EVP_DigestVerifyFinal(mdctx, sig, sig_len) with base64url-decoded signature bytes. Returns 0 on any step failure or ctx allocation failure. ES256 path (brix_token_verify_es256): validate sig_len==64 (P1363 format requires exactly 32+32 bytes) → BN_bin2bn() converts r and s components to BIGNUM objects → ECDSA_SIG_new() + ECDSA_SIG_set0() transfers ownership of r/s to signature struct → i2d_ECDSA_SIG() produces DER-encoded ASN.1 output → same three-step EVP verification chain as RS256 → OPENSSL_free(der) cleanup. Multiple allocation failure paths return 0 with appropriate BN/ECDSA_SIG cleanup. */
 
 #include "token_internal.h"
 
 int
-xrootd_token_verify_rs256(const u_char *signed_data, size_t signed_len,
+brix_token_verify_rs256(const u_char *signed_data, size_t signed_len,
     const u_char *sig, size_t sig_len, EVP_PKEY *pkey)
 {
     EVP_MD_CTX *mdctx;
@@ -40,7 +40,7 @@ xrootd_token_verify_rs256(const u_char *signed_data, size_t signed_len,
  * ASN.1, so we convert via ECDSA_SIG before calling the EVP interface.
  */
 int
-xrootd_token_verify_es256(const u_char *signed_data, size_t signed_len,
+brix_token_verify_es256(const u_char *signed_data, size_t signed_len,
     const u_char *sig_p1363, size_t sig_len, EVP_PKEY *pkey)
 {
     BIGNUM     *r, *s;

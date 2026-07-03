@@ -21,7 +21,7 @@ incompressible-MIME deny list that the existing roundtrip suites
                     still gets compressed.
 
 Self-contained: launches its OWN minimal plain-HTTP nginx with
-`xrootd_webdav_compress on` + a types{} block (using the project nginx binary),
+`brix_webdav_compress on` + a types{} block (using the project nginx binary),
 so it never depends on the shared harness's config. Raw GETs go through urllib3
 with decode_content=False so we observe the real wire encoding.
 """
@@ -80,11 +80,11 @@ http {{
         location / {{
             root {data_dir};
             dav_methods DELETE MKCOL;
-            xrootd_webdav on;
-            xrootd_webdav_storage_backend posix:{data_dir};
-            xrootd_webdav_auth none;
-            xrootd_webdav_allow_write on;
-            xrootd_webdav_compress on;
+            brix_webdav on;
+            brix_webdav_storage_backend posix:{data_dir};
+            brix_webdav_auth none;
+            brix_webdav_allow_write on;
+            brix_webdav_compress on;
         }}
     }}
 }}

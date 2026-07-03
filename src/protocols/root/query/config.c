@@ -14,7 +14,7 @@
  *       This response matches reference XRootD format so client libraries can parse and decide accordingly — e.g., XrdCl parses tpc line
  *       with isdigit()+atoi() expecting just "1" or "0". Empty query returns OK with no payload for compatibility.
  *
- * HOW:  xrootd_query_config() initializes resp buffer (512 bytes), determines TPC capability from allow_write+thread_pool, parses whitespace-separated keys via qconfig_next_token loop, appends key=value lines per supported feature using qconfig_append (vsnprintf with capacity tracking). Unknown keys default to =0. Empty query returns send_ok(NULL, 0); populated response sends resp at pos bytes.
+ * HOW:  brix_query_config() initializes resp buffer (512 bytes), determines TPC capability from allow_write+thread_pool, parses whitespace-separated keys via qconfig_next_token loop, appends key=value lines per supported feature using qconfig_append (vsnprintf with capacity tracking). Unknown keys default to =0. Empty query returns send_ok(NULL, 0); populated response sends resp at pos bytes.
  */
 
 /* WHAT: Advances the pointer *pp past any whitespace characters (space, tab, newline, carriage return). Used as a preamble before extracting tokens from kXR_Qconfig query payload.
@@ -22,7 +22,7 @@
  * HOW: Single while loop checking **pp against ' ', '\t', '\n', '\r' — increments pointer past each whitespace character until reaching a non-whitespace byte or null terminator. */
 
 static void
-xrootd_qconfig_skip_ws(const char **pp)
+brix_qconfig_skip_ws(const char **pp)
 {
     while (**pp == ' ' || **pp == '\t' || **pp == '\n' || **pp == '\r') {
         (*pp)++;
@@ -31,14 +31,14 @@ xrootd_qconfig_skip_ws(const char **pp)
 
 /* WHAT: Extracts a single token from the payload pointer *pp, skipping leading whitespace first then reading characters until next whitespace or null terminator. Stores extracted token in tok buffer with null termination, returns 1 on success (token found), 0 on failure (end of payload). Enforces tok_sz boundary to prevent overflow.
  * WHY: kXR_Qconfig query payloads contain whitespace-separated capability keys (e.g., "tpc tpcdlg chksum"). This helper enables sequential token extraction without allocating temporary buffers or using strchr-based splitting — efficient for single-threaded nginx event loop processing.
- * HOW: Two-phase → first calls xrootd_qconfig_skip_ws() to advance past leading whitespace, then reads characters while **pp != '\0' and not whitespace, storing each char in tok[len++] with null termination at len = tok_sz - 1 or end-of-token boundary. Returns 1 if token extracted, 0 if *pp points to '\0' (end of payload). */
+ * HOW: Two-phase → first calls brix_qconfig_skip_ws() to advance past leading whitespace, then reads characters while **pp != '\0' and not whitespace, storing each char in tok[len++] with null termination at len = tok_sz - 1 or end-of-token boundary. Returns 1 if token extracted, 0 if *pp points to '\0' (end of payload). */
 
 static ngx_flag_t
-xrootd_qconfig_next_token(const char **pp, char *tok, size_t tok_sz)
+brix_qconfig_next_token(const char **pp, char *tok, size_t tok_sz)
 {
     size_t len;
 
-    xrootd_qconfig_skip_ws(pp);
+    brix_qconfig_skip_ws(pp);
     if (**pp == '\0') {
         return 0;
     }
@@ -62,12 +62,12 @@ xrootd_qconfig_next_token(const char **pp, char *tok, size_t tok_sz)
  * HOW: Calculate remaining = resp_sz - *pos, call vsnprintf(resp + *pos, remaining, fmt, ap), check n < 0 || (size_t)n >= remaining for overflow → return 0 on failure or update *pos += n and return 1 on success. NULL pointer checks prevent crashes on malformed input. */
 
 static ngx_flag_t
-xrootd_qconfig_append(char *resp, size_t resp_sz, size_t *pos,
+brix_qconfig_append(char *resp, size_t resp_sz, size_t *pos,
     const char *fmt, ...)
     __attribute__((format(printf, 4, 5)));
 
 static ngx_flag_t
-xrootd_qconfig_append(char *resp, size_t resp_sz, size_t *pos,
+brix_qconfig_append(char *resp, size_t resp_sz, size_t *pos,
     const char *fmt, ...)
 {
     va_list ap;
@@ -93,11 +93,11 @@ xrootd_qconfig_append(char *resp, size_t resp_sz, size_t *pos,
     return 1;
 }
 
-/* public API: xrootd_query_config() — kXR_Qconfig capability query handler * WHAT: Main handler for Qconfig requests. Initializes 512-byte response buffer, determines TPC capability from allow_write+thread_pool config, parses whitespace-separated query keys via qconfig_next_token loop, appends key=value lines per supported feature using qconfig_append (vsnprintf with capacity tracking). Unknown keys default to =0. Empty query returns send_ok(NULL, 0); populated response sends resp at pos bytes. */
+/* public API: brix_query_config() — kXR_Qconfig capability query handler * WHAT: Main handler for Qconfig requests. Initializes 512-byte response buffer, determines TPC capability from allow_write+thread_pool config, parses whitespace-separated query keys via qconfig_next_token loop, appends key=value lines per supported feature using qconfig_append (vsnprintf with capacity tracking). Unknown keys default to =0. Empty query returns send_ok(NULL, 0); populated response sends resp at pos bytes. */
 
 ngx_int_t
-xrootd_query_config(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf)
+brix_query_config(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf)
 {
     char        resp[512];
     size_t      pos = 0;
@@ -125,7 +125,7 @@ xrootd_query_config(xrootd_ctx_t *ctx, ngx_connection_t *c,
      *   tpc   → a line whose first character is '0' or '1' (atoi for XrdCl)
      *   tpcdlg → literal "tpcdlg" when HTTP-TPC delegation is unavailable
      */
-    while (xrootd_qconfig_next_token(&p, key, sizeof(key))) {
+    while (brix_qconfig_next_token(&p, key, sizeof(key))) {
         ntokens++;
 
         if (strcmp(key, "chksum") == 0) {
@@ -136,13 +136,13 @@ xrootd_query_config(xrootd_ctx_t *ctx, ngx_connection_t *c,
              * gateway's de-facto convention; stock XRootD ships no crc64 calculator). */
             /* Value only (no "chksum=" prefix) — the reference do_Qconf returns
              * the bare cslist, and xrdcp/XrdCl parse the value line directly. */
-            if (!xrootd_qconfig_append(resp, sizeof(resp), &pos,
+            if (!brix_qconfig_append(resp, sizeof(resp), &pos,
                                        "adler32,crc32,crc32c,crc64,crc64nvme,zcrc32,md5,sha1,sha256\n")) {
                 break;
             }
 
         } else if (strcmp(key, "readv") == 0) {
-            if (!xrootd_qconfig_append(resp, sizeof(resp), &pos,
+            if (!brix_qconfig_append(resp, sizeof(resp), &pos,
                                        "readv=1\n")) {
                 break;
             }
@@ -151,8 +151,8 @@ xrootd_query_config(xrootd_ctx_t *ctx, ngx_connection_t *c,
             /* Max bytes per readv element (the official "maxReadv_ior"). Reported
              * as a bare integer (no key= prefix), matching reference XRootD, so
              * XrdCl sizes each VectorRead element to our configured
-             * xrootd_readv_segment_size and never overshoots the per-element cap. */
-            if (!xrootd_qconfig_append(resp, sizeof(resp), &pos,
+             * brix_readv_segment_size and never overshoots the per-element cap. */
+            if (!brix_qconfig_append(resp, sizeof(resp), &pos,
                                        "%lu\n",
                                        (unsigned long) conf->readv_segment_size)) {
                 break;
@@ -160,8 +160,8 @@ xrootd_query_config(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
         } else if (strcmp(key, "readv_iov_max") == 0) {
             /* Max number of elements per readv request (the official "maxRvecsz"). */
-            if (!xrootd_qconfig_append(resp, sizeof(resp), &pos,
-                                       "%d\n", XROOTD_READV_MAXSEGS)) {
+            if (!brix_qconfig_append(resp, sizeof(resp), &pos,
+                                       "%d\n", BRIX_READV_MAXSEGS)) {
                 break;
             }
 
@@ -172,13 +172,13 @@ xrootd_query_config(xrootd_ctx_t *ctx, ngx_connection_t *c,
              * parses the first response line with isdigit() + atoi(), so a
              * leading "tpc=" prefix would cause it to reject TPC support.
              */
-            if (!xrootd_qconfig_append(resp, sizeof(resp), &pos,
+            if (!brix_qconfig_append(resp, sizeof(resp), &pos,
                                        "%d\n", tpc_capable)) {
                 break;
             }
 
         } else if (strcmp(key, "tpcdlg") == 0) {
-            if (!xrootd_qconfig_append(resp, sizeof(resp), &pos,
+            if (!brix_qconfig_append(resp, sizeof(resp), &pos,
                                        "tpcdlg\n")) {
                 break;
             }
@@ -186,17 +186,17 @@ xrootd_query_config(xrootd_ctx_t *ctx, ngx_connection_t *c,
         } else if (strcmp(key, "cmpread") == 0) {
             /* phase-42 W4: inline read compression.  Advertise the codecs this
              * server can compress kXR_read responses with (only those actually
-             * built in) when xrootd_read_compress is on, else "cmpread=0" so a
+             * built in) when brix_read_compress is on, else "cmpread=0" so a
              * willing client knows not to send "?xrootd.compress=".  Invisible
              * to stock clients, which never query this key. */
             if (conf->read_compress) {
                 char              list[160];
                 size_t            lp = 0;
-                xrootd_codec_id_t cid;
+                brix_codec_id_t cid;
 
                 list[0] = '\0';
-                for (cid = (xrootd_codec_id_t) 1; cid < XROOTD_CODEC_MAX; cid++) {
-                    const xrootd_codec_desc_t *d = xrootd_codec_by_id(cid);
+                for (cid = (brix_codec_id_t) 1; cid < BRIX_CODEC_MAX; cid++) {
+                    const brix_codec_desc_t *d = brix_codec_by_id(cid);
                     int n;
 
                     if (d == NULL || !d->available) {
@@ -209,12 +209,12 @@ xrootd_query_config(xrootd_ctx_t *ctx, ngx_connection_t *c,
                     }
                     lp += (size_t) n;
                 }
-                if (!xrootd_qconfig_append(resp, sizeof(resp), &pos,
+                if (!brix_qconfig_append(resp, sizeof(resp), &pos,
                                            "cmpread=%s\n", list)) {
                     break;
                 }
             } else {
-                if (!xrootd_qconfig_append(resp, sizeof(resp), &pos,
+                if (!brix_qconfig_append(resp, sizeof(resp), &pos,
                                            "cmpread=0\n")) {
                     break;
                 }
@@ -223,15 +223,15 @@ xrootd_query_config(xrootd_ctx_t *ctx, ngx_connection_t *c,
         } else if (strcmp(key, "cmpwrite") == 0) {
             /* phase-42 W5: inline write decompression — symmetric to cmpread.
              * Advertise the codecs the server will decompress kXR_write payloads
-             * with when xrootd_write_compress is on, else "cmpwrite=0". */
+             * with when brix_write_compress is on, else "cmpwrite=0". */
             if (conf->write_compress) {
                 char              list[160];
                 size_t            lp = 0;
-                xrootd_codec_id_t cid;
+                brix_codec_id_t cid;
 
                 list[0] = '\0';
-                for (cid = (xrootd_codec_id_t) 1; cid < XROOTD_CODEC_MAX; cid++) {
-                    const xrootd_codec_desc_t *d = xrootd_codec_by_id(cid);
+                for (cid = (brix_codec_id_t) 1; cid < BRIX_CODEC_MAX; cid++) {
+                    const brix_codec_desc_t *d = brix_codec_by_id(cid);
                     int n;
 
                     if (d == NULL || !d->available) {
@@ -244,12 +244,12 @@ xrootd_query_config(xrootd_ctx_t *ctx, ngx_connection_t *c,
                     }
                     lp += (size_t) n;
                 }
-                if (!xrootd_qconfig_append(resp, sizeof(resp), &pos,
+                if (!brix_qconfig_append(resp, sizeof(resp), &pos,
                                            "cmpwrite=%s\n", list)) {
                     break;
                 }
             } else {
-                if (!xrootd_qconfig_append(resp, sizeof(resp), &pos,
+                if (!brix_qconfig_append(resp, sizeof(resp), &pos,
                                            "cmpwrite=0\n")) {
                     break;
                 }
@@ -260,7 +260,7 @@ xrootd_query_config(xrootd_ctx_t *ctx, ngx_connection_t *c,
              * implements (src/write/ext_ops.c). The native FUSE client queries
              * this to decide whether to emit kXR_setattr/symlink/readlink/link
              * rather than falling back to no-op utimens / ENOTSUP. */
-            if (!xrootd_qconfig_append(resp, sizeof(resp), &pos,
+            if (!brix_qconfig_append(resp, sizeof(resp), &pos,
                                        "xrdfs.ext=setattr,symlink,readlink,link\n")) {
                 break;
             }
@@ -271,15 +271,15 @@ xrootd_query_config(xrootd_ctx_t *ctx, ngx_connection_t *c,
              * detection, so it must contain digits and carry NO "version="
              * prefix.  Report the product version from core/ident.h — the same
              * string every other identity surface advertises. */
-            if (!xrootd_qconfig_append(resp, sizeof(resp), &pos, "%s\n",
-                                       XROOTD_SERVER_VERSION)) {
+            if (!brix_qconfig_append(resp, sizeof(resp), &pos, "%s\n",
+                                       BRIX_SERVER_VERSION)) {
                 break;
             }
 
         } else if (strcmp(key, "bind_max") == 0) {
             /* Max parallel data streams a client may bind (reference: a bare
              * integer + newline; stock default is maxStreams-1 = 15). */
-            if (!xrootd_qconfig_append(resp, sizeof(resp), &pos, "%d\n", 15)) {
+            if (!brix_qconfig_append(resp, sizeof(resp), &pos, "%d\n", 15)) {
                 break;
             }
 
@@ -287,7 +287,7 @@ xrootd_query_config(xrootd_ctx_t *ctx, ngx_connection_t *c,
             /* Max parallel-I/O streams per request. The reference do_Qconf
              * returns a bare integer (maxPio+1; stock default 5); XrdCl parses it
              * with atoi(), so a "pio_max=" prefix would break it. */
-            if (!xrootd_qconfig_append(resp, sizeof(resp), &pos, "%d\n", 5)) {
+            if (!brix_qconfig_append(resp, sizeof(resp), &pos, "%d\n", 5)) {
                 break;
             }
 
@@ -295,7 +295,7 @@ xrootd_query_config(xrootd_ctx_t *ctx, ngx_connection_t *c,
             /* Reference do_Qconf returns the bare $XRDROLE (XrdOfsConfig exports
              * it from the configured role).  A standalone data server reports
              * "server"; in manager/redirector mode it reports "manager". */
-            if (!xrootd_qconfig_append(resp, sizeof(resp), &pos, "%s\n",
+            if (!brix_qconfig_append(resp, sizeof(resp), &pos, "%s\n",
                                        conf->manager_mode ? "manager"
                                                           : "server")) {
                 break;
@@ -307,7 +307,7 @@ xrootd_query_config(xrootd_ctx_t *ctx, ngx_connection_t *c,
              * name cap is 248 (255 − len("user.")) and the value cap 65536
              * (64 KiB), which is what stock reports on ext4/xfs; we support
              * fattr (src/fattr/), so advertise the same. */
-            if (!xrootd_qconfig_append(resp, sizeof(resp), &pos, "248 65536\n")) {
+            if (!brix_qconfig_append(resp, sizeof(resp), &pos, "248 65536\n")) {
                 break;
             }
 
@@ -315,7 +315,7 @@ xrootd_query_config(xrootd_ctx_t *ctx, ngx_connection_t *c,
             /* Unknown config key: the reference echoes the key name + newline
              * (do_Qconf default branch), NOT "key=value". A bare value-line is
              * what every standard config consumer parses. */
-            if (!xrootd_qconfig_append(resp, sizeof(resp), &pos,
+            if (!brix_qconfig_append(resp, sizeof(resp), &pos,
                                        "%s\n", key)) {
                 break;
             }
@@ -326,13 +326,13 @@ xrootd_query_config(xrootd_ctx_t *ctx, ngx_connection_t *c,
      * reference do_Qconf returns kXR_ArgMissing "query config argument not
      * specified."  A token that simply produced no output still succeeds. */
     if (ntokens == 0) {
-        return xrootd_send_error(ctx, c, kXR_ArgMissing,
+        return brix_send_error(ctx, c, kXR_ArgMissing,
                                  "query config argument not specified.");
     }
 
     if (pos == 0) {
-        return xrootd_send_ok(ctx, c, NULL, 0);
+        return brix_send_ok(ctx, c, NULL, 0);
     }
 
-    return xrootd_send_ok(ctx, c, resp, (uint32_t) pos);
+    return brix_send_ok(ctx, c, resp, (uint32_t) pos);
 }

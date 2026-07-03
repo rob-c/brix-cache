@@ -37,7 +37,7 @@ from settings import (
     DATA_ROOT,
     HOST,
     NGINX_ANON_PORT,
-    REF_XROOTD_PORT,
+    REF_BRIX_PORT,
     SERVER_HOST,
     url_host,
 )
@@ -52,7 +52,7 @@ from settings import (
 # suite runs unchanged through that topology — see test_conformance_topologies.py.
 NGINX_URL = os.environ.get(
     "CONFORMANCE_NGINX_URL", f"root://{SERVER_HOST}:{NGINX_ANON_PORT}")
-REF_URL   = f"root://{url_host(HOST)}:{REF_XROOTD_PORT}"
+REF_URL   = f"root://{url_host(HOST)}:{REF_BRIX_PORT}"
 DATA_DIR  = DATA_ROOT
 
 # ---------------------------------------------------------------------------

@@ -4,7 +4,7 @@ impersonation.  RUNS AS IN-NS ROOT (launched by userns_exec_launcher inside an
 unprivileged user namespace with a subuid range + bind-mounted fake passwd/group).
 
 This is the pseudo-production permissions test: it boots the REAL nginx binary
-with `xrootd_impersonation map` (so the real master spawns the real broker, real
+with `brix_impersonation map` (so the real master spawns the real broker, real
 svc-uid workers connect, and the real auth->identity->dispatch->broker->setfsuid
 chain runs), then drives it over the network with token-authenticated WebDAV
 requests as many identities and tries to break the permissions model.
@@ -1190,20 +1190,20 @@ thread_pool default threads=4 max_queue=4096;
 events {{ worker_connections 128; }}
 
 stream {{
-    xrootd_impersonation        map;
-    xrootd_impersonation_socket {sock};
-    xrootd_impersonation_export {data};
-    xrootd_idmap_min_uid        1000;
-    xrootd_idmap_forbidden_groups "docker,sudo,wheel";
+    brix_impersonation        map;
+    brix_impersonation_socket {sock};
+    brix_impersonation_export {data};
+    brix_idmap_min_uid        1000;
+    brix_idmap_forbidden_groups "docker,sudo,wheel";
     server {{
         listen 127.0.0.1:{sport};
         xrootd on;
-        xrootd_storage_backend posix:{data};
-        xrootd_allow_write on;
-        xrootd_auth token;
-        xrootd_token_jwks     {jwks_path};
-        xrootd_token_issuer   "{ISSUER}";
-        xrootd_token_audience "{AUDIENCE}";
+        brix_storage_backend posix:{data};
+        brix_allow_write on;
+        brix_auth token;
+        brix_token_jwks     {jwks_path};
+        brix_token_issuer   "{ISSUER}";
+        brix_token_audience "{AUDIENCE}";
     }}
 }}
 
@@ -1218,26 +1218,26 @@ http {{
     server {{
         listen 127.0.0.1:{hport};
         location / {{
-            xrootd_webdav         on;
-            xrootd_webdav_storage_backend    posix:{data};
-            xrootd_webdav_auth    required;
-            xrootd_webdav_cadir   {cadir};
-            xrootd_webdav_allow_write on;
-            xrootd_webdav_token_jwks     {jwks_path};
-            xrootd_webdav_token_issuer   "{ISSUER}";
-            xrootd_webdav_token_audience "{AUDIENCE}";
+            brix_webdav         on;
+            brix_webdav_storage_backend    posix:{data};
+            brix_webdav_auth    required;
+            brix_webdav_cadir   {cadir};
+            brix_webdav_allow_write on;
+            brix_webdav_token_jwks     {jwks_path};
+            brix_webdav_token_issuer   "{ISSUER}";
+            brix_webdav_token_audience "{AUDIENCE}";
         }}
     }}
     server {{
         listen 127.0.0.1:{s3port};
         location / {{
-            xrootd_s3             on;
-            xrootd_s3_storage_backend        posix:{data};
-            xrootd_s3_bucket      {S3_BUCKET};
-            xrootd_s3_access_key  alice;
-            xrootd_s3_secret_key  {S3_SECRET};
-            xrootd_s3_region      {S3_REGION};
-            xrootd_s3_allow_write on;
+            brix_s3             on;
+            brix_s3_storage_backend        posix:{data};
+            brix_s3_bucket      {S3_BUCKET};
+            brix_s3_access_key  alice;
+            brix_s3_secret_key  {S3_SECRET};
+            brix_s3_region      {S3_REGION};
+            brix_s3_allow_write on;
         }}
     }}
 }}
@@ -10078,7 +10078,7 @@ def run_manygroups_dac(key, data, port, s3port):
        "WebDAV manyu reads frank:mg20 via supp-group (HTTP %s)" % st)
 
     # CRITICAL FAIL-SAFE: manyu's 34th group (mg33) sits PAST the
-    # XROOTD_IDMAP_MAXGROUPS=32 cap (impersonate.h:43). idmap_resolve_user()
+    # BRIX_IDMAP_MAXGROUPS=32 cap (impersonate.h:43). idmap_resolve_user()
     # keeps only the first 32 supplementary gids (idmap.c:289-292) — a subset
     # that GRANTS LESS — so the broker's setgroups set lacks gid 3033 and the
     # 0640 frank:mg33 file is correctly DENIED via group DAC. The cap is the
@@ -10133,7 +10133,7 @@ def run_manygroups_dac(key, data, port, s3port):
            "root:// manyu cats frank:mg20 via supp-group (rc=%s)" % rc)
 
         # CRITICAL FAIL-SAFE: manyu's 34th group mg33 is PAST the documented
-        # 32-slot setgroups cap (XROOTD_IDMAP_MAXGROUPS), so the broker drops it
+        # 32-slot setgroups cap (BRIX_IDMAP_MAXGROUPS), so the broker drops it
         # and DAC must DENY the 0640 frank:mg33 file (caps GRANT LESS, never more).
         rc, out, err = xrd_fs(["cat", rel_mg33], "manyu")
         ob33 = out if isinstance(out, bytes) else (out or "").encode()
@@ -10155,7 +10155,7 @@ def run_manygroups_dac(key, data, port, s3port):
         except OSError:
             pass
         # mg33 is manyu's 34th supplementary group, PAST the intentional
-        # XROOTD_IDMAP_MAXGROUPS=32 fail-safe cap (grants LESS, never more), so
+        # BRIX_IDMAP_MAXGROUPS=32 fail-safe cap (grants LESS, never more), so
         # manyu is correctly DENIED — the cap is by design.
         ok(rc != 0 and got != MARK_MG33,
            "root:// manyu DENIED frank:mg33 (34th group past the 32-group cap) (rc=%s)" % rc)
@@ -10222,7 +10222,7 @@ def run_boundary_mapping(key, data, port, s3port):
     """UID/GID FLOOR + forbidden-identity mapping enforced through the REAL
     protocols (not the C unit test).  The broker maps an auth subject -> local uid
     only when the candidate is fully legitimate: uid >= the configured floor
-    (xrootd_idmap_min_uid = 1000), its PRIMARY gid is not reserved (>= floor), and
+    (brix_idmap_min_uid = 1000), its PRIMARY gid is not reserved (>= floor), and
     it belongs to no forbidden group (docker/sudo/wheel).  This batch drives those
     boundaries with live requests and asserts the ONE security invariant that must
     never break: no file ever lands in the export owned by a reserved id (uid<1000)
@@ -19699,7 +19699,7 @@ def run_combo_connection_state_identity(key, data, port, s3port):
            f"(g) bob DENIED alice's 0600 file + no secret leak (no principal carry) (HTTP {g_leak[0]})")
     # carol's DELETE on alice's file must be DENIED; file must still exist after it.
     # The DENY is what matters: carol lacks write on alice's 0755 home, so the
-    # unlink fails with EACCES (mapped to XROOTD_NS_DENIED).  The WebDAV DELETE
+    # unlink fails with EACCES (mapped to BRIX_NS_DENIED).  The WebDAV DELETE
     # handler currently surfaces that as 500 rather than 403 (a cosmetic status
     # gap — see src/protocols/webdav/namespace.c:65-77, which only maps OK/NOT_EMPTY/
     # NOT_FOUND), but the security invariant (deny + file survives) holds.  Accept
@@ -22245,7 +22245,7 @@ def run_frm_prepare_stage(key, data, port, s3port):
         ok(True, "frm_prepare_stage: native xrdfs unavailable — root:// probes skipped (handled)")
 
     # ===================================================================
-    # SECTION 1 — PREPARE READ-DAC GRADIENT.  prepare authorises XROOTD_AUTH_READ
+    # SECTION 1 — PREPARE READ-DAC GRADIENT.  prepare authorises BRIX_AUTH_READ
     # on the target, so it is a *read*-permission oracle distinct from the
     # 0600-only deny in run_combo_rare_opcodes: alice MAY prepare a file she can
     # read (bob's 0644 readable.txt) but MUST be denied bob's 0600 private.txt and
@@ -24256,7 +24256,7 @@ def run_http_tpc_webdav(key, data, port, s3port):
     this batch drives the *HTTP/curl* COPY-with-Source (pull) and COPY-with-
     Destination+Credential (push) machinery in src/protocols/webdav/tpc.c, plus the
     Destination-without-Credential fall-through to the RFC-4918 local copy handler
-    (src/protocols/webdav/copy.c).  HTTP-TPC is OFF in the e2e config (xrootd_webdav_tpc
+    (src/protocols/webdav/copy.c).  HTTP-TPC is OFF in the e2e config (brix_webdav_tpc
     defaults to 0 and is not set), so dispatch.c returns 405 BEFORE any curl runs:
     we assert that clean 4xx for every TPC shape AND, crucially, the on-disk
     security invariants that must hold whether or not curl ever fires -- no
@@ -27017,7 +27017,7 @@ def run_s3_conditional_impersonation(key, data, port, s3port):
           If-Modified-Since -> 304, past If-Unmodified-Since -> 412); this proves
           the NEW conditional.c code paths fire, not the core filter.
       (B) CROSS-TENANT DAC-OPEN GATE (the key bug to hunt) -- in s3_handle_get
-          (object.c) the impersonated, DAC-gated xrootd_vfs_open happens BEFORE
+          (object.c) the impersonated, DAC-gated brix_vfs_open happens BEFORE
           s3_handle_conditional, so a conditional GET of bob's 0600 private.txt by
           alice must be denied by the open FIRST.  We drive EVERY precondition flavour
           incl. ones that would PASS (If-Unmodified-Since future, If-None-Match:*,
@@ -27176,7 +27176,7 @@ def run_s3_conditional_impersonation(key, data, port, s3port):
        f"S3 response-content-encoding override: body byte-exact, not re-coded (HTTP {ste})")
 
     # CRLF / control-byte injection in an override value: conditional.c rejects values
-    # carrying a control byte (xrootd_http_str_has_ctl) -> the header is NOT set, no
+    # carrying a control byte (brix_http_str_has_ctl) -> the header is NOT set, no
     # response splitting, no smuggled header lands in the response.
     crlf_val = "x\r\nX-Cond-Injected: pwned"
     sti, hI, ibody, rawhead = _s3_raw("GET", "alice/cond_own.txt", s3port,
@@ -27550,10 +27550,10 @@ def run_s3_acl_tagging_dac(key, data, port, s3port):
          GetObjectAcl SHOULD 403/404 an inaccessible key -- documented, not failed.)
 
       2. Object tagging GET/PUT/DELETE /<key>?tagging DOES touch the object: it opens
-         it via the brokered xrootd_open_confined_canon (DAC-checked as the MAPPED
+         it via the brokered brix_open_confined_canon (DAC-checked as the MAPPED
          user) but then performs the xattr op (fgetxattr/fsetxattr/fremovexattr) on
          the broker-passed fd FROM THE WORKER (svc, uid 1500) -- NOT via the brokered
-         xrootd_{set,get,remove}xattr_confined_canon wrappers the WebDAV
+         brix_{set,get,remove}xattr_confined_canon wrappers the WebDAV
          LOCK/PROPPATCH path (run_lock_proppatch) correctly uses.  This is the
          "non-brokered-xattr class": a tag op on a file the requester can READ but
          not WRITE (bob's 0644 readable.txt accessed by alice) takes its xattr-write
@@ -27761,7 +27761,7 @@ def run_s3_acl_tagging_dac(key, data, port, s3port):
 def run_compression_impersonation(key, data, port, s3port):
     """PHASE-42 COMPRESSION x impersonation, BOTH directions.  INBOUND (WebDAV/S3
     PUT with Content-Encoding gzip/deflate, decoded-on-ingest into a staged temp that
-    is created and written AS THE MAPPED USER inside xrootd_imp_request_begin): a
+    is created and written AS THE MAPPED USER inside brix_imp_request_begin): a
     valid gzip/deflate body is decompressed-and-stored, the object is owned by the
     MAPPING user (alice 1001 / bob 1002, never svc 1500 / root 0), and GET returns the
     DECOMPRESSED bytes.  Cross-tenant: an encoded PUT by alice into bob's 0700 dir is
@@ -27769,11 +27769,11 @@ def run_compression_impersonation(key, data, port, s3port):
     undecoded object, and NO svc/root-owned `.xrd-tmp.` orphan left in bob's dir.  A
     DECOMPRESSION BOMB (>1000:1 ratio, the only active guard since the PUT path passes
     out_cap=0) into the mapped user's OWN dir trips the bomb guard (413) AS that user,
-    commits NO oversized object, and leaves no staged orphan.  OUTBOUND (xrootd_*_compress
+    commits NO oversized object, and leaves no staged orphan.  OUTBOUND (brix_*_compress
     GET response compression): a GET with Accept-Encoding: gzip either returns an HONEST
     Content-Encoding that decompresses (in Python) to the EXACT stored bytes, or — when
     the directive is OFF in this harness (the generated nginx.conf sets no
-    xrootd_webdav_compress / xrootd_s3_compress, so this path is currently UNREACHABLE)
+    brix_webdav_compress / brix_s3_compress, so this path is currently UNREACHABLE)
     — identity byte-exact; EITHER way a cross-tenant GET of bob's 0600 file with
     Accept-Encoding: gzip is DAC-DENIED with NO secret in the body (compressed or plain),
     because the compress read path dup()s an fd already DAC-checked at open under the
@@ -27883,7 +27883,7 @@ def run_compression_impersonation(key, data, port, s3port):
     # NOT a bomb) used for the round-trip + outbound checks.
     PLAIN = (b"COMPRESSION-IMPERSONATION-PAYLOAD-BLOCK|" * 64)        # 2560 bytes
     # A genuine decompression bomb: ~4 MB of one byte -> ~4 KB compressed (well under
-    # 64 KiB on the wire) -> ratio ~1025 > XROOTD_DECODE_MAX_RATIO(1000) -> ERR_BOMB/413.
+    # 64 KiB on the wire) -> ratio ~1025 > BRIX_DECODE_MAX_RATIO(1000) -> ERR_BOMB/413.
     # Decompresses to only 4 MB, so host-safe even if the guard were absent.
     BOMB_RAW = b"\x00" * (4 * 1024 * 1024)
     BOMB_GZ = gz(BOMB_RAW)
@@ -28119,12 +28119,12 @@ def run_compression_impersonation(key, data, port, s3port):
         ok(True, "S3 inbound compression checks skipped (S3 port not up)")
 
     # =================================================================
-    # OUTBOUND — xrootd_*_compress GET response compression.  The directive is OFF in
+    # OUTBOUND — brix_*_compress GET response compression.  The directive is OFF in
     # this harness's generated nginx.conf, so this path is currently UNREACHABLE; we
     # detect the response Content-Encoding and graceful-degrade, but ALWAYS assert the
     # security invariant (no corruption on own read; cross-tenant denied with no leak).
     # =================================================================
-    # Own compressible object (well above XROOTD_COMPRESS_MIN_SIZE=256) for the read path.
+    # Own compressible object (well above BRIX_COMPRESS_MIN_SIZE=256) for the read path.
     rel_out = "alice/cmp_out_src.txt"
     disk_out = os.path.join(data, "alice", "cmp_out_src.txt")
     sput, _ = http("PUT", "/" + rel_out, port, ta, PLAIN)
@@ -28773,7 +28773,7 @@ def run_phase_features_combos(key, data, port, s3port):
         # carol is a group-member identity, not necessarily a configured S3 ACCESS
         # KEY in this e2e config (alice/bob are the proven S3 writers) -> her S3 PUT
         # may be rejected before any FS op.  The brokered OWN-object tagging fix
-        # (s3_tag_store via xrootd_setxattr_confined_canon) is already proven green
+        # (s3_tag_store via brix_setxattr_confined_canon) is already proven green
         # by run_s3_acl_tagging_dac; here we only run carol's positive control when
         # she IS a writable S3 identity, else skip it (the cross-tenant negative
         # below is the real security assertion of this combo).

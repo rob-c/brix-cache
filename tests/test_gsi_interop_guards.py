@@ -233,13 +233,13 @@ def test_wire_contract_tripwires():
     server_parse = _read("src/auth/gsi/parse_x509.c")
 
     # (F4) The XrdSecgsi round-2 (kXGC_cert) now lives in ONE shared kernel,
-    # xrootd_gsi_build_cert_response (src/auth/gsi/gsi_core.c); both the native client
+    # brix_gsi_build_cert_response (src/auth/gsi/gsi_core.c); both the native client
     # and the TPC destination delegate to it so neither can grow a divergent
     # reimplementation. Guard the client's delegation here; the wire-critical facts
     # below are then asserted against the shared kernel that actually emits them.
-    assert "xrootd_gsi_build_cert_response" in client_gsi, (
+    assert "brix_gsi_build_cert_response" in client_gsi, (
         "native client no longer delegates GSI round-2 to the shared gsi_core "
-        "kernel (xrootd_gsi_build_cert_response) — restore the single-source path")
+        "kernel (brix_gsi_build_cert_response) — restore the single-source path")
 
     # (a) the shared round-2 must emit the kXRS_md_alg digest bucket (dCache NPEs
     #     without it).
@@ -259,8 +259,8 @@ def test_wire_contract_tripwires():
         "fail to decrypt the client message. Restore the '%s#%d' form when use_iv.")
 
     # (c) the shared round-2 must terminate the inner encrypted bucket list with
-    #     the kXRS_none terminator (xrootd_gbuf_end).
-    assert "xrootd_gbuf_end(&x.inner)" in core, (
+    #     the kXRS_none terminator (brix_gbuf_end).
+    assert "brix_gbuf_end(&x.inner)" in core, (
         "shared GSI kernel no longer appends the kXRS_none terminator to the inner "
         "buffer — dCache will overrun (readerIndex exceeds writerIndex)")
 
@@ -279,7 +279,7 @@ def test_wire_contract_tripwires():
     assert "'#'" in helpers, (
         "server cipher-name parser no longer strips the '#ivlen' suffix — a stock "
         "IV-advertising client's cipher_alg ('aes-128-cbc#16') will fail to resolve")
-    assert not re.search(r"xrootd_gsi_cipher_decrypt\([^;]*,\s*0\s*,\s*&plain_len",
+    assert not re.search(r"brix_gsi_cipher_decrypt\([^;]*,\s*0\s*,\s*&plain_len",
                          server_parse), (
         "server signed-DH path decrypts with use_iv=0 — it will mis-handle the "
         "IV-prepended main that stock XRootD/EOS clients always send at v>=10400")
@@ -306,11 +306,11 @@ def test_xcache_origin_uses_native_client():
     rejected — so guard both halves of the in-process path.
     """
     fetch = _read("src/fs/cache/fetch.c")
-    assert "xrootd_sd_xroot_create_origin" in fetch and "x509_proxy" in fetch, (
+    assert "brix_sd_xroot_create_origin" in fetch and "x509_proxy" in fetch, (
         "cache/fetch.c no longer builds a GSI-capable (X.509) sd_xroot origin — "
         "GSI origins (EOS/dCache) would fall back to anon login and be rejected")
     origin = _read("src/fs/cache/origin_protocol.c")
-    assert "xrootd_cache_origin_auth_gsi" in origin, (
+    assert "brix_cache_origin_auth_gsi" in origin, (
         "cache/origin_protocol.c no longer performs the in-process GSI (X.509) "
         "origin handshake — GSI origins would fall back to anon and be rejected")
 
@@ -320,22 +320,22 @@ def test_tpc_outbound_uses_shared_core():
 
     Post-F4 the TPC destination's round-2 (src/tpc/gsi/gsi_outbound_exchange.c) is a
     thin driver that delegates the entire kXGC_cert build to the shared kernel
-    xrootd_gsi_build_cert_response (src/auth/gsi/gsi_core.c) — the SAME implementation
+    brix_gsi_build_cert_response (src/auth/gsi/gsi_core.c) — the SAME implementation
     the native client uses. We assert the delegation (so the TPC path can never
     grow a divergent crypto reimplementation) and that the shared kernel still
     carries the wire-critical facts.
     """
     ex = _read("src/tpc/gsi/gsi_outbound_exchange.c")
     core = _read("src/auth/gsi/gsi_core.c")
-    assert "xrootd_gsi_build_cert_response" in ex, (
+    assert "brix_gsi_build_cert_response" in ex, (
         "TPC outbound GSI no longer delegates round-2 to the shared gsi_core kernel "
-        "(xrootd_gsi_build_cert_response) — its DH/cipher math can drift from the "
+        "(brix_gsi_build_cert_response) — its DH/cipher math can drift from the "
         "EOS-proven client")
-    assert ("xrootd_gsi_cipher_encrypt" in core
-            and "xrootd_gsi_cipher_public" in core), (
+    assert ("brix_gsi_cipher_encrypt" in core
+            and "brix_gsi_cipher_public" in core), (
         "shared gsi_core kernel no longer uses its own cipher_encrypt/_public — "
         "the unified GSI DH/cipher math regressed")
-    assert "xrootd_gbuf_end" in core, (
+    assert "brix_gbuf_end" in core, (
         "shared GSI kernel no longer emits the kXRS_none terminator")
     # dCache-correctness: the shared round-2 must echo cipher_alg + md_alg, or
     # dCache NPEs (digestBucket null) on a TPC pull with dCache as the origin.
@@ -408,7 +408,7 @@ def test_xcache_origin_fetch_live(endpoint, listdir, tmp_path):
 
 # TPC pull from a live origin (this module as the TPC destination). Gated on a
 # running native-TPC nginx-xrootd destination (TEST_TPC_DEST_ENDPOINT) because it
-# needs a server instance whose xrootd_certificate is authorized at the origin.
+# needs a server instance whose brix_certificate is authorized at the origin.
 # NOTE: the in-process outbound path (src/tpc/gsi/gsi_outbound_*.c) is the legacy
 # unsigned-DH dialect (no kXRS_md_alg); it is proven against EOS but UNVERIFIED
 # against dCache — this test is the gold guard once a dest is available.

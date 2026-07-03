@@ -1,5 +1,5 @@
-#ifndef NGX_XROOTD_DIG_H
-#define NGX_XROOTD_DIG_H
+#ifndef NGX_BRIX_DIG_H
+#define NGX_BRIX_DIG_H
 
 /*
  * dig.h — XrdDig-style remote diagnostics (§3).
@@ -14,7 +14,7 @@
  *       principal→export allow-file, and (d) read-only (GET/HEAD only). The
  *       declared export dirs are realpath'd at config time (the BENEATH anchors).
  *
- * The public entry point is xrootd_dig_handle(), called from the WebDAV dispatch
+ * The public entry point is brix_dig_handle(), called from the WebDAV dispatch
  * when the request path is under the dig prefix.
  */
 
@@ -23,11 +23,11 @@
 #include <ngx_http.h>
 
 /* The reserved URI prefix that routes to the dig handler. */
-#define XROOTD_DIG_PREFIX     "/.well-known/dig/"
-#define XROOTD_DIG_PREFIX_LEN (sizeof(XROOTD_DIG_PREFIX) - 1)
+#define BRIX_DIG_PREFIX     "/.well-known/dig/"
+#define BRIX_DIG_PREFIX_LEN (sizeof(BRIX_DIG_PREFIX) - 1)
 
-/* Declared in webdav.h (shared with the config setter): xrootd_dig_export_t,
- * and the handler prototype xrootd_dig_handle(). This header documents the
+/* Declared in webdav.h (shared with the config setter): brix_dig_export_t,
+ * and the handler prototype brix_dig_handle(). This header documents the
  * contract; the implementation lives in dig.c. */
 
-#endif /* NGX_XROOTD_DIG_H */
+#endif /* NGX_BRIX_DIG_H */

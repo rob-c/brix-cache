@@ -14,16 +14,16 @@
  *       path operations, and support streaming multi-chunk reads — all
  *       while keeping the client unaware of upstream topology changes.
  *
- * HOW:  xrootd_proxy_relay_to_client() processes proxy->resp_status/body/dlen
+ * HOW:  brix_proxy_relay_to_client() processes proxy->resp_status/body/dlen
  *       from the upstream response. It handles each special case in sequence:
  *       lazy-open → wait-retry → redirect-follow → audit → fhandle-translation
  *       → read/write tracking → close audit → build/send relay buffer.
  */
 
 /* Audit helper declaration — defined in forward_relay_audit.c */
-extern void proxy_write_path_audit(xrootd_proxy_ctx_t *proxy, uint16_t status);
+extern void proxy_write_path_audit(brix_proxy_ctx_t *proxy, uint16_t status);
 
-/* public API: xrootd_proxy_relay_to_client() — relay upstream response to client * WHAT: Relay the upstream server's response frame back to the connected client.
+/* public API: brix_proxy_relay_to_client() — relay upstream response to client * WHAT: Relay the upstream server's response frame back to the connected client.
  *       Handles bound-secondary lazy-open (synthetic kXR_open), kXR_wait retry,
  *       kXR_redirect follow-through, fhandle translation, path audit, and streaming. */
 
@@ -33,9 +33,9 @@ extern void proxy_write_path_audit(xrootd_proxy_ctx_t *proxy, uint16_t status);
  * failure) and resume the client read loop.  Returns 1 when this was a lazy-
  * open response and the caller must return; 0 otherwise. */
 static int
-xrootd_proxy_relay_lazy_open(xrootd_proxy_ctx_t *proxy)
+brix_proxy_relay_lazy_open(brix_proxy_ctx_t *proxy)
 {
-    xrootd_ctx_t     *ctx = proxy->client_ctx;
+    brix_ctx_t     *ctx = proxy->client_ctx;
     ngx_connection_t *c   = proxy->client_conn;
     uint16_t          status = proxy->resp_status;
     uint32_t          dlen   = proxy->resp_dlen;
@@ -52,7 +52,7 @@ xrootd_proxy_relay_lazy_open(xrootd_proxy_ctx_t *proxy)
         /* Extract upstream fhandle from open response body[0] */
         int upstream_fh = (body != NULL && dlen >= 1)
                           ? (int)(unsigned char) body[0] : 0;
-        if (local_fh >= 0 && local_fh < XROOTD_MAX_FILES) {
+        if (local_fh >= 0 && local_fh < BRIX_MAX_FILES) {
             proxy->fh_map[local_fh].upstream_fh = upstream_fh;
             proxy->fh_map[local_fh].open_msec   = ngx_current_msec;
         }
@@ -66,14 +66,14 @@ xrootd_proxy_relay_lazy_open(xrootd_proxy_ctx_t *proxy)
             ngx_free(proxy->resp_body);
             proxy->resp_body = NULL;
         }
-        if (local_fh >= 0 && local_fh < XROOTD_MAX_FILES) {
-            proxy->fh_map[local_fh].upstream_fh = XROOTD_PROXY_FH_FREE;
+        if (local_fh >= 0 && local_fh < BRIX_MAX_FILES) {
+            proxy->fh_map[local_fh].upstream_fh = BRIX_PROXY_FH_FREE;
         }
         proxy->state = XRD_PX_IDLE;
         ctx->state   = XRD_ST_REQ_HEADER;
-        xrootd_send_error(ctx, c, kXR_IOError,
+        brix_send_error(ctx, c, kXR_IOError,
                           "proxy: lazy open for bound secondary failed");
-        xrootd_schedule_read_resume(c);
+        brix_schedule_read_resume(c);
         return 1;
     }
 
@@ -97,7 +97,7 @@ xrootd_proxy_relay_lazy_open(xrootd_proxy_ctx_t *proxy)
 
             /* Pass ownership to lazy_open */
             proxy->saved_req = NULL;
-            if (xrootd_proxy_lazy_open(proxy, ctx, c, next_fh, rreq, rlen)
+            if (brix_proxy_lazy_open(proxy, ctx, c, next_fh, rreq, rlen)
                 != NGX_OK)
             {
                 /* Error already handled / reported */
@@ -116,7 +116,7 @@ xrootd_proxy_relay_lazy_open(xrootd_proxy_ctx_t *proxy)
         /* Translate the client-side fhandle(s) to upstream handles */
         saved_rid = ntohs(((ClientRequestHdr *)(void *) rreq)->requestid);
         if (saved_rid == kXR_read || saved_rid == kXR_pgread) {
-            int ufh = (lfh >= 0 && lfh < XROOTD_MAX_FILES)
+            int ufh = (lfh >= 0 && lfh < BRIX_MAX_FILES)
                       ? proxy->fh_map[lfh].upstream_fh : -1;
             if (ufh >= 0) rreq[4] = (u_char)(unsigned int) ufh;
         } else if (saved_rid == kXR_readv) {
@@ -127,7 +127,7 @@ xrootd_proxy_relay_lazy_open(xrootd_proxy_ctx_t *proxy)
                             ? rlen - XRD_REQUEST_HDR_LEN : 0;
             while (pos + 16 <= pdlen) {
                 int cfh = (int)(unsigned char) pl[pos];
-                if (cfh >= 0 && cfh < XROOTD_MAX_FILES
+                if (cfh >= 0 && cfh < BRIX_MAX_FILES
                     && proxy->fh_map[cfh].upstream_fh >= 0)
                 {
                     pl[pos] = (u_char)(unsigned int) proxy->fh_map[cfh].upstream_fh;
@@ -183,8 +183,8 @@ xrootd_proxy_relay_lazy_open(xrootd_proxy_ctx_t *proxy)
         proxy->resp_body     = NULL;
         proxy->resp_body_pos = 0;
 
-        if (xrootd_proxy_flush(proxy) == NGX_ERROR) {
-            xrootd_proxy_abort(proxy,
+        if (brix_proxy_flush(proxy) == NGX_ERROR) {
+            brix_proxy_abort(proxy,
                 "proxy: send deferred read after lazy open failed");
             return 1;
         }
@@ -192,13 +192,13 @@ xrootd_proxy_relay_lazy_open(xrootd_proxy_ctx_t *proxy)
             return 1; /* write handler completes the send */
         }
         if (ngx_handle_read_event(proxy->conn->read, 0) != NGX_OK) {
-            xrootd_proxy_abort(proxy,
+            brix_proxy_abort(proxy,
                 "proxy: read arm failed after lazy open read");
         }
     } else {
         proxy->state = XRD_PX_IDLE;
         ctx->state   = XRD_ST_REQ_HEADER;
-        xrootd_schedule_read_resume(c);
+        brix_schedule_read_resume(c);
     }
     return 1;
 }
@@ -210,7 +210,7 @@ xrootd_proxy_relay_lazy_open(xrootd_proxy_ctx_t *proxy)
  * relay the redirect to the client (not a redirect, malformed target, or the
  * reconnect attempt failed). */
 static int
-xrootd_proxy_relay_try_redirect(xrootd_proxy_ctx_t *proxy, ngx_connection_t *c,
+brix_proxy_relay_try_redirect(brix_proxy_ctx_t *proxy, ngx_connection_t *c,
     uint16_t status, u_char *body, uint32_t dlen)
 {
     if (status == kXR_redirect && body != NULL && dlen > 0
@@ -272,7 +272,7 @@ xrootd_proxy_relay_try_redirect(xrootd_proxy_ctx_t *proxy, ngx_connection_t *c,
                         proxy->resp_dlen     = 0;
                         proxy->resp_body_pos = 0;
 
-                        if (xrootd_proxy_connect(proxy, c, proxy->conf) == NGX_OK) {
+                        if (brix_proxy_connect(proxy, c, proxy->conf) == NGX_OK) {
                             return 1; /* reconnect in progress; dispatches saved_req */
                         }
                         /* reconnect failed — fall through to relay redirect */
@@ -288,9 +288,9 @@ xrootd_proxy_relay_try_redirect(xrootd_proxy_ctx_t *proxy, ngx_connection_t *c,
 }
 
 void
-xrootd_proxy_relay_to_client(xrootd_proxy_ctx_t *proxy)
+brix_proxy_relay_to_client(brix_proxy_ctx_t *proxy)
 {
-    xrootd_ctx_t     *ctx = proxy->client_ctx;
+    brix_ctx_t     *ctx = proxy->client_ctx;
     ngx_connection_t *c   = proxy->client_conn;
     uint16_t          status = proxy->resp_status;
     uint32_t          dlen   = proxy->resp_dlen;
@@ -301,32 +301,32 @@ xrootd_proxy_relay_to_client(xrootd_proxy_ctx_t *proxy)
     /* Tap: emit the upstream response metadata (status/dlen) to the observation
      * tap, keyed to the client's streamid. */
     {
-        xrootd_tap_frame_t tf;
+        brix_tap_frame_t tf;
         ngx_memzero(&tf, sizeof(tf));
         tf.is_request = 0;
         tf.streamid   = (uint16_t) (((unsigned) proxy->fwd_streamid[0] << 8)
                                      | proxy->fwd_streamid[1]);
         tf.status     = status;
         tf.dlen       = dlen;
-        xrootd_tap_emit(&proxy->tap, &tf, XROOTD_TAP_U2C, NULL, 0);
+        brix_tap_emit(&proxy->tap, &tf, BRIX_TAP_U2C, NULL, 0);
     }
 
-    /* lazy open (bound secondary): handle synthetic kXR_open response */    if (xrootd_proxy_relay_lazy_open(proxy)) {
+    /* lazy open (bound secondary): handle synthetic kXR_open response */    if (brix_proxy_relay_lazy_open(proxy)) {
         return;
     }
 
     /* kXR_wait: absorb upstream "busy, try later" */    if (status == kXR_wait
         && !proxy->fwd_streaming
         && proxy->wait_retry_req != NULL
-        && proxy->wait_retry_count < XROOTD_PROXY_MAX_WAIT_RETRIES)
+        && proxy->wait_retry_count < BRIX_PROXY_MAX_WAIT_RETRIES)
     {
         /* shared decode+clamp (libxrdproto): floor 1s, ceiling MAX. */
         uint32_t wait_secs = xrd_wait_secs_parse((const uint8_t *) body, dlen, 1,
-                                                 XROOTD_PROXY_MAX_WAIT_SECS);
+                                                 BRIX_PROXY_MAX_WAIT_SECS);
 
         proxy->wait_retry_count++;
-        XROOTD_PROXY_METRIC_INC(ctx, wait_responses_total);
-        XROOTD_PROXY_UP_INC(proxy, wait_responses_total);
+        BRIX_PROXY_METRIC_INC(ctx, wait_responses_total);
+        BRIX_PROXY_UP_INC(proxy, wait_responses_total);
 
         ngx_log_debug3(NGX_LOG_DEBUG_STREAM, c->log, 0,
                        "xrootd proxy: kXR_wait for reqid=%d, retry %d in %us",
@@ -347,7 +347,7 @@ xrootd_proxy_relay_to_client(xrootd_proxy_ctx_t *proxy)
          * guard for the spontaneous-response case. */
 
         ngx_memzero(&proxy->wait_ev, sizeof(proxy->wait_ev));
-        proxy->wait_ev.handler = xrootd_proxy_wait_handler;
+        proxy->wait_ev.handler = brix_proxy_wait_handler;
         proxy->wait_ev.data    = proxy;
         proxy->wait_ev.log     = proxy->conn->log;
         ngx_add_timer(&proxy->wait_ev, wait_secs * 1000);
@@ -357,8 +357,8 @@ xrootd_proxy_relay_to_client(xrootd_proxy_ctx_t *proxy)
     /* kXR_wait exhausted retries — free retry buffer and relay the wait to client */
     if (status == kXR_wait) {
         int local_fh = proxy->fwd_local_fh;
-        if (proxy->fwd_reqid == kXR_open && local_fh >= 0 && local_fh < XROOTD_MAX_FILES) {
-            proxy->fh_map[local_fh].upstream_fh = XROOTD_PROXY_FH_FREE;
+        if (proxy->fwd_reqid == kXR_open && local_fh >= 0 && local_fh < BRIX_MAX_FILES) {
+            proxy->fh_map[local_fh].upstream_fh = BRIX_PROXY_FH_FREE;
         }
         if (proxy->wait_retry_req != NULL) {
             ngx_free(proxy->wait_retry_req);
@@ -367,7 +367,7 @@ xrootd_proxy_relay_to_client(xrootd_proxy_ctx_t *proxy)
     }
 
     /* kXR_redirect follow-through (transparently reconnect to the target). */
-    if (xrootd_proxy_relay_try_redirect(proxy, c, status, body, dlen)) {
+    if (brix_proxy_relay_try_redirect(proxy, c, status, body, dlen)) {
         return;
     }
 
@@ -375,11 +375,11 @@ xrootd_proxy_relay_to_client(xrootd_proxy_ctx_t *proxy)
         && (status == kXR_ok || status == kXR_error))
     {
         if (status == kXR_ok) {
-            XROOTD_PROXY_METRIC_INC(ctx, path_ops_total);
-            XROOTD_PROXY_UP_INC(proxy, path_ops_total);
+            BRIX_PROXY_METRIC_INC(ctx, path_ops_total);
+            BRIX_PROXY_UP_INC(proxy, path_ops_total);
         } else {
-            XROOTD_PROXY_METRIC_INC(ctx, path_op_errors_total);
-            XROOTD_PROXY_UP_INC(proxy, path_op_errors_total);
+            BRIX_PROXY_METRIC_INC(ctx, path_op_errors_total);
+            BRIX_PROXY_UP_INC(proxy, path_op_errors_total);
         }
         proxy_write_path_audit(proxy, status);
         proxy->fwd_path_audit = 0;
@@ -391,7 +391,7 @@ xrootd_proxy_relay_to_client(xrootd_proxy_ctx_t *proxy)
                           ? (int)(unsigned char) body[0]
                           : 0;
 
-        if (local_fh >= 0 && local_fh < XROOTD_MAX_FILES) {
+        if (local_fh >= 0 && local_fh < BRIX_MAX_FILES) {
             proxy->fh_map[local_fh].upstream_fh = upstream_fh;
             proxy->fh_map[local_fh].open_msec   = ngx_current_msec;
             if (body != NULL) {
@@ -407,45 +407,45 @@ xrootd_proxy_relay_to_client(xrootd_proxy_ctx_t *proxy)
             ngx_free(proxy->wait_retry_req);
             proxy->wait_retry_req = NULL;
         }
-        XROOTD_PROXY_METRIC_INC(ctx, opens_total);
-        XROOTD_PROXY_UP_INC(proxy, opens_total);
+        BRIX_PROXY_METRIC_INC(ctx, opens_total);
+        BRIX_PROXY_UP_INC(proxy, opens_total);
     }
 
     if (status == kXR_error && proxy->fwd_reqid == kXR_open) {
         int local_fh = proxy->fwd_local_fh;
-        if (local_fh >= 0 && local_fh < XROOTD_MAX_FILES) {
-            proxy->fh_map[local_fh].upstream_fh = XROOTD_PROXY_FH_FREE;
+        if (local_fh >= 0 && local_fh < BRIX_MAX_FILES) {
+            proxy->fh_map[local_fh].upstream_fh = BRIX_PROXY_FH_FREE;
         }
         if (proxy->wait_retry_req != NULL) {
             ngx_free(proxy->wait_retry_req);
             proxy->wait_retry_req = NULL;
         }
-        XROOTD_PROXY_METRIC_INC(ctx, open_errors);
-        XROOTD_PROXY_UP_INC(proxy, open_errors);
+        BRIX_PROXY_METRIC_INC(ctx, open_errors);
+        BRIX_PROXY_UP_INC(proxy, open_errors);
     }
 
     /* read/readv/pgread: track bytes returned to client */    if (status == kXR_ok || status == kXR_oksofar) {
         int local_fh = proxy->fwd_local_fh;
-        if (local_fh >= 0 && local_fh < XROOTD_MAX_FILES) {
+        if (local_fh >= 0 && local_fh < BRIX_MAX_FILES) {
             switch (proxy->fwd_reqid) {
             case kXR_read:
             case kXR_pgread:
             case kXR_readv:
                 proxy->fh_map[local_fh].bytes_read += dlen;
-                XROOTD_PROXY_METRIC_INC(ctx, reads_total);
-                XROOTD_PROXY_METRIC_ADD(ctx, read_bytes_total, dlen);
-                XROOTD_PROXY_UP_INC(proxy, reads_total);
-                XROOTD_PROXY_UP_ADD(proxy, read_bytes_total, dlen);
+                BRIX_PROXY_METRIC_INC(ctx, reads_total);
+                BRIX_PROXY_METRIC_ADD(ctx, read_bytes_total, dlen);
+                BRIX_PROXY_UP_INC(proxy, reads_total);
+                BRIX_PROXY_UP_ADD(proxy, read_bytes_total, dlen);
                 break;
             case kXR_write:
             case kXR_pgwrite:
             case kXR_writev:
                 proxy->fh_map[local_fh].bytes_written += proxy->fwd_payload_len;
-                XROOTD_PROXY_METRIC_INC(ctx, writes_total);
-                XROOTD_PROXY_METRIC_ADD(ctx, write_bytes_total,
+                BRIX_PROXY_METRIC_INC(ctx, writes_total);
+                BRIX_PROXY_METRIC_ADD(ctx, write_bytes_total,
                                         proxy->fwd_payload_len);
-                XROOTD_PROXY_UP_INC(proxy, writes_total);
-                XROOTD_PROXY_UP_ADD(proxy, write_bytes_total, proxy->fwd_payload_len);
+                BRIX_PROXY_UP_INC(proxy, writes_total);
+                BRIX_PROXY_UP_ADD(proxy, write_bytes_total, proxy->fwd_payload_len);
                 break;
             default:
                 break;
@@ -455,12 +455,12 @@ xrootd_proxy_relay_to_client(xrootd_proxy_ctx_t *proxy)
 
     /* kXR_close: emit audit record, free the handle slot on success */    if (proxy->fwd_reqid == kXR_close && status == kXR_ok) {
         int local_fh = proxy->fwd_local_fh;
-        if (local_fh >= 0 && local_fh < XROOTD_MAX_FILES) {
+        if (local_fh >= 0 && local_fh < BRIX_MAX_FILES) {
             proxy_write_audit(proxy, local_fh);
-            proxy->fh_map[local_fh].upstream_fh = XROOTD_PROXY_FH_FREE;
+            proxy->fh_map[local_fh].upstream_fh = BRIX_PROXY_FH_FREE;
         }
-        XROOTD_PROXY_METRIC_INC(ctx, closes_total);
-        XROOTD_PROXY_UP_INC(proxy, closes_total);
+        BRIX_PROXY_METRIC_INC(ctx, closes_total);
+        BRIX_PROXY_UP_INC(proxy, closes_total);
     }
 
     /* build and send relay buffer */    /*
@@ -473,21 +473,21 @@ xrootd_proxy_relay_to_client(xrootd_proxy_ctx_t *proxy)
         total = XRD_RESPONSE_HDR_LEN + dlen;   /* 8 + 24 + extra */
         buf   = ngx_palloc(c->pool, total);
         if (buf == NULL) {
-            xrootd_proxy_abort(proxy, "proxy: pool alloc failed in relay");
+            brix_proxy_abort(proxy, "proxy: pool alloc failed in relay");
             return;
         }
         /* Header: dlen=24 (the fixed kXR_status body size, not 24+extra) */
-        xrootd_build_resp_hdr(proxy->fwd_streamid, status, 24,
+        brix_build_resp_hdr(proxy->fwd_streamid, status, 24,
                               (ServerResponseHdr *)(void *) buf);
         ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, body, dlen);
     } else {
         total = XRD_RESPONSE_HDR_LEN + dlen;
         buf   = ngx_palloc(c->pool, total);
         if (buf == NULL) {
-            xrootd_proxy_abort(proxy, "proxy: pool alloc failed in relay");
+            brix_proxy_abort(proxy, "proxy: pool alloc failed in relay");
             return;
         }
-        xrootd_build_resp_hdr(proxy->fwd_streamid, status, dlen,
+        brix_build_resp_hdr(proxy->fwd_streamid, status, dlen,
                               (ServerResponseHdr *)(void *) buf);
         if (dlen > 0 && body != NULL) {
             ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, body, dlen);
@@ -520,7 +520,7 @@ xrootd_proxy_relay_to_client(xrootd_proxy_ctx_t *proxy)
         proxy->resp_dlen     = 0;
         proxy->resp_body     = NULL;
         proxy->resp_body_pos = 0;
-        xrootd_queue_response(ctx, c, buf, total);
+        brix_queue_response(ctx, c, buf, total);
         /* State stays XRD_ST_PROXY; read handler loops */
         return;
     }
@@ -537,7 +537,7 @@ xrootd_proxy_relay_to_client(xrootd_proxy_ctx_t *proxy)
         proxy->resp_dlen     = 0;
         proxy->resp_body     = NULL;
         proxy->resp_body_pos = 0;
-        xrootd_queue_response(ctx, c, buf, total);
+        brix_queue_response(ctx, c, buf, total);
         return;
     }
 
@@ -550,7 +550,7 @@ xrootd_proxy_relay_to_client(xrootd_proxy_ctx_t *proxy)
         proxy->resp_dlen     = 0;
         proxy->resp_body     = NULL;
         proxy->resp_body_pos = 0;
-        xrootd_queue_response(ctx, c, buf, total);
+        brix_queue_response(ctx, c, buf, total);
         return;
     }
 
@@ -565,7 +565,7 @@ xrootd_proxy_relay_to_client(xrootd_proxy_ctx_t *proxy)
         proxy->resp_dlen     = 0;
         proxy->resp_body     = NULL;
         proxy->resp_body_pos = 0;
-        xrootd_queue_response(ctx, c, buf, total);
+        brix_queue_response(ctx, c, buf, total);
         /* State stays XRD_PX_FORWARDING; read handler loops to next frame */
         return;
     }
@@ -583,6 +583,6 @@ xrootd_proxy_relay_to_client(xrootd_proxy_ctx_t *proxy)
     }
     proxy->state = XRD_PX_IDLE;
     ctx->state   = XRD_ST_REQ_HEADER;
-    xrootd_queue_response(ctx, c, buf, total);
-    xrootd_schedule_read_resume(c);
+    brix_queue_response(ctx, c, buf, total);
+    brix_schedule_read_resume(c);
 }

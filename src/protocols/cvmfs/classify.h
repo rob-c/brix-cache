@@ -9,8 +9,8 @@
  * HOW:  no allocation, no failure mode — unrecognized shapes come back
  *       CVMFS_URL_REJECT; pointers in the result alias the input buffer.
  */
-#ifndef XROOTD_CVMFS_CLASSIFY_H
-#define XROOTD_CVMFS_CLASSIFY_H
+#ifndef BRIX_CVMFS_CLASSIFY_H
+#define BRIX_CVMFS_CLASSIFY_H
 
 #include <stddef.h>
 
@@ -35,4 +35,4 @@ typedef struct {
  * no allocation, no ngx types (standalone-testable). */
 int cvmfs_classify_url(const char *path, size_t len, cvmfs_url_info_t *out);
 
-#endif /* XROOTD_CVMFS_CLASSIFY_H */
+#endif /* BRIX_CVMFS_CLASSIFY_H */

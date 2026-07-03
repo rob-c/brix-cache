@@ -1,4 +1,4 @@
-#include "ngx_xrootd_fattr.h"
+#include "ngx_brix_fattr.h"
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/xattr.h>   /* XATTR_CREATE flag only — syscalls go via the VFS */
@@ -11,10 +11,10 @@
  * HOW: Four-phase execution: (1) parse vvec with bounds checking and signed-to-unsigned conversion for safety, (2) apply each attribute via path-based or handle-based syscall depending on options, (3) collect per-attribute errors into attrs[] array, (4) send fattr_send_vector_status response with kXR_status(4007) framing containing per-attribute success/failure codes. INVARIANT #1 referenced: vector status responses use kXR_status framing + per-page CRC for integrity verification in pgwrite context; here applied to attribute error reporting consistency. */
 
 ngx_int_t
-fattr_set(xrootd_ctx_t *ctx, ngx_connection_t *c, xrootd_vfs_ctx_t *vctx,
+fattr_set(brix_ctx_t *ctx, ngx_connection_t *c, brix_vfs_ctx_t *vctx,
     const char *path, int fd, int options, u_char *nvec_copy, size_t nvec_len,
     u_char *vvec_buf, size_t vvec_len, int numattr,
-    xrootd_fattr_entry_t *attrs)
+    brix_fattr_entry_t *attrs)
 {
     u_char *value_cursor;
     u_char *value_end;
@@ -39,7 +39,7 @@ fattr_set(xrootd_ctx_t *ctx, ngx_connection_t *c, xrootd_vfs_ctx_t *vctx,
         int      rc;
 
         if ((size_t) (value_end - value_cursor) < 4) {
-            return xrootd_send_error(ctx, c, kXR_ArgMissing,
+            return brix_send_error(ctx, c, kXR_ArgMissing,
                                      "fattr set: vvec truncated");
         }
 
@@ -48,25 +48,25 @@ fattr_set(xrootd_ctx_t *ctx, ngx_connection_t *c, xrootd_vfs_ctx_t *vctx,
         value_cursor += 4;
 
         if (value_len_signed < 0) {
-            return xrootd_send_error(ctx, c, kXR_ArgInvalid,
+            return brix_send_error(ctx, c, kXR_ArgInvalid,
                                      "fattr set: value invalid");
         }
 
         value_len = (size_t) value_len_signed;
         if (value_len > kXR_faMaxVlen) {
-            return xrootd_send_error(ctx, c, kXR_ArgTooLong,
+            return brix_send_error(ctx, c, kXR_ArgTooLong,
                                      "fattr set: value invalid");
         }
         if ((size_t) (value_end - value_cursor) < value_len) {
-            return xrootd_send_error(ctx, c, kXR_ArgInvalid,
+            return brix_send_error(ctx, c, kXR_ArgInvalid,
                                      "fattr set: value invalid");
         }
 
         if (path != NULL) {
-            rc = xrootd_vfs_setxattr(vctx, attrs[attr_index].xkey, value_cursor,
+            rc = brix_vfs_setxattr(vctx, attrs[attr_index].xkey, value_cursor,
                                      value_len, xattr_flags);
         } else {
-            rc = xrootd_vfs_fsetxattr(vctx, fd, attrs[attr_index].xkey,
+            rc = brix_vfs_fsetxattr(vctx, fd, attrs[attr_index].xkey,
                                       value_cursor, value_len, xattr_flags);
         }
 

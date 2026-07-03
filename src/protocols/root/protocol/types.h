@@ -1,5 +1,5 @@
-#ifndef XROOTD_PROTOCOL_TYPES_H
-#define XROOTD_PROTOCOL_TYPES_H
+#ifndef BRIX_PROTOCOL_TYPES_H
+#define BRIX_PROTOCOL_TYPES_H
 
 /*
  * Primitive type aliases matching XProtocol.hh.
@@ -30,4 +30,4 @@ typedef int32_t   kXR_int32;
 /* 64-bit signed — not used in current protocol wire format */
 typedef int64_t   kXR_int64;
 
-#endif /* XROOTD_PROTOCOL_TYPES_H */
+#endif /* BRIX_PROTOCOL_TYPES_H */

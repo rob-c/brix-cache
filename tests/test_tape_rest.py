@@ -5,7 +5,7 @@ Phase 35 / Phase 2 — WLCG HTTP Tape REST API (src/protocols/webdav/tape_rest.c
 
 Self-contained nginx: a stream root:// server with FRM enabled (so the durable
 queue + frm_singleton_queue exist in the worker) plus an http WebDAV location
-with xrootd_webdav_tape_rest on, auth none, allow_write on. Drives the API
+with brix_webdav_tape_rest on, auth none, allow_write on. Drives the API
 anonymously (allowed because the server requires no auth) over /api/v1/.
 
   S  POST /archiveinfo → per-path locality (NEARLINE / ONLINE), no queue write.
@@ -86,12 +86,12 @@ stream {{
     server {{
         listen {BIND_HOST}:{STREAM_PORT};
         xrootd on;
-        xrootd_storage_backend posix:{data};
-        xrootd_auth none;
-        xrootd_allow_write on;
-        xrootd_frm on;
-        xrootd_frm_queue_path {queue};
-        xrootd_frm_stagecmd /bin/true;
+        brix_storage_backend posix:{data};
+        brix_auth none;
+        brix_allow_write on;
+        brix_frm on;
+        brix_frm_queue_path {queue};
+        brix_frm_stagecmd /bin/true;
     }}
 }}
 http {{
@@ -104,11 +104,11 @@ http {{
     server {{
         listen {BIND_HOST}:{HTTP_PORT};
         location / {{
-            xrootd_webdav on;
-            xrootd_webdav_storage_backend posix:{data};
-            xrootd_webdav_auth none;
-            xrootd_webdav_allow_write on;
-            xrootd_webdav_tape_rest on;
+            brix_webdav on;
+            brix_webdav_storage_backend posix:{data};
+            brix_webdav_auth none;
+            brix_webdav_allow_write on;
+            brix_webdav_tape_rest on;
         }}
     }}
 }}

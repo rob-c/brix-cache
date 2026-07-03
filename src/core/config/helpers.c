@@ -10,8 +10,8 @@
  * optional and skipped.  Returns NGX_OK, or NGX_ERROR with an emerg log
  * naming the failure. */
 ngx_int_t
-xrootd_validate_path(ngx_conf_t *cf, const char *label, const ngx_str_t *path,
-    xrootd_path_kind_t kind, int access_mode)
+brix_validate_path(ngx_conf_t *cf, const char *label, const ngx_str_t *path,
+    brix_path_kind_t kind, int access_mode)
 {
     struct stat st;
 
@@ -27,7 +27,7 @@ xrootd_validate_path(ngx_conf_t *cf, const char *label, const ngx_str_t *path,
     }
 
     switch (kind) {
-    case XROOTD_PATH_REGULAR_FILE:
+    case BRIX_PATH_REGULAR_FILE:
         if (!S_ISREG(st.st_mode)) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                                "xrootd: %s path \"%s\" must be a regular file",
@@ -36,7 +36,7 @@ xrootd_validate_path(ngx_conf_t *cf, const char *label, const ngx_str_t *path,
         }
         break;
 
-    case XROOTD_PATH_DIRECTORY:
+    case BRIX_PATH_DIRECTORY:
         if (!S_ISDIR(st.st_mode)) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                                "xrootd: %s path \"%s\" must be a directory",
@@ -45,7 +45,7 @@ xrootd_validate_path(ngx_conf_t *cf, const char *label, const ngx_str_t *path,
         }
         break;
 
-    case XROOTD_PATH_FILE_OR_DIRECTORY:
+    case BRIX_PATH_FILE_OR_DIRECTORY:
         if (!S_ISREG(st.st_mode) && !S_ISDIR(st.st_mode)) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                                "xrootd: %s path \"%s\" must be a file or directory",
@@ -69,7 +69,7 @@ xrootd_validate_path(ngx_conf_t *cf, const char *label, const ngx_str_t *path,
  * not NUL-terminated, so strtol/strchr/etc. need this).  Returns NGX_CONF_OK,
  * or NGX_CONF_ERROR on allocation failure. */
 char *
-xrootd_copy_conf_string(ngx_conf_t *cf, const ngx_str_t *src, ngx_str_t *dst)
+brix_copy_conf_string(ngx_conf_t *cf, const ngx_str_t *src, ngx_str_t *dst)
 {
     dst->data = ngx_pnalloc(cf->pool, src->len + 1);
     if (dst->data == NULL) {

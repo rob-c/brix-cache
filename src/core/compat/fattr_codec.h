@@ -11,8 +11,8 @@
  *       (rc_ptr = buf + entry_off) and its `user.U.` xkey naming entirely on its
  *       side; the caller enforces any name-length policy. (libxrdproto)
  */
-#ifndef XROOTD_COMPAT_FATTR_CODEC_H
-#define XROOTD_COMPAT_FATTR_CODEC_H
+#ifndef BRIX_COMPAT_FATTR_CODEC_H
+#define BRIX_COMPAT_FATTR_CODEC_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -31,4 +31,4 @@ int xrdp_fattr_nvec_parse(const uint8_t *buf, size_t len, size_t off,
                           uint16_t *rc, const uint8_t **name, size_t *nlen,
                           size_t *next_off);
 
-#endif /* XROOTD_COMPAT_FATTR_CODEC_H */
+#endif /* BRIX_COMPAT_FATTR_CODEC_H */

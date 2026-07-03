@@ -3,12 +3,12 @@
 migrate_composable_root.py — rewrite legacy export-root directives to the phase-64
 composable storage-backend grammar in test configs / scripts.
 
-  xrootd_root        <path>  ->  xrootd_storage_backend        posix:<path>
-  xrootd_webdav_root <path>  ->  xrootd_webdav_storage_backend posix:<path>
-  xrootd_s3_root     <path>  ->  xrootd_s3_storage_backend     posix:<path>
+  brix_root        <path>  ->  brix_storage_backend        posix:<path>
+  brix_webdav_root <path>  ->  brix_webdav_storage_backend posix:<path>
+  brix_s3_root     <path>  ->  brix_s3_storage_backend     posix:<path>
 
 A `posix:<path>` storage backend is a verified drop-in for the legacy root (the
-xrootd_storage_backend_posix_root helper rewrites common->root to <path>); this holds
+brix_storage_backend_posix_root helper rewrites common->root to <path>); this holds
 for read AND write across stream / webdav / s3.
 
 SAFETY:
@@ -16,8 +16,8 @@ SAFETY:
     is one where the root is a local anchor beside a remote backend or a cache
     materialisation dir — a naive posix: swap would emit a duplicate directive or break
     cache semantics. Such files are SKIPPED (reported) and migrated deliberately, not by
-    this mechanical pass. Detected: *storage_backend, xrootd_cache*, xrootd_write_through,
-    *storage_staging, xrootd_stage*.
+    this mechanical pass. Detected: *storage_backend, brix_cache*, brix_write_through,
+    *storage_staging, brix_stage*.
   * Comment lines (#, //, *) and doc prose are left untouched.
   * The value token (incl. {TEMPLATE} placeholders, $VARS) is preserved verbatim.
 
@@ -29,12 +29,12 @@ import re
 import sys
 
 # the root directive (optional proto infix) + ws + value + ';' — matched ANYWHERE on a
-# line, so a one-liner `stream { server { ...; xrootd_root X; ... } }` is handled too.
+# line, so a one-liner `stream { server { ...; brix_root X; ... } }` is handled too.
 ROOT_TOKEN = re.compile(
     r'\bxrootd(?P<proto>_webdav|_s3)?_root(?P<ws>\s+)(?P<val>\S+?)(?P<semi>\s*;)'
 )
 # A file that carries ANY composable backend or cache/stage tier ("Group B") is one
-# whose remaining xrootd_root lines are namespace ANCHORS beside a remote backend (or
+# whose remaining brix_root lines are namespace ANCHORS beside a remote backend (or
 # cache-materialisation dirs). A naive posix: swap there would duplicate a
 # storage_backend within the block or break cache semantics — and reliable block
 # detection is unsafe because the embedded heredoc/f-string configs use ${VAR} / {PH}

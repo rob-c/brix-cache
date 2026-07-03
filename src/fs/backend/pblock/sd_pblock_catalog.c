@@ -16,11 +16,11 @@
  *       parameters — never string-formatted into SQL. Directory rename collects
  *       the affected paths first, then reparents each in one transaction.
  *
- * Compiled only when the build found libsqlite3 (XROOTD_HAVE_SQLITE), the
+ * Compiled only when the build found libsqlite3 (BRIX_HAVE_SQLITE), the
  * same gate as sd_pblock.c — a no-sqlite build must stay byte-for-byte
  * unchanged (see ./config).
  */
-#if XROOTD_HAVE_SQLITE
+#if BRIX_HAVE_SQLITE
 
 #include "sd_pblock_catalog.h"
 #include "core/compat/snprintf_check.h"
@@ -788,7 +788,7 @@ rename_one(pblock_catalog *cat, const char *old_path, const char *src,
 
     /* A truncated destination would rebind the row to a different (shorter) path
      * and silently corrupt the catalog — reject rather than truncate. */
-    if (!xrootd_snprintf_ok(new_path, sizeof(new_path), "%s%s", dst, tail)) {
+    if (!brix_snprintf_ok(new_path, sizeof(new_path), "%s%s", dst, tail)) {
         return cat_fail(ENAMETOOLONG);
     }
     parent_of(new_path, new_parent, sizeof(new_parent));
@@ -898,7 +898,7 @@ pblock_catalog_readdir(pblock_catalog_iter *it, char *name, size_t cap)
     if (rc != SQLITE_ROW) {
         return cat_fail(EIO);
     }
-    if (!xrootd_snprintf_ok(name, cap, "%s",
+    if (!brix_snprintf_ok(name, cap, "%s",
             basename_of((const char *) sqlite3_column_text(it->stmt, 0)))) {
         return cat_fail(ENAMETOOLONG);
     }
@@ -1043,6 +1043,6 @@ pblock_catalog_removexattr(pblock_catalog *cat, const char *path,
 
 /* ISO C forbids an empty translation unit; a no-sqlite build compiles this
  * file to nothing but this placeholder (same contract as sd_pblock.c). */
-typedef int xrootd_sd_pblock_catalog_disabled_t;
+typedef int brix_sd_pblock_catalog_disabled_t;
 
-#endif /* XROOTD_HAVE_SQLITE */
+#endif /* BRIX_HAVE_SQLITE */

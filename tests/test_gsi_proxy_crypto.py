@@ -28,7 +28,7 @@ def crypto_bin(tmp_path_factory):
     out = str(tmp_path_factory.mktemp("gsixp") / "pxr")
     r = subprocess.run(
         [cc, "-Wall", "-Wextra", "-Werror",
-         "-DXROOTD_SAFE_SIZE_STANDALONE",   # shim nginx types for safe_size.h
+         "-DBRIX_SAFE_SIZE_STANDALONE",   # shim nginx types for safe_size.h
          "-I", os.path.join(REPO, "src"),
          SRC, TEST, "-lcrypto", "-o", out],
         capture_output=True, text=True)

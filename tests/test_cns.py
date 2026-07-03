@@ -1,8 +1,8 @@
 """
 tests/test_cns.py — §6 Composite Cluster Name Space (2-node, real instances).
 
-Stands up a manager (xrootd_manager_mode + xrootd_cns collect + a CMS server port)
-and a data server (xrootd_cns emit, CMS-linked to the manager). A client writes a
+Stands up a manager (brix_manager_mode + brix_cns collect + a CMS server port)
+and a data server (brix_cns emit, CMS-linked to the manager). A client writes a
 file to the data server; on close the data server reports it to the manager over
 the CMS link; a stat of that path AT THE MANAGER is then answered from the cluster
 name-space inventory (size/mtime) instead of redirecting.
@@ -109,9 +109,9 @@ worker_processes 1; daemon off; master_process off;
 error_log {mgr_log}/error.log info; pid {mgr_log}/nginx.pid;
 events {{ worker_connections 64; }}
 stream {{
-  server {{ listen {BIND_HOST}:{mgr_port}; xrootd on; xrootd_auth none;
-           xrootd_manager_mode on; xrootd_cns collect; }}
-  server {{ listen {BIND_HOST}:{cms_port}; xrootd_cms_server on; }}
+  server {{ listen {BIND_HOST}:{mgr_port}; xrootd on; brix_auth none;
+           brix_manager_mode on; brix_cns collect; }}
+  server {{ listen {BIND_HOST}:{cms_port}; brix_cms_server on; }}
 }}
 """
     ds_conf = f"""
@@ -119,10 +119,10 @@ worker_processes 1; daemon off; master_process off;
 error_log {ds_log}/error.log info; pid {ds_log}/nginx.pid;
 events {{ worker_connections 64; }}
 stream {{
-  server {{ listen {BIND_HOST}:{ds_port}; xrootd on; xrootd_storage_backend posix:{data};
-           xrootd_auth none; xrootd_allow_write on; xrootd_cns emit;
-           xrootd_cms_manager {BIND_HOST}:{cms_port}; xrootd_cms_paths /;
-           xrootd_cms_interval 1; xrootd_listen_port {ds_port}; }}
+  server {{ listen {BIND_HOST}:{ds_port}; xrootd on; brix_storage_backend posix:{data};
+           brix_auth none; brix_allow_write on; brix_cns emit;
+           brix_cms_manager {BIND_HOST}:{cms_port}; brix_cms_paths /;
+           brix_cms_interval 1; brix_listen_port {ds_port}; }}
 }}
 """
     (base / "mgr.conf").write_text(mgr_conf)

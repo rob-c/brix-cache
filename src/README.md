@@ -15,8 +15,8 @@ the event-loop scalability and TLS/HTTP machinery of nginx, a single
 configuration surface, unified Prometheus metrics, and one kernel-confined view
 of the export root — across every protocol HEP clients actually use.
 
-The umbrella header [`ngx_xrootd_module.h`](core/ngx_xrootd_module.h) wires every
-subsystem together; per-connection state lives in `xrootd_ctx_t`
+The umbrella header [`ngx_brix_module.h`](core/ngx_brix_module.h) wires every
+subsystem together; per-connection state lives in `brix_ctx_t`
 ([types/](core/types/README.md)). Stream entry is
 [connection/](protocols/root/connection/README.md) → [handshake/](protocols/root/handshake/README.md); HTTP
 entry is [webdav/](protocols/webdav/README.md) and [s3/](protocols/s3/README.md).
@@ -50,14 +50,14 @@ internals. Subsystems are grouped by the layer they belong to.
 
 | File | What it does |
 |---|---|
-| [core/ngx_xrootd_module.h](core/ngx_xrootd_module.h) | Umbrella header that includes every subsystem header and wires the whole module together — the single include that pulls in the full `xrootd_*` API surface. |
-| [core/feature_flags.h](core/feature_flags.h) | Compile-time `XROOTD_WITH_*` feature toggles (WebDAV, S3, dashboard, cache, TPC); defaults each to enabled unless the addon config script supplies an explicit `-DXROOTD_WITH_*` override to disable it. |
+| [core/ngx_brix_module.h](core/ngx_brix_module.h) | Umbrella header that includes every subsystem header and wires the whole module together — the single include that pulls in the full `brix_*` API surface. |
+| [core/feature_flags.h](core/feature_flags.h) | Compile-time `BRIX_WITH_*` feature toggles (WebDAV, S3, dashboard, cache, TPC); defaults each to enabled unless the addon config script supplies an explicit `-DBRIX_WITH_*` override to disable it. |
 
 ### Entry & dispatch
 
 | Subsystem | What it does |
 |---|---|
-| [stream](protocols/root/stream/README.md) | nginx `ngx_stream_xrootd_module` descriptor + the full `xrootd_*` directive table — the glue that makes a stock nginx aware of the `root://` protocol, installing `ngx_stream_xrootd_handler`; no protocol logic itself. |
+| [stream](protocols/root/stream/README.md) | nginx `ngx_stream_brix_module` descriptor + the full `brix_*` directive table — the glue that makes a stock nginx aware of the `root://` protocol, installing `ngx_stream_brix_handler`; no protocol logic itself. |
 | [connection](protocols/root/connection/README.md) | Stream-side spine for `root://`: per-connection entry point, the byte-framing/async-I/O state machine, response queueing, and the open-file handle table every request passes through. |
 | [handshake](protocols/root/handshake/README.md) | XRootD stream entry point: validates the client handshake and routes every opcode through a fixed phase order (sigver verify, security-level enforce, then session/read/write/signing sub-dispatchers) gated by fail-closed login/auth/write checks. |
 | [session](protocols/root/session/README.md) | XRootD session lifecycle (protocol/login/auth/bind/ping/endsess/sigver), in-protocol TLS context setup, and the cross-worker SHM session + published-handle registries that let bound secondaries inherit a primary's identity and reopen its files. |
@@ -79,7 +79,7 @@ internals. Subsystems are grouped by the layer they belong to.
 | Subsystem | What it does |
 |---|---|
 | [aio](core/aio/README.md) | Offloads blocking file I/O (read/readv/pgread/write/pgwrite/writev/dirlist) from the event loop to the thread pool, and owns the shared response-chain builders used identically by the sync and async data paths. |
-| [fs](fs/README.md) | The unified VFS layer: one protocol-agnostic `xrootd_vfs_*` API for all local-filesystem open/read/write/stat/namespace ops, centralizing kernel confinement, metrics, access logging, page-CRC, and cache integration for every front end. |
+| [fs](fs/README.md) | The unified VFS layer: one protocol-agnostic `brix_vfs_*` API for all local-filesystem open/read/write/stat/namespace ops, centralizing kernel confinement, metrics, access logging, page-CRC, and cache integration for every front end. |
 | [cache](fs/cache/README.md) | XCache-style read-through cache (whole-file and per-slice fills from a remote XRootD origin) plus write-through origin mirroring, with LRU eviction, all origin/disk I/O offloaded to thread-pool workers. |
 | [response](protocols/root/response/README.md) | Leaf utility that frames and queues every `root://` wire response — header, `kXR_ok`/error, redirect/wait control hints, `kXR_attn` server-push, and CRC32c-protected `kXR_status` pgread/pgwrite frames — with correct big-endian framing and stream-ID echo. |
 | [shared](protocols/shared/README.md) | Cross-protocol helper library: the shared HTTP ranged-file-serving pipeline (used by WebDAV GET and S3 GetObject) and header-only overflow-checked size/array-allocation math for wire-driven allocations. |
@@ -99,7 +99,7 @@ internals. Subsystems are grouped by the layer they belong to.
 | [krb5](auth/krb5/README.md) | The XRootD `krb5` security protocol for `root://` clients — verifies a client's Kerberos service ticket against the host keytab and maps the principal to a local authenticated identity. |
 | [sss](auth/sss/README.md) | XRootD Simple Shared Secret auth — symmetric Blowfish-CFB64, CRC32-integrity, timestamp-replay-windowed identity credentials shared via keytab — for the stream login path, proxy-as-client outbound auth, and CMS cluster peer auth. |
 | [unix](auth/unix/README.md) | The XRootD `unix` (client-asserted UNIX-name) scheme: a fail-closed, loopback-by-default handler that validates and trusts a self-declared user/group with no cryptographic proof. |
-| [voms](auth/voms/README.md) | Extracts VO membership from VOMS attribute certificates embedded in x509 grid proxies via a runtime-`dlopen`'d `libvomsapi`, producing `primary_vo`/`vo_list` strings that drive `xrootd_require_vo` ACLs. |
+| [voms](auth/voms/README.md) | Extracts VO membership from VOMS attribute certificates embedded in x509 grid proxies via a runtime-`dlopen`'d `libvomsapi`, producing `primary_vo`/`vo_list` strings that drive `brix_require_vo` ACLs. |
 | [crypto](auth/crypto/README.md) | Shared OpenSSL X.509/PKI core: builds CA+CRL trust stores, verifies proxy-cert chains, runs the startup CA/CRL consistency audit, and does OCSP revocation/stapling for both the stream GSI and WebDAV/DAVS cert-auth paths. |
 
 ### Cluster & federation
@@ -118,7 +118,7 @@ internals. Subsystems are grouped by the layer they belong to.
 | Subsystem | What it does |
 |---|---|
 | [config](core/config/README.md) | nginx config plumbing for the stream module — directive setters, create/merge srv-conf callbacks, fail-fast startup validation, SHM-zone + thread-pool creation, per-worker resource init (confinement rootfd, timers, crypto pools), and the shared config preamble reused by WebDAV/S3. |
-| [types](core/types/README.md) | The module's shared type vocabulary: per-connection context (`xrootd_ctx_t`), per-server config (`ngx_stream_xrootd_srv_conf_t`), per-open-file slot (`xrootd_file_t`), the state-machine enum, compile-time tunables/metric macros, and the canonical protocol-agnostic authenticated principal (`xrootd_identity_t`). |
+| [types](core/types/README.md) | The module's shared type vocabulary: per-connection context (`brix_ctx_t`), per-server config (`ngx_stream_brix_srv_conf_t`), per-open-file slot (`brix_file_t`), the state-machine enum, compile-time tunables/metric macros, and the canonical protocol-agnostic authenticated principal (`brix_identity_t`). |
 | [protocol](protocols/root/protocol/README.md) | Header-only single source of truth for the `root://` binary wire protocol: opcodes, status/error codes, option bitmasks, and packed on-wire request/response structs mirrored from `XProtocol.hh`. |
 | [compat](core/compat/README.md) | Protocol-neutral shared primitives (CRC32c/checksums, HTTP request/response & range/XML helpers, kernel-confined filesystem mutations, atomic staged writes, SSRF guard, errno→status mapping) reused by all protocol paths so behavior never diverges. |
 | [shm](core/shm/README.md) | A generic open-addressed key/value hash table in nginx shared memory (`kv.*`) plus a thin token-bucket rate limiter (`rate_limit.*`) built on it — the substrate for the JWT/token cache, auth-result cache, and request throttling. |
@@ -150,8 +150,8 @@ These live under [webdav/](protocols/webdav/README.md) and back its method handl
 
 ### `root://` stream
 
-1. **[connection](protocols/root/connection/README.md)** — TCP accept → `ngx_stream_xrootd_handler` allocates `xrootd_ctx_t`, marks fd slots free, generates a session ID; `recv` accumulates the request header.
-2. **[handshake](protocols/root/handshake/README.md)** — `xrootd_dispatch()` runs sigver checks, then security-level enforcement.
+1. **[connection](protocols/root/connection/README.md)** — TCP accept → `ngx_stream_brix_handler` allocates `brix_ctx_t`, marks fd slots free, generates a session ID; `recv` accumulates the request header.
+2. **[handshake](protocols/root/handshake/README.md)** — `brix_dispatch()` runs sigver checks, then security-level enforcement.
 3. **[session](protocols/root/session/README.md)** + **[gsi](auth/gsi/README.md)**/[token](auth/token/README.md)/[krb5](auth/krb5/README.md)/[sss](auth/sss/README.md)/[unix](auth/unix/README.md)/[voms](auth/voms/README.md) — `dispatch_session` handles login/auth.
 4. **[proxy](net/proxy/README.md)** / **[manager](net/manager/README.md)** — if proxy or manager mode, the request is forwarded or redirected here; otherwise continue.
 5. **[ratelimit](net/ratelimit/README.md)** — request-rate / concurrency gate.
@@ -180,7 +180,7 @@ These live under [webdav/](protocols/webdav/README.md) and back its method handl
 
 1. **[cms](net/cms/README.md)** client — data servers run the per-worker heartbeat client: login + periodic load/space frames to the manager.
 2. **[manager](net/manager/README.md)** registry — the manager records each node in its SHM server registry.
-3. **[read](protocols/root/read/README.md)** (`kXR_locate`/`kXR_open`) in manager mode — `xrootd_srv_select()` picks the best server (falling back to an [upstream](net/upstream/README.md) query on a miss).
+3. **[read](protocols/root/read/README.md)** (`kXR_locate`/`kXR_open`) in manager mode — `brix_srv_select()` picks the best server (falling back to an [upstream](net/upstream/README.md) query on a miss).
 4. **[response](protocols/root/response/README.md)** — replies `kXR_redirect`.
 5. **[manager](net/manager/README.md)** redir_cache — the choice is cached (TTL) to skip repeat CMS round-trips.
 
@@ -214,9 +214,9 @@ Read these before changing any wire/client path — they are enforced project-wi
 
 ## How to navigate / where to start reading
 
-- **Big picture first:** read this file, then [ngx_xrootd_module.h](core/ngx_xrootd_module.h)
+- **Big picture first:** read this file, then [ngx_brix_module.h](core/ngx_brix_module.h)
   (the umbrella header that includes every subsystem) and [types/](core/types/README.md)
-  (the `xrootd_ctx_t` per-connection context that threads through everything).
+  (the `brix_ctx_t` per-connection context that threads through everything).
 - **Follow a `root://` request:** start at [connection/](protocols/root/connection/README.md) →
   [handshake/](protocols/root/handshake/README.md) → [session/](protocols/root/session/README.md) →
   [read/](protocols/root/read/README.md) or [write/](protocols/root/write/README.md).

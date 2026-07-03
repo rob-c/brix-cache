@@ -117,16 +117,16 @@ HEADER = (
 def _stream_conf(tmp_path, data, port, rl_rule=""):
     extra = ""
     if rl_rule:
-        extra = "xrootd_rate_limit_zone zone=rls:4m;"
+        extra = "brix_rate_limit_zone zone=rls:4m;"
     return HEADER.format(logs=tmp_path / "logs") + f"""
     stream {{
         {extra}
         server {{
             listen {BIND_HOST}:{port};
             xrootd on;
-            xrootd_storage_backend posix:{data};
-            xrootd_auth none;
-            xrootd_allow_write on;
+            brix_storage_backend posix:{data};
+            brix_auth none;
+            brix_allow_write on;
             {rl_rule}
         }}
     }}
@@ -134,7 +134,7 @@ def _stream_conf(tmp_path, data, port, rl_rule=""):
 
 
 def _http_conf(tmp_path, data, port, rl_rule=""):
-    extra = "xrootd_rate_limit_zone zone=rlh:4m;" if rl_rule else ""
+    extra = "brix_rate_limit_zone zone=rlh:4m;" if rl_rule else ""
     return HEADER.format(logs=tmp_path / "logs") + f"""
     http {{
         client_body_temp_path {tmp_path}/t; proxy_temp_path {tmp_path}/t;
@@ -144,9 +144,9 @@ def _http_conf(tmp_path, data, port, rl_rule=""):
         server {{
             listen {BIND_HOST}:{port};
             location / {{
-                xrootd_webdav on;
-                xrootd_webdav_storage_backend posix:{data};
-                xrootd_webdav_auth none;
+                brix_webdav on;
+                brix_webdav_storage_backend posix:{data};
+                brix_webdav_auth none;
                 {rl_rule}
             }}
         }}
@@ -155,15 +155,15 @@ def _http_conf(tmp_path, data, port, rl_rule=""):
 
 
 def _mesh_redirector_conf(tmp_path, port, ds_port, rl_rule=""):
-    extra = "xrootd_rate_limit_zone zone=rlm:4m;" if rl_rule else ""
+    extra = "brix_rate_limit_zone zone=rlm:4m;" if rl_rule else ""
     return HEADER.format(logs=tmp_path / "logs") + f"""
     stream {{
         {extra}
         server {{
             listen {BIND_HOST}:{port};
             xrootd on;
-            xrootd_manager_map /dir {HOST}:{ds_port};
-            xrootd_manager_map / {HOST}:{ds_port};
+            brix_manager_map /dir {HOST}:{ds_port};
+            brix_manager_map / {HOST}:{ds_port};
             {rl_rule}
         }}
     }}
@@ -449,7 +449,7 @@ class TestStandaloneMetadataStress:
         data = _seed_dir(tmp_path)
         port = 21990
         proc = _spawn(_stream_conf(tmp_path, data, port,
-                                   rl_rule="xrootd_rate_limit_rule zone=rls key=ip rate=50r/s burst=50;"),
+                                   rl_rule="brix_rate_limit_rule zone=rls key=ip rate=50r/s burst=50;"),
                       tmp_path, port)
         try:
             res = _paced_hammer(lambda: _xrd_login(HOST, port), _op_stat,
@@ -471,7 +471,7 @@ class TestStandaloneMetadataStress:
         data = _seed_dir(tmp_path)
         port = 21991
         proc = _spawn(_stream_conf(tmp_path, data, port,
-                                   rl_rule="xrootd_rate_limit_rule zone=rls key=ip rate=30r/s burst=30;"),
+                                   rl_rule="brix_rate_limit_rule zone=rls key=ip rate=30r/s burst=30;"),
                       tmp_path, port)
         try:
             res = _paced_hammer(lambda: _xrd_login(HOST, port), _op_dirlist,
@@ -508,7 +508,7 @@ class TestStandaloneMetadataStress:
         data = _seed_dir(tmp_path)
         port = 21993
         proc = _spawn(_http_conf(tmp_path, data, port,
-                                 rl_rule="xrootd_rate_limit_rule zone=rlh key=ip rate=30r/s burst=30;"),
+                                 rl_rule="brix_rate_limit_rule zone=rlh key=ip rate=30r/s burst=30;"),
                       tmp_path, port)
         try:
             res = _paced_hammer(lambda: None,
@@ -543,7 +543,7 @@ class TestMeshMetadataStress:
         ds_port = 21995          # advertised redirect target (need not be live)
         proc = _spawn(_mesh_redirector_conf(
             tmp_path, port, ds_port,
-            rl_rule="xrootd_rate_limit_rule zone=rlm key=ip rate=40r/s burst=40;"),
+            rl_rule="brix_rate_limit_rule zone=rlm key=ip rate=40r/s burst=40;"),
             tmp_path, port)
         try:
             res = _paced_hammer(lambda: _xrd_login(HOST, port), _op_locate,
@@ -623,7 +623,7 @@ class TestRateLimitThroughput:
         ds_port = 21995
         proc = _spawn(_mesh_redirector_conf(
             tmp_path, port, ds_port,
-            rl_rule=f"xrootd_rate_limit_rule zone=rlm key=ip rate={self.LIMIT}r/s burst={self.BURST};"),
+            rl_rule=f"brix_rate_limit_rule zone=rlm key=ip rate={self.LIMIT}r/s burst={self.BURST};"),
             tmp_path, port)
         try:
             res = _paced_hammer(lambda: _xrd_login(HOST, port), _op_locate,
@@ -639,7 +639,7 @@ class TestRateLimitThroughput:
         data = _seed_dir(tmp_path, nfiles=8)     # small dir → cheap dirlist
         port = 21998
         proc = _spawn(_stream_conf(tmp_path, data, port,
-            rl_rule=f"xrootd_rate_limit_rule zone=rls key=ip rate={self.LIMIT}r/s burst={self.BURST};"),
+            rl_rule=f"brix_rate_limit_rule zone=rls key=ip rate={self.LIMIT}r/s burst={self.BURST};"),
             tmp_path, port)
         try:
             res = _paced_hammer(lambda: _xrd_login(HOST, port), _op_dirlist,
@@ -655,7 +655,7 @@ class TestRateLimitThroughput:
         data = _seed_dir(tmp_path, nfiles=8)
         port = 21999
         proc = _spawn(_http_conf(tmp_path, data, port,
-            rl_rule=f"xrootd_rate_limit_rule zone=rlh key=ip rate={self.LIMIT}r/s burst={self.BURST};"),
+            rl_rule=f"brix_rate_limit_rule zone=rlh key=ip rate={self.LIMIT}r/s burst={self.BURST};"),
             tmp_path, port)
         try:
             res = _paced_hammer(lambda: _http_session(port),

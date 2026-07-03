@@ -9,7 +9,7 @@
 
 /* Append one entry's current state to the journal (tab-delimited record). */
 static void
-journal_append(xrootd_cta_queue_t *q, const cta_req_t *e)
+journal_append(brix_cta_queue_t *q, const cta_req_t *e)
 {
     FILE *f = q->journal;
 
@@ -50,10 +50,10 @@ is_terminal(cta_state_t s)
     return s == CTA_ST_COMPLETE || s == CTA_ST_FAILED || s == CTA_ST_CANCELED;
 }
 
-xrootd_cta_queue_t *
+brix_cta_queue_t *
 cta_queue_create(void)
 {
-    xrootd_cta_queue_t *q = calloc(1, sizeof(*q));
+    brix_cta_queue_t *q = calloc(1, sizeof(*q));
     if (q != NULL) {
         q->next_id = 1;
     }
@@ -61,7 +61,7 @@ cta_queue_create(void)
 }
 
 void
-cta_queue_destroy(xrootd_cta_queue_t *q)
+cta_queue_destroy(brix_cta_queue_t *q)
 {
     if (q != NULL && q->journal != NULL) {
         fclose((FILE *) q->journal);
@@ -71,7 +71,7 @@ cta_queue_destroy(xrootd_cta_queue_t *q)
 
 /* Find an existing slot for id, or claim a free one (replay only). */
 static cta_req_t *
-replay_slot(xrootd_cta_queue_t *q, uint64_t id)
+replay_slot(brix_cta_queue_t *q, uint64_t id)
 {
     int i, free_slot = -1;
 
@@ -94,7 +94,7 @@ replay_slot(xrootd_cta_queue_t *q, uint64_t id)
 }
 
 int
-cta_queue_open_journal(xrootd_cta_queue_t *q, const char *path)
+cta_queue_open_journal(brix_cta_queue_t *q, const char *path)
 {
     FILE *f = fopen(path, "a+");
     char  line[1280];
@@ -131,7 +131,7 @@ cta_queue_open_journal(xrootd_cta_queue_t *q, const char *path)
 }
 
 cta_req_t *
-cta_queue_submit(xrootd_cta_queue_t *q, const cta_request_t *r, const char *owner)
+cta_queue_submit(brix_cta_queue_t *q, const cta_request_t *r, const char *owner)
 {
     int i;
 
@@ -160,7 +160,7 @@ cta_queue_submit(xrootd_cta_queue_t *q, const cta_request_t *r, const char *owne
 }
 
 cta_req_t *
-cta_queue_find(xrootd_cta_queue_t *q, uint64_t id)
+cta_queue_find(brix_cta_queue_t *q, uint64_t id)
 {
     int i;
 
@@ -180,13 +180,13 @@ cta_queue_transition(cta_req_t *e, cta_state_t to)
     }
     e->state = to;
     if (e->queue != NULL) {
-        journal_append((xrootd_cta_queue_t *) e->queue, e);
+        journal_append((brix_cta_queue_t *) e->queue, e);
     }
     return 0;
 }
 
 int
-cta_queue_cancel(xrootd_cta_queue_t *q, uint64_t id, const char *requester,
+cta_queue_cancel(brix_cta_queue_t *q, uint64_t id, const char *requester,
                  int is_admin)
 {
     cta_req_t *e = cta_queue_find(q, id);
@@ -201,7 +201,7 @@ cta_queue_cancel(xrootd_cta_queue_t *q, uint64_t id, const char *requester,
 }
 
 int
-cta_queue_active_count(const xrootd_cta_queue_t *q)
+cta_queue_active_count(const brix_cta_queue_t *q)
 {
     int i, n = 0;
 

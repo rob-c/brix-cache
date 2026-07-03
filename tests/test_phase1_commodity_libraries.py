@@ -31,7 +31,7 @@ def test_phase1_dependency_detection_hooks_present():
         "config",
         [
             "pkg-config --exists libxml-2.0",
-            "xrootd_have_libxml2",
+            "brix_have_libxml2",
             "pkg-config --exists jansson",
             "jansson library is required",  # hard-fail message when not found
         ],
@@ -48,7 +48,7 @@ def test_phase1_dependency_detection_hooks_present():
 
 
 def test_phase1_jansson_token_adapter_present():
-    # Jansson is now a required dependency; no fallback path, no XROOTD_HAVE_JANSSON guard.
+    # Jansson is now a required dependency; no fallback path, no BRIX_HAVE_JANSSON guard.
     _assert_markers(
         "src/auth/token/json.c",
         [
@@ -60,7 +60,7 @@ def test_phase1_jansson_token_adapter_present():
     _assert_markers(
         "src/auth/token/jwks.c",
         [
-            "xrootd_jwks_load_jansson",
+            "brix_jwks_load_jansson",
             "json_array_foreach",
             "loaded %d jwks key(s) from",
             "using jansson",
@@ -80,22 +80,22 @@ def test_phase1_shared_xml_element_helpers_present():
     _assert_markers(
         "src/core/compat/xml.h",
         [
-            "xrootd_xml_text_element_len",
-            "xrootd_xml_write_text_element",
+            "brix_xml_text_element_len",
+            "brix_xml_write_text_element",
         ],
     )
     # s3_xml_append_text_element was removed by Plan 4 Item 7; XML_APPEND_ELEM in
-    # s3.h now calls xrootd_xml_write_text_element directly.
+    # s3.h now calls brix_xml_write_text_element directly.
     _assert_markers(
         "src/protocols/s3/s3.h",
         [
-            "xrootd_xml_write_text_element",
+            "brix_xml_write_text_element",
         ],
     )
     _assert_markers(
         "tests/unit/test_xml_compat.c",
         [
-            "xrootd_xml_write_text_element",
+            "brix_xml_write_text_element",
             "invalid element name was accepted",
         ],
     )
@@ -103,7 +103,7 @@ def test_phase1_shared_xml_element_helpers_present():
 
 def test_phase1_s3_response_builders_use_xml_helpers():
     # s3_xml_append_text_element was removed by Plan 4 Item 7.  XML_APPEND_ELEM
-    # (defined in s3.h) now calls xrootd_xml_write_text_element directly.
+    # (defined in s3.h) now calls brix_xml_write_text_element directly.
     for relpath in (
         "src/protocols/s3/list_objects_v2.c",
         "src/protocols/s3/multipart_complete_list_parts.c",

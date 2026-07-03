@@ -82,7 +82,7 @@ sweep_equivalence(void)
 
             want = ref_crc32c(0, buf + off, len);
 
-            got = xrootd_crc32c_value(buf + off, len);
+            got = brix_crc32c_value(buf + off, len);
             if (got != want) {
                 printf("value mismatch len=%zu off=%zu got=%08x want=%08x\n",
                        len, off, got, want);
@@ -91,8 +91,8 @@ sweep_equivalence(void)
 
             /* Incremental extend across an interior split point. */
             s = len / 3;
-            split = xrootd_crc32c_extend(0, buf + off, s);
-            split = xrootd_crc32c_extend(split, buf + off + s, len - s);
+            split = brix_crc32c_extend(0, buf + off, s);
+            split = brix_crc32c_extend(split, buf + off + s, len - s);
             if (split != want) {
                 printf("extend mismatch len=%zu off=%zu got=%08x want=%08x\n",
                        len, off, split, want);
@@ -101,7 +101,7 @@ sweep_equivalence(void)
 
             /* Copy-while-checksum must match and produce an identical copy. */
             memset(dst, 0, len);
-            got = xrootd_crc32c_copy_value(buf + off, dst, len);
+            got = brix_crc32c_copy_value(buf + off, dst, len);
             if (got != want) {
                 printf("copy crc mismatch len=%zu off=%zu got=%08x want=%08x\n",
                        len, off, got, want);
@@ -119,7 +119,7 @@ sweep_equivalence(void)
 
 /*
  * Negative / contract cases for the copy path (now routed through the 3-way
- * xrootd_crc32c_copy_hw3 for len >= 768):
+ * brix_crc32c_copy_hw3 for len >= 768):
  *   - NULL guard: a NULL src/dst with len != 0 must copy nothing and return 0
  *     (the documented "not a valid checksum" sentinel), never deref or scribble.
  *   - Corruption detection: flipping a single byte anywhere in a large buffer
@@ -143,7 +143,7 @@ copy_negative_cases(void)
 
     /* NULL guard: must return 0 and touch nothing. */
     memset(dst, guard, sizeof(dst));
-    if (xrootd_crc32c_copy_value(NULL, dst, sizeof(dst)) != 0) {
+    if (brix_crc32c_copy_value(NULL, dst, sizeof(dst)) != 0) {
         printf("null-src copy did not return 0\n");
         failed = 1;
     }
@@ -154,18 +154,18 @@ copy_negative_cases(void)
             break;
         }
     }
-    if (xrootd_crc32c_copy_value(src, NULL, sizeof(src)) != 0) {
+    if (brix_crc32c_copy_value(src, NULL, sizeof(src)) != 0) {
         printf("null-dst copy did not return 0\n");
         failed = 1;
     }
 
     /* Corruption detection across the 3-way path (len 4096 >= 768). */
-    base = xrootd_crc32c_copy_value(src, dst, sizeof(src));
+    base = brix_crc32c_copy_value(src, dst, sizeof(src));
     for (i = 0; i < sizeof(src); i += 257) {
         unsigned char saved = src[i];
 
         src[i] ^= 0x01;
-        flipped = xrootd_crc32c_copy_value(src, dst, sizeof(src));
+        flipped = brix_crc32c_copy_value(src, dst, sizeof(src));
         src[i] = saved;
         if (flipped == base) {
             printf("flipping byte %zu did not change copy crc\n", i);
@@ -186,23 +186,23 @@ main(void)
     int                 failed = 0;
 
     failed |= expect_u32("known vector",
-                         xrootd_crc32c_value(known, strlen((const char *) known)),
+                         brix_crc32c_value(known, strlen((const char *) known)),
                          0xe3069283u);
 
     memset(copy, 0, sizeof(copy));
     failed |= expect_u32("copy vector",
-                         xrootd_crc32c_copy_value(payload, copy, sizeof(payload) - 1),
-                         xrootd_crc32c_value(payload, sizeof(payload) - 1));
+                         brix_crc32c_copy_value(payload, copy, sizeof(payload) - 1),
+                         brix_crc32c_value(payload, sizeof(payload) - 1));
     if (memcmp(copy, payload, sizeof(payload) - 1) != 0) {
         printf("copy payload failed\n");
         failed = 1;
     }
 
     split = 0;
-    split = xrootd_crc32c_extend(split, payload, 5);
-    split = xrootd_crc32c_extend(split, payload + 5, sizeof(payload) - 6);
+    split = brix_crc32c_extend(split, payload, 5);
+    split = brix_crc32c_extend(split, payload + 5, sizeof(payload) - 6);
     failed |= expect_u32("split extend", split,
-                         xrootd_crc32c_value(payload, sizeof(payload) - 1));
+                         brix_crc32c_value(payload, sizeof(payload) - 1));
 
     failed |= sweep_equivalence();
     failed |= copy_negative_cases();

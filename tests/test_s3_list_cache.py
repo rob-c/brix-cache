@@ -1,6 +1,6 @@
 """S3 ListObjects per-worker sorted-listing cache (phase-47 W6c).
 
-`xrootd_s3_list_cache on` caches the sorted (key+is_prefix) listing per worker,
+`brix_s3_list_cache on` caches the sorted (key+is_prefix) listing per worker,
 keyed by (root, prefix, delimiter), validated by the bucket-root mtime + a TTL.
 This test self-provisions a dedicated single-worker nginx with the cache enabled
 (short TTL) so the behaviour is observable without touching the shared harness.
@@ -60,13 +60,13 @@ http {{
     server {{
         listen {PORT};
         location / {{
-            xrootd_s3                on;
-            xrootd_s3_storage_backend           posix:{data};
-            xrootd_s3_bucket         {BUCKET};
-            xrootd_s3_allow_write    on;
-            xrootd_s3_max_keys       1000;
-            xrootd_s3_list_cache     on;
-            xrootd_s3_list_cache_ttl {TTL_SECONDS}s;
+            brix_s3                on;
+            brix_s3_storage_backend           posix:{data};
+            brix_s3_bucket         {BUCKET};
+            brix_s3_allow_write    on;
+            brix_s3_max_keys       1000;
+            brix_s3_list_cache     on;
+            brix_s3_list_cache_ttl {TTL_SECONDS}s;
         }}
     }}
 }}

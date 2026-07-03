@@ -1,4 +1,4 @@
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 #include "handoff.h"
 
 /*
@@ -6,11 +6,11 @@
  * relay from the stream xrootd listener to a local HTTP/WebDAV listener.  See
  * handoff.h for the WHAT/WHY.  No XRootD framing is involved — this is a raw
  * byte pump, used only for connections whose first byte proves they are not an
- * XRootD client (HTTP method letter / TLS 0x16) when xrootd_http_handoff is set.
+ * XRootD client (HTTP method letter / TLS 0x16) when brix_http_handoff is set.
  */
 
-#define XROOTD_HANDOFF_BUF   (64 * 1024)
-#define XROOTD_HANDOFF_IDLE  75000   /* ms; drop a relay that stalls both ways */
+#define BRIX_HANDOFF_BUF   (64 * 1024)
+#define BRIX_HANDOFF_IDLE  75000   /* ms; drop a relay that stalls both ways */
 
 typedef struct {
     ngx_stream_session_t      *s;
@@ -25,18 +25,18 @@ typedef struct {
     u_char  *uc;
     size_t   uc_off, uc_end;
 
-    ngx_xrootd_srv_metrics_t  *metrics;   /* for connections_active-- on close */
+    ngx_brix_srv_metrics_t  *metrics;   /* for connections_active-- on close */
     unsigned                   connected:1;
     unsigned                   closed:1;
-} xrootd_handoff_t;
+} brix_handoff_t;
 
 
-/* ----- config-time directive: xrootd_http_handoff host:port ----- */
+/* ----- config-time directive: brix_http_handoff host:port ----- */
 
 char *
-xrootd_conf_set_http_handoff(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+brix_conf_set_http_handoff(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    ngx_stream_xrootd_srv_conf_t *xcf = conf;
+    ngx_stream_brix_srv_conf_t *xcf = conf;
     ngx_str_t                    *value;
     ngx_url_t                     url;
     ngx_addr_t                   *addr;
@@ -58,7 +58,7 @@ xrootd_conf_set_http_handoff(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         || url.naddrs == 0 || url.addrs == NULL)
     {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_http_handoff: could not resolve host:port in \"%V\"",
+            "brix_http_handoff: could not resolve host:port in \"%V\"",
             &value[1]);
         return NGX_CONF_ERROR;
     }
@@ -95,7 +95,7 @@ static void handoff_peer_free(ngx_peer_connection_t *pc, void *data,
 /* Tear the relay down once: free the upstream connection (best effort) and
  * finalize the stream session (which closes the client and frees its pool). */
 static void
-handoff_close(xrootd_handoff_t *h)
+handoff_close(brix_handoff_t *h)
 {
     if (h->closed) {
         return;
@@ -138,14 +138,14 @@ handoff_pump(ngx_connection_t *from, ngx_connection_t *to,
                 if (ngx_handle_write_event(to->write, 0) != NGX_OK) {
                     return NGX_ERROR;
                 }
-                ngx_add_timer(to->write, XROOTD_HANDOFF_IDLE);
+                ngx_add_timer(to->write, BRIX_HANDOFF_IDLE);
                 return NGX_OK;
             }
             return NGX_ERROR;          /* 0 or NGX_ERROR on the write side */
         }
         *off = *end = 0;
 
-        n = from->recv(from, buf, XROOTD_HANDOFF_BUF);
+        n = from->recv(from, buf, BRIX_HANDOFF_BUF);
         if (n > 0) {
             *end = (size_t) n;
             *off = 0;
@@ -155,7 +155,7 @@ handoff_pump(ngx_connection_t *from, ngx_connection_t *to,
             if (ngx_handle_read_event(from->read, 0) != NGX_OK) {
                 return NGX_ERROR;
             }
-            ngx_add_timer(from->read, XROOTD_HANDOFF_IDLE);
+            ngx_add_timer(from->read, BRIX_HANDOFF_IDLE);
             return NGX_OK;
         }
         return NGX_ERROR;              /* EOF (0) or error: tear the relay down */
@@ -164,20 +164,20 @@ handoff_pump(ngx_connection_t *from, ngx_connection_t *to,
 
 
 /* Resolve the relay hub from a CLIENT-side event (client conn data == session). */
-static xrootd_handoff_t *
+static brix_handoff_t *
 handoff_from_client(ngx_event_t *ev)
 {
     ngx_connection_t     *c   = ev->data;
     ngx_stream_session_t *s   = c->data;
-    xrootd_ctx_t         *ctx = ngx_stream_get_module_ctx(s,
-                                    ngx_stream_xrootd_module);
+    brix_ctx_t         *ctx = ngx_stream_get_module_ctx(s,
+                                    ngx_stream_brix_module);
     return ctx->handoff;
 }
 
 
 /* client readable / upstream writable -> pump client -> upstream */
 static void
-handoff_cu(xrootd_handoff_t *h, ngx_event_t *ev)
+handoff_cu(brix_handoff_t *h, ngx_event_t *ev)
 {
     if (ev->timedout) {
         handoff_close(h);
@@ -192,7 +192,7 @@ handoff_cu(xrootd_handoff_t *h, ngx_event_t *ev)
 
 /* upstream readable / client writable -> pump upstream -> client */
 static void
-handoff_uc(xrootd_handoff_t *h, ngx_event_t *ev)
+handoff_uc(brix_handoff_t *h, ngx_event_t *ev)
 {
     if (ev->timedout) {
         handoff_close(h);
@@ -222,7 +222,7 @@ static void handoff_upstream_write(ngx_event_t *ev) /* resume client -> upstream
  * handlers and kick both directions once (the client->upstream pump replays the
  * already-read prefix that start() left in the cu window). */
 static void
-handoff_begin_relay(xrootd_handoff_t *h)
+handoff_begin_relay(brix_handoff_t *h)
 {
     h->connected = 1;
 
@@ -250,7 +250,7 @@ static void
 handoff_connect_done(ngx_event_t *ev)
 {
     ngx_connection_t *u = ev->data;
-    xrootd_handoff_t *h = u->data;
+    brix_handoff_t *h = u->data;
     int               err;
     socklen_t         len = sizeof(err);
 
@@ -276,27 +276,27 @@ handoff_connect_done(ngx_event_t *ev)
 
 
 ngx_int_t
-xrootd_http_handoff_start(ngx_stream_session_t *s, ngx_connection_t *c,
+brix_http_handoff_start(ngx_stream_session_t *s, ngx_connection_t *c,
     void *srv_conf, u_char *prefix, size_t prefix_len)
 {
-    ngx_stream_xrootd_srv_conf_t *conf = srv_conf;
-    xrootd_ctx_t                 *ctx;
-    xrootd_handoff_t             *h;
+    ngx_stream_brix_srv_conf_t *conf = srv_conf;
+    brix_ctx_t                 *ctx;
+    brix_handoff_t             *h;
     ngx_connection_t             *u;
     ngx_int_t                     rc;
 
-    ctx = ngx_stream_get_module_ctx(s, ngx_stream_xrootd_module);
+    ctx = ngx_stream_get_module_ctx(s, ngx_stream_brix_module);
 
-    h = ngx_pcalloc(c->pool, sizeof(xrootd_handoff_t));
+    h = ngx_pcalloc(c->pool, sizeof(brix_handoff_t));
     if (h == NULL) {
         return NGX_ERROR;
     }
-    h->cu = ngx_pnalloc(c->pool, XROOTD_HANDOFF_BUF);
-    h->uc = ngx_pnalloc(c->pool, XROOTD_HANDOFF_BUF);
+    h->cu = ngx_pnalloc(c->pool, BRIX_HANDOFF_BUF);
+    h->uc = ngx_pnalloc(c->pool, BRIX_HANDOFF_BUF);
     if (h->cu == NULL || h->uc == NULL) {
         return NGX_ERROR;
     }
-    if (prefix_len > XROOTD_HANDOFF_BUF) {
+    if (prefix_len > BRIX_HANDOFF_BUF) {
         return NGX_ERROR;                 /* a 20-byte hello can't exceed this */
     }
 
@@ -347,7 +347,7 @@ xrootd_http_handoff_start(ngx_stream_session_t *s, ngx_connection_t *c,
         handoff_begin_relay(h);
     } else {
         /* NGX_AGAIN: connect in progress; arm a connect deadline. */
-        ngx_add_timer(u->write, XROOTD_HANDOFF_IDLE);
+        ngx_add_timer(u->write, BRIX_HANDOFF_IDLE);
     }
 
     return NGX_OK;

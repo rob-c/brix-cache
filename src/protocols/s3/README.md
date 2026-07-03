@@ -5,8 +5,8 @@
 This subsystem implements the subset of the AWS S3 REST API that `XrdClS3` (the
 XRootD S3 client plugin), the `aws s3` CLI, and browser POST forms actually use,
 projecting the **same on-disk export root** that `root://` and `davs://` already
-serve. It is a self-contained nginx HTTP module (`ngx_http_xrootd_s3_module`,
-`module.c`): a location with `xrootd_s3 on;` installs `ngx_http_s3_handler`
+serve. It is a self-contained nginx HTTP module (`ngx_http_brix_s3_module`,
+`module.c`): a location with `brix_s3 on;` installs `ngx_http_s3_handler`
 (`handler.c`) as its content handler, and every S3 request — GetObject,
 HeadObject, PutObject, DeleteObject, ListObjectsV2, the full multipart-upload
 lifecycle, CopyObject, UploadPartCopy, DeleteObjects, browser POST Object, and
@@ -28,7 +28,7 @@ and method dispatch, then delegates the heavy lifting downward: path confinement
 to `../path/` (via `../compat/`), object reads to the cache-aware VFS in `../fs/`
 and the shared range-serving pipeline in `../shared/`, atomic writes to the
 staged-file helper in `../compat/`, and namespace mutations (delete, copy) to the
-Layer-3 `xrootd_ns_*` API. It records its own low-cardinality Prometheus counters
+Layer-3 `brix_ns_*` API. It records its own low-cardinality Prometheus counters
 through `../metrics/` and reports live transfers to `../dashboard/`.
 
 Path-style addressing only (`/<bucket>/<key>`). Directories are represented the
@@ -46,12 +46,12 @@ stable and cheap, matching `XrdClS3` expectations.
 | File | Responsibility |
 |---|---|
 | `s3.h` | Public header: `ngx_http_s3_loc_conf_t` config, `ngx_http_s3_req_ctx_t` per-request ctx, `s3_entry_t`, the `XML_APPEND`/`XML_APPEND_ELEM` flat-buffer macros, and every cross-file prototype. |
-| `module.c` | nginx module descriptor: directive table (`xrootd_s3*`), create/merge loc-conf, root + optional cache-root canonicalization, persistent confinement rootfd (`xrootd_http_open_rootfd`), thread-pool binding (postconfiguration), and `clcf->handler = ngx_http_s3_handler` install. |
+| `module.c` | nginx module descriptor: directive table (`brix_s3*`), create/merge loc-conf, root + optional cache-root canonicalization, persistent confinement rootfd (`brix_http_open_rootfd`), thread-pool binding (postconfiguration), and `clcf->handler = ngx_http_s3_handler` install. |
 | `handler.c` | The content handler `ngx_http_s3_handler`: URI parse (`s3_parse_uri`), SigV4 gate, OPTIONS/CORS preflight, list/`?uploads`/`?delete`/POST-form flag detection, key→fs_path resolution, and method dispatch to every sub-handler. The single chokepoint all S3 traffic passes through. |
-| `operation_table.c` | `xrootd_s3_operations[]` descriptor table (method → metric slot + capability flags) consumed by `../compat/protocol_caps.c` for metric-slot lookup and the OPTIONS `Allow` header. |
-| `util.c` | Shared helpers: `s3_resolve_key` (confined key→path via `xrootd_http_resolve_path`), `s3_etag` (synthetic `"mtime-size"`), `s3_send_xml_error`, `s3_set_header`, `s3_object_crc64nvme_b64` (compute/cache CRC-64/NVME → base64-of-8-big-endian-bytes for `x-amz-checksum-crc64nvme`). |
+| `operation_table.c` | `brix_s3_operations[]` descriptor table (method → metric slot + capability flags) consumed by `../compat/protocol_caps.c` for metric-slot lookup and the OPTIONS `Allow` header. |
+| `util.c` | Shared helpers: `s3_resolve_key` (confined key→path via `brix_http_resolve_path`), `s3_etag` (synthetic `"mtime-size"`), `s3_send_xml_error`, `s3_set_header`, `s3_object_crc64nvme_b64` (compute/cache CRC-64/NVME → base64-of-8-big-endian-bytes for `x-amz-checksum-crc64nvme`). |
 | `metrics.c` | Per-method request/response accounting: `s3_metrics_method_slot`, `s3_metrics_request_method`, `s3_metrics_return_method`, `s3_metrics_finalize_request_method`, plus the unified-metric op mapping (`s3_unified_op`). NGX_DONE (async body) defers final accounting to the callback. |
-| `object.c` | GetObject / HeadObject / DeleteObject. GET opens via the cache-aware VFS and hands the whole range/header/send pipeline to `xrootd_http_serve_file_ranged`; HEAD stats and sends headers only; DELETE uses idempotent `xrootd_ns_delete`. GET/HEAD echo `x-amz-checksum-crc64nvme` + `x-amz-checksum-type: FULL_OBJECT` **from the xattr cache only** (no read-path recompute), and the stored `x-amz-meta-*` user metadata (`s3_echo_user_metadata`). |
+| `object.c` | GetObject / HeadObject / DeleteObject. GET opens via the cache-aware VFS and hands the whole range/header/send pipeline to `brix_http_serve_file_ranged`; HEAD stats and sends headers only; DELETE uses idempotent `brix_ns_delete`. GET/HEAD echo `x-amz-checksum-crc64nvme` + `x-amz-checksum-type: FULL_OBJECT` **from the xattr cache only** (no read-path recompute), and the stored `x-amz-meta-*` user metadata (`s3_echo_user_metadata`). |
 | `put.c` | PutObject / UploadPart body handler `s3_put_body_handler` + streaming dispatch + dashboard glue. *(Phase 38: split.)* |
 | `put_finalize.c` | The `s3_put_finalize_*` result family, `s3_commit_put`, and the CRC64-NVME checksum verify (mismatch → 400 `BadDigest`). *(Phase 38 split of `put.c`.)* |
 | `put_chunk.c` | `aws-chunked` decode path (`s3_chunk_*` finalize/aio + chunk-verify build). *(Phase 38 split of `put.c`.)* |
@@ -62,8 +62,8 @@ stable and cheap, matching `XrdClS3` expectations.
 | `post_policy.c` | POST-policy parse + verify (ISO8601/credential parse, condition + JSON validation). *(Phase 38 split of `post_object.c`.)* |
 | `post_response.c` | The empty/created/success POST responses. *(Phase 38 split of `post_object.c`.)* |
 | `s3_post_internal.h` | Private split contract shared by `post_*.c`. |
-| `copy.c` | CopyObject (`PUT` + `x-amz-copy-source`, no `uploadId`): server-side `xrootd_ns_local_copy` (copy_file_range with read/write fallback), staged commit, `CopyObjectResult` XML. Source and dest both confined to root. Honours `x-amz-metadata-directive`: REPLACE stores the request's `x-amz-meta-*` on the dest, COPY (default) carries the source's metadata across; a **copy-onto-self with REPLACE skips the byte copy** (metadata-only update — the path `sd_s3_set_meta` drives). |
-| `delete_objects.c` | Batch DeleteObjects (`POST /<bucket>/?delete`): libxml2-parsed `<Delete>` body (network + XXE disabled), per-key `xrootd_ns_delete`, `<DeleteResult>` XML with per-key `<Deleted>`/`<Error>`. |
+| `copy.c` | CopyObject (`PUT` + `x-amz-copy-source`, no `uploadId`): server-side `brix_ns_local_copy` (copy_file_range with read/write fallback), staged commit, `CopyObjectResult` XML. Source and dest both confined to root. Honours `x-amz-metadata-directive`: REPLACE stores the request's `x-amz-meta-*` on the dest, COPY (default) carries the source's metadata across; a **copy-onto-self with REPLACE skips the byte copy** (metadata-only update — the path `sd_s3_set_meta` drives). |
+| `delete_objects.c` | Batch DeleteObjects (`POST /<bucket>/?delete`): libxml2-parsed `<Delete>` body (network + XXE disabled), per-key `brix_ns_delete`, `<DeleteResult>` XML with per-key `<Deleted>`/`<Error>`. |
 | `list_objects_v2.c` | ListObjectsV2 (`GET /<bucket>/?list-type=2`): query parsing, b64url continuation-token pagination, delimiter common-prefix grouping, and `ListBucketResult` XML emission. |
 | `list_objects_v1.c` | ListObjects **V1** (`GET /<bucket>` with no `list-type=2`, phase-43 W2): shares the `s3_walk`/`entry_cmp` walker with V2; differs only in `marker`/`NextMarker` pagination and the V1 XML dialect (no `KeyCount`/continuation token). |
 | `conditional.c` | Conditional requests + response overrides (phase-43 W3/W4): `s3_handle_conditional` (If-Match/If-None-Match/If-(Un)Modified-Since → 304/412 on GET/HEAD, S3 `before` semantics), `s3_put_precondition` (create-if-absent / overwrite-if-match PUT), and `s3_apply_response_overrides` (response-content-type/-disposition/… query overrides, CRLF-rejected). |
@@ -76,7 +76,7 @@ stable and cheap, matching `XrdClS3` expectations.
 | `auth_sigv4_canonical.c` | `build_canonical_qs`: SigV4 canonical query string — decode, sort by name then value, percent-encode, and (for the signed-header form) exclude `X-Amz-Signature` (self-reference). |
 | `auth_sigv4_verify.c` | The verifier `s3_verify_sigv4`: canonical request → string-to-sign → 4-round signing-key derive (worker-cached per day/region) → constant-time HMAC compare; clock-skew/expiry checks; STS session-token gating; anonymous-mode short-circuit. |
 | `s3_auth_internal.h` | `sigv4_components_t` and the parser/key-derive prototypes shared across the three `auth_sigv4_*.c` fragments. |
-| `multipart_helpers.c` | Multipart shared helpers: `s3_has_query_flag`, `s3_get_query_param`, `s3_get_mpu_dir` (hidden `.<key>.mpu-<id>` staging path), `mpu_validate_upload_id` (hex-only), `mpu_rmdir_recursive` (confined `xrootd_fs_remove_tree_confined`). |
+| `multipart_helpers.c` | Multipart shared helpers: `s3_has_query_flag`, `s3_get_query_param`, `s3_get_mpu_dir` (hidden `.<key>.mpu-<id>` staging path), `mpu_validate_upload_id` (hex-only), `mpu_rmdir_recursive` (confined `brix_fs_remove_tree_confined`). |
 | `multipart_initiate.c` | InitiateMultipartUpload (`POST ?uploads`): generates an opaque hex upload ID (sec+usec+pid), mkdir 0700 staging dir, `InitiateMultipartUploadResult` XML. |
 | `multipart_abort.c` | AbortMultipartUpload (`DELETE ?uploadId=<id>`): validate id, `lstat` staging dir → `NoSuchUpload` 404 if absent, recursive remove, 204. |
 | `multipart_complete_body.c` | CompleteMultipartUpload async body callback `s3_multipart_complete_body_handler`: concatenates `part.1`…`part.10000` in ascending order into a confined temp file, atomic rename to final, best-effort staging cleanup, `CompleteMultipartUploadResult` XML. The FULL_OBJECT `<ChecksumCRC64NVME>` is computed **directly on the reassembled object** (exact full-object value, so no per-part CRC-combine is needed) and returned in the XML + header. |
@@ -88,7 +88,7 @@ stable and cheap, matching `XrdClS3` expectations.
 ## Key types & data structures
 
 - **`ngx_http_s3_loc_conf_t`** (`s3.h`) — per-location config. Embeds the shared
-  `ngx_http_xrootd_shared_conf_t common` (enable, `root`, `root_canon`,
+  `ngx_http_brix_shared_conf_t common` (enable, `root`, `root_canon`,
   `allow_write`, thread-pool) and adds S3-specifics: `bucket` (prefix to strip),
   `access_key`/`secret_key`/`region` (SigV4 credentials; empty key ⇒ anonymous),
   `allow_unsigned_session_token`, `max_keys`, and an optional read-through
@@ -96,8 +96,8 @@ stable and cheap, matching `XrdClS3` expectations.
 - **`ngx_http_s3_req_ctx_t`** (`s3.h`) — per-request module context: the resolved
   `fs_path[PATH_MAX]` (set by `handler.c`, read by the async PUT/complete
   callbacks because the handler's stack is gone by then) and the
-  `xrootd_identity_t *identity` populated by SigV4 (access key subject) or left as
-  `XROOTD_AUTHN_NONE` in anonymous mode.
+  `brix_identity_t *identity` populated by SigV4 (access key subject) or left as
+  `BRIX_AUTHN_NONE` in anonymous mode.
 - **`sigv4_components_t`** (`s3_auth_internal.h`) — parsed Authorization material:
   `akid`, `date`, `region`, `amz_date`, `signed_hdrs`, `signature`, plus
   `presigned`/`amz_expires` for presigned-URL form. The canonical builder and the
@@ -109,64 +109,64 @@ stable and cheap, matching `XrdClS3` expectations.
   PUT write.
 - **`s3_post_form_t`** / **`s3_post_field_t`** (`post_object.c`) — accumulated
   browser-form fields, policy, signature, and the file part for POST Object.
-- **Metric slot enums** (`../metrics/metrics.h`) — `XROOTD_S3_METHOD_*`,
-  `XROOTD_S3_AUTH_*`, `XROOTD_S3_RANGE_*`, `XROOTD_S3_PUT_*`,
-  `XROOTD_S3_EVENT_*`: all low-cardinality (no bucket names, keys, or DNs).
+- **Metric slot enums** (`../metrics/metrics.h`) — `BRIX_S3_METHOD_*`,
+  `BRIX_S3_AUTH_*`, `BRIX_S3_RANGE_*`, `BRIX_S3_PUT_*`,
+  `BRIX_S3_EVENT_*`: all low-cardinality (no bucket names, keys, or DNs).
 
 ## Control & data flow
 
-**Entry.** A location with `xrootd_s3 on;` routes its requests to
+**Entry.** A location with `brix_s3 on;` routes its requests to
 `ngx_http_s3_handler` (`handler.c`), installed by `ngx_http_s3_set` in `module.c`.
-The handler allocates `ngx_http_s3_req_ctx_t` (with an `xrootd_identity_t`),
+The handler allocates `ngx_http_s3_req_ctx_t` (with an `brix_identity_t`),
 classifies the method into a metric slot, and runs (in order): OPTIONS/CORS
 preflight → `s3_verify_sigv4` (skipped for POST-Object forms, which carry policy
 auth) → `s3_parse_uri` → list / `?uploads` / `?delete` / POST-form flag checks →
 empty-key rejection → `s3_resolve_key` → per-method dispatch. Async write paths
-(`PUT`, `POST` body, `DeleteObjects`) call `xrootd_http_read_body` and return
+(`PUT`, `POST` body, `DeleteObjects`) call `brix_http_read_body` and return
 `NGX_DONE`; the body callback finalizes the response and metrics later via
 `s3_metrics_finalize_request_method`.
 
 **Calls out to:**
 
 - `../path/README.md` — kernel `RESOLVE_BENEATH` confinement and canonicalization,
-  reached through `s3_resolve_key` → `xrootd_http_resolve_path` and the
-  `xrootd_*_confined_canon` family (open/mkdir/unlink/rename); the persistent
+  reached through `s3_resolve_key` → `brix_http_resolve_path` and the
+  `brix_*_confined_canon` family (open/mkdir/unlink/rename); the persistent
   confinement rootfd is opened in `module.c`.
-- `../fs/README.md` — `xrootd_vfs_open`/`_stat`/`_close` for cache-aware GET/HEAD
+- `../fs/README.md` — `brix_vfs_open`/`_stat`/`_close` for cache-aware GET/HEAD
   (`object.c`); the VFS also fronts the optional `cache_root` read-through.
-- `../shared/file_serve.h` — `xrootd_http_serve_file_ranged`, the range-parse →
+- `../shared/file_serve.h` — `brix_http_serve_file_ranged`, the range-parse →
   header → body-send pipeline shared with WebDAV GET (`object.c`).
-- `../cache/README.md` — read-through fill when `xrootd_s3_cache_root` is set.
+- `../cache/README.md` — read-through fill when `brix_s3_cache_root` is set.
 - `../aio/README.md` — the thread pool that the PUT fast path posts to so large
   in-memory writes never block the event loop.
 - `../compat/` — staged-file atomic write (`staged_file.h`), HTTP body/header/query
   helpers, XML emit/escape, URL en/decode, `copy_range.h`, `etag.h`, the
-  `xrootd_ns_*` namespace API (`namespace_ops.h`) for delete/copy, and SigV4
+  `brix_ns_*` namespace API (`namespace_ops.h`) for delete/copy, and SigV4
   crypto (`crypto.h`, `hex.h`).
 - `../metrics/README.md` — S3 Prometheus counters and the unified auth/op metrics
   (`unified.h`, `http_common.h`).
-- `../dashboard/` — live transfer tracking on writes (`xrootd_dashboard_http_*`).
+- `../dashboard/` — live transfer tracking on writes (`brix_dashboard_http_*`).
 - `../token/b64url.h` — base64url codec for ListObjectsV2 continuation tokens.
 
 ## Invariants, security & gotchas
 
 - **Confinement is non-negotiable.** Every client key reaches the filesystem only
   through `s3_resolve_key` (returns 0 on escape → `AccessDenied` 403) or a
-  `xrootd_*_confined_canon` wrapper anchored at the per-worker `RESOLVE_BENEATH`
+  `brix_*_confined_canon` wrapper anchored at the per-worker `RESOLVE_BENEATH`
   rootfd. Bare `lstat`/`stat` appear only on paths *derived from* an
   already-confined `fs_path` plus a hex-validated `upload_id`
   (`multipart_abort.c:40`, `multipart_complete_body.c`) — the comments at those
   sites spell out why they are safe; do not add raw syscalls on raw client input.
 - **Fail-closed writes.** `cf->common.allow_write` is checked before the body is
   read on PUT, POST, DELETE, DeleteObjects, and POST-Object (`handler.c`), each
-  emitting `XROOTD_S3_EVENT_WRITE_DISABLED` + `AccessDenied`. Never move a write
-  gate after `xrootd_http_read_body`.
+  emitting `BRIX_S3_EVENT_WRITE_DISABLED` + `AccessDenied`. Never move a write
+  gate after `brix_http_read_body`.
 - **SigV4 is its own auth domain.** No shared logic with `../token/` or `../gsi/`.
   Anonymous mode (`access_key.len == 0`) short-circuits to `NGX_OK`
   (`auth_sigv4_verify.c:401`). Both header and presigned-URL forms are supported;
   presigned `X-Amz-Expires` is bounded to ≤ 604800 s. STS session tokens
   (`x-amz-security-token`) are rejected unless
-  `xrootd_s3_allow_unsigned_session_token` is on, and for the header form the
+  `brix_s3_allow_unsigned_session_token` is on, and for the header form the
   token must itself be in `SignedHeaders`.
 - **No SigV4 timing/message oracle (W5).** `auth_sigv4_verify.c` deliberately does
   *not* early-return on an unknown access key. The key-match result (`CRYPTO_memcmp`)
@@ -180,7 +180,7 @@ empty-key rejection → `s3_resolve_key` → per-method dispatch. Async write pa
   per request. Clock skew is bounded to ±900 s (header form) / future-only
   ±900 s (presigned), plus `X-Amz-Expires` enforcement.
 - **Atomic writes only.** PutObject, CopyObject, and CompleteMultipartUpload all
-  write to a temp file then `rename` (`xrootd_staged_*` / `xrootd_ns_local_copy`
+  write to a temp file then `rename` (`brix_staged_*` / `brix_ns_local_copy`
   with `staged_commit=1`); clients never observe a partial object, and a crash
   orphans only the temp. The PUT thread-pool fast path is gated to in-memory,
   non-encoded bodies (`!has_spooled && bytes>0 && window_bits==0 && thread_pool`,
@@ -192,7 +192,7 @@ empty-key rejection → `s3_resolve_key` → per-method dispatch. Async write pa
   PUT, CopyObject, UploadPartCopy, and multipart results all use this convention
   consistently.
 - **DELETE is idempotent.** Deleting a missing key returns 204 (not 404), matching
-  AWS, via `xrootd_ns_delete` with `idempotent_missing=1`. Non-empty directories
+  AWS, via `brix_ns_delete` with `idempotent_missing=1`. Non-empty directories
   return 409 `BucketNotEmpty`.
 - **DeleteObjects XML parsing is hardened.** `delete_objects.c` uses libxml2 with
   `XML_PARSE_NONET` (+ `XML_PARSE_NO_XXE` when available); `NOENT`/`DTDLOAD`/`HUGE`
@@ -220,7 +220,7 @@ empty-key rejection → `s3_resolve_key` → per-method dispatch. Async write pa
   `ngx_http_s3_merge_loc_conf`. Pure directive additions do not require a
   `./configure` re-run; new source files do.
 - **Add a metric:** define the slot in `../metrics/metrics.h`, then increment with
-  `XROOTD_S3_METRIC_INC`/`_ADD` at the callsite. Keep labels low-cardinality (no
+  `BRIX_S3_METRIC_INC`/`_ADD` at the callsite. Keep labels low-cardinality (no
   paths, bucket names, or keys).
 - **Touch SigV4:** changes go in the `auth_sigv4_*.c` trio behind
   `s3_auth_internal.h`; never break the constant-time single-decision compare in

@@ -28,7 +28,7 @@
  */
 
 void
-xrootd_strip_cgi(const char *in, char *out, size_t outsz)
+brix_strip_cgi(const char *in, char *out, size_t outsz)
 {
     const char *q = strchr(in, '?');
     size_t      len;

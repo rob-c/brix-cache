@@ -17,9 +17,9 @@
  *   was a contention hot spot — hashing bounds the locked work to a small fixed
  *   probe window regardless of table size.
  *
- * HOW: One nginx shared-memory zone ("xrootd_redir_cache") holds the header
+ * HOW: One nginx shared-memory zone ("brix_redir_cache") holds the header
  *   (lock + capacity) and the entry array.  A single spinlock serialises reads
- *   and writes, but each operation now touches at most XROOTD_REDIR_PROBE_MAX
+ *   and writes, but each operation now touches at most BRIX_REDIR_PROBE_MAX
  *   consecutive slots starting at hash(path) % capacity — O(1) under the lock.
  *   An entry always lives within that probe window of its hash bucket or it is
  *   not cached; lookup and insert probe the same window, so they stay
@@ -40,38 +40,38 @@ typedef struct {
     uint8_t     in_use;       /* 1 = slot occupied                   */
     uint8_t     _pad[5];      /* alignment padding                   */
     ngx_msec_t  expires;      /* ngx_current_msec at expiry          */
-} xrootd_redir_cache_entry_t;
+} brix_redir_cache_entry_t;
 
 typedef struct {
     ngx_shmtx_sh_t             lock;      /* must be first */
     ngx_atomic_t               next_slot; /* vestigial (kept for SHM layout) */
     ngx_uint_t                 capacity;  /* runtime slot count (>= 1) */
-    xrootd_redir_cache_entry_t entries[]; /* [capacity] — flexible array */
-} xrootd_redir_cache_t;
+    brix_redir_cache_entry_t entries[]; /* [capacity] — flexible array */
+} brix_redir_cache_t;
 
 /* Maximum slots probed per lookup/insert, starting at hash(path) % capacity.
  * Bounds the locked work to O(1) regardless of configured table size. */
-#define XROOTD_REDIR_PROBE_MAX 32
+#define BRIX_REDIR_PROBE_MAX 32
 
 
-static ngx_shm_zone_t *xrootd_redir_shm_zone;
-static ngx_shmtx_t    xrootd_redir_mutex;
+static ngx_shm_zone_t *brix_redir_shm_zone;
+static ngx_shmtx_t    brix_redir_mutex;
 
-/* Runtime slot count (xrootd_redir_cache_slots); defaults to the compile-time
+/* Runtime slot count (brix_redir_cache_slots); defaults to the compile-time
  * capacity.  Set once during configuration before workers fork. */
-static ngx_uint_t     xrootd_redir_cache_nslots = XROOTD_REDIR_CACHE_SLOTS;
+static ngx_uint_t     brix_redir_cache_nslots = BRIX_REDIR_CACHE_SLOTS;
 
 
-static xrootd_redir_cache_t *
+static brix_redir_cache_t *
 redir_cache(void)
 {
-    if (xrootd_redir_shm_zone == NULL
-        || xrootd_redir_shm_zone->data == NULL
-        || xrootd_redir_shm_zone->data == (void *) 1)
+    if (brix_redir_shm_zone == NULL
+        || brix_redir_shm_zone->data == NULL
+        || brix_redir_shm_zone->data == (void *) 1)
     {
         return NULL;
     }
-    return (xrootd_redir_cache_t *) xrootd_redir_shm_zone->data;
+    return (brix_redir_cache_t *) brix_redir_shm_zone->data;
 }
 
 /* FNV-1a 32-bit hash of a NUL-terminated path, used to pick the probe window. */
@@ -91,7 +91,7 @@ redir_hash(const char *path)
 static ngx_int_t
 redir_cache_shm_init(ngx_shm_zone_t *shm_zone, void *data)
 {
-    xrootd_redir_cache_t *c;
+    brix_redir_cache_t *c;
     ngx_flag_t            fresh;
     size_t                table_bytes;
 
@@ -102,18 +102,18 @@ redir_cache_shm_init(ngx_shm_zone_t *shm_zone, void *data)
      * re-attach, zeroes the table, creates the process-local mutex from the
      * table's leading ngx_shmtx_sh_t lock, and publishes it via shm_zone->data.
      */
-    table_bytes = sizeof(xrootd_redir_cache_t)
-                  + (size_t) xrootd_redir_cache_nslots
-                    * sizeof(xrootd_redir_cache_entry_t);
+    table_bytes = sizeof(brix_redir_cache_t)
+                  + (size_t) brix_redir_cache_nslots
+                    * sizeof(brix_redir_cache_entry_t);
 
-    c = xrootd_shm_table_alloc(shm_zone, data, table_bytes,
-                               &xrootd_redir_mutex, &fresh);
+    c = brix_shm_table_alloc(shm_zone, data, table_bytes,
+                               &brix_redir_mutex, &fresh);
     if (c == NULL) {
         return NGX_ERROR;
     }
 
     if (fresh) {
-        c->capacity = xrootd_redir_cache_nslots;
+        c->capacity = brix_redir_cache_nslots;
     }
 
     return NGX_OK;
@@ -121,38 +121,38 @@ redir_cache_shm_init(ngx_shm_zone_t *shm_zone, void *data)
 
 
 ngx_int_t
-xrootd_redir_cache_configure(ngx_conf_t *cf, ngx_uint_t slots)
+brix_redir_cache_configure(ngx_conf_t *cf, ngx_uint_t slots)
 {
-    ngx_str_t  name = ngx_string("xrootd_redir_cache");
+    ngx_str_t  name = ngx_string("brix_redir_cache");
     size_t     size;
 
     if (slots == 0) {
-        slots = XROOTD_REDIR_CACHE_SLOTS;
+        slots = BRIX_REDIR_CACHE_SLOTS;
     }
-    xrootd_redir_cache_nslots = slots;
+    brix_redir_cache_nslots = slots;
 
-    size = xrootd_shm_zone_size(sizeof(xrootd_redir_cache_t)
+    size = brix_shm_zone_size(sizeof(brix_redir_cache_t)
                                 + (size_t) slots
-                                  * sizeof(xrootd_redir_cache_entry_t));
+                                  * sizeof(brix_redir_cache_entry_t));
 
-    xrootd_redir_shm_zone = ngx_shared_memory_add(cf, &name, size,
-                                                    &ngx_stream_xrootd_module);
-    if (xrootd_redir_shm_zone == NULL) {
+    brix_redir_shm_zone = ngx_shared_memory_add(cf, &name, size,
+                                                    &ngx_stream_brix_module);
+    if (brix_redir_shm_zone == NULL) {
         return NGX_ERROR;
     }
 
-    xrootd_redir_shm_zone->init = redir_cache_shm_init;
-    xrootd_redir_shm_zone->data = (void *) 1;
+    brix_redir_shm_zone->init = redir_cache_shm_init;
+    brix_redir_shm_zone->data = (void *) 1;
 
     return NGX_OK;
 }
 
 int
-xrootd_redir_cache_lookup(const char *path,
+brix_redir_cache_lookup(const char *path,
     char *host_out, size_t host_size, uint16_t *port_out)
 {
-    xrootd_redir_cache_t      *c;
-    xrootd_redir_cache_entry_t *e;
+    brix_redir_cache_t      *c;
+    brix_redir_cache_entry_t *e;
     ngx_uint_t                  probe, nprobe, start;
     int                         found;
     ngx_msec_t                  now;
@@ -165,10 +165,10 @@ xrootd_redir_cache_lookup(const char *path,
     now    = ngx_current_msec;
     found  = 0;
     start  = (ngx_uint_t) redir_hash(path) % c->capacity;
-    nprobe = (c->capacity < XROOTD_REDIR_PROBE_MAX)
-             ? c->capacity : XROOTD_REDIR_PROBE_MAX;
+    nprobe = (c->capacity < BRIX_REDIR_PROBE_MAX)
+             ? c->capacity : BRIX_REDIR_PROBE_MAX;
 
-    ngx_shmtx_lock(&xrootd_redir_mutex);
+    ngx_shmtx_lock(&brix_redir_mutex);
 
     for (probe = 0; probe < nprobe; probe++) {
         e = &c->entries[(start + probe) % c->capacity];
@@ -183,16 +183,16 @@ xrootd_redir_cache_lookup(const char *path,
         }
     }
 
-    ngx_shmtx_unlock(&xrootd_redir_mutex);
+    ngx_shmtx_unlock(&brix_redir_mutex);
     return found;
 }
 
 void
-xrootd_redir_cache_insert(const char *path,
+brix_redir_cache_insert(const char *path,
     const char *host, uint16_t port, ngx_msec_t ttl_ms)
 {
-    xrootd_redir_cache_t       *c;
-    xrootd_redir_cache_entry_t *e, *free_slot, *lru_slot, *victim;
+    brix_redir_cache_t       *c;
+    brix_redir_cache_entry_t *e, *free_slot, *lru_slot, *victim;
     ngx_uint_t                  probe, nprobe, start;
     ngx_msec_t                  now, lru_exp;
 
@@ -203,10 +203,10 @@ xrootd_redir_cache_insert(const char *path,
 
     now    = ngx_current_msec;
     start  = (ngx_uint_t) redir_hash(path) % c->capacity;
-    nprobe = (c->capacity < XROOTD_REDIR_PROBE_MAX)
-             ? c->capacity : XROOTD_REDIR_PROBE_MAX;
+    nprobe = (c->capacity < BRIX_REDIR_PROBE_MAX)
+             ? c->capacity : BRIX_REDIR_PROBE_MAX;
 
-    ngx_shmtx_lock(&xrootd_redir_mutex);
+    ngx_shmtx_lock(&brix_redir_mutex);
 
     /*
      * Single pass over the probe window: if the path is already cached (live),
@@ -228,7 +228,7 @@ xrootd_redir_cache_insert(const char *path,
                             sizeof(e->host));
                 e->port    = port;
                 e->expires = now + ttl_ms;
-                ngx_shmtx_unlock(&xrootd_redir_mutex);
+                ngx_shmtx_unlock(&brix_redir_mutex);
                 return;
             }
             if (lru_slot == NULL || e->expires < lru_exp) {
@@ -242,7 +242,7 @@ xrootd_redir_cache_insert(const char *path,
 
     victim = (free_slot != NULL) ? free_slot : lru_slot;
     if (victim == NULL) {
-        ngx_shmtx_unlock(&xrootd_redir_mutex);   /* nprobe >= 1; defensive */
+        ngx_shmtx_unlock(&brix_redir_mutex);   /* nprobe >= 1; defensive */
         return;
     }
 
@@ -252,5 +252,5 @@ xrootd_redir_cache_insert(const char *path,
     victim->expires = now + ttl_ms;
     victim->in_use  = 1;
 
-    ngx_shmtx_unlock(&xrootd_redir_mutex);
+    ngx_shmtx_unlock(&brix_redir_mutex);
 }

@@ -6,14 +6,14 @@
 #include "net/manager/pending.h"
 #include "fs/xfer/stage_request_registry.h"
 #include "fs/xfer/stage_waiter.h"
-#include "fs/vfs/vfs.h"                   /* xrootd_vfs_residency (sd_frm seam) */
+#include "fs/vfs/vfs.h"                   /* brix_vfs_residency (sd_frm seam) */
 #include "protocols/root/session/registry.h"
 #include "net/cms/cms_internal.h"
 #include "core/compat/codec_core.h"
 #include "protocols/root/protocol/open_flags.h"   /* shared kXR_open option-bit semantics */
 #include "protocols/root/zip/zip_member.h"        /* phase-57 W2: ZIP member access */
 #include "fs/vfs/vfs_backend_registry.h" /* Layer 3: per-export storage driver */
-#include "fs/vfs/vfs_internal.h"         /* xrootd_vfs_export_relative_root */
+#include "fs/vfs/vfs_internal.h"         /* brix_vfs_export_relative_root */
 #include "fs/backend/sd.h"           /* driver stat for read existence check */
 #include "fs/backend/cache/sd_cache.h" /* slow-tier miss offload probe (SP2) */
 
@@ -33,18 +33,18 @@ extern int open_extract_opaque(const u_char *payload, size_t payload_len, char *
  * unchanged default-export path). Returns 1 if the path exists (and sets
  * *is_dir accordingly), 0 if absent. */
 static int
-xrootd_open_read_probe(ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log,
+brix_open_read_probe(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log,
     const char *clean_path, const char *full_path, int *is_dir)
 {
-    xrootd_sd_instance_t *sd =
-        xrootd_vfs_backend_resolve(conf->common.root_canon, log);
+    brix_sd_instance_t *sd =
+        brix_vfs_backend_resolve(conf->common.root_canon, log);
 
     *is_dir = 0;
 
     if (sd != NULL && sd->driver->stat != NULL) {
-        xrootd_sd_stat_t  sst;
+        brix_sd_stat_t  sst;
         const char       *key =
-            xrootd_vfs_export_relative_root(full_path, conf->common.root_canon);
+            brix_vfs_export_relative_root(full_path, conf->common.root_canon);
 
         /* Slow-tier composed-cache MISS (phase-64 SP2): a source stat here would
          * be a blocking wire round-trip on the event loop. Report the path as
@@ -52,7 +52,7 @@ xrootd_open_read_probe(ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log,
          * resolve the truth — a missing origin object surfaces as kXR_NotFound
          * from the parked open's done callback. A COMPLETE hit answers below via
          * the decorator's cinfo-backed stat (no source touch). */
-        if (xrootd_sd_cache_fill_needs_offload(sd, key)) {
+        if (brix_sd_cache_fill_needs_offload(sd, key)) {
             *is_dir = 0;
             return 1;
         }
@@ -67,7 +67,7 @@ xrootd_open_read_probe(ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log,
     {
         struct stat est;
 
-        if (xrootd_stat_beneath(conf->rootfd, clean_path, &est) != 0) {
+        if (brix_stat_beneath(conf->rootfd, clean_path, &est) != 0) {
             return 0;
         }
         *is_dir = S_ISDIR(est.st_mode) ? 1 : 0;
@@ -78,12 +78,12 @@ xrootd_open_read_probe(ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log,
 /*
  *
  * WHAT: Phase-42 W4/W5 — negotiate an inline-compression codec from the kXR_open
- *       opaque.  Returns the codec ordinal (xrootd_codec_id_t) to use for this
- *       handle, or XROOTD_CODEC_IDENTITY (0) when compression is disabled for the
+ *       opaque.  Returns the codec ordinal (brix_codec_id_t) to use for this
+ *       handle, or BRIX_CODEC_IDENTITY (0) when compression is disabled for the
  *       direction, no "?xrootd.compress=" opaque is present, or the requested
  *       codec is unknown/unavailable.  Direction is chosen by is_write: a READ
- *       open gates on xrootd_read_compress (W4, compress kXR_read responses); a
- *       WRITE open gates on xrootd_write_compress (W5, decompress kXR_write
+ *       open gates on brix_read_compress (W4, compress kXR_read responses); a
+ *       WRITE open gates on brix_write_compress (W5, decompress kXR_write
  *       payloads on ingest).
  *
  * WHY:  Inline compression must be strictly opt-in and invisible to stock peers.
@@ -97,35 +97,35 @@ xrootd_open_read_probe(ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log,
  *       canonical name (then HTTP token, so "br" works) and require it built in.
  */
 static uint8_t
-open_negotiate_compress_codec(xrootd_ctx_t *ctx,
-                              ngx_stream_xrootd_srv_conf_t *conf,
+open_negotiate_compress_codec(brix_ctx_t *ctx,
+                              ngx_stream_brix_srv_conf_t *conf,
                               ngx_flag_t is_write)
 {
-	char                       opaque[XROOTD_MAX_PATH + 1];
+	char                       opaque[BRIX_MAX_PATH + 1];
 	const char                *p, *val, *end;
 	size_t                     vlen;
 	ngx_flag_t                 enabled;
-	const xrootd_codec_desc_t *d;
+	const brix_codec_desc_t *d;
 
 	enabled = is_write ? conf->write_compress : conf->read_compress;
 	if (!enabled || ctx->payload == NULL || ctx->cur_dlen == 0)
 	{
-		return XROOTD_CODEC_IDENTITY;
+		return BRIX_CODEC_IDENTITY;
 	}
 
 	if (!open_extract_opaque(ctx->payload, ctx->cur_dlen,
 	                         opaque, sizeof(opaque)))
 	{
-		return XROOTD_CODEC_IDENTITY;
+		return BRIX_CODEC_IDENTITY;
 	}
 
 	p = strstr(opaque, "xrootd.compress=");
 	if (p == NULL) {
-		return XROOTD_CODEC_IDENTITY;
+		return BRIX_CODEC_IDENTITY;
 	}
 	/* Require a key boundary before the token (start, '&' or '?'). */
 	if (p != opaque && p[-1] != '&' && p[-1] != '?') {
-		return XROOTD_CODEC_IDENTITY;
+		return BRIX_CODEC_IDENTITY;
 	}
 
 	val = p + (sizeof("xrootd.compress=") - 1);
@@ -135,15 +135,15 @@ open_negotiate_compress_codec(xrootd_ctx_t *ctx,
 	}
 	vlen = (size_t) (end - val);
 	if (vlen == 0) {
-		return XROOTD_CODEC_IDENTITY;
+		return BRIX_CODEC_IDENTITY;
 	}
 
-	d = xrootd_codec_by_name(val, vlen);
+	d = brix_codec_by_name(val, vlen);
 	if (d == NULL) {
-		d = xrootd_codec_by_http_token(val, vlen);
+		d = brix_codec_by_http_token(val, vlen);
 	}
-	if (d == NULL || !d->available || d->id == XROOTD_CODEC_IDENTITY) {
-		return XROOTD_CODEC_IDENTITY;
+	if (d == NULL || !d->available || d->id == BRIX_CODEC_IDENTITY) {
+		return BRIX_CODEC_IDENTITY;
 	}
 	return (uint8_t) d->id;
 }
@@ -165,9 +165,9 @@ open_negotiate_compress_codec(xrootd_ctx_t *ctx,
  *       "../", any embedded "/../", or a trailing "/..".
  */
 static int
-open_extract_zip_member(xrootd_ctx_t *ctx, char *out, size_t outsz)
+open_extract_zip_member(brix_ctx_t *ctx, char *out, size_t outsz)
 {
-	char        opaque[XROOTD_MAX_PATH + 1];
+	char        opaque[BRIX_MAX_PATH + 1];
 	const char *p, *val, *end;
 	size_t      vlen;
 
@@ -224,17 +224,17 @@ open_extract_zip_member(xrootd_ctx_t *ctx, char *out, size_t outsz)
 }
 
 /* SciTags echo timer (phase-34): periodically emit an "ongoing" firefly for a
- * long-lived marked connection.  ev->data is the xrootd_ctx_t; re-arms itself
+ * long-lived marked connection.  ev->data is the brix_ctx_t; re-arms itself
  * until the connection is torn down (the timer is cancelled in on_disconnect). */
 static void
-xrootd_pmark_echo_timer(ngx_event_t *ev)
+brix_pmark_echo_timer(ngx_event_t *ev)
 {
-    xrootd_ctx_t *ctx = ev->data;
+    brix_ctx_t *ctx = ev->data;
 
     if (ctx == NULL || ctx->destroyed || ctx->pmark_flow == NULL) {
         return;
     }
-    xrootd_pmark_flow_echo(ctx->pmark_flow, ev->log);
+    brix_pmark_flow_echo(ctx->pmark_flow, ev->log);
     if (ctx->pmark_echo_ms > 0) {
         ngx_add_timer(ev, ctx->pmark_echo_ms);
     }
@@ -246,7 +246,7 @@ xrootd_pmark_echo_timer(ngx_event_t *ev)
  *       validates permissions through security gates (manager mode redirect, authdb, VO ACL,
  *       token scope), resolves paths to canonical filesystem location based on read/write mode,
  *       detects TPC transfer context embedded as opaque parameters in the path string,
- *       and dispatches to either cached-read handler or xrootd_open_resolved_file().
+ *       and dispatches to either cached-read handler or brix_open_resolved_file().
  *
  * WHY: kXR_open is the densest request in the protocol — it bridges four layers:
  *      1. Protocol semantics (kXR_new/create, kXR_mkpath/make-parent-dirs, kXR_retstat)
@@ -257,16 +257,16 @@ xrootd_pmark_echo_timer(ngx_event_t *ev)
  *
  * HOW: Parse options/mode from wire → detect write-mode (kXR_new/delete/updt/wrto/apnd) →
  *      parse opaque query string for TPC params → if TPC destination (write + tpc.src): validate,
- *      resolve, check authdb/VO ACL/token scope, mkpath dirs, delegate to xrootd_tpc_prepare_pull;
+ *      resolve, check authdb/VO ACL/token scope, mkpath dirs, delegate to brix_tpc_prepare_pull;
  *      if TPC source (read + tpc.key): register/consume key → return NGX_AGAIN on consume failure.
  *      Normal path: strip CGI query from path → validate depth → manager_mode redirect or CMS locate
  *      → static map prefix redirect → read resolve (cache-aware or realpath) → write resolver →
- *      authdb/VO ACL/token scope gates → reject directories → delegate to xrootd_open_resolved_file().
+ *      authdb/VO ACL/token scope gates → reject directories → delegate to brix_open_resolved_file().
  */
 
 ngx_int_t
-xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
-				   ngx_stream_xrootd_srv_conf_t *conf)
+brix_handle_open(brix_ctx_t *ctx, ngx_connection_t *c,
+				   ngx_stream_brix_srv_conf_t *conf)
 {
 	xrdw_open_req_t    req;
 	uint16_t           options;
@@ -288,7 +288,7 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	 */
 
 	/* Determine whether this is a write-mode open (shared write-bit set). */
-	is_write = xrootd_open_options_is_write(options);
+	is_write = brix_open_options_is_write(options);
 
 	/*
 	 * §7 XrdSsi: an open of a "/.ssi/<service>" resource is a unary RPC channel,
@@ -300,11 +300,11 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		const char *svc;
 		size_t      svclen;
 
-		if (xrootd_extract_path(c->log, ctx->payload, ctx->cur_dlen,
+		if (brix_extract_path(c->log, ctx->payload, ctx->cur_dlen,
 		                        ssi_path, sizeof(ssi_path), 1)
-		    && xrootd_ssi_match(conf, ssi_path, &svc, &svclen))
+		    && brix_ssi_match(conf, ssi_path, &svc, &svclen))
 		{
-			return xrootd_ssi_open(ctx, c, svc, svclen, options);
+			return brix_ssi_open(ctx, c, svc, svclen, options);
 		}
 	}
 
@@ -328,13 +328,13 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	 * normal path-resolution and open logic below.
 	 */
 	{
-		char                 opaque[XROOTD_MAX_PATH + 1];
-		xrootd_tpc_params_t  tpc;
+		char                 opaque[BRIX_MAX_PATH + 1];
+		brix_tpc_params_t  tpc;
 
 		if (ctx->payload != NULL && ctx->cur_dlen > 0
 		    && open_extract_opaque(ctx->payload, ctx->cur_dlen,
 		                           opaque, sizeof(opaque))
-		    && xrootd_tpc_parse_opaque(opaque, &tpc) == 0)
+		    && brix_tpc_parse_opaque(opaque, &tpc) == 0)
 		{
 			if (is_write && tpc.has_src && tpc.src_host[0] != '\0') {
 				/*
@@ -346,17 +346,17 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 				char tpc_full_path[PATH_MAX];
 				char tpc_clean[PATH_MAX];
 
-				if (!xrootd_extract_path(c->log, ctx->payload, ctx->cur_dlen,
+				if (!brix_extract_path(c->log, ctx->payload, ctx->cur_dlen,
 				                         tpc_clean, sizeof(tpc_clean), 1)) {
-					xrootd_log_access(ctx, c, "OPEN", "-", "tpc-pull",
+					brix_log_access(ctx, c, "OPEN", "-", "tpc-pull",
 					                  0, kXR_ArgInvalid,
 					                  "invalid TPC dst path", 0);
-					XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_WR);
-					return xrootd_send_error(ctx, c, kXR_ArgInvalid,
+					BRIX_OP_ERR(ctx, BRIX_OP_OPEN_WR);
+					return brix_send_error(ctx, c, kXR_ArgInvalid,
 					                         "invalid TPC destination path");
 				}
-				if (xrootd_count_path_depth(tpc_clean) != NGX_OK) {
-					XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_WR, "OPEN",
+				if (brix_count_path_depth(tpc_clean) != NGX_OK) {
+					BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN",
 					                  tpc_clean, "tpc-pull", kXR_ArgInvalid,
 					                  "path exceeds maximum depth");
 				}
@@ -366,32 +366,32 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 					char     redir_host[256];
 					uint16_t redir_port;
 
-					if (xrootd_srv_select(tpc_clean, 1, redir_host,
+					if (brix_srv_select(tpc_clean, 1, redir_host,
 					                      sizeof(redir_host), &redir_port)) {
-						char tpc_key[XROOTD_TPC_KEY_LEN];
+						char tpc_key[BRIX_TPC_KEY_LEN];
 
-						xrootd_tpc_generate_key(tpc_key, sizeof(tpc_key));
-						xrootd_tpc_key_register(tpc_key, conf->tpc_key_ttl_ms);
-						xrootd_log_access(ctx, c, "OPEN", tpc_clean, "tpc-redirect",
+						brix_tpc_generate_key(tpc_key, sizeof(tpc_key));
+						brix_tpc_key_register(tpc_key, conf->tpc_key_ttl_ms);
+						brix_log_access(ctx, c, "OPEN", tpc_clean, "tpc-redirect",
 						                  1, 0, NULL, 0);
-						XROOTD_OP_OK(ctx, XROOTD_OP_OPEN_WR);
-						return xrootd_send_redirect_tpc(ctx, c, redir_host,
+						BRIX_OP_OK(ctx, BRIX_OP_OPEN_WR);
+						return brix_send_redirect_tpc(ctx, c, redir_host,
 						                                redir_port, tpc_key);
 					}
-						xrootd_log_access(ctx, c, "OPEN", tpc_clean, "tpc-pull",
+						brix_log_access(ctx, c, "OPEN", tpc_clean, "tpc-pull",
 						                  0, kXR_Overloaded,
 						                  "no data server for TPC", 0);
-						XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_WR);
-						return xrootd_send_error(ctx, c, kXR_Overloaded,
+						BRIX_OP_ERR(ctx, BRIX_OP_OPEN_WR);
+						return brix_send_error(ctx, c, kXR_Overloaded,
 						                         "no data server available for TPC");
 				}
 
 				if (!conf->common.allow_write) {
-					xrootd_log_access(ctx, c, "OPEN", tpc_clean, "tpc-pull",
+					brix_log_access(ctx, c, "OPEN", tpc_clean, "tpc-pull",
 					                  0, kXR_fsReadOnly,
 					                  "read-only server", 0);
-					XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_WR);
-					return xrootd_send_error(ctx, c, kXR_fsReadOnly,
+					BRIX_OP_ERR(ctx, BRIX_OP_OPEN_WR);
+					return brix_send_error(ctx, c, kXR_fsReadOnly,
 					                         "this is a read-only server");
 				}
 
@@ -404,34 +404,34 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 					tpc_dst_scope.data = (u_char *) tpc_clean;
 					tpc_dst_scope.len = ngx_strlen(tpc_clean);
 
-					if (xrootd_tpc_check_authz(ctx->identity, &tpc_src_scope,
+					if (brix_tpc_check_authz(ctx->identity, &tpc_src_scope,
 					                           &tpc_dst_scope, c->log)
 					    != NGX_OK)
 					{
-						XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_WR, "OPEN",
+						BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN",
 						                  tpc_clean, "tpc-pull",
 						                  kXR_NotAuthorized,
 						                  "TPC authorization denied");
 					}
 				}
 
-				xrootd_beneath_full_path(conf->common.root_canon, tpc_clean,
+				brix_beneath_full_path(conf->common.root_canon, tpc_clean,
 				                          tpc_full_path, sizeof(tpc_full_path));
 
 				/* Format-aware authz (xrdacc engine or native authdb); the TPC
 				 * pull creates the dest file (AOP_Create). */
-				if (xrootd_authz_check(ctx, c, conf, tpc_clean, tpc_full_path,
-				                       "OPEN", XROOTD_AUTH_UPDATE,
-				                       XROOTD_AOP_CREATE) != NGX_OK) {
-					XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_WR, "OPEN",
+				if (brix_authz_check(ctx, c, conf, tpc_clean, tpc_full_path,
+				                       "OPEN", BRIX_AUTH_UPDATE,
+				                       BRIX_AOP_CREATE) != NGX_OK) {
+					BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN",
 					                  tpc_clean, "tpc-pull", kXR_NotAuthorized,
 					                  "authdb denied");
 				}
 
-				if (xrootd_check_vo_acl_identity(c->log, tpc_full_path,
+				if (brix_check_vo_acl_identity(c->log, tpc_full_path,
 				                                 conf->vo_rules,
 				                                 ctx->identity) != NGX_OK) {
-					XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_WR, "OPEN",
+					BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN",
 					                  tpc_clean, "tpc-pull", kXR_NotAuthorized,
 					                  "VO not authorized");
 				}
@@ -444,12 +444,12 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 					slash = strrchr(parent, '/');
 					if (slash && slash > parent) {
 						*slash = '\0';
-						xrootd_mkdir_recursive_policy(parent, 0755, c->log,
+						brix_mkdir_recursive_policy(parent, 0755, c->log,
 						                              conf->group_rules);
 					}
 				}
 
-				return xrootd_tpc_prepare_pull(ctx, c, conf, &tpc,
+				return brix_tpc_prepare_pull(ctx, c, conf, &tpc,
 				                               tpc_full_path, options, mode_bits);
 
 			} else if (!is_write && (tpc.has_key || tpc.has_dst || tpc.has_org)) {
@@ -470,19 +470,19 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
 				if (tpc.has_key && tpc.key[0] != '\0' && tpc.has_dst
 				    && !tpc.has_org) {
-					xrootd_tpc_key_register(tpc.key, conf->tpc_key_ttl_ms);
+					brix_tpc_key_register(tpc.key, conf->tpc_key_ttl_ms);
 					ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
 					               "xrootd: TPC source key=%s registered",
 					               tpc.key);
 
 				} else if (tpc.has_key && tpc.key[0] != '\0'
 				           && tpc.has_org) {
-					if (xrootd_tpc_key_consume(tpc.key)) {
+					if (brix_tpc_key_consume(tpc.key)) {
 						ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
 						               "xrootd: TPC source key=%s consumed",
 						               tpc.key);
 					} else {
-						XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN",
+						BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN",
 						                  ctx->payload ? (char *) ctx->payload : "-",
 						                  "tpc-source", kXR_NotAuthorized,
 						                  "TPC authorization missing or expired");
@@ -502,27 +502,27 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	/* In manager_mode writes are forwarded to registered data servers;
 	 * the allow_write check applies only to local file serving. */
 	if (is_write && !conf->common.allow_write && !conf->manager_mode) {
-		xrootd_log_access(ctx, c, "OPEN",
+		brix_log_access(ctx, c, "OPEN",
 						  ctx->payload ? (char *) ctx->payload : "-", "wr",
 						  0, kXR_fsReadOnly, "read-only server", 0);
-		XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_WR);
-		return xrootd_send_error(ctx, c, kXR_fsReadOnly,
+		BRIX_OP_ERR(ctx, BRIX_OP_OPEN_WR);
+		return brix_send_error(ctx, c, kXR_fsReadOnly,
 								 "this is a read-only server");
 	}
 
 	/* metadata_only without a manager_map: serve namespace only, no file I/O. */
 	if (conf->metadata_only && conf->manager_map == NULL) {
-		xrootd_log_access(ctx, c, "OPEN",
+		brix_log_access(ctx, c, "OPEN",
 						  ctx->payload ? (char *) ctx->payload : "-",
 						  is_write ? "wr" : "rd",
 						  0, kXR_Unsupported, "metadata-only server", 0);
-		return xrootd_send_error(ctx, c, kXR_Unsupported,
+		return brix_send_error(ctx, c, kXR_Unsupported,
 								 "open not available on metadata-only server");
 	}
 
 	if (ctx->payload == NULL || ctx->cur_dlen == 0) {
-		XROOTD_RETURN_ERR(ctx, c,
-						  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
+		BRIX_RETURN_ERR(ctx, c,
+						  is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
 						  "OPEN", "-", is_write ? "wr" : "rd",
 						  kXR_ArgMissing, "no path given");
 	}
@@ -537,10 +537,10 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	/* Strip XRootD CGI query string ("?oss.asize=N" etc.) from the path.
 	 * xrdcp and other clients append these for metadata; they are not part
 	 * of the filesystem path. */
-	if (!xrootd_extract_path(c->log, ctx->payload, ctx->cur_dlen,
+	if (!brix_extract_path(c->log, ctx->payload, ctx->cur_dlen,
 							 clean_path, sizeof(clean_path), 1)) {
-		XROOTD_RETURN_ERR(ctx, c,
-						  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
+		BRIX_RETURN_ERR(ctx, c,
+						  is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
 						  "OPEN", "-", is_write ? "wr" : "rd",
 						  kXR_ArgInvalid, "invalid path payload");
 	}
@@ -548,15 +548,15 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	/* Reject any ".." component (the reference does not normalize ".."); the
 	 * open resolves through the kernel RESOLVE_BENEATH which would otherwise
 	 * collapse an in-tree "..".  Same op id selection as the surrounding errors. */
-	if (xrootd_reject_dotdot_path(ctx, c,
-			is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
+	if (brix_reject_dotdot_path(ctx, c,
+			is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
 			"OPEN", clean_path)) {
 		return ctx->write_rc;
 	}
 
-	if (xrootd_count_path_depth(clean_path) != NGX_OK) {
-		XROOTD_RETURN_ERR(ctx, c,
-						  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
+	if (brix_count_path_depth(clean_path) != NGX_OK) {
+		BRIX_RETURN_ERR(ctx, c,
+						  is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
 						  "OPEN", clean_path, is_write ? "wr" : "rd",
 						  kXR_ArgInvalid, "path exceeds maximum depth");
 	}
@@ -571,18 +571,18 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		 * another redirect — otherwise it loops to the client redirect limit.
 		 * Writes are excluded: they create the file on the selected server. */
 		if (!is_write
-		    && xrootd_manager_tried_exhausted(ctx->payload, ctx->cur_dlen,
+		    && brix_manager_tried_exhausted(ctx->payload, ctx->cur_dlen,
 		                                      clean_path)) {
-			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN", clean_path,
+			BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN", clean_path,
 			                  "rd", kXR_NotFound,
 			                  "file not found on any data server");
 		}
 
 		/* Collapse-redir cache: serve reads from cache to skip CMS. */
 		if (!is_write && conf->collapse_redir
-		    && xrootd_redir_cache_lookup(clean_path, redir_host,
+		    && brix_redir_cache_lookup(clean_path, redir_host,
 		                                 sizeof(redir_host), &redir_port)) {
-			XROOTD_RETURN_REDIR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN",
+			BRIX_RETURN_REDIR(ctx, c, BRIX_OP_OPEN_RD, "OPEN",
 			                    clean_path, "redir-cache",
 			                    redir_host, redir_port);
 		}
@@ -593,15 +593,15 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		 * exists.  kXR_locate stays strict.  A truly dead target just makes the
 		 * client's connect fail and the tried/triedrc retry converges to
 		 * NotFound. */
-		if (xrootd_srv_select_or_blacklisted(clean_path, is_write, redir_host,
+		if (brix_srv_select_or_blacklisted(clean_path, is_write, redir_host,
 		                      sizeof(redir_host), &redir_port)) {
 			if (!is_write && conf->collapse_redir) {
-				xrootd_redir_cache_insert(clean_path, redir_host, redir_port,
+				brix_redir_cache_insert(clean_path, redir_host, redir_port,
 				                          conf->collapse_redir_ttl);
 			}
-			XROOTD_RETURN_REDIR(ctx, c,
-			                    is_write ? XROOTD_OP_OPEN_WR
-			                             : XROOTD_OP_OPEN_RD,
+			BRIX_RETURN_REDIR(ctx, c,
+			                    is_write ? BRIX_OP_OPEN_WR
+			                             : BRIX_OP_OPEN_RD,
 			                    "OPEN", clean_path, "registry",
 			                    redir_host, redir_port);
 		}
@@ -610,8 +610,8 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		if (conf->cms_ctx != NULL) {
 			uint32_t  streamid;
 
-			streamid = ngx_xrootd_cms_next_streamid(conf->cms_ctx);
-			if (xrootd_pending_insert(streamid, ngx_pid, c->fd,
+			streamid = ngx_brix_cms_next_streamid(conf->cms_ctx);
+			if (brix_pending_insert(streamid, ngx_pid, c->fd,
 			                          c->number,
 			                          ctx->cur_streamid,
 			                          conf->cms_locate_timeout) == NGX_OK)
@@ -619,14 +619,14 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 				ctx->cms_wait_streamid = streamid;
 				ctx->state = XRD_ST_WAITING_CMS;
 				ngx_add_timer(c->read, conf->cms_locate_timeout);
-				if (ngx_xrootd_cms_send_locate(conf->cms_ctx, streamid,
+				if (ngx_brix_cms_send_locate(conf->cms_ctx, streamid,
 				                               clean_path) == NGX_OK)
 				{
 					return NGX_AGAIN;
 				}
 				ngx_del_timer(c->read);
 				ctx->state = XRD_ST_REQ_HEADER;
-				xrootd_pending_remove(streamid, ngx_pid);
+				brix_pending_remove(streamid, ngx_pid);
 			}
 			/* Fall through to static-map / local resolve / error. */
 		}
@@ -634,11 +634,11 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
 	/* Manager-mode mapping: redirect opens for configured prefixes. */
 	if (conf->manager_map != NULL) {
-		const xrootd_manager_map_t *m = xrootd_find_manager_map(clean_path,
+		const brix_manager_map_t *m = brix_find_manager_map(clean_path,
 																conf->manager_map);
 		if (m != NULL) {
-			XROOTD_RETURN_REDIR(ctx, c,
-							  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
+			BRIX_RETURN_REDIR(ctx, c,
+							  is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
 							  "OPEN", clean_path, "redirect",
 							  (const char *) m->host.data, m->port);
 		}
@@ -647,50 +647,50 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	/* Resolve the path.
 	 * For read opens the file must already exist (realpath check).
 	 * For write opens with kXR_mkpath the parent dirs may not exist yet,
-	 * so use xrootd_resolve_path_noexist; otherwise use the write resolver
+	 * so use brix_resolve_path_noexist; otherwise use the write resolver
 	 * which requires the parent to exist. */
 	if (!is_write) {
 		if (conf->cache) {
-			return xrootd_open_cached_read(ctx, c, conf, clean_path,
+			return brix_open_cached_read(ctx, c, conf, clean_path,
 			                               options, mode_bits);
 		}
 
 		/* Read opens: verify the file exists within root using kernel confinement,
 		 * then build the absolute path string for auth checks. */
-		xrootd_beneath_full_path(conf->common.root_canon, clean_path,
+		brix_beneath_full_path(conf->common.root_canon, clean_path,
 		                          full_path, sizeof(full_path));
 		{
 			int _exists, _is_dir;
 
-			_exists = xrootd_open_read_probe(conf, c->log, clean_path,
+			_exists = brix_open_read_probe(conf, c->log, clean_path,
 			                                 full_path, &_is_dir);
 			if (!_exists) {
 				if (conf->upstream_host.len > 0) {
-					xrootd_log_access(ctx, c, "OPEN", clean_path,
+					brix_log_access(ctx, c, "OPEN", clean_path,
 									  "upstream", 1, 0, NULL, 0);
-					XROOTD_OP_OK(ctx, XROOTD_OP_OPEN_RD);
-					return xrootd_upstream_start(ctx, c, conf);
+					BRIX_OP_OK(ctx, BRIX_OP_OPEN_RD);
+					return brix_upstream_start(ctx, c, conf);
 				}
-				XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN",
+				BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN",
 								  clean_path, "rd", kXR_NotFound,
 								  "file not found");
 			}
 			if (_is_dir) {
-				XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN",
+				BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN",
 								  clean_path, "rd", kXR_isDirectory,
 								  "is a directory");
 			}
 		}
 
-		if (xrootd_auth_gate(ctx, c, XROOTD_OP_OPEN_RD, "OPEN",
+		if (brix_auth_gate(ctx, c, BRIX_OP_OPEN_RD, "OPEN",
 							  clean_path, full_path, conf,
-							  XROOTD_AUTH_READ, 0) != NGX_OK) {
+							  BRIX_AUTH_READ, 0) != NGX_OK) {
 			return ctx->write_rc;
 		}
 
 		/* Phase-57 W2: ZIP member access.  The archive existence check and READ
 		 * auth above gate access to the member; serve the requested member of the
-		 * archive instead of the whole file.  (Opt-in via xrootd_zip_access; the
+		 * archive instead of the whole file.  (Opt-in via brix_zip_access; the
 		 * read-through cache path returned earlier, so this is the direct-serve
 		 * case.) */
 		if (conf->zip_access) {
@@ -698,12 +698,12 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 			int  zr = open_extract_zip_member(ctx, zipmember,
 			                                  sizeof(zipmember));
 			if (zr < 0) {
-				XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN",
+				BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN",
 				                  clean_path, "zip", kXR_ArgInvalid,
 				                  "invalid zip member name");
 			}
 			if (zr > 0) {
-				return xrootd_zip_open_member(ctx, c, conf, clean_path,
+				return brix_zip_open_member(ctx, c, conf, clean_path,
 				                              full_path, zipmember, options);
 			}
 		}
@@ -711,36 +711,36 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		/* Phase 35: residency gate. A nearline file (on the backend, not on
 		 * disk) is recalled and the client stalled with kXR_wait-and-retry.
 		 * Runs AFTER auth so an unauthorized caller never learns residency. */
-		if (conf->frm.enable && xrootd_stage_registry_singleton() != NULL) {
-			xrootd_vfs_ctx_t      _rvc;
-			xrootd_sd_residency_t _res;
+		if (conf->frm.enable && brix_stage_registry_singleton() != NULL) {
+			brix_vfs_ctx_t      _rvc;
+			brix_sd_residency_t _res;
 
 			/* Residency comes from the backend's model via the VFS seam (sd_frm),
 			 * so a tape:// export classifies nearline/offline with no FRM xattr. */
-			xrootd_vfs_ctx_init(&_rvc, c->pool, c->log, XROOTD_PROTO_ROOT,
+			brix_vfs_ctx_init(&_rvc, c->pool, c->log, BRIX_PROTO_ROOT,
 			    conf->common.root_canon, NULL, conf->common.allow_write,
 			    0 /* is_tls */, NULL, full_path);
 
-			if (xrootd_vfs_residency(&_rvc, &_res, NULL) == NGX_OK) {
-				if (_res == XROOTD_SD_RES_OFFLINE
-				    || _res == XROOTD_SD_RES_LOST)
+			if (brix_vfs_residency(&_rvc, &_res, NULL) == NGX_OK) {
+				if (_res == BRIX_SD_RES_OFFLINE
+				    || _res == BRIX_SD_RES_LOST)
 				{
 					/* A failed/unretrievable recall — do not spin; surface an
 					 * error so the client re-prepares or gives up. */
-					XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN",
+					BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN",
 					                  clean_path, "rd", kXR_FSError,
 					                  "file is offline (recall failed)");
 				}
-				if (_res == XROOTD_SD_RES_NEARLINE) {
-					xrootd_stage_request_view_t _v;
-					char           _rq[XROOTD_STAGE_REQID_LEN];
+				if (_res == BRIX_SD_RES_NEARLINE) {
+					brix_stage_request_view_t _v;
+					char           _rq[BRIX_STAGE_REQID_LEN];
 					ngx_memzero(&_v, sizeof(_v));
 					_v.lfn        = full_path;
 					_v.requester_dn = (ctx->dn[0] != '\0') ? ctx->dn : NULL;
 					_v.tod_expire = (int64_t) ngx_time()
 					              + (int64_t) (conf->frm.stage_ttl / 1000);
-					(void) xrootd_stage_request_add(
-					           xrootd_stage_registry_singleton(),
+					(void) brix_stage_request_add(
+					           brix_stage_registry_singleton(),
 					           &_v, _rq, sizeof(_rq), c->log);
 					/* recall driving (former frm_stage_kick) → engine step */
 
@@ -749,35 +749,35 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 					 * Falls back to the kXR_wait poll model if async is off or
 					 * the waiter table is full. */
 					if (conf->frm.async_recall
-					    && xrootd_stage_waiter_add(_rq, options,
+					    && brix_stage_waiter_add(_rq, options,
 					                      ctx->cur_streamid, c->fd, c->number,
 					                      ngx_pid, conf->frm.stage_ttl) == NGX_OK)
 					{
-						xrootd_log_access(ctx, c, "OPEN", clean_path,
+						brix_log_access(ctx, c, "OPEN", clean_path,
 						                  "staging-async", 1, 0, NULL, 0);
-						(void) xrootd_send_waitresp(ctx, c);
+						(void) brix_send_waitresp(ctx, c);
 						ctx->state = XRD_ST_WAITING_FRM;
 						ngx_add_timer(c->read, conf->frm.stage_ttl);
 						return NGX_AGAIN;
 					}
 
-					xrootd_log_access(ctx, c, "OPEN", clean_path, "staging",
+					brix_log_access(ctx, c, "OPEN", clean_path, "staging",
 					                  1, kXR_wait, NULL, 0);
-					return xrootd_send_wait(ctx, c, conf->frm.stage_wait);
+					return brix_send_wait(ctx, c, conf->frm.stage_wait);
 				}
 			}
 		}
 	} else {
-		xrootd_beneath_full_path(conf->common.root_canon, clean_path,
+		brix_beneath_full_path(conf->common.root_canon, clean_path,
 		                          full_path, sizeof(full_path));
 
 		/* XrdAcc distinguishes creating a NEW file (needs Insert) from
 		 * updating an existing one; kXR_new is the create intent. */
-		if (xrootd_auth_gate_op(ctx, c, XROOTD_OP_OPEN_WR, "OPEN",
+		if (brix_auth_gate_op(ctx, c, BRIX_OP_OPEN_WR, "OPEN",
 							  clean_path, full_path, conf,
-							  XROOTD_AUTH_UPDATE, 1,
-							  (options & kXR_new) ? XROOTD_AOP_CREATE
-							                      : XROOTD_AOP_UPDATE) != NGX_OK) {
+							  BRIX_AUTH_UPDATE, 1,
+							  (options & kXR_new) ? BRIX_AOP_CREATE
+							                      : BRIX_AOP_UPDATE) != NGX_OK) {
 			return ctx->write_rc;
 		}
 
@@ -788,7 +788,7 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		 * makes uploads to a missing parent succeed; a create-open with NEITHER
 		 * flag that names a missing parent must fail NotFound, matching stock
 		 * (verified by raw-wire differential). Confined beneath the export root
-		 * by xrootd_mkdir_recursive_policy. */
+		 * by brix_mkdir_recursive_policy. */
 		if (options & (kXR_mkpath | kXR_async)) {
 			char  parent[PATH_MAX];
 			char *slash;
@@ -797,7 +797,7 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 			if (slash && slash > parent) {
 				*slash = '\0';
 				/* mode 0755 for new directories; propagate group policy */
-				xrootd_mkdir_recursive_policy(parent, 0755, c->log,
+				brix_mkdir_recursive_policy(parent, 0755, c->log,
 											  conf->group_rules);
 			}
 		}
@@ -811,26 +811,26 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	 * flow is not marked.  The client may override codes via a scitag.flow opaque.
 	 */
 	if (ctx->pmark_flow == NULL && conf->common.pmark.enable) {
-		char        opq[XROOTD_MAX_PATH + 1];
+		char        opq[BRIX_MAX_PATH + 1];
 		const char *cgi = NULL;
 		if (ctx->payload != NULL && ctx->cur_dlen > 0
 		    && open_extract_opaque(ctx->payload, ctx->cur_dlen, opq, sizeof(opq)))
 		{
 			cgi = opq;
 		}
-		ctx->pmark_flow = xrootd_pmark_flow_begin(&conf->common.pmark, c->pool, c,
+		ctx->pmark_flow = brix_pmark_flow_begin(&conf->common.pmark, c->pool, c,
 			is_write,
-			ctx->identity ? xrootd_identity_vo_csv_cstr(ctx->identity) : "",
-			ctx->identity ? xrootd_identity_dn_cstr(ctx->identity) : "",
+			ctx->identity ? brix_identity_vo_csv_cstr(ctx->identity) : "",
+			ctx->identity ? brix_identity_dn_cstr(ctx->identity) : "",
 			clean_path, cgi, c->log);
 
 		/* Arm the periodic "ongoing" firefly echo for this connection's flow
-		 * (phase-34), if configured.  Cancelled in xrootd_on_disconnect. */
+		 * (phase-34), if configured.  Cancelled in brix_on_disconnect. */
 		if (ctx->pmark_flow != NULL && conf->common.pmark.echo > 0
 		    && !ctx->pmark_echo_ev.timer_set)
 		{
 			ctx->pmark_echo_ms          = conf->common.pmark.echo;
-			ctx->pmark_echo_ev.handler  = xrootd_pmark_echo_timer;
+			ctx->pmark_echo_ev.handler  = brix_pmark_echo_timer;
 			ctx->pmark_echo_ev.data     = ctx;
 			ctx->pmark_echo_ev.log      = c->log;
 			ngx_add_timer(&ctx->pmark_echo_ev, ctx->pmark_echo_ms);
@@ -844,13 +844,13 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	 * the stream twin of the HTTP plane's http_cache_fill.c. A hit / slice /
 	 * all-local stack has needs_offload == 0 and opens inline as before. */
 	if (!is_write) {
-		xrootd_sd_instance_t *gsd =
-		    xrootd_vfs_backend_resolve(conf->common.root_canon, c->log);
+		brix_sd_instance_t *gsd =
+		    brix_vfs_backend_resolve(conf->common.root_canon, c->log);
 		const char *gkey =
-		    xrootd_vfs_export_relative_root(full_path, conf->common.root_canon);
+		    brix_vfs_export_relative_root(full_path, conf->common.root_canon);
 
-		if (gsd != NULL && xrootd_sd_cache_fill_needs_offload(gsd, gkey)) {
-			ngx_int_t grc = xrootd_cache_open_fill_offload(ctx, c, conf,
+		if (gsd != NULL && brix_sd_cache_fill_needs_offload(gsd, gkey)) {
+			ngx_int_t grc = brix_cache_open_fill_offload(ctx, c, conf,
 			                    clean_path, full_path, gsd, options, mode_bits);
 			if (grc != NGX_DECLINED) {
 				return grc;   /* parked (async) or a queued-error rc */
@@ -859,7 +859,7 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		}
 	}
 
-	return xrootd_open_resolved_file(ctx, c, conf, full_path, options,
+	return brix_open_resolved_file(ctx, c, conf, full_path, options,
 									 mode_bits, is_write,
 									 open_negotiate_compress_codec(ctx, conf,
 									                               is_write));

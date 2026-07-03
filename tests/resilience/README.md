@@ -60,7 +60,7 @@ PYTHONPATH=tests python3 -m pytest tests/resilience/test_loss_sweep_gsi.py -v
 ```
 
 Selecting the test file by name skips the main-suite fleet (the file is in
-`conftest.py`'s `no_server_files` allowlist, like `test_official_xrootd_resilience.py`).
+`conftest.py`'s `no_server_files` allowlist, like `test_official_brix_resilience.py`).
 
 ## What the fault proxy's loss models
 
@@ -139,4 +139,4 @@ wired into the high-level library ops, so every tool inherits it.
 
 The pre-change baseline (fail-fast) is reproducible with `--client-max-stall 0`.
 The FUSE driver (`client/bin/xrootdfs`) remains the reference; see
-`tests/test_xrootdfs_resilience.py` and `tests/test_official_xrootd_resilience.py`.
+`tests/test_xrootdfs_resilience.py` and `tests/test_official_brix_resilience.py`.

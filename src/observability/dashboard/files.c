@@ -1,8 +1,8 @@
 /*
  * dashboard/files.c — admin file browser + downloader for the monitoring UI.
  *
- * Two admin-auth-only endpoints, both confined to xrootd_dashboard_browse_root
- * via the kernel openat2(RESOLVE_BENEATH) primitive (xrootd_open_beneath), so a
+ * Two admin-auth-only endpoints, both confined to brix_dashboard_browse_root
+ * via the kernel openat2(RESOLVE_BENEATH) primitive (brix_open_beneath), so a
  * client-supplied ?path= can never escape the configured root:
  *
  *   GET /xrootd/api/v1/files?path=<rel>     JSON listing of a directory:
@@ -12,9 +12,9 @@
  *       application/octet-stream attachment.
  *
  * SECURITY:
- *   - Always admin-auth (ngx_http_xrootd_dashboard_check_auth) — never the
+ *   - Always admin-auth (ngx_http_brix_dashboard_check_auth) — never the
  *     anonymous read tier, mirroring the config-download endpoint.
- *   - Disabled unless xrootd_dashboard_browse_root is configured (endpoints 404).
+ *   - Disabled unless brix_dashboard_browse_root is configured (endpoints 404).
  *   - Confinement is the kernel's RESOLVE_BENEATH; per-entry statx uses
  *     AT_SYMLINK_NOFOLLOW so a symlink is reported, never followed.
  */
@@ -23,7 +23,7 @@
 #include "dashboard_json.h"
 #include "fs/path/beneath.h"
 #include "core/http/http_file_response.h"
-#include "core/http/http_headers.h"   /* xrootd_http_source_offer (AGPL sec.13) */
+#include "core/http/http_headers.h"   /* brix_http_source_offer (AGPL sec.13) */
 
 #include <dirent.h>
 #include <errno.h>
@@ -164,9 +164,9 @@ dashboard_files_entry(const char *name, const struct statx *stx)
 
 /* GET /xrootd/api/v1/files?path=<rel> */
 ngx_int_t
-ngx_http_xrootd_dashboard_files_handler(ngx_http_request_t *r)
+ngx_http_brix_dashboard_files_handler(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_dashboard_loc_conf_t *conf;
+    ngx_http_brix_dashboard_loc_conf_t *conf;
     char           relpath[PATH_MAX];
     int            rootfd, dirfd;
     DIR           *dp;
@@ -176,26 +176,26 @@ ngx_http_xrootd_dashboard_files_handler(ngx_http_request_t *r)
     ngx_uint_t     count = 0;
     int            truncated = 0;
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_dashboard_module);
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_dashboard_module);
     if (conf->browse_root_canon[0] == '\0') {
         return NGX_HTTP_NOT_FOUND;   /* feature disabled */
     }
-    rc = ngx_http_xrootd_dashboard_check_auth(r, conf, 0);
+    rc = ngx_http_brix_dashboard_check_auth(r, conf, 0);
     if (rc != NGX_OK) { return rc; }
     if (r->method != NGX_HTTP_GET && r->method != NGX_HTTP_HEAD) {
         return NGX_HTTP_NOT_ALLOWED;
     }
-    xrootd_http_source_offer(r);
+    brix_http_source_offer(r);
 
     if (dashboard_files_get_path(r, relpath, sizeof(relpath)) != NGX_OK) {
         return NGX_HTTP_BAD_REQUEST;
     }
 
-    rootfd = xrootd_beneath_open_root(conf->browse_root_canon);
+    rootfd = brix_beneath_open_root(conf->browse_root_canon);
     if (rootfd < 0) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
-    dirfd = xrootd_open_beneath(rootfd, relpath,
+    dirfd = brix_open_beneath(rootfd, relpath,
                                O_RDONLY | O_DIRECTORY | O_CLOEXEC, 0);
     close(rootfd);
     if (dirfd < 0) {
@@ -277,9 +277,9 @@ dashboard_download_filename(const char *relpath, char *out, size_t outsz)
 }
 
 ngx_int_t
-ngx_http_xrootd_dashboard_download_handler(ngx_http_request_t *r)
+ngx_http_brix_dashboard_download_handler(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_dashboard_loc_conf_t *conf;
+    ngx_http_brix_dashboard_loc_conf_t *conf;
     char             relpath[PATH_MAX];
     char             fname[256];
     char             disp[320];
@@ -289,16 +289,16 @@ ngx_http_xrootd_dashboard_download_handler(ngx_http_request_t *r)
     ngx_table_elt_t *h;
     int              n;
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_dashboard_module);
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_dashboard_module);
     if (conf->browse_root_canon[0] == '\0') {
         return NGX_HTTP_NOT_FOUND;
     }
-    rc = ngx_http_xrootd_dashboard_check_auth(r, conf, 0);
+    rc = ngx_http_brix_dashboard_check_auth(r, conf, 0);
     if (rc != NGX_OK) { return rc; }
     if (r->method != NGX_HTTP_GET && r->method != NGX_HTTP_HEAD) {
         return NGX_HTTP_NOT_ALLOWED;
     }
-    xrootd_http_source_offer(r);
+    brix_http_source_offer(r);
 
     if (dashboard_files_get_path(r, relpath, sizeof(relpath)) != NGX_OK
         || (relpath[0] == '.' && relpath[1] == '\0'))
@@ -306,11 +306,11 @@ ngx_http_xrootd_dashboard_download_handler(ngx_http_request_t *r)
         return NGX_HTTP_BAD_REQUEST;   /* the root itself is not a download */
     }
 
-    rootfd = xrootd_beneath_open_root(conf->browse_root_canon);
+    rootfd = brix_beneath_open_root(conf->browse_root_canon);
     if (rootfd < 0) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
-    fd = xrootd_open_beneath(rootfd, relpath,
+    fd = brix_open_beneath(rootfd, relpath,
                             O_RDONLY | O_NOFOLLOW | O_CLOEXEC, 0);
     close(rootfd);
     if (fd < 0) {
@@ -361,5 +361,5 @@ ngx_http_xrootd_dashboard_download_handler(ngx_http_request_t *r)
 
     /* Stream the file (sendfile on cleartext; nginx reads it for TLS).  The
      * helper sends headers, builds the file buf, and closes fd via pool cleanup. */
-    return xrootd_http_send_file_range(r, fd, relpath, 0, (off_t) sb.st_size, 1);
+    return brix_http_send_file_range(r, fd, relpath, 0, (off_t) sb.st_size, 1);
 }

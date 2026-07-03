@@ -21,19 +21,19 @@ ngx_int_t
 propfind_append_acl_properties(ngx_http_request_t *r, ngx_chain_t **head,
     ngx_chain_t **tail, unsigned mask)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *conf;
-    ngx_http_xrootd_webdav_req_ctx_t  *ctx;
+    ngx_http_brix_webdav_loc_conf_t *conf;
+    ngx_http_brix_webdav_req_ctx_t  *ctx;
     ngx_pool_t                        *pool = r->pool;
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
-    ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
+    ctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
 
     if (mask & PF_OWNER) {
         const char *owner = (ctx != NULL && ctx->dn[0] != '\0')
                             ? ctx->dn : "anonymous";
         char *safe_owner = webdav_escape_xml_text(pool, owner);
         if (safe_owner == NULL
-            || xrootd_http_chain_appendf(pool, head, tail,
+            || brix_http_chain_appendf(pool, head, tail,
                 "<D:owner><D:href>%s</D:href></D:owner>",
                 safe_owner) == NULL)
         {
@@ -42,13 +42,13 @@ propfind_append_acl_properties(ngx_http_request_t *r, ngx_chain_t **head,
     }
 
     if ((mask & PF_GROUP)
-        && xrootd_http_chain_appendf(pool, head, tail, "<D:group/>") == NULL)
+        && brix_http_chain_appendf(pool, head, tail, "<D:group/>") == NULL)
     {
         return NGX_ERROR;
     }
 
     if (mask & PF_CURRENT_PRIVILEGE) {
-        if (xrootd_http_chain_appendf(pool, head, tail,
+        if (brix_http_chain_appendf(pool, head, tail,
                 "<D:current-user-privilege-set>"
                 "<D:privilege><D:read/></D:privilege>") == NULL)
         {
@@ -56,7 +56,7 @@ propfind_append_acl_properties(ngx_http_request_t *r, ngx_chain_t **head,
         }
 
         if (conf->common.allow_write
-            && xrootd_http_chain_appendf(pool, head, tail,
+            && brix_http_chain_appendf(pool, head, tail,
                 "<D:privilege><D:write/></D:privilege>"
                 "<D:privilege><D:write-content/></D:privilege>"
                 "<D:privilege><D:write-properties/></D:privilege>"
@@ -66,7 +66,7 @@ propfind_append_acl_properties(ngx_http_request_t *r, ngx_chain_t **head,
             return NGX_ERROR;
         }
 
-        if (xrootd_http_chain_appendf(pool, head, tail,
+        if (brix_http_chain_appendf(pool, head, tail,
                 "</D:current-user-privilege-set>") == NULL)
         {
             return NGX_ERROR;
@@ -74,7 +74,7 @@ propfind_append_acl_properties(ngx_http_request_t *r, ngx_chain_t **head,
     }
 
     if ((mask & PF_SUPPORTED_PRIVILEGE)
-        && xrootd_http_chain_appendf(pool, head, tail,
+        && brix_http_chain_appendf(pool, head, tail,
             "<D:supported-privilege-set>"
             "<D:supported-privilege>"
             "<D:privilege><D:all/></D:privilege>"
@@ -103,7 +103,7 @@ propfind_append_acl_properties(ngx_http_request_t *r, ngx_chain_t **head,
     }
 
     if (mask & PF_ACL) {
-        if (xrootd_http_chain_appendf(pool, head, tail,
+        if (brix_http_chain_appendf(pool, head, tail,
                 "<D:acl><D:ace><D:principal><D:all/></D:principal>"
                 "<D:grant><D:privilege><D:read/></D:privilege>") == NULL)
         {
@@ -111,13 +111,13 @@ propfind_append_acl_properties(ngx_http_request_t *r, ngx_chain_t **head,
         }
 
         if (conf->common.allow_write
-            && xrootd_http_chain_appendf(pool, head, tail,
+            && brix_http_chain_appendf(pool, head, tail,
                 "<D:privilege><D:write/></D:privilege>") == NULL)
         {
             return NGX_ERROR;
         }
 
-        if (xrootd_http_chain_appendf(pool, head, tail,
+        if (brix_http_chain_appendf(pool, head, tail,
                 "</D:grant><D:protected/></D:ace></D:acl>") == NULL)
         {
             return NGX_ERROR;
@@ -125,7 +125,7 @@ propfind_append_acl_properties(ngx_http_request_t *r, ngx_chain_t **head,
     }
 
     if ((mask & PF_ACL_RESTRICTIONS)
-        && xrootd_http_chain_appendf(pool, head, tail,
+        && brix_http_chain_appendf(pool, head, tail,
             "<D:acl-restrictions><D:grant-only/><D:no-invert/>"
             "</D:acl-restrictions>") == NULL)
     {
@@ -133,7 +133,7 @@ propfind_append_acl_properties(ngx_http_request_t *r, ngx_chain_t **head,
     }
 
     if ((mask & PF_PRINCIPAL_SET)
-        && xrootd_http_chain_appendf(pool, head, tail,
+        && brix_http_chain_appendf(pool, head, tail,
             "<D:principal-collection-set/>") == NULL)
     {
         return NGX_ERROR;
@@ -178,7 +178,7 @@ propfind_entry(ngx_http_request_t *r, ngx_chain_t **head, ngx_chain_t **tail,
         return NGX_ERROR;
     }
 
-    if (xrootd_http_chain_appendf(pool, head, tail,
+    if (brix_http_chain_appendf(pool, head, tail,
             "<D:response>"
             "<D:href>%s</D:href>"
             "<D:propstat>"
@@ -188,7 +188,7 @@ propfind_entry(ngx_http_request_t *r, ngx_chain_t **head, ngx_chain_t **tail,
     }
 
     /* PROPNAME: emit all names as empty elements, then close. */    if (req->type == PROPFIND_PROPNAME) {
-        if (xrootd_http_chain_appendf(pool, head, tail,
+        if (brix_http_chain_appendf(pool, head, tail,
                 "<D:resourcetype/>"
                 "<D:getcontentlength/>"
                 "<D:getlastmodified/>"
@@ -211,7 +211,7 @@ propfind_entry(ngx_http_request_t *r, ngx_chain_t **head, ngx_chain_t **tail,
                 "<xrd:locality/>") == NULL
             || webdav_dead_props_append_all(r, path, head, tail, 1)
                != NGX_OK
-            || xrootd_http_chain_appendf(pool, head, tail,
+            || brix_http_chain_appendf(pool, head, tail,
                 "</D:prop>"
                 "<D:status>HTTP/1.1 200 OK</D:status>"
                 "</D:propstat>"
@@ -225,26 +225,26 @@ propfind_entry(ngx_http_request_t *r, ngx_chain_t **head, ngx_chain_t **tail,
     /* ALLPROP / PROP: emit property values filtered by mask. */
     if (mask & PF_RESOURCETYPE) {
         if (S_ISDIR(sb->st_mode)) {
-            if (xrootd_http_chain_appendf(pool, head, tail,
+            if (brix_http_chain_appendf(pool, head, tail,
                     "<D:resourcetype>"
                     "<D:collection/>"
                     "</D:resourcetype>") == NULL)
                 return NGX_ERROR;
-        } else if (xrootd_http_chain_appendf(pool, head, tail,
+        } else if (brix_http_chain_appendf(pool, head, tail,
                        "<D:resourcetype/>") == NULL) {
             return NGX_ERROR;
         }
     }
 
     if (mask & PF_CONTENTLENGTH) {
-        if (xrootd_http_chain_appendf(pool, head, tail,
+        if (brix_http_chain_appendf(pool, head, tail,
                 "<D:getcontentlength>%lld</D:getcontentlength>",
                 S_ISDIR(sb->st_mode) ? 0LL : (long long) sb->st_size) == NULL)
             return NGX_ERROR;
     }
 
     if (mask & PF_LASTMODIFIED) {
-        if (xrootd_http_chain_appendf(pool, head, tail,
+        if (brix_http_chain_appendf(pool, head, tail,
                 "<D:getlastmodified>%s</D:getlastmodified>",
                 date_buf) == NULL)
             return NGX_ERROR;
@@ -252,9 +252,9 @@ propfind_entry(ngx_http_request_t *r, ngx_chain_t **head, ngx_chain_t **tail,
 
     if (mask & PF_ETAG) {
         char etag_buf[64];
-        xrootd_http_etag_str(etag_buf, sizeof(etag_buf), sb->st_mtime,
-                             sb->st_size, XROOTD_ETAG_WEAK);
-        if (xrootd_http_chain_appendf(pool, head, tail,
+        brix_http_etag_str(etag_buf, sizeof(etag_buf), sb->st_mtime,
+                             sb->st_size, BRIX_ETAG_WEAK);
+        if (brix_http_chain_appendf(pool, head, tail,
                 "<D:getetag>%s</D:getetag>", etag_buf) == NULL)
             return NGX_ERROR;
     }
@@ -262,8 +262,8 @@ propfind_entry(ngx_http_request_t *r, ngx_chain_t **head, ngx_chain_t **tail,
     if (mask & PF_CREATIONDATE) {
         char cdate_buf[32];
 
-        xrootd_format_iso8601(sb->st_ctime, cdate_buf, sizeof(cdate_buf));
-        if (xrootd_http_chain_appendf(pool, head, tail,
+        brix_format_iso8601(sb->st_ctime, cdate_buf, sizeof(cdate_buf));
+        if (brix_http_chain_appendf(pool, head, tail,
                 "<D:creationdate>%s</D:creationdate>", cdate_buf) == NULL)
             return NGX_ERROR;
     }
@@ -279,7 +279,7 @@ propfind_entry(ngx_http_request_t *r, ngx_chain_t **head, ngx_chain_t **tail,
         }
         safe_name = webdav_escape_xml_text(pool, name);
         if (safe_name != NULL
-            && xrootd_http_chain_appendf(pool, head, tail,
+            && brix_http_chain_appendf(pool, head, tail,
                    "<D:displayname>%s</D:displayname>", safe_name) == NULL)
         {
             return NGX_ERROR;
@@ -295,17 +295,17 @@ propfind_entry(ngx_http_request_t *r, ngx_chain_t **head, ngx_chain_t **tail,
      * directories so files carry only getcontentlength as their size.
      */
     if ((mask & (PF_QUOTA_AVAILABLE | PF_QUOTA_USED)) && S_ISDIR(sb->st_mode)) {
-        xrootd_fs_usage_t fsu;
-        if (xrootd_fs_usage_stat(path, &fsu) == NGX_OK) {
+        brix_fs_usage_t fsu;
+        if (brix_fs_usage_stat(path, &fsu) == NGX_OK) {
             if ((mask & PF_QUOTA_AVAILABLE)
-                && xrootd_http_chain_appendf(pool, head, tail,
+                && brix_http_chain_appendf(pool, head, tail,
                        "<D:quota-available-bytes>"
                        "%llu"
                        "</D:quota-available-bytes>",
                        (unsigned long long) fsu.available_bytes) == NULL)
                 return NGX_ERROR;
             if ((mask & PF_QUOTA_USED)
-                && xrootd_http_chain_appendf(pool, head, tail,
+                && brix_http_chain_appendf(pool, head, tail,
                        "<D:quota-used-bytes>"
                        "%llu"
                        "</D:quota-used-bytes>",
@@ -315,7 +315,7 @@ propfind_entry(ngx_http_request_t *r, ngx_chain_t **head, ngx_chain_t **tail,
     }
 
     if (mask & PF_SUPPORTED_REPORT) {
-        if (xrootd_http_chain_appendf(pool, head, tail,
+        if (brix_http_chain_appendf(pool, head, tail,
                 "<D:supported-report-set/>") == NULL)
             return NGX_ERROR;
     }
@@ -334,7 +334,7 @@ propfind_entry(ngx_http_request_t *r, ngx_chain_t **head, ngx_chain_t **tail,
         const char *ct = S_ISDIR(sb->st_mode)
                          ? "httpd/unix-directory"
                          : "application/octet-stream";
-        if (xrootd_http_chain_appendf(pool, head, tail,
+        if (brix_http_chain_appendf(pool, head, tail,
                 "<D:getcontenttype>%s</D:getcontenttype>", ct) == NULL)
             return NGX_ERROR;
     }
@@ -343,37 +343,37 @@ propfind_entry(ngx_http_request_t *r, ngx_chain_t **head, ngx_chain_t **tail,
      * xrd:locality — tape residency (phase-64 VFS seam). Emitted only when the
      * client explicitly names the prop (PF_LOCALITY is not in PF_ALL) and only for
      * regular files. Residency comes from the storage backend's model via
-     * xrootd_vfs_residency (no FRM xattr): a plain disk/object export classifies
+     * brix_vfs_residency (no FRM xattr): a plain disk/object export classifies
      * ONLINE, so it needs no nearline tier; on a nearline (tape) export an online
      * object is ONLINE_AND_NEARLINE (resident AND on the backend) and a
      * nearline/offline object is NEARLINE. Values follow the WLCG locality vocab.
      */
     if ((mask & PF_LOCALITY) && !S_ISDIR(sb->st_mode)) {
-        ngx_http_xrootd_webdav_loc_conf_t *conf =
-            ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
-        xrootd_vfs_ctx_t      vctx;
-        xrootd_sd_residency_t res;
+        ngx_http_brix_webdav_loc_conf_t *conf =
+            ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
+        brix_vfs_ctx_t      vctx;
+        brix_sd_residency_t res;
         int                   nearline = 0;
         const char           *loc = "ONLINE";
 
-        xrootd_vfs_ctx_init(&vctx, r->pool, r->connection->log,
-            XROOTD_PROTO_WEBDAV, conf->common.root_canon, conf->cache_root_canon,
+        brix_vfs_ctx_init(&vctx, r->pool, r->connection->log,
+            BRIX_PROTO_WEBDAV, conf->common.root_canon, conf->cache_root_canon,
             conf->common.allow_write, 0 /* is_tls */, NULL, path);
-        if (xrootd_vfs_residency(&vctx, &res, &nearline) == NGX_OK && nearline) {
+        if (brix_vfs_residency(&vctx, &res, &nearline) == NGX_OK && nearline) {
             switch (res) {
-            case XROOTD_SD_RES_ONLINE:
+            case BRIX_SD_RES_ONLINE:
                 loc = "ONLINE_AND_NEARLINE";
                 break;
-            case XROOTD_SD_RES_NEARLINE:
-            case XROOTD_SD_RES_OFFLINE:
+            case BRIX_SD_RES_NEARLINE:
+            case BRIX_SD_RES_OFFLINE:
                 loc = "NEARLINE";
                 break;
-            case XROOTD_SD_RES_LOST:
+            case BRIX_SD_RES_LOST:
                 loc = "LOST";
                 break;
             }
         }
-        if (xrootd_http_chain_appendf(pool, head, tail,
+        if (brix_http_chain_appendf(pool, head, tail,
                 "<xrd:locality>%s</xrd:locality>", loc) == NULL)
             return NGX_ERROR;
     }
@@ -404,7 +404,7 @@ propfind_entry(ngx_http_request_t *r, ngx_chain_t **head, ngx_chain_t **tail,
         }
     }
 
-    if (xrootd_http_chain_appendf(pool, head, tail,
+    if (brix_http_chain_appendf(pool, head, tail,
             "</D:prop>"
             "<D:status>HTTP/1.1 200 OK</D:status>"
             "</D:propstat>") == NULL)
@@ -427,7 +427,7 @@ propfind_entry(ngx_http_request_t *r, ngx_chain_t **head, ngx_chain_t **tail,
          * genuinely missing — an empty 404 propstat would be invalid, so when
          * nothing is missing we skip straight to closing the response. */
         if (any_missing) {
-            if (xrootd_http_chain_appendf(pool, head, tail,
+            if (brix_http_chain_appendf(pool, head, tail,
                     "<D:propstat><D:prop>") == NULL)
                 return NGX_ERROR;
 
@@ -435,12 +435,12 @@ propfind_entry(ngx_http_request_t *r, ngx_chain_t **head, ngx_chain_t **tail,
                 if (unknown_found[i]) {
                     continue;
                 }
-                if (xrootd_http_chain_appendf(pool, head, tail,
+                if (brix_http_chain_appendf(pool, head, tail,
                         "%s", req->unknown[i].xml) == NULL)
                     return NGX_ERROR;
             }
 
-            if (xrootd_http_chain_appendf(pool, head, tail,
+            if (brix_http_chain_appendf(pool, head, tail,
                     "</D:prop>"
                     "<D:status>HTTP/1.1 404 Not Found</D:status>"
                     "</D:propstat>") == NULL)
@@ -448,7 +448,7 @@ propfind_entry(ngx_http_request_t *r, ngx_chain_t **head, ngx_chain_t **tail,
         }
     }
 
-    if (xrootd_http_chain_appendf(pool, head, tail, "</D:response>") == NULL) {
+    if (brix_http_chain_appendf(pool, head, tail, "</D:response>") == NULL) {
         return NGX_ERROR;
     }
 

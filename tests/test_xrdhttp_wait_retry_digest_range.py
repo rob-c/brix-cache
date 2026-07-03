@@ -5,8 +5,8 @@ RFC-7233 byte-range serving.
 
 This suite drives a DEDICATED, fleet-managed cleartext (no-TLS) HTTP WebDAV
 nginx — a single worker over an isolated, writable data root
-(`xrootd_webdav_allow_write on;`) with a deliberately tight per-IP
-`xrootd_rate_limit_zone` / `xrootd_rate_limit_rule` so the throttle path can be
+(`brix_webdav_allow_write on;`) with a deliberately tight per-IP
+`brix_rate_limit_zone` / `brix_rate_limit_rule` so the throttle path can be
 driven deterministically.  The instance is started once by
 `manage_test_servers.sh start-all` (config `tests/configs/nginx_xrdhttp_digest.conf`,
 port `XRDHTTP_DIGEST_PORT`); the suite seeds its fixture file into the data root
@@ -36,7 +36,7 @@ Implementation cross-checks (so assertions match real behaviour, not guesses):
     set from ANY Want-Digest header in xrdhttp_parse_request() — so a plain GET
     (no X-Xrootd-Proto) still gets a Digest.  adler32 is zlib adler32 formatted
     "%08x"; md5 is the EVP digest as lowercase hex; the header value is
-    "<alg>=<hex>" (xrootd_integrity_format_http_digest()).
+    "<alg>=<hex>" (brix_integrity_format_http_digest()).
   * The 429 Retry-After value is emitted by rl_reject() with nginx "%ud%Z" — in
     nginx printf `d` is the conversion and `u` only clears the sign, so the
     value is a bare integer (no trailing letter): .isdigit() holds.
@@ -464,7 +464,7 @@ def test_proppatch_client_compatible_status(server):
 # ---------------------------------------------------------------------------
 
 def test_put_then_get_byte_exact(server):
-    """A file written via PUT (allowed by xrootd_webdav_allow_write on) must read
+    """A file written via PUT (allowed by brix_webdav_allow_write on) must read
     back byte-for-byte via GET, and its on-disk content must match too."""
     _sleep_off_throttle()
     name = "roundtrip_xhw.bin"

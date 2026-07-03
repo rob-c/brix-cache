@@ -19,7 +19,7 @@
  *   (env CEPH_CONF overrides /etc/ceph/ceph.conf)
  *
  * BUILD (in the librados build container):
- *   gcc -DXRDPROTO_NO_NGX -DXROOTD_HAVE_CEPH -I src/fs/backend -I src/fs/backend/rados \
+ *   gcc -DXRDPROTO_NO_NGX -DBRIX_HAVE_CEPH -I src/fs/backend -I src/fs/backend/rados \
  *     -include tests/ceph/ngx_shim.h tests/ceph/xrdrados_rescue.c \
  *     src/fs/backend/rados/sd_ceph.c src/fs/backend/rados/sd_ceph_compat.c \
  *     -lrados -o xrdrados_rescue
@@ -125,7 +125,7 @@ cp_one(const char *key, void *ctx)
 int
 main(int argc, char **argv)
 {
-    xrootd_sd_ceph_conf_t conf;
+    brix_sd_ceph_conf_t conf;
     sd_ceph_conn_t       *c;
     const char           *cmd;
     int                   err = 0, rc = 0;

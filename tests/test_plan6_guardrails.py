@@ -217,8 +217,8 @@ def test_export_root_helper_present():
     _assert_markers(
         "src/core/config/root_prepare.h",
         [
-            "xrootd_prepare_export_root",
-            "xrootd_export_root_opts_t",
+            "brix_prepare_export_root",
+            "brix_export_root_opts_t",
             "allow_write",
             "required",
         ],
@@ -226,30 +226,30 @@ def test_export_root_helper_present():
     _assert_markers(
         "src/core/config/root_prepare.c",
         [
-            "xrootd_prepare_export_root",
+            "brix_prepare_export_root",
             "realpath",
-            "xrootd_validate_path",
+            "brix_validate_path",
         ],
     )
     # S3 merge uses the helper
     _assert_markers(
         "src/protocols/s3/module.c",
         [
-            "xrootd_prepare_export_root",
+            "brix_prepare_export_root",
         ],
     )
     # WebDAV merge uses the helper
     _assert_markers(
         "src/protocols/webdav/config.c",
         [
-            "xrootd_prepare_export_root",
+            "brix_prepare_export_root",
         ],
     )
     # Native stream postconfiguration uses the helper
     _assert_markers(
         "src/core/config/runtime_server.c",
         [
-            "xrootd_prepare_export_root",
+            "brix_prepare_export_root",
         ],
     )
 
@@ -259,40 +259,40 @@ def test_capability_registry_present():
     _assert_markers(
         "src/core/compat/protocol_caps.h",
         [
-            "xrootd_http_operation_t",
-            "xrootd_proto_op_read",
-            "xrootd_proto_op_write",
-            "xrootd_http_operation_allow_header",
-            "xrootd_http_operation_find",
+            "brix_http_operation_t",
+            "brix_proto_op_read",
+            "brix_proto_op_write",
+            "brix_http_operation_allow_header",
+            "brix_http_operation_find",
         ],
     )
     _assert_markers(
         "src/protocols/webdav/operation_table.c",
         [
-            "xrootd_webdav_operations",
-            "xrootd_proto_op_read",
-            "xrootd_proto_op_write",
+            "brix_webdav_operations",
+            "brix_proto_op_read",
+            "brix_proto_op_write",
         ],
     )
     _assert_markers(
         "src/protocols/s3/operation_table.c",
         [
-            "xrootd_s3_operations",
-            "xrootd_proto_op_read",
-            "xrootd_proto_op_write",
+            "brix_s3_operations",
+            "brix_proto_op_read",
+            "brix_proto_op_write",
         ],
     )
     # WebDAV Allow header driven by the table
     _assert_markers(
         "src/protocols/webdav/methods_basic.c",
         [
-            "xrootd_http_operation_allow_header",
+            "brix_http_operation_allow_header",
         ],
     )
     # WebDAV CORS methods driven by the table
     _assert_markers(
         "src/protocols/webdav/cors.c",
         [
-            "xrootd_http_operation_allow_header",
+            "brix_http_operation_allow_header",
         ],
     )

@@ -27,7 +27,7 @@
 
 #include "webdav.h"
 #include "tape_rest.h"
-#include "fs/vfs/vfs.h"                        /* xrootd_vfs_residency (sd_frm seam) */
+#include "fs/vfs/vfs.h"                        /* brix_vfs_residency (sd_frm seam) */
 #include "fs/xfer/stage_request_registry.h"
 #include "core/http/http_body.h"
 #include "core/http/http_headers.h"
@@ -46,10 +46,10 @@
 
 
 /* small helpers*/
-static xrootd_stage_registry_t *
+static brix_stage_registry_t *
 tape_queue(void)
 {
-    return xrootd_stage_registry_singleton();
+    return brix_stage_registry_singleton();
 }
 
 /* Send a JSON body (clone of macaroon_endpoint.c send_json — kept local so we
@@ -62,12 +62,12 @@ tape_send_json(ngx_http_request_t *r, ngx_int_t status, const char *json)
     u_char      *buf;
     size_t       len = json ? ngx_strlen(json) : 0;
 
-    XROOTD_PNALLOC_OR_RETURN(buf, r->pool, len ? len : 1, NGX_HTTP_INTERNAL_SERVER_ERROR);
+    BRIX_PNALLOC_OR_RETURN(buf, r->pool, len ? len : 1, NGX_HTTP_INTERNAL_SERVER_ERROR);
     if (len) {
         ngx_memcpy(buf, json, len);
     }
 
-    XROOTD_PCALLOC_OR_RETURN(b, r->pool, sizeof(*b), NGX_HTTP_INTERNAL_SERVER_ERROR);
+    BRIX_PCALLOC_OR_RETURN(b, r->pool, sizeof(*b), NGX_HTTP_INTERNAL_SERVER_ERROR);
     b->pos = buf;
     b->last = buf + len;
     b->memory = 1;
@@ -157,34 +157,34 @@ tape_mint_id(char *buf, size_t sz)
 }
 
 /* Map a WLCG checksumType name to the stage-registry checksum enum (F5). */
-static xrootd_stage_cstype_t
+static brix_stage_cstype_t
 tape_cstype_from_name(const char *name)
 {
-    if (name == NULL)                          { return XROOTD_STAGE_CS_NONE; }
+    if (name == NULL)                          { return BRIX_STAGE_CS_NONE; }
     if (ngx_strcasecmp((u_char *) name, (u_char *) "adler32") == 0)
-                                               { return XROOTD_STAGE_CS_ADLER32; }
+                                               { return BRIX_STAGE_CS_ADLER32; }
     if (ngx_strcasecmp((u_char *) name, (u_char *) "md5") == 0)
-                                               { return XROOTD_STAGE_CS_MD5; }
+                                               { return BRIX_STAGE_CS_MD5; }
     if (ngx_strcasecmp((u_char *) name, (u_char *) "crc32") == 0)
-                                               { return XROOTD_STAGE_CS_CRC32; }
+                                               { return BRIX_STAGE_CS_CRC32; }
     if (ngx_strcasecmp((u_char *) name, (u_char *) "sha1") == 0)
-                                               { return XROOTD_STAGE_CS_SHA1; }
+                                               { return BRIX_STAGE_CS_SHA1; }
     if (ngx_strcasecmp((u_char *) name, (u_char *) "sha256") == 0
         || ngx_strcasecmp((u_char *) name, (u_char *) "sha2") == 0)
-                                               { return XROOTD_STAGE_CS_SHA2; }
-    return XROOTD_STAGE_CS_NONE;
+                                               { return BRIX_STAGE_CS_SHA2; }
+    return BRIX_STAGE_CS_NONE;
 }
 
 /* Map a stage-request status to a WLCG file state string. */
 static const char *
-tape_state_name(xrootd_stage_req_status_t status)
+tape_state_name(brix_stage_req_status_t status)
 {
     switch (status) {
-    case XROOTD_STAGE_REQ_QUEUED:    return "SUBMITTED";
-    case XROOTD_STAGE_REQ_ACTIVE:    return "STARTED";
-    case XROOTD_STAGE_REQ_DONE:      return "COMPLETED";
-    case XROOTD_STAGE_REQ_FAILED:    return "FAILED";
-    case XROOTD_STAGE_REQ_CANCELLED: return "CANCELLED";
+    case BRIX_STAGE_REQ_QUEUED:    return "SUBMITTED";
+    case BRIX_STAGE_REQ_ACTIVE:    return "STARTED";
+    case BRIX_STAGE_REQ_DONE:      return "COMPLETED";
+    case BRIX_STAGE_REQ_FAILED:    return "FAILED";
+    case BRIX_STAGE_REQ_CANCELLED: return "CANCELLED";
     default:                         return "UNKNOWN";
     }
 }
@@ -193,32 +193,32 @@ tape_state_name(xrootd_stage_req_status_t status)
  * fills *state and *nearline (1 = a nearline/tape-backed export). */
 static ngx_int_t
 tape_residency(ngx_http_request_t *r, const char *abs,
-               xrootd_sd_residency_t *state, int *nearline)
+               brix_sd_residency_t *state, int *nearline)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *conf =
-        ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
-    xrootd_vfs_ctx_t vctx;
+    ngx_http_brix_webdav_loc_conf_t *conf =
+        ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
+    brix_vfs_ctx_t vctx;
 
     *nearline = 0;
-    xrootd_vfs_ctx_init(&vctx, r->pool, r->connection->log,
-        XROOTD_PROTO_WEBDAV, conf->common.root_canon, conf->cache_root_canon,
+    brix_vfs_ctx_init(&vctx, r->pool, r->connection->log,
+        BRIX_PROTO_WEBDAV, conf->common.root_canon, conf->cache_root_canon,
         conf->common.allow_write, 0 /* is_tls */, NULL, abs);
-    return xrootd_vfs_residency(&vctx, state, nearline);
+    return brix_vfs_residency(&vctx, state, nearline);
 }
 
 /* Map the sd residency + nearline flag to the WLCG locality vocabulary. On a
  * nearline (tape) export an online object is ONLINE_AND_NEARLINE (resident AND on
  * the backend); a plain export online object is ONLINE. */
 static const char *
-tape_locality_name(xrootd_sd_residency_t state, int nearline)
+tape_locality_name(brix_sd_residency_t state, int nearline)
 {
     switch (state) {
-    case XROOTD_SD_RES_ONLINE:
+    case BRIX_SD_RES_ONLINE:
         return nearline ? "ONLINE_AND_NEARLINE" : "ONLINE";
-    case XROOTD_SD_RES_NEARLINE:
-    case XROOTD_SD_RES_OFFLINE:
+    case BRIX_SD_RES_NEARLINE:
+    case BRIX_SD_RES_OFFLINE:
         return "NEARLINE";
-    case XROOTD_SD_RES_LOST:
+    case BRIX_SD_RES_LOST:
         return "LOST";
     default:
         return "NONE";
@@ -232,8 +232,8 @@ tape_locality_name(xrootd_sd_residency_t state, int nearline)
  * returns an NGX_HTTP_* status the caller must surface for the WHOLE request.
  */
 static ngx_int_t
-tape_authz_path(ngx_http_request_t *r, ngx_http_xrootd_webdav_loc_conf_t *conf,
-                ngx_http_xrootd_webdav_req_ctx_t *ctx, const char *logical,
+tape_authz_path(ngx_http_request_t *r, ngx_http_brix_webdav_loc_conf_t *conf,
+                ngx_http_brix_webdav_req_ctx_t *ctx, const char *logical,
                 int need_write, char *abs, size_t abssz)
 {
     ngx_int_t rc;
@@ -255,7 +255,7 @@ tape_authz_path(ngx_http_request_t *r, ngx_http_xrootd_webdav_loc_conf_t *conf,
      * anonymous identity is allowed unconditionally — writes were already gated
      * on allow_write above). */
     if (ctx->identity != NULL
-        && xrootd_identity_check_token_scope(ctx->identity, logical, need_write)
+        && brix_identity_check_token_scope(ctx->identity, logical, need_write)
            != NGX_OK)
     {
         return NGX_HTTP_FORBIDDEN;
@@ -266,12 +266,12 @@ tape_authz_path(ngx_http_request_t *r, ngx_http_xrootd_webdav_loc_conf_t *conf,
 
 /* POST /api/v1/stage*/
 static ngx_int_t
-tape_stage_post(ngx_http_request_t *r, ngx_http_xrootd_webdav_loc_conf_t *conf,
-                ngx_http_xrootd_webdav_req_ctx_t *ctx, json_t *root)
+tape_stage_post(ngx_http_request_t *r, ngx_http_brix_webdav_loc_conf_t *conf,
+                ngx_http_brix_webdav_req_ctx_t *ctx, json_t *root)
 {
     json_t      *files, *elem, *resp, *jfiles;
     size_t       i, n;
-    xrootd_stage_registry_t *q = tape_queue();
+    brix_stage_registry_t *q = tape_queue();
     char         id[TAPE_ID_LEN];
     char       **abs;     /* resolved paths (pass 1) */
     const char **logical;
@@ -290,8 +290,8 @@ tape_stage_post(ngx_http_request_t *r, ngx_http_xrootd_webdav_loc_conf_t *conf,
         return tape_error(r, NGX_HTTP_BAD_REQUEST, "too many files");
     }
 
-    abs     = xrootd_palloc_array(r->pool, n, sizeof(*abs));
-    logical = xrootd_palloc_array(r->pool, n, sizeof(*logical));
+    abs     = brix_palloc_array(r->pool, n, sizeof(*abs));
+    logical = brix_palloc_array(r->pool, n, sizeof(*logical));
     if (abs == NULL || logical == NULL) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
@@ -311,7 +311,7 @@ tape_stage_post(ngx_http_request_t *r, ngx_http_xrootd_webdav_loc_conf_t *conf,
             return tape_error(r, NGX_HTTP_BAD_REQUEST,
                               "each file needs a string \"path\"");
         }
-        XROOTD_PNALLOC_OR_RETURN(buf, r->pool, TAPE_PATH_MAX, NGX_HTTP_INTERNAL_SERVER_ERROR);
+        BRIX_PNALLOC_OR_RETURN(buf, r->pool, TAPE_PATH_MAX, NGX_HTTP_INTERNAL_SERVER_ERROR);
         rc = tape_authz_path(r, conf, ctx, lp, 1, buf, TAPE_PATH_MAX);
         if (rc != NGX_OK) {
             return tape_error(r, rc, "path not permitted");
@@ -326,14 +326,14 @@ tape_stage_post(ngx_http_request_t *r, ngx_http_xrootd_webdav_loc_conf_t *conf,
     tape_mint_id(id, sizeof(id));
     jfiles = json_array();
     for (i = 0; i < n; i++) {
-        xrootd_stage_request_view_t v;
-        char           reqid[XROOTD_STAGE_REQID_LEN];
+        brix_stage_request_view_t v;
+        char           reqid[BRIX_STAGE_REQID_LEN];
         json_t        *jf = json_object();
         ngx_int_t      rc;
 
         ngx_memzero(&v, sizeof(v));
         v.lfn = abs[i];
-        v.requester_dn = xrootd_identity_dn_cstr(ctx->identity);
+        v.requester_dn = brix_identity_dn_cstr(ctx->identity);
         /* F5: optional per-file integrity request — the stage worker verifies the
          * recalled file against this checksum and fails the recall on mismatch. */
         {
@@ -347,7 +347,7 @@ tape_stage_post(ngx_http_request_t *r, ngx_http_xrootd_webdav_loc_conf_t *conf,
                     json_is_string(jcst) ? json_string_value(jcst) : "adler32");
             }
         }
-        rc = xrootd_stage_request_add(q, &v, reqid, sizeof(reqid),
+        rc = brix_stage_request_add(q, &v, reqid, sizeof(reqid),
                                       r->connection->log);
         if (rc == NGX_OK || rc == NGX_DECLINED) {
             if (i == 0) {
@@ -374,7 +374,7 @@ tape_stage_post(ngx_http_request_t *r, ngx_http_xrootd_webdav_loc_conf_t *conf,
         char buf[64 + TAPE_ID_LEN];
         ngx_snprintf((u_char *) buf, sizeof(buf), "%s%s%Z",
                      "/api/v1/stage/", id);
-        (void) xrootd_http_set_header(r, "Location", buf, NULL);
+        (void) brix_http_set_header(r, "Location", buf, NULL);
     }
     return tape_send_object(r, NGX_HTTP_CREATED, resp);
 }
@@ -384,28 +384,28 @@ tape_stage_post(ngx_http_request_t *r, ngx_http_xrootd_webdav_loc_conf_t *conf,
 static ngx_int_t
 tape_stage_get(ngx_http_request_t *r, const char *id)
 {
-    xrootd_stage_registry_t *q = tape_queue();
-    xrootd_stage_request_t   rec;
+    brix_stage_registry_t *q = tape_queue();
+    brix_stage_request_t   rec;
     json_t       *o, *jfiles, *jf;
-    xrootd_sd_residency_t res;
+    brix_sd_residency_t res;
     int           nearline = 0;
     int           on_disk = 0;
 
     if (q == NULL) {
         return tape_error(r, NGX_HTTP_SERVICE_UNAVAILABLE, "not configured");
     }
-    if (xrootd_stage_request_get(q, id, &rec, r->connection->log) != NGX_OK) {
+    if (brix_stage_request_get(q, id, &rec, r->connection->log) != NGX_OK) {
         return tape_error(r, NGX_HTTP_NOT_FOUND, "no such request");
     }
     if (tape_residency(r, rec.lfn, &res, &nearline) == NGX_OK) {
-        on_disk = (res == XROOTD_SD_RES_ONLINE);
+        on_disk = (res == BRIX_SD_RES_ONLINE);
     }
 
     jf = json_object();
     json_object_set_new(jf, "path", json_string(rec.lfn));
     json_object_set_new(jf, "state", json_string(tape_state_name(rec.status)));
     json_object_set_new(jf, "onDisk", json_boolean(on_disk));
-    if (rec.status == XROOTD_STAGE_REQ_FAILED) {
+    if (rec.status == BRIX_STAGE_REQ_FAILED) {
         json_object_set_new(jf, "error", json_string("stage failed"));
     }
     jfiles = json_array();
@@ -423,8 +423,8 @@ tape_stage_get(ngx_http_request_t *r, const char *id)
 static ngx_int_t
 tape_stage_list(ngx_http_request_t *r)
 {
-    xrootd_stage_registry_t *q = tape_queue();
-    xrootd_stage_request_t   rec;
+    brix_stage_registry_t *q = tape_queue();
+    brix_stage_request_t   rec;
     ngx_uint_t    cursor = 0;
     json_t       *arr, *o;
     ngx_int_t     rc;
@@ -433,7 +433,7 @@ tape_stage_list(ngx_http_request_t *r)
         return tape_error(r, NGX_HTTP_SERVICE_UNAVAILABLE, "not configured");
     }
     arr = json_array();
-    while ((rc = xrootd_stage_request_list_active(q, &cursor, &rec,
+    while ((rc = brix_stage_request_list_active(q, &cursor, &rec,
                                          r->connection->log)) == NGX_OK)
     {
         json_t *e = json_object();
@@ -451,22 +451,22 @@ tape_stage_list(ngx_http_request_t *r)
 /* DELETE /api/v1/stage/{id}*/
 static ngx_int_t
 tape_stage_delete(ngx_http_request_t *r,
-                  ngx_http_xrootd_webdav_req_ctx_t *ctx, const char *id)
+                  ngx_http_brix_webdav_req_ctx_t *ctx, const char *id)
 {
-    xrootd_stage_registry_t *q = tape_queue();
+    brix_stage_registry_t *q = tape_queue();
 
     if (q == NULL) {
         return tape_error(r, NGX_HTTP_SERVICE_UNAVAILABLE, "not configured");
     }
     /* only the owning principal may delete the request (fail-open for anonymous
-     * callers / owner-less records — see xrootd_stage_request_owner_check). */
-    if (xrootd_stage_request_owner_check(q, id,
-                                xrootd_identity_dn_cstr(ctx->identity),
+     * callers / owner-less records — see brix_stage_request_owner_check). */
+    if (brix_stage_request_owner_check(q, id,
+                                brix_identity_dn_cstr(ctx->identity),
                                 r->connection->log) != NGX_OK)
     {
         return tape_error(r, NGX_HTTP_FORBIDDEN, "not the owner of this request");
     }
-    (void) xrootd_stage_request_delete(q, id, r->connection->log); /* idempotent */
+    (void) brix_stage_request_delete(q, id, r->connection->log); /* idempotent */
     r->headers_out.status = NGX_HTTP_NO_CONTENT;
     r->header_only = 1;
     r->headers_out.content_length_n = 0;
@@ -477,21 +477,21 @@ tape_stage_delete(ngx_http_request_t *r,
 /* POST /api/v1/stage/{id}/cancel*/
 static ngx_int_t
 tape_stage_cancel(ngx_http_request_t *r,
-                  ngx_http_xrootd_webdav_req_ctx_t *ctx, const char *id)
+                  ngx_http_brix_webdav_req_ctx_t *ctx, const char *id)
 {
-    xrootd_stage_registry_t *q = tape_queue();
+    brix_stage_registry_t *q = tape_queue();
 
     if (q == NULL) {
         return tape_error(r, NGX_HTTP_SERVICE_UNAVAILABLE, "not configured");
     }
     /* only the owning principal may cancel the request. */
-    if (xrootd_stage_request_owner_check(q, id,
-                                xrootd_identity_dn_cstr(ctx->identity),
+    if (brix_stage_request_owner_check(q, id,
+                                brix_identity_dn_cstr(ctx->identity),
                                 r->connection->log) != NGX_OK)
     {
         return tape_error(r, NGX_HTTP_FORBIDDEN, "not the owner of this request");
     }
-    (void) xrootd_stage_request_cancel(q, id, r->connection->log); /* idempotent */
+    (void) brix_stage_request_cancel(q, id, r->connection->log); /* idempotent */
     r->headers_out.status = NGX_HTTP_NO_CONTENT;
     r->header_only = 1;
     r->headers_out.content_length_n = 0;
@@ -501,8 +501,8 @@ tape_stage_cancel(ngx_http_request_t *r,
 
 /* POST /api/v1/release  (alias /unpin)*/
 static ngx_int_t
-tape_release(ngx_http_request_t *r, ngx_http_xrootd_webdav_loc_conf_t *conf,
-             ngx_http_xrootd_webdav_req_ctx_t *ctx, json_t *root)
+tape_release(ngx_http_request_t *r, ngx_http_brix_webdav_loc_conf_t *conf,
+             ngx_http_brix_webdav_req_ctx_t *ctx, json_t *root)
 {
     json_t   *paths;
     size_t    i, n;
@@ -515,7 +515,7 @@ tape_release(ngx_http_request_t *r, ngx_http_xrootd_webdav_loc_conf_t *conf,
                           "body must contain a \"paths\" array");
     }
     n = json_array_size(paths);
-    XROOTD_PNALLOC_OR_RETURN(abs, r->pool, TAPE_PATH_MAX, NGX_HTTP_INTERNAL_SERVER_ERROR);
+    BRIX_PNALLOC_OR_RETURN(abs, r->pool, TAPE_PATH_MAX, NGX_HTTP_INTERNAL_SERVER_ERROR);
 
     /* authorise all paths first (no partial side effects) */
     for (i = 0; i < n; i++) {
@@ -537,7 +537,7 @@ tape_release(ngx_http_request_t *r, ngx_http_xrootd_webdav_loc_conf_t *conf,
         const char *lp = json_string_value(json_array_get(paths, i));
         if (tape_authz_path(r, conf, ctx, lp, 1, abs,
                             TAPE_PATH_MAX) == NGX_OK
-            && xrootd_stage_request_pin_release(tape_queue(), abs,
+            && brix_stage_request_pin_release(tape_queue(), abs,
                                                 r->connection->log) == NGX_OK)
         {
             json_array_append_new(unpinned, json_string(lp));
@@ -555,8 +555,8 @@ tape_release(ngx_http_request_t *r, ngx_http_xrootd_webdav_loc_conf_t *conf,
 /* POST /api/v1/archiveinfo  (alias /fileinfo)*/
 static ngx_int_t
 tape_archiveinfo(ngx_http_request_t *r,
-                 ngx_http_xrootd_webdav_loc_conf_t *conf,
-                 ngx_http_xrootd_webdav_req_ctx_t *ctx, json_t *root)
+                 ngx_http_brix_webdav_loc_conf_t *conf,
+                 ngx_http_brix_webdav_req_ctx_t *ctx, json_t *root)
 {
     json_t *paths, *arr;
     size_t  i, n;
@@ -568,7 +568,7 @@ tape_archiveinfo(ngx_http_request_t *r,
                           "body must contain a non-empty \"paths\" array");
     }
     n = json_array_size(paths);
-    XROOTD_PNALLOC_OR_RETURN(abs, r->pool, TAPE_PATH_MAX, NGX_HTTP_INTERNAL_SERVER_ERROR);
+    BRIX_PNALLOC_OR_RETURN(abs, r->pool, TAPE_PATH_MAX, NGX_HTTP_INTERNAL_SERVER_ERROR);
 
     /* read scope for all paths first (no partial disclosure on a later 403) */
     for (i = 0; i < n; i++) {
@@ -588,7 +588,7 @@ tape_archiveinfo(ngx_http_request_t *r,
     for (i = 0; i < n; i++) {
         const char     *lp = json_string_value(json_array_get(paths, i));
         json_t         *e = json_object();
-        xrootd_sd_residency_t res;
+        brix_sd_residency_t res;
         int             nearline = 0;
         ngx_int_t       rc;
 
@@ -608,10 +608,10 @@ tape_archiveinfo(ngx_http_request_t *r,
             const char *loc = tape_locality_name(res, nearline);
             json_object_set_new(e, "exists", json_true());
             json_object_set_new(e, "onDisk",
-                json_boolean(res == XROOTD_SD_RES_ONLINE));
+                json_boolean(res == BRIX_SD_RES_ONLINE));
             json_object_set_new(e, "onTape", json_boolean(nearline
-                || res == XROOTD_SD_RES_NEARLINE
-                || res == XROOTD_SD_RES_OFFLINE));
+                || res == BRIX_SD_RES_NEARLINE
+                || res == BRIX_SD_RES_OFFLINE));
             json_object_set_new(e, "locality", json_string(loc));
         }
         json_array_append_new(arr, e);
@@ -667,7 +667,7 @@ tape_parse_body(ngx_http_request_t *r)
     size_t     blen = 0;
     json_error_t err;
 
-    if (xrootd_http_body_read_all(r, TAPE_BODY_MAX, &body, &blen) != NGX_OK
+    if (brix_http_body_read_all(r, TAPE_BODY_MAX, &body, &blen) != NGX_OK
         || body == NULL || blen == 0)
     {
         return NULL;
@@ -679,10 +679,10 @@ tape_parse_body(ngx_http_request_t *r)
 static ngx_int_t
 tape_dispatch_post(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *conf =
-        ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
-    ngx_http_xrootd_webdav_req_ctx_t  *ctx =
-        ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    ngx_http_brix_webdav_loc_conf_t *conf =
+        ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
+    ngx_http_brix_webdav_req_ctx_t  *ctx =
+        ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     char       sbuf[TAPE_PATH_MAX];
     char      *seg[3];
     ngx_uint_t nseg;
@@ -734,10 +734,10 @@ tape_post_body_handler(ngx_http_request_t *r)
 ngx_int_t
 webdav_tape_handle(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *conf =
-        ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
-    ngx_http_xrootd_webdav_req_ctx_t *ctx =
-        ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    ngx_http_brix_webdav_loc_conf_t *conf =
+        ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
+    ngx_http_brix_webdav_req_ctx_t *ctx =
+        ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     char       sbuf[TAPE_PATH_MAX];
     char      *seg[3];
     ngx_uint_t nseg;
@@ -754,7 +754,7 @@ webdav_tape_handle(ngx_http_request_t *r)
     }
 
     if (r->method == NGX_HTTP_POST) {
-        ngx_int_t rc = xrootd_http_read_body(r, tape_post_body_handler);
+        ngx_int_t rc = brix_http_read_body(r, tape_post_body_handler);
         return (rc == NGX_DONE) ? NGX_DONE : rc;
     }
 

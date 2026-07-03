@@ -8,7 +8,7 @@
 #include "protocols/root/zip/zip_member.h"   /* phase-57 W2: ZIP member read dispatch */
 #include "protocols/ssi/ssi.h"          /* §7: SSI handle read dispatch */
 
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 #include "protocols/root/connection/budget.h"
 #include "prefetch.h"
 
@@ -24,7 +24,7 @@ _Static_assert(sizeof(((ClientRequestHdr *) 0)->body) == XRDW_BODY_LEN,
     "wire codec body length must match XProtocol ClientRequestHdr.body");
 
 /*
- * xrootd_ktls_send_active — true when kernel-TLS transmit is active on this
+ * brix_ktls_send_active — true when kernel-TLS transmit is active on this
  * connection (Phase 29 kTLS).
  *
  * Without kTLS, a TLS data stream must encrypt in userspace and therefore cannot
@@ -38,7 +38,7 @@ _Static_assert(sizeof(((ClientRequestHdr *) 0)->body) == XRDW_BODY_LEN,
  * always safe.
  */
 static ngx_flag_t
-xrootd_ktls_send_active(ngx_connection_t *c)
+brix_ktls_send_active(ngx_connection_t *c)
 {
 #ifdef BIO_get_ktls_send
     if (c->ssl != NULL && c->ssl->connection != NULL) {
@@ -53,8 +53,8 @@ xrootd_ktls_send_active(ngx_connection_t *c)
  * builds the sendfile chain and queues it.  Always completes the request --
  * the caller tail-calls this under the is_regular && (!ssl || kTLS) gate. */
 static ngx_int_t
-xrootd_read_serve_sendfile(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *rconf, int idx, ngx_fd_t fd,
+brix_read_serve_sendfile(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *rconf, int idx, ngx_fd_t fd,
     int64_t offset, size_t rlen)
 {
     size_t       data_total;
@@ -75,7 +75,7 @@ xrootd_read_serve_sendfile(xrootd_ctx_t *ctx, ngx_connection_t *c,
     } else {
         struct stat st;
         if (fstat(fd, &st) != 0) {
-            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_READ, "READ",
+            BRIX_RETURN_ERR(ctx, c, BRIX_OP_READ, "READ",
                               ctx->files[idx].path, "-",
                               kXR_IOError, strerror(errno));
         }
@@ -96,28 +96,28 @@ xrootd_read_serve_sendfile(xrootd_ctx_t *ctx, ngx_connection_t *c,
         data_total = (avail < (off_t) rlen) ? (size_t) avail : rlen;
     }
 
-    xrootd_prefetch_read_file(c->log, &ctx->files[idx], (off_t) offset,
+    brix_prefetch_read_file(c->log, &ctx->files[idx], (off_t) offset,
                               data_total, file_size);
 
     ctx->files[idx].bytes_read += data_total;
     ctx->session_bytes += data_total;
-    xrootd_rl_charge_ctx(ctx, data_total);  /* Phase 25 bandwidth */
+    brix_rl_charge_ctx(ctx, data_total);  /* Phase 25 bandwidth */
 
     /* Per-backend storage byte totals: this zero-copy branch never reaches
-     * xrootd_vfs_io_execute (the kernel moves the bytes), so attribute here.
+     * brix_vfs_io_execute (the kernel moves the bytes), so attribute here.
      * The branch gate (sd_obj.driver == NULL) means the backend is always the
      * default POSIX driver. Buffered/driver-backed reads attribute at the
      * io_execute seam instead — no double count. */
-    xrootd_metric_backend_bytes("posix", XROOTD_METRIC_OP_READ, data_total);
+    brix_metric_backend_bytes("posix", BRIX_METRIC_OP_READ, data_total);
 
     if (ctx->files[idx].dashboard_slot >= 0 &&
-        ngx_xrootd_dashboard_shm_zone != NULL)
+        ngx_brix_dashboard_shm_zone != NULL)
     {
-        xrootd_transfer_slot_update(ngx_xrootd_dashboard_shm_zone->data,
+        brix_transfer_slot_update(ngx_brix_dashboard_shm_zone->data,
                                     ctx->files[idx].dashboard_slot,
                                     (ngx_atomic_int_t) data_total,
                                     (int64_t) ngx_current_msec);
-        xrootd_transfer_slot_count_op(ngx_xrootd_dashboard_shm_zone->data,
+        brix_transfer_slot_count_op(ngx_brix_dashboard_shm_zone->data,
                                       ctx->files[idx].dashboard_slot,
                                       "read");
     }
@@ -127,33 +127,33 @@ xrootd_read_serve_sendfile(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
         snprintf(read_detail, sizeof(read_detail), "%lld+%zu",
                  (long long) offset, rlen);
-        xrootd_log_access(ctx, c, "READ", ctx->files[idx].path,
+        brix_log_access(ctx, c, "READ", ctx->files[idx].path,
                           read_detail, 1, 0, NULL, data_total);
     }
-    XROOTD_OP_OK(ctx, XROOTD_OP_READ);
+    BRIX_OP_OK(ctx, BRIX_OP_READ);
 
-    rsp_chain = xrootd_build_sendfile_chain(ctx, c, fd,
+    rsp_chain = brix_build_sendfile_chain(ctx, c, fd,
                                             ctx->files[idx].path,
                                             (off_t) offset, data_total,
                                             &send_base);
     if (rsp_chain == NULL) {
-        xrootd_release_read_buffer(ctx, c, send_base);
+        brix_release_read_buffer(ctx, c, send_base);
         return NGX_ERROR;
     }
 
     {
-        ngx_int_t rc = xrootd_queue_response_chain(ctx, c, rsp_chain,
+        ngx_int_t rc = brix_queue_response_chain(ctx, c, rsp_chain,
                                                    send_base);
 
         if (rc != NGX_OK || ctx->state != XRD_ST_SENDING) {
-            xrootd_release_read_buffer(ctx, c, send_base);
+            brix_release_read_buffer(ctx, c, send_base);
         }
         return rc;
     }
 }
 
 ngx_int_t
-xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
+brix_handle_read(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     xrdw_read_req_t               req;
     int                           idx;
@@ -163,14 +163,14 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
     ssize_t                       nread;
     size_t                        data_total;
     ngx_chain_t                  *rsp_chain;
-    ngx_stream_xrootd_srv_conf_t *rconf;
+    ngx_stream_brix_srv_conf_t *rconf;
     int                           fd;
     ngx_int_t                     rc;
 
     /*
      * The shared codec decodes the big-endian wire body into host order; the file
      * handle is a 4-byte blob but only byte 0 indexes our slot table
-     * (XROOTD_MAX_FILES <= 256); the (unsigned char) cast prevents sign-extension
+     * (BRIX_MAX_FILES <= 256); the (unsigned char) cast prevents sign-extension
      * of a high-bit handle byte into a negative idx.
      */
     xrdw_read_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
@@ -178,56 +178,56 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
     offset = req.offset;
     rlen = (size_t) (uint32_t) req.rlen;
 
-    if (!xrootd_validate_read_handle(ctx, c, idx, "READ",
-                                     XROOTD_OP_READ, &rc)) {
+    if (!brix_validate_read_handle(ctx, c, idx, "READ",
+                                     BRIX_OP_READ, &rc)) {
         return rc;
     }
 
     if (rlen == 0) {
-        XROOTD_OP_OK(ctx, XROOTD_OP_READ);
-        return xrootd_send_ok(ctx, c, NULL, 0);
+        BRIX_OP_OK(ctx, BRIX_OP_READ);
+        return brix_send_ok(ctx, c, NULL, 0);
     }
 
-    if (rlen > XROOTD_READ_REQUEST_MAX) {
-        rlen = XROOTD_READ_REQUEST_MAX;
+    if (rlen > BRIX_READ_REQUEST_MAX) {
+        rlen = BRIX_READ_REQUEST_MAX;
     }
 
     fd = ctx->files[idx].fd;
 
     if (offset < 0) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_READ, "READ",
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_READ, "READ",
                           ctx->files[idx].path, "-",
                           kXR_IOError, "negative read offset");
     }
 
     rconf = ngx_stream_get_module_srv_conf(
-                (ngx_stream_session_t *) c->data, ngx_stream_xrootd_module);
+                (ngx_stream_session_t *) c->data, ngx_stream_brix_module);
 
     /* §7 XrdSsi: an SSI handle has no backing file — the first read dispatches the
      * accumulated request to the service and serves the response. Early dispatch
      * off the normal fd read path, like zip/slice below. */
     if (ctx->files[idx].ssi != NULL) {
-        XROOTD_OP_OK(ctx, XROOTD_OP_READ);
-        return xrootd_ssi_read(ctx, c, idx, (uint64_t) offset, (uint32_t) rlen);
+        BRIX_OP_OK(ctx, BRIX_OP_READ);
+        return brix_ssi_read(ctx, c, idx, (uint64_t) offset, (uint32_t) rlen);
     }
 
     /* Phase-57 W2: ZIP member handles translate the read into the archive's
      * byte range (stored = offset add; deflate = stream inflate) — an early
      * dispatch off the normal fd read path. */
     if (ctx->files[idx].zip_mode) {
-        return xrootd_zip_read(ctx, c, idx, offset, rlen);
+        return brix_zip_read(ctx, c, idx, offset, rlen);
     }
 
     /*
      * Phase-42 W4: inline read compression (opt-in, off by default).  Routed to
      * its own isolated synchronous handler so EVERYTHING below — the sendfile
      * fast path, windowed streaming and AIO pipeline — stays byte-identical for
-     * the default (read_codec == 0 / XROOTD_CODEC_IDENTITY) case.  pgread/readv
+     * the default (read_codec == 0 / BRIX_CODEC_IDENTITY) case.  pgread/readv
      * have their own handlers and never reach here, so their plaintext + CRC32c
      * invariant is preserved.
      */
     if (ctx->files[idx].read_codec != 0) {
-        return xrootd_read_compressed(ctx, c, rconf, idx, (off_t) offset, rlen);
+        return brix_read_compressed(ctx, c, rconf, idx, (off_t) offset, rlen);
     }
 
     /*
@@ -241,7 +241,7 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
      * memory/window path below.
      */
     if (ctx->files[idx].is_regular
-        && (!c->ssl || xrootd_ktls_send_active(c))
+        && (!c->ssl || brix_ktls_send_active(c))
         && ctx->files[idx].csi == NULL   /* phase-59 W2/ADR-6: CSI needs the
                                           * bytes in memory to verify, so an
                                           * integrity-checked handle takes the
@@ -252,7 +252,7 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
                                           * blocks, so serve via the buffered
                                           * io_core path (driver preadv) instead */
     {
-        return xrootd_read_serve_sendfile(ctx, c, rconf, idx, fd,
+        return brix_read_serve_sendfile(ctx, c, rconf, idx, fd,
                                           offset, rlen);
     }
 
@@ -275,12 +275,12 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
                   : ((off_t) total > avail ? (size_t) avail : total);
         }
 
-        if (total > (size_t) XROOTD_READ_WINDOW) {
+        if (total > (size_t) BRIX_READ_WINDOW) {
             /* Admit one window's worth — a windowed stream holds ~2 MiB, not
              * the full request, so many more fit under the budget. */
-            if (!xrootd_budget_admit(ctx, rconf->memory_budget,
-                                     (size_t) XROOTD_READ_WINDOW)) {
-                return xrootd_send_wait(ctx, c, 1);
+            if (!brix_budget_admit(ctx, rconf->memory_budget,
+                                     (size_t) BRIX_READ_WINDOW)) {
+                return brix_send_wait(ctx, c, 1);
             }
 
             /*
@@ -300,7 +300,7 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
             ctx->rd_win_streamid[0] = ctx->cur_streamid[0];
             ctx->rd_win_streamid[1] = ctx->cur_streamid[1];
 
-            xrootd_prefetch_read_file(c->log, &ctx->files[idx], (off_t) offset,
+            brix_prefetch_read_file(c->log, &ctx->files[idx], (off_t) offset,
                                       total,
                                       ctx->files[idx].writable
                                           ? 0 : ctx->files[idx].cached_size);
@@ -309,11 +309,11 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
                 char read_detail[64];
                 snprintf(read_detail, sizeof(read_detail), "%lld+%zu",
                          (long long) offset, rlen);
-                xrootd_log_access(ctx, c, "READ", ctx->files[idx].path,
+                brix_log_access(ctx, c, "READ", ctx->files[idx].path,
                                   read_detail, 1, 0, NULL, total);
             }
 
-            xrootd_read_window_pump(ctx, c, rconf);
+            brix_read_window_pump(ctx, c, rconf);
             return NGX_OK;
         }
     }
@@ -322,8 +322,8 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
      * Small memory read (<= one window): single-shot.  Admit the full rlen and
      * buffer it in read_scratch — bounded by the window, so no streaming needed.
      */
-    if (!xrootd_budget_admit(ctx, rconf->memory_budget, rlen)) {
-        return xrootd_send_wait(ctx, c, 1);
+    if (!brix_budget_admit(ctx, rconf->memory_budget, rlen)) {
+        return brix_send_wait(ctx, c, 1);
     }
 
     /*
@@ -333,14 +333,14 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
      * recv loop already issues the next read into a different buffer.  Released
      * back to the pool when this response's out_ring slot drains.
      */
-    databuf = xrootd_acquire_read_buffer(ctx, c, rlen);
+    databuf = brix_acquire_read_buffer(ctx, c, rlen);
     if (databuf == NULL) {
         return NGX_ERROR;
     }
 
     /* Charge the (possibly grown) read-pool footprint to the budget now so a
      * concurrent connection's admission check sees this allocation promptly. */
-    xrootd_budget_sync(ctx);
+    brix_budget_sync(ctx);
 
     if (ctx->files[idx].is_regular) {
         off_t  file_size;
@@ -358,7 +358,7 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
             }
         }
 
-        xrootd_prefetch_read_file(c->log, &ctx->files[idx], (off_t) offset,
+        brix_prefetch_read_file(c->log, &ctx->files[idx], (off_t) offset,
                                   hint_len, file_size);
     }
 
@@ -377,10 +377,10 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
 #if defined(RWF_NOWAIT)
         if (rconf->common.thread_pool != NULL && ctx->files[idx].is_regular) {
             struct iovec    iov;
-            xrootd_sd_obj_t obj;
+            brix_sd_obj_t obj;
             iov.iov_base = databuf;
             iov.iov_len  = rlen;
-            xrootd_sd_posix_wrap(&obj, fd);   /* phase-55: SD seam */
+            brix_sd_posix_wrap(&obj, fd);   /* phase-55: SD seam */
             warm = obj.driver->preadv2(&obj, &iov, 1,
                                                   (off_t) offset, RWF_NOWAIT);
         }
@@ -400,26 +400,26 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
             /* phase-59 W2: the warm fast path bypasses the VFS job, so verify
              * the page CRCs here too; a mismatch fails the read (EIO). */
             if (ctx->files[idx].csi != NULL && nread > 0
-                && xrootd_csi_verify_read(
-                       (xrootd_csi_t *) ctx->files[idx].csi, databuf,
-                       (off_t) offset, (size_t) nread) == XROOTD_CSI_MISMATCH)
+                && brix_csi_verify_read(
+                       (brix_csi_t *) ctx->files[idx].csi, databuf,
+                       (off_t) offset, (size_t) nread) == BRIX_CSI_MISMATCH)
             {
                 nread = -1;
                 errno = EIO;
             }
 
-            /* The warm fast path bypasses xrootd_vfs_io_execute (where the other
+            /* The warm fast path bypasses brix_vfs_io_execute (where the other
              * read paths attribute), so charge the per-backend read total here. */
             if (nread > 0) {
-                xrootd_metric_backend_bytes(
+                brix_metric_backend_bytes(
                     ctx->files[idx].sd_obj.driver != NULL
                         ? ctx->files[idx].sd_obj.driver->name : "posix",
-                    XROOTD_METRIC_OP_READ, (size_t) nread);
+                    BRIX_METRIC_OP_READ, (size_t) nread);
             }
 
         } else if (rconf->common.thread_pool != NULL) {
             ngx_thread_task_t *task;
-            xrootd_read_aio_t *t;
+            brix_read_aio_t *t;
             ngx_flag_t         posted;
 
             /*
@@ -430,9 +430,9 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
              */
             task = ctx->read_aio_task;
             if (task == NULL) {
-                task = ngx_thread_task_alloc(c->pool, sizeof(xrootd_read_aio_t));
+                task = ngx_thread_task_alloc(c->pool, sizeof(brix_read_aio_t));
                 if (task == NULL) {
-                    xrootd_release_read_buffer(ctx, c, databuf);
+                    brix_release_read_buffer(ctx, c, databuf);
                     return NGX_ERROR;
                 }
                 ctx->read_aio_task = task;
@@ -456,9 +456,9 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
             t->csi = ctx->files[idx].csi;   /* phase-59 W2: verify on read */
             t->obj = ctx->files[idx].sd_obj; /* Layer 3: driver obj (or zeroed) */
 
-            xrootd_task_bind(task, xrootd_read_aio_thread, xrootd_read_aio_done);
+            brix_task_bind(task, brix_read_aio_thread, brix_read_aio_done);
 
-            (void) xrootd_aio_post_task(ctx, c, rconf->common.thread_pool, task,
+            (void) brix_aio_post_task(ctx, c, rconf->common.thread_pool, task,
                                         "xrootd: thread_task_post failed, sync read fallback",
                                         &posted);
             /*
@@ -471,13 +471,13 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
                 return NGX_OK;
             }
             {
-                xrootd_vfs_job_t job;
+                brix_vfs_job_t job;
 
-                xrootd_vfs_job_read_init(&job, fd, (off_t) offset, rlen,
+                brix_vfs_job_read_init(&job, fd, (off_t) offset, rlen,
                                           databuf, rlen, 0);
                 job.csi = ctx->files[idx].csi;   /* phase-59 W2: verify on read */
-                xrootd_vfs_job_set_obj(&job, &ctx->files[idx].sd_obj);
-                xrootd_vfs_io_execute(&job);
+                brix_vfs_job_set_obj(&job, &ctx->files[idx].sd_obj);
+                brix_vfs_io_execute(&job);
                 nread = job.nio;
                 if (job.io_errno != 0) {
                     /* A CSI page-checksum mismatch surfaces here as EIO
@@ -488,14 +488,14 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
             }
 
         } else {
-            xrootd_vfs_job_t job;
+            brix_vfs_job_t job;
 
             /* No thread pool configured: read inline on the event loop. */
-            xrootd_vfs_job_read_init(&job, fd, (off_t) offset, rlen,
+            brix_vfs_job_read_init(&job, fd, (off_t) offset, rlen,
                                       databuf, rlen, 0);
             job.csi = ctx->files[idx].csi;   /* phase-59 W2: verify on read */
-            xrootd_vfs_job_set_obj(&job, &ctx->files[idx].sd_obj);
-            xrootd_vfs_io_execute(&job);
+            brix_vfs_job_set_obj(&job, &ctx->files[idx].sd_obj);
+            brix_vfs_io_execute(&job);
             nread = job.nio;
             if (job.io_errno != 0) {
                 /* CSI mismatch surfaces as EIO here; the nread<0 path below
@@ -505,8 +505,8 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
         }
     }
     if (nread < 0) {
-        xrootd_release_read_buffer(ctx, c, databuf);
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_READ, "READ",
+        brix_release_read_buffer(ctx, c, databuf);
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_READ, "READ",
                           ctx->files[idx].path, "-",
                           kXR_IOError, strerror(errno));
     }
@@ -517,13 +517,13 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
     ctx->session_bytes += data_total;
 
     if (ctx->files[idx].dashboard_slot >= 0 &&
-        ngx_xrootd_dashboard_shm_zone != NULL)
+        ngx_brix_dashboard_shm_zone != NULL)
     {
-        xrootd_transfer_slot_update(ngx_xrootd_dashboard_shm_zone->data,
+        brix_transfer_slot_update(ngx_brix_dashboard_shm_zone->data,
                                     ctx->files[idx].dashboard_slot,
                                     (ngx_atomic_int_t) data_total,
                                     (int64_t) ngx_current_msec);
-        xrootd_transfer_slot_count_op(ngx_xrootd_dashboard_shm_zone->data,
+        brix_transfer_slot_count_op(ngx_brix_dashboard_shm_zone->data,
                                       ctx->files[idx].dashboard_slot, "read");
     }
 
@@ -532,29 +532,29 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
 
         snprintf(read_detail, sizeof(read_detail), "%lld+%zu",
                  (long long) offset, rlen);
-        xrootd_log_access(ctx, c, "READ", ctx->files[idx].path,
+        brix_log_access(ctx, c, "READ", ctx->files[idx].path,
                           read_detail, 1, 0, NULL, data_total);
     }
-    XROOTD_OP_OK(ctx, XROOTD_OP_READ);
+    BRIX_OP_OK(ctx, BRIX_OP_READ);
 
-    rsp_chain = xrootd_build_chunked_chain(ctx, c, databuf, data_total);
+    rsp_chain = brix_build_chunked_chain(ctx, c, databuf, data_total);
     if (rsp_chain == NULL) {
-        xrootd_release_read_buffer(ctx, c, databuf);
+        brix_release_read_buffer(ctx, c, databuf);
         return NGX_ERROR;
     }
 
     {
-        ngx_int_t rc = xrootd_queue_response_chain(ctx, c, rsp_chain, databuf);
+        ngx_int_t rc = brix_queue_response_chain(ctx, c, rsp_chain, databuf);
 
         if (rc != NGX_OK || ctx->state != XRD_ST_SENDING) {
-            xrootd_release_read_buffer(ctx, c, databuf);
+            brix_release_read_buffer(ctx, c, databuf);
         } else {
             /*
              * Parked and draining: per-in-flight buffer + per-slot header make
              * this memory-backed (TLS) read safe to pipeline, so let the recv loop
              * queue the next read behind it instead of idling while it drains a
              * jittered socket.  (A single-chunk response only: the non-windowed
-             * path is bounded by XROOTD_READ_WINDOW < XROOTD_READ_CHUNK_MAX.)
+             * path is bounded by BRIX_READ_WINDOW < BRIX_READ_CHUNK_MAX.)
              */
             ctx->resp_pipelinable = 1;
         }

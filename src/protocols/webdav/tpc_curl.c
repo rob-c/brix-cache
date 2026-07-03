@@ -17,7 +17,7 @@
  */
 ngx_int_t
 webdav_tpc_run_curl_core(ngx_log_t *log,
-                         ngx_http_xrootd_webdav_loc_conf_t *conf,
+                         ngx_http_brix_webdav_loc_conf_t *conf,
                          ngx_array_t *transfer_headers,
                          int is_push,
                          const char *file_path,
@@ -41,12 +41,12 @@ webdav_tpc_run_curl_core(ngx_log_t *log,
     webdav_tpc_pmark_rec_t pmrec;   /* outlives curl_easy_perform() below */
 #endif
 
-    XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_CURL_STARTED]);
+    BRIX_WEBDAV_METRIC_INC(tpc_total[BRIX_WEBDAV_TPC_CURL_STARTED]);
 
     curl = curl_easy_init();
     if (curl == NULL) {
         ngx_log_error(NGX_LOG_ERR, log, 0,
-                      "xrootd_webdav: curl_easy_init() failed for TPC %s",
+                      "brix_webdav: curl_easy_init() failed for TPC %s",
                       log_tag);
         return webdav_tpc_curl_finish(rc, curl, hdrs, resolve, fp);
     }
@@ -114,7 +114,7 @@ webdav_tpc_run_curl_core(ngx_log_t *log,
             next = curl_slist_append(hdrs, (const char *) headers[i].data);
             if (next == NULL) {
                 ngx_log_error(NGX_LOG_ERR, log, 0,
-                              "xrootd_webdav: curl_slist_append() OOM for TPC %s",
+                              "brix_webdav: curl_slist_append() OOM for TPC %s",
                               log_tag);
                 return webdav_tpc_curl_finish(rc, curl, hdrs, resolve, fp);
             }
@@ -132,7 +132,7 @@ webdav_tpc_run_curl_core(ngx_log_t *log,
         struct stat  st;
         int          fd;
 
-        fd = xrootd_vfs_open_fd(log, conf->common.root_canon, file_path,
+        fd = brix_vfs_open_fd(log, conf->common.root_canon, file_path,
                                         O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0);
         if (fd >= 0) {
             fp = fdopen(fd, "rb");
@@ -142,7 +142,7 @@ webdav_tpc_run_curl_core(ngx_log_t *log,
         }
         if (fp == NULL) {
             ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
-                          "xrootd_webdav: TPC push open(\"%s\") failed",
+                          "brix_webdav: TPC push open(\"%s\") failed",
                           file_path);
             return webdav_tpc_curl_finish(rc, curl, hdrs, resolve, fp);
         }
@@ -155,7 +155,7 @@ webdav_tpc_run_curl_core(ngx_log_t *log,
     } else {
         int fd;
 
-        fd = xrootd_vfs_open_fd(log, conf->common.root_canon, file_path,
+        fd = brix_vfs_open_fd(log, conf->common.root_canon, file_path,
                                         O_WRONLY | O_CREAT | O_TRUNC
                                             | O_CLOEXEC | O_NOFOLLOW,
                                         0600);
@@ -167,7 +167,7 @@ webdav_tpc_run_curl_core(ngx_log_t *log,
         }
         if (fp == NULL) {
             ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
-                          "xrootd_webdav: TPC pull open(\"%s\") failed",
+                          "brix_webdav: TPC pull open(\"%s\") failed",
                           file_path);
             return webdav_tpc_curl_finish(rc, curl, hdrs, resolve, fp);
         }
@@ -185,7 +185,7 @@ webdav_tpc_run_curl_core(ngx_log_t *log,
         rc = NGX_OK;
     } else {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_webdav: HTTP-TPC %s failed: %s",
+                      "brix_webdav: HTTP-TPC %s failed: %s",
                       log_tag, errbuf[0] ? errbuf : curl_easy_strerror(res));
         rc = NGX_HTTP_BAD_GATEWAY;
     }
@@ -196,7 +196,7 @@ webdav_tpc_run_curl_core(ngx_log_t *log,
 
 ngx_int_t
 webdav_tpc_run_curl_pull(ngx_log_t *log,
-                         ngx_http_xrootd_webdav_loc_conf_t *conf,
+                         ngx_http_brix_webdav_loc_conf_t *conf,
                          const char *source_url, const char *tmp_path,
                          ngx_array_t *transfer_headers,
                          uint64_t transfer_id)
@@ -209,7 +209,7 @@ webdav_tpc_run_curl_pull(ngx_log_t *log,
 
 ngx_int_t
 webdav_tpc_run_curl_push(ngx_log_t *log,
-                         ngx_http_xrootd_webdav_loc_conf_t *conf,
+                         ngx_http_brix_webdav_loc_conf_t *conf,
                          const char *dest_url, const char *local_path,
                          ngx_array_t *transfer_headers,
                          uint64_t transfer_id)
@@ -253,9 +253,9 @@ webdav_tpc_run_curl_multi_finish(ngx_int_t rc, CURLM *cm, CURL **easy,
     close(fd);
 
     if (rc == NGX_OK) {
-        XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_CURL_SUCCESS]);
+        BRIX_WEBDAV_METRIC_INC(tpc_total[BRIX_WEBDAV_TPC_CURL_SUCCESS]);
     } else {
-        XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_CURL_ERROR]);
+        BRIX_WEBDAV_METRIC_INC(tpc_total[BRIX_WEBDAV_TPC_CURL_ERROR]);
     }
     return rc;
 }
@@ -278,19 +278,19 @@ webdav_tpc_run_curl_multi_finish(ngx_int_t rc, CURLM *cm, CURL **easy,
  */
 ngx_int_t
 webdav_tpc_run_curl_pull_multi(ngx_log_t *log,
-    ngx_http_xrootd_webdav_loc_conf_t *conf,
+    ngx_http_brix_webdav_loc_conf_t *conf,
     const char *source_url, const char *tmp_path,
     ngx_array_t *transfer_headers, ngx_uint_t n_streams,
     uint64_t transfer_id, tpc_ms_progress_t *progress)
 {
     off_t              total_size;
     CURLM             *cm = NULL;
-    CURL              *easy[XROOTD_TPC_MAX_STREAMS];
-    struct curl_slist *hdrs[XROOTD_TPC_MAX_STREAMS];
-    struct curl_slist *resolve[XROOTD_TPC_MAX_STREAMS];
-    ms_stream_ctx_t    write_ctx[XROOTD_TPC_MAX_STREAMS];
+    CURL              *easy[BRIX_TPC_MAX_STREAMS];
+    struct curl_slist *hdrs[BRIX_TPC_MAX_STREAMS];
+    struct curl_slist *resolve[BRIX_TPC_MAX_STREAMS];
+    ms_stream_ctx_t    write_ctx[BRIX_TPC_MAX_STREAMS];
 #ifdef WEBDAV_TPC_PMARK_SOCKCB
-    webdav_tpc_pmark_rec_t pmrec[XROOTD_TPC_MAX_STREAMS];
+    webdav_tpc_pmark_rec_t pmrec[BRIX_TPC_MAX_STREAMS];
 #endif
     int                fd = -1;
     ngx_uint_t         i;
@@ -301,15 +301,15 @@ webdav_tpc_run_curl_pull_multi(ngx_log_t *log,
         return webdav_tpc_run_curl_pull(log, conf, source_url, tmp_path,
                                         transfer_headers, transfer_id);
     }
-    if (n_streams > XROOTD_TPC_MAX_STREAMS) {
-        n_streams = XROOTD_TPC_MAX_STREAMS;
+    if (n_streams > BRIX_TPC_MAX_STREAMS) {
+        n_streams = BRIX_TPC_MAX_STREAMS;
     }
 
     /* HEAD to learn file size so we can split into ranges. */
     total_size = tpc_curl_head_size(log, conf, source_url, transfer_headers);
     if (total_size <= 0) {
         ngx_log_error(NGX_LOG_INFO, log, 0,
-                      "xrootd_webdav: multi-stream: unknown Content-Length,"
+                      "brix_webdav: multi-stream: unknown Content-Length,"
                       " falling back to single stream");
         return webdav_tpc_run_curl_pull(log, conf, source_url, tmp_path,
                                         transfer_headers, transfer_id);
@@ -323,16 +323,16 @@ webdav_tpc_run_curl_pull_multi(ngx_log_t *log,
     fd = open(tmp_path, O_WRONLY | O_CREAT | O_TRUNC, 0600);  /* vfs-seam-allow: TPC multi-stream assembly temp (committed via rename) */
     if (fd < 0) {
         ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
-                      "xrootd_webdav: multi-stream: open(\"%s\") failed",
+                      "brix_webdav: multi-stream: open(\"%s\") failed",
                       tmp_path);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
     {
-        xrootd_sd_obj_t obj;
-        xrootd_sd_posix_wrap(&obj, fd);
-        if (xrootd_sd_posix_driver.ftruncate(&obj, total_size) != NGX_OK) {
+        brix_sd_obj_t obj;
+        brix_sd_posix_wrap(&obj, fd);
+        if (brix_sd_posix_driver.ftruncate(&obj, total_size) != NGX_OK) {
             ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
-                          "xrootd_webdav: multi-stream: ftruncate failed");
+                          "brix_webdav: multi-stream: ftruncate failed");
             close(fd);
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
@@ -391,7 +391,7 @@ webdav_tpc_run_curl_pull_multi(ngx_log_t *log,
         curl_multi_add_handle(cm, easy[i]);
     }
 
-    XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_CURL_STARTED]);
+    BRIX_WEBDAV_METRIC_INC(tpc_total[BRIX_WEBDAV_TPC_CURL_STARTED]);
 
     /* Drive all handles to completion. */
     curl_multi_perform(cm, &still_running);
@@ -400,7 +400,7 @@ webdav_tpc_run_curl_pull_multi(ngx_log_t *log,
         CURLMcode mc = curl_multi_wait(cm, NULL, 0, 1000, &numfds);
         if (mc != CURLM_OK) {
             ngx_log_error(NGX_LOG_ERR, log, 0,
-                          "xrootd_webdav: curl_multi_wait error: %s",
+                          "brix_webdav: curl_multi_wait error: %s",
                           curl_multi_strerror(mc));
             rc = NGX_HTTP_BAD_GATEWAY;
             return webdav_tpc_run_curl_multi_finish(rc, cm, easy, hdrs,
@@ -418,7 +418,7 @@ webdav_tpc_run_curl_pull_multi(ngx_log_t *log,
                 && msg->data.result != CURLE_OK)
             {
                 ngx_log_error(NGX_LOG_WARN, log, 0,
-                              "xrootd_webdav: HTTP-TPC multi-stream failed: %s",
+                              "brix_webdav: HTTP-TPC multi-stream failed: %s",
                               curl_easy_strerror(msg->data.result));
                 rc = NGX_HTTP_BAD_GATEWAY;
             }

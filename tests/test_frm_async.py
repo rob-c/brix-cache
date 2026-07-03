@@ -3,14 +3,14 @@ tests/test_frm_async.py
 
 Phase 35 / Phase 3 — async stage completion (kXR_waitresp → kXR_attn asynresp).
 
-With xrootd_frm_async_recall on, an open of a nearline file is acknowledged with
+With brix_frm_async_recall on, an open of a nearline file is acknowledged with
 kXR_waitresp and satisfied IN PLACE via kXR_attn(asynresp) when the recall
 finishes — no client poll/retry. The XRootD client handles the deferred response
 transparently, so an xrdcp of a nearline file simply succeeds; we additionally
 scrape /metrics to prove the async path (not the Phase-1 kXR_wait path) was used.
 
   S  xrdcp of a nearline file succeeds with the true tape bytes; the recall went
-     through the async path (xrootd_frm_waitresp_total and asynresp_total both > 0).
+     through the async path (brix_frm_waitresp_total and asynresp_total both > 0).
   E  a nearline file whose recall fails returns an error, not a hang.
 
 Self-contained; skips cleanly without nginx, xrdcp, or user-xattr support.
@@ -90,21 +90,21 @@ stream {{
     server {{
         listen {BIND_HOST}:{PORT};
         xrootd on;
-        xrootd_storage_backend posix:{data};
-        xrootd_auth none;
-        xrootd_frm on;
-        xrootd_frm_queue_path {queue};
-        xrootd_frm_copycmd {copycmd};
-        xrootd_frm_copymax 4;
-        xrootd_frm_async_recall on;
-        xrootd_frm_stage_ttl 30s;
+        brix_storage_backend posix:{data};
+        brix_auth none;
+        brix_frm on;
+        brix_frm_queue_path {queue};
+        brix_frm_copycmd {copycmd};
+        brix_frm_copymax 4;
+        brix_frm_async_recall on;
+        brix_frm_stage_ttl 30s;
     }}
 }}
 http {{
     access_log off;
     server {{
         listen {BIND_HOST}:{METRICS_PORT};
-        location = /metrics {{ xrootd_metrics on; }}
+        location = /metrics {{ brix_metrics on; }}
     }}
 }}
 daemon off;
@@ -162,8 +162,8 @@ def test_async_recall_satisfies_open_in_place(srv, tmp_path):
     assert open(out, "rb").read() == srv.tape_content, "recalled bytes mismatch"
 
     # prove the deferred (async) path carried it, not the Phase-1 kXR_wait poll.
-    wr = _metric("xrootd_frm_waitresp_total")
-    ar = _metric("xrootd_frm_asynresp_total")
+    wr = _metric("brix_frm_waitresp_total")
+    ar = _metric("brix_frm_asynresp_total")
     assert wr is not None and wr >= 1, "no kXR_waitresp recorded (got %r)" % wr
     assert ar is not None and ar >= 1, "no kXR_attn(asynresp) delivered (got %r)" % ar
 

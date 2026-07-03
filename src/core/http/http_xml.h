@@ -1,5 +1,5 @@
-#ifndef XROOTD_COMPAT_HTTP_XML_H
-#define XROOTD_COMPAT_HTTP_XML_H
+#ifndef BRIX_COMPAT_HTTP_XML_H
+#define BRIX_COMPAT_HTTP_XML_H
 
 #include <ngx_config.h>
 #include <ngx_core.h>
@@ -20,12 +20,12 @@
  *      protocol handlers.
  */
 
-ngx_buf_t *xrootd_http_chain_vappendf(ngx_pool_t *pool,
+ngx_buf_t *brix_http_chain_vappendf(ngx_pool_t *pool,
     ngx_chain_t **head, ngx_chain_t **tail, const char *fmt, va_list ap)
     __attribute__((format(printf, 4, 0)));
 
 /*
- * xrootd_http_chain_appendf - convenience wrapper: append formatted string via variadic args.
+ * brix_http_chain_appendf - convenience wrapper: append formatted string via variadic args.
  *
  * WHAT: Wraps vappendf() with va_start/va_end so callers pass a printf-style fmt+args
  *       directly without constructing a va_list manually. Returns buf pointer.
@@ -35,12 +35,12 @@ ngx_buf_t *xrootd_http_chain_vappendf(ngx_pool_t *pool,
  * HOW: va_start(ap,fmt) → vappendf(pool,head,tail,fmt,ap) → va_end(ap). Return buf.
  */
 
-ngx_buf_t *xrootd_http_chain_appendf(ngx_pool_t *pool,
+ngx_buf_t *brix_http_chain_appendf(ngx_pool_t *pool,
     ngx_chain_t **head, ngx_chain_t **tail, const char *fmt, ...)
     __attribute__((format(printf, 4, 5)));
 
 /*
- * xrootd_http_send_xml_buffer - send a single ngx_buf_t as an HTTP XML response.
+ * brix_http_send_xml_buffer - send a single ngx_buf_t as an HTTP XML response.
  *
  * WHAT: Sets r->headers_out.status, content_type, and content_length_n from the buffer size,
  *       then sends headers via ngx_http_send_header() followed by the buffer as a last_buf
@@ -53,24 +53,24 @@ ngx_buf_t *xrootd_http_chain_appendf(ngx_pool_t *pool,
  *       return ngx_http_output_filter(r,&out).
  */
 
-ngx_int_t xrootd_http_send_xml_buffer(ngx_http_request_t *r,
+ngx_int_t brix_http_send_xml_buffer(ngx_http_request_t *r,
     ngx_uint_t status, ngx_str_t content_type, ngx_buf_t *b);
 
 /*
- * xrootd_http_send_xml_error - send a protocol-agnostic <Error> XML response.
+ * brix_http_send_xml_error - send a protocol-agnostic <Error> XML response.
  *
  * WHAT: Builds <?xml …?><Error><Code>code</Code><Message>message</Message></Error>
- *       with XML escaping on both fields, then sends via xrootd_http_send_xml_buffer.
+ *       with XML escaping on both fields, then sends via brix_http_send_xml_buffer.
  *
  * WHY: S3 uses this exact structure for all API errors; WebDAV REST endpoints can use
  *      it for machine-readable errors without duplicating the buffer/escaping/header
  *      boilerplate in each protocol module.
  *
- * HOW: xrootd_xml_text_element_len → pre-size buffer → ngx_create_temp_buf →
+ * HOW: brix_xml_text_element_len → pre-size buffer → ngx_create_temp_buf →
  *      write prefix + Code element + Message element + suffix →
- *      xrootd_http_send_xml_buffer(status, "application/xml", b).
+ *      brix_http_send_xml_buffer(status, "application/xml", b).
  */
-ngx_int_t xrootd_http_send_xml_error(ngx_http_request_t *r,
+ngx_int_t brix_http_send_xml_error(ngx_http_request_t *r,
     ngx_uint_t status, const char *code, const char *message);
 
-#endif /* XROOTD_COMPAT_HTTP_XML_H */
+#endif /* BRIX_COMPAT_HTTP_XML_H */

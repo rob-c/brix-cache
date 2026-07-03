@@ -1,5 +1,5 @@
 /*
- * credential_block.c — the `xrootd_credential <name> { … }` block (phase-63 §14).
+ * credential_block.c — the `brix_credential <name> { … }` block (phase-63 §14).
  * See credential_block.h for the WHAT/WHY/HOW.
  */
 #include "credential_block.h"
@@ -11,24 +11,24 @@
 /* Credentials are few (one per upstream identity); a small fixed, process-wide
  * table avoids allocation and is scanned linearly by name. Interned strings live
  * on cf->pool (stable for the process lifetime). */
-#define XROOTD_CREDENTIAL_MAX 32
-static xrootd_credential_t  xrootd_credentials[XROOTD_CREDENTIAL_MAX];
-static ngx_uint_t           xrootd_credential_count;
+#define BRIX_CREDENTIAL_MAX 32
+static brix_credential_t  brix_credentials[BRIX_CREDENTIAL_MAX];
+static ngx_uint_t           brix_credential_count;
 
-const xrootd_credential_t *
-xrootd_credential_lookup(const char *name)
+const brix_credential_t *
+brix_credential_lookup(const char *name)
 {
     ngx_uint_t i;
 
     if (name == NULL || name[0] == '\0') {
         return NULL;
     }
-    for (i = 0; i < xrootd_credential_count; i++) {
-        if (xrootd_credentials[i].name.len == ngx_strlen(name)
-            && ngx_strncmp(xrootd_credentials[i].name.data, name,
-                           xrootd_credentials[i].name.len) == 0)
+    for (i = 0; i < brix_credential_count; i++) {
+        if (brix_credentials[i].name.len == ngx_strlen(name)
+            && ngx_strncmp(brix_credentials[i].name.data, name,
+                           brix_credentials[i].name.len) == 0)
         {
-            return &xrootd_credentials[i];
+            return &brix_credentials[i];
         }
     }
     return NULL;
@@ -43,12 +43,12 @@ typedef struct {
     const char  *key;
     size_t       str_off;   /* offsetof(ngx_str_t field), or (size_t)-1 if a flag */
     size_t       flag_off;  /* offsetof(ngx_flag_t field), or (size_t)-1          */
-} xrootd_credential_field_t;
+} brix_credential_field_t;
 
-#define CRED_STR(k, f)  { k, offsetof(xrootd_credential_t, f), (size_t) -1 }
-#define CRED_FLAG(k, f) { k, (size_t) -1, offsetof(xrootd_credential_t, f) }
+#define CRED_STR(k, f)  { k, offsetof(brix_credential_t, f), (size_t) -1 }
+#define CRED_FLAG(k, f) { k, (size_t) -1, offsetof(brix_credential_t, f) }
 
-static const xrootd_credential_field_t  xrootd_credential_fields[] = {
+static const brix_credential_field_t  brix_credential_fields[] = {
     CRED_STR("x509_proxy",    x509_proxy),
     CRED_STR("x509_cert",     x509_cert),
     CRED_STR("x509_key",      x509_key),
@@ -66,13 +66,13 @@ static const xrootd_credential_field_t  xrootd_credential_fields[] = {
 };
 
 static char *
-xrootd_credential_line(ngx_conf_t *cf, ngx_command_t *dummy, void *conf)
+brix_credential_line(ngx_conf_t *cf, ngx_command_t *dummy, void *conf)
 {
-    xrootd_credential_t             *cred = conf;
+    brix_credential_t             *cred = conf;
     ngx_str_t                       *value = cf->args->elts;
-    const xrootd_credential_field_t *fld;
+    const brix_credential_field_t *fld;
 
-    for (fld = xrootd_credential_fields; fld->key != NULL; fld++) {
+    for (fld = brix_credential_fields; fld->key != NULL; fld++) {
         if (value[0].len != ngx_strlen(fld->key)
             || ngx_strncmp(value[0].data, fld->key, value[0].len) != 0)
         {
@@ -81,7 +81,7 @@ xrootd_credential_line(ngx_conf_t *cf, ngx_command_t *dummy, void *conf)
 
         if (cf->args->nelts != 2) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd_credential: \"%V\" takes exactly one argument",
+                "brix_credential: \"%V\" takes exactly one argument",
                 &value[0]);
             return NGX_CONF_ERROR;
         }
@@ -96,7 +96,7 @@ xrootd_credential_line(ngx_conf_t *cf, ngx_command_t *dummy, void *conf)
                 *flag = 0;
             } else {
                 ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                    "xrootd_credential: \"%V\" expects on|off", &value[0]);
+                    "brix_credential: \"%V\" expects on|off", &value[0]);
                 return NGX_CONF_ERROR;
             }
             return NGX_CONF_OK;
@@ -117,15 +117,15 @@ xrootd_credential_line(ngx_conf_t *cf, ngx_command_t *dummy, void *conf)
     }
 
     ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-        "xrootd_credential: unknown directive \"%V\"", &value[0]);
+        "brix_credential: unknown directive \"%V\"", &value[0]);
     return NGX_CONF_ERROR;
 }
 
 char *
-xrootd_conf_credential_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+brix_conf_credential_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     ngx_str_t           *value = cf->args->elts;
-    xrootd_credential_t *cred;
+    brix_credential_t *cred;
     ngx_conf_t           save;
     char                *rv;
 
@@ -133,20 +133,20 @@ xrootd_conf_credential_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
      * updates the credential in place rather than appending or erroring. */
     {
         char                       name_z[256];
-        const xrootd_credential_t *existing;
+        const brix_credential_t *existing;
 
         ngx_cpystrn((u_char *) name_z, value[1].data,
                     ngx_min(value[1].len + 1, sizeof(name_z)));
-        existing = xrootd_credential_lookup(name_z);
+        existing = brix_credential_lookup(name_z);
         if (existing != NULL) {
-            cred = (xrootd_credential_t *) existing;
-        } else if (xrootd_credential_count >= XROOTD_CREDENTIAL_MAX) {
+            cred = (brix_credential_t *) existing;
+        } else if (brix_credential_count >= BRIX_CREDENTIAL_MAX) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd_credential: too many credential blocks (max %d)",
-                XROOTD_CREDENTIAL_MAX);
+                "brix_credential: too many credential blocks (max %d)",
+                BRIX_CREDENTIAL_MAX);
             return NGX_CONF_ERROR;
         } else {
-            cred = &xrootd_credentials[xrootd_credential_count++];
+            cred = &brix_credentials[brix_credential_count++];
         }
     }
 
@@ -160,7 +160,7 @@ xrootd_conf_credential_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     cred->name.len = value[1].len;
 
     save = *cf;
-    cf->handler = xrootd_credential_line;
+    cf->handler = brix_credential_line;
     cf->handler_conf = (char *) cred;
 
     rv = ngx_conf_parse(cf, NULL);
@@ -170,7 +170,7 @@ xrootd_conf_credential_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 }
 
 ngx_int_t
-xrootd_credential_bearer(const xrootd_credential_t *cred, char *out, size_t cap,
+brix_credential_bearer(const brix_credential_t *cred, char *out, size_t cap,
     ngx_log_t *log)
 {
     int     fd;
@@ -200,7 +200,7 @@ xrootd_credential_bearer(const xrootd_credential_t *cred, char *out, size_t cap,
               O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
     if (fd < 0) {
         ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
-            "xrootd_credential: cannot open token_file \"%V\"",
+            "brix_credential: cannot open token_file \"%V\"",
             &cred->token_file);
         return NGX_ERROR;
     }
@@ -208,7 +208,7 @@ xrootd_credential_bearer(const xrootd_credential_t *cred, char *out, size_t cap,
     close(fd);
     if (n < 0) {
         ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
-            "xrootd_credential: cannot read token_file \"%V\"",
+            "brix_credential: cannot read token_file \"%V\"",
             &cred->token_file);
         out[0] = '\0';
         return NGX_ERROR;

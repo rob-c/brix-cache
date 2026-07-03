@@ -1,4 +1,4 @@
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 #include "relay.h"
 #include "relay_guard.h"
 #include "net/tap/tap.h"
@@ -12,8 +12,8 @@
  * is read, and each freshly-recv'd chunk is fed to a per-direction tap decoder.
  */
 
-#define XROOTD_RELAY_BUF   (64 * 1024)
-#define XROOTD_RELAY_IDLE  75000   /* ms; drop a relay that stalls both ways */
+#define BRIX_RELAY_BUF   (64 * 1024)
+#define BRIX_RELAY_IDLE  75000   /* ms; drop a relay that stalls both ways */
 
 typedef struct {
     ngx_stream_session_t      *s;
@@ -29,9 +29,9 @@ typedef struct {
     size_t   uc_off, uc_end;
 
     /* tap: one decoder per direction, fanning frames out to the audit sink */
-    xrootd_tap_ctx_t     tap;
-    xrootd_tap_stream_t  cu_dec;   /* client -> upstream = requests  */
-    xrootd_tap_stream_t  uc_dec;   /* upstream -> client = responses */
+    brix_tap_ctx_t     tap;
+    brix_tap_stream_t  cu_dec;   /* client -> upstream = requests  */
+    brix_tap_stream_t  uc_dec;   /* upstream -> client = responses */
 
     /* Stable log for the tap audit sink: a copy of the client log with the
      * per-session handler/data cleared. The connection's c->log carries a stream
@@ -40,22 +40,22 @@ typedef struct {
      * This copy keeps the server's error-log destination without that appender. */
     ngx_log_t                  log;
 
-    /* bad-actor guard (xrootd_guard_stream): a second tap sink that classifies
+    /* bad-actor guard (brix_guard_stream): a second tap sink that classifies
      * each frame and raises a drop flag the pump enforces. */
-    xrootd_relay_guard_t       guard;
+    brix_relay_guard_t       guard;
 
-    ngx_xrootd_srv_metrics_t  *metrics;   /* for connections_active-- on close */
+    ngx_brix_srv_metrics_t  *metrics;   /* for connections_active-- on close */
     unsigned                   connected:1;
     unsigned                   closed:1;
-} xrootd_relay_t;
+} brix_relay_t;
 
 
-/* ----- config-time directive: xrootd_transparent_proxy host:port ----- */
+/* ----- config-time directive: brix_transparent_proxy host:port ----- */
 
 char *
-xrootd_conf_set_transparent_proxy(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+brix_conf_set_transparent_proxy(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    ngx_stream_xrootd_srv_conf_t *xcf = conf;
+    ngx_stream_brix_srv_conf_t *xcf = conf;
     ngx_str_t                    *value;
     ngx_url_t                     url;
     ngx_addr_t                   *addr;
@@ -77,7 +77,7 @@ xrootd_conf_set_transparent_proxy(ngx_conf_t *cf, ngx_command_t *cmd, void *conf
         || url.naddrs == 0 || url.addrs == NULL)
     {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_transparent_proxy: could not resolve host:port in \"%V\"",
+            "brix_transparent_proxy: could not resolve host:port in \"%V\"",
             &value[1]);
         return NGX_CONF_ERROR;
     }
@@ -104,7 +104,7 @@ xrootd_conf_set_transparent_proxy(ngx_conf_t *cf, ngx_command_t *cmd, void *conf
 /* ----- tap audit sink: one JSON line per decoded frame to error.log ----- */
 
 static void
-relay_audit_sink(void *ctx, const xrootd_tap_frame_t *f, xrootd_tap_dir_t dir,
+relay_audit_sink(void *ctx, const brix_tap_frame_t *f, brix_tap_dir_t dir,
     const uint8_t *payload, size_t payload_len)
 {
     ngx_log_t *log = ctx;
@@ -113,7 +113,7 @@ relay_audit_sink(void *ctx, const xrootd_tap_frame_t *f, xrootd_tap_dir_t dir,
     (void) payload;
     (void) payload_len;
 
-    if (xrootd_tap_audit_format(f, dir, line, sizeof(line)) > 0) {
+    if (brix_tap_audit_format(f, dir, line, sizeof(line)) > 0) {
         ngx_log_error(NGX_LOG_INFO, log, 0, "xrootd tap: %s", line);
     }
 }
@@ -132,7 +132,7 @@ static void relay_peer_free(ngx_peer_connection_t *pc, void *data,
 /* Tear the relay down once: free the upstream connection (best effort) and
  * finalize the stream session (which closes the client and frees its pool). */
 static void
-relay_close(xrootd_relay_t *r)
+relay_close(brix_relay_t *r)
 {
     if (r->closed) {
         return;
@@ -162,8 +162,8 @@ relay_close(xrootd_relay_t *r)
  * returns NGX_ERROR on EOF/error so the caller closes the whole relay.
  */
 static ngx_int_t
-relay_pump(xrootd_relay_t *r, ngx_connection_t *from, ngx_connection_t *to,
-    u_char *buf, size_t *off, size_t *end, xrootd_tap_stream_t *dec)
+relay_pump(brix_relay_t *r, ngx_connection_t *from, ngx_connection_t *to,
+    u_char *buf, size_t *off, size_t *end, brix_tap_stream_t *dec)
 {
     ssize_t  n;
 
@@ -178,17 +178,17 @@ relay_pump(xrootd_relay_t *r, ngx_connection_t *from, ngx_connection_t *to,
                 if (ngx_handle_write_event(to->write, 0) != NGX_OK) {
                     return NGX_ERROR;
                 }
-                ngx_add_timer(to->write, XROOTD_RELAY_IDLE);
+                ngx_add_timer(to->write, BRIX_RELAY_IDLE);
                 return NGX_OK;
             }
             return NGX_ERROR;          /* 0 or NGX_ERROR on the write side */
         }
         *off = *end = 0;
 
-        n = from->recv(from, buf, XROOTD_RELAY_BUF);
+        n = from->recv(from, buf, BRIX_RELAY_BUF);
         if (n > 0) {
-            xrootd_tap_stream_feed(dec, buf, (size_t) n);   /* tap once */
-            if (xrootd_relay_guard_should_drop(&r->guard)) {
+            brix_tap_stream_feed(dec, buf, (size_t) n);   /* tap once */
+            if (brix_relay_guard_should_drop(&r->guard)) {
                 return NGX_ERROR;      /* BOUNCE: never forward this chunk */
             }
             *end = (size_t) n;
@@ -199,7 +199,7 @@ relay_pump(xrootd_relay_t *r, ngx_connection_t *from, ngx_connection_t *to,
             if (ngx_handle_read_event(from->read, 0) != NGX_OK) {
                 return NGX_ERROR;
             }
-            ngx_add_timer(from->read, XROOTD_RELAY_IDLE);
+            ngx_add_timer(from->read, BRIX_RELAY_IDLE);
             return NGX_OK;
         }
         return NGX_ERROR;              /* EOF (0) or error: tear the relay down */
@@ -208,20 +208,20 @@ relay_pump(xrootd_relay_t *r, ngx_connection_t *from, ngx_connection_t *to,
 
 
 /* Resolve the relay hub from a CLIENT-side event (client conn data == session). */
-static xrootd_relay_t *
+static brix_relay_t *
 relay_from_client(ngx_event_t *ev)
 {
     ngx_connection_t     *c   = ev->data;
     ngx_stream_session_t *s   = c->data;
-    xrootd_ctx_t         *ctx = ngx_stream_get_module_ctx(s,
-                                    ngx_stream_xrootd_module);
+    brix_ctx_t         *ctx = ngx_stream_get_module_ctx(s,
+                                    ngx_stream_brix_module);
     return ctx->relay;
 }
 
 
 /* client readable / upstream writable -> pump client -> upstream (requests) */
 static void
-relay_cu(xrootd_relay_t *r, ngx_event_t *ev)
+relay_cu(brix_relay_t *r, ngx_event_t *ev)
 {
     if (ev->timedout) {
         relay_close(r);
@@ -236,7 +236,7 @@ relay_cu(xrootd_relay_t *r, ngx_event_t *ev)
 
 /* upstream readable / client writable -> pump upstream -> client (responses) */
 static void
-relay_uc(xrootd_relay_t *r, ngx_event_t *ev)
+relay_uc(brix_relay_t *r, ngx_event_t *ev)
 {
     if (ev->timedout) {
         relay_close(r);
@@ -266,7 +266,7 @@ static void relay_upstream_write(ngx_event_t *ev) /* resume client -> upstream *
  * handlers and kick both directions once (the client->upstream pump reads the
  * client's hello fresh — there is no pre-read prefix in transparent mode). */
 static void
-relay_begin(xrootd_relay_t *r)
+relay_begin(brix_relay_t *r)
 {
     r->connected = 1;
 
@@ -293,7 +293,7 @@ static void
 relay_connect_done(ngx_event_t *ev)
 {
     ngx_connection_t *u = ev->data;
-    xrootd_relay_t   *r = u->data;
+    brix_relay_t   *r = u->data;
     int               err;
     socklen_t         len = sizeof(err);
 
@@ -319,22 +319,22 @@ relay_connect_done(ngx_event_t *ev)
 
 
 ngx_int_t
-xrootd_relay_start(ngx_stream_session_t *s, ngx_connection_t *c, void *srv_conf)
+brix_relay_start(ngx_stream_session_t *s, ngx_connection_t *c, void *srv_conf)
 {
-    ngx_stream_xrootd_srv_conf_t *conf = srv_conf;
-    xrootd_ctx_t                 *ctx;
-    xrootd_relay_t               *r;
+    ngx_stream_brix_srv_conf_t *conf = srv_conf;
+    brix_ctx_t                 *ctx;
+    brix_relay_t               *r;
     ngx_connection_t             *u;
     ngx_int_t                     rc;
 
-    ctx = ngx_stream_get_module_ctx(s, ngx_stream_xrootd_module);
+    ctx = ngx_stream_get_module_ctx(s, ngx_stream_brix_module);
 
-    r = ngx_pcalloc(c->pool, sizeof(xrootd_relay_t));
+    r = ngx_pcalloc(c->pool, sizeof(brix_relay_t));
     if (r == NULL) {
         return NGX_ERROR;
     }
-    r->cu = ngx_pnalloc(c->pool, XROOTD_RELAY_BUF);
-    r->uc = ngx_pnalloc(c->pool, XROOTD_RELAY_BUF);
+    r->cu = ngx_pnalloc(c->pool, BRIX_RELAY_BUF);
+    r->uc = ngx_pnalloc(c->pool, BRIX_RELAY_BUF);
     if (r->cu == NULL || r->uc == NULL) {
         return NGX_ERROR;
     }
@@ -353,16 +353,16 @@ xrootd_relay_start(ngx_stream_session_t *s, ngx_connection_t *c, void *srv_conf)
     r->log.handler = NULL;
     r->log.data    = NULL;
     r->log.action  = NULL;
-    xrootd_tap_register_sink(&r->tap, relay_audit_sink, &r->log);
-    xrootd_tap_stream_init(&r->cu_dec, &r->tap, XROOTD_TAP_C2U);
-    xrootd_tap_stream_init(&r->uc_dec, &r->tap, XROOTD_TAP_U2C);
+    brix_tap_register_sink(&r->tap, relay_audit_sink, &r->log);
+    brix_tap_stream_init(&r->cu_dec, &r->tap, BRIX_TAP_C2U);
+    brix_tap_stream_init(&r->uc_dec, &r->tap, BRIX_TAP_U2C);
 
-    /* Bad-actor guard (xrootd_guard_stream): classify each tapped frame and
+    /* Bad-actor guard (brix_guard_stream): classify each tapped frame and
      * let the pump drop the connection on a BOUNCE verdict. */
-    xrootd_relay_guard_init(&r->guard, conf->relay_guard_enable == 1,
+    brix_relay_guard_init(&r->guard, conf->relay_guard_enable == 1,
                             &c->addr_text, &r->log);
     if (r->guard.enable) {
-        xrootd_tap_register_sink(&r->tap, xrootd_relay_guard_sink, &r->guard);
+        brix_tap_register_sink(&r->tap, brix_relay_guard_sink, &r->guard);
     }
 
     /* The xrootd recv/send handlers and any deadline timer must not fire on this
@@ -403,7 +403,7 @@ xrootd_relay_start(ngx_stream_session_t *s, ngx_connection_t *c, void *srv_conf)
         relay_begin(r);
     } else {
         /* NGX_AGAIN: connect in progress; arm a connect deadline. */
-        ngx_add_timer(u->write, XROOTD_RELAY_IDLE);
+        ngx_add_timer(u->write, BRIX_RELAY_IDLE);
     }
 
     return NGX_OK;

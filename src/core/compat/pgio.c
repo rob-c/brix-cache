@@ -31,7 +31,7 @@ xrdp_pg_encode(const uint8_t *src, size_t len, int64_t file_off, uint8_t *dst)
         uint32_t crc_be;
 
         /* Wire per page: [CRC32c(4)][data] — copy + CRC in one pass. */
-        crc_be = htonl(xrootd_crc32c_copy_value(p, out + XRDP_PG_CKSZ, page_data));
+        crc_be = htonl(brix_crc32c_copy_value(p, out + XRDP_PG_CKSZ, page_data));
         memcpy(out, &crc_be, XRDP_PG_CKSZ);
         out       += XRDP_PG_CKSZ + page_data;
         p         += page_data;
@@ -80,7 +80,7 @@ xrdp_pg_decode(const uint8_t *pg, size_t pglen, int64_t file_off,
             if (bad_off != NULL) { *bad_off = cur; }
             return -2;
         }
-        actual = xrootd_crc32c_copy_value(pg + i, dst + out, data_n);
+        actual = brix_crc32c_copy_value(pg + i, dst + out, data_n);
         if (actual != want) {
             if (bad_off != NULL) { *bad_off = cur; }
             return -1;
@@ -131,7 +131,7 @@ xrdp_pg_decode_collect(const uint8_t *pg, size_t pglen, int64_t file_off,
 
         /* Always copy (good or bad) so the caller writes every byte — stock
          * "accept-then-correct". A mismatch is recorded, not fatal. */
-        actual = xrootd_crc32c_copy_value(pg + i, dst + out, data_n);
+        actual = brix_crc32c_copy_value(pg + i, dst + out, data_n);
         if (actual != want) {
             if (*bad_count >= max_bad) {
                 *bad_count = max_bad;

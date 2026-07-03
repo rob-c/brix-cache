@@ -1,11 +1,11 @@
 """Section 3.1 — HTTP read-through cache hit tests.
 
 Verifies that WebDAV GET serves files from the read-through cache when
-``xrootd_webdav_cache_root`` is configured.  The dedicated ``http-cache``
+``brix_webdav_cache_root`` is configured.  The dedicated ``http-cache``
 server (port 18457) serves anonymous HTTP WebDAV with:
 
-    xrootd_webdav_root       /tmp/xrd-test/data-http-cache
-    xrootd_webdav_cache_root /tmp/xrd-test/data-http-cache/cache
+    brix_webdav_root       /tmp/xrd-test/data-http-cache
+    brix_webdav_cache_root /tmp/xrd-test/data-http-cache/cache
 
 Cache path formula (shared with src/fs/cache/open.c):
     cache_path = cache_root_canon + (fs_path - root_canon)
@@ -118,7 +118,7 @@ def test_cache_hit_served(base_url):
 def test_cache_miss_fallthrough(base_url):
     """GET serves the origin file when the cache entry does not exist.
 
-    When xrootd_cache_file_ready() returns 0 (ENOENT), get.c keeps the
+    When brix_cache_file_ready() returns 0 (ENOENT), get.c keeps the
     original fs_path and serves from the origin root unchanged.
     """
     uid = uuid.uuid4().hex
@@ -155,7 +155,7 @@ def test_cache_miss_fallthrough(base_url):
 def test_path_traversal_blocked(base_url):
     """URL with ``..`` segments must not escape the webdav_root.
 
-    ngx_http_xrootd_webdav_resolve_path() calls realpath() inside the confined
+    ngx_http_brix_webdav_resolve_path() calls realpath() inside the confined
     root and returns 403 Forbidden (or 400 Bad Request) for any path that
     escapes confinement.  This ensures a crafted cache_path cannot be used to
     leak files outside root_canon even if a traversal reaches the cache check.
@@ -192,7 +192,7 @@ def test_path_traversal_blocked(base_url):
 class TestXCacheAlternative:
     """Section 4A — Read-through caching equivalent to XCache.
 
-    Topology: Client ──► Nginx (with xrootd_cache) ──► XRootD (Origin)
+    Topology: Client ──► Nginx (with brix_cache) ──► XRootD (Origin)
     """
 
     def test_first_read_fetches_from_origin(self, base_url):

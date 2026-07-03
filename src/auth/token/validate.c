@@ -6,7 +6,7 @@
  * handles macaroons as an alternative auth path. WLCG storage tokens are HEP's
  * primary bearer mechanism (scope-granted paths + VO group membership), so this is
  * the authoritative path a connection trusts before granting filesystem access.
- * xrootd_token_validate() runs one deterministic pipeline: structural (3 segments)
+ * brix_token_validate() runs one deterministic pipeline: structural (3 segments)
  * → alg check → key select (by kid, else single-key) → EVP signature → claim
  * extraction → time window. Returns 0 (claims populated) / -1 (reason logged).
  */
@@ -36,7 +36,7 @@
  *
  * WHAT: Escapes control characters and non-printable bytes in a string before it is written to the nginx error log. Printable ASCII (0x20-0x7e) passes through verbatim; anything below 0x20, at 0x7f, or DEL is replaced with \xHH hex notation. This prevents log-injection attacks where malicious tokens could embed newlines or other control codes to forge or corrupt log entries.
  *
- * WHY: JWT tokens are untrusted input that may contain arbitrary bytes (base64url decoded payloads). Without sanitization, an attacker could inject newline characters into a token's issuer or subject claim and make it appear as if separate log entries were generated — this is a log forgery attack vector. This function follows the AGENTS.md FAQ rule for "Log strings from wire" which mandates using xrootd_sanitize_log_string(). */
+ * WHY: JWT tokens are untrusted input that may contain arbitrary bytes (base64url decoded payloads). Without sanitization, an attacker could inject newline characters into a token's issuer or subject claim and make it appear as if separate log entries were generated — this is a log forgery attack vector. This function follows the AGENTS.md FAQ rule for "Log strings from wire" which mandates using brix_sanitize_log_string(). */
 static void
 token_sanitize_for_log(const char *in, char *out, size_t outsz)
 {
@@ -77,10 +77,10 @@ token_sanitize_for_log(const char *in, char *out, size_t outsz)
  * HOW: Checks for exactly two dots in the token string (three segments);
  logs and returns -1 on any structural anomaly. */
 static int
-xrootd_token_malformed(ngx_log_t *log)
+brix_token_malformed(ngx_log_t *log)
 {
     ngx_log_error(NGX_LOG_WARN, log, 0,
-                  "xrootd_token: malformed JWT structure");
+                  "brix_token: malformed JWT structure");
     return -1;
 }
 
@@ -91,8 +91,8 @@ xrootd_token_malformed(ngx_log_t *log)
  * WHY: WLCG tokens include a groups array for VO membership attribution but nginx needs a flat comma-separated representation for logging and ACL matching. This helper converts the JSON array into a format compatible with existing path/acl.c logic which checks group memberships against configured VO ACLs without requiring additional JSON parsing at access time.
  * HOW: Reads up to 16 group names from JSON "wlcg.groups" array, concatenates with commas into claims->groups buffer, truncating individual groups that exceed remaining space. */
 static void
-xrootd_token_extract_groups(const char *pay_json, size_t pay_len,
-    xrootd_token_claims_t *claims)
+brix_token_extract_groups(const char *pay_json, size_t pay_len,
+    brix_token_claims_t *claims)
 {
     char groups[16][256];
     int  i, gcount;
@@ -129,7 +129,7 @@ xrootd_token_extract_groups(const char *pay_json, size_t pay_len,
 }
 
 /*
- * xrootd_token_validate — verify a WLCG/SciToken JWT bearer token.
+ * brix_token_validate — verify a WLCG/SciToken JWT bearer token.
  *
  * Validates the token according to the WLCG token profile spec:
  *   https://zenodo.org/record/3992838
@@ -158,7 +158,7 @@ xrootd_token_extract_groups(const char *pay_json, size_t pay_len,
  * Postconditions on success (return 0):
  *   - claims->scopes and claims->scope_count contain the parsed scope list.
  *   - claims->iss/sub/aud/exp/nbf are populated from the payload.
- *   - The caller must check xrootd_token_check_read() / _write() before
+ *   - The caller must check brix_token_check_read() / _write() before
  *     granting access to any specific path.
  *
  * Ownership: claims points into caller-provided storage; no heap allocation.
@@ -166,12 +166,12 @@ xrootd_token_extract_groups(const char *pay_json, size_t pay_len,
  * Returns: 0 on success, -1 on any validation failure (reason logged).
  */
 int
-xrootd_token_validate(ngx_log_t *log,
+brix_token_validate(ngx_log_t *log,
     const char *token, size_t token_len,
-    const xrootd_jwks_key_t *keys, int key_count,
+    const brix_jwks_key_t *keys, int key_count,
     const char *expected_issuer, const char *expected_audience,
     const u_char *macaroon_secret, size_t secret_len,
-    xrootd_token_claims_t *claims)
+    brix_token_claims_t *claims)
 {
     xrdjwt_seg  seg[3];
     u_char      hdr_json[2048], pay_json[4096], sig_bin[512];
@@ -184,13 +184,13 @@ xrootd_token_validate(ngx_log_t *log,
  
     ngx_memzero(claims, sizeof(*claims));
  
-    if (xrootd_token_is_macaroon(token, token_len)) {
+    if (brix_token_is_macaroon(token, token_len)) {
         if (macaroon_secret == NULL || secret_len == 0) {
             ngx_log_error(NGX_LOG_WARN, log, 0,
-                          "xrootd_token: Macaroon detected but no secret configured");
+                          "brix_token: Macaroon detected but no secret configured");
             return -1;
         }
-        if (xrootd_macaroon_validate(log, token, token_len,
+        if (brix_macaroon_validate(log, token, token_len,
                                      macaroon_secret, secret_len, claims) != 0)
         {
             return -1;
@@ -210,7 +210,7 @@ xrootd_token_validate(ngx_log_t *log,
             char safe_iss[512];
             token_sanitize_for_log(claims->iss, safe_iss, sizeof(safe_iss));
             ngx_log_error(NGX_LOG_WARN, log, 0,
-                          "xrootd_macaroon: issuer/location mismatch: got \"%s\" "
+                          "brix_macaroon: issuer/location mismatch: got \"%s\" "
                           "expected \"%s\"", safe_iss, expected_issuer);
             return -1;
         }
@@ -219,7 +219,7 @@ xrootd_token_validate(ngx_log_t *log,
 
     if (token_len == 0 || token_len > 8192) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_token: token length invalid: %uz", token_len);
+                      "brix_token: token length invalid: %uz", token_len);
         return -1;
     }
 
@@ -227,14 +227,14 @@ xrootd_token_validate(ngx_log_t *log,
      * the same xrdjwt_split() the native client's token introspection uses), so
      * the two-dot scan is single-sourced across both trees. */
     if (xrdjwt_split((const char *) token, token_len, seg) != 0) {
-        return xrootd_token_malformed(log);   /* fewer than 2 dots */
+        return brix_token_malformed(log);   /* fewer than 2 dots */
     }
 
     /* Compact JWS is EXACTLY 3 segments; xrdjwt_split folds any extra dots into
      * the signature slice, so reject a dot inside it here — keeping this gate's
      * strict structural check (defence-in-depth) and its "malformed" log path. */
     if (memchr(seg[2].p, '.', seg[2].n) != NULL) {
-        return xrootd_token_malformed(log);
+        return brix_token_malformed(log);
     }
 
     hdr_b64_len = seg[0].n;
@@ -244,7 +244,7 @@ xrootd_token_validate(ngx_log_t *log,
     hdr_len = b64url_decode(token, hdr_b64_len, hdr_json,
                             sizeof(hdr_json) - 1);
     if (hdr_len < 0) {
-        return xrootd_token_malformed(log);
+        return brix_token_malformed(log);
     }
     hdr_json[hdr_len] = '\0';
 
@@ -259,7 +259,7 @@ xrootd_token_validate(ngx_log_t *log,
         char safe_alg[64];
         token_sanitize_for_log(alg, safe_alg, sizeof(safe_alg));
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_token: unsupported JWT algorithm \"%s\" "
+                      "brix_token: unsupported JWT algorithm \"%s\" "
                       "(only RS256 and ES256 accepted)", safe_alg);
         return -1;
     }
@@ -281,14 +281,14 @@ xrootd_token_validate(ngx_log_t *log,
         char safe_kid[256];
         token_sanitize_for_log(kid, safe_kid, sizeof(safe_kid));
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_token: no JWKS key matching kid=\"%s\"", safe_kid);
+                      "brix_token: no JWKS key matching kid=\"%s\"", safe_kid);
         return -1;
     }
 
     sig_len = b64url_decode(seg[2].p, sig_b64_len, sig_bin, sizeof(sig_bin));
     if (sig_len < 0) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_token: cannot decode JWT signature");
+                      "brix_token: cannot decode JWT signature");
         return -1;
     }
 
@@ -296,17 +296,17 @@ xrootd_token_validate(ngx_log_t *log,
     {
         int sig_ok;
         if (strcmp(alg, "ES256") == 0) {
-            sig_ok = xrootd_token_verify_es256((const u_char *) token,
+            sig_ok = brix_token_verify_es256((const u_char *) token,
                                                signed_len, sig_bin,
                                                (size_t) sig_len, pkey);
         } else {
-            sig_ok = xrootd_token_verify_rs256((const u_char *) token,
+            sig_ok = brix_token_verify_rs256((const u_char *) token,
                                                signed_len, sig_bin,
                                                (size_t) sig_len, pkey);
         }
         if (!sig_ok) {
             ngx_log_error(NGX_LOG_WARN, log, 0,
-                          "xrootd_token: JWT signature verification failed");
+                          "brix_token: JWT signature verification failed");
             return -1;
         }
     }
@@ -314,7 +314,7 @@ xrootd_token_validate(ngx_log_t *log,
     pay_len = b64url_decode(seg[1].p, pay_b64_len, pay_json,
                             sizeof(pay_json) - 1);
     if (pay_len < 0) {
-        return xrootd_token_malformed(log);
+        return brix_token_malformed(log);
     }
     pay_json[pay_len] = '\0';
 
@@ -343,7 +343,7 @@ xrootd_token_validate(ngx_log_t *log,
         || claims->exp <= 0)
     {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_token: token missing valid positive exp");
+                      "brix_token: token missing valid positive exp");
         return -1;
     }
     json_get_int64((char *) pay_json, (size_t) pay_len, "nbf",
@@ -351,7 +351,7 @@ xrootd_token_validate(ngx_log_t *log,
     json_get_int64((char *) pay_json, (size_t) pay_len, "iat",
                    &claims->iat);
 
-    xrootd_token_extract_groups((char *) pay_json, (size_t) pay_len, claims);
+    brix_token_extract_groups((char *) pay_json, (size_t) pay_len, claims);
 
     /* Issuer-confusion attack prevention: without this check an attacker
      * could present a valid token from a different trusted issuer. */
@@ -360,7 +360,7 @@ xrootd_token_validate(ngx_log_t *log,
             char safe_iss[512];
             token_sanitize_for_log(claims->iss, safe_iss, sizeof(safe_iss));
             ngx_log_error(NGX_LOG_WARN, log, 0,
-                          "xrootd_token: issuer mismatch: got \"%s\" "
+                          "brix_token: issuer mismatch: got \"%s\" "
                           "expected \"%s\"", safe_iss, expected_issuer);
             return -1;
         }
@@ -374,7 +374,7 @@ xrootd_token_validate(ngx_log_t *log,
             char safe_aud[512];
             token_sanitize_for_log(claims->aud, safe_aud, sizeof(safe_aud));
             ngx_log_error(NGX_LOG_WARN, log, 0,
-                          "xrootd_token: audience mismatch: got \"%s\" "
+                          "brix_token: audience mismatch: got \"%s\" "
                           "expected \"%s\"", safe_aud,
                           expected_audience);
             return -1;
@@ -386,25 +386,25 @@ xrootd_token_validate(ngx_log_t *log,
     /* Apply a clock-skew window so that tokens from systems whose clock differs
      * from ours by a few seconds are not spuriously rejected.  The skew widens
      * the acceptance window on both sides without permanently extending validity. */
-    if (now > (time_t) claims->exp + XROOTD_TOKEN_CLOCK_SKEW_SECS)
+    if (now > (time_t) claims->exp + BRIX_TOKEN_CLOCK_SKEW_SECS)
     {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_token: token expired at %L (now=%L skew=%d)",
+                      "brix_token: token expired at %L (now=%L skew=%d)",
                       (long long) claims->exp, (long long) now,
-                      XROOTD_TOKEN_CLOCK_SKEW_SECS);
+                      BRIX_TOKEN_CLOCK_SKEW_SECS);
         return -1;
     }
 
     if (claims->nbf > 0 && now < (time_t) claims->nbf)
     {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_token: token not yet valid (nbf=%L now=%L)",
+                      "brix_token: token not yet valid (nbf=%L now=%L)",
                       (long long) claims->nbf, (long long) now);
         return -1;
     }
 
-    claims->scope_count = xrootd_token_parse_scopes(
-        claims->scope_raw, claims->scopes, XROOTD_MAX_TOKEN_SCOPES);
+    claims->scope_count = brix_token_parse_scopes(
+        claims->scope_raw, claims->scopes, BRIX_MAX_TOKEN_SCOPES);
 
     /* Only build the ~2.5 KB of sanitized log strings when INFO logging is
      * actually enabled — otherwise this is pure wasted work on every validation
@@ -416,7 +416,7 @@ xrootd_token_validate(ngx_log_t *log,
         token_sanitize_for_log(claims->scope_raw, safe_scope,  sizeof(safe_scope));
         token_sanitize_for_log(claims->groups,    safe_groups, sizeof(safe_groups));
         ngx_log_error(NGX_LOG_INFO, log, 0,
-                      "xrootd_token: valid token sub=\"%s\" iss=\"%s\" "
+                      "brix_token: valid token sub=\"%s\" iss=\"%s\" "
                       "scope=\"%s\" groups=\"%s\" scopes=%d",
                       safe_sub, safe_iss, safe_scope, safe_groups,
                       claims->scope_count);
@@ -424,12 +424,12 @@ xrootd_token_validate(ngx_log_t *log,
     return 0;
 }
 
-/* xrootd_token_peek_iss — read the "iss" claim WITHOUT trusting the signature
+/* brix_token_peek_iss — read the "iss" claim WITHOUT trusting the signature
  * (xrdjwt_split + b64url_decode + json_get_string): the registry must pick an
  * issuer, and thus its verification keys, before it can trust anything, so this
  * read is explicitly untrusted and re-derived from verified claims afterwards. */
 int
-xrootd_token_peek_iss(const char *token, size_t token_len,
+brix_token_peek_iss(const char *token, size_t token_len,
     char *out, size_t outsz)
 {
     xrdjwt_seg  seg[3];
@@ -452,36 +452,36 @@ xrootd_token_peek_iss(const char *token, size_t token_len,
     return 0;
 }
 
-/* xrootd_token_validate_registry_authn — registry authN with no path gate: peek
+/* brix_token_validate_registry_authn — registry authN with no path gate: peek
  * iss → registry_find → validate() with THAT issuer's keys → multi-audience accept.
  * Stream kXR_auth happens before any path is known, so issuer-keyed authentication
  * and per-path authorization are split; this is the authN half (also reused by the
  * combined HTTP entry point). On success returns 0, fills *claims, sets *out_issuer. */
 int
-xrootd_token_validate_registry_authn(ngx_log_t *log,
+brix_token_validate_registry_authn(ngx_log_t *log,
     const char *token, size_t token_len,
-    const xrootd_token_registry_t *reg,
+    const brix_token_registry_t *reg,
     const u_char *macaroon_secret, size_t secret_len,
-    xrootd_token_claims_t *claims, const xrootd_token_issuer_t **out_issuer)
+    brix_token_claims_t *claims, const brix_token_issuer_t **out_issuer)
 {
     char                          iss[256];
-    const xrootd_token_issuer_t  *is;
+    const brix_token_issuer_t  *is;
     const char                   *expected_aud;
     int                           i;
 
     *out_issuer = NULL;
 
-    if (xrootd_token_peek_iss(token, token_len, iss, sizeof(iss)) != 0) {
+    if (brix_token_peek_iss(token, token_len, iss, sizeof(iss)) != 0) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_token: cannot read iss for issuer selection");
+                      "brix_token: cannot read iss for issuer selection");
         return -1;
     }
-    is = xrootd_token_registry_find(reg, iss);
+    is = brix_token_registry_find(reg, iss);
     if (is == NULL) {
         char safe[512];
         token_sanitize_for_log(iss, safe, sizeof(safe));
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_token: unknown issuer \"%s\"", safe);
+                      "brix_token: unknown issuer \"%s\"", safe);
         return -1;
     }
 
@@ -490,7 +490,7 @@ xrootd_token_validate_registry_authn(ngx_log_t *log,
      * for correct string-or-array membership; multiple audiences are accepted
      * best-effort below (full multi-audience array membership = W1b). */
     expected_aud = (is->audience_count == 1) ? is->audiences[0] : NULL;
-    if (xrootd_token_validate(log, token, token_len,
+    if (brix_token_validate(log, token, token_len,
             is->jwks_key_count ? is->jwks_keys : NULL, is->jwks_key_count,
             is->issuer, expected_aud, macaroon_secret, secret_len,
             claims) != 0)
@@ -508,7 +508,7 @@ xrootd_token_validate_registry_authn(ngx_log_t *log,
         }
         if (!ok) {
             ngx_log_error(NGX_LOG_WARN, log, 0,
-                "xrootd_token: audience not accepted for issuer \"%s\"",
+                "brix_token: audience not accepted for issuer \"%s\"",
                 is->name);
             return -1;
         }
@@ -518,25 +518,25 @@ xrootd_token_validate_registry_authn(ngx_log_t *log,
     return 0;
 }
 
-/* xrootd_token_authz_strategy — the per-path authorization ladder: enforce the
+/* brix_token_authz_strategy — the per-path authorization ladder: enforce the
  * issuer base_path/restricted_path gate, then run the authorization_strategy
  * (capability / group / mapping) for (req_path, op). Shared by the HTTP combined
  * path and the stream per-path identity check. Returns 1 = ALLOW, 0 = DENY. */
 int
-xrootd_token_authz_strategy(const xrootd_token_issuer_t *is,
-    const xrootd_token_claims_t *claims, const char *req_path,
-    xrootd_token_op_e op)
+brix_token_authz_strategy(const brix_token_issuer_t *is,
+    const brix_token_claims_t *claims, const char *req_path,
+    brix_token_op_e op)
 {
-    if (!xrootd_token_issuer_path_ok(is, req_path)) {
+    if (!brix_token_issuer_path_ok(is, req_path)) {
         return 0;
     }
 
     /* capability — the token's own WLCG scopes must cover (path, op). */
-    if (is->strategy & XROOTD_AUTHZ_CAPABILITY) {
-        int ok = (op == XROOTD_TOKEN_OP_WRITE)
-            ? xrootd_token_check_write(claims->scopes, claims->scope_count,
+    if (is->strategy & BRIX_AUTHZ_CAPABILITY) {
+        int ok = (op == BRIX_TOKEN_OP_WRITE)
+            ? brix_token_check_write(claims->scopes, claims->scope_count,
                                        req_path)
-            : xrootd_token_check_read(claims->scopes, claims->scope_count,
+            : brix_token_check_read(claims->scopes, claims->scope_count,
                                       req_path);
         if (ok) {
             return 1;
@@ -546,7 +546,7 @@ xrootd_token_authz_strategy(const xrootd_token_issuer_t *is,
     /* group — the issuer vouches for its base_path for any token bearing a
      * group claim; the per-VO/group ACL layer refines the actual access using
      * the identity's groups (claims->groups → identity vo_list). */
-    if (is->strategy & XROOTD_AUTHZ_GROUP) {
+    if (is->strategy & BRIX_AUTHZ_GROUP) {
         if (claims->groups[0] != '\0') {
             return 1;
         }
@@ -555,14 +555,14 @@ xrootd_token_authz_strategy(const xrootd_token_issuer_t *is,
     /* mapping — the subject must resolve to a local user (map_subject +
      * name_mapfile, with onmissing/default policy); the per-user ACL/POSIX
      * layer then enforces that user's permissions within base_path. */
-    if (is->strategy & XROOTD_AUTHZ_MAPPING) {
+    if (is->strategy & BRIX_AUTHZ_MAPPING) {
         char user[64];
 
         if (!is->map_subject) {
             return 1;                       /* trust the issuer's subject as-is */
         }
         if (is->name_mapfile[0] != '\0'
-            && xrootd_subject_mapfile_lookup(is->name_mapfile, claims->sub,
+            && brix_subject_mapfile_lookup(is->name_mapfile, claims->sub,
                                              user, sizeof(user)) == 0)
         {
             return 1;
@@ -575,29 +575,29 @@ xrootd_token_authz_strategy(const xrootd_token_issuer_t *is,
     return 0;
 }
 
-/* xrootd_token_validate_registry — combined authN+authZ for where the request path
+/* brix_token_validate_registry — combined authN+authZ for where the request path
  * is known at validation time (WebDAV/S3): the authN half then the per-path
  * strategy ladder. */
 int
-xrootd_token_validate_registry(ngx_log_t *log,
+brix_token_validate_registry(ngx_log_t *log,
     const char *token, size_t token_len,
-    const xrootd_token_registry_t *reg, const char *req_path,
-    xrootd_token_op_e op,
+    const brix_token_registry_t *reg, const char *req_path,
+    brix_token_op_e op,
     const u_char *macaroon_secret, size_t secret_len,
-    xrootd_token_claims_t *claims, int *out_issuer_bucket)
+    brix_token_claims_t *claims, int *out_issuer_bucket)
 {
-    const xrootd_token_issuer_t *is;
+    const brix_token_issuer_t *is;
 
     *out_issuer_bucket = -1;
 
-    if (xrootd_token_validate_registry_authn(log, token, token_len, reg,
+    if (brix_token_validate_registry_authn(log, token, token_len, reg,
             macaroon_secret, secret_len, claims, &is) != 0)
     {
         return -1;
     }
-    if (!xrootd_token_authz_strategy(is, claims, req_path, op)) {
+    if (!brix_token_authz_strategy(is, claims, req_path, op)) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-            "xrootd_token: issuer \"%s\" did not authorize path", is->name);
+            "brix_token: issuer \"%s\" did not authorize path", is->name);
         return -1;
     }
 

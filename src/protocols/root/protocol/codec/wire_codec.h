@@ -20,8 +20,8 @@
  *
  * See docs/superpowers/specs/2026-06-27-xrdwire-codec-design.md.
  */
-#ifndef XROOTD_WIRE_CODEC_H
-#define XROOTD_WIRE_CODEC_H
+#ifndef BRIX_WIRE_CODEC_H
+#define BRIX_WIRE_CODEC_H
 
 #include <stdint.h>
 #include <stddef.h>
@@ -375,4 +375,4 @@ typedef struct {
 int xrdw_prepare_req_pack(const xrdw_prepare_req_t *r, uint8_t body[XRDW_BODY_LEN]);
 int xrdw_prepare_req_unpack(const uint8_t body[XRDW_BODY_LEN], xrdw_prepare_req_t *r);
 
-#endif /* XROOTD_WIRE_CODEC_H */
+#endif /* BRIX_WIRE_CODEC_H */

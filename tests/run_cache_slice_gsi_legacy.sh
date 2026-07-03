@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # run_cache_slice_gsi_legacy.sh — regression guard for the cache-config credential-field
-# reconciliation (phase-64 cluster). A LEGACY xrootd_cache_origin config (host:port +
-# xrootd_cache_origin_proxy/_cadir GSI directives) WITH xrootd_cache_slice must fill each
+# reconciliation (phase-64 cluster). A LEGACY brix_cache_origin config (host:port +
+# brix_cache_origin_proxy/_cadir GSI directives) WITH brix_cache_slice must fill each
 # slice through a GSI-authenticated origin session. The slice decorator builds its origin
-# via the SHARED xrootd_cache_build_origin, which reads the read-origin credentials
+# via the SHARED brix_cache_build_origin, which reads the read-origin credentials
 # (cache_origin_proxy/cadir), NOT the write-back C-3 fields (cache_origin_x509_proxy/…)
 # it wrongly read before — that bug left slice fills logging in ANONYMOUSLY, which a GSI
 # origin rejects. Pre-fix: this FAILS (empty/rejected). Post-fix: byte-exact.
@@ -34,29 +34,29 @@ cat > "$PFX/o/nginx.conf" <<EOF
 daemon on; error_log $PFX/o/logs/e.log info; pid $PFX/o/nginx.pid;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:${OPORT}; xrootd on; xrootd_root $PFX/o/root;
-    xrootd_auth gsi;
-    xrootd_certificate     $SERVER_CERT;
-    xrootd_certificate_key $SERVER_KEY;
-    xrootd_trusted_ca      $CA_CERT;
-    xrootd_allow_write on;
+    listen 127.0.0.1:${OPORT}; xrootd on; brix_root $PFX/o/root;
+    brix_auth gsi;
+    brix_certificate     $SERVER_CERT;
+    brix_certificate_key $SERVER_KEY;
+    brix_trusted_ca      $CA_CERT;
+    brix_allow_write on;
 } }
 EOF
 # Node B — TIER slice cache over root://O, GSI via the composable tier grammar
-# (xrootd_storage_backend + xrootd_storage_credential + xrootd_cache_store +
-# xrootd_cache_slice_size — the composed sd_cache partial-fills each slice).
+# (brix_storage_backend + brix_storage_credential + brix_cache_store +
+# brix_cache_slice_size — the composed sd_cache partial-fills each slice).
 cat > "$PFX/b/nginx.conf" <<EOF
 daemon on; error_log $PFX/b/logs/e.log info; pid $PFX/b/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 stream {
-    xrootd_credential origin { x509_proxy $PROXY_STD; ca_dir $CA_DIR; }
+    brix_credential origin { x509_proxy $PROXY_STD; ca_dir $CA_DIR; }
     server {
-    listen 127.0.0.1:${BPORT}; xrootd on; xrootd_root $PFX/b/export; xrootd_auth none;
-    xrootd_storage_backend root://127.0.0.1:${OPORT};
-    xrootd_storage_credential origin;
-    xrootd_cache_store posix:$PFX/b/cache; xrootd_cache_root /;
-    xrootd_cache_slice_size 1m;
+    listen 127.0.0.1:${BPORT}; xrootd on; brix_root $PFX/b/export; brix_auth none;
+    brix_storage_backend root://127.0.0.1:${OPORT};
+    brix_storage_credential origin;
+    brix_cache_store posix:$PFX/b/cache; brix_cache_root /;
+    brix_cache_slice_size 1m;
 } }
 EOF
 # Node N — tier slice cache but NO credential (negative control: anonymous → GSI rejects).
@@ -65,10 +65,10 @@ daemon on; error_log $PFX/n/logs/e.log info; pid $PFX/n/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:${NPORT}; xrootd on; xrootd_root $PFX/n/export; xrootd_auth none;
-    xrootd_storage_backend root://127.0.0.1:${OPORT};
-    xrootd_cache_store posix:$PFX/n/cache; xrootd_cache_root /;
-    xrootd_cache_slice_size 1m;
+    listen 127.0.0.1:${NPORT}; xrootd on; brix_root $PFX/n/export; brix_auth none;
+    brix_storage_backend root://127.0.0.1:${OPORT};
+    brix_cache_store posix:$PFX/n/cache; brix_cache_root /;
+    brix_cache_slice_size 1m;
 } }
 EOF
 

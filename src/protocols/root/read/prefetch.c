@@ -8,11 +8,11 @@
 /* Issue a POSIX_FADV_WILLNEED read-ahead hint for [offset, offset+length) on
  * fd.  Best-effort; a no-op on bad args or if fadvise is unavailable. */
 void
-xrootd_prefetch_fd_range(ngx_log_t *log, int fd, off_t offset, size_t length)
+brix_prefetch_fd_range(ngx_log_t *log, int fd, off_t offset, size_t length)
 {
 #if defined(POSIX_FADV_WILLNEED)
     int rc;
-    if (fd < 0 || offset < 0 || length < XROOTD_READ_PREFETCH_MIN) {
+    if (fd < 0 || offset < 0 || length < BRIX_READ_PREFETCH_MIN) {
         return;
     }
     rc = posix_fadvise(fd, offset, (off_t) length, POSIX_FADV_WILLNEED);
@@ -33,14 +33,14 @@ xrootd_prefetch_fd_range(ngx_log_t *log, int fd, off_t offset, size_t length)
  * handle's read_last_end / read-ahead window and issue a windowed WILLNEED hint
  * ahead of the current read.  No-op for random access. */
 void
-xrootd_prefetch_read_file(ngx_log_t *log, xrootd_file_t *file, off_t offset,
+brix_prefetch_read_file(ngx_log_t *log, brix_file_t *file, off_t offset,
     size_t length, off_t file_size)
 {
     off_t      end, hint_start, hint_end, low_water_end;
     ngx_flag_t sequential;
 
     if (file == NULL || file->fd < 0 || offset < 0
-        || length < XROOTD_READ_PREFETCH_MIN)
+        || length < BRIX_READ_PREFETCH_MIN)
     {
         return;
     }
@@ -63,10 +63,10 @@ xrootd_prefetch_read_file(ngx_log_t *log, xrootd_file_t *file, off_t offset,
     }
 
     if (sequential) {
-        if (end > NGX_MAX_OFF_T_VALUE - XROOTD_READ_PREFETCH_LOW_WATER) {
+        if (end > NGX_MAX_OFF_T_VALUE - BRIX_READ_PREFETCH_LOW_WATER) {
             low_water_end = NGX_MAX_OFF_T_VALUE;
         } else {
-            low_water_end = end + XROOTD_READ_PREFETCH_LOW_WATER;
+            low_water_end = end + BRIX_READ_PREFETCH_LOW_WATER;
         }
 
         if (file->read_ahead_end > low_water_end) {
@@ -77,10 +77,10 @@ xrootd_prefetch_read_file(ngx_log_t *log, xrootd_file_t *file, off_t offset,
         hint_start = (file->read_ahead_end > offset)
                      ? file->read_ahead_end : offset;
 
-        if (end > NGX_MAX_OFF_T_VALUE - XROOTD_READ_PREFETCH_WINDOW) {
+        if (end > NGX_MAX_OFF_T_VALUE - BRIX_READ_PREFETCH_WINDOW) {
             hint_end = NGX_MAX_OFF_T_VALUE;
         } else {
-            hint_end = end + XROOTD_READ_PREFETCH_WINDOW;
+            hint_end = end + BRIX_READ_PREFETCH_WINDOW;
         }
         if (file_size > 0 && hint_end > file_size) {
             hint_end = file_size;
@@ -92,7 +92,7 @@ xrootd_prefetch_read_file(ngx_log_t *log, xrootd_file_t *file, off_t offset,
     }
 
     if (hint_end > hint_start) {
-        xrootd_prefetch_fd_range(log, file->fd, hint_start,
+        brix_prefetch_fd_range(log, file->fd, hint_start,
                                  (size_t) (hint_end - hint_start));
         file->read_ahead_end = hint_end;
     }
@@ -102,18 +102,18 @@ xrootd_prefetch_read_file(ngx_log_t *log, xrootd_file_t *file, off_t offset,
 
 /* Emit the pending coalesced prefetch range as a single WILLNEED hint on fd. */
 void
-xrootd_prefetch_flush(ngx_log_t *log, int fd, off_t range_start,
+brix_prefetch_flush(ngx_log_t *log, int fd, off_t range_start,
     off_t range_end)
 {
     if (fd >= 0 && range_end > range_start) {
-        xrootd_prefetch_fd_range(log, fd, range_start,
+        brix_prefetch_fd_range(log, fd, range_start,
                                  (size_t) (range_end - range_start));
     }
 }
 
 /* Issue read-ahead hints for the segments of a kXR_readv request. */
 void
-xrootd_prefetch_readv_segments(xrootd_ctx_t *ctx, ngx_connection_t *c,
+brix_prefetch_readv_segments(brix_ctx_t *ctx, ngx_connection_t *c,
     readahead_list *segments, size_t segment_count, size_t readv_seg_max)
 {
     int     merged_fd = -1;
@@ -130,7 +130,7 @@ xrootd_prefetch_readv_segments(xrootd_ctx_t *ctx, ngx_connection_t *c,
         off_t    segment_end;
 
         handle_index = (int) (unsigned char) segments[i].fhandle[0];
-        if (handle_index < 0 || handle_index >= XROOTD_MAX_FILES
+        if (handle_index < 0 || handle_index >= BRIX_MAX_FILES
             || ctx->files[handle_index].fd < 0)
         {
             continue;
@@ -165,8 +165,8 @@ xrootd_prefetch_readv_segments(xrootd_ctx_t *ctx, ngx_connection_t *c,
          */
         if (merged_fd == fd
             && segment_start >= merged_start
-            && segment_start <= merged_end + (off_t) XROOTD_READV_PREFETCH_GAP
-            && segment_end - merged_start <= (off_t) XROOTD_READV_PREFETCH_MAX)
+            && segment_start <= merged_end + (off_t) BRIX_READV_PREFETCH_GAP
+            && segment_end - merged_start <= (off_t) BRIX_READV_PREFETCH_MAX)
         {
             if (segment_end > merged_end) {
                 merged_end = segment_end;
@@ -174,11 +174,11 @@ xrootd_prefetch_readv_segments(xrootd_ctx_t *ctx, ngx_connection_t *c,
             continue;
         }
 
-        xrootd_prefetch_flush(c->log, merged_fd, merged_start, merged_end);
+        brix_prefetch_flush(c->log, merged_fd, merged_start, merged_end);
         merged_fd = fd;
         merged_start = segment_start;
         merged_end = segment_end;
     }
 
-    xrootd_prefetch_flush(c->log, merged_fd, merged_start, merged_end);
+    brix_prefetch_flush(c->log, merged_fd, merged_start, merged_end);
 }

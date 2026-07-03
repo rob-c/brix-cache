@@ -6,7 +6,7 @@
  * WHY: All server blocks share a single atomic counters region so workers can increment
  *      counters lock-free via ngx_atomic_t fields. Each listener gets a deterministic slot
  *      number that becomes a stable Prometheus label source (low-cardinality invariant).
- * HOW: Add shared memory zone "xrootd_metrics" sized via xrootd_shm_zone_size() so the table
+ * HOW: Add shared memory zone "brix_metrics" sized via brix_shm_zone_size() so the table
  *      can be slab-allocated without clobbering the slab-pool header; register the shm_init
  *      callback; iterate cmcf->servers to assign slots 0..N to enabled listeners. Returns
  *      NGX_OK or NGX_ERROR on allocation failure.
@@ -20,29 +20,29 @@
  * gets the counter table its /metrics endpoint exports.
  */
 ngx_int_t
-xrootd_metrics_ensure_zone(ngx_conf_t *cf)
+brix_metrics_ensure_zone(ngx_conf_t *cf)
 {
-    ngx_str_t  zone_name = ngx_string("xrootd_metrics");
+    ngx_str_t  zone_name = ngx_string("brix_metrics");
     size_t     zone_size;
 
-    zone_size = xrootd_shm_zone_size(sizeof(ngx_xrootd_metrics_t));
-    ngx_xrootd_shm_zone = ngx_shared_memory_add(cf, &zone_name, zone_size,
-                                                &ngx_stream_xrootd_module);
-    if (ngx_xrootd_shm_zone == NULL) {
+    zone_size = brix_shm_zone_size(sizeof(ngx_brix_metrics_t));
+    ngx_brix_shm_zone = ngx_shared_memory_add(cf, &zone_name, zone_size,
+                                                &ngx_stream_brix_module);
+    if (ngx_brix_shm_zone == NULL) {
         return NGX_ERROR;
     }
-    if (ngx_xrootd_shm_zone->init == NULL) {
-        ngx_xrootd_shm_zone->init = ngx_xrootd_metrics_shm_init;
-        ngx_xrootd_shm_zone->data = (void *) 1;
+    if (ngx_brix_shm_zone->init == NULL) {
+        ngx_brix_shm_zone->init = ngx_brix_metrics_shm_init;
+        ngx_brix_shm_zone->data = (void *) 1;
     }
     return NGX_OK;
 }
 
 ngx_int_t
-xrootd_configure_metrics(ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf)
+brix_configure_metrics(ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf)
 {
     ngx_stream_core_srv_conf_t   **cscfp;
-    ngx_stream_xrootd_srv_conf_t  *xcf;
+    ngx_stream_brix_srv_conf_t  *xcf;
     ngx_uint_t                     i;
     ngx_uint_t                     slot = 0;
 
@@ -54,12 +54,12 @@ xrootd_configure_metrics(ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf)
 
     /*
      * Size the zone so the metrics table can be allocated FROM the slab pool
-     * (xrootd_shm_table_alloc) without overwriting the ngx_slab_pool_t header.
+     * (brix_shm_table_alloc) without overwriting the ngx_slab_pool_t header.
      * Laying the table directly over shm.addr would clobber the slab mutex that
      * nginx's ngx_unlock_mutexes() force-unlocks on every child death, SIGSEGVing
      * the master. The helper accounts for the table bytes plus slab overhead.
      */
-    if (xrootd_metrics_ensure_zone(cf) != NGX_OK) {
+    if (brix_metrics_ensure_zone(cf) != NGX_OK) {
         return NGX_ERROR;
     }
 
@@ -68,8 +68,8 @@ xrootd_configure_metrics(ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf)
     /* Assign deterministic metrics slots to enabled listeners. */
     for (i = 0; i < cmcf->servers.nelts; i++) {
         xcf = ngx_stream_conf_get_module_srv_conf(cscfp[i],
-                                                   ngx_stream_xrootd_module);
-        if (!xcf->common.enable || slot >= XROOTD_METRICS_MAX_SERVERS) {
+                                                   ngx_stream_brix_module);
+        if (!xcf->common.enable || slot >= BRIX_METRICS_MAX_SERVERS) {
             continue;
         }
 
@@ -87,8 +87,8 @@ xrootd_configure_metrics(ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf)
  *      the table MUST live in slab memory — not directly over shm.addr — so the
  *      ngx_slab_pool_t header that nginx's ngx_unlock_mutexes() relies on survives every
  *      child exit (otherwise the master SIGSEGVs whenever any worker dies).
- * HOW: Delegate the fresh-alloc / reload / re-attach lifecycle to xrootd_shm_table_alloc,
- *      which allocates the ngx_xrootd_metrics_t from the slab pool, zeroes it on a brand-new
+ * HOW: Delegate the fresh-alloc / reload / re-attach lifecycle to brix_shm_table_alloc,
+ *      which allocates the ngx_brix_metrics_t from the slab pool, zeroes it on a brand-new
  *      allocation, and publishes it via shm_zone->data. The metrics table is lock-less
  *      (atomic counters only) so NULL is passed for the mutex argument. There are no
  *      fresh-only field inits beyond the zeroing the helper already performs.
@@ -142,9 +142,9 @@ fnv1a64_file(ngx_str_t *path, ngx_log_t *log)
 
 
 void
-xrootd_config_version_publish(ngx_cycle_t *cycle)
+brix_config_version_publish(ngx_cycle_t *cycle)
 {
-    ngx_xrootd_metrics_t  *tbl;
+    ngx_brix_metrics_t  *tbl;
     ngx_atomic_uint_t      gen;
     uint64_t               hash;
 
@@ -153,10 +153,10 @@ xrootd_config_version_publish(ngx_cycle_t *cycle)
      * and nothing to probe.  The zone's ->data is the slab-allocated table once
      * the master has mapped it (before this init_module hook runs).
      */
-    if (ngx_xrootd_shm_zone == NULL || ngx_xrootd_shm_zone->data == NULL) {
+    if (ngx_brix_shm_zone == NULL || ngx_brix_shm_zone->data == NULL) {
         return;
     }
-    tbl = ngx_xrootd_shm_zone->data;
+    tbl = ngx_brix_shm_zone->data;
 
     hash = fnv1a64_file(&cycle->conf_file, cycle->log);
 
@@ -176,13 +176,13 @@ xrootd_config_version_publish(ngx_cycle_t *cycle)
 
 
 ngx_int_t
-ngx_xrootd_metrics_shm_init(ngx_shm_zone_t *shm_zone, void *data)
+ngx_brix_metrics_shm_init(ngx_shm_zone_t *shm_zone, void *data)
 {
     ngx_flag_t             fresh;
-    ngx_xrootd_metrics_t  *tbl;
+    ngx_brix_metrics_t  *tbl;
 
-    tbl = xrootd_shm_table_alloc(shm_zone, data,
-                                 sizeof(ngx_xrootd_metrics_t), NULL, &fresh);
+    tbl = brix_shm_table_alloc(shm_zone, data,
+                                 sizeof(ngx_brix_metrics_t), NULL, &fresh);
     if (tbl == NULL) {
         return NGX_ERROR;
     }

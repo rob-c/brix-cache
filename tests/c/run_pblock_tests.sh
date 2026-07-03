@@ -6,7 +6,7 @@
 #
 # Both build straight from source against libsqlite3 — no nginx, no objs tree,
 # no running server. The driver test is compiled exactly as it builds in the
-# module (XROOTD_HAVE_SQLITE), with the ngx-free shim surface (XRDPROTO_NO_NGX)
+# module (BRIX_HAVE_SQLITE), with the ngx-free shim surface (XRDPROTO_NO_NGX)
 # standing in for the nginx runtime it never touches.
 #
 # Usage:  tests/c/run_pblock_tests.sh
@@ -29,7 +29,7 @@ trap 'rm -f "${CAT_BIN}" "${DRV_BIN}"' EXIT
 
 echo "== building + running sd_pblock_catalog_unittest =="
 # shellcheck disable=SC2086
-"${CC}" -O2 -Wall -Wextra -DXROOTD_HAVE_SQLITE=1 \
+"${CC}" -O2 -Wall -Wextra -DBRIX_HAVE_SQLITE=1 \
     -I"${BACKEND}/pblock" -I"${BACKEND}" -I"${HERE}/../../src" ${SQLITE_CFLAGS} \
     "${BACKEND}/pblock/sd_pblock_catalog_unittest.c" \
     "${BACKEND}/pblock/sd_pblock_catalog.c" \
@@ -38,7 +38,7 @@ echo "== building + running sd_pblock_catalog_unittest =="
 
 echo "== building + running sd_pblock_unittest (vtable + concurrency) =="
 # shellcheck disable=SC2086
-"${CC}" -O2 -Wall -Wextra -DXROOTD_HAVE_SQLITE=1 -DXRDPROTO_NO_NGX \
+"${CC}" -O2 -Wall -Wextra -DBRIX_HAVE_SQLITE=1 -DXRDPROTO_NO_NGX \
     -I"${BACKEND}/pblock" -I"${BACKEND}" -I"${HERE}/../../src" ${SQLITE_CFLAGS} \
     "${BACKEND}/pblock/sd_pblock_unittest.c" \
     "${BACKEND}/pblock/sd_pblock.c" \

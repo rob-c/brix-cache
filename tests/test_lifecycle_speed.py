@@ -15,7 +15,7 @@ What it asserts:
     synchronously (fast boot) and the pool then fills to its target off-thread;
   * the safety fallback: with NO thread pool the full target is warmed
     synchronously (unchanged behaviour);
-  * xrootd_gsi_keypool_size is honoured (pool warms to the configured target).
+  * brix_gsi_keypool_size is honoured (pool warms to the configured target).
 
 These are timing/observability assertions; real GSI handshake correctness is
 covered by test_gsi_handshake.py / test_gsi_concurrency.py against the fleet.
@@ -101,9 +101,9 @@ class Instance:
                      if with_pool else "")
         knobs = ""
         if size is not None:
-            knobs += f"        xrootd_gsi_keypool_size {size};\n"
+            knobs += f"        brix_gsi_keypool_size {size};\n"
         if seed is not None:
-            knobs += f"        xrootd_gsi_keypool_seed {seed};\n"
+            knobs += f"        brix_gsi_keypool_seed {seed};\n"
         with open(self.conf, "w") as fh:
             fh.write(f"""\
 worker_processes {workers};
@@ -116,17 +116,17 @@ stream {{
     server {{
         listen {self.port_anon};
         xrootd on;
-        xrootd_storage_backend posix:{self.prefix}/data;
-        xrootd_auth none;
+        brix_storage_backend posix:{self.prefix}/data;
+        brix_auth none;
     }}
     server {{
         listen {self.port_gsi};
         xrootd on;
-        xrootd_storage_backend posix:{self.prefix}/data;
-        xrootd_auth gsi;
-        xrootd_certificate     {self.prefix}/conf/host.crt;
-        xrootd_certificate_key {self.prefix}/conf/host.key;
-        xrootd_trusted_ca      {self.prefix}/conf/host.crt;
+        brix_storage_backend posix:{self.prefix}/data;
+        brix_auth gsi;
+        brix_certificate     {self.prefix}/conf/host.crt;
+        brix_certificate_key {self.prefix}/conf/host.key;
+        brix_trusted_ca      {self.prefix}/conf/host.crt;
 {knobs}    }}
 }}
 """)
@@ -199,7 +199,7 @@ def test_keypool_synchronous_fallback_without_thread_pool(instance):
 
 
 def test_keypool_size_is_configurable(instance):
-    """xrootd_gsi_keypool_size changes the warm target the pool fills to."""
+    """brix_gsi_keypool_size changes the warm target the pool fills to."""
     inst = instance(keypool_size=16, keypool_seed=2)
     warmed = _wait_for(inst.elog, r"GSI DH key pool warmed to (\d+)/(\d+) keys")
     assert warmed is not None

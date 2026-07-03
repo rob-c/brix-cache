@@ -6,7 +6,7 @@ Two clean-room (libXrdCl-free) POSIX surfaces over the native libxrdc:
 
   * xrootdfs — `xrootdfs root://host[:port]/ /mnt` mounts the remote namespace so
     ls/cat/cp/mkdir/rm work through the kernel VFS (libfuse3, single-threaded).
-  * libxrdposix_preload.so — `LD_PRELOAD=… XROOTD_VMP=/xrd=root://host:port/`
+  * libxrdposix_preload.so — `LD_PRELOAD=… BRIX_VMP=/xrd=root://host:port/`
     diverts the POSIX READ path (open/read/stat/statx) for paths under the prefix
     to XRootD; everything else passes straight through to libc.
 
@@ -340,7 +340,7 @@ def _preload_env(extra=None):
     env = {k: v for k, v in os.environ.items()}
     env.pop("X509_USER_PROXY", None)
     env["LD_PRELOAD"] = PRELOAD
-    env["XROOTD_VMP"] = f"/xrd=root://{SERVER_HOST}:{NGINX_ANON_PORT}/"
+    env["BRIX_VMP"] = f"/xrd=root://{SERVER_HOST}:{NGINX_ANON_PORT}/"
     if extra:
         env.update(extra)
     return env

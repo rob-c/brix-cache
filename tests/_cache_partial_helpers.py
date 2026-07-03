@@ -96,8 +96,8 @@ def make_cache_node(backend, *, tmp, slice_size=None, max_file_size=None,
     Two proven config styles (mirror tests/run_root_slice_fill.sh and
     tests/run_cache_backend_source.sh):
       * backend == 'xroot' -> tier grammar over a root:// origin
-        (xrootd_storage_backend root:// + xrootd_cache_store posix:<dir> +
-        xrootd_cache_slice_size): sparse partial fill via the composed sd_cache
+        (brix_storage_backend root:// + brix_cache_store posix:<dir> +
+        brix_cache_slice_size): sparse partial fill via the composed sd_cache
         (§14: the legacy cache_origin/cache_slice model is retired). The origin
         serves posix or pblock (origin_backend); the cached object + .cinfo land
         under the cache dir; seed_origin writes into the ORIGIN's root.
@@ -116,15 +116,15 @@ def make_cache_node(backend, *, tmp, slice_size=None, max_file_size=None,
         export = os.path.join(base, "export")
         for d in (origin_root, cache_dir, export):
             os.makedirs(d, exist_ok=True)
-        # posix origin uses xrootd_root (the proven run_root_slice_fill.sh config);
+        # posix origin uses brix_root (the proven run_root_slice_fill.sh config);
         # pblock origin uses the pblock backend + write capability (its seed goes
         # in via xrdcp).
         if origin_backend == "pblock":
-            obline = (f"  xrootd_storage_backend pblock://{origin_root}/;"
-                      f" xrootd_auth none;\n"
-                      f"  xrootd_allow_write on; xrootd_upload_resume off;\n")
+            obline = (f"  brix_storage_backend pblock://{origin_root}/;"
+                      f" brix_auth none;\n"
+                      f"  brix_allow_write on; brix_upload_resume off;\n")
         else:
-            obline = f"  xrootd_root {origin_root}; xrootd_auth none;\n"
+            obline = f"  brix_root {origin_root}; brix_auth none;\n"
         origin_conf = (
             f"daemon on; error_log {base}/o/olog.log error; pid {base}/o/o.pid;\n"
             f"events {{ worker_connections 64; }}\n"
@@ -137,15 +137,15 @@ def make_cache_node(backend, *, tmp, slice_size=None, max_file_size=None,
             f"daemon on; error_log {base}/c/clog.log info; pid {base}/c/c.pid;\n"
             f"{tp}events {{ worker_connections 64; }}\n"
             f"stream {{ server {{\n"
-            f"    listen {HOST}:{cache_port}; xrootd on; xrootd_auth none;\n"
-            f"    xrootd_root {export};\n"
-            f"    xrootd_storage_backend root://{HOST}:{backend_port};\n"
-            f"    xrootd_cache_store posix:{cache_dir};\n"
-            f"    xrootd_cache_root /;\n"
-            + _opt(f"    xrootd_cache_slice_size {slice_size};", slice_size)
-            + _opt(f"    xrootd_cache_max_object {max_file_size};", max_file_size)
-            + _opt(f"    xrootd_cache_deny_prefix {deny_prefix};", deny_prefix)
-            + _opt(f"    xrootd_cache_include_regex {include_regex};", include_regex)
+            f"    listen {HOST}:{cache_port}; xrootd on; brix_auth none;\n"
+            f"    brix_root {export};\n"
+            f"    brix_storage_backend root://{HOST}:{backend_port};\n"
+            f"    brix_cache_store posix:{cache_dir};\n"
+            f"    brix_cache_root /;\n"
+            + _opt(f"    brix_cache_slice_size {slice_size};", slice_size)
+            + _opt(f"    brix_cache_max_object {max_file_size};", max_file_size)
+            + _opt(f"    brix_cache_deny_prefix {deny_prefix};", deny_prefix)
+            + _opt(f"    brix_cache_include_regex {include_regex};", include_regex)
             + f"}} }}\n")
         procs["cache"] = _start_nginx(base + "/c", cache_conf, "c")
         _wait_port(cache_port)
@@ -170,14 +170,14 @@ def make_cache_node(backend, *, tmp, slice_size=None, max_file_size=None,
         f"daemon on; error_log {base}/c/clog.log info; pid {base}/c/c.pid;\n"
         f"{tp}events {{ worker_connections 64; }}\n"
         f"stream {{ server {{\n"
-        f"    listen {HOST}:{cache_port}; xrootd on; xrootd_auth none;\n"
-        f"    xrootd_allow_write on; xrootd_upload_resume off;\n"
-        f"    xrootd_storage_backend {drv};\n"
-        f"    xrootd_cache_store posix:{store}; xrootd_cache_root /;\n"
-        + _opt(f"    xrootd_cache_slice_size {slice_size};", slice_size)
-        + _opt(f"    xrootd_cache_max_object {max_object};", max_object)
-        + _opt(f"    xrootd_cache_deny_prefix {deny_prefix};", deny_prefix)
-        + _opt(f"    xrootd_cache_include_regex {include_regex};", include_regex)
+        f"    listen {HOST}:{cache_port}; xrootd on; brix_auth none;\n"
+        f"    brix_allow_write on; brix_upload_resume off;\n"
+        f"    brix_storage_backend {drv};\n"
+        f"    brix_cache_store posix:{store}; brix_cache_root /;\n"
+        + _opt(f"    brix_cache_slice_size {slice_size};", slice_size)
+        + _opt(f"    brix_cache_max_object {max_object};", max_object)
+        + _opt(f"    brix_cache_deny_prefix {deny_prefix};", deny_prefix)
+        + _opt(f"    brix_cache_include_regex {include_regex};", include_regex)
         + f"}} }}\n")
     procs["cache"] = _start_nginx(base + "/c", cache_conf, "c")
     _wait_port(cache_port)

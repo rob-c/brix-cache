@@ -6,7 +6,7 @@
  * exercise stat / open+pread / opendir+readdir / getxattr / listxattr and verify
  * the known seed values — plus that writes are refused (EROFS).
  *
- *   gcc -DXRDPROTO_NO_NGX -DXROOTD_HAVE_CEPH -I src/fs/backend -I src/fs/backend/rados \
+ *   gcc -DXRDPROTO_NO_NGX -DBRIX_HAVE_CEPH -I src/fs/backend -I src/fs/backend/rados \
  *     -include tests/ceph/ngx_shim.h \
  *     tests/ceph/sd_cephfs_ro_live_test.c src/fs/backend/rados/sd_cephfs_ro.c \
  *     src/fs/backend/rados/sd_ceph.c src/fs/backend/rados/cephfs_layout.c \
@@ -34,11 +34,11 @@ static int failures;
 int
 main(void)
 {
-    const xrootd_sd_driver_t  *drv = &xrootd_sd_cephfs_ro_driver;
-    xrootd_sd_instance_t       inst;
-    xrootd_sd_cephfs_ro_conf_t conf;
-    xrootd_sd_stat_t           sb;
-    xrootd_sd_obj_t           *o;
+    const brix_sd_driver_t  *drv = &brix_sd_cephfs_ro_driver;
+    brix_sd_instance_t       inst;
+    brix_sd_cephfs_ro_conf_t conf;
+    brix_sd_stat_t           sb;
+    brix_sd_obj_t           *o;
     int                        err = 0;
 
     memset(&inst, 0, sizeof(inst));
@@ -66,7 +66,7 @@ main(void)
     CHECK(drv->stat(&inst, "/nope", &sb) == NGX_ERROR && errno == ENOENT);
 
     /* read the 5 MiB file end to end and check head/tail + total */
-    o = drv->open(&inst, "/dir1/sub/big.bin", XROOTD_SD_O_READ, 0, &err);
+    o = drv->open(&inst, "/dir1/sub/big.bin", BRIX_SD_O_READ, 0, &err);
     CHECK(o != NULL);
     if (o != NULL) {
         char    *buf = malloc(5u << 20);
@@ -85,7 +85,7 @@ main(void)
     }
 
     /* small file exact contents */
-    o = drv->open(&inst, "/dir1/hello.txt", XROOTD_SD_O_READ, 0, &err);
+    o = drv->open(&inst, "/dir1/hello.txt", BRIX_SD_O_READ, 0, &err);
     CHECK(o != NULL);
     if (o != NULL) {
         char buf[64]; ssize_t n = drv->pread(o, buf, sizeof(buf), 0);
@@ -95,8 +95,8 @@ main(void)
 
     /* directory listing: /dir1 must contain hello.txt, sub, link */
     {
-        xrootd_sd_dir_t   *d = drv->opendir(&inst, "/dir1", &err);
-        xrootd_sd_dirent_t de;
+        brix_sd_dir_t   *d = drv->opendir(&inst, "/dir1", &err);
+        brix_sd_dirent_t de;
         int hello = 0, sub = 0, link = 0;
         CHECK(d != NULL);
         if (d != NULL) {
@@ -112,8 +112,8 @@ main(void)
 
     /* root listing: top.txt + dir1 */
     {
-        xrootd_sd_dir_t   *d = drv->opendir(&inst, "/", &err);
-        xrootd_sd_dirent_t de;
+        brix_sd_dir_t   *d = drv->opendir(&inst, "/", &err);
+        brix_sd_dirent_t de;
         int top = 0, dir1 = 0;
         CHECK(d != NULL);
         if (d != NULL) {
@@ -156,7 +156,7 @@ main(void)
     CHECK((sb.mode & 0170000) == 0120000);    /* S_IFLNK */
 
     /* writes are refused */
-    o = drv->open(&inst, "/dir1/new.bin", XROOTD_SD_O_WRITE | XROOTD_SD_O_CREATE,
+    o = drv->open(&inst, "/dir1/new.bin", BRIX_SD_O_WRITE | BRIX_SD_O_CREATE,
                   0644, &err);
     CHECK(o == NULL && err == EROFS);
     CHECK(drv->pwrite == NULL && drv->mkdir == NULL && drv->unlink == NULL
@@ -166,8 +166,8 @@ main(void)
 
     /* ---- live mode: still-mounted, best-effort with optimistic revalidation -- */
     {
-        xrootd_sd_instance_t       live;
-        xrootd_sd_cephfs_ro_conf_t lconf = conf;
+        brix_sd_instance_t       live;
+        brix_sd_cephfs_ro_conf_t lconf = conf;
 
         memset(&live, 0, sizeof(live));
         live.driver = drv;
@@ -178,7 +178,7 @@ main(void)
         /* on a stable fs, revalidation passes and reads return the same data */
         CHECK(drv->stat(&live, "/dir1/sub/big.bin", &sb) == NGX_OK
               && sb.size == 5u * 1024u * 1024u);
-        o = drv->open(&live, "/dir1/sub/big.bin", XROOTD_SD_O_READ, 0, &err);
+        o = drv->open(&live, "/dir1/sub/big.bin", BRIX_SD_O_READ, 0, &err);
         CHECK(o != NULL);
         if (o != NULL) {
             char buf[16];
@@ -188,8 +188,8 @@ main(void)
             drv->close(o);
         }
         {
-            xrootd_sd_dir_t   *d = drv->opendir(&live, "/dir1", &err);
-            xrootd_sd_dirent_t de;
+            brix_sd_dir_t   *d = drv->opendir(&live, "/dir1", &err);
+            brix_sd_dirent_t de;
             int hello = 0, sub = 0, link = 0;
             CHECK(d != NULL);
             if (d != NULL) {

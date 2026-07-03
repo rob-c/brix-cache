@@ -41,7 +41,7 @@
  *   out_sz — size of out buffer
  */
 ngx_int_t
-xrootd_make_tmp_path(const char *base_path, char *out, size_t out_sz)
+brix_make_tmp_path(const char *base_path, char *out, size_t out_sz)
 {
     int n;
 
@@ -61,7 +61,7 @@ xrootd_make_tmp_path(const char *base_path, char *out, size_t out_sz)
  * WHY:  Upload resume across an nginx restart needs a reconnecting client's
  *       re-open of the same final path (by the same identity) to land on the
  *       SAME staging file so the already-written bytes survive and the transfer
- *       continues from its offset.  A random per-open temp (xrootd_make_tmp_path)
+ *       continues from its offset.  A random per-open temp (brix_make_tmp_path)
  *       cannot satisfy that — the second open would never find the first temp.
  *       Hashing the principal into the name also isolates users: a different
  *       identity derives a different staging file and can never reclaim another's
@@ -85,7 +85,7 @@ xrootd_make_tmp_path(const char *base_path, char *out, size_t out_sz)
  * Returns NGX_OK, or NGX_ERROR on hash failure or truncation.
  */
 ngx_int_t
-xrootd_make_resume_path(const char *base_path, const char *principal,
+brix_make_resume_path(const char *base_path, const char *principal,
                         const char *stage_dir, char *out, size_t out_sz)
 {
     uint8_t  digest[32];
@@ -105,12 +105,12 @@ xrootd_make_resume_path(const char *base_path, const char *principal,
     concat[clen++] = '\0';
     ngx_memcpy(concat + clen, base_path, blen); clen += blen;
 
-    /* xrootd_sha256 follows the OpenSSL convention: 1 = success, 0 = failure. */
-    if (xrootd_sha256(concat, clen, digest) != 1) {
+    /* brix_sha256 follows the OpenSSL convention: 1 = success, 0 = failure. */
+    if (brix_sha256(concat, clen, digest) != 1) {
         return NGX_ERROR;
     }
 
-    xrootd_hex_encode(digest, 16, hexbuf);   /* 16 bytes -> 32 hex chars + NUL */
+    brix_hex_encode(digest, 16, hexbuf);   /* 16 bytes -> 32 hex chars + NUL */
 
     if (stage_dir != NULL && stage_dir[0] != '\0') {
         /* Stage on the configured fast device.  The basename is the
@@ -138,13 +138,13 @@ xrootd_make_resume_path(const char *base_path, const char *principal,
  * still alive is an IN-FLIGHT write of a draining worker (a reload) and is KEPT;
  * only dead-owner (or malformed) temps are removed - safe under reload. */
 
-#define XROOTD_TMP_REAP_MAX  64
-static char       s_tmp_reap_roots[XROOTD_TMP_REAP_MAX][PATH_MAX];
+#define BRIX_TMP_REAP_MAX  64
+static char       s_tmp_reap_roots[BRIX_TMP_REAP_MAX][PATH_MAX];
 static ngx_uint_t s_tmp_reap_count;
 static ngx_uint_t s_tmp_reaped;   /* nftw has no ctx; worker-0 startup is single-threaded */
 
 void
-xrootd_tmp_reap_register(const char *export_root)
+brix_tmp_reap_register(const char *export_root)
 {
     ngx_uint_t i;
 
@@ -153,7 +153,7 @@ xrootd_tmp_reap_register(const char *export_root)
     {
         return;
     }
-    /* Never reap "/" — a cache node anchored at the root namespace (no xrootd_root)
+    /* Never reap "/" — a cache node anchored at the root namespace (no brix_root)
      * yields root_canon "/", but nftw-walking the whole host filesystem (and
      * unlinking matching temps anywhere) is catastrophic. A pure cache node has no
      * local export-tree temps to reap (its in-flight writes live in the store
@@ -166,7 +166,7 @@ xrootd_tmp_reap_register(const char *export_root)
             return;                             /* dedup across server blocks */
         }
     }
-    if (s_tmp_reap_count >= XROOTD_TMP_REAP_MAX) {
+    if (s_tmp_reap_count >= BRIX_TMP_REAP_MAX) {
         return;
     }
     memcpy(s_tmp_reap_roots[s_tmp_reap_count], export_root,
@@ -176,7 +176,7 @@ xrootd_tmp_reap_register(const char *export_root)
 
 /* nftw visitor: unlink a "*.xrd-tmp.<pid>.*" file whose owner pid is dead. */
 static int
-xrootd_tmp_reap_cb(const char *fpath, const struct stat *sb, int typeflag,
+brix_tmp_reap_cb(const char *fpath, const struct stat *sb, int typeflag,
     struct FTW *ftwbuf)
 {
     const char *base;
@@ -210,13 +210,13 @@ xrootd_tmp_reap_cb(const char *fpath, const struct stat *sb, int typeflag,
 }
 
 ngx_uint_t
-xrootd_tmp_reap_all(ngx_log_t *log)
+brix_tmp_reap_all(ngx_log_t *log)
 {
     ngx_uint_t i;
 
     s_tmp_reaped = 0;
     for (i = 0; i < s_tmp_reap_count; i++) {
-        (void) nftw(s_tmp_reap_roots[i], xrootd_tmp_reap_cb, 16, FTW_PHYS);
+        (void) nftw(s_tmp_reap_roots[i], brix_tmp_reap_cb, 16, FTW_PHYS);
     }
     if (s_tmp_reaped > 0 && log != NULL) {
         ngx_log_error(NGX_LOG_NOTICE, log, 0,

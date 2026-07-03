@@ -4,25 +4,25 @@
 
 #include "statx.h"
 #include "stat.h"
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 #include "fs/path/beneath.h"
 #include "core/compat/alloc_guard.h"
 
 #include <stdlib.h>   /* realpath */
 
-#define XROOTD_STATX_MAX_PATHS  256
+#define BRIX_STATX_MAX_PATHS  256
 /* kXR_statx returns exactly ONE flag byte per requested path — a packed byte
  * array, no separators, no NUL (reference XrdXrootdXeq.cc:3194-3203):
  * kXR_file(0) / kXR_isDir(2) / kXR_other(4) / kXR_offline(8). An inaccessible or
  * missing path yields kXR_offline. (We previously emitted a full "id size flags
  * mtime" text line per path — a kXR_stat body — which no standard statx parser
  * could read.) */
-#define XROOTD_STATX_BUF_MAX    XROOTD_STATX_MAX_PATHS
+#define BRIX_STATX_BUF_MAX    BRIX_STATX_MAX_PATHS
 
 /* Advance *cursor over one NUL-terminated path in the kXR_statx payload,
  * returning the path (NULL at end).  Bounds-checked against end. */
 static ngx_flag_t
-xrootd_statx_next_path(const u_char **cursor, const u_char *end,
+brix_statx_next_path(const u_char **cursor, const u_char *end,
     char *path, size_t path_size)
 {
     const u_char *path_start;
@@ -55,31 +55,31 @@ xrootd_statx_next_path(const u_char **cursor, const u_char *end,
 /* Handle kXR_statx — stat each NUL-separated path in the request and return one
  * inline stat line (or flag byte) per path. */
 ngx_int_t
-xrootd_handle_statx(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf)
+brix_handle_statx(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf)
 {
     const u_char *cursor, *end;
     u_char       *rsp_buf, *rsp_ptr;
     u_char       *rsp_end;
-    char          reqpath_buf[XROOTD_MAX_PATH + 1];
+    char          reqpath_buf[BRIX_MAX_PATH + 1];
     char          full_path[PATH_MAX];
     struct stat   st;
     int           n_paths = 0;
 
     if (ctx->cur_dlen == 0 || ctx->payload == NULL) {
-        XROOTD_OP_ERR(ctx, XROOTD_OP_STATX);
-        return xrootd_send_error(ctx, c, kXR_ArgMissing, "no paths given");
+        BRIX_OP_ERR(ctx, BRIX_OP_STATX);
+        return brix_send_error(ctx, c, kXR_ArgMissing, "no paths given");
     }
 
-    XROOTD_PALLOC_OR_RETURN(rsp_buf, c->pool, XROOTD_STATX_BUF_MAX, NGX_ERROR);
+    BRIX_PALLOC_OR_RETURN(rsp_buf, c->pool, BRIX_STATX_BUF_MAX, NGX_ERROR);
 
     rsp_ptr = rsp_buf;
-    rsp_end = rsp_buf + XROOTD_STATX_BUF_MAX;
+    rsp_end = rsp_buf + BRIX_STATX_BUF_MAX;
     cursor  = ctx->payload;
     end     = ctx->payload + ctx->cur_dlen;
 
-    while (cursor < end && n_paths < XROOTD_STATX_MAX_PATHS) {
-        if (!xrootd_statx_next_path(&cursor, end, reqpath_buf,
+    while (cursor < end && n_paths < BRIX_STATX_MAX_PATHS) {
+        if (!brix_statx_next_path(&cursor, end, reqpath_buf,
                                     sizeof(reqpath_buf)))
         {
             continue;
@@ -88,7 +88,7 @@ xrootd_handle_statx(xrootd_ctx_t *ctx, ngx_connection_t *c,
         n_paths++;
 
         /* Resolve and stat the path. */
-        xrootd_beneath_full_path(conf->common.root_canon, reqpath_buf,
+        brix_beneath_full_path(conf->common.root_canon, reqpath_buf,
                                  full_path, sizeof(full_path));
         /*
          * W4 — apply the SAME authorization gate STAT uses (authdb + VO ACL +
@@ -108,15 +108,15 @@ xrootd_handle_statx(xrootd_ctx_t *ctx, ngx_connection_t *c,
          * (a tape-staged file), handled via the FRM probe below. A missing or
          * authz-denied path therefore terminates the batch with a kXR_error,
          * matching XrdXrootdXeq.cc:do_Statx and every standard statx parser. */
-        if (xrootd_check_authdb(ctx, full_path, XROOTD_AUTH_LOOKUP) != NGX_OK
-            || xrootd_check_vo_acl_identity(c->log, full_path, conf->vo_rules,
+        if (brix_check_authdb(ctx, full_path, BRIX_AUTH_LOOKUP) != NGX_OK
+            || brix_check_vo_acl_identity(c->log, full_path, conf->vo_rules,
                                             ctx->identity) != NGX_OK
-            || xrootd_check_token_scope(ctx, reqpath_buf, 0) != NGX_OK)
+            || brix_check_token_scope(ctx, reqpath_buf, 0) != NGX_OK)
         {
-            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_STATX, "STATX", reqpath_buf,
+            BRIX_RETURN_ERR(ctx, c, BRIX_OP_STATX, "STATX", reqpath_buf,
                               "-", kXR_NotAuthorized, "permission denied");
         }
-        if (xrootd_stat_beneath(conf->rootfd, reqpath_buf, &st) != 0) {
+        if (brix_stat_beneath(conf->rootfd, reqpath_buf, &st) != 0) {
             /* Follow fallback for an in-export symlink with a host-ABSOLUTE
              * target (RESOLVE_IN_ROOT chroots it to ENOENT; stock follows on the
              * real fs).  Match stock, confined via realpath within the export. */
@@ -130,23 +130,23 @@ xrootd_handle_statx(xrootd_ctx_t *ctx, ngx_connection_t *c,
                 {
                     /* Canonical target confirmed within the export root; read
                      * its metadata through the VFS (chain already resolved). */
-                    xrootd_vfs_ctx_t  rvctx;
-                    xrootd_vfs_stat_t rvst;
+                    brix_vfs_ctx_t  rvctx;
+                    brix_vfs_stat_t rvst;
 
-                    xrootd_vfs_ctx_init(&rvctx, c->pool, c->log,
-                        XROOTD_PROTO_ROOT, conf->common.root_canon, NULL,
+                    brix_vfs_ctx_init(&rvctx, c->pool, c->log,
+                        BRIX_PROTO_ROOT, conf->common.root_canon, NULL,
                         conf->common.allow_write, 0 /* is_tls */, NULL, real);
-                    if (xrootd_vfs_probe(&rvctx, 0 /* follow */, &rvst)
+                    if (brix_vfs_probe(&rvctx, 0 /* follow */, &rvst)
                         == NGX_OK)
                     {
-                        xrootd_vfs_to_struct_stat(&rvst, &st);
+                        brix_vfs_to_struct_stat(&rvst, &st);
                         ok = 1;
                     }
                 }
             }
             if (!ok) {
-                XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_STATX, "STATX", reqpath_buf,
-                                  "-", xrootd_kxr_from_errno(errno),
+                BRIX_RETURN_ERR(ctx, c, BRIX_OP_STATX, "STATX", reqpath_buf,
+                                  "-", brix_kxr_from_errno(errno),
                                   strerror(errno));
             }
         }
@@ -165,15 +165,15 @@ xrootd_handle_statx(xrootd_ctx_t *ctx, ngx_connection_t *c,
                 flag = (u_char) kXR_file;          /* 0 — incl. non-regular */
             }
             {
-                xrootd_vfs_ctx_t      _rvc;
-                xrootd_sd_residency_t _res;
+                brix_vfs_ctx_t      _rvc;
+                brix_sd_residency_t _res;
 
-                xrootd_vfs_ctx_init(&_rvc, c->pool, c->log, XROOTD_PROTO_ROOT,
+                brix_vfs_ctx_init(&_rvc, c->pool, c->log, BRIX_PROTO_ROOT,
                     conf->common.root_canon, NULL, conf->common.allow_write,
                     0 /* is_tls */, NULL, full_path);
-                if (xrootd_vfs_residency(&_rvc, &_res, NULL) == NGX_OK
-                    && (_res == XROOTD_SD_RES_NEARLINE
-                        || _res == XROOTD_SD_RES_OFFLINE))
+                if (brix_vfs_residency(&_rvc, &_res, NULL) == NGX_OK
+                    && (_res == BRIX_SD_RES_NEARLINE
+                        || _res == BRIX_SD_RES_OFFLINE))
                 {
                     flag |= (u_char) kXR_offline;
                 }
@@ -186,10 +186,10 @@ xrootd_handle_statx(xrootd_ctx_t *ctx, ngx_connection_t *c,
         char detail[32];
 
         snprintf(detail, sizeof(detail), "%d_paths", n_paths);
-        xrootd_log_access(ctx, c, "STATX", "-", detail, 1, 0, NULL, 0);
+        brix_log_access(ctx, c, "STATX", "-", detail, 1, 0, NULL, 0);
     }
-    XROOTD_OP_OK(ctx, XROOTD_OP_STATX);
+    BRIX_OP_OK(ctx, BRIX_OP_STATX);
 
-    return xrootd_send_ok(ctx, c, rsp_buf,
+    return brix_send_ok(ctx, c, rsp_buf,
                           (uint32_t)((size_t)(rsp_ptr - rsp_buf)));
 }

@@ -1,7 +1,7 @@
 /*
  * vfs_read.c — the shared full-read primitive.
  *
- * WHAT: Implements xrootd_vfs_pread_full(), the EINTR-safe, short-read-tolerant
+ * WHAT: Implements brix_vfs_pread_full(), the EINTR-safe, short-read-tolerant
  *       pread loop used throughout the VFS (the I/O core in vfs_io_core.c and the
  *       per-buffer write copier, plus the AIO offload bodies).
  *
@@ -9,7 +9,7 @@
  *       every data byte has to traverse the Storage Driver seam rather than a raw
  *       syscall. Concentrating the loop here guarantees both, once.
  *
- * HOW:  xrootd_vfs_pread_full() wraps the fd in a POSIX storage-driver object and
+ * HOW:  brix_vfs_pread_full() wraps the fd in a POSIX storage-driver object and
  *       drives driver.pread() in a loop until len bytes are read or EOF, retrying
  *       on EINTR and reporting the byte count in *nread even on error.
  */
@@ -26,12 +26,12 @@
  * fd-keyed signature so the server's callers (vfs_io_core, AIO bodies) are
  * unchanged. */
 ngx_int_t
-xrootd_vfs_pread_full(ngx_fd_t fd, u_char *buf, size_t len,
+brix_vfs_pread_full(ngx_fd_t fd, u_char *buf, size_t len,
     off_t offset, size_t *nread)
 {
-    xrootd_sd_obj_t obj;
+    brix_sd_obj_t obj;
 
-    xrootd_sd_posix_wrap(&obj, fd);
+    brix_sd_posix_wrap(&obj, fd);
     return (xvfs_pread_full(&obj, buf, len, offset, nread) == 0)
            ? NGX_OK : NGX_ERROR;
 }

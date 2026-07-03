@@ -1,5 +1,5 @@
-#ifndef XROOTD_SD_XROOT_H
-#define XROOTD_SD_XROOT_H
+#ifndef BRIX_SD_XROOT_H
+#define BRIX_SD_XROOT_H
 
 /*
  * sd_xroot.h — remote root:// origin storage driver (read + write data path).
@@ -26,7 +26,7 @@
  *       pread issues a kXR_read range into a memory sink. AUTH: anonymous login
  *       (the wire client's native mode). Authenticated root:// origins (bearer
  *       token / GSI X.509 proxy) are filled by the cache's native-client
- *       delegation (xrootd_cache_origin_proxy / _token), not this in-process
+ *       delegation (brix_cache_origin_proxy / _token), not this in-process
  *       driver — a full in-process root:// token/GSI client is a follow-on (that
  *       auth logic lives in libxrdc, which src/ cannot link). Blocking; runs only
  *       on the cache-fill worker thread. Instance/objects are malloc-owned.
@@ -37,13 +37,13 @@
  */
 
 #include "fs/backend/sd.h"
-#include "core/compat/af_policy.h"   /* XROOTD_AF_* for create_origin af_policy */
+#include "core/compat/af_policy.h"   /* BRIX_AF_* for create_origin af_policy */
 
-/* Build a remote root:// instance bound to `conf` (an ngx_stream_xrootd_srv_conf_t*,
+/* Build a remote root:// instance bound to `conf` (an ngx_stream_brix_srv_conf_t*,
  * read for cache_origin_host/port/tls/ssl_ctx). Returns a malloc-owned instance
  * whose ->driver is the remote root:// driver, or NULL (errno set). Destroy
- * with xrootd_sd_xroot_destroy. Worker-thread safe (no nginx pool). */
-xrootd_sd_instance_t *xrootd_sd_xroot_create(void *conf, ngx_log_t *log);
+ * with brix_sd_xroot_destroy. Worker-thread safe (no nginx pool). */
+brix_sd_instance_t *brix_sd_xroot_create(void *conf, ngx_log_t *log);
 
 /* Build a remote root:// instance from EXPLICIT origin params (host/port/tls),
  * synthesizing the minimal conf the wire client needs. Used to make a remote
@@ -53,16 +53,16 @@ xrootd_sd_instance_t *xrootd_sd_xroot_create(void *conf, ngx_log_t *log);
  * in-process XrdSecgsi handshake, when the origin demands authentication — the §14
  * credential's token / X.509 proxy. `ca_dir` (a CA file or hashed dir, NULL/"" =
  * none) builds the store that VERIFIES the origin's server cert during the GSI
- * handshake (MITM protection). `af_policy` (xrootd_af_policy_t) constrains the
- * origin connect's address family — XROOTD_AF_AUTO tries all, _INET / _INET6 force
+ * handshake (MITM protection). `af_policy` (brix_af_policy_t) constrains the
+ * origin connect's address family — BRIX_AF_AUTO tries all, _INET / _INET6 force
  * IPv4 / IPv6 only. Returns a malloc-owned instance, or NULL (errno set).
- * Destroy with xrootd_sd_xroot_destroy. */
-xrootd_sd_instance_t *xrootd_sd_xroot_create_origin(const char *host, int port,
+ * Destroy with brix_sd_xroot_destroy. */
+brix_sd_instance_t *brix_sd_xroot_create_origin(const char *host, int port,
     int tls, int af_policy, const char *bearer, const char *x509_proxy,
     const char *ca_dir, const char *sss_keytab, ngx_log_t *log);
 
-/* Free a root:// instance built by xrootd_sd_xroot_create. NULL-safe. */
-void xrootd_sd_xroot_destroy(xrootd_sd_instance_t *inst);
+/* Free a root:// instance built by brix_sd_xroot_create. NULL-safe. */
+void brix_sd_xroot_destroy(brix_sd_instance_t *inst);
 
 /* Query the origin's content checksum (kXR_Qcksum) for an OPEN object, so the
  * cache's commit-then-verify path can compare the filled bytes against the
@@ -70,7 +70,7 @@ void xrootd_sd_xroot_destroy(xrootd_sd_instance_t *inst);
  * runs through this driver). Writes alg/hex (empty when the origin advertises
  * none). Best-effort: a failure leaves them empty. The object must be one
  * returned by this driver's ->open. */
-void xrootd_sd_xroot_query_checksum(xrootd_sd_obj_t *obj,
+void brix_sd_xroot_query_checksum(brix_sd_obj_t *obj,
     char *alg, size_t algsz, char *hex, size_t hexsz);
 
-#endif /* XROOTD_SD_XROOT_H */
+#endif /* BRIX_SD_XROOT_H */

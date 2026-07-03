@@ -1,9 +1,9 @@
 """
 Prometheus metrics tests for the WebDAV protocol layer.
 
-Covers xrootd_webdav_requests_total, xrootd_webdav_responses_total,
-xrootd_webdav_bytes_rx/tx_total, per-IP-version byte counters,
-xrootd_webdav_auth_total, xrootd_webdav_tpc_total, and PROPFIND depth counters.
+Covers brix_webdav_requests_total, brix_webdav_responses_total,
+brix_webdav_bytes_rx/tx_total, per-IP-version byte counters,
+brix_webdav_auth_total, brix_webdav_tpc_total, and PROPFIND depth counters.
 
 All requests target the plain HTTP WebDAV port (8080) to avoid TLS overhead.
 The per-IP counters use 127.0.0.1 explicitly to force IPv4 loopback.
@@ -132,11 +132,11 @@ class TestWebDAVRequestCounters:
         yield
 
     def _req_delta(self, method: str) -> int:
-        return _delta(self.before, _fetch(), "xrootd_webdav_requests_total",
+        return _delta(self.before, _fetch(), "brix_webdav_requests_total",
                       {"method": method})
 
     def _resp_delta(self, method: str, status: str) -> int:
-        return _delta(self.before, _fetch(), "xrootd_webdav_responses_total",
+        return _delta(self.before, _fetch(), "brix_webdav_responses_total",
                       {"method": method, "status_class": status})
 
     def test_get_increments_requests_and_responses(self):
@@ -168,7 +168,7 @@ class TestWebDAVRequestCounters:
             local = f.name
         r = _curl("-T", local, _webdav_url(path))
         assert r.returncode == 0
-        delta = _delta(self.before, _fetch(), "xrootd_webdav_bytes_rx_total")
+        delta = _delta(self.before, _fetch(), "brix_webdav_bytes_rx_total")
         assert delta >= len(payload), f"bytes_rx_total delta {delta} < payload {len(payload)}"
 
     def test_propfind_increments_requests_and_bytes_tx(self):
@@ -178,17 +178,17 @@ class TestWebDAVRequestCounters:
                   _webdav_url("/"))
         assert r.returncode == 0
         after = _fetch()
-        assert _delta(before, after, "xrootd_webdav_requests_total",
+        assert _delta(before, after, "brix_webdav_requests_total",
                       {"method": "PROPFIND"}) >= 1
-        assert _delta(before, after, "xrootd_webdav_bytes_tx_total") >= 1
+        assert _delta(before, after, "brix_webdav_bytes_tx_total") >= 1
 
     def test_propfind_bytes_tx_ipv4_also_increments(self):
         before = _fetch()
         r = _curl("-X", "PROPFIND", "-H", "Depth: 0", _webdav_url("/"))
         assert r.returncode == 0
         after = _fetch()
-        delta = _delta(before, after, "xrootd_webdav_bytes_tx_ipv4_total")
-        assert delta >= 1, "xrootd_webdav_bytes_tx_ipv4_total did not increment on PROPFIND"
+        delta = _delta(before, after, "brix_webdav_bytes_tx_ipv4_total")
+        assert delta >= 1, "brix_webdav_bytes_tx_ipv4_total did not increment on PROPFIND"
 
     def test_delete_increments_requests(self):
         path = _uid_path("del_ctr")
@@ -212,7 +212,7 @@ class TestWebDAVRequestCounters:
         before = _fetch()
         _curl(_webdav_url(path))
         after = _fetch()
-        assert _delta(before, after, "xrootd_webdav_responses_total",
+        assert _delta(before, after, "brix_webdav_responses_total",
                       {"method": "GET", "status_class": "4xx"}) >= 1
 
 
@@ -232,8 +232,8 @@ class TestWebDAVAuthCounters:
         _curl(_webdav_url(path))
         after = _fetch()
         # The HTTP WebDAV may serve as anonymous or anonymous_fallback depending on config.
-        none_delta = _delta(before, after, "xrootd_webdav_auth_total", {"result": "none"})
-        anon_delta = _delta(before, after, "xrootd_webdav_auth_total", {"result": "anonymous_fallback"})
+        none_delta = _delta(before, after, "brix_webdav_auth_total", {"result": "none"})
+        anon_delta = _delta(before, after, "brix_webdav_auth_total", {"result": "anonymous_fallback"})
         assert none_delta + anon_delta >= 1, "No anonymous auth counter incremented"
 
     def test_token_ok_increments_auth_total(self):
@@ -245,8 +245,8 @@ class TestWebDAVAuthCounters:
         _curl("-H", f"Authorization: Bearer {_TOKEN_RW}",
               "-T", local, _webdav_url(path))
         after = _fetch()
-        delta = _delta(before, after, "xrootd_webdav_auth_total", {"result": "token_ok"})
-        assert delta >= 1, "xrootd_webdav_auth_total{result='token_ok'} did not increment"
+        delta = _delta(before, after, "brix_webdav_auth_total", {"result": "token_ok"})
+        assert delta >= 1, "brix_webdav_auth_total{result='token_ok'} did not increment"
 
 
 # ---------------------------------------------------------------------------
@@ -270,7 +270,7 @@ class TestWebDAVMultipartMetrics:
         after = _fetch()
 
         # 2 × 1024 bytes data + multipart boundary/headers overhead ≈ 2 KiB+ total.
-        delta = _delta(before, after, "xrootd_webdav_bytes_tx_ipv4_total")
+        delta = _delta(before, after, "brix_webdav_bytes_tx_ipv4_total")
         assert delta >= 2048, f"Multipart bytes_tx_ipv4 delta {delta} < 2048"
         assert delta != 2, "bytes_tx_ipv4 counted ranges (2), not bytes (bug regression)"
 
@@ -315,7 +315,7 @@ class TestWebDAVTpcCounters:
         )
         after = _fetch()
         # Either the server rejects it (4xx), or the bad_request counter increments.
-        delta = _delta(before, after, "xrootd_webdav_tpc_total", {"event": "bad_request"})
+        delta = _delta(before, after, "brix_webdav_tpc_total", {"event": "bad_request"})
         # Accept a non-zero return code OR a counter increment as evidence the path was hit.
         assert r.returncode != 0 or delta >= 1, (
             "COPY without Source: header was accepted — expected rejection or bad_request counter"
@@ -335,7 +335,7 @@ class TestWebDAVTpcCounters:
             capture_output=True, text=True, timeout=30,
         )
         after = _fetch()
-        delta = _delta(before, after, "xrootd_webdav_tpc_total", {"event": "pull_started"})
+        delta = _delta(before, after, "brix_webdav_tpc_total", {"event": "pull_started"})
         assert delta >= 1, (
             f"tpc_total{{event='pull_started'}} did not increment. "
             f"curl rc={r.returncode} stdout={r.stdout!r} stderr={r.stderr!r}"

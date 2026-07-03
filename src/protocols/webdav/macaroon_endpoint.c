@@ -16,7 +16,7 @@
  *        2. Reads and URL-decodes the request body (application/x-www-form-urlencoded).
  *        3. Parses grant_type / scope / expire_in fields.
  *        4. Maps WLCG storage.* scope items to activity + path caveats.
- *        5. Calls xrootd_macaroon_issue() to build the signed token.
+ *        5. Calls brix_macaroon_issue() to build the signed token.
  *        6. Returns JSON {token, expires_in, token_type} per XrdMacaroons convention.
  */
 
@@ -270,8 +270,8 @@ webdav_handle_macaroon_discovery(ngx_http_request_t *r)
 void
 webdav_handle_macaroon_token(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_webdav_loc_conf_t  *conf;
-    ngx_http_xrootd_webdav_req_ctx_t   *ctx;
+    ngx_http_brix_webdav_loc_conf_t  *conf;
+    ngx_http_brix_webdav_req_ctx_t   *ctx;
     u_char                             *body     = NULL;
     size_t                              body_len = 0;
     char                                grant_type[64];
@@ -283,15 +283,15 @@ webdav_handle_macaroon_token(ngx_http_request_t *r)
     ssize_t                             key_len;
     char                                identifier[96];
     char                                location[256];
-    char                                token_out[XROOTD_MACAROON_ISSUE_OUT_MAX];
-    char                                json[XROOTD_MACAROON_ISSUE_OUT_MAX + 128];
+    char                                token_out[BRIX_MACAROON_ISSUE_OUT_MAX];
+    char                                json[BRIX_MACAROON_ISSUE_OUT_MAX + 128];
     long                                expire_in;
     time_t                              expiry;
     ngx_int_t                           rc;
     int                                 n;
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
-    ctx  = ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
+    ctx  = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
 
 #define J_NOT_CONFIGURED   "{\"error\":\"not_configured\"}"
 #define J_UNAUTHORIZED     "{\"error\":\"unauthorized\"}"
@@ -317,7 +317,7 @@ webdav_handle_macaroon_token(ngx_http_request_t *r)
     }
 
     /* Read body into a contiguous buffer (form POST bodies are small) */
-    if (xrootd_http_body_read_all(r, 65536, &body, &body_len) != NGX_OK
+    if (brix_http_body_read_all(r, 65536, &body, &body_len) != NGX_OK
         || body == NULL || body_len == 0)
     {
         rc = send_json(r, NGX_HTTP_BAD_REQUEST,
@@ -369,7 +369,7 @@ webdav_handle_macaroon_token(ngx_http_request_t *r)
     }
 
     /* Parse hex secret into binary key material */
-    key_len = xrootd_macaroon_secret_parse(
+    key_len = brix_macaroon_secret_parse(
         (const char *) conf->token_macaroon_secret.data,
         conf->token_macaroon_secret.len,
         root_key, sizeof(root_key));
@@ -408,7 +408,7 @@ webdav_handle_macaroon_token(ngx_http_request_t *r)
 
     /*
      * Build the macaroon "location".  When an issuer is configured
-     * (xrootd_webdav_token_issuer), stamp THAT as the location: validation pins a
+     * (brix_webdav_token_issuer), stamp THAT as the location: validation pins a
      * macaroon's location to the configured issuer (issuer-pinning, fail-closed —
      * src/token/validate.c), so a Host-derived location would make our own issued
      * macaroon fail re-validation on this very server.  Fall back to the Host
@@ -437,13 +437,13 @@ webdav_handle_macaroon_token(ngx_http_request_t *r)
     expiry = (time_t) ngx_time() + (time_t) expire_in;
 
     /* Issue the signed token */
-    if (xrootd_macaroon_issue(r->connection->log,
+    if (brix_macaroon_issue(r->connection->log,
                               root_key, (size_t) key_len,
                               location, identifier,
                               activities, path, expiry,
                               token_out, sizeof(token_out)) != NGX_OK)
     {
-        XROOTD_DIAG_ERR(r->connection->log, 0,
+        BRIX_DIAG_ERR(r->connection->log, 0,
             "macaroon_endpoint: could not issue the requested macaroon",
             "the macaroon signing key is missing or invalid, so tokens "
             "cannot be minted",
@@ -571,8 +571,8 @@ mac_caveats_scan(const char *body, size_t len, char *act, size_t actsz,
 void
 webdav_handle_macaroon_request(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *conf;
-    ngx_http_xrootd_webdav_req_ctx_t  *ctx;
+    ngx_http_brix_webdav_loc_conf_t *conf;
+    ngx_http_brix_webdav_req_ctx_t  *ctx;
     u_char     *body = NULL;
     size_t      body_len = 0;
     u_char      root_key[64];
@@ -581,15 +581,15 @@ webdav_handle_macaroon_request(ngx_http_request_t *r)
     char        cav_path[1024];
     char        location[256];
     char        identifier[96];
-    char        token_out[XROOTD_MACAROON_ISSUE_OUT_MAX];
-    char        json[XROOTD_MACAROON_ISSUE_OUT_MAX + 768];
+    char        token_out[BRIX_MACAROON_ISSUE_OUT_MAX];
+    char        json[BRIX_MACAROON_ISSUE_OUT_MAX + 768];
     time_t      validity = 0, exp;
     ngx_int_t   rc;
     int         n;
     const char *scheme;
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
-    ctx  = ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
+    ctx  = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
 
     if (conf->token_macaroon_secret.len == 0) {
         rc = send_json(r, NGX_HTTP_NOT_FOUND,
@@ -603,7 +603,7 @@ webdav_handle_macaroon_request(ngx_http_request_t *r)
         webdav_metrics_finalize_request(r, rc);
         return;
     }
-    if (xrootd_http_body_read_all(r, 16384, &body, &body_len) != NGX_OK
+    if (brix_http_body_read_all(r, 16384, &body, &body_len) != NGX_OK
         || body == NULL || body_len == 0)
     {
         rc = send_json(r, NGX_HTTP_BAD_REQUEST,
@@ -624,7 +624,7 @@ webdav_handle_macaroon_request(ngx_http_request_t *r)
     /* validity (ISO-8601) → seconds, clamped to the configured max. */
     {
         char vbuf[32];
-        if (xrootd_json_get_str((const char *) body, body_len, "validity",
+        if (brix_json_get_str((const char *) body, body_len, "validity",
                                 vbuf, sizeof(vbuf)) > 0)
         {
             (void) mac_iso8601_secs(vbuf, ngx_strlen(vbuf),
@@ -636,7 +636,7 @@ webdav_handle_macaroon_request(ngx_http_request_t *r)
     exp = (time_t) ngx_time() + validity;
 
     /* Unique identifier "v=1;t=<unix>;n=<16-hex-random>" (same scheme as the
-     * OAuth2 path — xrootd_macaroon_issue requires a non-NULL identifier). */
+     * OAuth2 path — brix_macaroon_issue requires a non-NULL identifier). */
     {
         u_char rb[8];
         if (RAND_bytes(rb, (int) sizeof(rb)) != 1) {
@@ -654,7 +654,7 @@ webdav_handle_macaroon_request(ngx_http_request_t *r)
         identifier[sizeof(identifier) - 1] = '\0';
     }
 
-    key_len = xrootd_macaroon_secret_parse(
+    key_len = brix_macaroon_secret_parse(
         (const char *) conf->token_macaroon_secret.data,
         conf->token_macaroon_secret.len, root_key, sizeof(root_key));
     if (key_len <= 0) {
@@ -687,7 +687,7 @@ webdav_handle_macaroon_request(ngx_http_request_t *r)
         *p = '\0';
     }
 
-    if (xrootd_macaroon_issue(r->connection->log, root_key, (size_t) key_len,
+    if (brix_macaroon_issue(r->connection->log, root_key, (size_t) key_len,
                               location, identifier,
                               activities[0] ? activities : NULL,
                               cav_path, exp, token_out, sizeof(token_out)) != NGX_OK)

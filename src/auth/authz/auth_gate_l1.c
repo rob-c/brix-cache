@@ -9,27 +9,27 @@
 
 #include "auth_gate_l1.h"
 
-#define XROOTD_AUTH_L1_DEFAULT_SLOTS  2048   /* tiny entries (~48B) → ~96KB */
+#define BRIX_AUTH_L1_DEFAULT_SLOTS  2048   /* tiny entries (~48B) → ~96KB */
 
 typedef struct {
     u_char                   key[32];    /* SHA-256 auth-gate key; valid iff set */
     unsigned                 set:1;      /* slot occupied */
     ngx_msec_t               expire;     /* ngx_current_msec deadline */
-    xrootd_auth_cache_val_t  val;        /* cached grant/deny verdict */
-} xrootd_auth_l1_slot_t;
+    brix_auth_cache_val_t  val;        /* cached grant/deny verdict */
+} brix_auth_l1_slot_t;
 
-struct xrootd_auth_l1_s {
+struct brix_auth_l1_s {
     ngx_uint_t              nslots;
-    xrootd_auth_l1_slot_t  *slots;
+    brix_auth_l1_slot_t  *slots;
 };
 
-xrootd_auth_l1_t *
-xrootd_auth_l1_create(ngx_pool_t *pool, ngx_uint_t slots)
+brix_auth_l1_t *
+brix_auth_l1_create(ngx_pool_t *pool, ngx_uint_t slots)
 {
-    xrootd_auth_l1_t  *cache;
+    brix_auth_l1_t  *cache;
 
     if (slots == 0) {
-        slots = XROOTD_AUTH_L1_DEFAULT_SLOTS;
+        slots = BRIX_AUTH_L1_DEFAULT_SLOTS;
     }
     if (slots < 64) {
         slots = 64;
@@ -39,7 +39,7 @@ xrootd_auth_l1_create(ngx_pool_t *pool, ngx_uint_t slots)
     if (cache == NULL) {
         return NULL;
     }
-    cache->slots = ngx_pcalloc(pool, slots * sizeof(xrootd_auth_l1_slot_t));
+    cache->slots = ngx_pcalloc(pool, slots * sizeof(brix_auth_l1_slot_t));
     if (cache->slots == NULL) {
         return NULL;
     }
@@ -48,7 +48,7 @@ xrootd_auth_l1_create(ngx_pool_t *pool, ngx_uint_t slots)
 }
 
 static ngx_inline ngx_uint_t
-xrootd_auth_l1_index(xrootd_auth_l1_t *cache, const u_char key[32])
+brix_auth_l1_index(brix_auth_l1_t *cache, const u_char key[32])
 {
     uint32_t  h = ((uint32_t) key[0] << 24) | ((uint32_t) key[1] << 16)
                 | ((uint32_t) key[2] << 8) | (uint32_t) key[3];
@@ -56,16 +56,16 @@ xrootd_auth_l1_index(xrootd_auth_l1_t *cache, const u_char key[32])
 }
 
 int
-xrootd_auth_l1_lookup(xrootd_auth_l1_t *cache, const u_char key[32],
-    xrootd_auth_cache_val_t *val)
+brix_auth_l1_lookup(brix_auth_l1_t *cache, const u_char key[32],
+    brix_auth_cache_val_t *val)
 {
-    xrootd_auth_l1_slot_t  *slot;
+    brix_auth_l1_slot_t  *slot;
 
     if (cache == NULL || key == NULL) {
         return 0;
     }
 
-    slot = &cache->slots[xrootd_auth_l1_index(cache, key)];
+    slot = &cache->slots[brix_auth_l1_index(cache, key)];
     if (!slot->set || ngx_memcmp(slot->key, key, 32) != 0) {
         return 0;
     }
@@ -79,16 +79,16 @@ xrootd_auth_l1_lookup(xrootd_auth_l1_t *cache, const u_char key[32],
 }
 
 void
-xrootd_auth_l1_store(xrootd_auth_l1_t *cache, const u_char key[32],
-    const xrootd_auth_cache_val_t *val, ngx_msec_t ttl_ms)
+brix_auth_l1_store(brix_auth_l1_t *cache, const u_char key[32],
+    const brix_auth_cache_val_t *val, ngx_msec_t ttl_ms)
 {
-    xrootd_auth_l1_slot_t  *slot;
+    brix_auth_l1_slot_t  *slot;
 
     if (cache == NULL || key == NULL || val == NULL || ttl_ms == 0) {
         return;
     }
 
-    slot = &cache->slots[xrootd_auth_l1_index(cache, key)];
+    slot = &cache->slots[brix_auth_l1_index(cache, key)];
     ngx_memcpy(slot->key, key, 32);
     slot->val    = *val;
     slot->expire = ngx_current_msec + ttl_ms;

@@ -169,7 +169,7 @@ guard_ruleset_load_profile(guard_ruleset_t *rs, const char *profile)
             GUARD_OP_READ, GUARD_OP_WRITE, GUARD_OP_LIST, GUARD_OP_DELETE,
             GUARD_OP_INFO };
         /* XrdHttp/WebDAV serves the export root; operator narrows via
-         * xrootd_guard_valid_prefix. Default: root-open but grammar on ops. */
+         * brix_guard_valid_prefix. Default: root-open but grammar on ops. */
         allow_ops(rs, dav_ops, (int) (sizeof(dav_ops) / sizeof(dav_ops[0])));
     } else if (strcmp(profile, "root") == 0) {
         static const guard_op_class_t root_ops[] = {

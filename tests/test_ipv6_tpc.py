@@ -10,10 +10,10 @@ is stored *bare* (the TPC opaque parser strips the brackets off "[::1]" into
 tpc_src_host="::1", see src/tpc/engine/parse.c::tpc_parse_src_spec), and the native-TPC
 launch path then *rebuilds* a "root://host:port/path" display/registry URL.  Before
 the fix that rebuild emitted a bare, unparseable "root://::1:port/path"; the fix
-re-brackets via xrootd_format_host_port() at src/tpc/engine/launch.c:182 →
+re-brackets via brix_format_host_port() at src/tpc/engine/launch.c:182 →
 "root://[::1]:port/path".  These tests prove the parse→rebuild round-trip accepts a
 bracketed IPv6 source and that the SSRF gate (src/tpc/outbound/connect.c::
-xrootd_tpc_check_src_policy → src/core/compat/net_target.c) is still applied to the bare
+brix_tpc_check_src_policy → src/core/compat/net_target.c) is still applied to the bare
 host BEFORE any rebuild, so the round-trip cannot be used to smuggle a loopback /
 v4-mapped-loopback source past the local-deny policy.
 
@@ -188,7 +188,7 @@ def _open_tpc_pull(sock, dst_path, src_url, streamid=b"\x00\x02"):
 
     Body is the NUL-terminated "path?opaque" with the tpc.src / tpc.key / tpc.dst
     opaque keys parsed by src/tpc/engine/parse.c.  Options request create+write so the
-    open is routed through xrootd_tpc_prepare_pull (is_write=1)."""
+    open is routed through brix_tpc_prepare_pull (is_write=1)."""
     opaque = "tpc.src=%s&tpc.key=ipv6key&tpc.dst=root://%s//%s" % (
         src_url, url_host(HOST6), dst_path.lstrip("/"),
     )
@@ -214,7 +214,7 @@ def _open_tpc_pull(sock, dst_path, src_url, streamid=b"\x00\x02"):
 
 def _sync_tpc_pull(sock, streamid, fhandle0):
     """Arm then run a native TPC pull — the two-step kXR_sync of src/protocols/root/write/sync.c
-    (first sync arms, second sync triggers xrootd_tpc_start_pull → the registry
+    (first sync arms, second sync triggers brix_tpc_start_pull → the registry
     URL rebuild at launch.c:182)."""
     fh = bytes([fhandle0 & 0xFF, 0, 0, 0])
     req = struct.pack("!2sH4s12sI", streamid, kXR_sync, fh, b"\x00" * 12, 0)
@@ -434,7 +434,7 @@ class TestNativeTpcIpv6BracketRoundTrip:
 # ===========================================================================
 
 class TestNativeTpcIpv6SsrfNegatives:
-    """The SSRF gate (xrootd_tpc_check_src_policy) runs on the *bare* source host
+    """The SSRF gate (brix_tpc_check_src_policy) runs on the *bare* source host
     at kXR_open time, BEFORE the launch rebuild.  These prove a bracketed IPv6
     loopback / v4-mapped-loopback source is still rejected — the bracket fix did
     not punch an SSRF hole."""
@@ -511,7 +511,7 @@ class TestWebdavTpcIpv6Copy:
         prove the "[::1]" literal broke the COPY request line / Source-URL parse.
 
         Config-model note (diagnosed against the LIVE ipv6-webdav instance,
-        nginx_ipv6_webdav.conf): that instance does NOT set "xrootd_webdav_tpc on",
+        nginx_ipv6_webdav.conf): that instance does NOT set "brix_webdav_tpc on",
         so HTTP-TPC is disabled.  A COPY carrying a "Source:" header therefore hits
         the TPC config gate at src/protocols/webdav/dispatch.c (`if (!conf->tpc) return
         NGX_HTTP_NOT_ALLOWED;`) and is answered 405 — BEFORE any Source-URL parse.
@@ -557,7 +557,7 @@ class TestWebdavTpcIpv6Copy:
         on response shape, never a transfer outcome.
 
         Config-model note: as for the pull case, the LIVE ipv6-webdav instance has
-        HTTP-TPC disabled (no "xrootd_webdav_tpc on"), so a Destination+Credential
+        HTTP-TPC disabled (no "brix_webdav_tpc on"), so a Destination+Credential
         COPY hits the same `!conf->tpc` gate and returns 405 BEFORE the egress URL
         is parsed (verified: identical 405 for IPv4/hostname/bracketed-IPv6
         Destination; a Destination-only server-side COPY returns 201).  The 405 is

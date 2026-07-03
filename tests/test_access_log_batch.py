@@ -3,14 +3,14 @@ Phase 33 C1 — batched access logging.
 
 The stream access log now accumulates lines in a per-worker buffer and flushes
 with a single write(2) on buffer-full / fd-switch / a 1s timer / connection close
-(xrootd_on_disconnect).  These tests prove batching preserves correctness:
+(brix_on_disconnect).  These tests prove batching preserves correctness:
 
   1. flush-on-close      — every logged op for a connection is durable once it
                            closes (no lines lost in the buffer).
   2. no-loss interleaved — lines from two concurrent connections are all present.
   3. sanitisation        — a wire path with control bytes is still escaped, so a
                            malicious path cannot inject a forged log line (the
-                           batch buffer must not bypass xrootd_sanitize_log_string).
+                           batch buffer must not bypass brix_sanitize_log_string).
 
 The raw-wire + nginx-spawn helpers are reused from test_phase25_ratelimit.
 """
@@ -38,9 +38,9 @@ def _alog_conf(tmp_path, port, data, logfile):
         server {{
             listen {BIND_HOST}:{port};
             xrootd on;
-            xrootd_storage_backend posix:{data};
-            xrootd_auth none;
-            xrootd_access_log {logfile};
+            brix_storage_backend posix:{data};
+            brix_auth none;
+            brix_access_log {logfile};
         }}
     }}
     """
@@ -78,7 +78,7 @@ def test_batched_lines_durable_after_close(tmp_path):
         fh = body[:4]
         for _ in range(6):
             _xrd_read(s, fh, 0, 5)
-        s.close()  # triggers xrootd_on_disconnect → flush
+        s.close()  # triggers brix_on_disconnect → flush
 
         text = _read_log(str(logfile),
                          lambda t: t.count(' "READ ') >= 6 and "DISCONNECT" in t)
@@ -152,8 +152,8 @@ def test_wiring_present():
         return (root / rel).read_text(encoding="utf-8")
 
     alog = rd("src/observability/accesslog/access_log.c")
-    assert "xrootd_access_log_flush" in alog
-    assert "xrootd_alog_emit" in alog
+    assert "brix_access_log_flush" in alog
+    assert "brix_alog_emit" in alog
     assert "ngx_add_timer" in alog          # bounded-latency flush
-    assert "xrootd_access_log_flush" in rd("src/protocols/root/connection/disconnect.c")
-    assert "xrootd_access_log_flush" in rd("src/fs/path/path.h")
+    assert "brix_access_log_flush" in rd("src/protocols/root/connection/disconnect.c")
+    assert "brix_access_log_flush" in rd("src/fs/path/path.h")

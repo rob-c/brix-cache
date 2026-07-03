@@ -141,14 +141,14 @@ stream {{
     server {{
         listen {BIND_HOST}:{PORT};
         xrootd on;
-        xrootd_storage_backend posix:{data};
-        xrootd_auth none;
-        xrootd_thread_pool frmpool;
-        xrootd_frm on;
-        xrootd_frm_queue_path {queue};
-        xrootd_frm_copycmd {copycmd};
-        xrootd_frm_copymax 4;
-        xrootd_frm_stage_wait 1;
+        brix_storage_backend posix:{data};
+        brix_auth none;
+        brix_thread_pool frmpool;
+        brix_frm on;
+        brix_frm_queue_path {queue};
+        brix_frm_copycmd {copycmd};
+        brix_frm_copymax 4;
+        brix_frm_stage_wait 1;
     }}
 }}
 daemon off;
@@ -204,7 +204,7 @@ def test_online_file_not_offline(staging):
 
 def test_nearline_xattr_not_a_stat_signal(staging):
     """Phase-64 P6: kXR_stat's offline flag now comes from the storage BACKEND's
-    residency model (the xrootd_vfs_residency seam), NOT the legacy
+    residency model (the brix_vfs_residency seam), NOT the legacy
     user.frm.residency xattr. An xattr-marked file on a POSIX export is therefore
     NOT flagged offline on stat. The tape:// root:// stat-offline UX (a real nearline
     backend) is covered in tests/run_tape_recall_stream.sh. NB: the OLD FRM

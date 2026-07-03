@@ -8,7 +8,7 @@
  */
 
 #include "aws_chunked.h"
-#include "fs/vfs/vfs.h"   /* xrootd_vfs_pread_full / pwrite_full (storage seam) */
+#include "fs/vfs/vfs.h"   /* brix_vfs_pread_full / pwrite_full (storage seam) */
 #include "s3.h"
 #include "core/http/http_headers.h"
 #include "core/compat/crypto.h"
@@ -135,23 +135,23 @@ s3_chunk_verify(s3_chunk_ctx_t *c)
         s3_chunk_fail(c, NGX_HTTP_FORBIDDEN);
         return -1;
     }
-    if (!xrootd_sha256_stream_final(c->sha, chunk_hash)) {
+    if (!brix_sha256_stream_final(c->sha, chunk_hash)) {
         s3_chunk_fail(c, NGX_HTTP_INTERNAL_SERVER_ERROR);
         return -1;
     }
-    xrootd_hex_encode(chunk_hash, 32, chunk_hash_hex);
+    brix_hex_encode(chunk_hash, 32, chunk_hash_hex);
 
     p = ngx_snprintf(sts, sizeof(sts),
                      "AWS4-HMAC-SHA256-PAYLOAD\n%s\n%s\n%s\n%s\n%s",
                      c->vctx->amz_date, c->vctx->scope, c->prev_sig,
                      S3_EMPTY_SHA256_HEX, chunk_hash_hex);
 
-    if (!xrootd_hmac_sha256(c->vctx->signing_key, 32, sts,
+    if (!brix_hmac_sha256(c->vctx->signing_key, 32, sts,
                             (size_t) (p - sts), mac)) {
         s3_chunk_fail(c, NGX_HTTP_INTERNAL_SERVER_ERROR);
         return -1;
     }
-    xrootd_hex_encode(mac, 32, computed);
+    brix_hex_encode(mac, 32, computed);
 
     if (!s3_ct_eq(computed, provided, 64)) {
         s3_chunk_fail(c, NGX_HTTP_FORBIDDEN);   /* SignatureDoesNotMatch */
@@ -189,7 +189,7 @@ s3_chunk_emit(s3_chunk_ctx_t *c, const u_char *p, size_t n)
     }
     /* Write the decoded chunk through the storage seam (handles EINTR/short
      * writes); a failure fails the whole upload. */
-    if (xrootd_vfs_pwrite_full(c->fd, p, n, c->write_off) != NGX_OK) {
+    if (brix_vfs_pwrite_full(c->fd, p, n, c->write_off) != NGX_OK) {
         s3_chunk_fail(c, NGX_HTTP_INTERNAL_SERVER_ERROR);
         return -1;
     }
@@ -302,7 +302,7 @@ s3_chunk_feed(s3_chunk_ctx_t *c, const u_char *p, const u_char *end)
                                                         : avail;
             if (take > 0) {
                 if (c->verify
-                    && !xrootd_sha256_stream_update(c->sha, p, take))
+                    && !brix_sha256_stream_update(c->sha, p, take))
                 {
                     s3_chunk_fail(c, NGX_HTTP_INTERNAL_SERVER_ERROR);
                     return -1;
@@ -363,7 +363,7 @@ s3_body_is_aws_chunked(ngx_http_request_t *r)
 {
     ngx_table_elt_t *h;
 
-    h = xrootd_http_find_header(r, "x-amz-content-sha256",
+    h = brix_http_find_header(r, "x-amz-content-sha256",
                                 sizeof("x-amz-content-sha256") - 1);
     if (h != NULL && h->value.len >= sizeof("STREAMING-") - 1
         && ngx_strncmp(h->value.data, (u_char *) "STREAMING-",
@@ -372,7 +372,7 @@ s3_body_is_aws_chunked(ngx_http_request_t *r)
         return 1;
     }
 
-    h = xrootd_http_find_header(r, "Content-Encoding",
+    h = brix_http_find_header(r, "Content-Encoding",
                                 sizeof("Content-Encoding") - 1);
     if (h != NULL && h->value.len >= sizeof("aws-chunked") - 1) {
         /* aws-chunked may appear alone or combined (e.g. "aws-chunked,gzip"). */
@@ -391,7 +391,7 @@ s3_body_is_aws_chunked(ngx_http_request_t *r)
 int
 s3_aws_chunked_has_inner_coding(ngx_http_request_t *r)
 {
-    ngx_table_elt_t *h = xrootd_http_find_header(r, "Content-Encoding",
+    ngx_table_elt_t *h = brix_http_find_header(r, "Content-Encoding",
                                                  sizeof("Content-Encoding") - 1);
     const u_char    *p, *end;
 
@@ -450,7 +450,7 @@ s3_chunk_feed_buf(s3_chunk_ctx_t *c, ngx_buf_t *b, u_char *window)
                 want = S3_CHUNK_READ_WINDOW;
             }
             /* One window through the storage seam (EINTR/short-read handled). */
-            if (xrootd_vfs_pread_full(b->file->fd, window, (size_t) want, off,
+            if (brix_vfs_pread_full(b->file->fd, window, (size_t) want, off,
                                       &got) != NGX_OK)
             {
                 s3_chunk_fail(c, NGX_HTTP_INTERNAL_SERVER_ERROR);
@@ -498,7 +498,7 @@ s3_aws_chunked_decode_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
         c.vctx   = verify;
         ngx_cpystrn((u_char *) c.prev_sig, (u_char *) verify->seed_signature,
                     sizeof(c.prev_sig));
-        c.sha = xrootd_sha256_stream_new();
+        c.sha = brix_sha256_stream_new();
         if (c.sha == NULL) {
             *http_status_out = NGX_HTTP_INTERNAL_SERVER_ERROR;
             return NGX_ERROR;
@@ -511,7 +511,7 @@ s3_aws_chunked_decode_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
             *http_status_out = NGX_HTTP_BAD_REQUEST;
             rc = NGX_ERROR;
         }
-        xrootd_sha256_stream_free(c.sha);   /* NULL-safe when verify off */
+        brix_sha256_stream_free(c.sha);   /* NULL-safe when verify off */
         return rc;
     }
 
@@ -521,7 +521,7 @@ s3_aws_chunked_decode_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
         window = ngx_palloc(r->pool, S3_CHUNK_READ_WINDOW);
         if (window == NULL) {
             *http_status_out = NGX_HTTP_INTERNAL_SERVER_ERROR;
-            xrootd_sha256_stream_free(c.sha);
+            brix_sha256_stream_free(c.sha);
             return NGX_ERROR;
         }
     }
@@ -542,6 +542,6 @@ s3_aws_chunked_decode_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
         rc = NGX_ERROR;
     }
 
-    xrootd_sha256_stream_free(c.sha);
+    brix_sha256_stream_free(c.sha);
     return rc;
 }

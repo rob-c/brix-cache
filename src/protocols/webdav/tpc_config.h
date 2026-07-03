@@ -1,7 +1,7 @@
 /*
  * tpc_config.h — HTTP-TPC location configuration types
  *
- * Defines ngx_http_xrootd_tpc_conf_t, the per-location TPC configuration
+ * Defines ngx_http_brix_tpc_conf_t, the per-location TPC configuration
  * block used by tpc_cred.c for OAuth2/OIDC credential delegation.
  */
 
@@ -27,6 +27,6 @@ typedef struct {
 
     /* Scope string to request during token exchange (e.g. "storage.read"). */
     ngx_str_t  token_scope;
-} ngx_http_xrootd_tpc_conf_t;
+} ngx_http_brix_tpc_conf_t;
 
 #endif /* _TPC_CONFIG_H */

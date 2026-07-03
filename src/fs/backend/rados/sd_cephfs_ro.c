@@ -24,13 +24,13 @@
  *       operator asserts this via `assume_quiesced` (no active MDS probing — by
  *       design). See the program design doc referenced in sd_ceph.h.
  *
- * The whole driver compiles only when the build found librados (XROOTD_HAVE_CEPH);
+ * The whole driver compiles only when the build found librados (BRIX_HAVE_CEPH);
  * otherwise this is an empty translation unit and the registry never references
  * the symbol.
  */
 #include "sd_ceph.h"
 
-#if XROOTD_HAVE_CEPH
+#if BRIX_HAVE_CEPH
 
 #include "cephfs_layout.h"
 
@@ -385,7 +385,7 @@ cephfsro_resolve_retry(cephfsro_state_t *st, const char *path,
 
 /* Fill an SD stat from a decoded primary inode. */
 static void
-cephfsro_stat_from_inode(const cephfs_inode_t *in, xrootd_sd_stat_t *out)
+cephfsro_stat_from_inode(const cephfs_inode_t *in, brix_sd_stat_t *out)
 {
     memset(out, 0, sizeof(*out));
     out->size   = (off_t) in->size;
@@ -400,10 +400,10 @@ cephfsro_stat_from_inode(const cephfs_inode_t *in, xrootd_sd_stat_t *out)
 /* ---- instance lifecycle --------------------------------------------------- */
 
 static sd_ceph_conn_t *
-cephfsro_connect_pool(const xrootd_sd_cephfs_ro_conf_t *dc, const char *pool,
+cephfsro_connect_pool(const brix_sd_cephfs_ro_conf_t *dc, const char *pool,
                       ngx_pool_t *ngxpool, int *err)
 {
-    xrootd_sd_ceph_conf_t cc;
+    brix_sd_ceph_conf_t cc;
 
     memset(&cc, 0, sizeof(cc));
     cc.pool      = pool;
@@ -415,9 +415,9 @@ cephfsro_connect_pool(const xrootd_sd_cephfs_ro_conf_t *dc, const char *pool,
 }
 
 static ngx_int_t
-cephfsro_init(xrootd_sd_instance_t *inst, void *driver_conf)
+cephfsro_init(brix_sd_instance_t *inst, void *driver_conf)
 {
-    xrootd_sd_cephfs_ro_conf_t *dc = driver_conf;
+    brix_sd_cephfs_ro_conf_t *dc = driver_conf;
     cephfsro_state_t           *st;
     int                         err = 0;
 
@@ -452,7 +452,7 @@ cephfsro_init(xrootd_sd_instance_t *inst, void *driver_conf)
 }
 
 static void
-cephfsro_cleanup(xrootd_sd_instance_t *inst)
+cephfsro_cleanup(brix_sd_instance_t *inst)
 {
     cephfsro_state_t *st = inst->state;
 
@@ -465,20 +465,20 @@ cephfsro_cleanup(xrootd_sd_instance_t *inst)
 
 /* ---- object lifecycle ----------------------------------------------------- */
 
-static xrootd_sd_obj_t *
-cephfsro_open(xrootd_sd_instance_t *inst, const char *path, int sd_flags,
+static brix_sd_obj_t *
+cephfsro_open(brix_sd_instance_t *inst, const char *path, int sd_flags,
               mode_t mode, int *err_out)
 {
     cephfsro_state_t *st = inst->state;
     cephfs_dentry_t   dn;
-    xrootd_sd_obj_t  *obj;
+    brix_sd_obj_t  *obj;
     cephfsro_obj_t   *os;
     int               rc;
 
     (void) mode;
 
     /* read-only: reject any write/create intent up front */
-    if (sd_flags & (XROOTD_SD_O_WRITE | XROOTD_SD_O_CREATE | XROOTD_SD_O_TRUNC)) {
+    if (sd_flags & (BRIX_SD_O_WRITE | BRIX_SD_O_CREATE | BRIX_SD_O_TRUNC)) {
         if (err_out != NULL) { *err_out = EROFS; }
         return NULL;
     }
@@ -493,7 +493,7 @@ cephfsro_open(xrootd_sd_instance_t *inst, const char *path, int sd_flags,
         if (err_out != NULL) { *err_out = ENOTSUP; }
         return NULL;
     }
-    if ((sd_flags & XROOTD_SD_O_DIR) && !cephfs_mode_is_dir(dn.inode.mode)) {
+    if ((sd_flags & BRIX_SD_O_DIR) && !cephfs_mode_is_dir(dn.inode.mode)) {
         if (err_out != NULL) { *err_out = ENOTDIR; }
         return NULL;
     }
@@ -509,7 +509,7 @@ cephfsro_open(xrootd_sd_instance_t *inst, const char *path, int sd_flags,
     os->layout = dn.inode.layout;
     os->is_dir = cephfs_mode_is_dir(dn.inode.mode) ? 1 : 0;
 
-    obj->driver = &xrootd_sd_cephfs_ro_driver;
+    obj->driver = &brix_sd_cephfs_ro_driver;
     obj->inst   = inst;
     obj->fd     = NGX_INVALID_FILE;            /* no kernel fd — memory-backed */
     obj->state  = os;
@@ -518,7 +518,7 @@ cephfsro_open(xrootd_sd_instance_t *inst, const char *path, int sd_flags,
 }
 
 static ngx_int_t
-cephfsro_close(xrootd_sd_obj_t *obj)
+cephfsro_close(brix_sd_obj_t *obj)
 {
     (void) obj;        /* obj + state are on the instance pool */
     return NGX_OK;
@@ -554,7 +554,7 @@ cephfsro_map(const cephfs_layout_t *L, off_t off, uint64_t *objno_out,
 }
 
 static ssize_t
-cephfsro_pread(xrootd_sd_obj_t *obj, void *buf, size_t len, off_t off)
+cephfsro_pread(brix_sd_obj_t *obj, void *buf, size_t len, off_t off)
 {
     cephfsro_state_t *st = obj->inst->state;
     cephfsro_obj_t   *os = obj->state;
@@ -600,7 +600,7 @@ cephfsro_pread(xrootd_sd_obj_t *obj, void *buf, size_t len, off_t off)
 }
 
 static ssize_t
-cephfsro_preadv(xrootd_sd_obj_t *obj, const struct iovec *iov, int iovcnt,
+cephfsro_preadv(brix_sd_obj_t *obj, const struct iovec *iov, int iovcnt,
                 off_t off)
 {
     ssize_t total = 0;
@@ -617,7 +617,7 @@ cephfsro_preadv(xrootd_sd_obj_t *obj, const struct iovec *iov, int iovcnt,
 }
 
 static ngx_int_t
-cephfsro_fstat(xrootd_sd_obj_t *obj, xrootd_sd_stat_t *out)
+cephfsro_fstat(brix_sd_obj_t *obj, brix_sd_stat_t *out)
 {
     *out = obj->snap;
     return NGX_OK;
@@ -626,7 +626,7 @@ cephfsro_fstat(xrootd_sd_obj_t *obj, xrootd_sd_stat_t *out)
 /* ---- namespace ------------------------------------------------------------ */
 
 static ngx_int_t
-cephfsro_stat(xrootd_sd_instance_t *inst, const char *path, xrootd_sd_stat_t *out)
+cephfsro_stat(brix_sd_instance_t *inst, const char *path, brix_sd_stat_t *out)
 {
     cephfsro_state_t *st = inst->state;
     cephfs_dentry_t   dn;
@@ -642,12 +642,12 @@ cephfsro_stat(xrootd_sd_instance_t *inst, const char *path, xrootd_sd_stat_t *ou
 
 static int cephfsro_dir_fetch_page(cephfsro_state_t *st, cephfsro_dir_t *ds);
 
-static xrootd_sd_dir_t *
-cephfsro_opendir(xrootd_sd_instance_t *inst, const char *path, int *err_out)
+static brix_sd_dir_t *
+cephfsro_opendir(brix_sd_instance_t *inst, const char *path, int *err_out)
 {
     cephfsro_state_t *st = inst->state;
     cephfs_dentry_t   dn;
-    xrootd_sd_dir_t  *d;
+    brix_sd_dir_t  *d;
     cephfsro_dir_t   *ds;
     int               rc = cephfsro_resolve_retry(st, path, &dn);
 
@@ -758,7 +758,7 @@ cephfsro_dir_fetch_page(cephfsro_state_t *st, cephfsro_dir_t *ds)
 }
 
 static ngx_int_t
-cephfsro_readdir(xrootd_sd_dir_t *d, xrootd_sd_dirent_t *out)
+cephfsro_readdir(brix_sd_dir_t *d, brix_sd_dirent_t *out)
 {
     cephfsro_state_t *st = d->inst->state;
     cephfsro_dir_t   *ds = d->state;
@@ -784,7 +784,7 @@ cephfsro_readdir(xrootd_sd_dir_t *d, xrootd_sd_dirent_t *out)
 }
 
 static ngx_int_t
-cephfsro_closedir(xrootd_sd_dir_t *d)
+cephfsro_closedir(brix_sd_dir_t *d)
 {
     (void) d;          /* dir + state are on the instance pool */
     return NGX_OK;
@@ -794,7 +794,7 @@ cephfsro_closedir(xrootd_sd_dir_t *d)
 
 /* Resolve a path's inode xattrs into a stack dentry; shared by get/list. */
 static int
-cephfsro_resolve_xattrs(xrootd_sd_instance_t *inst, const char *path,
+cephfsro_resolve_xattrs(brix_sd_instance_t *inst, const char *path,
                         cephfs_dentry_t *dn)
 {
     cephfsro_state_t *st = inst->state;
@@ -806,7 +806,7 @@ cephfsro_resolve_xattrs(xrootd_sd_instance_t *inst, const char *path,
 }
 
 static ssize_t
-cephfsro_getxattr(xrootd_sd_instance_t *inst, const char *path, const char *name,
+cephfsro_getxattr(brix_sd_instance_t *inst, const char *path, const char *name,
                   void *buf, size_t cap)
 {
     cephfs_dentry_t dn;
@@ -828,7 +828,7 @@ cephfsro_getxattr(xrootd_sd_instance_t *inst, const char *path, const char *name
 }
 
 static ssize_t
-cephfsro_listxattr(xrootd_sd_instance_t *inst, const char *path, void *buf,
+cephfsro_listxattr(brix_sd_instance_t *inst, const char *path, void *buf,
                    size_t cap)
 {
     cephfs_dentry_t dn;
@@ -852,9 +852,9 @@ cephfsro_listxattr(xrootd_sd_instance_t *inst, const char *path, void *buf,
 
 /* ---- driver descriptor ---------------------------------------------------- */
 
-const xrootd_sd_driver_t xrootd_sd_cephfs_ro_driver = {
+const brix_sd_driver_t brix_sd_cephfs_ro_driver = {
     .name = "cephfsro",
-    .caps = XROOTD_SD_CAP_RANGE_READ | XROOTD_SD_CAP_DIRS | XROOTD_SD_CAP_XATTR,
+    .caps = BRIX_SD_CAP_RANGE_READ | BRIX_SD_CAP_DIRS | BRIX_SD_CAP_XATTR,
 
     .init    = cephfsro_init,
     .cleanup = cephfsro_cleanup,
@@ -878,4 +878,4 @@ const xrootd_sd_driver_t xrootd_sd_cephfs_ro_driver = {
     /* every mutating slot is intentionally absent (read-only driver) */
 };
 
-#endif /* XROOTD_HAVE_CEPH */
+#endif /* BRIX_HAVE_CEPH */

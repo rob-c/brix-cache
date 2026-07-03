@@ -626,10 +626,10 @@ stream {{
     server {{
         listen {data_port};
         xrootd on;
-        xrootd_storage_backend posix:{DATA_ROOT};
-        xrootd_allow_write on;
-        xrootd_cms_manager {url_host(HOST)}:{mgr_port};
-        xrootd_cms_interval 2;
+        brix_storage_backend posix:{DATA_ROOT};
+        brix_allow_write on;
+        brix_cms_manager {url_host(HOST)}:{mgr_port};
+        brix_cms_interval 2;
     }}
 }}
 """

@@ -17,21 +17,21 @@
  *   parked and delivers the in-place open response on completion.
  *
  * Cross-worker design (no IPC): the staging worker is usually NOT the worker that
- *   parked the waiter. xrootd_stage_waiter_deliver() marks all matching rows ready
+ *   parked the waiter. brix_stage_waiter_deliver() marks all matching rows ready
  *   under the SHM lock; each worker only ever touches its OWN connections,
- *   delivering its ready rows from xrootd_stage_waiter_poll_local() (called on the
+ *   delivering its ready rows from brix_stage_waiter_poll_local() (called on the
  *   stage scheduler tick). This keeps every wire write on the owning worker.
  *
  * See docs/superpowers/plans/2026-07-01-frm-dissolution.md (Task 2).
  */
-#ifndef XROOTD_STAGE_WAITER_H
-#define XROOTD_STAGE_WAITER_H
+#ifndef BRIX_STAGE_WAITER_H
+#define BRIX_STAGE_WAITER_H
 
 #include <ngx_config.h>
 #include <ngx_core.h>
 
 /* Configure the waiter SHM zone (postconfiguration; slab-safe). */
-ngx_int_t xrootd_stage_waiter_configure(ngx_conf_t *cf, ngx_uint_t slots);
+ngx_int_t brix_stage_waiter_configure(ngx_conf_t *cf, ngx_uint_t slots);
 
 /*
  * Park a stalled open. `reqid` is the durable request id the registry add returned;
@@ -39,7 +39,7 @@ ngx_int_t xrootd_stage_waiter_configure(ngx_conf_t *cf, ngx_uint_t slots);
  * NGX_OK (parked), NGX_AGAIN (table full → caller falls back to kXR_wait), or
  * NGX_ERROR.
  */
-ngx_int_t xrootd_stage_waiter_add(const char *reqid, uint16_t options,
+ngx_int_t brix_stage_waiter_add(const char *reqid, uint16_t options,
                                   const u_char client_streamid[2],
                                   int conn_fd, ngx_atomic_uint_t conn_number,
                                   ngx_pid_t worker_pid, ngx_msec_t timeout_ms);
@@ -48,12 +48,12 @@ ngx_int_t xrootd_stage_waiter_add(const char *reqid, uint16_t options,
  * A recall finished (code 0 = ok, else the errno-ish fail code). Mark every waiter
  * on `reqid` ready, then deliver this worker's matching ones inline.
  */
-void xrootd_stage_waiter_deliver(const char *reqid, int code);
+void brix_stage_waiter_deliver(const char *reqid, int code);
 
 /* Per-worker tick: deliver this worker's ready rows and reap expired ones. */
-void xrootd_stage_waiter_poll_local(void);
+void brix_stage_waiter_poll_local(void);
 
 /* Best-effort drop of any waiter for (conn_fd, conn_number) on disconnect. */
-void xrootd_stage_waiter_drop_conn(int conn_fd, ngx_atomic_uint_t conn_number);
+void brix_stage_waiter_drop_conn(int conn_fd, ngx_atomic_uint_t conn_number);
 
-#endif /* XROOTD_STAGE_WAITER_H */
+#endif /* BRIX_STAGE_WAITER_H */

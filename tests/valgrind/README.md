@@ -52,7 +52,7 @@ Outputs land under `$VG_WORK` (default `/tmp/xrd-vg`):
 ### Triage
 
 A clean run shows `(none)` under *MODULE-FRAME HITS*. Any hit in an
-`xrootd_*` / `ngx_http_xrootd_*` / `src/<module>/` frame is a real finding —
+`brix_*` / `ngx_http_brix_*` / `src/<module>/` frame is a real finding —
 investigate and fix in source. Benign nginx-core/library residuals
 (`ngx_set_environment`, libc thread-local, epoll/log fds held at exit) are
 expected and either suppressed in `valgrind.supp` or excluded by the triage grep.

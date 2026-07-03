@@ -1,4 +1,4 @@
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 
 /*
  * kXR_readv async I/O — multi-segment parallel read for large files.
@@ -14,7 +14,7 @@
 
 
 /*
- * xrootd_readv_aio_thread — thread-pool worker for kXR_readv.
+ * brix_readv_aio_thread — thread-pool worker for kXR_readv.
  *
  * The main nginx thread has already allocated the response buffer and computed
  * the segment layout (header + payload pointers per segment).  This worker
@@ -22,19 +22,19 @@
  *
  * The response layout is:
  *   For each segment i:
- *     [xrootd_readv_seg_header (XROOTD_READV_SEGSIZE bytes)]
+ *     [brix_readv_seg_header (BRIX_READV_SEGSIZE bytes)]
  *     [up to read_length bytes of file data at payload_ptr]
  *
- * t->response_bytes = n_segments * XROOTD_READV_SEGSIZE + bytes_read_total.
+ * t->response_bytes = n_segments * BRIX_READV_SEGSIZE + bytes_read_total.
  * Segments that pread to fewer bytes than requested are zero-padded by the
  * thread (the per-segment header's rlen is updated to reflect the actual bytes
- * read by xrootd_readv_read_segments).
+ * read by brix_readv_read_segments).
  */
 void
-xrootd_readv_aio_thread(void *data, ngx_log_t *log)
+brix_readv_aio_thread(void *data, ngx_log_t *log)
 {
-    xrootd_readv_aio_t *t = data;
-    xrootd_vfs_job_t    job;
+    brix_readv_aio_t *t = data;
+    brix_vfs_job_t    job;
 
     t->bytes_read_total = 0;
     t->io_error = 0;
@@ -47,13 +47,13 @@ xrootd_readv_aio_thread(void *data, ngx_log_t *log)
      * connection or request parser state.
      */
     ngx_memzero(&job, sizeof(job));
-    job.op = XROOTD_VFS_IO_READV;
+    job.op = BRIX_VFS_IO_READV;
     job.segs = t->segments;
     job.nsegs = t->segment_count;
     job.err_msg = t->err_msg;
     job.err_msg_cap = sizeof(t->err_msg);
 
-    xrootd_vfs_io_execute(&job);
+    brix_vfs_io_execute(&job);
 
     if (job.io_errno != 0) {
         t->io_error = 1;
@@ -68,7 +68,7 @@ xrootd_readv_aio_thread(void *data, ngx_log_t *log)
 }
 
 /*
- * xrootd_readv_aio_done — main-thread response builder for kXR_readv AIO completion.
+ * brix_readv_aio_done — main-thread response builder for kXR_readv AIO completion.
  *
  * WHAT: Reconstructs the XRootD response chain after the worker thread finishes reading
  * all segments in a segmented read request. The response consists of multiple segment headers
@@ -82,57 +82,57 @@ xrootd_readv_aio_thread(void *data, ngx_log_t *log)
  * update counters), and allocation failure (release before resume). The segment array is dynamically allocated
  * by the main thread and freed here after all processing completes.
  *
- * HOW: 1) Restore request context via xrootd_aio_restore_request(). 2) Free segments on failure path.
+ * HOW: 1) Restore request context via brix_aio_restore_request(). 2) Free segments on failure path.
  *   3) On I/O error: send kXR_IOError with t->err_msg, release buffers, resume.
  *   4) On success: update session_bytes and per-handle bytes_read for each segment, build chunked chain via
- *      xrootd_build_chunked_chain(), queue response, free segments array, resume connection events.
+ *      brix_build_chunked_chain(), queue response, free segments array, resume connection events.
  */
 void
-xrootd_readv_aio_done(ngx_event_t *ev)
+brix_readv_aio_done(ngx_event_t *ev)
 {
     ngx_thread_task_t   *task = ev->data;
-    xrootd_readv_aio_t  *t = task->ctx;
-    xrootd_ctx_t        *ctx = t->ctx;
+    brix_readv_aio_t  *t = task->ctx;
+    brix_ctx_t        *ctx = t->ctx;
     ngx_connection_t    *c = t->c;
     ngx_chain_t         *rsp_chain;
     size_t               i;
 
-    if (!xrootd_aio_restore_request(ctx, t->streamid)) {
+    if (!brix_aio_restore_request(ctx, t->streamid)) {
         ngx_free(t->segments);
-        xrootd_release_read_buffer(ctx, c, t->response_buffer);
+        brix_release_read_buffer(ctx, c, t->response_buffer);
         return;
     }
 
     if (t->io_error) {
         ngx_free(t->segments);
-        xrootd_release_read_buffer(ctx, c, t->response_buffer);
-        XROOTD_OP_ERR(ctx, XROOTD_OP_READV);
-        xrootd_send_error(ctx, c, kXR_IOError, t->err_msg);
-        xrootd_aio_resume(c);
+        brix_release_read_buffer(ctx, c, t->response_buffer);
+        BRIX_OP_ERR(ctx, BRIX_OP_READV);
+        brix_send_error(ctx, c, kXR_IOError, t->err_msg);
+        brix_aio_resume(c);
         return;
     }
 
-    XROOTD_OP_OK(ctx, XROOTD_OP_READV);
+    BRIX_OP_OK(ctx, BRIX_OP_READV);
     ctx->session_bytes += t->bytes_read_total;
     for (i = 0; i < t->segment_count; i++) {
         ctx->files[t->segments[i].handle_index].bytes_read +=
             t->segments[i].read_length;
     }
 
-    rsp_chain = xrootd_build_chunked_chain(ctx, c,
+    rsp_chain = brix_build_chunked_chain(ctx, c,
                                            t->response_buffer,
                                            t->response_bytes);
     if (rsp_chain == NULL) {
         ngx_free(t->segments);
-        xrootd_release_read_buffer(ctx, c, t->response_buffer);
-        xrootd_aio_resume(c);
+        brix_release_read_buffer(ctx, c, t->response_buffer);
+        brix_aio_resume(c);
         return;
     }
 
     ngx_free(t->segments);
-    xrootd_queue_response_chain(ctx, c, rsp_chain, t->response_buffer);
+    brix_queue_response_chain(ctx, c, rsp_chain, t->response_buffer);
     if (ctx->state != XRD_ST_SENDING) {
-        xrootd_release_read_buffer(ctx, c, t->response_buffer);
+        brix_release_read_buffer(ctx, c, t->response_buffer);
     }
-    xrootd_aio_resume(c);
+    brix_aio_resume(c);
 }

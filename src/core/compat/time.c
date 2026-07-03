@@ -26,7 +26,7 @@
  *   bufsz — size of buf
  */
 void
-xrootd_format_iso8601(time_t t, char *buf, size_t bufsz)
+brix_format_iso8601(time_t t, char *buf, size_t bufsz)
 {
     struct tm tm;
 

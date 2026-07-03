@@ -2,15 +2,15 @@
  * shared_conf.h — Shared config preamble struct for nginx-xrootd protocols.
  */
 
-#ifndef _NGX_HTTP_XROOTD_SHARED_CONF_H
-#define _NGX_HTTP_XROOTD_SHARED_CONF_H
+#ifndef _NGX_HTTP_BRIX_SHARED_CONF_H
+#define _NGX_HTTP_BRIX_SHARED_CONF_H
 
 #include <ngx_thread_pool.h>
 
 #include "observability/pmark/pmark.h"
 
 /*
- * ngx_http_xrootd_shared_conf_t — Common fields embedded at the top of every
+ * ngx_http_brix_shared_conf_t — Common fields embedded at the top of every
  * protocol location/server config struct (stream, WebDAV, S3).
  *
  * WHAT: A shared preamble that holds enable flags, root path, write permission,
@@ -42,31 +42,31 @@ typedef struct {
                                              * stages uploads to the LOCAL export and
                                              * promotes them on commit, vs streaming
                                              * straight through (Mode A). off = Mode A */
-    ngx_str_t           storage_credential; /* [xrootd_storage_credential <name>] —
-                                             * the xrootd_credential block (§14) the
+    ngx_str_t           storage_credential; /* [brix_storage_credential <name>] —
+                                             * the brix_credential block (§14) the
                                              * source backend authenticates with;
                                              * "" = anonymous. Today threads a bearer
                                              * token into sd_http. */
-    void               *storage_instance;   /* resolved xrootd_sd_instance_t* for a
+    void               *storage_instance;   /* resolved brix_sd_instance_t* for a
                                              * non-POSIX backend, built per worker at
                                              * init_process. Runtime only — never
                                              * merged. NULL ⇒ default POSIX path.    */
     /* ---- phase-64 composable tier grammar (additive over storage_backend) ----
      * Raw directive values parsed + registered at finalisation (the legacy cache
-     * directives that share a name — xrootd_cache, _verify, _slice, _dirty_max_age
+     * directives that share a name — brix_cache, _verify, _slice, _dirty_max_age
      * — are NOT re-used here; the new cache tier uses the non-colliding names and
      * sensible defaults until the P2 legacy-removal big-bang). */
-    ngx_str_t           cache_store;        /* xrootd_cache_store URL ("" = none)   */
+    ngx_str_t           cache_store;        /* brix_cache_store URL ("" = none)   */
     ngx_array_t        *cache_store_args;   /* its credential=/block_size= tokens    */
-    ngx_flag_t          stage_enable;       /* xrootd_stage on|off                  */
-    ngx_str_t           stage_store;        /* xrootd_stage_store URL               */
+    ngx_flag_t          stage_enable;       /* brix_stage on|off                  */
+    ngx_str_t           stage_store;        /* brix_stage_store URL               */
     ngx_array_t        *stage_store_args;
-    ngx_uint_t          stage_flush_async;  /* xrootd_stage_flush: 0 sync, 1 async   */
-    off_t               cache_max_object;   /* xrootd_cache_max_object (0 = no cap)  */
-    ngx_uint_t          cache_evict_at;     /* xrootd_cache_evict_at  (percent)      */
-    ngx_uint_t          cache_evict_to;     /* xrootd_cache_evict_to  (percent)      */
-    ngx_uint_t          cache_meta_mode;    /* xrootd_cache_meta  (0 auto..3 sidecar)*/
-    ngx_uint_t          cache_verify_mode;  /* xrootd_cache_verify_mode_e for the
+    ngx_uint_t          stage_flush_async;  /* brix_stage_flush: 0 sync, 1 async   */
+    off_t               cache_max_object;   /* brix_cache_max_object (0 = no cap)  */
+    ngx_uint_t          cache_evict_at;     /* brix_cache_evict_at  (percent)      */
+    ngx_uint_t          cache_evict_to;     /* brix_cache_evict_to  (percent)      */
+    ngx_uint_t          cache_meta_mode;    /* brix_cache_meta  (0 auto..3 sidecar)*/
+    ngx_uint_t          cache_verify_mode;  /* brix_cache_verify_mode_e for the
                                              * composed cache tier (phase-68);
                                              * 0/UNSET = off. Registered today by
                                              * the cvmfs protocol only.           */
@@ -82,9 +82,9 @@ typedef struct {
                                              * single-pass fill.                  */
     time_t              cache_fill_max_life; /* T20: detached-fill retry budget
                                              * once every client has gone.       */
-    ngx_uint_t          cache_batch_cinfo;  /* xrootd_cache_batch_cinfo (0 off/1 on/2 auto) */
-    size_t              cache_index_cache;  /* xrootd_cache_index_cache (L1 entries) */
-    size_t              cache_slice_size;   /* xrootd_cache_slice_size (0 = whole-file) */
+    ngx_uint_t          cache_batch_cinfo;  /* brix_cache_batch_cinfo (0 off/1 on/2 auto) */
+    size_t              cache_index_cache;  /* brix_cache_index_cache (L1 entries) */
+    size_t              cache_slice_size;   /* brix_cache_slice_size (0 = whole-file) */
     ngx_flag_t          allow_write;        /* write permission flag               */
     ngx_flag_t          read_only;          /* hard read-only switch: when on, the
                                              * finaliser forces allow_write off so
@@ -103,13 +103,13 @@ typedef struct {
                                              * RESOLVE_BENEATH confinement; -1 until
                                              * opened per worker at init_process.
                                              * Runtime only — never merged.        */
-    xrootd_pmark_conf_t pmark;              /* SciTags packet-marking config — see
+    brix_pmark_conf_t pmark;              /* SciTags packet-marking config — see
                                              * src/pmark/pmark.h. Shared by every
                                              * protocol; init/merge below.          */
-} ngx_http_xrootd_shared_conf_t;
+} ngx_http_brix_shared_conf_t;
 
 /*
- * ngx_http_xrootd_shared_create_loc_conf() — Allocates and initializes a shared
+ * ngx_http_brix_shared_create_loc_conf() — Allocates and initializes a shared
  * preamble struct with NGX_CONF_UNSET sentinel values. Called by each protocol's
  * create_loc_conf function to set the shared fields before returning its own
  * full config struct.
@@ -120,7 +120,7 @@ typedef struct {
  * server, or location blocks.
  */
 static inline void
-ngx_http_xrootd_shared_init(ngx_http_xrootd_shared_conf_t *conf)
+ngx_http_brix_shared_init(ngx_http_brix_shared_conf_t *conf)
 {
     conf->enable             = NGX_CONF_UNSET;
     conf->allow_write        = NGX_CONF_UNSET;
@@ -151,11 +151,11 @@ ngx_http_xrootd_shared_init(ngx_http_xrootd_shared_conf_t *conf)
     conf->cache_slice_size   = NGX_CONF_UNSET_SIZE;
     conf->rootfd             = -1;   /* opened per worker at init_process */
     /* root_canon zeroed by ngx_pcalloc — no explicit memset needed */
-    xrootd_pmark_conf_init(&conf->pmark);
+    brix_pmark_conf_init(&conf->pmark);
 }
 
 /*
- * ngx_http_xrootd_shared_merge() — Merges shared preamble fields from parent to
+ * ngx_http_brix_shared_merge() — Merges shared preamble fields from parent to
  * child using standard nginx merge macros. Called at the top of each protocol's
  * merge_loc_conf function before protocol-specific merge logic runs.
  *
@@ -165,9 +165,9 @@ ngx_http_xrootd_shared_init(ngx_http_xrootd_shared_conf_t *conf)
  * root="", thread_pool_name="".
  */
 static inline char *
-ngx_http_xrootd_shared_merge(ngx_conf_t *cf,
-                             ngx_http_xrootd_shared_conf_t *prev,
-                             ngx_http_xrootd_shared_conf_t *conf)
+ngx_http_brix_shared_merge(ngx_conf_t *cf,
+                             ngx_http_brix_shared_conf_t *prev,
+                             ngx_http_brix_shared_conf_t *conf)
 {
     ngx_conf_merge_value(conf->enable, prev->enable, 0);
     ngx_conf_merge_str_value(conf->root, prev->root, "");
@@ -199,20 +199,20 @@ ngx_http_xrootd_shared_merge(ngx_conf_t *cf,
     ngx_conf_merge_size_value(conf->cache_index_cache, prev->cache_index_cache, 0);
     ngx_conf_merge_size_value(conf->cache_slice_size, prev->cache_slice_size, 0);
 
-    return xrootd_pmark_conf_merge(cf, &prev->pmark, &conf->pmark);
+    return brix_pmark_conf_merge(cf, &prev->pmark, &conf->pmark);
 }
 
 /*
- * xrootd_shared_apply_read_only() — enforce the hard read-only switch. When
+ * brix_shared_apply_read_only() — enforce the hard read-only switch. When
  * common->read_only is on, force allow_write off so EVERY existing write gate
- * (root:// xrootd_dispatch_require_write, the WebDAV/S3 write-method gate, the
+ * (root:// brix_dispatch_require_write, the WebDAV/S3 write-method gate, the
  * write-open gate) rejects writes at the protocol edge - before the VFS, and
  * before token scope (allow_write is checked first), so a write-scoped token
  * cannot bypass it. Call from each protocol finaliser BEFORE the allow_write-
  * dependent validations (e.g. WebDAV's "writes need auth" check).
  */
 static inline void
-xrootd_shared_apply_read_only(ngx_http_xrootd_shared_conf_t *common,
+brix_shared_apply_read_only(ngx_http_brix_shared_conf_t *common,
     ngx_log_t *log)
 {
     if (common->read_only != 1) {
@@ -227,7 +227,7 @@ xrootd_shared_apply_read_only(ngx_http_xrootd_shared_conf_t *common,
 }
 
 /*
- * xrootd_tier_register_stores() — register the export's phase-64 composable
+ * brix_tier_register_stores() — register the export's phase-64 composable
  * cache/stage tiers from the common preamble onto the backend registry (which
  * composes the sd_cache / sd_stage decorators per worker). Shared by all three
  * protocol finalisers (§4.4): each calls it with its &conf->common after the
@@ -235,26 +235,26 @@ xrootd_shared_apply_read_only(ngx_http_xrootd_shared_conf_t *common,
  * [emerg] for an operator error (unknown scheme, bad path, stage-without-store).
  * Defined in config/runtime_server.c.
  */
-ngx_int_t xrootd_tier_register_stores(ngx_conf_t *cf,
-    ngx_http_xrootd_shared_conf_t *common);
+ngx_int_t brix_tier_register_stores(ngx_conf_t *cf,
+    ngx_http_brix_shared_conf_t *common);
 
 /* Rewrite a "posix:<path>" / "pblock://<path>" storage_backend into the export root
- * (common->root) — the composable replacement for xrootd_root. No-op otherwise.
+ * (common->root) — the composable replacement for brix_root. No-op otherwise.
  * Call BEFORE the export-root prep. Defined in config/runtime_server.c. */
-void xrootd_storage_backend_posix_root(ngx_http_xrootd_shared_conf_t *common);
+void brix_storage_backend_posix_root(ngx_http_brix_shared_conf_t *common);
 
 /* 1 iff the storage backend is remote (root://, http(s)://, s3://, tape://, ceph):
  * the local root_canon is a namespace anchor only and must not require W_OK. */
-int xrootd_storage_backend_is_remote(const ngx_http_xrootd_shared_conf_t *common);
+int brix_storage_backend_is_remote(const ngx_http_brix_shared_conf_t *common);
 
 /*
- * xrootd_conf_set_store_slot() — directive setter for a tier store-URL directive
- * (xrootd_{,webdav_,s3_}{cache,stage}_store). Stores arg[1] (the store URL) into
+ * brix_conf_set_store_slot() — directive setter for a tier store-URL directive
+ * (brix_{,webdav_,s3_}{cache,stage}_store). Stores arg[1] (the store URL) into
  * the ngx_str_t at cmd->offset, and any trailing "credential=<n>" / "block_size=<n>"
  * tokens (args[2..]) into the ngx_array_t* whose field offset is carried in
- * cmd->post. The finaliser passes that array to xrootd_tier_parse_store. Use with
+ * cmd->post. The finaliser passes that array to brix_tier_parse_store. Use with
  * NGX_CONF_TAKE1234. Defined in config/runtime_server.c.
  */
-char *xrootd_conf_set_store_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+char *brix_conf_set_store_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 
-#endif /* _NGX_HTTP_XROOTD_SHARED_CONF_H */
+#endif /* _NGX_HTTP_BRIX_SHARED_CONF_H */

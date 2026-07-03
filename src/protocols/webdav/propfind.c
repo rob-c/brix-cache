@@ -57,7 +57,7 @@ propfind_assemble_body(ngx_http_request_t *r, size_t *len)
         return NULL;
     }
 
-    rc = xrootd_http_body_read_all(r, PROPFIND_BODY_MAX, &buf, len);
+    rc = brix_http_body_read_all(r, PROPFIND_BODY_MAX, &buf, len);
     if (rc != NGX_OK || *len == 0) {
         return NULL;
     }
@@ -221,7 +221,7 @@ propfind_parse_request(ngx_http_request_t *r, propfind_req_t *req)
 int
 propfind_parse_depth(ngx_http_request_t *r)
 {
-    ngx_str_t val = xrootd_http_get_header(r, "Depth");
+    ngx_str_t val = brix_http_get_header(r, "Depth");
     if (val.len == 0) return 0;
     if (val.len == 1 && val.data[0] == '1') return 1;
     if (val.len == 8 && ngx_strncasecmp(val.data, (u_char *) "infinity", 8) == 0) return -1;
@@ -243,20 +243,20 @@ propfind_parse_depth(ngx_http_request_t *r)
  * wrapper (webdav_dispatch.c) has already cleared the impersonation principal by
  * the time this callback runs.  Re-establish it for the duration of the listing
  * exactly as webdav_handle_put_body does — without it the directory-stat/opendir
- * and the xrootd_dirlist_access_ok confidentiality check run as the unprivileged
+ * and the brix_dirlist_access_ok confidentiality check run as the unprivileged
  * worker instead of the mapped user, which would both mis-own metadata and leak
  * entries of a directory the mapped user cannot read.  No-op unless map mode.
  */
 void
 propfind_body_handler(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_webdav_req_ctx_t *rx =
-        ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    ngx_http_brix_webdav_req_ctx_t *rx =
+        ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     ngx_int_t rc;
 
-    xrootd_imp_request_begin(rx != NULL ? rx->identity : NULL);
+    brix_imp_request_begin(rx != NULL ? rx->identity : NULL);
     rc = propfind_do(r);
-    xrootd_imp_request_end();
+    brix_imp_request_end();
 
     ngx_http_finalize_request(r, rc);
 }
@@ -264,11 +264,11 @@ propfind_body_handler(ngx_http_request_t *r)
 
 /*
  * PROPFIND entry point.  Defers all work until the request body is read, since
- * the body selects allprop/propname/prop.  xrootd_http_read_body arranges for
+ * the body selects allprop/propname/prop.  brix_http_read_body arranges for
  * propfind_body_handler to run and typically returns NGX_DONE.
  */
 ngx_int_t
 webdav_handle_propfind(ngx_http_request_t *r)
 {
-    return xrootd_http_read_body(r, propfind_body_handler);
+    return brix_http_read_body(r, propfind_body_handler);
 }

@@ -1,6 +1,6 @@
 """test_acc_residual.py — residual XrdAcc parity gaps closed after the M0–M8 port.
 
-Each class is a self-provisioned nginx running `xrootd_authdb_format xrdacc` over an
+Each class is a self-provisioned nginx running `brix_authdb_format xrdacc` over an
 anonymous root:// (or http) tier, driving raw-wire / curl requests to prove a gap
 that the initial port left open:
 
@@ -9,10 +9,10 @@ that the initial port left open:
        O_CREAT (kXR_new) only — kXR_delete (truncate) is still Update.
   RA2  prepare staging routes through the engine with AOP_Stage (priv 0x180, only
        granted by `a`), not the native authdb.
-  RA3  `xrootd_acc_resolve_hosts` reverse-DNSes the peer so `h <host>` rules match.
-  RB1  `xrootd_authdb_refresh` hot-reloads the authdb for HTTP (WebDAV) with no
+  RA3  `brix_acc_resolve_hosts` reverse-DNSes the peer so `h <host>` rules match.
+  RB1  `brix_authdb_refresh` hot-reloads the authdb for HTTP (WebDAV) with no
        restart.
-  RB2  `xrootd_acc_encoding` URI-decodes authdb path tokens (`%20` -> space).
+  RB2  `brix_acc_encoding` URI-decodes authdb path tokens (`%20` -> space).
   RC1  the auth-result cache is active under xrdacc and keys on the operation, so a
        cached Update grant is never replayed for a Create on the same path.
 
@@ -50,7 +50,7 @@ def _have_nginx():
         return False
     try:
         syms = subprocess.run(["nm", NGINX_BIN], capture_output=True, text=True)
-        return "xrootd_acc_access" in syms.stdout
+        return "brix_acc_access" in syms.stdout
     except Exception:
         return True
 
@@ -158,18 +158,18 @@ error_log {self.root}/logs/error.log info;
 pid {self.root}/nginx.pid;
 events {{ worker_connections 64; }}
 stream {{
-    xrootd_kv_zone authz 1m key=32 val=8;
+    brix_kv_zone authz 1m key=32 val=8;
     server {{
         listen {BIND_HOST}:{self.port};
         xrootd on;
-        xrootd_storage_backend posix:{self.root}/data;
-        xrootd_auth none;
-        xrootd_allow_write on;
-        xrootd_authdb_format xrdacc;
-        xrootd_authdb {self.authdb_path};
-        xrootd_authdb_audit all;
+        brix_storage_backend posix:{self.root}/data;
+        brix_auth none;
+        brix_allow_write on;
+        brix_authdb_format xrdacc;
+        brix_authdb {self.authdb_path};
+        brix_authdb_audit all;
 {extra}
-        xrootd_access_log {self.root}/logs/access.log;
+        brix_access_log {self.root}/logs/access.log;
     }}
 }}
 """)
@@ -302,7 +302,7 @@ class TestResolveHosts:
 
     def test_on_hostname_matches(self):
         srv = _server(self._authdb(),
-                      extra="        xrootd_acc_resolve_hosts on;")
+                      extra="        brix_acc_resolve_hosts on;")
         srv.file("pub/f.txt")
         srv.start()
         try:
@@ -316,7 +316,7 @@ class TestResolveHosts:
 # --------------------------------------------------------------------------- #
 
 class TestEncoding:
-    """`xrootd_acc_encoding on` URI-decodes authdb paths: `/a%20b` -> `/a b`."""
+    """`brix_acc_encoding on` URI-decodes authdb paths: `/a%20b` -> `/a b`."""
 
     def test_off_literal_no_match(self):
         srv = _server("u * /a%20b rl\n", tree=("a b",))
@@ -329,7 +329,7 @@ class TestEncoding:
 
     def test_on_decoded_matches(self):
         srv = _server("u * /a%20b rl\n", tree=("a b",),
-                      extra="        xrootd_acc_encoding on;")
+                      extra="        brix_acc_encoding on;")
         srv.file("a b/f.txt")
         srv.start()
         try:
@@ -346,7 +346,7 @@ class TestAuthCache:
     """The cache serves repeat verdicts but keys on the AOP, so a cached Update
     grant is never replayed for a Create on the same path."""
 
-    CACHE = "        xrootd_auth_cache zone=authz ttl=60;"
+    CACHE = "        brix_auth_cache zone=authz ttl=60;"
 
     def test_cache_hit_logs_cache_path(self):
         srv = _server("u * /d rwl\n", extra=self.CACHE)
@@ -430,14 +430,14 @@ http {{
     server {{
         listen {BIND_HOST}:{self.port};
         location / {{
-            xrootd_webdav on;
-            xrootd_webdav_storage_backend posix:{self.root}/data;
-            xrootd_webdav_auth none;
-            xrootd_webdav_allow_write on;
-            xrootd_authdb_format xrdacc;
-            xrootd_authdb {self.authdb_path};
-            xrootd_authdb_audit all;
-            xrootd_authdb_refresh 1;
+            brix_webdav on;
+            brix_webdav_storage_backend posix:{self.root}/data;
+            brix_webdav_auth none;
+            brix_webdav_allow_write on;
+            brix_authdb_format xrdacc;
+            brix_authdb {self.authdb_path};
+            brix_authdb_audit all;
+            brix_authdb_refresh 1;
         }}
     }}
 }}
@@ -468,7 +468,7 @@ http {{
 
 class TestHttpHotReload:
     """Editing the authdb while a WebDAV worker is live takes effect within the
-    refresh interval, with no restart (`xrootd_authdb_refresh`)."""
+    refresh interval, with no restart (`brix_authdb_refresh`)."""
 
     def test_reload_revokes_access(self):
         if not _have_nginx():

@@ -1,4 +1,4 @@
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 #include "fs/vfs/vfs.h"   /* confined open/unlink via the VFS seam */
 #include "chkpoint_xeq.h"
 #include "core/compat/log.h"
@@ -24,12 +24,12 @@
  *                           truncate/writev) under checkpoint protection
  *
  * The checkpoint is stored as a sibling file: <open-path>.ckp.
- * A non-NULL ckp_path in the xrootd_file_t slot indicates an active checkpoint.
+ * A non-NULL ckp_path in the brix_file_t slot indicates an active checkpoint.
  */
 
 
 static void
-ckp_clear_path(xrootd_file_t *f)
+ckp_clear_path(brix_file_t *f)
 {
     if (f->ckp_path != NULL) {
         ngx_free(f->ckp_path);
@@ -45,42 +45,42 @@ ckp_clear_path(xrootd_file_t *f)
  * WHY: Enables transactional write semantics — writes under ckpXeq are "tentative"
  *      until committed; rollback restores the pre-write state from the snapshot.
  * HOW: 1) Verify no existing checkpoint (f->ckp_path == NULL). 2) Check file size ≤ kXR_ckpMinMax.
- *      3) Allocate .ckp path string. 4) Create .ckp file with O_CREAT|O_TRUNC. 5) Copy full file via xrootd_copy_range(). */
+ *      3) Allocate .ckp path string. 4) Create .ckp file with O_CREAT|O_TRUNC. 5) Copy full file via brix_copy_range(). */
 
 static ngx_int_t
-ckp_begin(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
+ckp_begin(brix_ctx_t *ctx, ngx_connection_t *c, int idx)
 {
-    xrootd_file_t *f = &ctx->files[idx];
+    brix_file_t *f = &ctx->files[idx];
     struct stat    st;
     size_t         plen;
     int            ckp_fd;
 
     if (f->ckp_path != NULL) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_CHKPOINT, "CHKPOINT", f->path, "begin",
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_CHKPOINT, "CHKPOINT", f->path, "begin",
                           kXR_inProgress, "checkpoint already active");
     }
 
     if (fstat(f->fd, &st) != 0) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_CHKPOINT, "CHKPOINT", f->path, "begin",
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_CHKPOINT, "CHKPOINT", f->path, "begin",
                           kXR_IOError, strerror(errno));
     }
 
     if ((int64_t) st.st_size > kXR_ckpMinMax) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_CHKPOINT, "CHKPOINT", f->path, "begin",
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_CHKPOINT, "CHKPOINT", f->path, "begin",
                           kXR_overQuota, "file too large to checkpoint");
     }
 
     plen = strlen(f->path);
     if (plen + 4 >= PATH_MAX) {
-        XROOTD_OP_ERR(ctx, XROOTD_OP_CHKPOINT);
-        return xrootd_send_error(ctx, c, kXR_ArgTooLong,
+        BRIX_OP_ERR(ctx, BRIX_OP_CHKPOINT);
+        return brix_send_error(ctx, c, kXR_ArgTooLong,
                                  "path too long for checkpoint");
     }
 
     f->ckp_path = ngx_alloc(plen + 5, c->log);
     if (f->ckp_path == NULL) {
-        XROOTD_OP_ERR(ctx, XROOTD_OP_CHKPOINT);
-        return xrootd_send_error(ctx, c, kXR_NoMemory,
+        BRIX_OP_ERR(ctx, BRIX_OP_CHKPOINT);
+        return brix_send_error(ctx, c, kXR_NoMemory,
                                  "checkpoint path allocation failed");
     }
 
@@ -93,32 +93,32 @@ ckp_begin(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
     if (ckp_fd < 0) {
         if (errno == EEXIST) {
             ckp_clear_path(f);
-            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_CHKPOINT, "CHKPOINT",
+            BRIX_RETURN_ERR(ctx, c, BRIX_OP_CHKPOINT, "CHKPOINT",
                               f->path, "begin", kXR_inProgress,
                               "checkpoint already active for file");
         }
         ckp_clear_path(f);
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_CHKPOINT, "CHKPOINT", f->path, "begin",
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_CHKPOINT, "CHKPOINT", f->path, "begin",
                           kXR_IOError, strerror(errno));
     }
 
     f->ckp_size = (int64_t) st.st_size;
 
     if (f->ckp_size > 0) {
-        if (xrootd_copy_range(c->log, f->fd, 0, ckp_fd, 0, (size_t) f->ckp_size,
+        if (brix_copy_range(c->log, f->fd, 0, ckp_fd, 0, (size_t) f->ckp_size,
                               f->path, f->ckp_path) != NGX_OK) {
             close(ckp_fd);
             unlink(f->ckp_path);
             ckp_clear_path(f);
-            XROOTD_OP_ERR(ctx, XROOTD_OP_CHKPOINT);
-            return xrootd_send_error(ctx, c, kXR_IOError,
+            BRIX_OP_ERR(ctx, BRIX_OP_CHKPOINT);
+            return brix_send_error(ctx, c, kXR_IOError,
                                      "checkpoint copy failed");
         }
     }
 
     close(ckp_fd);
 
-    XROOTD_RETURN_OK(ctx, c, XROOTD_OP_CHKPOINT, "CHKPOINT", f->path, "begin", 0);
+    BRIX_RETURN_OK(ctx, c, BRIX_OP_CHKPOINT, "CHKPOINT", f->path, "begin", 0);
 }
 
 /* WHAT: Unlinks the .ckp snapshot file and clears f->ckp_path/f->ckp_size. After commit,
@@ -128,12 +128,12 @@ ckp_begin(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
  *      deleting the rollback snapshot.
  * HOW: Verify f->ckp_path != NULL, unlink .ckp file, call ckp_clear_path() to reset state. */
 
-/* WHAT: Truncates original file to f->ckp_size, then restores content from .ckp snapshot via xrootd_copy_range().
+/* WHAT: Truncates original file to f->ckp_size, then restores content from .ckp snapshot via brix_copy_range().
  *      After rollback, the original file returns to pre-checkpoint state.
  * WHY: Transactional write semantics provide "undo" capability — if writes under ckpXeq should be rejected,
  *      rollback restores the exact original content and length. This is essential for atomic operations where
  *      partial failures must not leave the file in inconsistent state.
- * HOW: 1) Verify f->ckp_path != NULL. 2) Run a VFS TRUNCATE job to checkpointed size (may shrink). 3) Copy .ckp→original via xrootd_copy_range(). 4) unlink + clear_path. */
+ * HOW: 1) Verify f->ckp_path != NULL. 2) Run a VFS TRUNCATE job to checkpointed size (may shrink). 3) Copy .ckp→original via brix_copy_range(). 4) unlink + clear_path. */
 
 /* WHAT: Returns ServerResponseBody_ChkPoint with maxCkpSize (kXR_ckpMinMax) and useCkpSize
  *      (size of .ckp file if active, 0 otherwise).
@@ -143,39 +143,39 @@ ckp_begin(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
 
 
 static ngx_int_t
-ckp_commit(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
+ckp_commit(brix_ctx_t *ctx, ngx_connection_t *c, int idx)
 {
-    xrootd_file_t *f = &ctx->files[idx];
+    brix_file_t *f = &ctx->files[idx];
 
     if (f->ckp_path == NULL) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_CHKPOINT, "CHKPOINT", f->path, "commit",
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_CHKPOINT, "CHKPOINT", f->path, "commit",
                           kXR_InvalidRequest, "no active checkpoint");
     }
 
     (void) unlink(f->ckp_path);
     ckp_clear_path(f);
 
-    XROOTD_RETURN_OK(ctx, c, XROOTD_OP_CHKPOINT, "CHKPOINT", f->path, "commit", 0);
+    BRIX_RETURN_OK(ctx, c, BRIX_OP_CHKPOINT, "CHKPOINT", f->path, "commit", 0);
 }
 
 
 static ngx_int_t
-ckp_rollback(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
+ckp_rollback(brix_ctx_t *ctx, ngx_connection_t *c, int idx)
 {
-    xrootd_file_t *f = &ctx->files[idx];
+    brix_file_t *f = &ctx->files[idx];
     int            ckp_fd;
-    xrootd_vfs_job_t job;
+    brix_vfs_job_t job;
 
     if (f->ckp_path == NULL) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_CHKPOINT, "CHKPOINT", f->path, "rollback",
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_CHKPOINT, "CHKPOINT", f->path, "rollback",
                           kXR_InvalidRequest, "no active checkpoint");
     }
 
     /* Truncate original to its checkpointed length first. */
-    xrootd_vfs_job_truncate_init(&job, f->fd, (off_t) f->ckp_size);
-    xrootd_vfs_io_execute(&job);
+    brix_vfs_job_truncate_init(&job, f->fd, (off_t) f->ckp_size);
+    brix_vfs_io_execute(&job);
     if (job.io_errno != 0) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_CHKPOINT, "CHKPOINT", f->path, "rollback",
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_CHKPOINT, "CHKPOINT", f->path, "rollback",
                           kXR_IOError, strerror(job.io_errno));
     }
 
@@ -183,15 +183,15 @@ ckp_rollback(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
     if (f->ckp_size > 0) {
         ckp_fd = open(f->ckp_path, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
         if (ckp_fd < 0) {
-            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_CHKPOINT, "CHKPOINT", f->path, "rollback",
+            BRIX_RETURN_ERR(ctx, c, BRIX_OP_CHKPOINT, "CHKPOINT", f->path, "rollback",
                               kXR_IOError, strerror(errno));
         }
 
-        if (xrootd_copy_range(c->log, ckp_fd, 0, f->fd, 0, (size_t) f->ckp_size,
+        if (brix_copy_range(c->log, ckp_fd, 0, f->fd, 0, (size_t) f->ckp_size,
                               f->ckp_path, f->path) != NGX_OK) {
             close(ckp_fd);
-            XROOTD_OP_ERR(ctx, XROOTD_OP_CHKPOINT);
-            return xrootd_send_error(ctx, c, kXR_IOError,
+            BRIX_OP_ERR(ctx, BRIX_OP_CHKPOINT);
+            return brix_send_error(ctx, c, kXR_IOError,
                                      "checkpoint restore copy failed");
         }
         close(ckp_fd);
@@ -200,14 +200,14 @@ ckp_rollback(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
     (void) unlink(f->ckp_path);
     ckp_clear_path(f);
 
-    XROOTD_RETURN_OK(ctx, c, XROOTD_OP_CHKPOINT, "CHKPOINT", f->path, "rollback", 0);
+    BRIX_RETURN_OK(ctx, c, BRIX_OP_CHKPOINT, "CHKPOINT", f->path, "rollback", 0);
 }
 
 
 static ngx_int_t
-ckp_query(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
+ckp_query(brix_ctx_t *ctx, ngx_connection_t *c, int idx)
 {
-    xrootd_file_t              *f = &ctx->files[idx];
+    brix_file_t              *f = &ctx->files[idx];
     uint32_t                    use_sz = 0;
     ServerResponseBody_ChkPoint body;
 
@@ -221,16 +221,16 @@ ckp_query(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
     body.maxCkpSize = htonl((uint32_t) kXR_ckpMinMax);
     body.useCkpSize = htonl(use_sz);
 
-    xrootd_log_access(ctx, c, "CHKPOINT", f->path, "query",
+    brix_log_access(ctx, c, "CHKPOINT", f->path, "query",
                       1, kXR_ok, NULL, 0);
-    XROOTD_OP_OK(ctx, XROOTD_OP_CHKPOINT);
-    return xrootd_send_ok(ctx, c, &body, (uint32_t) sizeof(body));
+    BRIX_OP_OK(ctx, BRIX_OP_CHKPOINT);
+    return brix_send_ok(ctx, c, &body, (uint32_t) sizeof(body));
 }
 
 
 ngx_int_t
-xrootd_handle_chkpoint(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf)
+brix_handle_chkpoint(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf)
 {
     xrdw_chkpoint_req_t    req;
     int                    idx;
@@ -241,8 +241,8 @@ xrootd_handle_chkpoint(xrootd_ctx_t *ctx, ngx_connection_t *c,
     xrdw_chkpoint_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
     idx = (int)(unsigned char) req.fhandle[0];
 
-    if (!xrootd_validate_write_handle(ctx, c, idx, "CHKPOINT",
-                                      XROOTD_OP_CHKPOINT, &validate_rc)) {
+    if (!brix_validate_write_handle(ctx, c, idx, "CHKPOINT",
+                                      BRIX_OP_CHKPOINT, &validate_rc)) {
         return validate_rc;
     }
 
@@ -250,8 +250,8 @@ xrootd_handle_chkpoint(xrootd_ctx_t *ctx, ngx_connection_t *c,
      * virtual/path-less handle (e.g. an SSI channel) or any handle opened without
      * a stored path. Guards ckp_begin's strlen(f->path) from a NULL deref. */
     if (ctx->files[idx].path == NULL || ctx->files[idx].ssi != NULL) {
-        XROOTD_OP_ERR(ctx, XROOTD_OP_CHKPOINT);
-        return xrootd_send_error(ctx, c, kXR_ArgInvalid,
+        BRIX_OP_ERR(ctx, BRIX_OP_CHKPOINT);
+        return brix_send_error(ctx, c, kXR_ArgInvalid,
                                  "checkpoint not supported on this handle");
     }
 
@@ -276,14 +276,14 @@ xrootd_handle_chkpoint(xrootd_ctx_t *ctx, ngx_connection_t *c,
         ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
                        "xrootd: kXR_chkpoint unknown opcode=%d",
                        (int)(unsigned char) req.opcode);
-        XROOTD_OP_ERR(ctx, XROOTD_OP_CHKPOINT);
-        return xrootd_send_error(ctx, c, kXR_ArgInvalid,
+        BRIX_OP_ERR(ctx, BRIX_OP_CHKPOINT);
+        return brix_send_error(ctx, c, kXR_ArgInvalid,
                                  "unknown chkpoint opcode");
     }
 
 /* WHAT: Dispatches kXR_chkpoint sub-operations on req->opcode — routes to ckp_begin, ckp_commit, ckp_query, or ckp_rollback; also handles ckpXeq via ckp_xeq(). Validates the write handle before dispatch. */
 /* WHY: kXR_chkpoint is a compound opcode with 5 sub-codes (begin/commit/query/rollback/Xeq). The dispatcher extracts the file handle from req->fhandle[0], validates it as an open write handle, then routes to the appropriate handler. ckpXeq is delegated to chkpoint_xeq.c which parses the inner 24-byte sub-header and executes a single write operation under checkpoint protection. */
-/* HOW: Extracts idx from req->fhandle[0] as unsigned char; calls xrootd_validate_write_handle() for validation (returns early on failure). switch(req->opcode): kXR_ckpBegin→ckp_begin, kXR_ckpCommit→ckp_commit, kXR_ckpQuery→ckp_query, kXR_ckpRollback→ckp_rollback, kXR_ckpXeq→ckp_xeq. Default case logs debug + returns kXR_ArgInvalid error. */
+/* HOW: Extracts idx from req->fhandle[0] as unsigned char; calls brix_validate_write_handle() for validation (returns early on failure). switch(req->opcode): kXR_ckpBegin→ckp_begin, kXR_ckpCommit→ckp_commit, kXR_ckpQuery→ckp_query, kXR_ckpRollback→ckp_rollback, kXR_ckpXeq→ckp_xeq. Default case logs debug + returns kXR_ArgInvalid error. */
 }
 
 static ngx_flag_t
@@ -302,7 +302,7 @@ ckp_recover_one(ngx_log_t *log, const char *root_canon,
     char                 orig_path[PATH_MAX];
     size_t               len;
     int                  ckp_fd;
-    xrootd_staged_file_t staged;
+    brix_staged_file_t staged;
     struct stat          st;
 
     len = strlen(ckp_path);
@@ -313,10 +313,10 @@ ckp_recover_one(ngx_log_t *log, const char *root_canon,
     ngx_memcpy(orig_path, ckp_path, len - 4);
     orig_path[len - 4] = '\0';
 
-    ckp_fd = xrootd_vfs_open_fd(log, root_canon, ckp_path,
+    ckp_fd = brix_vfs_open_fd(log, root_canon, ckp_path,
                                         O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0);
     if (ckp_fd < 0) {
-        xrootd_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
+        brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
                              "xrootd: checkpoint recovery cannot open \"%s\"",
                              ckp_path);
         return NGX_ERROR;
@@ -324,47 +324,47 @@ ckp_recover_one(ngx_log_t *log, const char *root_canon,
 
     if (fstat(ckp_fd, &st) != 0 || !S_ISREG(st.st_mode)) {
         ngx_close_file(ckp_fd);
-        xrootd_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
+        brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
                              "xrootd: checkpoint recovery invalid snapshot "
                              "\"%s\"", ckp_path);
         return NGX_ERROR;
     }
 
-    if (xrootd_staged_open(log, root_canon, orig_path, O_WRONLY, 0600, 16,
+    if (brix_staged_open(log, root_canon, orig_path, O_WRONLY, 0600, 16,
                            &staged) != NGX_OK)
     {
         ngx_close_file(ckp_fd);
-        xrootd_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
+        brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
                              "xrootd: checkpoint recovery cannot stage "
                              "\"%s\"", orig_path);
         return NGX_ERROR;
     }
 
     if (st.st_size > 0
-        && xrootd_copy_range(log, ckp_fd, 0, staged.fd, 0,
+        && brix_copy_range(log, ckp_fd, 0, staged.fd, 0,
                              (size_t) st.st_size, ckp_path,
                              staged.tmp_path) != NGX_OK)
     {
-        xrootd_staged_abort(log, root_canon, &staged, 1);
+        brix_staged_abort(log, root_canon, &staged, 1);
         ngx_close_file(ckp_fd);
-        xrootd_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
+        brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
                              "xrootd: checkpoint recovery copy failed for "
                              "\"%s\"", orig_path);
         return NGX_ERROR;
     }
 
     {
-        xrootd_vfs_job_t job;
+        brix_vfs_job_t job;
 
-        xrootd_vfs_job_sync_init(&job, staged.fd);
-        xrootd_vfs_io_execute(&job);
+        brix_vfs_job_sync_init(&job, staged.fd);
+        brix_vfs_io_execute(&job);
     }
 
-    if (xrootd_staged_commit(log, root_canon, &staged, orig_path)
+    if (brix_staged_commit(log, root_canon, &staged, orig_path)
         != NGX_OK)
     {
         ngx_close_file(ckp_fd);
-        xrootd_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
+        brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
                              "xrootd: checkpoint recovery commit failed for "
                              "\"%s\"", orig_path);
         return NGX_ERROR;
@@ -372,14 +372,14 @@ ckp_recover_one(ngx_log_t *log, const char *root_canon,
 
     ngx_close_file(ckp_fd);
 
-    if (xrootd_vfs_unlink_path(log, root_canon, ckp_path) != 0) {
-        xrootd_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
+    if (brix_vfs_unlink_path(log, root_canon, ckp_path) != 0) {
+        brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
                              "xrootd: checkpoint recovery cannot remove "
                              "\"%s\"", ckp_path);
         return NGX_ERROR;
     }
 
-    xrootd_log_safe_path(log, NGX_LOG_NOTICE, 0,
+    brix_log_safe_path(log, NGX_LOG_NOTICE, 0,
                          "xrootd: recovered abandoned checkpoint \"%s\"",
                          ckp_path);
     return NGX_OK;
@@ -394,13 +394,13 @@ ckp_recover_scan(ngx_log_t *log, const char *root_canon, const char *dir,
     struct dirent *de;
 
     if (depth > 128) {
-        xrootd_log_safe_path(log, NGX_LOG_ERR, 0,
+        brix_log_safe_path(log, NGX_LOG_ERR, 0,
                              "xrootd: checkpoint recovery depth exceeded at "
                              "\"%s\"", dir);
         return NGX_ERROR;
     }
 
-    dfd = xrootd_vfs_open_fd(log, root_canon, dir,
+    dfd = brix_vfs_open_fd(log, root_canon, dir,
                                      O_RDONLY | O_DIRECTORY | O_CLOEXEC
                                      | O_NOFOLLOW, 0);
     if (dfd < 0) {
@@ -415,12 +415,12 @@ ckp_recover_scan(ngx_log_t *log, const char *root_canon, const char *dir,
         if (depth > 0 && (ngx_errno == EACCES || ngx_errno == ENOENT
                           || ngx_errno == ENOTDIR || ngx_errno == ELOOP))
         {
-            xrootd_log_safe_path(log, NGX_LOG_INFO, ngx_errno,
+            brix_log_safe_path(log, NGX_LOG_INFO, ngx_errno,
                                  "xrootd: checkpoint recovery skipping "
                                  "inaccessible dir \"%s\"", dir);
             return NGX_OK;
         }
-        xrootd_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
+        brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
                              "xrootd: checkpoint recovery cannot scan \"%s\"",
                              dir);
         return NGX_ERROR;
@@ -429,7 +429,7 @@ ckp_recover_scan(ngx_log_t *log, const char *root_canon, const char *dir,
     dp = fdopendir(dfd);
     if (dp == NULL) {
         ngx_close_file(dfd);
-        xrootd_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
+        brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
                              "xrootd: checkpoint recovery cannot scan \"%s\"",
                              dir);
         return NGX_ERROR;
@@ -458,7 +458,7 @@ ckp_recover_scan(ngx_log_t *log, const char *root_canon, const char *dir,
         if (fstatat(dirfd(dp), de->d_name, &st, AT_SYMLINK_NOFOLLOW) != 0) {
             /* A transiently-removed or inaccessible entry: skip it, don't abort
              * the whole recovery (and thus the worker). */
-            xrootd_log_safe_path(log, NGX_LOG_INFO, ngx_errno,
+            brix_log_safe_path(log, NGX_LOG_INFO, ngx_errno,
                                  "xrootd: checkpoint recovery skipping entry "
                                  "\"%s\"", path);
             continue;
@@ -485,7 +485,7 @@ ckp_recover_scan(ngx_log_t *log, const char *root_canon, const char *dir,
 }
 
 ngx_int_t
-xrootd_chkpoint_recover_root(ngx_log_t *log, const char *root_canon)
+brix_chkpoint_recover_root(ngx_log_t *log, const char *root_canon)
 {
     char      lock_path[PATH_MAX];
     size_t    root_len;
@@ -495,7 +495,7 @@ xrootd_chkpoint_recover_root(ngx_log_t *log, const char *root_canon)
     if (root_canon == NULL || root_canon[0] == '\0') {
         return NGX_OK;
     }
-    /* A pure cache node (no xrootd_root) anchors at the "/" namespace: there is no
+    /* A pure cache node (no brix_root) anchors at the "/" namespace: there is no
      * local export tree, so no checkpoint journal to recover (and "/" is not a
      * writable place to drop a recovery lock). Nothing to do. */
     if (root_canon[0] == '/' && root_canon[1] == '\0') {
@@ -515,7 +515,7 @@ xrootd_chkpoint_recover_root(ngx_log_t *log, const char *root_canon)
 
     lock_fd = open(lock_path, O_CREAT | O_RDWR | O_CLOEXEC | O_NOFOLLOW, 0600);
     if (lock_fd < 0) {
-        xrootd_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
+        brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
                              "xrootd: checkpoint recovery lock failed "
                              "\"%s\"", lock_path);
         return NGX_ERROR;
@@ -523,7 +523,7 @@ xrootd_chkpoint_recover_root(ngx_log_t *log, const char *root_canon)
 
     if (flock(lock_fd, LOCK_EX) != 0) {
         ngx_close_file(lock_fd);
-        xrootd_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
+        brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
                              "xrootd: checkpoint recovery cannot lock "
                              "\"%s\"", lock_path);
         return NGX_ERROR;

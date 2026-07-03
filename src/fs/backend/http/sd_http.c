@@ -1,13 +1,13 @@
 /*
  * sd_http.c — read-only HTTP(S) source storage driver (phase-63 C-4). See header.
  *
- * A thin driver over the injected xrootd_s3_transport_t (the same vtable the S3
+ * A thin driver over the injected brix_s3_transport_t (the same vtable the S3
  * driver uses): `open`/`stat` HEAD the URL for the size, `pread` issues a byte
  * Range GET. No SigV4, no auth — plain anonymous HTTP. No kernel fd ⇒ memory-served.
  */
 
 #include "sd_http.h"
-#include "fs/path/path.h"        /* xrootd_sanitize_log_string (wire keys) */
+#include "fs/path/path.h"        /* brix_sanitize_log_string (wire keys) */
 
 #include <errno.h>
 #include <stdatomic.h>
@@ -23,7 +23,7 @@
 #define SD_HTTP_AUTH_MAX   4160                 /* "Authorization: Bearer <tok>\r\n" */
 
 /* Force-primary read policy (process-global operator toggle; set pre-fork from
- * the cvmfs merge when xrootd_cvmfs_fill_retry_policy is force-primary, so all
+ * the cvmfs merge when brix_cvmfs_fill_retry_policy is force-primary, so all
  * workers inherit it — the trace/timeouts idiom). When set, a read always
  * targets the RANK-PREFERRED endpoint and NEVER fails over to an alternate on a
  * transport failure: the fill loop retries the SAME preferred origin (RAL) with
@@ -57,7 +57,7 @@ typedef struct {
 typedef struct {
     sd_http_endpoint             eps[SD_HTTP_EP_MAX];
     int                          n_eps;
-    const xrootd_s3_transport_t *transport;
+    const brix_s3_transport_t *transport;
     void                        *tctx;
     int                          timeout_ms;
     void                       (*failover_note)(void);  /* T16 metric hook */
@@ -190,7 +190,7 @@ sd_http_ep_rank(const sd_http_endpoint *ep)
 static const char *
 sd_http_log_key(const char *key, char *buf, size_t cap)
 {
-    (void) xrootd_sanitize_log_string((key != NULL && key[0]) ? key : "/",
+    (void) brix_sanitize_log_string((key != NULL && key[0]) ? key : "/",
                                       buf, cap);
     return buf;
 }
@@ -245,7 +245,7 @@ sd_http_log_switch(sd_http_inst_state *is, sd_http_endpoint *ep)
  * On success *used (when non-NULL) names the endpoint that answered. */
 static int
 sd_http_request_fo(sd_http_inst_state *is, const char *method, const char *key,
-    const char *extra_hdrs, xrootd_s3_resp_t *resp, sd_http_endpoint **used)
+    const char *extra_hdrs, brix_s3_resp_t *resp, sd_http_endpoint **used)
 {
     int               force_primary = g_sd_http_force_primary;
     /* Force-primary pins the rank-preferred endpoint (ignore health — there is
@@ -361,7 +361,7 @@ sd_http_request_fo(sd_http_inst_state *is, const char *method, const char *key,
 static int
 sd_http_head_size(sd_http_inst_state *is, const char *key, int64_t *size_out)
 {
-    xrootd_s3_resp_t resp;
+    brix_s3_resp_t resp;
     char             cl[32];
 
     if (sd_http_request_fo(is, "HEAD", key,
@@ -389,20 +389,20 @@ sd_http_head_size(sd_http_inst_state *is, const char *key, int64_t *size_out)
     return 0;
 }
 
-static xrootd_sd_obj_t *
-sd_http_open(xrootd_sd_instance_t *inst, const char *path, int sd_flags,
+static brix_sd_obj_t *
+sd_http_open(brix_sd_instance_t *inst, const char *path, int sd_flags,
     mode_t mode, int *err_out)
 {
     sd_http_inst_state *is = inst->state;
     sd_http_obj_state  *st;
-    xrootd_sd_obj_t    *obj;
+    brix_sd_obj_t    *obj;
     int64_t             size = 0;
 
     (void) mode;
 
     /* Read-only source: refuse any write/create/trunc intent. */
-    if (sd_flags & (XROOTD_SD_O_WRITE | XROOTD_SD_O_CREATE | XROOTD_SD_O_TRUNC
-                    | XROOTD_SD_O_APPEND))
+    if (sd_flags & (BRIX_SD_O_WRITE | BRIX_SD_O_CREATE | BRIX_SD_O_TRUNC
+                    | BRIX_SD_O_APPEND))
     {
         if (err_out) { *err_out = EROFS; }
         return NULL;
@@ -436,7 +436,7 @@ sd_http_open(xrootd_sd_instance_t *inst, const char *path, int sd_flags,
 }
 
 static ngx_int_t
-sd_http_close(xrootd_sd_obj_t *obj)
+sd_http_close(brix_sd_obj_t *obj)
 {
     if (obj != NULL && obj->state != NULL) {
         free(obj->state);
@@ -446,11 +446,11 @@ sd_http_close(xrootd_sd_obj_t *obj)
 }
 
 static ssize_t
-sd_http_pread(xrootd_sd_obj_t *obj, void *buf, size_t len, off_t off)
+sd_http_pread(brix_sd_obj_t *obj, void *buf, size_t len, off_t off)
 {
     sd_http_inst_state *is = obj->inst->state;
     sd_http_obj_state  *st = obj->state;
-    xrootd_s3_resp_t    resp;
+    brix_s3_resp_t    resp;
     char                hdrs[SD_HTTP_AUTH_MAX + 80];
     const void         *body;
     size_t              blen = 0, n;
@@ -504,15 +504,15 @@ sd_http_pread(xrootd_sd_obj_t *obj, void *buf, size_t len, off_t off)
 }
 
 static ngx_int_t
-sd_http_fstat(xrootd_sd_obj_t *obj, xrootd_sd_stat_t *out)
+sd_http_fstat(brix_sd_obj_t *obj, brix_sd_stat_t *out)
 {
     *out = obj->snap;
     return NGX_OK;
 }
 
 static ngx_int_t
-sd_http_stat(xrootd_sd_instance_t *inst, const char *path,
-    xrootd_sd_stat_t *out)
+sd_http_stat(brix_sd_instance_t *inst, const char *path,
+    brix_sd_stat_t *out)
 {
     sd_http_inst_state *is = inst->state;
     int64_t             size = 0;
@@ -531,13 +531,13 @@ sd_http_stat(xrootd_sd_instance_t *inst, const char *path,
  * staged write buffers the object and PUTs it whole at commit (atomic from the
  * reader's view); unlink is a DELETE (eviction + post-flush stage cleanup). */
 
-static xrootd_sd_staged_t *
-sd_http_staged_open(xrootd_sd_instance_t *inst, const char *final_path,
+static brix_sd_staged_t *
+sd_http_staged_open(brix_sd_instance_t *inst, const char *final_path,
     mode_t mode, int *err_out)
 {
     sd_http_inst_state   *is = inst->state;
     sd_http_staged_state *ss;
-    xrootd_sd_staged_t   *h;
+    brix_sd_staged_t   *h;
 
     (void) mode;
     ss = calloc(1, sizeof(*ss));
@@ -555,7 +555,7 @@ sd_http_staged_open(xrootd_sd_instance_t *inst, const char *final_path,
 }
 
 static ssize_t
-sd_http_staged_write(xrootd_sd_staged_t *h, const void *buf, size_t len,
+sd_http_staged_write(brix_sd_staged_t *h, const void *buf, size_t len,
     off_t off)
 {
     sd_http_staged_state *ss = h->state;
@@ -586,11 +586,11 @@ sd_http_staged_write(xrootd_sd_staged_t *h, const void *buf, size_t len,
 }
 
 static ngx_int_t
-sd_http_staged_commit(xrootd_sd_staged_t *h, int noreplace)
+sd_http_staged_commit(brix_sd_staged_t *h, int noreplace)
 {
     sd_http_staged_state *ss = h->state;
     sd_http_inst_state   *is = h->inst->state;
-    xrootd_s3_resp_t      resp;
+    brix_s3_resp_t      resp;
     char                  errbuf[256];
     ngx_int_t             rc = NGX_OK;
 
@@ -619,7 +619,7 @@ sd_http_staged_commit(xrootd_sd_staged_t *h, int noreplace)
 }
 
 static void
-sd_http_staged_abort(xrootd_sd_staged_t *h)
+sd_http_staged_abort(brix_sd_staged_t *h)
 {
     sd_http_staged_state *ss = h->state;
 
@@ -629,10 +629,10 @@ sd_http_staged_abort(xrootd_sd_staged_t *h)
 }
 
 static ngx_int_t
-sd_http_unlink(xrootd_sd_instance_t *inst, const char *path, int is_dir)
+sd_http_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)
 {
     sd_http_inst_state *is = inst->state;
-    xrootd_s3_resp_t    resp;
+    brix_s3_resp_t    resp;
     char                errbuf[256], full[SD_HTTP_PATH_MAX];
 
     (void) is_dir;
@@ -658,9 +658,9 @@ sd_http_unlink(xrootd_sd_instance_t *inst, const char *path, int is_dir)
 
 /* Read + write: an HTTP/WebDAV origin as a read source and a writable cache_store /
  * stage_store (buffered whole-object PUT + DELETE). */
-static const xrootd_sd_driver_t xrootd_sd_http_driver = {
+static const brix_sd_driver_t brix_sd_http_driver = {
     .name  = "http",
-    .caps  = XROOTD_SD_CAP_RANGE_READ | XROOTD_SD_CAP_RANDOM_WRITE,
+    .caps  = BRIX_SD_CAP_RANGE_READ | BRIX_SD_CAP_RANDOM_WRITE,
     .open  = sd_http_open,
     .close = sd_http_close,
     .pread = sd_http_pread,
@@ -677,15 +677,15 @@ static const xrootd_sd_driver_t xrootd_sd_http_driver = {
 
 /* 1 iff `inst` is an sd_http instance (guards the accessors below). */
 static int
-sd_http_instance_is(const xrootd_sd_instance_t *inst)
+sd_http_instance_is(const brix_sd_instance_t *inst)
 {
-    return inst != NULL && inst->driver == &xrootd_sd_http_driver;
+    return inst != NULL && inst->driver == &brix_sd_http_driver;
 }
 
 /* Push selection ranks (rank 0 = most preferred; order = endpoint order).
  * Written on the event loop, read by fill threads — relaxed atomics. */
 void
-sd_http_set_ranks(xrootd_sd_instance_t *inst, const int *ranks, int n)
+sd_http_set_ranks(brix_sd_instance_t *inst, const int *ranks, int n)
 {
     sd_http_inst_state *is;
     int                 i;
@@ -702,7 +702,7 @@ sd_http_set_ranks(xrootd_sd_instance_t *inst, const int *ranks, int n)
 
 /* Endpoint inventory for the RTT prober (copies, no ngx types). */
 int
-sd_http_endpoint_list(xrootd_sd_instance_t *inst, char hosts[][256],
+sd_http_endpoint_list(brix_sd_instance_t *inst, char hosts[][256],
     int *ports, int max)
 {
     sd_http_inst_state *is;
@@ -722,7 +722,7 @@ sd_http_endpoint_list(xrootd_sd_instance_t *inst, char hosts[][256],
 
 /* Endpoint count (0 for a non-http instance). */
 int
-sd_http_n_endpoints(xrootd_sd_instance_t *inst)
+sd_http_n_endpoints(brix_sd_instance_t *inst)
 {
     return sd_http_instance_is(inst)
          ? ((sd_http_inst_state *) inst->state)->n_eps : 0;
@@ -731,7 +731,7 @@ sd_http_n_endpoints(xrootd_sd_instance_t *inst)
 /* "host:port" of the endpoint that answered the most recent read (display
  * only; racy-by-design). 0 with buf filled, or -1 (non-http / none yet). */
 int
-sd_http_last_origin(xrootd_sd_instance_t *inst, char *buf, size_t cap)
+sd_http_last_origin(brix_sd_instance_t *inst, char *buf, size_t cap)
 {
     sd_http_inst_state *is;
 
@@ -749,7 +749,7 @@ sd_http_last_origin(xrootd_sd_instance_t *inst, char *buf, size_t cap)
 /* 1 iff the endpoint that answered the most recent read was a failover (not
  * the first-tried). Pairs with sd_http_last_origin; racy-by-design. */
 int
-sd_http_last_was_failover(xrootd_sd_instance_t *inst)
+sd_http_last_was_failover(brix_sd_instance_t *inst)
 {
     return sd_http_instance_is(inst)
          ? ((sd_http_inst_state *) inst->state)->last_failover : 0;
@@ -758,7 +758,7 @@ sd_http_last_was_failover(xrootd_sd_instance_t *inst)
 /* Health snapshot for /healthz: copies up to `max` (host, port, fail_score)
  * triplets. Returns the count (0 for a non-http instance). */
 int
-sd_http_health_snapshot(xrootd_sd_instance_t *inst, char hosts[][256],
+sd_http_health_snapshot(brix_sd_instance_t *inst, char hosts[][256],
     int *ports, int *scores, int max)
 {
     sd_http_inst_state *is;
@@ -777,10 +777,10 @@ sd_http_health_snapshot(xrootd_sd_instance_t *inst, char hosts[][256],
     return n;
 }
 
-xrootd_sd_instance_t *
-xrootd_sd_http_create(const xrootd_sd_http_cfg_t *cfg, ngx_log_t *log)
+brix_sd_instance_t *
+brix_sd_http_create(const brix_sd_http_cfg_t *cfg, ngx_log_t *log)
 {
-    xrootd_sd_instance_t *inst;
+    brix_sd_instance_t *inst;
     sd_http_inst_state   *is;
 
     if (cfg == NULL || cfg->host == NULL || cfg->host[0] == '\0'
@@ -810,7 +810,7 @@ xrootd_sd_http_create(const xrootd_sd_http_cfg_t *cfg, ngx_log_t *log)
             n = SD_HTTP_EP_MAX - 1;
         }
         for (i = 0; i < n; i++) {
-            const xrootd_sd_http_ep_cfg_t *ec = &cfg->extra[i];
+            const brix_sd_http_ep_cfg_t *ec = &cfg->extra[i];
 
             if (ec->host == NULL || ec->host[0] == '\0' || ec->port <= 0
                 || ec->port > 65535)
@@ -839,7 +839,7 @@ xrootd_sd_http_create(const xrootd_sd_http_cfg_t *cfg, ngx_log_t *log)
                  "Authorization: Bearer %s\r\n", cfg->bearer_token);
     }
 
-    inst->driver = &xrootd_sd_http_driver;
+    inst->driver = &brix_sd_http_driver;
     inst->log    = log;
     inst->pool   = NULL;
     inst->state  = is;
@@ -847,7 +847,7 @@ xrootd_sd_http_create(const xrootd_sd_http_cfg_t *cfg, ngx_log_t *log)
 }
 
 void
-xrootd_sd_http_destroy(xrootd_sd_instance_t *inst)
+brix_sd_http_destroy(brix_sd_instance_t *inst)
 {
     if (inst == NULL) {
         return;

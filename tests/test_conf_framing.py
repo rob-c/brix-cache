@@ -23,7 +23,7 @@ def test_opcode_empty_body_robust(srv, op):
         # A one-sided hang is normally the bug — EXCEPT for kXR_sigver, which by
         # design produces NO response on a (provisionally) valid signature and
         # waits for the next request to which it applies (XrdXrootdProtocol.cc:
-        # 650-651; pinned exactly in test_xrootd_conformance test 7). Our server
+        # 650-651; pinned exactly in test_brix_conformance test 7). Our server
         # correctly suppresses the reply and awaits the signed request, so a
         # "no reply" here is conformant, not a wedge — the link is still live.
         if op == kXR_sigver:
@@ -293,7 +293,7 @@ def test_valid_then_garbage_frame_class_parity(srv):
 @pytest.mark.parametrize("nbytes", [MAX_PATH + 1, MAX_PATH * 2, 65536],
                          ids=["maxpath+1", "2xmaxpath", "64k"])
 def test_oversized_path_stat_rejected(srv, nbytes):
-    """A stat whose path is longer than XROOTD_MAX_PATH must be rejected on BOTH
+    """A stat whose path is longer than BRIX_MAX_PATH must be rejected on BOTH
     (kXR_ArgTooLong class) — OUR must not crash or hang on the big allocation."""
     def send(s):
         p = b"/" + b"a" * (nbytes - 1)
@@ -305,7 +305,7 @@ def test_oversized_path_stat_rejected(srv, nbytes):
 @pytest.mark.parametrize("nbytes", [MAX_PATH + 1, 65536],
                          ids=["maxpath+1", "64k"])
 def test_oversized_path_open_rejected(srv, nbytes):
-    """An open whose path exceeds XROOTD_MAX_PATH must be rejected on both."""
+    """An open whose path exceeds BRIX_MAX_PATH must be rejected on both."""
     def send(s):
         p = b"/" + b"b" * (nbytes - 1)
         s.sendall(_open_bytes(p, sid=b"\x00\x5a"))

@@ -22,7 +22,7 @@
  * listed AS THE MAPPED USER under impersonation — else PROPPATCH setxattr on the
  * user-owned resource fails EACCES from the worker.  Derive the export root from
  * the request and route every xattr op through the VFS xattr surface, which
- * delegates to xrootd_*xattr_confined_canon (broker under map mode; raw
+ * delegates to brix_*xattr_confined_canon (broker under map mode; raw
  * path-based syscall otherwise) while adding OP_XATTR metering — confinement and
  * errno behaviour are unchanged.
  */
@@ -34,20 +34,20 @@
  */
 static void
 webdav_dead_prop_vfs_ctx_init(ngx_http_request_t *r, const char *path,
-    xrootd_vfs_ctx_t *vctx)
+    brix_vfs_ctx_t *vctx)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *conf =
-        ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
-    ngx_http_xrootd_webdav_req_ctx_t *wctx =
-        ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    ngx_http_brix_webdav_loc_conf_t *conf =
+        ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
+    ngx_http_brix_webdav_req_ctx_t *wctx =
+        ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     int is_tls = 0;
 
 #if (NGX_HTTP_SSL)
     is_tls = (r->connection->ssl != NULL) ? 1 : 0;
 #endif
 
-    xrootd_vfs_ctx_init(vctx, r->pool, r->connection->log,
-        XROOTD_PROTO_WEBDAV, conf->common.root_canon,
+    brix_vfs_ctx_init(vctx, r->pool, r->connection->log,
+        BRIX_PROTO_WEBDAV, conf->common.root_canon,
         conf->cache_root_canon, conf->common.allow_write, is_tls,
         (wctx != NULL) ? wctx->identity : NULL, path);
 }
@@ -198,7 +198,7 @@ webdav_dead_prop_decode_hex(ngx_pool_t *pool, const char *hex, size_t len)
         return NULL;
     }
 
-    XROOTD_PNALLOC_OR_RETURN(out, pool, len / 2 + 1, NULL);
+    BRIX_PNALLOC_OR_RETURN(out, pool, len / 2 + 1, NULL);
 
     for (i = 0; i < len; i += 2) {
         int hi = webdav_dead_prop_hexval(hex[i]);
@@ -282,13 +282,13 @@ webdav_dead_prop_append_empty(ngx_http_request_t *r, const char *ns,
     }
 
     if (ns != NULL && strcmp(ns, "DAV:") == 0) {
-        return xrootd_http_chain_appendf(r->pool, head, tail,
+        return brix_http_chain_appendf(r->pool, head, tail,
                                          "<D:%s/>", local) == NULL
                ? NGX_ERROR : NGX_OK;
     }
 
     if (ns == NULL || ns[0] == '\0') {
-        return xrootd_http_chain_appendf(r->pool, head, tail,
+        return brix_http_chain_appendf(r->pool, head, tail,
                                          "<%s/>", local) == NULL
                ? NGX_ERROR : NGX_OK;
     }
@@ -298,7 +298,7 @@ webdav_dead_prop_append_empty(ngx_http_request_t *r, const char *ns,
         return NGX_ERROR;
     }
 
-    return xrootd_http_chain_appendf(r->pool, head, tail,
+    return brix_http_chain_appendf(r->pool, head, tail,
                                      "<X:%s xmlns:X=\"%s\"/>",
                                      local, safe_ns) == NULL
            ? NGX_ERROR : NGX_OK;
@@ -315,7 +315,7 @@ webdav_dead_prop_set(ngx_http_request_t *r, const char *path,
     const char *ns, const char *local, const char *xml, size_t xml_len)
 {
     char             attr[WEBDAV_DEAD_PROP_NAME_MAX + 1];
-    xrootd_vfs_ctx_t vctx;
+    brix_vfs_ctx_t vctx;
 
     if (xml_len > WEBDAV_DEAD_PROP_VALUE_MAX
         || webdav_dead_prop_attr_name(ns, local, attr, sizeof(attr)) != NGX_OK)
@@ -326,9 +326,9 @@ webdav_dead_prop_set(ngx_http_request_t *r, const char *path,
 
     webdav_dead_prop_vfs_ctx_init(r, path, &vctx);
 
-    if (xrootd_vfs_setxattr(&vctx, attr, xml, xml_len, 0) != NGX_OK) {
+    if (brix_vfs_setxattr(&vctx, attr, xml, xml_len, 0) != NGX_OK) {
         ngx_log_error(NGX_LOG_WARN, r->connection->log, errno,
-                      "xrootd_webdav: setxattr dead property failed");
+                      "brix_webdav: setxattr dead property failed");
         return NGX_ERROR;
     }
 
@@ -345,7 +345,7 @@ webdav_dead_prop_remove(ngx_http_request_t *r, const char *path,
     const char *ns, const char *local)
 {
     char             attr[WEBDAV_DEAD_PROP_NAME_MAX + 1];
-    xrootd_vfs_ctx_t vctx;
+    brix_vfs_ctx_t vctx;
 
     if (webdav_dead_prop_attr_name(ns, local, attr, sizeof(attr)) != NGX_OK) {
         errno = ENAMETOOLONG;
@@ -355,11 +355,11 @@ webdav_dead_prop_remove(ngx_http_request_t *r, const char *path,
     webdav_dead_prop_vfs_ctx_init(r, path, &vctx);
 
     /* "not present" == already removed, so treat ENODATA/ENOATTR as success. */
-    if (xrootd_vfs_removexattr(&vctx, attr) != NGX_OK
+    if (brix_vfs_removexattr(&vctx, attr) != NGX_OK
         && errno != ENODATA && errno != ENOATTR)
     {
         ngx_log_error(NGX_LOG_WARN, r->connection->log, errno,
-                      "xrootd_webdav: removexattr dead property failed");
+                      "brix_webdav: removexattr dead property failed");
         return NGX_ERROR;
     }
 
@@ -382,7 +382,7 @@ webdav_dead_prop_append_value(ngx_http_request_t *r, const char *path,
     ngx_chain_t **tail, ngx_flag_t *found)
 {
     char             attr[WEBDAV_DEAD_PROP_NAME_MAX + 1];
-    xrootd_vfs_ctx_t vctx;
+    brix_vfs_ctx_t vctx;
     char            *value;
     ssize_t          len;
 
@@ -395,7 +395,7 @@ webdav_dead_prop_append_value(ngx_http_request_t *r, const char *path,
     webdav_dead_prop_vfs_ctx_init(r, path, &vctx);
 
     /* Probe length first (buf=NULL, size=0). */
-    len = xrootd_vfs_getxattr(&vctx, attr, NULL, 0);
+    len = brix_vfs_getxattr(&vctx, attr, NULL, 0);
     if (len < 0) {
         if (errno == ENODATA || errno == ENOATTR) {
             return NGX_OK;
@@ -407,17 +407,17 @@ webdav_dead_prop_append_value(ngx_http_request_t *r, const char *path,
         return NGX_ERROR;
     }
 
-    XROOTD_PNALLOC_OR_RETURN(value, r->pool, (size_t) len + 1, NGX_ERROR);
+    BRIX_PNALLOC_OR_RETURN(value, r->pool, (size_t) len + 1, NGX_ERROR);
 
     /* Second read fetches the actual bytes; a concurrent shrink is fine since
      * we re-read the returned length, a concurrent grow is bounded by the buf. */
-    len = xrootd_vfs_getxattr(&vctx, attr, value, (size_t) len);
+    len = brix_vfs_getxattr(&vctx, attr, value, (size_t) len);
     if (len < 0) {
         return NGX_ERROR;
     }
     value[len] = '\0';
 
-    if (xrootd_http_chain_appendf(r->pool, head, tail, "%s", value) == NULL) {
+    if (brix_http_chain_appendf(r->pool, head, tail, "%s", value) == NULL) {
         return NGX_ERROR;
     }
 
@@ -436,7 +436,7 @@ ngx_int_t
 webdav_dead_props_append_all(ngx_http_request_t *r, const char *path,
     ngx_chain_t **head, ngx_chain_t **tail, ngx_flag_t names_only)
 {
-    xrootd_vfs_ctx_t vctx;
+    brix_vfs_ctx_t vctx;
     char            *list;
     ssize_t          len;
     char            *p;
@@ -444,7 +444,7 @@ webdav_dead_props_append_all(ngx_http_request_t *r, const char *path,
     webdav_dead_prop_vfs_ctx_init(r, path, &vctx);
 
     /* Probe the size of the NUL-separated key list. */
-    len = xrootd_vfs_listxattr(&vctx, NULL, 0);
+    len = brix_vfs_listxattr(&vctx, NULL, 0);
     if (len <= 0) {
         return NGX_OK;
     }
@@ -453,9 +453,9 @@ webdav_dead_props_append_all(ngx_http_request_t *r, const char *path,
         return NGX_OK;
     }
 
-    XROOTD_PNALLOC_OR_RETURN(list, r->pool, (size_t) len, NGX_ERROR);
+    BRIX_PNALLOC_OR_RETURN(list, r->pool, (size_t) len, NGX_ERROR);
 
-    len = xrootd_vfs_listxattr(&vctx, list, (size_t) len);
+    len = brix_vfs_listxattr(&vctx, list, (size_t) len);
     if (len <= 0) {
         return NGX_OK;
     }
@@ -497,7 +497,7 @@ webdav_dead_props_append_all(ngx_http_request_t *r, const char *path,
 void
 webdav_dead_props_copy(ngx_log_t *log, const char *src, const char *dst)
 {
-    xrootd_xattr_copy_by_prefix(log, src, dst,
+    brix_xattr_copy_by_prefix(log, src, dst,
         WEBDAV_DEAD_PROP_PREFIX, WEBDAV_DEAD_PROP_PREFIX_LEN,
         WEBDAV_DEAD_PROP_VALUE_MAX);
 }

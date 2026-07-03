@@ -15,9 +15,9 @@
  * exits. This keeps reloads from leaking one fd per export root.
  */
 static void
-xrootd_http_rootfd_cleanup(void *data)
+brix_http_rootfd_cleanup(void *data)
 {
-    ngx_http_xrootd_shared_conf_t *common = data;
+    ngx_http_brix_shared_conf_t *common = data;
 
     if (common->rootfd >= 0) {
         (void) close(common->rootfd);
@@ -26,12 +26,12 @@ xrootd_http_rootfd_cleanup(void *data)
 }
 
 char *
-xrootd_http_open_rootfd(ngx_conf_t *cf, ngx_http_xrootd_shared_conf_t *common)
+brix_http_open_rootfd(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *common)
 {
     ngx_pool_cleanup_t *cln;
 
     /* Nothing to confine: protocol disabled or no local export root (e.g. an
-     * S3 location with no xrootd_s3_root). rootfd stays -1. */
+     * S3 location with no brix_s3_root). rootfd stays -1. */
     if (!common->enable || common->root_canon[0] == '\0') {
         return NGX_CONF_OK;
     }
@@ -57,7 +57,7 @@ xrootd_http_open_rootfd(ngx_conf_t *cf, ngx_http_xrootd_shared_conf_t *common)
         common->rootfd = -1;
         return NGX_CONF_ERROR;
     }
-    cln->handler = xrootd_http_rootfd_cleanup;
+    cln->handler = brix_http_rootfd_cleanup;
     cln->data    = common;
 
     return NGX_CONF_OK;

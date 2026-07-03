@@ -57,11 +57,11 @@ run zip_write_test  -D_GNU_SOURCE -I "${REPO}/client/lib" "${HERE}/zip_write_tes
 
 # Build matrix — graceful degradation when optional codec libs are ABSENT.
 # Compile the kernel + zlib backend (mandatory) but every optional backend with
-# its -DXROOTD_HAVE_* UNDEFINED, so each links as its available=0 stub and NO
+# its -DBRIX_HAVE_* UNDEFINED, so each links as its available=0 stub and NO
 # optional lib is linked.  Proves the build still succeeds and unavailable codecs
 # degrade cleanly (open() -> NULL) instead of leaving a table hole or failing.
 CM="${REPO}/src/core/compat"
-run codec_nolib_test -DXROOTD_HAVE_ZLIB -I "${CM}" "${HERE}/codec_nolib_test.c" \
+run codec_nolib_test -DBRIX_HAVE_ZLIB -I "${CM}" "${HERE}/codec_nolib_test.c" \
     "${CM}/codec_core.c" "${CM}/codec_zlib.c" \
     "${CM}/codec_zstd.c" "${CM}/codec_lzma.c" "${CM}/codec_brotli.c" \
     "${CM}/codec_bzip2.c" "${CM}/codec_lz4.c" -lz

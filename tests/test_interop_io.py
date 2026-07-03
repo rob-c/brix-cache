@@ -28,7 +28,7 @@ from settings import (
     DATA_ROOT,
     HOST,
     NGINX_ANON_PORT,
-    REF_XROOTD_PORT,
+    REF_BRIX_PORT,
     SERVER_HOST,
     url_host,
 )
@@ -38,7 +38,7 @@ from settings import (
 # ---------------------------------------------------------------------------
 
 NGINX_URL = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
-REF_URL   = f"root://{url_host(HOST)}:{REF_XROOTD_PORT}"
+REF_URL   = f"root://{url_host(HOST)}:{REF_BRIX_PORT}"
 DATA_DIR  = DATA_ROOT
 ANON_HOST = SERVER_HOST
 ANON_PORT = NGINX_ANON_PORT

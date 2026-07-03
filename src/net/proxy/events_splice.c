@@ -1,44 +1,44 @@
 #include "proxy_internal.h"
 #include "protocols/root/connection/handler.h"
-#include "protocols/root/connection/write_helpers.h"   /* xrootd_queue_response_base */
+#include "protocols/root/connection/write_helpers.h"   /* brix_queue_response_base */
 #include <sys/socket.h>
 #include <sys/ioctl.h>   /* FIONREAD — only splice a fully-buffered body */
 
 /* zero-copy splice fast-path */
 #ifdef __linux__
 
-/* Forward declaration — xrootd_proxy_splice_wev is defined after the pump. */
-static void xrootd_proxy_splice_wev(ngx_event_t *wev);
+/* Forward declaration — brix_proxy_splice_wev is defined after the pump. */
+static void brix_proxy_splice_wev(ngx_event_t *wev);
 
 /* Forward declaration — the under-draining-splice fallback, defined after the
  * pump (the pump calls it when splice stalls with data still queued). */
-static void xrootd_proxy_splice_to_buffered(xrootd_proxy_ctx_t *proxy);
+static void brix_proxy_splice_to_buffered(brix_proxy_ctx_t *proxy);
 
 /*
- * xrootd_proxy_splice_done — called when all splice_total bytes have been
+ * brix_proxy_splice_done — called when all splice_total bytes have been
  * moved from the upstream socket to the client socket.  Mirrors the
  * post-relay accounting that relay_to_client() does for reads.
  */
 static void
-xrootd_proxy_splice_done(xrootd_proxy_ctx_t *proxy)
+brix_proxy_splice_done(brix_proxy_ctx_t *proxy)
 {
-    xrootd_ctx_t     *ctx    = proxy->client_ctx;
+    brix_ctx_t     *ctx    = proxy->client_ctx;
     ngx_connection_t *c      = proxy->client_conn;
     uint16_t          status = proxy->resp_status;
     size_t            dlen   = proxy->splice_total;
     int               lfh    = proxy->fwd_local_fh;
 
     /* Restore the normal client write handler (may have been changed for EAGAIN). */
-    c->write->handler = ngx_stream_xrootd_send;
+    c->write->handler = ngx_stream_brix_send;
 
     /* Per-handle and aggregate byte metrics. */
-    if (lfh >= 0 && lfh < XROOTD_MAX_FILES) {
+    if (lfh >= 0 && lfh < BRIX_MAX_FILES) {
         proxy->fh_map[lfh].bytes_read += dlen;
     }
-    XROOTD_PROXY_METRIC_INC(ctx, reads_total);
-    XROOTD_PROXY_METRIC_ADD(ctx, read_bytes_total, dlen);
-    XROOTD_PROXY_UP_INC(proxy, reads_total);
-    XROOTD_PROXY_UP_ADD(proxy, read_bytes_total, dlen);
+    BRIX_PROXY_METRIC_INC(ctx, reads_total);
+    BRIX_PROXY_METRIC_ADD(ctx, read_bytes_total, dlen);
+    BRIX_PROXY_UP_INC(proxy, reads_total);
+    BRIX_PROXY_UP_ADD(proxy, read_bytes_total, dlen);
 
     /* Reset accumulator for the next response. */
     proxy->splice_active     = 0;
@@ -63,7 +63,7 @@ xrootd_proxy_splice_done(xrootd_proxy_ctx_t *proxy)
             ngx_event_t *urev = proxy->conn->read;
             if (!urev->active && !urev->ready) {
                 if (ngx_handle_read_event(urev, 0) != NGX_OK) {
-                    xrootd_proxy_abort(proxy,
+                    brix_proxy_abort(proxy,
                         "proxy: read arm failed after splice oksofar");
                     return;
                 }
@@ -78,19 +78,19 @@ xrootd_proxy_splice_done(xrootd_proxy_ctx_t *proxy)
     /* Final response — hand control back to the client loop. */
     proxy->state = XRD_PX_IDLE;
     ctx->state   = XRD_ST_REQ_HEADER;
-    xrootd_schedule_read_resume(c);
+    brix_schedule_read_resume(c);
 }
 
 /*
- * xrootd_proxy_splice_pump — drive splice transfers between upstream socket
+ * brix_proxy_splice_pump — drive splice transfers between upstream socket
  * and client socket via the kernel pipe in proxy->splice_pipe[].
  *
  * Called from:
- *   xrootd_proxy_read_handler  — upstream socket is readable
- *   xrootd_proxy_splice_wev    — client socket is writable (drain pipe)
+ *   brix_proxy_read_handler  — upstream socket is readable
+ *   brix_proxy_splice_wev    — client socket is writable (drain pipe)
  */
 void
-xrootd_proxy_splice_pump(xrootd_proxy_ctx_t *proxy)
+brix_proxy_splice_pump(brix_proxy_ctx_t *proxy)
 {
     ngx_connection_t *uconn = proxy->conn;
     ngx_connection_t *cconn = proxy->client_conn;
@@ -134,22 +134,22 @@ xrootd_proxy_splice_pump(xrootd_proxy_ctx_t *proxy)
                      * path is preserved for the in-buffer case.)
                      */
                     if (proxy->splice_downstream < proxy->splice_total) {
-                        xrootd_proxy_splice_to_buffered(proxy);
+                        brix_proxy_splice_to_buffered(proxy);
                         return;
                     }
                     /* Body complete — nothing left; arm read and let the loop end. */
                     if (ngx_handle_read_event(uconn->read, 0) != NGX_OK) {
-                        xrootd_proxy_abort(proxy,
+                        brix_proxy_abort(proxy,
                             "proxy: splice read arm failed");
                     }
                     return;
                 } else if (r == 0) {
                     /* Upstream closed during splice (peer sent FIN). */
-                    xrootd_proxy_abort(proxy,
+                    brix_proxy_abort(proxy,
                         "proxy: upstream closed during splice");
                     return;
                 } else {
-                    xrootd_proxy_abort(proxy,
+                    brix_proxy_abort(proxy,
                         "proxy: splice upstream→pipe failed");
                     return;
                 }
@@ -181,15 +181,15 @@ xrootd_proxy_splice_pump(xrootd_proxy_ctx_t *proxy)
                  * Arming upstream-read while the pipe is full just causes
                  * spurious wakeups that retry a full pipe and deadlock.
                  */
-                cconn->write->handler = xrootd_proxy_splice_wev;
+                cconn->write->handler = brix_proxy_splice_wev;
                 if (ngx_handle_write_event(cconn->write, 0) != NGX_OK) {
-                    xrootd_proxy_abort(proxy,
+                    brix_proxy_abort(proxy,
                         "proxy: splice client write arm failed");
                     return;
                 }
                 return;
             } else {
-                xrootd_proxy_abort(proxy,
+                brix_proxy_abort(proxy,
                     "proxy: splice pipe→client failed");
                 return;
             }
@@ -200,19 +200,19 @@ xrootd_proxy_splice_pump(xrootd_proxy_ctx_t *proxy)
         }
     }
 
-    xrootd_proxy_splice_done(proxy);
+    brix_proxy_splice_done(proxy);
 }
 
 /*
- * xrootd_proxy_splice_wev — client write event handler during splice.
- * Replaces ngx_stream_xrootd_send temporarily while draining the pipe.
+ * brix_proxy_splice_wev — client write event handler during splice.
+ * Replaces ngx_stream_brix_send temporarily while draining the pipe.
  */
 static void
-xrootd_proxy_splice_wev(ngx_event_t *wev)
+brix_proxy_splice_wev(ngx_event_t *wev)
 {
     ngx_connection_t   *cconn = wev->data;
-    xrootd_ctx_t       *ctx   = cconn->data;
-    xrootd_proxy_ctx_t *proxy;
+    brix_ctx_t       *ctx   = cconn->data;
+    brix_proxy_ctx_t *proxy;
 
     if (ctx == NULL || ctx->destroyed) {
         return;
@@ -220,16 +220,16 @@ xrootd_proxy_splice_wev(ngx_event_t *wev)
     proxy = ctx->proxy;
     if (proxy == NULL || !proxy->splice_active) {
         /* Splice already finished — restore normal handler and call it. */
-        cconn->write->handler = ngx_stream_xrootd_send;
-        ngx_stream_xrootd_send(wev);
+        cconn->write->handler = ngx_stream_brix_send;
+        ngx_stream_brix_send(wev);
         return;
     }
 
-    xrootd_proxy_splice_pump(proxy);
+    brix_proxy_splice_pump(proxy);
 }
 
 /*
- * xrootd_proxy_splice_to_buffered — switch an under-draining splice transfer to
+ * brix_proxy_splice_to_buffered — switch an under-draining splice transfer to
  * the reliable buffered recv relay for the REMAINDER of the current body.
  *
  * Called from the pump when splice(upstream→pipe) reports EAGAIN but a MSG_PEEK
@@ -237,10 +237,10 @@ xrootd_proxy_splice_wev(ngx_event_t *wev)
  * point the pipe is empty (splice_upstream == splice_downstream), the 8-byte
  * response header and splice_downstream body bytes are already on the wire, so the
  * remaining splice_total − splice_downstream bytes are accumulated via the normal
- * body loop and relayed RAW (no second header) by xrootd_proxy_splice_fallback_finish.
+ * body loop and relayed RAW (no second header) by brix_proxy_splice_fallback_finish.
  */
 static void
-xrootd_proxy_splice_to_buffered(xrootd_proxy_ctx_t *proxy)
+brix_proxy_splice_to_buffered(brix_proxy_ctx_t *proxy)
 {
     size_t remaining = proxy->splice_total - proxy->splice_downstream;
 
@@ -250,16 +250,16 @@ xrootd_proxy_splice_to_buffered(xrootd_proxy_ctx_t *proxy)
      * keeps splicing (arm + wait) — slow on a broken kernel, but never unbounded
      * memory.  Real reads are far below this; this is belt-and-braces.
      */
-    if (remaining == 0 || remaining > XROOTD_PROXY_MAX_BODY) {
+    if (remaining == 0 || remaining > BRIX_PROXY_MAX_BODY) {
         if (ngx_handle_read_event(proxy->conn->read, 0) != NGX_OK) {
-            xrootd_proxy_abort(proxy, "proxy: splice read arm failed");
+            brix_proxy_abort(proxy, "proxy: splice read arm failed");
         }
         return;
     }
 
     proxy->resp_body = ngx_alloc(remaining + 1, proxy->client_conn->log);
     if (proxy->resp_body == NULL) {
-        xrootd_proxy_abort(proxy, "proxy: splice fallback body alloc failed");
+        brix_proxy_abort(proxy, "proxy: splice fallback body alloc failed");
         return;
     }
     proxy->resp_body[remaining] = '\0';
@@ -281,7 +281,7 @@ xrootd_proxy_splice_to_buffered(xrootd_proxy_ctx_t *proxy)
     /* Drive the body accumulation in the read handler: arm + post the read
      * event (the queued data produced no fresh edge, so post explicitly). */
     if (ngx_handle_read_event(proxy->conn->read, 0) != NGX_OK) {
-        xrootd_proxy_abort(proxy, "proxy: splice fallback read arm failed");
+        brix_proxy_abort(proxy, "proxy: splice fallback read arm failed");
         return;
     }
     if (!proxy->conn->read->posted) {
@@ -290,15 +290,15 @@ xrootd_proxy_splice_to_buffered(xrootd_proxy_ctx_t *proxy)
 }
 
 /*
- * xrootd_proxy_splice_fallback_finish — complete a splice→buffered fallback once
+ * brix_proxy_splice_fallback_finish — complete a splice→buffered fallback once
  * the remaining body has been accumulated into resp_body by the read handler.
  * Sends those bytes RAW to the client (the header is already on the wire), then
  * runs the same post-transfer accounting/finish as a fully-spliced response.
  */
 void
-xrootd_proxy_splice_fallback_finish(xrootd_proxy_ctx_t *proxy)
+brix_proxy_splice_fallback_finish(brix_proxy_ctx_t *proxy)
 {
-    xrootd_ctx_t *ctx  = proxy->client_ctx;
+    brix_ctx_t *ctx  = proxy->client_ctx;
     u_char       *body = proxy->resp_body;
     size_t        n    = proxy->resp_dlen;
 
@@ -306,21 +306,21 @@ xrootd_proxy_splice_fallback_finish(xrootd_proxy_ctx_t *proxy)
     proxy->resp_body     = NULL;
     proxy->splice_fallback = 0;
 
-    if (xrootd_queue_response_base(ctx, proxy->client_conn, body, n, body)
+    if (brix_queue_response_base(ctx, proxy->client_conn, body, n, body)
         != NGX_OK)
     {
-        xrootd_proxy_abort(proxy, "proxy: splice fallback relay failed");
+        brix_proxy_abort(proxy, "proxy: splice fallback relay failed");
         return;
     }
 
     /* The whole body (header + spliced prefix + buffered remainder) is now on the
      * wire — account and finish exactly as a fully-spliced response would. */
     proxy->splice_downstream = proxy->splice_total;
-    xrootd_proxy_splice_done(proxy);
+    brix_proxy_splice_done(proxy);
 }
 
 /*
- * xrootd_proxy_try_splice — attempt to start a zero-copy splice for the
+ * brix_proxy_try_splice — attempt to start a zero-copy splice for the
  * current read response.  Returns NGX_OK if splice was started (the caller
  * must NOT allocate resp_body or loop for body data).  Returns NGX_DECLINED
  * if the conditions are not met and the caller should use the normal path.
@@ -329,7 +329,7 @@ xrootd_proxy_splice_fallback_finish(xrootd_proxy_ctx_t *proxy)
  * touching `proxy`.
  */
 ngx_int_t
-xrootd_proxy_try_splice(xrootd_proxy_ctx_t *proxy)
+brix_proxy_try_splice(brix_proxy_ctx_t *proxy)
 {
     u_char            hdr[XRD_RESPONSE_HDR_LEN];
     ssize_t           sent;
@@ -401,7 +401,7 @@ xrootd_proxy_try_splice(xrootd_proxy_ctx_t *proxy)
     /* Send the 8-byte response header (with client's stream ID) to the client
      * now, before splicing the body.  This is a small send that almost always
      * completes immediately. */
-    xrootd_build_resp_hdr(proxy->fwd_streamid,
+    brix_build_resp_hdr(proxy->fwd_streamid,
                            proxy->resp_status,
                            proxy->resp_dlen,
                            (ServerResponseHdr *)(void *) hdr);
@@ -445,7 +445,7 @@ xrootd_proxy_try_splice(xrootd_proxy_ctx_t *proxy)
             ngx_log_debug1(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log, 0,
                            "xrootd proxy: splice header send incomplete (%z), "
                            "aborting to avoid frame corruption", sent);
-            xrootd_proxy_abort(proxy, "proxy: splice header send incomplete");
+            brix_proxy_abort(proxy, "proxy: splice header send incomplete");
             return NGX_ERROR;
         }
     }
@@ -455,7 +455,7 @@ xrootd_proxy_try_splice(xrootd_proxy_ctx_t *proxy)
     proxy->splice_upstream   = 0;
     proxy->splice_downstream = 0;
 
-    xrootd_proxy_splice_pump(proxy);
+    brix_proxy_splice_pump(proxy);
     return NGX_OK;
 }
 

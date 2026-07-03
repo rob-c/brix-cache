@@ -115,9 +115,9 @@ admin_cluster_register(ngx_http_request_t *r, json_t *body)
     if (util_pct > 100) util_pct = 100;
     if (free_mb < 0)   free_mb = 0;
 
-    xrootd_srv_register(host, (uint16_t) port, paths,
+    brix_srv_register(host, (uint16_t) port, paths,
                         (uint32_t) free_mb, (uint32_t) util_pct);
-    xrootd_dashboard_event_add(XROOTD_DASH_EVENT_NAMESPACE, 0, 0,
+    brix_dashboard_event_add(BRIX_DASH_EVENT_NAMESPACE, 0, 0,
                                "admin: server registered", host);
     admin_audit(r, "cluster/register", host, "registered");
     return admin_send_ok(r, "registered");
@@ -143,8 +143,8 @@ admin_cluster_drain(ngx_http_request_t *r, json_t *body)
     if (duration_s <= 0) {
         duration_s = 300;
     }
-    xrootd_srv_blacklist(host, port, (ngx_msec_t) duration_s * 1000);
-    xrootd_dashboard_event_add(XROOTD_DASH_EVENT_NAMESPACE, 0, 0,
+    brix_srv_blacklist(host, port, (ngx_msec_t) duration_s * 1000);
+    brix_dashboard_event_add(BRIX_DASH_EVENT_NAMESPACE, 0, 0,
                                "admin: server drained", host);
     admin_audit(r, "cluster/drain", host, "drained");
     return admin_send_ok(r, "drained");
@@ -164,8 +164,8 @@ admin_cluster_delete(ngx_http_request_t *r)
     {
         return admin_send_error(r, NGX_HTTP_BAD_REQUEST, "bad_uri");
     }
-    xrootd_srv_unregister(host, port);
-    xrootd_dashboard_event_add(XROOTD_DASH_EVENT_NAMESPACE, 0, 0,
+    brix_srv_unregister(host, port);
+    brix_dashboard_event_add(BRIX_DASH_EVENT_NAMESPACE, 0, 0,
                                "admin: server unregistered", host);
     admin_audit(r, "cluster/delete", host, "removed");
     return admin_send_ok(r, "removed");
@@ -173,7 +173,7 @@ admin_cluster_delete(ngx_http_request_t *r)
 
 
 /* POST .../{host}/{port}/undrain: lift a drain/blacklist. Returns 404 if the
- * server is not currently drained (xrootd_srv_undrain reports false). */
+ * server is not currently drained (brix_srv_undrain reports false). */
 ngx_int_t
 admin_cluster_undrain(ngx_http_request_t *r)
 {
@@ -186,11 +186,11 @@ admin_cluster_undrain(ngx_http_request_t *r)
     {
         return admin_send_error(r, NGX_HTTP_BAD_REQUEST, "bad_uri");
     }
-    if (!xrootd_srv_undrain(host, port)) {
+    if (!brix_srv_undrain(host, port)) {
         admin_audit(r, "cluster/undrain", host, "not_found");
         return admin_send_error(r, NGX_HTTP_NOT_FOUND, "not_found");
     }
-    xrootd_dashboard_event_add(XROOTD_DASH_EVENT_NAMESPACE, 0, 0,
+    brix_dashboard_event_add(BRIX_DASH_EVENT_NAMESPACE, 0, 0,
                                "admin: server undrained", host);
     admin_audit(r, "cluster/undrain", host, "undrained");
     return admin_send_ok(r, "undrained");

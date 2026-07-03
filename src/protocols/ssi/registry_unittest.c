@@ -16,31 +16,31 @@ static int g_fail;
 
 static void test_add_find_remove(void)
 {
-    xrootd_ssi_session_t s;
+    brix_ssi_session_t s;
     memset(&s, 0, sizeof(s));
     s.generation = 5;
 
-    xrootd_ssi_registry_add(1234, &s);
-    CHECK(xrootd_ssi_registry_find(1234, 5) == &s);
-    CHECK(xrootd_ssi_registry_find(1234, 6) == NULL);   /* generation moved */
-    CHECK(xrootd_ssi_registry_find(9999, 5) == NULL);   /* unknown conn */
+    brix_ssi_registry_add(1234, &s);
+    CHECK(brix_ssi_registry_find(1234, 5) == &s);
+    CHECK(brix_ssi_registry_find(1234, 6) == NULL);   /* generation moved */
+    CHECK(brix_ssi_registry_find(9999, 5) == NULL);   /* unknown conn */
 
-    xrootd_ssi_registry_remove(1234);
-    CHECK(xrootd_ssi_registry_find(1234, 5) == NULL);
+    brix_ssi_registry_remove(1234);
+    CHECK(brix_ssi_registry_find(1234, 5) == NULL);
 }
 
 static void test_recycled_conn_id_refreshes_generation(void)
 {
-    xrootd_ssi_session_t a, b;
+    brix_ssi_session_t a, b;
     memset(&a, 0, sizeof(a)); a.generation = 10;
     memset(&b, 0, sizeof(b)); b.generation = 11;
 
-    xrootd_ssi_registry_add(4242, &a);
+    brix_ssi_registry_add(4242, &a);
     /* same conn_id reused by a new session before remove → entry refreshes */
-    xrootd_ssi_registry_add(4242, &b);
-    CHECK(xrootd_ssi_registry_find(4242, 11) == &b);
-    CHECK(xrootd_ssi_registry_find(4242, 10) == NULL);   /* stale gen rejected */
-    xrootd_ssi_registry_remove(4242);
+    brix_ssi_registry_add(4242, &b);
+    CHECK(brix_ssi_registry_find(4242, 11) == &b);
+    CHECK(brix_ssi_registry_find(4242, 10) == NULL);   /* stale gen rejected */
+    brix_ssi_registry_remove(4242);
 }
 
 int main(void)

@@ -19,12 +19,12 @@
  * boilerplate and makes the OOM-return uniform, without hiding the allocation
  * arguments (pool and size stay visible at the call site).
  */
-#ifndef XROOTD_COMPAT_ALLOC_GUARD_H
-#define XROOTD_COMPAT_ALLOC_GUARD_H
+#ifndef BRIX_COMPAT_ALLOC_GUARD_H
+#define BRIX_COMPAT_ALLOC_GUARD_H
 
 #include <ngx_core.h>
 
-#define XROOTD_PCALLOC_OR_RETURN(dst, pool, n, err)                            \
+#define BRIX_PCALLOC_OR_RETURN(dst, pool, n, err)                            \
     do {                                                                       \
         (dst) = ngx_pcalloc((pool), (n));                                      \
         if ((dst) == NULL) {                                                   \
@@ -32,7 +32,7 @@
         }                                                                      \
     } while (0)
 
-#define XROOTD_PALLOC_OR_RETURN(dst, pool, n, err)                             \
+#define BRIX_PALLOC_OR_RETURN(dst, pool, n, err)                             \
     do {                                                                       \
         (dst) = ngx_palloc((pool), (n));                                       \
         if ((dst) == NULL) {                                                   \
@@ -40,7 +40,7 @@
         }                                                                      \
     } while (0)
 
-#define XROOTD_PNALLOC_OR_RETURN(dst, pool, n, err)                            \
+#define BRIX_PNALLOC_OR_RETURN(dst, pool, n, err)                            \
     do {                                                                       \
         (dst) = ngx_pnalloc((pool), (n));                                      \
         if ((dst) == NULL) {                                                   \
@@ -48,4 +48,4 @@
         }                                                                      \
     } while (0)
 
-#endif /* XROOTD_COMPAT_ALLOC_GUARD_H */
+#endif /* BRIX_COMPAT_ALLOC_GUARD_H */

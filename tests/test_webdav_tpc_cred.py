@@ -300,7 +300,7 @@ class TestCredMetrics:
     """Verify TPC cred metrics are exported by the Prometheus endpoint."""
 
     def test_tpc_cred_metrics_in_export(self):
-        """xrootd_webdav_tpc_cred_total counter is exported."""
+        """brix_webdav_tpc_cred_total counter is exported."""
         # Use the metrics port (9100) to scrape.
         cmd = [
             "curl", "-s",
@@ -309,6 +309,6 @@ class TestCredMetrics:
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10)
         assert result.returncode == 0, "Metrics endpoint unreachable"
         text = result.stdout.decode()
-        assert "xrootd_webdav_tpc_cred_total" in text, (
+        assert "brix_webdav_tpc_cred_total" in text, (
             "TPC cred metrics not found in Prometheus export"
         )

@@ -42,7 +42,7 @@ if [ "${MOCK_STRATUM1:-0}" = 1 ]; then
 fi
 
 # The allowlist is one space-separated directive — every listed host is
-# allowed (xrootd_cvmfs_upstream_allow accepts all its arguments). @ORIGINS@ is
+# allowed (brix_cvmfs_upstream_allow accepts all its arguments). @ORIGINS@ is
 # the ranked "|"-separated fetch set (unified_origin).
 # NOTE: @ORIGINS@ uses a '#' delimiter — its value is a '|'-separated URL list,
 # so '|' cannot be the sed delimiter there (URLs never contain '#').

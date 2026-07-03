@@ -14,7 +14,7 @@ WHY
     FOREVER, wedging that pool thread. Enough stalled fills exhaust the pool and
     ALL async I/O (every cache fill, every AIO read) stalls fleet-wide — a
     complex, hard-to-diagnose lockup. The xroot origin already guards this with
-    SO_RCVTIMEO/SO_SNDTIMEO (origin_connection.c, XROOTD_CACHE_IO_TIMEOUT); the
+    SO_RCVTIMEO/SO_SNDTIMEO (origin_connection.c, BRIX_CACHE_IO_TIMEOUT); the
     libcurl path must have the equivalent. CURLOPT_LOW_SPEED_LIMIT/TIME is the
     correct idiom: it aborts a stalled transfer without capping a large but
     progressing download (a hard CURLOPT_TIMEOUT would wrongly kill big fills).

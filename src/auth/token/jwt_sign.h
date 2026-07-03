@@ -1,5 +1,5 @@
-#ifndef XROOTD_TOKEN_JWT_SIGN_H
-#define XROOTD_TOKEN_JWT_SIGN_H
+#ifndef BRIX_TOKEN_JWT_SIGN_H
+#define BRIX_TOKEN_JWT_SIGN_H
 
 /*
  * jwt_sign.h — ES256 (ECDSA P-256 + SHA-256) JWT *minting*.
@@ -16,7 +16,7 @@
  * HOW:  EVP_DigestSign with EVP_sha256() over "header.payload" yields a DER
  *       ECDSA signature; JWT requires the IEEE P1363 raw r||s form, so the DER
  *       is decoded (d2i_ECDSA_SIG) and each component fixed-width encoded to 32
- *       bytes — the exact inverse of xrootd_token_verify_es256(). All three
+ *       bytes — the exact inverse of brix_token_verify_es256(). All three
  *       segments are base64url-encoded (b64url_encode).
  */
 
@@ -28,7 +28,7 @@
  * Load an EC (P-256) private key from a PEM file. Returns an EVP_PKEY the caller
  * must EVP_PKEY_free, or NULL on open/parse failure or if the key is not EC.
  */
-EVP_PKEY *xrootd_jwt_load_ec_key(const char *pem_path);
+EVP_PKEY *brix_jwt_load_ec_key(const char *pem_path);
 
 /*
  * Mint an ES256 JWT into out[outsz]. header_json and payload_json are
@@ -37,7 +37,7 @@ EVP_PKEY *xrootd_jwt_load_ec_key(const char *pem_path);
  * out, or NGX_ERROR on any crypto/encoding failure or if out is too small.
  * eckey must be an EC P-256 private key.
  */
-ngx_int_t xrootd_jwt_sign_es256(EVP_PKEY *eckey, const char *header_json,
+ngx_int_t brix_jwt_sign_es256(EVP_PKEY *eckey, const char *header_json,
     const char *payload_json, char *out, size_t outsz);
 
-#endif /* XROOTD_TOKEN_JWT_SIGN_H */
+#endif /* BRIX_TOKEN_JWT_SIGN_H */

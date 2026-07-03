@@ -23,7 +23,7 @@ All dedicated instances are managed by `manage_test_servers.sh start-all` at ses
 | Port | Config | Purpose |
 |---|---|---|
 | 11103 | `vo_acl.conf` | VO ACL enforcement (`cms`, `atlas`) with GSI auth |
-| 11116 | `nginx_krb5.conf` | XRootD stream Kerberos 5 (`xrootd_auth krb5`). **Conditional** — `start_krb5_tier` starts it only when the MIT KDC tooling (`krb5-server`) is installed *and* the nginx binary is linked against libkrb5; otherwise skipped cleanly. The realm/keytab/client-ccache are provisioned under `TEST_ROOT/krb5` by `kdc_helpers.py` (throwaway KDC on 11117). Drives `tests/test_krb5_auth.py`, gated by the `requires_krb5` fixture. |
+| 11116 | `nginx_krb5.conf` | XRootD stream Kerberos 5 (`brix_auth krb5`). **Conditional** — `start_krb5_tier` starts it only when the MIT KDC tooling (`krb5-server`) is installed *and* the nginx binary is linked against libkrb5; otherwise skipped cleanly. The realm/keytab/client-ccache are provisioned under `TEST_ROOT/krb5` by `kdc_helpers.py` (throwaway KDC on 11117). Drives `tests/test_krb5_auth.py`, gated by the `requires_krb5` fixture. |
 | 11211 | `nginx_ha_instance1.conf` | HA Cluster Nginx 1 |
 | 11212 | `nginx_ha_instance2.conf` | HA Cluster Nginx 2 |
 | 12988 | `nginx_xrdhttp_digest.conf` | Cleartext HTTP WebDAV with a tight per-IP rate-limit rule (rate=2r/s burst=2) over the writable `data-xrdhttp-digest` root. Drives `tests/test_xrdhttp_wait_retry_digest_range.py` (HTTP 429 + Retry-After back-pressure, RFC-3230 Want-Digest, RFC-7233 byte ranges, multipart/byteranges, HEAD/GET parity, PUT/GET round-trip). Formerly self-provisioned by the test. |
@@ -41,21 +41,21 @@ All dedicated instances are managed by `manage_test_servers.sh start-all` at ses
 ### 2. Read-only mode — **MEDIUM priority**
 
 **Config:** `tests/configs/nginx_readonly.conf`
-**What it does:** XRootD stream with `xrootd_stream_allow_write off`. All write ops (write, pgwrite, sync, mkdir, rm, rename) return kXR_NotAuthorized. Read/open/stat/dirlist/locate work normally.
+**What it does:** XRootD stream with `brix_stream_allow_write off`. All write ops (write, pgwrite, sync, mkdir, rm, rename) return kXR_NotAuthorized. Read/open/stat/dirlist/locate work normally.
 **Why dedicated:** Tests need a stable read-only server to verify write denial across all write opcodes. The shared instance allows writes on 11094–11097, so read-only behavior can't be tested there without toggling config mid-test.
 **Recommended port:** `11121`
 
 ### 3. CRL reload — **MEDIUM priority**
 
 **Config:** `tests/configs/nginx_crl.conf`
-**What it does:** GSI TLS with explicit CRL file (`xrootd_stream_crl_file`). Tests the CRL reload mechanism — cert revoked in CRL should be rejected, new CRL added should re-accept. Requires server restart between reload cycles.
+**What it does:** GSI TLS with explicit CRL file (`brix_stream_crl_file`). Tests the CRL reload mechanism — cert revoked in CRL should be rejected, new CRL added should re-accept. Requires server restart between reload cycles.
 **Why dedicated:** CRL reload requires stopping/starting the nginx instance to load a new CRL file. Can't do this on the shared instance without disrupting other ports. Needs stable port across restart cycles.
 **Recommended port:** `11122`
 
 ### 4. Root TPC — **HIGH priority**
 
 **Config:** `tests/configs/nginx_root_tpc.conf`
-**What it does:** XRootD stream with `xrootd_stream_allow_write on` and root directory set to a writable temp dir. Tests native TPC (`kXR_locate2`) transfers from the root directory — source and destination are both xrootd servers, transfer via shared memory key registry (`src/tpc/engine/key_registry.c`).
+**What it does:** XRootD stream with `brix_stream_allow_write on` and root directory set to a writable temp dir. Tests native TPC (`kXR_locate2`) transfers from the root directory — source and destination are both xrootd servers, transfer via shared memory key registry (`src/tpc/engine/key_registry.c`).
 **Why dedicated:** Native TPC requires two stable server ports (source + dest) communicating via SHM. Tests need consistent ports across multiple TPC scenarios (same-server, cross-server, partial failure). The shared instance's root is `/tmp/xrd-test/data` which may not be writable for all tests.
 **Recommended ports:** `11123` (source), `11124` (dest)
 

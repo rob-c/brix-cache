@@ -23,8 +23,8 @@
  *      result buffer is always NUL-terminated (len + 1 bytes) so the data is
  *      safe to hand to C string APIs, while dst->len excludes the terminator.
  */
-#ifndef XROOTD_COMPAT_STR_DUP_H
-#define XROOTD_COMPAT_STR_DUP_H
+#ifndef BRIX_COMPAT_STR_DUP_H
+#define BRIX_COMPAT_STR_DUP_H
 
 #include <ngx_core.h>
 
@@ -37,7 +37,7 @@
  * is never NULL on success.  `src` may be NULL only when len == 0.
  */
 static ngx_inline ngx_int_t
-xrootd_pstrdupz(ngx_pool_t *pool, ngx_str_t *dst, const u_char *src, size_t len)
+brix_pstrdupz(ngx_pool_t *pool, ngx_str_t *dst, const u_char *src, size_t len)
 {
     u_char *buf = ngx_pnalloc(pool, len + 1);
 
@@ -55,4 +55,4 @@ xrootd_pstrdupz(ngx_pool_t *pool, ngx_str_t *dst, const u_char *src, size_t len)
     return NGX_OK;
 }
 
-#endif /* XROOTD_COMPAT_STR_DUP_H */
+#endif /* BRIX_COMPAT_STR_DUP_H */

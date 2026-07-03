@@ -7,7 +7,7 @@
  * from an x509 proxy certificate. Called by the GSI authentication path after
  * the proxy chain is verified to populate ctx->primary_vo and ctx->vo_list.
  *
- * WHY: VO-based ACL enforcement (xrootd_require_vo) requires knowledge of which
+ * WHY: VO-based ACL enforcement (brix_require_vo) requires knowledge of which
  * virtual organisations the user belongs to. VOMS extensions embedded in the
  * certificate provide this information. This function encapsulates the entire
  * extraction pipeline — chain preparation, API call, and result collection.
@@ -21,7 +21,7 @@
  *      leaf (VOMS needs parent certificates for extension lookup), call retrieve()
  *      with VOMS_RECURSE_CHAIN flag; non-critical errors (VOMS_VERR_NOEXT /
  *      VOMS_VERR_NODATA) are silently skipped per GSI auth convention
- *   4. Result collection — delegate to xrootd_collect_voms_vos(); cleanup chain and
+ *   4. Result collection — delegate to brix_collect_voms_vos(); cleanup chain and
  *      API state regardless of outcome
  *
  * INVARIANT: All wire paths → resolve_path() before open(). This function operates
@@ -29,7 +29,7 @@
  */
 
 ngx_int_t
-xrootd_extract_voms_info(ngx_log_t *log, X509 *leaf, STACK_OF(X509) *chain,
+brix_extract_voms_info(ngx_log_t *log, X509 *leaf, STACK_OF(X509) *chain,
     const ngx_str_t *vomsdir, const ngx_str_t *cert_dir,
     char *primary_vo, size_t primary_vo_sz, char *vo_list, size_t vo_list_sz)
 {
@@ -41,7 +41,7 @@ xrootd_extract_voms_info(ngx_log_t *log, X509 *leaf, STACK_OF(X509) *chain,
     int              error = 0;
     ngx_int_t        rc = NGX_DECLINED;
 
-    if (!xrootd_voms_loaded) {
+    if (!brix_voms_loaded) {
         return NGX_DECLINED;
     }
 
@@ -69,7 +69,7 @@ xrootd_extract_voms_info(ngx_log_t *log, X509 *leaf, STACK_OF(X509) *chain,
         vo_list[0] = '\0';
     }
 
-    vd = xrootd_voms_api.init(vomsdir_buf, cert_dir_buf);
+    vd = brix_voms_api.init(vomsdir_buf, cert_dir_buf);
     if (vd == NULL) {
         return NGX_ERROR;
     }
@@ -77,7 +77,7 @@ xrootd_extract_voms_info(ngx_log_t *log, X509 *leaf, STACK_OF(X509) *chain,
     if (chain != NULL && sk_X509_num(chain) > 0) {
         voms_chain = sk_X509_dup(chain);
         if (voms_chain == NULL) {
-            xrootd_voms_api.destroy(vd);
+            brix_voms_api.destroy(vd);
             return NGX_ERROR;
         }
 
@@ -88,25 +88,25 @@ xrootd_extract_voms_info(ngx_log_t *log, X509 *leaf, STACK_OF(X509) *chain,
         }
     }
 
-    if (!xrootd_voms_api.retrieve(leaf, voms_chain, VOMS_RECURSE_CHAIN, vd,
+    if (!brix_voms_api.retrieve(leaf, voms_chain, VOMS_RECURSE_CHAIN, vd,
                                   &error))
     {
         if (error != VOMS_VERR_NOEXT && error != VOMS_VERR_NODATA) {
             ngx_log_error(NGX_LOG_WARN, log, 0,
                           "xrootd: VOMS extraction failed: %s",
-                          xrootd_voms_api.error_message(vd, error, errbuf,
+                          brix_voms_api.error_message(vd, error, errbuf,
                                                         (int) sizeof(errbuf)));
             rc = NGX_ERROR;
         }
 
     } else {
-        rc = xrootd_collect_voms_vos(vd, primary_vo, primary_vo_sz,
+        rc = brix_collect_voms_vos(vd, primary_vo, primary_vo_sz,
                                      vo_list, vo_list_sz);
     }
 
     if (voms_chain != NULL) {
         sk_X509_free(voms_chain);
     }
-    xrootd_voms_api.destroy(vd);
+    brix_voms_api.destroy(vd);
     return rc;
 }

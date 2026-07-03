@@ -12,7 +12,7 @@ WHY: the over-HTTP analog of run_xrdcp_loss.py.  NOTE: the official `xrdcp` CLI
      be compared head-to-head under reorder.
 
 Clients:  repo = ./client/bin/xrdcp http://   ;   curl = /usr/bin/curl
-Servers:  nginx  = this repo's module, http{} location xrootd_webdav (anonymous)
+Servers:  nginx  = this repo's module, http{} location brix_webdav (anonymous)
           xrootd = official daemon, xrd.protocol XrdHttp (plain http, anonymous)
 
 client -> fault_proxy(reorder pct/ms) -> {nginx|xrootd}.  Byte-exact (md5) checked.
@@ -85,8 +85,8 @@ http {{
   fastcgi_temp_path {tmp}/ft; uwsgi_temp_path {tmp}/ut; scgi_temp_path {tmp}/st;
   server {{
     listen 127.0.0.1:{port};
-    location / {{ xrootd_webdav on; xrootd_webdav_storage_backend posix:{data};
-      xrootd_webdav_auth none; xrootd_webdav_allow_write on; }}
+    location / {{ brix_webdav on; brix_webdav_storage_backend posix:{data};
+      brix_webdav_auth none; brix_webdav_allow_write on; }}
   }}
 }}""")
     env = dict(os.environ)
@@ -100,7 +100,7 @@ http {{
     return port, proc
 
 
-def start_xrootd_http(prefix, data):
+def start_brix_http(prefix, data):
     for sub in ("admin", "run", "logs"):
         os.makedirs(os.path.join(prefix, sub), exist_ok=True)
     port = free_port()
@@ -114,7 +114,7 @@ xrd.protocol XrdHttp:{port} {XRDHTTP_LIB}
 """)
     env = dict(os.environ)
     env.pop("LD_LIBRARY_PATH", None)
-    proc = subprocess.Popen([servers.XROOTD_BIN, "-c", cfg, "-l",
+    proc = subprocess.Popen([servers.BRIX_BIN, "-c", cfg, "-l",
                              os.path.join(prefix, "logs", "xrootd.log")],
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                             env=env)
@@ -175,7 +175,7 @@ def main():
 
     if not os.path.isfile(REPO_XRDCP):
         sys.exit(f"repo xrdcp not built: {REPO_XRDCP}")
-    if not servers.XROOTD_BIN:
+    if not servers.BRIX_BIN:
         sys.exit("official xrootd not on PATH")
     if not os.path.isfile(XRDHTTP_LIB):
         sys.exit(f"XrdHttp server lib missing: {XRDHTTP_LIB}")
@@ -204,7 +204,7 @@ def main():
           "repo xrdcp + curl")
 
     ng_port, ng_proc = start_nginx_http(ng_dir, ng_data)
-    xr_port, xr_proc = start_xrootd_http(xr_dir, xr_data)
+    xr_port, xr_proc = start_brix_http(xr_dir, xr_data)
     smap = {"nginx": ng_port, "xrootd": xr_port}
     print(f"[up] nginx http :{ng_port}   xrootd XrdHttp :{xr_port}")
 

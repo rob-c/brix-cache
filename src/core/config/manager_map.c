@@ -1,5 +1,5 @@
 /*
- * manager_map.c — the `xrootd_manager_map` directive (CMS manager mode).
+ * manager_map.c — the `brix_manager_map` directive (CMS manager mode).
  */
 
 #include "config.h"
@@ -13,11 +13,11 @@
  * endpoint (IPv4/hostname or [IPv6]:port, port 1-65535), and append to
  * xcf->manager_map.  Returns NGX_CONF_OK, or NGX_CONF_ERROR (emerg-logged). */
 char *
-xrootd_conf_set_manager_map(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+brix_conf_set_manager_map(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    ngx_stream_xrootd_srv_conf_t *xcf = conf;
+    ngx_stream_brix_srv_conf_t *xcf = conf;
     ngx_str_t                    *value;
-    xrootd_manager_map_t         *entry;
+    brix_manager_map_t         *entry;
     char                         *addr_copy;
     char                         *endp;
     long                          pnum;
@@ -27,7 +27,7 @@ xrootd_conf_set_manager_map(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     if (xcf->manager_map == NULL) {
         xcf->manager_map = ngx_array_create(cf->pool, 2,
-                                           sizeof(xrootd_manager_map_t));
+                                           sizeof(brix_manager_map_t));
         if (xcf->manager_map == NULL) {
             return NGX_CONF_ERROR;
         }
@@ -41,14 +41,14 @@ xrootd_conf_set_manager_map(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     ngx_memzero(entry, sizeof(*entry));
 
     /* Normalize and store the prefix path (policy-style) */
-    if (xrootd_normalize_policy_path(cf->pool, &value[1], &entry->prefix) != NGX_OK) {
+    if (brix_normalize_policy_path(cf->pool, &value[1], &entry->prefix) != NGX_OK) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_manager_map: invalid path \"%V\"", &value[1]);
+            "brix_manager_map: invalid path \"%V\"", &value[1]);
         return NGX_CONF_ERROR;
     }
 
     /* Copy the host:port argument into a NUL-terminated buffer for parsing. */
-    XROOTD_PNALLOC_OR_RETURN(addr_copy, cf->pool, value[2].len + 1, NGX_CONF_ERROR);
+    BRIX_PNALLOC_OR_RETURN(addr_copy, cf->pool, value[2].len + 1, NGX_CONF_ERROR);
     ngx_memcpy(addr_copy, value[2].data, value[2].len);
     addr_copy[value[2].len] = '\0';
 
@@ -57,12 +57,12 @@ xrootd_conf_set_manager_map(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         char *rb = strchr(addr_copy, ']');
         if (rb == NULL || rb == addr_copy) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd_manager_map: invalid IPv6 host \"%V\"", &value[2]);
+                "brix_manager_map: invalid IPv6 host \"%V\"", &value[2]);
             return NGX_CONF_ERROR;
         }
         if (*(rb + 1) != ':') {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd_manager_map: missing port in \"%V\"", &value[2]);
+                "brix_manager_map: missing port in \"%V\"", &value[2]);
             return NGX_CONF_ERROR;
         }
 
@@ -76,7 +76,7 @@ xrootd_conf_set_manager_map(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         pnum = strtol(rb + 2, &endp, 10);
         if (*endp != '\0' || pnum <= 0 || pnum > 65535) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd_manager_map: invalid port in \"%V\"", &value[2]);
+                "brix_manager_map: invalid port in \"%V\"", &value[2]);
             return NGX_CONF_ERROR;
         }
         entry->port = (uint16_t) pnum;
@@ -86,7 +86,7 @@ xrootd_conf_set_manager_map(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         char *colon = strrchr(addr_copy, ':');
         if (colon == NULL) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd_manager_map: missing port in \"%V\"", &value[2]);
+                "brix_manager_map: missing port in \"%V\"", &value[2]);
             return NGX_CONF_ERROR;
         }
 
@@ -100,7 +100,7 @@ xrootd_conf_set_manager_map(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         pnum = strtol(colon + 1, &endp, 10);
         if (*endp != '\0' || pnum <= 0 || pnum > 65535) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd_manager_map: invalid port in \"%V\"", &value[2]);
+                "brix_manager_map: invalid port in \"%V\"", &value[2]);
             return NGX_CONF_ERROR;
         }
         entry->port = (uint16_t) pnum;

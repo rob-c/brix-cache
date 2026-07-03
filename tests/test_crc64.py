@@ -108,9 +108,9 @@ stream {{
     server {{
         listen {BIND_HOST}:{root_port};
         xrootd on;
-        xrootd_storage_backend posix:{data};
-        xrootd_auth none;
-        xrootd_allow_write on;
+        brix_storage_backend posix:{data};
+        brix_auth none;
+        brix_allow_write on;
     }}
 }}
 http {{
@@ -120,19 +120,19 @@ http {{
     server {{
         listen {BIND_HOST}:{s3_port};
         location / {{
-            xrootd_s3 on;
-            xrootd_s3_storage_backend posix:{data};
-            xrootd_s3_bucket testbucket;
-            xrootd_s3_allow_write on;
+            brix_s3 on;
+            brix_s3_storage_backend posix:{data};
+            brix_s3_bucket testbucket;
+            brix_s3_allow_write on;
         }}
     }}
     server {{
         listen {BIND_HOST}:{dav_port};
         location / {{
-            xrootd_webdav on;
-            xrootd_webdav_storage_backend posix:{data};
-            xrootd_webdav_auth none;
-            xrootd_webdav_allow_write on;
+            brix_webdav on;
+            brix_webdav_storage_backend posix:{data};
+            brix_webdav_auth none;
+            brix_webdav_allow_write on;
         }}
     }}
 }}

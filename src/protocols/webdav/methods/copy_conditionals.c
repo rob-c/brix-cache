@@ -39,11 +39,11 @@ webdav_check_copy_conditionals(ngx_http_request_t *r,
 {
     ngx_int_t rc;
 
-    rc = xrootd_http_check_etag_preconditions(
-        r, dst_exists, dst_sb, XROOTD_ETAG_WEAK, 0);
+    rc = brix_http_check_etag_preconditions(
+        r, dst_exists, dst_sb, BRIX_ETAG_WEAK, 0);
     if (rc != NGX_OK) {
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                       "xrootd_webdav COPY: conditional failed for %s",
+                       "brix_webdav COPY: conditional failed for %s",
                        dst_path);
     }
 

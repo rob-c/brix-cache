@@ -98,7 +98,7 @@ HDR_LEN = 8
 
 # ---------------------------------------------------------------------------
 # Raw CMS frame helpers (header = streamid[4] code[1] modifier[1] dlen[2], BE).
-# Matches xrootd_cms_send_frame() in src/net/cms/frame_io.c byte-for-byte.
+# Matches brix_cms_send_frame() in src/net/cms/frame_io.c byte-for-byte.
 # ---------------------------------------------------------------------------
 
 def _recv_exact(sock, n):
@@ -247,7 +247,7 @@ def _mkdirs(*paths):
 
 def _client_conf(name, port, data_dir, mgr_port):
     """nginx as a CMS *client* (data node): plain xrootd server that subscribes
-    UP to our python manager peer via xrootd_cms_manager.  A short cms_interval
+    UP to our python manager peer via brix_cms_manager.  A short cms_interval
     keeps the reconnect backoff small so the test connects quickly."""
     base = os.path.join(_DIR, name)
     _mkdirs(data_dir, os.path.join(base, "logs"))
@@ -262,13 +262,13 @@ def _client_conf(name, port, data_dir, mgr_port):
             f"    server {{\n"
             f"        listen 0.0.0.0:{port};\n"
             f"        xrootd on;\n"
-            f"        xrootd_storage_backend posix:{data_dir};\n"
-            f"        xrootd_auth none;\n"
-            f"        xrootd_allow_write on;\n"
-            f"        xrootd_cms_manager {HOST}:{mgr_port};\n"
-            f"        xrootd_cms_paths /;\n"
-            f"        xrootd_cms_interval 2;\n"
-            f"        xrootd_listen_port {port};\n"
+            f"        brix_storage_backend posix:{data_dir};\n"
+            f"        brix_auth none;\n"
+            f"        brix_allow_write on;\n"
+            f"        brix_cms_manager {HOST}:{mgr_port};\n"
+            f"        brix_cms_paths /;\n"
+            f"        brix_cms_interval 2;\n"
+            f"        brix_listen_port {port};\n"
             f"    }}\n"
             f"}}\n")
     return conf
@@ -276,7 +276,7 @@ def _client_conf(name, port, data_dir, mgr_port):
 
 def _server_conf(name, port, data_dir):
     """nginx as a CMS *server* (manager): accepts inbound data-node logins on
-    the same stream port via xrootd_cms_server on; (no allowlist -> any peer)."""
+    the same stream port via brix_cms_server on; (no allowlist -> any peer)."""
     base = os.path.join(_DIR, name)
     _mkdirs(data_dir, os.path.join(base, "logs"))
     conf = os.path.join(base, f"{name}.conf")
@@ -289,8 +289,8 @@ def _server_conf(name, port, data_dir):
             f"stream {{\n"
             f"    server {{\n"
             f"        listen 0.0.0.0:{port};\n"
-            f"        xrootd_cms_server on;\n"
-            f"        xrootd_cms_server_interval 60;\n"
+            f"        brix_cms_server on;\n"
+            f"        brix_cms_server_interval 60;\n"
             f"    }}\n"
             f"}}\n")
     return conf
@@ -559,7 +559,7 @@ class TestSelectTryParsing:
 
     def test_select_port_is_big_endian_2_byte(self, client_stack):
         """A well-formed select (host + NUL + BE uint16 port) parses cleanly.
-        The port is read with ngx_xrootd_cms_get16 (big-endian, 2 bytes); we
+        The port is read with ngx_brix_cms_get16 (big-endian, 2 bytes); we
         feed a distinctive port (0x1F90 = 8080) — the high byte first.  No
         pending session exists so this is a documented silent no-op; the
         connection must survive (proving the port bytes were consumed, not

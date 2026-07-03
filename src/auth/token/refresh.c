@@ -14,13 +14,13 @@
  *      of the config structure, so the key array swap (memcpy + count update) is
  *      atomic within a worker with no cross-process locking needed.
  *
- * HOW: xrootd_token_jwks_schedule_refresh() is called once per worker from
- *      ngx_stream_xrootd_init_process(). It allocates an ngx_event_t from the cycle
- *      pool and arms it with ngx_add_timer(). The handler xrootd_token_jwks_refresh_handler()
+ * HOW: brix_token_jwks_schedule_refresh() is called once per worker from
+ *      ngx_stream_brix_init_process(). It allocates an ngx_event_t from the cycle
+ *      pool and arms it with ngx_add_timer(). The handler brix_token_jwks_refresh_handler()
  *      fires at each interval: stat() the file, compare st_mtime to conf->jwks_mtime,
  *      load new keys only when changed, swap the key array, update jwks_mtime, and
  *      reschedule itself. On parse failure the old keys are preserved and a WARN is
- *      emitted. Keys are freed via xrootd_jwks_free() (defined in jwks.c) which calls
+ *      emitted. Keys are freed via brix_jwks_free() (defined in jwks.c) which calls
  *      EVP_PKEY_free() on each non-NULL entry.
  */
 
@@ -37,10 +37,10 @@
  * touch the refresh timer — the caller always re-arms it afterwards.
  */
 static void
-xrootd_token_jwks_try_reload(ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log)
+brix_token_jwks_try_reload(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log)
 {
     struct stat        st;
-    xrootd_jwks_key_t  new_keys[XROOTD_MAX_JWKS_KEYS];
+    brix_jwks_key_t  new_keys[BRIX_MAX_JWKS_KEYS];
     int                new_count;
 
     if (stat((const char *) conf->token_jwks.data, &st) != 0) {
@@ -54,9 +54,9 @@ xrootd_token_jwks_try_reload(ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log)
         return;   /* file unchanged — no reload needed */
     }
 
-    new_count = xrootd_jwks_load(log,
+    new_count = brix_jwks_load(log,
                                  (const char *) conf->token_jwks.data,
-                                 new_keys, XROOTD_MAX_JWKS_KEYS);
+                                 new_keys, BRIX_MAX_JWKS_KEYS);
     if (new_count <= 0) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
                       "xrootd: JWKS reload from \"%s\" returned %d keys "
@@ -66,9 +66,9 @@ xrootd_token_jwks_try_reload(ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log)
     }
 
     /* Swap: free the old keys then install the new set */
-    xrootd_jwks_free(conf->jwks_keys, conf->jwks_key_count);
+    brix_jwks_free(conf->jwks_keys, conf->jwks_key_count);
     ngx_memcpy(conf->jwks_keys, new_keys,
-               (size_t) new_count * sizeof(xrootd_jwks_key_t));
+               (size_t) new_count * sizeof(brix_jwks_key_t));
     conf->jwks_key_count = new_count;
     conf->jwks_mtime     = st.st_mtime;
 
@@ -78,11 +78,11 @@ xrootd_token_jwks_try_reload(ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log)
 }
 
 static void
-xrootd_token_jwks_refresh_handler(ngx_event_t *ev)
+brix_token_jwks_refresh_handler(ngx_event_t *ev)
 {
-    ngx_stream_xrootd_srv_conf_t  *conf = ev->data;
+    ngx_stream_brix_srv_conf_t  *conf = ev->data;
 
-    xrootd_token_jwks_try_reload(conf, ev->log);
+    brix_token_jwks_try_reload(conf, ev->log);
 
     /* Stop re-arming once the worker is shutting down so the poll timer can
      * never keep a draining worker alive (mirrors the FRM reaper pattern). */
@@ -107,8 +107,8 @@ xrootd_token_jwks_refresh_handler(ngx_event_t *ev)
  *      configured interval in milliseconds.
  */
 void
-xrootd_token_jwks_schedule_refresh(ngx_cycle_t *cycle,
-    ngx_stream_xrootd_srv_conf_t *conf)
+brix_token_jwks_schedule_refresh(ngx_cycle_t *cycle,
+    ngx_stream_brix_srv_conf_t *conf)
 {
     ngx_event_t  *ev;
 
@@ -126,7 +126,7 @@ xrootd_token_jwks_schedule_refresh(ngx_cycle_t *cycle,
         return;
     }
 
-    ev->handler = xrootd_token_jwks_refresh_handler;
+    ev->handler = brix_token_jwks_refresh_handler;
     ev->data    = conf;
     ev->log     = cycle->log;
 

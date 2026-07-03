@@ -1,9 +1,9 @@
 /*
- * codec_brotli.c — Brotli backend for the codec abstraction (XROOTD_CODEC_BROTLI).
+ * codec_brotli.c — Brotli backend for the codec abstraction (BRIX_CODEC_BROTLI).
  *
  * WHAT: Streaming brotli (de)compression via libbrotlienc / libbrotlidec.
  * WHY:  brotli is the standard web "br" Content-Encoding; optional (compile-gated
- *       on -DXROOTD_HAVE_BROTLI; requires both enc + dec libraries).
+ *       on -DBRIX_HAVE_BROTLI; requires both enc + dec libraries).
  * HOW:  init() creates an encoder (quality set) or decoder instance; step() maps
  *       the contract onto Brotli{Encoder,Decoder}*Stream's
  *       (&avail_in,&next_in,&avail_out,&next_out) cursor pairs.
@@ -11,7 +11,7 @@
 
 #include "codec_core.h"
 
-#if defined(XROOTD_HAVE_BROTLI)
+#if defined(BRIX_HAVE_BROTLI)
 
 #include <stdlib.h>
 #include <brotli/encode.h>
@@ -24,21 +24,21 @@ typedef struct {
 } brotli_state;
 
 static int
-brotli_init(void **state, xrootd_codec_id_t id, xrootd_codec_dir_t dir, int level)
+brotli_init(void **state, brix_codec_id_t id, brix_codec_dir_t dir, int level)
 {
     brotli_state *st = calloc(1, sizeof(*st));
 
     (void) id;
     if (st == NULL) {
-        return XROOTD_CODEC_ERR_MEM;
+        return BRIX_CODEC_ERR_MEM;
     }
     st->dir = dir;
-    if (dir == XROOTD_CODEC_DIR_DECOMPRESS) {
+    if (dir == BRIX_CODEC_DIR_DECOMPRESS) {
         st->dec = BrotliDecoderCreateInstance(NULL, NULL, NULL);
-        if (st->dec == NULL) { free(st); return XROOTD_CODEC_ERR_MEM; }
+        if (st->dec == NULL) { free(st); return BRIX_CODEC_ERR_MEM; }
     } else {
         st->enc = BrotliEncoderCreateInstance(NULL, NULL, NULL);
-        if (st->enc == NULL) { free(st); return XROOTD_CODEC_ERR_MEM; }
+        if (st->enc == NULL) { free(st); return BRIX_CODEC_ERR_MEM; }
         BrotliEncoderSetParameter(st->enc, BROTLI_PARAM_QUALITY,
                                   (uint32_t) level);
     }
@@ -46,7 +46,7 @@ brotli_init(void **state, xrootd_codec_id_t id, xrootd_codec_dir_t dir, int leve
     return 0;
 }
 
-static xrootd_codec_rc_t
+static brix_codec_rc_t
 brotli_step(void *state, const uint8_t *in, size_t in_len, size_t *in_pos,
             uint8_t *out, size_t out_size, size_t *out_pos, int finish)
 {
@@ -56,32 +56,32 @@ brotli_step(void *state, const uint8_t *in, size_t in_len, size_t *in_pos,
     uint8_t       *nout = out + *out_pos;
     size_t         aout = out_size - *out_pos;
 
-    if (st->dir == XROOTD_CODEC_DIR_DECOMPRESS) {
+    if (st->dir == BRIX_CODEC_DIR_DECOMPRESS) {
         BrotliDecoderResult r =
             BrotliDecoderDecompressStream(st->dec, &ain, &nin, &aout, &nout, NULL);
         *in_pos  = in_len - ain;
         *out_pos = out_size - aout;
         if (r == BROTLI_DECODER_RESULT_SUCCESS) {
-            return XROOTD_CODEC_END;
+            return BRIX_CODEC_END;
         }
         if (r == BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT
             || r == BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT) {
-            return XROOTD_CODEC_OK;
+            return BRIX_CODEC_OK;
         }
-        return XROOTD_CODEC_ERR_DATA;
+        return BRIX_CODEC_ERR_DATA;
     }
 
     if (!BrotliEncoderCompressStream(st->enc,
             finish ? BROTLI_OPERATION_FINISH : BROTLI_OPERATION_PROCESS,
             &ain, &nin, &aout, &nout, NULL)) {
-        return XROOTD_CODEC_ERR_DATA;
+        return BRIX_CODEC_ERR_DATA;
     }
     *in_pos  = in_len - ain;
     *out_pos = out_size - aout;
     if (finish && BrotliEncoderIsFinished(st->enc)) {
-        return XROOTD_CODEC_END;
+        return BRIX_CODEC_END;
     }
-    return XROOTD_CODEC_OK;
+    return BRIX_CODEC_OK;
 }
 
 static void
@@ -97,18 +97,18 @@ brotli_end(void *state)
     free(st);
 }
 
-static const xrootd_codec_backend_t brotli_backend = {
+static const brix_codec_backend_t brotli_backend = {
     brotli_init, brotli_step, brotli_end
 };
 
-const xrootd_codec_desc_t xrootd_codec_brotli_desc = {
-    XROOTD_CODEC_BROTLI, "brotli", "br", 1, 0, 11, 5, &brotli_backend
+const brix_codec_desc_t brix_codec_brotli_desc = {
+    BRIX_CODEC_BROTLI, "brotli", "br", 1, 0, 11, 5, &brotli_backend
 };
 
 #else
 
-const xrootd_codec_desc_t xrootd_codec_brotli_desc = {
-    XROOTD_CODEC_BROTLI, "brotli", "br", 0, 0, 0, 0, NULL
+const brix_codec_desc_t brix_codec_brotli_desc = {
+    BRIX_CODEC_BROTLI, "brotli", "br", 0, 0, 0, 0, NULL
 };
 
 #endif

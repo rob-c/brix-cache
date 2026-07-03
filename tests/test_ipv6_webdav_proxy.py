@@ -3,10 +3,10 @@ Phase 36 §7.2.4 — WebDAV proxy with an IPv6 backend (the GATING bracket-on-em
 
 Topology:
     HTTP client ──► nginx WebDAV proxy ([::1]:IPV6_PROXY_PORT) ──► IPv6 upstream
-                    (xrootd_webdav_proxy on)                       origin ([::1]:11245)
+                    (brix_webdav_proxy on)                       origin ([::1]:11245)
 
 The proxy front (nginx_ipv6_proxy.conf) is configured with
-    xrootd_webdav_proxy_upstream  http://[::1]:11245;
+    brix_webdav_proxy_upstream  http://[::1]:11245;
 so the URL is parsed by src/protocols/webdav/proxy_config.c::webdav_proxy_add_url and the
 per-request Host header is emitted by src/protocols/webdav/proxy_pool.c.  ngx_parse_url()
 strips the brackets off "[::1]", so without the bracket-on-emit fix the proxy
@@ -45,12 +45,12 @@ from settings import (
     TEST_ROOT,
 )
 
-# The WebDAV reverse-proxy directives (xrootd_webdav_proxy / _upstream) were
-# retired in the legacy-proxy cleanup — only xrootd_webdav_proxy_certs (GSI
+# The WebDAV reverse-proxy directives (brix_webdav_proxy / _upstream) were
+# retired in the legacy-proxy cleanup — only brix_webdav_proxy_certs (GSI
 # client auth) survives, so this IPv6-proxy suite has no config surface to run
 # against. Skip the whole module until/if the reverse proxy returns.
 pytestmark = pytest.mark.skip(
-    reason="WebDAV reverse-proxy (xrootd_webdav_proxy) retired in legacy-proxy "
+    reason="WebDAV reverse-proxy (brix_webdav_proxy) retired in legacy-proxy "
            "cleanup; no config surface to exercise")
 
 # --------------------------------------------------------------------------- #
@@ -58,7 +58,7 @@ pytestmark = pytest.mark.skip(
 # --------------------------------------------------------------------------- #
 
 # The fixed upstream port hardcoded in nginx_ipv6_proxy.conf
-# (xrootd_webdav_proxy_upstream http://[::1]:11245). Default upstream port is
+# (brix_webdav_proxy_upstream http://[::1]:11245). Default upstream port is
 # also 11245; if the harness ever moves the upstream port the proxy config must
 # move with it — the gating assertions key off this exact literal.
 UPSTREAM_HOST_BRACKETED = f"[::1]:{IPV6_UPSTREAM_PORT}"

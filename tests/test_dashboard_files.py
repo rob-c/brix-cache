@@ -3,7 +3,7 @@ Admin file browser/downloader on the monitoring dashboard
 (GET /xrootd/api/v1/files + /download).
 
 Self-contained: spins up its own nginx with a dashboard that has
-xrootd_dashboard_browse_root pointed at a seeded tree, behind a password.
+brix_dashboard_browse_root pointed at a seeded tree, behind a password.
 
 Verifies: authenticated listing (name/owner/size/mtime/btime), subdir nav,
 byte-exact download, path-traversal confinement (403), 404s, auth gating (401),
@@ -71,12 +71,12 @@ http {{
     scgi_temp_path {root}/tmp;
     server {{
         listen {BIND_HOST}:{hp};
-        location /xrootd {{ xrootd_dashboard on; xrootd_dashboard_password "{DASH_PW}";
-                           xrootd_dashboard_browse_root {data}; }}
+        location /xrootd {{ brix_dashboard on; brix_dashboard_password "{DASH_PW}";
+                           brix_dashboard_browse_root {data}; }}
     }}
     server {{
         listen {BIND_HOST}:{hp_off};
-        location /xrootd {{ xrootd_dashboard on; xrootd_dashboard_password "{DASH_PW}"; }}
+        location /xrootd {{ brix_dashboard on; brix_dashboard_password "{DASH_PW}"; }}
     }}
 }}
 """)

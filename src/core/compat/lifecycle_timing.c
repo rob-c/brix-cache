@@ -10,7 +10,7 @@
 #include <time.h>
 
 /*
- * xrootd_phase_now_ns — monotonic clock in nanoseconds.
+ * brix_phase_now_ns — monotonic clock in nanoseconds.
  *
  * CLOCK_MONOTONIC (not _COARSE): vDSO-backed and ~ns-resolution, so a sub-ms phase
  * is measured honestly instead of being rounded to a millisecond tick. On the
@@ -18,7 +18,7 @@
  * deltas to 0, so a bad reading degrades to "0us", never to a garbage figure.
  */
 uint64_t
-xrootd_phase_now_ns(void)
+brix_phase_now_ns(void)
 {
     struct timespec ts;
 
@@ -32,13 +32,13 @@ xrootd_phase_now_ns(void)
 /* Begin a run: snapshot the clock as both the absolute start and the first
  * per-mark baseline, and empty the summary buffer. */
 void
-xrootd_phase_timer_start(xrootd_phase_timer_t *t)
+brix_phase_timer_start(brix_phase_timer_t *t)
 {
     if (t == NULL) {
         return;
     }
 
-    t->start_ns   = xrootd_phase_now_ns();
+    t->start_ns   = brix_phase_now_ns();
     t->last_ns    = t->start_ns;
     t->pos        = t->summary;
     t->summary[0] = '\0';
@@ -59,13 +59,13 @@ us_since(uint64_t from_ns, uint64_t now_ns)
 }
 
 /*
- * xrootd_phase_mark — append "<name>=<delta>us " for the time since the previous
+ * brix_phase_mark — append "<name>=<delta>us " for the time since the previous
  * mark, then advance the per-mark baseline. Writes are bounded by the buffer
  * capacity; once full, further marks are dropped rather than overflowing (the
  * total in _log still reflects real elapsed time, so no information is fabricated).
  */
 void
-xrootd_phase_mark(xrootd_phase_timer_t *t, const char *name)
+brix_phase_mark(brix_phase_timer_t *t, const char *name)
 {
     uint64_t  now_ns;
     u_char   *end;
@@ -74,7 +74,7 @@ xrootd_phase_mark(xrootd_phase_timer_t *t, const char *name)
         return;
     }
 
-    now_ns = xrootd_phase_now_ns();
+    now_ns = brix_phase_now_ns();
     end    = t->summary + sizeof(t->summary) - 1;
 
     /* ngx_snprintf never writes past `end` and returns the new cursor, but it does
@@ -88,13 +88,13 @@ xrootd_phase_mark(xrootd_phase_timer_t *t, const char *name)
 }
 
 /*
- * xrootd_phase_timer_log — emit the accumulated per-phase summary plus a trailing
+ * brix_phase_timer_log — emit the accumulated per-phase summary plus a trailing
  * total at NOTICE. NOTICE (not INFO) so it survives the default log level: an
  * operator gets a boot-cost breakdown without raising verbosity, yet it is one
  * line per lifecycle event so it never spams.
  */
 void
-xrootd_phase_timer_log(xrootd_phase_timer_t *t, ngx_log_t *log,
+brix_phase_timer_log(brix_phase_timer_t *t, ngx_log_t *log,
                        const char *context)
 {
     uint64_t total_us;
@@ -103,7 +103,7 @@ xrootd_phase_timer_log(xrootd_phase_timer_t *t, ngx_log_t *log,
         return;
     }
 
-    total_us = us_since(t->start_ns, xrootd_phase_now_ns());
+    total_us = us_since(t->start_ns, brix_phase_now_ns());
 
     ngx_log_error(NGX_LOG_NOTICE, log, 0, "%s: %stotal=%uLus",
                   context != NULL ? context : "xrootd lifecycle",

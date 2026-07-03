@@ -38,7 +38,7 @@ http {
     # Prometheus metrics endpoint (exercises the metrics writer path).
     server {
         listen 127.0.0.1:{METRICS_PORT};
-        location /metrics { xrootd_metrics on; }
+        location /metrics { brix_metrics on; }
     }
 
     # ---- GSI / x509 proxy-cert WebDAV over TLS (auth required) ----
@@ -51,7 +51,7 @@ http {
         ssl_certificate     {SERVER_CERT};
         ssl_certificate_key {SERVER_KEY};
 
-        xrootd_webdav_proxy_certs on;
+        brix_webdav_proxy_certs on;
         ssl_verify_client   optional_no_ca;
         ssl_verify_depth    10;
         client_max_body_size 1g;
@@ -60,26 +60,26 @@ http {
             root                  {WORK}/data;
             dav_methods           DELETE MKCOL;
 
-            xrootd_webdav         on;
-            xrootd_webdav_storage_backend    posix:{WORK}/data;
-            xrootd_webdav_cadir   {CA_DIR};
-            xrootd_webdav_auth    required;
-            xrootd_webdav_allow_write on;
+            brix_webdav         on;
+            brix_webdav_storage_backend    posix:{WORK}/data;
+            brix_webdav_cadir   {CA_DIR};
+            brix_webdav_auth    required;
+            brix_webdav_allow_write on;
 
-            xrootd_webdav_token_jwks     {TOKEN_DIR}/jwks.json;
-            xrootd_webdav_token_issuer   "https://test.example.com";
-            xrootd_webdav_token_audience "nginx-xrootd";
+            brix_webdav_token_jwks     {TOKEN_DIR}/jwks.json;
+            brix_webdav_token_issuer   "https://test.example.com";
+            brix_webdav_token_audience "nginx-xrootd";
 
             # TPC on the x509-authenticated block: a COPY with a valid client
             # cert passes the auth/write gate and reaches the libcurl handle
             # lifecycle (src/webdav/tpc_curl.c) — the curl path the plain-HTTP
             # block can't reach (its token lacks write scope → 403 pre-curl).
-            xrootd_webdav_tpc            on;
-            xrootd_webdav_tpc_allow_local on;
-            xrootd_webdav_tpc_cert       {CLIENT_CERT};
-            xrootd_webdav_tpc_key        {CLIENT_KEY};
-            xrootd_webdav_tpc_cafile     {CA_CERT};
-            xrootd_webdav_tpc_timeout    5;
+            brix_webdav_tpc            on;
+            brix_webdav_tpc_allow_local on;
+            brix_webdav_tpc_cert       {CLIENT_CERT};
+            brix_webdav_tpc_key        {CLIENT_KEY};
+            brix_webdav_tpc_cafile     {CA_CERT};
+            brix_webdav_tpc_timeout    5;
         }
     }
 
@@ -97,27 +97,27 @@ http {
             root                  {WORK}/data;
             dav_methods           DELETE MKCOL;
 
-            xrootd_webdav         on;
-            xrootd_webdav_storage_backend    posix:{WORK}/data;
-            xrootd_webdav_auth    optional;
-            xrootd_webdav_cafile  {CA_CERT};
-            xrootd_webdav_allow_write on;
+            brix_webdav         on;
+            brix_webdav_storage_backend    posix:{WORK}/data;
+            brix_webdav_auth    optional;
+            brix_webdav_cafile  {CA_CERT};
+            brix_webdav_allow_write on;
 
-            xrootd_webdav_cors_origin      https://debug.example.test;
-            xrootd_webdav_cors_credentials on;
-            xrootd_webdav_cors_max_age     600;
+            brix_webdav_cors_origin      https://debug.example.test;
+            brix_webdav_cors_credentials on;
+            brix_webdav_cors_max_age     600;
 
-            xrootd_webdav_token_jwks     {TOKEN_DIR}/jwks.json;
-            xrootd_webdav_token_issuer   "https://test.example.com";
-            xrootd_webdav_token_audience "nginx-xrootd";
-            xrootd_webdav_macaroon_secret deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef;
+            brix_webdav_token_jwks     {TOKEN_DIR}/jwks.json;
+            brix_webdav_token_issuer   "https://test.example.com";
+            brix_webdav_token_audience "nginx-xrootd";
+            brix_webdav_macaroon_secret deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef;
 
-            xrootd_webdav_tpc            on;
-            xrootd_webdav_tpc_allow_local on;
-            xrootd_webdav_tpc_cert       {CLIENT_CERT};
-            xrootd_webdav_tpc_key        {CLIENT_KEY};
-            xrootd_webdav_tpc_cafile     {CA_CERT};
-            xrootd_webdav_tpc_timeout    5;
+            brix_webdav_tpc            on;
+            brix_webdav_tpc_allow_local on;
+            brix_webdav_tpc_cert       {CLIENT_CERT};
+            brix_webdav_tpc_key        {CLIENT_KEY};
+            brix_webdav_tpc_cafile     {CA_CERT};
+            brix_webdav_tpc_timeout    5;
         }
     }
 
@@ -128,11 +128,11 @@ http {
         client_max_body_size 1g;
 
         location / {
-            xrootd_s3           on;
-            xrootd_s3_storage_backend      posix:{WORK}/data;
-            xrootd_s3_bucket    testbucket;
-            xrootd_s3_allow_write on;
-            xrootd_s3_max_keys  1000;
+            brix_s3           on;
+            brix_s3_storage_backend      posix:{WORK}/data;
+            brix_s3_bucket    testbucket;
+            brix_s3_allow_write on;
+            brix_s3_max_keys  1000;
         }
     }
 }

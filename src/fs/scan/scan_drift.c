@@ -16,7 +16,7 @@ typedef struct {
     int      seen;     /* set by match() */
 } drift_slot;
 
-struct xrootd_scan_driftset_s {
+struct brix_scan_driftset_s {
     drift_slot *tab;
     size_t      cap;   /* power of two */
     size_t      n;     /* live entries */
@@ -42,10 +42,10 @@ drift_roundup_pow2(size_t v)
     return p;
 }
 
-xrootd_scan_driftset_t *
-xrootd_scan_driftset_create(size_t expected)
+brix_scan_driftset_t *
+brix_scan_driftset_create(size_t expected)
 {
-    xrootd_scan_driftset_t *s = calloc(1, sizeof(*s));
+    brix_scan_driftset_t *s = calloc(1, sizeof(*s));
 
     if (s == NULL) {
         return NULL;
@@ -60,7 +60,7 @@ xrootd_scan_driftset_create(size_t expected)
 }
 
 void
-xrootd_scan_driftset_free(xrootd_scan_driftset_t *s)
+brix_scan_driftset_free(brix_scan_driftset_t *s)
 {
     size_t i;
 
@@ -88,7 +88,7 @@ drift_probe(const drift_slot *tab, size_t cap, const char *key)
 }
 
 static int
-drift_grow(xrootd_scan_driftset_t *s)
+drift_grow(brix_scan_driftset_t *s)
 {
     size_t      newcap = s->cap << 1;
     drift_slot *newtab = calloc(newcap, sizeof(*newtab));
@@ -110,7 +110,7 @@ drift_grow(xrootd_scan_driftset_t *s)
 }
 
 int
-xrootd_scan_driftset_add(xrootd_scan_driftset_t *s, const char *key, int64_t size)
+brix_scan_driftset_add(brix_scan_driftset_t *s, const char *key, int64_t size)
 {
     size_t i;
 
@@ -134,26 +134,26 @@ xrootd_scan_driftset_add(xrootd_scan_driftset_t *s, const char *key, int64_t siz
     return 0;
 }
 
-xrootd_scan_drift_class_t
-xrootd_scan_driftset_match(xrootd_scan_driftset_t *s, const char *key,
+brix_scan_drift_class_t
+brix_scan_driftset_match(brix_scan_driftset_t *s, const char *key,
                            int64_t ns_size, int64_t *cat_size)
 {
     size_t i = drift_probe(s->tab, s->cap, key);
 
     if (s->tab[i].key == NULL) {
-        return XROOTD_DRIFT_NAMESPACE_ONLY;
+        return BRIX_DRIFT_NAMESPACE_ONLY;
     }
     s->tab[i].seen = 1;
     if (cat_size != NULL) {
         *cat_size = s->tab[i].size;
     }
-    return (s->tab[i].size == ns_size) ? XROOTD_DRIFT_IN_BOTH
-                                       : XROOTD_DRIFT_SIZE_MISMATCH;
+    return (s->tab[i].size == ns_size) ? BRIX_DRIFT_IN_BOTH
+                                       : BRIX_DRIFT_SIZE_MISMATCH;
 }
 
 void
-xrootd_scan_driftset_orphans(xrootd_scan_driftset_t *s,
-                             xrootd_scan_orphan_cb cb, void *ctx)
+brix_scan_driftset_orphans(brix_scan_driftset_t *s,
+                             brix_scan_orphan_cb cb, void *ctx)
 {
     size_t i;
 

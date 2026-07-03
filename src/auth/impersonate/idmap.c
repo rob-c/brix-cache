@@ -1,7 +1,7 @@
 /*
  * idmap.c — identity -> local UNIX account resolution (phase 40).
  *
- * WHAT: xrootd_idmap_resolve() maps an authenticated principal (GSI DN / token
+ * WHAT: brix_idmap_resolve() maps an authenticated principal (GSI DN / token
  *   sub / SSS user / krb5 localname) to {uid, primary gid, supplementary gids}
  *   via (1) an optional grid-mapfile (DN -> local username), (2) a direct
  *   getpwnam() of the principal, then (3) a squash-to-default or deny policy.
@@ -32,8 +32,8 @@
 
 typedef struct {
     char                  principal[IDMAP_PRINC_MAX];
-    xrootd_idmap_creds_t  creds;
-    int                   rc;           /* XROOTD_IDMAP_OK / SQUASH / DENY */
+    brix_idmap_creds_t  creds;
+    int                   rc;           /* BRIX_IDMAP_OK / SQUASH / DENY */
     time_t                expiry;       /* 0 = empty slot */
 } idmap_cache_slot_t;
 
@@ -47,8 +47,8 @@ static idmap_cache_slot_t      idmap_cache[IDMAP_CACHE_SLOTS];
 static idmap_gridmap_entry_t  *idmap_gridmap;       /* NULL = no mapfile */
 static size_t                  idmap_gridmap_n;
 
-static time_t                  idmap_ttl      = XROOTD_IDMAP_DEFAULT_TTL;
-static uid_t                   idmap_min_uid  = XROOTD_IDMAP_DEFAULT_MIN_UID;
+static time_t                  idmap_ttl      = BRIX_IDMAP_DEFAULT_TTL;
+static uid_t                   idmap_min_uid  = BRIX_IDMAP_DEFAULT_MIN_UID;
 static int                     idmap_primary_only;
 static char                    idmap_default_user[IDMAP_PRINC_MAX]; /* "" = deny */
 
@@ -227,11 +227,11 @@ idmap_gid_reserved_or_forbidden(gid_t gid)
  * fails CLOSED when the group set overflows the 32-slot buffer.
  */
 static int
-idmap_resolve_user(const char *user, xrootd_idmap_creds_t *out)
+idmap_resolve_user(const char *user, brix_idmap_creds_t *out)
 {
     struct passwd *pw;
-    gid_t          gids[XROOTD_IDMAP_MAXGROUPS];
-    int            ng = XROOTD_IDMAP_MAXGROUPS;
+    gid_t          gids[BRIX_IDMAP_MAXGROUPS];
+    int            ng = BRIX_IDMAP_MAXGROUPS;
     int            i;
 
     pw = getpwnam(user);
@@ -250,7 +250,7 @@ idmap_resolve_user(const char *user, xrootd_idmap_creds_t *out)
 
     if (getgrouplist(user, pw->pw_gid, gids, &ng) < 0) {
         /*
-         * OVERFLOW: the user belongs to MORE than XROOTD_IDMAP_MAXGROUPS groups.
+         * OVERFLOW: the user belongs to MORE than BRIX_IDMAP_MAXGROUPS groups.
          * `ng` now holds the TRUE total; `gids` holds only a 32-entry PREFIX in
          * /etc/group scan order (NOT sorted).  A reserved or forbidden group could
          * sit past the cap, so checking only the prefix would fail OPEN — a
@@ -277,7 +277,7 @@ idmap_resolve_user(const char *user, xrootd_idmap_creds_t *out)
         }
         /* Whole set is clean; keep a capped subset for the impersonation setgroups
          * (a subset only ever GRANTS LESS, so it is fail-safe for the op). */
-        for (i = 0; i < total && i < XROOTD_IDMAP_MAXGROUPS; i++) {
+        for (i = 0; i < total && i < BRIX_IDMAP_MAXGROUPS; i++) {
             out->groups[i] = full[i];
         }
         out->ngroups = i;
@@ -288,7 +288,7 @@ idmap_resolve_user(const char *user, xrootd_idmap_creds_t *out)
         gids[0] = pw->pw_gid;
         ng = 1;
     }
-    for (i = 0; i < ng && i < XROOTD_IDMAP_MAXGROUPS; i++) {
+    for (i = 0; i < ng && i < BRIX_IDMAP_MAXGROUPS; i++) {
         out->groups[i] = gids[i];
     }
     out->ngroups = i;
@@ -303,7 +303,7 @@ idmap_resolve_user(const char *user, xrootd_idmap_creds_t *out)
  * range.  Pure: no syscalls, no globals.
  */
 int
-xrootd_imp_creds_privileged(const xrootd_idmap_creds_t *cr, uid_t floor,
+brix_imp_creds_privileged(const brix_idmap_creds_t *cr, uid_t floor,
                             uint32_t *out_id, char *out_kind)
 {
     int i;
@@ -313,7 +313,7 @@ xrootd_imp_creds_privileged(const xrootd_idmap_creds_t *cr, uid_t floor,
         if (out_kind != NULL) { *out_kind = 'n'; }
         return 1;
     }
-    if (cr->ngroups < 0 || cr->ngroups > XROOTD_IDMAP_MAXGROUPS) {
+    if (cr->ngroups < 0 || cr->ngroups > BRIX_IDMAP_MAXGROUPS) {
         if (out_id != NULL)   { *out_id = (uint32_t) cr->ngroups; }
         if (out_kind != NULL) { *out_kind = 'n'; }
         return 1;
@@ -430,7 +430,7 @@ idmap_uid_forbidden(uid_t uid)
 /* True if any of the creds' gids (primary or supplementary) is a forbidden
  * (privileged) group — even when its numeric gid is >= the floor. */
 static int
-idmap_creds_have_forbidden_group(const xrootd_idmap_creds_t *cr)
+idmap_creds_have_forbidden_group(const brix_idmap_creds_t *cr)
 {
     int i, j;
 
@@ -454,9 +454,9 @@ idmap_creds_have_forbidden_group(const xrootd_idmap_creds_t *cr)
  *   - the user is a member of a forbidden privileged group (sudo/wheel/...).
  */
 static int
-idmap_creds_allowed(const xrootd_idmap_creds_t *cr)
+idmap_creds_allowed(const brix_idmap_creds_t *cr)
 {
-    return !xrootd_imp_creds_privileged(cr, idmap_min_uid, NULL, NULL)
+    return !brix_imp_creds_privileged(cr, idmap_min_uid, NULL, NULL)
         && !idmap_uid_forbidden(cr->uid)
         && !idmap_creds_have_forbidden_group(cr);
 }
@@ -475,32 +475,32 @@ idmap_hash(const char *s)
 
 
 ngx_int_t
-xrootd_idmap_init(const xrootd_idmap_conf_t *conf, ngx_log_t *log)
+brix_idmap_init(const brix_idmap_conf_t *conf, ngx_log_t *log)
 {
     if (conf == NULL) {
         return NGX_ERROR;
     }
 
     idmap_ttl     = (conf->cache_ttl > 0) ? (time_t) conf->cache_ttl
-                                          : XROOTD_IDMAP_DEFAULT_TTL;
+                                          : BRIX_IDMAP_DEFAULT_TTL;
     idmap_min_uid = (conf->min_uid > 0) ? conf->min_uid
-                                        : XROOTD_IDMAP_DEFAULT_MIN_UID;
+                                        : BRIX_IDMAP_DEFAULT_MIN_UID;
     /*
      * Clamp the effective floor UP to the absolute hard floor: ids below
-     * XROOTD_IMP_HARD_MIN_ID can never be impersonated, even if an admin sets a
-     * lower xrootd_idmap_min_uid.  (A lower value would in any case be caught at
+     * BRIX_IMP_HARD_MIN_ID can never be impersonated, even if an admin sets a
+     * lower brix_idmap_min_uid.  (A lower value would in any case be caught at
      * the broker's syscall edge; clamping here turns it into a clean deny instead
      * of a fatal broker abort.)
      */
-    if (idmap_min_uid < XROOTD_IMP_HARD_MIN_ID) {
+    if (idmap_min_uid < BRIX_IMP_HARD_MIN_ID) {
         if (log != NULL) {
             ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                          "impersonate: xrootd_idmap_min_uid %d raised to the hard "
+                          "impersonate: brix_idmap_min_uid %d raised to the hard "
                           "reserved-id floor %d (uids/gids below %d can never be "
                           "impersonated)", (int) idmap_min_uid,
-                          XROOTD_IMP_HARD_MIN_ID, XROOTD_IMP_HARD_MIN_ID);
+                          BRIX_IMP_HARD_MIN_ID, BRIX_IMP_HARD_MIN_ID);
         }
-        idmap_min_uid = XROOTD_IMP_HARD_MIN_ID;
+        idmap_min_uid = BRIX_IMP_HARD_MIN_ID;
     }
     idmap_primary_only = conf->primary_only ? 1 : 0;
 
@@ -522,7 +522,7 @@ xrootd_idmap_init(const xrootd_idmap_conf_t *conf, ngx_log_t *log)
             buf[conf->forbidden_users.len] = '\0';
             users = buf;
         }
-        idmap_forbid_load(users, XROOTD_IMP_DEFAULT_FORBIDDEN_USERS, 1, log);
+        idmap_forbid_load(users, BRIX_IMP_DEFAULT_FORBIDDEN_USERS, 1, log);
     }
     {
         char  buf[1024];
@@ -533,7 +533,7 @@ xrootd_idmap_init(const xrootd_idmap_conf_t *conf, ngx_log_t *log)
             buf[conf->forbidden_groups.len] = '\0';
             groups = buf;
         }
-        idmap_forbid_load(groups, XROOTD_IMP_DEFAULT_FORBIDDEN_GROUPS, 0, log);
+        idmap_forbid_load(groups, BRIX_IMP_DEFAULT_FORBIDDEN_GROUPS, 0, log);
     }
     if (conf->worker_uid != 0 && conf->worker_uid != (uid_t) NGX_CONF_UNSET_UINT) {
         idmap_forbid_uid(conf->worker_uid);
@@ -578,21 +578,21 @@ xrootd_idmap_init(const xrootd_idmap_conf_t *conf, ngx_log_t *log)
 }
 
 ngx_int_t
-xrootd_idmap_resolve(const xrootd_idmap_conf_t *conf, const char *principal,
-                     xrootd_idmap_creds_t *out, ngx_log_t *log)
+brix_idmap_resolve(const brix_idmap_conf_t *conf, const char *principal,
+                     brix_idmap_creds_t *out, ngx_log_t *log)
 {
     idmap_cache_slot_t *slot;
     const char         *user;
-    xrootd_idmap_creds_t creds;
+    brix_idmap_creds_t creds;
     time_t              now;
     int                 rc;
 
-    (void) conf;        /* config is installed via xrootd_idmap_init() */
+    (void) conf;        /* config is installed via brix_idmap_init() */
 
     if (principal == NULL || out == NULL
         || principal[0] == '\0' || ngx_strlen(principal) >= IDMAP_PRINC_MAX)
     {
-        return XROOTD_IDMAP_DENY;
+        return BRIX_IDMAP_DENY;
     }
 
     now  = time(NULL);
@@ -600,7 +600,7 @@ xrootd_idmap_resolve(const xrootd_idmap_conf_t *conf, const char *principal,
 
     /* Cache hit on the same principal, not expired. */
     if (slot->expiry > now && strcmp(slot->principal, principal) == 0) {
-        if (slot->rc == XROOTD_IDMAP_OK || slot->rc == XROOTD_IDMAP_SQUASH) {
+        if (slot->rc == BRIX_IDMAP_OK || slot->rc == BRIX_IDMAP_SQUASH) {
             *out = slot->creds;
         }
         return slot->rc;
@@ -612,17 +612,17 @@ xrootd_idmap_resolve(const xrootd_idmap_conf_t *conf, const char *principal,
         user = principal;
     }
 
-    rc = XROOTD_IDMAP_DENY;
+    rc = BRIX_IDMAP_DENY;
     if (idmap_resolve_user(user, &creds) == 0 && idmap_creds_allowed(&creds)) {
-        rc = XROOTD_IDMAP_OK;
+        rc = BRIX_IDMAP_OK;
     } else if (idmap_default_user[0] != '\0'
                && idmap_resolve_user(idmap_default_user, &creds) == 0
                && idmap_creds_allowed(&creds))
     {
-        rc = XROOTD_IDMAP_SQUASH;       /* unmapped/forbidden -> squash account */
+        rc = BRIX_IDMAP_SQUASH;       /* unmapped/forbidden -> squash account */
     }
 
-    if (rc != XROOTD_IDMAP_OK && rc != XROOTD_IDMAP_SQUASH && log != NULL) {
+    if (rc != BRIX_IDMAP_OK && rc != BRIX_IDMAP_SQUASH && log != NULL) {
         ngx_log_error(NGX_LOG_INFO, log, 0,
                       "impersonate: no UNIX mapping for principal \"%s\" "
                       "(user=\"%s\") -> deny", principal, user);
@@ -632,7 +632,7 @@ xrootd_idmap_resolve(const xrootd_idmap_conf_t *conf, const char *principal,
     ngx_memcpy(slot->principal, principal, ngx_strlen(principal) + 1);
     slot->rc     = rc;
     slot->expiry = now + idmap_ttl;
-    if (rc == XROOTD_IDMAP_OK || rc == XROOTD_IDMAP_SQUASH) {
+    if (rc == BRIX_IDMAP_OK || rc == BRIX_IDMAP_SQUASH) {
         slot->creds = creds;
         *out = creds;
     }

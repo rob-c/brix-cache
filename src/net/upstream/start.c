@@ -31,10 +31,10 @@
  *      we flush the bootstrap here. Any failure path rolls ctx->state back to REQ_HEADER.
  */
 ngx_int_t
-xrootd_upstream_start(xrootd_ctx_t *ctx, ngx_connection_t *c,
-                      ngx_stream_xrootd_srv_conf_t *conf)
+brix_upstream_start(brix_ctx_t *ctx, ngx_connection_t *c,
+                      ngx_stream_brix_srv_conf_t *conf)
 {
-    xrootd_upstream_t       *up;
+    brix_upstream_t       *up;
     ngx_connection_t        *uconn;
     int                      fd;
     struct sockaddr_storage  chosen_addr;
@@ -43,7 +43,7 @@ xrootd_upstream_start(xrootd_ctx_t *ctx, ngx_connection_t *c,
     size_t                   bslen;
     u_char                  *bsbuf;
 
-    up = ngx_pcalloc(c->pool, sizeof(xrootd_upstream_t));
+    up = ngx_pcalloc(c->pool, sizeof(brix_upstream_t));
     if (up == NULL) {
         return NGX_ERROR;
     }
@@ -59,14 +59,14 @@ xrootd_upstream_start(xrootd_ctx_t *ctx, ngx_connection_t *c,
     up->req_streamid[1] = ctx->cur_streamid[1];
 
     if (ctx->payload == NULL || ctx->cur_dlen == 0) {
-        xrootd_upstream_cleanup(up);
+        brix_upstream_cleanup(up);
         return NGX_ERROR;
     }
 
-    if (!xrootd_extract_path(c->log, ctx->payload, ctx->cur_dlen,
+    if (!brix_extract_path(c->log, ctx->payload, ctx->cur_dlen,
                              up->req_path, sizeof(up->req_path), 1))
     {
-        xrootd_upstream_cleanup(up);
+        brix_upstream_cleanup(up);
         return NGX_ERROR;
     }
 
@@ -106,20 +106,20 @@ xrootd_upstream_start(xrootd_ctx_t *ctx, ngx_connection_t *c,
         /* fallback: resolve per-request (blocks event loop; logged as warning at startup).
          * The first family yielding a non-blocking socket wins; a no-usable-socket
          * result falls through to the shared `if (fd == INVALID)` check below. */
-        xrootd_resolve_status_t rstatus;
+        brix_resolve_status_t rstatus;
 
-        fd = xrootd_resolve_connect_socket((char *) conf->upstream_host.data,
+        fd = brix_resolve_connect_socket((char *) conf->upstream_host.data,
                                            (unsigned) conf->upstream_port,
-                                           XROOTD_AF_AUTO,
+                                           BRIX_AF_AUTO,
                                            &chosen_addr, &chosen_addrlen,
                                            &rstatus);
         if (fd == (int) NGX_INVALID_FILE
-            && rstatus == XROOTD_RESOLVE_ERR_DNS)
+            && rstatus == BRIX_RESOLVE_ERR_DNS)
         {
             ngx_log_error(NGX_LOG_ERR, c->log, 0,
                           "xrootd: upstream: cannot resolve \"%s\"",
                           (char *) conf->upstream_host.data);
-            xrootd_upstream_cleanup(up);
+            brix_upstream_cleanup(up);
             return NGX_ERROR;
         }
     }
@@ -128,7 +128,7 @@ xrootd_upstream_start(xrootd_ctx_t *ctx, ngx_connection_t *c,
         ngx_log_error(NGX_LOG_ERR, c->log, 0,
                       "xrootd: upstream: no usable address for \"%s\"",
                       (char *) conf->upstream_host.data);
-        xrootd_upstream_cleanup(up);
+        brix_upstream_cleanup(up);
         return NGX_ERROR;
     }
 
@@ -137,7 +137,7 @@ xrootd_upstream_start(xrootd_ctx_t *ctx, ngx_connection_t *c,
     uconn = ngx_get_connection(fd, c->log);
     if (uconn == NULL) {
         ngx_close_socket(fd);
-        xrootd_upstream_cleanup(up);
+        brix_upstream_cleanup(up);
         return NGX_ERROR;
     }
 
@@ -147,7 +147,7 @@ xrootd_upstream_start(xrootd_ctx_t *ctx, ngx_connection_t *c,
     if (uconn->pool == NULL) {
         ngx_free_connection(uconn);
         ngx_close_socket(fd);
-        xrootd_upstream_cleanup(up);
+        brix_upstream_cleanup(up);
         return NGX_ERROR;
     }
 
@@ -157,8 +157,8 @@ xrootd_upstream_start(xrootd_ctx_t *ctx, ngx_connection_t *c,
     uconn->recv_chain = ngx_recv_chain;
     uconn->send_chain = ngx_send_chain;
     uconn->log = c->log;
-    uconn->read->handler = xrootd_upstream_read_handler;
-    uconn->write->handler = xrootd_upstream_write_handler;
+    uconn->read->handler = brix_upstream_read_handler;
+    uconn->write->handler = brix_upstream_write_handler;
     uconn->read->log = c->log;
     uconn->write->log = c->log;
 
@@ -174,10 +174,10 @@ xrootd_upstream_start(xrootd_ctx_t *ctx, ngx_connection_t *c,
             + sizeof(ClientLoginRequest);
     bsbuf = ngx_palloc(uconn->pool, bslen);
     if (bsbuf == NULL) {
-        xrootd_upstream_cleanup(up);
+        brix_upstream_cleanup(up);
         return NGX_ERROR;
     }
-    xrootd_upstream_build_bootstrap(bsbuf);
+    brix_upstream_build_bootstrap(bsbuf);
     up->wbuf = bsbuf;
     up->wbuf_len = bslen;
     up->wbuf_pos = 0;
@@ -194,7 +194,7 @@ xrootd_upstream_start(xrootd_ctx_t *ctx, ngx_connection_t *c,
                       "xrootd: upstream connect to %s:%d failed",
                       (char *) conf->upstream_host.data,
                       (int) conf->upstream_port);
-        xrootd_upstream_cleanup(up);
+        brix_upstream_cleanup(up);
         ctx->state = XRD_ST_REQ_HEADER;
         return NGX_ERROR;
     }
@@ -202,7 +202,7 @@ xrootd_upstream_start(xrootd_ctx_t *ctx, ngx_connection_t *c,
     /* Arm the write event in both cases: EINPROGRESS needs it to learn of connect
      * completion; rc==0 needs it to drain any bootstrap bytes that block on this write. */
     if (ngx_handle_write_event(uconn->write, 0) != NGX_OK) {
-        xrootd_upstream_cleanup(up);
+        brix_upstream_cleanup(up);
         ctx->state = XRD_ST_REQ_HEADER;
         return NGX_ERROR;
     }
@@ -216,9 +216,9 @@ xrootd_upstream_start(xrootd_ctx_t *ctx, ngx_connection_t *c,
         up->bs_phase = XRD_UP_BS_HANDSHAKE;
         up->rhdr_pos = 0;
 
-        frc = xrootd_upstream_flush(up);
+        frc = brix_upstream_flush(up);
         if (frc == NGX_ERROR) {
-            xrootd_upstream_cleanup(up);
+            brix_upstream_cleanup(up);
             ctx->state = XRD_ST_REQ_HEADER;
             return NGX_ERROR;
         }

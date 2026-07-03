@@ -1,8 +1,8 @@
 /*
  * handler.c — HTTP content handler for the WLCG SRR endpoint.
  *
- * WHAT: ngx_http_xrootd_srr_handler() serves the storageservice JSON document
- *   for a location carrying `xrootd_srr on;`.  GET/HEAD only; request body is
+ * WHAT: ngx_http_brix_srr_handler() serves the storageservice JSON document
+ *   for a location carrying `brix_srr on;`.  GET/HEAD only; request body is
  *   discarded; no request input influences the output.
  *
  * WHY: Mirrors the /metrics handler (src/metrics/handler.c) so the two
@@ -21,22 +21,22 @@
 
 
 ngx_int_t
-ngx_http_xrootd_srr_handler(ngx_http_request_t *r)
+ngx_http_brix_srr_handler(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_srr_loc_conf_t *lcf;
+    ngx_http_brix_srr_loc_conf_t *lcf;
     ngx_int_t                       rc;
     u_char                         *buf;
     size_t                          len;
     ngx_buf_t                      *b;
     ngx_chain_t                     out;
 
-    lcf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_srr_module);
+    lcf = ngx_http_get_module_loc_conf(r, ngx_http_brix_srr_module);
     if (!lcf->enable) {
         return NGX_DECLINED;
     }
 
     /* AGPL-3.0 sec.13: offer remote users the source (X-Source header). */
-    xrootd_http_source_offer(r);
+    brix_http_source_offer(r);
 
     if (r->method != NGX_HTTP_GET && r->method != NGX_HTTP_HEAD) {
         return NGX_HTTP_NOT_ALLOWED;
@@ -47,7 +47,7 @@ ngx_http_xrootd_srr_handler(ngx_http_request_t *r)
         return rc;
     }
 
-    if (ngx_http_xrootd_srr_build_json(r, lcf, &buf, &len) != NGX_OK) {
+    if (ngx_http_brix_srr_build_json(r, lcf, &buf, &len) != NGX_OK) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
@@ -66,7 +66,7 @@ ngx_http_xrootd_srr_handler(ngx_http_request_t *r)
         return rc;
     }
 
-    XROOTD_PCALLOC_OR_RETURN(b, r->pool, sizeof(*b), NGX_HTTP_INTERNAL_SERVER_ERROR);
+    BRIX_PCALLOC_OR_RETURN(b, r->pool, sizeof(*b), NGX_HTTP_INTERNAL_SERVER_ERROR);
     b->pos      = b->start = buf;
     b->last     = b->end   = buf + len;
     b->memory   = 1;

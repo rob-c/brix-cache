@@ -1,5 +1,5 @@
-#ifndef XROOTD_HTTP_ROOTFD_H
-#define XROOTD_HTTP_ROOTFD_H
+#ifndef BRIX_HTTP_ROOTFD_H
+#define BRIX_HTTP_ROOTFD_H
 
 /*
  * http_rootfd.h — persistent confinement rootfd for the HTTP protocols.
@@ -24,7 +24,7 @@
 
 #include "shared_conf.h"
 
-char *xrootd_http_open_rootfd(ngx_conf_t *cf,
-                              ngx_http_xrootd_shared_conf_t *common);
+char *brix_http_open_rootfd(ngx_conf_t *cf,
+                              ngx_http_brix_shared_conf_t *common);
 
-#endif /* XROOTD_HTTP_ROOTFD_H */
+#endif /* BRIX_HTTP_ROOTFD_H */

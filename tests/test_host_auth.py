@@ -1,7 +1,7 @@
 """XRootD ``host`` (host-based) auth — Phase 52 WS-C.
 
 The native client selects ``host`` (asserting no identity); the server reverse-
-resolves the peer socket and authenticates it against ``xrootd_host_allow`` (exact
+resolves the peer socket and authenticates it against ``brix_host_allow`` (exact
 hostnames or ``.suffix`` domains), fail-closed.  Covers the mandated trio: success
 (peer host in the allowlist), error/security-negative (peer host NOT in the
 allowlist must be denied — the allowlist is the only gate).
@@ -69,9 +69,9 @@ def _spawn(base, port, allow):
         "    server {\n"
         f"        listen 127.0.0.1:{port};\n"
         "        xrootd on;\n"
-        f"        xrootd_storage_backend posix:{data};\n"
-        "        xrootd_auth host;\n"
-        f"        xrootd_host_allow {allow};\n"
+        f"        brix_storage_backend posix:{data};\n"
+        "        brix_auth host;\n"
+        f"        brix_host_allow {allow};\n"
         "    }\n"
         "}\n")
     _free_port(port)
@@ -116,7 +116,7 @@ def test_host_allowed(host_servers, tmp_path):
 # ---- error / security-negative ---------------------------------------------- #
 
 def test_host_not_in_allowlist_denied(host_servers, tmp_path):
-    """Peer host absent from xrootd_host_allow must be denied — the reverse-DNS
+    """Peer host absent from brix_host_allow must be denied — the reverse-DNS
     allowlist is the only gate, and it is fail-closed."""
     out = str(tmp_path / "deny.txt")
     r = _run([NATIVE_XRDCP, "--auth", "host", "-f",

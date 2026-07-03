@@ -1,5 +1,5 @@
-#ifndef XROOTD_TYPES_STATE_H
-#define XROOTD_TYPES_STATE_H
+#ifndef BRIX_TYPES_STATE_H
+#define BRIX_TYPES_STATE_H
 
 /*
  * Per-connection state machine enum and opaque forward declarations.
@@ -7,7 +7,7 @@
  * Normal flow (no TLS, no upstream):
  *   HANDSHAKE → REQ_HEADER → REQ_PAYLOAD (if dlen > 0) → REQ_HEADER → …
  *
- * SENDING: entered when xrootd_queue_response_base() gets EAGAIN from
+ * SENDING: entered when brix_queue_response_base() gets EAGAIN from
  *   c->send().  The remaining bytes stay in ctx->wbuf; the write event
  *   is armed.  The read event is NOT active while SENDING.
  *
@@ -32,15 +32,15 @@ typedef enum {
     XRD_ST_PROXY,         /* proxy request forwarded, awaiting response */
     XRD_ST_WAITING_CMS,   /* kYR_locate sent to manager; awaiting kYR_select */
     XRD_ST_WAITING_FRM,   /* kXR_waitresp sent; awaiting async stage completion */
-} xrootd_state_t;
+} brix_state_t;
 
 /* Opaque upstream context — defined in src/upstream/ */
-typedef struct xrootd_upstream_s xrootd_upstream_t;
+typedef struct brix_upstream_s brix_upstream_t;
 
 /* Opaque proxy context — defined in src/proxy/ */
-typedef struct xrootd_proxy_ctx_s xrootd_proxy_ctx_t;
+typedef struct brix_proxy_ctx_s brix_proxy_ctx_t;
 
 /* Opaque CMS heartbeat context — defined in cms/connect.c */
-typedef struct ngx_xrootd_cms_ctx_s ngx_xrootd_cms_ctx_t;
+typedef struct ngx_brix_cms_ctx_s ngx_brix_cms_ctx_t;
 
-#endif /* XROOTD_TYPES_STATE_H */
+#endif /* BRIX_TYPES_STATE_H */

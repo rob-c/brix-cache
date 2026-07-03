@@ -1,4 +1,4 @@
-/* Standalone unit test for xrootd_proxy_gsi_write_pem_temp — gcc, no nginx. */
+/* Standalone unit test for brix_proxy_gsi_write_pem_temp — gcc, no nginx. */
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -13,7 +13,7 @@ int main(void)
     char p1[256] = {0}, p2[256] = {0};
 
     /* writes a file, path returned */
-    assert(xrootd_proxy_gsi_write_pem_temp((const unsigned char *) pem,
+    assert(brix_proxy_gsi_write_pem_temp((const unsigned char *) pem,
                                            strlen(pem), p1, sizeof(p1)) == 0);
     assert(p1[0] != '\0');
 
@@ -32,12 +32,12 @@ int main(void)
     assert(memcmp(buf, pem, strlen(pem)) == 0);
 
     /* a second call yields a DISTINCT path */
-    assert(xrootd_proxy_gsi_write_pem_temp((const unsigned char *) pem,
+    assert(brix_proxy_gsi_write_pem_temp((const unsigned char *) pem,
                                            strlen(pem), p2, sizeof(p2)) == 0);
     assert(strcmp(p1, p2) != 0);
 
     /* empty PEM rejected */
-    assert(xrootd_proxy_gsi_write_pem_temp((const unsigned char *) pem,
+    assert(brix_proxy_gsi_write_pem_temp((const unsigned char *) pem,
                                            0, p1, sizeof(p1)) == -1);
 
     unlink(p1);

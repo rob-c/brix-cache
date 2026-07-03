@@ -1,8 +1,8 @@
 """
-test_proxy_large_read.py — guards the xrootd_proxy large-read forwarding path.
+test_proxy_large_read.py — guards the brix_proxy large-read forwarding path.
 
 Regression for the splice under-drain stall: a single large official-XrdCl read
-(one big kXR_read) forwarded through xrootd_proxy used to take the zero-copy
+(one big kXR_read) forwarded through brix_proxy used to take the zero-copy
 splice() path, which on kernels whose socket-splice under-drains (e.g. WSL2)
 crawled a 5 MiB read past the client's timeout — the real cause of flaky
 test_conformance_topologies[proxy]/[mesh]. The proxy now falls back to the
@@ -56,13 +56,13 @@ def proxy_stack(tmp_path):
         "be": f"""\
 worker_processes 1; daemon on; pid {tmp_path}/be.pid; error_log {tmp_path}/be.log info;
 events {{ worker_connections 256; }}
-stream {{ server {{ listen {be_port}; xrootd on; xrootd_storage_backend posix:{root}; xrootd_auth none; }} }}
+stream {{ server {{ listen {be_port}; xrootd on; brix_storage_backend posix:{root}; brix_auth none; }} }}
 """,
         "px": f"""\
 worker_processes 1; daemon on; pid {tmp_path}/px.pid; error_log {tmp_path}/px.log info;
 events {{ worker_connections 256; }}
-stream {{ server {{ listen {px_port}; xrootd on; xrootd_auth none;
-    xrootd_tap_proxy on; xrootd_tap_proxy_upstream 127.0.0.1:{be_port}; xrootd_tap_proxy_auth anonymous; }} }}
+stream {{ server {{ listen {px_port}; xrootd on; brix_auth none;
+    brix_tap_proxy on; brix_tap_proxy_upstream 127.0.0.1:{be_port}; brix_tap_proxy_auth anonymous; }} }}
 """,
     }
     paths = {}

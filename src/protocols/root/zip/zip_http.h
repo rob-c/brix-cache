@@ -7,12 +7,12 @@
  *       deflate via in-RAM inflate, with single-Range support).
  * WHY:  HTTP/S3 clients cannot self-inflate a ZIP member (unlike root:// XrdCl),
  *       so the server must extract.  WebDAV and S3 share one implementation.
- * HOW:  Confined archive open + xrootd_zip_find_member (zip_dir.h) +
- *       xrootd_zip_extract_full for deflate; a dup'd fd kept alive by an
+ * HOW:  Confined archive open + brix_zip_find_member (zip_dir.h) +
+ *       brix_zip_extract_full for deflate; a dup'd fd kept alive by an
  *       ngx_pool_cleanup_file for the stored sendfile path.
  */
-#ifndef XROOTD_ZIP_HTTP_H
-#define XROOTD_ZIP_HTTP_H
+#ifndef BRIX_ZIP_HTTP_H
+#define BRIX_ZIP_HTTP_H
 
 #include <ngx_config.h>
 #include <ngx_core.h>
@@ -24,7 +24,7 @@
  * serve the object normally), or -1 (key present but invalid: empty / absolute /
  * traversal → caller returns 400).
  */
-int xrootd_zip_http_member_arg(ngx_http_request_t *r, char *out, size_t outsz);
+int brix_zip_http_member_arg(ngx_http_request_t *r, char *out, size_t outsz);
 
 /*
  * Serve `member` of the archive at `archive_full` (a root_canon-prefixed absolute
@@ -32,7 +32,7 @@ int xrootd_zip_http_member_arg(ngx_http_request_t *r, char *out, size_t outsz);
  * the central-directory read.  Returns an NGX_HTTP_* status, or the output-filter
  * result once the response is sent.
  */
-ngx_int_t xrootd_zip_http_serve(ngx_http_request_t *r, const char *root_canon,
+ngx_int_t brix_zip_http_serve(ngx_http_request_t *r, const char *root_canon,
     size_t cd_max, const char *archive_full, const char *member);
 
-#endif /* XROOTD_ZIP_HTTP_H */
+#endif /* BRIX_ZIP_HTTP_H */

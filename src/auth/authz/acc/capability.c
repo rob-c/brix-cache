@@ -1,7 +1,7 @@
 /*
  * capability.c — path/template capability matching (XrdAccCapability).
  *
- * WHAT: xrootd_acc_cap_privs() walks one identity's capability list and, on the
+ * WHAT: brix_acc_cap_privs() walks one identity's capability list and, on the
  *   FIRST path whose prefix matches the request path, OR-s that capability's
  *   positive and negative privileges into the accumulator and returns 1.
  *   Template (`@=`) capabilities substitute a runtime value (the user name) into
@@ -28,7 +28,7 @@
  * fixed tail after `@=` must match what follows.  Returns 1 on match.
  */
 static int
-xrootd_acc_cap_subcomp(const xrootd_acc_cap_t *cap, const char *path, int plen,
+brix_acc_cap_subcomp(const brix_acc_cap_t *cap, const char *path, int plen,
                        const char *pathsub, int sublen)
 {
     int ncmp;
@@ -58,7 +58,7 @@ xrootd_acc_cap_subcomp(const xrootd_acc_cap_t *cap, const char *path, int plen,
 }
 
 int
-xrootd_acc_cap_privs(xrootd_acc_cap_t *cap, xrootd_acc_priv_caps_t *out,
+brix_acc_cap_privs(brix_acc_cap_t *cap, brix_acc_priv_caps_t *out,
                      const char *path, int plen, const char *pathsub)
 {
     int  psl = (pathsub != NULL) ? (int) ngx_strlen(pathsub) : 0;
@@ -67,7 +67,7 @@ xrootd_acc_cap_privs(xrootd_acc_cap_t *cap, xrootd_acc_priv_caps_t *out,
 
         /* Template indirection: search the referenced template's list. */
         if (cap->tmpl != NULL) {
-            if (xrootd_acc_cap_privs(cap->tmpl, out, path, plen, pathsub)) {
+            if (brix_acc_cap_privs(cap->tmpl, out, path, plen, pathsub)) {
                 return 1;
             }
             continue;
@@ -79,7 +79,7 @@ xrootd_acc_cap_privs(xrootd_acc_cap_t *cap, xrootd_acc_priv_caps_t *out,
 
         if ((pathsub == NULL && ngx_strncmp(path, cap->path, cap->plen) == 0)
             || (pathsub != NULL
-                && xrootd_acc_cap_subcomp(cap, path, plen, pathsub, psl)))
+                && brix_acc_cap_subcomp(cap, path, plen, pathsub, psl)))
         {
             out->pprivs |= cap->caps.pprivs;
             out->nprivs |= cap->caps.nprivs;

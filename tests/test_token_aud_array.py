@@ -78,14 +78,14 @@ http {{
     server {{
         listen {BIND_HOST}:{PORT};
         location / {{
-            xrootd_webdav on;
-            xrootd_webdav_storage_backend posix:{data};
-            xrootd_webdav_auth required;
-            xrootd_webdav_cadir {d}/cadir;
-            xrootd_webdav_allow_write on;
-            xrootd_webdav_token_jwks {issuer.jwks_path};
-            xrootd_webdav_token_issuer "{issuer.issuer}";
-            xrootd_webdav_token_audience "{AUDIENCE}";
+            brix_webdav on;
+            brix_webdav_storage_backend posix:{data};
+            brix_webdav_auth required;
+            brix_webdav_cadir {d}/cadir;
+            brix_webdav_allow_write on;
+            brix_webdav_token_jwks {issuer.jwks_path};
+            brix_webdav_token_issuer "{issuer.issuer}";
+            brix_webdav_token_audience "{AUDIENCE}";
         }}
     }}
 }}

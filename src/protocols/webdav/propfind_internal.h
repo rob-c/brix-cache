@@ -2,8 +2,8 @@
  * propfind_internal.h - private split contract for propfind.c and its Phase-38 siblings.
  * Not a public API: include only from src/webdav/.  See docs/refactor/phase-38-file-size-unix-modularity.md.
  */
-#ifndef XROOTD_PROPFIND_INTERNAL_H
-#define XROOTD_PROPFIND_INTERNAL_H
+#ifndef BRIX_PROPFIND_INTERNAL_H
+#define BRIX_PROPFIND_INTERNAL_H
 
 #include "webdav.h"
 #include "fs/vfs/vfs.h"
@@ -87,4 +87,4 @@ ngx_int_t propfind_do(ngx_http_request_t *r);
 /* propfind.c */
 void propfind_body_handler(ngx_http_request_t *r);
 
-#endif /* XROOTD_PROPFIND_INTERNAL_H */
+#endif /* BRIX_PROPFIND_INTERNAL_H */

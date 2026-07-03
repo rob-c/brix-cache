@@ -1,5 +1,5 @@
-#ifndef XROOTD_IMPERSONATE_PROTO_H
-#define XROOTD_IMPERSONATE_PROTO_H
+#ifndef BRIX_IMPERSONATE_PROTO_H
+#define BRIX_IMPERSONATE_PROTO_H
 
 /*
  * impersonate_proto.h — worker <-> broker wire protocol (phase 40).
@@ -134,4 +134,4 @@ typedef struct {
     uint32_t   data_len;              /* trailing payload bytes (READLINK target) */
 } imp_rep_t;
 
-#endif /* XROOTD_IMPERSONATE_PROTO_H */
+#endif /* BRIX_IMPERSONATE_PROTO_H */

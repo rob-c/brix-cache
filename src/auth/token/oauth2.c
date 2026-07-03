@@ -29,7 +29,7 @@
 #include <string.h>
 
 ngx_int_t
-xrootd_oauth2_parse_access_token(const char *json, char *out, size_t out_sz,
+brix_oauth2_parse_access_token(const char *json, char *out, size_t out_sz,
     char *err, size_t err_sz)
 {
     json_error_t  jerr;

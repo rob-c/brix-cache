@@ -5,7 +5,7 @@ Complements test_s3_metrics.py (GET/PUT/bytes) with the FILE LIFECYCLE +
 batch/copy methods the gap analysis flagged: PutObject (create), GetObject
 (download), PutObject overwrite (modify), CopyObject, DeleteObject,
 DeleteObjects (batch), ListObjects.  Asserts each increments
-xrootd_s3_requests_total{method} / responses_total{method,status_class}, plus
+brix_s3_requests_total{method} / responses_total{method,status_class}, plus
 the byte + list counters.
 
 Run: PYTHONPATH=tests pytest tests/test_metrics_coverage_s3.py -v
@@ -27,12 +27,12 @@ def _obj(key):
 
 
 def _req(snap, method, after=None):
-    return snap.delta("xrootd_s3_requests_total", {"method": method},
+    return snap.delta("brix_s3_requests_total", {"method": method},
                       after=after)
 
 
 def _resp2xx(snap, method, after=None):
-    return snap.delta("xrootd_s3_responses_total",
+    return snap.delta("brix_s3_responses_total",
                       {"method": method, "status_class": "2xx"}, after=after)
 
 
@@ -104,7 +104,7 @@ class TestS3LifecycleCounters:
         after = fetch()
         assert _req(snap, "LIST", after) >= 1
         # at least one object listed
-        assert snap.delta("xrootd_s3_list_contents_total", {}, after=after) >= 1
+        assert snap.delta("brix_s3_list_contents_total", {}, after=after) >= 1
 
 
 class TestS3ByteCounters:
@@ -115,8 +115,8 @@ class TestS3ByteCounters:
         r = requests.put(_obj("cov_s3_bytes.bin"), data=payload, timeout=10)
         assert r.status_code in (200, 201)
         after = fetch()
-        d = scalar(after, "xrootd_s3_bytes_rx_total") - max(
-            0, scalar(before, "xrootd_s3_bytes_rx_total"))
+        d = scalar(after, "brix_s3_bytes_rx_total") - max(
+            0, scalar(before, "brix_s3_bytes_rx_total"))
         assert d >= len(payload), f"s3 bytes_rx delta {d} < {len(payload)}"
 
     def test_get_increments_bytes_tx(self):
@@ -126,6 +126,6 @@ class TestS3ByteCounters:
         r = requests.get(_obj("cov_s3_bytes_tx.bin"), timeout=10)
         assert r.status_code == 200
         after = fetch()
-        d = scalar(after, "xrootd_s3_bytes_tx_total") - max(
-            0, scalar(before, "xrootd_s3_bytes_tx_total"))
+        d = scalar(after, "brix_s3_bytes_tx_total") - max(
+            0, scalar(before, "brix_s3_bytes_tx_total"))
         assert d >= len(payload), f"s3 bytes_tx delta {d} < {len(payload)}"

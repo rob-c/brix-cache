@@ -4,7 +4,7 @@
  * WHAT: Implements native kXR_attn (4001) server-push frames for two active
  *       action codes: kXR_asyncms (5002) for unsolicited text notifications and
  *       kXR_asynresp (5008) for deferred response delivery after kXR_waitresp.
- *       Also provides a generic xrootd_send_attn() wrapper.
+ *       Also provides a generic brix_send_attn() wrapper.
  *       Deprecated action codes 5000-5007 (except 5002 and 5008) all return
  *       kXR_Unsupported per the v5.2.0 spec ("No longer supported").
  *
@@ -29,7 +29,7 @@
  *   [payload: variable]
  */
 
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 #include "async.h"
 #include "core/compat/alloc_guard.h"
 
@@ -42,20 +42,20 @@ static const u_char kAttnZeroStreamid[2] = {0, 0};
 
 
 size_t
-xrootd_attn_asyncms_frame_len(size_t msglen)
+brix_attn_asyncms_frame_len(size_t msglen)
 {
     return XRD_RESPONSE_HDR_LEN + ATTN_BODY_OVERHEAD + msglen;
 }
 
 void
-xrootd_build_attn_asyncms_frame(u_char *buf, const char *msg, size_t msglen)
+brix_build_attn_asyncms_frame(u_char *buf, const char *msg, size_t msglen)
 {
     uint32_t  outer_bodylen = (uint32_t)(ATTN_BODY_OVERHEAD + msglen);
     uint32_t  act_be        = htonl((uint32_t) kXR_asyncms);
     u_char   *p             = buf;
 
     /* Outer kXR_attn header: streamid={0,0} */
-    xrootd_build_resp_hdr(kAttnZeroStreamid, kXR_attn, outer_bodylen,
+    brix_build_resp_hdr(kAttnZeroStreamid, kXR_attn, outer_bodylen,
                           (ServerResponseHdr *) p);
     p += XRD_RESPONSE_HDR_LEN;
 
@@ -68,7 +68,7 @@ xrootd_build_attn_asyncms_frame(u_char *buf, const char *msg, size_t msglen)
     p += 4;
 
     /* Inner ServerResponseHdr: streamid={0,0}, status=kXR_ok, dlen=msglen */
-    xrootd_build_resp_hdr(kAttnZeroStreamid, kXR_ok, (uint32_t) msglen,
+    brix_build_resp_hdr(kAttnZeroStreamid, kXR_ok, (uint32_t) msglen,
                           (ServerResponseHdr *) p);
     p += XRD_RESPONSE_HDR_LEN;
 
@@ -80,25 +80,25 @@ xrootd_build_attn_asyncms_frame(u_char *buf, const char *msg, size_t msglen)
 
 
 ngx_int_t
-xrootd_send_attn_asyncms(xrootd_ctx_t *ctx, ngx_connection_t *c,
+brix_send_attn_asyncms(brix_ctx_t *ctx, ngx_connection_t *c,
     const char *msg, size_t msglen)
 {
     size_t   total;
     u_char  *buf;
 
-    total = xrootd_attn_asyncms_frame_len(msglen);
-    XROOTD_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
+    total = brix_attn_asyncms_frame_len(msglen);
+    BRIX_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
 
-    xrootd_build_attn_asyncms_frame(buf, msg, msglen);
+    brix_build_attn_asyncms_frame(buf, msg, msglen);
 
     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
         "xrootd: sending kXR_attn asyncms (%uz bytes)", msglen);
 
-    return xrootd_queue_response(ctx, c, buf, total);
+    return brix_queue_response(ctx, c, buf, total);
 }
 
 ngx_int_t
-xrootd_send_attn_asynresp(xrootd_ctx_t *ctx, ngx_connection_t *c,
+brix_send_attn_asynresp(brix_ctx_t *ctx, ngx_connection_t *c,
     const u_char *deferred_streamid,
     uint16_t resp_status,
     const void *body, uint32_t bodylen)
@@ -108,12 +108,12 @@ xrootd_send_attn_asynresp(xrootd_ctx_t *ctx, ngx_connection_t *c,
     uint32_t  act_be        = htonl((uint32_t) kXR_asynresp);
     u_char   *buf, *p;
 
-    XROOTD_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
+    BRIX_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
 
     p = buf;
 
     /* Outer kXR_attn header: use the deferred request's stream ID */
-    xrootd_build_resp_hdr(deferred_streamid, kXR_attn, outer_bodylen,
+    brix_build_resp_hdr(deferred_streamid, kXR_attn, outer_bodylen,
                           (ServerResponseHdr *) p);
     p += XRD_RESPONSE_HDR_LEN;
 
@@ -126,7 +126,7 @@ xrootd_send_attn_asynresp(xrootd_ctx_t *ctx, ngx_connection_t *c,
     p += 4;
 
     /* Inner ServerResponseHdr: deferred streamid, actual status, body length */
-    xrootd_build_resp_hdr(deferred_streamid, resp_status, bodylen,
+    brix_build_resp_hdr(deferred_streamid, resp_status, bodylen,
                           (ServerResponseHdr *) p);
     p += XRD_RESPONSE_HDR_LEN;
 
@@ -139,11 +139,11 @@ xrootd_send_attn_asynresp(xrootd_ctx_t *ctx, ngx_connection_t *c,
         "xrootd: sending kXR_attn asynresp status=%d bodylen=%u",
         (int) resp_status, bodylen);
 
-    return xrootd_queue_response(ctx, c, buf, total);
+    return brix_queue_response(ctx, c, buf, total);
 }
 
 ngx_int_t
-xrootd_send_attn(xrootd_ctx_t *ctx, ngx_connection_t *c,
+brix_send_attn(brix_ctx_t *ctx, ngx_connection_t *c,
     int actnum, const char *msg, size_t msglen)
 {
     uint32_t  bodylen = (uint32_t)(4 + msglen);
@@ -151,9 +151,9 @@ xrootd_send_attn(xrootd_ctx_t *ctx, ngx_connection_t *c,
     uint32_t  act_be  = htonl((uint32_t) actnum);
     u_char   *buf;
 
-    XROOTD_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
+    BRIX_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
 
-    xrootd_build_resp_hdr(ctx->cur_streamid, kXR_attn, bodylen,
+    brix_build_resp_hdr(ctx->cur_streamid, kXR_attn, bodylen,
                           (ServerResponseHdr *) buf);
 
     ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, &act_be, 4);
@@ -161,62 +161,62 @@ xrootd_send_attn(xrootd_ctx_t *ctx, ngx_connection_t *c,
         ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN + 4, msg, msglen);
     }
 
-    return xrootd_queue_response(ctx, c, buf, total);
+    return brix_queue_response(ctx, c, buf, total);
 }
 
 
 ngx_int_t
-xrootd_handle_async_ab(xrootd_ctx_t *ctx, ngx_connection_t *c)
+brix_handle_async_ab(brix_ctx_t *ctx, ngx_connection_t *c)
 {
-    return xrootd_send_error(ctx, c, kXR_Unsupported,
+    return brix_send_error(ctx, c, kXR_Unsupported,
                             "kXR_asyncab (5000) is no longer supported");
 }
 
 ngx_int_t
-xrootd_handle_async_di(xrootd_ctx_t *ctx, ngx_connection_t *c)
+brix_handle_async_di(brix_ctx_t *ctx, ngx_connection_t *c)
 {
-    return xrootd_send_error(ctx, c, kXR_Unsupported,
+    return brix_send_error(ctx, c, kXR_Unsupported,
                             "kXR_asyncdi (5001) is no longer supported");
 }
 
 ngx_int_t
-xrootd_handle_async_ms(xrootd_ctx_t *ctx, ngx_connection_t *c)
+brix_handle_async_ms(brix_ctx_t *ctx, ngx_connection_t *c)
 {
-    return xrootd_send_error(ctx, c, kXR_Unsupported,
+    return brix_send_error(ctx, c, kXR_Unsupported,
                             "kXR_asyncms (5002) is no longer supported");
 }
 
 ngx_int_t
-xrootd_handle_async_rd(xrootd_ctx_t *ctx, ngx_connection_t *c)
+brix_handle_async_rd(brix_ctx_t *ctx, ngx_connection_t *c)
 {
-    return xrootd_send_error(ctx, c, kXR_Unsupported,
+    return brix_send_error(ctx, c, kXR_Unsupported,
                             "kXR_asyncrd (5003) is no longer supported");
 }
 
 ngx_int_t
-xrootd_handle_async_wt(xrootd_ctx_t *ctx, ngx_connection_t *c)
+brix_handle_async_wt(brix_ctx_t *ctx, ngx_connection_t *c)
 {
-    return xrootd_send_error(ctx, c, kXR_Unsupported,
+    return brix_send_error(ctx, c, kXR_Unsupported,
                             "kXR_asyncwt (5004) is no longer supported");
 }
 
 ngx_int_t
-xrootd_handle_async_av(xrootd_ctx_t *ctx, ngx_connection_t *c)
+brix_handle_async_av(brix_ctx_t *ctx, ngx_connection_t *c)
 {
-    return xrootd_send_error(ctx, c, kXR_Unsupported,
+    return brix_send_error(ctx, c, kXR_Unsupported,
                             "kXR_asyncav (5005) is no longer supported");
 }
 
 ngx_int_t
-xrootd_handle_async_unav(xrootd_ctx_t *ctx, ngx_connection_t *c)
+brix_handle_async_unav(brix_ctx_t *ctx, ngx_connection_t *c)
 {
-    return xrootd_send_error(ctx, c, kXR_Unsupported,
+    return brix_send_error(ctx, c, kXR_Unsupported,
                             "kXR_asyncunav (5006) is no longer supported");
 }
 
 ngx_int_t
-xrootd_handle_async_go(xrootd_ctx_t *ctx, ngx_connection_t *c)
+brix_handle_async_go(brix_ctx_t *ctx, ngx_connection_t *c)
 {
-    return xrootd_send_error(ctx, c, kXR_Unsupported,
+    return brix_send_error(ctx, c, kXR_Unsupported,
                             "kXR_asyncgo (5007) is no longer supported");
 }

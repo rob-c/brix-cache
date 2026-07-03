@@ -82,11 +82,11 @@ gsi_certreq_clnt_opts(const u_char *payload, size_t plen)
 static int
 gsi_use_signed_dh(ngx_uint_t policy, uint32_t client_version)
 {
-    if (policy == XROOTD_GSI_SDH_REQUIRE) {
+    if (policy == BRIX_GSI_SDH_REQUIRE) {
         return 1;
     }
-    if (policy == XROOTD_GSI_SDH_AUTO) {
-        return client_version >= XROOTD_GSI_VERS_DHSIGNED;
+    if (policy == BRIX_GSI_SDH_AUTO) {
+        return client_version >= BRIX_GSI_VERS_DHSIGNED;
     }
     return 0;
 }
@@ -99,12 +99,12 @@ gsi_use_signed_dh(ngx_uint_t policy, uint32_t client_version)
  * provider).  Falls back to "aes-128-cbc" if nothing usable remains.
  */
 static void
-gsi_build_cipher_alg_list(const ngx_stream_xrootd_srv_conf_t *conf,
+gsi_build_cipher_alg_list(const ngx_stream_brix_srv_conf_t *conf,
     char *out, size_t outsz)
 {
     const char *src = (conf->gsi_ciphers.len > 0)
                       ? (const char *) conf->gsi_ciphers.data
-                      : xrootd_gsi_cipher_default_list();
+                      : brix_gsi_cipher_default_list();
     const char *p = src;
     size_t      out_n = 0;
 
@@ -113,14 +113,14 @@ gsi_build_cipher_alg_list(const ngx_stream_xrootd_srv_conf_t *conf,
         const char *start = p;
         char        name[24];
         size_t      n;
-        xrootd_gsi_cipher_t tmp;
+        brix_gsi_cipher_t tmp;
 
         while (*p && *p != ':') { p++; }
         n = (size_t) (p - start);
         if (n > 0 && n < sizeof(name)) {
             ngx_memcpy(name, start, n);
             name[n] = '\0';
-            if (xrootd_gsi_cipher_lookup(name, &tmp)
+            if (brix_gsi_cipher_lookup(name, &tmp)
                 && out_n + n + 1 < outsz) {
                 if (out_n > 0) { out[out_n++] = ':'; }
                 ngx_memcpy(out + out_n, name, n);
@@ -140,9 +140,9 @@ gsi_build_cipher_alg_list(const ngx_stream_xrootd_srv_conf_t *conf,
  */
 
 ngx_int_t
-xrootd_gsi_send_cert(xrootd_ctx_t *ctx, ngx_connection_t *c)
+brix_gsi_send_cert(brix_ctx_t *ctx, ngx_connection_t *c)
 {
-    ngx_stream_xrootd_srv_conf_t *conf;
+    ngx_stream_brix_srv_conf_t *conf;
     EVP_PKEY     *dhkey = NULL;
     BIGNUM       *pub_bn = NULL;
     char         *pub_hex = NULL;
@@ -171,7 +171,7 @@ xrootd_gsi_send_cert(xrootd_ctx_t *ctx, ngx_connection_t *c)
     size_t        pub_len;
 
     conf = ngx_stream_get_module_srv_conf(ctx->session,
-                                          ngx_stream_xrootd_module);
+                                          ngx_stream_brix_module);
 
     if (conf->gsi_cert_pem == NULL || conf->gsi_cert_pem_len == 0) {
         return NGX_ERROR;
@@ -216,8 +216,8 @@ xrootd_gsi_send_cert(xrootd_ctx_t *ctx, ngx_connection_t *c)
      * momentarily empty, fall back to an inline keygen — correct, just not
      * offloaded.  Ownership transfers to this connection (freed after round 2).
      */
-    if (!xrootd_gsi_keypool_pop(conf->common.thread_pool, c->log, &dhkey)) {
-        dhkey = xrootd_gsi_dh_keygen();
+    if (!brix_gsi_keypool_pop(conf->common.thread_pool, c->log, &dhkey)) {
+        dhkey = brix_gsi_dh_keygen();
         if (dhkey == NULL) {
             return NGX_ERROR;
         }
@@ -255,7 +255,7 @@ xrootd_gsi_send_cert(xrootd_ctx_t *ctx, ngx_connection_t *c)
     }
     puk_len = (size_t) puk_written;
 
-    XROOTD_PALLOC_OR_RETURN(puk_blob, c->pool, puk_len, NGX_ERROR);
+    BRIX_PALLOC_OR_RETURN(puk_blob, c->pool, puk_len, NGX_ERROR);
     ngx_memcpy(puk_blob, puk_buf, puk_len);
 
     /*
@@ -269,7 +269,7 @@ xrootd_gsi_send_cert(xrootd_ctx_t *ctx, ngx_connection_t *c)
         size_t  cap = puk_len + 2 * (size_t) EVP_PKEY_size(conf->gsi_key) + 64;
         u_char *sig = ngx_palloc(c->pool, cap);
 
-        pub_len = sig ? xrootd_gsi_rsa_encrypt_private(conf->gsi_key, puk_blob,
+        pub_len = sig ? brix_gsi_rsa_encrypt_private(conf->gsi_key, puk_blob,
                                                        puk_len, sig, cap) : 0;
         if (pub_len == 0) {
             ngx_log_error(NGX_LOG_WARN, c->log, 0,
@@ -329,7 +329,7 @@ xrootd_gsi_send_cert(xrootd_ctx_t *ctx, ngx_connection_t *c)
         main_len += 4 + 4 + signed_rtag_len;
     }
 
-    XROOTD_PALLOC_OR_RETURN(main_buf, c->pool, main_len, NGX_ERROR);
+    BRIX_PALLOC_OR_RETURN(main_buf, c->pool, main_len, NGX_ERROR);
 
     {
         u_char *mp = main_buf;
@@ -366,9 +366,9 @@ xrootd_gsi_send_cert(xrootd_ctx_t *ctx, ngx_connection_t *c)
              + 4;
 
     total = XRD_RESPONSE_HDR_LEN + body_len;
-    XROOTD_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
+    BRIX_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
 
-    xrootd_build_resp_hdr(ctx->cur_streamid, kXR_authmore,
+    brix_build_resp_hdr(ctx->cur_streamid, kXR_authmore,
                           (uint32_t) body_len, (ServerResponseHdr *) buf);
 
     p = buf + XRD_RESPONSE_HDR_LEN;
@@ -423,5 +423,5 @@ xrootd_gsi_send_cert(xrootd_ctx_t *ctx, ngx_connection_t *c)
                    "xrootd: kXGS_cert sent cert_len=%uz puk_len=%uz main_len=%uz",
                    cert_len, puk_len, main_len);
 
-    return xrootd_queue_response(ctx, c, buf, total);
+    return brix_queue_response(ctx, c, buf, total);
 }

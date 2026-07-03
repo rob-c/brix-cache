@@ -57,7 +57,7 @@ from settings import (
     HOST,
     NGINX_GSI_PORT,
     PROXY_STD,
-    REF_XROOTD_GSI_PORT,
+    REF_BRIX_GSI_PORT,
     SERVER_CERT,
     SERVER_KEY,
     TEST_ROOT,
@@ -72,8 +72,8 @@ PROXY_PEM   = PROXY_STD
 NGINX_PORT  = NGINX_GSI_PORT
 NGINX_URL   = f"root://{url_host(HOST)}:{NGINX_GSI_PORT}"
 NGINX_DATA  = DATA_ROOT
-REF_PORT    = REF_XROOTD_GSI_PORT
-REF_URL     = f"root://{url_host(HOST)}:{REF_XROOTD_GSI_PORT}"
+REF_PORT    = REF_BRIX_GSI_PORT
+REF_URL     = f"root://{url_host(HOST)}:{REF_BRIX_GSI_PORT}"
 BRIDGE_DATA = os.path.join(TEST_ROOT, "data-gsi-bridge")
 
 
@@ -426,7 +426,7 @@ class TestNginxToXrootd:
 class TestRoundTrip:
     """Upload, bridge, and read back to verify end-to-end GSI transfer integrity."""
 
-    def test_xrootd_to_nginx_and_back(self, nginx_gsi_ready):
+    def test_brix_to_nginx_and_back(self, nginx_gsi_ready):
         """
         Write a file on xrootd → copy to nginx → read back from nginx.
         Verifies the full path: xrootd GSI read + nginx GSI write + nginx GSI read.
@@ -454,7 +454,7 @@ class TestRoundTrip:
         f_obj.close()
         assert data == content, "Round-trip content mismatch (xrootd write → nginx read)"
 
-    def test_nginx_to_xrootd_and_back(self, nginx_gsi_ready):
+    def test_nginx_to_brix_and_back(self, nginx_gsi_ready):
         """
         Upload to nginx → copy to xrootd → read back from xrootd.
         Verifies: nginx GSI write + xrootd GSI read.
@@ -627,7 +627,7 @@ class TestDirlistGSI:
             f"Got: {names}"
         )
 
-    def test_xrootd_dirlist_after_bridge_transfer(self, nginx_gsi_ready):
+    def test_brix_dirlist_after_bridge_transfer(self, nginx_gsi_ready):
         """
         Files copied from nginx to xrootd must appear in xrootd's directory listing.
         """

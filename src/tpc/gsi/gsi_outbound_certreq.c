@@ -1,5 +1,5 @@
 /* File: gsi_outbound_certreq.c — GSI certificate request for native TPC pull
- * WHAT: Initiates the outbound GSI authentication handshake on a TPC pull socket. Reads xrootd_certificate and xrootd_certificate_key from config, loads X509 chain + private key via OpenSSL BIO/PEM readers, sends kXGC_certreq wire message (gsi\x00 + opcode + kXRS_none), receives kXR_authmore response containing client cert + CA chain. Validates server expects auth continuation before returning NGX_OK or error code.
+ * WHAT: Initiates the outbound GSI authentication handshake on a TPC pull socket. Reads brix_certificate and brix_certificate_key from config, loads X509 chain + private key via OpenSSL BIO/PEM readers, sends kXGC_certreq wire message (gsi\x00 + opcode + kXRS_none), receives kXR_authmore response containing client cert + CA chain. Validates server expects auth continuation before returning NGX_OK or error code.
  *
  * WHY: Native TPC pull connects directly to an xrootd server on a separate socket; GSI authentication requires the outbound side to present its certificate chain and private key, then receive the server's client certificate + CA chain for mutual verification. This function performs only the first round of that handshake — sending certreq and verifying kXR_authmore response — with subsequent rounds handled by gsi_outbound_common.c functions (tpc_send_kxr_auth continuation).
  *
@@ -8,7 +8,7 @@
 
 #include "tpc/engine/tpc_internal.h"
 #include "auth/gsi/gsi_core.h"          /* build_certreq / parse_parms / rand */
-#include "protocols/root/session/session.h"       /* XROOTD_SESSION_ID_LEN */
+#include "protocols/root/session/session.h"       /* BRIX_SESSION_ID_LEN */
 
 /* Helper functions declared in gsi_outbound_common.c — extern to link them.
  * tpc_put_u32 writes a big-endian uint32 (wire byte order); tpc_send_kxr_auth
@@ -16,8 +16,8 @@
  * tpc_recv_response reads one server reply, returning the status code plus a
  * malloc'd body the caller must free(). */
 extern void tpc_put_u32(u_char *p, uint32_t v);
-extern int tpc_send_kxr_auth(xrootd_tpc_pull_t *t, int fd, u_char seq, const u_char *cred, uint32_t len);
-int tpc_recv_response(xrootd_tpc_pull_t *t, int fd, uint16_t *status,
+extern int tpc_send_kxr_auth(brix_tpc_pull_t *t, int fd, u_char seq, const u_char *cred, uint32_t len);
+int tpc_recv_response(brix_tpc_pull_t *t, int fd, uint16_t *status,
                       u_char **body, uint32_t *dlen);
 
 /*
@@ -45,10 +45,10 @@ tpc_outbound_gsi_finish(int rc, BIO *cbio, BIO *kbio, STACK_OF(X509) *chain,
 
 /* WHAT: Initiates GSI auth handshake on TPC pull socket — read cert/key PEM, send kXGC_certreq wire message, verify kXR_authmore response. */
 int
-tpc_outbound_gsi(xrootd_tpc_pull_t *t, int fd,
+tpc_outbound_gsi(brix_tpc_pull_t *t, int fd,
     const u_char *login_body, uint32_t login_dlen)
 {
-    ngx_stream_xrootd_srv_conf_t *conf = t->conf;
+    ngx_stream_brix_srv_conf_t *conf = t->conf;
     u_char           cert_path[PATH_MAX];   /* NUL-terminated copies of the */
     u_char           key_path[PATH_MAX];    /* ngx_str_t config paths        */
     BIO             *cbio = NULL, *kbio = NULL;  /* pbio unused in this fragment */
@@ -64,7 +64,7 @@ tpc_outbound_gsi(xrootd_tpc_pull_t *t, int fd,
     /*
      * §F6: when proxy delegation captured the user's proxy, authenticate to the
      * source AS THE USER with that in-memory credential (proxy cert + issuer chain
-     * + key, PEM) instead of the gateway's xrootd_certificate. Two BIOs over the
+     * + key, PEM) instead of the gateway's brix_certificate. Two BIOs over the
      * same blob: one yields the cert chain (stops at the trailing key block), the
      * other the private key (skips the cert blocks). The blob is owned by the pull
      * task (freed in thread.c).
@@ -84,8 +84,8 @@ tpc_outbound_gsi(xrootd_tpc_pull_t *t, int fd,
             || conf->certificate_key.len >= sizeof(key_path))
         {
             snprintf(t->err_msg, sizeof(t->err_msg),
-                     "TPC GSI outbound needs xrootd_certificate and "
-                     "xrootd_certificate_key");
+                     "TPC GSI outbound needs brix_certificate and "
+                     "brix_certificate_key");
             t->xrd_error = kXR_ArgInvalid;
             return -1;
         }
@@ -143,14 +143,14 @@ tpc_outbound_gsi(xrootd_tpc_pull_t *t, int fd,
      * Skipped on the §F6 delegated-credential path: that proxy is freshly minted
      * by the client this handshake and already key-verified (assemble_proxy). */
     if (t->deleg_cred_pem == NULL) {
-        xrootd_tpc_credential_t cred;
+        brix_tpc_credential_t cred;
 
         ngx_memzero(&cred, sizeof(cred));
-        cred.type = XROOTD_TPC_CREDENTIAL_PROXY;
+        cred.type = BRIX_TPC_CREDENTIAL_PROXY;
         cred.proxy_pem.data = cert_path;
         cred.proxy_pem.len = conf->certificate.len;
 
-        if (xrootd_tpc_credential_validate(
+        if (brix_tpc_credential_validate(
                 &cred, t->c != NULL ? t->c->log : NULL) != NGX_OK)
         {
             snprintf(t->err_msg, sizeof(t->err_msg),
@@ -183,9 +183,9 @@ tpc_outbound_gsi(xrootd_tpc_pull_t *t, int fd,
          * module + CA chain, exactly like client/lib/sec/sec_gsi.c. */
         crypto[0] = '\0';
         ca[0]     = '\0';
-        if (login_dlen > XROOTD_SESSION_ID_LEN) {
-            xrootd_gsi_parse_parms(
-                (const char *) login_body + XROOTD_SESSION_ID_LEN,
+        if (login_dlen > BRIX_SESSION_ID_LEN) {
+            brix_gsi_parse_parms(
+                (const char *) login_body + BRIX_SESSION_ID_LEN,
                 &version, crypto, sizeof(crypto), ca, sizeof(ca));
         }
         if (crypto[0] == '\0') {
@@ -198,7 +198,7 @@ tpc_outbound_gsi(xrootd_tpc_pull_t *t, int fd,
          * Proof-of-possession is still enforced (we sign the server rtag below). */
         version = 10300;
 
-        if (!xrootd_gsi_rand(t->gsi_rtag, sizeof(t->gsi_rtag))) {
+        if (!brix_gsi_rand(t->gsi_rtag, sizeof(t->gsi_rtag))) {
             snprintf(t->err_msg, sizeof(t->err_msg), "TPC GSI RNG failed");
             t->xrd_error = kXR_ServerError;
             return tpc_outbound_gsi_finish(rc, cbio, kbio, chain, pkey,
@@ -207,7 +207,7 @@ tpc_outbound_gsi(xrootd_tpc_pull_t *t, int fd,
 
         /* clnt_opts 0x80 matches a stock client (delegated-proxy off). The buffer
          * is malloc'd and freed by tpc_outbound_gsi_finish. */
-        certreq = xrootd_gsi_build_certreq(crypto, version,
+        certreq = brix_gsi_build_certreq(crypto, version,
                                            ca[0] ? ca : NULL, 0x80u,
                                            t->gsi_rtag, sizeof(t->gsi_rtag),
                                            &crlen);

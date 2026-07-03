@@ -395,13 +395,13 @@ s3_post_verify_policy(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
      * (the base64 text, not the JSON), hex-encode, and compare. */
     if (!s3_sigv4_derive_signing_key_cached(&cf->secret_key,
                                              date, region, k4)
-        || !xrootd_hmac_sha256(k4, 32, (u_char *) form->policy,
+        || !brix_hmac_sha256(k4, 32, (u_char *) form->policy,
                                strlen(form->policy), computed))
     {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    xrootd_hex_encode(computed, 32, computed_hex);
+    brix_hex_encode(computed, 32, computed_hex);
     /* Constant-time compare to avoid leaking how many bytes matched. */
     if (CRYPTO_memcmp(computed_hex, form->signature, 64) != 0) {
         return s3_post_error(r, NGX_HTTP_FORBIDDEN, "SignatureDoesNotMatch",

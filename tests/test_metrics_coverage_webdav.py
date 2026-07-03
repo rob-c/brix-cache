@@ -3,8 +3,8 @@ test_metrics_coverage_webdav.py — Prometheus coverage for WebDAV file lifecycl
 
 The existing test_webdav_metrics.py covers GET/PUT/bytes; this suite focuses on
 the FILE LIFECYCLE methods (create dir / create file / modify / rename / copy /
-delete) and asserts each increments xrootd_webdav_requests_total{method} and
-xrootd_webdav_responses_total{method,status_class}, plus the data-transfer byte
+delete) and asserts each increments brix_webdav_requests_total{method} and
+brix_webdav_responses_total{method,status_class}, plus the data-transfer byte
 counters.  Methods map to the exporter's method label table
 (OPTIONS/HEAD/GET/PUT/DELETE/MKCOL/COPY/PROPFIND/OTHER — MOVE falls under OTHER).
 
@@ -54,12 +54,12 @@ def _url(path):
 
 
 def _req(snap, method, after=None):
-    return snap.delta("xrootd_webdav_requests_total", {"method": method},
+    return snap.delta("brix_webdav_requests_total", {"method": method},
                       after=after)
 
 
 def _resp2xx(snap, method, after=None):
-    return snap.delta("xrootd_webdav_responses_total",
+    return snap.delta("brix_webdav_responses_total",
                       {"method": method, "status_class": "2xx"}, after=after)
 
 
@@ -155,8 +155,8 @@ class TestWebdavByteCounters:
         before = fetch()
         assert _curl("-T", local, _url("/cov_wd_bytes.bin")).stdout in ("201", "204")
         after = fetch()
-        d = scalar(after, "xrootd_webdav_bytes_rx_total") - max(
-            0, scalar(before, "xrootd_webdav_bytes_rx_total"))
+        d = scalar(after, "brix_webdav_bytes_rx_total") - max(
+            0, scalar(before, "brix_webdav_bytes_rx_total"))
         assert d >= payload, f"webdav bytes_rx delta {d} < {payload}"
 
     def test_get_increments_bytes_tx(self):
@@ -168,6 +168,6 @@ class TestWebdavByteCounters:
         before = fetch()
         assert _curl(_url("/cov_wd_bytes_tx.bin")).stdout == "200"
         after = fetch()
-        d = scalar(after, "xrootd_webdav_bytes_tx_total") - max(
-            0, scalar(before, "xrootd_webdav_bytes_tx_total"))
+        d = scalar(after, "brix_webdav_bytes_tx_total") - max(
+            0, scalar(before, "brix_webdav_bytes_tx_total"))
         assert d >= payload, f"webdav bytes_tx delta {d} < {payload}"

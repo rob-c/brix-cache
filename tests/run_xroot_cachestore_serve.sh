@@ -15,15 +15,15 @@ mkdir -p "$PFX/s/root" "$PFX/s/logs" "$PFX/b/backend" "$PFX/b/tmp" "$PFX/b/logs"
 cat > "$PFX/s/nginx.conf" <<E2
 daemon on; error_log $PFX/s/logs/e.log info; pid $PFX/s/nginx.pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${SPORT}; xrootd on; xrootd_root $PFX/s/root; xrootd_auth none; xrootd_allow_write on; } }
+stream { server { listen 127.0.0.1:${SPORT}; xrootd on; brix_root $PFX/s/root; brix_auth none; brix_allow_write on; } }
 E2
 cat > "$PFX/b/nginx.conf" <<E2
 daemon on; error_log $PFX/b/logs/e.log info; pid $PFX/b/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 http { client_body_temp_path $PFX/b/tmp; server { listen 127.0.0.1:${BPORT};
-  location / { xrootd_webdav on; xrootd_webdav_root $PFX/b/backend; xrootd_webdav_auth none;
-    xrootd_webdav_cache_store root://127.0.0.1:${SPORT}; } } }
+  location / { brix_webdav on; brix_webdav_root $PFX/b/backend; brix_webdav_auth none;
+    brix_webdav_cache_store root://127.0.0.1:${SPORT}; } } }
 E2
 head -c 600000 /dev/urandom > "$PFX/b/backend/f.bin"; SHA=$(sha256sum "$PFX/b/backend/f.bin"|cut -d' ' -f1)
 "$NGINX" -p "$PFX/s" -c "$PFX/s/nginx.conf" 2>"$PFX/s/err" || { echo "S fail"; cat "$PFX/s/err"; exit 2; }

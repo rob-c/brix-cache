@@ -61,20 +61,20 @@ def test_finding1_addr_text_bounded_copy():
 
 def test_finding2_jwks_pool_cleanup_defined():
     j = _read("src/auth/token/jwks.c")
-    assert "xrootd_jwks_register_cleanup" in j
+    assert "brix_jwks_register_cleanup" in j
     assert "ngx_pool_cleanup_add" in j
     # The cleanup handler frees the keys.
-    assert "xrootd_jwks_free" in j
+    assert "brix_jwks_free" in j
     # Declared in the public header.
-    assert "xrootd_jwks_register_cleanup" in _read("src/auth/token/token.h")
+    assert "brix_jwks_register_cleanup" in _read("src/auth/token/token.h")
 
 
 def test_finding2_jwks_cleanup_called_at_both_sites():
     # Reverting EITHER call reintroduces the per-reload EVP_PKEY leak.
-    assert "xrootd_jwks_register_cleanup" in _read("src/protocols/webdav/config.c"), (
+    assert "brix_jwks_register_cleanup" in _read("src/protocols/webdav/config.c"), (
         "HTTP/WebDAV conf must register the JWKS pool cleanup"
     )
-    assert "xrootd_jwks_register_cleanup" in _read("src/auth/token/config.c"), (
+    assert "brix_jwks_register_cleanup" in _read("src/auth/token/config.c"), (
         "stream token conf must register the JWKS pool cleanup"
     )
 
@@ -118,7 +118,7 @@ def test_harness_reports_module_clean(tmp_path):
 
     Exercises GSI/TLS x509, bearer JWT (jansson+EVP), macaroon, libcurl TPC and
     S3 SigV4. Asserts the harness' MODULE-FRAME HITS section is empty — i.e. no
-    leak / uninitialised read / invalid access in any xrootd_*/src/<module>/ frame.
+    leak / uninitialised read / invalid access in any brix_*/src/<module>/ frame.
     """
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not found at {NGINX_BIN}")

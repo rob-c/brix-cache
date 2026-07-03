@@ -1,20 +1,20 @@
 #include "metrics.h"
 #include "observability/metrics/unified.h"
 
-static xrootd_proto_t
-xrootd_tpc_metric_proto(ngx_uint_t protocol)
+static brix_proto_t
+brix_tpc_metric_proto(ngx_uint_t protocol)
 {
     switch (protocol) {
-    case XROOTD_TPC_PROTO_WEBDAV:
-        return XROOTD_PROTO_WEBDAV;
-    case XROOTD_TPC_PROTO_STREAM:
+    case BRIX_TPC_PROTO_WEBDAV:
+        return BRIX_PROTO_WEBDAV;
+    case BRIX_TPC_PROTO_STREAM:
     default:
-        return XROOTD_PROTO_ROOT;
+        return BRIX_PROTO_ROOT;
     }
 }
 
 void
-xrootd_tpc_metric_transfer(ngx_uint_t protocol, ngx_uint_t direction,
+brix_tpc_metric_transfer(ngx_uint_t protocol, ngx_uint_t direction,
     ngx_uint_t event, size_t bytes, ngx_log_t *log)
 {
     /*
@@ -23,17 +23,17 @@ xrootd_tpc_metric_transfer(ngx_uint_t protocol, ngx_uint_t direction,
      * one API without changing existing WebDAV metric semantics.
      */
     ngx_log_debug4(NGX_LOG_DEBUG_CORE, log, 0,
-                   "xrootd_tpc: metric protocol=%ui direction=%ui "
+                   "brix_tpc: metric protocol=%ui direction=%ui "
                    "event=%ui bytes=%uz",
                    protocol, direction, event, bytes);
 
-    if (event == XROOTD_TPC_METRIC_SUCCESS) {
-        xrootd_metric_tpc(xrootd_tpc_metric_proto(protocol),
-                          direction == XROOTD_TPC_DIR_PUSH,
-                          bytes, XROOTD_ERR_NONE);
-    } else if (event == XROOTD_TPC_METRIC_ERROR) {
-        xrootd_metric_tpc(xrootd_tpc_metric_proto(protocol),
-                          direction == XROOTD_TPC_DIR_PUSH,
-                          bytes, XROOTD_ERR_OTHER);
+    if (event == BRIX_TPC_METRIC_SUCCESS) {
+        brix_metric_tpc(brix_tpc_metric_proto(protocol),
+                          direction == BRIX_TPC_DIR_PUSH,
+                          bytes, BRIX_ERR_NONE);
+    } else if (event == BRIX_TPC_METRIC_ERROR) {
+        brix_metric_tpc(brix_tpc_metric_proto(protocol),
+                          direction == BRIX_TPC_DIR_PUSH,
+                          bytes, BRIX_ERR_OTHER);
     }
 }

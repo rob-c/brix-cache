@@ -80,8 +80,8 @@ int
 srv_select_core(const char *path, int for_write, int allow_blacklisted,
     char *host_out, size_t host_size, uint16_t *port_out)
 {
-    xrootd_srv_table_t *tbl;
-    xrootd_srv_entry_t *e;
+    brix_srv_table_t *tbl;
+    brix_srv_entry_t *e;
     ngx_uint_t          i;
     int                 best_fresh;     /* live: not stale AND not blacklisted */
     int                 best_any;       /* not blacklisted, any staleness */
@@ -103,7 +103,7 @@ srv_select_core(const char *path, int for_write, int allow_blacklisted,
     best_any_val   = for_write ? 0 : (uint32_t) -1;
     best_black_val = for_write ? 0 : (uint32_t) -1;
 
-    ngx_shmtx_lock(&xrootd_srv_mutex);
+    ngx_shmtx_lock(&brix_srv_mutex);
 
     for (i = 0; i < tbl->capacity; i++) {
         ngx_uint_t is_stale;
@@ -131,9 +131,9 @@ srv_select_core(const char *path, int for_write, int allow_blacklisted,
          * all-stale storm degrades to the freshest stale server rather than a
          * false NotFound.  The signed diff tolerates ngx_current_msec wrap.
          */
-        is_stale = (xrootd_srv_stale_after_ms > 0
+        is_stale = (brix_srv_stale_after_ms > 0
                     && (ngx_msec_int_t) (ngx_current_msec - e->last_seen)
-                       > (ngx_msec_int_t) xrootd_srv_stale_after_ms);
+                       > (ngx_msec_int_t) brix_srv_stale_after_ms);
 
         metric = for_write ? e->free_mb : e->util_pct;
 
@@ -175,7 +175,7 @@ srv_select_core(const char *path, int for_write, int allow_blacklisted,
         *port_out = e->port;
     }
 
-    ngx_shmtx_unlock(&xrootd_srv_mutex);
+    ngx_shmtx_unlock(&brix_srv_mutex);
     return best >= 0;
 }
 
@@ -184,7 +184,7 @@ srv_select_core(const char *path, int for_write, int allow_blacklisted,
 /* Strict selection: live (non-blacklisted) servers only.  This is what
  * kXR_locate and every non-open caller use. */
 int
-xrootd_srv_select(const char *path, int for_write,
+brix_srv_select(const char *path, int for_write,
     char *host_out, size_t host_size, uint16_t *port_out)
 {
     return srv_select_core(path, for_write, 0 /*allow_blacklisted*/,
@@ -195,7 +195,7 @@ xrootd_srv_select(const char *path, int for_write,
 
 /* Selection with a blacklisted last-resort tier — see the header. */
 int
-xrootd_srv_select_or_blacklisted(const char *path, int for_write,
+brix_srv_select_or_blacklisted(const char *path, int for_write,
     char *host_out, size_t host_size, uint16_t *port_out)
 {
     return srv_select_core(path, for_write, 1 /*allow_blacklisted*/,
@@ -206,22 +206,22 @@ xrootd_srv_select_or_blacklisted(const char *path, int for_write,
 
 /* WHAT: Count occupied servers that export a prefix covering path — the number
  *       of distinct data servers a client could be redirected to for this path.
- * WHY:  The tried/triedrc retry protocol (see xrootd_manager_tried_exhausted)
+ * WHY:  The tried/triedrc retry protocol (see brix_manager_tried_exhausted)
  *       needs to know how many candidates exist so it can tell when the client
  *       has exhausted them all and the answer is definitively "not found".
  * HOW:  Same path scan as srv_select_core (in_use, prefix match) under the
  *       registry spinlock, returning the count.  Blacklisted slots ARE counted:
- *       the open/stat path (xrootd_srv_select_or_blacklisted) can redirect to a
+ *       the open/stat path (brix_srv_select_or_blacklisted) can redirect to a
  *       blacklisted server as a last resort, so it IS a candidate the client may
  *       be sent to.  Counting it keeps tried-exhausted consistent — a client
  *       that already tried that one server then converges to NotFound instead of
  *       being bounced back to it.  (A server that left the cluster is
  *       unregistered → in_use == 0 → not counted.) */
 int
-xrootd_srv_count_matching(const char *path)
+brix_srv_count_matching(const char *path)
 {
-    xrootd_srv_table_t *tbl;
-    xrootd_srv_entry_t *e;
+    brix_srv_table_t *tbl;
+    brix_srv_entry_t *e;
     ngx_uint_t          i;
     int                 n = 0;
 
@@ -230,7 +230,7 @@ xrootd_srv_count_matching(const char *path)
         return 0;
     }
 
-    ngx_shmtx_lock(&xrootd_srv_mutex);
+    ngx_shmtx_lock(&brix_srv_mutex);
     for (i = 0; i < tbl->capacity; i++) {
         e = &tbl->slots[i];
         if (!e->in_use) {
@@ -241,7 +241,7 @@ xrootd_srv_count_matching(const char *path)
         }
         n++;
     }
-    ngx_shmtx_unlock(&xrootd_srv_mutex);
+    ngx_shmtx_unlock(&brix_srv_mutex);
     return n;
 }
 
@@ -258,11 +258,11 @@ xrootd_srv_count_matching(const char *path)
  *       visited every candidate; reference cmsd does this via the tried list.
  * HOW:  Extract the opaque (everything after '?') from the raw request payload,
  *       locate "tried=", count its comma-separated hosts, and compare against
- *       xrootd_srv_count_matching(clean_path).  Conservative: a zero match count
+ *       brix_srv_count_matching(clean_path).  Conservative: a zero match count
  *       falls through to the normal CMS-locate path so this does not prematurely
  *       short-circuit hierarchical (parent-locate) clusters. */
 int
-xrootd_manager_tried_exhausted(const u_char *payload, size_t payload_len,
+brix_manager_tried_exhausted(const u_char *payload, size_t payload_len,
     const char *clean_path)
 {
     char          opaque[1024];
@@ -305,7 +305,7 @@ xrootd_manager_tried_exhausted(const u_char *payload, size_t payload_len,
         }
     }
 
-    n_match = xrootd_srv_count_matching(clean_path);
+    n_match = brix_srv_count_matching(clean_path);
     return (n_match > 0 && n_tried >= n_match);
 }
 
@@ -313,26 +313,26 @@ xrootd_manager_tried_exhausted(const u_char *payload, size_t payload_len,
 
 /* WHAT
  * Marks a registered server as temporarily unavailable for selection.
- * Called from xrootd_cms_srv_close() when a data server's CMS connection
+ * Called from brix_cms_srv_close() when a data server's CMS connection
  * drops.  The server entry stays in the registry so its paths and metrics are
- * preserved for the reconnect; xrootd_srv_select() and xrootd_srv_locate_all()
+ * preserved for the reconnect; brix_srv_select() and brix_srv_locate_all()
  * both skip entries whose blacklisted_until is in the future.
  *
  * WHY
  * A clean reconnect within the window re-registers and clears the flag,
  * making the server immediately available again.  A permanently dead server
  * stays blacklisted until the window expires, at which point its stale metrics
- * become visible — operators detect this via xrootd_cluster_server_last_seen_seconds.
+ * become visible — operators detect this via brix_cluster_server_last_seen_seconds.
  *
  * HOW
  * Locks mutex → scans for host+port match → increments error_count →
  * sets blacklisted_until = ngx_current_msec + duration_ms.  Unlocks.
  */
 void
-xrootd_srv_blacklist(const char *host, uint16_t port, ngx_msec_t duration_ms)
+brix_srv_blacklist(const char *host, uint16_t port, ngx_msec_t duration_ms)
 {
-    xrootd_srv_table_t *tbl;
-    xrootd_srv_entry_t *e;
+    brix_srv_table_t *tbl;
+    brix_srv_entry_t *e;
     ngx_uint_t          i;
 
     tbl = srv_table();
@@ -340,7 +340,7 @@ xrootd_srv_blacklist(const char *host, uint16_t port, ngx_msec_t duration_ms)
         return;
     }
 
-    ngx_shmtx_lock(&xrootd_srv_mutex);
+    ngx_shmtx_lock(&brix_srv_mutex);
 
     for (i = 0; i < tbl->capacity; i++) {
         e = &tbl->slots[i];
@@ -354,21 +354,21 @@ xrootd_srv_blacklist(const char *host, uint16_t port, ngx_msec_t duration_ms)
         break;
     }
 
-    ngx_shmtx_unlock(&xrootd_srv_mutex);
+    ngx_shmtx_unlock(&brix_srv_mutex);
 }
 
 
 /*
  * Phase 23 — clear a drain/blacklist set on a server (admin "undrain").
  * Resets blacklisted_until, error_count, and any health-check failure state so
- * xrootd_srv_select() routes to it again immediately.  Returns 1 if a matching
+ * brix_srv_select() routes to it again immediately.  Returns 1 if a matching
  * in-use entry was found, 0 otherwise.
  */
 int
-xrootd_srv_undrain(const char *host, uint16_t port)
+brix_srv_undrain(const char *host, uint16_t port)
 {
-    xrootd_srv_table_t *tbl;
-    xrootd_srv_entry_t *e;
+    brix_srv_table_t *tbl;
+    brix_srv_entry_t *e;
     ngx_uint_t          i;
     int                 found = 0;
 
@@ -377,7 +377,7 @@ xrootd_srv_undrain(const char *host, uint16_t port)
         return 0;
     }
 
-    ngx_shmtx_lock(&xrootd_srv_mutex);
+    ngx_shmtx_lock(&brix_srv_mutex);
 
     for (i = 0; i < tbl->capacity; i++) {
         e = &tbl->slots[i];
@@ -393,6 +393,6 @@ xrootd_srv_undrain(const char *host, uint16_t port)
         break;
     }
 
-    ngx_shmtx_unlock(&xrootd_srv_mutex);
+    ngx_shmtx_unlock(&brix_srv_mutex);
     return found;
 }

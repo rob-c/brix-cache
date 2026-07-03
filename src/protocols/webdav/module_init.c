@@ -3,7 +3,7 @@
  * Phase-38 split of module.c; behavior-identical.
  */
 #include "webdav_module_internal.h"
-#include "protocols/cvmfs/cvmfs.h"   /* $xrootd_protocol: cvmfs claim */
+#include "protocols/cvmfs/cvmfs.h"   /* $brix_protocol: cvmfs claim */
 
 
 /*
@@ -16,9 +16,9 @@
  */
 
 
-/* Preconfiguration: register the $xrootd_protocol variable. */
+/* Preconfiguration: register the $brix_protocol variable. */
 /*
- * Resolve $xrootd_protocol for the current request: "webdav", "s3", "cvmfs",
+ * Resolve $brix_protocol for the current request: "webdav", "s3", "cvmfs",
  * or "http". Precedence is webdav > s3 > cvmfs > plain http, decided by
  * which sibling module is enabled in this request's location conf (WebDAV
  * wins if several somehow apply). The labels are the central proto_list.h
@@ -26,12 +26,12 @@
  * proxy decisions to label the served protocol.
  */
 ngx_int_t
-xrootd_http_protocol_variable(ngx_http_request_t *r,
+brix_http_protocol_variable(ngx_http_request_t *r,
     ngx_http_variable_value_t *v, uintptr_t data)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *wdcf;
+    ngx_http_brix_webdav_loc_conf_t *wdcf;
     ngx_http_s3_loc_conf_t            *scf;
-    ngx_http_xrootd_cvmfs_loc_conf_t  *ccf;
+    ngx_http_brix_cvmfs_loc_conf_t  *ccf;
     const char                        *label;
     size_t                             len;
 
@@ -40,9 +40,9 @@ xrootd_http_protocol_variable(ngx_http_request_t *r,
     label = "http";
     len = sizeof("http") - 1;
 
-    wdcf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
-    scf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_s3_module);
-    ccf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_cvmfs_module);
+    wdcf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
+    scf = ngx_http_get_module_loc_conf(r, ngx_http_brix_s3_module);
+    ccf = ngx_http_get_module_loc_conf(r, ngx_http_brix_cvmfs_module);
     if (wdcf != NULL && wdcf->common.enable) {
         label = "webdav";
         len = sizeof("webdav") - 1;
@@ -65,17 +65,17 @@ xrootd_http_protocol_variable(ngx_http_request_t *r,
 
 
 ngx_int_t
-xrootd_http_add_protocol_variables(ngx_conf_t *cf)
+brix_http_add_protocol_variables(ngx_conf_t *cf)
 {
     ngx_http_variable_t *var;
-    ngx_str_t            name = ngx_string("xrootd_protocol");
+    ngx_str_t            name = ngx_string("brix_protocol");
 
     var = ngx_http_add_variable(cf, &name, NGX_HTTP_VAR_NOCACHEABLE);
     if (var == NULL) {
         return NGX_ERROR;
     }
 
-    var->get_handler = xrootd_http_protocol_variable;
+    var->get_handler = brix_http_protocol_variable;
     var->data = 0;
 
     return NGX_OK;
@@ -83,14 +83,14 @@ xrootd_http_add_protocol_variables(ngx_conf_t *cf)
 
 
 ngx_int_t
-ngx_http_xrootd_webdav_preconfiguration(ngx_conf_t *cf)
+ngx_http_brix_webdav_preconfiguration(ngx_conf_t *cf)
 {
-    return xrootd_http_add_protocol_variables(cf);
+    return brix_http_add_protocol_variables(cf);
 }
 
 
 ngx_int_t
-ngx_http_xrootd_webdav_init_process(ngx_cycle_t *cycle)
+ngx_http_brix_webdav_init_process(ngx_cycle_t *cycle)
 {
     (void) cycle;
     curl_global_init(CURL_GLOBAL_DEFAULT);
@@ -99,7 +99,7 @@ ngx_http_xrootd_webdav_init_process(ngx_cycle_t *cycle)
 
 
 void
-ngx_http_xrootd_webdav_exit_process(ngx_cycle_t *cycle)
+ngx_http_brix_webdav_exit_process(ngx_cycle_t *cycle)
 {
     (void) cycle;
     curl_global_cleanup();

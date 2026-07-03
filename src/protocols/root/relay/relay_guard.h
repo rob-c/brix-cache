@@ -1,5 +1,5 @@
-#ifndef NGX_XROOTD_RELAY_GUARD_H
-#define NGX_XROOTD_RELAY_GUARD_H
+#ifndef NGX_BRIX_RELAY_GUARD_H
+#define NGX_BRIX_RELAY_GUARD_H
 
 /*
  * relay_guard.h — bad-actor guard sink for the transparent stream relay.
@@ -26,18 +26,18 @@ typedef struct {
     int              drop;       /* set by the sink -> the pump tears down */
     char             ip[64];     /* NUL-terminated client address for audit */
     ngx_log_t       *log;        /* relay's stable log (no session appender) */
-} xrootd_relay_guard_t;
+} brix_relay_guard_t;
 
 /* Build the ruleset (default signatures + "root" profile) and record the
  * client address; a disabled guard leaves the sink a no-op. */
-void xrootd_relay_guard_init(xrootd_relay_guard_t *g, int enable,
+void brix_relay_guard_init(brix_relay_guard_t *g, int enable,
     const ngx_str_t *client_addr, ngx_log_t *log);
 
-/* Tap sink (xrootd_tap_sink_fn): ctx is the xrootd_relay_guard_t. */
-void xrootd_relay_guard_sink(void *ctx, const xrootd_tap_frame_t *f,
-    xrootd_tap_dir_t dir, const uint8_t *payload, size_t payload_len);
+/* Tap sink (brix_tap_sink_fn): ctx is the brix_relay_guard_t. */
+void brix_relay_guard_sink(void *ctx, const brix_tap_frame_t *f,
+    brix_tap_dir_t dir, const uint8_t *payload, size_t payload_len);
 
 /* 1 when a classified frame demanded the connection be dropped. */
-int xrootd_relay_guard_should_drop(const xrootd_relay_guard_t *g);
+int brix_relay_guard_should_drop(const brix_relay_guard_t *g);
 
-#endif /* NGX_XROOTD_RELAY_GUARD_H */
+#endif /* NGX_BRIX_RELAY_GUARD_H */

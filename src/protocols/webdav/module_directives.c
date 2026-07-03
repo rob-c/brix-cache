@@ -7,7 +7,7 @@
 char *
 webdav_conf_add_cors_origin(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *wlcf = conf;
+    ngx_http_brix_webdav_loc_conf_t *wlcf = conf;
     ngx_str_t                         *value;
     ngx_str_t                         *origin;
 
@@ -34,7 +34,7 @@ webdav_conf_add_cors_origin(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
 
 /*
- * xrootd_webdav_dig_export <name> <dir> — register a named read-only diagnostic
+ * brix_webdav_dig_export <name> <dir> — register a named read-only diagnostic
  * export (§3). The dir is realpath'd at config time into the export's `canon` (the
  * RESOLVE_BENEATH anchor); a non-existent dir is a config error so misconfiguration
  * is caught at startup, not at request time.
@@ -42,16 +42,16 @@ webdav_conf_add_cors_origin(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 char *
 webdav_conf_dig_export(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *wlcf = conf;
+    ngx_http_brix_webdav_loc_conf_t *wlcf = conf;
     ngx_str_t                         *value;
-    xrootd_dig_export_t               *ex;
+    brix_dig_export_t               *ex;
     char                               rp[PATH_MAX];
 
     (void) cmd;
 
     if (wlcf->dig_exports == NGX_CONF_UNSET_PTR || wlcf->dig_exports == NULL) {
         wlcf->dig_exports = ngx_array_create(cf->pool, 2,
-                                             sizeof(xrootd_dig_export_t));
+                                             sizeof(brix_dig_export_t));
         if (wlcf->dig_exports == NULL) {
             return NGX_CONF_ERROR;
         }
@@ -61,7 +61,7 @@ webdav_conf_dig_export(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     if (realpath((const char *) value[2].data, rp) == NULL) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
-                           "xrootd_webdav_dig_export: cannot resolve \"%V\"",
+                           "brix_webdav_dig_export: cannot resolve \"%V\"",
                            &value[2]);
         return NGX_CONF_ERROR;
     }
@@ -85,13 +85,13 @@ webdav_conf_dig_export(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
 
 /*
- * xrootd_webdav_proxy_auth anonymous|forward|token <bearer>
+ * brix_webdav_proxy_auth anonymous|forward|token <bearer>
  * 1 or 2 arguments: policy and optional token value.
  */
 char *
 webdav_conf_proxy_auth(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *conf = conf_ptr;
+    ngx_http_brix_webdav_loc_conf_t *conf = conf_ptr;
     ngx_str_t *value = cf->args->elts;
 
     (void) cmd;
@@ -107,7 +107,7 @@ webdav_conf_proxy_auth(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
     if (ngx_strcmp(value[1].data, "token") == 0) {
         if (cf->args->nelts < 3) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                               "xrootd_webdav_proxy_auth token requires a token value");
+                               "brix_webdav_proxy_auth token requires a token value");
             return NGX_CONF_ERROR;
         }
         conf->upstream_auth       = WEBDAV_PROXY_AUTH_TOKEN;
@@ -115,7 +115,7 @@ webdav_conf_proxy_auth(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
         return NGX_CONF_OK;
     }
     ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                       "xrootd_webdav_proxy_auth: unknown policy \"%V\""
+                       "brix_webdav_proxy_auth: unknown policy \"%V\""
                        " (expected anonymous, forward, or token <value>)",
                        &value[1]);
     return NGX_CONF_ERROR;
@@ -123,14 +123,14 @@ webdav_conf_proxy_auth(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
 
 
 /*
- * xrootd_webdav_proxy_upstream <url> [<url> ...]
+ * brix_webdav_proxy_upstream <url> [<url> ...]
  * Phase 21 Step D — accepts one or more http(s):// backend URLs; each is
  * resolved at postconfiguration into one or more round-robin backends.
  */
 char *
 webdav_conf_proxy_upstream(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *conf = conf_ptr;
+    ngx_http_brix_webdav_loc_conf_t *conf = conf_ptr;
     ngx_str_t                         *value = cf->args->elts;
     ngx_str_t                         *slot;
     ngx_uint_t                         i;
@@ -164,7 +164,7 @@ webdav_conf_proxy_upstream(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
 
 
 /*
- * Parse one "xrootd_webdav_open_file_cache" parameter token. Recognised tokens:
+ * Parse one "brix_webdav_open_file_cache" parameter token. Recognised tokens:
  *   max=N       -> *max     (must be > 0)
  *   inactive=T  -> *inactive (nginx time spec)
  *   off         -> *off = 1
@@ -201,7 +201,7 @@ webdav_open_file_cache_arg(ngx_str_t *arg, ngx_int_t *max, time_t *inactive,
 char *
 webdav_conf_open_file_cache(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *wlcf = conf;
+    ngx_http_brix_webdav_loc_conf_t *wlcf = conf;
 
     time_t       inactive;
     ngx_str_t   *value;
@@ -224,7 +224,7 @@ webdav_conf_open_file_cache(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             != NGX_OK)
         {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                               "invalid \"xrootd_webdav_open_file_cache\" "
+                               "invalid \"brix_webdav_open_file_cache\" "
                                "parameter \"%V\"", &value[i]);
             return NGX_CONF_ERROR;
         }
@@ -241,7 +241,7 @@ webdav_conf_open_file_cache(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     if (max == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                        "\"xrootd_webdav_open_file_cache\" must have the \"max\" parameter");
+                        "\"brix_webdav_open_file_cache\" must have the \"max\" parameter");
         return NGX_CONF_ERROR;
     }
 

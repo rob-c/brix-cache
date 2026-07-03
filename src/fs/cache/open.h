@@ -1,5 +1,5 @@
-#ifndef XROOTD_CACHE_OPEN_H
-#define XROOTD_CACHE_OPEN_H
+#ifndef BRIX_CACHE_OPEN_H
+#define BRIX_CACHE_OPEN_H
 
 #include "fs/vfs/vfs.h"
 
@@ -14,14 +14,14 @@
  * VFS cache-open hook: serve a read from the cache when a complete, fresh copy
  * exists, otherwise tell the caller to fall back to the origin. ctx is borrowed
  * (not retained). Sets *fh_out to NULL up front, then on a validated hit opens
- * the cache file read-only and adopts the fd (xrootd_vfs_adopt_fd), returning
+ * the cache file read-only and adopts the fd (brix_vfs_adopt_fd), returning
  * NGX_OK with *fh_out set. Returns NGX_DECLINED (do not serve from cache, no
- * error) when caching is disabled, XROOTD_VFS_O_NOCACHE is set, any
+ * error) when caching is disabled, BRIX_VFS_O_NOCACHE is set, any
  * write/create/trunc/append flag is present, or on miss / not-ready / stale meta.
  * Returns NGX_ERROR on a hard I/O failure with errno set.
  */
-ngx_int_t xrootd_cache_open(xrootd_vfs_ctx_t *ctx, ngx_uint_t flags,
-    xrootd_vfs_file_t **fh_out);
+ngx_int_t brix_cache_open(brix_vfs_ctx_t *ctx, ngx_uint_t flags,
+    brix_vfs_file_t **fh_out);
 
 /*
  * Refresh cache_path's access time (atime only) so the eviction pass treats it
@@ -29,7 +29,7 @@ ngx_int_t xrootd_cache_open(xrootd_vfs_ctx_t *ctx, ngx_uint_t flags,
  * success or where UTIME_OMIT is unavailable (no-op), NGX_ERROR on NULL/empty
  * path or a failed utimensat (errno set; failure also logged at DEBUG if log).
  */
-ngx_int_t xrootd_cache_record_access(const char *cache_path, size_t bytes,
+ngx_int_t brix_cache_record_access(const char *cache_path, size_t bytes,
     ngx_log_t *log);
 
 /*
@@ -40,7 +40,7 @@ ngx_int_t xrootd_cache_record_access(const char *cache_path, size_t bytes,
  * path not under root_canon (EINVAL), or a result that would overflow out
  * (ENAMETOOLONG).
  */
-ngx_int_t xrootd_cache_path_for_resolved(const char *cache_root_canon,
+ngx_int_t brix_cache_path_for_resolved(const char *cache_root_canon,
     const char *root_canon, const char *resolved, char *out, size_t outsz);
 
-#endif /* XROOTD_CACHE_OPEN_H */
+#endif /* BRIX_CACHE_OPEN_H */

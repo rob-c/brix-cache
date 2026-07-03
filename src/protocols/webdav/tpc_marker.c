@@ -1,7 +1,7 @@
 /*
  * tpc_marker.c — 202 Accepted response with WLCG Performance-Marker streaming.
  *
- * When xrootd_webdav_tpc_marker_interval is non-zero, HTTP-TPC COPY requests
+ * When brix_webdav_tpc_marker_interval is non-zero, HTTP-TPC COPY requests
  * receive a "202 Accepted" response immediately and stream Performance-Marker
  * blocks in the chunked body while the curl transfer runs in a thread pool
  * worker.  The body ends with "success\r\n" or "failure\r\n" when the transfer
@@ -32,7 +32,7 @@
 #include "core/compat/net_target.h"
 #include "core/compat/staged_file.h"
 #include "observability/dashboard/dashboard_tracking.h"
-#include "core/aio/aio.h"          /* xrootd_task_bind */
+#include "core/aio/aio.h"          /* brix_task_bind */
 #include "tpc/common/metrics.h"
 #include "tpc/common/registry.h"
 
@@ -75,7 +75,7 @@ typedef struct {
 typedef struct {
     tpc_marker_ctx_t                  *marker_ctx;
     ngx_log_t                         *log;
-    ngx_http_xrootd_webdav_loc_conf_t *conf;
+    ngx_http_brix_webdav_loc_conf_t *conf;
     int                                is_push;
     char                               url[4096];
     char                               local_path[WEBDAV_MAX_PATH];
@@ -166,90 +166,90 @@ tpc_marker_finish(ngx_http_request_t *r, tpc_marker_ctx_t *ctx, int failed)
         final_bytes = ctx->is_pull ? 0 : ctx->push_file_size;
     }
 
-    (void) xrootd_tpc_progress_emit(ctx->transfer_id, final_bytes, final_bytes,
-                                    failed ? XROOTD_TPC_STATE_ERROR
-                                           : XROOTD_TPC_STATE_DONE,
+    (void) brix_tpc_progress_emit(ctx->transfer_id, final_bytes, final_bytes,
+                                    failed ? BRIX_TPC_STATE_ERROR
+                                           : BRIX_TPC_STATE_DONE,
                                     r->connection->log);
     tpc_marker_send_all(r, now, ctx);
 
     /* Atomically commit the pull temp file. */
     if (!failed && ctx->is_pull && ctx->tmp_path[0] != '\0') {
         if (!ctx->overwrite) {
-            if (xrootd_link_confined_canon(r->connection->log, ctx->root_canon,
+            if (brix_link_confined_canon(r->connection->log, ctx->root_canon,
                                            ctx->tmp_path,
                                            ctx->final_path) != 0)
             {
                 ngx_log_error(NGX_LOG_ERR, r->connection->log, ngx_errno,
-                              "xrootd_webdav: TPC marker link() failed");
-                xrootd_unlink_confined_canon(r->connection->log, ctx->root_canon,
+                              "brix_webdav: TPC marker link() failed");
+                brix_unlink_confined_canon(r->connection->log, ctx->root_canon,
                                              ctx->tmp_path, 0);
                 ctx->tmp_path[0] = '\0';
-                XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_COMMIT_ERROR]);
+                BRIX_WEBDAV_METRIC_INC(tpc_total[BRIX_WEBDAV_TPC_COMMIT_ERROR]);
                 failed = 1;
             } else {
-                xrootd_unlink_confined_canon(r->connection->log, ctx->root_canon,
+                brix_unlink_confined_canon(r->connection->log, ctx->root_canon,
                                              ctx->tmp_path, 0);
                 ctx->tmp_path[0] = '\0';
             }
         } else {
-            if (xrootd_rename_confined_canon(r->connection->log, ctx->root_canon,
+            if (brix_rename_confined_canon(r->connection->log, ctx->root_canon,
                                              ctx->tmp_path,
                                              ctx->final_path) != 0)
             {
                 ngx_log_error(NGX_LOG_ERR, r->connection->log, ngx_errno,
-                              "xrootd_webdav: TPC marker rename() failed");
-                xrootd_unlink_confined_canon(r->connection->log, ctx->root_canon,
+                              "brix_webdav: TPC marker rename() failed");
+                brix_unlink_confined_canon(r->connection->log, ctx->root_canon,
                                              ctx->tmp_path, 0);
                 ctx->tmp_path[0] = '\0';
-                XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_COMMIT_ERROR]);
+                BRIX_WEBDAV_METRIC_INC(tpc_total[BRIX_WEBDAV_TPC_COMMIT_ERROR]);
                 failed = 1;
             } else {
                 ctx->tmp_path[0] = '\0';
             }
         }
     } else if (failed && ctx->is_pull && ctx->tmp_path[0] != '\0') {
-        xrootd_unlink_confined_canon(r->connection->log, ctx->root_canon,
+        brix_unlink_confined_canon(r->connection->log, ctx->root_canon,
                                      ctx->tmp_path, 0);
         ctx->tmp_path[0] = '\0';
     }
 
     /* Registry + metrics. */
-    (void) xrootd_tpc_registry_remove(ctx->transfer_id, r->connection->log);
+    (void) brix_tpc_registry_remove(ctx->transfer_id, r->connection->log);
 
     if (failed) {
-        XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_CURL_ERROR]);
-        xrootd_tpc_metric_transfer(XROOTD_TPC_PROTO_WEBDAV,
-                                   ctx->is_pull ? XROOTD_TPC_DIR_PULL
-                                                : XROOTD_TPC_DIR_PUSH,
-                                   XROOTD_TPC_METRIC_ERROR, 0,
+        BRIX_WEBDAV_METRIC_INC(tpc_total[BRIX_WEBDAV_TPC_CURL_ERROR]);
+        brix_tpc_metric_transfer(BRIX_TPC_PROTO_WEBDAV,
+                                   ctx->is_pull ? BRIX_TPC_DIR_PULL
+                                                : BRIX_TPC_DIR_PUSH,
+                                   BRIX_TPC_METRIC_ERROR, 0,
                                    r->connection->log);
-        xrootd_dashboard_http_error(r, "webdav TPC failed");
+        brix_dashboard_http_error(r, "webdav TPC failed");
         status_line = "failure\r\n";
         status_len  = sizeof("failure\r\n") - 1;
     } else {
-        XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_CURL_SUCCESS]);
+        BRIX_WEBDAV_METRIC_INC(tpc_total[BRIX_WEBDAV_TPC_CURL_SUCCESS]);
         if (ctx->is_pull) {
-            XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_PULL_SUCCESS]);
-            xrootd_tpc_metric_transfer(XROOTD_TPC_PROTO_WEBDAV,
-                                       XROOTD_TPC_DIR_PULL,
-                                       XROOTD_TPC_METRIC_SUCCESS,
+            BRIX_WEBDAV_METRIC_INC(tpc_total[BRIX_WEBDAV_TPC_PULL_SUCCESS]);
+            brix_tpc_metric_transfer(BRIX_TPC_PROTO_WEBDAV,
+                                       BRIX_TPC_DIR_PULL,
+                                       BRIX_TPC_METRIC_SUCCESS,
                                        (size_t) final_bytes,
                                        r->connection->log);
         } else {
-            XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_PUSH_SUCCESS]);
-            xrootd_tpc_metric_transfer(XROOTD_TPC_PROTO_WEBDAV,
-                                       XROOTD_TPC_DIR_PUSH,
-                                       XROOTD_TPC_METRIC_SUCCESS,
+            BRIX_WEBDAV_METRIC_INC(tpc_total[BRIX_WEBDAV_TPC_PUSH_SUCCESS]);
+            brix_tpc_metric_transfer(BRIX_TPC_PROTO_WEBDAV,
+                                       BRIX_TPC_DIR_PUSH,
+                                       BRIX_TPC_METRIC_SUCCESS,
                                        (size_t) final_bytes,
                                        r->connection->log);
         }
         if (final_bytes > 0) {
-            xrootd_dashboard_http_add(r, (ngx_atomic_int_t) final_bytes);
+            brix_dashboard_http_add(r, (ngx_atomic_int_t) final_bytes);
         }
         status_line = "success\r\n";
         status_len  = sizeof("success\r\n") - 1;
     }
-    xrootd_dashboard_http_finish(r);
+    brix_dashboard_http_finish(r);
 
     b = ngx_create_temp_buf(r->pool, status_len);
     if (b != NULL) {
@@ -327,7 +327,7 @@ tpc_marker_cleanup(void *data)
      * normal completion the transfer is already gone, so this is a no-op.
      */
     if (ctx->transfer_id != 0) {
-        (void) xrootd_tpc_registry_request_cancel(ctx->transfer_id);
+        (void) brix_tpc_registry_request_cancel(ctx->transfer_id);
     }
 
     if (ctx->timer.timer_set) {
@@ -352,8 +352,8 @@ tpc_marker_thread_func(void *data, ngx_log_t *log)
 
     /* SSRF preflight: resolve the remote URL and reject prohibited ranges. */
     {
-        xrootd_net_target_t        net_target;
-        xrootd_net_target_policy_t net_policy;
+        brix_net_target_t        net_target;
+        brix_net_target_policy_t net_policy;
         ngx_str_t                  url_str;
         char                       ssrf_err[256];
 
@@ -367,13 +367,13 @@ tpc_marker_thread_func(void *data, ngx_log_t *log)
         net_policy.allow_private      = tt->conf->tpc_allow_private;
         net_policy.default_https_port = 443;
 
-        if (xrootd_net_target_parse(NULL, &url_str, &net_target,
+        if (brix_net_target_parse(NULL, &url_str, &net_target,
                                     ssrf_err, sizeof(ssrf_err)) != NGX_OK
-            || xrootd_net_target_check_dns(&net_target, &net_policy,
+            || brix_net_target_check_dns(&net_target, &net_policy,
                                            ssrf_err, sizeof(ssrf_err)) != NGX_OK)
         {
             ngx_log_error(NGX_LOG_WARN, tt->log, 0,
-                          "xrootd_webdav: HTTP-TPC SSRF blocked: %s", ssrf_err);
+                          "brix_webdav: HTTP-TPC SSRF blocked: %s", ssrf_err);
             progress->result = NGX_HTTP_FORBIDDEN;
             ngx_memory_barrier();
             progress->completed = 1;
@@ -414,7 +414,7 @@ tpc_marker_thread_func(void *data, ngx_log_t *log)
  */
 ngx_int_t
 webdav_tpc_marker_start(ngx_http_request_t *r,
-    ngx_http_xrootd_webdav_loc_conf_t *conf, ngx_uint_t n_streams,
+    ngx_http_brix_webdav_loc_conf_t *conf, ngx_uint_t n_streams,
     const char *url, const char *tmp_path, const char *final_path,
     ngx_flag_t is_pull, ngx_flag_t overwrite, ngx_flag_t existed,
     ngx_array_t *transfer_headers, uint64_t transfer_id)
@@ -432,7 +432,7 @@ webdav_tpc_marker_start(ngx_http_request_t *r,
     }
 
     if (n_streams == 0) n_streams = 1;
-    if (n_streams > XROOTD_TPC_MAX_STREAMS) n_streams = XROOTD_TPC_MAX_STREAMS;
+    if (n_streams > BRIX_TPC_MAX_STREAMS) n_streams = BRIX_TPC_MAX_STREAMS;
 
     /* Shared progress counters (thread writes, event loop reads). */
     progress = ngx_pcalloc(r->pool, sizeof(*progress));
@@ -487,7 +487,7 @@ webdav_tpc_marker_start(ngx_http_request_t *r,
     ngx_cpystrn((u_char *) tt->local_path,
                 (u_char *) (tmp_path ? tmp_path : ""), sizeof(tt->local_path));
 
-    xrootd_task_bind(task, tpc_marker_thread_func, tpc_marker_thread_done);
+    brix_task_bind(task, tpc_marker_thread_func, tpc_marker_thread_done);
     task->event.log     = r->connection->log;
 
     /* Pool cleanup: abort in-progress temp file on request destruction. */

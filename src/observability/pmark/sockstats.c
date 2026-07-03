@@ -8,7 +8,7 @@
  *   strings with the SciTags address-family indicator.
  *
  * WHY: XRootD's firefly carries usage.received/sent (from TCP_INFO), netlink.rtt,
- *   and flow-id.{src,dst}-ip/port.  The codebase's xrootd_format_iso8601() only
+ *   and flow-id.{src,dst}-ip/port.  The codebase's brix_format_iso8601() only
  *   emits millisecond ".000Z" precision, and there is no sockaddr→"ip:port"
  *   helper, so firefly needs its own.  All three are best-effort: on any failure
  *   they zero/blank the output and return NGX_DECLINED — packet marking never
@@ -45,7 +45,7 @@
 
 
 ngx_int_t
-xrootd_pmark_sockstats(int fd, xrootd_pmark_sockstats_t *st)
+brix_pmark_sockstats(int fd, brix_pmark_sockstats_t *st)
 {
     ngx_memzero(st, sizeof(*st));
 
@@ -83,7 +83,7 @@ xrootd_pmark_sockstats(int fd, xrootd_pmark_sockstats_t *st)
 
 
 void
-xrootd_pmark_iso8601_now(char *buf, size_t buflen)
+brix_pmark_iso8601_now(char *buf, size_t buflen)
 {
     struct timeval  tv;
     struct tm       tm;
@@ -106,7 +106,7 @@ xrootd_pmark_iso8601_now(char *buf, size_t buflen)
 
 
 ngx_int_t
-xrootd_pmark_endpoint(int fd, int which, char *ip, size_t iplen, int *port,
+brix_pmark_endpoint(int fd, int which, char *ip, size_t iplen, int *port,
     char *afi)
 {
     struct sockaddr_storage  ss;
